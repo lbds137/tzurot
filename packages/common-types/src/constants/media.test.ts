@@ -95,6 +95,7 @@ describe('Media Constants', () => {
       expect(EMBED_NAMING.PREFIX).toBe('embed-');
       expect(EMBED_NAMING.IMAGE_SLOT).toBe('image');
       expect(EMBED_NAMING.THUMBNAIL_SLOT).toBe('thumbnail');
+      expect(EMBED_NAMING.MEDIA_SLOT).toBe('media');
       expect(EMBED_NAMING.DEFAULT_EXTENSION).toBe('.png');
     });
   });

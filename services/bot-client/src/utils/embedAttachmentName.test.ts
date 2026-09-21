@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { EMBED_NAMING } from '@tzurot/common-types/constants/media';
-import { embedImageAttachmentName } from './embedAttachmentName.js';
+import { embedImageAttachmentName, embedMediaAttachmentName } from './embedAttachmentName.js';
 
 describe('embedImageAttachmentName', () => {
   it('names the image slot of the first embed', () => {
@@ -22,5 +22,15 @@ describe('embedImageAttachmentName', () => {
   it('names both slots of a second embed independently', () => {
     expect(embedImageAttachmentName(2, EMBED_NAMING.IMAGE_SLOT)).toBe('embed-3-image.png');
     expect(embedImageAttachmentName(2, EMBED_NAMING.THUMBNAIL_SLOT)).toBe('embed-3-thumbnail.png');
+  });
+});
+
+describe('embedMediaAttachmentName', () => {
+  it('names the first media item of the first embed', () => {
+    expect(embedMediaAttachmentName(0, 0)).toBe('embed-1-media-1.png');
+  });
+
+  it('renders both the embed and media index 1-based', () => {
+    expect(embedMediaAttachmentName(1, 2)).toBe('embed-2-media-3.png');
   });
 });

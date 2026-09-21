@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { extractEmbedImages } from './embedImageExtractor.js';
 import type { Embed } from 'discord.js';
+import { VXREDDIT_COMPONENTS_V2_EMBED } from './fixtures/vxredditComponentsV2Embed.js';
 
 describe('extractEmbedImages', () => {
   it('should return undefined for undefined input', () => {
@@ -20,6 +21,7 @@ describe('extractEmbedImages', () => {
       {
         image: { url: 'https://example.com/image.png' },
         thumbnail: null,
+        toJSON: () => ({}),
       },
     ] as unknown as Embed[];
 
@@ -38,6 +40,7 @@ describe('extractEmbedImages', () => {
       {
         image: null,
         thumbnail: { url: 'https://example.com/thumb.png' },
+        toJSON: () => ({}),
       },
     ] as unknown as Embed[];
 
@@ -54,6 +57,7 @@ describe('extractEmbedImages', () => {
       {
         image: { url: 'https://example.com/image.png' },
         thumbnail: { url: 'https://example.com/thumb.png' },
+        toJSON: () => ({}),
       },
     ] as unknown as Embed[];
 
@@ -77,10 +81,12 @@ describe('extractEmbedImages', () => {
       {
         image: { url: 'https://example.com/image1.png' },
         thumbnail: null,
+        toJSON: () => ({}),
       },
       {
         image: { url: 'https://example.com/image2.png' },
         thumbnail: null,
+        toJSON: () => ({}),
       },
     ] as unknown as Embed[];
 
@@ -103,10 +109,12 @@ describe('extractEmbedImages', () => {
       {
         image: { url: 'https://example.com/e1-image.png' },
         thumbnail: { url: 'https://example.com/e1-thumb.png' },
+        toJSON: () => ({}),
       },
       {
         image: { url: 'https://example.com/e2-image.png' },
         thumbnail: null,
+        toJSON: () => ({}),
       },
     ] as unknown as Embed[];
 
@@ -124,6 +132,7 @@ describe('extractEmbedImages', () => {
         image: null,
         thumbnail: null,
         title: 'Just a text embed',
+        toJSON: () => ({}),
       },
     ] as unknown as Embed[];
 
@@ -135,6 +144,7 @@ describe('extractEmbedImages', () => {
       {
         image: { url: '' },
         thumbnail: null,
+        toJSON: () => ({}),
       },
     ] as unknown as Embed[];
 
@@ -146,6 +156,7 @@ describe('extractEmbedImages', () => {
       {
         image: undefined,
         thumbnail: undefined,
+        toJSON: () => ({}),
       },
     ] as unknown as Embed[];
 
@@ -166,6 +177,7 @@ describe('extractEmbedImages', () => {
           url: 'https://i.redd.it/thumb.jpg',
           proxyURL: 'https://media.discordapp.net/external/def456/thumb.jpg',
         },
+        toJSON: () => ({}),
       },
     ] as unknown as Embed[];
 
@@ -182,6 +194,7 @@ describe('extractEmbedImages', () => {
       {
         image: { url: 'https://cdn.example.com/bot-image.png', proxyURL: undefined },
         thumbnail: null,
+        toJSON: () => ({}),
       },
     ] as unknown as Embed[];
 
@@ -197,15 +210,18 @@ describe('extractEmbedImages', () => {
         image: null,
         thumbnail: null,
         title: 'Text only',
+        toJSON: () => ({}),
       },
       {
         image: { url: 'https://example.com/image.png' },
         thumbnail: null,
+        toJSON: () => ({}),
       },
       {
         image: null,
         thumbnail: null,
         description: 'Another text embed',
+        toJSON: () => ({}),
       },
     ] as unknown as Embed[];
 
@@ -213,5 +229,122 @@ describe('extractEmbedImages', () => {
 
     expect(result).toHaveLength(1);
     expect(result![0].url).toBe('https://example.com/image.png');
+  });
+
+  it('extracts the fixture Components-V2 gallery media as one attachment', () => {
+    const embeds = [
+      {
+        image: null,
+        thumbnail: null,
+        toJSON: () => VXREDDIT_COMPONENTS_V2_EMBED,
+      },
+    ] as unknown as Embed[];
+
+    const result = extractEmbedImages(embeds);
+
+    expect(result).toEqual([
+      {
+        url: 'https://images-ext-1.discordapp.net/external/examplehash0000000000000000000000000000000/https/i.redd.it/exampleimg01.jpeg',
+        name: 'embed-1-media-1.png',
+        isEmbedPreview: true,
+        contentType: 'image/jpeg',
+        size: undefined,
+      },
+    ]);
+  });
+
+  it('skips a non-image gallery item without consuming a media index slot', () => {
+    const embeds = [
+      {
+        image: null,
+        thumbnail: null,
+        toJSON: () => ({
+          components: [
+            {
+              type: 17,
+              components: [
+                {
+                  type: 12,
+                  items: [
+                    { media: { url: 'https://example.com/clip.mp4', content_type: 'video/mp4' } },
+                    { media: { url: 'https://example.com/photo.png', content_type: 'image/png' } },
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
+      },
+    ] as unknown as Embed[];
+
+    const result = extractEmbedImages(embeds);
+
+    expect(result).toHaveLength(1);
+    expect(result![0].url).toBe('https://example.com/photo.png');
+    expect(result![0].name).toBe('embed-1-media-1.png');
+  });
+
+  it('still extracts a spoilered gallery item as an attachment', () => {
+    const embeds = [
+      {
+        image: null,
+        thumbnail: null,
+        toJSON: () => ({
+          components: [
+            {
+              type: 17,
+              components: [
+                {
+                  type: 12,
+                  items: [
+                    {
+                      media: {
+                        url: 'https://example.com/spoiler.png',
+                        content_type: 'image/png',
+                      },
+                      spoiler: true,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
+      },
+    ] as unknown as Embed[];
+
+    const result = extractEmbedImages(embeds);
+
+    expect(result).toHaveLength(1);
+    expect(result![0].url).toBe('https://example.com/spoiler.png');
+    expect(result![0].name).toBe('embed-1-media-1.png');
+  });
+
+  it('falls back to media.url when a gallery item has no proxy_url', () => {
+    const embeds = [
+      {
+        image: null,
+        thumbnail: null,
+        toJSON: () => ({
+          components: [
+            {
+              type: 17,
+              components: [
+                {
+                  type: 12,
+                  items: [{ media: { url: 'https://example.com/no-proxy.jpg' } }],
+                },
+              ],
+            },
+          ],
+        }),
+      },
+    ] as unknown as Embed[];
+
+    const result = extractEmbedImages(embeds);
+
+    expect(result).toHaveLength(1);
+    expect(result![0].url).toBe('https://example.com/no-proxy.jpg');
+    expect(result![0].name).toBe('embed-1-media-1.png');
   });
 });
