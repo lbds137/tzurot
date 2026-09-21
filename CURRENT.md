@@ -1,8 +1,8 @@
 # Current
 
-> **Version**: v3.0.0-beta.226 — "the recent-days digest lane" (8 PRs / 8 runtime / 155 range files + 20 cut-commit files; two additive migrations premigrated to prod; PR #2450 merged 2026-09-18 13:42Z, main `0f1e9cfbc`; finalize done, tagged `latest`). Constituent detail: git + release notes.
+> **Version**: v3.0.0-beta.227 — "attachment provenance, the embed diagnostic, and the gateway hardening" (9 PRs / 8 runtime / 116 PR-diff files; no migrations; PR #2460 merged 2026-09-21 00:34Z, main `56e36674d`; finalize done, tagged `latest`). Constituent detail: git + release notes.
 >
-> **Previous**: v3.0.0-beta.225 — "the cross-persona memory leak, the timezone cluster, and windowless secret rotation" (18 PRs / 12 runtime / 216 range files; no migrations; 2026-09-16 19:19Z).
+> **Previous**: v3.0.0-beta.226 — "the recent-days digest lane" (8 PRs / 8 runtime / 155 range files; two additive migrations premigrated; 2026-09-18 13:42Z, `0f1e9cfbc`).
 
 ---
 
@@ -15,11 +15,11 @@
 - **Done 2026-09-13**: the Default `system_prompts` row edited on dev and prod (v1 then v2; long-form under doc-97 Phase 2) · `WEEKLY_AUDIT_GH_TOKEN` set (Dependabot row reads; deletion-safety row fixed by #2413) · `TZUROT_RAILWAY_API_TOKEN_DEV`/`_PROD` in the local `.env` (tooling reads them after the TASK-62 follow-up) · the TASK-798 prod measurement · the stale `.bashrc` OpenRouter key revoked · the Waffles Share-Memories question CLOSED by ruling (deal with it if it recurs) · the privacy-policy z.ai summaries bullet committed.
 - **Agent-run, no owner action**: the doc-17 gap-bucket cache read · the Emily gate and dead-row read · TASK-702 probe · TASK-62 env-suffixed token read · TASK-951 `.env.example` guard · TASK-838 cadence ledger then the doc-61 economy pass (ruled 2026-09-13, Opus lane) · the #2270 link-share watcher · the five `state:observable` watches TASK-952–956.
 
-## 🚀 2026-09-20 — beta.227 CUT IN PROGRESS (Fable driving; owner ruled cut-now)
+## 🚀 2026-09-20/21 — beta.227 CUT (Fable driving; owner ruled cut-now; PR #2460 merged 2026-09-21 00:34Z, one holistic review round, no findings)
 
 **The ruling**: the 09-18 drain-first criterion was taken on a two-PR range; by 09-20 the range held a high-priority security fix (#2458), the diagnostic for the open vxreddit Production Issue (#2459, which needs prod to produce its capture) and the adm-zip override (#2457, alerts clear only on `main`). Raised once as new information; the owner chose cut-now over hold-for-drain and over cut-after-the-two-investigations. The five drain tasks (959, 960, 961, 962, 1017) move to beta.228. `release:range` at the ruling: **9 PRs / 8 runtime / 100 files**, no migrations, preflight clean (repo-settings no findings, no dependabot PRs, no new models). Contents, risk appraisal and deploy notes live in the release PR body, not here.
 
-**Smoke — the ONE needs-smoke item**: (1) ☐ post one vxreddit link to a character on prod after the deploy. That is the only thing that produces the EmbedShapeDiagnostics capture TASK-1024 step 2 is gated on; the agent reads the line (`pnpm ops logs --env prod --service bot-client`, grep `EmbedShapeDiagnostics`); a `componentCount: 0` line is a result too. **Observability instead of smoke** (high tier, `/inspect` on the next ordinary turn, no round asked): an image upload now shows `[Image: <name>]` above its description in the current turn; a voice message shows `[Voice message: Ns]` plus the transcript wrapper — the character should answer the transcript as before.
+**Smoke — the ONE needs-smoke item**: (1) ☐ post one vxreddit link where a character replies — on DEV this works now (develop has run #2459 since 2026-09-20 23:11Z; the dev log held no capture as of 2026-09-21 00:20Z), prod after this deploy. Regular message, guild or DM, either; no masking state (channel history is a live REST fetch). The character will say it cannot see the embed's content, as before; the observable is the log line, which the agent reads (`pnpm ops logs --env dev --service bot-client`, grep `EmbedShapeDiagnostics`). That line is the capture TASK-1024 step 2 is gated on; a `componentCount: 0` line is a result too. Report: say you posted it. **Observability instead of smoke** (high tier, `/inspect` on the next ordinary turn, no round asked): an image upload now shows `[Image: <name>]` above its description in the current turn; a voice message shows `[Voice message: Ns]` plus the transcript wrapper — the character should answer the transcript as before.
 
 **Agent watches (no owner action)**: the first prod `Recent-days digest retention sweep` tick (`48 9 * * *` UTC) · TASK-947: re-run `security:advisories` once `main` carries the override · the 401 re-authenticate path on an undecryptable shapes cookie (unsmokeable; observability only) · the redacted `Content-Disposition` on the next account export.
 
