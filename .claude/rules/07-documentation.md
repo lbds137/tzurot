@@ -65,7 +65,7 @@ Two corollaries: tracked surfaces (commit messages, PR bodies, backlog entries) 
 
 ## Command Blocks Are Code
 
-A command block in a rule, skill, or reference doc is code that a future session runs verbatim. It ships only after it has been executed in the state it is written for, such as the upstream-less branch, the unreachable remote, or the dirty tree. The prose beside it records what that run observed, not what the author expected. Reading cannot substitute for running, because the reader brings the same model of the command that the author used when writing it. An example commit message, branch name, or config snippet counts as a command too: run it through the hook or validator that will judge it.
+A command block in a rule, skill, or reference doc is code that a future session runs verbatim. It ships only after it has been executed in the state it is written for, including the failure or edge state it exists to detect, not only the ordinary one. The prose beside it records what that run observed, not what the author expected. Reading cannot substitute for running, because the reader brings the same model of the command that the author used when writing it. An example commit message, branch name, or config snippet counts as a command too: run it through the hook or validator that will judge it. This is the documentation form of the execute-before-trust rules in `00-critical.md` (the end-to-end dev exercise for ops tooling, and the probe before an external-system claim).
 
 ## Reference Root Files
 
