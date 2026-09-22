@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-22 16:36'
+updated_date: '2026-09-22 18:28'
 labels:
   - 'area:tooling'
   - 'size:S'
@@ -23,3 +24,9 @@ Fix shape, when the alias flips: (1) settings.json modelSettings gains a claude-
 Sequencing (owner ruling 2026-09-22): run the /tzurot-usage-audit mining pass at the next stopping point (#2472 merged, TASK-318 PR pushed) BEFORE the first Opus 5.5 window, so the Fable sample is closed before the sweep sample opens; Fable weekly usage was 55 percent on the Tuesday, ahead of linear pace.
 Acceptance: a 5.5 session shows the right effort with no statusline alarm; the two skill cites name 5.5 sources; the sweep result is recorded in the driver memory; the driver-split decision is written to the board.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-09-22 (Opus 5.5 session): items (1) and (2) DONE. ~/.claude/settings.json modelSettings gained claude-opus-5-5 at medium; ~/.claude/statusline.sh wants medium for an Opus 5.5 model name (display name or id), high for Opus 5 and Fable, alarm tested for all eight model x effort pairs. The alias question is moot: the owner selected Opus 5.5 by /model. Remaining: (3) the two orchestration-skill cites, (4) the sweep result and driver-split decision after this window.
+<!-- SECTION:NOTES:END -->
