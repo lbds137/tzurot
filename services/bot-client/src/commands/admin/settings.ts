@@ -68,7 +68,7 @@ const CASCADE_PAGES = buildCascadePages(VOICE_SETTINGS);
  * one session. System settings carry `plainDisplay` on their definitions, so
  * the mixed dashboard renders cascade status only where cascade semantics exist.
  */
-const ADMIN_SETTINGS_CONFIG: SettingsDashboardConfig = {
+export const ADMIN_SETTINGS_CONFIG: SettingsDashboardConfig = {
   level: 'global',
   entityType: ENTITY_TYPE,
   titlePrefix: 'Global',
@@ -77,6 +77,8 @@ const ADMIN_SETTINGS_CONFIG: SettingsDashboardConfig = {
   pages: [...CASCADE_PAGES.pages, ...SYSTEM_SETTINGS_PAGES],
   overviewDescription:
     'Configure global cascade defaults (Defaults pages) and owner-only system settings (System pages).',
+  scopeNote: () =>
+    "🌐 Applies to everyone, bot-wide. Character, channel, and each user's own settings override these.",
 };
 
 /**

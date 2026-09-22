@@ -30,6 +30,7 @@ const createTestConfig = (): SettingsDashboardConfig => ({
   titlePrefix: 'Test',
   color: DISCORD_COLORS.BLURPLE,
   settings: EXTENDED_CONTEXT_SETTINGS,
+  scopeNote: () => 'test scope',
 });
 
 const createTestSession = (

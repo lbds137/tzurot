@@ -66,7 +66,7 @@ const ENTITY_TYPE = 'channel-settings';
  * Includes both extended context and memory settings — all are now wirable
  * via the channel tier of the config cascade.
  */
-const CHANNEL_SETTINGS_CONFIG: SettingsDashboardConfig = {
+export const CHANNEL_SETTINGS_CONFIG: SettingsDashboardConfig = {
   level: 'channel',
   entityType: ENTITY_TYPE,
   titlePrefix: 'Channel',
@@ -83,6 +83,8 @@ const CHANNEL_SETTINGS_CONFIG: SettingsDashboardConfig = {
   // (design-system §3.5: bulk-destructive dashboard clicks confirm; the
   // typed-phrase Tier B stays reserved for irreversible purge-class acts).
   resetButton: { label: 'Reset to defaults' },
+  scopeNote: () =>
+    "📍 Applies to members in this channel who haven't set their own value. Personal settings override these.",
 };
 
 /**

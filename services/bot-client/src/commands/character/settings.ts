@@ -43,7 +43,7 @@ const ENTITY_TYPE = 'character-settings';
 /**
  * Dashboard configuration for character settings
  */
-const CHARACTER_SETTINGS_CONFIG: SettingsDashboardConfig = {
+export const CHARACTER_SETTINGS_CONFIG: SettingsDashboardConfig = {
   level: 'personality',
   entityType: ENTITY_TYPE,
   titlePrefix: 'Character',
@@ -54,6 +54,8 @@ const CHARACTER_SETTINGS_CONFIG: SettingsDashboardConfig = {
     ...DISPLAY_SETTINGS,
     ...VOICE_CASCADE_SETTINGS,
   ],
+  scopeNote: name =>
+    `🎭 Applies to everyone talking to **${name}**. Channel settings and each user's own settings override these.`,
 };
 
 /**

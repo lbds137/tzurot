@@ -171,6 +171,7 @@ describe('handleSetButton', () => {
     titlePrefix: 'Test',
     color: 0x5865f2,
     settings: EXTENDED_CONTEXT_SETTINGS,
+    scopeNote: () => 'test scope',
   } as SettingsDashboardConfig;
 
   function makeSession(): SettingsDashboardSession {

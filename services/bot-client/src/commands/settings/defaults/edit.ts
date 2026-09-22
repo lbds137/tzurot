@@ -57,7 +57,7 @@ const CASCADE_PAGES = buildCascadePages(VOICE_CASCADE_SETTINGS);
 /**
  * Dashboard configuration for user default settings
  */
-const USER_DEFAULTS_CONFIG: SettingsDashboardConfig = {
+export const USER_DEFAULTS_CONFIG: SettingsDashboardConfig = {
   level: 'user-default',
   entityType: ENTITY_TYPE,
   titlePrefix: 'Your Default',
@@ -66,7 +66,8 @@ const USER_DEFAULTS_CONFIG: SettingsDashboardConfig = {
   color: DISCORD_COLORS.BLURPLE,
   settings: CASCADE_PAGES.settings,
   pages: CASCADE_PAGES.pages,
-  descriptionNote: 'These defaults apply across all characters unless overridden.',
+  scopeNote: () =>
+    '👤 Applies only to your conversations, with every character. Your per-character overrides still win.',
 };
 
 /**

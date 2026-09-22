@@ -42,6 +42,7 @@ const createTestConfig = (): SettingsDashboardConfig => ({
   titlePrefix: 'Test',
   color: DISCORD_COLORS.BLURPLE,
   settings: [...EXTENDED_CONTEXT_SETTINGS, ...VOICE_SETTINGS],
+  scopeNote: () => 'test scope',
 });
 
 const createTestData = (): SettingsData => ({
@@ -1815,6 +1816,7 @@ describe('PR-2 mechanism: page action, BOOLEAN/TEXT, retry', () => {
       { id: 'context', label: 'Context', settingIds: EXTENDED_CONTEXT_SETTINGS.map(s => s.id) },
       { id: 'system', label: 'System', settingIds: ['sysFlag', 'sysModel'] },
     ],
+    scopeNote: () => 'test scope',
   });
 
   const mechData = (): SettingsData => ({
