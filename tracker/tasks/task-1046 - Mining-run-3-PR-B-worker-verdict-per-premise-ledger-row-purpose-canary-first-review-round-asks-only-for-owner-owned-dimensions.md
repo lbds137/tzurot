@@ -3,9 +3,10 @@ id: TASK-1046
 title: >-
   Mining run 3 PR B: worker verdict per premise-ledger row + purpose canary
   first; review-round asks only for owner-owned dimensions
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-22 18:21'
+updated_date: '2026-09-22 19:55'
 labels:
   - 'area:skills'
   - 'size:S'
@@ -23,3 +24,9 @@ Fix shape: (R1) .claude/skills/tzurot-orchestration/SKILL.md § The spec templat
 Timing: land BEFORE the next drain window opens so the ledger instrument is constant across the effort-sweep boundary.
 Acceptance: both skill sections carry the text; TASK-1029 closed by the PR; lines:check within budget.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped as #2475 (merged 2026-09-22). R5 was tightened by owner ruling across review rounds: security, existing test assertions, async boundary changes and external contract changes are always an Ask.
+<!-- SECTION:NOTES:END -->

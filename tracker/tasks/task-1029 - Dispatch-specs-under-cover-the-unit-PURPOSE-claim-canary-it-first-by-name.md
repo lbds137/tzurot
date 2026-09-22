@@ -1,9 +1,10 @@
 ---
 id: TASK-1029
 title: 'Dispatch specs under-cover the unit PURPOSE claim; canary it first, by name'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-20 22:36'
+updated_date: '2026-09-22 19:55'
 labels:
   - 'area:skills'
   - 'size:S'
@@ -49,3 +50,9 @@ Amend the fix shape accordingly: the skill should tell the orchestrator to READ 
 
 Acceptance gains a clause: the skill text names the failure-count read, not just the presence of a purpose canary.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped as #2475 (merged 2026-09-22): spec template item 7 requires a Purpose heading and a purpose canary run first with its failure count read; item 9 requires the count in the report.
+<!-- SECTION:NOTES:END -->
