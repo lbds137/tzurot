@@ -10,7 +10,7 @@ When `claude-review` or any PR reviewer returns findings, the agent follows this
 
 ## Why this procedure exists
 
-This procedure shifts trivial chores to auto-apply (under tight constraints) while preserving explicit approval for anything that changes program behavior.
+This procedure shifts trivial chores to auto-apply (under tight constraints) and engineering-only behavior changes to reported decisions, while preserving explicit approval for anything with a product/UX, user-visible, schema, spend, or data-rights dimension.
 
 **Key design principle**: `claude-review` is the same model family as the agent. It has no special epistemic authority. When the reviewer's severity label conflicts with the agent's own classification, that's **uncertainty**, not an override opportunity in either direction. The safe resolution is always ASK.
 
