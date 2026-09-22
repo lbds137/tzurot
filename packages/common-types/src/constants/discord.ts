@@ -354,6 +354,17 @@ export interface ModelFooterOptions {
    * every route that was tried, not just the primary.
    */
   fallbackProviderAttempted?: string;
+  /**
+   * The configured (or auto-promoted) provider a SERVED fallback swap routed
+   * away from — `provider` above is then the route that actually served the
+   * response. Renders the attribution as a route chain so a same-model swap
+   * (z.ai coding plan → OpenRouter, where only the model's namespace
+   * spelling changes) is still visibly a fallback rather than reading as the
+   * configured destination. Ignored when it equals `provider` or maps to no
+   * known label; `fallbackProviderAttempted` takes precedence, and the two
+   * never arrive together.
+   */
+  fallbackFromProvider?: string;
   /** Include the auto-response badge on the same line. */
   withAutoBadge?: boolean;
   /**
@@ -514,6 +525,49 @@ export function toInertCodeSpan(value: string): string {
 }
 
 /**
+ * Build the trailing provider-attribution segment (`• via …`) for the model
+ * footer. Extracted so {@link buildModelFooterText} stays within the
+ * per-function complexity ceiling.
+ *
+ * An unknown PRIMARY label suppresses attribution entirely: a chain whose
+ * hops cannot all be named would be more confusing than nothing.
+ *
+ * `reasonRendered` says whether the model line already printed a quota
+ * reason. When it did, the served-swap chain drops its own "(fallback)"
+ * suffix — the reason already explains the swap, and "(out of credit)
+ * (fallback)" reads as two separate events.
+ */
+function buildProviderAttribution(args: {
+  provider?: string;
+  fallbackProviderAttempted?: string;
+  fallbackFromProvider?: string;
+  reasonRendered: boolean;
+}): string {
+  const { provider, fallbackProviderAttempted, fallbackFromProvider, reasonRendered } = args;
+  const providerLabel = provider !== undefined ? PROVIDER_FOOTER_LABEL[provider] : undefined;
+  if (providerLabel === undefined) {
+    return '';
+  }
+  const attemptedLabel =
+    fallbackProviderAttempted !== undefined
+      ? PROVIDER_FOOTER_LABEL[fallbackProviderAttempted]
+      : undefined;
+  if (attemptedLabel !== undefined) {
+    return ` • via ${providerLabel} → ${attemptedLabel} (both routes failed)`;
+  }
+  const fromLabel =
+    fallbackFromProvider !== undefined && fallbackFromProvider !== provider
+      ? PROVIDER_FOOTER_LABEL[fallbackFromProvider]
+      : undefined;
+  if (fromLabel === undefined) {
+    return ` • via ${providerLabel}`;
+  }
+  return reasonRendered
+    ? ` • via ${fromLabel} → ${providerLabel}`
+    : ` • via ${fromLabel} → ${providerLabel} (fallback)`;
+}
+
+/**
  * Build a model footer line for Discord messages.
  *
  * @param modelUsed - Model name to display
@@ -529,6 +583,7 @@ export function buildModelFooterText(
   const {
     provider,
     fallbackProviderAttempted,
+    fallbackFromProvider,
     withAutoBadge = false,
     quotaFallback,
     routedModel,
@@ -543,7 +598,11 @@ export function buildModelFooterText(
   // line is byte-identical to what it always was.
   const modelLink = `[${sanitizedModel}](<${modelUrl}>)`;
   let text: string;
-  if (quotaFallback !== undefined && quotaFallback.category !== GUEST_MODE_CATEGORY) {
+  // Also drives the provider chain's suffix below: a rendered reason already
+  // explains the swap, so the chain must not repeat it as "(fallback)".
+  const quotaReasonRendered =
+    quotaFallback !== undefined && quotaFallback.category !== GUEST_MODE_CATEGORY;
+  if (quotaReasonRendered && quotaFallback !== undefined) {
     const sanitizedFrom = stripMarkdownDelimiters(quotaFallback.fromModel);
     const reason = QUOTA_FALLBACK_REASON[quotaFallback.category];
     // A route-only swap keeps the reason — it still explains why this model
@@ -583,16 +642,12 @@ export function buildModelFooterText(
     // the JSDoc above; the routing arm above did not apply either.
     text = `Model: ${modelLink}`;
   }
-  const providerLabel = provider !== undefined ? PROVIDER_FOOTER_LABEL[provider] : undefined;
-  const fallbackLabel =
-    fallbackProviderAttempted !== undefined
-      ? PROVIDER_FOOTER_LABEL[fallbackProviderAttempted]
-      : undefined;
-  if (providerLabel !== undefined && fallbackLabel !== undefined) {
-    text += ` • via ${providerLabel} → ${fallbackLabel} (both routes failed)`;
-  } else if (providerLabel !== undefined) {
-    text += ` • via ${providerLabel}`;
-  }
+  text += buildProviderAttribution({
+    provider,
+    fallbackProviderAttempted,
+    fallbackFromProvider,
+    reasonRendered: quotaReasonRendered,
+  });
   if (withAutoBadge) {
     text += BOT_FOOTER_TEXT.AUTO_BADGE_COMPACT;
   }

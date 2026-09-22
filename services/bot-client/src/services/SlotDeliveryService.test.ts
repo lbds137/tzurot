@@ -235,6 +235,26 @@ describe('SlotDeliveryService', () => {
       expect(persistence.saveAssistantMessage).toHaveBeenCalled();
     });
 
+    it('forwards a served provider swap on the error path so the footer renders the route chain', async () => {
+      const failResult = {
+        requestId: 'req-1',
+        success: false,
+        error: 'thing broke',
+        metadata: {
+          modelUsed: 'glm-4.7',
+          providerUsed: 'openrouter',
+          fallbackFromProvider: 'zai-coding',
+        },
+      } as LLMGenerationResult;
+      const slot = buildSlotContext();
+
+      await service.deliverError('Error occurred', failResult, slot);
+
+      expect(responseSender.sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({ fallbackFromProvider: 'zai-coding' })
+      );
+    });
+
     it('falls back to message.reply when webhook send fails', async () => {
       responseSender.sendResponse.mockRejectedValue(new Error('webhook 500'));
       const slot = buildSlotContext();

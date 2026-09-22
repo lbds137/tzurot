@@ -1882,5 +1882,26 @@ describe('MessageHandler', () => {
       expect(typeof sentContent).toBe('string');
       expect(sentContent.length).toBeGreaterThan(0);
     });
+
+    it('forwards a served provider swap on the empty-response error path so the footer renders the route chain', async () => {
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-fallback-1'] });
+
+      const disposition = await messageHandler.handleJobResult('job-slash-fallback', {
+        requestId: 'req-slash',
+        success: false,
+        error: 'model returned empty response',
+        metadata: {
+          providerUsed: 'openrouter',
+          fallbackFromProvider: 'zai-coding',
+        },
+      } as unknown as LLMGenerationResult);
+
+      expect(disposition).toBe('delivered');
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({ fallbackFromProvider: 'zai-coding' })
+      );
+    });
   });
 });

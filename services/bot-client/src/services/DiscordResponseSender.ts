@@ -80,6 +80,15 @@ interface SendResponseOptions {
    */
   fallbackProviderAttempted?: string;
   /**
+   * The configured (or auto-promoted) provider a SERVED fallback swap routed
+   * away from — `providerUsed` is then the route that served the response.
+   * Renders the footer attribution as a route chain so a same-model swap is
+   * visibly a fallback. Set whenever a served swap preceded the result,
+   * including the empty-response failure result; the both-routes-failed
+   * error carries `fallbackProviderAttempted` instead.
+   */
+  fallbackFromProvider?: string;
+  /**
    * Tier-aware quota fallback that fired for this turn (worker metadata
    * passthrough) — the footer announces the swap, never silent.
    */
@@ -286,6 +295,7 @@ export class DiscordResponseSender {
       modelUsed,
       providerUsed,
       fallbackProviderAttempted,
+      fallbackFromProvider,
       quotaFallback,
       routedModel,
       isGuestMode,
@@ -300,6 +310,7 @@ export class DiscordResponseSender {
       footer += `\n-# ${buildModelFooterText(modelUsed, modelUrl, {
         provider: providerUsed,
         fallbackProviderAttempted,
+        fallbackFromProvider,
         quotaFallback,
         withAutoBadge: isAutoResponse === true,
         routedModel,

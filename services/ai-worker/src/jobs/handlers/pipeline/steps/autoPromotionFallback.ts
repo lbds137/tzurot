@@ -81,7 +81,9 @@ export interface GenerateAttemptResult {
    * swap fired. `undefined` on the happy path (no swap), where the caller's
    * resolved provider is already the effective one. Drives the response
    * footer's model-info link so an OpenRouter-served request links to the
-   * OpenRouter model card, not the z.ai docs page.
+   * OpenRouter model card, not the z.ai docs page — and, via the divergence
+   * GenerationStep derives from it (`fallbackFromProvider`), the footer's
+   * provider chain that marks the route as a fallback.
    */
   effectiveProviderUsed?: AIProvider;
   /**
@@ -100,9 +102,11 @@ export interface GenerateAttemptResult {
    * three the footer renders). Without this, the FIRST fallback response of
    * a doom window showed "via OpenRouter" with no `from → to (reason)`
    * breadcrumb — only subsequent requests (proactive demotion off the doom
-   * cache) carried it. Non-quota swap reasons (catalog drift) stay
-   * unannotated: "via OpenRouter" is accurate and the annotation vocabulary
-   * is quota-shaped.
+   * cache) carried it. A non-quota swap reason (catalog drift) still gets no
+   * REASON here — the annotation vocabulary is quota-shaped — but it is no
+   * longer unmarked: every served swap now renders a provider chain on the
+   * footer, derived in GenerationStep from the provider divergence rather
+   * than from this field.
    */
   autoPromotionFallback?: QuotaFallbackInfo;
 }
@@ -186,10 +190,13 @@ export async function runWithAutoPromotionFallback(
       // the proactive demotion attaches from the doom cache). The narrow
       // billing classifier — not the wide D12 retargetable set — because this
       // swap is a same-model route recovery: a routing hiccup (catalog-drift
-      // 404, flaky 5xx) deliberately stays unannotated. Classifier (not a
-      // hand-rolled parseApiError) because it trusts an ApiError's own
-      // .info.category — the rate-limit-cache short-circuit throws a synthetic
-      // ApiError whose generic message would regex-parse to the WRONG category.
+      // 404, flaky 5xx) gets no quota-shaped REASON, since that vocabulary
+      // would misdescribe it. The swap itself is still marked, on the footer's
+      // provider chain, which GenerationStep derives from the effective-vs-
+      // configured provider divergence. Classifier (not a hand-rolled
+      // parseApiError) because it trusts an ApiError's own .info.category —
+      // the rate-limit-cache short-circuit throws a synthetic ApiError whose
+      // generic message would regex-parse to the WRONG category.
       const category = classifyBillingQuotaFailure(originalError);
       if (category === null) {
         return {

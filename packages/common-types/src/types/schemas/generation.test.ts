@@ -149,6 +149,36 @@ describe('llmGenerationResultSchema.metadata', () => {
     });
   });
 
+  describe('fallbackFromProvider', () => {
+    it('survives the parse so the served-swap chain reaches bot-client', () => {
+      // The response crosses this schema; a field it does not declare is
+      // stripped before the renderer ever sees it, and a mocked client never
+      // exercises that strip.
+      const parsed = llmGenerationResultSchema.safeParse({
+        ...baseValid,
+        metadata: { providerUsed: 'openrouter', fallbackFromProvider: 'zai-coding' },
+      });
+      expect(parsed.success).toBe(true);
+      if (parsed.success) {
+        expect(parsed.data.metadata?.fallbackFromProvider).toBe('zai-coding');
+      }
+
+      const withoutField = llmGenerationResultSchema.safeParse({
+        ...baseValid,
+        metadata: { providerUsed: 'openrouter' },
+      });
+      expect(withoutField.success).toBe(true);
+    });
+
+    it('rejects a non-string value', () => {
+      const parsed = llmGenerationResultSchema.safeParse({
+        ...baseValid,
+        metadata: { fallbackFromProvider: 42 },
+      });
+      expect(parsed.success).toBe(false);
+    });
+  });
+
   describe('routedModel', () => {
     it('survives the parse and keeps the exact value declared on the metadata object', () => {
       const parsed = llmGenerationResultSchema.safeParse({
