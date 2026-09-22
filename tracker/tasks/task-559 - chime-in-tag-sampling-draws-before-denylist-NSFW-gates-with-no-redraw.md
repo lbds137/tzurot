@@ -1,9 +1,10 @@
 ---
 id: TASK-559
 title: chime-in tag sampling draws before denylist/NSFW gates with no redraw
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 22:33'
+updated_date: '2026-09-22 22:11'
 labels:
   - 'area:bot-client'
   - 'size:S'
