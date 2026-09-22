@@ -13,6 +13,7 @@ export {
   type TestEnvironment,
 } from './setup-pglite.js';
 export { seedUserWithPersona } from './seed.js';
+export { FAR_FUTURE_SEED_INDEX, seededTimestamp } from './seededTimestamp.js';
 export { contractFixtureFile, loadContractFixture, stableFixtureJson } from './contractFixtures.js';
 export {
   describableReferenceNumbers,

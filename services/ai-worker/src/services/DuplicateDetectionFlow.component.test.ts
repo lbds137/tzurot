@@ -29,7 +29,12 @@ import {
 import { ConversationHistoryService, getChannelHistoryWindow } from '@tzurot/conversation-history';
 import { isRecentDuplicate } from '../utils/crossTurnDetection.js';
 import { getRecentAssistantMessages } from '../utils/conversationHistoryUtils.js';
-import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
+import {
+  createTestPGlite,
+  loadPGliteSchema,
+  seedUserWithPersona,
+  seededTimestamp,
+} from '@tzurot/test-utils';
 
 describe('Duplicate Detection Data Flow', () => {
   let pglite: PGlite;
@@ -44,20 +49,15 @@ describe('Duplicate Detection Data Flow', () => {
   const testChannelId = 'test-channel-123';
   const testGuildId = 'test-guild-456';
 
-  // Every conversation-history row's deterministic UUID is keyed on
-  // (channelId, personalityId, personaId, createdAt), so two inserts in the same
-  // millisecond collide on the primary key (P2002) — a tight seed loop is racy
-  // against the wall clock. Seed each message with a distinct, monotonically
-  // increasing timestamp so inserts stay unique AND chronological. Reset per
-  // test in beforeEach.
-  const SEED_BASE_MS = Date.parse('2026-01-01T00:00:00.000Z');
+  // The sequence resets per test in beforeEach, so each test's rows stay
+  // deterministic and collision-free independently of insertion order elsewhere.
   let messageSeq = 0;
   const seedMessage = (
     opts: Omit<Parameters<ConversationHistoryService['addMessage']>[0], 'timestamp'>
   ): Promise<void> =>
     conversationService.addMessage({
       ...opts,
-      timestamp: new Date(SEED_BASE_MS + messageSeq++ * 1000),
+      timestamp: seededTimestamp(messageSeq++),
     });
 
   beforeAll(async () => {

@@ -13,7 +13,13 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
+import {
+  createTestPGlite,
+  loadPGliteSchema,
+  seedUserWithPersona,
+  seededTimestamp,
+  FAR_FUTURE_SEED_INDEX,
+} from '@tzurot/test-utils';
 import {
   ConversationHistoryService,
   getChannelHistoryWindow,
@@ -22,6 +28,7 @@ import { MessageRole } from '@tzurot/common-types/constants/message';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { mergeForwardedOrigin } from './forwardedOriginWriter.js';
 import { writeTriggerReferences } from './triggerReferenceWriter.js';
+import { fetchHistory } from './test/componentTestHelpers.js';
 
 describe('ConversationHistoryService Component Test', () => {
   let prisma: PrismaClient;
@@ -34,15 +41,6 @@ describe('ConversationHistoryService Component Test', () => {
   const testPersonalityId = '00000000-0000-0000-0000-000000000003';
   const testChannelId = '123456789012345678';
   const testGuildId = '987654321098765432';
-
-  // A row's id is a DETERMINISTIC UUID over (channelId, personalityId, personaId,
-  // createdAt). When a loop inserts rows sharing the first three keys and lets
-  // createdAt default to `new Date()`, two inserts in the same millisecond collide
-  // on the id → `Unique constraint failed on (id)` (an intermittent CI flake). Seed a
-  // strictly-increasing explicit timestamp per row so each id is deterministic AND
-  // unique; the 1s spacing also pins the insertion order the assertions rely on.
-  const seededTimestamp = (i: number): Date =>
-    new Date(new Date('2026-06-01T00:00:00Z').getTime() + i * 1000);
 
   beforeAll(async () => {
     // Set up PGlite (in-memory Postgres via WASM) with pgvector extension
@@ -109,8 +107,7 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       expect(history).toHaveLength(1);
       expect(history[0].role).toBe(MessageRole.User);
       expect(history[0].content).toBe('Hello bot!');
@@ -128,8 +125,7 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       expect(history).toHaveLength(1);
       expect(history[0].role).toBe(MessageRole.Assistant);
       expect(history[0].content).toBe('Hello human!');
@@ -146,8 +142,7 @@ describe('ConversationHistoryService Component Test', () => {
         discordMessageId: 'discord-msg-123',
       });
 
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       expect(history[0].discordMessageId).toEqual(['discord-msg-123']);
     });
 
@@ -162,8 +157,7 @@ describe('ConversationHistoryService Component Test', () => {
         discordMessageId: ['chunk-1', 'chunk-2', 'chunk-3'],
       });
 
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       expect(history[0].discordMessageId).toEqual(['chunk-1', 'chunk-2', 'chunk-3']);
     });
 
@@ -178,8 +172,7 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       expect(history[0].tokenCount).toBeDefined();
       expect(history[0].tokenCount).toBeGreaterThan(0);
     });
@@ -194,8 +187,7 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: null, // DM = no guild
       });
 
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       expect(history).toHaveLength(1);
       expect(history[0].content).toBe('DM message');
     });
@@ -206,7 +198,7 @@ describe('ConversationHistoryService Component Test', () => {
       // Explicit strictly-increasing timestamps pin insertion order AND keep each
       // deterministic-UUID row distinct (relying on default `new Date()` is flaky:
       // sub-ms inserts can both tie the ordering and collide the id — see the
-      // seededTimestamp note above).
+      // `seededTimestamp` helper's JSDoc).
       await service.addMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
@@ -235,8 +227,7 @@ describe('ConversationHistoryService Component Test', () => {
         timestamp: seededTimestamp(2),
       });
 
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
 
       expect(history).toHaveLength(3);
       expect(history[0].content).toBe('First message');
@@ -258,8 +249,7 @@ describe('ConversationHistoryService Component Test', () => {
         });
       }
 
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 3 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 3 });
 
       expect(history).toHaveLength(3);
       // Should return the 3 most recent messages
@@ -376,9 +366,7 @@ describe('ConversationHistoryService Component Test', () => {
     });
 
     it('should return empty array for non-existent channel', async () => {
-      const history = (
-        await getChannelHistoryWindow(prisma, { channelId: 'non-existent', cap: 10 })
-      ).messages;
+      const history = await fetchHistory(prisma, { channelId: 'non-existent', cap: 10 });
       expect(history).toEqual([]);
     });
 
@@ -393,8 +381,7 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       expect(history).toHaveLength(1);
       expect(history[0].content).toBe('Message to TestBot');
     });
@@ -420,8 +407,7 @@ describe('ConversationHistoryService Component Test', () => {
 
       expect(success).toBe(true);
 
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       expect(history[0].content).toBe('Updated content with attachment description');
     });
 
@@ -449,9 +435,7 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const historyBefore = (
-        await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 })
-      ).messages;
+      const historyBefore = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       const tokensBefore = historyBefore[0].tokenCount;
 
       await service.updateLastUserMessage(
@@ -461,9 +445,7 @@ describe('ConversationHistoryService Component Test', () => {
         longContent
       );
 
-      const historyAfter = (
-        await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 })
-      ).messages;
+      const historyAfter = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       const tokensAfter = historyAfter[0].tokenCount;
 
       expect(tokensAfter).toBeGreaterThan(tokensBefore!);
@@ -603,8 +585,7 @@ describe('ConversationHistoryService Component Test', () => {
 
       expect(success).toBe(true);
 
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       expect(history[0].discordMessageId).toEqual(['discord-id-1', 'discord-id-2']);
     });
 
@@ -668,7 +649,7 @@ describe('ConversationHistoryService Component Test', () => {
       // Explicit seeded timestamps (not real-clock + setTimeout): the epoch sits at
       // index 1, between the message at index 0 (before) and index 2 (after) — no
       // message coincides with it, and the same-key rows can't collide on their
-      // deterministic UUID (see seededTimestamp note).
+      // deterministic UUID (see the `seededTimestamp` helper's JSDoc).
       await service.addMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
@@ -690,19 +671,15 @@ describe('ConversationHistoryService Component Test', () => {
       });
 
       // Without epoch - should see both
-      const allHistory = (
-        await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 })
-      ).messages;
+      const allHistory = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       expect(allHistory).toHaveLength(2);
 
       // With epoch - should only see message after epoch
-      const filteredHistory = (
-        await getChannelHistoryWindow(prisma, {
-          channelId: testChannelId,
-          cap: 10,
-          contextEpoch: epochTime,
-        })
-      ).messages;
+      const filteredHistory = await fetchHistory(prisma, {
+        channelId: testChannelId,
+        cap: 10,
+        contextEpoch: epochTime,
+      });
       expect(filteredHistory).toHaveLength(1);
       expect(filteredHistory[0].content).toBe('New message after epoch');
     });
@@ -719,15 +696,13 @@ describe('ConversationHistoryService Component Test', () => {
       });
 
       // Epoch well after the seeded message — deterministic, no real clock.
-      const futureEpoch = seededTimestamp(100);
+      const futureEpoch = seededTimestamp(FAR_FUTURE_SEED_INDEX);
 
-      const history = (
-        await getChannelHistoryWindow(prisma, {
-          channelId: testChannelId,
-          cap: 10,
-          contextEpoch: futureEpoch,
-        })
-      ).messages;
+      const history = await fetchHistory(prisma, {
+        channelId: testChannelId,
+        cap: 10,
+        contextEpoch: futureEpoch,
+      });
       expect(history).toEqual([]);
     });
   });
@@ -735,7 +710,8 @@ describe('ConversationHistoryService Component Test', () => {
   describe('getHistoryStats', () => {
     it('should return correct message counts', async () => {
       // Add user messages (explicit distinct timestamps keep the three same-key
-      // rows from colliding on their deterministic UUID — see seededTimestamp note)
+      // rows from colliding on their deterministic UUID — see the `seededTimestamp`
+      // helper's JSDoc)
       await service.addMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
@@ -788,7 +764,7 @@ describe('ConversationHistoryService Component Test', () => {
     it('should filter stats by epoch', async () => {
       // Seeded timestamps: two "before" rows at indices 0,1; the epoch sits strictly
       // between index 1 and 2 (t1+500ms); one "after" row at index 2. Deterministic +
-      // collision-free for the same-key rows (see seededTimestamp note).
+      // collision-free for the same-key rows (see the `seededTimestamp` helper's JSDoc).
       await service.addMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
@@ -1005,7 +981,7 @@ describe('ConversationHistoryService Component Test', () => {
       // Explicit timestamps pin chOlder strictly before chNewer: the groups are
       // sorted by each channel's newest activity, so a same-millisecond tie on the
       // default `new Date()` would leave the group order unstable (a latent flake,
-      // distinct from the P2002 collision — see seededTimestamp note).
+      // distinct from the P2002 collision — see the `seededTimestamp` helper's JSDoc).
       await service.addMessage({
         channelId: chOlder,
         personalityId: testPersonalityId,
@@ -1048,7 +1024,7 @@ describe('ConversationHistoryService Component Test', () => {
 
       // Add messages in sequence — explicit distinct timestamps pin the order the
       // assertions below rely on AND keep the same-key rows' deterministic UUIDs
-      // unique (see seededTimestamp note).
+      // unique (see the `seededTimestamp` helper's JSDoc).
       await service.addMessage({
         channelId: chOther,
         personalityId: testPersonalityId,
