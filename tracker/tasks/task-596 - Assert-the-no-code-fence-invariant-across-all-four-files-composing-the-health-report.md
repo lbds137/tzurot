@@ -3,9 +3,10 @@ id: TASK-596
 title: >-
   Assert the no-code-fence invariant across all four files composing the health
   report
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-13 23:10'
+updated_date: '2026-09-22 23:15'
 labels:
   - 'area:tooling'
   - 'size:S'
