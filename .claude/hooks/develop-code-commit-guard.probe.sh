@@ -249,6 +249,20 @@ run 2 "dirty .cts module"                         'git commit -m "x"'           
 run 2 "dirty yaml config"                         'git commit -m "x"'                                      'services/probe/config.yaml'
 run 2 "dirty Dockerfile"                          'git commit -m "x"'                                      'services/probe/Dockerfile'
 
+# The board-file exemption: backlog/cadence-ledger.json is committable to
+# develop without a PR (00-critical.md § Direct doc commits), and the `*.json`
+# arm of the gated set used to block a tree whose ONLY change was that file.
+# The two block rows are what keep the exemption exact: the same basename under
+# a code path still blocks (the exemption is a path, not a filename), and the
+# ledger beside a real code file still blocks (the exemption removes one line
+# from the gated set, it does not waive the gate).
+run 0 "cadence ledger alone is a board file"      'git commit -m "x"'                                      'backlog/cadence-ledger.json'
+run 2 "a cadence-ledger.json under a code path"   'git commit -m "x"'                                      'packages/probe/cadence-ledger.json'
+run 2 "cadence ledger beside a dirty ts"          'git commit -m "x"'                                      'backlog/cadence-ledger.json services/probe.ts'
+# run() deletes each dirty path afterwards; the ledger is TRACKED, so restore it
+# rather than leave a deletion in the develop fixture for every later case.
+git -C "$WT" checkout -- backlog/cadence-ledger.json 2>/dev/null
+
 # --- the quote scanner ------------------------------------------------------
 # An EARLIER quoted argument carrying an apostrophe used to erase the whole
 # `git commit` that followed it. Measured against the two-pass strip this
@@ -291,13 +305,55 @@ EOF
 )"'
 run 0 "heredoc BODY inside a span is not a commit"  "$SPAN_HEREDOC_PROSE"                                   'services/probe.ts'
 
-# THE ACCEPTED OVER-ARM, pinned as behaviour rather than left in a comment. A
-# span inside SINGLE quotes is inert prose to bash, and the extraction reads it
-# anyway, so this blocks an `echo`. Over-arming is the recoverable direction for
-# a blocking guard and the escape hatch covers it; the row exists so the next
-# reader who hits the false positive finds it named instead of hunting a bug.
-run 2 "a span in SINGLE quotes blocks too (accepted)"  "echo 'run \$(git commit)'"                          'services/probe.ts'
+# A span inside SINGLE quotes is inert prose to bash — this `echo` runs no
+# commit — so the substitution scan skips it rather than blocking. The pair
+# row is what keeps that skip from becoming a bypass: the SAME text in DOUBLE
+# quotes really executes the commit and must still block.
+run 0 "a span in SINGLE quotes is prose, not a commit"  "echo 'run \$(git commit)'"                         'services/probe.ts'
+run 2 "the same span in DOUBLE quotes still blocks"      "echo \"run \$(git commit)\""                      'services/probe.ts'
 
+# The single-quote skip FAILS CLOSED. Each row is a shape where bash runs the
+# commit inside a substitution but a quote-tracking skip that did not know the
+# construct would have skipped it. Fixtures come from here-documents so the
+# invoking command line never carries the target text. The comment-apostrophe
+# and ANSI-C rows are ALSO caught by the top-level strip (an odd quote count
+# leaves strip_quoted unterminated, so the guard scans raw text); their
+# span-level fallback triggers are pinned in shellQuotes.test.ts instead.
+read -r -d '' SKIP_BYPASS_DOLLAR_DOLLAR <<'FIX'
+echo $$'a\' "$(git commit -m x)" 'b'
+FIX
+run 2 "skip bypass: \$\$ is not an ANSI-C opener"                    "$SKIP_BYPASS_DOLLAR_DOLLAR" 'services/probe.ts'
+read -r -d '' SKIP_BYPASS_DOLLAR_DOLLAR_TICK <<'FIX'
+echo $$'a\' "`git commit -m x`" 'b'
+FIX
+run 2 "skip bypass: \$\$ is not an ANSI-C opener (backtick)"         "$SKIP_BYPASS_DOLLAR_DOLLAR_TICK" 'services/probe.ts'
+read -r -d '' SKIP_BYPASS_COMMENT <<'FIX'
+true # x\
+echo "
+it's $(git commit -m x)" 'z'
+FIX
+run 2 "skip bypass: a comment's trailing backslash does not continue it" "$SKIP_BYPASS_COMMENT" 'services/probe.ts'
+read -r -d '' SKIP_BYPASS_EARLY_SPAN <<'FIX'
+echo "$(echo ")")" x "y' $(git commit -m x) 'z"
+FIX
+run 2 "skip bypass: a span that ends early cannot desync the quote state" "$SKIP_BYPASS_EARLY_SPAN" 'services/probe.ts'
+read -r -d '' SKIP_BYPASS_COMMENT_APOSTROPHE <<'FIX'
+# don't
+echo $(git commit -m x) 'x'
+FIX
+run 2 "skip bypass: an apostrophe in a comment cannot hide the next line" "$SKIP_BYPASS_COMMENT_APOSTROPHE" 'services/probe.ts'
+read -r -d '' SKIP_BYPASS_SH_C <<'FIX'
+sh -c 'echo $(git commit -m x)'
+FIX
+run 2 "skip bypass: sh -c executes its single-quoted argument"       "$SKIP_BYPASS_SH_C" 'services/probe.ts'
+read -r -d '' SKIP_BYPASS_EVAL <<'FIX'
+eval 'echo $(git commit -m x)'
+FIX
+run 2 "skip bypass: eval executes its single-quoted argument"        "$SKIP_BYPASS_EVAL" 'services/probe.ts'
+read -r -d '' SKIP_BYPASS_ANSI_C <<'FIX'
+echo $'a\'' $(git commit -m x) 'x'
+FIX
+run 2 "skip bypass: a real ANSI-C escaped quote cannot hide a live span" "$SKIP_BYPASS_ANSI_C" 'services/probe.ts'
 # A non-heredoc quoted argument INSIDE a span that merely mentions the target
 # is prose, not an invocation — the span scan strip_quoteds each span exactly as
 # the top level does. Capturing the output of a command whose --body text says
@@ -560,8 +616,9 @@ run_reason "Reversed Bad Subject Two" "reversed-order reason names the FIRST seg
 # literal `&` rather than sed's "whole match" meaning). The whole `s|...|`
 # argument is single-quoted, so bash never executes any of this — the
 # backticks are inert prose describing a shell command, not a real
-# invocation. Detection still fires (the accepted single-quote-span over-arm
-# above), but the header check must not: it used to run on the full raw
+# invocation. The substitution scan now skips a span opening inside single
+# quotes, so detection no longer fires here at all; the header check must not
+# fire either, and the row pins that end state: it used to run on the full raw
 # command anyway, and its own chain-split does not recognize `\&\&` as a
 # separator, so it picked up the stash's `-m` (the FIRST one in the glued
 # segment) as though it were the quoted commit's subject and blocked on text

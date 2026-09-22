@@ -328,14 +328,44 @@ def resolve_placeholders(token, values, next_index):
 def substitution_spans(text):
     """Return the CONTENT of every `$(...)` and backtick span in `text`.
 
-    Read from the RAW text, DELIBERATELY IGNORING quote context. A span inside
-    DOUBLE quotes really is executed by bash, so it must be extracted; a span
-    inside SINGLE quotes is inert prose and is extracted anyway. That second
-    case is a known OVER-ARM, accepted rather than fixed: the callers are
-    blocking guards where over-arming costs one re-run (or the documented
-    escape hatch) while under-arming is an unreviewed commit. Pinned by
-    "a span inside single quotes is extracted anyway (accepted over-arm)" in
+    Read from the RAW text, tracking only as much quote context as decides
+    whether bash would EXECUTE a span. A span inside DOUBLE quotes really is
+    executed, so it is extracted exactly like an unquoted one. A span whose
+    opening character sits inside a SINGLE-quoted region is inert prose to
+    bash and is skipped: extracting it made a blocking guard fire on content
+    being WRITTEN, such as a backticked git command in a single-quoted `sed`
+    replacement or tracker description. Pinned by "a span inside single quotes
+    is not extracted" and its double-quoted counterpart in
     packages/tooling/src/dev/shellQuotes.test.ts.
+
+    THE SKIP FAILS CLOSED. It is the one place this function REMOVES text from
+    a blocking guard's scan, and it models only plain quoting, so it runs only
+    when the text is free of everything that modelling cannot see. On any of
+    the following the WHOLE text falls back to extract-everything, the
+    behaviour the guards had before the skip existed:
+
+    - a heredoc operator `<<` (a here-string `<<<` is fine): an unquoted-marker
+      body runs its `$( )` and makes its apostrophes literal;
+    - a shell word (`bash`, `sh`, `zsh`, `dash`, `ksh`) or `eval`: a wrapper's
+      single-quoted argument, or single-quoted text piped into a shell, IS
+      executed;
+    - an unquoted `#`: a comment makes its apostrophes and double quotes
+      literal, and whether a `#` starts one is not modelled;
+    - a `$'…'` region whose content ends in a backslash: ANSI-C quoting escapes
+      that quote, so the region really ends later (the escape itself is not
+      modelled — every other region closes at its first `'`, which is also
+      right for `$'…'` without a trailing backslash);
+    - any extracted span that may have ended at the wrong character: its own
+      quotes are unbalanced, a quoted region in it holds a paren, or it carries
+      a `#` or a `case` word (the structural paren count below then resumes the
+      outer scan with the wrong quote state).
+
+    Within the skip, two more rules keep it from over-skipping: an apostrophe
+    inside double quotes is literal (double-quote state is tracked for exactly
+    that), and an UNTERMINATED single quote skips nothing — the apostrophe is
+    read as literal, where skipping to end of text would hide every later span.
+    Each fallback trigger is pinned by its own case in shellQuotes.test.ts and
+    each observed bypass shape by a probe row in the two blocking guards.
 
     KNOWN UNDER-ARM, same file, pinned by "a quoted `)` inside a span ends it
     early": `)` is counted structurally, so `$(echo ")" && git commit)` yields
@@ -354,15 +384,105 @@ def substitution_spans(text):
     text for the caller to scan, so an over-long span can over-arm and can
     never hide an invocation.
     """
+    if _SKIP_UNSAFE_TEXT.search(text) is None:
+        spans = _extract_spans(text, skip_single_quoted=True)
+        if spans is not None and not any(_span_desyncs(s) for s in spans):
+            return spans
+    return _extract_spans(text, skip_single_quoted=False)
+
+
+# Constructs the single-quote skip cannot model. Any match anywhere in the text
+# turns the skip off for the WHOLE text, which restores extract-everything:
+#
+# - `<<` not part of `<<<`: a heredoc body is not shell-quoted text — in an
+#   UNQUOTED-marker body an apostrophe is literal and `$( )` runs — so an
+#   apostrophe there would open a region that swallows live spans.
+# - a shell (`bash`, `sh`, `zsh`, `dash`, `ksh`) or `eval` word: a wrapper's
+#   single-quoted argument IS executed (`bash -c '…'`, `eval '…'`), and so is
+#   single-quoted text piped into a shell. Matched as a bare word rather than
+#   only beside `-c`, which catches the pipe form too; `/bin/sh` still matches
+#   because `/` is allowed before the name.
+#
+# Deliberately generous: a false match only turns the skip off, which returns
+# the extract-everything behaviour the guards had before the skip existed.
+_SKIP_UNSAFE_TEXT = re.compile(
+    r"(?<!<)<<(?!<)" r"|(?<![\w.-])(?:eval|bash|sh|zsh|dash|ksh)(?![\w.-])"
+)
+
+# A `case` word inside a span can end it early at a pattern's bare `)`.
+_CASE_WORD = re.compile(r"(?<![\w.-])case(?![\w.-])")
+
+
+def _span_desyncs(span):
+    """True when an extracted span may have ended at the wrong character.
+
+    The span scan counts `(`/`)` and backticks structurally, so a quoted `)`
+    ends a `$( )` span early, a quoted `(` ends it late, and a `case` pattern's
+    bare `)` or a comment's `)` ends it early too. Either way the outer scan
+    resumes at the wrong place with the wrong quote state. The tells, checked
+    generously: the span's own quotes are unbalanced, a quoted region inside it
+    holds a paren, or it carries a `#` or a `case` word.
+    """
+    if "#" in span or _CASE_WORD.search(span):
+        return True
+    for kind, payload in _scan_events(span):
+        if kind == "unterminated":
+            return True
+        if kind == "quoted" and ("(" in payload or ")" in payload):
+            return True
+    return False
+
+
+def _extract_spans(text, skip_single_quoted):
+    """The span scan behind `substitution_spans`.
+
+    With `skip_single_quoted` False this reads the raw text quote-blind and
+    extracts every span. With it True it tracks double-quote state and skips a
+    span opening inside a single-quoted region — and returns None, meaning
+    "fall back", on reaching a construct whose quoting it cannot model:
+
+    - an unquoted, unescaped `#`: a comment makes its apostrophes literal, but
+      whether a `#` starts one depends on word boundaries the scanner does not
+      track, and guessing wrong in either direction desyncs the quote state.
+    - a single-quoted region preceded by `$` whose content ends in a backslash:
+      in ANSI-C quoting (`$'a\\''`) that backslash escapes the quote, so the
+      region really closes later. Plain `'…'` closing at the first quote is
+      right for every other case, including `$$'a\\'` where the `$` is the PID
+      parameter and the region is plain; that case falls back too, harmlessly.
+    """
     spans = []
     i = 0
     end_of_text = len(text)
+    in_double = False
     while i < end_of_text:
         ch = text[i]
         if ch == "\\" and i + 1 < end_of_text:
-            # An escaped `$` or backtick opens nothing.
+            # An escaped `$` or backtick opens nothing, and an escaped quote
+            # opens no region.
             i += 2
             continue
+        if skip_single_quoted:
+            if ch == '"':
+                in_double = not in_double
+                i += 1
+                continue
+            if not in_double:
+                if ch == "#":
+                    return None
+                if ch == "'":
+                    close = text.find("'", i + 1)
+                    if close != -1:
+                        if (
+                            i > 0
+                            and text[i - 1] == "$"
+                            and close - 1 > i
+                            and text[close - 1] == "\\"
+                        ):
+                            return None
+                        i = close + 1
+                        continue
+                    # Unterminated: read the apostrophe as literal and keep
+                    # scanning; skipping to end of text would hide every span.
         if ch == "$" and i + 1 < end_of_text and text[i + 1] == "(":
             j = i + 2
             depth = 1
@@ -528,7 +648,7 @@ def substitution_spans_matching(raw_text, predicate):
 
     Pinned by the substitution-span probe cases in
     develop-code-commit-guard.probe.sh and lossy-pipe-guard.probe.sh (the
-    heredoc-body, single-quote-over-arm, and quoted-prose cases).
+    heredoc-body, single-quoted-span, and quoted-prose cases).
     """
     for span in substitution_spans(strip_heredoc_bodies(raw_text)):
         scanned = strip_quoted(span)

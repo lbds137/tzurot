@@ -390,9 +390,11 @@ detected = is_commit_invocation(cmd)
 # strip. A commit sitting inside a backtick/$(...) span that is itself nested
 # inside an OUTER single-quoted argument (a `sed` replacement quoting a commit
 # example, say) never executes — the outer single quote already swallowed the
-# whole span into the `S` placeholder above — but the substitution scan below
-# re-extracts it from the RAW text regardless (accepted over-arm; see
-# substitution_spans_matching's docstring). Running `_header_verdict` on the
+# whole span into the `S` placeholder above. The substitution scan below now
+# skips a span opening inside a single-quoted region too (see
+# substitution_spans' docstring), but any span it DOES extract — a
+# double-quoted one, or one its quote tracking reads as unquoted — still
+# counts only toward `detected`. Running `_header_verdict` on the
 # FULL raw command for a match found ONLY that way picks whichever `-m` its
 # own naive chain-split isolates first, which need not be the quoted
 # example's own `-m`: measured, a `git stash push -m "WIP before rebase" &&
@@ -410,7 +412,7 @@ header_detected = detected
 # the SAME cleaning the top-level scan applies to the command — heredoc bodies
 # off the WHOLE raw command first, then strip_quoted per span — inside the
 # shared helper (see substitution_spans_matching in lib/shell_quotes.py for the
-# accepted over-arm/under-arm boundaries it documents). This widening feeds
+# single-quote skip and the under-arm boundaries it documents). This widening feeds
 # ONLY the develop/main review gate (`detected`), never the header pre-check
 # (`header_detected`, captured above it).
 if not detected and substitution_spans_matching(raw_cmd, is_commit_invocation):
@@ -546,9 +548,15 @@ fi
 # --no-renames: a staged rename otherwise renders as one `R old -> new`
 # line and only the NEW path's extension gets checked — a gated→non-gated
 # rename would slip through; decomposed D/A lines check both sides.
+# The one exemption is backlog/cadence-ledger.json, a BOARD file that
+# 00-critical.md § Direct doc commits lists as committable to develop without
+# a PR. It is dropped by EXACT repo-relative path (`grep -vxF`), never by
+# basename or directory: every other *.json — a cadence-ledger.json anywhere
+# else included — stays gated.
 GATED_FILES=$(git status --porcelain -uall --no-renames 2>/dev/null \
   | cut -c4- \
   | grep -E '\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|prisma|sql|sh|yml|yaml|json|toml)$|(^|/)Dockerfile[^/]*$|^\.github/|^\.claude/(rules|skills|hooks)/' \
+  | grep -vxF 'backlog/cadence-ledger.json' \
   || true)
 
 if [ -z "$GATED_FILES" ]; then

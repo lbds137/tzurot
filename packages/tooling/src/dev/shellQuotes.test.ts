@@ -257,14 +257,116 @@ const SPAN_CASES: readonly (readonly [string, string, readonly string[]])[] = [
   ['an unterminated $( runs to end of text', 'echo "$(git commit', ['git commit']],
   ['an unterminated backtick runs to end of text', 'echo `git commit', ['git commit']],
 
-  // THE ACCEPTED OVER-ARM. A span inside SINGLE quotes is inert prose to bash
-  // and is extracted anyway, so the consuming guards block on it. Over-arming
-  // is the recoverable direction for a blocking guard; the escape hatch covers
-  // the false positive.
+  // A span whose opener sits inside SINGLE quotes is inert prose to bash, so it
+  // is skipped; the same text in DOUBLE quotes executes and is still extracted.
+  // The double-quoted rows are the true-positive half of the pair: a skip that
+  // leaked into double quotes would be a bypass of both blocking guards.
+  ['a span inside single quotes is not extracted', "echo 'run $(git commit)'", []],
+  ['a backtick span inside single quotes is not extracted', "echo 'run `git commit`'", []],
   [
-    'a span inside single quotes is extracted anyway (accepted over-arm)',
-    "echo 'run $(git commit)'",
+    'the same span inside double quotes is still extracted',
+    'echo "run $(git commit)"',
     ['git commit'],
+  ],
+  [
+    'a span after a closed single-quoted region is still extracted',
+    "echo 'prose' $(git commit)",
+    ['git commit'],
+  ],
+
+  // `$'…'` without a trailing backslash closes where plain quoting closes it.
+  ["a plain-content $'…' region is skipped", "echo $'run $(git commit)'", []],
+
+  // The skip is the one place this function removes text from a guard's scan,
+  // so every way it could over-skip fails toward extraction instead.
+  // An apostrophe inside double quotes is a literal character, not an opener.
+  [
+    'an apostrophe inside double quotes opens no region',
+    "echo \"it's $(git commit)\" 'x'",
+    ['git commit'],
+  ],
+  // An unterminated single quote skips nothing: skipping to end of text would
+  // hide every span after it.
+  ['an unterminated single quote skips nothing', "echo 'oops $(git commit)", ['git commit']],
+  // An escaped apostrophe outside quotes opens no region either.
+  ['an escaped apostrophe opens no region', "echo it\\'s $(git commit) 'x'", ['git commit']],
+
+  // THE FALLBACK TRIGGERS. Each input below would lose its span to the skip if
+  // its trigger were missing (bash runs every one of these spans), so each row
+  // pins one trigger, and the matching row after it pins that the trigger is
+  // not so broad it disables the skip for ordinary text.
+  //
+  // Heredoc operator: an unquoted-marker body runs its `$( )`, and its
+  // apostrophes are literal.
+  [
+    'fallback: a heredoc operator turns the skip off',
+    "cat <<EOF\nit's $(git commit) 'x'\nEOF",
+    ['git commit'],
+  ],
+  ['a here-string is not a heredoc operator', "cat <<< 'x' ; echo 'run $(git commit)'", []],
+  // Shell or eval word: the single-quoted argument or piped text is executed.
+  [
+    'fallback: bash -c executes its single-quoted argument',
+    "bash -c 'echo $(git commit)'",
+    ['git commit'],
+  ],
+  [
+    'fallback: eval executes its single-quoted argument',
+    "eval 'echo $(git commit)'",
+    ['git commit'],
+  ],
+  [
+    'fallback: single-quoted text piped into a shell is executed',
+    "printf %s 'echo $(git commit)' | bash",
+    ['git commit'],
+  ],
+  ['a .sh file name is not a shell word', "./run.sh 'see $(git commit)'", []],
+  // Unquoted `#`: a comment makes its apostrophes literal, so the one in
+  // `don't` must not open a region that swallows the next line's live span.
+  ['fallback: an unquoted # turns the skip off', "# don't\necho $(git commit) 'x'", ['git commit']],
+  // A comment's trailing backslash does not continue it, so the `"` on the
+  // next line is live and the apostrophe after it is inside double quotes.
+  [
+    "a comment's trailing backslash does not hide the next line's span",
+    "true # x\\\necho \"\nit's $(git commit)\" 'z'",
+    ['git commit'],
+  ],
+  ['a # inside single quotes is prose', "echo 'issue #12: $(git commit)'", []],
+  // `$'…'` ending in a backslash: ANSI-C escapes that quote, so the region
+  // ends later and the span after it is live. Closing at the first quote here
+  // would mis-pair every later quote and skip the live span.
+  [
+    "fallback: a $'…' region ending in a backslash",
+    "echo $'a\\'' $(git commit) 'x'",
+    ['git commit'],
+  ],
+  // `$$` is the PID parameter, so the region after it is plain; it trips the
+  // same trigger (harmless over-disable) and the double-quoted span stays live.
+  [
+    'a $$ before a plain region does not hide a span',
+    "echo $$'a\\' \"$(git commit)\" 'b'",
+    ['git commit'],
+  ],
+  // A span that may have ended at the wrong character desyncs the quote state.
+  [
+    'fallback: a span with unbalanced inner quotes',
+    'echo "$(echo ")")" x "y\' $(git commit) \'z"',
+    ['echo "', 'git commit'],
+  ],
+  [
+    'fallback: a span holding a quoted paren',
+    'echo "$(echo "(")" )" y\' $(git commit) \'z"',
+    ['echo "(")" ', 'git commit'],
+  ],
+  [
+    'fallback: a span carrying a case word',
+    'echo "$(case a in a) echo x;; esac)" y\' $(git commit) \'z',
+    ['case a in a', 'git commit'],
+  ],
+  [
+    'fallback: a span carrying a #',
+    'echo "$(echo x # )\n)" y\' $(git commit) \'z',
+    ['echo x # ', 'git commit'],
   ],
 
   // THE KNOWN UNDER-ARM, pinned AS the limit rather than left to be discovered.

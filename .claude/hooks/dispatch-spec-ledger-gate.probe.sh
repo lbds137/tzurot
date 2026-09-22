@@ -321,6 +321,24 @@ run_iso 2 "phantom pnpm script" "a dotted phantom is still detected" \
   "$FIXTURE" worktree \
   "$(inline_prompt ledger 'Gate: `pnpm --filter @tzurot/probe test.phantom.`')"
 
+# --- case 14j2: a declared script before a colon or a bold marker passes ----
+# Both shapes were reproduced as false blocks: markdown prose puts a `:` or a
+# closing `**` straight after the backticked command, and the old strip class
+# (backtick, period, comma, `)`) left `test`: and `test`** unresolvable.
+run_iso 0 - "a declared script followed by a backtick and a colon passes" \
+  "$FIXTURE" worktree \
+  "$(inline_prompt ledger 'Gate `pnpm --filter @tzurot/probe test`: run it last.')"
+run_iso 0 - "a declared script followed by a backtick and a bold marker passes" \
+  "$FIXTURE" worktree \
+  "$(inline_prompt ledger 'Gate: **`pnpm --filter @tzurot/probe test`** before the report.')"
+# The widened class must not rescue a phantom in the same two shapes.
+run_iso 2 "phantom pnpm script" "a phantom followed by a backtick and a colon still blocks" \
+  "$FIXTURE" worktree \
+  "$(inline_prompt ledger 'Gate `pnpm --filter @tzurot/probe typecheck`: run it last.')"
+run_iso 2 "phantom pnpm script" "a phantom followed by a backtick and a bold marker still blocks" \
+  "$FIXTURE" worktree \
+  "$(inline_prompt ledger 'Gate: **`pnpm --filter @tzurot/probe typecheck`** before the report.')"
+
 # --- case 14n: a prompt carrying NO pnpm filter at all still passes ---------
 # The phantom section short-circuits before building the workspace name→
 # manifest map when the scan found nothing to resolve, so this path must stay
