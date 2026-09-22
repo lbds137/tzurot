@@ -288,7 +288,7 @@ can trip the warning on push churn rather than real rounds.
 
 After a session restart, a re-fetch may re-surface already-reported comments once (the dedup timestamp lives in conversation state) — expected, not a dedup bug.
 
-**Merge mechanics.** The merge is the tail of an `&&` chain whose earlier links re-check the merge gate (`00-critical.md` § Never Merge PRs Without Completed CI — green, complete, and read), never a bare `gh pr merge`, so a failed check halts before the destructive step; the bare `gh pr merge` lines in `CLAUDE.md` illustrate flags, not the invocation. When the target branch moved under a long-lived feature branch, re-derive diffstats and counts against the MERGE-BASE, not the target's current HEAD.
+**Merge mechanics.** When a merge follows a verification run in the same turn (a re-fetched check list, a review re-read), chain them with `&&` so a failed check halts before the destructive step. When the target branch moved under a long-lived feature branch, re-derive diffstats and counts against the MERGE-BASE, not the target's current HEAD.
 
 ### Release Notes Format
 
