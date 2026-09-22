@@ -50,13 +50,20 @@ const CODE_FENCE = '`'.repeat(3);
 const RELATIVE_IMPORT = /from\s+['"](\.\.?\/[^'"]+)['"]/g;
 
 /**
- * Strips `//` line comments before the import scan runs, so a comment that
- * happens to mention a relative specifier in prose (e.g. documenting a past
- * import path) is not mistaken for a real import. Block comments are not
- * stripped — none of the walked modules use one to reference an import path.
+ * Strips both block (`/* ... *\/`) and `//` line comments before the import
+ * scan runs, so a comment that happens to mention a relative specifier in
+ * prose (e.g. documenting a past import path, or a JSDoc `@example`) is not
+ * mistaken for a real import. Block comments are stripped first, non-greedy
+ * and across newlines, so a multi-line JSDoc block is removed as one unit
+ * before the line-comment pass runs. This is a plain regex strip, not a
+ * parser — it does not special-case string literals, so a `//` or `/*`
+ * embedded inside a string would also be stripped. That's harmless here: an
+ * import specifier string (the thing this scan is looking for) never
+ * contains either sequence.
  */
-function stripLineComments(source: string): string {
-  return source
+function stripComments(source: string): string {
+  const withoutBlockComments = source.replace(/\/\*[\s\S]*?\*\//g, '');
+  return withoutBlockComments
     .split('\n')
     .map(line => line.replace(/\/\/.*/, ''))
     .join('\n');
@@ -93,7 +100,7 @@ function deriveReportSourceFiles(
 
     if (!exists(current)) continue;
 
-    const source = stripLineComments(readSource(current));
+    const source = stripComments(readSource(current));
     const dir = path.dirname(current);
     const specifiers = [...source.matchAll(RELATIVE_IMPORT)].map(match => match[1]);
     for (const specifier of specifiers) {
@@ -121,12 +128,13 @@ describe('the weekly health report carries no code fence', () => {
     );
 
     // Positive controls: the derivation must not silently return a short
-    // list. These five are every module known (as of this test's authoring)
+    // list. These seven are every module known (as of this test's authoring)
     // to print text health.ts relays to stdout — a fifth, measured-ref.ts,
     // was missed by a hand-enumerated list before this test existed. The
     // sixth, lines-check.ts, is reachable only THROUGH health-extras.ts (it
     // is not among health.ts's own direct imports) — it proves the walk
-    // goes transitive rather than stopping one level deep.
+    // goes transitive rather than stopping one level deep. The seventh,
+    // summary.ts, is a direct import of health.ts.
     const expectedMembers = [
       path.join(auditsDir, 'health.ts'),
       path.join(auditsDir, 'health-extras.ts'),
@@ -134,6 +142,7 @@ describe('the weekly health report carries no code fence', () => {
       path.join(auditsDir, '..', 'dev', 'check-repo-settings.ts'),
       path.join(auditsDir, 'measured-ref.ts'),
       path.join(auditsDir, 'lines-check.ts'),
+      path.join(auditsDir, 'summary.ts'),
     ];
     for (const expected of expectedMembers) {
       expect(
@@ -157,6 +166,33 @@ describe('the weekly health report carries no code fence', () => {
         'as broken markdown in the health channel. Remove the fence from the offending ' +
         'file(s), or route that content through a chunker that is fence-aware.'
     ).toEqual([]);
+  });
+});
+
+describe('deriveReportSourceFiles comment stripping', () => {
+  it('excludes a relative specifier mentioned only inside a comment, real or phantom exists on disk', () => {
+    const entryPath = '/fake/audits/entry.ts';
+    const realPath = path.resolve('/fake/audits', './real.ts');
+    const phantomLinePath = path.resolve('/fake/audits', './phantom-line.ts');
+    const phantomBlockPath = path.resolve('/fake/audits', './phantom-block.ts');
+
+    const entrySource = [
+      "import { a } from './real.js';",
+      "// from './phantom-line.js'",
+      "/** import x from './phantom-block.js'; */",
+    ].join('\n');
+
+    const readSource = (p: string): string => (p === entryPath ? entrySource : '');
+    // Every path — including the phantoms — exists on disk, so the
+    // exists-on-disk assertion elsewhere in this file cannot be what
+    // excludes them: only the comment strip does.
+    const exists = (): boolean => true;
+
+    const derived = deriveReportSourceFiles(entryPath, readSource, exists);
+
+    expect(derived).toContain(realPath);
+    expect(derived).not.toContain(phantomLinePath);
+    expect(derived).not.toContain(phantomBlockPath);
   });
 });
 
