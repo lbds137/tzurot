@@ -3,9 +3,10 @@ id: TASK-1038
 title: >-
   Auto-promote a character into the archive render lists when its
   summary-coverage gate reads READY
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-21 19:48'
+updated_date: '2026-09-22 13:50'
 labels:
   - 'area:ai-worker'
   - 'size:S'

@@ -461,9 +461,12 @@ SQL (`archivePromotionSql.ts`) mirrors `WINDOW_COUNTS_SQL`'s
 bounded at 1000 rows.
 
 **The write.** A candidate is READY (share ≥ the gate over the 30-day window;
-a zero denominator is never ready), its slug is on neither
+a zero denominator is never ready), its slug is not on
 `archivePromotionOptOutPersonalities` (new registry list, group
-`memory-archive`) nor `archiveSplitRenderPersonalities`. Per candidate, one
+`memory-archive`), and it is not already fully converged — slug on BOTH
+render lists AND an explicit `crossChannelRenderMode` of any value; a partial
+match (say, split-listed but not digest-listed) is still a candidate, for its
+missing writes only. Per candidate, one
 transaction: re-read the settings singleton, append the slug to
 `archiveSplitRenderPersonalities` and `recentDaysDigestPersonalities` (each only
 if absent) under the optimistic `updatedAt` guard the admin-settings handler
