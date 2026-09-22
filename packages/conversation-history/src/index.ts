@@ -43,3 +43,4 @@ export { writeTriggerReferences } from './triggerReferenceWriter.js';
 export { ConversationRetentionService } from './ConversationRetentionService.js';
 export { ConversationSyncService } from './ConversationSyncService.js';
 export { propagateDeletionToFacts } from './memoryDeletionPropagation.js';
+export { findUsableAssistantSummariesByTriggerIds } from './assistantSummaryLookup.js';

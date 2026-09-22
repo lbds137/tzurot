@@ -146,6 +146,31 @@ describe('buildRealMessages', () => {
     });
   });
 
+  describe('same-channel summary substitution', () => {
+    it("renders a summarized entry's substituted content — the XML `rendered` attribute has no real-message equivalent", () => {
+      const entries: StructuredHistoryEntry[] = [
+        {
+          role: 'assistant',
+          content: 'the stored summary text',
+          personalityId: PERSONALITY_ID,
+          personalityName: PERSONALITY_NAME,
+          renderedAs: 'summary',
+        },
+      ];
+
+      const [message] = buildRealMessages(entries, {
+        personalityName: PERSONALITY_NAME,
+        responderPersonalityId: PERSONALITY_ID,
+        realMessagesEnabled: true,
+        headerSpoofNeutralizeEnabled: false,
+        headerIdTags: new Map(),
+        timezone: undefined,
+      });
+
+      expect(String(message.content)).toContain('the stored summary text');
+    });
+  });
+
   describe('header format', () => {
     it('renders "[Name — timestamp]" for a user row with a createdAt', () => {
       const entries: StructuredHistoryEntry[] = [

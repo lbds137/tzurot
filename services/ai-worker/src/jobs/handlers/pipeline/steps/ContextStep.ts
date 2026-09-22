@@ -9,6 +9,7 @@ import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/disc
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
+import { HARDCODED_CONFIG_DEFAULTS } from '@tzurot/common-types/schemas/api/configOverrides';
 import type { StructuredHistoryEntry } from '../../../utils/conversationTypes.js';
 import {
   extractParticipants,
@@ -17,6 +18,7 @@ import {
 import { extractCharacterParticipants } from '../../../utils/participantUtils.js';
 import type { AssembledCore, ContextDataSource } from '../../../../services/context/types.js';
 import type { ContextAssembler } from '../../../../services/context/ContextAssembler.js';
+import { renderSameChannelHistory } from '../../../../services/context/sameChannelRender.js';
 import { transcribeAudio } from '../../../../services/multimodal/AudioProcessor.js';
 import { selectRenderableDigestText } from '../../../../services/recentDaysDigest/recentDaysDigestRenderGate.js';
 import type { IPipelineStep, GenerationContext, Participant, PreparedContext } from '../types.js';
@@ -462,7 +464,56 @@ export class ContextStep implements IPipelineStep {
           ? m.createdAt.toISOString()
           : (m.createdAt as string | undefined),
     }));
-    return { historyEntries, contextEpoch: assembled.contextEpoch };
+    const rendered = await this.applySameChannelRender(
+      historyEntries,
+      context.configOverrides,
+      job.data.personality.id
+    );
+    return { historyEntries: rendered, contextEpoch: assembled.contextEpoch };
+  }
+
+  /**
+   * Apply the same-channel render mode to the assembled history.
+   *
+   * HERE rather than at render time, for the same reason as
+   * {@link fetchCharacterBlurbs}: the prompt renders TWICE per turn (the budget
+   * pre-pass and the shipped prompt), so the substitution must happen once,
+   * upstream of both, or the two passes would measure different inputs. Placing
+   * it on the mapped `StructuredHistoryEntry[]` also means the token budget,
+   * participant extraction, and BOTH chat-log renderers (XML and real-message)
+   * read one history.
+   *
+   * Degrades to the input array when the mode resolves to 'both' (the default),
+   * when 'summarized' has no data source to fetch stored summaries from (unit
+   * tests, direct dispatch), or when the lookup fails — see
+   * `renderSameChannelHistory`. 'user-only' fetches nothing, so it renders with
+   * or without a data source wired.
+   */
+  private async applySameChannelRender(
+    historyEntries: PromptHistorySource,
+    configOverrides: GenerationContext['configOverrides'],
+    responderPersonalityId: string | undefined
+  ): Promise<PromptHistorySource> {
+    const mode = configOverrides?.sameChannelRenderMode ?? 'both';
+    const dataSource = this.dataSource;
+    if (mode === 'both' || (mode === 'summarized' && dataSource === undefined)) {
+      return historyEntries;
+    }
+    return renderSameChannelHistory(historyEntries, {
+      mode,
+      verbatimExchanges:
+        configOverrides?.sameChannelVerbatimExchanges ??
+        HARDCODED_CONFIG_DEFAULTS.sameChannelVerbatimExchanges,
+      responderPersonalityId,
+      // 'user-only' is the only mode that reaches here with no data source —
+      // and it never invokes this closure (pinned by sameChannelRender.test.ts
+      // "mode 'user-only' never calls fetchSummaries"). The undefined branch is
+      // the type-level counterpart of the guard above, not a live path.
+      fetchSummaries: triggerIds =>
+        responderPersonalityId === undefined || dataSource === undefined
+          ? Promise.resolve(new Map<string, string>())
+          : dataSource.getUsableAssistantSummariesByTriggerIds(responderPersonalityId, triggerIds),
+    });
   }
 
   /**

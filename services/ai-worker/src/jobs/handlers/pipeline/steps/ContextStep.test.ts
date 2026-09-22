@@ -1136,6 +1136,187 @@ describe('ContextStep roster blurbs', () => {
   });
 });
 
+describe('ContextStep same-channel render', () => {
+  /** A step whose assembler returns `history` and whose data source is
+   *  `getUsableAssistantSummariesByTriggerIds`. */
+  function sameChannelStep(history: unknown[], getUsableAssistantSummariesByTriggerIds = vi.fn()) {
+    const assembleCore = vi.fn().mockResolvedValue(makeAssembled({ history }));
+    const step = new ContextStep(
+      { assembleCore } as never,
+      {
+        getUsableAssistantSummariesByTriggerIds,
+      } as never
+    );
+    return { step, getUsableAssistantSummariesByTriggerIds };
+  }
+
+  const run = async (
+    step: ContextStep,
+    configOverrides: Record<string, unknown> | undefined,
+    job = envelopeJob()
+  ) =>
+    (await step.process({ job, config, configOverrides } as unknown as GenerationContext))
+      .preparedContext;
+
+  beforeEach(() => {
+    mockExtractParticipants.mockReturnValue([]);
+    mockConvertConversationHistory.mockReturnValue([]);
+  });
+
+  it('fetches summaries and substitutes them when sameChannelRenderMode is summarized', async () => {
+    // Two exchanges so verbatimExchanges: 1 (the smallest schema-valid value —
+    // the Zod schema declares .min(1)) has a genuine older exchange (1) and a
+    // genuinely protected tail exchange (2) to assert against.
+    const history = [
+      { role: MessageRole.User, content: 'hi', discordMessageId: ['u1'] },
+      {
+        role: MessageRole.Assistant,
+        content: 'original reply',
+        personalityId: TEST_PERSONALITY.id,
+      },
+      { role: MessageRole.User, content: 'and again', discordMessageId: ['u2'] },
+      {
+        role: MessageRole.Assistant,
+        content: 'second reply',
+        personalityId: TEST_PERSONALITY.id,
+      },
+    ];
+    const { step, getUsableAssistantSummariesByTriggerIds } = sameChannelStep(
+      history,
+      vi.fn().mockResolvedValue(new Map([['u1', 'the stored summary']]))
+    );
+
+    const prepared = await run(step, {
+      sameChannelRenderMode: 'summarized',
+      sameChannelVerbatimExchanges: 1,
+    });
+
+    expect(getUsableAssistantSummariesByTriggerIds).toHaveBeenCalledWith(TEST_PERSONALITY.id, [
+      'u1',
+    ]);
+    expect(prepared?.rawConversationHistory[1]?.content).toBe('the stored summary');
+    expect(prepared?.rawConversationHistory[3]?.content).toBe('second reply');
+  });
+
+  it('never calls the summary lookup with the default (mode absent — "both")', async () => {
+    const history = [
+      { role: MessageRole.User, content: 'hi', discordMessageId: ['u1'] },
+      {
+        role: MessageRole.Assistant,
+        content: 'original reply',
+        personalityId: TEST_PERSONALITY.id,
+      },
+    ];
+    const { step, getUsableAssistantSummariesByTriggerIds } = sameChannelStep(history);
+
+    const prepared = await run(step, undefined);
+
+    expect(getUsableAssistantSummariesByTriggerIds).not.toHaveBeenCalled();
+    expect(prepared?.rawConversationHistory[1]?.content).toBe('original reply');
+  });
+
+  it('renders verbatim when no data source is wired, even with sameChannelRenderMode summarized', async () => {
+    const history = [
+      { role: MessageRole.User, content: 'hi', discordMessageId: ['u1'] },
+      {
+        role: MessageRole.Assistant,
+        content: 'original reply',
+        personalityId: TEST_PERSONALITY.id,
+      },
+      { role: MessageRole.User, content: 'and again', discordMessageId: ['u2'] },
+      {
+        role: MessageRole.Assistant,
+        content: 'second reply',
+        personalityId: TEST_PERSONALITY.id,
+      },
+    ];
+    const assembleCore = vi.fn().mockResolvedValue(makeAssembled({ history }));
+
+    const prepared = await run(new ContextStep({ assembleCore } as never), {
+      sameChannelRenderMode: 'summarized',
+      sameChannelVerbatimExchanges: 1,
+    });
+
+    expect(prepared?.rawConversationHistory).toHaveLength(4);
+    expect(prepared?.rawConversationHistory[1]?.content).toBe('original reply');
+    expect(prepared?.rawConversationHistory[3]?.content).toBe('second reply');
+    // The guard must SKIP the render, not reach it and fall soft: reaching it
+    // with no data source would throw inside fetchSummaries and log this warn.
+    expect(mockLogger.warn).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('Same-channel summary lookup failed')
+    );
+  });
+
+  it('renders user-only without a data source — the mode never fetches', async () => {
+    // 'user-only' resolves entirely from the entries in hand, so the
+    // no-data-source guard must not disable it the way it disables
+    // 'summarized'.
+    const history = [
+      { role: MessageRole.User, content: 'hi', discordMessageId: ['u1'] },
+      {
+        role: MessageRole.Assistant,
+        content: 'original reply',
+        personalityId: TEST_PERSONALITY.id,
+      },
+      { role: MessageRole.User, content: 'and again', discordMessageId: ['u2'] },
+      {
+        role: MessageRole.Assistant,
+        content: 'second reply',
+        personalityId: TEST_PERSONALITY.id,
+      },
+    ];
+    const assembleCore = vi.fn().mockResolvedValue(makeAssembled({ history }));
+
+    const prepared = await run(new ContextStep({ assembleCore } as never), {
+      sameChannelRenderMode: 'user-only',
+      sameChannelVerbatimExchanges: 1,
+    });
+
+    expect(prepared?.rawConversationHistory).toHaveLength(3);
+    expect(prepared?.rawConversationHistory.map(entry => entry.content)).toEqual([
+      'hi',
+      'and again',
+      'second reply',
+    ]);
+    expect(mockLogger.warn).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('Same-channel summary lookup failed')
+    );
+  });
+
+  it('user-only drops older responder turns and never calls the summary lookup', async () => {
+    const history = [
+      { role: MessageRole.User, content: 'hi', discordMessageId: ['u1'] },
+      {
+        role: MessageRole.Assistant,
+        content: 'original reply',
+        personalityId: TEST_PERSONALITY.id,
+      },
+      { role: MessageRole.User, content: 'and again', discordMessageId: ['u2'] },
+      {
+        role: MessageRole.Assistant,
+        content: 'second reply',
+        personalityId: TEST_PERSONALITY.id,
+      },
+    ];
+    const { step, getUsableAssistantSummariesByTriggerIds } = sameChannelStep(history);
+
+    const prepared = await run(step, {
+      sameChannelRenderMode: 'user-only',
+      sameChannelVerbatimExchanges: 1,
+    });
+
+    expect(getUsableAssistantSummariesByTriggerIds).not.toHaveBeenCalled();
+    expect(prepared?.rawConversationHistory).toHaveLength(3);
+    expect(prepared?.rawConversationHistory.map(entry => entry.content)).toEqual([
+      'hi',
+      'and again',
+      'second reply',
+    ]);
+  });
+});
+
 describe('ContextStep recent-days digest', () => {
   /** A step whose assembler returns `assembledOverrides` and whose data
    *  source is `getRecentDaysDigest`. */

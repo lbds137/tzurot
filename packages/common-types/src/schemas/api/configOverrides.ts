@@ -51,6 +51,18 @@ export const ConfigOverridesSchema = z
      * tier can clear its override (inherit) but cannot yet force follow over an
      * ancestor's number. */
     crossChannelMaxMessages: z.number().int().min(1).max(100).nullable().optional(),
+    /** What the CURRENT channel's history renders for turns older than the
+     * verbatim window: 'both' = every turn verbatim (today's behavior),
+     * 'summarized' = the responding character's own older turns are replaced by
+     * their stored memory summary (verbatim where no usable summary exists),
+     * 'user-only' = older non-user turns are dropped entirely. User turns are
+     * never altered in any mode. */
+    sameChannelRenderMode: z.enum(['both', 'summarized', 'user-only']).optional(),
+    /** How many of the most recent EXCHANGES in the current channel stay
+     * verbatim regardless of `sameChannelRenderMode`. An exchange runs up to and
+     * including the responding character's reply. Only consulted when
+     * `sameChannelRenderMode` resolves to something other than 'both'. */
+    sameChannelVerbatimExchanges: z.number().int().min(1).max(50).optional(),
     /** Share long-term memories across all personalities (migrated from Persona column) */
     shareLtmAcrossPersonalities: z.boolean().optional(),
     /** Whether to show the model indicator footer on AI responses */
@@ -80,6 +92,9 @@ export type ShareHistoryAcrossPersonalitiesMode = NonNullable<
 
 /** The `crossChannelRenderMode` enum values, as a standalone type. */
 export type CrossChannelRenderMode = NonNullable<ConfigOverrides['crossChannelRenderMode']>;
+
+/** The `sameChannelRenderMode` enum values, as a standalone type. */
+export type SameChannelRenderMode = NonNullable<ConfigOverrides['sameChannelRenderMode']>;
 
 /**
  * Given the resolved `shareHistoryAcrossPersonalities` mode and whether the
@@ -172,6 +187,8 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   readonly crossChannelHistoryEnabled: false;
   readonly crossChannelRenderMode: 'both';
   readonly crossChannelMaxMessages: null;
+  readonly sameChannelRenderMode: 'both';
+  readonly sameChannelVerbatimExchanges: 10;
   readonly shareLtmAcrossPersonalities: false;
   readonly showModelFooter: true;
   readonly voiceResponseMode: 'always';
@@ -186,6 +203,8 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   crossChannelHistoryEnabled: false,
   crossChannelRenderMode: 'both',
   crossChannelMaxMessages: null,
+  sameChannelRenderMode: 'both',
+  sameChannelVerbatimExchanges: 10,
   shareLtmAcrossPersonalities: false,
   showModelFooter: true,
   voiceResponseMode: 'always',
@@ -221,6 +240,8 @@ export interface ResolvedConfigOverrides {
   crossChannelHistoryEnabled: boolean;
   crossChannelRenderMode: CrossChannelRenderMode;
   crossChannelMaxMessages: number | null;
+  sameChannelRenderMode: SameChannelRenderMode;
+  sameChannelVerbatimExchanges: number;
   shareLtmAcrossPersonalities: boolean;
   showModelFooter: boolean;
   voiceResponseMode: 'always' | 'voice-only' | 'never';
@@ -265,6 +286,8 @@ export const CONFIG_OVERRIDES_KEYS = [
   'crossChannelHistoryEnabled',
   'crossChannelRenderMode',
   'crossChannelMaxMessages',
+  'sameChannelRenderMode',
+  'sameChannelVerbatimExchanges',
   'shareLtmAcrossPersonalities',
   'showModelFooter',
   'voiceResponseMode',

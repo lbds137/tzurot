@@ -105,6 +105,21 @@ describe('ConfigCascadeResolver', () => {
       expect(result.sources.shareHistoryAcrossPersonalities).toBe('personality');
     });
 
+    it('applies a personality-tier sameChannelRenderMode override with correct source (C8 canary)', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        configDefaults: { sameChannelRenderMode: 'summarized' },
+      });
+
+      const result = await resolver.resolveOverrides('user-123', 'personality-456');
+
+      expect(result.sameChannelRenderMode).toBe('summarized');
+      expect(result.sources.sameChannelRenderMode).toBe('personality');
+      expect(result.sameChannelVerbatimExchanges).toBe(
+        HARDCODED_CONFIG_DEFAULTS.sameChannelVerbatimExchanges
+      );
+      expect(result.sources.sameChannelVerbatimExchanges).toBe('hardcoded');
+    });
+
     it('should apply admin tier override with correct source', async () => {
       mockPrisma.adminSettings.findUnique.mockResolvedValue({
         configDefaults: { maxMessages: 75 },

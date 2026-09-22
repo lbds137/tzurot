@@ -539,6 +539,39 @@ describe('SettingsDashboardBuilder', () => {
 
         expect(currentValue?.value).toContain('20');
       });
+
+      it('sameChannelVerbatimExchanges Current Value renders its own nullDisplay text when null', () => {
+        const verbatimExchangesSetting = MEMORY_SETTINGS.find(
+          s => s.id === 'sameChannelVerbatimExchanges'
+        );
+        if (verbatimExchangesSetting === undefined) {
+          throw new Error('sameChannelVerbatimExchanges setting not found in MEMORY_SETTINGS');
+        }
+
+        const verbatimExchangesConfig: SettingsDashboardConfig = {
+          level: 'global',
+          entityType: 'test-settings',
+          titlePrefix: 'Test',
+          color: DISCORD_COLORS.BLURPLE,
+          settings: [verbatimExchangesSetting],
+        };
+        const session = createTestSession({
+          sameChannelVerbatimExchanges: {
+            localValue: null,
+            hasLocalOverride: false,
+            effectiveValue: null,
+            source: 'hardcoded',
+            parentValue: null,
+          },
+        });
+
+        const embed = buildSettingEmbed(verbatimExchangesConfig, session, verbatimExchangesSetting);
+        const fields = getEmbedFields(embed);
+        const currentValue = fields.find(f => f.name === 'Current Value');
+
+        expect(currentValue?.value).toContain('Auto (inherits; default 10)');
+        expect(currentValue?.value).not.toContain('null');
+      });
     });
   });
 

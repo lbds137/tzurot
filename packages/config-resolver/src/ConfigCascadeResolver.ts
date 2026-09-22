@@ -283,6 +283,9 @@ export class ConfigCascadeResolver {
       crossChannelRenderMode:
         values.crossChannelRenderMode as ResolvedConfigOverrides['crossChannelRenderMode'],
       crossChannelMaxMessages: values.crossChannelMaxMessages as number | null,
+      sameChannelRenderMode:
+        values.sameChannelRenderMode as ResolvedConfigOverrides['sameChannelRenderMode'],
+      sameChannelVerbatimExchanges: values.sameChannelVerbatimExchanges as number,
       shareLtmAcrossPersonalities: values.shareLtmAcrossPersonalities as boolean,
       showModelFooter: values.showModelFooter as boolean,
       voiceResponseMode: values.voiceResponseMode as 'always' | 'voice-only' | 'never',

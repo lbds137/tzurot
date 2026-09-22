@@ -97,6 +97,13 @@ export interface StructuredHistoryEntry {
   /** Discord username for disambiguation when persona name matches personality name */
   discordUsername?: string;
   tokenCount?: number;
+  /**
+   * Set when the same-channel render replaced this entry's `content` with the
+   * turn's stored memory summary. Absent on every verbatim entry, including one
+   * that fell back to verbatim because no usable summary existed. Read by the
+   * XML chat-log renderer, which surfaces it as a `rendered` attribute.
+   */
+  renderedAs?: 'summary';
   /** Whether this message was forwarded from another channel */
   isForwarded?: boolean;
   /** Structured metadata (referenced messages, attachments) - formatted at prompt time */
