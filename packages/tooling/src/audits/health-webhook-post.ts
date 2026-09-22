@@ -159,8 +159,12 @@ export async function runHealthWebhookPost(options: PostWebhookOptions = {}): Pr
   // sections whose bodies are unbroken runs of markdown bullets. Any one of
   // those runs over the cap is a single `splitMessage` "paragraph", which it
   // re-joins with spaces at every internal newline. Code-fence preservation
-  // is not in play — neither `health.ts` nor `health-extras.ts` emits a ```
-  // fence (grepped: zero occurrences in both).
+  // is not in play — the report's source modules are asserted fence-free by
+  // the derived-file-set test in `health-webhook-post.test.ts` (a triple-
+  // backtick fence split across two chunks would render as broken markdown
+  // in the health channel). The one case that test cannot see: a fence
+  // arriving at runtime from external data relayed into the report, such as
+  // a `gh` error body surfaced through `describeGhFailure` — not verified.
   // Trimmed emptiness, not just zero length. Two shapes reach here with
   // nothing to say: an empty chunk, which splitMessageByLines emits when a
   // blank source line lands alone at a forced boundary (it preserves the line
