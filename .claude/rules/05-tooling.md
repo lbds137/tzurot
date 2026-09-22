@@ -288,6 +288,8 @@ can trip the warning on push churn rather than real rounds.
 
 After a session restart, a re-fetch may re-surface already-reported comments once (the dedup timestamp lives in conversation state) — expected, not a dedup bug.
 
+**Merge mechanics.** The merge is the tail of a verify-then-merge `&&` chain, never a bare `gh pr merge`, so a failed verification halts before the destructive step. Get the checkout off the PR's head branch before `gh pr merge --delete-branch`, then verify the remote branch is gone — the flag fails silently otherwise. When the target branch moved under a long-lived feature branch, re-derive diffstats and counts against the MERGE-BASE, not the target's current HEAD.
+
 ### Release Notes Format
 
 Conventional Changelog format. **Release title**: `v3.0.0-beta.XX` (version

@@ -116,6 +116,8 @@ every scripted replacement's target; prefer the Edit tool below ~5 replaces.
 After a bulk rename/move, also grep for the OLD token in its variant forms —
 bare basename, each prefix depth, backticked mention — before declaring the
 sweep complete; the canonical-form grep alone has under-swept three times.
+A line number computed before an intervening edit to the same file is stale —
+re-locate the target by content before the next line-addressed edit.
 
 ## A changed premise sweeps its prose
 
