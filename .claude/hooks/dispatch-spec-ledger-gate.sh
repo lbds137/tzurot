@@ -273,16 +273,20 @@ while IFS= read -r HIT; do
   mapfile -t FILTER_TOKENS < <(awk '{for (i = 2; i <= NF; i++) print $i}' <<<"$CLEANED")
   [ "${#FILTER_TOKENS[@]}" -gt 0 ] || continue
 
-  # Strip TRAILING prose punctuation (backtick, period, comma, closing paren)
-  # one character at a time — a token at the end of a sentence (`run`` or
-  # `test`.) must still match `run` or resolve as the real script name. Only
-  # trailing characters are removed: a script name with an interior period
-  # (`test.integration`) must survive intact rather than being truncated at
-  # the first dot.
+  # Strip TRAILING prose punctuation one character at a time: backtick,
+  # period, comma, colon, asterisk, double and single quote, and the closing
+  # `)`, `]` and `}`. A token at the end of a sentence (`run`` or `test`.),
+  # before a colon (`test`:) or inside markdown bold (`test`**) must still
+  # match `run` or resolve as the real script name. Only trailing characters
+  # are removed: a script name with an interior period (`test.integration`)
+  # must survive intact rather than being truncated at the first dot. The
+  # class is held in a variable because `]` has to lead the bracket
+  # expression to be literal, and the quotes are simplest escaped there.
+  TRAILING_PUNCT="[]\`.,:*)}\"']"
   for ((TOK_IDX = 0; TOK_IDX < ${#FILTER_TOKENS[@]}; TOK_IDX++)); do
     TOK="${FILTER_TOKENS[$TOK_IDX]}"
-    while [ -n "$TOK" ] && [ "${TOK%[\`.,)]}" != "$TOK" ]; do
-      TOK=${TOK%[\`.,)]}
+    while [ -n "$TOK" ] && [ "${TOK%$TRAILING_PUNCT}" != "$TOK" ]; do
+      TOK=${TOK%$TRAILING_PUNCT}
     done
     FILTER_TOKENS[TOK_IDX]="$TOK"
   done

@@ -176,6 +176,61 @@ echo "$(git push origin b)" | tail -5'
 # target-bearing substitution in one segment arms the git rule for a filtered
 # pipeline in another. Named here so the false positive is recognisable.
 run 2 "the span scan is command-wide, not per-stage" 'echo "$(git commit -m x)" && ls | head -3'
+# SINGLE-quoted content being WRITTEN is not executed: a backticked or $(…)
+# git command inside it is prose, so it arms nothing even beside a filtered
+# pipeline. This used to block (the span scan read single-quoted text too),
+# which false-blocked ordinary note- and description-writing commands.
+run 0 "a backticked push in single-quoted content is prose" 'printf '"'"'%s\n'"'"' '"'"'always run `git push` last'"'"' > notes.md && ls | head -3'
+run 0 "a \$( ) commit in single-quoted content is prose" 'printf '"'"'%s\n'"'"' '"'"'see $(git commit -m x)'"'"' > notes.md && ls | head -3'
+# The true-positive half: the SAME content in DOUBLE quotes really executes the
+# push, so the command-wide span scan still arms the git rule and blocks.
+run 2 "the same backticked push in double quotes still blocks" 'printf '"'"'%s\n'"'"' "always run `git push` last" > notes.md && ls | head -3'
+run 2 "the same \$( ) commit in double quotes still blocks" 'printf '"'"'%s\n'"'"' "see $(git commit -m x)" > notes.md && ls | head -3'
+# The single-quote skip FAILS CLOSED. Each row below is a shape where bash runs
+# the push inside a substitution but a quote-tracking skip that did not know the
+# construct would have skipped it; the fixtures are read from here-documents so
+# the invoking command line never carries the target text. The `$$`, comment
+# and ANSI-C rows are fixed by the scanner's closing and comment rules rather
+# than a fallback trigger, or are also caught by the top-level strip, so a
+# fallback-only mutation leaves them green; shellQuotes.test.ts pins those
+# triggers directly.
+read -r -d '' SKIP_BYPASS_DOLLAR_DOLLAR <<'FIX'
+echo $$'a\' "$(git push)" 'b' | tail
+FIX
+run 2 "skip bypass: \$\$ is not an ANSI-C opener" "$SKIP_BYPASS_DOLLAR_DOLLAR"
+read -r -d '' SKIP_BYPASS_COMMENT <<'FIX'
+true # x\
+echo "
+it's $(git push)" 'z' | tail
+FIX
+run 2 "skip bypass: a comment's trailing backslash does not continue it" "$SKIP_BYPASS_COMMENT"
+read -r -d '' SKIP_BYPASS_EARLY_SPAN <<'FIX'
+echo "$(echo ")")" x "y' $(git push) 'z" | tail
+FIX
+run 2 "skip bypass: a span that ends early cannot desync the quote state" "$SKIP_BYPASS_EARLY_SPAN"
+# The heredoc is left UNTERMINATED here (its last line is not the bare marker),
+# which is the shape the whole-command heredoc strip keeps rather than drops, so
+# the body text reaches the span scan. A TERMINATED unquoted-marker body is
+# stripped before the scan on every version of the helper (a documented
+# under-arm in strip_heredoc_bodies), so it could not exercise the skip at all.
+read -r -d '' SKIP_BYPASS_HEREDOC <<'FIX'
+cat <<EOF | tail
+it's $(git push) 'x'
+EOF | tail
+FIX
+run 2 "skip bypass: an apostrophe in a kept heredoc body cannot hide a span" "$SKIP_BYPASS_HEREDOC"
+read -r -d '' SKIP_BYPASS_WRAPPER <<'FIX'
+bash -c 'echo $(git push)' | tail
+FIX
+run 2 "skip bypass: bash -c executes its single-quoted argument" "$SKIP_BYPASS_WRAPPER"
+read -r -d '' SKIP_BYPASS_EVAL <<'FIX'
+eval 'echo $(git push)' | tail
+FIX
+run 2 "skip bypass: eval executes its single-quoted argument" "$SKIP_BYPASS_EVAL"
+read -r -d '' SKIP_BYPASS_ANSI_C <<'FIX'
+echo $'a\'' $(git push) 'x' | tail
+FIX
+run 2 "skip bypass: a real ANSI-C escaped quote cannot hide a live span" "$SKIP_BYPASS_ANSI_C"
 
 # --- case and leading redirects ------------------------------------------
 # Both were live bypasses. Case: the bash PRE-FILTER is checked first, so making
