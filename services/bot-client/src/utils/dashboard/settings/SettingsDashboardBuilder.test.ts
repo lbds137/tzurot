@@ -29,6 +29,11 @@ import {
 import type { APIButtonComponentWithCustomId, APIStringSelectComponent } from 'discord.js';
 import { EXTENDED_CONTEXT_SETTINGS, MEMORY_SETTINGS, ALL_SETTINGS } from './settingsConfig.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { ADMIN_SETTINGS_CONFIG } from '../../../commands/admin/settings.js';
+import { CHARACTER_SETTINGS_CONFIG } from '../../../commands/character/settings.js';
+import { CHANNEL_SETTINGS_CONFIG } from '../../../commands/channel/settings.js';
+import { USER_DEFAULTS_CONFIG } from '../../../commands/settings/defaults/edit.js';
+import { CHARACTER_OVERRIDES_CONFIG } from '../../../commands/character/overrides.js';
 
 // Test fixtures
 const createTestConfig = (): SettingsDashboardConfig => ({
@@ -37,6 +42,7 @@ const createTestConfig = (): SettingsDashboardConfig => ({
   titlePrefix: 'Test',
   color: DISCORD_COLORS.BLURPLE,
   settings: EXTENDED_CONTEXT_SETTINGS,
+  scopeNote: () => 'test scope',
 });
 
 const createTestSession = (
@@ -159,6 +165,90 @@ describe('SettingsDashboardBuilder', () => {
       const json = embed.toJSON();
 
       expect(json.description).toContain('Test Entity');
+    });
+
+    it('renders the scope note between the base description and the select-a-setting hint', () => {
+      const config: SettingsDashboardConfig = {
+        ...createTestConfig(),
+        scopeNote: () => 'SCOPE_NOTE_MARKER',
+      };
+      const session = createTestSession();
+
+      const embed = buildOverviewEmbed(config, session);
+      const description = embed.toJSON().description ?? '';
+
+      const baseIndex = description.indexOf('Test Entity');
+      const scopeIndex = description.indexOf('SCOPE_NOTE_MARKER');
+      const hintIndex = description.indexOf('Select a setting below to modify it.');
+
+      expect(baseIndex).toBeGreaterThanOrEqual(0);
+      expect(scopeIndex).toBeGreaterThan(baseIndex);
+      expect(hintIndex).toBeGreaterThan(scopeIndex);
+    });
+
+    it('passes session.entityName to scopeNote', () => {
+      const config: SettingsDashboardConfig = {
+        ...createTestConfig(),
+        scopeNote: name => `scope for ${name}`,
+      };
+      const session = { ...createTestSession(), entityName: 'Named Entity' };
+
+      const embed = buildOverviewEmbed(config, session);
+      const description = embed.toJSON().description ?? '';
+
+      expect(description).toContain('scope for Named Entity');
+    });
+
+    describe('real dashboard scope notes', () => {
+      it("renders the global dashboard's approved scope line", () => {
+        const session = createTestSession();
+        const embed = buildOverviewEmbed(ADMIN_SETTINGS_CONFIG, session);
+        const description = embed.toJSON().description ?? '';
+
+        expect(description).toContain(
+          "🌐 Applies to everyone, bot-wide. Character, channel, and each user's own settings override these."
+        );
+      });
+
+      it("renders the character-settings dashboard's approved scope line", () => {
+        const session = { ...createTestSession(), entityName: 'Xeo (xeo)' };
+        const embed = buildOverviewEmbed(CHARACTER_SETTINGS_CONFIG, session);
+        const description = embed.toJSON().description ?? '';
+
+        expect(description).toContain(
+          "🎭 Applies to everyone talking to **Xeo (xeo)**. Channel settings and each user's own settings override these."
+        );
+      });
+
+      it("renders the channel dashboard's approved scope line", () => {
+        const session = createTestSession();
+        const embed = buildOverviewEmbed(CHANNEL_SETTINGS_CONFIG, session);
+        const description = embed.toJSON().description ?? '';
+
+        expect(description).toContain(
+          "📍 Applies to members in this channel who haven't set their own value. Personal settings override these."
+        );
+      });
+
+      it("renders the user-defaults dashboard's approved scope line", () => {
+        const session = createTestSession();
+        const embed = buildOverviewEmbed(USER_DEFAULTS_CONFIG, session);
+        const description = embed.toJSON().description ?? '';
+
+        expect(description).toContain(
+          '👤 Applies only to your conversations, with every character. Your per-character overrides still win.'
+        );
+      });
+
+      it("renders the character-overrides dashboard's approved scope line", () => {
+        const session = { ...createTestSession(), entityName: 'Xeo (xeo)' };
+        const embed = buildOverviewEmbed(CHARACTER_OVERRIDES_CONFIG, session);
+        const description = embed.toJSON().description ?? '';
+
+        expect(description).toContain(
+          '👤 Applies only to your conversations with **Xeo (xeo)**. Nothing overrides these.'
+        );
+      });
     });
 
     it('should have fields for each setting', () => {
@@ -483,6 +573,7 @@ describe('SettingsDashboardBuilder', () => {
         titlePrefix: 'Test',
         color: DISCORD_COLORS.BLURPLE,
         settings: [numericWithNullDisplay],
+        scopeNote: () => 'test scope',
       };
 
       it('Current Value renders the nullDisplay text when the effective value is null', () => {
@@ -554,6 +645,7 @@ describe('SettingsDashboardBuilder', () => {
           titlePrefix: 'Test',
           color: DISCORD_COLORS.BLURPLE,
           settings: [verbatimExchangesSetting],
+          scopeNote: () => 'test scope',
         };
         const session = createTestSession({
           sameChannelVerbatimExchanges: {

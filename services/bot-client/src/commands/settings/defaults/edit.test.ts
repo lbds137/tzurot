@@ -249,7 +249,7 @@ describe('User Default Settings Dashboard', () => {
       expect(editReplyCall.components).toHaveLength(2);
     });
 
-    it('should display description note about defaults', async () => {
+    it('should display the scope note about defaults', async () => {
       const context = createMockContext();
       stub.resolveUserDefaults.mockResolvedValue({ ok: true, data: mockResolveDefaultsResponse });
 
@@ -258,7 +258,7 @@ describe('User Default Settings Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
       expect(embedJson.description).toContain(
-        'These defaults apply across all characters unless overridden.'
+        '👤 Applies only to your conversations, with every character. Your per-character overrides still win.'
       );
     });
 

@@ -228,6 +228,13 @@ export interface SettingsDashboardConfig {
   /** Optional note appended to the overview embed description */
   descriptionNote?: string;
   /**
+   * States who this tier's settings affect and which tier overrides them.
+   * Rendered on its own line in the overview embed. Required so a new
+   * dashboard cannot omit the scope statement. Receives the session's
+   * `entityName`; configs that don't need it ignore the parameter.
+   */
+  scopeNote: (entityName: string) => string;
+  /**
    * Opt-in reset-to-defaults affordance. When present, the overview renders a
    * Danger button routed to the shared 'reset' action; the dashboard's
    * injected reset handler clears the entity's overrides and returns fresh

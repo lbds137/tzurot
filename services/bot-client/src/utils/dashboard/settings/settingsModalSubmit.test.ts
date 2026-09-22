@@ -49,6 +49,7 @@ const config = (): SettingsDashboardConfig => ({
   titlePrefix: 'Test',
   color: DISCORD_COLORS.BLURPLE,
   settings: [...EXTENDED_CONTEXT_SETTINGS, TEXT_SETTING, NUMERIC_PLAIN_SETTING, LIST_SETTING],
+  scopeNote: () => 'test scope',
 });
 
 const sessionData = () => ({

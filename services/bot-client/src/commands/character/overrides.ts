@@ -43,7 +43,7 @@ const ENTITY_TYPE = 'character-overrides';
 /**
  * Dashboard configuration for character overrides
  */
-const CHARACTER_OVERRIDES_CONFIG: SettingsDashboardConfig = {
+export const CHARACTER_OVERRIDES_CONFIG: SettingsDashboardConfig = {
   level: 'personality',
   entityType: ENTITY_TYPE,
   titlePrefix: 'Character Override',
@@ -54,6 +54,8 @@ const CHARACTER_OVERRIDES_CONFIG: SettingsDashboardConfig = {
     ...DISPLAY_SETTINGS,
     ...VOICE_CASCADE_SETTINGS,
   ],
+  scopeNote: name =>
+    `👤 Applies only to your conversations with **${name}**. Nothing overrides these.`,
 };
 
 /**
