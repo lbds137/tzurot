@@ -63,6 +63,10 @@ Two corollaries: tracked surfaces (commit messages, PR bodies, backlog entries) 
 - **Post-mortems** -- an entry is _incident (≤3 lines) → operationalization shipped (rule/hook/guard link)_. The point of a post-mortem is not the narrative but what got operationalized in its wake; narrative beyond that is deleted (git preserves it). An entry with no operationalization outcome is a red flag to fix, not a keepsake.
 - **Rules/skills carry constraints, not archaeology** -- a rule states the constraint plus at most a one-sentence why; multi-paragraph incident stories, adoption dates, and council-derivation notes don't belong in always-loaded surfaces. The operationalized outcome IS the record.
 
+## Command Blocks Are Code
+
+A command block in a rule, skill, or reference doc is code that a future session runs verbatim. It ships only after it has been executed in the state it is written for, such as the upstream-less branch, the unreachable remote, or the dirty tree. The prose beside it records what that run observed, not what the author expected. Reading cannot substitute for running, because the reader brings the same model of the command that the author used when writing it. An example commit message, branch name, or config snippet counts as a command too: run it through the hook or validator that will judge it.
+
 ## Reference Root Files
 
 These live directly in `docs/reference/` (not in a subdirectory):
