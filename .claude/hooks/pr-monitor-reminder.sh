@@ -191,7 +191,8 @@ When it fires:
 - Apply feedback per /tzurot-review-response (trivial-shape
   auto-apply via test-gated fixups; semantic-shape decided when
   engineering-only, ASK on a product/UX, user-visible, schema, spend,
-  data-rights, or security dimension or a changed test assertion;
+  data-rights, or security dimension, a changed test assertion, or an
+  async-boundary or external-contract change;
   batch-present).
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EOF
