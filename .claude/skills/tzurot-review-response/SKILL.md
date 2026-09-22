@@ -1,6 +1,6 @@
 ---
 name: tzurot-review-response
-description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → decided when engineering-only, ASK when it carries a product/UX, schema, spend or data-rights dimension), check reviewer-vs-agent signal conflict, batch-present the four sections, step back at ~3 automated rounds (rule of thumb), and hard-cap at ~6 — hand off to a fresh context or the owner. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
+description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → decided when engineering-only, ASK when it carries a product/UX, user-visible, schema, spend, data-rights, or security dimension or changes an existing test assertion), check reviewer-vs-agent signal conflict, batch-present the four sections, step back at ~3 automated rounds (rule of thumb), and hard-cap at ~6 — hand off to a fresh context or the owner. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
 lastUpdated: '2026-09-22'
 ---
 
@@ -10,7 +10,7 @@ When `claude-review` or any PR reviewer returns findings, the agent follows this
 
 ## Why this procedure exists
 
-This procedure shifts trivial chores to auto-apply (under tight constraints) and engineering-only behavior changes to reported decisions, while preserving explicit approval for anything with a product/UX, user-visible, schema, spend, or data-rights dimension.
+This procedure shifts trivial chores to auto-apply (under tight constraints) and engineering-only behavior changes to reported decisions, while preserving explicit approval for anything with a product/UX, user-visible, schema, spend, data-rights, or security dimension, and for any change to an existing test assertion.
 
 **Key design principle**: `claude-review` is the same model family as the agent. It has no special epistemic authority. When the reviewer's severity label conflicts with the agent's own classification, that's **uncertainty**, not an override opportunity in either direction. The safe resolution is always ASK.
 
@@ -28,7 +28,7 @@ Before applying any review suggestion, classify the concrete diff the agent woul
 
 Line count is not a classifier. A one-line regex-flag change is semantic; a 20-line scope-local rename is trivial.
 
-**Second axis — who owns the decision.** A semantic finding whose options differ only on engineering grounds is DECIDED by the agent: apply it under rule 3's test gate and report it under Auto-applied tagged `[semantic:decided]`, with the reasoning and the option not taken. **Asks** is reserved for findings with a product/UX, user-visible, schema, spend, or data-rights dimension. This boundary fails closed: if a dimension might be present, it is an Ask. The round report still shows every decided item, so the owner can reverse any of them.
+**Second axis — who owns the decision.** A semantic finding whose options differ only on engineering grounds is DECIDED by the agent: apply it under rule 3's test gate and report it under Auto-applied tagged `[semantic:decided]`, with the reasoning and the option not taken. **Asks** is reserved for findings with a product/UX, user-visible, schema, spend, data-rights, or security dimension (security as `00-critical.md` § Security scopes it). Changing or deleting an EXISTING test assertion is always an Ask, never decided — it is a spec change, and `00-critical.md` forbids modifying tests to make them pass. This boundary fails closed: if a dimension might be present, it is an Ask. The round report still shows every decided item, so the owner can reverse any of them.
 
 ### 2. Check for signal conflict
 
@@ -275,7 +275,7 @@ The whitelist loads with this skill. Entries are evaluated in order. The user ma
 - **Type annotation addition** — adding `: T` to a variable, parameter, or return type; adding a type guard that only narrows for the compiler; **not** type changes that alter runtime control flow
 - **Formatting per linter** — apply `prettier` or `eslint --fix` output verbatim; no manual edits
 - **String literal typo fix** — text-content correction in a regular string literal; **not** inside regex patterns, SQL queries, shell commands, URL paths, or any other language-in-a-string context
-- **Test-only addition covering this PR's own behavior** — adding `it()`/`describe()` blocks to a `*.test.ts` that exercise behavior THIS PR introduced or changed, with zero production-file edits. Safe because it cannot alter runtime behavior and the test gate proves the assertion holds. **Excludes**: changing or deleting an EXISTING assertion (that's a spec change — ASK), adding a test that requires a production edit to pass (the production edit is the real change — classify THAT), and touching `knownGaps`/baseline files (`00-critical` forbids widening those). Reviewers routinely flag missing coverage on new gating behavior; asking every time is pure decision fatigue.
+- **Test-only addition covering this PR's own behavior** — adding `it()`/`describe()` blocks to a `*.test.ts` that exercise behavior THIS PR introduced or changed, with zero production-file edits. Safe because it cannot alter runtime behavior and the test gate proves the assertion holds. **Excludes**: changing or deleting an EXISTING assertion (that's a spec change — always ASK, never `[semantic:decided]`), adding a test that requires a production edit to pass (the production edit is the real change — classify THAT), and touching `knownGaps`/baseline files (`00-critical` forbids widening those). Reviewers routinely flag missing coverage on new gating behavior; asking every time is pure decision fatigue.
 - **Documentation-only addition** — adding content to `BACKLOG.md`, `backlog/**/*.md`, release notes, `CHANGELOG.md`, `README.md`, or any file under `docs/`. Includes new sections and new entries, not just fixes. **Excludes** edits to `.claude/rules/*.md` and `.claude/skills/*/SKILL.md`, which are load-bearing constraints/procedures — treat those as semantic-shape even though they're markdown. Adding to a documentation file that this PR didn't otherwise touch is still allowed under this shape; "scope expansion" only applies to CODE files (see below).
 
 Implicit rule: "touches a file not in the PR's diff so far" is NOT a blocker for auto-apply as long as the edit is one of the trivial shapes above. The blast radius concern comes from the _shape_ of the change, not the _location_. A `backlog/**/*.md` addition to a file the PR hasn't touched is still a trivial-shape edit; a logic change in an untouched code file is still semantic-shape.
@@ -307,7 +307,7 @@ Keep each entry self-contained so an observer can verify a candidate diff agains
 
 Before each round's consolidated message:
 
-- [ ] Every review item classified against trivial / non-trivial / unknown (rule 1), and every semantic item routed by decision owner — `[semantic:decided]` only when no product/UX, user-visible, schema, spend, or data-rights dimension exists
+- [ ] Every review item classified against trivial / non-trivial / unknown (rule 1), and every semantic item routed by decision owner — `[semantic:decided]` only when no product/UX, user-visible, schema, spend, data-rights, or security dimension exists and no existing test assertion changes
 - [ ] Every auto-apply candidate checked against reviewer label for signal conflict (rule 2)
 - [ ] Every "no action now" item routed by what would reopen it — Do it now (this file/diff) / File the batch (a named cross-file pass) / Backlog candidate (a named observable) / Dismissed (nothing) per rule 2's deferral rows; a Do-it-now item re-enters rule 1 and lands under Auto-applied or Asks; on a process-work PR a low-priority Backlog candidate becomes a `[residue]` line in the PR body instead of a task
 - [ ] Every origin-scoped finding ("pre-existing" / "not a regression") given a merits disposition — never Dismissed on origin alone (rule 2's origin-language row)

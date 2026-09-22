@@ -227,7 +227,8 @@ a gap the worker will fill by guessing.
    (§ Worktree spawns › "The base IS stale by default") — never a bare
    verify-and-stop.
 9. **Report requirements** — deviations flagged, verbatim verification tails,
-   survivor-grep results. Git-state claims (current branch, base SHA,
+   survivor-grep results, and the purpose canary's failure COUNT with a
+   verdict on whether it matches the code paths the purpose spans. Git-state claims (current branch, base SHA,
    porcelain status) appear as pasted command output, never restated prose.
    The same holds for every claim of having verified, confirmed, or measured
    something — in the spec, the report, and the PR body alike: the sentence

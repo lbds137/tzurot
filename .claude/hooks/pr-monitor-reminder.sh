@@ -190,7 +190,8 @@ When it fires:
 - Report CI state + reviewer findings in one message (blocking vs. non-blocking).
 - Apply feedback per /tzurot-review-response (trivial-shape
   auto-apply via test-gated fixups; semantic-shape decided when
-  engineering-only, ASK on a product/schema/spend/data-rights dimension;
+  engineering-only, ASK on a product/UX, user-visible, schema, spend,
+  data-rights, or security dimension or a changed test assertion;
   batch-present).
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EOF
