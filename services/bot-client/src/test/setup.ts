@@ -8,7 +8,7 @@ import { config } from 'dotenv';
 import { resolve } from 'path';
 
 // Load environment variables from .env.test BEFORE any other imports
-config({ path: resolve(__dirname, '../../.env.test') });
+config({ path: resolve(__dirname, '../../.env.test'), quiet: true });
 
 import { beforeAll, afterEach, afterAll, vi } from 'vitest';
 
