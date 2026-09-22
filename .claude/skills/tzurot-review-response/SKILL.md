@@ -39,7 +39,7 @@ Compare the reviewer's severity label against the edit shape from rule 1:
 | "nit / minor / not blocking"                                                                                  | trivial          | **Continue** (aligned)                                                                                               |
 | "nit / minor / not blocking"                                                                                  | semantic         | **ASK** (disagreement)                                                                                               |
 | "medium / blocking / must fix"                                                                                | trivial          | **ASK** (disagreement)                                                                                               |
-| "medium / blocking / must fix"                                                                                | semantic         | **Rule 1's second axis** (aligned on severity — engineering-only is decided, any owner dimension is an Ask)          |
+| "medium / blocking / must fix"                                                                                | semantic         | **DECIDE or ASK** (aligned on severity — rule 1's second axis: engineering-only decides, owner dimension asks)       |
 | Self-dismisses ("actually fine")                                                                              | Agent agrees     | **DISMISS** (note in summary)                                                                                        |
 | Self-dismisses                                                                                                | Agent disagrees  | **ASK** (with dissenting analysis)                                                                                   |
 | Scopes a finding by origin ("pre-existing" / "not a regression" / "not introduced here")                      | Any              | **MERITS JUDGMENT** (origin ≠ verdict; see below)                                                                    |
@@ -81,7 +81,7 @@ Do-it-now sends the finding back through **rule 1**, not around it: a trivial-sh
 
 ### 3. Apply with test-suite gating
 
-For items that passed rules 1 and 2 (trivial-shape + no conflict):
+For items that passed rules 1 and 2 with no conflict — trivial-shape, or semantic and `[semantic:decided]` under rule 1's second axis:
 
 1. Apply the edit as a `git commit --fixup=<target-sha>` commit. `target-sha` is the original commit that introduced the code being changed.
 2. Run the package-level test for the modified file (e.g., `pnpm --filter bot-client test`).
@@ -209,8 +209,9 @@ After processing all review items in a round, present one consolidated message t
            → new phase on the owning theme doc (doc-N), this finding is member 1
 ```
 
-The four sections (Auto-applied / Asks / Dismissed / Backlog candidates) MUST appear even when empty, so the round structure is consistent and round count is visibly mechanical. The two dispositions added by rule 2 report inside these four, not beside them, and both are **tagged so the routing is checkable rather than asserted**:
+The four sections (Auto-applied / Asks / Dismissed / Backlog candidates) MUST appear even when empty, so the round structure is consistent and round count is visibly mechanical. The dispositions added by rules 1 and 2 report inside these four, not beside them, and each is **tagged so the routing is checkable rather than asserted**:
 
+- A **decided** item (rule 1's second axis) lands under Auto-applied tagged `[semantic:decided]`, with the reasoning and the option not taken, so the owner can reverse it.
 - A **do-it-now** item lands under Auto-applied or Asks depending on its shape, tagged `[do-it-now:trivial]` / `[do-it-now:semantic]` with the reviewer's deferral quoted — that pairing is the whole justification for fixing it here instead of filing it, so it belongs in the report.
 - A **file-the-batch** item lands under Backlog candidates tagged `[batch]`, naming which theme-doc phase or idea doc now owns the pass.
 - A **residue** item (process-work PR, low priority) lands under Backlog candidates tagged `[residue]` with its PR-body disposition — declined with the reason, or filed with the sentence that earns it `medium` or above.
