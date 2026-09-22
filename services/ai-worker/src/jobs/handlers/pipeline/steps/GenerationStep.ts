@@ -4,6 +4,7 @@
  * Generates AI response using the RAG service with all prepared context.
  */
 
+import { type AIProvider } from '@tzurot/common-types/constants/ai';
 import {
   ApiErrorCategory,
   ApiErrorType,
@@ -33,6 +34,29 @@ import { storeDiagnosticLog } from './diagnosticStorage.js';
 import { buildConversationContext } from './conversationContextBuilder.js';
 
 const logger = createLogger('GenerationStep');
+
+/**
+ * The configured (or auto-promoted) provider a SERVED fallback swap routed
+ * away from, or `undefined` when no route change occurred.
+ *
+ * Equal providers (a BYOK request rescued onto the system key on the SAME
+ * platform) are not a route change and stay undefined — the model line
+ * already carries that swap, since the runner returns `quotaFallback`
+ * alongside the effective provider on exactly those paths (see
+ * quotaFallbackRunner). Pinned by the served-swap cases in
+ * GenerationStep.test.ts.
+ *
+ * Module-level rather than inline so its branches do not count against
+ * `process`'s complexity ceiling.
+ */
+function deriveFallbackFromProvider(
+  configuredProvider: AIProvider | undefined,
+  effectiveProviderUsed: AIProvider | undefined
+): AIProvider | undefined {
+  return effectiveProviderUsed !== undefined && effectiveProviderUsed !== configuredProvider
+    ? configuredProvider
+    : undefined;
+}
 
 export class GenerationStep implements IPipelineStep {
   private readonly freeTierQuota: FreeTierRequestQuota | undefined;
@@ -188,6 +212,8 @@ export class GenerationStep implements IPipelineStep {
         composeQuotaFallbackInfo(reactiveQuotaFallback, auth.quotaFallback) ??
         autoPromotionFallback;
 
+      const fallbackFromProvider = deriveFallbackFromProvider(provider, effectiveProviderUsed);
+
       // Store memory ONCE after retry loop completes with a valid response.
       // This prevents duplicate memories when retries occur (the fix for the
       // "swiss cheese" duplicate memory bug - see memory:cleanup command).
@@ -272,6 +298,7 @@ export class GenerationStep implements IPipelineStep {
               processingTimeMs,
               modelUsed: response.modelUsed,
               providerUsed: effectiveProviderUsed ?? provider,
+              fallbackFromProvider,
               configSource,
               // Effective guest-mode after any mid-turn credential swap (a
               // credit-exhausted BYOK request retargeted onto the system key
@@ -311,6 +338,7 @@ export class GenerationStep implements IPipelineStep {
             // Effective provider after any auto-promotion fallback swap (OpenRouter
             // when the promoted z.ai call failed), so the footer links correctly.
             providerUsed: effectiveProviderUsed ?? provider,
+            fallbackFromProvider,
             configSource,
             // Same mid-turn-swap correction as providerUsed: the usage row's
             // byok column derives from this, and the pre-retarget value would

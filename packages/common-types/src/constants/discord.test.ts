@@ -487,6 +487,73 @@ describe('Bot Footer Text Constants', () => {
       ).toBe('Model: [glm-4.7](<https://example.com/m>)');
     });
 
+    it('marks a served same-model fallback as a provider chain', () => {
+      // The z.ai coding plan failed and OpenRouter served the same model; the
+      // only visible difference is the model id's namespace spelling, so the
+      // chain is the sole thing saying this was not the configured route.
+      const result = buildModelFooterText('z-ai/glm-5.2', 'https://example.com/m', {
+        provider: 'openrouter',
+        fallbackFromProvider: 'zai-coding',
+      });
+      expect(result).toBe(
+        'Model: [z-ai/glm-5.2](<https://example.com/m>) • via Z.AI Coding Plan → OpenRouter (fallback)'
+      );
+    });
+
+    it('drops the chain suffix when the model line already rendered a quota reason', () => {
+      const result = buildModelFooterText('z-ai/glm-5.2', 'https://example.com/m', {
+        provider: 'openrouter',
+        fallbackFromProvider: 'zai-coding',
+        quotaFallback: { fromModel: 'z-ai/glm-5.2', category: 'credit_exhaustion' },
+      });
+      expect(result).toBe(
+        'Model: [z-ai/glm-5.2](<https://example.com/m>) (out of credit) • via Z.AI Coding Plan → OpenRouter'
+      );
+      // "(out of credit) (fallback)" would read as two separate events.
+      expect(result).not.toContain('(fallback)');
+    });
+
+    it('renders no chain for a non-fallback call', () => {
+      const result = buildModelFooterText('glm-5.2', 'https://example.com/m', {
+        provider: 'zai-coding',
+      });
+      expect(result).toBe('Model: [glm-5.2](<https://example.com/m>) • via Z.AI Coding Plan');
+      expect(result).not.toContain('→');
+    });
+
+    it('renders no chain when the fallback source equals the serving provider', () => {
+      // A BYOK request rescued onto the system key stays on OpenRouter; that
+      // is a credential swap, not a route change, and has nothing to chain.
+      expect(
+        buildModelFooterText('gpt-4', 'https://example.com/m', {
+          provider: 'openrouter',
+          fallbackFromProvider: 'openrouter',
+        })
+      ).toBe('Model: [gpt-4](<https://example.com/m>) • via OpenRouter');
+    });
+
+    it('renders no chain when the fallback source has no known label', () => {
+      expect(
+        buildModelFooterText('gpt-4', 'https://example.com/m', {
+          provider: 'openrouter',
+          fallbackFromProvider: 'not-a-provider',
+        })
+      ).toBe('Model: [gpt-4](<https://example.com/m>) • via OpenRouter');
+    });
+
+    it('prefers the both-routes-failed chain over the served-swap chain', () => {
+      // The two fields are produced on disjoint paths and should never both
+      // arrive; if they do, the error form is the one that must survive.
+      const result = buildModelFooterText('glm-4.7', 'https://example.com/m', {
+        provider: 'zai-coding',
+        fallbackProviderAttempted: 'openrouter',
+        fallbackFromProvider: 'openrouter',
+      });
+      expect(result).toBe(
+        'Model: [glm-4.7](<https://example.com/m>) • via Z.AI Coding Plan → OpenRouter (both routes failed)'
+      );
+    });
+
     it('omits provider attribution for an unknown or absent provider', () => {
       expect(buildModelFooterText('gpt-4', 'https://example.com/m')).toBe(
         'Model: [gpt-4](<https://example.com/m>)'

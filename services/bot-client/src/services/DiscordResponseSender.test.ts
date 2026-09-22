@@ -210,6 +210,25 @@ describe('DiscordResponseSender', () => {
       expect(calledContent).toContain('• via Z.AI Coding Plan → OpenRouter (both routes failed)');
     });
 
+    it('should render the fallback chain when a swap served the response', async () => {
+      // Same model, different route: the z.ai coding plan failed and
+      // OpenRouter served it. Only the provider chain says so.
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        ...senderTargetFrom(mockMessage),
+        modelUsed: 'z-ai/glm-5.2',
+        providerUsed: 'openrouter',
+        fallbackFromProvider: 'zai-coding',
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).toContain('• via Z.AI Coding Plan → OpenRouter (fallback)');
+    });
+
     it('should add guest mode footer when isGuestMode is true', async () => {
       const mockChannel = createMockTextChannel('channel-123');
       const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });

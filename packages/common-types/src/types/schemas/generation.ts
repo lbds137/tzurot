@@ -95,7 +95,11 @@ const generationPayloadSchema = z.object({
        * reported model id at all.
        */
       routedModel: z.string().optional(),
-      /** AI provider used (from API key resolution) */
+      /**
+       * The EFFECTIVE provider that served the request — the fallback route
+       * when a swap fired, not the configured one. `fallbackFromProvider`
+       * below carries the configured provider on exactly those turns.
+       */
       providerUsed: z.string().optional(),
       /**
        * Provider of the auto-promotion fallback route that was attempted and
@@ -105,6 +109,17 @@ const generationPayloadSchema = z.object({
        * only attempt.
        */
       fallbackProviderAttempted: z.string().optional(),
+      /**
+       * The configured (or auto-promoted) provider the request was routed
+       * AWAY from, set only when a fallback swap actually SERVED the
+       * response — `providerUsed` is then the route that served it. Absent
+       * on the happy path and on a both-routes-failed error, which carries
+       * `fallbackProviderAttempted` instead; the two are produced on
+       * disjoint paths. Lets the footer mark a same-model route change
+       * ("via Z.AI Coding Plan → OpenRouter (fallback)") that the model id
+       * alone cannot express.
+       */
+      fallbackFromProvider: z.string().optional(),
       /** Source of LLM config (derived from CONFIG_SOURCE_IDS — single source of truth). */
       configSource: z.enum(CONFIG_SOURCE_IDS).optional(),
       /** Whether response was generated using guest mode (free model, no API key) */

@@ -478,6 +478,105 @@ describe('GenerationStep', () => {
       }
     });
 
+    describe('fallbackFromProvider (served-swap provider divergence)', () => {
+      const swapResponse: RAGResponse = {
+        content: 'Response',
+        retrievedMemories: 0,
+        tokensIn: 10,
+        tokensOut: 5,
+      };
+
+      it('reports the configured provider when a swap served the response', async () => {
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue(swapResponse);
+        quotaFallbackResultTransform.fn = result => ({
+          ...(result as Record<string, unknown>),
+          effectiveProviderUsed: AIProvider.OpenRouter,
+        });
+
+        try {
+          const result = await step.process({
+            job: createMockJob(),
+            startTime: Date.now(),
+            config: baseConfig,
+            auth: { ...baseAuth, provider: AIProvider.ZaiCoding },
+            preparedContext: basePreparedContext,
+          });
+
+          expect(result.result?.metadata?.providerUsed).toBe(AIProvider.OpenRouter);
+          expect(result.result?.metadata?.fallbackFromProvider).toBe(AIProvider.ZaiCoding);
+        } finally {
+          quotaFallbackResultTransform.fn = null;
+        }
+      });
+
+      it('leaves it undefined on the happy path', async () => {
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue(swapResponse);
+
+        const result = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: { ...baseAuth, provider: AIProvider.ZaiCoding },
+          preparedContext: basePreparedContext,
+        });
+
+        expect(result.result?.metadata?.fallbackFromProvider).toBeUndefined();
+      });
+
+      it('leaves it undefined when the rescue stayed on the same provider', async () => {
+        // A credit-exhausted BYOK request retargeted onto the system key is a
+        // credential swap on the SAME platform — no route change to mark.
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue(swapResponse);
+        quotaFallbackResultTransform.fn = result => ({
+          ...(result as Record<string, unknown>),
+          effectiveProviderUsed: AIProvider.OpenRouter,
+        });
+
+        try {
+          const result = await step.process({
+            job: createMockJob(),
+            startTime: Date.now(),
+            config: baseConfig,
+            auth: baseAuth, // already OpenRouter
+            preparedContext: basePreparedContext,
+          });
+
+          expect(result.result?.metadata?.fallbackFromProvider).toBeUndefined();
+        } finally {
+          quotaFallbackResultTransform.fn = null;
+        }
+      });
+
+      it('rides the empty-response error metadata too (the swap still happened)', async () => {
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue({
+          content: '',
+          retrievedMemories: 0,
+          tokensIn: 10,
+          tokensOut: 5,
+          modelUsed: 'z-ai/glm-5.2',
+        });
+        quotaFallbackResultTransform.fn = result => ({
+          ...(result as Record<string, unknown>),
+          effectiveProviderUsed: AIProvider.OpenRouter,
+        });
+
+        try {
+          const result = await step.process({
+            job: createMockJob(),
+            startTime: Date.now(),
+            config: baseConfig,
+            auth: { ...baseAuth, provider: AIProvider.ZaiCoding },
+            preparedContext: basePreparedContext,
+          });
+
+          expect(result.result?.success).toBe(false);
+          expect(result.result?.metadata?.fallbackFromProvider).toBe(AIProvider.ZaiCoding);
+        } finally {
+          quotaFallbackResultTransform.fn = null;
+        }
+      });
+    });
+
     it('should pass preprocessed attachments to RAG service', async () => {
       const ragResponse: RAGResponse = {
         content: 'Response about the image',

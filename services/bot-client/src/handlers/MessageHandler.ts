@@ -17,7 +17,10 @@ import {
   reportJobError,
   reportQuotaFallbackRescue,
 } from '../observability/ErrorChannelReporter.js';
-import { buildResultMetadataPassthrough } from '../utils/resultMetadataPassthrough.js';
+import {
+  buildErrorResultMetadataPassthrough,
+  buildResultMetadataPassthrough,
+} from '../utils/resultMetadataPassthrough.js';
 import { acknowledgeMessageDuringMaintenance } from '../utils/maintenanceResponses.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
@@ -550,14 +553,7 @@ export class MessageHandler {
         channel,
         guildId,
         clientId,
-        modelUsed: result.metadata?.modelUsed,
-        providerUsed: result.metadata?.providerUsed,
-        fallbackProviderAttempted: result.metadata?.fallbackProviderAttempted,
-        quotaFallback: result.metadata?.quotaFallback,
-        isGuestMode: result.metadata?.isGuestMode,
-        freshModeEnabled: result.metadata?.freshModeEnabled,
-        incognitoModeActive: result.metadata?.incognitoModeActive,
-        showModelFooter: result.metadata?.showModelFooter,
+        ...buildErrorResultMetadataPassthrough(result),
       });
 
       // Persist the (spoiler-stripped) error to conversation history so the
