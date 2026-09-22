@@ -1,6 +1,6 @@
 ---
 name: tzurot-review-response
-description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → decided when engineering-only, ASK when it carries a product/UX, user-visible, schema, spend, data-rights, or security dimension or changes an existing test assertion), check reviewer-vs-agent signal conflict, batch-present the four sections, step back at ~3 automated rounds (rule of thumb), and hard-cap at ~6 — hand off to a fresh context or the owner. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
+description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → decided when engineering-only, ASK when it carries a product/UX, user-visible, schema, spend, data-rights, or security dimension, changes an existing test assertion, or changes an async boundary or external contract), check reviewer-vs-agent signal conflict, batch-present the four sections, step back at ~3 automated rounds (rule of thumb), and hard-cap at ~6 — hand off to a fresh context or the owner. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
 lastUpdated: '2026-09-22'
 ---
 
@@ -10,7 +10,7 @@ When `claude-review` or any PR reviewer returns findings, the agent follows this
 
 ## Why this procedure exists
 
-This procedure shifts trivial chores to auto-apply (under tight constraints) and engineering-only behavior changes to reported decisions, while preserving explicit approval for anything with a product/UX, user-visible, schema, spend, data-rights, or security dimension, and for any change to an existing test assertion.
+This procedure shifts trivial chores to auto-apply (under tight constraints) and engineering-only behavior changes to reported decisions, while preserving explicit approval for anything with a product/UX, user-visible, schema, spend, data-rights, or security dimension, and for any change to an existing test assertion, an async boundary, or an external contract.
 
 **Key design principle**: `claude-review` is the same model family as the agent. It has no special epistemic authority. When the reviewer's severity label conflicts with the agent's own classification, that's **uncertainty**, not an override opportunity in either direction. The safe resolution is always ASK.
 
@@ -28,7 +28,7 @@ Before applying any review suggestion, classify the concrete diff the agent woul
 
 Line count is not a classifier. A one-line regex-flag change is semantic; a 20-line scope-local rename is trivial.
 
-**Second axis — who owns the decision.** A semantic finding whose options differ only on engineering grounds is DECIDED by the agent: apply it under rule 3's test gate and report it under Auto-applied tagged `[semantic:decided]`, with the reasoning and the option not taken. **Asks** is reserved for findings with a product/UX, user-visible, schema, spend, data-rights, or security dimension (security as `00-critical.md` § Security scopes it). Changing or deleting an EXISTING test assertion is always an Ask, never decided — it is a spec change, and `00-critical.md` forbids modifying tests to make them pass. This boundary fails closed: if a dimension might be present, it is an Ask. The round report still shows every decided item, so the owner can reverse any of them.
+**Second axis — who owns the decision.** A semantic finding whose options differ only on engineering grounds is DECIDED by the agent: apply it under rule 3's test gate and report it under Auto-applied tagged `[semantic:decided]`, with the reasoning and the option not taken. **Asks** is reserved for findings with a product/UX, user-visible, schema, spend, data-rights, or security dimension (security as `00-critical.md` § Security scopes it). Changing or deleting an EXISTING test assertion is always an Ask, never decided — it is a spec change, and `00-critical.md` forbids modifying tests to make them pass. Two explicit non-trivial shapes are always an Ask too: an **async boundary change** (an ordering or race bug often has no test to break, so rule 3's gate cannot catch a wrong decision) and an **external contract change** (the other side of the contract is outside this diff). This boundary fails closed: if a dimension might be present, it is an Ask. The round report still shows every decided item, so the owner can reverse any of them.
 
 ### 2. Check for signal conflict
 
@@ -86,7 +86,7 @@ For items that passed rules 1 and 2 with no conflict — trivial-shape, or seman
 1. Apply the edit as a `git commit --fixup=<target-sha>` commit. `target-sha` is the original commit that introduced the code being changed.
 2. Run the package-level test for the modified file (e.g., `pnpm --filter bot-client test`).
 3. Tests pass → keep the fixup commit.
-4. Tests fail → **escalate to ASK immediately**, with the test failure output attached. A trivial-shape edit that breaks tests is the signal that the whitelist mis-classified it; escalation preserves the safety net.
+4. Tests fail → **escalate to ASK immediately**, with the test failure output attached. A trivial-shape edit that breaks tests is the signal that the whitelist mis-classified it, and a `[semantic:decided]` edit that breaks tests is the signal that the finding was not engineering-only; escalation preserves the safety net.
 
 **Riders are caught at review, not at commit.** A fix that ADDS code rather than changing it gets systematically less scrutiny than planned work — "one clause" / "~10 lines" is exactly the size that skips the checks a planned change gets.
 
@@ -183,8 +183,8 @@ After processing all review items in a round, present one consolidated message t
   [trivial:comment]    fix typo in JSDoc            (src/types.ts:47)
   [do-it-now:trivial]  drop the dead `retries` param (src/queue.ts:88)
                        reviewer deferred to "next queue touch" — that's here
-  [semantic:decided]   await the flush before ack   (src/worker.ts:51)
-                       engineering-only; kept ordering over Promise.all — ack must follow the write
+  [semantic:decided]   guard the optional cache hit (src/cache.ts:40)
+                       engineering-only; null guard over a non-null assertion — a miss falls through to the fetch
 
 ### Asks (K items)
 
@@ -280,7 +280,7 @@ The whitelist loads with this skill. Entries are evaluated in order. The user ma
 
 Implicit rule: "touches a file not in the PR's diff so far" is NOT a blocker for auto-apply as long as the edit is one of the trivial shapes above. The blast radius concern comes from the _shape_ of the change, not the _location_. A `backlog/**/*.md` addition to a file the PR hasn't touched is still a trivial-shape edit; a logic change in an untouched code file is still semantic-shape.
 
-### Explicit non-trivial (always semantic regardless of surface simplicity — routed by rule 1's second axis)
+### Explicit non-trivial (always semantic regardless of surface simplicity — async boundary and external contract changes always ASK, the rest route by rule 1's second axis)
 
 Each of these is flagged because the shape seduces the reader into thinking "this is just a small change" when it alters runtime behavior.
 
@@ -307,7 +307,7 @@ Keep each entry self-contained so an observer can verify a candidate diff agains
 
 Before each round's consolidated message:
 
-- [ ] Every review item classified against trivial / non-trivial / unknown (rule 1), and every semantic item routed by decision owner — `[semantic:decided]` only when no product/UX, user-visible, schema, spend, data-rights, or security dimension exists and no existing test assertion changes
+- [ ] Every review item classified against trivial / non-trivial / unknown (rule 1), and every semantic item routed by decision owner — `[semantic:decided]` only when no product/UX, user-visible, schema, spend, data-rights, or security dimension exists and no existing test assertion, async boundary, or external contract changes
 - [ ] Every auto-apply candidate checked against reviewer label for signal conflict (rule 2)
 - [ ] Every "no action now" item routed by what would reopen it — Do it now (this file/diff) / File the batch (a named cross-file pass) / Backlog candidate (a named observable) / Dismissed (nothing) per rule 2's deferral rows; a Do-it-now item re-enters rule 1 and lands under Auto-applied or Asks; on a process-work PR a low-priority Backlog candidate becomes a `[residue]` line in the PR body instead of a task
 - [ ] Every origin-scoped finding ("pre-existing" / "not a regression") given a merits disposition — never Dismissed on origin alone (rule 2's origin-language row)
