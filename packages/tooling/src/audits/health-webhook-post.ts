@@ -160,11 +160,13 @@ export async function runHealthWebhookPost(options: PostWebhookOptions = {}): Pr
   // those runs over the cap is a single `splitMessage` "paragraph", which it
   // re-joins with spaces at every internal newline. Code-fence preservation
   // is not in play — the report's source modules are asserted fence-free by
-  // the derived-file-set test in `health-webhook-post.test.ts` (a triple-
-  // backtick fence split across two chunks would render as broken markdown
-  // in the health channel). The one case that test cannot see: a fence
-  // arriving at runtime from external data relayed into the report, such as
-  // a `gh` error body surfaced through `describeGhFailure` — not verified.
+  // the derived-file-set test in `health-webhook-post.test.ts`, which follows
+  // `health.ts`'s relative imports transitively (a triple-backtick fence
+  // split across two chunks would render as broken markdown in the health
+  // channel). Two cases that test cannot see: a fence arriving at runtime
+  // from external data relayed into the report, such as a `gh` error body
+  // surfaced through `describeGhFailure` — not verified — and a module
+  // reached only through a dynamic `import()`, which is outside the walk.
   // Trimmed emptiness, not just zero length. Two shapes reach here with
   // nothing to say: an empty chunk, which splitMessageByLines emits when a
   // blank source line lands alone at a forced boundary (it preserves the line
