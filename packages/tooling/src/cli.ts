@@ -8,7 +8,7 @@
  */
 
 // Load environment variables from .env file
-import 'dotenv/config';
+import './loadEnv.js';
 
 import { cac } from 'cac';
 import { readFileSync } from 'node:fs';
