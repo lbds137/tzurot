@@ -18,7 +18,7 @@ import { deployCommands } from '../src/utils/deployCommands.js';
 // Load .env from monorepo root (two levels up from this script)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-loadDotenv({ path: join(__dirname, '../../../.env') });
+loadDotenv({ path: join(__dirname, '../../../.env'), quiet: true });
 
 // Configuration
 const config = getConfig();
