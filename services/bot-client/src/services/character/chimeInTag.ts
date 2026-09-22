@@ -29,10 +29,24 @@
  * routing context (which provisions the user server-side), so firing N of them
  * concurrently would race identical provisioning for no benefit: submission
  * latency is invisible to the user under push delivery.
+ *
+ * ## Pre-sample gating
+ *
+ * Gates run before the pool is sampled, not only inside each turn. The
+ * per-character denylist gate filters the pool (`eligiblePool`, via the same
+ * `isDeniedForActor` predicate the per-turn gate uses), so a denied character
+ * is never counted, drawn, or named. The character-independent NSFW gate runs
+ * once (`fanOutBlockedByNsfw`) before the notice, against the original
+ * context, so a block reads exactly as a single-character turn's would and
+ * no turn runs. The notice's count therefore overclaims only when a turn fails
+ * after the pre-sample gates pass (a denylist change landing mid-fan-out, a
+ * load or submit failure). Pinned by the "pre-sample gates" describe block in
+ * `chimeInTag.test.ts`.
  */
 
 import { escapeMarkdown, MessageFlags } from 'discord.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { isTypingChannel } from '@tzurot/common-types/types/discord-types';
 import {
   normalizeTag,
   TAG_LIMITS,
@@ -42,12 +56,13 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { getCachedPersonalities } from '../../utils/autocomplete/autocompleteCache.js';
-import { clientsFor } from '../../utils/gatewayClients.js';
+import { clientsFor, clientsForUser } from '../../utils/gatewayClients.js';
 import { getMultiTagCap } from '../../utils/gatewayServiceCalls.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { runCharacterTurn } from './characterTurn.js';
+import { isDeniedForActor, runSlashNsfwGate } from './slashChatGates.js';
 import { filterByTag, sampleUpTo, emptyTagPoolDetail, tagPoolDisplayName } from './tagPool.js';
 
 const logger = createLogger('chime-in-tag');
@@ -143,6 +158,37 @@ function joinNamesWithinBudget(names: string[], budget: number): string {
   return joined;
 }
 
+/**
+ * `pool` with every character the invoking user is denied from removed.
+ *
+ * Runs BEFORE sampling, so a denied character is never counted, drawn, or
+ * named in the fan-out notice — `isDeniedForActor` already degrades open
+ * (cache unregistered) and bypasses for the bot owner, so this filter is a
+ * no-op in either case.
+ */
+function eligiblePool(pool: PersonalitySummary[], actorId: string): PersonalitySummary[] {
+  return pool.filter(personality => !isDeniedForActor(actorId, personality.id));
+}
+
+/**
+ * Run the character-independent NSFW gate once, against the ORIGINAL
+ * `context` — the fan-out has not claimed the deferred reply yet, so a block
+ * here occupies it exactly the way a single-character turn would, and no
+ * notice or turn ever runs. Returns `true` when blocked.
+ *
+ * Skips the gate (returns `false`) when the invocation has no channel this
+ * bot can push-deliver into — the per-turn path inside `runCharacterTurn`
+ * already reports an unsupported channel for each sampled character.
+ */
+async function fanOutBlockedByNsfw(context: DeferredCommandContext): Promise<boolean> {
+  const { channel } = context;
+  if (channel === null || !isTypingChannel(channel)) {
+    return false;
+  }
+  const { userClient } = clientsForUser(context.user);
+  return runSlashNsfwGate(context, channel, userClient);
+}
+
 /** Fetch the accessible pool, or a rendered error to surface to the user. */
 async function loadAccessiblePool(
   context: DeferredCommandContext
@@ -187,11 +233,21 @@ export async function runTagChimeIn(
     return;
   }
 
-  const pool = filterByTag(loaded.pool, tag);
+  // Filtering by denylist BEFORE sampling means a denied character is never
+  // counted, drawn, or named — the empty-pool branch below can't distinguish
+  // "nothing carries this tag" from "everything that did was denied", which
+  // is the point: MUTE's contract is that the bot never acknowledges a denial.
+  const pool = eligiblePool(filterByTag(loaded.pool, tag), context.user.id);
   if (pool.length === 0) {
     await context.editReply({
       content: renderSpec(CATALOG.error.validation(emptyTagPoolDetail(tag))),
     });
+    return;
+  }
+
+  // Character-independent gate, run exactly once before any sampling notice
+  // or turn — see the module header's "Pre-sample gating" section.
+  if (await fanOutBlockedByNsfw(context)) {
     return;
   }
 
