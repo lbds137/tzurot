@@ -1,9 +1,10 @@
 ---
 id: TASK-531
 title: Every command a skill documents must be executed before it ships
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-11 20:02'
+updated_date: '2026-09-22 21:15'
 labels:
   - 'area:process'
   - 'size:S'
