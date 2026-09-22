@@ -1,10 +1,10 @@
 ---
 id: TASK-318
 title: Extract the duplicated seededTimestamp test helper
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-23 00:00'
-updated_date: '2026-09-04 19:39'
+updated_date: '2026-09-22 17:16'
 labels:
   - 'area:conversation-history'
   - 'area:testing'
