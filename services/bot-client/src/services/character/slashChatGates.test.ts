@@ -37,7 +37,7 @@ vi.mock('../../utils/nsfwVerification.js', () => ({
   NSFW_VERIFICATION_CHECK_FAILED_MESSAGE: 'NSFW_CHECK_FAILED',
 }));
 
-import { runSlashChatGates } from './slashChatGates.js';
+import { runSlashChatGates, isDeniedForActor, runSlashNsfwGate } from './slashChatGates.js';
 
 const personality = { id: 'pers-1' } as LoadedPersonality;
 const channel = { type: 0 } as unknown as Channel;
@@ -183,5 +183,92 @@ describe('runSlashChatGates', () => {
       expect(blocked).toBe(false);
       expect(mockSendVerificationConfirmation).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('isDeniedForActor', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockIsBotOwner.mockReturnValue(false);
+  });
+
+  it('returns true when the cache denies the actor', () => {
+    const isPersonalityDenied = vi.fn().mockReturnValue(true);
+    mockGetDenylistCache.mockReturnValue({ isPersonalityDenied, isPersonalityMuted: vi.fn() });
+
+    expect(isDeniedForActor('actor-1', 'pers-1')).toBe(true);
+    // Seam assertion: the args forwarded to the cache predicate.
+    expect(isPersonalityDenied).toHaveBeenCalledWith('actor-1', 'pers-1');
+  });
+
+  it('returns false when the cache does not deny the actor', () => {
+    mockGetDenylistCache.mockReturnValue({
+      isPersonalityDenied: vi.fn().mockReturnValue(false),
+      isPersonalityMuted: vi.fn(),
+    });
+
+    expect(isDeniedForActor('actor-1', 'pers-1')).toBe(false);
+  });
+
+  it('returns false for the bot owner without consulting the cache predicate', () => {
+    mockIsBotOwner.mockReturnValue(true);
+    const isPersonalityDenied = vi.fn().mockReturnValue(true);
+    mockGetDenylistCache.mockReturnValue({ isPersonalityDenied, isPersonalityMuted: vi.fn() });
+
+    expect(isDeniedForActor('actor-1', 'pers-1')).toBe(false);
+    expect(isPersonalityDenied).not.toHaveBeenCalled();
+  });
+
+  it('returns false when the denylist cache is unregistered', () => {
+    mockGetDenylistCache.mockReturnValue(undefined);
+
+    expect(isDeniedForActor('actor-1', 'pers-1')).toBe(false);
+  });
+});
+
+describe('runSlashNsfwGate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns false when allowed', async () => {
+    mockEvaluateNsfwGate.mockResolvedValue({ allowed: true, wasNewVerification: false });
+    const { context } = makeContext();
+
+    const blocked = await runSlashNsfwGate(context, channel, userClient);
+
+    expect(blocked).toBe(false);
+  });
+
+  it('blocks with the verification prompt and tracks it when not verified', async () => {
+    mockEvaluateNsfwGate.mockResolvedValue({ allowed: false, reason: 'not-verified' });
+    const { context, editReply } = makeContext();
+
+    const blocked = await runSlashNsfwGate(context, channel, userClient);
+
+    expect(blocked).toBe(true);
+    expect(editReply).toHaveBeenCalledWith({ content: 'NSFW_PROMPT' });
+    expect(mockTrackPending).toHaveBeenCalledWith('actor-1', 'reply-1', 'chan-1');
+  });
+
+  it('blocks with the check-failed message, returns true, and does not track', async () => {
+    mockEvaluateNsfwGate.mockResolvedValue({ allowed: false, reason: 'check-failed' });
+    const { context, editReply } = makeContext();
+
+    const blocked = await runSlashNsfwGate(context, channel, userClient);
+
+    expect(blocked).toBe(true);
+    expect(editReply).toHaveBeenCalledWith({ content: 'NSFW_CHECK_FAILED' });
+    expect(mockTrackPending).not.toHaveBeenCalled();
+  });
+
+  it('sends a confirmation on a first-time verification', async () => {
+    mockEvaluateNsfwGate.mockResolvedValue({ allowed: true, wasNewVerification: true });
+    const { context } = makeContext();
+
+    const blocked = await runSlashNsfwGate(context, channel, userClient);
+
+    expect(blocked).toBe(false);
+    expect(mockSendVerificationConfirmation).toHaveBeenCalledWith(channel);
   });
 });

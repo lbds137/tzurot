@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { MessageFlags } from 'discord.js';
+import { ChannelType, MessageFlags } from 'discord.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import type { PersonalitySummary } from '@tzurot/common-types/schemas/api/personality';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -38,8 +38,12 @@ vi.mock('../../utils/autocomplete/autocompleteCache.js', () => ({
   getCachedPersonalities: (...args: unknown[]) => mockGetCachedPersonalities(...args),
 }));
 
+// A distinct object (not `{}`) so a test can assert it — and not some other
+// object — is the one that reaches `evaluateNsfwGate`.
+const sentinelUserClient = { __sentinel: 'tag-chime-in-user-client' };
 vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: {} })),
+  clientsForUser: vi.fn(() => ({ userClient: sentinelUserClient })),
 }));
 
 const mockGetMultiTagCap = vi.fn();
@@ -50,6 +54,33 @@ vi.mock('../../utils/gatewayServiceCalls.js', () => ({
 const mockRunCharacterTurn = vi.fn();
 vi.mock('./characterTurn.js', () => ({
   runCharacterTurn: (...args: unknown[]) => mockRunCharacterTurn(...args),
+}));
+
+// `slashChatGates.js` is deliberately NOT mocked here: the real
+// `isDeniedForActor` / `runSlashNsfwGate` helpers run, so the pre-sample-gate
+// tests below exercise the real predicate against its own mocked
+// dependencies rather than a stand-in that could drift from the real thing.
+const mockGetDenylistCache = vi.fn();
+vi.mock('../serviceRegistry.js', () => ({
+  getDenylistCache: () => mockGetDenylistCache(),
+}));
+
+const mockIsBotOwner = vi.fn((_id: string) => false);
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('@tzurot/common-types/utils/ownerMiddleware')>();
+  return { ...actual, isBotOwner: (id: string) => mockIsBotOwner(id) };
+});
+
+const mockEvaluateNsfwGate = vi.fn();
+const mockSendVerificationConfirmation = vi.fn().mockResolvedValue(undefined);
+const mockTrackPending = vi.fn().mockResolvedValue(undefined);
+vi.mock('../../utils/nsfwVerification.js', () => ({
+  evaluateNsfwGate: (...args: unknown[]) => mockEvaluateNsfwGate(...args),
+  sendVerificationConfirmation: (...args: unknown[]) => mockSendVerificationConfirmation(...args),
+  trackPendingVerificationMessage: (...args: unknown[]) => mockTrackPending(...args),
+  nsfwVerificationMessage: () => 'NSFW_PROMPT',
+  NSFW_VERIFICATION_CHECK_FAILED_MESSAGE: 'NSFW_CHECK_FAILED',
 }));
 
 // Sampling is exercised directly in tagPool.test.ts; here the draw is pinned so
@@ -82,7 +113,14 @@ const makeContext = (): DeferredCommandContext =>
   ({
     interaction: {},
     user: { id: 'user-123', displayName: 'TestUser' },
-    editReply: vi.fn().mockResolvedValue(undefined),
+    // A default supported channel so the up-front NSFW gate runs in every
+    // test unless a test explicitly overrides `channel` to `null` — the
+    // default-allowed NSFW mock below keeps every pre-existing test's
+    // behavior unchanged.
+    channel: { type: ChannelType.GuildText },
+    // The NSFW gate's "not verified" branch reads `.id`/`.channelId` off the
+    // resolved reply to track the prompt for later retraction.
+    editReply: vi.fn().mockResolvedValue({ id: 'reply-1', channelId: 'chan-1' }),
     deleteReply: vi.fn().mockResolvedValue(undefined),
     followUp: vi.fn().mockResolvedValue(undefined),
   }) as unknown as DeferredCommandContext;
@@ -94,6 +132,15 @@ beforeEach(() => {
   mockedRandomInt.mockReturnValue(0);
   mockGetMultiTagCap.mockResolvedValue(5);
   mockRunCharacterTurn.mockResolvedValue(undefined);
+  // Defaults for the pre-sample gates: nobody is denied, nobody is the bot
+  // owner, and NSFW is allowed — every pre-existing test's fan-out behavior
+  // is unaffected by either gate.
+  mockGetDenylistCache.mockReturnValue({
+    isPersonalityDenied: vi.fn().mockReturnValue(false),
+    isPersonalityMuted: vi.fn().mockReturnValue(false),
+  });
+  mockIsBotOwner.mockReturnValue(false);
+  mockEvaluateNsfwGate.mockResolvedValue({ allowed: true, wasNewVerification: false });
 });
 
 afterEach(() => {
@@ -404,6 +451,203 @@ describe('runTagChimeIn', () => {
 
     expect(mockGetMultiTagCap).toHaveBeenCalled();
     expect(mockRunCharacterTurn).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('pre-sample gates', () => {
+  describe('denylist filtering', () => {
+    it('excludes a denied character from the pool before it ever reaches a turn', async () => {
+      mockGetMultiTagCap.mockResolvedValue(2);
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [
+          makeSummary('a', { tags: ['fantasy'] }),
+          makeSummary('b', { tags: ['fantasy'] }),
+          makeSummary('c', { tags: ['fantasy'] }),
+        ],
+      });
+      const isPersonalityDenied = vi.fn(
+        (_actorId: string, personalityId: string) => personalityId === 'id-b'
+      );
+      mockGetDenylistCache.mockReturnValue({
+        isPersonalityDenied,
+        isPersonalityMuted: vi.fn().mockReturnValue(false),
+      });
+
+      await runTagChimeIn(makeContext(), { tag: 'fantasy', incognitoOption: null });
+
+      const slugs = mockRunCharacterTurn.mock.calls.map(
+        call => (call[1] as { characterArg: string }).characterArg
+      );
+      expect(slugs).toEqual(['a', 'c']);
+      // Seam assertion: the predicate is consulted with the invoking user's id
+      // and EACH tag-matching member's id — not just the ones that survive.
+      expect(isPersonalityDenied).toHaveBeenCalledWith('user-123', 'id-a');
+      expect(isPersonalityDenied).toHaveBeenCalledWith('user-123', 'id-b');
+      expect(isPersonalityDenied).toHaveBeenCalledWith('user-123', 'id-c');
+    });
+
+    it('is not over cap once the pool is filtered, so no notice posts', async () => {
+      // 3 in the tag pool, 1 denied → 2 eligible, which exactly fills the cap.
+      mockGetMultiTagCap.mockResolvedValue(2);
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [
+          makeSummary('a', { tags: ['fantasy'] }),
+          makeSummary('b', { tags: ['fantasy'] }),
+          makeSummary('c', { tags: ['fantasy'] }),
+        ],
+      });
+      mockGetDenylistCache.mockReturnValue({
+        isPersonalityDenied: vi.fn(
+          (_actorId: string, personalityId: string) => personalityId === 'id-b'
+        ),
+        isPersonalityMuted: vi.fn().mockReturnValue(false),
+      });
+      const ctx = makeContext();
+
+      await runTagChimeIn(ctx, { tag: 'fantasy', incognitoOption: null });
+
+      expect(ctx.editReply).not.toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('🎲') })
+      );
+      expect(ctx.deleteReply).toHaveBeenCalled();
+    });
+
+    it('never names the denied character in the sampling notice, and undercounts poolSize by it', async () => {
+      mockGetMultiTagCap.mockResolvedValue(2);
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [
+          makeSummary('a', { displayName: 'Ana', tags: ['fantasy'] }),
+          makeSummary('b', { displayName: 'Denied', tags: ['fantasy'] }),
+          makeSummary('c', { displayName: 'Cy', tags: ['fantasy'] }),
+          makeSummary('d', { displayName: 'Di', tags: ['fantasy'] }),
+        ],
+      });
+      mockGetDenylistCache.mockReturnValue({
+        isPersonalityDenied: vi.fn(
+          (_actorId: string, personalityId: string) => personalityId === 'id-b'
+        ),
+        isPersonalityMuted: vi.fn().mockReturnValue(false),
+      });
+      const ctx = makeContext();
+
+      await runTagChimeIn(ctx, { tag: 'fantasy', incognitoOption: null });
+
+      const content = vi.mocked(ctx.editReply).mock.calls[0][0] as { content: string };
+      // 3 eligible (a, c, d), 2 sampled — the denied 4th is never counted.
+      expect(content.content).toContain('🎲 3 characters');
+      expect(content.content).not.toContain('Denied');
+    });
+
+    it('renders the empty-pool message, and runs no turns, when every match is denied', async () => {
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [makeSummary('a', { tags: ['fantasy'] }), makeSummary('b', { tags: ['fantasy'] })],
+      });
+      mockGetDenylistCache.mockReturnValue({
+        isPersonalityDenied: vi.fn().mockReturnValue(true),
+        isPersonalityMuted: vi.fn().mockReturnValue(false),
+      });
+      const ctx = makeContext();
+
+      await runTagChimeIn(ctx, { tag: 'fantasy', incognitoOption: null });
+
+      expect(mockRunCharacterTurn).not.toHaveBeenCalled();
+      const content = vi.mocked(ctx.editReply).mock.calls[0][0] as { content: string };
+      expect(content.content).toContain('No characters carry the tag');
+    });
+
+    it('does not filter for the bot owner, even when the cache denies everything', async () => {
+      mockIsBotOwner.mockReturnValue(true);
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [makeSummary('a', { tags: ['fantasy'] }), makeSummary('b', { tags: ['fantasy'] })],
+      });
+      mockGetDenylistCache.mockReturnValue({
+        isPersonalityDenied: vi.fn().mockReturnValue(true),
+        isPersonalityMuted: vi.fn().mockReturnValue(false),
+      });
+
+      await runTagChimeIn(makeContext(), { tag: 'fantasy', incognitoOption: null });
+
+      expect(mockRunCharacterTurn).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not filter when the denylist cache is unregistered', async () => {
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [makeSummary('a', { tags: ['fantasy'] }), makeSummary('b', { tags: ['fantasy'] })],
+      });
+      mockGetDenylistCache.mockReturnValue(undefined);
+
+      await runTagChimeIn(makeContext(), { tag: 'fantasy', incognitoOption: null });
+
+      expect(mockRunCharacterTurn).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('up-front NSFW gate', () => {
+    it('blocks the whole fan-out before any notice or turn when not verified', async () => {
+      mockEvaluateNsfwGate.mockResolvedValue({ allowed: false, reason: 'not-verified' });
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [makeSummary('a', { tags: ['fantasy'] }), makeSummary('b', { tags: ['fantasy'] })],
+      });
+      const ctx = makeContext();
+
+      await runTagChimeIn(ctx, { tag: 'fantasy', incognitoOption: null });
+
+      expect(ctx.editReply).toHaveBeenCalledTimes(1);
+      expect(ctx.editReply).toHaveBeenCalledWith({ content: 'NSFW_PROMPT' });
+      expect(ctx.deleteReply).not.toHaveBeenCalled();
+      expect(ctx.followUp).not.toHaveBeenCalled();
+      expect(mockRunCharacterTurn).not.toHaveBeenCalled();
+    });
+
+    it('blocks with the check-failed message and no tracking on a check failure', async () => {
+      mockEvaluateNsfwGate.mockResolvedValue({ allowed: false, reason: 'check-failed' });
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [makeSummary('a', { tags: ['fantasy'] })],
+      });
+      const ctx = makeContext();
+
+      await runTagChimeIn(ctx, { tag: 'fantasy', incognitoOption: null });
+
+      expect(ctx.editReply).toHaveBeenCalledWith({ content: 'NSFW_CHECK_FAILED' });
+      expect(mockTrackPending).not.toHaveBeenCalled();
+      expect(mockRunCharacterTurn).not.toHaveBeenCalled();
+    });
+
+    it('runs the NSFW gate exactly once, against the original context, and proceeds when allowed', async () => {
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [makeSummary('a', { tags: ['fantasy'] }), makeSummary('b', { tags: ['fantasy'] })],
+      });
+
+      await runTagChimeIn(makeContext(), { tag: 'fantasy', incognitoOption: null });
+
+      expect(mockEvaluateNsfwGate).toHaveBeenCalledTimes(1);
+      expect(mockEvaluateNsfwGate).toHaveBeenCalledWith(sentinelUserClient, {
+        type: ChannelType.GuildText,
+      });
+      expect(mockRunCharacterTurn).toHaveBeenCalledTimes(2);
+    });
+
+    it('skips the gate and still fans out when the context has no channel', async () => {
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [makeSummary('a', { tags: ['fantasy'] })],
+      });
+      const ctx = { ...makeContext(), channel: null };
+
+      await runTagChimeIn(ctx, { tag: 'fantasy', incognitoOption: null });
+
+      expect(mockEvaluateNsfwGate).not.toHaveBeenCalled();
+      expect(mockRunCharacterTurn).toHaveBeenCalledTimes(1);
+    });
   });
 });
 
