@@ -14,6 +14,8 @@ vi.mock('chalk', () => ({
 }));
 
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { runHealthWebhookPost } from './health-webhook-post.js';
 
 const WEBHOOK_URL = 'https://discord.example.com/webhook';
@@ -36,6 +38,81 @@ function bodyOf(call: unknown): { content: string; allowed_mentions?: { parse: s
     allowed_mentions?: { parse: string[] };
   };
 }
+
+/** A literal triple-backtick would make a future fence grep hit this test file itself. */
+const CODE_FENCE = '`'.repeat(3);
+
+/**
+ * Every relative import specifier (`from './x.js'` / `from '../dir/x.js'`),
+ * captured across a line break between `from` and the string so a wrapped
+ * import statement is not missed.
+ */
+const RELATIVE_IMPORT = /from\s+['"](\.\.?\/[^'"]+)['"]/g;
+
+/**
+ * Derives the `.ts` source files that compose `health.ts`'s stdout: every
+ * relative import it makes, resolved next to the importer with the source
+ * tree's `.js`-specifier convention swapped back to `.ts`, plus `health.ts`
+ * itself. Kept as a pure function so the set is DERIVED from the entry
+ * file's current imports rather than hand-maintained — a hardcoded list is
+ * exactly what let a fifth contributor (`measured-ref.ts`) go unnoticed.
+ */
+function deriveReportSourceFiles(entrySource: string, entryPath: string): string[] {
+  const entryDir = path.dirname(entryPath);
+  const specifiers = [...entrySource.matchAll(RELATIVE_IMPORT)].map(match => match[1]);
+  const resolved = specifiers.map(specifier => {
+    const tsSpecifier = specifier.endsWith('.js') ? `${specifier.slice(0, -3)}.ts` : specifier;
+    return path.resolve(entryDir, tsSpecifier);
+  });
+  return [entryPath, ...resolved];
+}
+
+describe('the weekly health report carries no code fence', () => {
+  it('derives every module health.ts pulls text from and finds each one fence-free', async () => {
+    // Bypasses this file's top-level `node:fs` mock — this test reads real
+    // source files on disk, not the report file the mock stands in for.
+    const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs');
+    const auditsDir = fileURLToPath(new URL('.', import.meta.url));
+    const healthPath = path.join(auditsDir, 'health.ts');
+    const healthSource = actualFs.readFileSync(healthPath, 'utf-8');
+
+    const derivedFiles = deriveReportSourceFiles(healthSource, healthPath);
+
+    // Positive controls: the derivation must not silently return a short
+    // list. These five are every module known (as of this test's authoring)
+    // to print text health.ts relays to stdout — a fifth, measured-ref.ts,
+    // was missed by a hand-enumerated list before this test existed.
+    const expectedMembers = [
+      path.join(auditsDir, 'health.ts'),
+      path.join(auditsDir, 'health-extras.ts'),
+      path.join(auditsDir, 'advisories.ts'),
+      path.join(auditsDir, '..', 'dev', 'check-repo-settings.ts'),
+      path.join(auditsDir, 'measured-ref.ts'),
+    ];
+    for (const expected of expectedMembers) {
+      expect(
+        derivedFiles,
+        `deriveReportSourceFiles did not find ${expected} among health.ts's relative imports`
+      ).toContain(expected);
+    }
+
+    for (const file of derivedFiles) {
+      expect(actualFs.existsSync(file), `${file} does not exist on disk`).toBe(true);
+    }
+
+    const offenders = derivedFiles.filter(file =>
+      actualFs.readFileSync(file, 'utf-8').includes(CODE_FENCE)
+    );
+
+    expect(
+      offenders,
+      `${offenders.join(', ') || '(none)'} — splitMessageByLines does not rebalance code ` +
+        'fences across chunk boundaries, so a fence split across two Discord chunks renders ' +
+        'as broken markdown in the health channel. Remove the fence from the offending ' +
+        'file(s), or route that content through a chunker that is fence-aware.'
+    ).toEqual([]);
+  });
+});
 
 describe('runHealthWebhookPost', () => {
   let mockFetch: ReturnType<typeof vi.fn>;
