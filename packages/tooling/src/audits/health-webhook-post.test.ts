@@ -50,21 +50,60 @@ const CODE_FENCE = '`'.repeat(3);
 const RELATIVE_IMPORT = /from\s+['"](\.\.?\/[^'"]+)['"]/g;
 
 /**
- * Derives the `.ts` source files that compose `health.ts`'s stdout: every
- * relative import it makes, resolved next to the importer with the source
- * tree's `.js`-specifier convention swapped back to `.ts`, plus `health.ts`
- * itself. Kept as a pure function so the set is DERIVED from the entry
- * file's current imports rather than hand-maintained — a hardcoded list is
- * exactly what let a fifth contributor (`measured-ref.ts`) go unnoticed.
+ * Strips `//` line comments before the import scan runs, so a comment that
+ * happens to mention a relative specifier in prose (e.g. documenting a past
+ * import path) is not mistaken for a real import. Block comments are not
+ * stripped — none of the walked modules use one to reference an import path.
  */
-function deriveReportSourceFiles(entrySource: string, entryPath: string): string[] {
-  const entryDir = path.dirname(entryPath);
-  const specifiers = [...entrySource.matchAll(RELATIVE_IMPORT)].map(match => match[1]);
-  const resolved = specifiers.map(specifier => {
-    const tsSpecifier = specifier.endsWith('.js') ? `${specifier.slice(0, -3)}.ts` : specifier;
-    return path.resolve(entryDir, tsSpecifier);
-  });
-  return [entryPath, ...resolved];
+function stripLineComments(source: string): string {
+  return source
+    .split('\n')
+    .map(line => line.replace(/\/\/.*/, ''))
+    .join('\n');
+}
+
+/**
+ * Derives the `.ts` source files that compose `health.ts`'s stdout: starting
+ * from `health.ts`, walks every relative import TRANSITIVELY — each resolved
+ * module's own relative imports are read and followed in turn — resolving
+ * each specifier next to its importer with the source tree's `.js`-specifier
+ * convention swapped back to `.ts`. Kept a pure-ish helper (`readSource` /
+ * `exists` injected) so the set is DERIVED from the current import graph
+ * rather than hand-maintained — a hardcoded list is exactly what let a fifth
+ * contributor (`measured-ref.ts`) go unnoticed, and a depth-1-only walk is
+ * exactly what would miss a module reachable only through an intermediate
+ * file like `health-extras.ts`. A specifier that resolves to a path with no
+ * file on disk is still returned rather than dropped, so the "every derived
+ * path exists" assertion below reports it instead of silently skipping it.
+ */
+function deriveReportSourceFiles(
+  entryPath: string,
+  readSource: (path: string) => string,
+  exists: (path: string) => boolean
+): string[] {
+  const visited: string[] = [];
+  const queue = [entryPath];
+  const seen = new Set<string>();
+
+  while (queue.length > 0) {
+    const current = queue.shift() as string;
+    if (seen.has(current)) continue;
+    seen.add(current);
+    visited.push(current);
+
+    if (!exists(current)) continue;
+
+    const source = stripLineComments(readSource(current));
+    const dir = path.dirname(current);
+    const specifiers = [...source.matchAll(RELATIVE_IMPORT)].map(match => match[1]);
+    for (const specifier of specifiers) {
+      const tsSpecifier = specifier.endsWith('.js') ? `${specifier.slice(0, -3)}.ts` : specifier;
+      const resolved = path.resolve(dir, tsSpecifier);
+      if (!seen.has(resolved)) queue.push(resolved);
+    }
+  }
+
+  return visited;
 }
 
 describe('the weekly health report carries no code fence', () => {
@@ -74,20 +113,27 @@ describe('the weekly health report carries no code fence', () => {
     const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs');
     const auditsDir = fileURLToPath(new URL('.', import.meta.url));
     const healthPath = path.join(auditsDir, 'health.ts');
-    const healthSource = actualFs.readFileSync(healthPath, 'utf-8');
 
-    const derivedFiles = deriveReportSourceFiles(healthSource, healthPath);
+    const derivedFiles = deriveReportSourceFiles(
+      healthPath,
+      p => actualFs.readFileSync(p, 'utf-8'),
+      p => actualFs.existsSync(p)
+    );
 
     // Positive controls: the derivation must not silently return a short
     // list. These five are every module known (as of this test's authoring)
     // to print text health.ts relays to stdout — a fifth, measured-ref.ts,
-    // was missed by a hand-enumerated list before this test existed.
+    // was missed by a hand-enumerated list before this test existed. The
+    // sixth, lines-check.ts, is reachable only THROUGH health-extras.ts (it
+    // is not among health.ts's own direct imports) — it proves the walk
+    // goes transitive rather than stopping one level deep.
     const expectedMembers = [
       path.join(auditsDir, 'health.ts'),
       path.join(auditsDir, 'health-extras.ts'),
       path.join(auditsDir, 'advisories.ts'),
       path.join(auditsDir, '..', 'dev', 'check-repo-settings.ts'),
       path.join(auditsDir, 'measured-ref.ts'),
+      path.join(auditsDir, 'lines-check.ts'),
     ];
     for (const expected of expectedMembers) {
       expect(
