@@ -189,6 +189,8 @@ When it fires:
    reviewers leave blocking feedback.)
 - Report CI state + reviewer findings in one message (blocking vs. non-blocking).
 - Apply feedback per /tzurot-review-response (trivial-shape
-  auto-apply via test-gated fixups; semantic-shape ASK; batch-present).
+  auto-apply via test-gated fixups; semantic-shape decided when
+  engineering-only, ASK on a product/schema/spend/data-rights dimension;
+  batch-present).
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EOF

@@ -118,7 +118,8 @@ The dispatch prompt's non-negotiable contract points:
   a plain range answers all three before they are asked.
 - **Verification gates enumerated as exact commands** with the instruction to
   capture verbatim tails, run sequentially, and never run repo-wide heavy
-  commands. Canaries (Core Principle 9) are DERIVED from the claim set, not
+  commands. The canary set opens with the purpose canary (§ The spec
+  template, item 7). Canaries (Core Principle 9) are DERIVED from the claim set, not
   chosen by taste: for every behavior the PR body will assert as fixed or
   pinned, the spec names the mutation that falsifies it. A claim with no
   canary is the signal the claim is unverified — give it one or scope the
