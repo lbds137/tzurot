@@ -1,7 +1,7 @@
 ---
 name: tzurot-review-response
-description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → ASK), check reviewer-vs-agent signal conflict, batch-present the four sections, step back at ~3 automated rounds (rule of thumb), and hard-cap at ~6 — hand off to a fresh context or the owner. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
-lastUpdated: '2026-09-04'
+description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → decided when engineering-only, ASK when it carries a product/UX, schema, spend or data-rights dimension), check reviewer-vs-agent signal conflict, batch-present the four sections, step back at ~3 automated rounds (rule of thumb), and hard-cap at ~6 — hand off to a fresh context or the owner. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
+lastUpdated: '2026-09-22'
 ---
 
 # Review-Response Iteration
@@ -21,12 +21,14 @@ This procedure shifts trivial chores to auto-apply (under tight constraints) whi
 Before applying any review suggestion, classify the concrete diff the agent would produce. Match against the whitelists in "Edit-shape whitelist" below.
 
 - Matches a **trivial-shape** whitelist entry → eligible for auto-apply (continue to rule 2)
-- Matches an **explicit non-trivial** entry → ASK (skip to rule 4)
-- Matches neither → default to semantic-shape → ASK (skip to rule 4)
+- Matches an **explicit non-trivial** entry → semantic → route by the second axis below
+- Matches neither → default to semantic-shape → route by the second axis below
 
 **Unclassifiable defaults to semantic.** The whitelist fails closed.
 
 Line count is not a classifier. A one-line regex-flag change is semantic; a 20-line scope-local rename is trivial.
+
+**Second axis — who owns the decision.** A semantic finding whose options differ only on engineering grounds is DECIDED by the agent: apply it under rule 3's test gate and report it under Auto-applied tagged `[semantic:decided]`, with the reasoning and the option not taken. **Asks** is reserved for findings with a product/UX, user-visible, schema, spend, or data-rights dimension. This boundary fails closed: if a dimension might be present, it is an Ask. The round report still shows every decided item, so the owner can reverse any of them.
 
 ### 2. Check for signal conflict
 
@@ -37,7 +39,7 @@ Compare the reviewer's severity label against the edit shape from rule 1:
 | "nit / minor / not blocking"                                                                                  | trivial          | **Continue** (aligned)                                                                                               |
 | "nit / minor / not blocking"                                                                                  | semantic         | **ASK** (disagreement)                                                                                               |
 | "medium / blocking / must fix"                                                                                | trivial          | **ASK** (disagreement)                                                                                               |
-| "medium / blocking / must fix"                                                                                | semantic         | **ASK** (aligned on severity)                                                                                        |
+| "medium / blocking / must fix"                                                                                | semantic         | **Rule 1's second axis** (aligned on severity — engineering-only is decided, any owner dimension is an Ask)          |
 | Self-dismisses ("actually fine")                                                                              | Agent agrees     | **DISMISS** (note in summary)                                                                                        |
 | Self-dismisses                                                                                                | Agent disagrees  | **ASK** (with dissenting analysis)                                                                                   |
 | Scopes a finding by origin ("pre-existing" / "not a regression" / "not introduced here")                      | Any              | **MERITS JUDGMENT** (origin ≠ verdict; see below)                                                                    |
@@ -61,7 +63,7 @@ Compare the reviewer's severity label against the edit shape from rule 1:
 
 **Do it now** is the disposition that defaults wrong without this rule. The finding is also, by construction, **small and colocated** — the reviewer named this PR's own code — so the file is already open and the fix is usually smaller than the row describing it. Fix it here.
 
-Do-it-now sends the finding back through **rule 1**, not around it: a trivial-shape fix auto-applies under the test gate and reports under Auto-applied; a semantic-shape one still ASKs and reports under Asks. This disposition changes the destination, never the safety rails.
+Do-it-now sends the finding back through **rule 1**, not around it: a trivial-shape fix auto-applies under the test gate and reports under Auto-applied; a semantic-shape one routes by rule 1's second axis, decided or asked. This disposition changes the destination, never the safety rails.
 
 **A rejected do-it-now does not evaporate — re-route it.** When the user rejects the fix (or a trivial-shape one fails its test gate and escalates to an Ask that's then rejected), the finding has been neither fixed nor tracked, and do-it-now filed nothing by design. That is the only path in this table that can end in _neither_, which is exactly the silent-loss this rule exists to prevent. On rejection, **default to backlog candidate** and report it under Backlog candidates in the same round summary. Re-route to **file the batch** only when the rejection itself reveals the finding belongs to an already-named cross-file pass — the ordinary case cannot, because do-it-now's own classifying condition is _this file or diff_, and file-the-batch is for a pass rather than a place. The user rejecting _this fix, now_ is not a decision to forget the finding — only an explicit "don't track this either" is, and that reads as **Dismissed**.
 
@@ -181,6 +183,8 @@ After processing all review items in a round, present one consolidated message t
   [trivial:comment]    fix typo in JSDoc            (src/types.ts:47)
   [do-it-now:trivial]  drop the dead `retries` param (src/queue.ts:88)
                        reviewer deferred to "next queue touch" — that's here
+  [semantic:decided]   await the flush before ack   (src/worker.ts:51)
+                       engineering-only; kept ordering over Promise.all — ack must follow the write
 
 ### Asks (K items)
 
@@ -275,7 +279,7 @@ The whitelist loads with this skill. Entries are evaluated in order. The user ma
 
 Implicit rule: "touches a file not in the PR's diff so far" is NOT a blocker for auto-apply as long as the edit is one of the trivial shapes above. The blast radius concern comes from the _shape_ of the change, not the _location_. A `backlog/**/*.md` addition to a file the PR hasn't touched is still a trivial-shape edit; a logic change in an untouched code file is still semantic-shape.
 
-### Explicit non-trivial (always ASK regardless of surface simplicity)
+### Explicit non-trivial (always semantic regardless of surface simplicity — routed by rule 1's second axis)
 
 Each of these is flagged because the shape seduces the reader into thinking "this is just a small change" when it alters runtime behavior.
 
@@ -302,7 +306,7 @@ Keep each entry self-contained so an observer can verify a candidate diff agains
 
 Before each round's consolidated message:
 
-- [ ] Every review item classified against trivial / non-trivial / unknown (rule 1)
+- [ ] Every review item classified against trivial / non-trivial / unknown (rule 1), and every semantic item routed by decision owner — `[semantic:decided]` only when no product/UX, user-visible, schema, spend, or data-rights dimension exists
 - [ ] Every auto-apply candidate checked against reviewer label for signal conflict (rule 2)
 - [ ] Every "no action now" item routed by what would reopen it — Do it now (this file/diff) / File the batch (a named cross-file pass) / Backlog candidate (a named observable) / Dismissed (nothing) per rule 2's deferral rows; a Do-it-now item re-enters rule 1 and lands under Auto-applied or Asks; on a process-work PR a low-priority Backlog candidate becomes a `[residue]` line in the PR body instead of a task
 - [ ] Every origin-scoped finding ("pre-existing" / "not a regression") given a merits disposition — never Dismissed on origin alone (rule 2's origin-language row)
