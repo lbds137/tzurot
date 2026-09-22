@@ -1,9 +1,10 @@
 ---
 id: TASK-527
 title: Settings dashboards do not say WHOSE conversations a tier affects
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-11 18:37'
+updated_date: '2026-09-22 21:09'
 labels:
   - 'area:bot-client'
   - 'size:S'
