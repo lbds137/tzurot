@@ -21,14 +21,14 @@ This procedure shifts trivial chores to auto-apply (under tight constraints) and
 Before applying any review suggestion, classify the concrete diff the agent would produce. Match against the whitelists in "Edit-shape whitelist" below.
 
 - Matches a **trivial-shape** whitelist entry → eligible for auto-apply (continue to rule 2)
-- Matches an **explicit non-trivial** entry → semantic → route by the second axis below
-- Matches neither → default to semantic-shape → route by the second axis below
+- Matches an **explicit non-trivial** entry → semantic → route by the second axis below (continue to rule 2 first; a decided item needs rule 2's no-conflict result)
+- Matches neither → default to semantic-shape → route by the second axis below (continue to rule 2 first)
 
 **Unclassifiable defaults to semantic.** The whitelist fails closed.
 
 Line count is not a classifier. A one-line regex-flag change is semantic; a 20-line scope-local rename is trivial.
 
-**Second axis — who owns the decision.** A semantic finding whose options differ only on engineering grounds is DECIDED by the agent: apply it under rule 3's test gate and report it under Auto-applied tagged `[semantic:decided]`, with the reasoning and the option not taken. **Asks** is reserved for findings with a product/UX, user-visible, schema, spend, data-rights, or security dimension (security as `00-critical.md` § Security scopes it). Changing or deleting an EXISTING test assertion is always an Ask, never decided — it is a spec change, and `00-critical.md` forbids modifying tests to make them pass. Two explicit non-trivial shapes are always an Ask too: an **async boundary change** (an ordering or race bug often has no test to break, so rule 3's gate cannot catch a wrong decision) and an **external contract change** (the other side of the contract is outside this diff). This boundary fails closed: if a dimension might be present, it is an Ask. The round report still shows every decided item, so the owner can reverse any of them.
+**Second axis — who owns the decision.** A semantic finding whose options differ only on engineering grounds is DECIDED by the agent: apply it under rule 3's test gate and report it under Auto-applied tagged `[semantic:decided]`, with the reasoning and the option not taken. **Asks** is reserved for findings with a product/UX, user-visible, schema, spend, data-rights, or security dimension (security as `00-critical.md` § Security scopes it). Changing or deleting an EXISTING test assertion is always an Ask, never decided — it is a spec change, and `00-critical.md` forbids modifying tests to make them pass. Two explicit non-trivial shapes are always an Ask too: an **async boundary change** (an ordering or race bug often has no test to break, so rule 3's gate cannot catch a wrong decision) and an **external contract change** (the other side of the contract is outside this diff). The other four shapes (regex, operator flip, null guard, default value) stay decide-eligible because each changes a value-level result that one input/output test pins, so a decided fix that adds that test puts it under rule 3's gate. This boundary fails closed: if a dimension might be present, it is an Ask. The round report still shows every decided item, so the owner can reverse any of them.
 
 ### 2. Check for signal conflict
 
