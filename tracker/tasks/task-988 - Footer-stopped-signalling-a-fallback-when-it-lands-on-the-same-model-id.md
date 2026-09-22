@@ -1,9 +1,10 @@
 ---
 id: TASK-988
 title: Footer stopped signalling a fallback when it lands on the same model id
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-15 01:59'
+updated_date: '2026-09-22 17:47'
 labels:
   - 'area:bot-client'
   - 'size:S'
