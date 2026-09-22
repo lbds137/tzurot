@@ -33,19 +33,26 @@ const DENYLIST_BLOCK_MESSAGE =
   "🚫 You don't have access to this character. If you think this is a mistake, contact the character's owner.";
 
 /**
- * Whether `actorId` is denied access to `personalityId` — the denylist half
- * of the gate, factored out so a caller that needs the verdict BEFORE the
- * per-turn gate runs (the tag chime-in's pre-sample filter) shares the exact
- * predicate rather than re-deriving it. Degrades open (returns `false`) when
- * the denylist cache isn't registered, and always returns `false` for the bot
- * owner — matching `runSlashChatGates`'s bypass.
+ * The denylist verdict for `actorId` against `personalityId` — `'block'` or
+ * `'mute'` when denied, `null` when not (including the cache-unregistered and
+ * bot-owner cases). Factored out so a caller that needs the verdict BEFORE
+ * the per-turn gate runs (the tag chime-in's pre-sample filter) shares the
+ * exact predicate rather than re-deriving it. Consults the mute flag only
+ * after a denial, so this is always a single `getDenylistCache()` call plus
+ * at most two predicate calls.
  */
-export function isDeniedForActor(actorId: string, personalityId: string): boolean {
+export function denylistVerdictFor(
+  actorId: string,
+  personalityId: string
+): 'block' | 'mute' | null {
   const denylistCache = getDenylistCache();
   if (denylistCache === undefined || isBotOwner(actorId)) {
-    return false;
+    return null;
   }
-  return denylistCache.isPersonalityDenied(actorId, personalityId);
+  if (!denylistCache.isPersonalityDenied(actorId, personalityId)) {
+    return null;
+  }
+  return denylistCache.isPersonalityMuted(actorId, personalityId) ? 'mute' : 'block';
 }
 
 /**
@@ -105,18 +112,14 @@ export async function runSlashChatGates(
 
   // Denylist: best-effort moderation gate (bot owner bypasses). Skipped when the
   // cache isn't registered — degrades open, matching the message pipeline.
-  if (isDeniedForActor(actorId, personality.id)) {
+  const verdict = denylistVerdictFor(actorId, personality.id);
+  if (verdict !== null) {
     // MUTE's contract is that the bot never acknowledges the denial. A slash
     // interaction must be acked, so the closest available behaviour is a reply
     // indistinguishable from a transient failure — the same catalog entry and
     // action string `handleChatError` renders for these commands. BLOCK keeps
     // the explicit notice.
-    //
-    // `isDeniedForActor` returning true guarantees the cache is registered
-    // (it only ever returns true after consulting one), so the `?? false`
-    // below is unreachable in practice — kept instead of a non-null assertion
-    // because the two lookups are independent calls with no shared type proof.
-    const muted = getDenylistCache()?.isPersonalityMuted(actorId, personality.id) ?? false;
+    const muted = verdict === 'mute';
     logger.debug(
       { userId: actorId, personalityId: personality.id, muted },
       'User denied for this personality (slash) — blocking'

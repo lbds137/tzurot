@@ -37,7 +37,7 @@ vi.mock('../../utils/nsfwVerification.js', () => ({
   NSFW_VERIFICATION_CHECK_FAILED_MESSAGE: 'NSFW_CHECK_FAILED',
 }));
 
-import { runSlashChatGates, isDeniedForActor, runSlashNsfwGate } from './slashChatGates.js';
+import { runSlashChatGates, denylistVerdictFor, runSlashNsfwGate } from './slashChatGates.js';
 
 const personality = { id: 'pers-1' } as LoadedPersonality;
 const channel = { type: 0 } as unknown as Channel;
@@ -186,43 +186,60 @@ describe('runSlashChatGates', () => {
   });
 });
 
-describe('isDeniedForActor', () => {
+describe('denylistVerdictFor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockIsBotOwner.mockReturnValue(false);
   });
 
-  it('returns true when the cache denies the actor', () => {
-    const isPersonalityDenied = vi.fn().mockReturnValue(true);
-    mockGetDenylistCache.mockReturnValue({ isPersonalityDenied, isPersonalityMuted: vi.fn() });
+  it('returns null when the denylist cache is unregistered', () => {
+    mockGetDenylistCache.mockReturnValue(undefined);
 
-    expect(isDeniedForActor('actor-1', 'pers-1')).toBe(true);
-    // Seam assertion: the args forwarded to the cache predicate.
-    expect(isPersonalityDenied).toHaveBeenCalledWith('actor-1', 'pers-1');
+    expect(denylistVerdictFor('actor-1', 'pers-1')).toBeNull();
   });
 
-  it('returns false when the cache does not deny the actor', () => {
+  it('returns null for the bot owner without consulting the cache predicate', () => {
+    mockIsBotOwner.mockReturnValue(true);
+    const isPersonalityDenied = vi.fn().mockReturnValue(true);
     mockGetDenylistCache.mockReturnValue({
-      isPersonalityDenied: vi.fn().mockReturnValue(false),
+      isPersonalityDenied,
       isPersonalityMuted: vi.fn(),
     });
 
-    expect(isDeniedForActor('actor-1', 'pers-1')).toBe(false);
-  });
-
-  it('returns false for the bot owner without consulting the cache predicate', () => {
-    mockIsBotOwner.mockReturnValue(true);
-    const isPersonalityDenied = vi.fn().mockReturnValue(true);
-    mockGetDenylistCache.mockReturnValue({ isPersonalityDenied, isPersonalityMuted: vi.fn() });
-
-    expect(isDeniedForActor('actor-1', 'pers-1')).toBe(false);
+    expect(denylistVerdictFor('actor-1', 'pers-1')).toBeNull();
     expect(isPersonalityDenied).not.toHaveBeenCalled();
   });
 
-  it('returns false when the denylist cache is unregistered', () => {
-    mockGetDenylistCache.mockReturnValue(undefined);
+  it("returns 'block' when denied and not muted", () => {
+    const isPersonalityDenied = vi.fn().mockReturnValue(true);
+    const isPersonalityMuted = vi.fn().mockReturnValue(false);
+    mockGetDenylistCache.mockReturnValue({ isPersonalityDenied, isPersonalityMuted });
 
-    expect(isDeniedForActor('actor-1', 'pers-1')).toBe(false);
+    expect(denylistVerdictFor('actor-1', 'pers-1')).toBe('block');
+    // Seam assertion: the args forwarded to the cache predicates.
+    expect(isPersonalityDenied).toHaveBeenCalledWith('actor-1', 'pers-1');
+    expect(isPersonalityMuted).toHaveBeenCalledWith('actor-1', 'pers-1');
+  });
+
+  it("returns 'mute' when denied and muted", () => {
+    mockGetDenylistCache.mockReturnValue({
+      isPersonalityDenied: vi.fn().mockReturnValue(true),
+      isPersonalityMuted: vi.fn().mockReturnValue(true),
+    });
+
+    expect(denylistVerdictFor('actor-1', 'pers-1')).toBe('mute');
+  });
+
+  it('returns null when the cache does not deny the actor, without consulting the mute predicate', () => {
+    const isPersonalityMuted = vi.fn();
+    mockGetDenylistCache.mockReturnValue({
+      isPersonalityDenied: vi.fn().mockReturnValue(false),
+      isPersonalityMuted,
+    });
+
+    expect(denylistVerdictFor('actor-1', 'pers-1')).toBeNull();
+    // Seam assertion: the verdict helper only consults mute after a denial.
+    expect(isPersonalityMuted).not.toHaveBeenCalled();
   });
 });
 

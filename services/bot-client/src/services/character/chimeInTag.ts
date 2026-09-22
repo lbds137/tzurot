@@ -34,7 +34,7 @@
  *
  * Gates run before the pool is sampled, not only inside each turn. The
  * per-character denylist gate filters the pool (`eligiblePool`, via the same
- * `isDeniedForActor` predicate the per-turn gate uses), so a denied character
+ * `denylistVerdictFor` predicate the per-turn gate uses), so a denied character
  * is never counted, drawn, or named. The character-independent NSFW gate runs
  * once (`fanOutBlockedByNsfw`) before the notice, against the original
  * context, so a block reads exactly as a single-character turn's would and
@@ -62,7 +62,7 @@ import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { runCharacterTurn } from './characterTurn.js';
-import { isDeniedForActor, runSlashNsfwGate } from './slashChatGates.js';
+import { denylistVerdictFor, runSlashNsfwGate } from './slashChatGates.js';
 import { filterByTag, sampleUpTo, emptyTagPoolDetail, tagPoolDisplayName } from './tagPool.js';
 
 const logger = createLogger('chime-in-tag');
@@ -162,12 +162,12 @@ function joinNamesWithinBudget(names: string[], budget: number): string {
  * `pool` with every character the invoking user is denied from removed.
  *
  * Runs BEFORE sampling, so a denied character is never counted, drawn, or
- * named in the fan-out notice — `isDeniedForActor` already degrades open
+ * named in the fan-out notice — `denylistVerdictFor` already degrades open
  * (cache unregistered) and bypasses for the bot owner, so this filter is a
  * no-op in either case.
  */
 function eligiblePool(pool: PersonalitySummary[], actorId: string): PersonalitySummary[] {
-  return pool.filter(personality => !isDeniedForActor(actorId, personality.id));
+  return pool.filter(personality => denylistVerdictFor(actorId, personality.id) === null);
 }
 
 /**
