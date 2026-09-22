@@ -39,7 +39,7 @@
       "name": "usage-audit",
       "what": "Weighted token spend measured against plan capacity so the delegation posture stays calibrated",
       "cadenceDays": 7,
-      "lastRun": "2026-09-16",
+      "lastRun": "2026-09-22",
       "trigger": "/tzurot-usage-audit"
     },
     {
