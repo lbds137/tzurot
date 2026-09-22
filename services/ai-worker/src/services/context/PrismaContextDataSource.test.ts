@@ -4,6 +4,7 @@ const mockGetChannelHistoryWindow = vi.hoisted(() => vi.fn());
 const mockGetCrossChannelHistory = vi.hoisted(() => vi.fn());
 const mockGetMessageByDiscordId = vi.hoisted(() => vi.fn());
 const mockGetUserTimezone = vi.hoisted(() => vi.fn());
+const mockFindUsableAssistantSummariesByTriggerIds = vi.hoisted(() => vi.fn());
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -23,6 +24,7 @@ vi.mock('@tzurot/conversation-history', () => ({
   // A free function, not a service method — it requires `$transaction`, which
   // the service's client type deliberately lacks.
   getChannelHistoryWindow: mockGetChannelHistoryWindow,
+  findUsableAssistantSummariesByTriggerIds: mockFindUsableAssistantSummariesByTriggerIds,
 }));
 
 vi.mock('@tzurot/identity', () => ({
@@ -269,6 +271,23 @@ describe('PrismaContextDataSource', () => {
 
       expect(result.size).toBe(0);
       expect(mockPersonalityFindMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getUsableAssistantSummariesByTriggerIds', () => {
+    it('delegates to the shared lookup with the personality id, trigger ids, and the extended-context ceiling', async () => {
+      const map = new Map([['msg-1', 'the stored summary']]);
+      mockFindUsableAssistantSummariesByTriggerIds.mockResolvedValue(map);
+
+      const result = await source.getUsableAssistantSummariesByTriggerIds('pers-1', ['msg-1']);
+
+      expect(mockFindUsableAssistantSummariesByTriggerIds).toHaveBeenCalledWith(
+        fakePrisma,
+        'pers-1',
+        ['msg-1'],
+        100
+      );
+      expect(result).toBe(map);
     });
   });
 

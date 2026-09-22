@@ -116,6 +116,17 @@ export interface ContextDataSource {
   getRosterBlurbsByIds(ids: string[]): Promise<Map<string, string>>;
 
   /**
+   * Stored assistant summaries keyed by the Discord message id of the turn that
+   * triggered them, for the ids present. Only summaries the render predicate
+   * accepts are returned (`done`, non-empty, un-chunked, visible), so a caller
+   * can treat "absent from the map" as "render this turn verbatim".
+   */
+  getUsableAssistantSummariesByTriggerIds(
+    personalityId: string,
+    triggerDiscordIds: string[]
+  ): Promise<Map<string, string>>;
+
+  /**
    * Persisted user identities keyed by Discord message id, for relay-echo
    * recovery. A `/chat` relay-echo (the bot reposting user input as
    * `**Name:** …`) is bot-authored, so the extended-context fetch can't see the

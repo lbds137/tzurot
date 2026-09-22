@@ -213,7 +213,7 @@ describe('User Default Settings Dashboard', () => {
       expect(embedJson.title).toBe('Your Default Settings · Memory');
     });
 
-    it('opens on the Memory page with its 7 settings (paged overview)', async () => {
+    it('opens on the Memory page with its 9 settings (paged overview)', async () => {
       const context = createMockContext();
 
       await handleDefaultsEdit(context);
@@ -221,13 +221,15 @@ describe('User Default Settings Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      // D14 page 1 = Memory (7 settings); Context & Display and Voice follow.
-      expect(embedJson.fields).toHaveLength(7);
+      // D14 page 1 = Memory (9 settings); Context & Display and Voice follow.
+      expect(embedJson.fields).toHaveLength(9);
       expect(embedJson.fields.map((f: { name: string }) => f.name)).toEqual(
         expect.arrayContaining([
           expect.stringContaining('Cross-Channel History'),
           expect.stringContaining('Cross-Channel Content'),
           expect.stringContaining('Cross-Channel Max Messages'),
+          expect.stringContaining('This-Channel Content'),
+          expect.stringContaining('Verbatim Exchanges'),
           expect.stringContaining('Share Memories'),
           expect.stringContaining('Share Chat History'),
           expect.stringContaining('Memory Relevance'),

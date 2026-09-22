@@ -329,7 +329,11 @@ export function formatSingleHistoryEntryAsXml(
     timezone,
   });
 
-  return `${HISTORY_ENTRY_OPEN}${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}>${body}</message>`;
+  // Surfaces a same-channel summary substitution in the rendered chat log, so
+  // /inspect shows which turns were reduced. Absent on every verbatim entry.
+  const renderedAttr = msg.renderedAs === 'summary' ? ' rendered="summary"' : '';
+
+  return `${HISTORY_ENTRY_OPEN}${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}${renderedAttr}>${body}</message>`;
 }
 
 /**

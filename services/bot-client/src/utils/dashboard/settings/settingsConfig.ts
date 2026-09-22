@@ -106,6 +106,37 @@ export const MEMORY_SETTINGS: SettingDefinition[] = [
       'than this number, since the replies are dropped after the fetch.',
   },
   {
+    id: 'sameChannelRenderMode',
+    label: 'This-Channel Content',
+    emoji: '📜',
+    description:
+      'What the character sees from the older part of THIS channel: every turn, ' +
+      'its own older replies replaced by their stored summary, or only your ' +
+      'messages. Summarizing keeps what it said without it re-reading its own prose.',
+    type: SettingType.ENUM,
+    choices: [
+      { value: 'both', label: 'Every turn', emoji: '💬' },
+      { value: 'summarized', label: 'Summarize its older replies', emoji: '📝' },
+      { value: 'user-only', label: 'Your messages only', emoji: '🙋' },
+    ],
+    helpText: 'The most recent exchanges always stay verbatim — see Verbatim Exchanges.',
+  },
+  {
+    id: 'sameChannelVerbatimExchanges',
+    label: 'Verbatim Exchanges',
+    emoji: '🔒',
+    description:
+      'How many of the most recent exchanges in this channel always stay word-for-word, ' +
+      'regardless of This-Channel Content. An exchange runs up to and including the ' +
+      "character's reply.",
+    type: SettingType.NUMERIC,
+    min: 1,
+    max: 50,
+    placeholder: 'Enter a number (1-50) or "auto"',
+    nullDisplay: 'Auto (inherits; default 10)',
+    helpText: 'Only applies when This-Channel Content is not set to every turn.',
+  },
+  {
     id: 'shareLtmAcrossPersonalities',
     label: 'Share Memories',
     emoji: '🧠',

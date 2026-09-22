@@ -10,7 +10,7 @@
  * wrapper).
  */
 
-import { MessageRole } from '@tzurot/common-types/constants/message';
+import { MessageRole, MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   type ConversationMessage,
@@ -19,6 +19,7 @@ import {
 import {
   ConversationHistoryService,
   getChannelHistoryWindow,
+  findUsableAssistantSummariesByTriggerIds,
   type ChannelHistoryWindowParams,
   type ChannelHistoryWindowResult,
 } from '@tzurot/conversation-history';
@@ -124,6 +125,23 @@ export class PrismaContextDataSource implements ContextDataSource {
       rows
         .filter((row): row is { id: string; rosterBlurb: string } => (row.rosterBlurb ?? '') !== '')
         .map(row => [row.id, row.rosterBlurb])
+    );
+  }
+
+  async getUsableAssistantSummariesByTriggerIds(
+    personalityId: string,
+    triggerDiscordIds: string[]
+  ): Promise<Map<string, string>> {
+    // Bounded by the history window's own ceiling. This caps MEMORY ROWS, not
+    // trigger ids — a chunked user message is one row carrying several Discord
+    // ids, so a heavily-chunked window can collect more ids than this take.
+    // The overflow simply resolves no summary and renders verbatim, never a
+    // wrong one.
+    return findUsableAssistantSummariesByTriggerIds(
+      this.prisma,
+      personalityId,
+      triggerDiscordIds,
+      MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT
     );
   }
 

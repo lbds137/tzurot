@@ -35,6 +35,8 @@ const SETTING_FIELDS = [
   'crossChannelHistoryEnabled',
   'crossChannelRenderMode',
   'crossChannelMaxMessages',
+  'sameChannelRenderMode',
+  'sameChannelVerbatimExchanges',
   'shareLtmAcrossPersonalities',
   'shareHistoryAcrossPersonalities',
   'memoryScoreThreshold',

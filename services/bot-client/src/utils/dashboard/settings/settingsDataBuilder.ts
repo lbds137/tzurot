@@ -11,6 +11,7 @@ import {
   type ConfigOverrides,
   type ConfigOverrideSource,
   type CrossChannelRenderMode,
+  type SameChannelRenderMode,
   type ResolvedConfigOverrides,
 } from '@tzurot/common-types/schemas/api/configOverrides';
 import type { SettingsData, SettingValue } from './types.js';
@@ -80,6 +81,8 @@ export interface ResolveDefaultsResponse {
   crossChannelHistoryEnabled: boolean;
   crossChannelRenderMode: CrossChannelRenderMode;
   crossChannelMaxMessages: number | null;
+  sameChannelRenderMode: SameChannelRenderMode;
+  sameChannelVerbatimExchanges: number;
   shareLtmAcrossPersonalities: boolean;
   memoryScoreThreshold: number;
   memoryLimit: number;
@@ -108,6 +111,8 @@ export function convertResolveDefaultsResponse(response: ResolveDefaultsResponse
     crossChannelHistoryEnabled: response.crossChannelHistoryEnabled,
     crossChannelRenderMode: response.crossChannelRenderMode,
     crossChannelMaxMessages: response.crossChannelMaxMessages,
+    sameChannelRenderMode: response.sameChannelRenderMode,
+    sameChannelVerbatimExchanges: response.sameChannelVerbatimExchanges,
     shareLtmAcrossPersonalities: response.shareLtmAcrossPersonalities,
     memoryScoreThreshold: response.memoryScoreThreshold,
     memoryLimit: response.memoryLimit,

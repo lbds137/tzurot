@@ -87,6 +87,8 @@ describe('Character Settings Dashboard', () => {
     crossChannelHistoryEnabled: false,
     crossChannelRenderMode: 'both',
     crossChannelMaxMessages: null,
+    sameChannelRenderMode: 'both',
+    sameChannelVerbatimExchanges: 10,
     shareLtmAcrossPersonalities: false,
     showModelFooter: true,
     voiceResponseMode: 'always' as const,
@@ -101,6 +103,8 @@ describe('Character Settings Dashboard', () => {
       crossChannelHistoryEnabled: 'personality',
       crossChannelRenderMode: 'personality',
       crossChannelMaxMessages: 'personality',
+      sameChannelRenderMode: 'personality',
+      sameChannelVerbatimExchanges: 'personality',
       shareLtmAcrossPersonalities: 'personality',
       showModelFooter: 'hardcoded',
       voiceResponseMode: 'hardcoded' as const,
@@ -116,6 +120,8 @@ describe('Character Settings Dashboard', () => {
       crossChannelHistoryEnabled: false,
       crossChannelRenderMode: 'both',
       crossChannelMaxMessages: null,
+      sameChannelRenderMode: 'both',
+      sameChannelVerbatimExchanges: 10,
       shareLtmAcrossPersonalities: false,
       showModelFooter: true,
       voiceResponseMode: 'always',
@@ -217,7 +223,7 @@ describe('Character Settings Dashboard', () => {
       expect(embedJson.description).toContain('Aurora');
     });
 
-    it('should include all 12 settings fields', async () => {
+    it('should include all 14 settings fields', async () => {
       const context = createMockContext();
       stub.getPersonality.mockResolvedValue({ ok: true, data: mockPersonality });
       stub.resolvePersonalityCascade.mockResolvedValue({ ok: true, data: mockResolvedOverrides });
@@ -227,7 +233,7 @@ describe('Character Settings Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      expect(embedJson.fields).toHaveLength(12);
+      expect(embedJson.fields).toHaveLength(14);
     });
 
     it('should extract personality-tier overrides as local values', async () => {

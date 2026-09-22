@@ -681,6 +681,33 @@ describe('Conversation Utilities', () => {
       expect(result).toContain('Hi there!');
     });
 
+    it('renders a rendered="summary" attribute for a summarized entry (C7 canary)', () => {
+      const history: StructuredHistoryEntry[] = [
+        {
+          role: 'assistant',
+          content: 'the stored summary text',
+          renderedAs: 'summary',
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'Lilith');
+
+      expect(result).toContain('rendered="summary"');
+    });
+
+    it('renders no rendered= attribute for an entry without renderedAs', () => {
+      const history: StructuredHistoryEntry[] = [
+        {
+          role: 'assistant',
+          content: 'Hi there!',
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'Lilith');
+
+      expect(result).not.toContain('rendered=');
+    });
+
     it('should include t attribute when createdAt is present', () => {
       const history: StructuredHistoryEntry[] = [
         {
