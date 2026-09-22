@@ -57,7 +57,7 @@ vi.mock('./characterTurn.js', () => ({
 }));
 
 // `slashChatGates.js` is deliberately NOT mocked here: the real
-// `isDeniedForActor` / `runSlashNsfwGate` helpers run, so the pre-sample-gate
+// `denylistVerdictFor` / `runSlashNsfwGate` helpers run, so the pre-sample-gate
 // tests below exercise the real predicate against its own mocked
 // dependencies rather than a stand-in that could drift from the real thing.
 const mockGetDenylistCache = vi.fn();
@@ -585,6 +585,29 @@ describe('pre-sample gates', () => {
       await runTagChimeIn(makeContext(), { tag: 'fantasy', incognitoOption: null });
 
       expect(mockRunCharacterTurn).toHaveBeenCalledTimes(2);
+    });
+
+    it('renders the empty-pool message and never evaluates the NSFW gate when every match is denied and the user is not verified', async () => {
+      // The empty-pool return happens before `fanOutBlockedByNsfw` runs, so an
+      // all-denied pool must never reach the NSFW check — even when that check
+      // would itself have blocked the invoker.
+      mockEvaluateNsfwGate.mockResolvedValue({ allowed: false, reason: 'not-verified' });
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [makeSummary('a', { tags: ['fantasy'] }), makeSummary('b', { tags: ['fantasy'] })],
+      });
+      mockGetDenylistCache.mockReturnValue({
+        isPersonalityDenied: vi.fn().mockReturnValue(true),
+        isPersonalityMuted: vi.fn().mockReturnValue(false),
+      });
+      const ctx = makeContext();
+
+      await runTagChimeIn(ctx, { tag: 'fantasy', incognitoOption: null });
+
+      expect(mockRunCharacterTurn).not.toHaveBeenCalled();
+      expect(mockEvaluateNsfwGate).not.toHaveBeenCalled();
+      const content = vi.mocked(ctx.editReply).mock.calls[0][0] as { content: string };
+      expect(content.content).toContain('No characters carry the tag');
     });
   });
 
