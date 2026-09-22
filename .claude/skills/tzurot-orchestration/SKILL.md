@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-09-11'
+lastUpdated: '2026-09-22'
 ---
 
 # Orchestrator Mode
@@ -217,7 +217,8 @@ a gap the worker will fill by guessing.
    parallel (`05-tooling.md` § Resource Constraints).
    **Default the gate list to the touched packages' WHOLE-package commands**
    (`pnpm --filter <pkg> test`) plus every repo-level gate CI runs for them.
-   A file-scoped test list is systematically narrower than CI. Name individual files only IN ADDITION, as a canary. Canaries here follow the same rule as the nested-dispatch contract, whichever driver dispatches: derived from the claims the PR body will make, one falsifying mutation per claim, each scoped to the case it runs, and cut strictly inside the fixture rather than on the boundary under test (§ Nested dispatch).
+   A file-scoped test list is systematically narrower than CI. Name individual files only IN ADDITION, as a canary.
+   **The canary set opens with the unit's PURPOSE** — one sentence under its own heading saying what the unit exists to make true — and the canary that falsifies THAT sentence is named and run FIRST. Read its failure COUNT, not just that it is non-zero: a claim-derived canary reddens its own test by construction, but a purpose canary reddens however much of the suite genuinely depends on the purpose, so a count low against the code paths the purpose spans is a coverage gap to close before proceeding. A spec with no purpose canary is a spec defect; the orchestrator says so rather than proceeding. Canaries here follow the same rule as the nested-dispatch contract, whichever driver dispatches: derived from the claims the PR body will make, one falsifying mutation per claim, each scoped to the case it runs, and cut strictly inside the fixture rather than on the boundary under test (§ Nested dispatch).
 8. **Branch setup** — as a separate first step. The develop-code-commit-guard
    evaluates the current branch before compound commands run, so branch
    creation has to land on its own before any edit. For worktree spawns this
@@ -231,7 +232,10 @@ a gap the worker will fill by guessing.
    something — in the spec, the report, and the PR body alike: the sentence
    names the command whose output is the evidence, or it is not a
    verification claim. The report lists claim/canary pairs so the main loop
-   can see an unpaired claim before the PR body is written.
+   can see an unpaired claim before the PR body is written. It also carries
+   **one line per Premise ledger row**: verified (with the command whose output
+   is the evidence), falsified (with what is true instead), or not reachable
+   from this worktree — a ledger nobody answers row by row enforces nothing.
    The report also **declares the delegation shape**
    ("no inner worker — I judged the unit small enough" is a valid answer;
    silence is not) and carries **transfer notes**: tiers the worktree could
