@@ -1,9 +1,10 @@
 ---
 id: TASK-1035
 title: dotenv 18 prints an injected-env line on every ops command and test run
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-21 16:15'
+updated_date: '2026-09-22 23:40'
 labels:
   - 'area:tooling'
   - 'size:S'
