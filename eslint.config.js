@@ -271,9 +271,13 @@ export default tseslint.config(
   // Configuration for TypeScript files (production + tooling source).
   // Test files are excluded here and handled by the dedicated test block below
   // (type-checking disabled, size/complexity off, vitest correctness rules on).
+  // conversation-history's `src/test/` scaffolding is excluded alongside them:
+  // it is kept out of that package's tsconfig so it never reaches the runtime
+  // `dist/`, which leaves no TS project for type-aware linting to attach to.
+  // `tsconfig.spec.json` still type-checks it with the suites that import it.
   {
     files: ['**/*.ts'],
-    ignores: ['**/*.test.ts', '**/*.spec.ts'],
+    ignores: ['**/*.test.ts', '**/*.spec.ts', 'packages/conversation-history/src/test/**/*.ts'],
     plugins: {
       '@tzurot': tzurotPlugin,
       sonarjs,
@@ -630,7 +634,14 @@ export default tseslint.config(
   // size/complexity family (handled by excluding tests from the main block).
   // What we DO enforce: vitest correctness rules + a fake-timer ban.
   {
-    files: ['**/*.test.ts', '**/*.spec.ts'],
+    files: [
+      '**/*.test.ts',
+      '**/*.spec.ts',
+      // Component-test scaffolding, excluded from its package's tsconfig for
+      // the reason given on the production block above — same project-less
+      // treatment as the suites it serves.
+      'packages/conversation-history/src/test/**/*.ts',
+    ],
     // `@tzurot` is here for `no-regex-tag-strip` specifically: the violation
     // that motivated that rule was written in a TEST file, so a ban scoped to
     // the production block would have missed the exact case it exists for.

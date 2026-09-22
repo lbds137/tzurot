@@ -12,14 +12,18 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
-import { ConversationSyncService } from './ConversationSyncService.js';
 import {
-  ConversationHistoryService,
-  getChannelHistoryWindow,
-} from './ConversationHistoryService.js';
+  createTestPGlite,
+  loadPGliteSchema,
+  seedUserWithPersona,
+  seededTimestamp,
+  FAR_FUTURE_SEED_INDEX,
+} from '@tzurot/test-utils';
+import { ConversationSyncService } from './ConversationSyncService.js';
+import { ConversationHistoryService } from './ConversationHistoryService.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { fetchHistory } from './test/componentTestHelpers.js';
 
 describe('ConversationSyncService Integration Test', () => {
   let prisma: PrismaClient;
@@ -33,17 +37,6 @@ describe('ConversationSyncService Integration Test', () => {
   const testPersonalityId = '00000000-0000-0000-0000-000000000003';
   const testChannelId = '123456789012345678';
   const testGuildId = '987654321098765432';
-
-  // A row's id is a DETERMINISTIC UUID over (channelId, personalityId, personaId,
-  // createdAt). When a test inserts rows sharing the first three keys and lets
-  // createdAt default to `new Date()`, two inserts in the same millisecond collide
-  // on the id → `Unique constraint failed on (id)` (an intermittent CI flake). Seed a
-  // strictly-increasing explicit timestamp per row so each id is deterministic AND
-  // unique; the 1s spacing also pins the insertion order the assertions rely on.
-  // (Same helper as ConversationHistoryService.component.test.ts — one convention
-  // across the package.)
-  const seededTimestamp = (i: number): Date =>
-    new Date(new Date('2026-06-01T00:00:00Z').getTime() + i * 1000);
 
   beforeAll(async () => {
     // Set up PGlite with pgvector extension (required by schema)
@@ -115,8 +108,7 @@ describe('ConversationSyncService Integration Test', () => {
       });
 
       // Get the message ID
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       const messageId = history[0].id;
 
       // Soft delete via the production path (the plural is the only writer).
@@ -184,8 +176,7 @@ describe('ConversationSyncService Integration Test', () => {
         guildId: testGuildId,
         discordMessageId: 'discord-prop-1',
       });
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       const row = history.find(m => m.content === 'Turn whose deletion must propagate');
       if (row === undefined) throw new Error('seed row missing');
 
@@ -247,8 +238,7 @@ describe('ConversationSyncService Integration Test', () => {
       });
 
       // Get message IDs
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       const messageIds = history.map(h => h.id);
 
       // Bulk soft delete
@@ -289,8 +279,7 @@ describe('ConversationSyncService Integration Test', () => {
         discordMessageId: 'discord-edit',
       });
 
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       const messageId = history[0].id;
 
       // Update content
@@ -318,8 +307,7 @@ describe('ConversationSyncService Integration Test', () => {
         guildId: testGuildId,
       });
 
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       const messageId = history[0].id;
       const originalTokens = history[0].tokenCount;
 
@@ -400,8 +388,7 @@ describe('ConversationSyncService Integration Test', () => {
       });
 
       // Soft delete it
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       await syncService.softDeleteMessages([history[0].id]);
 
       // Should still find it by Discord ID
@@ -507,8 +494,7 @@ describe('ConversationSyncService Integration Test', () => {
       });
 
       // Soft delete first message
-      const history = (await getChannelHistoryWindow(prisma, { channelId: testChannelId, cap: 10 }))
-        .messages;
+      const history = await fetchHistory(prisma, { channelId: testChannelId, cap: 10 });
       const deleteMsg = history.find(h => h.content === 'Will be deleted');
       await syncService.softDeleteMessages([deleteMsg!.id]);
 
@@ -603,7 +589,7 @@ describe('ConversationSyncService Integration Test', () => {
       });
 
       // Deterministic future cutoff, well after the seed (createdAt >= since → empty).
-      const futureTime = seededTimestamp(100);
+      const futureTime = seededTimestamp(FAR_FUTURE_SEED_INDEX);
 
       const result = await syncService.getMessagesInTimeWindow(
         testChannelId,
