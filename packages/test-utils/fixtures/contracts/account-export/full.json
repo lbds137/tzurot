@@ -346,17 +346,7 @@
         "chunkGroupId": null,
         "chunkIndex": null,
         "totalChunks": null,
-        "assistantSummary": "They talked about a coastal trip.",
-        "summaryStatus": "done",
-        "summaryAttempts": 1,
-        "summaryModel": "gpt-test",
-        "summaryPromptVersion": 2,
-        "sourceContentHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-        "summaryRequestedAt": "2026-01-04T00:00:01.000Z",
-        "summaryCompletedAt": "2026-01-04T00:00:02.000Z",
-        "summaryLastError": null,
-        "lastRetrievedAt": "2026-01-06T00:00:00.000Z",
-        "retrievalCount": 3
+        "assistantSummary": "They talked about a coastal trip."
       }
     ],
     "personality-directory.json": [

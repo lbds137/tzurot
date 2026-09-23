@@ -131,16 +131,6 @@ function memoryRow(content: string): unknown {
     chunkIndex: null,
     totalChunks: null,
     assistantSummary: null,
-    summaryStatus: null,
-    summaryAttempts: 0,
-    summaryModel: null,
-    summaryPromptVersion: null,
-    sourceContentHash: null,
-    summaryRequestedAt: null,
-    summaryCompletedAt: null,
-    summaryLastError: null,
-    lastRetrievedAt: null,
-    retrievalCount: 0,
   };
 }
 
