@@ -251,15 +251,21 @@ describe('memoryFacts handlers', () => {
       expect(res.status).not.toHaveBeenCalledWith(400);
     });
 
-    it('treats a repeated tag query param (array) as absent', async () => {
+    it('rejects a repeated tag query param (array) with a 400', async () => {
       const { req, res } = reqRes({}, {}, { personalityId: PERSONALITY, tag: ['a', 'b'] });
       await handleListFacts(deps())(req, res, () => undefined);
 
-      expect(mockPrisma.memoryFact.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: TAGLESS_WHERE })
-      );
-      expect(mockPrisma.memoryFact.count).toHaveBeenCalledWith({ where: TAGLESS_WHERE });
-      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.memoryFact.findMany).not.toHaveBeenCalled();
+      expect(mockPrisma.memoryFact.count).not.toHaveBeenCalled();
+    });
+
+    it('rejects an empty personalityId', async () => {
+      const { req, res } = reqRes({}, {}, { personalityId: '' });
+      await handleListFacts(deps())(req, res, () => undefined);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.memoryFact.findMany).not.toHaveBeenCalled();
     });
   });
 

@@ -84,6 +84,7 @@ function createMockReqRes(body: Record<string, unknown> = {}, query: Record<stri
   const req = {
     body,
     query,
+    params: {},
     userId: 'discord-user-123',
     provisionedUserId: 'user-uuid-123',
     provisionedDefaultPersonaId: 'persona-uuid-default',
@@ -280,6 +281,22 @@ describe('Shapes Export Routes', () => {
         .jobs[0];
       expect(pendingJob.downloadUrl).toBeNull();
       expect(pendingJob).not.toHaveProperty('downloadToken');
+    });
+
+    it('rejects a repeated slug query key with a 400', async () => {
+      const { req, res } = createMockReqRes({}, {});
+      // Express parses ?slug=a&slug=b as an array; must fail validation.
+      (req.query as Record<string, unknown>).slug = ['shape-a', 'shape-b'];
+      const handler = handleListShapesExportJobs({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+        aiQueue: mockQueue as never,
+      });
+
+      await handler(req, res, vi.fn());
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.exportJob.findMany).not.toHaveBeenCalled();
     });
 
     it('should filter by slug when ?slug= query param is provided', async () => {

@@ -31,7 +31,7 @@ export const userFactRoutes = {
     path: '/fact/list',
     id: 'listFacts',
     query: {
-      personalityId: z.string(),
+      personalityId: z.string().min(1),
       limit: z.string().optional(),
       offset: z.string().optional(),
       tag: z.string().trim().max(DISCORD_LIMITS.AUTOCOMPLETE_CHOICE_MAX_LENGTH).optional(),

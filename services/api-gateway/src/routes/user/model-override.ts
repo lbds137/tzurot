@@ -22,7 +22,9 @@ import {
 } from '@tzurot/common-types/schemas/api/model-override';
 import { generateUserPersonalityConfigUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { userRoutes } from '@tzurot/clients';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { withManifestInput } from '../../utils/manifestInput.js';
 import {
   parseModelSlotQuery,
   parseModelSlotQueryAllowAll,
@@ -54,139 +56,149 @@ const logger = createLogger('user-model-override');
 export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
   const { prisma, modelCache } = deps;
   const capabilities = new ModelCapabilityService(modelCache);
-  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-    const discordUserId = req.userId;
-    const userId = resolveProvisionedUserId(req);
+  return withManifestInput(
+    userRoutes.listModelOverrides,
+    async (req: ProvisionedRequest, res: Response, { query }) => {
+      const discordUserId = req.userId;
+      const userId = resolveProvisionedUserId(req);
 
-    // Browse passes `?slot=all` to list BOTH slots in one call (one summary row
-    // per non-null FK); the dashboard passes an explicit text|vision.
-    const slot = parseModelSlotQueryAllowAll(res, req.query);
-    if (slot === null) {
-      return;
-    }
-    const allSlots = slot === 'all';
-    const isVision = slot === 'vision';
-
-    // Select BOTH FK pairs (fixed shape — a conditional select would yield a
-    // union return type), then emit the matching slot(s) below.
-    const overrides = await prisma.userPersonalityConfig.findMany({
-      where: {
-        userId,
-        ...(allSlots
-          ? { OR: [{ llmConfigId: { not: null } }, { visionConfigId: { not: null } }] }
-          : isVision
-            ? { visionConfigId: { not: null } }
-            : { llmConfigId: { not: null } }),
-      },
-      select: OVERRIDE_SUMMARY_SELECT,
-      // Bounds personality CONFIG rows, not output rows: for `slot=all` a
-      // personality with both FKs expands to two summaries below, so the
-      // response can be up to 2× this (≤200). Fine for the browse page size.
-      take: 100,
-    });
-
-    // A character can have BOTH a text and a vision override; for `all`, emit a
-    // row per non-null FK (slot-tagged) so browse can badge + clear each.
-    // Enrichment runs CONCURRENTLY (Promise.all) — OpenRouterModelCache
-    // coalesces in-flight fetches, so sequential awaits only added latency.
-    const emitText = allSlots || !isVision; // slot === 'text' or slot === 'all'
-    const emitVision = allSlots || isVision; // slot === 'vision' or slot === 'all'
-    const pending: Promise<ModelOverrideSummary>[] = [];
-    for (const o of overrides) {
-      if (emitText && o.llmConfigId !== null) {
-        pending.push(buildOverrideSummary(o, 'text', capabilities));
+      // Browse passes `?slot=all` to list BOTH slots in one call (one summary row
+      // per non-null FK); the dashboard passes an explicit text|vision.
+      const slot = parseModelSlotQueryAllowAll(res, query);
+      if (slot === null) {
+        return;
       }
-      if (emitVision && o.visionConfigId !== null) {
-        pending.push(buildOverrideSummary(o, 'vision', capabilities));
-      }
-    }
-    const result = await Promise.all(pending);
+      const allSlots = slot === 'all';
+      const isVision = slot === 'vision';
 
-    logger.info({ discordUserId, count: result.length, slot }, 'Listed overrides');
-    sendCustomSuccess(res, { overrides: result }, StatusCodes.OK);
-  });
+      // Select BOTH FK pairs (fixed shape — a conditional select would yield a
+      // union return type), then emit the matching slot(s) below.
+      const overrides = await prisma.userPersonalityConfig.findMany({
+        where: {
+          userId,
+          ...(allSlots
+            ? { OR: [{ llmConfigId: { not: null } }, { visionConfigId: { not: null } }] }
+            : isVision
+              ? { visionConfigId: { not: null } }
+              : { llmConfigId: { not: null } }),
+        },
+        select: OVERRIDE_SUMMARY_SELECT,
+        // Bounds personality CONFIG rows, not output rows: for `slot=all` a
+        // personality with both FKs expands to two summaries below, so the
+        // response can be up to 2× this (≤200). Fine for the browse page size.
+        take: 100,
+      });
+
+      // A character can have BOTH a text and a vision override; for `all`, emit a
+      // row per non-null FK (slot-tagged) so browse can badge + clear each.
+      // Enrichment runs CONCURRENTLY (Promise.all) — OpenRouterModelCache
+      // coalesces in-flight fetches, so sequential awaits only added latency.
+      const emitText = allSlots || !isVision; // slot === 'text' or slot === 'all'
+      const emitVision = allSlots || isVision; // slot === 'vision' or slot === 'all'
+      const pending: Promise<ModelOverrideSummary>[] = [];
+      for (const o of overrides) {
+        if (emitText && o.llmConfigId !== null) {
+          pending.push(buildOverrideSummary(o, 'text', capabilities));
+        }
+        if (emitVision && o.visionConfigId !== null) {
+          pending.push(buildOverrideSummary(o, 'vision', capabilities));
+        }
+      }
+      const result = await Promise.all(pending);
+
+      logger.info({ discordUserId, count: result.length, slot }, 'Listed overrides');
+      sendCustomSuccess(res, { overrides: result }, StatusCodes.OK);
+    }
+  );
 };
 
 /** PUT /api/user/model-override — set model override for a personality */
 export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
   const { prisma, modelCache } = deps;
   const capabilities = new ModelCapabilityService(modelCache);
-  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-    const discordUserId = req.userId;
+  return withManifestInput(
+    userRoutes.setModelOverride,
+    async (req: ProvisionedRequest, res: Response, { query }) => {
+      const discordUserId = req.userId;
 
-    // The slot (chat vs vision) is the request's choice, not a config property;
-    // `?slot=` defaults to text. The vision slot is capability-gated below.
-    const slot = parseModelSlotQuery(res, req.query);
-    if (slot === null) {
-      return;
-    }
+      // The slot (chat vs vision) is the request's choice, not a config property;
+      // `?slot=` defaults to text. The vision slot is capability-gated below.
+      const slot = parseModelSlotQuery(res, query);
+      if (slot === null) {
+        return;
+      }
 
-    const parseResult = SetModelOverrideSchema.safeParse(req.body);
-    if (!parseResult.success) {
-      return sendZodError(res, parseResult.error);
-    }
+      const parseResult = SetModelOverrideSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return sendZodError(res, parseResult.error);
+      }
 
-    const { personalityId, configId } = parseResult.data;
-    const userId = resolveProvisionedUserId(req);
+      const { personalityId, configId } = parseResult.data;
+      const userId = resolveProvisionedUserId(req);
 
-    const personality = await findPersonalityOrSendNotFound(res, prisma, personalityId);
-    if (personality === null) {
-      return;
-    }
+      const personality = await findPersonalityOrSendNotFound(res, prisma, personalityId);
+      if (personality === null) {
+        return;
+      }
 
-    const llmConfig = await verifyConfigAccess(prisma, configId, userId);
-    if (llmConfig === null) {
-      return sendError(res, ErrorResponses.notFound('Config'));
-    }
+      const llmConfig = await verifyConfigAccess(prisma, configId, userId);
+      if (llmConfig === null) {
+        return sendError(res, ErrorResponses.notFound('Config'));
+      }
 
-    // The requested slot decides which FK column the override writes — vision sets
-    // `visionConfigId`, text `llmConfigId`. Both can coexist on the same (user,
-    // personality) row. The vision slot is capability-gated: its model must be
-    // confirmed vision-capable (unknown/unresolvable capability → 400, fail
-    // closed). With no model cache wired (local dev) an OpenRouter-only model
-    // can't be resolved and 400s here; prod always has the cache.
-    const isVision = slot === 'vision';
-    if (isVision && !(await ensureVisionCapableModel(res, modelCache, llmConfig.model))) {
-      return;
-    }
-    const fkData = isVision ? { visionConfigId: configId } : { llmConfigId: configId };
+      // The requested slot decides which FK column the override writes — vision sets
+      // `visionConfigId`, text `llmConfigId`. Both can coexist on the same (user,
+      // personality) row. The vision slot is capability-gated: its model must be
+      // confirmed vision-capable (unknown/unresolvable capability → 400, fail
+      // closed). With no model cache wired (local dev) an OpenRouter-only model
+      // can't be resolved and 400s here; prod always has the cache.
+      const isVision = slot === 'vision';
+      if (isVision && !(await ensureVisionCapableModel(res, modelCache, llmConfig.model))) {
+        return;
+      }
+      const fkData = isVision ? { visionConfigId: configId } : { llmConfigId: configId };
 
-    const override = await prisma.userPersonalityConfig.upsert({
-      where: {
-        userId_personalityId: {
+      const override = await prisma.userPersonalityConfig.upsert({
+        where: {
+          userId_personalityId: {
+            userId,
+            personalityId,
+          },
+        },
+        create: {
+          id: generateUserPersonalityConfigUuid(userId, personalityId),
           userId,
           personalityId,
+          ...fkData,
         },
-      },
-      create: {
-        id: generateUserPersonalityConfigUuid(userId, personalityId),
-        userId,
-        personalityId,
-        ...fkData,
-      },
-      update: fkData,
-      select: OVERRIDE_SUMMARY_SELECT,
-    });
+        update: fkData,
+        select: OVERRIDE_SUMMARY_SELECT,
+      });
 
-    // Re-resolves the vision slot's capability that ensureVisionCapableModel
-    // already checked on the write-gate — harmless while resolution is a warm
-    // in-memory cache hit; revisit if it ever grows a network round-trip.
-    const result = await buildOverrideSummary(override, isVision ? 'vision' : 'text', capabilities);
+      // Re-resolves the vision slot's capability that ensureVisionCapableModel
+      // already checked on the write-gate — harmless while resolution is a warm
+      // in-memory cache hit; revisit if it ever grows a network round-trip.
+      const result = await buildOverrideSummary(
+        override,
+        isVision ? 'vision' : 'text',
+        capabilities
+      );
 
-    logger.info(
-      {
-        discordUserId,
-        personalityId,
-        personalityName: personality.name,
-        configId,
-        configName: llmConfig.name,
-        slot: isVision ? 'vision' : 'text',
-      },
-      'Set override'
-    );
+      logger.info(
+        {
+          discordUserId,
+          personalityId,
+          personalityName: personality.name,
+          configId,
+          configName: llmConfig.name,
+          slot: isVision ? 'vision' : 'text',
+        },
+        'Set override'
+      );
 
-    sendCustomSuccess(res, { override: result }, StatusCodes.OK);
-  });
+      sendCustomSuccess(res, { override: result }, StatusCodes.OK);
+    }
+  );
 };
 
 /** GET /api/user/model-override/default — read user's global default LLM config */
@@ -232,210 +244,224 @@ export const handleGetDefaultModelConfig = (deps: RouteDeps): RequestHandler => 
 /** PUT /api/user/model-override/default — set user's global default LLM config */
 export const handleSetDefaultModelConfig = (deps: RouteDeps): RequestHandler => {
   const { prisma, modelCache, llmConfigCacheInvalidation } = deps;
-  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-    const discordUserId = req.userId;
+  return withManifestInput(
+    userRoutes.setDefaultModelConfig,
+    async (req: ProvisionedRequest, res: Response, { query }) => {
+      const discordUserId = req.userId;
 
-    // The slot (chat vs vision) is the request's choice, not a config property;
-    // `?slot=` defaults to text. The vision slot is capability-gated below.
-    const slot = parseModelSlotQuery(res, req.query);
-    if (slot === null) {
-      return;
+      // The slot (chat vs vision) is the request's choice, not a config property;
+      // `?slot=` defaults to text. The vision slot is capability-gated below.
+      const slot = parseModelSlotQuery(res, query);
+      if (slot === null) {
+        return;
+      }
+
+      const parseResult = SetDefaultConfigSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return sendZodError(res, parseResult.error);
+      }
+
+      const { configId } = parseResult.data;
+      const userId = resolveProvisionedUserId(req);
+
+      const llmConfig = await verifyConfigAccess(prisma, configId, userId);
+      if (llmConfig === null) {
+        return sendError(res, ErrorResponses.notFound('Config'));
+      }
+
+      // The requested slot decides which default the write targets — vision sets
+      // `defaultVisionConfigId`, text `defaultLlmConfigId`; they coexist
+      // independently. The vision slot is capability-gated: its model must be
+      // confirmed vision-capable (unknown/unresolvable capability → 400, fail
+      // closed). With no model cache wired (local dev) an OpenRouter-only model
+      // can't be resolved and 400s here; prod always has the cache.
+      const isVision = slot === 'vision';
+      if (isVision && !(await ensureVisionCapableModel(res, modelCache, llmConfig.model))) {
+        return;
+      }
+      await prisma.user.update({
+        where: { id: userId },
+        data: isVision ? { defaultVisionConfigId: configId } : { defaultLlmConfigId: configId },
+      });
+
+      const result: UserDefaultConfig = {
+        configId: llmConfig.id,
+        configName: llmConfig.name,
+      };
+
+      logger.info(
+        {
+          discordUserId,
+          configId,
+          configName: llmConfig.name,
+          slot: isVision ? 'vision' : 'text',
+        },
+        'Set default config'
+      );
+
+      await tryInvalidateCache(
+        llmConfigCacheInvalidation?.invalidateUserLlmConfig.bind(
+          llmConfigCacheInvalidation,
+          discordUserId
+        ),
+        { discordUserId }
+      );
+
+      sendCustomSuccess(res, { default: result }, StatusCodes.OK);
     }
-
-    const parseResult = SetDefaultConfigSchema.safeParse(req.body);
-    if (!parseResult.success) {
-      return sendZodError(res, parseResult.error);
-    }
-
-    const { configId } = parseResult.data;
-    const userId = resolveProvisionedUserId(req);
-
-    const llmConfig = await verifyConfigAccess(prisma, configId, userId);
-    if (llmConfig === null) {
-      return sendError(res, ErrorResponses.notFound('Config'));
-    }
-
-    // The requested slot decides which default the write targets — vision sets
-    // `defaultVisionConfigId`, text `defaultLlmConfigId`; they coexist
-    // independently. The vision slot is capability-gated: its model must be
-    // confirmed vision-capable (unknown/unresolvable capability → 400, fail
-    // closed). With no model cache wired (local dev) an OpenRouter-only model
-    // can't be resolved and 400s here; prod always has the cache.
-    const isVision = slot === 'vision';
-    if (isVision && !(await ensureVisionCapableModel(res, modelCache, llmConfig.model))) {
-      return;
-    }
-    await prisma.user.update({
-      where: { id: userId },
-      data: isVision ? { defaultVisionConfigId: configId } : { defaultLlmConfigId: configId },
-    });
-
-    const result: UserDefaultConfig = {
-      configId: llmConfig.id,
-      configName: llmConfig.name,
-    };
-
-    logger.info(
-      { discordUserId, configId, configName: llmConfig.name, slot: isVision ? 'vision' : 'text' },
-      'Set default config'
-    );
-
-    await tryInvalidateCache(
-      llmConfigCacheInvalidation?.invalidateUserLlmConfig.bind(
-        llmConfigCacheInvalidation,
-        discordUserId
-      ),
-      { discordUserId }
-    );
-
-    sendCustomSuccess(res, { default: result }, StatusCodes.OK);
-  });
+  );
 };
 
 /** DELETE /api/user/model-override/default — clear user's global default LLM config */
 export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler => {
   const { prisma, llmConfigCacheInvalidation } = deps;
-  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-    const discordUserId = req.userId;
-    const userId = resolveProvisionedUserId(req);
+  return withManifestInput(
+    userRoutes.clearDefaultModelConfig,
+    async (req: ProvisionedRequest, res: Response, { query }) => {
+      const discordUserId = req.userId;
+      const userId = resolveProvisionedUserId(req);
 
-    const slots = parseClearSlots(res, req.query);
-    if (slots === null) {
-      return;
-    }
-    const { slot, clearText, clearVision } = slots;
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { defaultLlmConfigId: true, defaultVisionConfigId: true },
-    });
-
-    if (user === null) {
-      return sendError(res, ErrorResponses.notFound('User'));
-    }
-    const hadText = clearText && user.defaultLlmConfigId !== null;
-    const hadVision = clearVision && user.defaultVisionConfigId !== null;
-    const wasSet = hadText || hadVision;
-
-    // Look up the system free default(s) the user will fall back to — ONE PER
-    // CLEARED SLOT, so an `all` clear names both the chat AND vision fallback
-    // (clearing both slots but reporting only chat under-informs the user).
-    // Read the AdminSettings free-default POINTERS, not the `isFreeDefault` boolean
-    // — setAsFreeDefault writes only the pointers, so the boolean is stale (would
-    // show a wrong/missing fallback name after the global free default is changed).
-    // Per-personality overrides and personality-level defaults are unaffected.
-    const settings = await prisma.adminSettings.findUnique({
-      where: { id: ADMIN_SETTINGS_SINGLETON_ID },
-      select: { freeDefaultLlmConfigId: true, freeDefaultVisionConfigId: true },
-    });
-    const resolveFreeDefault = async (
-      pointerId: string | null
-    ): Promise<{ id: string; name: string } | null> => {
-      if (pointerId === null) {
-        return null;
+      const slots = parseClearSlots(res, query);
+      if (slots === null) {
+        return;
       }
-      return prisma.llmConfig.findUnique({
-        where: { id: pointerId },
-        select: { id: true, name: true },
+      const { slot, clearText, clearVision } = slots;
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { defaultLlmConfigId: true, defaultVisionConfigId: true },
       });
-    };
-    const newEffectiveDefaults = {
-      ...(clearText
-        ? { text: await resolveFreeDefault(settings?.freeDefaultLlmConfigId ?? null) }
-        : {}),
-      ...(clearVision
-        ? { vision: await resolveFreeDefault(settings?.freeDefaultVisionConfigId ?? null) }
-        : {}),
-    };
 
-    if (!wasSet) {
-      logger.info(
-        { discordUserId, slot, hadDefault: false },
-        'Clear called but no default was set (idempotent success)'
+      if (user === null) {
+        return sendError(res, ErrorResponses.notFound('User'));
+      }
+      const hadText = clearText && user.defaultLlmConfigId !== null;
+      const hadVision = clearVision && user.defaultVisionConfigId !== null;
+      const wasSet = hadText || hadVision;
+
+      // Look up the system free default(s) the user will fall back to — ONE PER
+      // CLEARED SLOT, so an `all` clear names both the chat AND vision fallback
+      // (clearing both slots but reporting only chat under-informs the user).
+      // Read the AdminSettings free-default POINTERS, not the `isFreeDefault` boolean
+      // — setAsFreeDefault writes only the pointers, so the boolean is stale (would
+      // show a wrong/missing fallback name after the global free default is changed).
+      // Per-personality overrides and personality-level defaults are unaffected.
+      const settings = await prisma.adminSettings.findUnique({
+        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+        select: { freeDefaultLlmConfigId: true, freeDefaultVisionConfigId: true },
+      });
+      const resolveFreeDefault = async (
+        pointerId: string | null
+      ): Promise<{ id: string; name: string } | null> => {
+        if (pointerId === null) {
+          return null;
+        }
+        return prisma.llmConfig.findUnique({
+          where: { id: pointerId },
+          select: { id: true, name: true },
+        });
+      };
+      const newEffectiveDefaults = {
+        ...(clearText
+          ? { text: await resolveFreeDefault(settings?.freeDefaultLlmConfigId ?? null) }
+          : {}),
+        ...(clearVision
+          ? { vision: await resolveFreeDefault(settings?.freeDefaultVisionConfigId ?? null) }
+          : {}),
+      };
+
+      if (!wasSet) {
+        logger.info(
+          { discordUserId, slot, hadDefault: false },
+          'Clear called but no default was set (idempotent success)'
+        );
+        return sendCustomSuccess(
+          res,
+          { deleted: true, wasSet: false, newEffectiveDefaults },
+          StatusCodes.OK
+        );
+      }
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          ...(clearText ? { defaultLlmConfigId: null } : {}),
+          ...(clearVision ? { defaultVisionConfigId: null } : {}),
+        },
+      });
+
+      logger.info({ discordUserId, slot }, 'Cleared default config');
+
+      await tryInvalidateCache(
+        llmConfigCacheInvalidation?.invalidateUserLlmConfig.bind(
+          llmConfigCacheInvalidation,
+          discordUserId
+        ),
+        { discordUserId }
       );
-      return sendCustomSuccess(
-        res,
-        { deleted: true, wasSet: false, newEffectiveDefaults },
-        StatusCodes.OK
-      );
+
+      sendCustomSuccess(res, { deleted: true, wasSet: true, newEffectiveDefaults }, StatusCodes.OK);
     }
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        ...(clearText ? { defaultLlmConfigId: null } : {}),
-        ...(clearVision ? { defaultVisionConfigId: null } : {}),
-      },
-    });
-
-    logger.info({ discordUserId, slot }, 'Cleared default config');
-
-    await tryInvalidateCache(
-      llmConfigCacheInvalidation?.invalidateUserLlmConfig.bind(
-        llmConfigCacheInvalidation,
-        discordUserId
-      ),
-      { discordUserId }
-    );
-
-    sendCustomSuccess(res, { deleted: true, wasSet: true, newEffectiveDefaults }, StatusCodes.OK);
-  });
+  );
 };
 
 /** DELETE /api/user/model-override/:personalityId — remove model override for a personality */
 export const handleDeleteModelOverride = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
-  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-    const discordUserId = req.userId;
-    const personalityId = getParam(req.params.personalityId);
-    const userId = resolveProvisionedUserId(req);
+  return withManifestInput(
+    userRoutes.deleteModelOverride,
+    async (req: ProvisionedRequest, res: Response, { query }) => {
+      const discordUserId = req.userId;
+      const personalityId = getParam(req.params.personalityId);
+      const userId = resolveProvisionedUserId(req);
 
-    const slots = parseClearSlots(res, req.query);
-    if (slots === null) {
-      return;
-    }
-    const { slot, clearText, clearVision } = slots;
+      const slots = parseClearSlots(res, query);
+      if (slots === null) {
+        return;
+      }
+      const { slot, clearText, clearVision } = slots;
 
-    const override = await prisma.userPersonalityConfig.findFirst({
-      where: {
-        userId,
-        personalityId,
-      },
-      select: {
-        id: true,
-        llmConfigId: true,
-        visionConfigId: true,
-        personality: { select: { name: true } },
-      },
-    });
-    // `findFirst` returns the row or null (never undefined), and the selected FK
-    // columns are `string | null` — so a null row OR a null FK means "not set".
-    const hadText = clearText && (override?.llmConfigId ?? null) !== null;
-    const hadVision = clearVision && (override?.visionConfigId ?? null) !== null;
-    const wasSet = hadText || hadVision;
+      const override = await prisma.userPersonalityConfig.findFirst({
+        where: {
+          userId,
+          personalityId,
+        },
+        select: {
+          id: true,
+          llmConfigId: true,
+          visionConfigId: true,
+          personality: { select: { name: true } },
+        },
+      });
+      // `findFirst` returns the row or null (never undefined), and the selected FK
+      // columns are `string | null` — so a null row OR a null FK means "not set".
+      const hadText = clearText && (override?.llmConfigId ?? null) !== null;
+      const hadVision = clearVision && (override?.visionConfigId ?? null) !== null;
+      const wasSet = hadText || hadVision;
 
-    if (override === null || !wasSet) {
+      if (override === null || !wasSet) {
+        logger.info(
+          { discordUserId, personalityId, slot, hadOverride: false },
+          'Reset called but no override was set (idempotent success)'
+        );
+        return sendCustomSuccess(res, { deleted: true, wasSet: false }, StatusCodes.OK);
+      }
+
+      await prisma.userPersonalityConfig.update({
+        where: { id: override.id },
+        data: {
+          ...(clearText ? { llmConfigId: null } : {}),
+          ...(clearVision ? { visionConfigId: null } : {}),
+        },
+      });
+      await pruneEmptyPersonalityConfig(prisma, override.id);
+
       logger.info(
-        { discordUserId, personalityId, slot, hadOverride: false },
-        'Reset called but no override was set (idempotent success)'
+        { discordUserId, personalityId, personalityName: override.personality.name, slot },
+        'Removed override'
       );
-      return sendCustomSuccess(res, { deleted: true, wasSet: false }, StatusCodes.OK);
+
+      sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
     }
-
-    await prisma.userPersonalityConfig.update({
-      where: { id: override.id },
-      data: {
-        ...(clearText ? { llmConfigId: null } : {}),
-        ...(clearVision ? { visionConfigId: null } : {}),
-      },
-    });
-    await pruneEmptyPersonalityConfig(prisma, override.id);
-
-    logger.info(
-      { discordUserId, personalityId, personalityName: override.personality.name, slot },
-      'Removed override'
-    );
-
-    sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
-  });
+  );
 };

@@ -12,7 +12,6 @@
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import type { Redis } from 'ioredis';
-import { z } from 'zod';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   getDurationLabel,
@@ -20,7 +19,9 @@ import {
   DisableMemoryModeRequestSchema,
 } from '@tzurot/common-types/types/memory-modes';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import type { userRoutes } from '@tzurot/clients';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { withManifestInput } from '../../utils/manifestInput.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { AuthenticatedRequest } from '../../types.js';
@@ -75,8 +76,9 @@ function requireRedis(deps: MemoryModeDeps, res: Response): Redis | null {
 
 const FALLBACK_NAME = 'this personality';
 
-/** Status filter query — optional single personalityId (repeated keys → 400). */
-const StatusQuerySchema = z.object({ personalityId: z.string().optional() });
+/** The manifest entry backing the status route for one mode — both incognito
+ *  and fresh declare the identical `{ personalityId?: string }` query shape. */
+type StatusRoute = typeof userRoutes.getIncognitoStatus | typeof userRoutes.getFreshStatus;
 
 /**
  * `MemoryModeSessionManager` is a thin wrapper around the Redis client with no
@@ -85,9 +87,12 @@ const StatusQuerySchema = z.object({ personalityId: z.string().optional() });
  * send a response.
  */
 
-function buildStatusHandler(mode: MemoryMode): (deps: MemoryModeDeps) => RequestHandler {
+function buildStatusHandler(
+  mode: MemoryMode,
+  statusRoute: StatusRoute
+): (deps: MemoryModeDeps) => RequestHandler {
   return (deps: MemoryModeDeps): RequestHandler =>
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    withManifestInput(statusRoute, async (req: AuthenticatedRequest, res: Response, { query }) => {
       const redis = requireRedis(deps, res);
       if (redis === null) {
         return;
@@ -95,20 +100,17 @@ function buildStatusHandler(mode: MemoryMode): (deps: MemoryModeDeps) => Request
       const manager = new MemoryModeSessionManager(redis, mode);
       const discordUserId = req.userId;
 
-      // Validate at the boundary: a repeated query key arrives as string[],
-      // which should be a clear 400 rather than a silently-empty filter.
-      const queryParse = StatusQuerySchema.safeParse(req.query);
-      if (!queryParse.success) {
-        sendError(res, ErrorResponses.validationError('personalityId must be a single string'));
-        return;
-      }
+      // A repeated query key (?personalityId=a&personalityId=b) arrives as an
+      // array, which withManifestInput already rejects with a 400 — the
+      // manifest's `personalityId: z.string().optional()` schema is the same
+      // check this handler used to duplicate.
+      const { personalityId } = query;
 
       const status = await manager.getStatus(discordUserId);
 
       // Optional character filter: keep only sessions that APPLY to the
       // given personality — its specific session plus any global 'all'
       // session (a global session affects every character).
-      const { personalityId } = queryParse.data;
       const sessions =
         personalityId !== undefined && personalityId !== ''
           ? status.sessions.filter(
@@ -258,14 +260,15 @@ function buildDisableHandler(
 /** Build the status/enable/disable handler factories for one mode. */
 export function createMemoryModeHandlers(
   mode: MemoryMode,
-  copy: MemoryModeRouteCopy
+  copy: MemoryModeRouteCopy,
+  statusRoute: StatusRoute
 ): {
   handleStatus: (deps: MemoryModeDeps) => RequestHandler;
   handleEnable: (deps: MemoryModeDeps) => RequestHandler;
   handleDisable: (deps: MemoryModeDeps) => RequestHandler;
 } {
   return {
-    handleStatus: buildStatusHandler(mode),
+    handleStatus: buildStatusHandler(mode, statusRoute),
     handleEnable: buildEnableHandler(mode, copy),
     handleDisable: buildDisableHandler(mode, copy),
   };

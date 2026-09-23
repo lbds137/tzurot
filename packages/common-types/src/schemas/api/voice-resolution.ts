@@ -76,11 +76,3 @@ export const GetVoiceResolutionResponseSchema = z.object({
 });
 
 export type GetVoiceResolutionResponse = z.infer<typeof GetVoiceResolutionResponseSchema>;
-
-// ============================================================================
-// Query input
-// ============================================================================
-
-export const GetVoiceResolutionQuerySchema = z.object({
-  personalityId: z.string().uuid('Invalid personalityId format'),
-});

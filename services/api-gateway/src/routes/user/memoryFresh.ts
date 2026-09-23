@@ -15,17 +15,22 @@
  * local router factory.
  */
 
+import { userRoutes } from '@tzurot/clients';
 import { createMemoryModeHandlers } from './memoryModeHandlers.js';
 
-const freshHandlers = createMemoryModeHandlers('fresh', {
-  alreadyActive: name =>
-    `Fresh mode is already active for ${name}. Disable it first to change duration.`,
-  enabled: (name, durationLabel) =>
-    `🌱 Fresh mode enabled for ${name} (${durationLabel}). Replies won't use what they remember about you — memories are kept, just not used.`,
-  notActive: name => `Fresh mode was not active for ${name}.`,
-  disabled: name =>
-    `🌱 Fresh mode disabled for ${name}. Replies will use their memories of you again.`,
-});
+const freshHandlers = createMemoryModeHandlers(
+  'fresh',
+  {
+    alreadyActive: name =>
+      `Fresh mode is already active for ${name}. Disable it first to change duration.`,
+    enabled: (name, durationLabel) =>
+      `🌱 Fresh mode enabled for ${name} (${durationLabel}). Replies won't use what they remember about you — memories are kept, just not used.`,
+    notActive: name => `Fresh mode was not active for ${name}.`,
+    disabled: name =>
+      `🌱 Fresh mode disabled for ${name}. Replies will use their memories of you again.`,
+  },
+  userRoutes.getFreshStatus
+);
 
 // ===== Handler factories ===================================================
 

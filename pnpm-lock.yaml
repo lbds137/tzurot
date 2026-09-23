@@ -545,6 +545,9 @@ importers:
       '@tzurot/cache-invalidation':
         specifier: workspace:*
         version: link:../../packages/cache-invalidation
+      '@tzurot/clients':
+        specifier: workspace:*
+        version: link:../../packages/clients
       '@tzurot/common-types':
         specifier: workspace:*
         version: link:../../packages/common-types
@@ -603,9 +606,6 @@ importers:
       '@types/supertest':
         specifier: ^7.2.1
         version: 7.2.1
-      '@tzurot/clients':
-        specifier: workspace:*
-        version: link:../../packages/clients
       '@tzurot/test-utils':
         specifier: workspace:*
         version: link:../../packages/test-utils

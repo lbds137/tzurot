@@ -140,6 +140,7 @@ function createMockReqRes(body: Record<string, unknown> = {}, query: Record<stri
   const req = {
     body,
     query,
+    params: {},
     userId: TEST_DISCORD_USER_ID,
     provisionedUserId: TEST_USER_ID,
     provisionedDefaultPersonaId: 'persona-uuid-default',

@@ -59,6 +59,7 @@ function createMockReqRes(body: Record<string, unknown> = {}, query: Record<stri
   const req = {
     body,
     query,
+    params: {},
     userId: TEST_DISCORD_USER_ID,
   } as unknown as Request & { userId: string };
 

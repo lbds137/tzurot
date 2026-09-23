@@ -23,7 +23,9 @@ import {
 import { generateExportJobUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { generateExportDownloadToken } from '@tzurot/common-types/utils/exportDownloadToken';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { userRoutes } from '@tzurot/clients';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
+import { withManifestInput } from '../../../utils/manifestInput.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { parseBodyOrSendError } from '../../../utils/configRouteHelpers.js';
@@ -236,9 +238,7 @@ function createExportHandler(prisma: PrismaClient, queue: Queue) {
 }
 
 function createListExportJobsHandler(prisma: PrismaClient) {
-  return async (req: ProvisionedRequest, res: Response) => {
-    const slug = typeof req.query.slug === 'string' ? req.query.slug : undefined;
-
+  return async (req: ProvisionedRequest, res: Response, slug: string | undefined) => {
     const userId = resolveProvisionedUserId(req);
 
     const jobs = await prisma.exportJob.findMany({
@@ -292,5 +292,10 @@ export const handleStartShapesExport = (deps: RouteDeps): RequestHandler =>
   });
 
 /** GET /api/user/shapes/export/jobs — list export history for the caller. */
-export const handleListShapesExportJobs = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(createListExportJobsHandler(deps.prisma));
+export const handleListShapesExportJobs = (deps: RouteDeps): RequestHandler => {
+  const listHandler = createListExportJobsHandler(deps.prisma);
+  return withManifestInput(
+    userRoutes.listShapesExportJobs,
+    (req: ProvisionedRequest, res: Response, { query }) => listHandler(req, res, query.slug)
+  );
+};

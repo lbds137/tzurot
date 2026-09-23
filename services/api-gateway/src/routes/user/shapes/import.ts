@@ -14,7 +14,9 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { IMPORT_SOURCES, type ShapesImportJobData } from '@tzurot/common-types/types/shapes-import';
 import { generateImportJobUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { userRoutes } from '@tzurot/clients';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
+import { withManifestInput } from '../../../utils/manifestInput.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { parseBodyOrSendError } from '../../../utils/configRouteHelpers.js';
@@ -176,9 +178,7 @@ function createImportHandler(prisma: PrismaClient, queue: Queue) {
 }
 
 function createListImportJobsHandler(prisma: PrismaClient) {
-  return async (req: ProvisionedRequest, res: Response) => {
-    const slug = typeof req.query.slug === 'string' ? req.query.slug : undefined;
-
+  return async (req: ProvisionedRequest, res: Response, slug: string | undefined) => {
     const userId = resolveProvisionedUserId(req);
 
     const jobs = await prisma.importJob.findMany({
@@ -227,5 +227,10 @@ export const handleStartShapesImport = (deps: RouteDeps): RequestHandler =>
   });
 
 /** GET /api/user/shapes/import/jobs — list import history for the caller. */
-export const handleListShapesImportJobs = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(createListImportJobsHandler(deps.prisma));
+export const handleListShapesImportJobs = (deps: RouteDeps): RequestHandler => {
+  const listHandler = createListImportJobsHandler(deps.prisma);
+  return withManifestInput(
+    userRoutes.listShapesImportJobs,
+    (req: ProvisionedRequest, res: Response, { query }) => listHandler(req, res, query.slug)
+  );
+};

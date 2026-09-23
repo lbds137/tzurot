@@ -26,7 +26,9 @@ import {
 import { Prisma } from '@tzurot/common-types/services/prisma';
 import { generateUserPersonalityConfigUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { userRoutes } from '@tzurot/clients';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { withManifestInput } from '../../utils/manifestInput.js';
 import {
   tryInvalidateCache,
   mergeAndValidateOverrides,
@@ -209,23 +211,26 @@ export const handleClearUserDefaults = (deps: RouteDeps): RequestHandler => {
 /** GET /api/user/config-overrides/resolve/:personalityId — full cascade resolution */
 export const handleResolveCascade = (deps: RouteDeps): RequestHandler => {
   const cascadeResolver = deps.cascadeResolver;
-  return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const personalityId = getValidatedPersonalityId(req, res);
-    if (personalityId === null) {
-      return;
+  return withManifestInput(
+    userRoutes.resolveCascade,
+    async (req: AuthenticatedRequest, res: Response, { query }) => {
+      const personalityId = getValidatedPersonalityId(req, res);
+      if (personalityId === null) {
+        return;
+      }
+      const queryResult = resolveQuerySchema.safeParse(query);
+      if (!queryResult.success) {
+        sendError(res, ErrorResponses.validationError(INVALID_CHANNEL_ID_MESSAGE));
+        return;
+      }
+      const resolved = await cascadeResolver.resolveOverrides(
+        req.userId,
+        personalityId,
+        queryResult.data.channelId
+      );
+      sendCustomSuccess(res, resolved, StatusCodes.OK);
     }
-    const queryResult = resolveQuerySchema.safeParse(req.query);
-    if (!queryResult.success) {
-      sendError(res, ErrorResponses.validationError(INVALID_CHANNEL_ID_MESSAGE));
-      return;
-    }
-    const resolved = await cascadeResolver.resolveOverrides(
-      req.userId,
-      personalityId,
-      queryResult.data.channelId
-    );
-    sendCustomSuccess(res, resolved, StatusCodes.OK);
-  });
+  );
 };
 
 /**
@@ -240,25 +245,28 @@ export const handleResolveCascade = (deps: RouteDeps): RequestHandler => {
  */
 export const handleResolveChannelCascade = (deps: RouteDeps): RequestHandler => {
   const cascadeResolver = deps.cascadeResolver;
-  return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const paramsResult = channelParamsSchema.safeParse(req.params);
-    if (!paramsResult.success) {
-      sendError(res, ErrorResponses.validationError(INVALID_CHANNEL_ID_MESSAGE));
-      return;
+  return withManifestInput(
+    userRoutes.resolveChannelCascade,
+    async (req: AuthenticatedRequest, res: Response, { query }) => {
+      const paramsResult = channelParamsSchema.safeParse(req.params);
+      if (!paramsResult.success) {
+        sendError(res, ErrorResponses.validationError(INVALID_CHANNEL_ID_MESSAGE));
+        return;
+      }
+      const queryResult = resolveChannelQuerySchema.safeParse(query);
+      if (!queryResult.success) {
+        sendError(res, ErrorResponses.validationError(INVALID_PERSONALITY_ID_MESSAGE));
+        return;
+      }
+      // userId is intentionally omitted (undefined) — see JSDoc above.
+      const resolved = await cascadeResolver.resolveOverrides(
+        undefined,
+        queryResult.data.personalityId,
+        paramsResult.data.channelId
+      );
+      sendCustomSuccess(res, resolved, StatusCodes.OK);
     }
-    const queryResult = resolveChannelQuerySchema.safeParse(req.query);
-    if (!queryResult.success) {
-      sendError(res, ErrorResponses.validationError(INVALID_PERSONALITY_ID_MESSAGE));
-      return;
-    }
-    // userId is intentionally omitted (undefined) — see JSDoc above.
-    const resolved = await cascadeResolver.resolveOverrides(
-      undefined,
-      queryResult.data.personalityId,
-      paramsResult.data.channelId
-    );
-    sendCustomSuccess(res, resolved, StatusCodes.OK);
-  });
+  );
 };
 
 /** PATCH /api/user/config-overrides/:personalityId — merge update per-personality overrides */

@@ -99,6 +99,7 @@ function createMockReqRes(body: Record<string, unknown> = {}, query: Record<stri
   const req = {
     body,
     query,
+    params: {},
     userId: TEST_DISCORD_USER_ID,
     provisionedUserId: TEST_USER_ID,
     provisionedDefaultPersonaId: 'persona-uuid-default',
@@ -160,6 +161,33 @@ describe('/user/memory routes', () => {
           message: expect.stringContaining('personalityId'),
         })
       );
+    });
+
+    it('should reject an empty personalityId', async () => {
+      const handler = handleGetStats({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const { req, res } = createMockReqRes({}, { personalityId: '' });
+
+      await handler(req, res, vi.fn());
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.personality.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('rejects a repeated personalityId query key with a 400', async () => {
+      const handler = handleGetStats({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      // Express parses ?personalityId=a&personalityId=b as an array; must fail validation.
+      const { req, res } = createMockReqRes({}, { personalityId: [TEST_PERSONALITY_ID, 'other'] });
+
+      await handler(req, res, vi.fn());
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.personality.findUnique).not.toHaveBeenCalled();
     });
 
     it('should return 404 when personality not found', async () => {
