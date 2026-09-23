@@ -10,6 +10,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Client } from 'discord.js';
 import type { Redis } from 'ioredis';
+import type { GatewayFailure } from '../utils/gatewayNotReady.js';
 
 const mockDbSync = vi.fn();
 const mockGetSystemSettings = vi.fn();
@@ -18,13 +19,25 @@ vi.mock('../utils/gatewayClients.js', () => ({
 }));
 
 // vi.hoisted: the module under test calls createIntervalScheduler at import
-// time, so plain consts would not be initialized when the factory runs.
-const { mockSchedulerStart, mockSchedulerStop } = vi.hoisted(() => ({
+// time, so plain consts would not be initialized when the factory runs. The
+// mock also captures the `run` option so tests can invoke the real wrapper
+// (the startup-flag/trigger logic lives there, not in the mocked scheduler).
+const { mockSchedulerStart, mockSchedulerStop, capturedRun } = vi.hoisted(() => ({
   mockSchedulerStart: vi.fn(),
   mockSchedulerStop: vi.fn(),
+  capturedRun: {
+    current: null as
+      | null
+      | ((client: import('discord.js').Client, redis: import('ioredis').Redis) => Promise<void>),
+  },
 }));
 vi.mock('@tzurot/common-types/utils/intervalScheduler', () => ({
-  createIntervalScheduler: () => ({ start: mockSchedulerStart, stop: mockSchedulerStop }),
+  createIntervalScheduler: (opts: {
+    run: (client: import('discord.js').Client, redis: import('ioredis').Redis) => Promise<void>;
+  }) => {
+    capturedRun.current = opts.run;
+    return { start: mockSchedulerStart, stop: mockSchedulerStop };
+  },
 }));
 
 // Mutable so the boot-guard tests can vary the configured owner id / env per case.
@@ -111,6 +124,10 @@ describe('startNightlyDbSyncScheduler boot guard', () => {
     vi.clearAllMocks();
     mockOwnerId = '123456789012345678';
     mockNodeEnv = 'production';
+  });
+
+  afterEach(() => {
+    stopNightlyDbSyncScheduler();
   });
 
   it('starts the interval scheduler when an owner id is configured', () => {
@@ -416,5 +433,350 @@ describe('NightlyDbSyncScheduler runNightlyDbSync', () => {
 
     expect(mockDbSync).not.toHaveBeenCalled();
     expect(postedDescription()).toContain('redis down');
+  });
+});
+
+describe('startup-run gateway-not-ready retry', () => {
+  const NOT_FOUND_404: GatewayFailure = {
+    ok: false,
+    kind: 'http',
+    error: 'not found',
+    status: 404,
+  };
+  const NETWORK_FAILURE: GatewayFailure = {
+    ok: false,
+    kind: 'network',
+    error: 'fetch failed',
+    status: 0,
+  };
+  const UNAVAILABLE_503: GatewayFailure = {
+    ok: false,
+    kind: 'http',
+    error: 'unavailable',
+    status: 503,
+  };
+  const GATEWAY_TIMEOUT_504: GatewayFailure = {
+    ok: false,
+    kind: 'http',
+    error: 'gateway timeout',
+    status: 504,
+  };
+  const CLIENT_TIMEOUT: GatewayFailure = {
+    ok: false,
+    kind: 'timeout',
+    error: 'client timed out',
+    status: 0,
+  };
+  const SERVER_ERROR_500: GatewayFailure = { ok: false, kind: 'http', error: 'boom', status: 500 };
+
+  const FIVE_MINUTES_MS = 5 * 60 * 1000;
+  const TEN_MINUTES_MS = 10 * 60 * 1000;
+  const COOLDOWN_KEY = 'nightly-db-sync:cooldown';
+
+  /** Inside the default configured hour (registry fallback: 07:00 UTC). */
+  const INSIDE_HOUR = new Date('2026-07-15T07:30:00.000Z');
+
+  /** A stateful in-memory redis fake: get/setex/del all mutate one cooldown slot. */
+  function makeStatefulRedis(initial: string | null = null): Redis {
+    let cooldown = initial;
+    return {
+      get: vi.fn().mockImplementation(() => Promise.resolve(cooldown)),
+      setex: vi.fn().mockImplementation((_key: string, _ttl: number, value: string) => {
+        cooldown = value;
+        return Promise.resolve('OK');
+      }),
+      del: vi.fn().mockImplementation(() => {
+        cooldown = null;
+        return Promise.resolve(1);
+      }),
+    } as unknown as Redis;
+  }
+
+  /** Same shape as makeStatefulRedis, but `del` rejects — cooldown-release-failure case. */
+  function makeStatefulRedisWithFailingDel(initial: string | null = null): Redis {
+    let cooldown = initial;
+    return {
+      get: vi.fn().mockImplementation(() => Promise.resolve(cooldown)),
+      setex: vi.fn().mockImplementation((_key: string, _ttl: number, value: string) => {
+        cooldown = value;
+        return Promise.resolve('OK');
+      }),
+      del: vi.fn().mockRejectedValue(new Error('redis connection reset')),
+    } as unknown as Redis;
+  }
+
+  /** Runs the module's real `run` wrapper as a scheduler-triggered startup run. */
+  async function startupRun(redis: Redis): Promise<void> {
+    startNightlyDbSyncScheduler(client, redis);
+    if (capturedRun.current === null) {
+      throw new Error('createIntervalScheduler mock never captured a run option');
+    }
+    await capturedRun.current(client, redis);
+  }
+
+  /** Runs the module's real `run` wrapper as a non-startup (interval) run. */
+  async function intervalRun(redis: Redis): Promise<void> {
+    if (capturedRun.current === null) {
+      throw new Error('createIntervalScheduler mock never captured a run option');
+    }
+    await capturedRun.current(client, redis);
+  }
+
+  function lastPostedTitle(): string {
+    const call = mockPostOwnerChannelEmbed.mock.calls.at(-1) as [Client, { data: unknown }];
+    const { title } = call[1].data as { title?: string };
+    return title ?? '';
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(INSIDE_HOUR);
+    mockDbSync.mockReset();
+    mockPostOwnerChannelEmbed.mockReset().mockResolvedValue(undefined);
+    mockGetSystemSettings.mockReset().mockResolvedValue(okSettings());
+    mockOwnerId = '123456789012345678';
+    mockNodeEnv = 'production';
+  });
+
+  afterEach(() => {
+    stopNightlyDbSyncScheduler();
+    vi.useRealTimers();
+  });
+
+  it('startup not-ready then successful retry performs the sync', async () => {
+    const redis = makeStatefulRedis(null);
+    mockDbSync.mockResolvedValueOnce(NETWORK_FAILURE);
+    mockDbSync.mockResolvedValueOnce(okResult(BUSY_STATS));
+
+    await startupRun(redis);
+
+    expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
+    expect(await redis.get(COOLDOWN_KEY)).toBeNull();
+
+    await vi.advanceTimersByTimeAsync(FIVE_MINUTES_MS);
+
+    expect(mockDbSync).toHaveBeenCalledTimes(2);
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+    expect(lastPostedTitle()).toContain('applied changes');
+    expect(await redis.get(COOLDOWN_KEY)).not.toBeNull();
+  });
+
+  it('startup 404 retry lands past the hour boundary and still syncs', async () => {
+    vi.setSystemTime(new Date('2026-07-15T07:58:00.000Z'));
+    const redis = makeStatefulRedis(null);
+    mockDbSync.mockResolvedValueOnce(NOT_FOUND_404);
+    mockDbSync.mockResolvedValueOnce(okResult(BUSY_STATS));
+
+    await startupRun(redis);
+    await vi.advanceTimersByTimeAsync(FIVE_MINUTES_MS);
+
+    expect(mockDbSync).toHaveBeenCalledTimes(2);
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+    expect(lastPostedTitle()).toContain('applied changes');
+  });
+
+  it('retry honours the enabled switch', async () => {
+    const redis = makeStatefulRedis(null);
+    mockDbSync.mockResolvedValueOnce(NOT_FOUND_404);
+
+    await startupRun(redis);
+    mockGetSystemSettings.mockResolvedValue(okSettings({ nightlySyncEnabled: false }));
+
+    await vi.advanceTimersByTimeAsync(FIVE_MINUTES_MS);
+
+    expect(mockDbSync).toHaveBeenCalledTimes(1);
+    expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
+  });
+
+  it('retry failure posts exactly once and keeps the cooldown armed', async () => {
+    const redis = makeStatefulRedis(null);
+    mockDbSync.mockResolvedValueOnce(UNAVAILABLE_503);
+    mockDbSync.mockResolvedValueOnce(UNAVAILABLE_503);
+
+    await startupRun(redis);
+    await vi.advanceTimersByTimeAsync(FIVE_MINUTES_MS);
+
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+    expect(await redis.get(COOLDOWN_KEY)).not.toBeNull();
+
+    await vi.advanceTimersByTimeAsync(TEN_MINUTES_MS);
+
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+    expect(mockDbSync).toHaveBeenCalledTimes(2);
+  });
+
+  it('interval-run not-ready failure posts immediately and keeps the cooldown', async () => {
+    vi.setSystemTime(new Date('2026-07-15T03:00:00.000Z'));
+    const redis = makeStatefulRedis(null);
+
+    // Consumes the startup flag while outside the configured hour — dbSync
+    // is never called, so the next captured-run call is an ordinary
+    // interval run.
+    await startupRun(redis);
+    expect(mockDbSync).not.toHaveBeenCalled();
+
+    vi.setSystemTime(INSIDE_HOUR);
+    mockDbSync.mockResolvedValueOnce(NETWORK_FAILURE);
+    const timerCountBefore = vi.getTimerCount();
+
+    await intervalRun(redis);
+
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+    expect(redis.del).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(timerCountBefore);
+  });
+
+  it('startup timeout is not retried — posts and keeps the cooldown', async () => {
+    const redis = makeStatefulRedis(null);
+    mockDbSync.mockResolvedValueOnce(CLIENT_TIMEOUT);
+
+    await startupRun(redis);
+
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+    expect(redis.del).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(TEN_MINUTES_MS);
+
+    expect(mockDbSync).toHaveBeenCalledTimes(1);
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+  });
+
+  it('startup 504 is not retried', async () => {
+    const redis = makeStatefulRedis(null);
+    mockDbSync.mockResolvedValueOnce(GATEWAY_TIMEOUT_504);
+
+    await startupRun(redis);
+
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+    expect(redis.del).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(TEN_MINUTES_MS);
+
+    expect(mockDbSync).toHaveBeenCalledTimes(1);
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+  });
+
+  it('startup 500 posts immediately', async () => {
+    const redis = makeStatefulRedis(null);
+    mockDbSync.mockResolvedValueOnce(SERVER_ERROR_500);
+
+    await startupRun(redis);
+
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+    expect(mockDbSync).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('stop clears the pending retry', async () => {
+    const redis = makeStatefulRedis(null);
+    mockDbSync.mockResolvedValueOnce(NOT_FOUND_404);
+
+    await startupRun(redis);
+    stopNightlyDbSyncScheduler();
+
+    await vi.advanceTimersByTimeAsync(TEN_MINUTES_MS);
+
+    expect(mockDbSync).toHaveBeenCalledTimes(1);
+    expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
+  });
+
+  it('double start does not re-arm the startup flag', async () => {
+    const redis = makeStatefulRedis(null);
+    // Outside the configured hour, so the startup run consumes the flag
+    // without ever calling dbSync.
+    mockGetSystemSettings.mockResolvedValue(okSettings({ nightlySyncHourUtc: 3 }));
+
+    await startupRun(redis);
+    expect(mockDbSync).not.toHaveBeenCalled();
+
+    // A second start call must not re-arm the flag: the next captured run
+    // should be treated as an ordinary (non-startup) check.
+    startNightlyDbSyncScheduler(client, redis);
+
+    mockGetSystemSettings.mockResolvedValue(okSettings());
+    mockDbSync.mockResolvedValueOnce(NETWORK_FAILURE);
+
+    await intervalRun(redis);
+
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+  });
+
+  it('a tick overlapping the retry skips on the cooldown', async () => {
+    const redis = makeStatefulRedis(null);
+    let resolveRetryDbSync: (value: unknown) => void = () => {
+      /* replaced below */
+    };
+    const deferredDbSync = new Promise(resolve => {
+      resolveRetryDbSync = resolve;
+    });
+    mockDbSync.mockResolvedValueOnce(NOT_FOUND_404);
+    mockDbSync.mockImplementationOnce(() => deferredDbSync);
+
+    await startupRun(redis);
+    expect(mockDbSync).toHaveBeenCalledTimes(1);
+
+    // Fire the retry timer. Its dbSync call is now in flight (deferred) —
+    // by this point it has already re-armed the cooldown, since setex runs
+    // before the dbSync call. Fully awaiting the advance is safe: nothing
+    // left pending is a TIMER (the deferred dbSync promise isn't one), so
+    // the advance settles once the retry's chain blocks on it.
+    await vi.advanceTimersByTimeAsync(FIVE_MINUTES_MS);
+
+    expect(mockDbSync).toHaveBeenCalledTimes(2);
+    expect(await redis.get(COOLDOWN_KEY)).not.toBeNull();
+
+    // A concurrent interval tick must see the cooldown the in-flight retry
+    // already armed, and skip rather than starting a third sync.
+    await intervalRun(redis);
+
+    expect(mockDbSync).toHaveBeenCalledTimes(2);
+
+    resolveRetryDbSync(okResult(QUIET_STATS));
+    await vi.advanceTimersByTimeAsync(0);
+    await Promise.resolve();
+
+    expect(mockDbSync).toHaveBeenCalledTimes(2);
+  });
+
+  it('a stop that lands while the startup dbSync call is still in flight wins — no retry arms after', async () => {
+    const redis = makeStatefulRedis(null);
+    let resolveDbSync: (value: unknown) => void = () => {
+      /* replaced below */
+    };
+    const deferredDbSync = new Promise(resolve => {
+      resolveDbSync = resolve;
+    });
+    mockDbSync.mockImplementationOnce(() => deferredDbSync);
+
+    const startupRunPromise = startupRun(redis);
+    stopNightlyDbSyncScheduler();
+    resolveDbSync(UNAVAILABLE_503);
+    await startupRunPromise;
+
+    await vi.advanceTimersByTimeAsync(FIVE_MINUTES_MS);
+
+    expect(mockDbSync).toHaveBeenCalledTimes(1);
+    expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
+  });
+
+  it('a cooldown release failure reports the not-ready failure now instead of retrying', async () => {
+    const redis = makeStatefulRedisWithFailingDel(null);
+    mockDbSync.mockResolvedValueOnce(UNAVAILABLE_503);
+
+    await startupRun(redis);
+
+    // Exactly one failure post, and it's the ordinary failure embed for the
+    // gateway result — NOT the "threw before completing" catch-all text.
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+    expect(lastPostedTitle()).toContain('Nightly database sync failed');
+    const [, embed] = mockPostOwnerChannelEmbed.mock.calls[0] as [Client, { data: unknown }];
+    const { description } = embed.data as { description?: string };
+    expect(description).not.toContain('threw before completing');
+    expect(description).toContain('503');
+
+    // No retry was scheduled: dbSync stays at one call past the retry delay.
+    await vi.advanceTimersByTimeAsync(FIVE_MINUTES_MS);
+
+    expect(mockDbSync).toHaveBeenCalledTimes(1);
   });
 });

@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Client } from 'discord.js';
 import type { MemoryArchivePromotion } from '@tzurot/common-types/schemas/api/memoryArchive';
-import type { GatewayResult } from '@tzurot/clients';
+import type { GatewayFailure } from '../utils/gatewayNotReady.js';
 
 const mockMemoryArchivePromote = vi.fn();
 vi.mock('../utils/gatewayClients.js', () => ({
@@ -196,22 +196,37 @@ describe('startArchivePromotionScheduler / stopArchivePromotionScheduler', () =>
 });
 
 describe('startup-run gateway-not-ready retry', () => {
-  type Failure = Extract<GatewayResult<unknown>, { ok: false }>;
-
-  const NOT_FOUND_404: Failure = {
+  const NOT_FOUND_404: GatewayFailure = {
     ok: false,
     kind: 'http',
     error: 'Route POST /api/admin/memory-archive/promote not found',
     status: 404,
   };
-  const NETWORK_FAILURE: Failure = {
+  const NETWORK_FAILURE: GatewayFailure = {
     ok: false,
     kind: 'network',
     error: 'fetch failed',
     status: 0,
   };
-  const UNAVAILABLE_503: Failure = { ok: false, kind: 'http', error: 'unavailable', status: 503 };
-  const SERVER_ERROR_500: Failure = { ok: false, kind: 'http', error: 'boom', status: 500 };
+  const UNAVAILABLE_503: GatewayFailure = {
+    ok: false,
+    kind: 'http',
+    error: 'unavailable',
+    status: 503,
+  };
+  const SERVER_ERROR_500: GatewayFailure = { ok: false, kind: 'http', error: 'boom', status: 500 };
+  const TIMEOUT_FAILURE: GatewayFailure = {
+    ok: false,
+    kind: 'timeout',
+    error: 'timed out',
+    status: 0,
+  };
+  const GATEWAY_TIMEOUT_504: GatewayFailure = {
+    ok: false,
+    kind: 'http',
+    error: 'gateway timeout',
+    status: 504,
+  };
 
   const SUCCESS_NO_PROMOTIONS = {
     ok: true,
@@ -274,6 +289,28 @@ describe('startup-run gateway-not-ready retry', () => {
 
   it('startup-run 503 retries once', async () => {
     mockMemoryArchivePromote.mockResolvedValueOnce(UNAVAILABLE_503);
+    mockMemoryArchivePromote.mockResolvedValueOnce(SUCCESS_NO_PROMOTIONS);
+
+    await startupRun();
+    await vi.advanceTimersByTimeAsync(FIVE_MINUTES_MS);
+
+    expect(mockMemoryArchivePromote).toHaveBeenCalledTimes(2);
+    expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
+  });
+
+  it('startup timeout retries once (idempotent endpoint)', async () => {
+    mockMemoryArchivePromote.mockResolvedValueOnce(TIMEOUT_FAILURE);
+    mockMemoryArchivePromote.mockResolvedValueOnce(SUCCESS_NO_PROMOTIONS);
+
+    await startupRun();
+    await vi.advanceTimersByTimeAsync(FIVE_MINUTES_MS);
+
+    expect(mockMemoryArchivePromote).toHaveBeenCalledTimes(2);
+    expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
+  });
+
+  it('startup 504 retries once (idempotent endpoint)', async () => {
+    mockMemoryArchivePromote.mockResolvedValueOnce(GATEWAY_TIMEOUT_504);
     mockMemoryArchivePromote.mockResolvedValueOnce(SUCCESS_NO_PROMOTIONS);
 
     await startupRun();
