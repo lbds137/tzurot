@@ -16,6 +16,8 @@ ordinal: 1022000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+Update 2026-09-23: the drift this task predicts has now happened. TASK-1053 (feat/task-1053-spoiler-labels-all-kinds) adds 'Spoiler file', 'Spoiler audio' and 'Spoiler voice message' to HEADER_LABELS (after 'Spoiler image' from TASK-1031), and neither hand-spelled parser below matches any spoiler label.
+
 Why: the emitter side now reads one list. `HEADER_LABELS` in `packages/common-types/src/utils/attachmentProvenance.ts` is the single source both services emit from, pinned by a coverage test per service. The CONSUMER side does not read it: two functional sites still hand-spell the same six labels, so adding a seventh label to HEADER_LABELS silently leaves both of them blind to it, with no test that fails.
 
 Verified, not assumed (sweep for the literal `Link preview` across `packages/` and `services/`, excluding tests and dist, positive-controlled against the known-present definition in attachmentProvenance.ts):
