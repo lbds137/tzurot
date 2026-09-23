@@ -16,7 +16,11 @@ import { type RenderedQuoteRole } from './referenceRole.js';
 import { extractMessagePrefixName, stripDmPrefix } from '@tzurot/common-types/utils/discord';
 import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
-import { imageSource, type ImageSource } from '@tzurot/common-types/utils/attachmentProvenance';
+import {
+  imageSource,
+  imageSpoiler,
+  type ImageSource,
+} from '@tzurot/common-types/utils/attachmentProvenance';
 
 /**
  * Fields every attachment carries regardless of modality.
@@ -56,6 +60,11 @@ export type RenderableImage = AttachmentIdentity & {
    * `AttachmentIdentity`: no producer can mint one for a voice or file element.
    */
   source?: ImageSource;
+  /**
+   * True when the poster hid this image behind a spoiler. A render label
+   * only — it never changes what vision received.
+   */
+  spoiler?: true;
 } & Enrichment<'undescribed' | 'expired' | 'unprocessed'>;
 
 /** A voice message, with its transcript when one arrived. */
@@ -138,6 +147,7 @@ export interface AttachmentSource {
   duration?: number;
   isSticker?: boolean;
   isEmbedPreview?: boolean;
+  isSpoiler?: boolean;
 }
 
 /**
@@ -195,7 +205,7 @@ function renderableFor(
 ): RenderableAttachment {
   switch (classifyAttachment(att)) {
     case 'image': {
-      const imageIdentity = { ...identity, source: imageSource(att) };
+      const imageIdentity = { ...identity, source: imageSource(att), spoiler: imageSpoiler(att) };
       return description !== undefined
         ? { kind: 'image', ...imageIdentity, description }
         : { kind: 'image', ...imageIdentity, status: 'undescribed' };
@@ -333,6 +343,7 @@ function contentWithoutDuplicateAttribution(opts: QuoteElementOptions): string |
  *     <image filename="cat.png">a cat asleep on a keyboard</image>
  *     <image filename="unlucky.png" status="undescribed"/>
  *     <image filename="embed-1-image.png" source="link-preview">a still from the video</image>
+ *     <image filename="SPOILER_cat.png" spoiler="true">a cat</image>
  *     <voice filename="clip.ogg" duration="12s">hey, can you hear me</voice>
  *     <file filename="report.pdf" type="application/pdf"/>
  *   </attachments>
@@ -406,6 +417,7 @@ export function renderAttachment(att: RenderableAttachment): string {
         ['filename', att.filename],
         ['type', att.contentType],
         ['source', att.source],
+        ['spoiler', att.spoiler === true ? 'true' : undefined],
         ['status', att.status],
       ]);
       const body = renderEnrichment(att.description);

@@ -61,6 +61,7 @@ function toRenderableAttachments(
       filename: img.filename,
       description: img.description,
       source: img.source,
+      spoiler: img.spoiler,
     })),
     ...(metadata?.voiceTranscripts ?? []).map((transcript): RenderableAttachment => ({
       kind: 'voice',

@@ -16,7 +16,7 @@ import {
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { imageSource } from '@tzurot/common-types/utils/attachmentProvenance';
+import { imageSource, imageSpoiler } from '@tzurot/common-types/utils/attachmentProvenance';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
 import type { VisionLoggingContext } from './multimodal/VisionProcessor.js';
 import {
@@ -250,7 +250,12 @@ function unprocessedAttachment(
       // model than "some voice message we could not process".
       return { kind: 'voice', ...identity, durationSeconds: attachment.duration };
     case 'image':
-      return { kind: 'image', ...identity, source: imageSource(attachment) };
+      return {
+        kind: 'image',
+        ...identity,
+        source: imageSource(attachment),
+        spoiler: imageSpoiler(attachment),
+      };
     case 'file':
       return { kind: 'file', ...identity };
   }
@@ -356,6 +361,7 @@ async function processImageAttachment(options: ProcessImageOptions): Promise<Bui
     filename: attachment.name,
     contentType: attachment.contentType,
     source: imageSource(attachment),
+    spoiler: imageSpoiler(attachment),
   } as const;
 
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {

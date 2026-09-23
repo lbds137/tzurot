@@ -21,10 +21,18 @@ describe('attachmentMetadataSchema — provenance flag survival', () => {
     expect(result.data?.isSticker).toBe(true);
   });
 
-  it('parses an ordinary attachment with both provenance flags absent', () => {
+  it('survives isSpoiler: true through safeParse (Zod strips undeclared keys, so this pins the declaration)', () => {
+    const fixture = { ...base, isSpoiler: true } satisfies AttachmentMetadata;
+    const result = attachmentMetadataSchema.safeParse(fixture);
+    expect(result.success).toBe(true);
+    expect(result.data?.isSpoiler).toBe(true);
+  });
+
+  it('parses an ordinary attachment with all provenance flags absent', () => {
     const result = attachmentMetadataSchema.safeParse(base);
     expect(result.success).toBe(true);
     expect(result.data?.isSticker).toBeUndefined();
     expect(result.data?.isEmbedPreview).toBeUndefined();
+    expect(result.data?.isSpoiler).toBeUndefined();
   });
 });

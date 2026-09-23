@@ -51,6 +51,7 @@ export function imageSource(attachment: {
  */
 export const HEADER_LABELS = [
   'Image',
+  'Spoiler image',
   'Sticker',
   'Link preview',
   'File',
@@ -65,17 +66,37 @@ export const HEADER_LABELS = [
  * what stops them drifting from each other the way the original two
  * hand-copied mappings did.
  *
+ * Precedence: sticker → 'Sticker'; link-preview → 'Link preview'; a plain
+ * upload the poster marked as a spoiler → 'Spoiler image'; otherwise
+ * 'Image'. Synthetic sticker/link-preview attachments are never spoilered,
+ * so this ordering states a precedence rather than resolving a case that
+ * arises.
+ *
  * Structurally typed for the same reason `imageSource` is.
  */
 export function imageHeaderLabel(attachment: {
   isSticker?: boolean;
   isEmbedPreview?: boolean;
+  isSpoiler?: boolean;
 }): string {
   const source = imageSource(attachment);
   if (source === 'sticker') {
     return 'Sticker';
   }
-  return source === 'link-preview' ? 'Link preview' : 'Image';
+  if (source === 'link-preview') {
+    return 'Link preview';
+  }
+  return attachment.isSpoiler === true ? 'Spoiler image' : 'Image';
+}
+
+/**
+ * The `spoiler="true"` attribute value every `<image>` producer uses to
+ * carry a poster's spoiler flag, parallel to `imageSource`. Returns `true`
+ * iff the attachment is spoilered, else `undefined` — so the attribute is
+ * omitted rather than rendered as `spoiler="false"`.
+ */
+export function imageSpoiler(attachment: { isSpoiler?: boolean }): true | undefined {
+  return attachment.isSpoiler === true ? true : undefined;
 }
 
 /**

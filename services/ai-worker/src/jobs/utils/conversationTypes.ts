@@ -25,6 +25,12 @@ export interface InlineImageDescription {
    * paths emit. Absent means an ordinary upload.
    */
   source?: ImageSource;
+  /**
+   * True when the poster hid this image behind a spoiler, carried from the
+   * source attachment's `isSpoiler` flag so a history-replayed image keeps
+   * the same `spoiler` attribute the reference paths emit.
+   */
+  spoiler?: true;
 }
 
 /**

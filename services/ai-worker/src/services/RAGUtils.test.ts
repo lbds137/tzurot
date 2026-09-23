@@ -141,6 +141,20 @@ describe('RAGUtils', () => {
       expect(result).toBe('[Sticker: partyblob]\nA cartoon blob celebrating');
     });
 
+    it('labels a spoilered plain upload as a Spoiler image, not an Image', () => {
+      // The poster hid this behind a spoiler — the header carries that label,
+      // and vision still receives and describes the image exactly as before.
+      const attachments: ProcessedAttachment[] = [
+        createAttachment(AttachmentType.Image, 'a cat', {
+          name: 'SPOILER_cat.png',
+          isSpoiler: true,
+        }),
+      ];
+
+      const result = buildAttachmentDescriptions(attachments);
+      expect(result).toBe('[Spoiler image: SPOILER_cat.png]\na cat');
+    });
+
     it('formats an unsupported-type File stub under a [File:] header', () => {
       const attachments: ProcessedAttachment[] = [
         createAttachment(
@@ -467,6 +481,7 @@ describe('RAGUtils', () => {
         { type: AttachmentType.Image, metadata: {} }, // imageHeaderLabel default branch: Image
         { type: AttachmentType.Image, metadata: { isSticker: true } }, // Sticker branch
         { type: AttachmentType.Image, metadata: { isEmbedPreview: true } }, // Link preview branch
+        { type: AttachmentType.Image, metadata: { isSpoiler: true } }, // Spoiler image branch
         { type: AttachmentType.File, metadata: { contentType: 'application/pdf' } }, // File branch
         { type: AttachmentType.Audio, metadata: {} }, // buildAudioAttachmentHeader default branch: Audio
         { type: AttachmentType.Audio, metadata: { isVoiceMessage: true, duration: 5.5 } }, // Voice message branch
@@ -487,6 +502,7 @@ describe('RAGUtils', () => {
         'Image',
         'Sticker',
         'Link preview',
+        'Spoiler image',
         'File',
         'Audio',
         'Voice message',
@@ -977,6 +993,30 @@ describe('RAGUtils', () => {
 
       expect(history[0].messageMetadata?.imageDescriptions).toEqual([
         { filename: 'sticker.png', description: 'A sticker', source: 'sticker' },
+      ]);
+    });
+
+    it('should carry spoiler provenance into the injected image description', async () => {
+      const history: StructuredHistoryEntry[] = [
+        { id: 'discord-msg-1', role: 'user', content: '' },
+      ];
+      const extendedContextAttachments: ProcessedAttachment[] = [
+        createAttachment(AttachmentType.Image, 'a cat', {
+          name: 'SPOILER_cat.png',
+          sourceDiscordMessageId: 'discord-msg-1',
+          isSpoiler: true,
+        } satisfies Partial<ProcessedAttachment['metadata']>),
+      ];
+
+      await enrichConversationHistory(
+        history,
+        extendedContextAttachments,
+        mockPrisma,
+        mockVisionCache
+      );
+
+      expect(history[0].messageMetadata?.imageDescriptions).toEqual([
+        { filename: 'SPOILER_cat.png', description: 'a cat', spoiler: true },
       ]);
     });
 

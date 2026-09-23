@@ -824,6 +824,26 @@ describe('xmlMetadataFormatters', () => {
       const result = formatImageSection(msg);
       expect(result).not.toContain('source=');
     });
+
+    it('emits spoiler="true" for a spoilered image', () => {
+      const msg = makeEntry({
+        messageMetadata: {
+          imageDescriptions: [{ filename: 'SPOILER_cat.png', description: 'a cat', spoiler: true }],
+        },
+      });
+      const result = formatImageSection(msg);
+      expect(result).toContain('spoiler="true"');
+    });
+
+    it('omits the spoiler attribute when the image is not spoilered', () => {
+      const msg = makeEntry({
+        messageMetadata: {
+          imageDescriptions: [{ filename: 'cat.jpg', description: 'A fluffy cat' }],
+        },
+      });
+      const result = formatImageSection(msg);
+      expect(result).not.toContain('spoiler=');
+    });
   });
 
   describe('formatEmbedsSection', () => {

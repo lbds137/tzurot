@@ -134,6 +134,17 @@ describe('attachmentPlaceholders', () => {
       expect(generateAttachmentPlaceholder(attachment)).toBe('[Image: photo.jpg]');
     });
 
+    it('should label a spoilered plain upload as Spoiler image, not Image', () => {
+      const attachment: AttachmentMetadata = {
+        url: 'https://cdn.discordapp.com/attachments/1/2/SPOILER_cat.png',
+        contentType: 'image/png',
+        name: 'SPOILER_cat.png',
+        isSpoiler: true,
+      };
+
+      expect(generateAttachmentPlaceholder(attachment)).toBe('[Spoiler image: SPOILER_cat.png]');
+    });
+
     it('should label a sticker as Sticker even when isEmbedPreview is also set', () => {
       // Disjoint producers, but the precedence must hold if both flags were
       // ever set on the same entry.
@@ -363,6 +374,12 @@ describe('attachmentPlaceholders', () => {
           contentType: 'image/png',
           isEmbedPreview: true,
         },
+        {
+          url: 'https://example.com/SPOILER_cat.png',
+          contentType: 'image/png',
+          name: 'SPOILER_cat.png',
+          isSpoiler: true,
+        },
         { url: 'https://example.com/doc.pdf', contentType: 'application/pdf' },
       ];
 
@@ -381,10 +398,11 @@ describe('attachmentPlaceholders', () => {
         'Image',
         'Sticker',
         'Link preview',
+        'Spoiler image',
         'File',
       ]);
-      // Set equality (not membership): bot-client's six arms happen to cover
-      // all six labels in HEADER_LABELS, which is the union of BOTH
+      // Set equality (not membership): bot-client's seven arms happen to cover
+      // all seven labels in HEADER_LABELS, which is the union of BOTH
       // services' emitters — equality catches both a renamed emitter and a
       // stale HEADER_LABELS entry no emitter produces.
       expect([...emittedLabels].sort()).toEqual([...HEADER_LABELS].sort());

@@ -10,6 +10,20 @@ import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { isVoiceAttachment } from './voiceAttachment.js';
 
+const SPOILER_FILENAME_PREFIX = 'SPOILER_';
+
+/**
+ * Whether the poster marked a plain attachment as a spoiler. Checks both
+ * signals discord.js exposes: installed discord.js 14.27.0's
+ * `Attachment.spoiler` getter reads ONLY the `IsSpoiler` attachment flag
+ * (`src/structures/Attachment.js`: `return this.flags.has(AttachmentFlags.IsSpoiler)`)
+ * — it does not fold in the filename prefix — so the `SPOILER_` filename
+ * prefix convention is checked separately. Prefix match is case-sensitive.
+ */
+export function isSpoilerAttachment(attachment: Pick<Attachment, 'name' | 'spoiler'>): boolean {
+  return attachment.spoiler || attachment.name.startsWith(SPOILER_FILENAME_PREFIX);
+}
+
 /**
  * Extract attachment metadata from a Discord message's attachments collection
  * @param attachments - Discord message attachments collection
@@ -38,5 +52,6 @@ export function extractAttachments(
     isVoiceMessage: isVoiceAttachment(attachment),
     duration: attachment.duration ?? undefined,
     waveform: attachment.waveform ?? undefined,
+    ...(isSpoilerAttachment(attachment) ? { isSpoiler: true } : {}),
   }));
 }

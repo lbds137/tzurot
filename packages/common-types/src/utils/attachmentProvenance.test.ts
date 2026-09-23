@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   imageSource,
   imageHeaderLabel,
+  imageSpoiler,
   headerDisplayName,
   neutralizeHeaderMarkers,
   HEADER_LABELS,
@@ -41,6 +42,32 @@ describe('attachmentProvenance', () => {
 
     it('returns "Sticker" when both flags are set', () => {
       expect(imageHeaderLabel({ isSticker: true, isEmbedPreview: true })).toBe('Sticker');
+    });
+
+    it('returns "Spoiler image" when isSpoiler is true', () => {
+      expect(imageHeaderLabel({ isSpoiler: true })).toBe('Spoiler image');
+    });
+
+    it('returns "Sticker" when both isSticker and isSpoiler are set', () => {
+      expect(imageHeaderLabel({ isSticker: true, isSpoiler: true })).toBe('Sticker');
+    });
+
+    it('returns "Link preview" when both isEmbedPreview and isSpoiler are set', () => {
+      expect(imageHeaderLabel({ isEmbedPreview: true, isSpoiler: true })).toBe('Link preview');
+    });
+  });
+
+  describe('imageSpoiler', () => {
+    it('returns true when isSpoiler is true', () => {
+      expect(imageSpoiler({ isSpoiler: true })).toBe(true);
+    });
+
+    it('returns undefined when isSpoiler is false', () => {
+      expect(imageSpoiler({ isSpoiler: false })).toBeUndefined();
+    });
+
+    it('returns undefined when isSpoiler is absent', () => {
+      expect(imageSpoiler({})).toBeUndefined();
     });
   });
 
@@ -105,6 +132,7 @@ describe('attachmentProvenance', () => {
     it('carries the exact vocabulary every header emitter can produce', () => {
       expect(HEADER_LABELS).toEqual([
         'Image',
+        'Spoiler image',
         'Sticker',
         'Link preview',
         'File',

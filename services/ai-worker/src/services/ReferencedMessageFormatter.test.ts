@@ -1194,6 +1194,43 @@ describe('ReferencedMessageFormatter', () => {
         '<image filename="embed-1-image.png" type="image/png" source="link-preview">a still from the video</image>'
       );
     });
+
+    it('renders spoiler="true" for a spoilered plain image on the full live path', async () => {
+      mockDescribeImage.mockResolvedValue('a cat');
+
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-123',
+          discordUserId: 'user-123',
+          authorUsername: 'testuser',
+          authorDisplayName: 'Test User',
+          content: 'look at this',
+          embeds: '',
+          timestamp: '2025-11-04T00:00:00Z',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
+          attachments: [
+            {
+              url: 'https://example.com/SPOILER_cat.png',
+              contentType: 'image/png',
+              name: 'SPOILER_cat.png',
+              size: 1000,
+              isSpoiler: true,
+            },
+          ],
+        },
+      ];
+
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
+
+      expect(result).toContain(
+        '<image filename="SPOILER_cat.png" type="image/png" spoiler="true">a cat</image>'
+      );
+    });
   });
 
   describe('Voice message processing', () => {

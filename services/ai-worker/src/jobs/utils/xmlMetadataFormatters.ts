@@ -239,7 +239,8 @@ export function formatImageSection(msg: StructuredHistoryEntry): string {
   const formattedImages = images
     .map(img => {
       const sourceAttr = img.source === undefined ? '' : ` source="${escapeXml(img.source)}"`;
-      return `<image filename="${escapeXml(img.filename)}"${sourceAttr}>${escapeXmlContent(img.description)}</image>`;
+      const spoilerAttr = img.spoiler === true ? ' spoiler="true"' : '';
+      return `<image filename="${escapeXml(img.filename)}"${sourceAttr}${spoilerAttr}>${escapeXmlContent(img.description)}</image>`;
     })
     .join('\n');
   return `\n<image_descriptions>\n${formattedImages}\n</image_descriptions>`;

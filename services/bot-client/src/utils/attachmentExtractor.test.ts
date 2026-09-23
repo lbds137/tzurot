@@ -20,6 +20,7 @@ function createMockAttachment(
     size: number;
     duration: number | null;
     waveform: string | null;
+    spoiler: boolean;
   }>
 ): Attachment {
   return {
@@ -31,6 +32,7 @@ function createMockAttachment(
     size: overrides?.size ?? 1024,
     duration: overrides?.duration ?? null,
     waveform: overrides?.waveform ?? null,
+    spoiler: overrides?.spoiler ?? false,
   } as Attachment;
 }
 
@@ -352,6 +354,56 @@ describe('extractAttachments', () => {
       // invariant the cross-service VoiceTranscriptCache depends on.
       expect(result![0].url).toBe(cdnUrl);
       expect(result![0].originalUrl).toBe(cdnUrl);
+    });
+  });
+
+  describe('spoiler detection', () => {
+    it('should set isSpoiler: true when the filename carries the SPOILER_ prefix', () => {
+      const attachment = createMockAttachment('123', {
+        name: 'SPOILER_cat.png',
+        spoiler: false,
+      });
+      const collection = createAttachmentCollection([attachment]);
+
+      const result = extractAttachments(collection);
+
+      expect(result![0].isSpoiler).toBe(true);
+    });
+
+    it('should set isSpoiler: true when the IsSpoiler attachment flag is set, regardless of filename', () => {
+      const attachment = createMockAttachment('123', {
+        name: 'cat.png',
+        spoiler: true,
+      });
+      const collection = createAttachmentCollection([attachment]);
+
+      const result = extractAttachments(collection);
+
+      expect(result![0].isSpoiler).toBe(true);
+    });
+
+    it('should omit isSpoiler entirely for a normal, non-spoilered upload', () => {
+      const attachment = createMockAttachment('123', {
+        name: 'cat.png',
+        spoiler: false,
+      });
+      const collection = createAttachmentCollection([attachment]);
+
+      const result = extractAttachments(collection);
+
+      expect(result![0]).not.toHaveProperty('isSpoiler');
+    });
+
+    it('should NOT match a lowercase "spoiler_" filename prefix (case-sensitive)', () => {
+      const attachment = createMockAttachment('123', {
+        name: 'spoiler_cat.png',
+        spoiler: false,
+      });
+      const collection = createAttachmentCollection([attachment]);
+
+      const result = extractAttachments(collection);
+
+      expect(result![0]).not.toHaveProperty('isSpoiler');
     });
   });
 });
