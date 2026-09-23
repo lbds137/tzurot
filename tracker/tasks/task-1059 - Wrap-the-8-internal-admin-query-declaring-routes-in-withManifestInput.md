@@ -7,7 +7,7 @@ created_date: '2026-09-23 20:13'
 labels:
   - 'area:api-gateway'
   - 'size:M'
-  - 'state:dependent'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 1053000

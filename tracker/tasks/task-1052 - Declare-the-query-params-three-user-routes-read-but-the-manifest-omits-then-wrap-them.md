@@ -3,9 +3,10 @@ id: TASK-1052
 title: >-
   Declare the query params three user routes read but the manifest omits, then
   wrap them
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-23 01:10'
+updated_date: '2026-09-23 21:10'
 labels:
   - 'area:api-gateway'
   - 'size:S'
