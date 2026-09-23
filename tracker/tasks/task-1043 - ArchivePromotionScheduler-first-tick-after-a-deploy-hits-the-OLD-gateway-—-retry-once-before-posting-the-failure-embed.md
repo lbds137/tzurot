@@ -3,10 +3,10 @@ id: TASK-1043
 title: >-
   ArchivePromotionScheduler first tick after a deploy hits the OLD gateway —
   retry once before posting the failure embed
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-22 14:16'
-updated_date: '2026-09-23 03:03'
+updated_date: '2026-09-23 14:04'
 labels:
   - 'area:bot-client'
   - 'size:S'
