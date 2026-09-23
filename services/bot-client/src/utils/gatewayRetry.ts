@@ -24,7 +24,10 @@ const logger = createLogger('gatewayRetry');
 export const REPORT_MAX_ATTEMPTS = 3;
 export const REPORT_RETRY_BASE_DELAY_MS = 500;
 
-/** Gateway failures worth retrying: infrastructure states, never 4xx rejections. */
+/**
+ * Gateway failures worth retrying: infrastructure states, never 4xx rejections.
+ * Not the deploy-window check — see `isGatewayNotReadyFailure` (gatewayNotReady.ts), which adds 404 and excludes 500.
+ */
 export function isRetryableGatewayFailure(failure: { kind: string; status: number }): boolean {
   return failure.kind === 'network' || failure.kind === 'timeout' || failure.status >= 500;
 }
