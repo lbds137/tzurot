@@ -5,7 +5,7 @@ type: other
 created_date: '2026-09-23 22:58'
 ---
 
-Status: proposed 2026-09-23 (owner request relayed by a sibling session), NOT piloted. Owner decision needed before any skill edit, because it changes the owner's workflow.
+Status: proposed 2026-09-23 (owner request relayed by a sibling session). **Owner approved a pilot the same day** ("piloting makes sense … the essentially single threaded development model slows down work a lot"). Pilot unit: TASK-1059. Skill edits still wait for the pilot's result.
 
 ## Why
 
