@@ -1,9 +1,10 @@
 ---
 id: TASK-1032
 title: 'Bound the Components-V2 embed walk: nesting depth and gallery item count'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-21 10:13'
+updated_date: '2026-09-23 05:12'
 labels:
   - 'area:bot-client'
   - 'size:S'

@@ -1,9 +1,10 @@
 ---
 id: TASK-1030
 title: Components-V2 renderer flattens per-Section text/media pairing
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-21 03:16'
+updated_date: '2026-09-23 05:12'
 labels:
   - 'area:bot-client'
   - 'size:S'
