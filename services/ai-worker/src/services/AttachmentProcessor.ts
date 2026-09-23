@@ -16,7 +16,7 @@ import {
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { imageSource, imageSpoiler } from '@tzurot/common-types/utils/attachmentProvenance';
+import { imageSource, attachmentSpoiler } from '@tzurot/common-types/utils/attachmentProvenance';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
 import type { VisionLoggingContext } from './multimodal/VisionProcessor.js';
 import {
@@ -239,6 +239,7 @@ function unprocessedAttachment(
   const identity = {
     filename: attachment.name,
     contentType: attachment.contentType,
+    spoiler: attachmentSpoiler(attachment),
     status: 'unprocessed',
   } as const;
 
@@ -254,7 +255,6 @@ function unprocessedAttachment(
         kind: 'image',
         ...identity,
         source: imageSource(attachment),
-        spoiler: imageSpoiler(attachment),
       };
     case 'file':
       return { kind: 'file', ...identity };
@@ -293,6 +293,7 @@ async function processVoiceAttachment(options: ProcessVoiceOptions): Promise<Bui
     filename: attachment.name,
     contentType: attachment.contentType,
     durationSeconds: attachment.duration,
+    spoiler: attachmentSpoiler(attachment),
   } as const;
 
   // Own-persona voice: skip BOTH the preprocessed short-circuit below AND the
@@ -361,7 +362,7 @@ async function processImageAttachment(options: ProcessImageOptions): Promise<Bui
     filename: attachment.name,
     contentType: attachment.contentType,
     source: imageSource(attachment),
-    spoiler: imageSpoiler(attachment),
+    spoiler: attachmentSpoiler(attachment),
   } as const;
 
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {
@@ -456,6 +457,7 @@ async function processSingleAttachment(
           kind: 'file',
           filename: attachment.name,
           contentType: attachment.contentType,
+          spoiler: attachmentSpoiler(attachment),
         },
       };
   }

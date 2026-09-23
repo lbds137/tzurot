@@ -17,8 +17,11 @@ import {
   headerDisplayName,
   neutralizeHeaderMarkers,
   imageHeaderLabel,
+  fileHeaderLabel,
+  audioHeaderLabel,
+  voiceHeaderLabel,
   imageSource,
-  imageSpoiler,
+  attachmentSpoiler,
 } from '@tzurot/common-types/utils/attachmentProvenance';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { validateAIProvider } from '../utils/providerValidation.js';
@@ -148,7 +151,8 @@ function formatProcessedAttachmentEntry(a: ProcessedAttachment): string {
   }
   if (a.type === AttachmentType.File) {
     const name = headerDisplayName(a.metadata.name);
-    return `[File: ${name}]\n${neutralizeHeaderMarkers(a.description)}`;
+    const header = fileHeaderLabel(a.metadata);
+    return `[${header}: ${name}]\n${neutralizeHeaderMarkers(a.description)}`;
   }
   return '';
 }
@@ -160,10 +164,12 @@ function buildAudioAttachmentHeader(a: ProcessedAttachment): string {
     a.metadata.duration !== null &&
     a.metadata.duration > 0
   ) {
-    return `[Voice message: ${a.metadata.duration.toFixed(1)}s]`;
+    const header = voiceHeaderLabel(a.metadata);
+    return `[${header}: ${a.metadata.duration.toFixed(1)}s]`;
   }
   const name = headerDisplayName(a.metadata.name);
-  return `[Audio: ${name}]`;
+  const header = audioHeaderLabel(a.metadata);
+  return `[${header}: ${name}]`;
 }
 
 /**
@@ -195,7 +201,7 @@ function buildImageDescriptionMap(
       filename: att.metadata.name ?? 'image',
       description: att.description,
       source: imageSource(att.metadata),
-      spoiler: imageSpoiler(att.metadata),
+      spoiler: attachmentSpoiler(att.metadata),
     });
     if (!map.has(msgId)) {
       map.set(msgId, existingList);

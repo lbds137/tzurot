@@ -18,7 +18,7 @@ import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 import {
   imageSource,
-  imageSpoiler,
+  attachmentSpoiler,
   type ImageSource,
 } from '@tzurot/common-types/utils/attachmentProvenance';
 
@@ -42,6 +42,14 @@ interface AttachmentIdentity {
   filename?: string;
   /** Discord content type, when known. */
   contentType?: string;
+  /**
+   * True when the poster hid this attachment behind a spoiler. A render
+   * label only — it never changes what vision/STT received. Available on
+   * every modality, not only images: `attachmentSpoiler` computes it from
+   * the same `isSpoiler` flag `isSpoilerAttachment` sets regardless of
+   * attachment kind.
+   */
+  spoiler?: true;
 }
 
 /**
@@ -60,11 +68,6 @@ export type RenderableImage = AttachmentIdentity & {
    * `AttachmentIdentity`: no producer can mint one for a voice or file element.
    */
   source?: ImageSource;
-  /**
-   * True when the poster hid this image behind a spoiler. A render label
-   * only — it never changes what vision received.
-   */
-  spoiler?: true;
 } & Enrichment<'undescribed' | 'expired' | 'unprocessed'>;
 
 /** A voice message, with its transcript when one arrived. */
@@ -188,7 +191,11 @@ export function buildRenderableAttachments<T extends AttachmentSource>(
   describe: (attachment: T) => string | undefined
 ): BuiltAttachment[] {
   return attachments.map((att): BuiltAttachment => {
-    const identity = { filename: att.name, contentType: att.contentType };
+    const identity = {
+      filename: att.name,
+      contentType: att.contentType,
+      spoiler: attachmentSpoiler(att),
+    };
     const found = describe(att);
     // Narrowed to a variable rather than tested inline per arm: a boolean flag
     // would not narrow `string | undefined` down to the union's `description: string`.
@@ -200,12 +207,12 @@ export function buildRenderableAttachments<T extends AttachmentSource>(
 /** Pick the modality's arm — enriched, or naming its own absence. */
 function renderableFor(
   att: AttachmentSource,
-  identity: { filename?: string; contentType?: string },
+  identity: { filename?: string; contentType?: string; spoiler?: true },
   description: string | undefined
 ): RenderableAttachment {
   switch (classifyAttachment(att)) {
     case 'image': {
-      const imageIdentity = { ...identity, source: imageSource(att), spoiler: imageSpoiler(att) };
+      const imageIdentity = { ...identity, source: imageSource(att) };
       return description !== undefined
         ? { kind: 'image', ...imageIdentity, description }
         : { kind: 'image', ...imageIdentity, status: 'undescribed' };
@@ -345,7 +352,9 @@ function contentWithoutDuplicateAttribution(opts: QuoteElementOptions): string |
  *     <image filename="embed-1-image.png" source="link-preview">a still from the video</image>
  *     <image filename="SPOILER_cat.png" spoiler="true">a cat</image>
  *     <voice filename="clip.ogg" duration="12s">hey, can you hear me</voice>
+ *     <voice filename="SPOILER_clip.ogg" duration="12s" spoiler="true">hey, can you hear me</voice>
  *     <file filename="report.pdf" type="application/pdf"/>
+ *     <file filename="SPOILER_report.pdf" type="application/pdf" spoiler="true"/>
  *   </attachments>
  * </quote>
  * ```
@@ -428,6 +437,7 @@ export function renderAttachment(att: RenderableAttachment): string {
         ['filename', att.filename],
         ['type', att.contentType],
         ['duration', att.durationSeconds !== undefined ? `${att.durationSeconds}s` : undefined],
+        ['spoiler', att.spoiler === true ? 'true' : undefined],
         ['status', att.status],
       ]);
       const body = renderEnrichment(att.description);
@@ -437,6 +447,7 @@ export function renderAttachment(att: RenderableAttachment): string {
       return `<file${joinAttrs([
         ['filename', att.filename],
         ['type', att.contentType],
+        ['spoiler', att.spoiler === true ? 'true' : undefined],
         ['status', att.status],
       ])}/>`;
   }

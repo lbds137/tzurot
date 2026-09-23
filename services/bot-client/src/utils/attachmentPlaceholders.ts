@@ -11,6 +11,9 @@ import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/disc
 import {
   headerDisplayName,
   imageHeaderLabel,
+  fileHeaderLabel,
+  audioHeaderLabel,
+  voiceHeaderLabel,
 } from '@tzurot/common-types/utils/attachmentProvenance';
 
 /**
@@ -21,12 +24,14 @@ import {
  */
 export function generateAttachmentPlaceholder(attachment: AttachmentMetadata): string {
   if (attachment.isVoiceMessage === true && attachment.duration !== undefined) {
-    return `[Voice message: ${attachment.duration.toFixed(1)}s]`;
+    const kind = voiceHeaderLabel(attachment);
+    return `[${kind}: ${attachment.duration.toFixed(1)}s]`;
   }
 
   if (attachment.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX)) {
     const name = headerDisplayName(attachment.name);
-    return `[Audio: ${name}]`;
+    const kind = audioHeaderLabel(attachment);
+    return `[${kind}: ${name}]`;
   }
 
   if (attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
@@ -45,7 +50,8 @@ export function generateAttachmentPlaceholder(attachment: AttachmentMetadata): s
 
   // Generic file placeholder
   const name = headerDisplayName(attachment.name);
-  return `[File: ${name}]`;
+  const kind = fileHeaderLabel(attachment);
+  return `[${kind}: ${name}]`;
 }
 
 /**

@@ -2291,7 +2291,43 @@ describe('ReferencedMessageFormatter', () => {
       // NOT the synthesized `audio/unknown` the dependency step stamps on
       // preprocessed metadata — a placeholder must not render as fact.
       expect(formatted).not.toContain('type="audio/unknown"');
+      expect(formatted).not.toContain('spoiler=');
       expect(mockTranscribeAudio).not.toHaveBeenCalled();
+    });
+
+    it('renders spoiler="true" for a spoilered ORPHANED voice entry', async () => {
+      // The voice arm of the orphan-entry loop in `buildDedupedAttachments`
+      // sets `spoiler` from the entry's own metadata — its own construction
+      // site, separate from the correlated path, so provenance needs its own
+      // pin here too (mirrors the image orphan-loop spoiler/provenance pins
+      // above).
+      const { formatted } = await formatter.formatReferencedMessages(
+        [refWithImage({ isDeduplicated: true, attachments: undefined, content: '' })],
+        mockPersonality,
+        false,
+        {
+          1: [
+            {
+              type: AttachmentType.Audio,
+              description: TRANSCRIPT_SENTINEL,
+              originalUrl: 'https://cdn.example.com/SPOILER_voice.ogg',
+              metadata: {
+                url: 'https://cdn.example.com/SPOILER_voice.ogg',
+                name: 'SPOILER_voice.ogg',
+                contentType: 'audio/ogg',
+                size: 2000,
+                duration: 6,
+                isSpoiler: true,
+              },
+            },
+          ],
+        }
+      );
+
+      expect(formatted).toContain(
+        '<voice filename="SPOILER_voice.ogg" duration="6s" spoiler="true">'
+      );
+      expect(formatted).toContain(TRANSCRIPT_SENTINEL);
     });
 
     it('renders the static own-voice description for a deduped assistant reference, even with a real transcript in the preprocessed batch', async () => {
@@ -2553,12 +2589,12 @@ describe('ReferencedMessageFormatter', () => {
         'Attachment type video/mp4 is not supported — content not analyzed';
 
       /** The shape MultimodalProcessor returns for an unprocessable type. */
-      function fileStubEntry(url: string, name: string): ProcessedAttachment {
+      function fileStubEntry(url: string, name: string, isSpoiler?: true): ProcessedAttachment {
         return {
           type: AttachmentType.File,
           description: FILE_STUB_DESCRIPTION,
           originalUrl: url,
-          metadata: { url, name, contentType: 'video/mp4', size: 4000 },
+          metadata: { url, name, contentType: 'video/mp4', size: 4000, isSpoiler },
         };
       }
 
@@ -2595,7 +2631,32 @@ describe('ReferencedMessageFormatter', () => {
 
         expect(formatted).toContain('<file filename="orphan.mp4"/>');
         expect(formatted).not.toContain(FILE_STUB_DESCRIPTION);
+        expect(formatted).not.toContain('spoiler=');
         expect(mockLogger.warn).not.toHaveBeenCalled();
+      });
+
+      it('renders spoiler="true" for a spoilered ORPHANED file entry', async () => {
+        // The file arm of the orphan-entry loop in `buildDedupedAttachments`
+        // sets `spoiler` from the entry's own metadata — its own construction
+        // site, separate from the correlated path, so provenance needs its own
+        // pin here too.
+        const { formatted } = await formatter.formatReferencedMessages(
+          [refWithImage({ isDeduplicated: true, attachments: undefined })],
+          mockPersonality,
+          false,
+          {
+            1: [
+              fileStubEntry(
+                'https://cdn.example.com/SPOILER_orphan.mp4',
+                'SPOILER_orphan.mp4',
+                true
+              ),
+            ],
+          }
+        );
+
+        expect(formatted).toContain('<file filename="SPOILER_orphan.mp4" spoiler="true"/>');
+        expect(formatted).not.toContain(FILE_STUB_DESCRIPTION);
       });
 
       it('excludes only the file stub from the denominator — a real drop still warns', async () => {

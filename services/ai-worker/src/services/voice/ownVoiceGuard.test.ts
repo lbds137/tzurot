@@ -45,4 +45,16 @@ describe('redactOwnVoiceTranscript', () => {
       description: OWN_VOICE_DESCRIPTION,
     });
   });
+
+  it('preserves the spoiler flag through the redaction', () => {
+    const result = redactOwnVoiceTranscript({
+      kind: 'voice',
+      filename: 'SPOILER_voice.ogg',
+      durationSeconds: 7,
+      spoiler: true,
+      description: 'a stale transcript that must not survive',
+    });
+
+    expect(result).toMatchObject({ spoiler: true, description: OWN_VOICE_DESCRIPTION });
+  });
 });

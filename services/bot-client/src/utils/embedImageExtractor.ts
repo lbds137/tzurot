@@ -73,6 +73,7 @@ export function extractEmbedImages(embeds: Embed[] | undefined): AttachmentMetad
         name: embedMediaAttachmentName(embedIndex, mediaIndex),
         isEmbedPreview: true,
         size: undefined,
+        ...(media.spoiler === true ? { isSpoiler: true } : {}),
       });
     }
   }

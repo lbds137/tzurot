@@ -35,6 +35,7 @@ export function redactOwnVoiceTranscript(attachment: RenderableVoice): Renderabl
     filename: attachment.filename,
     contentType: attachment.contentType,
     durationSeconds: attachment.durationSeconds,
+    spoiler: attachment.spoiler,
     description: OWN_VOICE_DESCRIPTION,
   };
 }

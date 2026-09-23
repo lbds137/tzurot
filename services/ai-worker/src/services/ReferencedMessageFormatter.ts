@@ -18,7 +18,7 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { imageSource, imageSpoiler } from '@tzurot/common-types/utils/attachmentProvenance';
+import { imageSource, attachmentSpoiler } from '@tzurot/common-types/utils/attachmentProvenance';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import { batchResolveByDiscordIds } from './reference/BatchResolvers.js';
 import type { ResolvedPersona } from './reference/UserReferencePatterns.js';
@@ -211,7 +211,7 @@ function buildDedupedAttachments(
           kind: 'image',
           filename: entry.metadata.name,
           source: imageSource(entry.metadata),
-          spoiler: imageSpoiler(entry.metadata),
+          spoiler: attachmentSpoiler(entry.metadata),
           description: entry.description,
         },
       });
@@ -222,6 +222,7 @@ function buildDedupedAttachments(
           kind: 'voice',
           filename: entry.metadata.name,
           durationSeconds: entry.metadata.duration,
+          spoiler: attachmentSpoiler(entry.metadata),
           description: entry.description,
         },
       });
@@ -231,6 +232,7 @@ function buildDedupedAttachments(
         attachment: {
           kind: 'file',
           filename: entry.metadata.name,
+          spoiler: attachmentSpoiler(entry.metadata),
         },
       });
     }
