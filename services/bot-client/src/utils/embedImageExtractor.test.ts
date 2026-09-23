@@ -4,7 +4,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { extractEmbedImages } from './embedImageExtractor.js';
-import type { Embed } from 'discord.js';
+import { formatEmbedComponentsXml } from './embedComponents.js';
+import { EMBED_LIMITS } from '@tzurot/common-types/constants/media';
+import type { Embed, APIEmbed } from 'discord.js';
 import { VXREDDIT_COMPONENTS_V2_EMBED } from './fixtures/vxredditComponentsV2Embed.js';
 
 describe('extractEmbedImages', () => {
@@ -346,5 +348,59 @@ describe('extractEmbedImages', () => {
     expect(result).toHaveLength(1);
     expect(result![0].url).toBe('https://example.com/no-proxy.jpg');
     expect(result![0].name).toBe('embed-1-media-1.png');
+  });
+
+  it('names Components-V2 attachments exactly as the text render names its image lines', () => {
+    const galleryItems = Array.from({ length: EMBED_LIMITS.MAX_MEDIA_PER_EMBED + 2 }, (_, i) => ({
+      media: { url: `https://example.com/g${i + 1}.png`, content_type: 'image/png' },
+    }));
+    const json = {
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 9,
+              components: [{ type: 10, content: 'one' }],
+              accessory: {
+                type: 11,
+                media: { url: 'https://example.com/t1.png', content_type: 'image/png' },
+              },
+            },
+            { type: 12, items: galleryItems },
+            {
+              type: 9,
+              components: [{ type: 10, content: 'two' }],
+              accessory: {
+                type: 11,
+                media: { url: 'https://example.com/t2.png', content_type: 'image/png' },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const embeds = [
+      {
+        image: null,
+        thumbnail: null,
+        toJSON: () => json,
+      },
+    ] as unknown as Embed[];
+
+    const names = extractEmbedImages(embeds)!.map(a => a.name);
+    const urlsFromExtraction = extractEmbedImages(embeds)!.map(a => a.url);
+
+    const lines = formatEmbedComponentsXml(json as unknown as APIEmbed, 0);
+    const imageLines = lines.filter(line => line.startsWith('<image'));
+    const parsed = imageLines.map(line => {
+      const match = /filename="([^"]+)" url="([^"]+)"/.exec(line);
+      return { filename: match![1], url: match![2] };
+    });
+
+    expect(names).toEqual(parsed.map(p => p.filename));
+    expect(urlsFromExtraction).toEqual(parsed.map(p => p.url));
+    expect(names).toHaveLength(EMBED_LIMITS.MAX_MEDIA_PER_EMBED);
   });
 });

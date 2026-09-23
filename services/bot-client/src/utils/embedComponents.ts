@@ -18,6 +18,7 @@ import {
   type APIEmbed,
 } from 'discord.js';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
+import { EMBED_LIMITS } from '@tzurot/common-types/constants/media';
 import { embedMediaAttachmentName } from './embedAttachmentName.js';
 
 /**
@@ -55,31 +56,6 @@ function isSection(value: unknown): value is APISectionComponent {
 /** Narrow an unknown component node to a Thumbnail. */
 function isThumbnail(value: unknown): value is APIThumbnailComponent {
   return hasType(value, ComponentType.Thumbnail);
-}
-
-/**
- * Collect every TextDisplay `content` string in document order, descending
- * into Container and Section children. Skips a `content` that is not a
- * string or is empty.
- */
-export function collectEmbedComponentText(components: unknown[]): string[] {
-  const texts: string[] = [];
-  for (const node of components) {
-    if (isTextDisplay(node)) {
-      const content = (node as { content?: unknown }).content;
-      if (typeof content === 'string' && content.length > 0) {
-        texts.push(content);
-      }
-      continue;
-    }
-    if (isContainer(node) || isSection(node)) {
-      const children = (node as { components?: unknown }).components;
-      if (Array.isArray(children)) {
-        texts.push(...collectEmbedComponentText(children));
-      }
-    }
-  }
-  return texts;
 }
 
 /** One media item collected from a MediaGallery or a Section's Thumbnail accessory. */
@@ -139,14 +115,24 @@ function readMediaEntry(source: unknown): EmbedComponentMedia | undefined {
   return { url, proxyUrl, contentType, description, spoiler };
 }
 
-/** Collect the media entries of one MediaGallery node's `items` array. */
-function collectGalleryItemMedia(node: APIMediaGalleryComponent): EmbedComponentMedia[] {
+/**
+ * Collect the media entries of one MediaGallery node's `items` array,
+ * stopping once `budget` valid entries have been collected — so a gallery
+ * with thousands of items past the shared cap is not mapped in full.
+ */
+function collectGalleryItemMedia(
+  node: APIMediaGalleryComponent,
+  budget: number
+): EmbedComponentMedia[] {
   const items = (node as { items?: unknown }).items;
-  if (!Array.isArray(items)) {
+  if (!Array.isArray(items) || budget <= 0) {
     return [];
   }
   const media: EmbedComponentMedia[] = [];
   for (const item of items) {
+    if (media.length >= budget) {
+      break;
+    }
     const entry = readMediaEntry(item);
     if (entry !== undefined) {
       media.push(entry);
@@ -166,40 +152,128 @@ function collectSectionAccessoryMedia(node: APISectionComponent): EmbedComponent
 }
 
 /**
- * Collect every media item in document order, descending into Containers.
- * Two sources per node: a MediaGallery's `items`, and a Section's `accessory`
- * when it is a Thumbnail.
+ * Deepest nesting level the walk descends to; top-level nodes are level 1.
+ * The deepest shape this module reads is Container, then Section, then the
+ * Section's TextDisplay (level 3), so 4 leaves one level of headroom.
+ * Nodes below it are dropped without an error.
  */
-export function collectEmbedComponentMedia(components: unknown[]): EmbedComponentMedia[] {
-  const media: EmbedComponentMedia[] = [];
-  for (const node of components) {
-    if (isMediaGallery(node)) {
-      media.push(...collectGalleryItemMedia(node));
-      continue;
-    }
-    if (isSection(node)) {
-      media.push(...collectSectionAccessoryMedia(node));
-      continue;
-    }
-    if (isContainer(node)) {
-      const children = (node as { components?: unknown }).components;
-      if (Array.isArray(children)) {
-        media.push(...collectEmbedComponentMedia(children));
-      }
-    }
+export const MAX_EMBED_COMPONENT_DEPTH = 4;
+
+/** One readable part of a Components-V2 tree, in document order. */
+export type EmbedComponentPart =
+  { kind: 'text'; content: string } | { kind: 'media'; media: EmbedComponentMedia };
+
+/** Read a node's `components` array, when it is one. */
+function childrenOf(node: unknown): unknown[] | undefined {
+  const children = (node as { components?: unknown }).components;
+  return Array.isArray(children) ? children : undefined;
+}
+
+/** Push a TextDisplay node's non-empty `content` onto `parts`, in place. */
+function visitTextDisplay(node: APITextDisplayComponent, parts: EmbedComponentPart[]): void {
+  const content = (node as { content?: unknown }).content;
+  if (typeof content === 'string' && content.length > 0) {
+    parts.push({ kind: 'text', content });
   }
-  return media;
+}
+
+/** Hand each of a Section's descended children, then its own accessory, through the walk. */
+function visitSection(
+  node: APISectionComponent,
+  depth: number,
+  visitChildren: (nodes: unknown[], depth: number) => void,
+  addMedia: (entry: EmbedComponentMedia) => void
+): void {
+  const children = childrenOf(node);
+  if (children !== undefined) {
+    visitChildren(children, depth + 1);
+  }
+  collectSectionAccessoryMedia(node).forEach(addMedia);
+}
+
+/** Descend into a Container's children, when it has an array of them. */
+function visitContainer(
+  node: APIContainerComponent,
+  depth: number,
+  visitChildren: (nodes: unknown[], depth: number) => void
+): void {
+  const children = childrenOf(node);
+  if (children !== undefined) {
+    visitChildren(children, depth + 1);
+  }
 }
 
 /**
- * Read the accent color of the first top-level Container, when it is a
- * number. Top-level Containers only — does not recurse into nested ones.
+ * Walk a Components-V2 tree once, in document order, yielding text and media
+ * as a single interleaved sequence — a Section yields its own text, then its
+ * accessory image, before the next sibling. The text render and the image
+ * extraction both read this one walk, so they pair a Section's caption with
+ * its picture identically and number media identically. Media past
+ * `EMBED_LIMITS.MAX_MEDIA_PER_EMBED` and nodes past
+ * `MAX_EMBED_COMPONENT_DEPTH` are dropped rather than erroring.
+ */
+export function walkEmbedComponents(components: unknown[]): EmbedComponentPart[] {
+  const parts: EmbedComponentPart[] = [];
+  let mediaCount = 0;
+
+  const addMedia = (entry: EmbedComponentMedia): void => {
+    if (mediaCount >= EMBED_LIMITS.MAX_MEDIA_PER_EMBED) {
+      return;
+    }
+    parts.push({ kind: 'media', media: entry });
+    mediaCount++;
+  };
+
+  const visit = (nodes: unknown[], depth: number): void => {
+    if (depth > MAX_EMBED_COMPONENT_DEPTH) {
+      return;
+    }
+    for (const node of nodes) {
+      if (isTextDisplay(node)) {
+        visitTextDisplay(node, parts);
+        continue;
+      }
+      if (isMediaGallery(node)) {
+        const remaining = EMBED_LIMITS.MAX_MEDIA_PER_EMBED - mediaCount;
+        collectGalleryItemMedia(node, remaining).forEach(addMedia);
+        continue;
+      }
+      if (isSection(node)) {
+        visitSection(node, depth, visit, addMedia);
+        continue;
+      }
+      if (isContainer(node)) {
+        visitContainer(node, depth, visit);
+      }
+    }
+  };
+
+  visit(components, 1);
+  return parts;
+}
+
+/**
+ * Collect every media item in document order, via the shared walk — capped
+ * at `EMBED_LIMITS.MAX_MEDIA_PER_EMBED`.
+ */
+export function collectEmbedComponentMedia(components: unknown[]): EmbedComponentMedia[] {
+  return walkEmbedComponents(components)
+    .filter((part): part is Extract<EmbedComponentPart, { kind: 'media' }> => part.kind === 'media')
+    .map(part => part.media);
+}
+
+/**
+ * Read the first top-level Container's NUMERIC accent color, skipping any
+ * top-level Container without one. Top-level Containers only — does not
+ * recurse into nested ones.
  */
 export function readContainerAccentColor(components: unknown[]): number | undefined {
   for (const node of components) {
     if (isContainer(node)) {
       const accentColor = (node as { accent_color?: unknown }).accent_color;
-      return typeof accentColor === 'number' ? accentColor : undefined;
+      if (typeof accentColor === 'number') {
+        return accentColor;
+      }
     }
   }
   return undefined;
@@ -213,47 +287,46 @@ export function readContainerAccentColor(components: unknown[]): number | undefi
  */
 export function embedComponentsHaveContent(embed: APIEmbed): boolean {
   const nodes = readEmbedComponents(embed);
-  return (
-    collectEmbedComponentText(nodes).length > 0 || collectEmbedComponentMedia(nodes).length > 0
-  );
+  return walkEmbedComponents(nodes).length > 0;
 }
 
 /**
- * Render an embed's Components-V2 tree as prompt XML lines: text first, then
- * media (naming the ORIGINAL media url — the proxy is reserved for the
- * vision attachment — matching how the legacy `<image>` element carries
- * `embed.image.url`, with an optional `description` alt-text attribute),
- * then the accent color formatted the same way `parseEmbed` formats
- * `embed.color` — only when `embed.color` itself is undefined, so a legacy
- * color and a Components-V2 accent color never both render as `<color>`
- * lines; the legacy value wins. Spoiler media is labeled with a
- * `spoiler="true"` attribute rather than withheld — the label is what tells
- * the character the poster hid it. Markdown inside TextDisplay content is
- * left verbatim; the model reads markdown. Returns an empty array when there
- * is nothing to render. Text is collected across the WHOLE tree before any
- * media, so a tree with several Sections each carrying its own accessory
- * renders all text lines before all image lines rather than pairing each
- * Section's text with its image; the observed unfurl shape is one Container
- * with one gallery, and per-Section pairing is not implemented.
+ * Render an embed's Components-V2 tree as prompt XML lines: text and media
+ * (naming the ORIGINAL media url — the proxy is reserved for the vision
+ * attachment — matching how the legacy `<image>` element carries
+ * `embed.image.url`, with an optional `description` alt-text attribute)
+ * follow document order in one pass — a Section renders its text, then its
+ * accessory image, before its sibling — then the accent color formatted the
+ * same way `parseEmbed` formats `embed.color` — only when `embed.color`
+ * itself is undefined, so a legacy color and a Components-V2 accent color
+ * never both render as `<color>` lines; the legacy value wins. Spoiler media
+ * is labeled with a `spoiler="true"` attribute rather than withheld — the
+ * label is what tells the character the poster hid it. Markdown inside
+ * TextDisplay content is left verbatim; the model reads markdown. Returns an
+ * empty array when there is nothing to render. The media numbering here
+ * matches `extractEmbedImages` because both read `walkEmbedComponents`.
  */
 export function formatEmbedComponentsXml(embed: APIEmbed, embedIndex: number): string[] {
   const nodes = readEmbedComponents(embed);
   const lines: string[] = [];
+  let mediaIndex = 0;
 
-  for (const text of collectEmbedComponentText(nodes)) {
-    lines.push(`<text>${escapeXml(text)}</text>`);
-  }
-
-  const media = collectEmbedComponentMedia(nodes);
-  media.forEach((item, mediaIndex) => {
+  for (const part of walkEmbedComponents(nodes)) {
+    if (part.kind === 'text') {
+      lines.push(`<text>${escapeXml(part.content)}</text>`);
+      continue;
+    }
     const filename = embedMediaAttachmentName(embedIndex, mediaIndex);
+    mediaIndex++;
     const descriptionAttr =
-      item.description !== undefined ? ` description="${escapeXml(item.description)}"` : '';
-    const spoilerAttr = item.spoiler === true ? ' spoiler="true"' : '';
+      part.media.description !== undefined
+        ? ` description="${escapeXml(part.media.description)}"`
+        : '';
+    const spoilerAttr = part.media.spoiler === true ? ' spoiler="true"' : '';
     lines.push(
-      `<image filename="${escapeXml(filename)}" url="${escapeXml(item.url)}"${descriptionAttr}${spoilerAttr}/>`
+      `<image filename="${escapeXml(filename)}" url="${escapeXml(part.media.url)}"${descriptionAttr}${spoilerAttr}/>`
     );
-  });
+  }
 
   const accentColor = embed.color === undefined ? readContainerAccentColor(nodes) : undefined;
   if (accentColor !== undefined) {
