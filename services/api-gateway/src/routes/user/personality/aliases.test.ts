@@ -362,6 +362,26 @@ describe('personality alias routes', () => {
   });
 
   describe('DELETE /api/user/personality/:slug/aliases/:alias', () => {
+    // Pins that the `:alias` URL value reaches the lookup where-clause
+    // unchanged. It cannot tell withManifestInput's parsed `params` from raw
+    // `req.params`: the manifest's params schema is a bare z.string(), so
+    // both hold the same value.
+    it('looks up the alias by the exact :alias from the URL', async () => {
+      mockPrisma.personalityAlias.findFirst.mockResolvedValue(null);
+      const { req, res } = createMockReqRes({}, { slug: PERSONALITY.slug, alias: 'FooBar' });
+
+      await handleRemovePersonalityAlias(deps())(req, res, vi.fn());
+
+      expect(mockPrisma.personalityAlias.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            alias: { equals: 'FooBar', mode: 'insensitive' },
+          }),
+        })
+      );
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+
     it('defaults to the USER tier: removes only the caller΄s own row', async () => {
       mockPrisma.personalityAlias.findFirst.mockResolvedValue({
         id: 'row-1',

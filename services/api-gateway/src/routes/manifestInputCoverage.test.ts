@@ -1,6 +1,6 @@
 /**
- * Drift guard: every user-audience manifest route that declares a `query`
- * schema must be enforced by `withManifestInput` at mount time.
+ * Drift guard: every manifest route (user, internal, or admin) that declares
+ * a `query` schema must be enforced by `withManifestInput` at mount time.
  *
  * The manifest is the intended single definition of what a route accepts,
  * but nothing stops a handler conversion from being missed or reverted —
@@ -12,8 +12,8 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import express, { type Express } from 'express';
-import { userRoutes, type RouteDef } from '@tzurot/clients';
-import { mountUserRoutes } from './_generated/mounts.js';
+import { userRoutes, internalRoutes, adminRoutes, type RouteDef } from '@tzurot/clients';
+import { mountInternalRoutes, mountAdminRoutes, mountUserRoutes } from './_generated/mounts.js';
 import { getManifestValidatedRouteId } from '../utils/manifestInput.js';
 import type { RouteDeps } from './routeDeps.js';
 
@@ -31,7 +31,10 @@ function buildStubDeps(): RouteDeps {
 function buildApp(): Express {
   const app = express();
   app.use(express.json());
-  mountUserRoutes(app, buildStubDeps());
+  const deps = buildStubDeps();
+  mountInternalRoutes(app, deps);
+  mountAdminRoutes(app, deps);
+  mountUserRoutes(app, deps);
   return app;
 }
 
@@ -65,27 +68,48 @@ function indexMountedHandlers(app: Express): Map<string, unknown> {
   return index;
 }
 
+/** Codegen prepends `/api/{audience}` to every route's mount path (types.ts). */
+function mountKeyFor(route: RouteDef): string {
+  return `${route.method} /api/${route.audience}${route.path}`;
+}
+
 describe('manifest query-schema enforcement coverage (drift guard)', () => {
-  const guardedRoutes = (Object.values(userRoutes) as RouteDef[]).filter(
-    route => route.query !== undefined
-  );
+  const guardedRoutes = (
+    [
+      ...Object.values(userRoutes),
+      ...Object.values(internalRoutes),
+      ...Object.values(adminRoutes),
+    ] as RouteDef[]
+  ).filter(route => route.query !== undefined);
 
   /**
    * Routes whose manifest `query` schema is not yet enforced by
-   * `withManifestInput`. A route leaves this set only by being wrapped —
-   * the "pending" test below fails the moment that happens, forcing the
-   * removal. Never add an id here for a newly-declared query schema; a new
-   * route ships already-enforced.
+   * `withManifestInput`. This is the starting set from when the guard
+   * gained the internal and admin audiences (it previously covered `user`
+   * only) — a route leaves this set only by being wrapped, the "pending"
+   * test below fails the moment that happens, forcing the removal. Never
+   * add an id here for a newly-declared query schema; a new route ships
+   * already-enforced.
    */
-  const PENDING = new Set(['getRecentDiagnostics']);
+  const PENDING = new Set<string>([
+    'loadPersonalityInternal',
+    'recentUsers',
+    'getModels',
+    'getExportSmokeStatus',
+    'listDenylistEntries',
+    'setGlobalLlmConfigDefault',
+    'setGlobalLlmConfigFreeDefault',
+    'getAdminUsageStats',
+  ]);
 
-  it('positive control: the derived guarded set is non-trivial and user-scoped', () => {
+  it('positive control: the derived guarded set is non-trivial and spans all three audiences', () => {
     const ids = guardedRoutes.map(route => route.id);
     expect(ids).toContain('listFacts');
     expect(ids).toContain('getVoiceResolution');
     expect(ids).toContain('getRecentDiagnostics');
     expect(ids).not.toContain('getFact');
-    expect(guardedRoutes.every(route => route.audience === 'user')).toBe(true);
+    expect(ids).toContain('lookupPersonalityFromMessage');
+    expect(ids).toContain('getAdminUsageStats');
     expect(guardedRoutes.length).toBeGreaterThanOrEqual(20);
   });
 
@@ -99,7 +123,7 @@ describe('manifest query-schema enforcement coverage (drift guard)', () => {
     it.each(guardedRoutes.filter(route => !PENDING.has(route.id)))(
       '$id is mounted and wrapped with ITS OWN manifest entry',
       route => {
-        const key = `${route.method} /api/user${route.path}`;
+        const key = mountKeyFor(route);
         const handle = mountedHandlers.get(key);
         expect(handle, `no handler mounted at ${key}`).toBeDefined();
         expect(getManifestValidatedRouteId(handle)).toBe(route.id);
@@ -109,7 +133,7 @@ describe('manifest query-schema enforcement coverage (drift guard)', () => {
     it.each(guardedRoutes.filter(route => PENDING.has(route.id)))(
       '$id is mounted but still pending manifest-input enforcement',
       route => {
-        const key = `${route.method} /api/user${route.path}`;
+        const key = mountKeyFor(route);
         const handle = mountedHandlers.get(key);
         expect(handle, `no handler mounted at ${key}`).toBeDefined();
         expect(
@@ -120,10 +144,10 @@ describe('manifest query-schema enforcement coverage (drift guard)', () => {
     );
   });
 
-  it('every PENDING id is still a query-declaring user route', () => {
+  it('every PENDING id is still a query-declaring route', () => {
     const guardedIds = new Set(guardedRoutes.map(route => route.id));
     for (const id of PENDING) {
-      expect(guardedIds.has(id), `${id} in PENDING is not a query-declaring user route`).toBe(true);
+      expect(guardedIds.has(id), `${id} in PENDING is not a query-declaring route`).toBe(true);
     }
   });
 });

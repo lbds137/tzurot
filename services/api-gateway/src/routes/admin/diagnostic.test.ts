@@ -265,6 +265,22 @@ describe('Admin Diagnostic Routes', () => {
       expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
     });
 
+    // Proves the parsed `?channelId=` (read via withManifestInput's `query`,
+    // not `req.query` directly) reaches the raw SQL condition.
+    it('flows the parsed ?channelId= into the channel_id SQL condition', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([]);
+
+      const response = await request(app).get('/admin/diagnostic/recent?channelId=channel-456');
+
+      expect(response.status).toBe(200);
+      const whereClause = mockPrisma.$queryRaw.mock.calls[0][1] as {
+        strings: string[];
+        values: unknown[];
+      };
+      expect(whereClause.strings.join('?')).toContain('channel_id');
+      expect(whereClause.values).toContain('channel-456');
+    });
+
     it('should combine multiple filters', async () => {
       mockPrisma.$queryRaw.mockResolvedValue([]);
 
@@ -306,6 +322,19 @@ describe('Admin Diagnostic Routes', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.message).toContain('Invalid personalityId format');
+      expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
+    });
+
+    // The manifest's channelId is `z.string().optional()`; a repeated key
+    // arrives as an array and withManifestInput rejects it before the
+    // handler runs — mirrors conversationLookup.test.ts's discordMessageId case.
+    it('should return 400 when channelId is a repeated query key', async () => {
+      const response = await request(app).get(
+        '/admin/diagnostic/recent?channelId=111&channelId=222'
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain('channelId');
       expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
     });
 
@@ -1031,6 +1060,28 @@ describe('Admin Diagnostic Routes', () => {
       expect(mockPrisma.llmDiagnosticLog.findUnique).toHaveBeenCalledWith({
         where: { requestId: 'test-req-123', userId: 'regular-user-789' },
       });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // resolveCallerUserId's defensive null branch — requireUserAuth always
+  // populates req.userId before this handler runs, so an empty caller id
+  // here only models the mocked-middleware edge (a real 401 from
+  // requireUserAuth would short-circuit before reaching the handler).
+  // -------------------------------------------------------------------------
+  describe('GET /recent — missing caller identity', () => {
+    afterEach(() => {
+      mockCallerUserId = 'admin-discord-id';
+    });
+
+    it('500s with INTERNAL_ERROR when req.userId is empty', async () => {
+      mockCallerUserId = '';
+
+      const response = await request(app).get('/admin/diagnostic/recent');
+
+      expect(response.status).toBe(500);
+      expect(response.body.error).toBe('INTERNAL_ERROR');
+      expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
     });
   });
 });

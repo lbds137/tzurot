@@ -24,8 +24,10 @@ import { Prisma } from '@tzurot/common-types/services/prisma';
 import { type DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { userRoutes } from '@tzurot/clients';
 import type { AuthenticatedRequest } from '../../types.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { withManifestInput } from '../../utils/manifestInput.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getParam } from '../../utils/requestParams.js';
@@ -173,48 +175,51 @@ function formatRecentLogResponse(row: RecentLogRow): RecentLogResponse {
  */
 export const handleGetRecentDiagnostics = (deps: DiagnosticDeps): RequestHandler => {
   const { prisma } = deps;
-  return asyncHandler(async (req: Request, res: Response) => {
-    const callerUserId = resolveCallerUserId(req, res);
-    if (callerUserId === null) {
-      return;
-    }
-    const ownerAccess = isBotOwner(callerUserId);
+  return withManifestInput(
+    userRoutes.getRecentDiagnostics,
+    async (req: Request, res: Response, { query }) => {
+      const callerUserId = resolveCallerUserId(req, res);
+      if (callerUserId === null) {
+        return;
+      }
+      const ownerAccess = isBotOwner(callerUserId);
 
-    const personalityId = getParam(req.query.personalityId as string | undefined);
-    const queryUserId = getParam(req.query.userId as string | undefined);
-    const channelId = getParam(req.query.channelId as string | undefined);
+      const { personalityId, channelId } = query;
+      const queryUserId = getParam(req.query.userId as string | undefined);
 
-    // Non-owners can only see their own logs. The `?userId=` query param is
-    // ignored for non-owners — the filter is forced to the caller's ID. The
-    // owner may pass `?userId=` to inspect another user's logs.
-    const effectiveUserId = ownerAccess ? queryUserId : callerUserId;
+      // Non-owners can only see their own logs. The `?userId=` query param is
+      // ignored for non-owners — the filter is forced to the caller's ID. The
+      // owner may pass `?userId=` to inspect another user's logs.
+      const effectiveUserId = ownerAccess ? queryUserId : callerUserId;
 
-    // Validate UUID format before casting — returns 400 instead of a PostgreSQL cast error (500)
-    if (personalityId !== undefined && personalityId !== '' && !isValidUUID(personalityId)) {
-      sendError(
-        res,
-        ErrorResponses.validationError('Invalid personalityId format (expected UUID)')
-      );
-      return;
-    }
+      // Validate UUID format before casting — returns 400 instead of a PostgreSQL cast error (500)
+      if (personalityId !== undefined && personalityId !== '' && !isValidUUID(personalityId)) {
+        sendError(
+          res,
+          ErrorResponses.validationError('Invalid personalityId format (expected UUID)')
+        );
+        return;
+      }
 
-    const conditions: Prisma.Sql[] = [];
-    if (personalityId !== undefined && personalityId !== '') {
-      conditions.push(Prisma.sql`personality_id = ${personalityId}::uuid`);
-    }
-    if (effectiveUserId !== undefined && effectiveUserId !== '') {
-      conditions.push(Prisma.sql`user_id = ${effectiveUserId}`);
-    }
-    if (channelId !== undefined && channelId !== '') {
-      conditions.push(Prisma.sql`channel_id = ${channelId}`);
-    }
+      const conditions: Prisma.Sql[] = [];
+      if (personalityId !== undefined && personalityId !== '') {
+        conditions.push(Prisma.sql`personality_id = ${personalityId}::uuid`);
+      }
+      if (effectiveUserId !== undefined && effectiveUserId !== '') {
+        conditions.push(Prisma.sql`user_id = ${effectiveUserId}`);
+      }
+      if (channelId !== undefined && channelId !== '') {
+        conditions.push(Prisma.sql`channel_id = ${channelId}`);
+      }
 
-    const whereClause =
-      conditions.length > 0 ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}` : Prisma.empty;
+      const whereClause =
+        conditions.length > 0
+          ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
+          : Prisma.empty;
 
-    // Raw query needed to extract personalityName from JSONB (data #>> '{meta,personalityName}')
-    // which isn't possible through the Prisma ORM's findMany API.
-    const rows = await prisma.$queryRaw<RecentLogRow[]>`
+      // Raw query needed to extract personalityName from JSONB (data #>> '{meta,personalityName}')
+      // which isn't possible through the Prisma ORM's findMany API.
+      const rows = await prisma.$queryRaw<RecentLogRow[]>`
       SELECT
         id, request_id, personality_id, user_id, guild_id, channel_id,
         model, provider, duration_ms, created_at,
@@ -225,19 +230,20 @@ export const handleGetRecentDiagnostics = (deps: DiagnosticDeps): RequestHandler
       LIMIT ${MAX_RECENT_LOGS}
     `;
 
-    const logs = rows.map(formatRecentLogResponse);
+      const logs = rows.map(formatRecentLogResponse);
 
-    logger.info(
-      {
-        count: logs.length,
-        filters: { personalityId, userId: effectiveUserId, channelId },
-        ownerAccess,
-      },
-      'Listed recent diagnostic logs'
-    );
+      logger.info(
+        {
+          count: logs.length,
+          filters: { personalityId, userId: effectiveUserId, channelId },
+          ownerAccess,
+        },
+        'Listed recent diagnostic logs'
+      );
 
-    sendCustomSuccess(res, { logs, count: logs.length }, StatusCodes.OK);
-  });
+      sendCustomSuccess(res, { logs, count: logs.length }, StatusCodes.OK);
+    }
+  );
 };
 
 /**

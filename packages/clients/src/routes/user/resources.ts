@@ -43,7 +43,7 @@ import {
   GetNsfwStatusResponseSchema,
   VerifyNsfwResponseSchema,
 } from '@tzurot/common-types/schemas/api/nsfw';
-import { UsageStatsSchema } from '@tzurot/common-types/schemas/api/usage';
+import { UsagePeriodSchema, UsageStatsSchema } from '@tzurot/common-types/schemas/api/usage';
 import { GetVoiceResolutionResponseSchema } from '@tzurot/common-types/schemas/api/voice-resolution';
 import {
   ClearVoicesResponseSchema,
@@ -167,6 +167,7 @@ export const userResourceRoutes = {
     method: 'get',
     path: '/usage',
     id: 'getUserUsage',
+    query: { period: UsagePeriodSchema.optional() },
     output: UsageStatsSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },

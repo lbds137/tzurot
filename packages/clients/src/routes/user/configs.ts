@@ -454,6 +454,9 @@ export const userConfigRoutes = {
     method: 'get',
     path: MODEL_OVERRIDE_DEFAULT_PATH,
     id: 'getDefaultModelConfig',
+    // The slot to read (text|vision); defaults text. Matches the set/clear
+    // siblings on the same default path.
+    query: { slot: z.enum(MODEL_SLOTS).optional() },
     output: SetDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },

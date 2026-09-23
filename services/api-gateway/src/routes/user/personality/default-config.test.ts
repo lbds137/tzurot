@@ -164,6 +164,28 @@ describe('PUT/DELETE /api/user/personality/:slug/default-config', () => {
       expect(mockPrisma.personalityVisionDefaultConfig.upsert).not.toHaveBeenCalled();
     });
 
+    // Pins that the `:slug` URL value reaches the personality lookup
+    // unchanged. It cannot tell withManifestInput's parsed `params` from raw
+    // `req.params`: the manifest's params schema is a bare z.string(), so
+    // both hold the same value.
+    it('resolves the personality by the exact :slug from the URL', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: CONFIG_ID,
+        name: 'My Config',
+        model: 'anthropic/claude-sonnet-4',
+      });
+
+      const handler = getSetHandler();
+      const { req, res } = createMockReqRes({ configId: CONFIG_ID }, { slug: 'my-char' });
+
+      await handler(req, res);
+
+      expect(mockPrisma.personality.findUnique).toHaveBeenCalledWith({
+        where: { slug: 'my-char' },
+        select: { id: true, ownerId: true },
+      });
+    });
+
     // C4: text-slot write seam assertion.
     it('upserts personalityDefaultConfig with exactly the expected shape (text slot)', async () => {
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
@@ -304,6 +326,22 @@ describe('PUT/DELETE /api/user/personality/:slug/default-config', () => {
 
       expect(res.status).toHaveBeenCalledWith(403);
       expect(mockPrisma.personalityDefaultConfig.deleteMany).not.toHaveBeenCalled();
+    });
+
+    // Pins that the `:slug` URL value reaches the personality lookup
+    // unchanged. It cannot tell withManifestInput's parsed `params` from raw
+    // `req.params`: the manifest's params schema is a bare z.string(), so
+    // both hold the same value.
+    it('resolves the personality by the exact :slug from the URL', async () => {
+      const handler = getClearHandler();
+      const { req, res } = createMockReqRes({}, { slug: 'my-char' });
+
+      await handler(req, res);
+
+      expect(mockPrisma.personality.findUnique).toHaveBeenCalledWith({
+        where: { slug: 'my-char' },
+        select: { id: true, ownerId: true },
+      });
     });
 
     // C6: DELETE on an absent row is idempotent — 200 success:true.

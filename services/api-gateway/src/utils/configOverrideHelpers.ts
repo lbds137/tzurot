@@ -96,17 +96,29 @@ export function mergeAndValidateOverrides(
 export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
+ * UUID-validate an already-extracted personality id value, sending a
+ * validation error on a malformed id. Returns null after sending (callers
+ * early-return on null). Split out from {@link getValidatedPersonalityId} so
+ * a caller holding a manifest-parsed `params.personalityId` (already
+ * guaranteed to be a string) can validate its shape without going through
+ * `req.params` again.
+ */
+export function validatePersonalityIdValue(personalityId: string, res: Response): string | null {
+  if (!UUID_PATTERN.test(personalityId)) {
+    sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
+    return null;
+  }
+  return personalityId;
+}
+
+/**
  * Extract and UUID-validate the `:personalityId` route param, sending a
  * validation error on a malformed id. Returns null after sending (callers
  * early-return on null).
  */
 export function getValidatedPersonalityId(req: Request, res: Response): string | null {
   const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
-  if (!UUID_PATTERN.test(personalityId)) {
-    sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
-    return null;
-  }
-  return personalityId;
+  return validatePersonalityIdValue(personalityId, res);
 }
 
 /**

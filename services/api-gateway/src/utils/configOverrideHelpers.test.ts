@@ -24,6 +24,7 @@ import {
   tryInvalidateCache,
   mergeAndValidateOverrides,
   getValidatedPersonalityId,
+  validatePersonalityIdValue,
   findPersonalityOrSendNotFound,
 } from './configOverrideHelpers.js';
 import type { Request, Response } from 'express';
@@ -137,6 +138,26 @@ describe('getValidatedPersonalityId', () => {
 
   it('sends a validation error and returns null for a malformed id', () => {
     expect(getValidatedPersonalityId(asReq('not-a-uuid'), res)).toBeNull();
+    expect(mockSendError).toHaveBeenCalledWith(
+      res,
+      expect.objectContaining({ error: 'VALIDATION' })
+    );
+  });
+});
+
+describe('validatePersonalityIdValue', () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  const VALID_UUID = '123e4567-e89b-42d3-a456-426614174000';
+  const res = {} as Response;
+
+  it('returns a well-formed uuid untouched', () => {
+    expect(validatePersonalityIdValue(VALID_UUID, res)).toBe(VALID_UUID);
+    expect(mockSendError).not.toHaveBeenCalled();
+  });
+
+  it('sends a validation error and returns null for a malformed id', () => {
+    expect(validatePersonalityIdValue('not-a-uuid', res)).toBeNull();
     expect(mockSendError).toHaveBeenCalledWith(
       res,
       expect.objectContaining({ error: 'VALIDATION' })
