@@ -772,5 +772,58 @@ describe('QuoteFormatter', () => {
 
       expect(renderAttachment(built.attachment)).not.toContain('spoiler');
     });
+
+    it('keeps source="link-preview" (not spoiler-only) when a link preview is also spoilered', () => {
+      const preview = { ...image, isEmbedPreview: true, isSpoiler: true };
+      const [built] = buildRenderableAttachments([preview], () => 'a still from the video');
+
+      expect(renderAttachment(built.attachment)).toBe(
+        '<image filename="photo.png" type="image/png" source="link-preview" spoiler="true">a still from the video</image>'
+      );
+    });
+
+    it('carries the spoiler flag through to a built voice message', () => {
+      const spoilered = { ...voice, isSpoiler: true };
+      const [built] = buildRenderableAttachments([spoilered], () => 'hi');
+
+      expect(built.attachment).toMatchObject({ kind: 'voice', spoiler: true });
+    });
+
+    it('renders spoiler="true" on the <voice> element', () => {
+      const spoilered = { ...voice, isSpoiler: true };
+      const [built] = buildRenderableAttachments([spoilered], () => 'hi');
+
+      expect(renderAttachment(built.attachment)).toBe(
+        '<voice filename="clip.ogg" type="audio/ogg" duration="7s" spoiler="true">hi</voice>'
+      );
+    });
+
+    it('renders no spoiler attribute for an ordinary, non-spoilered voice message', () => {
+      const [built] = buildRenderableAttachments([voice], () => 'hi');
+
+      expect(renderAttachment(built.attachment)).not.toContain('spoiler');
+    });
+
+    it('carries the spoiler flag through to a built file', () => {
+      const spoilered = { ...doc, isSpoiler: true };
+      const [built] = buildRenderableAttachments([spoilered], () => 'a quarterly report');
+
+      expect(built.attachment).toMatchObject({ kind: 'file', spoiler: true });
+    });
+
+    it('renders spoiler="true" on the <file> element', () => {
+      const spoilered = { ...doc, isSpoiler: true };
+      const [built] = buildRenderableAttachments([spoilered], () => 'a quarterly report');
+
+      expect(renderAttachment(built.attachment)).toBe(
+        '<file filename="report.pdf" type="application/pdf" spoiler="true"/>'
+      );
+    });
+
+    it('renders no spoiler attribute for an ordinary, non-spoilered file', () => {
+      const [built] = buildRenderableAttachments([doc], () => 'a quarterly report');
+
+      expect(renderAttachment(built.attachment)).not.toContain('spoiler');
+    });
   });
 });

@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { extractEmbedImages } from './embedImageExtractor.js';
 import { formatEmbedComponentsXml } from './embedComponents.js';
+import { generateAttachmentPlaceholder } from './attachmentPlaceholders.js';
 import { EMBED_LIMITS } from '@tzurot/common-types/constants/media';
 import type { Embed, APIEmbed } from 'discord.js';
 import { VXREDDIT_COMPONENTS_V2_EMBED } from './fixtures/vxredditComponentsV2Embed.js';
@@ -320,6 +321,77 @@ describe('extractEmbedImages', () => {
     expect(result).toHaveLength(1);
     expect(result![0].url).toBe('https://example.com/spoiler.png');
     expect(result![0].name).toBe('embed-1-media-1.png');
+    expect(result![0].isSpoiler).toBe(true);
+  });
+
+  it('keeps the Link preview header for a spoilered gallery item through the placeholder path', () => {
+    // Link-preview precedence wins the header; the spoiler flag still reaches
+    // the render as spoiler="true" on the <image> element (QuoteFormatter),
+    // but the bracket header names provenance, not the spoiler state.
+    const embeds = [
+      {
+        image: null,
+        thumbnail: null,
+        toJSON: () => ({
+          components: [
+            {
+              type: 17,
+              components: [
+                {
+                  type: 12,
+                  items: [
+                    {
+                      media: {
+                        url: 'https://example.com/spoiler.png',
+                        content_type: 'image/png',
+                      },
+                      spoiler: true,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
+      },
+    ] as unknown as Embed[];
+
+    const [attachment] = extractEmbedImages(embeds)!;
+    expect(generateAttachmentPlaceholder(attachment)).toBe('[Link preview: embed-1-media-1.png]');
+  });
+
+  it('does not set isSpoiler on a non-spoilered gallery item', () => {
+    const embeds = [
+      {
+        image: null,
+        thumbnail: null,
+        toJSON: () => ({
+          components: [
+            {
+              type: 17,
+              components: [
+                {
+                  type: 12,
+                  items: [
+                    {
+                      media: {
+                        url: 'https://example.com/plain.png',
+                        content_type: 'image/png',
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
+      },
+    ] as unknown as Embed[];
+
+    const result = extractEmbedImages(embeds);
+
+    expect(result).toHaveLength(1);
+    expect(result![0]).not.toHaveProperty('isSpoiler');
   });
 
   it('falls back to media.url when a gallery item has no proxy_url', () => {

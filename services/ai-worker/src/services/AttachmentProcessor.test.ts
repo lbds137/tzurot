@@ -958,6 +958,133 @@ describe('AttachmentProcessor', () => {
     });
   });
 
+  describe('spoiler propagation to voice and file arms', () => {
+    it('carries spoiler: true through a transcribed voice message', async () => {
+      mockTranscribeAudio.mockResolvedValue({
+        text: 'a secret message',
+        actualProvider: 'voice-engine',
+      });
+
+      const promise = processAttachmentsParallel({
+        attachments: [
+          {
+            url: 'https://example.com/SPOILER_voice.ogg',
+            contentType: 'audio/ogg',
+            name: 'SPOILER_voice.ogg',
+            size: 5000,
+            isVoiceMessage: true,
+            duration: 5,
+            isSpoiler: true,
+          },
+        ],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+      });
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(result[0].attachment).toEqual({
+        kind: 'voice',
+        filename: 'SPOILER_voice.ogg',
+        contentType: 'audio/ogg',
+        durationSeconds: 5,
+        spoiler: true,
+        description: 'a secret message',
+      });
+    });
+
+    it('carries spoiler: true through a regular file attachment', async () => {
+      const result = await processAttachmentsParallel({
+        attachments: [
+          {
+            url: 'https://example.com/SPOILER_doc.pdf',
+            contentType: 'application/pdf',
+            name: 'SPOILER_doc.pdf',
+            size: 50000,
+            isSpoiler: true,
+          },
+        ],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+      });
+
+      expect(result[0].attachment).toEqual({
+        kind: 'file',
+        filename: 'SPOILER_doc.pdf',
+        contentType: 'application/pdf',
+        spoiler: true,
+      });
+    });
+
+    it('carries spoiler: true through the pre-dispatch (unprocessed) arm for voice and file', async () => {
+      // Same forced pre-dispatch throw as the modality-preservation cases
+      // above: the lookup blows up before classification, so the outer
+      // catch's `unprocessedAttachment` builds the element instead of the
+      // per-modality helpers.
+      const exploding = [
+        {
+          type: AttachmentType.Image,
+          description: 'unused',
+          originalUrl: 'https://example.com/other.png',
+          metadata: {
+            url: 'https://example.com/other.png',
+            name: 'other.png',
+            contentType: 'image/png',
+            size: 1,
+          },
+        },
+      ];
+      exploding.find = () => {
+        throw new Error('boom before dispatch');
+      };
+
+      const result = await processAttachmentsParallel({
+        attachments: [
+          {
+            url: 'https://example.com/SPOILER_note.ogg',
+            contentType: 'audio/ogg',
+            name: 'SPOILER_note.ogg',
+            size: 100,
+            isVoiceMessage: true,
+            duration: 4,
+            isSpoiler: true,
+          },
+          {
+            url: 'https://example.com/SPOILER_doc.pdf',
+            contentType: 'application/pdf',
+            name: 'SPOILER_doc.pdf',
+            size: 200,
+            isSpoiler: true,
+          },
+        ],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+        preprocessedAttachments: exploding,
+      });
+
+      expect(rendered(result)).toEqual([
+        {
+          kind: 'voice',
+          filename: 'SPOILER_note.ogg',
+          contentType: 'audio/ogg',
+          durationSeconds: 4,
+          spoiler: true,
+          status: 'unprocessed',
+        },
+        {
+          kind: 'file',
+          filename: 'SPOILER_doc.pdf',
+          contentType: 'application/pdf',
+          spoiler: true,
+          status: 'unprocessed',
+        },
+      ]);
+    });
+  });
+
   describe('requestId correlation', () => {
     // The reason this module logs at all is to explain a reference whose
     // enrichment went missing, and a failure line nobody can tie back to the
