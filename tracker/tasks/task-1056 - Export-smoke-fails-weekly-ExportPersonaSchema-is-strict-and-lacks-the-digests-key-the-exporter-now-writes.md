@@ -3,9 +3,10 @@ id: TASK-1056
 title: >-
   Export smoke fails weekly: ExportPersonaSchema is strict and lacks the digests
   key the exporter now writes
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-23 17:24'
+updated_date: '2026-09-23 18:14'
 labels:
   - 'area:ai-worker'
   - 'size:S'
