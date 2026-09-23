@@ -1,0 +1,459 @@
+{
+  "paths": [
+    "README.md",
+    "account/admin-settings.json",
+    "account/api-key-metadata.json",
+    "account/credential-metadata.json",
+    "account/jobs.json",
+    "account/release-deliveries.json",
+    "account/shapes-mappings.json",
+    "characters/azura.json",
+    "characters/azura.md",
+    "configs/llm.json",
+    "configs/persona-history.json",
+    "configs/personality-overrides.json",
+    "configs/tts.json",
+    "configs/user-defaults.json",
+    "conversations/azura.json",
+    "conversations/azura.md",
+    "facts/azura.json",
+    "facts/azura.md",
+    "feedback.json",
+    "feedback.md",
+    "memories/azura.json",
+    "memories/azura.md",
+    "personality-directory.json",
+    "personas/Orin-20000000.json",
+    "personas/Orin-20000000.md",
+    "personas/Vex-20000000.json",
+    "personas/Vex-20000000.md",
+    "profile.json",
+    "profile.md",
+    "telemetry/command-events.json",
+    "usage-summary.json",
+    "usage-summary.md"
+  ],
+  "json": {
+    "account/admin-settings.json": {
+      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "updatedBy": "10000000-0000-4000-8000-000000000001",
+      "configDefaults": {
+        "maxImages": 4
+      },
+      "systemSettings": {
+        "featureFlags": {
+          "betaVoice": true
+        }
+      },
+      "globalDefaultLlmConfigId": "40000000-0000-4000-8000-000000000001",
+      "globalDefaultVisionConfigId": null,
+      "freeDefaultLlmConfigId": null,
+      "freeDefaultVisionConfigId": null,
+      "globalDefaultTtsConfigId": "40000000-0000-4000-8000-000000000002",
+      "freeDefaultTtsConfigId": null,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    "account/api-key-metadata.json": [
+      {
+        "id": "60000000-0000-4000-8000-000000000003",
+        "provider": "openrouter",
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "account/credential-metadata.json": [
+      {
+        "id": "60000000-0000-4000-8000-000000000004",
+        "service": "shapes_inc",
+        "credentialType": "session_cookie",
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "expiresAt": "2026-02-01T00:00:00.000Z"
+      }
+    ],
+    "account/jobs.json": {
+      "importJobs": [
+        {
+          "id": "60000000-0000-4000-8000-000000000005",
+          "userId": "10000000-0000-4000-8000-000000000001",
+          "personalityId": "30000000-0000-4000-8000-000000000001",
+          "sourceSlug": "azura-import",
+          "sourceService": "shapes_inc",
+          "status": "completed",
+          "importType": "full",
+          "memoriesImported": 10,
+          "memoriesFailed": 0,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "startedAt": "2026-01-01T00:01:00.000Z",
+          "completedAt": "2026-01-01T00:05:00.000Z",
+          "errorMessage": null,
+          "importMetadata": {
+            "rowsSeen": 12
+          }
+        }
+      ],
+      "exportJobs": [
+        {
+          "id": "60000000-0000-4000-8000-000000000006",
+          "userId": "10000000-0000-4000-8000-000000000001",
+          "sourceSlug": "azura-export",
+          "sourceService": "shapes_inc",
+          "status": "completed",
+          "format": "json",
+          "fileName": "azura-export.json",
+          "fileSizeBytes": 2048,
+          "downloadToken": "dddddddddddddddddddddddddddddddddddddddd",
+          "createdAt": "2026-01-02T00:00:00.000Z",
+          "startedAt": "2026-01-02T00:01:00.000Z",
+          "completedAt": "2026-01-02T00:02:00.000Z",
+          "expiresAt": "2026-01-03T00:02:00.000Z",
+          "errorMessage": null,
+          "exportMetadata": {
+            "rows": 42
+          }
+        }
+      ]
+    },
+    "account/release-deliveries.json": [
+      {
+        "id": "60000000-0000-4000-8000-000000000008",
+        "releaseId": "60000000-0000-4000-8000-000000000007",
+        "userId": "10000000-0000-4000-8000-000000000001",
+        "status": "sent",
+        "errorCode": null,
+        "attemptedAt": "2026-01-05T00:00:00.000Z",
+        "sentMessageId": "777777777777777701",
+        "messageDeletedAt": null,
+        "createdAt": "2026-01-05T00:00:00.000Z",
+        "updatedAt": "2026-01-05T00:00:00.000Z"
+      }
+    ],
+    "account/shapes-mappings.json": [
+      {
+        "id": "60000000-0000-4000-8000-000000000009",
+        "shapesUserId": "10000000-0000-4000-8000-000000000099",
+        "personaId": "20000000-0000-4000-8000-000000000001",
+        "mappedAt": "2026-01-01T00:00:00.000Z",
+        "mappedBy": "10000000-0000-4000-8000-000000000001",
+        "verificationStatus": "verified"
+      }
+    ],
+    "characters/azura.json": {
+      "id": "30000000-0000-4000-8000-000000000001",
+      "name": "azura",
+      "displayName": "Azura",
+      "slug": "azura",
+      "systemPromptId": null,
+      "ownerId": "10000000-0000-4000-8000-000000000001",
+      "characterInfo": "A sea spirit.",
+      "personalityTraits": "calm, curious",
+      "personalityTone": "gentle",
+      "personalityAge": "ageless",
+      "personalityAppearance": "blue-green eyes",
+      "personalityLikes": "tide pools",
+      "personalityDislikes": "loud noises",
+      "conversationalGoals": "comfort the user",
+      "conversationalExamples": "Example dialogue.",
+      "customFields": {
+        "theme": "ocean"
+      },
+      "errorMessage": null,
+      "birthMonth": 6,
+      "birthDay": 21,
+      "birthYear": null,
+      "isPublic": true,
+      "definitionPublic": true,
+      "voiceEnabled": true,
+      "voiceSettings": {
+        "pitch": 1
+      },
+      "imageEnabled": false,
+      "imageSettings": null,
+      "voiceReferenceType": "sample",
+      "configDefaults": {
+        "maxImages": 2
+      },
+      "originalOwnerDiscordId": null,
+      "tags": [
+        "fantasy",
+        "sea"
+      ],
+      "rosterBlurb": "A calm presence by the water.",
+      "rosterBlurbSourceHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "cardSourceHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "rosterBlurbAttempts": 0,
+      "rosterBlurbLastFailedAt": null,
+      "rosterBlurbFailedSourceHash": null,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-08T00:00:00.000Z"
+    },
+    "configs/llm.json": [
+      {
+        "id": "40000000-0000-4000-8000-000000000001",
+        "name": "My Chat Config",
+        "description": "Primary chat config.",
+        "ownerId": "10000000-0000-4000-8000-000000000001",
+        "isGlobal": false,
+        "provider": "openrouter",
+        "model": "anthropic/claude-sonnet-4",
+        "advancedParameters": {
+          "temperature": 0.7
+        },
+        "contextWindowTokens": 131072,
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "configs/persona-history.json": [
+      {
+        "id": "60000000-0000-4000-8000-000000000002",
+        "userId": "10000000-0000-4000-8000-000000000001",
+        "personalityId": "30000000-0000-4000-8000-000000000001",
+        "personaId": "20000000-0000-4000-8000-000000000001",
+        "createdAt": "2026-01-02T00:00:00.000Z",
+        "updatedAt": "2026-01-02T00:00:00.000Z",
+        "lastContextReset": "2026-01-05T00:00:00.000Z",
+        "previousContextReset": null
+      }
+    ],
+    "configs/personality-overrides.json": [
+      {
+        "id": "60000000-0000-4000-8000-000000000001",
+        "userId": "10000000-0000-4000-8000-000000000001",
+        "personalityId": "30000000-0000-4000-8000-000000000001",
+        "personaId": "20000000-0000-4000-8000-000000000001",
+        "llmConfigId": "40000000-0000-4000-8000-000000000001",
+        "visionConfigId": null,
+        "ttsConfigId": "40000000-0000-4000-8000-000000000002",
+        "configOverrides": {
+          "maxTokens": 2048
+        },
+        "createdAt": "2026-01-02T00:00:00.000Z",
+        "updatedAt": "2026-01-02T00:00:00.000Z"
+      }
+    ],
+    "configs/tts.json": [
+      {
+        "id": "40000000-0000-4000-8000-000000000002",
+        "name": "My TTS Config",
+        "description": null,
+        "ownerId": "10000000-0000-4000-8000-000000000001",
+        "isGlobal": false,
+        "isDefault": true,
+        "isFreeDefault": false,
+        "provider": "mistral",
+        "modelId": "voxtral-mini-tts-2603",
+        "advancedParameters": null,
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "configs/user-defaults.json": {
+      "maxImages": 4
+    },
+    "conversations/azura.json": [
+      {
+        "id": "50000000-0000-4000-8000-000000000001",
+        "channelId": "999999999999999901",
+        "guildId": null,
+        "personalityId": "30000000-0000-4000-8000-000000000001",
+        "personaId": "20000000-0000-4000-8000-000000000001",
+        "role": "user",
+        "content": "Hello there!",
+        "tokenCount": 12,
+        "discordMessageId": [
+          "888888888888888801"
+        ],
+        "messageMetadata": {
+          "referencedMessageId": null
+        },
+        "thinkingContent": null,
+        "deletedAt": null,
+        "editedAt": null,
+        "createdAt": "2026-01-03T00:00:00.000Z",
+        "updatedAt": "2026-01-03T00:00:00.000Z"
+      }
+    ],
+    "facts/azura.json": [
+      {
+        "id": "50000000-0000-4000-8000-000000000003",
+        "personalityId": "30000000-0000-4000-8000-000000000001",
+        "personaId": "20000000-0000-4000-8000-000000000001",
+        "pool": "private",
+        "canonGroupId": null,
+        "isFiction": false,
+        "visibility": "normal",
+        "isLocked": false,
+        "statement": "Vex's favorite color is teal.",
+        "entityTags": [
+          "user:vex"
+        ],
+        "salience": 0.7,
+        "tier": "observed",
+        "validFrom": "2026-01-04T00:00:00.000Z",
+        "supersededAt": null,
+        "supersededById": null,
+        "forgotten": false,
+        "sourceMemoryIds": [
+          "50000000-0000-4000-8000-000000000002"
+        ],
+        "extractionJobId": "job-1",
+        "createdAt": "2026-01-04T00:00:00.000Z",
+        "updatedAt": "2026-01-04T00:00:00.000Z"
+      }
+    ],
+    "feedback.json": [
+      {
+        "id": "50000000-0000-4000-8000-000000000004",
+        "userId": "10000000-0000-4000-8000-000000000001",
+        "content": "Loving the bot!",
+        "contentHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "status": "new",
+        "createdAt": "2026-01-07T00:00:00.000Z"
+      }
+    ],
+    "memories/azura.json": [
+      {
+        "id": "50000000-0000-4000-8000-000000000002",
+        "personaId": "20000000-0000-4000-8000-000000000001",
+        "personalityId": "30000000-0000-4000-8000-000000000001",
+        "content": "Remembered a trip to the coast.",
+        "isSummarized": true,
+        "originalMessageCount": 5,
+        "summarizedAt": "2026-01-04T00:00:00.000Z",
+        "sessionId": "session-1",
+        "canonScope": "default",
+        "summaryType": "episodic",
+        "channelId": "999999999999999901",
+        "guildId": null,
+        "messageIds": [
+          "msg-1",
+          "msg-2"
+        ],
+        "senders": [
+          "20000000-0000-4000-8000-000000000001"
+        ],
+        "createdAt": "2026-01-04T00:00:00.000Z",
+        "updatedAt": "2026-01-05T00:00:00.000Z",
+        "legacyShapesUserId": null,
+        "sourceSystem": "tzurot-v3",
+        "type": "memory",
+        "isLocked": false,
+        "visibility": "normal",
+        "pool": "private",
+        "canonGroupId": null,
+        "isFiction": false,
+        "chunkGroupId": null,
+        "chunkIndex": null,
+        "totalChunks": null,
+        "assistantSummary": "They talked about a coastal trip.",
+        "summaryStatus": "done",
+        "summaryAttempts": 1,
+        "summaryModel": "gpt-test",
+        "summaryPromptVersion": 2,
+        "sourceContentHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "summaryRequestedAt": "2026-01-04T00:00:01.000Z",
+        "summaryCompletedAt": "2026-01-04T00:00:02.000Z",
+        "summaryLastError": null,
+        "lastRetrievedAt": "2026-01-06T00:00:00.000Z",
+        "retrievalCount": 3
+      }
+    ],
+    "personality-directory.json": [
+      {
+        "id": "30000000-0000-4000-8000-000000000001",
+        "name": "azura",
+        "slug": "azura"
+      },
+      {
+        "id": "30000000-0000-4000-8000-000000000002",
+        "name": "Nyx",
+        "slug": "nyx"
+      }
+    ],
+    "personas/Orin-20000000.json": {
+      "id": "20000000-0000-4000-8000-000000000002",
+      "name": "Orin",
+      "description": null,
+      "content": "Persona B about-me text.",
+      "preferredName": null,
+      "pronouns": null,
+      "ownerId": "10000000-0000-4000-8000-000000000001",
+      "createdAt": "2026-01-02T00:00:00.000Z",
+      "updatedAt": "2026-01-02T00:00:00.000Z",
+      "digests": []
+    },
+    "personas/Vex-20000000.json": {
+      "id": "20000000-0000-4000-8000-000000000001",
+      "name": "Vex",
+      "description": "A quiet observer.",
+      "content": "Persona A about-me text.",
+      "preferredName": "Vee",
+      "pronouns": "she/her",
+      "ownerId": "10000000-0000-4000-8000-000000000001",
+      "createdAt": "2026-01-02T00:00:00.000Z",
+      "updatedAt": "2026-01-06T00:00:00.000Z",
+      "digests": [
+        {
+          "personalityId": "30000000-0000-4000-8000-000000000001",
+          "personalitySlug": "azura",
+          "personalityName": "azura",
+          "digestText": "Recent chats covered a trip to the coast.",
+          "generatedAt": "2026-01-10T00:00:00.000Z",
+          "windowStart": "2026-01-03T00:00:00.000Z"
+        },
+        {
+          "personalityId": "30000000-0000-4000-8000-000000000002",
+          "personalitySlug": "nyx",
+          "personalityName": "Nyx",
+          "digestText": "No recent activity summarized yet.",
+          "generatedAt": null,
+          "windowStart": null
+        }
+      ]
+    },
+    "profile.json": {
+      "discordId": "111111111111111111",
+      "username": "alice",
+      "timezone": "America/New_York",
+      "nsfwVerified": true,
+      "nsfwVerifiedAt": "2026-01-05T00:00:00.000Z",
+      "notifyEnabled": true,
+      "notifyLevel": "minor",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "configDefaults": {
+        "maxImages": 4
+      }
+    },
+    "telemetry/command-events.json": [
+      {
+        "id": "60000000-0000-4000-8000-00000000000a",
+        "occurredAt": "2026-01-06T00:00:00.000Z",
+        "userId": "111111111111111111",
+        "guildId": null,
+        "channelKind": "dm",
+        "command": "memory.browse",
+        "characterId": "30000000-0000-4000-8000-000000000001",
+        "outcome": "ok",
+        "errorCode": null,
+        "latencyMs": 120,
+        "context": {
+          "model_family": "claude"
+        }
+      }
+    ],
+    "usage-summary.json": [
+      {
+        "provider": "openrouter",
+        "model": "claude-sonnet-4",
+        "_count": {
+          "_all": 42
+        },
+        "_sum": {
+          "tokensIn": 1000,
+          "tokensOut": 500
+        }
+      }
+    ]
+  }
+}

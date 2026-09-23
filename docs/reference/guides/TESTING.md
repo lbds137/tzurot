@@ -227,6 +227,8 @@ changes, CI fails the strict compare — regenerate on purpose and commit the di
 pnpm --filter @tzurot/api-gateway exec vitest run BullMQJobChainContract.producer --update
 # Raw assembly envelope
 pnpm --filter @tzurot/bot-client exec vitest run RawEnvelopeContract.producer --update
+# Account export files (validated against the export file schemas)
+pnpm --filter @tzurot/ai-worker exec vitest run AccountExportFilesContract.producer --update
 ```
 
 The fixture directories under `packages/test-utils/fixtures/contracts/` are

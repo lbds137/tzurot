@@ -1,0 +1,366 @@
+{
+  "paths": [
+    "README.md",
+    "account/api-key-metadata.json",
+    "account/credential-metadata.json",
+    "account/jobs.json",
+    "account/release-deliveries.json",
+    "account/shapes-mappings.json",
+    "characters/sparse-character.json",
+    "characters/sparse-character.md",
+    "configs/llm.json",
+    "configs/persona-history.json",
+    "configs/personality-overrides.json",
+    "configs/tts.json",
+    "configs/user-defaults.json",
+    "conversations/sparse-character.json",
+    "conversations/sparse-character.md",
+    "facts/sparse-character.json",
+    "facts/sparse-character.md",
+    "feedback.json",
+    "feedback.md",
+    "memories/sparse-character.json",
+    "memories/sparse-character.md",
+    "personality-directory.json",
+    "personas/Sparse_Persona-20000000.json",
+    "personas/Sparse_Persona-20000000.md",
+    "profile.json",
+    "profile.md",
+    "telemetry/command-events.json",
+    "usage-summary.json",
+    "usage-summary.md"
+  ],
+  "json": {
+    "account/api-key-metadata.json": [
+      {
+        "id": "60000000-0000-4000-8000-000000000003",
+        "provider": "openrouter",
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "account/credential-metadata.json": [
+      {
+        "id": "60000000-0000-4000-8000-000000000004",
+        "service": "shapes_inc",
+        "credentialType": "session_cookie",
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "expiresAt": null
+      }
+    ],
+    "account/jobs.json": {
+      "importJobs": [
+        {
+          "id": "60000000-0000-4000-8000-000000000005",
+          "userId": "10000000-0000-4000-8000-000000000001",
+          "personalityId": null,
+          "sourceSlug": "sparse-import",
+          "sourceService": "shapes_inc",
+          "status": "pending",
+          "importType": "full",
+          "memoriesImported": null,
+          "memoriesFailed": null,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "startedAt": null,
+          "completedAt": null,
+          "errorMessage": null,
+          "importMetadata": null
+        }
+      ],
+      "exportJobs": [
+        {
+          "id": "60000000-0000-4000-8000-000000000006",
+          "userId": "10000000-0000-4000-8000-000000000001",
+          "sourceSlug": "sparse-export",
+          "sourceService": "shapes_inc",
+          "status": "pending",
+          "format": "json",
+          "fileName": null,
+          "fileSizeBytes": null,
+          "downloadToken": "ffffffffffffffffffffffffffffffffffffffff",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "startedAt": null,
+          "completedAt": null,
+          "expiresAt": "2026-01-02T00:00:00.000Z",
+          "errorMessage": null,
+          "exportMetadata": null
+        }
+      ]
+    },
+    "account/release-deliveries.json": [
+      {
+        "id": "60000000-0000-4000-8000-000000000008",
+        "releaseId": "60000000-0000-4000-8000-000000000007",
+        "userId": "10000000-0000-4000-8000-000000000001",
+        "status": "pending",
+        "errorCode": null,
+        "attemptedAt": null,
+        "sentMessageId": null,
+        "messageDeletedAt": null,
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "account/shapes-mappings.json": [
+      {
+        "id": "60000000-0000-4000-8000-000000000009",
+        "shapesUserId": "20000000-0000-4000-8000-000000000099",
+        "personaId": "20000000-0000-4000-8000-000000000001",
+        "mappedAt": "2026-01-01T00:00:00.000Z",
+        "mappedBy": null,
+        "verificationStatus": "unverified"
+      }
+    ],
+    "characters/sparse-character.json": {
+      "id": "30000000-0000-4000-8000-000000000001",
+      "name": "sparse-character",
+      "displayName": null,
+      "slug": "sparse-character",
+      "systemPromptId": null,
+      "ownerId": "10000000-0000-4000-8000-000000000001",
+      "characterInfo": "Character info.",
+      "personalityTraits": "Traits.",
+      "personalityTone": null,
+      "personalityAge": null,
+      "personalityAppearance": null,
+      "personalityLikes": null,
+      "personalityDislikes": null,
+      "conversationalGoals": null,
+      "conversationalExamples": null,
+      "customFields": null,
+      "errorMessage": null,
+      "birthMonth": null,
+      "birthDay": null,
+      "birthYear": null,
+      "isPublic": false,
+      "definitionPublic": false,
+      "voiceEnabled": false,
+      "voiceSettings": null,
+      "imageEnabled": false,
+      "imageSettings": null,
+      "voiceReferenceType": null,
+      "configDefaults": null,
+      "originalOwnerDiscordId": null,
+      "tags": [],
+      "rosterBlurb": null,
+      "rosterBlurbSourceHash": null,
+      "cardSourceHash": null,
+      "rosterBlurbAttempts": 0,
+      "rosterBlurbLastFailedAt": null,
+      "rosterBlurbFailedSourceHash": null,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    "configs/llm.json": [
+      {
+        "id": "40000000-0000-4000-8000-000000000001",
+        "name": "Sparse Config",
+        "description": null,
+        "ownerId": "10000000-0000-4000-8000-000000000001",
+        "isGlobal": false,
+        "provider": "openrouter",
+        "model": "test-model",
+        "advancedParameters": null,
+        "contextWindowTokens": 131072,
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "configs/persona-history.json": [
+      {
+        "id": "60000000-0000-4000-8000-000000000002",
+        "userId": "10000000-0000-4000-8000-000000000001",
+        "personalityId": "30000000-0000-4000-8000-000000000001",
+        "personaId": "20000000-0000-4000-8000-000000000001",
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-01-01T00:00:00.000Z",
+        "lastContextReset": null,
+        "previousContextReset": null
+      }
+    ],
+    "configs/personality-overrides.json": [
+      {
+        "id": "60000000-0000-4000-8000-000000000001",
+        "userId": "10000000-0000-4000-8000-000000000001",
+        "personalityId": "30000000-0000-4000-8000-000000000001",
+        "personaId": null,
+        "llmConfigId": null,
+        "visionConfigId": null,
+        "ttsConfigId": null,
+        "configOverrides": null,
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "configs/tts.json": [
+      {
+        "id": "40000000-0000-4000-8000-000000000002",
+        "name": "Sparse TTS",
+        "description": null,
+        "ownerId": "10000000-0000-4000-8000-000000000001",
+        "isGlobal": false,
+        "isDefault": false,
+        "isFreeDefault": false,
+        "provider": "self-hosted",
+        "modelId": null,
+        "advancedParameters": null,
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "configs/user-defaults.json": null,
+    "conversations/sparse-character.json": [
+      {
+        "id": "50000000-0000-4000-8000-000000000001",
+        "channelId": "999999999999999901",
+        "guildId": null,
+        "personalityId": "30000000-0000-4000-8000-000000000001",
+        "personaId": "20000000-0000-4000-8000-000000000001",
+        "role": "user",
+        "content": "hi",
+        "tokenCount": null,
+        "discordMessageId": [],
+        "messageMetadata": null,
+        "thinkingContent": null,
+        "deletedAt": null,
+        "editedAt": null,
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "facts/sparse-character.json": [
+      {
+        "id": "50000000-0000-4000-8000-000000000003",
+        "personalityId": "30000000-0000-4000-8000-000000000001",
+        "personaId": null,
+        "pool": "private",
+        "canonGroupId": null,
+        "isFiction": false,
+        "visibility": "normal",
+        "isLocked": false,
+        "statement": "A sparse fact.",
+        "entityTags": [],
+        "salience": 0.5,
+        "tier": "observed",
+        "validFrom": "2026-01-01T00:00:00.000Z",
+        "supersededAt": null,
+        "supersededById": null,
+        "forgotten": false,
+        "sourceMemoryIds": [],
+        "extractionJobId": null,
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "feedback.json": [
+      {
+        "id": "50000000-0000-4000-8000-000000000004",
+        "userId": "10000000-0000-4000-8000-000000000001",
+        "content": "sparse feedback",
+        "contentHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "status": "new",
+        "createdAt": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "memories/sparse-character.json": [
+      {
+        "id": "50000000-0000-4000-8000-000000000002",
+        "personaId": null,
+        "personalityId": "30000000-0000-4000-8000-000000000001",
+        "content": "sparse memory",
+        "isSummarized": false,
+        "originalMessageCount": null,
+        "summarizedAt": null,
+        "sessionId": null,
+        "canonScope": null,
+        "summaryType": null,
+        "channelId": null,
+        "guildId": null,
+        "messageIds": [],
+        "senders": [],
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-01-01T00:00:00.000Z",
+        "legacyShapesUserId": null,
+        "sourceSystem": "tzurot-v3",
+        "type": "memory",
+        "isLocked": false,
+        "visibility": "normal",
+        "pool": "private",
+        "canonGroupId": null,
+        "isFiction": false,
+        "chunkGroupId": null,
+        "chunkIndex": null,
+        "totalChunks": null,
+        "assistantSummary": null,
+        "summaryStatus": null,
+        "summaryAttempts": 0,
+        "summaryModel": null,
+        "summaryPromptVersion": null,
+        "sourceContentHash": null,
+        "summaryRequestedAt": null,
+        "summaryCompletedAt": null,
+        "summaryLastError": null,
+        "lastRetrievedAt": null,
+        "retrievalCount": 0
+      }
+    ],
+    "personality-directory.json": [
+      {
+        "id": "30000000-0000-4000-8000-000000000001",
+        "name": "sparse-character",
+        "slug": "sparse-character"
+      }
+    ],
+    "personas/Sparse_Persona-20000000.json": {
+      "id": "20000000-0000-4000-8000-000000000001",
+      "name": "Sparse Persona",
+      "description": null,
+      "content": "Persona content.",
+      "preferredName": null,
+      "pronouns": null,
+      "ownerId": "10000000-0000-4000-8000-000000000001",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z",
+      "digests": []
+    },
+    "profile.json": {
+      "discordId": "222222222222222222",
+      "username": "bob",
+      "timezone": "UTC",
+      "nsfwVerified": false,
+      "nsfwVerifiedAt": null,
+      "notifyEnabled": false,
+      "notifyLevel": "major",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "configDefaults": null
+    },
+    "telemetry/command-events.json": [
+      {
+        "id": "60000000-0000-4000-8000-00000000000a",
+        "occurredAt": "2026-01-01T00:00:00.000Z",
+        "userId": "222222222222222222",
+        "guildId": null,
+        "channelKind": "dm",
+        "command": "help",
+        "characterId": null,
+        "outcome": "ok",
+        "errorCode": null,
+        "latencyMs": 5,
+        "context": null
+      }
+    ],
+    "usage-summary.json": [
+      {
+        "provider": "openrouter",
+        "model": "test-model",
+        "_count": {
+          "_all": 0
+        },
+        "_sum": {
+          "tokensIn": null,
+          "tokensOut": null
+        }
+      }
+    ]
+  }
+}

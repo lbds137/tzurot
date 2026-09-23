@@ -63,8 +63,24 @@ export const ExportProfileSchema = z
   .strict();
 
 // ============================================================================
-// personas/*.json — one full Persona row per file
+// personas/*.json — one full Persona row per file, plus the persona's
+// recent-days digests
 // ============================================================================
+
+/**
+ * One recent-days digest exported under its persona — mirrors
+ * `ExportPersonaDigest` in `AccountExportAssembler.ts`.
+ */
+const ExportPersonaDigestSchema = z
+  .object({
+    personalityId: z.string(),
+    personalitySlug: z.string(),
+    personalityName: z.string(),
+    digestText: z.string(),
+    generatedAt: z.string().nullable(),
+    windowStart: z.string().nullable(),
+  })
+  .strict();
 
 export const ExportPersonaSchema = z
   .object({
@@ -77,6 +93,7 @@ export const ExportPersonaSchema = z
     ownerId: z.string(),
     createdAt: z.string(),
     updatedAt: z.string(),
+    digests: z.array(ExportPersonaDigestSchema),
   })
   .strict();
 
@@ -188,6 +205,18 @@ export const ExportMemoryRowSchema = z
     chunkGroupId: z.string().nullable(),
     chunkIndex: z.number().int().nullable(),
     totalChunks: z.number().int().nullable(),
+    // Memory-archive summarizer columns (assistant_summary state machine).
+    assistantSummary: z.string().nullable(),
+    summaryStatus: z.string().nullable(),
+    summaryAttempts: z.number().int(),
+    summaryModel: z.string().nullable(),
+    summaryPromptVersion: z.number().int().nullable(),
+    sourceContentHash: z.string().nullable(),
+    summaryRequestedAt: z.string().nullable(),
+    summaryCompletedAt: z.string().nullable(),
+    summaryLastError: z.string().nullable(),
+    lastRetrievedAt: z.string().nullable(),
+    retrievalCount: z.number().int(),
   })
   .strict();
 
