@@ -22,6 +22,23 @@
  * decision reads dev's own `system_settings` and `memories` rows, which are
  * real per-environment state (not a rehearsal of prod), so a dev-side
  * promotion is a real, useful signal rather than noise.
+ *
+ * The startup run (fired ~60s after container start by `createIntervalScheduler`)
+ * lands in a deploy window where the gateway may still be running: this
+ * scheduler's own service (bot-client) restarted, but the gateway might not
+ * have finished its own rollover yet. During that window the gateway can be
+ * the OLD build (missing this route → 404) or mid-rollover (no listener yet →
+ * a transport error, or a fronting proxy answering 502/503/504) — none of
+ * that is a real promotion-check failure, just bad timing. So the startup run
+ * treats a not-ready failure specially: it logs and retries once, after a
+ * fixed delay, instead of alerting immediately. The retry runs as an ordinary
+ * (non-startup) check, so ANY failure on it — not-ready or otherwise — posts
+ * the failure embed like normal. The six-hourly runs never get this
+ * treatment: by then the gateway has had hours to finish deploying, so a
+ * failure there is real. `stop()` clears a pending retry timer along with the
+ * scheduler's own timers, so a shutdown mid-retry-window doesn't leave a
+ * stray check firing after the scheduler was told to stop. Every behavior
+ * claim here is pinned by a test in `ArchivePromotionScheduler.test.ts`.
  */
 
 import { EmbedBuilder, type Client } from 'discord.js';
@@ -31,29 +48,71 @@ import type { MemoryArchivePromotion } from '@tzurot/common-types/schemas/api/me
 import { getOwnerClient } from '../utils/gatewayClients.js';
 import { postOwnerChannelEmbed } from '../utils/ownerChannel.js';
 import { cappedInlineField, clampEmbedText, EMBED_CAPS } from '../utils/embedLimits.js';
+import { isGatewayNotReadyFailure } from '../utils/gatewayNotReady.js';
 
 const logger = createLogger('archive-promotion');
 
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const STARTUP_DELAY_MS = 60_000;
+/** How long to wait before retrying a startup run that failed because the gateway wasn't ready yet. */
+const STARTUP_RETRY_DELAY_MS = 5 * 60 * 1000;
 /** Discord's embed field cap (no shared `DISCORD_LIMITS` entry for field COUNT, only per-field size). */
 const MAX_PROMOTION_FIELDS = 25;
+
+/** Set by `startArchivePromotionScheduler`, consumed (and cleared) by the next run. */
+let startupRunPending = false;
+/** The single pending startup-retry timer, if one is scheduled. */
+let startupRetryTimer: ReturnType<typeof setTimeout> | null = null;
+/** Guards `startupRunPending` against a double `startArchivePromotionScheduler` call. */
+let schedulerRunning = false;
 
 const scheduler = createIntervalScheduler<[Client]>({
   intervalMs: CHECK_INTERVAL_MS,
   startupDelayMs: STARTUP_DELAY_MS,
   logger,
-  run: client => runArchivePromotionCheck(client),
+  run: client => {
+    const isStartupRun = startupRunPending;
+    startupRunPending = false;
+    return runArchivePromotionCheck(client, { isStartupRun });
+  },
 });
 
 /** Start the six-hourly check (call once from the composition root). */
 export function startArchivePromotionScheduler(client: Client): void {
+  if (schedulerRunning) {
+    scheduler.start(client);
+    return;
+  }
+  schedulerRunning = true;
+  startupRunPending = true;
   scheduler.start(client);
 }
 
-/** Stop the scheduler (graceful shutdown). */
+/** Stop the scheduler (graceful shutdown). Also clears a pending startup retry. */
 export function stopArchivePromotionScheduler(): void {
   scheduler.stop();
+  if (startupRetryTimer !== null) {
+    clearTimeout(startupRetryTimer);
+    startupRetryTimer = null;
+  }
+  startupRunPending = false;
+  schedulerRunning = false;
+}
+
+/**
+ * Schedules the one startup retry. Only the startup run calls this, once per
+ * `startArchivePromotionScheduler` call, so there is never a previously-scheduled
+ * timer to replace.
+ */
+function scheduleStartupRetry(client: Client): void {
+  startupRetryTimer = setTimeout(() => {
+    startupRetryTimer = null;
+    // Runs outside the interval scheduler's in-flight guard, so an overlap with
+    // the six-hourly run would need a tick to land inside this retry's window —
+    // it fires STARTUP_DELAY_MS + STARTUP_RETRY_DELAY_MS after start, far below
+    // CHECK_INTERVAL_MS.
+    void runArchivePromotionCheck(client);
+  }, STARTUP_RETRY_DELAY_MS);
 }
 
 /** Builds the "N promoted" embed, capping fields at Discord's per-embed limit. */
@@ -88,11 +147,30 @@ function buildFailureEmbed(reason: string): EmbedBuilder {
 }
 
 /** Exported for tests — one full check cycle. */
-export async function runArchivePromotionCheck(client: Client): Promise<void> {
+export async function runArchivePromotionCheck(
+  client: Client,
+  options: { isStartupRun?: boolean } = {}
+): Promise<void> {
   try {
     const result = await getOwnerClient().memoryArchivePromote({});
     if (!result.ok) {
-      logger.warn({ error: result.error }, 'Archive promotion check failed');
+      if (options.isStartupRun === true && isGatewayNotReadyFailure(result)) {
+        logger.warn(
+          {
+            kind: result.kind,
+            status: result.status,
+            error: result.error,
+            retryInMs: STARTUP_RETRY_DELAY_MS,
+          },
+          'Gateway not ready on the startup promotion check — retrying once before alerting'
+        );
+        scheduleStartupRetry(client);
+        return;
+      }
+      logger.warn(
+        { kind: result.kind, status: result.status, error: result.error },
+        'Archive promotion check failed'
+      );
       await postOwnerChannelEmbed(client, buildFailureEmbed(result.error));
       return;
     }
