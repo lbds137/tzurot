@@ -3,9 +3,10 @@ id: TASK-1040
 title: >-
   Diagnostic row provider should record the effective serving provider, as the
   usage row already does
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-21 21:19'
+updated_date: '2026-09-23 03:22'
 labels:
   - 'area:ai-worker'
   - 'size:S'
