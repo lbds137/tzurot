@@ -23,7 +23,6 @@ import {
 import { generateUserPersonalityConfigUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { userRoutes } from '@tzurot/clients';
-import { asyncHandler } from '../../utils/asyncHandler.js';
 import { withManifestInput } from '../../utils/manifestInput.js';
 import {
   parseModelSlotQuery,
@@ -39,7 +38,6 @@ import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.j
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
-import { getParam } from '../../utils/requestParams.js';
 import {
   OVERRIDE_SUMMARY_SELECT,
   buildOverrideSummary,
@@ -204,41 +202,44 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
 /** GET /api/user/model-override/default — read user's global default LLM config */
 export const handleGetDefaultModelConfig = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
-  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-    const discordUserId = req.userId;
-    const userId = resolveProvisionedUserId(req);
+  return withManifestInput(
+    userRoutes.getDefaultModelConfig,
+    async (req: ProvisionedRequest, res: Response, { query }) => {
+      const discordUserId = req.userId;
+      const userId = resolveProvisionedUserId(req);
 
-    const slot = parseModelSlotQuery(res, req.query);
-    if (slot === null) {
-      return;
+      const slot = parseModelSlotQuery(res, query);
+      if (slot === null) {
+        return;
+      }
+      const isVision = slot === 'vision';
+
+      // Select both FK pairs (fixed shape — a conditional select would yield a
+      // union return type), then pick the requested slot.
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          defaultLlmConfigId: true,
+          defaultLlmConfig: { select: { name: true } },
+          defaultVisionConfigId: true,
+          defaultVisionConfig: { select: { name: true } },
+        },
+      });
+
+      const result: UserDefaultConfig = isVision
+        ? {
+            configId: user?.defaultVisionConfigId ?? null,
+            configName: user?.defaultVisionConfig?.name ?? null,
+          }
+        : {
+            configId: user?.defaultLlmConfigId ?? null,
+            configName: user?.defaultLlmConfig?.name ?? null,
+          };
+
+      logger.info({ discordUserId, configId: result.configId, slot }, 'Got default config');
+      sendCustomSuccess(res, { default: result }, StatusCodes.OK);
     }
-    const isVision = slot === 'vision';
-
-    // Select both FK pairs (fixed shape — a conditional select would yield a
-    // union return type), then pick the requested slot.
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        defaultLlmConfigId: true,
-        defaultLlmConfig: { select: { name: true } },
-        defaultVisionConfigId: true,
-        defaultVisionConfig: { select: { name: true } },
-      },
-    });
-
-    const result: UserDefaultConfig = isVision
-      ? {
-          configId: user?.defaultVisionConfigId ?? null,
-          configName: user?.defaultVisionConfig?.name ?? null,
-        }
-      : {
-          configId: user?.defaultLlmConfigId ?? null,
-          configName: user?.defaultLlmConfig?.name ?? null,
-        };
-
-    logger.info({ discordUserId, configId: result.configId, slot }, 'Got default config');
-    sendCustomSuccess(res, { default: result }, StatusCodes.OK);
-  });
+  );
 };
 
 /** PUT /api/user/model-override/default — set user's global default LLM config */
@@ -410,9 +411,9 @@ export const handleDeleteModelOverride = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
   return withManifestInput(
     userRoutes.deleteModelOverride,
-    async (req: ProvisionedRequest, res: Response, { query }) => {
+    async (req: ProvisionedRequest, res: Response, { query, params }) => {
       const discordUserId = req.userId;
-      const personalityId = getParam(req.params.personalityId);
+      const personalityId = params.personalityId;
       const userId = resolveProvisionedUserId(req);
 
       const slots = parseClearSlots(res, query);

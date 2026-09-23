@@ -57,6 +57,11 @@ import { asRouteHandler, stubRouteResolvers } from '../../test/shared-route-test
 function createMockReqRes(query: Record<string, string> = {}) {
   const req = {
     query,
+    // Express always populates `req.params` (at least `{}`) even when the
+    // route declares no `:param` segments — withManifestInput's params
+    // schema parses it unconditionally, so an absent field here would 400
+    // on "expected object, received undefined" before the handler runs.
+    params: {},
     userId: 'discord-user-123',
     provisionedUserId: 'user-uuid-123',
     provisionedDefaultPersonaId: 'persona-uuid-default',

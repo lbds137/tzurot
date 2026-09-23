@@ -22,7 +22,6 @@ import { sendContractSuccess, sendError } from '../../../utils/responseHelpers.j
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import type { ProvisionedRequest } from '../../../types.js';
-import { getParam } from '../../../utils/requestParams.js';
 import { parseModelSlotQuery } from '../../../utils/configRouteHelpers.js';
 import { ensureVisionCapableModel } from '../../../utils/llmConfigValidation.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
@@ -41,10 +40,10 @@ async function resolveSlotAndOwnedPersonality(
   prisma: PrismaClient,
   req: ProvisionedRequest,
   res: Response,
+  slug: string,
   query: unknown
 ): Promise<{ slot: ModelSlot; personality: { id: string; ownerId: string } } | null> {
-  const slug = getParam(req.params.slug);
-  if (slug === undefined || slug === '') {
+  if (slug === '') {
     sendError(res, ErrorResponses.validationError('slug is required'));
     return null;
   }
@@ -105,9 +104,9 @@ export const handleSetPersonalityDefaultConfig = (deps: RouteDeps): RequestHandl
   const { prisma, modelCache, cacheInvalidationService, llmConfigCacheInvalidation } = deps;
   return withManifestInput(
     userRoutes.setPersonalityDefaultConfig,
-    async (req: ProvisionedRequest, res: Response, { query }) => {
+    async (req: ProvisionedRequest, res: Response, { query, params }) => {
       const discordUserId = req.userId;
-      const resolved = await resolveSlotAndOwnedPersonality(prisma, req, res, query);
+      const resolved = await resolveSlotAndOwnedPersonality(prisma, req, res, params.slug, query);
       if (resolved === null) {
         return;
       }
@@ -167,9 +166,9 @@ export const handleClearPersonalityDefaultConfig = (deps: RouteDeps): RequestHan
   const { prisma, cacheInvalidationService, llmConfigCacheInvalidation } = deps;
   return withManifestInput(
     userRoutes.clearPersonalityDefaultConfig,
-    async (req: ProvisionedRequest, res: Response, { query }) => {
+    async (req: ProvisionedRequest, res: Response, { query, params }) => {
       const discordUserId = req.userId;
-      const resolved = await resolveSlotAndOwnedPersonality(prisma, req, res, query);
+      const resolved = await resolveSlotAndOwnedPersonality(prisma, req, res, params.slug, query);
       if (resolved === null) {
         return;
       }

@@ -33,6 +33,7 @@ import {
   tryInvalidateCache,
   mergeAndValidateOverrides,
   getValidatedPersonalityId,
+  validatePersonalityIdValue,
   UUID_PATTERN,
 } from '../../utils/configOverrideHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
@@ -213,8 +214,8 @@ export const handleResolveCascade = (deps: RouteDeps): RequestHandler => {
   const cascadeResolver = deps.cascadeResolver;
   return withManifestInput(
     userRoutes.resolveCascade,
-    async (req: AuthenticatedRequest, res: Response, { query }) => {
-      const personalityId = getValidatedPersonalityId(req, res);
+    async (req: AuthenticatedRequest, res: Response, { query, params }) => {
+      const personalityId = validatePersonalityIdValue(params.personalityId, res);
       if (personalityId === null) {
         return;
       }
@@ -247,8 +248,8 @@ export const handleResolveChannelCascade = (deps: RouteDeps): RequestHandler => 
   const cascadeResolver = deps.cascadeResolver;
   return withManifestInput(
     userRoutes.resolveChannelCascade,
-    async (req: AuthenticatedRequest, res: Response, { query }) => {
-      const paramsResult = channelParamsSchema.safeParse(req.params);
+    async (_req: AuthenticatedRequest, res: Response, { query, params }) => {
+      const paramsResult = channelParamsSchema.safeParse(params);
       if (!paramsResult.success) {
         sendError(res, ErrorResponses.validationError(INVALID_CHANNEL_ID_MESSAGE));
         return;

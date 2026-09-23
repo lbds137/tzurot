@@ -566,6 +566,33 @@ describe('/user/model-override routes', () => {
   });
 
   describe('DELETE /api/user/model-override/:personalityId', () => {
+    // Pins that the `:personalityId` URL value reaches the override lookup
+    // unchanged. It cannot tell withManifestInput's parsed `params` from raw
+    // `req.params`: the manifest's params schema is a bare z.string(), so
+    // both hold the same value.
+    it('looks up the override by the exact :personalityId from the URL', async () => {
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+
+      const handler = buildHandler(handleDeleteModelOverride, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const { req, res } = createMockReqRes(
+        {},
+        { personalityId: '11111111-1111-4111-a111-111111111111' }
+      );
+
+      await handler(req, res);
+
+      expect(mockPrisma.userPersonalityConfig.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            personalityId: '11111111-1111-4111-a111-111111111111',
+          }),
+        })
+      );
+    });
+
     it('should return 200 (idempotent) when override not found', async () => {
       mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
 
@@ -642,6 +669,19 @@ describe('/user/model-override routes', () => {
   });
 
   describe('GET /api/user/model-override/default', () => {
+    it('rejects an invalid ?slot= value with 400', async () => {
+      const handler = buildHandler(handleGetDefaultModelConfig, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const { req, res } = createMockReqRes({}, {}, { slot: 'bogus' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    });
+
     it('should return null default when user has none set', async () => {
       // Provisioning middleware sets the UUID; handler's findUnique for the default config returns null.
       mockPrisma.user.findUnique.mockResolvedValueOnce({

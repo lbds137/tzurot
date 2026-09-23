@@ -45,6 +45,11 @@ import { asRouteHandler, stubRouteResolvers } from '../../test/shared-route-test
 function createMockReqRes(query: Record<string, unknown> = {}) {
   const req = {
     query,
+    // Express always populates `req.params` (at least `{}`) even when the
+    // route declares no `:param` segments — withManifestInput's params
+    // schema parses it unconditionally, so an absent field here would 400
+    // before the handler runs.
+    params: {},
   } as unknown as Request;
 
   const res = {
@@ -83,6 +88,16 @@ describe('conversationLookup routes', () => {
           message: expect.stringContaining('discordMessageId'),
         })
       );
+    });
+
+    it('should return 400 when discordMessageId is a repeated query key (array value)', async () => {
+      const { req, res } = createMockReqRes({ discordMessageId: ['a', 'b'] });
+      const handler = getHandler();
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockGetMessageByDiscordId).not.toHaveBeenCalled();
     });
 
     it('should return 404 when message is not found', async () => {

@@ -32,7 +32,7 @@ export const userDiagnosticRoutes = {
     // entries into URLSearchParams.set, and the second would silently
     // overwrite the typed subject branding (defeating the whole point).
     // The cross-audience invariant test enforces this.
-    query: { personalityId: z.string().optional() },
+    query: { personalityId: z.string().optional(), channelId: z.string().optional() },
     output: RecentDiagnosticLogsResponseSchema,
     acceptsSubject: true,
     // Pinned to DEFERRED explicitly: this is a 100-row scan with a per-row JSONB

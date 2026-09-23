@@ -9,10 +9,9 @@ import { type Request, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ConversationHistoryService } from '@tzurot/conversation-history';
-import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
-import { ErrorResponses } from '../../utils/errorResponses.js';
-import { getParam } from '../../utils/requestParams.js';
+import { internalRoutes } from '@tzurot/clients';
+import { withManifestInput } from '../../utils/manifestInput.js';
+import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('conversation-lookup');
@@ -28,35 +27,30 @@ interface MessagePersonalityResponse {
  */
 export const handleLookupPersonalityFromMessage = (deps: RouteDeps): RequestHandler => {
   const conversationHistoryService = new ConversationHistoryService(deps.prisma);
-  return asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const discordMessageId = getParam(req.query.discordMessageId as string | string[] | undefined);
+  return withManifestInput(
+    internalRoutes.lookupPersonalityFromMessage,
+    async (_req: Request, res: Response, { query }): Promise<void> => {
+      const { discordMessageId } = query;
 
-    if (discordMessageId === undefined) {
-      sendError(
-        res,
-        ErrorResponses.validationError('discordMessageId query parameter is required')
+      const message = await conversationHistoryService.getMessageByDiscordId(discordMessageId);
+
+      if (message?.personalityId === undefined) {
+        logger.debug({ discordMessageId }, 'No message found for Discord message ID');
+        res.status(StatusCodes.NOT_FOUND).json(null);
+        return;
+      }
+
+      const response: MessagePersonalityResponse = {
+        personalityId: message.personalityId,
+        personalityName: message.personalityName,
+      };
+
+      logger.debug(
+        { discordMessageId, personalityId: message.personalityId },
+        'Found personality for Discord message'
       );
-      return;
+
+      sendCustomSuccess(res, response, StatusCodes.OK);
     }
-
-    const message = await conversationHistoryService.getMessageByDiscordId(discordMessageId);
-
-    if (message?.personalityId === undefined) {
-      logger.debug({ discordMessageId }, 'No message found for Discord message ID');
-      res.status(StatusCodes.NOT_FOUND).json(null);
-      return;
-    }
-
-    const response: MessagePersonalityResponse = {
-      personalityId: message.personalityId,
-      personalityName: message.personalityName,
-    };
-
-    logger.debug(
-      { discordMessageId, personalityId: message.personalityId },
-      'Found personality for Discord message'
-    );
-
-    sendCustomSuccess(res, response, StatusCodes.OK);
-  });
+  );
 };

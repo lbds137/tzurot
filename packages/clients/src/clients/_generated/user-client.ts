@@ -737,8 +737,8 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async getDefaultModelConfig(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getDefaultModelConfig.output>>> {
-    const fullPath = '/api/user/model-override/default';
+  async getDefaultModelConfig(options: { slot?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getDefaultModelConfig.output>>> {
+    const fullPath = '/api/user/model-override/default' + buildQueryString([['slot', options.slot]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
@@ -1399,8 +1399,8 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async getUserUsage(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getUserUsage.output>>> {
-    const fullPath = '/api/user/usage';
+  async getUserUsage(options: { period?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getUserUsage.output>>> {
+    const fullPath = '/api/user/usage' + buildQueryString([['period', options.period]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
@@ -2518,8 +2518,8 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async getRecentDiagnostics(options: { subject?: SubjectDiscordId; personalityId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getRecentDiagnostics.output>>> {
-    const fullPath = '/api/user/diagnostic/recent' + buildQueryString([['userId', options.subject], ['personalityId', options.personalityId]]);
+  async getRecentDiagnostics(options: { subject?: SubjectDiscordId; personalityId?: string; channelId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getRecentDiagnostics.output>>> {
+    const fullPath = '/api/user/diagnostic/recent' + buildQueryString([['userId', options.subject], ['personalityId', options.personalityId], ['channelId', options.channelId]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,

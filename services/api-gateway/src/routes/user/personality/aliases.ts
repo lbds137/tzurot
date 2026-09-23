@@ -87,9 +87,9 @@ interface VisiblePersonality {
 async function requireVisiblePersonality(
   prisma: PrismaClient,
   req: ProvisionedRequest,
-  res: Response
+  res: Response,
+  slug: string | undefined
 ): Promise<VisiblePersonality | null> {
-  const slug = getParam(req.params.slug);
   if (slug === undefined || slug === '') {
     sendError(res, ErrorResponses.validationError('slug is required'));
     return null;
@@ -154,7 +154,12 @@ function rowScope(row: { userId: string | null }): AliasScope {
 
 function createListHandler(prisma: PrismaClient) {
   return async (req: ProvisionedRequest, res: Response) => {
-    const personality = await requireVisiblePersonality(prisma, req, res);
+    const personality = await requireVisiblePersonality(
+      prisma,
+      req,
+      res,
+      getParam(req.params.slug)
+    );
     if (personality === null) {
       return;
     }
@@ -263,7 +268,12 @@ function createAddHandler(
       );
     }
 
-    const personality = await requireVisiblePersonality(prisma, req, res);
+    const personality = await requireVisiblePersonality(
+      prisma,
+      req,
+      res,
+      getParam(req.params.slug)
+    );
     if (personality === null) {
       return;
     }
@@ -319,11 +329,21 @@ function createRemoveHandler(
   prisma: PrismaClient,
   cacheInvalidationService?: CacheInvalidationService
 ) {
-  return async (req: ProvisionedRequest, res: Response, scopeQuery: unknown) => {
+  return async (
+    req: ProvisionedRequest,
+    res: Response,
+    input: { slug: string; alias: string; scope: unknown }
+  ) => {
+    const { slug, alias, scope: scopeQuery } = input;
+
     // ?scope= defaults to 'user': removing your own alias is the common
-    // case; global removal is the bot owner's explicit act. The RAW query
-    // value goes into the parse so malformed shapes (e.g. an array from
-    // ?scope=a&scope=b) fail loudly as 400 instead of silently defaulting.
+    // case; global removal is the bot owner's explicit act. withManifestInput
+    // (removePersonalityAlias's `query: { scope: z.string().optional() }`)
+    // already rejects a malformed shape — e.g. an array from
+    // ?scope=a&scope=b — with 400 before this handler runs, pinned by
+    // "400s a malformed scope (array from repeated params)" in this file's
+    // test. This parse only supplies the 'user' default and enforces the
+    // 'user' | 'global' enum on the already-string-or-undefined value.
     const scopeParse = AliasScopeSchema.default('user').safeParse(scopeQuery);
     if (!scopeParse.success) {
       return sendZodError(res, scopeParse.error);
@@ -337,12 +357,11 @@ function createRemoveHandler(
       );
     }
 
-    const personality = await requireVisiblePersonality(prisma, req, res);
+    const personality = await requireVisiblePersonality(prisma, req, res, slug);
     if (personality === null) {
       return;
     }
-    const alias = getParam(req.params.alias);
-    if (alias === undefined || alias === '') {
+    if (alias === '') {
       return sendError(res, ErrorResponses.validationError('alias is required'));
     }
     const callerUuid = resolveProvisionedUserId(req);
@@ -447,7 +466,8 @@ export const handleRemovePersonalityAlias = (deps: RouteDeps): RequestHandler =>
   const removeHandler = createRemoveHandler(deps.prisma, deps.cacheInvalidationService);
   return withManifestInput(
     userRoutes.removePersonalityAlias,
-    (req: ProvisionedRequest, res: Response, { query }) => removeHandler(req, res, query.scope)
+    (req: ProvisionedRequest, res: Response, { query, params }) =>
+      removeHandler(req, res, { slug: params.slug, alias: params.alias, scope: query.scope })
   );
 };
 export const handleListMyAliases = (deps: RouteDeps): RequestHandler =>
