@@ -49,70 +49,34 @@ import { getOwnerClient } from '../utils/gatewayClients.js';
 import { postOwnerChannelEmbed } from '../utils/ownerChannel.js';
 import { cappedInlineField, clampEmbedText, EMBED_CAPS } from '../utils/embedLimits.js';
 import { isGatewayNotReadyFailure } from '../utils/gatewayNotReady.js';
+import { createStartupRetry, STARTUP_RETRY_DELAY_MS } from '../utils/startupRetry.js';
 
 const logger = createLogger('archive-promotion');
 
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const STARTUP_DELAY_MS = 60_000;
-/** How long to wait before retrying a startup run that failed because the gateway wasn't ready yet. */
-const STARTUP_RETRY_DELAY_MS = 5 * 60 * 1000;
 /** Discord's embed field cap (no shared `DISCORD_LIMITS` entry for field COUNT, only per-field size). */
 const MAX_PROMOTION_FIELDS = 25;
 
-/** Set by `startArchivePromotionScheduler`, consumed (and cleared) by the next run. */
-let startupRunPending = false;
-/** The single pending startup-retry timer, if one is scheduled. */
-let startupRetryTimer: ReturnType<typeof setTimeout> | null = null;
-/** Guards `startupRunPending` against a double `startArchivePromotionScheduler` call. */
-let schedulerRunning = false;
+const startupRetry = createStartupRetry();
 
 const scheduler = createIntervalScheduler<[Client]>({
   intervalMs: CHECK_INTERVAL_MS,
   startupDelayMs: STARTUP_DELAY_MS,
   logger,
-  run: client => {
-    const isStartupRun = startupRunPending;
-    startupRunPending = false;
-    return runArchivePromotionCheck(client, { isStartupRun });
-  },
+  run: client => runArchivePromotionCheck(client, { isStartupRun: startupRetry.consume() }),
 });
 
 /** Start the six-hourly check (call once from the composition root). */
 export function startArchivePromotionScheduler(client: Client): void {
-  if (schedulerRunning) {
-    scheduler.start(client);
-    return;
-  }
-  schedulerRunning = true;
-  startupRunPending = true;
+  startupRetry.arm();
   scheduler.start(client);
 }
 
 /** Stop the scheduler (graceful shutdown). Also clears a pending startup retry. */
 export function stopArchivePromotionScheduler(): void {
   scheduler.stop();
-  if (startupRetryTimer !== null) {
-    clearTimeout(startupRetryTimer);
-    startupRetryTimer = null;
-  }
-  startupRunPending = false;
-  schedulerRunning = false;
-}
-
-/**
- * Schedules the one startup retry. Only the startup run calls this, once per
- * `startArchivePromotionScheduler` call, so there is never a previously-scheduled
- * timer to replace.
- */
-function scheduleStartupRetry(client: Client): void {
-  startupRetryTimer = setTimeout(() => {
-    startupRetryTimer = null;
-    // Runs outside the interval scheduler's in-flight guard, so an overlap with
-    // the six-hourly run would need a tick to land inside this retry's window —
-    // it fires STARTUP_DELAY_MS + STARTUP_RETRY_DELAY_MS after start, far below
-    // CHECK_INTERVAL_MS.
-    void runArchivePromotionCheck(client);
-  }, STARTUP_RETRY_DELAY_MS);
+  startupRetry.reset();
 }
 
 /** Builds the "N promoted" embed, capping fields at Discord's per-embed limit. */
@@ -155,6 +119,10 @@ export async function runArchivePromotionCheck(
     const result = await getOwnerClient().memoryArchivePromote({});
     if (!result.ok) {
       if (options.isStartupRun === true && isGatewayNotReadyFailure(result)) {
+        // Deliberately broader than the nightly sync and export smoke, which use
+        // isGatewayUnreachedFailure: a client timeout or a 504 here may mean the
+        // first request already ran the promotion, but a retry is harmless
+        // because the promote endpoint is idempotent (see the module header).
         logger.warn(
           {
             kind: result.kind,
@@ -164,7 +132,11 @@ export async function runArchivePromotionCheck(
           },
           'Gateway not ready on the startup promotion check — retrying once before alerting'
         );
-        scheduleStartupRetry(client);
+        // Runs outside the interval scheduler's in-flight guard, so an overlap
+        // with the six-hourly run would need a tick to land inside this retry's
+        // window — it fires STARTUP_DELAY_MS + STARTUP_RETRY_DELAY_MS after
+        // start, far below CHECK_INTERVAL_MS.
+        startupRetry.schedule(() => runArchivePromotionCheck(client));
         return;
       }
       logger.warn(

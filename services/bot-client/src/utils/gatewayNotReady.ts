@@ -21,7 +21,7 @@
 
 import type { GatewayResult } from '@tzurot/clients';
 
-type GatewayFailure = Extract<GatewayResult<unknown>, { ok: false }>;
+export type GatewayFailure = Extract<GatewayResult<unknown>, { ok: false }>;
 
 /** HTTP statuses consistent with the gateway being mid-deploy or mid-rollover. */
 const NOT_READY_HTTP_STATUSES: ReadonlySet<number> = new Set([404, 502, 503, 504]);
@@ -31,4 +31,27 @@ export function isGatewayNotReadyFailure(failure: GatewayFailure): boolean {
     return true;
   }
   return failure.kind === 'http' && NOT_READY_HTTP_STATUSES.has(failure.status);
+}
+
+/**
+ * The subset of not-ready failures where the request cannot have reached the
+ * route handler's side effect: a network error, or a 404/502/503 (unmatched
+ * route, fronting proxy, maintenance middleware, or a handler that rejects
+ * before starting work). Caller contract: the route's handler must never
+ * return 404/502/503 AFTER it has started its side effect.
+ *
+ * Excludes a client `timeout` and an HTTP 504: either could mean the request
+ * reached a live gateway that is still running the handler server-side, so a
+ * caller retrying on this classification could duplicate a side effect the
+ * first request may already have started. Use this instead of
+ * `isGatewayNotReadyFailure` where a retry could duplicate such a side
+ * effect (e.g. starting a job the first, still-in-flight request may already
+ * have created).
+ */
+export function isGatewayUnreachedFailure(failure: GatewayFailure): boolean {
+  return (
+    isGatewayNotReadyFailure(failure) &&
+    failure.kind !== 'timeout' &&
+    !(failure.kind === 'http' && failure.status === 504)
+  );
 }

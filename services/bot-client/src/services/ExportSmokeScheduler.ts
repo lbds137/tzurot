@@ -35,7 +35,21 @@
  * next tick because posting is cheap. Here the cooldown governs the
  * EXPENSIVE WORK: a failed embed post must not buy a same-day re-export, so
  * the cooldown is armed unconditionally once a cycle reaches a terminal
- * outcome, win or lose.
+ * outcome, win or lose — with one exception. On the startup run only, a
+ * failure to even START the smoke where the request cannot have reached the
+ * route handler (the deploy-window case: bot-client restarted, but the
+ * gateway may still be rolling over) arms nothing and retries once after a
+ * fixed delay instead — that failure isn't a real smoke result, just bad
+ * timing. A startup timeout or an HTTP 504 is deliberately NOT retried this
+ * way: either could mean the request reached a live gateway that started the
+ * export job before timing out, and the gateway's conflict check only 409s
+ * on a pending/in-progress job, not a completed one — so a retry here could
+ * start a second real export job. Those keep the immediate-alert,
+ * cooldown-armed behavior instead. The retry is an ordinary run: any failure
+ * on it — not-ready or otherwise — alerts and arms the cooldown like normal.
+ * A not-ready failure MID-run (a poll or download hiccup after the job
+ * already started) is unaffected and still alerts-and-arms immediately,
+ * since by then a real job exists server-side.
  */
 
 import { EmbedBuilder, type Client } from 'discord.js';
@@ -45,6 +59,8 @@ import { getServiceClient } from '../utils/gatewayClients.js';
 import { createIntervalScheduler } from '@tzurot/common-types/utils/intervalScheduler';
 import { postOwnerChannelEmbed } from '../utils/ownerChannel.js';
 import { clampEmbedText, EMBED_CAPS } from '../utils/embedLimits.js';
+import { isGatewayUnreachedFailure } from '../utils/gatewayNotReady.js';
+import { createStartupRetry, STARTUP_RETRY_DELAY_MS } from '../utils/startupRetry.js';
 import { validateExportArtifact, type ExportSmokeExpectedCounts } from './exportSmokeValidator.js';
 
 const logger = createLogger('export-smoke');
@@ -69,21 +85,26 @@ const MAX_CONSECUTIVE_POLL_FAILURES = 3;
 /** Embed line cap — findings carry no content, but a validation failure can enumerate many. */
 const MAX_RENDERED_LINES = 15;
 
+const startupRetry = createStartupRetry();
+
 const scheduler = createIntervalScheduler<[Client, Redis]>({
   intervalMs: CHECK_INTERVAL_MS,
   startupDelayMs: STARTUP_DELAY_MS,
   logger,
-  run: (client, redis) => runExportSmokeCheck(client, redis),
+  run: (client, redis) =>
+    runExportSmokeCheck(client, redis, { isStartupRun: startupRetry.consume() }),
 });
 
 /** Start the daily check (call once from the composition root). */
 export function startExportSmokeScheduler(client: Client, redis: Redis): void {
+  startupRetry.arm();
   scheduler.start(client, redis);
 }
 
-/** Stop the scheduler (graceful shutdown). */
+/** Stop the scheduler (graceful shutdown). Also clears a pending startup retry. */
 export function stopExportSmokeScheduler(): void {
   scheduler.stop();
+  startupRetry.reset();
 }
 
 function sleep(ms: number): Promise<void> {
@@ -190,7 +211,11 @@ async function alertAndArmCooldown(
 }
 
 /** Exported for tests — one full check cycle. */
-export async function runExportSmokeCheck(client: Client, redis: Redis): Promise<void> {
+export async function runExportSmokeCheck(
+  client: Client,
+  redis: Redis,
+  options: { isStartupRun?: boolean } = {}
+): Promise<void> {
   try {
     // Cooldown FIRST — see the module docstring: it gates the WORK (a real
     // export job), not just the alert.
@@ -202,6 +227,23 @@ export async function runExportSmokeCheck(client: Client, redis: Redis): Promise
 
     const startResult = await getServiceClient().startExportSmoke({});
     if (!startResult.ok) {
+      if (options.isStartupRun === true && isGatewayUnreachedFailure(startResult)) {
+        logger.warn(
+          {
+            kind: startResult.kind,
+            status: startResult.status,
+            error: startResult.error,
+            retryInMs: STARTUP_RETRY_DELAY_MS,
+          },
+          'Gateway not ready on the startup export smoke — retrying once before alerting'
+        );
+        // Runs outside the interval scheduler's in-flight guard, so an
+        // overlap with the daily tick would need one to land inside this
+        // retry's window — it fires STARTUP_DELAY_MS + STARTUP_RETRY_DELAY_MS
+        // after start, far below CHECK_INTERVAL_MS.
+        startupRetry.schedule(() => runExportSmokeCheck(client, redis));
+        return;
+      }
       await alertAndArmCooldown(
         client,
         redis,

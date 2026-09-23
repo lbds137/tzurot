@@ -19,7 +19,9 @@
  * that ordering a deploy-heavy day would fire a real sync per deploy, and a
  * crash loop would fire one per restart. The cost of arming first is that a
  * process death mid-sync skips that day's run, which is the right trade for
- * an operation that writes to prod.
+ * an operation that writes to prod. One narrow exception: the startup-run
+ * deploy-window retry below releases the cooldown it just armed, only for
+ * failures where the request cannot have reached the sync handler.
  *
  * Genuinely nightly, not boot-anchored: the tick runs every 15 minutes and
  * does nothing unless the current UTC hour equals the `nightlySyncHourUtc`
@@ -28,6 +30,28 @@
  * ticks inside the matching hour to a single run — hour equality picks the
  * time of day, the cooldown enforces once-per-day. A deploy at noon no longer
  * fires a sync at noon.
+ *
+ * Startup-run deploy-window retry: the startup run (fired ~60s after
+ * container start) can land while the gateway is still mid-deploy — bot-
+ * client restarted, but the gateway hasn't finished its own rollover. A
+ * not-ready failure there (a 404 from an old build missing the route, a
+ * 502/503 from a fronting proxy, or a transport-level network error) is bad timing, not a real sync failure, so
+ * the startup run releases the cooldown it just armed and retries once,
+ * after a fixed delay. That retry deliberately skips the hour-equality gate —
+ * it can land past the hour boundary, and every later tick that day would
+ * then read as outside the hour and lose the day entirely — but it still
+ * honours the `nightlySyncEnabled` switch and the (freshly re-armed)
+ * cooldown. The retry itself is an ordinary run: any failure on it —
+ * not-ready or otherwise — posts the failure embed and keeps the cooldown
+ * armed, same as a normal tick. Two failure shapes are excluded from the
+ * retry even on the startup run: a client timeout and a proxy 504, because
+ * either could mean the request reached a live gateway that is still running
+ * the sync server-side, and releasing the cooldown there risks stacking a
+ * second real sync on top of the first — those keep the immediate-post,
+ * cooldown-stays-armed behavior. Ordinary (interval) ticks never get this
+ * treatment: a failure there posts and keeps the cooldown armed
+ * unconditionally, as before. `stopNightlyDbSyncScheduler` clears a pending
+ * retry timer along with the scheduler's own timers.
  */
 
 import { AttachmentBuilder, EmbedBuilder, type Client } from 'discord.js';
@@ -40,6 +64,8 @@ import { escapeFenceBreaks } from '../utils/fenceEscape.js';
 import { getOwnerClient } from '../utils/gatewayClients.js';
 import { createIntervalScheduler } from '@tzurot/common-types/utils/intervalScheduler';
 import { postOwnerChannelEmbed } from '../utils/ownerChannel.js';
+import { isGatewayUnreachedFailure } from '../utils/gatewayNotReady.js';
+import { createStartupRetry, STARTUP_RETRY_DELAY_MS } from '../utils/startupRetry.js';
 import {
   buildSyncReportText,
   buildSyncSummary,
@@ -75,11 +101,17 @@ const COOLDOWN_KEY = 'nightly-db-sync:cooldown';
  */
 const SCHEDULED_SYNC_OPTIONS = { dryRun: false, allowSchemaSkew: false } as const;
 
+/** A single sync-cycle invocation's trigger — decides both the hour gate and the not-ready retry eligibility. */
+type SyncTrigger = 'interval' | 'startup' | 'startup-retry';
+
+const startupRetry = createStartupRetry();
+
 const scheduler = createIntervalScheduler<[Client, Redis]>({
   intervalMs: TICK_INTERVAL_MS,
   startupDelayMs: STARTUP_DELAY_MS,
   logger,
-  run: (client, redis) => runNightlyDbSync(client, redis),
+  run: (client, redis) =>
+    runNightlyDbSync(client, redis, startupRetry.consume() ? 'startup' : 'interval'),
 });
 
 /**
@@ -102,12 +134,14 @@ export function startNightlyDbSyncScheduler(client: Client, redis: Redis): void 
     logger.info('Not a production environment — nightly db-sync scheduler disabled');
     return;
   }
+  startupRetry.arm();
   scheduler.start(client, redis);
 }
 
-/** Stop the scheduler (graceful shutdown). */
+/** Stop the scheduler (graceful shutdown). Also clears a pending startup retry. */
 export function stopNightlyDbSyncScheduler(): void {
   scheduler.stop();
+  startupRetry.reset();
 }
 
 /**
@@ -147,8 +181,16 @@ function buildNightlySyncFailureEmbed(reason: string): EmbedBuilder {
  * constants for keys the bag has not seeded yet. Returns false — never syncs —
  * when the bag cannot be read: an unknown config is not a licence to write to
  * both databases.
+ *
+ * `checkHour` is false only for the startup-run deploy-window retry: the
+ * startup run that scheduled it already passed the hour gate, so the day's
+ * sync was due. The retry lands 5 minutes later and can cross the hour
+ * boundary, and every later tick that day would then read as outside the
+ * configured hour — skipping the retry's hour check is what keeps the day
+ * from being lost to that timing accident. The enabled switch still applies
+ * either way.
  */
-async function shouldSyncThisTick(): Promise<boolean> {
+async function shouldSyncThisTick(checkHour: boolean): Promise<boolean> {
   const settings = await getOwnerClient().getSystemSettings();
   if (!settings.ok) {
     logger.warn(
@@ -165,6 +207,10 @@ async function shouldSyncThisTick(): Promise<boolean> {
     return false;
   }
 
+  if (!checkHour) {
+    return true;
+  }
+
   const hourUtc = bag.nightlySyncHourUtc ?? SYSTEM_SETTINGS_FALLBACKS.nightlySyncHourUtc;
   const currentHourUtc = new Date().getUTCHours();
   if (currentHourUtc !== hourUtc) {
@@ -175,13 +221,41 @@ async function shouldSyncThisTick(): Promise<boolean> {
   return true;
 }
 
+/**
+ * Releases the cooldown for the startup deploy-window retry. Returns false
+ * when the release itself fails — a scheduled retry would only skip on a
+ * cooldown that never got released anyway, so the caller treats that as an
+ * ordinary failure instead of retrying.
+ */
+async function releaseCooldownForStartupRetry(
+  redis: Redis,
+  kind: string,
+  status: number
+): Promise<boolean> {
+  try {
+    await redis.del(COOLDOWN_KEY);
+    return true;
+  } catch (delError) {
+    logger.warn(
+      { err: delError, kind, status },
+      'Could not release the cooldown for the startup retry — reporting the not-ready failure now instead'
+    );
+    return false;
+  }
+}
+
 /** Exported for tests — one full sync cycle. */
-export async function runNightlyDbSync(client: Client, redis: Redis): Promise<void> {
+export async function runNightlyDbSync(
+  client: Client,
+  redis: Redis,
+  trigger: SyncTrigger = 'interval'
+): Promise<void> {
   try {
     // Schedule gate BEFORE the cooldown: a tick outside the configured hour
     // must not arm the cooldown, or the first tick after boot would burn the
-    // day's single run at whatever time the deploy happened to land.
-    if (!(await shouldSyncThisTick())) {
+    // day's single run at whatever time the deploy happened to land. The
+    // startup-retry trigger skips the hour check — see shouldSyncThisTick.
+    if (!(await shouldSyncThisTick(trigger !== 'startup-retry'))) {
       return;
     }
 
@@ -196,6 +270,35 @@ export async function runNightlyDbSync(client: Client, redis: Redis): Promise<vo
     const result = await getOwnerClient().dbSync(SCHEDULED_SYNC_OPTIONS);
 
     if (!result.ok) {
+      if (trigger === 'startup' && isGatewayUnreachedFailure(result)) {
+        // Release the cooldown this same run just armed — the retry re-arms
+        // it on its own attempt, so a concurrent 15-minute tick sees the
+        // cooldown and skips instead of stacking a second sync (pinned by
+        // "a tick overlapping the retry skips on the cooldown"). If a stop
+        // lands while this call is still in flight, the release still
+        // happens and no retry re-arms it — intended, since the sync did not
+        // run and the next process start runs it normally (pinned by "a stop
+        // that lands while the startup dbSync call is still in flight wins —
+        // no retry arms after").
+        const cooldownReleased = await releaseCooldownForStartupRetry(
+          redis,
+          result.kind,
+          result.status
+        );
+        if (cooldownReleased) {
+          logger.warn(
+            {
+              kind: result.kind,
+              status: result.status,
+              error: result.error,
+              retryInMs: STARTUP_RETRY_DELAY_MS,
+            },
+            'Gateway not ready on the startup nightly sync — released the cooldown, retrying once before alerting'
+          );
+          startupRetry.schedule(() => runNightlyDbSync(client, redis, 'startup-retry'));
+          return;
+        }
+      }
       logger.error({ status: result.status, error: result.error }, 'Nightly db sync failed');
       await postOwnerChannelEmbed(
         client,
