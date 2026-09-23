@@ -750,5 +750,27 @@ describe('QuoteFormatter', () => {
         '<image filename="photo.png" type="image/png" source="sticker">a cartoon blob</image>'
       );
     });
+
+    it('carries the spoiler flag through to the built image', () => {
+      const spoilered = { ...image, isSpoiler: true };
+      const [built] = buildRenderableAttachments([spoilered], () => 'a cat');
+
+      expect(built.attachment).toMatchObject({ kind: 'image', spoiler: true });
+    });
+
+    it('renders spoiler="true" on the <image> element', () => {
+      const spoilered = { ...image, isSpoiler: true };
+      const [built] = buildRenderableAttachments([spoilered], () => 'a cat');
+
+      expect(renderAttachment(built.attachment)).toBe(
+        '<image filename="photo.png" type="image/png" spoiler="true">a cat</image>'
+      );
+    });
+
+    it('renders no spoiler attribute for an ordinary, non-spoilered image', () => {
+      const [built] = buildRenderableAttachments([image], () => 'a cat');
+
+      expect(renderAttachment(built.attachment)).not.toContain('spoiler');
+    });
   });
 });

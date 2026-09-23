@@ -18,6 +18,7 @@ import {
   neutralizeHeaderMarkers,
   imageHeaderLabel,
   imageSource,
+  imageSpoiler,
 } from '@tzurot/common-types/utils/attachmentProvenance';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { validateAIProvider } from '../utils/providerValidation.js';
@@ -135,6 +136,8 @@ function formatProcessedAttachmentEntry(a: ProcessedAttachment): string {
     // further out: the user shared a LINK and Discord generated the preview
     // image off it, so `[Image: …]` claims a deliberate upload that never
     // happened. Pinned by the `[Link preview: …]` cases in RAGUtils.test.ts.
+    // A spoilered plain upload renders `[Spoiler image: …]` instead, pinned
+    // by the spoiler case in the same file.
     const header = imageHeaderLabel(a.metadata);
     return `[${header}: ${name}]\n${neutralizeHeaderMarkers(a.description)}`;
   }
@@ -192,6 +195,7 @@ function buildImageDescriptionMap(
       filename: att.metadata.name ?? 'image',
       description: att.description,
       source: imageSource(att.metadata),
+      spoiler: imageSpoiler(att.metadata),
     });
     if (!map.has(msgId)) {
       map.set(msgId, existingList);

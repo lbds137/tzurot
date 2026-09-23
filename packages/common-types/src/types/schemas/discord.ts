@@ -89,6 +89,18 @@ export const attachmentMetadataSchema = z.object({
    */
   isEmbedPreview: z.boolean().optional(),
   /**
+   * True when the poster marked this plain upload as a spoiler (Discord's
+   * `IsSpoiler` attachment flag, or the `SPOILER_` filename prefix
+   * convention). Set by bot-client's `extractAttachments`.
+   *
+   * A render label only: it gates the `[Spoiler image: …]` header and the
+   * `spoiler="true"` attribute on `<image>` elements, and never changes what
+   * vision receives. Declared on the schema so it survives every Zod parse,
+   * including the persisted referenced-message rows that are re-read through
+   * `attachmentMetadataSchema`.
+   */
+  isSpoiler: z.boolean().optional(),
+  /**
    * Discord message ID this attachment came from (for inline image descriptions).
    * Optional because attachments in direct/triggering messages don't need source tracking.
    */

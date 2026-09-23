@@ -913,6 +913,49 @@ describe('AttachmentProcessor', () => {
         status: 'unprocessed',
       });
     });
+
+    it('carries spoiler: true through the preprocessed-hit arm', async () => {
+      // Twin of the link-preview preprocessed-hit case above: the spoiler flag
+      // is identity, not enrichment, and rides the same shared `identity`
+      // object `processImageAttachment` builds.
+      const result = await processAttachmentsParallel({
+        attachments: [
+          {
+            url: 'https://example.com/SPOILER_cat.png',
+            contentType: 'image/png',
+            name: 'SPOILER_cat.png',
+            size: 1000,
+            isSpoiler: true,
+          },
+        ],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+        preprocessedAttachments: [
+          {
+            type: AttachmentType.Image,
+            description: 'a cat',
+            originalUrl: 'https://example.com/SPOILER_cat.png',
+            metadata: {
+              url: 'https://example.com/SPOILER_cat.png',
+              name: 'SPOILER_cat.png',
+              contentType: 'image/png',
+              size: 1000,
+              isSpoiler: true,
+            },
+          },
+        ],
+      });
+
+      expect(result[0].attachment).toEqual({
+        kind: 'image',
+        filename: 'SPOILER_cat.png',
+        contentType: 'image/png',
+        spoiler: true,
+        description: 'a cat',
+      });
+      expect(mockDescribeImage).not.toHaveBeenCalled();
+    });
   });
 
   describe('requestId correlation', () => {

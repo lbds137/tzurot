@@ -1180,6 +1180,27 @@ describe('Conversation Utilities', () => {
       expect(result).not.toContain('source=');
     });
 
+    it('should carry spoiler provenance into a forwarded image attachment', () => {
+      const history: StructuredHistoryEntry[] = [
+        {
+          role: 'user',
+          content: '',
+          isForwarded: true,
+          personaName: 'Lila',
+          personaId: 'uuid-lila',
+          messageMetadata: {
+            imageDescriptions: [
+              { filename: 'SPOILER_cat.png', description: 'a cat', spoiler: true },
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('spoiler="true"');
+    });
+
     it('should include embeds in quoted messages', () => {
       const referencedMessage: StoredReferencedMessage = {
         discordMessageId: '123456',

@@ -282,6 +282,39 @@ describe('buildStoredAttachments', () => {
     ]);
   });
 
+  it('carries spoiler="true" through for a stored spoilered image', () => {
+    // Twin of the link-preview case above: the spoiler flag is a producer flag
+    // on the stored `attachments` row, same as the live path.
+    const rendered = buildStoredAttachments({
+      ...base,
+      attachments: [
+        {
+          url: 'https://cdn/SPOILER_cat.png',
+          contentType: 'image/png',
+          name: 'SPOILER_cat.png',
+          isSpoiler: true,
+        },
+      ],
+      attachmentEnrichment: [
+        {
+          url: 'https://cdn/SPOILER_cat.png',
+          kind: 'image',
+          description: 'a cat',
+        },
+      ],
+    });
+
+    expect(rendered).toEqual([
+      {
+        kind: 'image',
+        filename: 'SPOILER_cat.png',
+        contentType: 'image/png',
+        spoiler: true,
+        description: 'a cat',
+      },
+    ]);
+  });
+
   it('leaves a non-assistant reference unchanged (authorRole absent, N/A case)', () => {
     const rendered = buildStoredAttachments({
       ...base,
