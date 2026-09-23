@@ -31,6 +31,12 @@ The Steam Deck caps the drain at one gate-running unit at a time (`reference_ste
 - (d) How does the remote agent's report and branch come back to the parent? Cloud sessions cannot SendMessage; an Agent-spawned remote subagent should return its result to the parent.
 - (e) Budget: parallel cloud units draw from the same 5h and weekly limits, so parallelism raises the burn rate. Remote orchestrators on Opus bill the non-binding bucket; the local Fable driver stays single.
 
+## Pilot result so far (2026-09-23, TASK-1059)
+
+- **(a) FAILED silently.** An Agent call with `isolation: "remote"` launched without error. The run landed in a LOCAL worktree (`.claude/worktrees/agent-<id>`, registered in `git worktree list` on the pilot branch), and its processes (turbo, vitest, tsc) ran on the Deck. The completion notification's `worktreePath` field was the only tell; nothing at launch said it fell back. It ran full-repo gates concurrently with a local pre-push hook: the concurrency the one-gate rule forbids. The driver told it mid-run to drop to package-scoped gates.
+- **Lesson for any retry:** verify placement before trusting it. The remote agent's first action should report `hostname`, `nproc`, `free -g`, and whether its cwd is under `/home/deck`. The spec should say: if local, stop and report rather than run gates.
+- **Next:** find out whether remote isolation needs enabling on the account (web/cloud setup, the gating the tool description mentions), rather than retrying blind.
+
 ## Pilot
 
 One ordinary `state:ready` backlog unit, dispatched remotely, with the local gates skipped:
