@@ -19,49 +19,39 @@
  */
 
 import { type Response, type RequestHandler } from 'express';
-import { z } from 'zod';
 import {
   LoadPersonalityInternalResponseSchema,
   type LoadPersonalityInternalResponse,
 } from '@tzurot/common-types/schemas/api/internal';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { PersonalityService } from '@tzurot/identity';
-import { asyncHandler } from '../../utils/asyncHandler.js';
+import { internalRoutes } from '@tzurot/clients';
+import { withManifestInput } from '../../utils/manifestInput.js';
 import { sendContractSuccess } from '../../utils/responseHelpers.js';
-import { sendZodError } from '../../utils/zodHelpers.js';
 import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('internal-personality-load');
-
-const QuerySchema = z.object({
-  // Names, slugs, aliases, or UUIDs — cap mirrors the DB varchar(255) columns.
-  nameOrId: z.string().min(1).max(255),
-  // Discord user ID for access control; omitted = internal operation (no gate).
-  userId: z.string().max(32).optional(),
-});
 
 /** GET /api/internal/personality/load — routing-read personality resolution. */
 export const handleLoadPersonalityInternal = (deps: RouteDeps): RequestHandler => {
   const personalityService = new PersonalityService(deps.prisma);
 
-  return asyncHandler(async (req, res: Response) => {
-    const parseResult = QuerySchema.safeParse(req.query);
-    if (!parseResult.success) {
-      sendZodError(res, parseResult.error);
-      return;
+  return withManifestInput(
+    internalRoutes.loadPersonalityInternal,
+    async (_req, res: Response, { query }) => {
+      const { nameOrId, userId } = query;
+
+      const personality = await personalityService.loadPersonality(nameOrId, userId);
+
+      // nameOrId is a personality name/slug, not user PII — logged so analysis
+      // can correlate miss patterns for the loader's negative-caching tier.
+      logger.debug(
+        { nameOrId, found: personality !== null, hasUserId: userId !== undefined },
+        'Personality load'
+      );
+      sendContractSuccess(res, LoadPersonalityInternalResponseSchema, {
+        personality,
+      } satisfies LoadPersonalityInternalResponse);
     }
-    const { nameOrId, userId } = parseResult.data;
-
-    const personality = await personalityService.loadPersonality(nameOrId, userId);
-
-    // nameOrId is a personality name/slug, not user PII — logged so analysis
-    // can correlate miss patterns for the loader's negative-caching tier.
-    logger.debug(
-      { nameOrId, found: personality !== null, hasUserId: userId !== undefined },
-      'Personality load'
-    );
-    sendContractSuccess(res, LoadPersonalityInternalResponseSchema, {
-      personality,
-    } satisfies LoadPersonalityInternalResponse);
-  });
+  );
 };

@@ -34,7 +34,6 @@ import { type Response, type RequestHandler } from 'express';
 import {
   ExportSmokeStartRequestSchema,
   ExportSmokeStartResponseSchema,
-  ExportSmokeStatusRequestSchema,
   ExportSmokeStatusResponseSchema,
 } from '@tzurot/common-types/schemas/api/internal';
 import { AccountExportJobStatusSchema } from '@tzurot/common-types/schemas/api/account';
@@ -45,6 +44,8 @@ import {
 } from '@tzurot/common-types/types/account-export';
 import { JobType, JOB_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { internalRoutes } from '@tzurot/clients';
+import { withManifestInput } from '../../utils/manifestInput.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendContractSuccess } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
@@ -297,13 +298,7 @@ export const handleStartExportSmoke = (deps: RouteDeps): RequestHandler =>
 
 /** GET /api/internal/export-smoke/status — poll the smoke's export_jobs row. */
 export const handleGetExportSmokeStatus = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(async (req, res: Response) => {
-    const parsed = ExportSmokeStatusRequestSchema.safeParse(req.query);
-    if (!parsed.success) {
-      sendZodError(res, parsed.error);
-      return;
-    }
-
+  withManifestInput(internalRoutes.getExportSmokeStatus, async (_req, res: Response, { query }) => {
     // Scoped to the SENTINEL's own row, not just id + sourceService: account
     // export-job ids are deterministic on userId, so an id-only lookup would
     // let any internal caller resolve an arbitrary user's completed-export
@@ -311,7 +306,7 @@ export const handleGetExportSmokeStatus = (deps: RouteDeps): RequestHandler =>
     // sentinel job, so the narrow query costs it nothing.
     const sentinelId = await ensureOrphanSentinel(deps.prisma);
     const job = await deps.prisma.exportJob.findFirst({
-      where: { id: parsed.data.jobId, userId: sentinelId, sourceService: ACCOUNT_EXPORT_SOURCE },
+      where: { id: query.jobId, userId: sentinelId, sourceService: ACCOUNT_EXPORT_SOURCE },
       select: { status: true, downloadToken: true },
     });
 

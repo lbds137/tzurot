@@ -66,9 +66,10 @@ describe('GET /api/internal/models', () => {
     expect(getFilteredModels).toHaveBeenCalledWith(expect.objectContaining({ limit: 1000 }));
   });
 
-  it('falls back to the default limit for a non-numeric limit', async () => {
-    await request(app).get('/api/internal/models?limit=abc');
-    expect(getFilteredModels).toHaveBeenCalledWith(expect.objectContaining({ limit: 25 }));
+  it('rejects a non-numeric limit with 400', async () => {
+    const res = await request(app).get('/api/internal/models?limit=abc');
+    expect(res.status).toBe(400);
+    expect(getFilteredModels).not.toHaveBeenCalled();
   });
 
   it('rejects an invalid modality', async () => {

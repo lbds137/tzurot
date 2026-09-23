@@ -10,7 +10,7 @@
  * fix; Layer 2 (lazy-on-interaction) lives in bot-client/services/DMCacheWarmer.
  */
 
-import { type Request, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   RecentUsersResponseSchema,
@@ -18,9 +18,9 @@ import {
 } from '@tzurot/common-types/schemas/api/internal';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getOutboundDmAllowlist } from '@tzurot/common-types/utils/outboundDmAllowlist';
-import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendContractSuccess, sendError } from '../../utils/responseHelpers.js';
-import { ErrorResponses } from '../../utils/errorResponses.js';
+import { internalRoutes } from '@tzurot/clients';
+import { withManifestInput } from '../../utils/manifestInput.js';
+import { sendContractSuccess } from '../../utils/responseHelpers.js';
 import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('internal-users-recent');
@@ -36,9 +36,6 @@ const MAX_RESULTS = 1000;
 /** Default lookback window in days when no sinceDays query param provided. */
 const DEFAULT_SINCE_DAYS = 30;
 
-/** Hard cap on sinceDays to prevent abuse via crafted query params. */
-const MAX_SINCE_DAYS = 365;
-
 interface RawRow {
   discord_id: string;
 }
@@ -46,22 +43,8 @@ interface RawRow {
 /** GET /api/internal/users/recent — Discord IDs of recently-active users. */
 export const handleRecentUsers = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
-  return asyncHandler(async (req: Request, res: Response) => {
-    // Parse and validate sinceDays query param. Number() + Number.isInteger()
-    // is strictly stricter than parseInt(): rejects partial-numeric strings
-    // like "30abc" (parseInt would silently accept as 30) and float values.
-    const rawSinceDays = req.query.sinceDays;
-    let sinceDays = DEFAULT_SINCE_DAYS;
-    if (typeof rawSinceDays === 'string') {
-      const parsed = Number(rawSinceDays);
-      if (!Number.isInteger(parsed) || parsed <= 0 || parsed > MAX_SINCE_DAYS) {
-        return sendError(
-          res,
-          ErrorResponses.validationError(`sinceDays must be a positive integer ≤ ${MAX_SINCE_DAYS}`)
-        );
-      }
-      sinceDays = parsed;
-    }
+  return withManifestInput(internalRoutes.recentUsers, async (_req, res: Response, { query }) => {
+    const sinceDays = query.sinceDays ?? DEFAULT_SINCE_DAYS;
 
     // INNER JOIN avoids a full usage_logs scan that the IN-subquery shape can
     // produce on some query plans. GROUP BY collapses multi-request users.

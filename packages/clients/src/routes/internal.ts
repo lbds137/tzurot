@@ -14,6 +14,7 @@
  */
 
 import { z } from 'zod';
+import { MODEL_MODALITIES } from '@tzurot/common-types/constants/ai';
 import { TIMEOUTS, VALIDATION_TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { DiagnosticUpdateSchema } from '@tzurot/common-types/schemas/api/admin';
 import {
@@ -429,7 +430,8 @@ const baseInternalRoutes = {
     method: 'get',
     path: '/users/recent',
     id: 'recentUsers',
-    query: { sinceDays: z.coerce.number().int().positive().optional() },
+    // Capped at 365 days against crafted lookbacks; the DM prewarmer sends 30.
+    query: { sinceDays: z.coerce.number().int().positive().max(365).optional() },
     output: RecentUsersResponseSchema,
     serviceOnly: true,
     meta: { safeRead: true },
@@ -463,8 +465,8 @@ const baseInternalRoutes = {
     path: '/models',
     id: 'getModels',
     query: {
-      inputModality: z.string().optional(),
-      outputModality: z.string().optional(),
+      inputModality: z.enum(MODEL_MODALITIES).optional(),
+      outputModality: z.enum(MODEL_MODALITIES).optional(),
       search: z.string().optional(),
       limit: z.coerce.number().int().positive().optional(),
     },

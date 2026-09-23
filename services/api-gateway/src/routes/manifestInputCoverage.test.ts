@@ -84,23 +84,14 @@ describe('manifest query-schema enforcement coverage (drift guard)', () => {
 
   /**
    * Routes whose manifest `query` schema is not yet enforced by
-   * `withManifestInput`. This is the starting set from when the guard
-   * gained the internal and admin audiences (it previously covered `user`
-   * only) — a route leaves this set only by being wrapped, the "pending"
-   * test below fails the moment that happens, forcing the removal. Never
-   * add an id here for a newly-declared query schema; a new route ships
+   * `withManifestInput`. Empty: every query-declaring route across all three
+   * audiences is now wrapped. A route leaves this set only by being wrapped,
+   * the "pending" test below fails the moment that happens, forcing the
+   * removal — and it never regains an entry once emptied. Never add an id
+   * here for a newly-declared query schema; a new route ships
    * already-enforced.
    */
-  const PENDING = new Set<string>([
-    'loadPersonalityInternal',
-    'recentUsers',
-    'getModels',
-    'getExportSmokeStatus',
-    'listDenylistEntries',
-    'setGlobalLlmConfigDefault',
-    'setGlobalLlmConfigFreeDefault',
-    'getAdminUsageStats',
-  ]);
+  const PENDING = new Set<string>([]);
 
   it('positive control: the derived guarded set is non-trivial and spans all three audiences', () => {
     const ids = guardedRoutes.map(route => route.id);
