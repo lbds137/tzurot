@@ -17,7 +17,6 @@ import {
   ClearHistorySchema,
   UndoHistorySchema,
   HardDeleteHistorySchema,
-  HistoryStatsQuerySchema,
 } from '@tzurot/common-types/schemas/api/history';
 import { RECENT_DAYS_DIGEST_STATUS } from '@tzurot/common-types/constants/recentDaysDigest';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
@@ -28,7 +27,9 @@ import {
   ConversationHistoryService,
   ConversationRetentionService,
 } from '@tzurot/conversation-history';
+import { userRoutes } from '@tzurot/clients';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { withManifestInput } from '../../utils/manifestInput.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
@@ -279,77 +280,75 @@ function createUndoHandler(deps: HistoryHandlerDeps): RouteHandler {
  * Handle GET /api/user/history/stats
  * Get conversation history statistics
  */
-function createStatsHandler(deps: HistoryHandlerDeps): RouteHandler {
+function createStatsHandler(deps: HistoryHandlerDeps): RequestHandler {
   const { prisma, conversationHistoryService } = deps;
 
-  return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const discordUserId = req.userId;
+  return withManifestInput(
+    userRoutes.getHistoryStats,
+    async (req: AuthenticatedRequest, res: Response, { query }) => {
+      const discordUserId = req.userId;
 
-    const parseResult = HistoryStatsQuerySchema.safeParse(req.query);
-    if (!parseResult.success) {
-      return sendZodError(res, parseResult.error);
-    }
+      const { personalitySlug, channelId, personaId: explicitPersonaId } = query;
 
-    const { personalitySlug, channelId, personaId: explicitPersonaId } = parseResult.data;
-
-    const context = await resolveHistoryContext(
-      prisma,
-      discordUserId,
-      personalitySlug,
-      explicitPersonaId
-    );
-    if (!context) {
-      return sendError(res, ErrorResponses.notFound(CONTEXT_NOT_FOUND));
-    }
-
-    const { userId, personalityId, personaId, personaName } = context;
-
-    const historyConfig = await prisma.userPersonaHistoryConfig.findUnique({
-      where: { userId_personalityId_personaId: { userId, personalityId, personaId } },
-      select: { lastContextReset: true, previousContextReset: true },
-    });
-
-    const epoch = historyConfig?.lastContextReset ?? undefined;
-
-    const [visibleStats, totalStats] = await Promise.all([
-      conversationHistoryService.getHistoryStats(channelId, personalityId, epoch),
-      conversationHistoryService.getHistoryStats(channelId, personalityId, undefined),
-    ]);
-
-    const hiddenMessages = totalStats.totalMessages - visibleStats.totalMessages;
-
-    logger.debug(
-      { discordUserId, personalitySlug, channelId, personaId: idPrefix(personaId) },
-      'Stats retrieved'
-    );
-
-    sendCustomSuccess(
-      res,
-      {
-        channelId,
+      const context = await resolveHistoryContext(
+        prisma,
+        discordUserId,
         personalitySlug,
-        personaId,
-        personaName,
-        visible: {
-          totalMessages: visibleStats.totalMessages,
-          userMessages: visibleStats.userMessages,
-          assistantMessages: visibleStats.assistantMessages,
-          oldestMessage: visibleStats.oldestMessage?.toISOString() ?? null,
-          newestMessage: visibleStats.newestMessage?.toISOString() ?? null,
+        explicitPersonaId
+      );
+      if (!context) {
+        return sendError(res, ErrorResponses.notFound(CONTEXT_NOT_FOUND));
+      }
+
+      const { userId, personalityId, personaId, personaName } = context;
+
+      const historyConfig = await prisma.userPersonaHistoryConfig.findUnique({
+        where: { userId_personalityId_personaId: { userId, personalityId, personaId } },
+        select: { lastContextReset: true, previousContextReset: true },
+      });
+
+      const epoch = historyConfig?.lastContextReset ?? undefined;
+
+      const [visibleStats, totalStats] = await Promise.all([
+        conversationHistoryService.getHistoryStats(channelId, personalityId, epoch),
+        conversationHistoryService.getHistoryStats(channelId, personalityId, undefined),
+      ]);
+
+      const hiddenMessages = totalStats.totalMessages - visibleStats.totalMessages;
+
+      logger.debug(
+        { discordUserId, personalitySlug, channelId, personaId: idPrefix(personaId) },
+        'Stats retrieved'
+      );
+
+      sendCustomSuccess(
+        res,
+        {
+          channelId,
+          personalitySlug,
+          personaId,
+          personaName,
+          visible: {
+            totalMessages: visibleStats.totalMessages,
+            userMessages: visibleStats.userMessages,
+            assistantMessages: visibleStats.assistantMessages,
+            oldestMessage: visibleStats.oldestMessage?.toISOString() ?? null,
+            newestMessage: visibleStats.newestMessage?.toISOString() ?? null,
+          },
+          hidden: { count: hiddenMessages },
+          total: {
+            totalMessages: totalStats.totalMessages,
+            oldestMessage: totalStats.oldestMessage?.toISOString() ?? null,
+          },
+          contextEpoch: epoch?.toISOString() ?? null,
+          canUndo:
+            historyConfig?.previousContextReset !== null &&
+            historyConfig?.previousContextReset !== undefined,
         },
-        hidden: { count: hiddenMessages },
-        total: {
-          totalMessages: totalStats.totalMessages,
-          oldestMessage: totalStats.oldestMessage?.toISOString() ?? null,
-        },
-        contextEpoch: epoch?.toISOString() ?? null,
-        canUndo:
-          historyConfig?.previousContextReset !== null &&
-          historyConfig?.previousContextReset !== undefined,
-      },
-      StatusCodes.OK
-    );
-  });
+        StatusCodes.OK
+      );
+    }
+  );
 }
 
 /**

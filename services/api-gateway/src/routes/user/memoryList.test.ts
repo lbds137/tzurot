@@ -60,6 +60,7 @@ function deps(): RouteDeps {
 function createMockReqRes(query: Record<string, string> = {}) {
   const req = {
     query,
+    params: {},
     userId: 'discord-user-123',
     provisionedUserId: 'user-uuid-123',
     provisionedDefaultPersonaId: 'persona-uuid-default',
@@ -240,6 +241,18 @@ describe('handleList', () => {
     await handleList(deps())(req, res, () => undefined);
 
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ hasMore: true, total: 20 }));
+  });
+
+  it('rejects a repeated personalityId query key with a 400', async () => {
+    const { req, res } = createMockReqRes();
+    // Express parses ?personalityId=a&personalityId=b as an array; must fail validation.
+    (req.query as Record<string, unknown>).personalityId = ['personality-a', 'personality-b'];
+
+    await handleList(deps())(req, res, () => undefined);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(mockGetDefaultPersonaId).not.toHaveBeenCalled();
+    expect(mockPrisma.memory.findMany).not.toHaveBeenCalled();
   });
 
   it('should return early with empty list when user has no persona', async () => {

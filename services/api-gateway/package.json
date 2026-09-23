@@ -23,6 +23,7 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
     "@tzurot/cache-invalidation": "workspace:*",
+    "@tzurot/clients": "workspace:*",
     "@tzurot/common-types": "workspace:*",
     "@tzurot/config-resolver": "workspace:*",
     "@tzurot/conversation-history": "workspace:*",
@@ -44,7 +45,6 @@
     "@types/node": "^26.6.1",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
-    "@tzurot/clients": "workspace:*",
     "@tzurot/test-utils": "workspace:*",
     "fast-check": "^4.10.1",
     "supertest": "^7.2.2"

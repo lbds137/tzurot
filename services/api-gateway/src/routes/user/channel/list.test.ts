@@ -161,6 +161,18 @@ describe('GET /api/user/channel/list', () => {
     );
   });
 
+  it('rejects a repeated guildId query key with a 400', async () => {
+    const handler = getListHandler();
+    const { req, res } = createMockReqRes();
+    // Express parses ?guildId=a&guildId=b as an array; must fail validation.
+    (req.query as Record<string, unknown>).guildId = ['111111111111111111', '222222222222222222'];
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(mockPrisma.channelSettings.findMany).not.toHaveBeenCalled();
+  });
+
   it('should only return channels with activated personalities', async () => {
     mockPrisma.channelSettings.findMany.mockResolvedValue([]);
 

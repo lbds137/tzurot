@@ -19,6 +19,7 @@ import { StatusCodes } from 'http-status-codes';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { IncognitoForgetRequestSchema } from '@tzurot/common-types/types/memory-modes';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { userRoutes } from '@tzurot/clients';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -29,14 +30,19 @@ import { createMemoryModeHandlers, type MemoryModeDeps } from './memoryModeHandl
 
 const logger = createLogger('user-memory-incognito');
 
-const incognitoHandlers = createMemoryModeHandlers('incognito', {
-  alreadyActive: name =>
-    `Incognito mode is already active for ${name}. Disable it first to change duration.`,
-  enabled: (name, durationLabel) =>
-    `👻 Incognito mode enabled for ${name} (${durationLabel}). New memories will NOT be saved.`,
-  notActive: name => `Incognito mode was not active for ${name}.`,
-  disabled: name => `👻 Incognito mode disabled for ${name}. Memories will now be saved normally.`,
-});
+const incognitoHandlers = createMemoryModeHandlers(
+  'incognito',
+  {
+    alreadyActive: name =>
+      `Incognito mode is already active for ${name}. Disable it first to change duration.`,
+    enabled: (name, durationLabel) =>
+      `👻 Incognito mode enabled for ${name} (${durationLabel}). New memories will NOT be saved.`,
+    notActive: name => `Incognito mode was not active for ${name}.`,
+    disabled: name =>
+      `👻 Incognito mode disabled for ${name}. Memories will now be saved normally.`,
+  },
+  userRoutes.getIncognitoStatus
+);
 
 /**
  * Handler for POST /api/user/memory/incognito/forget

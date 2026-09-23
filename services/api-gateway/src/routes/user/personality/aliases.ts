@@ -48,7 +48,9 @@ import {
 } from '@tzurot/common-types/utils/deterministicUuid';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { userRoutes } from '@tzurot/clients';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
+import { withManifestInput } from '../../../utils/manifestInput.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendContractSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
@@ -317,12 +319,12 @@ function createRemoveHandler(
   prisma: PrismaClient,
   cacheInvalidationService?: CacheInvalidationService
 ) {
-  return async (req: ProvisionedRequest, res: Response) => {
+  return async (req: ProvisionedRequest, res: Response, scopeQuery: unknown) => {
     // ?scope= defaults to 'user': removing your own alias is the common
     // case; global removal is the bot owner's explicit act. The RAW query
     // value goes into the parse so malformed shapes (e.g. an array from
     // ?scope=a&scope=b) fail loudly as 400 instead of silently defaulting.
-    const scopeParse = AliasScopeSchema.default('user').safeParse(req.query.scope);
+    const scopeParse = AliasScopeSchema.default('user').safeParse(scopeQuery);
     if (!scopeParse.success) {
       return sendZodError(res, scopeParse.error);
     }
@@ -441,7 +443,12 @@ export const handleListPersonalityAliases = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createListHandler(deps.prisma));
 export const handleAddPersonalityAlias = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createAddHandler(deps.prisma, deps.cacheInvalidationService));
-export const handleRemovePersonalityAlias = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(createRemoveHandler(deps.prisma, deps.cacheInvalidationService));
+export const handleRemovePersonalityAlias = (deps: RouteDeps): RequestHandler => {
+  const removeHandler = createRemoveHandler(deps.prisma, deps.cacheInvalidationService);
+  return withManifestInput(
+    userRoutes.removePersonalityAlias,
+    (req: ProvisionedRequest, res: Response, { query }) => removeHandler(req, res, query.scope)
+  );
+};
 export const handleListMyAliases = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createMyAliasesHandler(deps.prisma));

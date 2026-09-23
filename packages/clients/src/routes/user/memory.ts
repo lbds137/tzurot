@@ -54,7 +54,7 @@ export const userMemoryRoutes = {
     method: 'get',
     path: '/memory/stats',
     id: 'getStats',
-    query: { personalityId: z.string() },
+    query: { personalityId: z.string().min(1) },
     output: MemoryStatsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },

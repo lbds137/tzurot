@@ -13,11 +13,11 @@ import { type RequestHandler, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { idPrefix } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { userRoutes } from '@tzurot/clients';
 import type { RouteDeps } from '../routeDeps.js';
 import { MemoryModeSessionManager } from '../../services/MemoryModeSessionManager.js';
-import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
-import { ErrorResponses } from '../../utils/errorResponses.js';
+import { withManifestInput } from '../../utils/manifestInput.js';
+import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import type { ProvisionedRequest } from '../../types.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { getDefaultPersonaId, getPersonalityById } from './memoryHelpers.js';
@@ -28,92 +28,90 @@ const logger = createLogger('user-memory');
 
 export const handleGetStats = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
-  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-    const discordUserId = req.userId;
-    const { personalityId } = req.query as { personalityId?: string };
+  return withManifestInput(
+    userRoutes.getStats,
+    async (req: ProvisionedRequest, res: Response, { query }) => {
+      const discordUserId = req.userId;
+      const { personalityId } = query;
 
-    if (personalityId === undefined || personalityId === '') {
-      sendError(res, ErrorResponses.validationError('personalityId query parameter is required'));
-      return;
-    }
+      const userId = resolveProvisionedUserId(req);
 
-    const userId = resolveProvisionedUserId(req);
+      const personality = await getPersonalityById(prisma, personalityId, res);
+      if (!personality) {
+        return;
+      }
 
-    const personality = await getPersonalityById(prisma, personalityId, res);
-    if (!personality) {
-      return;
-    }
+      const config = await prisma.userPersonalityConfig.findUnique({
+        where: { userId_personalityId: { userId, personalityId } },
+        select: { personaId: true },
+      });
 
-    const config = await prisma.userPersonalityConfig.findUnique({
-      where: { userId_personalityId: { userId, personalityId } },
-      select: { personaId: true },
-    });
+      // Fresh mode is a Redis session (specific-or-global); without Redis the
+      // honest answer for a stats display is "not active".
+      const freshModeEnabled =
+        deps.redis !== undefined
+          ? await new MemoryModeSessionManager(deps.redis, 'fresh').isActive(
+              discordUserId,
+              personalityId
+            )
+          : false;
 
-    // Fresh mode is a Redis session (specific-or-global); without Redis the
-    // honest answer for a stats display is "not active".
-    const freshModeEnabled =
-      deps.redis !== undefined
-        ? await new MemoryModeSessionManager(deps.redis, 'fresh').isActive(
-            discordUserId,
-            personalityId
-          )
-        : false;
+      const personaId = config?.personaId ?? (await getDefaultPersonaId(prisma, userId));
 
-    const personaId = config?.personaId ?? (await getDefaultPersonaId(prisma, userId));
+      if (personaId === null || personaId === undefined) {
+        sendCustomSuccess(
+          res,
+          {
+            personalityId,
+            personalityName: personality.name,
+            personaId: null,
+            totalCount: 0,
+            lockedCount: 0,
+            oldestMemory: null,
+            newestMemory: null,
+            freshModeEnabled,
+          },
+          StatusCodes.OK
+        );
+        return;
+      }
 
-    if (personaId === null || personaId === undefined) {
+      const [totalCount, lockedCount, oldestMemory, newestMemory] = await Promise.all([
+        prisma.memory.count({ where: { personaId, personalityId, visibility: 'normal' } }),
+        prisma.memory.count({
+          where: { personaId, personalityId, visibility: 'normal', isLocked: true },
+        }),
+        prisma.memory.findFirst({
+          where: { personaId, personalityId, visibility: 'normal' },
+          orderBy: { createdAt: 'asc' },
+          select: { createdAt: true },
+        }),
+        prisma.memory.findFirst({
+          where: { personaId, personalityId, visibility: 'normal' },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        }),
+      ]);
+
+      logger.debug(
+        { discordUserId, personalityId, personaId: idPrefix(personaId), totalCount },
+        'Stats retrieved'
+      );
+
       sendCustomSuccess(
         res,
         {
           personalityId,
           personalityName: personality.name,
-          personaId: null,
-          totalCount: 0,
-          lockedCount: 0,
-          oldestMemory: null,
-          newestMemory: null,
+          personaId,
+          totalCount,
+          lockedCount,
+          oldestMemory: oldestMemory?.createdAt?.toISOString() ?? null,
+          newestMemory: newestMemory?.createdAt?.toISOString() ?? null,
           freshModeEnabled,
         },
         StatusCodes.OK
       );
-      return;
     }
-
-    const [totalCount, lockedCount, oldestMemory, newestMemory] = await Promise.all([
-      prisma.memory.count({ where: { personaId, personalityId, visibility: 'normal' } }),
-      prisma.memory.count({
-        where: { personaId, personalityId, visibility: 'normal', isLocked: true },
-      }),
-      prisma.memory.findFirst({
-        where: { personaId, personalityId, visibility: 'normal' },
-        orderBy: { createdAt: 'asc' },
-        select: { createdAt: true },
-      }),
-      prisma.memory.findFirst({
-        where: { personaId, personalityId, visibility: 'normal' },
-        orderBy: { createdAt: 'desc' },
-        select: { createdAt: true },
-      }),
-    ]);
-
-    logger.debug(
-      { discordUserId, personalityId, personaId: idPrefix(personaId), totalCount },
-      'Stats retrieved'
-    );
-
-    sendCustomSuccess(
-      res,
-      {
-        personalityId,
-        personalityName: personality.name,
-        personaId,
-        totalCount,
-        lockedCount,
-        oldestMemory: oldestMemory?.createdAt?.toISOString() ?? null,
-        newestMemory: newestMemory?.createdAt?.toISOString() ?? null,
-        freshModeEnabled,
-      },
-      StatusCodes.OK
-    );
-  });
+  );
 };

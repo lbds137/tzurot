@@ -16,7 +16,8 @@ import {
   ClearPersonalityDefaultConfigResponseSchema,
 } from '@tzurot/common-types/schemas/api/personalityDefaultConfig';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { asyncHandler } from '../../../utils/asyncHandler.js';
+import { userRoutes } from '@tzurot/clients';
+import { withManifestInput } from '../../../utils/manifestInput.js';
 import { sendContractSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
@@ -39,7 +40,8 @@ const logger = createLogger('user-personality-default-config');
 async function resolveSlotAndOwnedPersonality(
   prisma: PrismaClient,
   req: ProvisionedRequest,
-  res: Response
+  res: Response,
+  query: unknown
 ): Promise<{ slot: ModelSlot; personality: { id: string; ownerId: string } } | null> {
   const slug = getParam(req.params.slug);
   if (slug === undefined || slug === '') {
@@ -47,7 +49,7 @@ async function resolveSlotAndOwnedPersonality(
     return null;
   }
 
-  const slot = parseModelSlotQuery(res, req.query);
+  const slot = parseModelSlotQuery(res, query);
   if (slot === null) {
     return null;
   }
@@ -101,94 +103,100 @@ async function invalidateDefaultConfigCaches(
 /** PUT /api/user/personality/:slug/default-config — set the slot's default config. */
 export const handleSetPersonalityDefaultConfig = (deps: RouteDeps): RequestHandler => {
   const { prisma, modelCache, cacheInvalidationService, llmConfigCacheInvalidation } = deps;
-  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-    const discordUserId = req.userId;
-    const resolved = await resolveSlotAndOwnedPersonality(prisma, req, res);
-    if (resolved === null) {
-      return;
-    }
-    const { slot, personality } = resolved;
+  return withManifestInput(
+    userRoutes.setPersonalityDefaultConfig,
+    async (req: ProvisionedRequest, res: Response, { query }) => {
+      const discordUserId = req.userId;
+      const resolved = await resolveSlotAndOwnedPersonality(prisma, req, res, query);
+      if (resolved === null) {
+        return;
+      }
+      const { slot, personality } = resolved;
 
-    const parseResult = SetPersonalityDefaultConfigRequestSchema.safeParse(req.body);
-    if (!parseResult.success) {
-      return sendZodError(res, parseResult.error);
-    }
-    const { configId } = parseResult.data;
+      const parseResult = SetPersonalityDefaultConfigRequestSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return sendZodError(res, parseResult.error);
+      }
+      const { configId } = parseResult.data;
 
-    const userId = resolveProvisionedUserId(req);
-    const llmConfig = await verifyConfigAccess(prisma, configId, userId);
-    if (llmConfig === null) {
-      return sendError(res, ErrorResponses.notFound('Config'));
-    }
+      const userId = resolveProvisionedUserId(req);
+      const llmConfig = await verifyConfigAccess(prisma, configId, userId);
+      if (llmConfig === null) {
+        return sendError(res, ErrorResponses.notFound('Config'));
+      }
 
-    const isVision = slot === 'vision';
-    if (isVision && !(await ensureVisionCapableModel(res, modelCache, llmConfig.model))) {
-      return;
-    }
+      const isVision = slot === 'vision';
+      if (isVision && !(await ensureVisionCapableModel(res, modelCache, llmConfig.model))) {
+        return;
+      }
 
-    if (isVision) {
-      await prisma.personalityVisionDefaultConfig.upsert({
-        where: { personalityId: personality.id },
-        create: { personalityId: personality.id, llmConfigId: configId },
-        update: { llmConfigId: configId },
+      if (isVision) {
+        await prisma.personalityVisionDefaultConfig.upsert({
+          where: { personalityId: personality.id },
+          create: { personalityId: personality.id, llmConfigId: configId },
+          update: { llmConfigId: configId },
+        });
+      } else {
+        await prisma.personalityDefaultConfig.upsert({
+          where: { personalityId: personality.id },
+          create: { personalityId: personality.id, llmConfigId: configId },
+          update: { llmConfigId: configId },
+        });
+      }
+
+      await invalidateDefaultConfigCaches(
+        { cacheInvalidationService, llmConfigCacheInvalidation },
+        personality.id
+      );
+
+      logger.info(
+        { personalityId: personality.id, slot, configId, discordUserId },
+        'Set personality default config'
+      );
+
+      sendContractSuccess(res, SetPersonalityDefaultConfigResponseSchema, {
+        slot,
+        config: { id: llmConfig.id, name: llmConfig.name, model: llmConfig.model },
       });
-    } else {
-      await prisma.personalityDefaultConfig.upsert({
-        where: { personalityId: personality.id },
-        create: { personalityId: personality.id, llmConfigId: configId },
-        update: { llmConfigId: configId },
-      });
     }
-
-    await invalidateDefaultConfigCaches(
-      { cacheInvalidationService, llmConfigCacheInvalidation },
-      personality.id
-    );
-
-    logger.info(
-      { personalityId: personality.id, slot, configId, discordUserId },
-      'Set personality default config'
-    );
-
-    sendContractSuccess(res, SetPersonalityDefaultConfigResponseSchema, {
-      slot,
-      config: { id: llmConfig.id, name: llmConfig.name, model: llmConfig.model },
-    });
-  });
+  );
 };
 
 /** DELETE /api/user/personality/:slug/default-config — clear the slot's default config. */
 export const handleClearPersonalityDefaultConfig = (deps: RouteDeps): RequestHandler => {
   const { prisma, cacheInvalidationService, llmConfigCacheInvalidation } = deps;
-  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-    const discordUserId = req.userId;
-    const resolved = await resolveSlotAndOwnedPersonality(prisma, req, res);
-    if (resolved === null) {
-      return;
+  return withManifestInput(
+    userRoutes.clearPersonalityDefaultConfig,
+    async (req: ProvisionedRequest, res: Response, { query }) => {
+      const discordUserId = req.userId;
+      const resolved = await resolveSlotAndOwnedPersonality(prisma, req, res, query);
+      if (resolved === null) {
+        return;
+      }
+      const { slot, personality } = resolved;
+
+      const isVision = slot === 'vision';
+      if (isVision) {
+        await prisma.personalityVisionDefaultConfig.deleteMany({
+          where: { personalityId: personality.id },
+        });
+      } else {
+        await prisma.personalityDefaultConfig.deleteMany({
+          where: { personalityId: personality.id },
+        });
+      }
+
+      await invalidateDefaultConfigCaches(
+        { cacheInvalidationService, llmConfigCacheInvalidation },
+        personality.id
+      );
+
+      logger.info(
+        { personalityId: personality.id, slot, discordUserId },
+        'Cleared personality default config'
+      );
+
+      sendContractSuccess(res, ClearPersonalityDefaultConfigResponseSchema, { success: true });
     }
-    const { slot, personality } = resolved;
-
-    const isVision = slot === 'vision';
-    if (isVision) {
-      await prisma.personalityVisionDefaultConfig.deleteMany({
-        where: { personalityId: personality.id },
-      });
-    } else {
-      await prisma.personalityDefaultConfig.deleteMany({
-        where: { personalityId: personality.id },
-      });
-    }
-
-    await invalidateDefaultConfigCaches(
-      { cacheInvalidationService, llmConfigCacheInvalidation },
-      personality.id
-    );
-
-    logger.info(
-      { personalityId: personality.id, slot, discordUserId },
-      'Cleared personality default config'
-    );
-
-    sendContractSuccess(res, ClearPersonalityDefaultConfigResponseSchema, { success: true });
-  });
+  );
 };

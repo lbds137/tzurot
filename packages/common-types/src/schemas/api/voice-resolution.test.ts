@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   GetVoiceResolutionResponseSchema,
-  GetVoiceResolutionQuerySchema,
   SttResolutionSourceSchema,
   TtsResolutionSourceSchema,
   ClonedVoicesSummarySchema,
@@ -133,17 +132,6 @@ describe('voice-resolution schemas', () => {
         },
       });
       expect(parsed.stt.source).toBe('tts-derived');
-    });
-  });
-
-  describe('GetVoiceResolutionQuerySchema', () => {
-    it('requires a uuid personalityId', () => {
-      expect(() => GetVoiceResolutionQuerySchema.parse({ personalityId: 'not-a-uuid' })).toThrow();
-      expect(
-        GetVoiceResolutionQuerySchema.parse({
-          personalityId: '00000000-0000-4000-8000-000000000000',
-        }).personalityId
-      ).toBeTruthy();
     });
   });
 });

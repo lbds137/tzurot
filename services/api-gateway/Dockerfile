@@ -83,6 +83,7 @@ COPY --from=builder /app/packages/config-resolver/dist ./packages/config-resolve
 COPY --from=builder /app/packages/identity/dist ./packages/identity/dist
 COPY --from=builder /app/packages/conversation-history/dist ./packages/conversation-history/dist
 COPY --from=builder /app/packages/cache-invalidation/dist ./packages/cache-invalidation/dist
+COPY --from=builder /app/packages/clients/dist ./packages/clients/dist
 COPY --from=builder /app/packages/embeddings/dist ./packages/embeddings/dist
 # Vendored embedding model — the worker loads it from ../models relative to
 # dist, so service boot never depends on a HuggingFace download (anonymous

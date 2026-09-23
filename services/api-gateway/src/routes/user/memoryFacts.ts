@@ -25,11 +25,12 @@ import {
   CorrectFactRequestSchema,
   SetFactLockRequestSchema,
 } from '@tzurot/common-types/schemas/api/fact';
-import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { generateMemoryFactUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { userRoutes } from '@tzurot/clients';
 import type { RouteDeps } from '../routeDeps.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { withManifestInput } from '../../utils/manifestInput.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
@@ -130,70 +131,54 @@ async function findOwnedActiveFact(context: OwnershipContext): Promise<FactRow |
 /** GET /user/fact/list?personalityId&limit&offset&tag — paginated active facts. */
 export const handleListFacts = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
-  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-    const query = req.query as {
-      personalityId?: string;
-      limit?: string;
-      offset?: string;
-      tag?: string;
-    };
-    const personalityId = query.personalityId;
-    if (personalityId === undefined || personalityId.length === 0) {
-      sendError(res, ErrorResponses.validationError('personalityId is required'));
-      return;
-    }
+  return withManifestInput(
+    userRoutes.listFacts,
+    async (req: ProvisionedRequest, res: Response, { query }) => {
+      const userId = resolveProvisionedUserId(req);
+      const personaId = await getDefaultPersonaId(prisma, userId);
+      if (personaId === null) {
+        sendCustomSuccess(
+          res,
+          { facts: [], total: 0, limit: DEFAULT_LIST_LIMIT, offset: 0, hasMore: false },
+          StatusCodes.OK
+        );
+        return;
+      }
 
-    // The req.query cast declares `tag` as a string, but a repeated `?tag=` arrives
-    // as an array — narrowed here so it reads as absent (pinned by the array test).
-    const tag = typeof query.tag === 'string' ? query.tag.trim() : '';
-    if (tag.length > DISCORD_LIMITS.AUTOCOMPLETE_CHOICE_MAX_LENGTH) {
-      sendError(
-        res,
-        ErrorResponses.validationError(
-          `tag exceeds ${DISCORD_LIMITS.AUTOCOMPLETE_CHOICE_MAX_LENGTH} characters`
-        )
-      );
-      return;
-    }
+      const limit = clampLimit(query.limit);
+      const offset = Math.max(0, Number.parseInt(query.offset ?? '0', 10) || 0);
+      const tagFilter =
+        query.tag !== undefined && query.tag.length > 0 ? { entityTags: { has: query.tag } } : {};
+      const where = {
+        personalityId: query.personalityId,
+        personaId,
+        ...ACTIVE_FACT_WHERE,
+        ...tagFilter,
+      };
 
-    const userId = resolveProvisionedUserId(req);
-    const personaId = await getDefaultPersonaId(prisma, userId);
-    if (personaId === null) {
+      const [facts, total] = await Promise.all([
+        prisma.memoryFact.findMany({
+          where,
+          orderBy: { validFrom: 'desc' },
+          take: limit,
+          skip: offset,
+        }),
+        prisma.memoryFact.count({ where }),
+      ]);
+
       sendCustomSuccess(
         res,
-        { facts: [], total: 0, limit: DEFAULT_LIST_LIMIT, offset: 0, hasMore: false },
+        {
+          facts: facts.map(f => transformFact(f as FactRow)),
+          total,
+          limit,
+          offset,
+          hasMore: offset + facts.length < total,
+        },
         StatusCodes.OK
       );
-      return;
     }
-
-    const limit = clampLimit(query.limit);
-    const offset = Math.max(0, Number.parseInt(query.offset ?? '0', 10) || 0);
-    const tagFilter = tag.length > 0 ? { entityTags: { has: tag } } : {};
-    const where = { personalityId, personaId, ...ACTIVE_FACT_WHERE, ...tagFilter };
-
-    const [facts, total] = await Promise.all([
-      prisma.memoryFact.findMany({
-        where,
-        orderBy: { validFrom: 'desc' },
-        take: limit,
-        skip: offset,
-      }),
-      prisma.memoryFact.count({ where }),
-    ]);
-
-    sendCustomSuccess(
-      res,
-      {
-        facts: facts.map(f => transformFact(f as FactRow)),
-        total,
-        limit,
-        offset,
-        hasMore: offset + facts.length < total,
-      },
-      StatusCodes.OK
-    );
-  });
+  );
 };
 
 function clampLimit(raw: string | undefined): number {

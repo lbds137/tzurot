@@ -329,8 +329,9 @@ export const userResourceRoutes = {
     method: 'get',
     path: '/voice-resolution',
     id: 'getVoiceResolution',
-    // `.uuid()` mirrors the server-side `GetVoiceResolutionQuerySchema` in
-    // schemas/api/voice-resolution.ts — server rejects non-UUID with 400.
+    // The manifest is the ONLY validation layer for this query — the gateway
+    // handler reads `query.personalityId` from withManifestInput's parsed
+    // output directly, with no local re-parse.
     query: { personalityId: z.string().uuid() },
     output: GetVoiceResolutionResponseSchema,
     requiresProvisionedUser: true,

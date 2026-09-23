@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { z } from 'zod';
 import { userMemoryRoutes } from './memory.js';
 import type { AnyRouteDef } from '../types.js';
 
@@ -32,5 +33,11 @@ describe('user memory routes', () => {
     for (const [key, route] of entries) {
       expect(route.acceptsSubject, `${key} acceptsSubject`).toBeFalsy();
     }
+  });
+
+  it('getStats query schema rejects an empty personalityId', () => {
+    const schema = z.object(userMemoryRoutes.getStats.query);
+    const result = schema.safeParse({ personalityId: '' });
+    expect(result.success).toBe(false);
   });
 });

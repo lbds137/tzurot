@@ -76,4 +76,16 @@ describe('user fact routes', () => {
     expect(result.success).toBe(true);
     expect(result.data?.tag).toBe(maxTag);
   });
+
+  it('listFacts query schema rejects an empty personalityId', () => {
+    const schema = z.object(userFactRoutes.listFacts.query);
+    const result = schema.safeParse({ personalityId: '' });
+    expect(result.success).toBe(false);
+  });
+
+  it('listFacts query schema rejects a repeated tag query param (array)', () => {
+    const schema = z.object(userFactRoutes.listFacts.query);
+    const result = schema.safeParse({ personalityId: 'p', tag: ['a', 'b'] });
+    expect(result.success).toBe(false);
+  });
 });

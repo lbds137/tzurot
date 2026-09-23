@@ -30,6 +30,7 @@ vi.mock('../../utils/asyncHandler.js', () => ({
 }));
 
 import { createMemoryModeHandlers } from './memoryModeHandlers.js';
+import { userRoutes } from '@tzurot/clients';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { Redis } from 'ioredis';
@@ -56,7 +57,7 @@ function sessionJson(personalityId: string): string {
 }
 
 function createMockReqRes(body: Record<string, unknown> = {}, query: Record<string, unknown> = {}) {
-  const req = { body, query, userId: TEST_DISCORD_USER_ID } as unknown as Request;
+  const req = { body, query, params: {}, userId: TEST_DISCORD_USER_ID } as unknown as Request;
   const res = {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
@@ -67,7 +68,7 @@ function createMockReqRes(body: Record<string, unknown> = {}, query: Record<stri
 const mockPrisma = { personality: { findUnique: vi.fn() } };
 
 describe('createMemoryModeHandlers', () => {
-  const handlers = createMemoryModeHandlers('incognito', COPY);
+  const handlers = createMemoryModeHandlers('incognito', COPY, userRoutes.getIncognitoStatus);
 
   beforeEach(() => {
     vi.clearAllMocks();

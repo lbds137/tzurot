@@ -5,7 +5,7 @@
  * deliberately do NOT live in the cross-route configOverrideHelpers.
  */
 
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
 import type { ModelOverrideSummary } from '@tzurot/common-types/schemas/api/model-override';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { parseModelSlotQueryAllowAll } from '../../utils/configRouteHelpers.js';
@@ -92,7 +92,7 @@ export interface ClearSlots {
  * no slot is chosen) clears BOTH slots; an explicit text|vision clears one.
  * Returns null after the parser has sent the error response.
  */
-export function parseClearSlots(res: Response, query: Request['query']): ClearSlots | null {
+export function parseClearSlots(res: Response, query: unknown): ClearSlots | null {
   const slot = parseModelSlotQueryAllowAll(res, query);
   if (slot === null) {
     return null;
