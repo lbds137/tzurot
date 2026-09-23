@@ -135,3 +135,17 @@ export const EMBED_NAMING = {
   /** Default file extension for embed images */
   DEFAULT_EXTENSION: '.png',
 } as const;
+
+/**
+ * Bounds on the synthetic attachments derived from one embed.
+ */
+export const EMBED_LIMITS = {
+  /**
+   * Most Components-V2 media items collected from one embed; the rest are
+   * dropped in document order. Ten is one full MediaGallery at Discord's
+   * documented item maximum (documentation, not probed here), and half of
+   * the ~20-attachments-per-message figure the MEDIA_LIMITS.MAX_IMAGE_SIZE
+   * doc comment sizes its byte cap for.
+   */
+  MAX_MEDIA_PER_EMBED: 10,
+} as const;

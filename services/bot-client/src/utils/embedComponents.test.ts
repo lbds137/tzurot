@@ -6,13 +6,15 @@ import { describe, it, expect } from 'vitest';
 import type { APIEmbed } from 'discord.js';
 import {
   readEmbedComponents,
-  collectEmbedComponentText,
   collectEmbedComponentMedia,
   readContainerAccentColor,
   embedComponentsHaveContent,
   formatEmbedComponentsXml,
+  walkEmbedComponents,
+  MAX_EMBED_COMPONENT_DEPTH,
 } from './embedComponents.js';
 import { VXREDDIT_COMPONENTS_V2_EMBED } from './fixtures/vxredditComponentsV2Embed.js';
+import { EMBED_LIMITS } from '@tzurot/common-types/constants/media';
 
 const fixture = VXREDDIT_COMPONENTS_V2_EMBED as unknown as APIEmbed;
 
@@ -29,18 +31,8 @@ describe('embedComponents', () => {
     });
   });
 
-  describe('collectEmbedComponentText', () => {
-    it('collects the fixture TextDisplay contents in document order', () => {
-      const nodes = readEmbedComponents(fixture);
-
-      expect(collectEmbedComponentText(nodes)).toEqual([
-        '-# vxReddit',
-        '** u/example_user on r/Cult_of_Emily - ⬆️ 691 | 💬 14 [(link)](https://www.reddit.com/comments/abc1234) **',
-        "## Emily's trying something new for an outfit",
-      ]);
-    });
-
-    it('collects Section text alongside its accessory media', () => {
+  describe('walkEmbedComponents', () => {
+    it('collects Section text alongside its accessory media, in document order', () => {
       const sectionFixture = [
         {
           type: 17,
@@ -62,16 +54,18 @@ describe('embedComponents', () => {
         },
       ];
 
-      const texts = collectEmbedComponentText(sectionFixture);
-      const media = collectEmbedComponentMedia(sectionFixture);
+      const parts = walkEmbedComponents(sectionFixture);
 
-      expect(texts).toEqual(['Section text']);
-      expect(media).toEqual([
+      expect(parts).toEqual([
+        { kind: 'text', content: 'Section text' },
         {
-          url: 'https://example.com/thumb.png',
-          proxyUrl: 'https://images-ext-1.discordapp.net/thumb.png',
-          contentType: 'image/png',
-          description: 'Section accessory alt text',
+          kind: 'media',
+          media: {
+            url: 'https://example.com/thumb.png',
+            proxyUrl: 'https://images-ext-1.discordapp.net/thumb.png',
+            contentType: 'image/png',
+            description: 'Section accessory alt text',
+          },
         },
       ]);
     });
@@ -161,6 +155,15 @@ describe('embedComponents', () => {
       const nodes = readEmbedComponents(fixture);
 
       expect(readContainerAccentColor(nodes)).toBe(16729344);
+    });
+
+    it('returns the first numeric accent color across top-level Containers', () => {
+      const nodes = [
+        { type: 17, components: [] },
+        { type: 17, accent_color: 255, components: [] },
+      ];
+
+      expect(readContainerAccentColor(nodes)).toBe(255);
     });
   });
 
@@ -286,6 +289,187 @@ describe('embedComponents', () => {
       const lines = formatEmbedComponentsXml(embed, 0);
 
       expect(lines.some(line => line.startsWith('<color>'))).toBe(false);
+    });
+
+    it('interleaves each Section text with its own accessory image in document order', () => {
+      const embed = {
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 9,
+                components: [{ type: 10, content: 'Text one' }],
+                accessory: {
+                  type: 11,
+                  media: { url: 'https://example.com/one.png', content_type: 'image/png' },
+                },
+              },
+              {
+                type: 9,
+                components: [{ type: 10, content: 'Text two' }],
+                accessory: {
+                  type: 11,
+                  media: { url: 'https://example.com/two.png' },
+                },
+              },
+            ],
+          },
+        ],
+      } as unknown as APIEmbed;
+
+      const lines = formatEmbedComponentsXml(embed, 0);
+
+      expect(lines).toEqual([
+        '<text>Text one</text>',
+        '<image filename="embed-1-media-1.png" url="https://example.com/one.png"/>',
+        '<text>Text two</text>',
+        '<image filename="embed-1-media-2.png" url="https://example.com/two.png"/>',
+      ]);
+    });
+
+    it('renders the accent color of a later Container when the first has none', () => {
+      const embed = {
+        components: [
+          { type: 17, accent_color: null, components: [{ type: 10, content: 'A' }] },
+          { type: 17, accent_color: 0x00ff00, components: [{ type: 10, content: 'B' }] },
+        ],
+      } as unknown as APIEmbed;
+
+      const lines = formatEmbedComponentsXml(embed, 0);
+
+      expect(lines).toEqual(['<text>A</text>', '<text>B</text>', '<color>#00ff00</color>']);
+    });
+  });
+
+  describe('bounds', () => {
+    it('renders only the levels within the depth cap', () => {
+      const maxLevel = MAX_EMBED_COMPONENT_DEPTH + 1;
+      let components: unknown[] = [
+        { type: 10, content: `level ${maxLevel}` },
+        {
+          type: 12,
+          items: [{ media: { url: 'https://example.com/toodeep.png', content_type: 'image/png' } }],
+        },
+      ];
+      for (let level = maxLevel - 1; level >= 1; level--) {
+        components = [
+          { type: 10, content: `level ${level}` },
+          { type: 17, components },
+        ];
+      }
+
+      const embed = { components } as unknown as APIEmbed;
+      const lines = formatEmbedComponentsXml(embed, 0);
+
+      const expected = Array.from(
+        { length: MAX_EMBED_COMPONENT_DEPTH },
+        (_, i) => `<text>level ${i + 1}</text>`
+      );
+      expect(lines).toEqual(expected);
+      expect(lines.some(line => line.startsWith('<image'))).toBe(false);
+    });
+
+    it('does not throw on a pathologically deep tree', () => {
+      const totalLevels = 10000;
+      let components: unknown[] = [{ type: 10, content: `level ${totalLevels}` }];
+      for (let level = totalLevels - 1; level >= 1; level--) {
+        components = [
+          { type: 10, content: `level ${level}` },
+          { type: 17, components },
+        ];
+      }
+      const embed = { components } as unknown as APIEmbed;
+
+      let result: string[] = [];
+      expect(() => {
+        result = formatEmbedComponentsXml(embed, 0);
+      }).not.toThrow();
+      expect(result).toHaveLength(MAX_EMBED_COMPONENT_DEPTH);
+    });
+
+    it('caps collected media at EMBED_LIMITS.MAX_MEDIA_PER_EMBED in document order', () => {
+      const itemCount = EMBED_LIMITS.MAX_MEDIA_PER_EMBED + 3;
+      const items = Array.from({ length: itemCount }, (_, i) => ({
+        media: { url: `https://example.com/m${i + 1}.png`, content_type: 'image/png' },
+      }));
+      const nodes = [{ type: 12, items }];
+
+      const media = collectEmbedComponentMedia(nodes);
+      expect(media).toHaveLength(EMBED_LIMITS.MAX_MEDIA_PER_EMBED);
+      expect(media.map(m => m.url)).toEqual(
+        Array.from(
+          { length: EMBED_LIMITS.MAX_MEDIA_PER_EMBED },
+          (_, i) => `https://example.com/m${i + 1}.png`
+        )
+      );
+
+      const embed = { components: nodes } as unknown as APIEmbed;
+      const lines = formatEmbedComponentsXml(embed, 0);
+      const imageLines = lines.filter(line => line.startsWith('<image'));
+      expect(imageLines).toHaveLength(EMBED_LIMITS.MAX_MEDIA_PER_EMBED);
+      expect(imageLines).toEqual(
+        Array.from(
+          { length: EMBED_LIMITS.MAX_MEDIA_PER_EMBED },
+          (_, i) =>
+            `<image filename="embed-1-media-${i + 1}.png" url="https://example.com/m${i + 1}.png"/>`
+        )
+      );
+    });
+
+    it('counts Section accessories and gallery items against one shared cap', () => {
+      const galleryItems = Array.from({ length: EMBED_LIMITS.MAX_MEDIA_PER_EMBED }, (_, i) => ({
+        media: { url: `https://example.com/g${i + 1}.png`, content_type: 'image/png' },
+      }));
+      const nodes = [
+        {
+          type: 17,
+          components: [
+            {
+              type: 9,
+              components: [{ type: 10, content: 'S' }],
+              accessory: {
+                type: 11,
+                media: { url: 'https://example.com/s.png', content_type: 'image/png' },
+              },
+            },
+            { type: 12, items: galleryItems },
+          ],
+        },
+      ];
+
+      const media = collectEmbedComponentMedia(nodes);
+
+      expect(media).toHaveLength(EMBED_LIMITS.MAX_MEDIA_PER_EMBED);
+      expect(media[0]?.url).toBe('https://example.com/s.png');
+      expect(media[media.length - 1]?.url).toBe(
+        `https://example.com/g${EMBED_LIMITS.MAX_MEDIA_PER_EMBED - 1}.png`
+      );
+    });
+
+    it('stops mapping gallery items once the media budget is spent, on a gallery of thousands', () => {
+      let accessCount = 0;
+      const items = Array.from({ length: 5000 }, (_, i) => ({
+        get media(): { url: string; content_type: string } {
+          accessCount++;
+          return { url: `https://example.com/huge${i + 1}.png`, content_type: 'image/png' };
+        },
+      }));
+      const nodes = [{ type: 12, items }];
+
+      const media = collectEmbedComponentMedia(nodes);
+
+      expect(media).toHaveLength(EMBED_LIMITS.MAX_MEDIA_PER_EMBED);
+      expect(media.map(m => m.url)).toEqual(
+        Array.from(
+          { length: EMBED_LIMITS.MAX_MEDIA_PER_EMBED },
+          (_, i) => `https://example.com/huge${i + 1}.png`
+        )
+      );
+      // Observes that mapping stopped: the `media` getter fires once per item
+      // examined, so an access count equal to the cap (not the 5000-item
+      // array) proves the remaining items were never visited.
+      expect(accessCount).toBe(EMBED_LIMITS.MAX_MEDIA_PER_EMBED);
     });
   });
 });

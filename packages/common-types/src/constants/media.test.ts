@@ -9,6 +9,7 @@ import {
   VOICE_REFERENCE_LIMITS,
   CONTENT_TYPES,
   EMBED_NAMING,
+  EMBED_LIMITS,
   AttachmentType,
 } from './media.js';
 
@@ -97,6 +98,12 @@ describe('Media Constants', () => {
       expect(EMBED_NAMING.THUMBNAIL_SLOT).toBe('thumbnail');
       expect(EMBED_NAMING.MEDIA_SLOT).toBe('media');
       expect(EMBED_NAMING.DEFAULT_EXTENSION).toBe('.png');
+    });
+  });
+
+  describe('EMBED_LIMITS', () => {
+    it('should cap media items per embed at 10', () => {
+      expect(EMBED_LIMITS.MAX_MEDIA_PER_EMBED).toBe(10);
     });
   });
 });
