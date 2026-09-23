@@ -3,9 +3,10 @@ id: TASK-1054
 title: >-
   NightlyDbSync and ExportSmoke schedulers raise a false failure embed when
   their startup run lands in a gateway deploy window
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-23 13:17'
+updated_date: '2026-09-23 16:54'
 labels:
   - 'area:bot-client'
   - 'size:S'
