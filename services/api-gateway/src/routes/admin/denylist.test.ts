@@ -118,7 +118,14 @@ describe('Denylist Admin Routes', () => {
       const response = await request(app).get('/api/admin/denylist?type=INVALID');
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toContain('Invalid type filter');
+      expect(response.body.message).toContain('type');
+      expect(mockPrisma.denylistedEntity.findMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects an empty ?type= (manifest schema treats absence, not blank, as no filter)', async () => {
+      const response = await request(app).get('/api/admin/denylist?type=');
+
+      expect(response.status).toBe(400);
       expect(mockPrisma.denylistedEntity.findMany).not.toHaveBeenCalled();
     });
   });

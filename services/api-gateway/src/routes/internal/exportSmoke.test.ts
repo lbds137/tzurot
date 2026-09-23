@@ -229,6 +229,11 @@ describe('GET /api/internal/export-smoke/status', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ status: 'pending', downloadUrl: null });
+    expect(
+      (mockPrisma.exportJob as { findFirst: ReturnType<typeof vi.fn> }).findFirst
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: SENTINEL_ID }) })
+    );
   });
 
   it('returns a populated downloadUrl for a completed job', async () => {
@@ -267,5 +272,9 @@ describe('GET /api/internal/export-smoke/status', () => {
     const response = await request(app).get(STATUS_ROUTE).query({ jobId: 'not-a-uuid' });
 
     expect(response.status).toBe(400);
+    expect(mockEnsureOrphanSentinel).not.toHaveBeenCalled();
+    expect(
+      (mockPrisma.exportJob as { findFirst: ReturnType<typeof vi.fn> }).findFirst
+    ).not.toHaveBeenCalled();
   });
 });

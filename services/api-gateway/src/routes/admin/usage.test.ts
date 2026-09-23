@@ -102,6 +102,28 @@ describe('Admin Usage Routes', () => {
       expect(response.body.timeframe).toBe('30d');
     });
 
+    it('rejects a repeated ?timeframe= (array value fails the manifest string schema)', async () => {
+      const response = await request(app).get('/admin/usage?timeframe=7d&timeframe=30d');
+
+      expect(response.status).toBe(400);
+      expect(mockPrisma.usageLog.findMany).not.toHaveBeenCalled();
+    });
+
+    it('forwards a parsed timeframe as a createdAt lower bound to the usage-log query', async () => {
+      mockPrisma.usageLog.findMany.mockResolvedValue([]);
+      mockPrisma.user.findMany.mockResolvedValue([]);
+
+      await request(app).get('/admin/usage?timeframe=30d');
+
+      expect(mockPrisma.usageLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            createdAt: expect.objectContaining({ gte: expect.any(Date) }),
+          }),
+        })
+      );
+    });
+
     describe('zaiPlan snapshot section', () => {
       function appWithRedis(redisGet: ReturnType<typeof vi.fn>): express.Express {
         const withRedis = express();

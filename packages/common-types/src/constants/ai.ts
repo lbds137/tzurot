@@ -4,7 +4,7 @@
  * AI model configuration, providers, defaults, and endpoints.
  */
 
-import type { ModelCapabilities, ZaiThinkingOffSupport } from '../types/ai.js';
+import type { ModelCapabilities, ModelModality, ZaiThinkingOffSupport } from '../types/ai.js';
 import { INTERVALS } from './timing.js';
 
 /**
@@ -308,6 +308,20 @@ export const MODEL_DEFAULTS = {
  */
 export const MODEL_SLOTS = ['text', 'vision'] as const;
 export type ModelSlot = (typeof MODEL_SLOTS)[number];
+
+/**
+ * The `ModelModality` values as a runtime list (not verified exhaustive against
+ * OpenRouter's catalog). Single source of truth for the `/models` route's
+ * `inputModality`/`outputModality` query enum, replacing a locally-duplicated
+ * validity list.
+ */
+export const MODEL_MODALITIES = [
+  'text',
+  'image',
+  'audio',
+  'video',
+  'file',
+] as const satisfies readonly ModelModality[];
 
 /**
  * Max length for an LlmConfig/TtsConfig `name`. Single source for the `.max()` in

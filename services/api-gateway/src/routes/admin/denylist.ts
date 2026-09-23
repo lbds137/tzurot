@@ -19,8 +19,10 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { type DenylistCacheInvalidationService } from '@tzurot/cache-invalidation';
+import { adminRoutes } from '@tzurot/clients';
 import { extractOwnerId } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { withManifestInput } from '../../utils/manifestInput.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -95,29 +97,20 @@ function handleAddEntry(
 /** GET /api/admin/denylist — list all entries (optional ?type= filter) */
 export const handleListDenylistEntries = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
-  return asyncHandler(async (req: Request, res: Response) => {
-    const typeFilter = req.query.type;
-    let where = {};
-    if (typeof typeFilter === 'string' && typeFilter.length > 0) {
-      const parsed = denylistEntityTypeSchema.safeParse(typeFilter);
-      if (!parsed.success) {
-        sendError(
-          res,
-          ErrorResponses.validationError('Invalid type filter — must be USER or GUILD')
-        );
-        return;
-      }
-      where = { type: parsed.data };
+  return withManifestInput(
+    adminRoutes.listDenylistEntries,
+    async (_req, res: Response, { query }) => {
+      const where = query.type !== undefined ? { type: query.type } : {};
+
+      const entries = await prisma.denylistedEntity.findMany({
+        where,
+        orderBy: { addedAt: 'desc' },
+        take: LIST_MAX_ENTRIES,
+      });
+
+      sendCustomSuccess(res, { success: true, entries, count: entries.length });
     }
-
-    const entries = await prisma.denylistedEntity.findMany({
-      where,
-      orderBy: { addedAt: 'desc' },
-      take: LIST_MAX_ENTRIES,
-    });
-
-    sendCustomSuccess(res, { success: true, entries, count: entries.length });
-  });
+  );
 };
 
 /** GET /api/admin/denylist/cache — bulk fetch for bot-client hydration (service-only) */

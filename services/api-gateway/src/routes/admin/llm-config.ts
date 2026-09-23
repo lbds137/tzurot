@@ -14,7 +14,11 @@
 
 import { type Response, type Request, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { isFreeTierEligibleModel, ZAI_FREE_TIER_MODEL } from '@tzurot/common-types/constants/ai';
+import {
+  DEFAULT_MODEL_SLOT,
+  isFreeTierEligibleModel,
+  ZAI_FREE_TIER_MODEL,
+} from '@tzurot/common-types/constants/ai';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
   LlmConfigCreateSchema,
@@ -22,7 +26,9 @@ import {
 } from '@tzurot/common-types/schemas/api/llm-config';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { adminRoutes } from '@tzurot/clients';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { withManifestInput, type ManifestInput } from '../../utils/manifestInput.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
@@ -37,7 +43,6 @@ import {
 } from '../../utils/llmConfigValidation.js';
 import {
   parseBodyOrSendError,
-  parseModelSlotQuery,
   findGlobalConfigOrSendError,
   findAdminUserOrSendError,
   ensureNoNameCollision,
@@ -225,15 +230,16 @@ function createSetDefaultHandler(
   prisma: PrismaClient,
   modelCache?: OpenRouterModelCache
 ) {
-  return async (req: Request, res: Response) => {
-    const configId = getRequiredParam(req.params.id, 'id');
+  return async (
+    _req: Request,
+    res: Response,
+    { query, params }: ManifestInput<typeof adminRoutes.setGlobalLlmConfigDefault>
+  ) => {
+    const configId = params.id;
 
     // The slot the config fills (chat vs vision) is the request's choice — any
     // global config can fill any slot. The vision slot is capability-gated below.
-    const slot = parseModelSlotQuery(res, req.query);
-    if (slot === null) {
-      return;
-    }
+    const slot = query.slot ?? DEFAULT_MODEL_SLOT;
 
     const config = await findGlobalConfigOrSendError(
       res,
@@ -269,14 +275,15 @@ function createSetFreeDefaultHandler(
   prisma: PrismaClient,
   modelCache?: OpenRouterModelCache
 ) {
-  return async (req: Request, res: Response) => {
-    const configId = getRequiredParam(req.params.id, 'id');
+  return async (
+    _req: Request,
+    res: Response,
+    { query, params }: ManifestInput<typeof adminRoutes.setGlobalLlmConfigFreeDefault>
+  ) => {
+    const configId = params.id;
 
     // Slot = request's choice (chat vs vision). Vision is capability-gated below.
-    const slot = parseModelSlotQuery(res, req.query);
-    if (slot === null) {
-      return;
-    }
+    const slot = query.slot ?? DEFAULT_MODEL_SLOT;
 
     const config = await findGlobalConfigOrSendError(
       res,
@@ -414,10 +421,16 @@ export const handleUpdateGlobalLlmConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createEditConfigHandler(buildService(deps), deps.prisma, deps.modelCache));
 
 export const handleSetGlobalLlmConfigDefault = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(createSetDefaultHandler(buildService(deps), deps.prisma, deps.modelCache));
+  withManifestInput(
+    adminRoutes.setGlobalLlmConfigDefault,
+    createSetDefaultHandler(buildService(deps), deps.prisma, deps.modelCache)
+  );
 
 export const handleSetGlobalLlmConfigFreeDefault = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(createSetFreeDefaultHandler(buildService(deps), deps.prisma, deps.modelCache));
+  withManifestInput(
+    adminRoutes.setGlobalLlmConfigFreeDefault,
+    createSetFreeDefaultHandler(buildService(deps), deps.prisma, deps.modelCache)
+  );
 
 export const handleDeleteGlobalLlmConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createDeleteConfigHandler(buildService(deps), deps.prisma));
