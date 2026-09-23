@@ -96,6 +96,7 @@ vi.mock('./pipeline/steps/ContextStep.js', () => ({
 import { redisService } from '../../redis.js';
 import { extractParticipants, convertConversationHistory } from '../utils/conversationUtils.js';
 import { storeDiagnosticLog } from './pipeline/steps/diagnosticStorage.js';
+import { persistSuccessDiagnostic } from './pipeline/steps/successDiagnostic.js';
 import type { GenerationContext } from './pipeline/types.js';
 
 // Get mocked functions
@@ -1052,9 +1053,9 @@ describe('LLMGenerationHandler', () => {
     });
   });
 
-  // ===== persistDiagnosticOnSuccess ==========================================
+  // ===== persistSuccessDiagnostic ==========================================
 
-  describe('persistDiagnosticOnSuccess', () => {
+  describe('persistSuccessDiagnostic', () => {
     // Success-path storeDiagnosticLog runs from this orchestrator helper
     // (not inline in GenerationStep) so TTSStep has a chance to record TTS
     // attribution before the log is finalized. Error paths still store
@@ -1072,17 +1073,17 @@ describe('LLMGenerationHandler', () => {
       const result = await handler.processJob(job);
 
       expect(result.success).toBe(true);
-      // Exactly one store: the post-pipeline call from persistDiagnosticOnSuccess.
+      // Exactly one store: the post-pipeline call from persistSuccessDiagnostic.
       // GenerationStep does NOT store on the success path (its inline store is
       // error-path only).
       expect(mockStoreDiagnosticLog).toHaveBeenCalledTimes(1);
     });
 
-    it('does not store from persistDiagnosticOnSuccess when the result is unsuccessful', async () => {
+    it('does not store from persistSuccessDiagnostic when the result is unsuccessful', async () => {
       // Force GenerationStep down its error path by having the RAG service throw.
       // GenerationStep catches the throw, records the error inline (via its own
       // storeDiagnosticLog call), and returns success: false. The pipeline loop
-      // completes without throwing, so persistDiagnosticOnSuccess fires — and
+      // completes without throwing, so persistSuccessDiagnostic fires — and
       // its `success !== true` guard must short-circuit so we don't double-store.
       mockRAGService.generateResponse.mockRejectedValueOnce(new Error('RAG synthetic failure'));
       const job = {
@@ -1094,7 +1095,7 @@ describe('LLMGenerationHandler', () => {
 
       expect(result.success).toBe(false);
       // Exactly one store: the inline GenerationStep error-path call. If
-      // persistDiagnosticOnSuccess also fired, we'd see 2.
+      // persistSuccessDiagnostic also fired, we'd see 2.
       expect(mockStoreDiagnosticLog).toHaveBeenCalledTimes(1);
     });
 
@@ -1103,11 +1104,8 @@ describe('LLMGenerationHandler', () => {
       // GenerationStep always initializes a collector. Direct invocation with
       // a bare context pins the guard so a future refactor that loosens
       // collector init doesn't accidentally start storing on null collectors.
-      const persist = (
-        handler as unknown as {
-          persistDiagnosticOnSuccess(ctx: GenerationContext): void;
-        }
-      ).persistDiagnosticOnSuccess.bind(handler);
+      const persist = (ctx: GenerationContext): void =>
+        persistSuccessDiagnostic({} as unknown as PrismaClient, ctx);
 
       const ctx: GenerationContext = {
         job: { id: 'job-no-collector' } as Job<LLMGenerationJobData>,

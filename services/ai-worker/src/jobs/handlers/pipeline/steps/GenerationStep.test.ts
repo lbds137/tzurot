@@ -14,6 +14,7 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { GenerationStep } from './GenerationStep.js';
+import { persistSuccessDiagnostic } from './successDiagnostic.js';
 import type { GenerationContext, ResolvedConfig, ResolvedAuth, PreparedContext } from '../types.js';
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
 import type { RAGResponse } from '../../../../services/ConversationalRAGTypes.js';
@@ -571,6 +572,46 @@ describe('GenerationStep', () => {
 
           expect(result.result?.success).toBe(false);
           expect(result.result?.metadata?.fallbackFromProvider).toBe(AIProvider.ZaiCoding);
+        } finally {
+          quotaFallbackResultTransform.fn = null;
+        }
+      });
+
+      it('records the served provider on the empty-content diagnostic row when a swap served it', async () => {
+        const create = vi.fn().mockResolvedValue(undefined);
+        const prisma = {
+          user: { findUnique: vi.fn().mockResolvedValue(null) },
+          llmDiagnosticLog: { create },
+        } as unknown as PrismaClient;
+        const localStep = new GenerationStep(mockRAGService, prisma);
+
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue({
+          content: '',
+          retrievedMemories: 0,
+          tokensIn: 1,
+          tokensOut: 1,
+        });
+        quotaFallbackResultTransform.fn = result => ({
+          ...(result as Record<string, unknown>),
+          effectiveProviderUsed: AIProvider.OpenRouter,
+        });
+
+        try {
+          const result = await localStep.process({
+            job: createMockJob(),
+            startTime: Date.now(),
+            config: baseConfig,
+            auth: { ...baseAuth, provider: AIProvider.ZaiCoding },
+            preparedContext: basePreparedContext,
+          });
+
+          expect(result.result?.success).toBe(false);
+          expect(result.result?.metadata?.providerUsed).toBe(AIProvider.OpenRouter);
+
+          await vi.waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+          expect(create).toHaveBeenCalledWith({
+            data: expect.objectContaining({ provider: AIProvider.OpenRouter }),
+          });
         } finally {
           quotaFallbackResultTransform.fn = null;
         }
@@ -2247,6 +2288,53 @@ describe('GenerationStep', () => {
         expect(result.result?.metadata?.fallbackProviderAttempted).toBeUndefined();
         // Only ONE call — no retry was attempted because wasAutoPromoted is falsy
         expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(1);
+      });
+
+      it('the served fallback provider reaches the success-path diagnostic row (GenerationStep → persistSuccessDiagnostic, in order)', async () => {
+        const create = vi.fn().mockResolvedValue(undefined);
+        const prisma = {
+          user: { findUnique: vi.fn().mockResolvedValue(null) },
+          llmDiagnosticLog: { create },
+        } as unknown as PrismaClient;
+        const localStep = new GenerationStep(mockRAGService, prisma);
+
+        vi.mocked(mockRAGService.generateResponse)
+          .mockRejectedValueOnce(new Error('z.ai 404: model not found'))
+          .mockResolvedValueOnce({
+            content: 'rescued',
+            retrievedMemories: 0,
+            tokensIn: 1,
+            tokensOut: 1,
+            modelUsed: 'z-ai/glm-5.1',
+          } as RAGResponse);
+
+        // Precondition: the auth-resolved provider is the ORIGINAL route —
+        // the served fallback provider must diverge from it for this
+        // sequencing test to mean anything.
+        expect(promotedAuth.provider).toBe(AIProvider.ZaiCoding);
+
+        const inputContext: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: promotedConfig,
+          auth: promotedAuth,
+          preparedContext: basePreparedContext,
+        };
+
+        const out = await localStep.process(inputContext);
+
+        expect(out.result?.success).toBe(true);
+        expect(out.result?.metadata?.providerUsed).toBe(AIProvider.OpenRouter);
+
+        persistSuccessDiagnostic(prisma, out);
+
+        await vi.waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+        expect(create).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            provider: AIProvider.OpenRouter,
+            model: 'z-ai/glm-5.1',
+          }),
+        });
       });
     });
   });
