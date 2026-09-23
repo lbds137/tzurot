@@ -34,6 +34,7 @@ function personaRow(content: string): unknown {
     ownerId: 'owner-1',
     createdAt: ISO,
     updatedAt: ISO,
+    digests: [],
   };
 }
 
@@ -129,6 +130,17 @@ function memoryRow(content: string): unknown {
     chunkGroupId: null,
     chunkIndex: null,
     totalChunks: null,
+    assistantSummary: null,
+    summaryStatus: null,
+    summaryAttempts: 0,
+    summaryModel: null,
+    summaryPromptVersion: null,
+    sourceContentHash: null,
+    summaryRequestedAt: null,
+    summaryCompletedAt: null,
+    summaryLastError: null,
+    lastRetrievedAt: null,
+    retrievalCount: 0,
   };
 }
 
