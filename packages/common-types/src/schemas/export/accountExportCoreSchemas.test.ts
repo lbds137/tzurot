@@ -161,6 +161,31 @@ describe('accountExportCoreSchemas', () => {
     expect(result.success).toBe(false);
   });
 
+  it('rejects a digest whose digestText is an empty string (the assembler already drops these; the schema pins it too)', () => {
+    const result = ExportPersonaSchema.safeParse({
+      id: 'persona-1',
+      name: 'Alex',
+      description: null,
+      content: 'A persona description.',
+      preferredName: null,
+      pronouns: null,
+      ownerId: 'user-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      digests: [
+        {
+          personalityId: 'char-1',
+          personalitySlug: 'azura',
+          personalityName: 'Azura',
+          digestText: '',
+          generatedAt: null,
+          windowStart: null,
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('rejects a digest with a non-string digestText', () => {
     const result = ExportPersonaSchema.safeParse({
       id: 'persona-1',
@@ -326,16 +351,6 @@ describe('accountExportCoreSchemas', () => {
       chunkIndex: null,
       totalChunks: null,
       assistantSummary: null,
-      summaryStatus: null,
-      summaryAttempts: 0,
-      summaryModel: null,
-      summaryPromptVersion: null,
-      sourceContentHash: null,
-      summaryRequestedAt: null,
-      summaryCompletedAt: null,
-      summaryLastError: null,
-      lastRetrievedAt: null,
-      retrievalCount: 0,
     });
     expect(result.success).toBe(true);
   });
@@ -370,22 +385,81 @@ describe('accountExportCoreSchemas', () => {
       chunkIndex: null,
       totalChunks: null,
       assistantSummary: null,
-      summaryStatus: null,
-      summaryAttempts: 0,
-      summaryModel: null,
-      summaryPromptVersion: null,
-      sourceContentHash: null,
-      summaryRequestedAt: null,
-      summaryCompletedAt: null,
-      summaryLastError: null,
-      lastRetrievedAt: null,
-      retrievalCount: 0,
       embedding: [0.1, 0.2],
     });
     expect(result.success).toBe(false);
   });
 
-  it('rejects a memory row missing the summarizer-state columns (drift guard)', () => {
+  it('rejects a memory row carrying summaryLastError (dropped bookkeeping column, drift guard)', () => {
+    const result = ExportMemoryRowSchema.safeParse({
+      id: 'mem-1',
+      personaId: 'persona-1',
+      personalityId: 'char-1',
+      content: 'a memory',
+      isSummarized: false,
+      originalMessageCount: null,
+      summarizedAt: null,
+      sessionId: null,
+      canonScope: null,
+      summaryType: null,
+      channelId: null,
+      guildId: null,
+      messageIds: [],
+      senders: [],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      legacyShapesUserId: null,
+      sourceSystem: 'tzurot-v3',
+      type: 'memory',
+      isLocked: false,
+      visibility: 'normal',
+      pool: 'private',
+      canonGroupId: null,
+      isFiction: false,
+      chunkGroupId: null,
+      chunkIndex: null,
+      totalChunks: null,
+      assistantSummary: null,
+      summaryLastError: null,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('parses a memory row carrying a non-null assistantSummary', () => {
+    const result = ExportMemoryRowSchema.safeParse({
+      id: 'mem-1',
+      personaId: 'persona-1',
+      personalityId: 'char-1',
+      content: 'a memory',
+      isSummarized: false,
+      originalMessageCount: null,
+      summarizedAt: null,
+      sessionId: null,
+      canonScope: null,
+      summaryType: null,
+      channelId: null,
+      guildId: null,
+      messageIds: [],
+      senders: [],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      legacyShapesUserId: null,
+      sourceSystem: 'tzurot-v3',
+      type: 'memory',
+      isLocked: false,
+      visibility: 'normal',
+      pool: 'private',
+      canonGroupId: null,
+      isFiction: false,
+      chunkGroupId: null,
+      chunkIndex: null,
+      totalChunks: null,
+      assistantSummary: 'some summary',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a memory row missing assistantSummary (drift guard)', () => {
     const result = ExportMemoryRowSchema.safeParse({
       id: 'mem-1',
       personaId: 'persona-1',

@@ -76,7 +76,7 @@ const ExportPersonaDigestSchema = z
     personalityId: z.string(),
     personalitySlug: z.string(),
     personalityName: z.string(),
-    digestText: z.string(),
+    digestText: z.string().min(1),
     generatedAt: z.string().nullable(),
     windowStart: z.string().nullable(),
   })
@@ -171,9 +171,13 @@ export const ExportConversationRowSchema = z
   .strict();
 
 // ============================================================================
-// memories/*.json — array of full Memory rows, minus `embedding`. The
-// column is `Unsupported("vector")`, so the Prisma client never returns it —
-// no explicit omit is needed for the "no embeddings" export note to hold.
+// memories/*.json — array of Memory rows, minus `embedding` (the column is
+// `Unsupported("vector")`, so the Prisma client never returns it — no
+// explicit omit is needed for the "no embeddings" export note to hold) and
+// minus the summarizer/retrieval bookkeeping columns the assembler omits
+// (`MEMORY_EXPORT_OMIT` in `AccountExportAssembler.ts`) — operational state
+// rather than user content. `assistantSummary` is kept: it summarizes the
+// user's own conversation.
 // ============================================================================
 
 export const ExportMemoryRowSchema = z
@@ -205,18 +209,7 @@ export const ExportMemoryRowSchema = z
     chunkGroupId: z.string().nullable(),
     chunkIndex: z.number().int().nullable(),
     totalChunks: z.number().int().nullable(),
-    // Memory-archive summarizer columns (assistant_summary state machine).
     assistantSummary: z.string().nullable(),
-    summaryStatus: z.string().nullable(),
-    summaryAttempts: z.number().int(),
-    summaryModel: z.string().nullable(),
-    summaryPromptVersion: z.number().int().nullable(),
-    sourceContentHash: z.string().nullable(),
-    summaryRequestedAt: z.string().nullable(),
-    summaryCompletedAt: z.string().nullable(),
-    summaryLastError: z.string().nullable(),
-    lastRetrievedAt: z.string().nullable(),
-    retrievalCount: z.number().int(),
   })
   .strict();
 

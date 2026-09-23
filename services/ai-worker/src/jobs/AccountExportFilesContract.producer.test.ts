@@ -206,16 +206,6 @@ const FULL_MEMORY: ExportMemoryRow = {
   chunkIndex: null,
   totalChunks: null,
   assistantSummary: 'They talked about a coastal trip.',
-  summaryStatus: 'done',
-  summaryAttempts: 1,
-  summaryModel: 'gpt-test',
-  summaryPromptVersion: 2,
-  sourceContentHash: 'b'.repeat(64),
-  summaryRequestedAt: new Date('2026-01-04T00:00:01.000Z'),
-  summaryCompletedAt: new Date('2026-01-04T00:00:02.000Z'),
-  summaryLastError: null,
-  lastRetrievedAt: new Date('2026-01-06T00:00:00.000Z'),
-  retrievalCount: 3,
 };
 
 const FULL_FACT: ExportFactRow = {
@@ -561,16 +551,6 @@ const SPARSE_MEMORY: ExportMemoryRow = {
   chunkIndex: null,
   totalChunks: null,
   assistantSummary: null,
-  summaryStatus: null,
-  summaryAttempts: 0,
-  summaryModel: null,
-  summaryPromptVersion: null,
-  sourceContentHash: null,
-  summaryRequestedAt: null,
-  summaryCompletedAt: null,
-  summaryLastError: null,
-  lastRetrievedAt: null,
-  retrievalCount: 0,
 };
 
 const SPARSE_FACT: ExportFactRow = {

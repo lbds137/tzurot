@@ -247,6 +247,25 @@ describe('assembleAccountExport', () => {
     expect(call.where).toEqual({ userId: '1' });
   });
 
+  it('omits summarizer/retrieval bookkeeping columns from the memory fetch, keeping assistantSummary', async () => {
+    await assembleAccountExport(prisma as unknown as PrismaClient, 'user-1');
+
+    const call = prisma.memory.findMany?.mock.calls[0][0];
+    expect(call.omit).toEqual({
+      summaryStatus: true,
+      summaryAttempts: true,
+      summaryModel: true,
+      summaryPromptVersion: true,
+      sourceContentHash: true,
+      summaryRequestedAt: true,
+      summaryCompletedAt: true,
+      summaryLastError: true,
+      lastRetrievedAt: true,
+      retrievalCount: true,
+    });
+    expect(call.omit).not.toHaveProperty('assistantSummary');
+  });
+
   it('falls back to unknown-<id8> for directory ids that no longer resolve', async () => {
     prisma.persona.findMany?.mockResolvedValue([{ id: 'persona-1' }]);
     prisma.memory.findMany?.mockResolvedValue([

@@ -65,7 +65,26 @@ export type ExportCharacter = Omit<
   'avatarData' | 'voiceReferenceData'
 >;
 export type ExportConversationRow = Prisma.ConversationHistoryGetPayload<object>;
-export type ExportMemoryRow = Prisma.MemoryGetPayload<object>;
+/**
+ * Summarizer/retrieval bookkeeping dropped from the memory export — operational
+ * state rather than user content, the same rule the recent-days digest export
+ * applies to its own status/attempt columns. `assistantSummary` is kept
+ * because it summarizes the user's own conversation.
+ */
+const MEMORY_EXPORT_OMIT = {
+  summaryStatus: true,
+  summaryAttempts: true,
+  summaryModel: true,
+  summaryPromptVersion: true,
+  sourceContentHash: true,
+  summaryRequestedAt: true,
+  summaryCompletedAt: true,
+  summaryLastError: true,
+  lastRetrievedAt: true,
+  retrievalCount: true,
+} as const satisfies Prisma.MemoryOmit;
+
+export type ExportMemoryRow = Prisma.MemoryGetPayload<{ omit: typeof MEMORY_EXPORT_OMIT }>;
 export type ExportFactRow = Prisma.MemoryFactGetPayload<object>;
 export type ExportFeedbackRow = Prisma.UserFeedbackGetPayload<object>;
 
@@ -421,6 +440,7 @@ export async function assembleAccountExport(
   const memories = await sweep(cursor =>
     prisma.memory.findMany({
       where: { personaId: { in: personaIds } },
+      omit: MEMORY_EXPORT_OMIT,
       ...pageArgs(cursor),
     })
   );
