@@ -14,11 +14,14 @@
  * here at the full `prompt` rate.
  *
  * The provider gate is the diagnostic ROW's `provider` column
- * (`AIProvider`, written from `context.auth?.provider` in the ai-worker
- * pipeline), never `payload.llmConfig.provider` — that field is only the
- * model id's vendor namespace (`modelName.split('/')[0]`, e.g. `anthropic`
- * or `z-ai`), not the dispatch provider, and cannot gate an OpenRouter-only
- * lookup.
+ * (`AIProvider`): the provider that SERVED the call, written by the
+ * ai-worker pipeline as `effectiveProviderUsed ?? <auth-resolved provider>`,
+ * so a request auto-promoted to z.ai and served by the OpenRouter fallback
+ * gates as OpenRouter. On a failed generation nothing served, and the row
+ * carries the auth-resolved provider. Never `payload.llmConfig.provider` —
+ * that field is only the model id's vendor namespace
+ * (`modelName.split('/')[0]`, e.g. `anthropic` or `z-ai`), not the dispatch
+ * provider, and cannot gate an OpenRouter-only lookup.
  */
 
 import type { OpenRouterModel } from '@tzurot/common-types/types/ai';

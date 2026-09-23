@@ -214,6 +214,11 @@ export class GenerationStep implements IPipelineStep {
 
       const fallbackFromProvider = deriveFallbackFromProvider(provider, effectiveProviderUsed);
 
+      // The provider that SERVED this call: the fallback route when a swap
+      // served it, else the auth-resolved one. The usage row (via
+      // metadata.providerUsed) and the diagnostic row both record this value.
+      const servedProvider = effectiveProviderUsed ?? provider;
+
       // Store memory ONCE after retry loop completes with a valid response.
       // This prevents duplicate memories when retries occur (the fix for the
       // "swiss cheese" duplicate memory bug - see memory:cleanup command).
@@ -276,7 +281,7 @@ export class GenerationStep implements IPipelineStep {
           this.prisma,
           diagnosticCollector,
           response.modelUsed ?? 'unknown',
-          provider ?? 'unknown'
+          servedProvider ?? 'unknown'
         );
 
         return {
@@ -297,7 +302,7 @@ export class GenerationStep implements IPipelineStep {
             metadata: {
               processingTimeMs,
               modelUsed: response.modelUsed,
-              providerUsed: effectiveProviderUsed ?? provider,
+              providerUsed: servedProvider,
               fallbackFromProvider,
               configSource,
               // Effective guest-mode after any mid-turn credential swap (a
@@ -337,7 +342,7 @@ export class GenerationStep implements IPipelineStep {
             routedModel: response.routedModel,
             // Effective provider after any auto-promotion fallback swap (OpenRouter
             // when the promoted z.ai call failed), so the footer links correctly.
-            providerUsed: effectiveProviderUsed ?? provider,
+            providerUsed: servedProvider,
             fallbackFromProvider,
             configSource,
             // Same mid-turn-swap correction as providerUsed: the usage row's

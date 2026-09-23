@@ -256,6 +256,31 @@ describe('estimateDiagnosticCost', () => {
     expect(result?.model).toBe('routed/model');
   });
 
+  it('fallback-served row (auth provider zai-coding) prices off the OpenRouter catalog', async () => {
+    // The row's `provider` column is the SERVED provider (OpenRouter, from
+    // an auto-promotion fallback swap), not the auth-resolved provider
+    // (zai-coding) that dispatched the primary attempt — the gate above
+    // reads that column, so a fallback-served row prices normally.
+    const cache = makeCache([
+      makeModel({
+        id: 'z-ai/glm-5.1',
+        pricing: { ...makeModel().pricing, prompt: '0.000002', completion: '0.000004' },
+      }),
+    ]);
+    const payload = makePayload({
+      modelUsed: 'glm-5.1',
+      routedModel: 'z-ai/glm-5.1',
+      promptTokens: 500,
+      completionTokens: 1500,
+    });
+
+    const result = await estimateDiagnosticCost(cache, AIProvider.OpenRouter, payload, 'req-1');
+
+    expect(result).not.toBeNull();
+    expect(result?.model).toBe('z-ai/glm-5.1');
+    expect(result?.totalUsd).toBeCloseTo(0.007, 10);
+  });
+
   it('returns null when getModels() rejects, and logs the failure', async () => {
     const cache = {
       getModels: vi.fn().mockRejectedValue(new Error('network down')),

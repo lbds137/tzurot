@@ -113,6 +113,9 @@ export function composeGenerationFailureResult(
 
   // Store diagnostic data even for failures (fire-and-forget)
   // This enables /admin debug to show what went wrong
+  // No provider served this call — the generation (and any fallback it
+  // attempted) threw — so the row records the auth-resolved primary route.
+  // The attempted fallback, if any, rides fallbackProviderAttempted below.
   storeDiagnosticLog(
     prisma,
     diagnosticCollector,
