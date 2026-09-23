@@ -3,10 +3,10 @@ id: TASK-1031
 title: >-
   Spoilered plain attachments reach vision unlabeled while embed media is
   labeled
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-21 09:48'
-updated_date: '2026-09-23 03:18'
+updated_date: '2026-09-23 05:18'
 labels:
   - 'area:bot-client'
   - 'size:M'
