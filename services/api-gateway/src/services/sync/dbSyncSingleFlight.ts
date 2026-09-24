@@ -55,7 +55,7 @@ export class DbSyncSingleFlightUnavailableError extends Error {
  *
  * Fails closed: a Redis rejection throws rather than being read as "no sync
  * running" — this guards writes to both databases, the same posture and
- * reason as `runLease.ts` (lines 18-20).
+ * reason as `runLease.ts` (its "Redis errors FAIL CLOSED" paragraph).
  */
 export async function acquireDbSyncSingleFlight(
   redis: DbSyncSingleFlightRedis
