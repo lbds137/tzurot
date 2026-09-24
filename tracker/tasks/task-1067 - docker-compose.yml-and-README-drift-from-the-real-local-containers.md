@@ -19,4 +19,5 @@ ordinal: 1061000
 Why: docker-compose.yml names volumes redis-data/postgres-data while the real containers use tzurot-redis-data/tzurot-postgres-data, still carries the obsolete top-level version: key, and no compose tool is installed on the Deck; README.md (~line 224) says "Podman (SteamOS/Distrobox)" but podman runs on the host. Both containers now have restart=always with podman-restart.service enabled (sibling env-cleanup session, 2026-09-23).
 Fix shape: either make docker-compose.yml match the real setup (volume names, drop version:) and say how to run it with podman, or delete it and document the podman run commands; fix the README line.
 Acceptance: the documented local-infra setup reproduces the running containers.
+In flight 2026-09-24 as #2511 (owner rulings: delete docker-compose.yml, and recreate the live containers on 127.0.0.1-only ports, done that day). At merge: mark Done, then message the Deck-management session so that dev-docs RESTORE.md points at README § Local Development.
 <!-- SECTION:DESCRIPTION:END -->
