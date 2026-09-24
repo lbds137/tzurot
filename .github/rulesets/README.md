@@ -27,7 +27,7 @@ per live ruleset, no speculative variants. Git history has them if they are ever
 | Merge method          | rebase only  | rebase only              |
 | Branch deletion       | blocked      | blocked                  |
 | Linear history        | required     | required                 |
-| Required checks       | the 12 below | those 12 + `fixup-check` |
+| Required checks       | the 13 below | those 13 + `fixup-check` |
 | Force-push            | blocked      | **allowed**              |
 | Admin bypass          | **never**    | **always**               |
 | Copilot review        | on           | **off**                  |
@@ -69,10 +69,11 @@ The last of those is a live open choice rather than a constraint:
 
 ## Required status checks
 
-Both branches require these 12:
+Both branches require these 13:
 
 `lint` · `build` · `unit-tests (ai-worker | api-gateway | bot-client | packages | tooling | website)` ·
-`component-integration-tests` · `docker-build-smoke-ok` · `voice-engine-tests` · `mutation-tests`
+`component-integration-tests` · `docker-build-smoke-ok` · `voice-engine-tests` · `mutation-tests` ·
+`hook-posix-parse`
 
 Chosen because they always run and must always be green. Deliberately **excluded**:
 `codecov/patch`, `CodeQL`, `GitGuardian Security Checks`, `claude-review` — third-party or
