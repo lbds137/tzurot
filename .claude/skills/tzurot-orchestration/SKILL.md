@@ -196,14 +196,14 @@ export LC_ALL=C.UTF-8 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 PATH=/opt/node24/bin:$PA
 redis-server --daemonize yes --dir /tmp && redis-cli ping   # --dir keeps dump.rdb out of the repo
 pg_ctlcluster 16 main start
 git fetch origin main:main develop <pushed base branch>   # local main: pnpm quality's workflow-sync guard; develop and the base: the VM clones and checks out main, and a review-round unit's base is the pushed feature branch
-git checkout -B <type/description> origin/<pushed base branch>   # pre-push enforces the name shape
+git checkout -B <type/description> origin/<pushed base branch>   # pre-push enforces the name shape; for a review-round unit, <type/description> IS the existing PR branch and the base is that same branch
 cp .env.example .env && sed -i -E 's/^(BOT_OWNER_ID|DISCORD_CLIENT_ID|GUILD_ID)=.*/\1=100000000000000000/' .env
 pnpm install --frozen-lockfile && pnpm --filter "./packages/**" build
 su postgres -c "psql -c \"CREATE ROLE tzurot LOGIN SUPERUSER PASSWORD 'tzurot'\""   # this line on: Postgres units only
 su postgres -c "createdb -O tzurot tzurot_integration_test"   # the name must end in _test
 su postgres -c "psql -d tzurot_integration_test -c 'CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS citext'"
 export DATABASE_URL=postgresql://tzurot:tzurot@localhost:5432/tzurot_integration_test
-npx prisma migrate deploy && REDIS_IP_FAMILY=4 pnpm test:integration   # the VM has no IPv6
+pnpm ops db:migrate && REDIS_IP_FAMILY=4 pnpm test:integration   # never raw prisma migrate (03-database.md); the VM has no IPv6
 ```
 
 **Contract points that differ from § Nested dispatch.** The base must be
