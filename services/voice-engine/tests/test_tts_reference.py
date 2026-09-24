@@ -11,9 +11,7 @@ import server as server_mod
 from server import voice_cache
 
 
-async def test_tts_with_reference_audio_caches_voice(
-    client: httpx.AsyncClient, mock_tts: MagicMock
-) -> None:
+async def test_tts_with_reference_audio_caches_voice(client: httpx.AsyncClient, mock_tts: MagicMock) -> None:
     """Uploading reference_audio should register the voice in cache."""
     response = await client.post(
         "/v1/tts",
@@ -42,9 +40,7 @@ async def test_tts_rejects_oversized_reference_audio(
     assert "too large" in response.json()["detail"].lower()
 
 
-async def test_tts_rejects_unsupported_reference_mime_type(
-    client: httpx.AsyncClient, mock_tts: MagicMock
-) -> None:
+async def test_tts_rejects_unsupported_reference_mime_type(client: httpx.AsyncClient, mock_tts: MagicMock) -> None:
     """Reference audio with unsupported MIME type should be rejected."""
     response = await client.post(
         "/v1/tts",
@@ -56,9 +52,7 @@ async def test_tts_rejects_unsupported_reference_mime_type(
     assert "unsupported audio type" in response.json()["detail"].lower()
 
 
-async def test_tts_generic_exception_returns_500(
-    client: httpx.AsyncClient, mock_tts: MagicMock
-) -> None:
+async def test_tts_generic_exception_returns_500(client: httpx.AsyncClient, mock_tts: MagicMock) -> None:
     """Unexpected exceptions during TTS should return 500."""
     voice_cache["alba"] = {"state": "mock"}
     mock_tts.generate_audio.side_effect = RuntimeError("Unexpected model error")
@@ -72,9 +66,7 @@ async def test_tts_generic_exception_returns_500(
     assert "Speech generation failed" in response.json()["detail"]
 
 
-async def test_tts_uses_cached_voice_without_reference(
-    client: httpx.AsyncClient, mock_tts: MagicMock
-) -> None:
+async def test_tts_uses_cached_voice_without_reference(client: httpx.AsyncClient, mock_tts: MagicMock) -> None:
     """When voice_id is in cache, use it without needing reference audio."""
     voice_cache["cached-voice"] = {"state": "pre-cached"}
 
