@@ -10,7 +10,7 @@ _Active bugs observed in production. Fix before new features. Cleared issues are
 
 _Recently resolved items move to the GitHub release notes at ship time — this section stays empty between incidents (history: git + releases)._
 
-- 🐛 `[FIX]` **TASK-1079**: the Share Chat History drill-down on both character dashboards builds a 107-character customId, and discord.js throws on it. It has been reachable on prod since beta.209. This is measured in the builders and not yet confirmed in prod logs.
+- 🐛 `[FIX]` **TASK-1079**: the Share Chat History drill-down on both character dashboards builds a 107-character customId, and discord.js throws on it. It has been reachable on prod since beta.209. **Fixed on develop as #2508** (`22a9cb0cd`, 2026-09-24): UUID entity ids are compacted in the customId, and a ratchet builds every dashboard message and holds every id at ≤ 100. It ships with beta.230; remove this entry at that cut.
 
 _(2026-09-21: the vxreddit Components-V2 entry REMOVED — fix #2461 verified on dev by the owner smoke, Emily described the art; prod verification is the same check after beta.228. The entry's capture, probe and PR history live on TASK-1024 and in git.)_
 
@@ -35,12 +35,12 @@ _beta.229 CUT 2026-09-24 11:28Z (07:28 EDT). **The numbers:** 30 PRs, 24 runtime
   - TASK-1027 is the owner's call;
   - no model-parameter experiments;
   - the owner clears sessions with `/clear`, so every handoff lives on disk.
-- **In**: _(empty at cut time)_
+- **In**: #2508 (TASK-1079, the settings customId cap fix).
 - **Waiting on**:
   1. **The TASK-1039 read:** RUN 2026-09-24, inconclusive. One thread per day kept Emily under N 10, so none of her ON turns summarized. Owner ruling 2026-09-24: N=3 on Emily and Lilith for one more read day, set by the owner. The second read runs once that day's thread is complete. Slice 2 (the measured default for N, the override cascade, the facts-vocabulary slice) waits on that second read.
   2. **`doc-72` dashboard index navigation:**
      - PR A (navigation) MERGED 2026-09-24 as #2507 (`eb0983e98`, four review rounds), absorbing TASK-256.
-     - PR B next: TASK-1001's per-page reset, the hub's Reset all (not on admin, per owner ruling), and TASK-1080.
+     - PR B IN FLIGHT (dispatched 2026-09-24 on `1c27d7293`): TASK-1001's per-page reset, the hub's Reset all, and TASK-1080. Semantics follow the owner's "Build as described" ruling recorded in doc-72. Admin's System pages follow in TASK-1082.
      - Owner ruling 2026-09-22: it lands before slice 2 adds more settings surface.
   3. **TASK-1070:** MERGED as #2505. It is open for its dev check: TTS plus a no-key transcription in dev.
   4. **The doc-61 economy pass**, due 2026-10-02.
