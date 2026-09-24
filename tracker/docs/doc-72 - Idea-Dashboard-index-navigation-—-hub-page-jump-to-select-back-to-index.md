@@ -136,3 +136,15 @@ the server default, which answered as an Anthropic model).
 - **PR A, navigation:** the hub view, the landing threshold, the Index button,
   and the flat → concern-page split. Closes TASK-256.
 - **PR B, resets:** TASK-1001's per-page reset, plus the hub's reset-all.
+
+**PR B semantics, owner ruling "Build as described" (2026-09-24, AskUserQuestion):**
+- Every settings page gets a ♻️ Reset page button on its own row. It is disabled
+  when nothing on the page is set at that level. Pressing it opens a confirm
+  screen naming how many settings go back to Auto, and confirming clears them in
+  one save.
+- The hub gets Reset all (same confirm, every setting the dashboard shows) on
+  user defaults, character settings, character overrides and channel settings.
+  Channel's existing Reset to defaults button moves onto its hub.
+- Admin's Memory, Context & Display and Voice pages reset to the built-in
+  defaults. Admin's 8 System pages follow in TASK-1082: their store has no wire
+  form that clears a key.
