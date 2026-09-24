@@ -6,7 +6,7 @@
  * work, which `dbSync.test.ts` already covers.
  */
 
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterAll } from 'vitest';
 import request from 'supertest';
 import { DB_SYNC_SINGLE_FLIGHT_KEY } from '../../services/sync/dbSyncSingleFlight.js';
 
@@ -51,6 +51,10 @@ describe('db-sync single-flight guard (component, real mounts over PGLite)', () 
 
   beforeAll(async () => {
     harness = await buildConformanceHarness();
+  });
+
+  beforeEach(async () => {
+    await harness.deps.redis?.del(DB_SYNC_SINGLE_FLIGHT_KEY);
   });
 
   afterAll(async () => {
