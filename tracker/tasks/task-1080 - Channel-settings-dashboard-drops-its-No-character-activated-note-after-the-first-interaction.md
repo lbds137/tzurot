@@ -3,9 +3,10 @@ id: TASK-1080
 title: >-
   Channel settings dashboard drops its No character activated note after the
   first interaction
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-24 14:11'
+updated_date: '2026-09-24 18:24'
 labels:
   - 'area:bot-client'
   - 'size:S'
