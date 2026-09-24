@@ -51,10 +51,12 @@
  * cooldown-stays-armed behavior. Ordinary (interval) ticks never get this
  * treatment: a failure there posts and keeps the cooldown armed
  * unconditionally, as before. One further exception applies to EVERY
- * trigger: a 409 carrying `DB_SYNC_IN_PROGRESS` means another sync already
- * covers the day, so this run skips silently — no post, no retry, cooldown
- * stays armed. `stopNightlyDbSyncScheduler` clears a pending
- * retry timer along with the scheduler's own timers.
+ * trigger: a 409 carrying `DB_SYNC_IN_PROGRESS` means another (real, non-dry)
+ * sync already covers the day — the gateway's single-flight guard only ever
+ * holds a writing sync, never a dry-run preview (pinned by the dry-run cases
+ * in api-gateway's `dbSync.test.ts`) — so this run skips silently:
+ * no post, no retry, cooldown stays armed. `stopNightlyDbSyncScheduler`
+ * clears a pending retry timer along with the scheduler's own timers.
  */
 
 import { AttachmentBuilder, EmbedBuilder, type Client } from 'discord.js';
