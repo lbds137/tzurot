@@ -4,11 +4,10 @@
  * Interactive dashboard for managing global bot settings (owner only).
  * Uses button-based UI with modals for value editing.
  *
- * Settings:
- * - Extended Context Default: Enable/Disable/Auto
- * - Max Messages: 1-100
- * - Max Age: Duration or Off
- * - Max Images: 0-20
+ * Settings: the admin-tier cascade settings on the shared concern pages
+ * (Memory · Context & Display · Voice, from `buildCascadePages`), plus the
+ * owner-only System pages (from `SYSTEM_SETTINGS_PAGES`) — grouped into
+ * concern pages, opening on the page index.
  *
  * Receives DeferredCommandContext (no deferReply method!)
  * because the parent command uses deferralMode: 'ephemeral'.
