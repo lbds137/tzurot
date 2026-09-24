@@ -65,7 +65,7 @@
 
 **Filed**: TASK-1070 (voice-engine to Python 3.13, after the cut) · TASK-1072 · TASK-1073 · TASK-1074–1076 (the TASK-1069 follow-ups). The TASK-802 comment gained the edit-dashboard name sites.
 
-**Next**, in order (the beta.230 plan is in `backlog/now.md`): (1) the owner's beta.229 Vencord smoke, which closes TASK-1069 and, run in dev with no key, also exercises voice-engine on 3.13 (TASK-1070 dev check); (2) the TASK-1039 second read at N=3 (owner ruling); (3) TASK-1070 MERGED #2505 (`e89e83bd9`), open until dev boots on 3.13 and a TTS reply plus a no-key transcription pass; (4) `doc-72`: council done, rulings on the doc, PR A in flight, PR B (resets) next; (5) TASK-1073, then the routine cloud mode folded into `/tzurot-orchestration` (owner ruling "Fix, then adopt", doc-108); (6) the drain on 5.5: `pnpm tracker task list -s "To Do" -l state:ready -l size:S --plain`.
+**Next**, in order (the beta.230 plan is in `backlog/now.md`): (1) the owner's beta.229 Vencord smoke, which closes TASK-1069 and, run in dev with no key, also exercises voice-engine on 3.13 (TASK-1070 dev check); (2) the TASK-1039 second read at N=3 (owner ruling); (3) TASK-1070 MERGED #2505 (`e89e83bd9`), open until dev boots on 3.13 and a TTS reply plus a no-key transcription pass; (4) TASK-1079 (high, prod: the 107-char customId on the Share Chat History drill-down); (5) `doc-72` PR B (resets + TASK-1080; PR A merged as #2507); (6) fold the routine cloud mode into `/tzurot-orchestration` (TASK-1073 MERGED as #2506; `hook-posix-parse` is now required on both rulesets, owner ruling "Add to both"); (7) the drain on 5.5: `pnpm tracker task list -s "To Do" -l state:ready -l size:S --plain`.
 
 **Keep for Fable**: the doc-97 Phase 4 slice 2 design, council passes, semantic specs.
 
