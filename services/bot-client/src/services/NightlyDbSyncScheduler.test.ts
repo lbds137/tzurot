@@ -814,6 +814,28 @@ describe('startup-run gateway-not-ready retry', () => {
     expect(await redis.get(COOLDOWN_KEY)).not.toBeNull();
   });
 
+  it('a 409 DB_SYNC_IN_PROGRESS on the startup trigger posts nothing, keeps the cooldown and arms no retry', async () => {
+    const redis = makeStatefulRedis(null);
+    mockDbSync.mockResolvedValueOnce({
+      ok: false,
+      kind: 'http',
+      status: 409,
+      error: 'A database sync is already running (startup trigger fixture).',
+      code: API_ERROR_SUBCODE.DB_SYNC_IN_PROGRESS,
+    });
+
+    await startupRun(redis);
+
+    expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
+    expect(redis.del).not.toHaveBeenCalled();
+    expect(await redis.get(COOLDOWN_KEY)).not.toBeNull();
+
+    // No retry was scheduled: dbSync stays at one call past the retry delay.
+    await vi.advanceTimersByTimeAsync(FIVE_MINUTES_MS);
+
+    expect(mockDbSync).toHaveBeenCalledTimes(1);
+  });
+
   it('a plain 409 without the DB_SYNC_IN_PROGRESS subcode still posts the failure embed', async () => {
     const redis = makeStatefulRedis(null);
     mockDbSync.mockResolvedValueOnce({
