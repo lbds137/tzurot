@@ -229,9 +229,15 @@ driver's full-diff read (`git fetch`, then `git diff
 origin/<pushed base branch>...origin/<branch>`) stays the review gate, as in § When the
 worker reports. Relay the session link to the owner in chat only, never in a
 commit, PR body, or doc (`00-critical.md` § Claude Session URLs Are Secrets).
-**Review rounds**: a cloud session cannot be messaged back into, so a round's
-fixes go to a local worktree dispatch or a fresh cloud unit on the pushed
-branch, per `/tzurot-review-response` § 3a.
+**Review rounds**: prefer resuming the unit's own cloud session with
+`SendMessage` (its name is in `ListAgents`), per `/tzurot-review-response`
+§ 3a — a finished session re-allocates its sandbox with the existing clone
+and cached setup, acts on the message, and its reply lands in its own run
+log, readable only via `get_run_log` (a cloud session cannot message back;
+probed with an echo round-trip). A cloud session in a different permission
+mode may hold the message for owner approval in its own UI, and nothing
+reports that back: if the run log shows no new turn, fall back to a fresh
+cloud unit on the pushed branch.
 
 ## The spec template
 
