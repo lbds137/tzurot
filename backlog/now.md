@@ -35,7 +35,7 @@ _beta.229 CUT 2026-09-24 11:28Z (07:28 EDT). **The numbers:** 30 PRs, 24 runtime
   - the owner clears sessions with `/clear`, so every handoff lives on disk.
 - **In**: _(empty at cut time)_
 - **Waiting on**:
-  1. **The TASK-1039 read:** RUN 2026-09-24, inconclusive. One thread per day kept Emily under N 10, so none of her ON turns summarized. An owner question is open on the task: lower N to 3 for one more read day. Slice 2 (the measured default for N, the override cascade, the facts-vocabulary slice) waits on that second read.
+  1. **The TASK-1039 read:** RUN 2026-09-24, inconclusive. One thread per day kept Emily under N 10, so none of her ON turns summarized. Owner ruling 2026-09-24: N=3 on Emily and Lilith for one more read day, set by the owner. The second read runs once that day's thread is complete. Slice 2 (the measured default for N, the override cascade, the facts-vocabulary slice) waits on that second read.
   2. **`doc-72` dashboard index navigation:** a hub page, a jump select and back-to-index, absorbing TASK-256. Council pass at pickup. Owner ruling 2026-09-22: it lands before slice 2 adds more settings surface.
   3. **TASK-1070:** voice-engine to Python 3.13, owner: "after the cut".
   4. **The doc-61 economy pass**, due 2026-10-02.

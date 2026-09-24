@@ -47,7 +47,7 @@
 
 - The owner used one thread per day: 09-22 OFF in `…136281108`, 09-23 ON in `…188833822`, and the diary channel on the task has no turns since 09-22. The window counts the responder's own turns: Emily stayed at 10 or fewer, so 0 of her turns summarized; Lilith's turns 12–16 did.
 - The substitution reaches the prompt (runtime-checked), and both fresh threads open in the long register from turn 1.
-- The owner question is on the task (N=3 for one more read day). TASK-1077 was filed (no summary marker in the stored prompt).
+- Owner ruled 2026-09-24: N=3 on Emily and Lilith for one more read day, set by the owner. The second read follows once that day's thread is complete. TASK-1077 was filed (no summary marker in the stored prompt).
 
 ## ⏸️ 2026-09-22 STOPPING POINT (owner ruling: mine, then switch the drain to Opus 5.5)
 
