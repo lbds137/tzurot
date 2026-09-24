@@ -3,9 +3,10 @@ id: TASK-1073
 title: >-
   Husky hooks use bash syntax but run under sh, so they fail where /bin/sh is
   dash
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-24 03:10'
+updated_date: '2026-09-24 14:16'
 labels:
   - 'area:tooling'
   - 'size:S'
