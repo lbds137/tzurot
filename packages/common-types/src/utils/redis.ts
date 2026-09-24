@@ -41,7 +41,8 @@ export interface BullMQRedisConfig {
  * for internal service-to-service communication — see
  * https://docs.railway.app/reference/private-networking. `REDIS_IP_FAMILY`
  * exists for IPv4-only dev hosts (e.g. a kernel with no IPv6 support), where
- * the default 6 makes every Redis connection unreachable.
+ * the default 6 makes a hostname-addressed Redis (`localhost`) unreachable; an
+ * IP-literal host is dialed as-is, since Node ignores `family` for an IP address.
  *
  * Reads `process.env.REDIS_IP_FAMILY` directly at call time (not cached at
  * module load) so a test or a runtime env change is observed immediately.
