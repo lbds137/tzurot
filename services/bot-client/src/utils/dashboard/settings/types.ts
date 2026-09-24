@@ -177,6 +177,14 @@ export interface SettingsDashboardSession {
    * input to a validation error). Cleared on the next successful update.
    */
   lastRejectedInput?: { settingId: string; value: string };
+  /**
+   * Per-invocation note set when the dashboard opens (e.g. channel settings
+   * in a channel with no activated character). The interaction routers
+   * re-render with the BASE config, so a note carried only on an open-time
+   * config copy would vanish on the first interaction; every render reads
+   * this ahead of `config.descriptionNote`.
+   */
+  descriptionNote?: string;
   /** User ID who owns this session */
   userId: string;
   /** Message ID of the dashboard */
@@ -249,13 +257,20 @@ export interface SettingsDashboardConfig {
    */
   scopeNote: (entityName: string) => string;
   /**
-   * Opt-in reset-to-defaults affordance. When present, the overview renders a
-   * Danger button routed to the shared 'reset' action; the dashboard's
-   * injected reset handler clears the entity's overrides and returns fresh
-   * data for the re-render. Absent → no button, and a stale 'reset' customId
-   * falls through to the unknown-action notice.
+   * Opt-in Reset all on the index hub: one confirmed save returns every
+   * Auto-capable setting this dashboard shows to Auto. Only dashboards whose
+   * scope holds the user's own overrides opt in (the admin hub does not).
+   * Reset page needs no opt-in: every page whose settings are all
+   * Auto-capable renders it (`settingsResetScope.isResettablePage`).
    */
-  resetButton?: { label: string };
+  resetAll?: boolean;
+  /**
+   * Read a scope-less 'reset' / 'reset-confirm' customId as Reset all. Set
+   * only on the dashboard whose messages rendered the pre-scope, whole-
+   * dashboard reset button, so such a message still resolves; on every other
+   * dashboard a scope-less reset gets the out-of-date notice.
+   */
+  legacyBareResetMeansAll?: boolean;
 }
 
 /**
@@ -278,13 +293,16 @@ export type SettingUpdateHandler = (
 ) => Promise<SettingUpdateResult>;
 
 /**
- * Handler for the reset-to-defaults action (config.resetButton). Clears the
- * entity's overrides at the API and returns the FRESH dashboard data for the
- * overview re-render — same result contract as SettingUpdateHandler.
+ * Batch clear behind Reset page and Reset all: returns every listed setting to
+ * Auto at this dashboard's tier in ONE write, then returns the FRESH dashboard
+ * data for the re-render — same result contract as SettingUpdateHandler. Each
+ * dashboard builds it from the same write path as its SettingUpdateHandler, so
+ * the path's guards and side effects run once for the whole set.
  */
 export type SettingsResetHandler = (
   interaction: ButtonInteraction,
-  session: SettingsDashboardSession
+  session: SettingsDashboardSession,
+  settingIds: string[]
 ) => Promise<SettingUpdateResult>;
 
 /**

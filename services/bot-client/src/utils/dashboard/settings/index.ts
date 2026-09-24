@@ -28,7 +28,7 @@ export {
 } from './systemSettingsConfig.js';
 
 // Shared update logic
-export { mapSettingToApiUpdate } from './settingsUpdate.js';
+export { mapSettingToApiUpdate, buildClearBody } from './settingsUpdate.js';
 
 // Shared data builder
 export {

@@ -118,6 +118,21 @@ describe('Channel Config Overrides Routes', () => {
       expect(response.body.configOverrides).toEqual({ maxImages: 5 });
     });
 
+    it('clears several overrides in one write when a multi-key body sends null', async () => {
+      mockPrisma.channelSettings.findUnique.mockResolvedValue({
+        configOverrides: { maxMessages: 30, maxImages: 5, maxAge: null },
+      });
+      mockPrisma.channelSettings.upsert.mockResolvedValue({});
+
+      const response = await request(app)
+        .patch(`/user/channel/${CHANNEL_ID}/config-overrides`)
+        .send({ maxMessages: null, maxAge: null });
+
+      expect(response.status).toBe(200);
+      expect(mockPrisma.channelSettings.upsert).toHaveBeenCalledTimes(1);
+      expect(response.body.configOverrides).toEqual({ maxImages: 5 });
+    });
+
     it('should reject invalid config format', async () => {
       mockPrisma.channelSettings.findUnique.mockResolvedValue(null);
 

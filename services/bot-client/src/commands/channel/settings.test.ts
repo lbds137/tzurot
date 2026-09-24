@@ -18,6 +18,7 @@ import {
   handleChannelSettings,
   handleChannelSettingsButton,
   handleChannelSettingsModal,
+  handleChannelSettingsSelectMenu,
   isChannelSettingsInteraction,
 } from './settings.js';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
@@ -332,7 +333,7 @@ describe('Channel Settings Dashboard', () => {
       expect(embedJson.title).toBe('Channel Settings · Memory');
     });
 
-    it('every page renders select, Prev / N/3 / Next / Index, and the whole-dashboard reset row', async () => {
+    it('every page renders select, Prev / N/3 / Next / Index, and its own Reset page row', async () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
@@ -344,16 +345,21 @@ describe('Channel Settings Dashboard', () => {
         await pressNext(mockSessionManager),
         await pressNext(mockSessionManager),
       ];
+      const pageIds = ['memory', 'context-display', 'voice'];
       pages.forEach((page, i) => {
         expect(page.components).toHaveLength(3);
         const navLabels = page.components[1]
           .toJSON()
           .components.map((c: { label?: string }) => c.label);
         expect(navLabels).toEqual(['Prev', `${i + 1}/3`, 'Next', 'Index']);
-        const resetIds = page.components[2]
-          .toJSON()
-          .components.map((c: { custom_id?: string }) => c.custom_id);
-        expect(resetIds).toEqual(['channel-settings::reset::channel-123']);
+        const resetRow = page.components[2].toJSON().components;
+        expect(resetRow).toHaveLength(1);
+        expect(resetRow[0].custom_id).toBe(
+          `channel-settings::reset::channel-123::page:${pageIds[i]}`
+        );
+        // The fixture (mockChannelSettings via defaultResolvedData) sets
+        // nothing locally at the channel tier — Reset page starts disabled.
+        expect(resetRow[0].disabled).toBe(true);
       });
     });
 
@@ -569,6 +575,76 @@ describe('Channel Settings Dashboard', () => {
     });
   });
 
+  describe('TASK-1080: the No character activated note survives navigation', () => {
+    /** Drive one router handler from the session the previous step stored — the pressNext pattern, generalized to any handler/customId/extra. */
+    async function driveInteraction(
+      handler: (interaction: never) => Promise<void>,
+      customId: string,
+      extra: Record<string, unknown> = {}
+    ) {
+      const stored = mockSessionManager.set.mock.calls.at(-1)?.[0];
+      mockSessionManager.get.mockReturnValue({ data: stored.data });
+      const interaction = {
+        customId,
+        user: { id: stored.data.userId },
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
+        ...extra,
+      };
+      await handler(interaction as never);
+      return interaction.editReply.mock.calls[0][0];
+    }
+
+    it('keeps the No character activated note on every overview and hub render (open, Next, drill in and Back, Index)', async () => {
+      const context = createMockContext(true);
+      mockGetChannelSettings.mockResolvedValue({ settings: {} });
+
+      await handleChannelSettings(context);
+
+      const page1 = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(page1.embeds[0].toJSON().description).toContain('No character activated');
+
+      const page2 = await pressNext(mockSessionManager);
+      expect(page2.embeds[0].toJSON().description).toContain('No character activated');
+
+      // Drill into a setting on page 2 (Context & Display holds maxMessages).
+      // The drill-down (setting view) is NOT a note-bearing view — assert only
+      // that the drill worked, not on its description.
+      const drilled = await driveInteraction(
+        handleChannelSettingsSelectMenu,
+        'channel-settings::select::channel-123',
+        { values: ['maxMessages'] }
+      );
+      expect(drilled.embeds[0].toJSON().title).toContain('Max Messages');
+
+      const backRender = await driveInteraction(
+        handleChannelSettingsButton,
+        'channel-settings::back::channel-123'
+      );
+      expect(backRender.embeds[0].toJSON().description).toContain('No character activated');
+
+      const indexRender = await driveInteraction(
+        handleChannelSettingsButton,
+        'channel-settings::index::channel-123'
+      );
+      expect(indexRender.embeds[0].toJSON().description).toContain('No character activated');
+    });
+
+    it('never shows the note when a character is activated (open and Next)', async () => {
+      const context = createMockContext(true);
+      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
+
+      await handleChannelSettings(context);
+
+      const page1 = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(page1.embeds[0].toJSON().description).not.toContain('No character activated');
+
+      const page2 = await pressNext(mockSessionManager);
+      expect(page2.embeds[0].toJSON().description).not.toContain('No character activated');
+    });
+  });
+
   describe('concern-page split (flat → Memory · Context & Display · Voice)', () => {
     // The pre-split flat list. The split regroups these; it adds and drops none.
     const PRE_SPLIT_IDS = [
@@ -596,8 +672,10 @@ describe('Channel Settings Dashboard', () => {
       expect([...paged].sort()).toEqual([...PRE_SPLIT_IDS].sort());
     });
 
-    it('keeps the whole-dashboard reset affordance unchanged', () => {
-      expect(CHANNEL_SETTINGS_CONFIG.resetButton).toEqual({ label: 'Reset to defaults' });
+    it('opts into Reset all via the legacy scope-less-reset alias, with no resetButton key', () => {
+      expect(CHANNEL_SETTINGS_CONFIG.resetAll).toBe(true);
+      expect(CHANNEL_SETTINGS_CONFIG.legacyBareResetMeansAll).toBe(true);
+      expect(CHANNEL_SETTINGS_CONFIG).not.toHaveProperty('resetButton');
     });
   });
 
@@ -694,42 +772,68 @@ describe('Channel Settings Dashboard', () => {
       );
     });
 
-    it('reset first click shows the Tier-A confirm without clearing anything', async () => {
+    // Reset page / Reset all: minimal fixture sessions carrying only the
+    // hasLocalOverride:true entries a test cares about — a setting id absent
+    // from session.data reads as not-locally-set (formatSettingValue renders
+    // a placeholder for it, never a crash).
+    const resetSession = (
+      data: Record<string, unknown> = {},
+      overrides: Record<string, unknown> = {}
+    ) => ({
+      data: {
+        userId: '123456789',
+        entityId: 'channel-123',
+        entityName: '<#channel-123>',
+        data,
+        view: 'overview',
+        page: 0,
+        ...overrides,
+      },
+    });
+
+    const localOverride = (localValue: unknown, effectiveValue: unknown = localValue) => ({
+      localValue,
+      hasLocalOverride: true,
+      effectiveValue,
+      source: 'channel',
+      parentValue: null,
+    });
+
+    it('a pre-scope reset with no extra opens the Reset all confirm', async () => {
       const interaction = createButtonInteraction('channel-settings::reset::channel-123');
-      mockSessionManager.get.mockReturnValue(settingViewSession());
+      mockSessionManager.get.mockReturnValue(
+        resetSession({ crossChannelHistoryEnabled: localOverride(true) })
+      );
 
       await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
 
-      // Confirm gate: nothing cleared yet, and the surface routes to
-      // reset-confirm / reset-cancel.
-      expect(stub.clearChannelConfigOverrides).not.toHaveBeenCalled();
+      expect(stub.updateChannelConfigOverrides).not.toHaveBeenCalled();
       const call = interaction.editReply.mock.calls[0][0] as {
         components: Array<{ toJSON: () => { components: Array<{ custom_id: string }> } }>;
       };
       expect(call.components[0].toJSON().components.map(b => b.custom_id)).toEqual([
-        'channel-settings::reset-cancel::channel-123',
-        'channel-settings::reset-confirm::channel-123',
+        'channel-settings::reset-cancel::channel-123::all',
+        'channel-settings::reset-confirm::channel-123::all',
       ]);
     });
 
-    it('reset-confirm is REFUSED when Manage Messages was revoked mid-session', async () => {
-      // The dashboard-open check happened while the user still had the
-      // permission; the session outlives the revocation, so the click has to
-      // re-check. Reset clears every override, so this is the worst one to let
-      // through.
-      const interaction = createButtonInteraction(
-        'channel-settings::reset-confirm::channel-123',
-        false
-      );
-      mockSessionManager.get.mockReturnValue(settingViewSession());
-      stub.clearChannelConfigOverrides.mockResolvedValue(makeOk({ cleared: true }));
+    it('a revoked Manage Messages blocks Reset page and Reset all', async () => {
+      for (const extra of ['page:memory', 'all']) {
+        const interaction = createButtonInteraction(
+          `channel-settings::reset-confirm::channel-123::${extra}`,
+          false
+        );
+        mockSessionManager.get.mockReturnValue(
+          resetSession({ crossChannelHistoryEnabled: localOverride(true) })
+        );
 
-      await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
+        await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
 
-      expect(stub.clearChannelConfigOverrides).not.toHaveBeenCalled();
-      expect(interaction.followUp).toHaveBeenCalledWith(
-        expect.objectContaining({ content: expect.stringContaining('Manage Messages') })
-      );
+        expect(stub.updateChannelConfigOverrides).not.toHaveBeenCalled();
+        expect(interaction.followUp).toHaveBeenCalledWith(
+          expect.objectContaining({ content: expect.stringContaining('Manage Messages') })
+        );
+      }
     });
 
     it('a set click is REFUSED when Manage Messages was revoked mid-session', async () => {
@@ -747,45 +851,84 @@ describe('Channel Settings Dashboard', () => {
       );
     });
 
-    it('reset-confirm clears the channel overrides and re-renders from fresh data', async () => {
-      const interaction = createButtonInteraction('channel-settings::reset-confirm::channel-123');
-      mockSessionManager.get.mockReturnValue(settingViewSession());
+    it("Reset page clears exactly the page's locally-set settings in one PATCH", async () => {
+      const interaction = createButtonInteraction(
+        'channel-settings::reset-confirm::channel-123::page:memory'
+      );
+      mockSessionManager.get.mockReturnValue(
+        resetSession({
+          crossChannelHistoryEnabled: localOverride(true),
+          shareLtmAcrossPersonalities: localOverride(true),
+        })
+      );
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
-      stub.clearChannelConfigOverrides.mockResolvedValue(makeOk({ cleared: true }));
+      stub.updateChannelConfigOverrides.mockResolvedValue(makeOk({ configOverrides: {} }));
 
       await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
 
-      expect(stub.clearChannelConfigOverrides).toHaveBeenCalledWith('channel-123');
-      expect(mockInvalidateChannelSettingsCache).toHaveBeenCalledWith('channel-123');
-      expect(interaction.editReply).toHaveBeenCalledWith(
-        expect.objectContaining({ embeds: expect.any(Array), components: expect.any(Array) })
-      );
-      expect(interaction.followUp).not.toHaveBeenCalled();
+      expect(stub.updateChannelConfigOverrides).toHaveBeenCalledTimes(1);
+      expect(stub.updateChannelConfigOverrides).toHaveBeenCalledWith('channel-123', {
+        crossChannelHistoryEnabled: null,
+        shareLtmAcrossPersonalities: null,
+      });
+      expect(mockInvalidateChannelSettingsCache).toHaveBeenCalledTimes(1);
+      expect(stub.clearChannelConfigOverrides).not.toHaveBeenCalled();
     });
 
-    it('reset-confirm from page 2 still clears the WHOLE channel scope, then stays on page 2', async () => {
-      const interaction = createButtonInteraction('channel-settings::reset-confirm::channel-123');
-      const onPage2 = settingViewSession();
-      mockSessionManager.get.mockReturnValue({
-        data: { ...onPage2.data, view: 'overview', activeSetting: undefined, page: 1 },
-      });
+    it('Reset all clears every locally-set setting across pages in one PATCH', async () => {
+      const interaction = createButtonInteraction(
+        'channel-settings::reset-confirm::channel-123::all'
+      );
+      mockSessionManager.get.mockReturnValue(
+        resetSession({
+          crossChannelHistoryEnabled: localOverride(true),
+          maxMessages: localOverride(25),
+          // Not on the channel dashboard's setting list — must NOT reach the body.
+          voiceTranscriptionEnabled: localOverride(false),
+        })
+      );
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
-      stub.clearChannelConfigOverrides.mockResolvedValue(makeOk({ cleared: true }));
+      stub.updateChannelConfigOverrides.mockResolvedValue(makeOk({ configOverrides: {} }));
 
       await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
 
-      // One DELETE of every channel-tier override — no per-page / per-setting writes.
-      expect(stub.clearChannelConfigOverrides).toHaveBeenCalledTimes(1);
-      expect(stub.clearChannelConfigOverrides).toHaveBeenCalledWith('channel-123');
-      expect(stub.updateChannelConfigOverrides).not.toHaveBeenCalled();
+      expect(stub.updateChannelConfigOverrides).toHaveBeenCalledTimes(1);
+      const body = stub.updateChannelConfigOverrides.mock.calls[0][1] as Record<string, unknown>;
+      expect(body).toEqual({ crossChannelHistoryEnabled: null, maxMessages: null });
+      expect(body).not.toHaveProperty('voiceTranscriptionEnabled');
+      expect(mockInvalidateChannelSettingsCache).toHaveBeenCalledTimes(1);
+      expect(stub.clearChannelConfigOverrides).not.toHaveBeenCalled();
+    });
+
+    it('a pre-scope reset-confirm with no extra clears every locally-set setting and lands on the hub', async () => {
+      const interaction = createButtonInteraction('channel-settings::reset-confirm::channel-123');
+      mockSessionManager.get.mockReturnValue(
+        resetSession({
+          crossChannelHistoryEnabled: localOverride(true),
+          maxMessages: localOverride(25),
+        })
+      );
+      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
+      stub.updateChannelConfigOverrides.mockResolvedValue(makeOk({ configOverrides: {} }));
+
+      await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
+
+      expect(stub.updateChannelConfigOverrides).toHaveBeenCalledWith('channel-123', {
+        crossChannelHistoryEnabled: null,
+        maxMessages: null,
+      });
       const rendered = interaction.editReply.mock.calls[0][0].embeds[0].toJSON();
-      expect(rendered.title).toBe('Channel Settings · Context & Display');
+      expect(rendered.title).toBe('Channel Settings · Index');
     });
 
     it('reset-confirm failure notifies ephemerally without touching the dashboard', async () => {
-      const interaction = createButtonInteraction('channel-settings::reset-confirm::channel-123');
-      mockSessionManager.get.mockReturnValue(settingViewSession());
-      stub.clearChannelConfigOverrides.mockResolvedValue(makeErr(500, 'Server error'));
+      const interaction = createButtonInteraction(
+        'channel-settings::reset-confirm::channel-123::page:memory'
+      );
+      mockSessionManager.get.mockReturnValue(
+        resetSession({ crossChannelHistoryEnabled: localOverride(true) })
+      );
+      stub.updateChannelConfigOverrides.mockResolvedValue(makeErr(500, 'Server error'));
 
       await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
 

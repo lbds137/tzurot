@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import type { ButtonInteraction } from 'discord.js';
-import { mapSettingToApiUpdate, handleSetButton } from './settingsUpdate.js';
+import { mapSettingToApiUpdate, buildClearBody, handleSetButton } from './settingsUpdate.js';
 import { ALL_SETTINGS, EXTENDED_CONTEXT_SETTINGS } from './settingsConfig.js';
 import {
   type SettingsDashboardConfig,
@@ -158,6 +158,28 @@ describe('mapSettingToApiUpdate', () => {
         expect(result).not.toBeNull();
       }
     });
+  });
+});
+
+describe('buildClearBody', () => {
+  it('merges each setting id its own null mapping into one body', () => {
+    expect(buildClearBody(['maxMessages', 'maxAge', 'showModelFooter'])).toEqual({
+      maxMessages: null,
+      maxAge: null,
+      showModelFooter: null,
+    });
+  });
+
+  it('returns null for an empty list — fail closed, write nothing', () => {
+    expect(buildClearBody([])).toBeNull();
+  });
+
+  it('returns null when any id is unknown to the cascade body', () => {
+    expect(buildClearBody(['maxMessages', 'unknownSetting'])).toBeNull();
+  });
+
+  it('returns null for a system setting id, which has no cascade mapping', () => {
+    expect(buildClearBody(['extractionEnabled'])).toBeNull();
   });
 });
 

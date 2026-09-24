@@ -1,13 +1,15 @@
 /**
  * Settings Update Handler Factory
  *
- * Creates a SettingUpdateHandler for a settings dashboard. Extracted from
+ * Creates a SettingUpdateHandler for a settings dashboard, and the matching
+ * batch clear (SettingsResetHandler) over the same write path. Extracted from
  * character/settings.ts and character/overrides.ts, which had nearly-identical
  * 80-line handleSettingUpdate implementations differing only in endpoints,
  * source tier, and log context.
  *
  * Flow:
- * 1. Map setting ID to API patch body via mapSettingToApiUpdate
+ * 1. Map setting ID to API patch body via mapSettingToApiUpdate (the batch
+ *    clear: every listed id's null mapping merged via buildClearBody)
  * 2. PATCH via the configured typed-client method
  * 3. Re-resolve the cascade via the configured typed-client method
  * 4. Convert resolved cascade back to SettingsData (filtering by source tier)
@@ -32,8 +34,9 @@ import type {
   SettingsDashboardSession,
   SettingUpdateHandler,
   SettingUpdateResult,
+  SettingsResetHandler,
 } from './types.js';
-import { mapSettingToApiUpdate } from './settingsUpdate.js';
+import { buildClearBody, mapSettingToApiUpdate } from './settingsUpdate.js';
 import { buildCascadeSettingsData } from './settingsDataBuilder.js';
 
 const logger = createLogger('settingsUpdateFactory');
@@ -83,6 +86,56 @@ export function convertCascadeToSettingsData(
 }
 
 /**
+ * The one write path both handlers share: PATCH the body, re-resolve the
+ * cascade, convert it back to dashboard data. `logFields` names what was
+ * written (one setting, or the reset's id set) for the log lines.
+ */
+async function applyCascadePatch(
+  interaction: ButtonInteraction | ModalSubmitInteraction,
+  entityId: string,
+  config: SettingUpdateConfig,
+  body: Record<string, unknown>,
+  logFields: Record<string, unknown>
+): Promise<SettingUpdateResult> {
+  const userId = interaction.user.id;
+  const { userClient } = clientsFor(interaction);
+
+  logger.debug({ ...logFields, entityId, userId }, `${config.logContext} Updating setting`);
+
+  try {
+    // Write the patch via the typed-client method
+    const result = await config.patchFn(userClient, entityId, body);
+
+    if (!result.ok) {
+      logger.warn(
+        { ...logFields, error: result.error, entityId },
+        `${config.logContext} Update failed`
+      );
+      return { success: false, error: result.error };
+    }
+
+    // Re-resolve cascade to get updated effective values
+    const cascadeResult = await config.resolveFn(userClient, entityId);
+
+    if (!cascadeResult.ok) {
+      return { success: false, error: 'Failed to fetch updated settings' };
+    }
+
+    const newData = convertCascadeToSettingsData(cascadeResult.data, config.sourceTier);
+
+    logger.info({ ...logFields, entityId, userId }, `${config.logContext} Setting updated`);
+
+    return { success: true, newData };
+  } catch (error) {
+    logger.error(
+      { err: error, ...logFields, entityId },
+      `${config.logContext} Error updating setting`
+    );
+    return { success: false, error: 'unexpected error, please try again' };
+  }
+}
+
+/**
  * Create a settings update handler bound to a specific entity ID.
  * The returned handler matches the SettingUpdateHandler signature and can be
  * passed directly to handleSettingsSelectMenu/Button/Modal.
@@ -97,53 +150,33 @@ export function createSettingsUpdateHandler(
     settingId: string,
     newValue: unknown
   ): Promise<SettingUpdateResult> => {
-    const userId = interaction.user.id;
-    const { userClient } = clientsFor(interaction);
-
-    logger.debug(
-      { settingId, newValue, entityId, userId },
-      `${config.logContext} Updating setting`
-    );
-
-    try {
-      // Map setting ID to cascade field
-      const body = mapSettingToApiUpdate(settingId, newValue);
-      if (body === null) {
-        return { success: false, error: 'Unknown setting' };
-      }
-
-      // Write the patch via the typed-client method
-      const result = await config.patchFn(userClient, entityId, body);
-
-      if (!result.ok) {
-        logger.warn(
-          { settingId, error: result.error, entityId },
-          `${config.logContext} Update failed`
-        );
-        return { success: false, error: result.error };
-      }
-
-      // Re-resolve cascade to get updated effective values
-      const cascadeResult = await config.resolveFn(userClient, entityId);
-
-      if (!cascadeResult.ok) {
-        return { success: false, error: 'Failed to fetch updated settings' };
-      }
-
-      const newData = convertCascadeToSettingsData(cascadeResult.data, config.sourceTier);
-
-      logger.info(
-        { settingId, newValue, entityId, userId },
-        `${config.logContext} Setting updated`
-      );
-
-      return { success: true, newData };
-    } catch (error) {
-      logger.error(
-        { err: error, settingId, entityId },
-        `${config.logContext} Error updating setting`
-      );
-      return { success: false, error: 'unexpected error, please try again' };
+    // Map setting ID to cascade field
+    const body = mapSettingToApiUpdate(settingId, newValue);
+    if (body === null) {
+      return { success: false, error: 'Unknown setting' };
     }
+    return applyCascadePatch(interaction, entityId, config, body, { settingId, newValue });
+  };
+}
+
+/**
+ * Create the batch clear (Reset page / Reset all) bound to a specific entity
+ * ID: the listed settings' null mappings merged into ONE body, written
+ * through the same path as the single-setting handler above.
+ */
+export function createSettingsResetHandler(
+  entityId: string,
+  config: SettingUpdateConfig
+): SettingsResetHandler {
+  return async (
+    interaction: ButtonInteraction,
+    _session: SettingsDashboardSession,
+    settingIds: string[]
+  ): Promise<SettingUpdateResult> => {
+    const body = buildClearBody(settingIds);
+    if (body === null) {
+      return { success: false, error: 'Unknown setting' };
+    }
+    return applyCascadePatch(interaction, entityId, config, body, { settingIds });
   };
 }

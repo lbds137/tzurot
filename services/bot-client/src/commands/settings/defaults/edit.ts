@@ -37,6 +37,7 @@ import {
   VOICE_CASCADE_SETTINGS,
   buildCascadePages,
   mapSettingToApiUpdate,
+  buildClearBody,
   buildCascadeSettingsData,
   buildFallbackSettingsData,
   convertResolveDefaultsResponse,
@@ -66,6 +67,7 @@ export const USER_DEFAULTS_CONFIG: SettingsDashboardConfig = {
   color: DISCORD_COLORS.BLURPLE,
   settings: CASCADE_PAGES.settings,
   pages: CASCADE_PAGES.pages,
+  resetAll: true,
   scopeNote: () =>
     '👤 Applies only to your conversations, with every character. Your per-character overrides still win.',
 };
@@ -128,7 +130,12 @@ export async function handleUserDefaultsButton(interaction: ButtonInteraction): 
     return;
   }
 
-  await handleSettingsButton(interaction, USER_DEFAULTS_CONFIG, handleSettingUpdate);
+  await handleSettingsButton(
+    interaction,
+    USER_DEFAULTS_CONFIG,
+    handleSettingUpdate,
+    handleSettingsReset
+  );
 }
 
 /**
@@ -174,33 +181,59 @@ async function handleSettingUpdate(
   settingId: string,
   newValue: unknown
 ): Promise<SettingUpdateResult> {
+  const body = mapSettingToApiUpdate(settingId, newValue);
+  if (body === null) {
+    return { success: false, error: 'Unknown setting' };
+  }
+  return patchUserDefaults(interaction, body, { settingId, newValue });
+}
+
+/**
+ * The batch clear behind Reset page and Reset all: every listed setting's null
+ * mapping merged into ONE body, written through the single-setting path.
+ */
+async function handleSettingsReset(
+  interaction: ButtonInteraction,
+  _session: SettingsDashboardSession,
+  settingIds: string[]
+): Promise<SettingUpdateResult> {
+  const body = buildClearBody(settingIds);
+  if (body === null) {
+    return { success: false, error: 'Unknown setting' };
+  }
+  return patchUserDefaults(interaction, body, { settingIds });
+}
+
+/**
+ * The write path both handlers share: PATCH the user-default tier, then
+ * re-fetch the resolved data. `logFields` names what was written.
+ */
+async function patchUserDefaults(
+  interaction: ButtonInteraction | ModalSubmitInteraction,
+  body: Record<string, unknown>,
+  logFields: Record<string, unknown>
+): Promise<SettingUpdateResult> {
   const userId = interaction.user.id;
 
-  logger.debug({ settingId, newValue, userId }, 'Updating setting');
+  logger.debug({ ...logFields, userId }, 'Updating setting');
 
   try {
-    const body = mapSettingToApiUpdate(settingId, newValue);
-
-    if (body === null) {
-      return { success: false, error: 'Unknown setting' };
-    }
-
     const { userClient } = clientsFor(interaction);
     const result = await userClient.updateUserDefaults(body);
 
     if (!result.ok) {
-      logger.warn({ settingId, error: result.error }, 'Update failed');
+      logger.warn({ ...logFields, error: result.error }, 'Update failed');
       return { success: false, error: result.error };
     }
 
     // Re-fetch resolved data to get updated effective values and sources
     const newData = await fetchAndConvertSettingsData(userClient);
 
-    logger.info({ settingId, newValue, userId }, 'Setting updated');
+    logger.info({ ...logFields, userId }, 'Setting updated');
 
     return { success: true, newData };
   } catch (error) {
-    logger.error({ err: error, settingId }, 'Error updating setting');
+    logger.error({ err: error, ...logFields }, 'Error updating setting');
     return { success: false, error: 'unexpected error, please try again' };
   }
 }

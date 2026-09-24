@@ -3,7 +3,8 @@
  *
  * Coordinates all settings dashboard interactions:
  * - Select menus: Navigate to setting drill-down, or jump from the index to a page
- * - Buttons: Set values (tri-state), open modals, or navigate (pages, index)
+ * - Buttons: Set values (tri-state), open modals, navigate (pages, index), or
+ *   reset a page / the whole dashboard to Auto (settingsResetFlow)
  * - Modals: Parse and apply values
  *
  * This is the main entry point for command handlers.
@@ -14,7 +15,6 @@ import {
   type StringSelectMenuInteraction,
   type ChatInputCommandInteraction,
   MessageFlags,
-  escapeMarkdown,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { showModalWithTimeoutCatch } from '../showModalWithTimeoutCatch.js';
@@ -27,25 +27,22 @@ import {
   type SettingUpdateHandler,
   type SettingsResetHandler,
   DashboardView,
-  buildSettingsCustomId,
   parseSettingsCustomId,
-  clampPage,
 } from './types.js';
-import { buildConfirmAction } from '../../confirmation/confirmAction.js';
-import {
-  buildOverviewMessage,
-  buildSettingMessage,
-  getSettingById,
-} from './SettingsDashboardBuilder.js';
+import { buildSettingMessage, getSettingById } from './SettingsDashboardBuilder.js';
 import { buildSettingEditModal } from './SettingsModalFactory.js';
 import { handleSetButton } from './settingsUpdate.js';
-import { handleIndexButton, handleJumpSelect } from './settingsNavigationHandlers.js';
+import {
+  handleBackButton,
+  handleCloseButton,
+  handleIndexButton,
+  handleJumpSelect,
+  handlePageButton,
+} from './settingsNavigationHandlers.js';
+import { STALE_DASHBOARD_NOTICE, handleResetAction } from './settingsResetFlow.js';
 import { buildLandingMessage, resolveLandingView } from './settingsIndexView.js';
-import { storeSession, getSession, deleteSession } from './SettingsSessionStorage.js';
+import { storeSession, getSession } from './SettingsSessionStorage.js';
 import { ackUpdate } from '../../../ux/render/reply.js';
-
-/** Shown when a customId names an action this deploy no longer routes. */
-const STALE_DASHBOARD_NOTICE = 'This dashboard is out of date. Please run the command again.';
 
 const logger = createLogger('SettingsDashboardHandler');
 
@@ -63,6 +60,11 @@ interface CreateDashboardOptions {
   entityName: string;
   /** User ID who owns this dashboard */
   userId: string;
+  /**
+   * Per-invocation description note, kept on the session so every re-render
+   * shows it (the routers re-render with the base config).
+   */
+  descriptionNote?: string;
 }
 
 /**
@@ -74,7 +76,7 @@ export async function createSettingsDashboard(
   interaction: ChatInputCommandInteraction,
   options: CreateDashboardOptions
 ): Promise<void> {
-  const { config, data, entityId, entityName, userId } = options;
+  const { config, data, entityId, entityName, userId, descriptionNote } = options;
 
   // Build the initial (landing) message
   const session: SettingsDashboardSession = {
@@ -84,6 +86,7 @@ export async function createSettingsDashboard(
     data,
     view: resolveLandingView(config),
     page: 0,
+    descriptionNote,
     userId,
     messageId: '', // Will be set after reply
     channelId: interaction.channelId,
@@ -264,28 +267,19 @@ export async function handleSettingsButton(
     case 'retry':
       await handleRetryButton(interaction, config, session, parsed.extra);
       break;
-    // The reset flow is two clicks (design-system §3.5 Tier A: one-click
-    // bulk-destructive dashboard actions get a Cancel/Confirm step; the
-    // typed-phrase Tier B stays reserved for irreversible purge-class acts).
-    // Any reset-family customId with no handler wired (stale message from a
-    // dashboard that dropped the affordance) gets the stale-dashboard notice.
+    // Reset page / Reset all: two clicks behind a Tier-A confirm. The scope
+    // rides in the extra; settingsResetFlow resolves it, and answers a scope
+    // that no longer resolves (or a dashboard with no batch clear wired) with
+    // the stale-dashboard notice.
     case 'reset':
-      if (resetHandler === undefined) {
-        await notify(STALE_DASHBOARD_NOTICE);
-        break;
-      }
-      await handleResetPrompt(interaction, config, session);
-      break;
     case 'reset-confirm':
-      if (resetHandler === undefined) {
-        await notify(STALE_DASHBOARD_NOTICE);
-        break;
-      }
-      await handleResetButton(interaction, config, session, resetHandler);
-      break;
     case 'reset-cancel':
-      // Same render as Back: return to the overview untouched.
-      await handleBackButton(interaction, config, session);
+      await handleResetAction(interaction, config, session, {
+        action: parsed.action,
+        extra: parsed.extra,
+        resetHandler,
+        notify,
+      });
       break;
     default:
       // The router already deferUpdate'd (non-edit actions defer above), so a
@@ -295,144 +289,6 @@ export async function handleSettingsButton(
       logger.warn({ action: parsed.action }, 'Unknown button action');
       await notify(STALE_DASHBOARD_NOTICE);
   }
-}
-
-/**
- * First click of the reset flow — render the Tier-A Cancel/Confirm surface
- * in place of the dashboard. Nothing is cleared until 'reset-confirm'.
- */
-async function handleResetPrompt(
-  interaction: ButtonInteraction,
-  config: SettingsDashboardConfig,
-  session: SettingsDashboardSession
-): Promise<void> {
-  // Refresh the session TTL like every other view transition — otherwise a
-  // near-expiry session could die between the prompt and the confirm click.
-  session.lastActivityAt = new Date();
-  await storeSession(session, config.entityType);
-
-  const { embed, components } = buildConfirmAction({
-    title: '♻️ Reset to defaults?',
-    description:
-      `Every ${config.level}-level override for **${escapeMarkdown(session.entityName, { maskedLink: true })}** will be cleared ` +
-      `and values will inherit from the cascade again. The specific override values ` +
-      `cannot be recovered.`,
-    confirmCustomId: buildSettingsCustomId(config.entityType, 'reset-confirm', session.entityId),
-    cancelCustomId: buildSettingsCustomId(config.entityType, 'reset-cancel', session.entityId),
-    confirmLabel: config.resetButton?.label ?? 'Reset to defaults',
-    confirmEmoji: '♻️',
-  });
-  await interaction.editReply({ embeds: [embed], components });
-}
-
-/**
- * Second click ('reset-confirm'): clear the entity's overrides via the
- * injected handler, then re-render the overview from the fresh data it
- * returns. Mirrors handleSetButton's result contract — failure notifies
- * ephemerally and leaves the confirm surface untouched.
- */
-async function handleResetButton(
-  interaction: ButtonInteraction,
-  config: SettingsDashboardConfig,
-  session: SettingsDashboardSession,
-  resetHandler: SettingsResetHandler
-): Promise<void> {
-  const result = await resetHandler(interaction, session);
-
-  if (!result.success) {
-    // followUp: the router deferUpdate'd before dispatching here.
-    await interaction.followUp({
-      content: `Failed to reset: ${result.error}`,
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  if (result.newData !== undefined) {
-    session.data = result.newData;
-  }
-  session.view = DashboardView.OVERVIEW;
-  session.activeSetting = undefined;
-  session.lastRejectedInput = undefined;
-  session.lastActivityAt = new Date();
-  await storeSession(session, config.entityType);
-
-  const message = buildOverviewMessage(config, session);
-  await interaction.editReply({
-    embeds: message.embeds,
-    components: message.components,
-  });
-}
-
-/**
- * Handle back button - return to overview
- */
-async function handleBackButton(
-  interaction: ButtonInteraction,
-  config: SettingsDashboardConfig,
-  session: SettingsDashboardSession
-): Promise<void> {
-  session.view = DashboardView.OVERVIEW;
-  session.activeSetting = undefined;
-  session.lastActivityAt = new Date();
-  await storeSession(session, config.entityType);
-
-  const message = buildOverviewMessage(config, session);
-
-  // editReply: the router already deferUpdate'd before dispatching here.
-  await interaction.editReply({
-    embeds: message.embeds,
-    components: message.components,
-  });
-}
-
-/**
- * Handle page navigation (paged configs) — mutate the session page and
- * re-render the overview. Clamped on BOTH the stored value and the result, so
- * a stale button (session already at an edge, or a shrunk page list after a
- * deploy) can never render an out-of-range page. The `noop` indicator button
- * is disabled and never reaches here; treat it as a re-render if it somehow does.
- */
-async function handlePageButton(
-  interaction: ButtonInteraction,
-  config: SettingsDashboardConfig,
-  session: SettingsDashboardSession,
-  direction: string | undefined
-): Promise<void> {
-  const current = clampPage(config, session.page);
-  const delta = direction === 'next' ? 1 : direction === 'prev' ? -1 : 0;
-  session.page = clampPage(config, current + delta);
-  session.view = DashboardView.OVERVIEW;
-  session.activeSetting = undefined;
-  session.lastActivityAt = new Date();
-  await storeSession(session, config.entityType);
-
-  const message = buildOverviewMessage(config, session);
-
-  // editReply: the router already deferUpdate'd (page is a non-modal action).
-  await interaction.editReply({
-    embeds: message.embeds,
-    components: message.components,
-  });
-}
-
-/**
- * Handle close button - remove dashboard
- */
-async function handleCloseButton(
-  interaction: ButtonInteraction,
-  config: SettingsDashboardConfig,
-  session: SettingsDashboardSession
-): Promise<void> {
-  // Delete session
-  await deleteSession(session.userId, config.entityType, session.entityId);
-
-  // editReply: the router already deferUpdate'd before dispatching here.
-  await interaction.editReply({
-    content: 'Settings dashboard closed.',
-    embeds: [],
-    components: [],
-  });
 }
 
 /**

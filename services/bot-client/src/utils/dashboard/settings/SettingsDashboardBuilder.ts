@@ -8,8 +8,6 @@
 import {
   EmbedBuilder,
   ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
   escapeMarkdown,
@@ -36,6 +34,7 @@ import {
   buildBackButton,
   buildBooleanButtons,
   buildPaginationRow,
+  buildResetPageRow,
 } from './settingsButtonBuilders.js';
 
 /**
@@ -193,6 +192,19 @@ export function buildDescriptionPreamble(
 }
 
 /**
+ * The note appended to the overview and index descriptions: the session's
+ * open-time note ahead of the config's static one. The routers re-render with
+ * the base config, so a per-invocation note has to ride the session to
+ * survive past the opening render.
+ */
+export function resolveDescriptionNote(
+  config: SettingsDashboardConfig,
+  session: SettingsDashboardSession
+): string | undefined {
+  return session.descriptionNote ?? config.descriptionNote;
+}
+
+/**
  * Build the overview embed showing all settings
  */
 export function buildOverviewEmbed(
@@ -201,8 +213,9 @@ export function buildOverviewEmbed(
 ): EmbedBuilder {
   const { text: preamble } = buildDescriptionPreamble(config, session);
   let description = `${preamble}\nSelect a setting below to modify it.`;
-  if (config.descriptionNote !== undefined && config.descriptionNote.length > 0) {
-    description += `\n\n${config.descriptionNote}`;
+  const note = resolveDescriptionNote(config, session);
+  if (note !== undefined && note.length > 0) {
+    description += `\n\n${note}`;
   }
 
   const page = clampPage(config, session.page);
@@ -396,17 +409,10 @@ export function buildOverviewMessage(
   if (config.pages !== undefined && config.pages.length > 0) {
     components.push(buildPaginationRow(config, session));
   }
-  if (config.resetButton !== undefined) {
-    // Danger styling per the standard button order (destructive last); the
-    // action is reversible (overrides are re-settable), so no Tier-B typed
-    // confirmation — the style + label carry the weight of the click.
-    const resetRow = new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(buildSettingsCustomId(config.entityType, 'reset', session.entityId))
-        .setLabel(config.resetButton.label)
-        .setEmoji('♻️')
-        .setStyle(ButtonStyle.Danger)
-    );
+  // Reset page, below the pagination row (null on a flat config and on a page
+  // with a setting that has no Auto). Rows: select + pagination + reset = 3.
+  const resetRow = buildResetPageRow(config, session);
+  if (resetRow !== null) {
     components.push(resetRow);
   }
 
