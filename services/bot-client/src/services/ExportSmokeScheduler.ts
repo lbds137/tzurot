@@ -44,10 +44,14 @@
  * way: either could mean the request reached a live gateway that started the
  * export job before timing out. The gateway's start route 409s on a
  * pending/in-progress job and on one completed within its short
- * recent-completion window, but that window is a backstop, not a licence to
- * retry a request that may have started a job. Those keep the immediate-alert,
- * cooldown-armed behavior instead. The retry is an ordinary run: any failure
- * on it — not-ready or otherwise — alerts and arms the cooldown like normal.
+ * recent-completion window; the latter carries the
+ * `EXPORT_SMOKE_RECENT_COMPLETION` subcode and, checked first on every
+ * trigger (before the startup-retry branch), posts a skipped note instead of
+ * alerting and leaves the cooldown unarmed, so the next daily tick runs a
+ * real smoke. A pending/in-progress 409 (no subcode) keeps the
+ * immediate-alert, cooldown-armed behavior instead. The retry is an ordinary
+ * run: any other failure on it — not-ready or otherwise — alerts and arms
+ * the cooldown like normal.
  * A not-ready failure MID-run (a poll or download hiccup after the job
  * already started) is unaffected and still alerts-and-arms immediately,
  * since by then a real job exists server-side.
@@ -55,12 +59,13 @@
 
 import { EmbedBuilder, type Client } from 'discord.js';
 import type { Redis } from 'ioredis';
+import { API_ERROR_SUBCODE } from '@tzurot/common-types/constants/error';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getServiceClient } from '../utils/gatewayClients.js';
 import { createIntervalScheduler } from '@tzurot/common-types/utils/intervalScheduler';
 import { postOwnerChannelEmbed } from '../utils/ownerChannel.js';
 import { clampEmbedText, EMBED_CAPS } from '../utils/embedLimits.js';
-import { isGatewayUnreachedFailure } from '../utils/gatewayNotReady.js';
+import { isGatewayUnreachedFailure, type GatewayFailure } from '../utils/gatewayNotReady.js';
 import { createStartupRetry, STARTUP_RETRY_DELAY_MS } from '../utils/startupRetry.js';
 import { validateExportArtifact, type ExportSmokeExpectedCounts } from './exportSmokeValidator.js';
 
@@ -85,6 +90,13 @@ const DOWNLOAD_TIMEOUT_MS = 60_000;
 const MAX_CONSECUTIVE_POLL_FAILURES = 3;
 /** Embed line cap — findings carry no content, but a validation failure can enumerate many. */
 const MAX_RENDERED_LINES = 15;
+
+/** True when the gateway refused because a smoke export completed inside the recent-completion window. */
+function isExportSmokeRecentCompletionFailure(failure: GatewayFailure): boolean {
+  return (
+    failure.kind === 'http' && failure.code === API_ERROR_SUBCODE.EXPORT_SMOKE_RECENT_COMPLETION
+  );
+}
 
 const startupRetry = createStartupRetry();
 
@@ -194,6 +206,20 @@ function buildFailureEmbed(title: string, lines: string[]): EmbedBuilder {
     .setTimestamp();
 }
 
+/** Builds the owner-channel informational embed for a recent-completion skip. */
+function buildSkippedEmbed(detail: string): EmbedBuilder {
+  return new EmbedBuilder()
+    .setTitle('ℹ️ Weekly export-path smoke skipped')
+    .setDescription(
+      clampEmbedText(
+        `${detail} This run could not verify that export itself (the attempt that started it never finished its download and checks).`,
+        EMBED_CAPS.description
+      )
+    )
+    .setFooter({ text: 'No action needed; the next daily check runs a full smoke.' })
+    .setTimestamp();
+}
+
 /**
  * Posts the failure embed (best-effort — `postOwnerChannelEmbed` never
  * throws) and arms the cooldown unconditionally. See the module docstring
@@ -228,6 +254,14 @@ export async function runExportSmokeCheck(
 
     const startResult = await getServiceClient().startExportSmoke({});
     if (!startResult.ok) {
+      if (isExportSmokeRecentCompletionFailure(startResult)) {
+        logger.info(
+          { isStartupRun: options.isStartupRun === true },
+          'Export-path smoke skipped — a smoke export completed inside the recent-completion window'
+        );
+        await postOwnerChannelEmbed(client, buildSkippedEmbed(startResult.error));
+        return;
+      }
       if (options.isStartupRun === true && isGatewayUnreachedFailure(startResult)) {
         logger.warn(
           {

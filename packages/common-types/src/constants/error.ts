@@ -620,6 +620,8 @@ export const API_ERROR_SUBCODE = {
   RUN_LEASE_CONFLICT: 'RUN_LEASE_CONFLICT',
   /** `admin/db-sync` refused: another sync holds the single-flight guard. */
   DB_SYNC_IN_PROGRESS: 'DB_SYNC_IN_PROGRESS',
+  /** `internal/export-smoke` start refused: a smoke export completed inside the recent-completion window. */
+  EXPORT_SMOKE_RECENT_COMPLETION: 'EXPORT_SMOKE_RECENT_COMPLETION',
 } as const;
 
 /** Union of all defined sub-code values, for typing `ErrorResponse.code`. */

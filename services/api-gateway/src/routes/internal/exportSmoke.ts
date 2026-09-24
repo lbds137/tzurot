@@ -44,6 +44,7 @@ import {
   type AccountExportJobData,
 } from '@tzurot/common-types/types/account-export';
 import { JobType, JOB_PREFIXES } from '@tzurot/common-types/constants/queue';
+import { API_ERROR_SUBCODE } from '@tzurot/common-types/constants/error';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { internalRoutes } from '@tzurot/clients';
 import { withManifestInput } from '../../utils/manifestInput.js';
@@ -239,7 +240,7 @@ async function snapshotExpectedCounts(
  *
  * Caller contract (isGatewayUnreachedFailure, bot-client
  * utils/gatewayNotReady.ts): never answer 404/502/503 after the export job
- * has been created.
+ * has been created. Prescriptive; not pinned by a test.
  */
 export const handleStartExportSmoke = (deps: RouteDeps): RequestHandler =>
   asyncHandler(async (req, res: Response) => {
@@ -296,12 +297,12 @@ export const handleStartExportSmoke = (deps: RouteDeps): RequestHandler =>
 
     if (onCooldown) {
       logger.info({ sentinelId }, 'Export-smoke run refused — recent completion inside window');
-      sendError(
-        res,
-        ErrorResponses.conflict(
+      sendError(res, {
+        ...ErrorResponses.conflict(
           `An export-smoke run completed within the last ${SMOKE_RECENT_COMPLETION_MINUTES} minutes. Not starting another.`
-        )
-      );
+        ),
+        code: API_ERROR_SUBCODE.EXPORT_SMOKE_RECENT_COMPLETION,
+      });
       return;
     }
 

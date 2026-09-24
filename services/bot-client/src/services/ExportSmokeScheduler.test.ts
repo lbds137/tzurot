@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Client } from 'discord.js';
 import type { Redis } from 'ioredis';
+import { API_ERROR_SUBCODE } from '@tzurot/common-types/constants/error';
 import type { GatewayFailure } from '../utils/gatewayNotReady.js';
 
 const mockStartExportSmoke = vi.fn();
@@ -117,6 +118,47 @@ describe('ExportSmokeScheduler runExportSmokeCheck', () => {
       7 * 24 * 60 * 60,
       expect.any(String)
     );
+  });
+
+  it('a plain 409 with no subcode still posts the failure title and arms the cooldown', async () => {
+    const redis = makeRedis(null);
+    mockStartExportSmoke.mockResolvedValue({
+      ok: false,
+      error: 'An export-smoke run is already in_progress. Wait for it to complete.',
+      kind: 'http',
+      status: 409,
+    } satisfies GatewayFailure);
+
+    await runExportSmokeCheck(client, redis);
+
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+    const call = mockPostOwnerChannelEmbed.mock.calls[0] as [Client, { data: unknown }];
+    const { title } = call[1].data as { title?: string };
+    expect(title).toBe('🧯 Weekly export-path smoke failed');
+    expect(redis.setex).toHaveBeenCalledWith(
+      'export-smoke:cooldown',
+      7 * 24 * 60 * 60,
+      expect.any(String)
+    );
+  });
+
+  it('CANARY: a 409 carrying EXPORT_SMOKE_RECENT_COMPLETION posts a skipped note, leaves the cooldown unarmed, on an ordinary run', async () => {
+    const redis = makeRedis(null);
+    mockStartExportSmoke.mockResolvedValue({
+      ok: false,
+      error: 'An export-smoke run completed within the last 15 minutes. Not starting another.',
+      kind: 'http',
+      status: 409,
+      code: API_ERROR_SUBCODE.EXPORT_SMOKE_RECENT_COMPLETION,
+    } satisfies GatewayFailure);
+
+    await runExportSmokeCheck(client, redis);
+
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+    const call = mockPostOwnerChannelEmbed.mock.calls[0] as [Client, { data: unknown }];
+    const { title } = call[1].data as { title?: string };
+    expect(title).toBe('ℹ️ Weekly export-path smoke skipped');
+    expect(redis.setex).not.toHaveBeenCalled();
   });
 
   it('alerts and arms the cooldown on poll timeout', async () => {
@@ -409,6 +451,31 @@ describe('startup-run gateway-not-ready retry', () => {
     ];
     expect(call[1].data.description).toContain('Could not start');
     expect(redis.setex).toHaveBeenCalledTimes(1);
+  });
+
+  it('CANARY: a 409 carrying EXPORT_SMOKE_RECENT_COMPLETION on the startup trigger posts a skipped note, leaves the cooldown unarmed, and does not retry', async () => {
+    const redis = makeStatefulRedis(null);
+    const RECENT_COMPLETION_409 = {
+      ok: false,
+      error: 'An export-smoke run completed within the last 15 minutes. Not starting another.',
+      kind: 'http',
+      status: 409,
+      code: API_ERROR_SUBCODE.EXPORT_SMOKE_RECENT_COMPLETION,
+    } satisfies GatewayFailure;
+    mockStartExportSmoke.mockResolvedValue(RECENT_COMPLETION_409);
+
+    startExportSmokeScheduler(client, redis);
+    const run = requireCapturedRun();
+    await run(client, redis);
+
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+    expect(lastPostedEmbedTitle()).toBe('ℹ️ Weekly export-path smoke skipped');
+    expect(redis.setex).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(FIVE_MINUTES_MS);
+
+    // No startup retry was scheduled for this failure kind.
+    expect(mockStartExportSmoke).toHaveBeenCalledTimes(1);
   });
 
   it('interval-run not-ready failure alerts immediately and arms the cooldown', async () => {
