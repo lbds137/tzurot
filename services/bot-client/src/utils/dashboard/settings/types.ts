@@ -190,7 +190,11 @@ export interface SettingsDashboardSession {
  * definitions themselves.
  */
 export interface SettingsPage {
-  /** Stable page id (not rendered) */
+  /**
+   * Stable page id — never shown as visible text, but IS the index jump
+   * select's option value, resolved back to a page position at click time
+   * by `handleJumpSelect`.
+   */
   id: string;
   /** Page label — rendered in the overview title and footer, and as the page's index entry */
   label: string;
