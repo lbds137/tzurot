@@ -1,6 +1,6 @@
 ---
 name: tzurot-orchestration
-description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
+description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit; and the cloud dispatch mode (one cloud unit beside one local unit). Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
 lastUpdated: '2026-09-24'
 ---
 
@@ -160,7 +160,7 @@ review gate is not delegated and not skipped for a clean-looking report.
 A unit's orchestrator + worker and all its gates run in a Claude Code cloud
 session (a VM that clones GitHub). Evidence and billing: doc-108. **When**: at
 most ONE cloud unit in flight, beside at most one local gate-running unit
-(the one-gate rule of `05-tooling.md` § Resource Constraints still governs the
+(`05-tooling.md` § Resource Constraints still governs the
 local side). Stays local: Railway operations and data probes (the VM has no
 Railway CLI or token),
 anything needing a real secret value from `.env`, and applying migrations to
@@ -195,7 +195,7 @@ export LC_ALL=C.UTF-8 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 PATH=/opt/node24/bin:$PA
 [ -x /opt/node24/bin/node ] || { curl -fsSL https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-x64.tar.xz | tar -xJ -C /opt && ln -sfn /opt/node-v24.21.0-linux-x64 /opt/node24; }
 redis-server --daemonize yes --dir /tmp && redis-cli ping   # --dir keeps dump.rdb out of the repo
 pg_ctlcluster 16 main start
-git fetch origin develop main:main   # local main: pnpm quality's workflow-sync guard; local develop: base for the pushed branch, since the VM clones and checks out main
+git fetch origin main:main develop <pushed base branch>   # local main: pnpm quality's workflow-sync guard; develop and the base: the VM clones and checks out main, and a review-round unit's base is the pushed feature branch
 git checkout -B <type/description> origin/<pushed base branch>   # pre-push enforces the name shape
 cp .env.example .env && sed -i -E 's/^(BOT_OWNER_ID|DISCORD_CLIENT_ID|GUILD_ID)=.*/\1=100000000000000000/' .env
 pnpm install --frozen-lockfile && pnpm --filter "./packages/**" build
@@ -209,9 +209,9 @@ npx prisma migrate deploy && REDIS_IP_FAMILY=4 pnpm test:integration   # the VM 
 **Contract points that differ from § Nested dispatch.** The base must be
 PUSHED: the VM clones GitHub, so a local-only commit is not a valid base. The
 deliverable is a pushed branch and no PR (no `gh` in the VM); the driver opens
-it with `gh pr create --base develop --head <branch> --assignee @me` (the
-repo's default branch is `main`, so `--base` must be explicit) and arms the
-monitor as usual. The
+it with the canonical PR-create command from `/tzurot-git-workflow` § Create
+PR, plus `--head <branch>` (the repo's default branch is `main`, so `--base
+develop` stays explicit), and arms the monitor as usual. The
 cloud orchestrator is its session's own main loop, so `dispatch-posture-gate.sh`
 applies to it, and the spec tells it to hand all src edits above five lines to
 ONE Sonnet worker. Observed behavior: units have ignored that and split their
