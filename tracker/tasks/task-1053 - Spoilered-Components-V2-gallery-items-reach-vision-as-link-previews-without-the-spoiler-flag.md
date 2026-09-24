@@ -3,9 +3,10 @@ id: TASK-1053
 title: >-
   Spoilered Components-V2 gallery items reach vision as link previews without
   the spoiler flag
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-23 05:10'
+updated_date: '2026-09-24 00:18'
 labels:
   - 'area:bot-client'
   - 'size:S'
