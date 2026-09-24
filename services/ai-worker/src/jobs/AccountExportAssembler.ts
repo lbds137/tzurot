@@ -147,6 +147,7 @@ export const EXPORT_NOTES = [
   'Avatar images and voice-reference audio binaries are not included; avatars remain downloadable from the bot while the character exists.',
   'Stored export/import file contents are not re-embedded; only job metadata is listed.',
   'Usage is an aggregate summary per provider/model; raw per-request logs are not included.',
+  "Memory rows omit internal bookkeeping (summarization status, attempt counts, internal error text, summarizer model and prompt-version stamps, request/completion timestamps, content hashes, and retrieval counters with their timestamps); every memory's content and its summary are included.",
 ];
 
 /**

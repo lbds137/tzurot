@@ -921,6 +921,10 @@ describe('SettingsDashboardHandler', () => {
           data: {
             userId: 'user-123',
             entityId: 'entity-1',
+            // entityName is required on SettingsDashboardSession — the
+            // overview re-render escapes it (masked-link markdown), which
+            // throws on undefined rather than silently stringifying it.
+            entityName: '#test',
             data: createTestData(),
             view: 'setting',
             activeSetting: 'maxMessages',

@@ -12,6 +12,7 @@ import {
   ButtonStyle,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
+  escapeMarkdown,
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
 import { Duration } from '@tzurot/common-types/utils/Duration';
@@ -175,10 +176,14 @@ export function buildOverviewEmbed(
   config: SettingsDashboardConfig,
   session: SettingsDashboardSession
 ): EmbedBuilder {
+  // Entity names are user-chosen free text (a character name has no markdown
+  // restriction in its schema) and reach this render site raw — escape once here so masked-link
+  // markdown can't turn a name into a clickable link inside the bot's own
+  // dashboard. Same escape form as the reset-confirmation embed.
+  const safeName = escapeMarkdown(session.entityName, { maskedLink: true });
   const baseDescription =
-    config.overviewDescription ??
-    `Configure extended context settings for **${session.entityName}**.`;
-  let description = `${baseDescription}\n${config.scopeNote(session.entityName)}\nSelect a setting below to modify it.`;
+    config.overviewDescription ?? `Configure extended context settings for **${safeName}**.`;
+  let description = `${baseDescription}\n${config.scopeNote(safeName)}\nSelect a setting below to modify it.`;
   if (config.descriptionNote !== undefined && config.descriptionNote.length > 0) {
     description += `\n\n${config.descriptionNote}`;
   }

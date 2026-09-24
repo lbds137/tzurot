@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { ButtonStyle } from 'discord.js';
+import { ButtonStyle, escapeMarkdown } from 'discord.js';
 import {
   buildOverviewEmbed,
   buildSettingEmbed,
@@ -197,6 +197,54 @@ describe('SettingsDashboardBuilder', () => {
       const description = embed.toJSON().description ?? '';
 
       expect(description).toContain('scope for Named Entity');
+    });
+
+    describe('escapes masked-link markdown in entityName', () => {
+      // entityName carries a user-chosen name (a character name has no
+      // markdown restriction — see
+      // packages/common-types/src/schemas/api/personality.ts). A masked-link
+      // name must not render as a clickable link inside the bot's own
+      // dashboard; the fix escapes once at the render site with the same
+      // { maskedLink: true } form the reset-confirmation embed already uses.
+      const maliciousName = '[click](https://evil.example)';
+      const expectedEscaped = escapeMarkdown(maliciousName, { maskedLink: true });
+      // Sanity: maskedLink escaping inserts a backslash before the opening
+      // `[` rather than stripping text, so the escaped form still contains
+      // the raw substring — the assertions below pin the ESCAPED shape
+      // (backslash present), not the absence of the raw text.
+      if (expectedEscaped === maliciousName) {
+        throw new Error('escapeMarkdown({ maskedLink: true }) did not transform the fixture');
+      }
+
+      it('neutralizes a masked link in the default baseDescription', () => {
+        const config = createTestConfig();
+        const session = { ...createTestSession(), entityName: maliciousName };
+
+        const description = buildOverviewEmbed(config, session).toJSON().description ?? '';
+
+        expect(description).toContain(`**${expectedEscaped}**`);
+      });
+
+      it('neutralizes a masked link passed to scopeNote', () => {
+        const config: SettingsDashboardConfig = {
+          ...createTestConfig(),
+          scopeNote: name => `scope for ${name}`,
+        };
+        const session = { ...createTestSession(), entityName: maliciousName };
+
+        const description = buildOverviewEmbed(config, session).toJSON().description ?? '';
+
+        expect(description).toContain(`scope for ${expectedEscaped}`);
+      });
+
+      it('a plain name still renders unchanged apart from normal escaping', () => {
+        const config = createTestConfig();
+        const session = { ...createTestSession(), entityName: 'Xeo (xeo)' };
+
+        const description = buildOverviewEmbed(config, session).toJSON().description ?? '';
+
+        expect(description).toContain('**Xeo (xeo)**');
+      });
     });
 
     describe('real dashboard scope notes', () => {
