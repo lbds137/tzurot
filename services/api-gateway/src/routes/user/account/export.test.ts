@@ -2,7 +2,7 @@
  * Tests for Account Data-Rights Export Routes (Async)
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Request, Response } from 'express';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -21,7 +21,11 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
-import { handleStartAccountExport, handleGetAccountExportStatus } from './export.js';
+import {
+  handleStartAccountExport,
+  handleGetAccountExportStatus,
+  createExportJobOrConflict,
+} from './export.js';
 import { JobType } from '@tzurot/common-types/constants/queue';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
@@ -170,6 +174,48 @@ describe('Account Export Routes', () => {
       const cooldownWhere = mockTxExportJob.findFirst.mock.calls[1][0].where;
       expect(cooldownWhere.status).toBe('completed');
       expect(cooldownWhere.completedAt.gt).toBeInstanceOf(Date);
+    });
+  });
+
+  describe('createExportJobOrConflict — recentCompletionWindowMs (direct)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-15T12:00:00.000Z'));
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('onCooldown:true when a completed job falls inside the window, upsert skipped', async () => {
+      mockTxExportJob.findFirst
+        .mockResolvedValueOnce(null) // no active job
+        .mockResolvedValueOnce({ status: 'completed', completedAt: new Date() });
+      const result = await createExportJobOrConflict(
+        mockPrisma as unknown as PrismaClient,
+        'user-uuid-123',
+        new Date(),
+        60 * 60 * 1000
+      );
+      expect(result.onCooldown).toBe(true);
+      expect(mockTxExportJob.upsert).not.toHaveBeenCalled();
+    });
+
+    it('upsert proceeds when nothing completed falls inside the window', async () => {
+      mockTxExportJob.findFirst
+        .mockResolvedValueOnce(null) // no active job
+        .mockResolvedValueOnce(null); // nothing completed inside the window
+      const windowMs = 60 * 60 * 1000;
+      const result = await createExportJobOrConflict(
+        mockPrisma as unknown as PrismaClient,
+        'user-uuid-123',
+        new Date(),
+        windowMs
+      );
+
+      expect(result.onCooldown).toBe(false);
+      expect(mockTxExportJob.upsert).toHaveBeenCalled();
+      const cooldownWhere = mockTxExportJob.findFirst.mock.calls[1][0].where;
+      expect(cooldownWhere.completedAt.gt).toEqual(new Date(Date.now() - windowMs));
     });
   });
 

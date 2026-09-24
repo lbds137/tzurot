@@ -83,6 +83,87 @@ function makeSyncResult(
 }
 
 describe('POST /api/admin/db-sync', () => {
+  describe('db-sync single-flight guard', () => {
+    it('refuses a second concurrent request with 409 DB_SYNC_IN_PROGRESS while the first is still running', async () => {
+      let resolveSync: (value: unknown) => void = () => {
+        /* replaced below */
+      };
+      const pending = new Promise(resolve => {
+        resolveSync = resolve;
+      });
+      mockSync.mockReturnValueOnce(pending);
+
+      // supertest's Test is lazy — building it does not dispatch until
+      // something awaits/.then()s it, so `.then()` is what fires it here.
+      let firstStatus = -1;
+      const firstRequest = request(app)
+        .post('/admin/db-sync')
+        .send({ dryRun: false })
+        .then(res => {
+          firstStatus = res.status;
+        });
+
+      await vi.waitFor(() => {
+        if (mockSync.mock.calls.length === 0) {
+          throw new Error('first request has not reached mockSync yet');
+        }
+      });
+
+      const secondResponse = await request(app).post('/admin/db-sync').send({ dryRun: false });
+
+      expect(secondResponse.status).toBe(409);
+      expect(secondResponse.body.code).toBe('DB_SYNC_IN_PROGRESS');
+      expect(mockSync).toHaveBeenCalledTimes(1);
+
+      resolveSync(makeSyncResult());
+      await firstRequest;
+      expect(firstStatus).toBe(200);
+    });
+
+    it('releases the guard after a successful sync — a follow-up request syncs', async () => {
+      mockSync.mockResolvedValue(makeSyncResult());
+
+      const first = await request(app).post('/admin/db-sync').send({ dryRun: false });
+      const second = await request(app).post('/admin/db-sync').send({ dryRun: false });
+
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(mockSync).toHaveBeenCalledTimes(2);
+    });
+
+    it('releases the guard after a failed sync — a follow-up request syncs', async () => {
+      mockSync.mockRejectedValueOnce(new Error('boom'));
+      mockSync.mockResolvedValueOnce(makeSyncResult());
+      const first = await request(app).post('/admin/db-sync').send({ dryRun: false });
+      const second = await request(app).post('/admin/db-sync').send({ dryRun: false });
+      expect(first.status).toBe(500);
+      expect(second.status).toBe(200);
+      expect(mockSync).toHaveBeenCalledTimes(2);
+    });
+    it('503s when deps.redis is undefined, without calling sync', async () => {
+      app = buildApp(undefined, undefined, null);
+
+      const response = await request(app).post('/admin/db-sync').send({ dryRun: false });
+
+      expect(response.status).toBe(503);
+      expect(mockSync).not.toHaveBeenCalled();
+    });
+
+    it('503s when redis.set rejects, without calling sync', async () => {
+      const brokenRedis = {
+        set: vi.fn().mockRejectedValue(new Error('connection reset')),
+        get: vi.fn(),
+        del: vi.fn(),
+      } as unknown as RouteDeps['redis'];
+      app = buildApp(undefined, undefined, brokenRedis);
+
+      const response = await request(app).post('/admin/db-sync').send({ dryRun: false });
+
+      expect(response.status).toBe(503);
+      expect(mockSync).not.toHaveBeenCalled();
+    });
+  });
+
   let app: Express;
   let prismaAsClient: PrismaClient;
 
@@ -100,9 +181,37 @@ describe('POST /api/admin/db-sync', () => {
     return { invalidateAll: vi.fn().mockResolvedValue(undefined) };
   }
 
+  /**
+   * A working single-flight-capable Redis double for `deps.redis` —
+   * SET-PX-NX / GET / DEL over one in-memory slot, honoring the guard's
+   * contract. Every existing test gets a fresh one by default so the new
+   * guard never blocks a pre-existing assertion.
+   */
+  function createWorkingRedis(): RouteDeps['redis'] {
+    let value: string | null = null;
+    return {
+      set: vi.fn(async (_key: string, val: string) => {
+        if (value !== null) {
+          return null;
+        }
+        value = val;
+        return 'OK';
+      }),
+      get: vi.fn(async () => value),
+      del: vi.fn(async () => {
+        value = null;
+        return 1;
+      }),
+    } as unknown as RouteDeps['redis'];
+  }
+
   function buildApp(
     userCacheInvalidation?: ReturnType<typeof createUserCacheInvalidation>,
-    personaCacheInvalidation?: ReturnType<typeof createPersonaCacheInvalidation>
+    personaCacheInvalidation?: ReturnType<typeof createPersonaCacheInvalidation>,
+    // `null` (not the default `undefined`) means "no redis" — JS default
+    // params only kick in on an omitted/undefined argument, so a caller that
+    // wants `deps.redis` unset must pass `null` explicitly.
+    redis: RouteDeps['redis'] | null = createWorkingRedis()
   ): Express {
     // A single stable `prisma` reference for the whole test, so the
     // `getOrCreateUserService` WeakMap registry keys line up between the
@@ -114,6 +223,7 @@ describe('POST /api/admin/db-sync', () => {
       userCacheInvalidation: userCacheInvalidation as unknown as RouteDeps['userCacheInvalidation'],
       personaCacheInvalidation:
         personaCacheInvalidation as unknown as RouteDeps['personaCacheInvalidation'],
+      redis: redis === null ? undefined : redis,
     } satisfies RouteDeps;
     const localApp = express();
     localApp.use(express.json());
