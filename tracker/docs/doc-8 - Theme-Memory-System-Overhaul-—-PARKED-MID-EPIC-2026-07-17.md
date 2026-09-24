@@ -7,6 +7,8 @@ created_date: '2026-07-28 11:11'
 
 ### Theme: Memory System Overhaul — PARKED MID-EPIC (2026-07-17)
 
+> **Status 2026-09-24 (half-finished sweep):** The build is COMPLETE (slices P, A, B1, B2, C1, C2 + the commitment fact type, #2349–#2358, 2026-09-06/07, via `doc-97`); the memory-archive rollout is owner-run per character. The epic slot was released 2026-09-24 to `doc-14`. Phases 3–6 of the original table below are superseded by `docs/proposals/backlog/memory-archive-format.md`; the close-out map re-touch is TASK-1086.
+
 _Focus: implement the ACCEPTED memory architecture — typed memories (episode/fact/reflection/canon) with social scoping pools, async extraction, relationship blocks, consolidation, and hybrid retrieval, evolved in-house on pgvector._
 
 **Parked 2026-07-17** (owner re-sequence: Platform-Portable UX Layer promoted to active epic). The park lands at a natural pause: everything buildable was built and shipped; what remains is either awaiting an owner re-measure or evidence-gated. Was active epic 2026-07-06 → 2026-07-17.

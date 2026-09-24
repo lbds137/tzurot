@@ -7,6 +7,8 @@ created_date: '2026-07-28 11:11'
 
 ### Theme: Provider Prompt Caching (cost-reduction epic)
 
+> **Status 2026-09-24 (half-finished sweep):** Phases 0–2 SHIPPED. Phase 2 (history extraction, the real-messages mode) is ON in prod since 2026-09-08 (`6c133831c`; turn-2 reuse 0.57). Remaining: the gap-bucket cache reading (watch), then the Phase 3 (explicit markers) decision. The Phase 2 build text below is historical.
+
 _Focus: restructure prompt assembly so the prefix is stable enough to benefit from provider-side prompt caching (OpenRouter, z.ai, Anthropic-direct), without sacrificing freshness. Target: meaningful cost reduction on multi-turn conversations within the cache TTL window._
 
 **DESIGN ACCEPTED 2026-07-05 (boulder #2)**: [`docs/proposals/backlog/prompt-assembly-architecture.md`](../../docs/proposals/backlog/prompt-assembly-architecture.md) **supersedes this theme's fix-shape** — stability tiers (S0/S1/H/V), `<chat_log>` → real messages with multi-party mapping, verified per-provider cache matrix (first-party docs 2026-07-05), marker gating, eviction hysteresis, phased rollout with quality gates. This file remains the requirement/risk record; implementation phases pull from the artifact. Notable fact-check outcomes: the o-series system→user rewrite is DELETED (o-series deprecated; no current OpenAI model rejects `system`); OpenRouter cache_control pass-through is officially documented; Gemini-via-OpenRouter is implicit-automatic; Qwen routes need explicit markers; z.ai coding-endpoint caching needs the Phase-0 empirical check.
