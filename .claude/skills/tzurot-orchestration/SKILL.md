@@ -160,7 +160,8 @@ review gate is not delegated and not skipped for a clean-looking report.
 A unit's orchestrator + worker and all its gates run in a Claude Code cloud
 session (a VM that clones GitHub). Evidence and billing: doc-108. **When**: at
 most ONE cloud unit in flight, beside at most one local gate-running unit
-(`05-tooling.md`'s one-gate rule still governs the local side). Stays local:
+(the one-gate rule of `05-tooling.md` § Resource Constraints still governs the
+local side). Stays local:
 Railway operations and data probes (the VM has no Railway CLI or token),
 anything needing a real secret value from `.env`, and applying migrations to
 dev or prod. Everything else is eligible: the component tier, `pnpm quality`,
