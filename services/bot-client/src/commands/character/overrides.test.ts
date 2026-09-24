@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ButtonInteraction } from 'discord.js';
 import {
+  CHARACTER_OVERRIDES_CONFIG,
   handleOverrides,
   handleCharacterOverridesButton,
   handleCharacterOverridesModal,
@@ -16,6 +17,13 @@ import {
 import type { EnvConfig } from '@tzurot/common-types/config/config';
 import type { ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
 import type { UserClient } from '@tzurot/clients';
+import {
+  EXTENDED_CONTEXT_SETTINGS,
+  MEMORY_SETTINGS,
+  DISPLAY_SETTINGS,
+  VOICE_CASCADE_SETTINGS,
+  buildCascadePages,
+} from '../../utils/dashboard/settings/settingsConfig.js';
 
 // Mock dependencies
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -205,7 +213,12 @@ describe('Character Overrides Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       expect(editReplyCall.embeds).toHaveLength(1);
       const embedJson = editReplyCall.embeds[0].toJSON();
-      expect(embedJson.title).toBe('Character Override Settings');
+      // 3 concern pages is under the index-landing threshold: opens on page 1.
+      expect(embedJson.title).toBe('Character Override Settings · Memory');
+      const labels = editReplyCall.components[1]
+        .toJSON()
+        .components.map((c: { label?: string }) => c.label);
+      expect(labels).toEqual(['Prev', '1/3', 'Next', 'Index']);
     });
 
     it('should include character name in embed description', async () => {
@@ -235,10 +248,23 @@ describe('Character Overrides Dashboard', () => {
 
       await handleOverrides(context, mockConfig);
 
-      const editReplyCall = context.editReply.mock.calls[0][0];
-      const embedJson = editReplyCall.embeds[0].toJSON();
-      const maxMessagesField = embedJson.fields?.find((f: { name: string }) =>
-        f.name?.includes('Max Messages')
+      // Max Messages lives on page 2 (Context & Display): press Next through
+      // the real router, then match the field by its exact name — a substring
+      // match would also hit Cross-Channel Max Messages.
+      const stored = mockSessionManager.set.mock.calls.at(-1)?.[0];
+      mockSessionManager.get.mockReturnValue({ data: stored.data });
+      const next = {
+        customId: 'character-overrides::page::personality-123::next',
+        user: { id: 'user-456' },
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
+      };
+      await handleCharacterOverridesButton(next as unknown as ButtonInteraction);
+      const embedJson = next.editReply.mock.calls[0][0].embeds[0].toJSON();
+      expect(embedJson.title).toBe('Character Override Settings · Context & Display');
+      const maxMessagesField = embedJson.fields?.find(
+        (f: { name: string }) => f.name === '💬 Max Messages'
       );
       expect(maxMessagesField?.value).toContain('Override');
     });
@@ -294,6 +320,34 @@ describe('Character Overrides Dashboard', () => {
       expect(context.editReply).toHaveBeenCalledWith({
         content: '❌ Failed to open the overrides dashboard. Please try again.',
       });
+    });
+  });
+
+  describe('concern-page split (flat → Memory · Context & Display · Voice)', () => {
+    // The pre-split flat list. The split regroups these; it adds and drops none.
+    const PRE_SPLIT_IDS = [
+      ...EXTENDED_CONTEXT_SETTINGS,
+      ...MEMORY_SETTINGS,
+      ...DISPLAY_SETTINGS,
+      ...VOICE_CASCADE_SETTINGS,
+    ].map(s => s.id);
+    const CASCADE_TIER = buildCascadePages(VOICE_CASCADE_SETTINGS);
+
+    it('keeps the settings set identical to the pre-split flat list', () => {
+      const ids = CHARACTER_OVERRIDES_CONFIG.settings.map(s => s.id);
+      expect([...ids].sort()).toEqual([...PRE_SPLIT_IDS].sort());
+      expect(ids).toEqual(CASCADE_TIER.settings.map(s => s.id));
+    });
+
+    it("uses the cascade tiers' concern pages, every setting on exactly one page", () => {
+      expect(CHARACTER_OVERRIDES_CONFIG.pages).toEqual(CASCADE_TIER.pages);
+      expect(CHARACTER_OVERRIDES_CONFIG.pages?.map(p => p.label)).toEqual([
+        'Memory',
+        'Context & Display',
+        'Voice',
+      ]);
+      const paged = (CHARACTER_OVERRIDES_CONFIG.pages ?? []).flatMap(p => p.settingIds);
+      expect([...paged].sort()).toEqual([...PRE_SPLIT_IDS].sort());
     });
   });
 

@@ -239,7 +239,7 @@ describe('User Default Settings Dashboard', () => {
       expect(embedJson.footer.text).toContain('Page 1/3 · Memory');
     });
 
-    it('should include select menu and pagination row', async () => {
+    it('should include select menu and pagination row, with the Index button (3 pages opens on page 1)', async () => {
       const context = createMockContext();
       stub.resolveUserDefaults.mockResolvedValue({ ok: true, data: mockResolveDefaultsResponse });
 
@@ -247,6 +247,10 @@ describe('User Default Settings Dashboard', () => {
 
       const editReplyCall = context.editReply.mock.calls[0][0];
       expect(editReplyCall.components).toHaveLength(2);
+      const labels = editReplyCall.components[1]
+        .toJSON()
+        .components.map((c: { label?: string }) => c.label);
+      expect(labels).toEqual(['Prev', '1/3', 'Next', 'Index']);
     });
 
     it('should display the scope note about defaults', async () => {

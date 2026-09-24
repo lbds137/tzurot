@@ -1957,3 +1957,194 @@ describe('PR-2 mechanism: page action, BOOLEAN/TEXT, retry', () => {
     });
   });
 });
+
+describe('index navigation through the router (landing, Index button, jump select)', () => {
+  const pagesConfig = (labels: string[]): SettingsDashboardConfig => ({
+    level: 'global',
+    entityType: 'test-settings',
+    titlePrefix: 'Test',
+    color: DISCORD_COLORS.BLURPLE,
+    settings: [...EXTENDED_CONTEXT_SETTINGS, ...VOICE_SETTINGS],
+    pages: labels.map((label, i) => ({
+      id: `p${i}`,
+      label,
+      // Two pages hold settings the tests drill into; the rest reuse one.
+      settingIds:
+        i === 1 ? ['maxImages'] : i === 0 ? ['maxMessages', 'maxAge'] : ['voiceResponseMode'],
+    })),
+    scopeNote: () => 'test scope',
+  });
+  const FOUR_PAGES = pagesConfig(['Alpha', 'Bravo', 'Charlie', 'Delta']);
+  const THREE_PAGES = pagesConfig(['Alpha', 'Bravo', 'Charlie']);
+
+  const storedSessionData = () => mockSessionManager.set.mock.calls.at(-1)?.[0].data;
+  const title = (editReply: ReturnType<typeof vi.fn>) =>
+    editReply.mock.calls.at(-1)?.[0].embeds[0].toJSON().title;
+
+  const component = (customId: string, values: string[] = []) => ({
+    customId,
+    user: { id: 'user-123' },
+    values,
+    reply: vi.fn(),
+    update: vi.fn(),
+    showModal: vi.fn(),
+    deferUpdate: vi.fn(),
+    editReply: vi.fn().mockResolvedValue({ id: 'message-123' }),
+    followUp: vi.fn(),
+  });
+
+  const liveSession = (overrides: Record<string, unknown> = {}) => ({
+    data: {
+      userId: 'user-123',
+      entityId: 'entity-1',
+      entityName: 'Entity',
+      data: createTestData(),
+      view: 'overview',
+      page: 0,
+      ...overrides,
+    },
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('landing', () => {
+    const open = async (config: SettingsDashboardConfig) => {
+      const interaction = createMockInteraction();
+      await createSettingsDashboard(interaction as never, {
+        config,
+        data: createTestData(),
+        entityId: 'entity-1',
+        entityName: 'Entity',
+        userId: 'user-123',
+      });
+      return interaction;
+    };
+
+    it('a 4-page dashboard opens on the index: one row, the jump select', async () => {
+      const interaction = await open(FOUR_PAGES);
+
+      expect(storedSessionData().view).toBe('index');
+      expect(title(interaction.editReply)).toBe('Test Settings · Index');
+      const components = interaction.editReply.mock.calls[0][0].components;
+      expect(components).toHaveLength(1);
+      expect(components[0].toJSON().components[0].custom_id).toBe('test-settings::jump::entity-1');
+    });
+
+    it('a 3-page dashboard opens on page 1 with the Index button on its pagination row', async () => {
+      const interaction = await open(THREE_PAGES);
+
+      expect(storedSessionData().view).toBe('overview');
+      expect(storedSessionData().page).toBe(0);
+      expect(title(interaction.editReply)).toBe('Test Settings · Alpha');
+      const rows = interaction.editReply.mock.calls[0][0].components;
+      const labels = rows[1].toJSON().components.map((c: { label?: string }) => c.label);
+      expect(labels).toEqual(['Prev', '1/3', 'Next', 'Index']);
+    });
+  });
+
+  describe('Index button', () => {
+    it('acks first, then opens the index and persists the view', async () => {
+      mockSessionManager.get.mockReturnValue(liveSession({ page: 2 }));
+      const interaction = component('test-settings::index::entity-1');
+
+      await handleSettingsButton(interaction as never, FOUR_PAGES, vi.fn());
+
+      expect(interaction.deferUpdate.mock.invocationCallOrder[0]).toBeLessThan(
+        mockSessionManager.get.mock.invocationCallOrder[0]
+      );
+      expect(storedSessionData().view).toBe('index');
+      expect(title(interaction.editReply)).toBe('Test Settings · Index');
+    });
+  });
+
+  describe('jump select', () => {
+    it('acks first, then jumps to the selected page (not a setting lookup)', async () => {
+      mockSessionManager.get.mockReturnValue(liveSession({ view: 'index' }));
+      const interaction = component('test-settings::jump::entity-1', ['3']);
+
+      await handleSettingsSelectMenu(interaction as never, FOUR_PAGES);
+
+      expect(interaction.deferUpdate.mock.invocationCallOrder[0]).toBeLessThan(
+        mockSessionManager.get.mock.invocationCallOrder[0]
+      );
+      expect(storedSessionData().page).toBe(3);
+      expect(storedSessionData().view).toBe('overview');
+      expect(title(interaction.editReply)).toBe('Test Settings · Delta');
+      expect(interaction.followUp).not.toHaveBeenCalled(); // no "Unknown setting"
+    });
+  });
+
+  describe('stale or expired session: the new interactions reuse the page action path', () => {
+    const expiredNotice = async (
+      run: (i: ReturnType<typeof component>) => Promise<void>,
+      customId: string,
+      values: string[] = []
+    ) => {
+      vi.clearAllMocks();
+      mockSessionManager.get.mockReturnValue(null);
+      const interaction = component(customId, values);
+      await run(interaction);
+      expect(interaction.deferUpdate).toHaveBeenCalled();
+      expect(interaction.editReply).not.toHaveBeenCalled();
+      expect(mockSessionManager.set).not.toHaveBeenCalled();
+      return interaction.followUp.mock.calls;
+    };
+
+    it('Index button and jump select on an expired session send exactly the page action notice', async () => {
+      const page = await expiredNotice(
+        i => handleSettingsButton(i as never, FOUR_PAGES, vi.fn()),
+        'test-settings::page::entity-1::next'
+      );
+      const index = await expiredNotice(
+        i => handleSettingsButton(i as never, FOUR_PAGES, vi.fn()),
+        'test-settings::index::entity-1'
+      );
+      const jump = await expiredNotice(
+        i => handleSettingsSelectMenu(i as never, FOUR_PAGES),
+        'test-settings::jump::entity-1',
+        ['1']
+      );
+
+      expect(page).toHaveLength(1);
+      expect(page[0][0].content).toContain('expired');
+      expect(index).toEqual(page);
+      expect(jump).toEqual(page);
+    });
+  });
+
+  describe('Back from a setting returns to the page it was opened from', () => {
+    it('drill in from page 2, press Back → page 2', async () => {
+      // Drill in from page 2 (Bravo holds maxImages).
+      mockSessionManager.get.mockReturnValue(liveSession({ page: 1 }));
+      const select = component('test-settings::select::entity-1', ['maxImages']);
+      await handleSettingsSelectMenu(select as never, FOUR_PAGES);
+      const drilled = storedSessionData();
+      expect(drilled.view).toBe('setting');
+
+      // Back, from the session the drill-down stored.
+      vi.clearAllMocks();
+      mockSessionManager.get.mockReturnValue({ data: drilled });
+      const back = component('test-settings::back::entity-1');
+      await handleSettingsButton(back as never, FOUR_PAGES, vi.fn());
+
+      expect(storedSessionData().page).toBe(1);
+      expect(storedSessionData().view).toBe('overview');
+      expect(title(back.editReply)).toBe('Test Settings · Bravo');
+    });
+
+    it('a session stored before pages existed (no page key) comes Back to page 1', async () => {
+      const prePage: Record<string, unknown> = {
+        ...liveSession({ view: 'setting', activeSetting: 'maxMessages' }).data,
+      };
+      delete prePage.page;
+      mockSessionManager.get.mockReturnValue({ data: prePage });
+      const back = component('test-settings::back::entity-1');
+
+      await handleSettingsButton(back as never, FOUR_PAGES, vi.fn());
+
+      expect(title(back.editReply)).toBe('Test Settings · Alpha');
+    });
+  });
+});

@@ -212,7 +212,26 @@ describe('Admin Settings Dashboard', () => {
       );
     });
 
-    it('should include Global Settings title in embed', async () => {
+    /**
+     * Open the dashboard, then pick `pageIndex` from the index's jump select
+     * through the real admin router; returns the page's editReply payload.
+     */
+    async function openAndJump(pageIndex: number) {
+      const context = createMockContext();
+      stub.getAdminSettings.mockResolvedValue(ok(mockSettings));
+      await handleSettings(context);
+
+      const stored = mockSessionManager.set.mock.calls.at(-1)?.[0];
+      mockSessionManager.get.mockReturnValue({ data: stored.data });
+      const jump = createMockSelectMenuInteraction(
+        'admin-settings::jump::global',
+        String(pageIndex)
+      );
+      await handleAdminSettingsSelectMenu(jump);
+      return jump.editReply.mock.calls[0][0];
+    }
+
+    it('lands on the index (11 pages is past the landing threshold)', async () => {
       const context = createMockContext();
       stub.getAdminSettings.mockResolvedValue(ok(mockSettings));
 
@@ -222,22 +241,23 @@ describe('Admin Settings Dashboard', () => {
       expect(editReplyCall.embeds).toHaveLength(1);
 
       const embedJson = editReplyCall.embeds[0].toJSON();
-      expect(embedJson.title).toBe('Global Settings · Memory');
+      expect(embedJson.title).toBe('Global Settings · Index');
+      // Navigation only: page labels, no setting values.
+      expect(embedJson.fields ?? []).toHaveLength(0);
+      expect(embedJson.description).toContain('**1.** Memory');
+      expect(embedJson.description).toContain('**11.** ');
+      expect(mockSessionManager.set.mock.calls.at(-1)?.[0].data.view).toBe('index');
     });
 
-    it('opens on the Memory page with its 9 settings (paged overview)', async () => {
-      const context = createMockContext();
-      stub.getAdminSettings.mockResolvedValue(ok(mockSettings));
-
-      await handleSettings(context);
-
-      const editReplyCall = context.editReply.mock.calls[0][0];
-      const embedJson = editReplyCall.embeds[0].toJSON();
+    it('jumping from the index to page 1 opens Memory with its 9 settings', async () => {
+      const page = await openAndJump(0);
+      const embedJson = page.embeds[0].toJSON();
 
       // D14 page 1 = Memory (9 settings); every remaining cascade and system
       // setting lives on a later page. The total page count is derived from
       // the cascade pages plus SYSTEM_GROUP_ORDER, so adding a system group
       // shifts it — assert the count, not a hand-maintained settings tally.
+      expect(embedJson.title).toBe('Global Settings · Memory');
       expect(embedJson.fields).toHaveLength(9);
       expect(embedJson.fields.map((f: { name: string }) => f.name)).toEqual(
         expect.arrayContaining([
@@ -255,18 +275,31 @@ describe('Admin Settings Dashboard', () => {
       expect(embedJson.footer.text).toContain('Page 1/11 · Memory');
     });
 
-    it('should include select menu and pagination row (no Close on paged dashboards)', async () => {
+    it('the index is one row: the jump select (no Close on paged dashboards)', async () => {
       const context = createMockContext();
       stub.getAdminSettings.mockResolvedValue(ok(mockSettings));
 
       await handleSettings(context);
 
       const editReplyCall = context.editReply.mock.calls[0][0];
-      expect(editReplyCall.components).toHaveLength(2);
-      const secondRow = editReplyCall.components[1].toJSON();
-      const labels = secondRow.components.map((c: { label?: string }) => c.label);
-      expect(labels).toEqual(['Prev', 'Page 1/11 · Memory', 'Next']);
-      expect(labels).not.toContain('Close');
+      expect(editReplyCall.components).toHaveLength(1);
+      const onlyRow = editReplyCall.components[0].toJSON();
+      expect(onlyRow.components.map((c: { custom_id?: string }) => c.custom_id)).toEqual([
+        'admin-settings::jump::global',
+      ]);
+    });
+
+    it('every one of the 11 pages carries select + Prev / N/11 / Next / Index', async () => {
+      for (let pageIndex = 0; pageIndex < 11; pageIndex++) {
+        vi.clearAllMocks();
+        const page = await openAndJump(pageIndex);
+
+        expect(page.components).toHaveLength(2);
+        const labels = page.components[1]
+          .toJSON()
+          .components.map((c: { label?: string }) => c.label);
+        expect(labels).toEqual(['Prev', `${pageIndex + 1}/11`, 'Next', 'Index']);
+      }
     });
 
     it('should handle fetch failure gracefully', async () => {

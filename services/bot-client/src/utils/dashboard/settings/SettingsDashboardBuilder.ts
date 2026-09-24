@@ -316,8 +316,8 @@ export function buildSettingEmbed(
   return embed;
 }
 
-/** Discord's hard cap on select-menu options */
-const DISCORD_SELECT_OPTIONS_LIMIT = 25;
+/** Discord's hard cap on select-menu options (settings select and index jump select) */
+export const DISCORD_SELECT_OPTIONS_LIMIT = 25;
 
 /**
  * Build the settings select menu for overview — scoped to the current page on

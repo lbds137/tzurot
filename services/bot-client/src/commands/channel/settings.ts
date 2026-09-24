@@ -44,10 +44,8 @@ import {
   type SettingsResetHandler,
   createSettingsDashboard,
   createSettingsCommandHandlers,
-  EXTENDED_CONTEXT_SETTINGS,
-  MEMORY_SETTINGS,
-  DISPLAY_SETTINGS,
   VOICE_CASCADE_SETTINGS,
+  buildCascadePages,
   mapSettingToApiUpdate,
   buildCascadeSettingsData,
 } from '../../utils/dashboard/settings/index.js';
@@ -61,22 +59,21 @@ const logger = createLogger('channel-settings');
  */
 const ENTITY_TYPE = 'channel-settings';
 
+/** The shared D14 page grouping; a non-admin tier's Voice page is the cascade subset. */
+const CASCADE_PAGES = buildCascadePages(VOICE_CASCADE_SETTINGS);
+
 /**
  * Dashboard configuration for channel context settings.
  * Includes both extended context and memory settings — all are now wirable
- * via the channel tier of the config cascade.
+ * via the channel tier of the config cascade — on the shared concern pages.
  */
 export const CHANNEL_SETTINGS_CONFIG: SettingsDashboardConfig = {
   level: 'channel',
   entityType: ENTITY_TYPE,
   titlePrefix: 'Channel',
   color: DISCORD_COLORS.BLURPLE,
-  settings: [
-    ...EXTENDED_CONTEXT_SETTINGS,
-    ...MEMORY_SETTINGS,
-    ...DISPLAY_SETTINGS,
-    ...VOICE_CASCADE_SETTINGS,
-  ],
+  settings: CASCADE_PAGES.settings,
+  pages: CASCADE_PAGES.pages,
   // "Clear every channel-tier override" — the DELETE endpoint has existed
   // since the manifest gained clearChannelConfigOverrides; this is its UX
   // surface. The shared handler puts a Tier-A Cancel/Confirm step in front

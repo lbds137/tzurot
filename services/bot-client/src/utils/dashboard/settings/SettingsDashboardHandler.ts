@@ -2,8 +2,8 @@
  * Settings Dashboard Handler
  *
  * Coordinates all settings dashboard interactions:
- * - Select menu: Navigate to setting drill-down
- * - Buttons: Set values (tri-state) or open modals
+ * - Select menus: Navigate to setting drill-down, or jump from the index to a page
+ * - Buttons: Set values (tri-state), open modals, or navigate (pages, index)
  * - Modals: Parse and apply values
  *
  * This is the main entry point for command handlers.
@@ -39,6 +39,8 @@ import {
 } from './SettingsDashboardBuilder.js';
 import { buildSettingEditModal } from './SettingsModalFactory.js';
 import { handleSetButton } from './settingsUpdate.js';
+import { handleIndexButton, handleJumpSelect } from './settingsNavigationHandlers.js';
+import { buildLandingMessage, resolveLandingView } from './settingsIndexView.js';
 import { storeSession, getSession, deleteSession } from './SettingsSessionStorage.js';
 import { ackUpdate } from '../../../ux/render/reply.js';
 
@@ -64,7 +66,9 @@ interface CreateDashboardOptions {
 }
 
 /**
- * Create and display a new settings dashboard
+ * Create and display a new settings dashboard, on its landing view: the page
+ * index for a dashboard of INDEX_LANDING_MIN_PAGES pages or more, otherwise
+ * page 1 of the overview (settingsIndexView owns the threshold).
  */
 export async function createSettingsDashboard(
   interaction: ChatInputCommandInteraction,
@@ -72,13 +76,13 @@ export async function createSettingsDashboard(
 ): Promise<void> {
   const { config, data, entityId, entityName, userId } = options;
 
-  // Build initial overview message
+  // Build the initial (landing) message
   const session: SettingsDashboardSession = {
     level: config.level,
     entityId,
     entityName,
     data,
-    view: DashboardView.OVERVIEW,
+    view: resolveLandingView(config),
     page: 0,
     userId,
     messageId: '', // Will be set after reply
@@ -86,7 +90,7 @@ export async function createSettingsDashboard(
     lastActivityAt: new Date(),
   };
 
-  const message = buildOverviewMessage(config, session);
+  const message = buildLandingMessage(config, session);
 
   // Send the dashboard
   const reply = await interaction.editReply({
@@ -128,7 +132,9 @@ async function resolveValidatedSession(
 }
 
 /**
- * Handle a select menu interaction for settings navigation
+ * Handle a select menu interaction for settings navigation: the overview's
+ * setting select (drill into a setting) or the index's jump select (open a
+ * page). Both share the ack-first path and the session guards.
  */
 export async function handleSettingsSelectMenu(
   interaction: StringSelectMenuInteraction,
@@ -152,6 +158,11 @@ export async function handleSettingsSelectMenu(
     content => interaction.followUp({ content, flags: MessageFlags.Ephemeral })
   );
   if (session === null) {
+    return;
+  }
+
+  if (parsed.action === 'jump') {
+    await handleJumpSelect(interaction, config, session);
     return;
   }
 
@@ -240,6 +251,9 @@ export async function handleSettingsButton(
       break;
     case 'page':
       await handlePageButton(interaction, config, session, parsed.extra);
+      break;
+    case 'index':
+      await handleIndexButton(interaction, config, session);
       break;
     case 'set':
       await handleSetButton(interaction, config, session, parsed.extra, updateHandler);

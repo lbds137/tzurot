@@ -108,10 +108,12 @@ export function buildBooleanButtons(
 }
 
 /**
- * Build the page-navigation row for paged configs: ◀ Prev / disabled
- * `Page N/M · <Label>` indicator / Next ▶. All Secondary (navigation per the
- * button vocabulary); three DISTINCT customIds — Discord rejects duplicate
- * customIds within one message, so the disabled indicator carries `noop`.
+ * Build the page-navigation row for paged configs: ◀ Prev / disabled `N/M`
+ * indicator / Next ▶ / Index. All Secondary (navigation per the button
+ * vocabulary). The indicator carries no page label: the embed title and
+ * footer already name the page, and a long label crowds a four-button row on
+ * a phone. Four DISTINCT customIds — Discord rejects duplicate customIds
+ * within one message, so the disabled indicator carries `noop`.
  */
 export function buildPaginationRow(
   config: SettingsDashboardConfig,
@@ -119,7 +121,6 @@ export function buildPaginationRow(
 ): ActionRowBuilder<MessageActionRowComponentBuilder> {
   const page = clampPage(config, session.page);
   const pageCount = config.pages?.length ?? 1;
-  const label = config.pages?.[page]?.label ?? '';
 
   const row = new ActionRowBuilder<MessageActionRowComponentBuilder>();
 
@@ -135,7 +136,7 @@ export function buildPaginationRow(
   row.addComponents(
     new ButtonBuilder()
       .setCustomId(buildSettingsCustomId(config.entityType, 'page', session.entityId, 'noop'))
-      .setLabel(`Page ${page + 1}/${pageCount} · ${label}`)
+      .setLabel(`${page + 1}/${pageCount}`)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(true)
   );
@@ -147,6 +148,15 @@ export function buildPaginationRow(
       .setEmoji('▶️')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(page >= pageCount - 1)
+  );
+
+  // One level up: the page index (never disabled — every page can reach it)
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId(buildSettingsCustomId(config.entityType, 'index', session.entityId))
+      .setLabel('Index')
+      .setEmoji('🗂️')
+      .setStyle(ButtonStyle.Secondary)
   );
 
   return row;
