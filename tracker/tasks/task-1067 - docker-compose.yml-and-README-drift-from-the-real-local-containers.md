@@ -1,9 +1,10 @@
 ---
 id: TASK-1067
 title: docker-compose.yml and README drift from the real local containers
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-23 23:58'
+updated_date: '2026-09-24 19:15'
 labels:
   - 'area:repo'
   - 'size:S'

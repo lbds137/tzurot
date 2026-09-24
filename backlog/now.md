@@ -35,7 +35,7 @@ _beta.229 CUT 2026-09-24 11:28Z (07:28 EDT). **The numbers:** 30 PRs, 24 runtime
   - TASK-1027 is the owner's call;
   - no model-parameter experiments;
   - the owner clears sessions with `/clear`, so every handoff lives on disk.
-- **In**: #2505 (TASK-1070, voice-engine on Python 3.13) · #2506 (TASK-1073, husky hooks under dash) · #2507 (doc-72 PR A, page navigation) · #2508 (TASK-1079, the settings customId cap fix) · #2509 (doc-72 PR B, the resets + TASK-1080) · #2510 (TASK-1083, `REDIS_IP_FAMILY`; the first cloud-built unit).
+- **In**: #2505 (TASK-1070, voice-engine on Python 3.13) · #2506 (TASK-1073, husky hooks under dash) · #2507 (doc-72 PR A, page navigation) · #2508 (TASK-1079, the settings customId cap fix) · #2509 (doc-72 PR B, the resets + TASK-1080) · #2510 (TASK-1083, `REDIS_IP_FAMILY`; the first cloud-built unit) · #2511 (TASK-1067, README podman commands on localhost-only ports; docker-compose.yml deleted).
 - **Waiting on**:
   1. **The TASK-1039 read:** RUN 2026-09-24, inconclusive. One thread per day kept Emily under N 10, so none of her ON turns summarized. Owner ruling 2026-09-24: N=3 on Emily and Lilith for one more read day, set by the owner. The second read runs once that day's thread is complete. Slice 2 (the measured default for N, the override cascade, the facts-vocabulary slice) waits on that second read.
   2. **`doc-72` dashboard index navigation:**
