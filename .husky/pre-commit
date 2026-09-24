@@ -241,6 +241,10 @@ if [ -n "$STAGED_CLAUDE_DOCS" ]; then
     # the bare `for file in $STAGED_CLAUDE_DOCS` would do. The `.claude/`
     # paths don't contain spaces in practice, but shellcheck flags the
     # bare form (SC2086) and the safer pattern is just as clear.
+    # The list is fed by a heredoc (see `done <<EOF` below), not a here-string
+    # or a pipe: husky runs this hook as `sh -e`, which is dash on Debian/Ubuntu
+    # and rejects `<<<`, and `printf ... | while` would run the loop in a
+    # subshell so BUMPED_ANY=1 would never reach the check after it.
     while IFS= read -r file; do
         # Only touch files that already have a lastUpdated frontmatter field.
         # Skip files without one — we don't add the field automatically; that's
@@ -268,7 +272,9 @@ if [ -n "$STAGED_CLAUDE_DOCS" ]; then
             git add "$file"
             BUMPED_ANY=1
         fi
-    done <<< "$STAGED_CLAUDE_DOCS"
+    done <<EOF
+$STAGED_CLAUDE_DOCS
+EOF
     if [ "$BUMPED_ANY" = "1" ]; then
         echo "Bumped lastUpdated to $TODAY on edited .claude/ files"
     fi

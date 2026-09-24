@@ -54,6 +54,20 @@ jobs:
 
           echo "No fixup/squash commits — branch is merge-ready."
 
+  hook-posix-parse:
+    # husky runs every lifecycle hook as `sh -e <hook>`, ignoring the shebang,
+    # and /bin/sh is dash on ubuntu runners, so a bashism parses on a machine
+    # whose /bin/sh is bash and kills the commit wherever it is dash. A job of
+    # its own rather than a lint-job step: guard:gate-parity pairs lint-job
+    # steps with `pnpm quality`, and this check has no meaningful local twin
+    # on a machine whose /bin/sh is bash.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Parse lifecycle hooks with /bin/sh (dash)
+        run: |
+          for f in .husky/pre-commit .husky/pre-push .husky/commit-msg; do sh -n "$f" || exit 1; done
+
   lint:
     runs-on: ubuntu-latest
     # Job-scoped, not workflow-wide: only this job runs guard:workflow-sync,
