@@ -23,9 +23,9 @@ const CONTAINER_SIGNATURES: readonly {
   readonly extension: string;
 }[] = [
   // EBML — the container format WebM (and Matroska) is built on.
-  { bytes: [0x1a, 0x45, 0xdf, 0xa3], contentType: 'audio/webm', extension: '.webm' },
+  { bytes: [0x1a, 0x45, 0xdf, 0xa3], contentType: CONTENT_TYPES.AUDIO_WEBM, extension: '.webm' },
   // "OggS" — the Ogg container's page magic.
-  { bytes: [0x4f, 0x67, 0x67, 0x53], contentType: 'audio/ogg', extension: '.ogg' },
+  { bytes: [0x4f, 0x67, 0x67, 0x53], contentType: CONTENT_TYPES.AUDIO_OGG, extension: '.ogg' },
 ];
 
 /** Outcome of a `resolveVoiceAudioLabel` call, for the caller's logging decision. */

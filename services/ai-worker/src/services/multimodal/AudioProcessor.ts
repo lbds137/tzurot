@@ -407,9 +407,6 @@ async function tryBYOKTranscription(
   return null;
 }
 
-/** The content type `resolveVoiceAudioLabel` assigns on an EBML/WebM sniff — the one case that needs remuxing. */
-const WEBM_CONTENT_TYPE = 'audio/webm';
-
 /** Convert a Buffer to a standalone ArrayBuffer (never a view into Node's pooled allocator). */
 function toArrayBuffer(buffer: Buffer): ArrayBuffer {
   return buffer.buffer.slice(
@@ -459,7 +456,7 @@ async function prepareVoiceAudioForStt(
     name: label.name,
   };
 
-  if (label.outcome !== 'relabeled' || label.contentType !== WEBM_CONTENT_TYPE) {
+  if (label.outcome !== 'relabeled' || label.contentType !== CONTENT_TYPES.AUDIO_WEBM) {
     return { attachment: relabeled, audioBuffer };
   }
 

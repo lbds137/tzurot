@@ -63,6 +63,8 @@ export const CONTENT_TYPES = {
   AUDIO_FLAC: 'audio/flac',
   /** OGG audio type (voice messages) */
   AUDIO_OGG: 'audio/ogg',
+  /** WebM audio type (a sniffed Vencord/Vesktop voice message container) */
+  AUDIO_WEBM: 'audio/webm',
   /** MP3 audio type */
   AUDIO_MP3: 'audio/mpeg',
   /** JSON content type */
