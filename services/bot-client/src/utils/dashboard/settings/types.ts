@@ -362,10 +362,12 @@ export function buildSettingsCustomId(
  *
  * The entity segment is the entityId as `buildSettingsCustomId` wrote it: a
  * UUID entity appears compacted (`~` + 22 base64url chars), anything else
- * raw. The returned `entityId` is always the canonical value — the compacted
- * form is expanded back to the lowercase dashed UUID, and a raw segment
+ * raw. For any id the builder wrote, the returned `entityId` is the canonical
+ * value: the compacted form expands to the lowercase dashed UUID, a raw segment
  * (including a raw UUID from a message rendered before compaction) passes
- * through unchanged — so session lookups keyed by the canonical id still hit.
+ * through unchanged — so session lookups keyed by the canonical id still hit
+ * (settingsEntityIdCodec.test.ts round-trips each producer's shape). A
+ * malformed `~` segment also passes through raw, and its session lookup misses.
  *
  * Note: entityType should NOT contain '::' delimiter to ensure correct parsing.
  * Use hyphens for compound types (e.g., 'admin-settings' not 'admin::settings').
