@@ -123,4 +123,33 @@ describe('TranscribeRequestSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('preserves isVoiceMessage through the parse', () => {
+    const result = TranscribeRequestSchema.safeParse({
+      attachments: [
+        {
+          url: 'https://cdn.example.com/voice-message.ogg',
+          contentType: 'video/webm',
+          isVoiceMessage: true,
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.attachments[0].isVoiceMessage).toBe(true);
+    }
+  });
+
+  it('rejects a non-boolean isVoiceMessage', () => {
+    const result = TranscribeRequestSchema.safeParse({
+      attachments: [
+        {
+          url: 'https://cdn.example.com/voice-message.ogg',
+          contentType: 'video/webm',
+          isVoiceMessage: 'true',
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
 });

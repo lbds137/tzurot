@@ -499,7 +499,9 @@ describe('MessageContextBuilder', () => {
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Check this image');
 
-      expect(extractAttachments).toHaveBeenCalledWith(mockMessage.attachments);
+      expect(extractAttachments).toHaveBeenCalledWith(mockMessage.attachments, {
+        messageIsVoice: false,
+      });
       expect(result.context.attachments).toEqual(mockAttachments);
     });
 

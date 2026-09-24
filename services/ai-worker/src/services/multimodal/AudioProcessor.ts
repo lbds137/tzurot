@@ -11,6 +11,7 @@
  */
 
 import { isTransientNetworkError } from '@tzurot/common-types/constants/error';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type SttDispatch, type SttProvider } from '@tzurot/common-types/types/sttProvider';
@@ -31,6 +32,8 @@ import {
   MistralSttApiError,
   MistralSttTimeoutError,
 } from '../voice/MistralSttClient.js';
+import { remuxWebmToOgg } from '../voice/audioNormalizer.js';
+import { resolveVoiceAudioLabel, withAudioExtension } from './voiceContainerSniff.js';
 
 const logger = createLogger('AudioProcessor');
 
@@ -404,6 +407,89 @@ async function tryBYOKTranscription(
   return null;
 }
 
+/** The content type `resolveVoiceAudioLabel` assigns on an EBML/WebM sniff — the one case that needs remuxing. */
+const WEBM_CONTENT_TYPE = 'audio/webm';
+
+/** Convert a Buffer to a standalone ArrayBuffer (never a view into Node's pooled allocator). */
+function toArrayBuffer(buffer: Buffer): ArrayBuffer {
+  return buffer.buffer.slice(
+    buffer.byteOffset,
+    buffer.byteOffset + buffer.byteLength
+  ) as ArrayBuffer;
+}
+
+/**
+ * Sniff and prepare the effective attachment + bytes for STT.
+ *
+ * A Vencord/Vesktop voice message declares `video/webm`; `resolveVoiceAudioLabel`
+ * sniffs the downloaded bytes and relabels it (logged below for both the
+ * `relabeled` and `unrecognized` outcomes; `not-applicable` logs nothing).
+ * When the sniff recognizes EBML/WebM specifically, the bytes are ALSO
+ * remuxed (stream copy, no re-encode — the ffmpeg binary the ai-worker image
+ * installs, `services/ai-worker/Dockerfile`) to Ogg, because voice-engine's
+ * in-memory decoder (librosa) cannot read WebM and rejects it with "Format
+ * not recognised" (probed at runtime). No claim is made that any STT
+ * provider itself accepts WebM — the remux exists to give every provider
+ * (BYOK and voice-engine alike) a container they can read.
+ *
+ * A remux failure (spawn error, non-zero exit, timeout, over-size) is caught
+ * and logged; this function falls back to the relabeled-but-unremuxed WebM
+ * bytes rather than throwing, so a BYOK provider still gets a chance at it.
+ */
+async function prepareVoiceAudioForStt(
+  attachment: AttachmentMetadata,
+  audioBuffer: ArrayBuffer
+): Promise<{ attachment: AttachmentMetadata; audioBuffer: ArrayBuffer }> {
+  const label = resolveVoiceAudioLabel(attachment, new Uint8Array(audioBuffer));
+  if (label.outcome === 'relabeled') {
+    logger.info(
+      { declaredContentType: attachment.contentType, contentType: label.contentType },
+      'Relabeled voice attachment from its container bytes'
+    );
+  } else if (label.outcome === 'unrecognized') {
+    logger.info(
+      { declaredContentType: attachment.contentType, byteLength: audioBuffer.byteLength },
+      'Voice attachment container not recognized; keeping declared content type'
+    );
+  }
+
+  const relabeled: AttachmentMetadata = {
+    ...attachment,
+    contentType: label.contentType,
+    name: label.name,
+  };
+
+  if (label.outcome !== 'relabeled' || label.contentType !== WEBM_CONTENT_TYPE) {
+    return { attachment: relabeled, audioBuffer };
+  }
+
+  try {
+    const remuxed = await remuxWebmToOgg(Buffer.from(audioBuffer));
+    logger.info(
+      {
+        declaredContentType: attachment.contentType,
+        inputBytes: audioBuffer.byteLength,
+        outputBytes: remuxed.length,
+      },
+      'Remuxed WebM voice attachment to Ogg for STT'
+    );
+    return {
+      attachment: {
+        ...attachment,
+        contentType: CONTENT_TYPES.AUDIO_OGG,
+        name: withAudioExtension(attachment.name, '.ogg'),
+      },
+      audioBuffer: toArrayBuffer(remuxed),
+    };
+  } catch (error) {
+    logger.warn(
+      { err: error, declaredContentType: attachment.contentType },
+      'WebM-to-Ogg remux failed; sending the relabeled WebM to STT'
+    );
+    return { attachment: relabeled, audioBuffer };
+  }
+}
+
 /**
  * Transcribe audio (voice message or audio file).
  *
@@ -430,18 +516,24 @@ export async function transcribeAudio(
     return { text: cached };
   }
 
-  // Fetch audio once — shared by all transcription paths
+  // Fetch audio once — shared by all transcription paths. The cache lookup
+  // above stays keyed on the ORIGINAL attachment — only the provider-facing
+  // calls below see the prepared (relabeled and/or remuxed) copy.
   const audioBuffer = await fetchAudioBuffer(attachment.url);
+  const prepared = await prepareVoiceAudioForStt(attachment, audioBuffer);
 
   // Primary path — dispatch to the resolved provider. Each BYOK path
   // returns null on failure (logged) so we fall through to voice-engine.
-  const byokResult = await tryBYOKTranscription(attachment, audioBuffer, opts);
+  const byokResult = await tryBYOKTranscription(prepared.attachment, prepared.audioBuffer, opts);
   if (byokResult !== null) {
     return byokResult;
   }
 
   // Fallback / `provider === 'voice-engine'` — try voice-engine.
-  const voiceEngineText = await transcribeWithVoiceEngine(attachment, audioBuffer);
+  const voiceEngineText = await transcribeWithVoiceEngine(
+    prepared.attachment,
+    prepared.audioBuffer
+  );
   if (voiceEngineText !== null) {
     return { text: voiceEngineText, actualProvider: STT_FALLBACK_LABEL };
   }

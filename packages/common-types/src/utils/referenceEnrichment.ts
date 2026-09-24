@@ -120,15 +120,18 @@ export function isBotAuthoredReference(reference: {
  * quote) makes the model reason about "an audio message I sent". User voice
  * messages (user-authored, transcribed) are genuine content and are untouched.
  *
- * Identity is by authorship (`authorIsBot`/`webhookId`), not filename; only
- * `audio/*` is dropped, so a bot-posted image (real content) still survives.
+ * Identity is by authorship (`authorIsBot`/`webhookId`), not filename; the
+ * attachment is dropped when it's `audio/*` OR flagged `isVoiceMessage` — the
+ * latter covers a Vencord/Vesktop voice message, whose content type is
+ * `video/webm` rather than `audio/*`. A bot-posted image (real content, not
+ * flagged as voice) still survives either way.
  */
 export function stripBotVoiceAttachments(reference: ReferencedMessage): ReferencedMessage {
   if (!isBotAuthoredReference(reference) || reference.attachments === undefined) {
     return reference;
   }
   const kept = reference.attachments.filter(
-    att => !att.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX)
+    att => !att.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) && att.isVoiceMessage !== true
   );
   return kept.length === reference.attachments.length
     ? reference

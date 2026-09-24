@@ -21,6 +21,10 @@
  * - Mistral / ElevenLabs: posted loudnormed-WAV directly (Discord size issue)
  * - Voice-engine multi-chunk: round-tripped via voice-engine /v1/audio/transcode
  * Now unified: every path → single ffmpeg pass → Opus output.
+ *
+ * This module also hosts {@link remuxWebmToOgg}, an unrelated STT-side (input)
+ * remux rather than the TTS-side (output) normalization above — it lives here
+ * because both share the same `runFfmpeg` process runner.
  */
 
 import { spawn } from 'node:child_process';
@@ -139,6 +143,48 @@ export async function normalizeLoudness(
     );
     throw error;
   }
+}
+
+/**
+ * Stream-copy (no re-encode) a WebM/Opus buffer into an Ogg/Opus buffer, for
+ * STT: voice-engine's decoder (librosa, over the in-memory upload) does not
+ * read WebM and rejects it with "Format not recognised", so a Vencord/Vesktop
+ * voice message — sniffed as EBML/WebM by `resolveVoiceAudioLabel` in
+ * `voiceContainerSniff.ts` — is remuxed to Ogg before any STT provider sees
+ * it. No logging here — the caller (AudioProcessor) logs the outcome.
+ *
+ * `-c:a copy` means the Opus audio stream is repackaged into a new Ogg
+ * container, never decoded or re-encoded — fast, and lossless relative to the
+ * original encode.
+ *
+ * No explicit input-format flag: a manual probe against real WebM/Opus
+ * samples with ffmpeg n7.1.1 confirmed ffmpeg demuxes WebM correctly through
+ * non-seekable stdin/stdout pipes with no `-f matroska` (or similar) hint,
+ * and the resulting Ogg/Opus output decoded fine. This module's unit tests
+ * mock `spawn`, so they exercise the args this function passes but do NOT
+ * cover ffmpeg's actual demuxing behavior — that's what the probe verified.
+ *
+ * @param input - WebM/Opus source bytes.
+ * @returns Ogg/Opus bytes (content-type: audio/ogg).
+ * @throws if ffmpeg is missing from PATH, exits non-zero, or times out.
+ */
+export async function remuxWebmToOgg(input: Buffer): Promise<Buffer> {
+  return runFfmpeg(
+    [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-i',
+      'pipe:0',
+      '-vn',
+      '-c:a',
+      'copy',
+      '-f',
+      'ogg',
+      'pipe:1',
+    ],
+    input
+  );
 }
 
 /**

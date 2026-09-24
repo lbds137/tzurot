@@ -9,7 +9,7 @@ vi.mock('node:child_process', () => ({
   spawn: mockSpawn,
 }));
 
-import { normalizeLoudness } from './audioNormalizer.js';
+import { normalizeLoudness, remuxWebmToOgg } from './audioNormalizer.js';
 
 /**
  * Build a fake child process whose `close` event the test can drive
@@ -147,5 +147,50 @@ describe('normalizeLoudness', () => {
     mockSpawn.mockReturnValue(emitter);
 
     await expect(normalizeLoudness(Buffer.from('x'))).rejects.toThrow(/ENOENT/);
+  });
+});
+
+describe('remuxWebmToOgg', () => {
+  beforeEach(() => {
+    mockSpawn.mockReset();
+  });
+
+  it('remuxWebmToOgg stream-copies WebM to Ogg over stdin/stdout', async () => {
+    const { emitter, capturedStdin } = makeFakeChild({
+      stdoutChunks: [Buffer.from('OggS-remuxed-bytes')],
+    });
+    mockSpawn.mockReturnValue(emitter);
+
+    const input = Buffer.from('webm-input-bytes');
+    const result = await remuxWebmToOgg(input);
+
+    expect(mockSpawn.mock.calls[0][0]).toBe('ffmpeg');
+    expect(mockSpawn.mock.calls[0][1]).toEqual([
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-i',
+      'pipe:0',
+      '-vn',
+      '-c:a',
+      'copy',
+      '-f',
+      'ogg',
+      'pipe:1',
+    ]);
+
+    expect(Buffer.concat(capturedStdin).toString('utf8')).toBe('webm-input-bytes');
+    expect(result).toBeInstanceOf(Buffer);
+    expect(result.toString('utf8')).toBe('OggS-remuxed-bytes');
+  });
+
+  it('remuxWebmToOgg rejects when ffmpeg exits non-zero', async () => {
+    const { emitter } = makeFakeChild({
+      exitCode: 1,
+      stderrChunks: ['ffmpeg: invalid input format\n'],
+    });
+    mockSpawn.mockReturnValue(emitter);
+
+    await expect(remuxWebmToOgg(Buffer.from('bad'))).rejects.toThrow(/code=1/);
   });
 });

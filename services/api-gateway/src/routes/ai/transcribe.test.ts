@@ -150,6 +150,36 @@ describe('POST /api/internal/ai/transcribe', () => {
     );
   });
 
+  it('forwards isVoiceMessage from the request into the transcription job', async () => {
+    const mockJob = {
+      id: 'audio-req-webm',
+    } as Job;
+    aiQueue.add.mockResolvedValue(mockJob);
+
+    await request(app)
+      .post('/transcribe')
+      .send({
+        attachments: [
+          {
+            url: 'https://example.com/voice-message.ogg',
+            contentType: 'video/webm',
+            name: 'voice-message.ogg',
+            isVoiceMessage: true,
+          },
+        ],
+      });
+
+    expect(aiQueue.add).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        attachment: expect.objectContaining({
+          isVoiceMessage: true,
+        }),
+      }),
+      expect.any(Object)
+    );
+  });
+
   describe('?wait=true → showModelFooter resolution', () => {
     const audioAttachments = [
       { url: 'https://example.com/audio.ogg', contentType: 'audio/ogg', name: 'audio.ogg' },

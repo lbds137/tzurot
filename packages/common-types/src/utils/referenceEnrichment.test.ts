@@ -194,6 +194,31 @@ describe('stripBotVoiceAttachments', () => {
     const ref = refWith({ authorIsBot: true });
     expect(stripBotVoiceAttachments(ref)).toBe(ref);
   });
+
+  it('drops a bot-authored voice-flagged attachment that is not labeled audio', () => {
+    const webmVoice: AttachmentMetadata = {
+      url: 'https://cdn/voice-message.ogg',
+      contentType: 'video/webm',
+      name: 'voice-message.ogg',
+      isVoiceMessage: true,
+    };
+    const result = stripBotVoiceAttachments(
+      refWith({ authorIsBot: true, attachments: [webmVoice] })
+    );
+    expect(result.attachments).toEqual([]);
+  });
+
+  it('keeps a bot-authored video/webm attachment that is not voice-flagged', () => {
+    const webmClip: AttachmentMetadata = {
+      url: 'https://cdn/clip.webm',
+      contentType: 'video/webm',
+      name: 'clip.webm',
+    };
+    const result = stripBotVoiceAttachments(
+      refWith({ authorIsBot: true, attachments: [webmClip] })
+    );
+    expect(result.attachments).toEqual([webmClip]);
+  });
 });
 
 describe('appendVoiceTranscripts', () => {

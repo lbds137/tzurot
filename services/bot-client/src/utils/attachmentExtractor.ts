@@ -8,7 +8,7 @@
 import { type Collection, type Snowflake, type Attachment } from 'discord.js';
 import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
-import { isVoiceAttachment } from './voiceAttachment.js';
+import { isVoiceAttachment, type VoiceMessageContext } from './voiceAttachment.js';
 
 const SPOILER_FILENAME_PREFIX = 'SPOILER_';
 
@@ -27,10 +27,14 @@ export function isSpoilerAttachment(attachment: Pick<Attachment, 'name' | 'spoil
 /**
  * Extract attachment metadata from a Discord message's attachments collection
  * @param attachments - Discord message attachments collection
+ * @param context - Voice-message context from the parent message (see
+ *   {@link VoiceMessageContext}); pass `{ messageIsVoice: hasVoiceMessageFlag(message) }`
+ *   when the caller has the parent message or snapshot available.
  * @returns Array of attachment metadata, or undefined if no attachments
  */
 export function extractAttachments(
-  attachments: Collection<Snowflake, Attachment>
+  attachments: Collection<Snowflake, Attachment>,
+  context: VoiceMessageContext = {}
 ): AttachmentMetadata[] | undefined {
   if (attachments.size === 0) {
     return undefined;
@@ -48,8 +52,9 @@ export function extractAttachments(
     // Discord.js v14 voice message metadata. Pass the RAW attachment (its
     // contentType is still `string | null` here) so a genuine voice message with
     // an omitted content-type hits isVoiceAttachment's duration fallback, while a
-    // video (which carries a duration but a `video/*` content-type) is rejected.
-    isVoiceMessage: isVoiceAttachment(attachment),
+    // video (which carries a duration but a `video/*` content-type) is rejected —
+    // unless the parent message's IsVoiceMessage flag (in `context`) overrides that.
+    isVoiceMessage: isVoiceAttachment(attachment, context),
     duration: attachment.duration ?? undefined,
     waveform: attachment.waveform ?? undefined,
     ...(isSpoilerAttachment(attachment) ? { isSpoiler: true } : {}),

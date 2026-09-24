@@ -33,6 +33,7 @@ import { extractEmbedImages } from './embedImageExtractor.js';
 import { extractStickerImages } from './stickerAttachments.js';
 import { EmbedParser } from './EmbedParser.js';
 import { describeStickersAndPoll, hasStickerOrPoll } from './stickerPollDescriptions.js';
+import { hasVoiceMessageFlag } from './voiceAttachment.js';
 import {
   isForwardedMessage,
   hasForwardedSnapshots,
@@ -288,7 +289,9 @@ export async function buildMessageContent(
   //    describe what the sticker actually depicts. The `[Stickers: …]` line
   //    pushed above still names every sticker regardless; these two are
   //    complementary, not alternatives (see stickerPollDescriptions.ts).
-  const regularAttachments = extractAttachments(message.attachments);
+  const regularAttachments = extractAttachments(message.attachments, {
+    messageIsVoice: hasVoiceMessageFlag(message),
+  });
   const embedImages = extractEmbedImages(message.embeds);
   const stickerImages = extractStickerImages(message);
   const allAttachments: AttachmentMetadata[] = [

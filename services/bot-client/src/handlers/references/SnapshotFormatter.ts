@@ -16,6 +16,7 @@ import { extractSnapshotStickerImages } from '../../utils/stickerAttachments.js'
 import { withSnapshotStickerDescriptions } from '../../utils/stickerPollDescriptions.js';
 import { resolveOriginChannelName } from '../../utils/forwardedMessageUtils.js';
 import { EmbedParser } from '../../utils/EmbedParser.js';
+import { hasVoiceMessageFlag } from '../../utils/voiceAttachment.js';
 
 /** The generic marker used whenever the origin channel can't be attributed. */
 const GENERIC_FORWARD_MARKER = '(forwarded message)';
@@ -101,7 +102,9 @@ export class SnapshotFormatter {
     // Process regular attachments from snapshot
     const regularAttachments =
       snapshot.attachments !== undefined && snapshot.attachments !== null
-        ? extractAttachments(snapshot.attachments)
+        ? extractAttachments(snapshot.attachments, {
+            messageIsVoice: hasVoiceMessageFlag(snapshot),
+          })
         : undefined;
 
     // Extract images from snapshot embeds (for vision model processing)
