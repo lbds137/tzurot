@@ -373,6 +373,8 @@ beforeAll(async () => {
 > defaulted, since a default would have to carry credentials.
 > `vitest.integration.config.ts` carries the one-time provisioning commands.
 > Reference test: `tests/e2e/cacheInvalidationTriggers.integration.test.ts`.
+> On a host without IPv6, export `REDIS_IP_FAMILY=4` for the run, since every
+> Redis client defaults to IPv6 (`family: 6`) for Railway's private network.
 
 **Use when:**
 

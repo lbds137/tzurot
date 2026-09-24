@@ -4,12 +4,13 @@
  * Tests for Redis connection configuration builders.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   parseRedisUrl,
   createBullMQRedisConfig,
   createIORedisClient,
   initCoreRedisServices,
+  resolveRedisIpFamily,
 } from './redis.js';
 import { getConfig } from '../config/index.js';
 import { REDIS_CONNECTION } from '../constants/index.js';
@@ -30,6 +31,40 @@ vi.mock('ioredis', () => {
 vi.mock('../config/index.js', () => ({
   getConfig: vi.fn(),
 }));
+
+afterEach(() => vi.unstubAllEnvs());
+
+describe('resolveRedisIpFamily', () => {
+  it('defaults to 6 when REDIS_IP_FAMILY is unset', () => {
+    vi.stubEnv('REDIS_IP_FAMILY', undefined);
+    expect(resolveRedisIpFamily()).toBe(6);
+  });
+
+  it('defaults to 6 when REDIS_IP_FAMILY is an empty string', () => {
+    vi.stubEnv('REDIS_IP_FAMILY', '');
+    expect(resolveRedisIpFamily()).toBe(6);
+  });
+
+  it("returns 4 when REDIS_IP_FAMILY is '4'", () => {
+    vi.stubEnv('REDIS_IP_FAMILY', '4');
+    expect(resolveRedisIpFamily()).toBe(4);
+  });
+
+  it("returns 6 when REDIS_IP_FAMILY is '6'", () => {
+    vi.stubEnv('REDIS_IP_FAMILY', '6');
+    expect(resolveRedisIpFamily()).toBe(6);
+  });
+
+  it("returns 0 when REDIS_IP_FAMILY is '0'", () => {
+    vi.stubEnv('REDIS_IP_FAMILY', '0');
+    expect(resolveRedisIpFamily()).toBe(0);
+  });
+
+  it.each(['ipv4', ' 4', '5'])('returns 6 for garbage REDIS_IP_FAMILY value %j', value => {
+    vi.stubEnv('REDIS_IP_FAMILY', value);
+    expect(resolveRedisIpFamily()).toBe(6);
+  });
+});
 
 describe('parseRedisUrl', () => {
   it('should parse a complete Redis URL', () => {
@@ -129,6 +164,7 @@ describe('createBullMQRedisConfig', () => {
   });
 
   it('should default to IPv6 (family 6) for Railway', () => {
+    vi.stubEnv('REDIS_IP_FAMILY', undefined);
     const config = createBullMQRedisConfig({
       host: 'redis.railway.internal',
       port: 6379,
@@ -145,6 +181,20 @@ describe('createBullMQRedisConfig', () => {
     });
 
     expect(config.family).toBe(4);
+  });
+
+  it('uses REDIS_IP_FAMILY when no explicit family is passed', () => {
+    vi.stubEnv('REDIS_IP_FAMILY', '4');
+    const config = createBullMQRedisConfig({ host: 'localhost', port: 6379 });
+
+    expect(config.family).toBe(4);
+  });
+
+  it('explicit family still wins over REDIS_IP_FAMILY', () => {
+    vi.stubEnv('REDIS_IP_FAMILY', '4');
+    const config = createBullMQRedisConfig({ host: 'localhost', port: 6379, family: 6 });
+
+    expect(config.family).toBe(6);
   });
 
   it('should include password and username if provided', () => {
@@ -247,6 +297,7 @@ describe('createIORedisClient', () => {
   });
 
   it('should use IPv6 family for Railway private network', () => {
+    vi.stubEnv('REDIS_IP_FAMILY', undefined);
     const client = createIORedisClient(
       'redis://localhost:6379',
       'TestService',
@@ -260,6 +311,17 @@ describe('createIORedisClient', () => {
         family: 6,
       })
     );
+  });
+
+  it('should use REDIS_IP_FAMILY when set for IPv4-only dev hosts', () => {
+    vi.stubEnv('REDIS_IP_FAMILY', '4');
+    const client = createIORedisClient(
+      'redis://localhost:6379',
+      'TestService',
+      mockLogger as never
+    );
+    const opts = (client as unknown as { opts: Record<string, unknown> }).opts;
+    expect(opts).toEqual(expect.objectContaining({ family: 4 }));
   });
 
   it('should not pass maxRetriesPerRequest (use default)', () => {
