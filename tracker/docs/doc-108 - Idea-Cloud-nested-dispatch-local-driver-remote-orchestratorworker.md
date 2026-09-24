@@ -73,6 +73,29 @@ Owner steer: the pilot must exercise the REAL path, a local session spawning clo
   - **Driver-side observation:** the owner saw the run's completion push notification on the phone but could not find the session again. The routine page lists every run; the driver should relay the session link when a run finishes.
   - Mid-run wrinkle, from the run log: in a routine the cloud orchestrator IS its session's main loop, so `dispatch-posture-gate.sh` applies to it. Instead of handing edits to the Sonnet worker, it made them itself, split into ≤5-line Edit calls after the hook blocked 6- and 8-line ones. That complies with the letter of the hook (its message offers splitting), but it is slow and fragments the edits. For the cloud mode in `/tzurot-orchestration`, the spec should say plainly that the orchestrator delegates ALL src edits to its worker.
 
+## Billing and limits (2026-09-24)
+
+- **The routine pilots billed the weekly plan, not the credit.** The owner's
+  `/usage` screen showed the one-time cloud credit untouched ("$250 of $250
+  left", expires 2026-11-05). The credit dialog reads: "It applies
+  automatically to cloud sessions. Not eligible for Projects and Routines."
+  Every cloud unit so far ran as a Routine (RemoteTrigger), so none of them
+  drew on the credit. At the time, weekly all-models stood at 81%, 4.4 days
+  into the 7-day window.
+- **Credit-eligible launch paths, to probe:** `claude --cloud "<description>"`
+  (CLI 2.1.281 `--help`), and the Agent tool's `isolation: "remote"`. A
+  limitations probe went out 2026-09-24 as a remote Agent. The owner's
+  credit meter afterwards says whether that path bills the credit.
+- **Owner directive (2026-09-24):** every assumed cloud limitation gets
+  confirmed by a probe before it constrains the mode, with a mitigation tried
+  where possible. The "no local DB" assumption was never probed: the VM runs
+  as root and ran `redis-server`. The probe covers:
+  - Postgres with pgvector, then `db:migrate`, `db:safe-migrate` and the
+    integration tier against it
+  - Node 24, the locale, and the full `pnpm quality`
+  - hooks without a shim, `gh` auth, subagents, network egress and Railway
+    CLI presence
+
 ## Pilot
 
 One ordinary `state:ready` backlog unit, dispatched remotely, with the local gates skipped:
