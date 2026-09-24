@@ -37,4 +37,8 @@ created: 2026-09-24 02:20
 ---
 DONE 2026-09-24: PR #2495 (3eff99203) added globalPassThroughEnv NODE_COMPILE_CACHE to turbo.json. Acceptance met, measured through turbo this time: with /tmp/node-compile-cache moved aside, the same forced turbo lint left it absent; with NODE_COMPILE_CACHE pointed at a fresh scratch dir the run wrote 3,382 files there (positive control); a full turbo run lint --concurrency=1 (13 tasks run) also left /tmp absent. CI 22/22 green.
 ---
+created: 2026-09-24 02:25
+---
+CORRECTION 2026-09-24: ESLint is not the only writer. TypeScript also calls it: node_modules/typescript/lib/tsc.js lines 3-5 run require("node:module").enableCompileCache() with no directory. The pass-through in #2495 is global, so it covers tsc under turbo too (a tsc-through-turbo probe is pending: run it after the concurrent worker finishes). Observed after the merge: /tmp/node-compile-cache reappeared with 1,598 files, all written in minute 22:21 local, while a worktree dispatch cut from 35f43e917 (before #2495, its turbo.json has no globalPassThroughEnv) ran its turbo typecheck gates. Likely cause, not caught at the process level: worktrees on a pre-fix base keep writing to /tmp until they are rebased past 3eff99203.
+---
 <!-- COMMENTS:END -->
