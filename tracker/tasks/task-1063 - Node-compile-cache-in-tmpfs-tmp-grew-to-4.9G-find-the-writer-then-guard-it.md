@@ -1,10 +1,10 @@
 ---
 id: TASK-1063
 title: 'Node compile cache in tmpfs /tmp grew to 4.9G: find the writer, then guard it'
-status: Done
+status: To Do
 assignee: []
 created_date: '2026-09-23 22:44'
-updated_date: '2026-09-24 00:36'
+updated_date: '2026-09-24 01:24'
 labels:
   - 'area:tooling'
   - 'size:M'
@@ -25,3 +25,12 @@ Fix shape: (1) identify the writer: sample `find /tmp/node-compile-cache -type f
 Acceptance: the writer is named with evidence; a health check warns past the threshold and is exercised against a synthetic oversized dir; the chosen pin/disable is applied where the writer runs.
 CLOSED 2026-09-23 on the remaining-question criterion above. After the session restart NODE_COMPILE_CACHE=/home/deck/.cache/node-compile-cache was set; one `npx eslint packages/common-types/src/constants/ai.ts` run grew that dir 6.2M -> 24M (new subdir v24.21.0-x64-964aae3f-1000) while /tmp/node-compile-cache stayed at 164M (`du -sh` before and after). So ESLint's argument-less enableCompileCache() honours the env pin and the repo needs no change. The threshold guard is the machine-level deck-doctor prune above 2 GB (outside the repo, not exercised in this check). The 164M left in /tmp predates the pin and clears at reboot.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+created: 2026-09-24 01:24
+---
+REOPENED 2026-09-24: the close was wrong. It rested on one direct npx eslint run, which never goes through turbo. turbo 2.10.13 runs tasks in strict env mode (turbo.json declares only CI and NODE_ENV per task, no envMode or passThroughEnv), which strips NODE_COMPILE_CACHE, so ESLint under turbo run lint still writes to os.tmpdir(). Measured: with /tmp/node-compile-cache moved aside, npx turbo run lint --filter=@tzurot/identity --force recreated it with 2840 files; the same run with --env-mode=loose created nothing. Diagnosis first raised by the gh-rclone-mise-migration session (the dir reappeared at 20:54 local and reached 30 MB by 21:09). Fix: add globalPassThroughEnv NODE_COMPILE_CACHE at the top level of turbo.json (pass-through reaches tasks without entering the cache hash; CI leaves it unset, so no-op there). Acceptance: the same forced turbo lint writes to the NODE_COMPILE_CACHE dir and leaves /tmp untouched.
+---
+<!-- COMMENTS:END -->
