@@ -16,6 +16,7 @@ import {
   handleAdminSettingsSelectMenu,
   handleAdminSettingsModal,
   isAdminSettingsInteraction,
+  ADMIN_SETTINGS_CONFIG,
 } from './settings.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
@@ -223,10 +224,8 @@ describe('Admin Settings Dashboard', () => {
 
       const stored = mockSessionManager.set.mock.calls.at(-1)?.[0];
       mockSessionManager.get.mockReturnValue({ data: stored.data });
-      const jump = createMockSelectMenuInteraction(
-        'admin-settings::jump::global',
-        String(pageIndex)
-      );
+      const pageId = ADMIN_SETTINGS_CONFIG.pages?.[pageIndex]?.id;
+      const jump = createMockSelectMenuInteraction('admin-settings::jump::global', pageId ?? '');
       await handleAdminSettingsSelectMenu(jump);
       return jump.editReply.mock.calls[0][0];
     }

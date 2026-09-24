@@ -66,10 +66,10 @@ describe('settingsIndexView', () => {
       expect(adminPages).toHaveLength(11);
     });
 
-    it('jump select offers every page, in page order, valued by page position', () => {
+    it('jump select offers every page, in page order, valued by page id', () => {
       const select = jumpSelect(ADMIN_SETTINGS_CONFIG);
       expect(select.options.map(o => o.label)).toEqual(adminPages.map(p => p.label));
-      expect(select.options.map(o => o.value)).toEqual(adminPages.map((_, i) => String(i)));
+      expect(select.options.map(o => o.value)).toEqual(adminPages.map(p => p.id));
       expect(select.custom_id).toBe('admin-settings::jump::global');
       expect(select.placeholder).toBe('Jump to a page…');
     });
