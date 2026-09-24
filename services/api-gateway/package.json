@@ -46,7 +46,7 @@
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
     "@tzurot/test-utils": "workspace:*",
-    "fast-check": "^4.10.1",
+    "fast-check": "^4.10.2",
     "supertest": "^7.2.2"
   }
 }
