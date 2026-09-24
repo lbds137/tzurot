@@ -39,6 +39,14 @@ The Steam Deck caps the drain at one gate-running unit at a time (`reference_ste
 - **Lesson for any retry:** verify placement before trusting it. The remote agent's first action should report `hostname`, `nproc`, `free -g`, and whether its cwd is under `/home/deck`. The spec should say: if local, stop and report rather than run gates.
 - **Next:** find out whether remote isolation needs enabling on the account (web/cloud setup, the gating the tool description mentions), rather than retrying blind.
 
+## Re-test 2026-09-23 evening (Claude Code 2.1.281)
+
+Owner steer: the pilot must exercise the REAL path, a local session spawning cloud work itself; a hand-opened cloud session only proves cloud sessions exist.
+- **(a) failed again, reproducibly.** A placement-only Agent call (`isolation: "remote"`, `model: "sonnet"`) reported `uname -n` = steamdeck, 14Gi RAM, 8 cores, cwd `/home/deck/Projects/tzurot/.claude/worktrees/agent-<id>`. There was again no launch error and no notice. Two of two remote spawns landed locally.
+- **The CLI spawn path is closed to an agent.** From the Bash tool, `claude --cloud "<task>"` exits 1: "--cloud requires an interactive terminal. Non-interactive invocations (piped stdout, --init-only, --sdk-url) run locally and would silently ignore --cloud." It refuses rather than falling back.
+- **ListAgents showed no cloud section** with zero cloud sessions running. That empty result cannot tell "no cloud access" from "none running".
+- Remaining programmatic spawn path: routines (`/schedule`, the RemoteTrigger tool), which the $250 credit does not cover. Remaining semi-manual path: the owner opens an idle cloud session in a real terminal or the web, and the local driver dispatches to it with SendMessage; results come back as a pushed branch, since cloud sessions cannot message back.
+
 ## Pilot
 
 One ordinary `state:ready` backlog unit, dispatched remotely, with the local gates skipped:
