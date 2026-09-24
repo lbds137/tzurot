@@ -79,13 +79,17 @@ async function acquireGuardOrRefuse(
     return { kind: 'dry-run' };
   }
   if (deps.redis === undefined) {
+    logger.warn(
+      { reason: 'redis-not-configured' },
+      'Refusing db-sync: single-flight guard unavailable'
+    );
     sendError(res, ErrorResponses.serviceUnavailable(GUARD_UNAVAILABLE_MESSAGE));
     return { kind: 'responded' };
   }
   try {
     const acquired = await acquireDbSyncSingleFlight(deps.redis);
     if (acquired === null) {
-      logger.info({ dryRun }, 'Database sync refused — another sync is already running');
+      logger.info('Database sync refused — another sync is already running');
       sendError(res, {
         ...ErrorResponses.conflict('A database sync is already running. Wait for it to finish.'),
         code: API_ERROR_SUBCODE.DB_SYNC_IN_PROGRESS,
@@ -95,6 +99,7 @@ async function acquireGuardOrRefuse(
     return { kind: 'acquired', token: acquired, redis: deps.redis };
   } catch (error) {
     if (error instanceof DbSyncSingleFlightUnavailableError) {
+      logger.warn({ err: error }, 'Refusing db-sync: single-flight guard unavailable');
       sendError(res, ErrorResponses.serviceUnavailable(GUARD_UNAVAILABLE_MESSAGE));
       return { kind: 'responded' };
     }
