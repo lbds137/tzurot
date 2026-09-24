@@ -16,15 +16,9 @@ export {
   isSettingsInteraction,
 } from './types.js';
 
-// Configuration
-export {
-  EXTENDED_CONTEXT_SETTINGS,
-  MEMORY_SETTINGS,
-  DISPLAY_SETTINGS,
-  VOICE_SETTINGS,
-  VOICE_CASCADE_SETTINGS,
-  buildCascadePages,
-} from './settingsConfig.js';
+// Configuration — every dashboard composes its settings through the shared
+// concern-page grouping, so only the voice subsets and the builder cross here.
+export { VOICE_SETTINGS, VOICE_CASCADE_SETTINGS, buildCascadePages } from './settingsConfig.js';
 
 // System-settings pages (registry-derived; owner-only System page group)
 export {

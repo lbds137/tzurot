@@ -14,12 +14,41 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ButtonInteraction } from 'discord.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
+  CHANNEL_SETTINGS_CONFIG,
   handleChannelSettings,
   handleChannelSettingsButton,
   handleChannelSettingsModal,
   isChannelSettingsInteraction,
 } from './settings.js';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
+import {
+  EXTENDED_CONTEXT_SETTINGS,
+  MEMORY_SETTINGS,
+  DISPLAY_SETTINGS,
+  VOICE_CASCADE_SETTINGS,
+  buildCascadePages,
+} from '../../utils/dashboard/settings/settingsConfig.js';
+
+/**
+ * Press Next on the dashboard the most recently stored session describes,
+ * through the real router; returns the next page's editReply payload.
+ */
+async function pressNext(sessionManager: {
+  set: ReturnType<typeof vi.fn>;
+  get: ReturnType<typeof vi.fn>;
+}) {
+  const stored = sessionManager.set.mock.calls.at(-1)?.[0];
+  sessionManager.get.mockReturnValue({ data: stored.data });
+  const next = {
+    customId: 'channel-settings::page::channel-123::next',
+    user: { id: stored.data.userId },
+    deferUpdate: vi.fn().mockResolvedValue(undefined),
+    editReply: vi.fn().mockResolvedValue(undefined),
+    followUp: vi.fn().mockResolvedValue(undefined),
+  };
+  await handleChannelSettingsButton(next as unknown as ButtonInteraction);
+  return next.editReply.mock.calls[0][0];
+}
 
 // Mock dependencies
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -299,7 +328,33 @@ describe('Channel Settings Dashboard', () => {
       expect(editReplyCall.embeds).toHaveLength(1);
 
       const embedJson = editReplyCall.embeds[0].toJSON();
-      expect(embedJson.title).toBe('Channel Settings');
+      // 3 concern pages is under the index-landing threshold: opens on page 1.
+      expect(embedJson.title).toBe('Channel Settings · Memory');
+    });
+
+    it('every page renders select, Prev / N/3 / Next / Index, and the whole-dashboard reset row', async () => {
+      const context = createMockContext(true);
+      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
+
+      await handleChannelSettings(context);
+
+      const page1 = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const pages = [
+        page1,
+        await pressNext(mockSessionManager),
+        await pressNext(mockSessionManager),
+      ];
+      pages.forEach((page, i) => {
+        expect(page.components).toHaveLength(3);
+        const navLabels = page.components[1]
+          .toJSON()
+          .components.map((c: { label?: string }) => c.label);
+        expect(navLabels).toEqual(['Prev', `${i + 1}/3`, 'Next', 'Index']);
+        const resetIds = page.components[2]
+          .toJSON()
+          .components.map((c: { custom_id?: string }) => c.custom_id);
+        expect(resetIds).toEqual(['channel-settings::reset::channel-123']);
+      });
     });
 
     it('should include channel mention in embed description', async () => {
@@ -314,18 +369,25 @@ describe('Channel Settings Dashboard', () => {
       expect(embedJson.description).toContain('<#channel-123>');
     });
 
-    it('should include all 14 settings fields (extended context + memory + display + voice)', async () => {
+    it('should include all 14 settings fields across its 3 pages (extended context + memory + display + voice)', async () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
       await handleChannelSettings(context);
 
       const editReplyCall = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      const embedJson = editReplyCall.embeds[0].toJSON();
+      const page2 = await pressNext(mockSessionManager);
+      const page3 = await pressNext(mockSessionManager);
+      const pageEmbeds = [editReplyCall, page2, page3].map(p => p.embeds[0].toJSON());
+      expect(pageEmbeds.map(e => e.title)).toEqual([
+        'Channel Settings · Memory',
+        'Channel Settings · Context & Display',
+        'Channel Settings · Voice',
+      ]);
 
       // Both extended context and memory settings are shown at channel tier
-      expect(embedJson.fields).toHaveLength(14);
-      const fieldNames = embedJson.fields.map((f: { name: string }) => f.name);
+      const fieldNames = pageEmbeds.flatMap(e => e.fields.map((f: { name: string }) => f.name));
+      expect(fieldNames).toHaveLength(14);
       expect(fieldNames).toEqual(
         expect.arrayContaining([
           expect.stringContaining('Max Messages'),
@@ -435,11 +497,12 @@ describe('Channel Settings Dashboard', () => {
       // own override removed — the admin tier it overrode.
       expect(maxMessages.parentValue).toBe(75);
 
-      const editReplyCall = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      const embedJson = editReplyCall.embeds[0].toJSON();
+      // Max Messages lives on page 2 (Context & Display); match its exact name —
+      // a substring match would also hit Cross-Channel Max Messages.
+      const embedJson = (await pressNext(mockSessionManager)).embeds[0].toJSON();
 
-      const maxMsgField = embedJson.fields.find((f: { name: string }) =>
-        f.name.includes('Max Messages')
+      const maxMsgField = embedJson.fields.find(
+        (f: { name: string }) => f.name === '💬 Max Messages'
       );
       expect(maxMsgField).toBeDefined();
       expect(maxMsgField.value).toContain('25');
@@ -454,8 +517,12 @@ describe('Channel Settings Dashboard', () => {
       expect(maxImgField).toBeDefined();
       expect(maxImgField.value).toContain('Auto');
 
-      // Info note about no personality activated
-      expect(embedJson.description).toContain('No character activated');
+      // Info note about no personality activated — carried by the opening
+      // render (the command builds a note-bearing config variant per open).
+      const openedJson = (
+        context.editReply as ReturnType<typeof vi.fn>
+      ).mock.calls[0][0].embeds[0].toJSON();
+      expect(openedJson.description).toContain('No character activated');
     });
 
     it('should use fallback values when resolve endpoint fails', async () => {
@@ -499,6 +566,38 @@ describe('Channel Settings Dashboard', () => {
 
       // editReply should not be called when interaction.replied is true
       expect(context.editReply).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('concern-page split (flat → Memory · Context & Display · Voice)', () => {
+    // The pre-split flat list. The split regroups these; it adds and drops none.
+    const PRE_SPLIT_IDS = [
+      ...EXTENDED_CONTEXT_SETTINGS,
+      ...MEMORY_SETTINGS,
+      ...DISPLAY_SETTINGS,
+      ...VOICE_CASCADE_SETTINGS,
+    ].map(s => s.id);
+    const CASCADE_TIER = buildCascadePages(VOICE_CASCADE_SETTINGS);
+
+    it('keeps the settings set identical to the pre-split flat list', () => {
+      const ids = CHANNEL_SETTINGS_CONFIG.settings.map(s => s.id);
+      expect([...ids].sort()).toEqual([...PRE_SPLIT_IDS].sort());
+      expect(ids).toEqual(CASCADE_TIER.settings.map(s => s.id));
+    });
+
+    it("uses the cascade tiers' concern pages, every setting on exactly one page", () => {
+      expect(CHANNEL_SETTINGS_CONFIG.pages).toEqual(CASCADE_TIER.pages);
+      expect(CHANNEL_SETTINGS_CONFIG.pages?.map(p => p.label)).toEqual([
+        'Memory',
+        'Context & Display',
+        'Voice',
+      ]);
+      const paged = (CHANNEL_SETTINGS_CONFIG.pages ?? []).flatMap(p => p.settingIds);
+      expect([...paged].sort()).toEqual([...PRE_SPLIT_IDS].sort());
+    });
+
+    it('keeps the whole-dashboard reset affordance unchanged', () => {
+      expect(CHANNEL_SETTINGS_CONFIG.resetButton).toEqual({ label: 'Reset to defaults' });
     });
   });
 
@@ -662,6 +761,25 @@ describe('Channel Settings Dashboard', () => {
         expect.objectContaining({ embeds: expect.any(Array), components: expect.any(Array) })
       );
       expect(interaction.followUp).not.toHaveBeenCalled();
+    });
+
+    it('reset-confirm from page 2 still clears the WHOLE channel scope, then stays on page 2', async () => {
+      const interaction = createButtonInteraction('channel-settings::reset-confirm::channel-123');
+      const onPage2 = settingViewSession();
+      mockSessionManager.get.mockReturnValue({
+        data: { ...onPage2.data, view: 'overview', activeSetting: undefined, page: 1 },
+      });
+      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
+      stub.clearChannelConfigOverrides.mockResolvedValue(makeOk({ cleared: true }));
+
+      await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
+
+      // One DELETE of every channel-tier override — no per-page / per-setting writes.
+      expect(stub.clearChannelConfigOverrides).toHaveBeenCalledTimes(1);
+      expect(stub.clearChannelConfigOverrides).toHaveBeenCalledWith('channel-123');
+      expect(stub.updateChannelConfigOverrides).not.toHaveBeenCalled();
+      const rendered = interaction.editReply.mock.calls[0][0].embeds[0].toJSON();
+      expect(rendered.title).toBe('Channel Settings · Context & Display');
     });
 
     it('reset-confirm failure notifies ephemerally without touching the dashboard', async () => {

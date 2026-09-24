@@ -1025,19 +1025,32 @@ describe('SettingsDashboardBuilder', () => {
       expect(embed.footer?.text).toContain('Page 2/2');
     });
 
-    it('pagination row: three distinct customIds, edges disabled', () => {
+    it('pagination row: Prev / N/M / Next / Index, four distinct customIds, edges disabled', () => {
       const row = buildPaginationRow(pagedConfig(), pagedSession(0)).toJSON();
       const buttons = row.components as APIButtonComponentWithCustomId[];
-      expect(buttons.map(b => b.label)).toEqual(['Prev', 'Page 1/2 · Context', 'Next']);
-      expect(new Set(buttons.map(b => b.custom_id)).size).toBe(3);
+      // The indicator is the bare N/M: title and footer already name the page.
+      expect(buttons.map(b => b.label)).toEqual(['Prev', '1/2', 'Next', 'Index']);
+      expect(new Set(buttons.map(b => b.custom_id)).size).toBe(4);
       expect(buttons[0].disabled).toBe(true); // first page → Prev disabled
       expect(buttons[1].disabled).toBe(true); // indicator always disabled
       expect(buttons[2].disabled).toBeFalsy();
+      expect(buttons[3].disabled).toBeFalsy(); // Index reachable from the first page
 
       const lastRow = buildPaginationRow(pagedConfig(), pagedSession(1)).toJSON();
       const lastButtons = lastRow.components as APIButtonComponentWithCustomId[];
       expect(lastButtons[0].disabled).toBeFalsy();
+      expect(lastButtons[1].label).toBe('2/2');
       expect(lastButtons[2].disabled).toBe(true); // last page → Next disabled
+      expect(lastButtons[3].disabled).toBeFalsy(); // ...and from the last
+    });
+
+    it('Index button routes to the index action with its emoji set apart from the label', () => {
+      const row = buildPaginationRow(pagedConfig(), pagedSession(0)).toJSON();
+      const index = (row.components as APIButtonComponentWithCustomId[])[3];
+      expect(index.custom_id).toBe('test-settings::index::test-entity');
+      expect(index.label).toBe('Index');
+      expect(index.emoji?.name).toBe('🗂️');
+      expect(index.style).toBe(ButtonStyle.Secondary);
     });
 
     it('overview renders pagination on paged configs and NO second row on flat (D18)', () => {

@@ -5,10 +5,8 @@
  * Shows effective values from the full cascade with source indicators.
  * Any user can set their own overrides for any personality.
  *
- * Settings:
- * - Max Messages: 1-100 or Auto
- * - Max Age: Duration, Off, or Auto
- * - Max Images: 0-20 or Auto
+ * Settings: the non-admin cascade settings on the shared concern pages
+ * (Memory · Context & Display · Voice, from `buildCascadePages`).
  */
 
 import { type EnvConfig } from '@tzurot/common-types/config/config';
@@ -20,10 +18,8 @@ import {
   type SettingsDashboardConfig,
   type SettingUpdateHandler,
   createSettingsCommandHandlers,
-  EXTENDED_CONTEXT_SETTINGS,
-  MEMORY_SETTINGS,
-  DISPLAY_SETTINGS,
   VOICE_CASCADE_SETTINGS,
+  buildCascadePages,
 } from '../../utils/dashboard/settings/index.js';
 import {
   createSettingsUpdateHandler,
@@ -40,6 +36,9 @@ const logger = createLogger('character-overrides');
  */
 const ENTITY_TYPE = 'character-overrides';
 
+/** The shared D14 page grouping; a non-admin tier's Voice page is the cascade subset. */
+const CASCADE_PAGES = buildCascadePages(VOICE_CASCADE_SETTINGS);
+
 /**
  * Dashboard configuration for character overrides
  */
@@ -48,12 +47,8 @@ export const CHARACTER_OVERRIDES_CONFIG: SettingsDashboardConfig = {
   entityType: ENTITY_TYPE,
   titlePrefix: 'Character Override',
   color: DISCORD_COLORS.BLURPLE,
-  settings: [
-    ...EXTENDED_CONTEXT_SETTINGS,
-    ...MEMORY_SETTINGS,
-    ...DISPLAY_SETTINGS,
-    ...VOICE_CASCADE_SETTINGS,
-  ],
+  settings: CASCADE_PAGES.settings,
+  pages: CASCADE_PAGES.pages,
   scopeNote: name =>
     `👤 Applies only to your conversations with **${name}**. Nothing overrides these.`,
 };
