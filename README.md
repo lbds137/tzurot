@@ -218,19 +218,39 @@ railway status
 
 ### Local Development
 
-Local development requires PostgreSQL (with pgvector) and Redis:
+Local development requires PostgreSQL (with pgvector) and Redis. Create the two
+containers once (`docker run` takes the same flags):
 
 ```bash
-# Using Podman (SteamOS/Distrobox) or Docker
-podman start tzurot-redis tzurot-postgres
+podman run -d --name tzurot-postgres --restart=always -p 127.0.0.1:5432:5432 \
+  -e POSTGRES_USER=tzurot -e POSTGRES_DB=tzurot -e POSTGRES_PASSWORD=tzurot_dev_password \
+  -v tzurot-postgres-data:/var/lib/postgresql/data \
+  docker.io/pgvector/pgvector:pg15
+podman run -d --name tzurot-redis --restart=always -p 127.0.0.1:6379:6379 \
+  -v tzurot-redis-data:/data \
+  docker.io/library/redis:7-alpine redis-server --appendonly yes
+```
+
+The ports bind to `127.0.0.1` so that Redis, which has no password, is not reachable
+from your network. The Postgres image must ship pgvector, because the first migration runs
+`CREATE EXTENSION IF NOT EXISTS vector`. The password matches `DATABASE_URL` in
+`.env.example`. Rootless Podman does not restart containers after a reboot on its
+own. `systemctl --user enable podman-restart.service` starts every
+`--restart=always` container when your user session starts, or at boot if
+lingering is enabled. Then:
+
+```bash
+podman start tzurot-redis tzurot-postgres   # no-op if they are already running
 pnpm dev
 ```
 
-**Running tests:** unit tests (`pnpm test`) need no services. **Component tests
-(`pnpm test:component`) and the integration + contract tiers (`pnpm test:integration`)
-require Redis** — start it first (`podman start tzurot-redis`) or you'll get a clear
-"Test Redis is unreachable" error. Tests use in-process PGLite for the database, so no
-Postgres is needed.
+**Running tests:** unit tests (`pnpm test`) need no services. Component tests
+(`pnpm test:component`) need Redis (without it you get a clear "Test Redis is
+unreachable" error), and they use in-process PGLite for the database. The integration
+and contract tiers (`pnpm test:integration`) need Redis, and their real-Postgres
+suites also need a migrated `tzurot_integration_test` database. The one-time
+provisioning commands are in `vitest.integration.config.ts`, and
+[TESTING.md](docs/reference/guides/TESTING.md) has the details.
 
 ## Documentation
 
