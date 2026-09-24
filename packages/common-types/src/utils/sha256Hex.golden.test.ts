@@ -3,9 +3,10 @@
  *
  * Every value below was computed against the PRE-migration call shapes
  * (`createHash('sha256').update(...).digest('hex')`, sliced/encoded exactly
- * as each site did) for the fixed input `'tzurot-golden-input'`. Pinning
- * them here proves the migrated `sha256Hex` call at every site reproduces
- * byte-identical output to the code it replaced.
+ * as each site did) for the fixed input `'tzurot-golden-input'`. Each row
+ * pins `sha256Hex` against that site's DECLARED call shape; only the
+ * call-through cases below invoke the site's own function. Whether a site
+ * still passes its declared shape is pinned by that site's colocated test.
  */
 
 import { describe, it, expect, vi } from 'vitest';
