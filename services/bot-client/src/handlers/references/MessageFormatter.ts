@@ -15,6 +15,7 @@ import { extractEmbedImages } from '../../utils/embedImageExtractor.js';
 import { extractStickerImages } from '../../utils/stickerAttachments.js';
 import { EmbedParser } from '../../utils/EmbedParser.js';
 import { withStickerAndPollDescriptions } from '../../utils/stickerPollDescriptions.js';
+import { hasVoiceMessageFlag } from '../../utils/voiceAttachment.js';
 import { classifyReferenceAuthorRole } from './authorRole.js';
 import {
   isForwardedMessage,
@@ -62,7 +63,9 @@ export class MessageFormatter {
       };
     }
 
-    const regularAttachments = extractAttachments(message.attachments);
+    const regularAttachments = extractAttachments(message.attachments, {
+      messageIsVoice: hasVoiceMessageFlag(message),
+    });
     const embedImages = extractEmbedImages(message.embeds);
     // Stickers ride the same synthetic-attachment path as embed images so the
     // reference gets a vision DESCRIPTION, not just the name that

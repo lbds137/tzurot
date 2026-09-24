@@ -435,6 +435,80 @@ describe('AudioTranscriptionJob', () => {
       expect(mockWithRetry).not.toHaveBeenCalled();
     });
 
+    it('accepts a video/webm attachment flagged as a voice message', async () => {
+      const jobData: AudioTranscriptionJobData = {
+        requestId: 'test-req-audio-webm-voice',
+        jobType: JobType.AudioTranscription,
+        attachment: {
+          url: 'https://example.com/voice-message.ogg',
+          name: 'voice-message.ogg',
+          contentType: 'video/webm',
+          size: 1024,
+          isVoiceMessage: true,
+          duration: 5.2,
+        },
+        context: {
+          userId: 'user-123',
+          channelId: 'channel-456',
+        },
+        responseDestination: {
+          type: 'discord',
+          channelId: 'channel-456',
+        },
+      };
+
+      const job = {
+        id: 'audio-test-req-audio-webm-voice',
+        data: jobData,
+      } as Job<AudioTranscriptionJobData>;
+
+      const result = await processAudioTranscriptionJob(job, { provider: 'voice-engine' });
+
+      expect(result.success).toBe(true);
+      expect(result).not.toMatchObject({
+        error: expect.stringContaining('Invalid attachment type'),
+      });
+      expect(mockWithRetry).toHaveBeenCalled();
+    });
+
+    it('rejects a video/webm attachment that is not flagged as a voice message', async () => {
+      const jobData: AudioTranscriptionJobData = {
+        requestId: 'test-req-audio-webm-novoice',
+        jobType: JobType.AudioTranscription,
+        attachment: {
+          url: 'https://example.com/clip.webm',
+          name: 'clip.webm',
+          contentType: 'video/webm',
+          size: 1024,
+        },
+        context: {
+          userId: 'user-123',
+          channelId: 'channel-456',
+        },
+        responseDestination: {
+          type: 'discord',
+          channelId: 'channel-456',
+        },
+      };
+
+      const job = {
+        id: 'audio-test-req-audio-webm-novoice',
+        data: jobData,
+      } as Job<AudioTranscriptionJobData>;
+
+      const result = await processAudioTranscriptionJob(job, { provider: 'voice-engine' });
+
+      expect(result).toMatchObject({
+        requestId: 'test-req-audio-webm-novoice',
+        success: false,
+        error: expect.stringContaining('Invalid attachment type'),
+        metadata: expect.any(Object),
+      });
+
+      // Should NOT call withRetry for invalid input
+      expect(mockWithRetry).not.toHaveBeenCalled();
+    });
+
     it('should accept voice message attachments', async () => {
       const jobData: AudioTranscriptionJobData = {
         requestId: 'test-req-audio-4',

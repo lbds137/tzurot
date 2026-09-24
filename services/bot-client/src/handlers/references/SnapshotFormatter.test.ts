@@ -11,6 +11,8 @@ import {
   ChannelType,
   Collection,
   Embed,
+  MessageFlags,
+  MessageFlagsBitField,
   PermissionFlagsBits,
   type Channel,
   type MessageSnapshot,
@@ -326,6 +328,30 @@ describe('SnapshotFormatter', () => {
 
       expect(result.attachments).toHaveLength(1);
       expect(result.attachments?.[0].url).toBe('https://example.com/image.png');
+    });
+
+    it('classifies a video/webm snapshot attachment as voice when the snapshot carries IsVoiceMessage', async () => {
+      const { extractAttachments } = await import('../../utils/attachmentExtractor.js');
+
+      vi.mocked(extractAttachments).mockImplementation((_attachments, context) => [
+        {
+          url: 'https://example.com/voice-message.ogg',
+          contentType: 'video/webm',
+          name: 'voice-message.ogg',
+          isVoiceMessage: context?.messageIsVoice === true,
+        },
+      ]);
+
+      const snapshot = createMockSnapshot({
+        attachments: {} as any,
+        flags: new MessageFlagsBitField(MessageFlags.IsVoiceMessage),
+      });
+
+      const forwardedFrom = createMockMessage();
+
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+
+      expect(result.attachments?.[0].isVoiceMessage).toBe(true);
     });
 
     it('should handle null attachments', async () => {

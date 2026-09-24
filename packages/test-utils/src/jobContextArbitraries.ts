@@ -94,10 +94,13 @@ export function attachmentArb(options: AttachmentArbOptions = {}): fc.Arbitrary<
     })
     .map(({ voiceFlag, ...rest }) => ({
       ...rest,
-      // Correlated with contentType rather than free: the producer derives this
-      // from `audio/*` plus a duration, so a non-audio attachment flagged as a
-      // voice message is a combination bot-client cannot emit. Both values stay
-      // reachable on audio types, which is where the STT gate discriminates.
+      // Correlated with contentType rather than free: bot-client CAN emit a
+      // non-audio attachment flagged as a voice message (a Vencord/Vesktop
+      // `video/webm` upload on a message carrying Discord's IsVoiceMessage
+      // flag), but this generator deliberately does not produce that shape —
+      // narrowing pinned by 'attachmentArb never flags a non-audio attachment
+      // as a voice message' below. Both values stay reachable on audio types,
+      // which is where the STT gate discriminates.
       isVoiceMessage: rest.contentType.startsWith('audio/') && voiceFlag,
     }));
 }

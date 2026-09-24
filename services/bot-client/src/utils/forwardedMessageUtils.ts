@@ -32,7 +32,7 @@ import { extractAttachments } from './attachmentExtractor.js';
 import { extractEmbedImages } from './embedImageExtractor.js';
 import { extractSnapshotStickerImages } from './stickerAttachments.js';
 import { satisfiesPrivateThreadMembership } from './threadAccess.js';
-import { isVoiceAttachment } from './voiceAttachment.js';
+import { hasVoiceMessageFlag, isVoiceAttachment } from './voiceAttachment.js';
 import { resolveWebhookAwareDisplayName } from './webhookNaming.js';
 import { type ForwardedOrigin } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -217,9 +217,13 @@ export function extractForwardedAttachments(message: Message): AttachmentMetadat
   }
 
   for (const snapshot of snapshots.values()) {
-    // Extract regular attachments from snapshot
+    // Extract regular attachments from snapshot. Each snapshot's OWN
+    // IsVoiceMessage flag governs its attachments — a compound forward can
+    // carry more than one snapshot, and they don't share a flag.
     if (snapshot.attachments !== undefined && snapshot.attachments !== null) {
-      const extracted = extractAttachments(snapshot.attachments);
+      const extracted = extractAttachments(snapshot.attachments, {
+        messageIsVoice: hasVoiceMessageFlag(snapshot),
+      });
       if (extracted !== undefined) {
         attachments.push(...extracted);
       }
@@ -270,7 +274,9 @@ export function hasForwardedVoiceAttachment(message: Message): boolean {
   const attachments = hasForwardedSnapshots(message)
     ? extractForwardedAttachments(message)
     : [
-        ...(extractAttachments(message.attachments) ?? []),
+        ...(extractAttachments(message.attachments, {
+          messageIsVoice: hasVoiceMessageFlag(message),
+        }) ?? []),
         // This call exists only to test isVoiceMessage on the resulting
         // metadata; the returned boolean can't carry a name, so the synthetic
         // embed names minted here are discarded and never reach a prompt —
@@ -286,7 +292,10 @@ export function hasForwardedVoiceAttachment(message: Message): boolean {
  * or within forwarded message snapshots.
  */
 export function hasVoiceAttachments(message: Message): boolean {
-  const hasDirectVoice = message.attachments.some(isVoiceAttachment);
+  const context = { messageIsVoice: hasVoiceMessageFlag(message) };
+  const hasDirectVoice = message.attachments.some(attachment =>
+    isVoiceAttachment(attachment, context)
+  );
   return hasDirectVoice || hasForwardedVoiceAttachment(message);
 }
 

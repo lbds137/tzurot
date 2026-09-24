@@ -11,6 +11,9 @@ const TranscribeAttachmentSchema = z.object({
   contentType: z.string().min(1, 'contentType is required'),
   name: z.string().optional(),
   size: z.number().int().nonnegative().optional(),
+  // Must survive the parse: ai-worker's AudioTranscriptionJob accepts a
+  // non-audio (e.g. video/webm) voice attachment only when this is true.
+  isVoiceMessage: z.boolean().optional(),
 });
 
 export const TranscribeRequestSchema = z.object({

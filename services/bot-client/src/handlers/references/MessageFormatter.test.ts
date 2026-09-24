@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { MessageFlags, MessageFlagsBitField } from 'discord.js';
 import { MessageFormatter } from './MessageFormatter.js';
 import { createMockMessage, createMockUser } from '../../test/mocks/Discord.mock.js';
 
@@ -403,6 +404,53 @@ describe('MessageFormatter', () => {
       expect(result.attachments).toHaveLength(2);
       expect(result.attachments?.[0].url).toBe('https://example.com/file.pdf');
       expect(result.attachments?.[1].url).toBe('https://example.com/embed-image.png');
+    });
+
+    it('classifies a video/webm attachment on an IsVoiceMessage referenced message as a voice message', async () => {
+      const { extractAttachments } = await import('../../utils/attachmentExtractor.js');
+      vi.mocked(extractAttachments).mockImplementation((_attachments, context) => [
+        {
+          url: 'https://example.com/voice-message.ogg',
+          contentType: 'video/webm',
+          name: 'voice-message.ogg',
+          isVoiceMessage: context?.messageIsVoice === true,
+        },
+      ]);
+
+      const message = createMockMessage({
+        content: '',
+        author: createMockUser(),
+        attachments: new Map() as any,
+        embeds: [],
+        flags: new MessageFlagsBitField(MessageFlags.IsVoiceMessage),
+      });
+
+      const result = formatter.buildRawReference(message, 1).reference;
+
+      expect(result.attachments?.[0].isVoiceMessage).toBe(true);
+    });
+
+    it('keeps a video/webm attachment on a referenced message without IsVoiceMessage a plain file', async () => {
+      const { extractAttachments } = await import('../../utils/attachmentExtractor.js');
+      vi.mocked(extractAttachments).mockImplementation((_attachments, context) => [
+        {
+          url: 'https://example.com/voice-message.ogg',
+          contentType: 'video/webm',
+          name: 'voice-message.ogg',
+          isVoiceMessage: context?.messageIsVoice === true,
+        },
+      ]);
+
+      const message = createMockMessage({
+        content: '',
+        author: createMockUser(),
+        attachments: new Map() as any,
+        embeds: [],
+      });
+
+      const result = formatter.buildRawReference(message, 1).reference;
+
+      expect(result.attachments?.[0].isVoiceMessage).toBe(false);
     });
   });
 

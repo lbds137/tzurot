@@ -209,6 +209,21 @@ describe('extractAttachments', () => {
       expect(result![0].isVoiceMessage).toBe(true);
     });
 
+    it('marks a video/webm attachment as voice only when the context says the message is a voice message', () => {
+      const webmVoice = createMockAttachment('webm-voice', {
+        contentType: 'video/webm',
+        name: 'voice-message.ogg',
+        duration: 4.2,
+      });
+      const collection = createAttachmentCollection([webmVoice]);
+
+      const withoutContext = extractAttachments(collection);
+      expect(withoutContext![0].isVoiceMessage).toBe(false);
+
+      const withContext = extractAttachments(collection, { messageIsVoice: true });
+      expect(withContext![0].isVoiceMessage).toBe(true);
+    });
+
     it('should set duration to undefined when null', () => {
       const attachment = createMockAttachment('123', { duration: null });
       const collection = createAttachmentCollection([attachment]);

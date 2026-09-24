@@ -9,6 +9,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   Collection,
   Embed,
+  MessageFlags,
+  MessageFlagsBitField,
   MessageType,
   MessageReferenceType,
   StickerFormatType,
@@ -280,6 +282,44 @@ describe('MessageContentBuilder', () => {
       const result = await buildMessageContent(message);
 
       expect(result.hasVoiceMessage).toBe(true);
+    });
+
+    it('classifies a video/webm attachment on an IsVoiceMessage trigger message as a voice message', async () => {
+      const attachments = new Collection<string, Attachment>();
+      attachments.set(
+        '1',
+        createMockAttachment({
+          name: 'voice-message.ogg',
+          contentType: 'video/webm',
+          duration: 5,
+        })
+      );
+      const message = createMockMessage({
+        content: '',
+        attachments,
+        flags: new MessageFlagsBitField(MessageFlags.IsVoiceMessage),
+      });
+
+      const result = await buildMessageContent(message);
+
+      expect(result.attachments[0].isVoiceMessage).toBe(true);
+    });
+
+    it('keeps a video/webm attachment on a trigger message without IsVoiceMessage a plain file', async () => {
+      const attachments = new Collection<string, Attachment>();
+      attachments.set(
+        '1',
+        createMockAttachment({
+          name: 'voice-message.ogg',
+          contentType: 'video/webm',
+          duration: 5,
+        })
+      );
+      const message = createMockMessage({ content: '', attachments });
+
+      const result = await buildMessageContent(message);
+
+      expect(result.attachments[0].isVoiceMessage).toBe(false);
     });
 
     it('should use transcript retriever for voice messages when provided', async () => {

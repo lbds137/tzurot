@@ -7,7 +7,14 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import type { Message, MessageSnapshot } from 'discord.js';
-import { ChannelType, Collection, MessageReferenceType, PermissionFlagsBits } from 'discord.js';
+import {
+  ChannelType,
+  Collection,
+  MessageFlags,
+  MessageFlagsBitField,
+  MessageReferenceType,
+  PermissionFlagsBits,
+} from 'discord.js';
 import {
   isForwardedMessage,
   hasForwardedSnapshots,
@@ -43,6 +50,8 @@ function createMockMessage(options: {
     }>;
     embeds?: Array<{ title?: string; description?: string }>;
     stickers?: Array<{ id: string; name: string; format: number; url: string }>;
+    /** Discord's IsVoiceMessage flag on THIS snapshot (a compound forward can carry several). */
+    flags?: MessageFlagsBitField;
   }>;
   attachments?: Array<{
     url: string;
@@ -53,6 +62,8 @@ function createMockMessage(options: {
   }>;
   embeds?: Array<{ title?: string; description?: string }>;
   stickers?: Array<{ id: string; name: string; format: number; url: string }>;
+  /** Discord's IsVoiceMessage flag on the wrapping message. */
+  flags?: MessageFlagsBitField;
 }): Message {
   // Create attachments map with Discord.js Collection-like .some() method
   const attachmentsMap = new Map() as Map<string, unknown> & {
@@ -102,6 +113,7 @@ function createMockMessage(options: {
         // forwarding message — the shape the sticker extractor reads.
         stickers:
           snap.stickers === undefined ? undefined : new Map(snap.stickers.map(st => [st.id, st])),
+        flags: snap.flags,
       });
     });
 
@@ -130,6 +142,7 @@ function createMockMessage(options: {
     embeds: options.embeds ?? [],
     stickers:
       options.stickers === undefined ? undefined : new Map(options.stickers.map(st => [st.id, st])),
+    flags: options.flags,
   } as unknown as Message;
 }
 
@@ -448,6 +461,41 @@ describe('forwardedMessageUtils', () => {
       // For non-forwarded messages, it returns empty because there are no snapshots
       expect(extractForwardedAttachments(message)).toEqual([]);
     });
+
+    it('extractForwardedAttachments reads IsVoiceMessage from each snapshot', () => {
+      const message = createMockMessage({
+        referenceType: MessageReferenceType.Forward,
+        snapshots: [
+          {
+            flags: new MessageFlagsBitField(MessageFlags.IsVoiceMessage),
+            attachments: [
+              {
+                url: 'https://cdn.discord.com/voice-message.ogg',
+                contentType: 'video/webm',
+                name: 'voice-message.ogg',
+                duration: 5.5,
+              },
+            ],
+          },
+          {
+            attachments: [
+              {
+                url: 'https://cdn.discord.com/clip.webm',
+                contentType: 'video/webm',
+                name: 'clip.webm',
+                duration: 5.5,
+              },
+            ],
+          },
+        ],
+      });
+
+      const attachments = extractForwardedAttachments(message);
+
+      expect(attachments).toHaveLength(2);
+      expect(attachments[0].isVoiceMessage).toBe(true);
+      expect(attachments[1].isVoiceMessage).toBe(false);
+    });
   });
 
   describe('hasForwardedVoiceAttachment', () => {
@@ -708,6 +756,35 @@ describe('forwardedMessageUtils', () => {
       const message = createMockMessage({ content: 'Hello' });
 
       expect(hasVoiceAttachments(message)).toBe(false);
+    });
+
+    it('hasVoiceAttachments honors IsVoiceMessage on a direct video/webm attachment', () => {
+      const flaggedMessage = createMockMessage({
+        content: '',
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice-message.ogg',
+            contentType: 'video/webm',
+            duration: 5.5,
+          },
+        ],
+        flags: new MessageFlagsBitField(MessageFlags.IsVoiceMessage),
+      });
+
+      expect(hasVoiceAttachments(flaggedMessage)).toBe(true);
+
+      const unflaggedMessage = createMockMessage({
+        content: '',
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/clip.webm',
+            contentType: 'video/webm',
+            duration: 5.5,
+          },
+        ],
+      });
+
+      expect(hasVoiceAttachments(unflaggedMessage)).toBe(false);
     });
   });
   /**

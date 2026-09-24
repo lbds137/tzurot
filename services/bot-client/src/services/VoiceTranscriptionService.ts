@@ -5,7 +5,7 @@
  * Sends transcription to Discord and stores in Redis for personality processing.
  */
 
-import type { Message, MessageMentionOptions } from 'discord.js';
+import type { Message, MessageFlagsBitField, MessageMentionOptions } from 'discord.js';
 import { transcribe } from '../utils/gatewayServiceCalls.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
@@ -28,7 +28,7 @@ import {
   getSnapshots,
   hasVoiceAttachments,
 } from '../utils/forwardedMessageUtils.js';
-import { isVoiceAttachment } from '../utils/voiceAttachment.js';
+import { hasVoiceMessageFlag, isVoiceAttachment } from '../utils/voiceAttachment.js';
 import { sendTypingIndicator } from '../utils/typingErrorClassifier.js';
 import { classifyBotAudio } from '../utils/botAudioClassifier.js';
 
@@ -226,13 +226,16 @@ function extractAudioFromSnapshot(snapshot: {
       waveform?: string | null;
     }
   > | null;
+  readonly flags?: Readonly<MessageFlagsBitField> | null;
 }): TranscriptionAttachment[] {
   if (!snapshot.attachments || snapshot.attachments.size === 0) {
     return [];
   }
 
+  const context = { messageIsVoice: hasVoiceMessageFlag(snapshot) };
+
   return Array.from(snapshot.attachments.values())
-    .filter(isVoiceAttachment)
+    .filter(attachment => isVoiceAttachment(attachment, context))
     .map(attachment => ({
       url: attachment.url,
       originalUrl: attachment.url,
@@ -247,7 +250,7 @@ function extractAudioFromSnapshot(snapshot: {
       // Always true here (these attachments already passed the isVoiceAttachment
       // filter above) — routed through the shared predicate so no duration-only
       // copy of the heuristic survives to drift.
-      isVoiceMessage: isVoiceAttachment(attachment),
+      isVoiceMessage: isVoiceAttachment(attachment, context),
       duration: attachment.duration ?? undefined,
       waveform: attachment.waveform ?? undefined,
     }));
@@ -453,7 +456,10 @@ export class VoiceTranscriptionService {
    * Returns an empty array when neither path has audio.
    */
   private resolveTranscriptionAttachments(message: Message): TranscriptionAttachment[] {
-    const direct = extractAudioFromSnapshot({ attachments: message.attachments });
+    const direct = extractAudioFromSnapshot({
+      attachments: message.attachments,
+      flags: message.flags,
+    });
     if (direct.length > 0) {
       return direct;
     }

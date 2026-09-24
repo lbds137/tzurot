@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { isVoiceAttachment } from './voiceAttachment.js';
+import { MessageFlags, MessageFlagsBitField } from 'discord.js';
+import { isVoiceAttachment, hasVoiceMessageFlag } from './voiceAttachment.js';
 
 describe('isVoiceAttachment', () => {
   it('is true for an audio content-type with a duration (a voice message)', () => {
@@ -35,5 +36,44 @@ describe('isVoiceAttachment', () => {
 
   it('is false when both content-type and duration are absent', () => {
     expect(isVoiceAttachment({ contentType: null, duration: null })).toBe(false);
+  });
+
+  it('classifies a video/webm attachment with a duration as voice when the message carries IsVoiceMessage', () => {
+    expect(
+      isVoiceAttachment({ contentType: 'video/webm', duration: 5.2 }, { messageIsVoice: true })
+    ).toBe(true);
+  });
+
+  it('keeps a video/webm attachment with a duration a plain file when the message lacks IsVoiceMessage', () => {
+    expect(
+      isVoiceAttachment({ contentType: 'video/webm', duration: 5.2 }, { messageIsVoice: false })
+    ).toBe(false);
+    expect(isVoiceAttachment({ contentType: 'video/webm', duration: 5.2 })).toBe(false);
+  });
+
+  it('requires a duration even when the message carries IsVoiceMessage', () => {
+    expect(
+      isVoiceAttachment({ contentType: 'video/webm', duration: null }, { messageIsVoice: true })
+    ).toBe(false);
+  });
+
+  it('still classifies audio/ogg with a duration as voice without the message flag', () => {
+    expect(isVoiceAttachment({ contentType: 'audio/ogg', duration: 5.2 })).toBe(true);
+    expect(
+      isVoiceAttachment({ contentType: 'audio/ogg', duration: 5.2 }, { messageIsVoice: false })
+    ).toBe(true);
+  });
+});
+
+describe('hasVoiceMessageFlag', () => {
+  it('reads IsVoiceMessage from message flags', () => {
+    expect(
+      hasVoiceMessageFlag({ flags: new MessageFlagsBitField(MessageFlags.IsVoiceMessage) })
+    ).toBe(true);
+    expect(hasVoiceMessageFlag({ flags: new MessageFlagsBitField(MessageFlags.Ephemeral) })).toBe(
+      false
+    );
+    expect(hasVoiceMessageFlag({ flags: undefined })).toBe(false);
+    expect(hasVoiceMessageFlag({})).toBe(false);
   });
 });

@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { VoiceTranscriptionService } from './VoiceTranscriptionService.js';
 import type { Message } from 'discord.js';
-import { MessageReferenceType } from 'discord.js';
+import { MessageFlags, MessageFlagsBitField, MessageReferenceType } from 'discord.js';
 import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 
 // Mock dependencies
@@ -406,6 +406,57 @@ describe('VoiceTranscriptionService', () => {
         'https://cdn.discord.com/voice/123.ogg',
         'This is the transcribed text'
       );
+    });
+
+    it('detects and transcribes a video/webm voice message when the message carries IsVoiceMessage', async () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/123.webm',
+            contentType: 'video/webm',
+            name: 'voice-message.ogg',
+            size: 50000,
+            duration: 5.2,
+          },
+        ],
+        flags: new MessageFlagsBitField(MessageFlags.IsVoiceMessage),
+      });
+
+      expect(service.hasVoiceAttachment(message)).toBe(true);
+
+      vi.mocked(transcribe).mockResolvedValue({
+        content: 'Hello from a Vencord voice message',
+      });
+
+      await service.transcribe(message, false, false);
+
+      expect(vi.mocked(transcribe)).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({
+            contentType: 'video/webm',
+            isVoiceMessage: true,
+          }),
+        ],
+        'test-user-123'
+      );
+    });
+
+    it('does not treat a video/webm attachment without IsVoiceMessage as a voice message', () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/123.webm',
+            contentType: 'video/webm',
+            name: 'clip.webm',
+            size: 50000,
+            duration: 5.2,
+          },
+        ],
+      });
+
+      // VoiceMessageProcessor gates the call to `transcribe()` on this check —
+      // the production callsite never reaches the gateway for a plain file.
+      expect(service.hasVoiceAttachment(message)).toBe(false);
     });
 
     it('appends a Discord subtext attribution to the last chunk when provider is known', async () => {
@@ -1517,6 +1568,8 @@ interface MockMessageSnapshot {
 interface MockMessageOptions {
   attachments?: MockAttachment[];
   messageSnapshots?: MockMessageSnapshot[];
+  /** Discord's IsVoiceMessage message flag, for the Vencord/Vesktop video/webm case. */
+  flags?: MessageFlagsBitField;
   noTypingSupport?: boolean;
   authorId?: string;
   /** Give the mock channel a `send` method (the taking-longer notice path). */
@@ -1630,6 +1683,7 @@ function createMockMessage(options: MockMessageOptions = {}): Message {
     attachments,
     messageSnapshots,
     reference,
+    flags: options.flags,
     channel,
     author: { id: options.authorId ?? 'test-user-123' },
     client: { user: { id: 'bot-user-999' } },
