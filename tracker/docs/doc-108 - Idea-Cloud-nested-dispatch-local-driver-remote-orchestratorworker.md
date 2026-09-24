@@ -82,19 +82,59 @@ Owner steer: the pilot must exercise the REAL path, a local session spawning clo
   Every cloud unit so far ran as a Routine (RemoteTrigger), so none of them
   drew on the credit. At the time, weekly all-models stood at 81%, 4.4 days
   into the 7-day window.
-- **Credit-eligible launch paths, to probe:** `claude --cloud "<description>"`
-  (CLI 2.1.281 `--help`), and the Agent tool's `isolation: "remote"`. A
-  limitations probe went out 2026-09-24 as a remote Agent. The owner's
-  credit meter afterwards says whether that path bills the credit.
+- **The credit-billed launch path is `claude --cloud "<prompt>"`, run under a
+  pseudo-TTY.** The owner's meter showed the probe session below billed $3 to
+  the credit. The CLI refuses a non-TTY call ("--cloud requires an interactive
+  terminal"), so the driver wraps it:
+  `script -qfec '<script that runs claude --cloud "$(cat prompt.md)">' /dev/null`.
+  It prints "Created cloud session", then a `claude --teleport <id>` line,
+  and exits. The driver reads the run with RemoteTrigger `get_run_log` on
+  that id; the log truncates long final messages, so a unit's report must
+  put its key results in its tool output or keep the final message short.
+  The Agent tool's `isolation: "remote"` is NOT a cloud path: on 2026-09-24
+  it ran the agent in a local worktree on the Deck, as it had on 09-23.
+- **After the credit (2026-11-05 expiry, or used up):** the docs do not
+  say. Routines "draw down subscription usage the same way interactive
+  sessions do" (routines docs), so plan-limit billing is the likely
+  fallback. That is an inference, not a documented fact.
 - **Owner directive (2026-09-24):** every assumed cloud limitation gets
   confirmed by a probe before it constrains the mode, with a mitigation tried
-  where possible. The "no local DB" assumption was never probed: the VM runs
-  as root and ran `redis-server`. The probe covers:
-  - Postgres with pgvector, then `db:migrate`, `db:safe-migrate` and the
-    integration tier against it
-  - Node 24, the locale, and the full `pnpm quality`
-  - hooks without a shim, `gh` auth, subagents, network egress and Railway
-    CLI presence
+  where possible.
+
+### Capability probe results (2026-09-24, one `--cloud` session, ~20 min, $3)
+
+The VM is Ubuntu 24.04 with 4 CPUs, 15 GiB RAM, no swap and 30 GB of disk, running as root.
+
+| Assumed limit | Result | Mitigation |
+| --- | --- | --- |
+| No local DB | FALSE. PG 16.13 is preinstalled (not on PATH); `apt install postgresql-16-pgvector` gives pgvector 0.6.0 (CI's image is newer). `db:migrate` applies 137/137 with both IVFFlat indexes; `db:safe-migrate` produces only the sanitized protected-index DROPs; `test:generate-schema` works. | `db:safe-migrate` loads the full config: set `BOT_OWNER_ID`, `DISCORD_CLIENT_ID` and `GUILD_ID` to numeric placeholders in a throwaway `.env` |
+| Component tier | PASS: 59 files, 780 passed, 13 skipped, 196 s | Start Redis (installed, not running) |
+| Integration tier | 46/50 files pass, peak ~1.4 GB. The integration DB name must end in `_test` (a suite guard). One suite fails: the Redis clients force `family: 6`, and the VM kernel has no IPv6 | TASK-1083 (an env override for the Redis IP family); a runtime shim did not take |
+| `pnpm quality` | PASS unthrottled, ~7.5 min | Needs a local `main` ref: `git fetch origin main:main` |
+| Node 24 | Image ships Node 22; the nodejs.org v24 tarball into `/opt/node24` works in 4 s | Set PATH per command, not in `~/.bashrc` |
+| Husky hooks | PASS natively (pre-commit and commit-msg; TASK-1073 holds) | — |
+| Push | Authenticates. Pre-push demands a `type/description` branch name | Name branches per convention |
+| PRs | `gh` is absent | The local driver opens the PR from the pushed branch |
+| Subagents | PASS (an Explore subagent ran inside the VM) | — |
+| Railway | No CLI and no token. The API host answers a POST | Owner's call: a token in the environment's secrets. Default: Railway ops and data probes stay local |
+
+**Setup-script candidate** for the cloud environment's Setup script field (claude.ai/code → environment settings; it runs as root before the session and is cached). Reconstructed from the probe's commands and not yet run as a setup script; the first cloud unit validates it:
+
+```bash
+#!/bin/bash
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+curl -fsSL https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-x64.tar.xz | tar -xJ -C /opt
+ln -sfn /opt/node-v24.21.0-linux-x64 /opt/node24
+apt-get update && apt-get install -y postgresql-16-pgvector
+```
+
+**Per-session step 0 for a cloud unit** (processes do not survive the cache):
+- `export LC_ALL=C.UTF-8 PATH=/opt/node24/bin:$PATH COREPACK_ENABLE_DOWNLOAD_PROMPT=0`
+- `redis-server --daemonize yes --dir /tmp`
+- start the PG 16 cluster
+- `git fetch origin develop main:main`, then check out the base
+- `pnpm install --frozen-lockfile`, then `pnpm --filter "./packages/**" build`
 
 ## Pilot
 
