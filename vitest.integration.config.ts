@@ -14,9 +14,9 @@ process.env.REDIS_URL ||= 'redis://127.0.0.1:6379';
 // which secretlint rejects in tracked source, and which would silently aim at
 // whatever database the URL happened to name. The caller supplies it; tests
 // that need it fail fast with the provisioning command in the message. CI sets
-// it to the job's Postgres service. Locally, build the URL from the postgres
-// service in docker-compose.yml with the database name swapped to
-// tzurot_integration_test, then once:
+// it to the job's Postgres service. Locally, build the URL from the
+// tzurot-postgres container in README.md § Local Development with the
+// database name swapped to tzurot_integration_test, then once:
 //   podman exec tzurot-postgres createdb -U tzurot tzurot_integration_test
 //   DATABASE_URL=<that URL> npx prisma migrate deploy
 // and export the same value when running the tier.
