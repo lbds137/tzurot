@@ -1,9 +1,10 @@
 ---
 id: TASK-676
 title: Consolidate the 16 hand-rolled sha-256 call sites behind one primitive
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-19 03:18'
+updated_date: '2026-09-24 22:47'
 labels:
   - 'area:common-types'
   - 'size:M'
