@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-29 11:24'
+updated_date: '2026-09-24 01:52'
 labels:
   - 'area:repo'
   - 'size:M'
@@ -42,3 +43,12 @@ HARNESS CEILING (2026-09-23): Claude Code 2.1.281 now shows at startup "12 instr
 
 /context READING 1, POST-COMPACTION (2026-09-23, Opus 5.5 1M, before the rules trim lands): 189k used. System prompt 2.4k, system tools 17.2k, custom agents 0.1k, MEMORY FILES 65.8k, skills listing 5.5k (40 skills; the claude.ai-synced office skills are ~1.4k of it), messages 98.1k, autocompact buffer 33k. MCP tools (41.7k) and deferred system tools (24.6k) show as deferred at 0 tokens actual, so the xda lead's largest lever is already mitigated here. Memory files = the 12 instruction files (175,709 chars) + MEMORY.md (9,048 chars) = 184,757 chars for 65.8k tokens, about 2.8 chars/token. So lines:check's token figure (bytes/4, via formatTokenEstimate in lines-breakdown.ts) UNDER-reports this markdown by about 1.4x: it prints the rules as ~42k tok, while the measured ratio puts them near 59k. Recalibrate that divisor against this reading (it is display-only; nothing gates on it). The 98.1k messages line includes the compaction summary, the CURRENT.md injection, and three replayed skill bodies; this reading cannot separate them. Still needed for step 1: the same reading at the start of a FRESH session.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+created: 2026-09-24 01:52
+---
+Rules half SHIPPED 2026-09-24 in PR #2494 (e375266da): CLAUDE.md + rules 173,337 -> 134,238 chars (wc -m); lines:check gains a hard 147,000-char .length ceiling (lines-ceiling.ts) outside the baseline ratchet; rules baseline ratcheted down to 1738 lines / 128,643 bytes; the lines:check token estimate recalibrated to 2.8 bytes/token from the post-compaction /context reading. Still open: step 1 (a FRESH-session /context reading to pair with the post-compaction one) and step 4 (the auto-memory index floor).
+---
+<!-- COMMENTS:END -->
