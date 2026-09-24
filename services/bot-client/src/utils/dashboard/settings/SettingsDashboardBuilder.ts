@@ -170,12 +170,18 @@ function resolvePageChrome(
 }
 
 /**
- * Build the overview embed showing all settings
+ * Compose the description lines every dashboard view renders above its own
+ * content: the escaped entity name, the base description (custom or the
+ * legacy extended-context default naming the entity), and the required
+ * `scopeNote` statement. Shared by the overview (which appends its "select a
+ * setting" instruction after this) and the index (which appends its page
+ * list and hint instead) so neither view can omit the scope disclosure
+ * `scopeNote` exists to guarantee.
  */
-export function buildOverviewEmbed(
+export function buildDescriptionPreamble(
   config: SettingsDashboardConfig,
   session: SettingsDashboardSession
-): EmbedBuilder {
+): { safeName: string; text: string } {
   // Entity names are user-chosen free text (a character name has no markdown
   // restriction in its schema) and reach this render site raw — escape once here so masked-link
   // markdown can't turn a name into a clickable link inside the bot's own
@@ -183,7 +189,18 @@ export function buildOverviewEmbed(
   const safeName = escapeMarkdown(session.entityName, { maskedLink: true });
   const baseDescription =
     config.overviewDescription ?? `Configure extended context settings for **${safeName}**.`;
-  let description = `${baseDescription}\n${config.scopeNote(safeName)}\nSelect a setting below to modify it.`;
+  return { safeName, text: `${baseDescription}\n${config.scopeNote(safeName)}` };
+}
+
+/**
+ * Build the overview embed showing all settings
+ */
+export function buildOverviewEmbed(
+  config: SettingsDashboardConfig,
+  session: SettingsDashboardSession
+): EmbedBuilder {
+  const { text: preamble } = buildDescriptionPreamble(config, session);
+  let description = `${preamble}\nSelect a setting below to modify it.`;
   if (config.descriptionNote !== undefined && config.descriptionNote.length > 0) {
     description += `\n\n${config.descriptionNote}`;
   }

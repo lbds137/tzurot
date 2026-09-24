@@ -13,7 +13,6 @@ import {
   ActionRowBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
-  escapeMarkdown,
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
 import {
@@ -22,7 +21,11 @@ import {
   DashboardView,
   buildSettingsCustomId,
 } from './types.js';
-import { buildOverviewMessage, DISCORD_SELECT_OPTIONS_LIMIT } from './SettingsDashboardBuilder.js';
+import {
+  buildDescriptionPreamble,
+  buildOverviewMessage,
+  DISCORD_SELECT_OPTIONS_LIMIT,
+} from './SettingsDashboardBuilder.js';
 
 /**
  * A paged dashboard with at least this many pages opens on the index; one
@@ -38,23 +41,35 @@ export function resolveLandingView(config: SettingsDashboardConfig): DashboardVi
 }
 
 /**
- * Build the index embed: one line per page, in page order, then a one-line
- * hint naming the entity being edited (escaped like the overview's name —
- * entity names are user-chosen free text).
+ * Build the index embed: the same scope-disclosure preamble the overview
+ * renders above its settings (`buildDescriptionPreamble` — required so no
+ * dashboard's bot-wide/channel/character scope statement is hidden on an
+ * index-landing render), then one line per page in page order, then a
+ * one-line hint naming the entity being edited. The hint is dropped when the
+ * preamble already names the entity (the default `overviewDescription`
+ * template does; a dashboard with a custom, name-free `overviewDescription`
+ * and `scopeNote` — e.g. the admin dashboard — does not, so it keeps the
+ * hint) to avoid saying the entity's name twice in one embed.
  */
 export function buildIndexEmbed(
   config: SettingsDashboardConfig,
   session: SettingsDashboardSession
 ): EmbedBuilder {
   const pages = config.pages ?? [];
-  const safeName = escapeMarkdown(session.entityName, { maskedLink: true });
+  const { safeName, text: preamble } = buildDescriptionPreamble(config, session);
   const pageLines = pages.map((page, index) => `**${index + 1}.** ${page.label}`);
+  const hint = preamble.includes(safeName)
+    ? 'Pick a page from the menu below.'
+    : `Editing **${safeName}** — pick a page from the menu below.`;
+
+  let description = `${preamble}\n\n${pageLines.join('\n')}\n\n${hint}`;
+  if (config.descriptionNote !== undefined && config.descriptionNote.length > 0) {
+    description += `\n\n${config.descriptionNote}`;
+  }
 
   return new EmbedBuilder()
     .setTitle(`${config.titlePrefix} Settings · Index`)
-    .setDescription(
-      `${pageLines.join('\n')}\n\nEditing **${safeName}** — pick a page from the menu below.`
-    )
+    .setDescription(description)
     .setColor(config.color)
     .setTimestamp();
 }

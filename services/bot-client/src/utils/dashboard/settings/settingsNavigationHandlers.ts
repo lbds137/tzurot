@@ -9,6 +9,7 @@
  */
 
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
@@ -18,6 +19,8 @@ import {
 import { buildOverviewMessage } from './SettingsDashboardBuilder.js';
 import { buildIndexMessage } from './settingsIndexView.js';
 import { storeSession } from './SettingsSessionStorage.js';
+
+const logger = createLogger('settingsNavigationHandlers');
 
 /**
  * Index button → the index view. A flat config has no index (and its overview
@@ -39,6 +42,8 @@ export async function handleIndexButton(
   await interaction.editReply(
     hasPages ? buildIndexMessage(config, session) : buildOverviewMessage(config, session)
   );
+
+  logger.debug({ entityType: config.entityType, entityId: session.entityId }, 'Navigated to index');
 }
 
 /**
@@ -67,4 +72,9 @@ export async function handleJumpSelect(
 
   // editReply: the router already deferUpdate'd (select menus always defer).
   await interaction.editReply(buildOverviewMessage(config, session));
+
+  logger.debug(
+    { entityType: config.entityType, entityId: session.entityId, pageId: selected },
+    'Navigated to page'
+  );
 }
