@@ -19,6 +19,12 @@ import {
   ADMIN_SETTINGS_CONFIG,
 } from './settings.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import {
+  DashboardView,
+  type SettingsDashboardSession,
+} from '../../utils/dashboard/settings/types.js';
+import { buildOverviewMessage } from '../../utils/dashboard/settings/SettingsDashboardBuilder.js';
+import { buildIndexMessage } from '../../utils/dashboard/settings/settingsIndexView.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -288,16 +294,22 @@ describe('Admin Settings Dashboard', () => {
       ]);
     });
 
-    it('every one of the 11 pages carries select + Prev / N/11 / Next / Index', async () => {
+    it('every one of the 11 pages carries select + Prev / N/11 / Next / Index — the 3 cascade pages also carry Reset page, the 8 System pages do not', async () => {
       for (let pageIndex = 0; pageIndex < 11; pageIndex++) {
         vi.clearAllMocks();
         const page = await openAndJump(pageIndex);
 
-        expect(page.components).toHaveLength(2);
+        const isCascadePage = pageIndex < 3;
+        expect(page.components).toHaveLength(isCascadePage ? 3 : 2);
         const labels = page.components[1]
           .toJSON()
           .components.map((c: { label?: string }) => c.label);
         expect(labels).toEqual(['Prev', `${pageIndex + 1}/11`, 'Next', 'Index']);
+        if (isCascadePage) {
+          const resetRow = page.components[2].toJSON().components;
+          expect(resetRow).toHaveLength(1);
+          expect(resetRow[0].label).toBe('Reset page');
+        }
       }
     });
 
@@ -443,6 +455,137 @@ describe('Admin Settings Dashboard', () => {
         expect.objectContaining({
           content: expect.stringContaining('Unknown setting'),
         })
+      );
+    });
+  });
+
+  describe('Reset page (admin has no Reset all)', () => {
+    const memoryPageSession = () => ({
+      data: {
+        userId: 'user-456',
+        entityId: 'global',
+        entityName: 'Global Settings',
+        data: {
+          crossChannelHistoryEnabled: {
+            localValue: true,
+            hasLocalOverride: true,
+            effectiveValue: true,
+            source: 'admin',
+            parentValue: false,
+          },
+          shareLtmAcrossPersonalities: {
+            localValue: true,
+            hasLocalOverride: true,
+            effectiveValue: true,
+            source: 'admin',
+            parentValue: false,
+          },
+        },
+        view: 'overview',
+        page: 0,
+      },
+    });
+
+    const buttonWithReset = (customId: string) =>
+      ({
+        customId,
+        user: { id: 'user-456' },
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
+      }) as unknown as ButtonInteraction & {
+        deferUpdate: ReturnType<typeof vi.fn>;
+        editReply: ReturnType<typeof vi.fn>;
+        followUp: ReturnType<typeof vi.fn>;
+      };
+
+    it("Reset page clears exactly the page's locally-set settings in one PATCH", async () => {
+      mockSessionManager.get.mockReturnValue(memoryPageSession());
+      const interaction = buttonWithReset('admin-settings::reset-confirm::global::page:memory');
+      stub.updateAdminSettings.mockResolvedValue(ok({ ...mockSettings, configDefaults: null }));
+
+      await handleAdminSettingsButton(interaction);
+
+      expect(stub.updateAdminSettings).toHaveBeenCalledTimes(1);
+      expect(stub.updateAdminSettings).toHaveBeenCalledWith({
+        crossChannelHistoryEnabled: null,
+        shareLtmAcrossPersonalities: null,
+      });
+      expect(invalidateAdminSettingsCacheMock).toHaveBeenCalledTimes(1);
+      const rendered = interaction.editReply.mock.calls[0][0].embeds[0].toJSON();
+      expect(rendered.title).toContain('Memory');
+    });
+
+    it('Reset page renders on exactly the three cascade pages, never on a System page', () => {
+      const session: SettingsDashboardSession = {
+        level: 'global',
+        entityId: 'global',
+        entityName: 'Global Settings',
+        userId: 'user-456',
+        messageId: 'msg-1',
+        channelId: 'chan-1',
+        lastActivityAt: new Date(),
+        view: DashboardView.OVERVIEW,
+        page: 0,
+        data: {},
+      };
+
+      const pagesWithReset = (ADMIN_SETTINGS_CONFIG.pages ?? [])
+        .map((page, pageIndex) => {
+          const message = buildOverviewMessage(ADMIN_SETTINGS_CONFIG, {
+            ...session,
+            page: pageIndex,
+          });
+          const hasReset = message.components.some(row =>
+            row
+              .toJSON()
+              .components.some(c => 'custom_id' in c && c.custom_id.includes('::reset::') === true)
+          );
+          return hasReset ? page.id : null;
+        })
+        .filter((id): id is string => id !== null);
+
+      expect(pagesWithReset).toEqual(['memory', 'context-display', 'voice']);
+    });
+
+    it('the admin hub has no Reset all', async () => {
+      const session: SettingsDashboardSession = {
+        level: 'global',
+        entityId: 'global',
+        entityName: 'Global Settings',
+        userId: 'user-456',
+        messageId: 'msg-1',
+        channelId: 'chan-1',
+        lastActivityAt: new Date(),
+        view: DashboardView.INDEX,
+        page: 0,
+        data: {},
+      };
+      const hub = buildIndexMessage(ADMIN_SETTINGS_CONFIG, session);
+      expect(hub.components).toHaveLength(1);
+
+      mockSessionManager.get.mockReturnValue({ data: session });
+      const interaction = buttonWithReset('admin-settings::reset::global::all');
+
+      await handleAdminSettingsButton(interaction);
+
+      expect(stub.updateAdminSettings).not.toHaveBeenCalled();
+      expect(interaction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('out of date') })
+      );
+    });
+
+    it('a forged Reset page on a System page answers the out-of-date notice', async () => {
+      mockSessionManager.get.mockReturnValue(memoryPageSession());
+      const interaction = buttonWithReset(
+        'admin-settings::reset-confirm::global::page:system-extraction'
+      );
+
+      await handleAdminSettingsButton(interaction);
+
+      expect(stub.updateAdminSettings).not.toHaveBeenCalled();
+      expect(interaction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('out of date') })
       );
     });
   });

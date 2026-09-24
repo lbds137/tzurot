@@ -24,6 +24,7 @@ import {
   VOICE_CASCADE_SETTINGS,
   buildCascadePages,
 } from '../../utils/dashboard/settings/settingsConfig.js';
+import { buildSettingsCustomId } from '../../utils/dashboard/settings/types.js';
 
 // Mock dependencies
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -348,6 +349,109 @@ describe('Character Overrides Dashboard', () => {
       ]);
       const paged = (CHARACTER_OVERRIDES_CONFIG.pages ?? []).flatMap(p => p.settingIds);
       expect([...paged].sort()).toEqual([...PRE_SPLIT_IDS].sort());
+    });
+  });
+
+  describe('Reset page / Reset all', () => {
+    const PERSONALITY_UUID = '765a9b5a-857f-5822-bc60-37cc8aada4ac';
+
+    const memoryPageSession = (extraData: Record<string, unknown> = {}) => ({
+      data: {
+        userId: 'user-456',
+        entityId: PERSONALITY_UUID,
+        entityName: 'Aurora',
+        data: {
+          crossChannelHistoryEnabled: {
+            localValue: true,
+            hasLocalOverride: true,
+            effectiveValue: true,
+            source: 'user-personality',
+            parentValue: false,
+          },
+          shareLtmAcrossPersonalities: {
+            localValue: true,
+            hasLocalOverride: true,
+            effectiveValue: true,
+            source: 'user-personality',
+            parentValue: false,
+          },
+          ...extraData,
+        },
+        view: 'overview',
+        page: 0,
+      },
+    });
+
+    const buttonInteraction = (customId: string) =>
+      ({
+        customId,
+        user: { id: 'user-456', username: 'testuser' },
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
+      }) as unknown as ButtonInteraction & {
+        deferUpdate: ReturnType<typeof vi.fn>;
+        editReply: ReturnType<typeof vi.fn>;
+        followUp: ReturnType<typeof vi.fn>;
+      };
+
+    beforeEach(() => {
+      stub.resolveCascade.mockResolvedValue({ ok: true, data: mockResolvedOverrides });
+    });
+
+    it("Reset page clears exactly the page's locally-set settings in one PATCH", async () => {
+      mockSessionManager.get.mockReturnValue(memoryPageSession());
+      const customId = buildSettingsCustomId(
+        'character-overrides',
+        'reset-confirm',
+        PERSONALITY_UUID,
+        'page:memory'
+      );
+      const interaction = buttonInteraction(customId);
+      stub.updatePersonalityOverrides.mockResolvedValueOnce({ ok: true });
+
+      await handleCharacterOverridesButton(interaction);
+
+      expect(stub.updatePersonalityOverrides).toHaveBeenCalledTimes(1);
+      expect(stub.updatePersonalityOverrides).toHaveBeenCalledWith(PERSONALITY_UUID, {
+        crossChannelHistoryEnabled: null,
+        shareLtmAcrossPersonalities: null,
+      });
+      const rendered = interaction.editReply.mock.calls[0][0].embeds[0].toJSON();
+      expect(rendered.title).toContain('Memory');
+    });
+
+    it('Reset all clears every locally-set setting across pages in one PATCH', async () => {
+      mockSessionManager.get.mockReturnValue(
+        memoryPageSession({
+          maxMessages: {
+            localValue: 25,
+            hasLocalOverride: true,
+            effectiveValue: 25,
+            source: 'user-personality',
+            parentValue: 50,
+          },
+        })
+      );
+      const customId = buildSettingsCustomId(
+        'character-overrides',
+        'reset-confirm',
+        PERSONALITY_UUID,
+        'all'
+      );
+      const interaction = buttonInteraction(customId);
+      stub.updatePersonalityOverrides.mockResolvedValueOnce({ ok: true });
+
+      await handleCharacterOverridesButton(interaction);
+
+      expect(stub.updatePersonalityOverrides).toHaveBeenCalledTimes(1);
+      expect(stub.updatePersonalityOverrides).toHaveBeenCalledWith(PERSONALITY_UUID, {
+        crossChannelHistoryEnabled: null,
+        shareLtmAcrossPersonalities: null,
+        maxMessages: null,
+      });
+      const rendered = interaction.editReply.mock.calls[0][0].embeds[0].toJSON();
+      expect(rendered.title).toBe('Character Override Settings · Index');
     });
   });
 

@@ -186,6 +186,19 @@ describe('SettingsDashboardBuilder', () => {
       expect(hintIndex).toBeGreaterThan(scopeIndex);
     });
 
+    it("prefers session.descriptionNote over the config's when both are set", () => {
+      const config: SettingsDashboardConfig = {
+        ...createTestConfig(),
+        descriptionNote: 'CONFIG_NOTE',
+      };
+      const session = { ...createTestSession(), descriptionNote: 'SESSION_NOTE' };
+
+      const description = buildOverviewEmbed(config, session).toJSON().description ?? '';
+
+      expect(description).toContain('SESSION_NOTE');
+      expect(description).not.toContain('CONFIG_NOTE');
+    });
+
     it('passes session.entityName to scopeNote', () => {
       const config: SettingsDashboardConfig = {
         ...createTestConfig(),
@@ -822,26 +835,59 @@ describe('SettingsDashboardBuilder', () => {
       expect(message.components).toHaveLength(1); // select menu only (no Close — D18)
     });
 
-    it('renders the reset row only when config.resetButton is present', () => {
+    it('renders the Reset page row only when the current page is resettable', () => {
+      const pagedConfig: SettingsDashboardConfig = {
+        ...createTestConfig(),
+        pages: [
+          { id: 'p0', label: 'Page One', settingIds: EXTENDED_CONTEXT_SETTINGS.map(s => s.id) },
+        ],
+      };
       const session = createTestSession();
-      const plain = buildOverviewMessage(createTestConfig(), session);
-      // Opt-in: dashboards without the affordance keep the select-menu-only shape.
-      expect(plain.components).toHaveLength(1);
 
-      const withReset = buildOverviewMessage(
-        { ...createTestConfig(), resetButton: { label: 'Reset to defaults' } },
-        session
-      );
+      const message = buildOverviewMessage(pagedConfig, session);
 
-      expect(withReset.components).toHaveLength(2);
-      const resetRow = withReset.components[1].toJSON() as {
+      expect(message.components).toHaveLength(3); // select + pagination + reset page
+      const resetRow = message.components[2].toJSON() as {
         components: Array<{ custom_id: string; label: string; style: number }>;
       };
       expect(resetRow.components).toHaveLength(1);
-      expect(resetRow.components[0].custom_id).toBe(`test-settings::reset::${session.entityId}`);
-      expect(resetRow.components[0].label).toBe('Reset to defaults');
+      expect(resetRow.components[0].custom_id).toBe(
+        `test-settings::reset::${session.entityId}::page:p0`
+      );
+      expect(resetRow.components[0].label).toBe('Reset page');
       // ButtonStyle.Danger = 4 — destructive styling carries the weight.
       expect(resetRow.components[0].style).toBe(4);
+    });
+
+    it('omits the Reset page row on a flat config and on a page holding a plain setting', () => {
+      const session = createTestSession();
+      const flat = buildOverviewMessage(createTestConfig(), session);
+      // No `pages` at all: select-menu-only shape, no pagination or reset row.
+      expect(flat.components).toHaveLength(1);
+
+      const plainPageConfig: SettingsDashboardConfig = {
+        ...createTestConfig(),
+        settings: [
+          ...EXTENDED_CONTEXT_SETTINGS,
+          {
+            id: 'sysFlag',
+            label: 'Sys Flag',
+            emoji: '🎛️',
+            description: 'A system flag.',
+            type: SettingType.BOOLEAN,
+            plainDisplay: true,
+          },
+        ],
+        pages: [
+          {
+            id: 'p0',
+            label: 'Page One',
+            settingIds: [...EXTENDED_CONTEXT_SETTINGS.map(s => s.id), 'sysFlag'],
+          },
+        ],
+      };
+      const withPlain = buildOverviewMessage(plainPageConfig, session);
+      expect(withPlain.components).toHaveLength(2); // select + pagination, no reset row
     });
   });
 

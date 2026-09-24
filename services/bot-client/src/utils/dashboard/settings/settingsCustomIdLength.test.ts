@@ -28,6 +28,7 @@ import { CHARACTER_SETTINGS_CONFIG } from '../../../commands/character/settings.
 import { USER_DEFAULTS_CONFIG } from '../../../commands/settings/defaults/edit.js';
 import {
   type SettingDefinition,
+  type SettingsData,
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
   type SettingUpdateHandler,
@@ -36,6 +37,7 @@ import {
   buildSettingsCustomId,
   parseSettingsCustomId,
 } from './types.js';
+import { isResettablePage } from './settingsResetScope.js';
 import { buildOverviewMessage, buildSettingMessage } from './SettingsDashboardBuilder.js';
 import { buildIndexMessage } from './settingsIndexView.js';
 import { buildSettingEditModal } from './SettingsModalFactory.js';
@@ -185,23 +187,57 @@ async function collectRetryRow(
   collectFrom(components, out);
 }
 
-/** The reset confirmation: drive the real router's 'reset' action with a wired reset handler. */
-async function collectResetConfirmation(
+/** A data map where every one of the config's settings holds a local override — makes every Reset page / Reset all prompt show its confirm surface instead of re-rendering empty. */
+function allLocallySetData(config: SettingsDashboardConfig): SettingsData {
+  const data: SettingsData = {};
+  for (const setting of config.settings) {
+    data[setting.id] = {
+      localValue: null,
+      hasLocalOverride: true,
+      effectiveValue: null,
+      source: 'admin',
+      parentValue: null,
+    };
+  }
+  return data;
+}
+
+/**
+ * The reset confirmation: drive the real router's 'reset' action, scoped, for
+ * every resettable page and (when the dashboard opts in) Reset all — the
+ * surfaces that replaced the old scope-less whole-dashboard reset button.
+ */
+async function collectResetConfirmations(
   config: SettingsDashboardConfig,
   session: SettingsDashboardSession,
   out: Collected
 ): Promise<void> {
-  const resetId = buildSettingsCustomId(config.entityType, 'reset', session.entityId);
-  const interaction = makeInteraction(resetId);
-  await handleSettingsButton(
-    interaction as ButtonInteraction,
-    config,
-    vi.fn<SettingUpdateHandler>(),
-    vi.fn<SettingsResetHandler>()
-  );
-  const components = componentsSentTo((interaction as { editReply: unknown }).editReply);
-  expect(components.length).toBeGreaterThan(0);
-  collectFrom(components, out);
+  const scopedExtras: string[] = [];
+  for (const page of config.pages ?? []) {
+    if (isResettablePage(config, page)) {
+      scopedExtras.push(`page:${page.id}`);
+    }
+  }
+  if (config.resetAll === true) {
+    scopedExtras.push('all');
+  }
+
+  for (const extra of scopedExtras) {
+    const resetId = buildSettingsCustomId(config.entityType, 'reset', session.entityId, extra);
+    const interaction = makeInteraction(resetId);
+    mockSessionManager.get.mockImplementationOnce(() =>
+      Promise.resolve({ data: { ...session, data: allLocallySetData(config) } })
+    );
+    await handleSettingsButton(
+      interaction as ButtonInteraction,
+      config,
+      vi.fn<SettingUpdateHandler>(),
+      vi.fn<SettingsResetHandler>()
+    );
+    const components = componentsSentTo((interaction as { editReply: unknown }).editReply);
+    expect(components.length).toBeGreaterThan(0);
+    collectFrom(components, out);
+  }
 }
 
 /** Does this setting's drill-down render an Edit button (i.e. does it open a modal)? */
@@ -243,10 +279,9 @@ async function collectDashboard(config: SettingsDashboardConfig): Promise<Collec
     }
   }
 
-  // Reset confirmation: dashboards that opt into the reset affordance
-  if (config.resetButton !== undefined) {
-    await collectResetConfirmation(config, session, out);
-  }
+  // Reset confirmation: every resettable page, plus Reset all where the
+  // dashboard opts in.
+  await collectResetConfirmations(config, session, out);
 
   return out;
 }

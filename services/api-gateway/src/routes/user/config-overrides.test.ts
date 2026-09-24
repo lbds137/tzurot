@@ -424,6 +424,24 @@ describe('/user/config-overrides routes', () => {
       );
     });
 
+    it('clears several overrides in one write when a multi-key body sends null', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        configDefaults: { maxAge: null, maxMessages: 30, maxImages: 5 },
+      });
+
+      const handler = buildHandler(handleUpdateUserDefaults, mockDeps);
+      const { req, res } = createMockReqRes({ maxAge: null, maxImages: null });
+
+      await handler(req, res);
+
+      expect(mockPrisma.user.update).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { configDefaults: { maxMessages: 30 } },
+        })
+      );
+    });
+
     it('should reject non-object request body', async () => {
       const handler = buildHandler(handleUpdateUserDefaults, mockDeps);
       const { req, res } = createMockReqRes();
@@ -726,6 +744,25 @@ describe('/user/config-overrides routes', () => {
         expect.objectContaining({
           configOverrides: { maxImages: 5, maxMessages: 25 },
         })
+      );
+    });
+
+    it('clears several overrides in one write when a multi-key body sends null', async () => {
+      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
+        configOverrides: { maxImages: 5, maxMessages: 25, maxAge: null },
+      });
+
+      const handler = buildHandler(handleUpdatePersonalityOverrides, mockDeps);
+      const { req, res } = createMockReqRes(
+        { maxImages: null, maxAge: null },
+        { personalityId: TEST_PERSONALITY_ID }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ configOverrides: { maxMessages: 25 } })
       );
     });
   });

@@ -1,7 +1,8 @@
 /**
  * Settings dashboard button-row builders — the per-setting-type control rows
- * (tri-state / boolean / enum / edit) and the navigation rows (back /
- * pagination). Extracted from SettingsDashboardBuilder to keep it within the
+ * (tri-state / boolean / enum / edit), the navigation rows (back /
+ * pagination) and the reset rows (Reset page on an overview page, Reset all
+ * on the index hub). Extracted from SettingsDashboardBuilder to keep it within the
  * max-lines budget; the Builder's message assemblers compose these.
  */
 
@@ -20,6 +21,12 @@ import {
   clampPage,
   isPlainSetting,
 } from './types.js';
+import {
+  type ResetScope,
+  isResettablePage,
+  locallySetIds,
+  resetScopeExtra,
+} from './settingsResetScope.js';
 
 /**
  * Build tri-state buttons for boolean settings (Auto/On/Off)
@@ -160,6 +167,57 @@ export function buildPaginationRow(
   );
 
   return row;
+}
+
+/**
+ * One Danger reset button on its own row (destructive last, per the standard
+ * button order). Disabled when nothing in the scope is set at this tier — the
+ * press would clear nothing.
+ */
+function buildResetRow(
+  config: SettingsDashboardConfig,
+  session: SettingsDashboardSession,
+  scope: ResetScope,
+  label: string
+): ActionRowBuilder<MessageActionRowComponentBuilder> {
+  return new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(
+        buildSettingsCustomId(config.entityType, 'reset', session.entityId, resetScopeExtra(scope))
+      )
+      .setLabel(label)
+      .setEmoji('♻️')
+      .setStyle(ButtonStyle.Danger)
+      .setDisabled(locallySetIds(config, session, scope).length === 0)
+  );
+}
+
+/**
+ * The overview's Reset page row, for the session's current page — or null
+ * when the dashboard is flat or the page holds a setting with no Auto (the
+ * admin System pages).
+ */
+export function buildResetPageRow(
+  config: SettingsDashboardConfig,
+  session: SettingsDashboardSession
+): ActionRowBuilder<MessageActionRowComponentBuilder> | null {
+  const pageIndex = clampPage(config, session.page);
+  const page = config.pages?.[pageIndex];
+  if (page === undefined || !isResettablePage(config, page)) {
+    return null;
+  }
+  return buildResetRow(config, session, { kind: 'page', page, pageIndex }, 'Reset page');
+}
+
+/** The index hub's Reset all row — or null on a dashboard without Reset all (admin). */
+export function buildResetAllRow(
+  config: SettingsDashboardConfig,
+  session: SettingsDashboardSession
+): ActionRowBuilder<MessageActionRowComponentBuilder> | null {
+  if (config.resetAll !== true) {
+    return null;
+  }
+  return buildResetRow(config, session, { kind: 'all' }, 'Reset all');
 }
 
 /** Discord limits action rows to 5 buttons */

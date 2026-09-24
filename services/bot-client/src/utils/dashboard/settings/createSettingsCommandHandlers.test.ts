@@ -86,6 +86,7 @@ describe('createSettingsCommandHandlers', () => {
         entityType: TEST_ENTITY_TYPE,
         settingsConfig: testConfig,
         createUpdateHandler: mockCreateUpdateHandler,
+        createResetHandler: vi.fn(() => vi.fn()),
       });
 
       const result = handlers.isInteraction('character-test::button::xyz');
@@ -104,6 +105,7 @@ describe('createSettingsCommandHandlers', () => {
         entityType: TEST_ENTITY_TYPE,
         settingsConfig: testConfig,
         createUpdateHandler: mockCreateUpdateHandler,
+        createResetHandler: vi.fn(() => vi.fn()),
       });
 
       const result = handlers.isInteraction('other-type::button::xyz');
@@ -117,31 +119,35 @@ describe('createSettingsCommandHandlers', () => {
   });
 
   describe('handleButton', () => {
-    it('forwards to handleSettingsButton with the extracted entityId', async () => {
+    it('forwards to handleSettingsButton with the extracted entityId and the bound reset handler', async () => {
       vi.mocked(isSettingsInteraction).mockReturnValue(true);
       vi.mocked(parseSettingsCustomId).mockReturnValue({
         entityType: TEST_ENTITY_TYPE,
         action: 'button',
         entityId: 'personality-uuid-123',
       });
+      const boundResetHandler = vi.fn();
+      const mockCreateResetHandler = vi.fn().mockReturnValue(boundResetHandler);
 
       const handlers = createSettingsCommandHandlers({
         entityType: TEST_ENTITY_TYPE,
         settingsConfig: testConfig,
         createUpdateHandler: mockCreateUpdateHandler,
+        createResetHandler: mockCreateResetHandler,
       });
       const interaction = makeButtonInteraction('character-test::button::personality-uuid-123');
 
       await handlers.handleButton(interaction);
 
       expect(mockCreateUpdateHandler).toHaveBeenCalledWith('personality-uuid-123');
-      // Fourth arg is the reset handler — undefined when the dashboard
-      // doesn't wire createResetHandler (the opt-in default).
+      // createResetHandler is now REQUIRED — every dashboard wires a batch
+      // clear, so the router always forwards the bound handler it built.
+      expect(mockCreateResetHandler).toHaveBeenCalledWith('personality-uuid-123');
       expect(handleSettingsButton).toHaveBeenCalledWith(
         interaction,
         testConfig,
         mockUpdateHandler,
-        undefined
+        boundResetHandler
       );
     });
 
@@ -182,6 +188,7 @@ describe('createSettingsCommandHandlers', () => {
         entityType: TEST_ENTITY_TYPE,
         settingsConfig: testConfig,
         createUpdateHandler: mockCreateUpdateHandler,
+        createResetHandler: vi.fn(() => vi.fn()),
       });
 
       await handlers.handleButton(makeButtonInteraction('other-type::button::xyz'));
@@ -199,6 +206,7 @@ describe('createSettingsCommandHandlers', () => {
         entityType: TEST_ENTITY_TYPE,
         settingsConfig: testConfig,
         createUpdateHandler: mockCreateUpdateHandler,
+        createResetHandler: vi.fn(() => vi.fn()),
       });
 
       await handlers.handleButton(makeButtonInteraction('character-test::button::'));
@@ -221,6 +229,7 @@ describe('createSettingsCommandHandlers', () => {
         entityType: TEST_ENTITY_TYPE,
         settingsConfig: testConfig,
         createUpdateHandler: mockCreateUpdateHandler,
+        createResetHandler: vi.fn(() => vi.fn()),
       });
       const interaction = makeSelectMenuInteraction('character-test::select::personality-uuid-456');
 
@@ -239,6 +248,7 @@ describe('createSettingsCommandHandlers', () => {
         entityType: TEST_ENTITY_TYPE,
         settingsConfig: testConfig,
         createUpdateHandler: mockCreateUpdateHandler,
+        createResetHandler: vi.fn(() => vi.fn()),
       });
 
       await handlers.handleSelectMenu(makeSelectMenuInteraction('nope::select::xyz'));
@@ -254,6 +264,7 @@ describe('createSettingsCommandHandlers', () => {
         entityType: TEST_ENTITY_TYPE,
         settingsConfig: testConfig,
         createUpdateHandler: mockCreateUpdateHandler,
+        createResetHandler: vi.fn(() => vi.fn()),
       });
 
       await handlers.handleSelectMenu(makeSelectMenuInteraction('character-test::select::'));
@@ -276,6 +287,7 @@ describe('createSettingsCommandHandlers', () => {
         entityType: TEST_ENTITY_TYPE,
         settingsConfig: testConfig,
         createUpdateHandler: mockCreateUpdateHandler,
+        createResetHandler: vi.fn(() => vi.fn()),
       });
       const interaction = makeModalInteraction('character-test::modal::channel-id-789');
 
@@ -292,6 +304,7 @@ describe('createSettingsCommandHandlers', () => {
         entityType: TEST_ENTITY_TYPE,
         settingsConfig: testConfig,
         createUpdateHandler: mockCreateUpdateHandler,
+        createResetHandler: vi.fn(() => vi.fn()),
       });
 
       await handlers.handleModal(makeModalInteraction('nope::modal::xyz'));
@@ -307,6 +320,7 @@ describe('createSettingsCommandHandlers', () => {
         entityType: TEST_ENTITY_TYPE,
         settingsConfig: testConfig,
         createUpdateHandler: mockCreateUpdateHandler,
+        createResetHandler: vi.fn(() => vi.fn()),
       });
 
       await handlers.handleModal(makeModalInteraction('character-test::modal::'));
@@ -329,6 +343,7 @@ describe('createSettingsCommandHandlers', () => {
         entityType: TEST_ENTITY_TYPE,
         settingsConfig: testConfig,
         createUpdateHandler: mockCreateUpdateHandler,
+        createResetHandler: vi.fn(() => vi.fn()),
       });
 
       await handlers.handleButton(makeButtonInteraction('character-test::button::entity-abc'));

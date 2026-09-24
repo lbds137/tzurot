@@ -44,6 +44,7 @@ import {
   SYSTEM_SETTINGS_PAGES,
   isSystemSettingId,
   mapSettingToApiUpdate,
+  buildClearBody,
   buildCascadeSettingsData,
   buildSystemSettingsData,
 } from '../../utils/dashboard/settings/index.js';
@@ -171,7 +172,12 @@ export async function handleAdminSettingsButton(interaction: ButtonInteraction):
     return;
   }
 
-  await handleSettingsButton(interaction, ADMIN_SETTINGS_CONFIG, dispatchSettingUpdate);
+  await handleSettingsButton(
+    interaction,
+    ADMIN_SETTINGS_CONFIG,
+    dispatchSettingUpdate,
+    handleSettingsReset
+  );
 }
 
 /**
@@ -242,24 +248,55 @@ async function handleSettingUpdate(
   settingId: string,
   newValue: unknown
 ): Promise<SettingUpdateResult> {
+  // Map setting ID to API body using shared utility
+  const body = mapSettingToApiUpdate(settingId, newValue);
+  if (body === null) {
+    return { success: false, error: 'Unknown setting' };
+  }
+  return patchAdminDefaults(interaction, session, body, { settingId, newValue });
+}
+
+/**
+ * The batch clear behind Reset page (admin has no Reset all): the listed
+ * cascade settings' null mappings merged into ONE body, so each cleared key
+ * falls back to the hardcoded default. A System setting id has no cascade
+ * mapping, so a set naming one writes nothing (the System pages render no
+ * Reset page).
+ */
+async function handleSettingsReset(
+  interaction: ButtonInteraction,
+  session: SettingsDashboardSession,
+  settingIds: string[]
+): Promise<SettingUpdateResult> {
+  const body = buildClearBody(settingIds);
+  if (body === null) {
+    return { success: false, error: 'Unknown setting' };
+  }
+  return patchAdminDefaults(interaction, session, body, { settingIds });
+}
+
+/**
+ * The cascade write path both handlers share: PATCH config-defaults, clear the
+ * service-read cache, merge the refreshed values over the session map.
+ * `logFields` names what was written.
+ */
+async function patchAdminDefaults(
+  interaction: ButtonInteraction | ModalSubmitInteraction,
+  session: SettingsDashboardSession,
+  body: Record<string, unknown>,
+  logFields: Record<string, unknown>
+): Promise<SettingUpdateResult> {
   const userId = interaction.user.id;
 
-  logger.debug({ settingId, newValue, userId }, 'Updating setting');
+  logger.debug({ ...logFields, userId }, 'Updating setting');
 
   try {
-    // Map setting ID to API body using shared utility
-    const body = mapSettingToApiUpdate(settingId, newValue);
-
-    if (body === null) {
-      return { success: false, error: 'Unknown setting' };
-    }
-
     // Send update to admin config-defaults sub-route (flat body shape)
     const { ownerClient } = clientsFor(interaction);
     const result = await ownerClient.updateAdminSettings(body);
 
     if (!result.ok) {
-      logger.warn({ settingId, error: result.error }, 'Update failed');
+      logger.warn({ ...logFields, error: result.error }, 'Update failed');
       return { success: false, error: result.error };
     }
 
@@ -271,10 +308,10 @@ async function handleSettingUpdate(
     // Merge the refreshed cascade values over the session map — replacing it
     // outright would drop the System-page entries from the mixed dashboard.
     const newData: SettingsData = { ...session.data, ...convertToSettingsData(result.data) };
-    logger.info({ settingId, newValue, userId }, 'Setting updated');
+    logger.info({ ...logFields, userId }, 'Setting updated');
     return { success: true, newData };
   } catch (error) {
-    logger.error({ err: error, settingId }, 'Error updating setting');
+    logger.error({ err: error, ...logFields }, 'Error updating setting');
     return { success: false, error: 'unexpected error, please try again' };
   }
 }

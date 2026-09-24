@@ -347,6 +347,27 @@ describe('Admin Settings Routes (Singleton)', () => {
       expect(response.body.configDefaults).toEqual({ maxImages: 5, maxMessages: 30 });
     });
 
+    it('clears several overrides in one write when a multi-key body sends null', async () => {
+      // The settings dashboard's Reset page sends one PATCH naming every
+      // locally-set key as null; a stored explicit OFF (maxAge: null) clears too.
+      mockPrisma.adminSettings.upsert.mockResolvedValue(
+        createDefaultSettings({ configDefaults: { maxImages: 5, maxMessages: 30, maxAge: null } })
+      );
+      mockPrisma.adminSettings.update.mockResolvedValue(createDefaultSettings());
+
+      const response = await request(app)
+        .patch('/admin/settings/config-defaults')
+        .send({ maxImages: null, maxAge: null });
+
+      expect(response.status).toBe(200);
+      expect(mockPrisma.adminSettings.update).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.adminSettings.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ configDefaults: { maxMessages: 30 } }),
+        })
+      );
+    });
+
     it('should set updatedBy on update', async () => {
       const updatedSettings = createDefaultSettings({
         configDefaults: { maxMessages: 30 },

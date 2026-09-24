@@ -562,6 +562,22 @@ describe('SettingsDashboardHandler', () => {
   });
 
   describe('handleSettingsButton — reset action', () => {
+    // A paged config with Reset all opted in — the scope (a resettable page,
+    // or 'all') rides the customId extra, resolved fresh on every click.
+    const resetPagesConfig = (): SettingsDashboardConfig => ({
+      level: 'global',
+      entityType: 'test-settings',
+      titlePrefix: 'Test',
+      color: DISCORD_COLORS.BLURPLE,
+      settings: [...EXTENDED_CONTEXT_SETTINGS, ...VOICE_SETTINGS],
+      pages: [
+        { id: 'context', label: 'Context', settingIds: EXTENDED_CONTEXT_SETTINGS.map(s => s.id) },
+        { id: 'voice', label: 'Voice', settingIds: VOICE_SETTINGS.map(s => s.id) },
+      ],
+      resetAll: true,
+      scopeNote: () => 'test scope',
+    });
+
     const createButtonInteraction = (customId: string, userId = 'user-123') => ({
       customId,
       user: { id: userId },
@@ -572,13 +588,23 @@ describe('SettingsDashboardHandler', () => {
       followUp: vi.fn().mockResolvedValue(undefined),
     });
 
+    // Mixes local and inherited settings on the Context page: maxMessages and
+    // maxAge are locally set; maxImages (and both Voice-page settings) inherit.
+    const mixedResetData = (): SettingsData => {
+      const data = createTestData();
+      data.maxMessages = { ...data.maxMessages, localValue: 25, hasLocalOverride: true };
+      data.maxAge = { ...data.maxAge, localValue: 3600, hasLocalOverride: true };
+      return data;
+    };
+
     const validSession = () => ({
       data: {
         userId: 'user-123',
         entityId: 'entity-1',
         entityName: '#test',
-        data: createTestData(),
+        data: mixedResetData(),
         view: 'overview',
+        page: 0,
         level: 'channel',
         messageId: 'message-123',
         channelId: 'chan-1',
@@ -589,9 +615,9 @@ describe('SettingsDashboardHandler', () => {
     it('first click renders the Tier-A confirm surface WITHOUT clearing anything', async () => {
       mockSessionManager.get.mockReturnValue(validSession());
       const resetHandler = vi.fn();
-      const interaction = createButtonInteraction('test-settings::reset::entity-1');
+      const interaction = createButtonInteraction('test-settings::reset::entity-1::page:context');
 
-      await handleSettingsButton(interaction as never, createTestConfig(), vi.fn(), resetHandler);
+      await handleSettingsButton(interaction as never, resetPagesConfig(), vi.fn(), resetHandler);
 
       // Nothing cleared on the first click — the confirm gate is the point.
       expect(resetHandler).not.toHaveBeenCalled();
@@ -601,24 +627,30 @@ describe('SettingsDashboardHandler', () => {
           toJSON: () => { components: Array<{ custom_id: string; style: number }> };
         }>;
       };
-      expect(call.embeds[0].toJSON().title).toContain('Reset to defaults?');
+      expect(call.embeds[0].toJSON().title).toBe('♻️ Reset page?');
       const buttons = call.components[0].toJSON().components;
-      // Cancel → Confirm(Danger), routed via the settings customId scheme.
+      // Cancel → Confirm(Danger), carrying the same page scope as the click.
       expect(buttons.map(b => b.custom_id)).toEqual([
-        'test-settings::reset-cancel::entity-1',
-        'test-settings::reset-confirm::entity-1',
+        'test-settings::reset-cancel::entity-1::page:context',
+        'test-settings::reset-confirm::entity-1::page:context',
       ]);
       expect(buttons[1].style).toBe(4); // ButtonStyle.Danger
     });
 
-    it('reset-confirm routes to the injected handler and re-renders from its fresh data', async () => {
+    it('reset-confirm calls the handler with exactly the page-scope locally-set ids and re-renders', async () => {
       mockSessionManager.get.mockReturnValue(validSession());
       const resetHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
-      const interaction = createButtonInteraction('test-settings::reset-confirm::entity-1');
+      const interaction = createButtonInteraction(
+        'test-settings::reset-confirm::entity-1::page:context'
+      );
 
-      await handleSettingsButton(interaction as never, createTestConfig(), vi.fn(), resetHandler);
+      await handleSettingsButton(interaction as never, resetPagesConfig(), vi.fn(), resetHandler);
 
       expect(resetHandler).toHaveBeenCalledTimes(1);
+      expect(resetHandler).toHaveBeenCalledWith(expect.anything(), expect.anything(), [
+        'maxMessages',
+        'maxAge',
+      ]);
       // Fresh overview re-rendered after the reset.
       expect(interaction.editReply).toHaveBeenCalledWith(
         expect.objectContaining({ embeds: expect.any(Array), components: expect.any(Array) })
@@ -626,12 +658,14 @@ describe('SettingsDashboardHandler', () => {
       expect(interaction.followUp).not.toHaveBeenCalled();
     });
 
-    it('reset-cancel returns to the overview without touching the handler', async () => {
+    it('reset-cancel returns to the page overview without touching the handler', async () => {
       mockSessionManager.get.mockReturnValue(validSession());
       const resetHandler = vi.fn();
-      const interaction = createButtonInteraction('test-settings::reset-cancel::entity-1');
+      const interaction = createButtonInteraction(
+        'test-settings::reset-cancel::entity-1::page:context'
+      );
 
-      await handleSettingsButton(interaction as never, createTestConfig(), vi.fn(), resetHandler);
+      await handleSettingsButton(interaction as never, resetPagesConfig(), vi.fn(), resetHandler);
 
       expect(resetHandler).not.toHaveBeenCalled();
       expect(interaction.editReply).toHaveBeenCalledWith(
@@ -642,9 +676,11 @@ describe('SettingsDashboardHandler', () => {
     it('notifies ephemerally on reset-confirm failure without re-rendering', async () => {
       mockSessionManager.get.mockReturnValue(validSession());
       const resetHandler = vi.fn().mockResolvedValue({ success: false, error: 'API down' });
-      const interaction = createButtonInteraction('test-settings::reset-confirm::entity-1');
+      const interaction = createButtonInteraction(
+        'test-settings::reset-confirm::entity-1::page:context'
+      );
 
-      await handleSettingsButton(interaction as never, createTestConfig(), vi.fn(), resetHandler);
+      await handleSettingsButton(interaction as never, resetPagesConfig(), vi.fn(), resetHandler);
 
       expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({ content: expect.stringContaining('API down') })
@@ -652,15 +688,17 @@ describe('SettingsDashboardHandler', () => {
       expect(interaction.editReply).not.toHaveBeenCalled();
     });
 
-    it('shows the out-of-date notice for reset-family customIds with no handler wired', async () => {
+    it('shows the out-of-date notice for reset-family customIds with a valid scope but no handler wired', async () => {
       // A stale message from a dashboard that dropped the affordance must not
       // dead-end silently — the router already deferred, so silence would
       // leave the interaction hanging.
       for (const action of ['reset', 'reset-confirm']) {
         mockSessionManager.get.mockReturnValue(validSession());
-        const interaction = createButtonInteraction(`test-settings::${action}::entity-1`);
+        const interaction = createButtonInteraction(
+          `test-settings::${action}::entity-1::page:context`
+        );
 
-        await handleSettingsButton(interaction as never, createTestConfig(), vi.fn());
+        await handleSettingsButton(interaction as never, resetPagesConfig(), vi.fn());
 
         expect(interaction.followUp).toHaveBeenCalledWith(
           expect.objectContaining({ content: expect.stringContaining('out of date') })
@@ -673,9 +711,9 @@ describe('SettingsDashboardHandler', () => {
       const session = validSession();
       session.data.entityName = entityName;
       mockSessionManager.get.mockReturnValue(session);
-      const interaction = createButtonInteraction('test-settings::reset::entity-1');
+      const interaction = createButtonInteraction('test-settings::reset::entity-1::page:context');
 
-      await handleSettingsButton(interaction as never, createTestConfig(), vi.fn(), vi.fn());
+      await handleSettingsButton(interaction as never, resetPagesConfig(), vi.fn(), vi.fn());
 
       const call = interaction.editReply.mock.calls[0][0] as {
         embeds: Array<{ toJSON: () => { description?: string } }>;
@@ -915,8 +953,12 @@ describe('SettingsDashboardHandler', () => {
       expect(interaction.followUp).not.toHaveBeenCalled();
     });
 
-    describe('back button', () => {
-      it('should return to overview', async () => {
+    describe('navigation dispatch (back, close, page::next)', () => {
+      // Detailed per-handler behavior (session mutation, the exact render) is
+      // pinned directly against handleBackButton / handleCloseButton /
+      // handlePageButton in settingsNavigationHandlers.test.ts — this test only
+      // pins that the router acks first and reaches each handler's render.
+      it('routes each action through the router: deferUpdate before its render', async () => {
         mockSessionManager.get.mockReturnValue({
           data: {
             userId: 'user-123',
@@ -930,26 +972,13 @@ describe('SettingsDashboardHandler', () => {
             activeSetting: 'maxMessages',
           },
         });
-
-        const interaction = createButtonInteraction('test-settings::back::entity-1');
-        const config = createTestConfig();
-
-        await handleSettingsButton(interaction as never, config, updateHandler);
-
-        // Ack-first invariant: the router defers before the back re-render.
-        expect(interaction.deferUpdate).toHaveBeenCalled();
-        // Post-defer: back navigation re-renders via editReply.
-        expect(interaction.editReply).toHaveBeenCalledWith(
-          expect.objectContaining({
-            embeds: expect.any(Array),
-            components: expect.any(Array),
-          })
+        const backInteraction = createButtonInteraction('test-settings::back::entity-1');
+        await handleSettingsButton(backInteraction as never, createTestConfig(), updateHandler);
+        expect(backInteraction.deferUpdate).toHaveBeenCalled();
+        expect(backInteraction.editReply.mock.calls[0][0].embeds[0].toJSON().title).toBe(
+          'Test Settings'
         );
-      });
-    });
 
-    describe('close button', () => {
-      it('should delete session and update message', async () => {
         mockSessionManager.get.mockReturnValue({
           data: {
             userId: 'user-123',
@@ -958,21 +987,40 @@ describe('SettingsDashboardHandler', () => {
             view: 'overview',
           },
         });
-
-        const interaction = createButtonInteraction('test-settings::close::entity-1');
-        const config = createTestConfig();
-
-        await handleSettingsButton(interaction as never, config, updateHandler);
-
-        // Ack-first invariant: defer precedes the session delete + close render.
-        expect(interaction.deferUpdate).toHaveBeenCalled();
+        const closeInteraction = createButtonInteraction('test-settings::close::entity-1');
+        await handleSettingsButton(closeInteraction as never, createTestConfig(), updateHandler);
+        expect(closeInteraction.deferUpdate).toHaveBeenCalled();
         expect(mockSessionManager.delete).toHaveBeenCalled();
-        expect(interaction.editReply).toHaveBeenCalledWith(
+        expect(closeInteraction.editReply).toHaveBeenCalledWith(
           expect.objectContaining({
             content: expect.stringContaining('closed'),
             embeds: [],
             components: [],
           })
+        );
+
+        const pagedConfig: SettingsDashboardConfig = {
+          ...createTestConfig(),
+          pages: [
+            { id: 'p0', label: 'Alpha', settingIds: ['maxMessages'] },
+            { id: 'p1', label: 'Bravo', settingIds: ['maxImages'] },
+          ],
+        };
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            entityName: '#test',
+            data: createTestData(),
+            view: 'overview',
+            page: 0,
+          },
+        });
+        const pageInteraction = createButtonInteraction('test-settings::page::entity-1::next');
+        await handleSettingsButton(pageInteraction as never, pagedConfig, updateHandler);
+        expect(pageInteraction.deferUpdate).toHaveBeenCalled();
+        expect(pageInteraction.editReply.mock.calls[0][0].embeds[0].toJSON().title).toBe(
+          'Test Settings · Bravo'
         );
       });
     });
@@ -1866,42 +1914,6 @@ describe('PR-2 mechanism: page action, BOOLEAN/TEXT, retry', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  describe('page action', () => {
-    it('next advances the stored session page and re-renders the overview', async () => {
-      mockSessionManager.get.mockReturnValue(mechSession({ page: 0 }));
-      const interaction = button('test-settings::page::entity-1::next');
-      const updateHandler = vi.fn();
-
-      await handleSettingsButton(interaction as never, mechConfig(), updateHandler);
-
-      expect(interaction.deferUpdate).toHaveBeenCalled();
-      const stored = mockSessionManager.set.mock.calls.at(-1)?.[0];
-      expect(stored.data.page).toBe(1);
-      expect(interaction.editReply).toHaveBeenCalled();
-      expect(updateHandler).not.toHaveBeenCalled();
-    });
-
-    it('clamps at the last page (stale Next on the edge is a no-op re-render)', async () => {
-      mockSessionManager.get.mockReturnValue(mechSession({ page: 1 }));
-      const interaction = button('test-settings::page::entity-1::next');
-
-      await handleSettingsButton(interaction as never, mechConfig(), vi.fn());
-
-      const stored = mockSessionManager.set.mock.calls.at(-1)?.[0];
-      expect(stored.data.page).toBe(1);
-    });
-
-    it('prev from a stale over-range page clamps into range first', async () => {
-      mockSessionManager.get.mockReturnValue(mechSession({ page: 99 }));
-      const interaction = button('test-settings::page::entity-1::prev');
-
-      await handleSettingsButton(interaction as never, mechConfig(), vi.fn());
-
-      const stored = mockSessionManager.set.mock.calls.at(-1)?.[0];
-      expect(stored.data.page).toBe(0); // clamp(99→1) then -1
-    });
   });
 
   describe('BOOLEAN set path', () => {

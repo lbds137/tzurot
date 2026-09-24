@@ -9,9 +9,10 @@
  *   - commands/character/settings.ts
  *   - commands/channel/settings.ts
  *
- * Each dashboard file supplies its own `entityType`, `settingsConfig`, and a
+ * Each dashboard file supplies its own `entityType`, `settingsConfig`, a
  * `createUpdateHandler(entityId)` factory that binds the entity ID into a
- * per-interaction `SettingUpdateHandler`. The returned handlers preserve the
+ * per-interaction `SettingUpdateHandler`, and the matching
+ * `createResetHandler(entityId)` batch clear. The returned handlers preserve the
  * same public signatures the call sites previously exported by hand, so each
  * file can re-export `handlers.handleButton` etc. under its existing names
  * without touching any downstream import (e.g., `commands/character/index.ts`).
@@ -57,12 +58,12 @@ export interface SettingsCommandHandlerOptions {
    */
   createUpdateHandler: (entityId: string) => SettingUpdateHandler;
   /**
-   * Build a per-interaction reset handler bound to a specific entity ID.
-   * Required when the dashboard's config declares `resetButton`; omitted for
-   * dashboards without the affordance (a stale 'reset' customId then gets the
-   * out-of-date notice).
+   * Build a per-interaction batch clear (Reset page / Reset all) bound to a
+   * specific entity ID. Required: every dashboard page whose settings are all
+   * Auto-capable renders Reset page, so a dashboard without a batch clear
+   * would render a button that only answers with the out-of-date notice.
    */
-  createResetHandler?: (entityId: string) => SettingsResetHandler;
+  createResetHandler: (entityId: string) => SettingsResetHandler;
 }
 
 /**
@@ -115,7 +116,7 @@ export function createSettingsCommandHandlers(
         interaction,
         settingsConfig,
         createUpdateHandler(entityId),
-        createResetHandler?.(entityId)
+        createResetHandler(entityId)
       );
     },
 

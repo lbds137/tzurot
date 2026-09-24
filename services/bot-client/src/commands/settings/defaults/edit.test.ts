@@ -239,18 +239,21 @@ describe('User Default Settings Dashboard', () => {
       expect(embedJson.footer.text).toContain('Page 1/3 · Memory');
     });
 
-    it('should include select menu and pagination row, with the Index button (3 pages opens on page 1)', async () => {
+    it('should include select menu, pagination row, and Reset page, with the Index button (3 pages opens on page 1)', async () => {
       const context = createMockContext();
       stub.resolveUserDefaults.mockResolvedValue({ ok: true, data: mockResolveDefaultsResponse });
 
       await handleDefaultsEdit(context);
 
       const editReplyCall = context.editReply.mock.calls[0][0];
-      expect(editReplyCall.components).toHaveLength(2);
+      expect(editReplyCall.components).toHaveLength(3);
       const labels = editReplyCall.components[1]
         .toJSON()
         .components.map((c: { label?: string }) => c.label);
       expect(labels).toEqual(['Prev', '1/3', 'Next', 'Index']);
+      const resetRow = editReplyCall.components[2].toJSON().components;
+      expect(resetRow).toHaveLength(1);
+      expect(resetRow[0].label).toBe('Reset page');
     });
 
     it('should display the scope note about defaults', async () => {
@@ -429,6 +432,109 @@ describe('User Default Settings Dashboard', () => {
         expect.objectContaining({
           content: expect.stringContaining('Unknown setting'),
         })
+      );
+    });
+  });
+
+  describe('Reset page / Reset all', () => {
+    const memoryPageSession = (extraData: Record<string, unknown> = {}) => ({
+      data: {
+        userId: 'user-456',
+        entityId: 'user-456',
+        entityName: 'Your Default Settings',
+        data: {
+          crossChannelHistoryEnabled: {
+            localValue: true,
+            hasLocalOverride: true,
+            effectiveValue: true,
+            source: 'user-default',
+            parentValue: false,
+          },
+          shareLtmAcrossPersonalities: {
+            localValue: true,
+            hasLocalOverride: true,
+            effectiveValue: true,
+            source: 'user-default',
+            parentValue: false,
+          },
+          ...extraData,
+        },
+        view: 'overview',
+        page: 0,
+      },
+    });
+
+    const buttonWithReset = (customId: string) =>
+      ({
+        customId,
+        user: { id: 'user-456', username: 'testuser' },
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
+      }) as unknown as ButtonInteraction & {
+        deferUpdate: ReturnType<typeof vi.fn>;
+        editReply: ReturnType<typeof vi.fn>;
+        followUp: ReturnType<typeof vi.fn>;
+      };
+
+    beforeEach(() => {
+      stub.resolveUserDefaults.mockResolvedValue({ ok: true, data: mockResolveDefaultsResponse });
+    });
+
+    it("Reset page clears exactly the page's locally-set settings in one PATCH", async () => {
+      mockSessionManager.get.mockReturnValue(memoryPageSession());
+      const interaction = buttonWithReset(
+        'user-defaults-settings::reset-confirm::user-456::page:memory'
+      );
+      stub.updateUserDefaults.mockResolvedValueOnce({ ok: true, data: { configDefaults: null } });
+
+      await handleUserDefaultsButton(interaction);
+
+      expect(stub.updateUserDefaults).toHaveBeenCalledTimes(1);
+      expect(stub.updateUserDefaults).toHaveBeenCalledWith({
+        crossChannelHistoryEnabled: null,
+        shareLtmAcrossPersonalities: null,
+      });
+      const rendered = interaction.editReply.mock.calls[0][0].embeds[0].toJSON();
+      expect(rendered.title).toContain('Memory');
+    });
+
+    it('Reset all clears every locally-set setting across pages in one PATCH', async () => {
+      mockSessionManager.get.mockReturnValue(
+        memoryPageSession({
+          maxMessages: {
+            localValue: 25,
+            hasLocalOverride: true,
+            effectiveValue: 25,
+            source: 'user-default',
+            parentValue: 50,
+          },
+        })
+      );
+      const interaction = buttonWithReset('user-defaults-settings::reset-confirm::user-456::all');
+      stub.updateUserDefaults.mockResolvedValueOnce({ ok: true, data: { configDefaults: null } });
+
+      await handleUserDefaultsButton(interaction);
+
+      expect(stub.updateUserDefaults).toHaveBeenCalledTimes(1);
+      expect(stub.updateUserDefaults).toHaveBeenCalledWith({
+        crossChannelHistoryEnabled: null,
+        shareLtmAcrossPersonalities: null,
+        maxMessages: null,
+      });
+      const rendered = interaction.editReply.mock.calls[0][0].embeds[0].toJSON();
+      expect(rendered.title).toBe('Your Default Settings · Index');
+    });
+
+    it('a scope-less reset on this dashboard answers the out-of-date notice', async () => {
+      mockSessionManager.get.mockReturnValue(memoryPageSession());
+      const interaction = buttonWithReset('user-defaults-settings::reset::user-456');
+
+      await handleUserDefaultsButton(interaction);
+
+      expect(stub.updateUserDefaults).not.toHaveBeenCalled();
+      expect(interaction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('out of date') })
       );
     });
   });

@@ -247,6 +247,28 @@ describe('/user/config-overrides personality routes', () => {
       );
     });
 
+    it('clears several overrides in one write when a multi-key body sends null', async () => {
+      // No DELETE exists at this tier, so a multi-key null PATCH is the only
+      // single-save clear (the dashboard's Reset page / Reset all).
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        ownerId: 'internal-user-id',
+        configDefaults: { maxImages: 5, maxMessages: 25, maxAge: null },
+      });
+
+      const handler = buildHandler(handleUpdatePersonalityConfigDefaults, mockDeps);
+      const { req, res } = createMockReqRes(
+        { maxImages: null, maxAge: null },
+        { personalityId: TEST_PERSONALITY_ID }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ configDefaults: { maxMessages: 25 } })
+      );
+    });
+
     it('should publish cascade invalidation on success', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue({
         ownerId: 'internal-user-id',
