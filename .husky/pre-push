@@ -224,20 +224,23 @@ fi
 
 # 12. Run Python quality checks if Python files changed
 if [ -n "$PYTHON_FILES" ]; then
+    if ! command -v uv >/dev/null 2>&1; then
+        echo "${RED}uv not found on PATH — install it via mise (mise use -g uv) before pushing.${NC}"
+        exit 1
+    fi
     echo "Running Python quality checks (ruff + mypy + pytest)..."
-    if ! (cd services/voice-engine && ruff check .); then
+    UV_RUN="uv run --no-project --with-requirements requirements-dev.txt --"
+    if ! (cd services/voice-engine && $UV_RUN ruff check .); then
         echo "${RED}Python linting (ruff) failed!${NC}"
         exit 1
     fi
-    if ! (cd services/voice-engine && mypy --strict server.py tests/); then
+    if ! (cd services/voice-engine && $UV_RUN mypy --strict server.py tests/); then
         echo "${RED}Python type checking (mypy) failed!${NC}"
         exit 1
     fi
-    # Pytest was previously missing from this hook — tests would fail in CI
-    # after a successful push. Added 2026-04-19 after CI caught a hermeticity
-    # leak in test_openai_compat.py that passed locally (real ffmpeg available)
-    # but failed in CI (no ffmpeg → WAV fallback broke content-type assertion).
-    if ! (cd services/voice-engine && python3 -m pytest tests/ -q); then
+    # Pytest runs here, not only in CI, so a test that leans on a host binary
+    # (ffmpeg, say) fails before the push rather than after it.
+    if ! (cd services/voice-engine && $UV_RUN python3 -m pytest tests/ -q); then
         echo "${RED}Python tests (pytest) failed!${NC}"
         exit 1
     fi
