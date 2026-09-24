@@ -49,6 +49,6 @@ HARNESS CEILING (2026-09-23): Claude Code 2.1.281 now shows at startup "12 instr
 <!-- COMMENTS:BEGIN -->
 created: 2026-09-24 01:52
 ---
-Rules half SHIPPED 2026-09-24 in PR #2494 (e375266da): CLAUDE.md + rules 173,337 -> 134,238 chars (wc -m); lines:check gains a hard 147,000-char .length ceiling (lines-ceiling.ts) outside the baseline ratchet; rules baseline ratcheted down to 1738 lines / 128,643 bytes; the lines:check token estimate recalibrated to 2.8 bytes/token from the post-compaction /context reading. Still open: step 1 (a FRESH-session /context reading to pair with the post-compaction one) and step 4 (the auto-memory index floor).
+Rules half SHIPPED 2026-09-23 in PR #2494 (e375266da): CLAUDE.md + rules 173,337 -> 134,238 chars (wc -m); lines:check gains a hard 147,000-char .length ceiling (lines-ceiling.ts) outside the baseline ratchet; rules baseline ratcheted down to 1738 lines / 128,643 bytes; the lines:check token estimate recalibrated to 2.8 bytes/token from the post-compaction /context reading. Still open: step 1 (a FRESH-session /context reading to pair with the post-compaction one) and step 4 (the auto-memory index floor).
 ---
 <!-- COMMENTS:END -->
