@@ -9,7 +9,7 @@ Python version as prod and CI — no distrobox, no host `pip install`.
 | Piece        | Source                                                                                                                            |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
 | `uv`         | mise (`~/Documents/dev-docs/mise/config.toml`)                                                                                    |
-| Python 3.11  | `services/voice-engine/.python-version`, matching prod's `python:3.11-slim` and CI's `voice-engine-tests` job                     |
+| Python 3.13  | `services/voice-engine/.python-version`, matching prod's `python:3.13-slim` and CI's `voice-engine-tests` job                     |
 | Dependencies | `services/voice-engine/requirements-dev.txt`, installed by `uv` on demand into its own cache — never `pip install`d onto the host |
 
 `uv run --no-project` reads `.python-version` and fetches (or reuses a

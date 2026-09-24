@@ -649,7 +649,9 @@ async def transcribe(file: UploadFile = File(...)) -> dict[str, str]:
         # Semaphore caps concurrency to prevent OOM on Railway 4GB ceiling.
         loop = asyncio.get_running_loop()
         async with _inference_semaphore:
-            # librosa handles MP3, OGG, FLAC, WAV (soundfile can't decode MP3)
+            # librosa decodes an in-memory input through soundfile only (undecodable bytes
+            # raise LibsndfileError, with no audioread fallback); the image's libsndfile
+            # lists MP3 alongside OGG, FLAC and WAV
             audio_array: np.ndarray[Any, np.dtype[np.floating[Any]]]
             sample_rate: int
             audio_array, sample_rate = await loop.run_in_executor(
