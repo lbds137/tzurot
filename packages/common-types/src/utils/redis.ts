@@ -17,7 +17,7 @@ interface RedisConnectionConfig {
   port: number;
   password?: string;
   username?: string;
-  family?: 4 | 6;
+  family?: 0 | 4 | 6;
 }
 
 export interface BullMQRedisConfig {
@@ -25,13 +25,42 @@ export interface BullMQRedisConfig {
   port: number;
   password?: string;
   username?: string;
-  family: 4 | 6;
+  family: 0 | 4 | 6;
   connectTimeout: number;
   commandTimeout: number;
   keepAlive: number;
   maxRetriesPerRequest: number | null; // BullMQ requires null
   lazyConnect: boolean;
   enableReadyCheck: boolean;
+}
+
+/**
+ * Resolve the IP family ioredis should dial with.
+ *
+ * Defaults to 6 (IPv6-only) because Railway's private network requires IPv6
+ * for internal service-to-service communication — see
+ * https://docs.railway.app/reference/private-networking. `REDIS_IP_FAMILY`
+ * exists for IPv4-only dev hosts (e.g. a kernel with no IPv6 support), where
+ * the default 6 makes every Redis connection unreachable.
+ *
+ * Reads `process.env.REDIS_IP_FAMILY` directly at call time (not cached at
+ * module load) so a test or a runtime env change is observed immediately.
+ *
+ * @returns 4 (IPv4-only), 6 (IPv6-only, the default), or 0 (OS picks via a
+ *   dual-stack lookup)
+ */
+export function resolveRedisIpFamily(): 0 | 4 | 6 {
+  const raw = process.env.REDIS_IP_FAMILY;
+  if (raw === '4') {
+    return 4;
+  }
+  if (raw === '6') {
+    return 6;
+  }
+  if (raw === '0') {
+    return 0;
+  }
+  return 6;
 }
 
 /**
@@ -86,10 +115,9 @@ export function createBullMQRedisConfig(config: RedisConnectionConfig): BullMQRe
     port: config.port,
     password: config.password,
     username: config.username,
-    // REQUIRED: Railway private network requires IPv6 (family: 6) for internal service communication
-    // IPv4 (family: 4) is NOT supported for Railway private networking
-    // See: https://docs.railway.app/reference/private-networking
-    family: config.family ?? 6,
+    // Defaults to 6: Railway private networking requires IPv6. REDIS_IP_FAMILY
+    // overrides this for IPv4-only dev hosts — see resolveRedisIpFamily.
+    family: config.family ?? resolveRedisIpFamily(),
     connectTimeout: REDIS_CONNECTION.CONNECT_TIMEOUT,
     commandTimeout: REDIS_CONNECTION.COMMAND_TIMEOUT,
     keepAlive: REDIS_CONNECTION.KEEPALIVE,
@@ -122,7 +150,6 @@ export function createIORedisClient(
     port: parsedUrl.port,
     password: parsedUrl.password,
     username: parsedUrl.username,
-    family: 6, // Railway private network uses IPv6
   });
 
   serviceLogger.info(
