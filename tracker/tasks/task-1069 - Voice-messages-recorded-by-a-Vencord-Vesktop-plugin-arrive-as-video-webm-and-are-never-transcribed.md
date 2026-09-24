@@ -22,3 +22,12 @@ Why: owner report 2026-09-23. A voice message recorded with a Vencord/Vesktop de
 Fix shape: add a voice discriminator that survives the content type. Candidates, verify first against one raw plugin-recorded message (attachment content_type, duration_secs, waveform, message flags): the attachment waveform (discord.js Attachment.waveform, set only on voice messages) or the message IsVoiceMessage flag. Keep genuine video/webm video uploads classified as files. Confirm the STT path accepts webm/opus (voice-engine and the Mistral provider) before routing it there.
 Acceptance: a voice message whose attachment is video/webm with voice-message metadata is transcribed and renders as a voice element with its transcript, both live and replayed from history; a real video/webm video attachment still renders as a file.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+created: 2026-09-23 23:40
+---
+RAW SAMPLE (2026-09-23, read-only GET /channels/{id}/messages/{id} with the dev bot token, metadata only). The voice message is the REFERENCED message: the trigger was the owner's text reply to it (type 19), so the fix must classify voice on the referenced-message path too. The voice message itself: message flags 8192 (IS_VOICE_MESSAGE set), one attachment, filename voice-message.ogg, content_type video/webm, duration_secs 29.2, NO waveform, attachment flags 32 (IS_ANIMATED). So the waveform candidate is ruled out for this plugin; the discriminator is the message-level IsVoiceMessage flag (with a duration), independent of content type. A plain video/webm upload carries no such flag and stays a file. Still to verify before routing: the STT path accepts webm/opus (voice-engine and the Mistral provider).
+---
+<!-- COMMENTS:END -->
