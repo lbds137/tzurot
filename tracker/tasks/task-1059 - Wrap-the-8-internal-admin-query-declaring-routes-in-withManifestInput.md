@@ -1,9 +1,10 @@
 ---
 id: TASK-1059
 title: Wrap the 8 internal/admin query-declaring routes in withManifestInput
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-23 20:13'
+updated_date: '2026-09-24 00:09'
 labels:
   - 'area:api-gateway'
   - 'size:M'
