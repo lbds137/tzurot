@@ -28,9 +28,7 @@ async def test_register_voice_rejects_oversized_audio(
     assert "too large" in response.json()["detail"].lower()
 
 
-async def test_register_voice_rejects_unsupported_mime_type(
-    client: httpx.AsyncClient, mock_tts: MagicMock
-) -> None:
+async def test_register_voice_rejects_unsupported_mime_type(client: httpx.AsyncClient, mock_tts: MagicMock) -> None:
     """Unsupported MIME type should be rejected with 400."""
     response = await client.post(
         "/v1/voices/register",
@@ -42,9 +40,7 @@ async def test_register_voice_rejects_unsupported_mime_type(
     assert "unsupported audio type" in response.json()["detail"].lower()
 
 
-async def test_register_voice_generic_error_returns_500(
-    client: httpx.AsyncClient, mock_tts: MagicMock
-) -> None:
+async def test_register_voice_generic_error_returns_500(client: httpx.AsyncClient, mock_tts: MagicMock) -> None:
     """Unexpected errors during registration should return 500."""
     mock_tts.get_state_for_audio_prompt.side_effect = RuntimeError("Model crashed")
 

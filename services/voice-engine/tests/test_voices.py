@@ -76,9 +76,7 @@ async def test_register_voice_returns_503_when_model_not_loaded(client: httpx.As
     assert response.status_code == 503
 
 
-async def test_register_voice_requires_auth(
-    client: httpx.AsyncClient, mock_tts: MagicMock, api_key: str
-) -> None:
+async def test_register_voice_requires_auth(client: httpx.AsyncClient, mock_tts: MagicMock, api_key: str) -> None:
     response = await client.post(
         "/v1/voices/register",
         data={"voice_id": "test-voice"},
