@@ -6,11 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-21 19:49'
-updated_date: '2026-09-21 22:20'
+updated_date: '2026-09-24 12:46'
 labels:
   - 'area:ai-worker'
   - 'size:M'
-  - 'state:ready'
+  - 'state:owner'
 dependencies: []
 priority: high
 ordinal: 1033000
@@ -37,6 +37,9 @@ SLICE 1 SHIPPED 2026-09-22 in #2471 (develop ee7de373b, six review rounds): same
 
 READ PLAN (owner, 2026-09-22): 09-22 in the diary thread is the mode-OFF day; the owner flips summarized on and chats 09-23, noting the flip time. Compare the within-day curves (OFF day vs ON day), split at the flip time, not the halves. Open product question for slice 2, raised by the owner: does user-only stay a user-facing choice once summarized is proven? Cost does not argue for it (summaries are already produced by the memory pipeline, so summarized adds no model call at render). It stays for now as the fallback arm if the summaries themselves carry the drifted register; decide at slice 2 whether to drop it from the dashboard.
 FLIP (owner, 2026-09-23, recorded ~08:50 EDT / 12:50Z; exact flip time before that, same morning): summarized turned on in dev for Emily; the owner also "added lilith-tzel-shani to the roster" (owner words; read as summarized on for her too - confirm at read time whether she also speaks in the diary thread, since a second responder in the channel changes the history shape the curve measures). The first 09-23 message in the diary thread went to PROD before the owner synced and switched to dev, so the dev read starts at the second message (one-message gap, negligible). Lilith OFF baseline: the owner chatted with her a little on 09-22 (owner, 2026-09-23), so her OFF day is 09-22 too, with a smaller sample than Emily; find which channel(s) at read time and report her sample size beside her curve.
+READ 2026-09-24: inconclusive, the mode barely engaged (details in the 2026-09-24 comment).
+Owner question: lower sameChannelVerbatimExchanges from 10 to 3 on Emily and Lilith for one more read day, so the mode engages inside a one-day thread?
+Recommendation: yes, N 3 for one day — with one thread per day and 10-16 turns per character, N 10 left Emily with zero summarized turns, so a second read at N 10 would measure nothing again; the knob is on each character's Memory settings page and reverts in one edit.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Comments
@@ -48,5 +51,16 @@ READ WINDOW CLOSED (owner, 2026-09-23 ~23:55 EDT): the diary thread (channel 155
 - Exclude the 09-24 fresh thread from this read. It is a different channel with a short history, the opposite of the long-thread drift being measured.
 - It can serve later as a first-day ON reference, if slice 2 wants one.
 - Owner ruling 2026-09-23: the beta.229 cut no longer waits for this read (backlog/now.md Cut when). Run it once the ON day is complete (09-24 onward); it decides slice 2.
+---
+
+created: 2026-09-24 12:46
+---
+READ RUN 2026-09-24 (dev + prod, read-only, aggregates only; scripts docs/local/handoffs/voice-drift-read-1039.ts and three sibling probes). Result: inconclusive for the mode, because the mode barely engaged.
+- Premise correction: the owner started a new thread each day. Channel 1551206427014602762 has NO memories since 09-22. The OFF day is thread 1551910122136281108 (09-22, Emily 14 + Lilith 7, all prod per diagnostic rows); the ON day is thread 1552294416188833822 (09-23 to 09-24 01:37 EDT, Emily 11 = 1 prod + 10 dev, Lilith 16 dev). Prod and dev hold identical memory sets for both threads.
+- Engagement: the verbatim window counts the RESPONDER's own completed exchanges (segmentExchanges in sameChannelRender.ts). With N 10, Emily never had more than 10 prior turns in the ON thread, so 0 of her ON prompts summarized anything (dev log: verbatimExchanges 9 and 10, summarized 0 on her last two). Lilith reached 16, so her turns 12-16 summarized 1-5 (dev log confirms 4 and 5 on turns 15 and 16). On her turn-15 prompt the 4 oldest turns are present as their stored summaries and turns 5-14 verbatim (prefix match on the diagnostic assembledPrompt, booleans only): the substitution reaches the prompt.
+- Numbers (avg assistant chars, excl per 1k): Emily OFF 14 turns 874 / 0.25; Emily ON-in-name 10 turns 998 / 0.60 (zero substitutions, so this is day-to-day variance, not the mode). Lilith OFF 7 turns 1337 / 0; Lilith ON turns 1-10 1370 / 0; turns 11-16 1144 / 0 (6 turns, noise-level).
+- New observation: both fresh threads open in the long low-exclamation register from turn 1 (Emily 09-22 turns 1-10: 812 chars, 0.37 excl/1k, vs the doc-97 fresh-thread baseline 241 chars / 4.1). An empty same-channel history cannot produce that, so under one-thread-per-day usage same-channel history is not what sets the register. Candidates, untested: the owner's diary-entry length (reply length tracks input), retrieved memories, the card.
+- Side: summarized turn 3's verbatim prefix also appears in that prompt (both its summary and its verbatim matched), possibly via memory retrieval; unverified. The missing rendered marker is filed as TASK-1077.
+- Slice 2 is not decided by this read. Next step is the owner question in the description.
 ---
 <!-- COMMENTS:END -->

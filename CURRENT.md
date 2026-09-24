@@ -43,7 +43,11 @@
 
 **Merged**: **#2470** (TASK-1038 Done, `0374d9b65`, six rounds, three owner rulings — unset-only render-mode fill, the personality write under an `updatedAt` lock as MEM-ARCH-036, a malformed render list refuses the write as MEM-ARCH-037; fix-forward residue TASK-1041 + TASK-1042) · **#2471** (TASK-1039 slice 1, `ee7de373b`, six rounds; round 5 found the real bug — a trailing unanswered user run counted against N — owner ruled N counts COMPLETED exchanges only; TASK-1039 stays OPEN for its register clause) · **#2472** (TASK-988 Done, `26ac9138e`, three rounds: a served z.ai→OpenRouter swap now renders `via Z.AI Coding Plan → OpenRouter (fallback)` on the success AND the empty-response error footer; round 1 caught my wrong "success path only" claim; the two error delivery sites now share one omission-derived builder) · **#2473** (TASK-318 Done, `ab04ff5e5`, zero findings: `seededTimestamp` + `FAR_FUTURE_SEED_INDEX` in test-utils, `fetchHistory` in conversation-history's `src/test/`). **Dev** has `26ac9138e` on all services. **Filed**: TASK-1043 (scheduler first tick hit the OLD gateway — deploy skew on a new route; retry once) · TASK-1044 (Opus 5.5 follow-ups, below). **Observability**: the six-hourly dev `Archive promotion` tick; the tag filter through the TASK-907 review.
 
-**TASK-1039 read (no longer gates the cut; owner ruling 2026-09-23 23:45 EDT)**: run `voice-drift-by-channel.ts` on the diary thread, 09-22 OFF against 09-23 ON, and compare against the 09-21 numbers on the task. The read tunes the default N and decides slice 2. The 09-24 fresh thread is excluded.
+**TASK-1039 read, RUN 2026-09-24: inconclusive.**
+
+- The owner used one thread per day: 09-22 OFF in `…136281108`, 09-23 ON in `…188833822`, and the diary channel on the task has no turns since 09-22. The window counts the responder's own turns: Emily stayed at 10 or fewer, so 0 of her turns summarized; Lilith's turns 12–16 did.
+- The substitution reaches the prompt (runtime-checked), and both fresh threads open in the long register from turn 1.
+- The owner question is on the task (N=3 for one more read day). TASK-1077 was filed (no summary marker in the stored prompt).
 
 ## ⏸️ 2026-09-22 STOPPING POINT (owner ruling: mine, then switch the drain to Opus 5.5)
 
@@ -61,7 +65,7 @@
 
 **Filed**: TASK-1070 (voice-engine to Python 3.13, after the cut) · TASK-1072 · TASK-1073 · TASK-1074–1076 (the TASK-1069 follow-ups). The TASK-802 comment gained the edit-dashboard name sites.
 
-**Next**, in order (the beta.230 plan is in `backlog/now.md`): (1) the owner's beta.229 Vencord smoke, which closes TASK-1069; (2) the TASK-1039 read; (3) TASK-1070 (Python 3.13); (4) `doc-72`, with a council pass at pickup; (5) the drain on 5.5: `pnpm tracker task list -s "To Do" -l state:ready -l size:S --plain`.
+**Next**, in order (the beta.230 plan is in `backlog/now.md`): (1) the owner's beta.229 Vencord smoke, which closes TASK-1069; (2) ~~the TASK-1039 read~~ run, with an owner question open; (3) TASK-1070 (Python 3.13); (4) `doc-72`, with a council pass at pickup; (5) the drain on 5.5: `pnpm tracker task list -s "To Do" -l state:ready -l size:S --plain`.
 
 **Keep for Fable**: the doc-97 Phase 4 slice 2 design, council passes, semantic specs.
 
