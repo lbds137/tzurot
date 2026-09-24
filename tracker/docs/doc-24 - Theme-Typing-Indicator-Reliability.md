@@ -7,6 +7,8 @@ created_date: '2026-07-28 11:11'
 
 ### Theme: Typing Indicator Reliability
 
+> **Status 2026-09-24 (half-finished sweep):** The classifier shipped and the slot moved on in April 2026, the oldest pivot found. The remainder (two sub-items + the log investigation) is drain batch TASK-1087. Row in `backlog/cold/queue.md` § Half-finished.
+
 _Focus: diagnose and fix intermittent typing-indicator dropouts during long AI responses. The error-differentiation classifier (`typingErrorClassifier.ts`) has SHIPPED — what remains is the log-driven investigation below plus the two sub-items (route the `VoiceTranscriptionService` initial send through the classifier; respect `retryAfterSeconds` in the backoff)._
 
 **Observed**: user has seen the "bot is typing…" indicator disappearing before the AI response actually lands, multiple times, not yet reproduced deterministically. Unclear whether this is a bot-side bug (failed `sendTyping` refresh not recovering) or a Discord client-side display glitch.

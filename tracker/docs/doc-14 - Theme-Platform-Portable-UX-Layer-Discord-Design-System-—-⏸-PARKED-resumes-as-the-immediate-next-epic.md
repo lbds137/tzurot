@@ -9,6 +9,8 @@ created_date: '2026-07-28 11:11'
 
 ### Theme: Platform-Portable UX Layer (Discord Design System) — ⏸ PARKED (resumes as the immediate next epic)
 
+> **Status 2026-09-24 (half-finished sweep):** ACTIVE EPIC from 2026-09-24 (owner ruling; `backlog/active-epic.md`). Waves 4–6 remain; built on the cloud lane by shape (`doc-108`). The park note in the title is historical.
+
 **⏸ PARKED 2026-07-23** mid-Phase-3, to let the Automated Inactivity Retention epic ([`backlog/active-epic.md`](../../backlog/active-epic.md)) through. **This is the beta-exit gate and resumes the moment retention ships** — it is next-up, not shelved. State below is current as of parking: Phase 3 Waves 0–3 shipped (beta.173/174), **Waves 4–6 remain** (see the Phase 3 row).
 
 _Focus: lift the bot's UI + messaging vocabulary to the routing layer's standardization level — encode UX **intent** separately from its Discord expression, so the experience is consistent **by construction** (not reconciled by periodic audits) and portable via adapters. Promoted 2026-07-17 (owner re-sequence: the `/character alias` build deviated from the 04-discord subcommand standards despite the rules table being clear — "no more UX surface until consistency is by construction"; v2-parity PAUSED behind this). Memory System Overhaul parked mid-epic at a natural pause → `doc-8`._

@@ -14,7 +14,23 @@ _Ordered index of future themes. Grep-on-demand — not loaded at session start.
 >
 > Memory System Overhaul remains PARKED → its bullet below; re-entry is Phase B, format = LID pilot, trigger = the owner's felt-repetition re-measure. Pick within phases by dependency + value; each substantial pick deserves a council pass before plan-mode.
 >
-> **Epics with shipped work but no slot** (honestly parked, each with re-entry triggers): UX Layer (Waves 4–6, Phase B), Memory Overhaul (phases 3–6, Phase B/C), v2 Parity (`doc-27`, Phase A for the matrix), Character Portability (`doc-2`), Typing Indicator Reliability (`doc-24`).
+### Half-finished — epics with shipped work and no slot
+
+_One row per epic whose theme doc has a done step and a not-done step and which holds no slot. Bin: **gated** (a named trigger), **owner** (a decision on the owner queue), **pivoted** (the slot moved on, nothing named the remainder — convert to drain tasks). Written at promotion time (`06-backlog.md` § Promoting a theme, step 1) and rewritten when a phase ships; the digest prints it (TASK-1090). Built 2026-09-24 from a full read of the theme docs; the prior one-line list named five and missed three._
+
+| Epic | Remainder | Bin | Trigger / disposition |
+| --- | --- | --- | --- |
+| `doc-27` v2 Parity | parity BUILDS after the Phase 0 matrix | gated | `doc-14` waves 4–6 finish (active since 2026-09-24) |
+| `doc-2` Character Portability | Phase 5 sidecar prompt injection | gated | `doc-15` item 2 (the cascade pattern) |
+| `doc-11` Agentic scaffolding | everything after the accepted design | gated | gate `doc-12` MET 2026-08-26; waits for the train after `doc-14` (owner 2026-09-24) |
+| `doc-17` Prompt caching | the prod cache reading, then the Phase 3 decision | gated | the reading (agent watch in `now.md`) |
+| `doc-107` archive/digest consolidation | all | gated | the digest shape settles on prod |
+| `doc-86` Character-initiated messages | Phase 0 product decisions | owner | research done 2026-09-02; also gated on `doc-75` |
+| `doc-105` User-installable app | Phase 0 probe + four rulings | owner | research done 2026-09-17 |
+| `doc-24` Typing indicator | two sub-items + the log investigation | pivoted → drain | TASK-1087 (slot lost April 2026) |
+| `doc-9` Model config | Phase 1 `fallbackConfigId` edge | pivoted → drain | TASK-1088 (Phase 2 stays, gated on `doc-15`) |
+| `doc-3` DB performance | Phase 2 `db:index-audit` | pivoted → drain | TASK-1089 (Phases 3–4 consume it) |
+| `doc-8` Memory overhaul | owner-run per-character rollout | owner | the gates (`memory:summarize --dry-run`); map re-touch TASK-1086 |
 
 ### Phase A — Rock Solid
 

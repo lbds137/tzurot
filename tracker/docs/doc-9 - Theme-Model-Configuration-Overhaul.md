@@ -7,6 +7,8 @@ created_date: '2026-07-28 11:11'
 
 ### Theme: Model Configuration Overhaul
 
+> **Status 2026-09-24 (half-finished sweep):** Phase 0 shipped 2026-07-06; the slot moved on. Phase 1 (explicit `fallbackConfigId` edge + dashboard field) is now drain item TASK-1088 (check overlap with TASK-188); Phase 2 (UserChannelConfig tier) stays here, gated on the doc-15 cascade pattern. Row in `backlog/cold/queue.md` § Half-finished.
+
 _Focus: remaining residuals of the completed Model Configuration Overhaul epic._
 
 The vision-config epic itself SHIPPED (`VisionConfigResolver` + gateway stamping, capability validation, and the vision auto-fallback loop). The interim `kind` discriminator it introduced was retired 2026-07-05 (legacy-column retirement theme, #1499 + #1501 — capability + slot assignment replaced it; global preset names are one namespace; the slot vocabulary is `ModelSlot`). What remains here are the residuals that were never part of the shipped scope.

@@ -7,6 +7,8 @@ created_date: '2026-07-28 11:11'
 
 ### Theme: Database Performance Audit
 
+> **Status 2026-09-24 (half-finished sweep):** Phase 1 shipped 2026-07-06; the slot moved on. Phase 2 (`db:index-audit`) is now drain item TASK-1089; Phase 3 consumes its output; Phase 4 stays here. Row in `backlog/cold/queue.md` § Half-finished.
+
 _Focus: systematically find and prevent index/query performance debt before scale exposes it (triggered by the message_metadata GIN stall that timed out a user-message persist in prod)._
 
 ## Why this exists
