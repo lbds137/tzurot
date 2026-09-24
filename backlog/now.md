@@ -35,7 +35,7 @@ _beta.229 CUT 2026-09-24 11:28Z (07:28 EDT). **The numbers:** 30 PRs, 24 runtime
   - TASK-1027 is the owner's call;
   - no model-parameter experiments;
   - the owner clears sessions with `/clear`, so every handoff lives on disk.
-- **In**: #2508 (TASK-1079, the settings customId cap fix) · #2509 (doc-72 PR B, the resets + TASK-1080).
+- **In**: #2508 (TASK-1079, the settings customId cap fix) · #2509 (doc-72 PR B, the resets + TASK-1080) · #2510 (TASK-1083, `REDIS_IP_FAMILY`; the first cloud-built unit).
 - **Waiting on**:
   1. **The TASK-1039 read:** RUN 2026-09-24, inconclusive. One thread per day kept Emily under N 10, so none of her ON turns summarized. Owner ruling 2026-09-24: N=3 on Emily and Lilith for one more read day, set by the owner. The second read runs once that day's thread is complete. Slice 2 (the measured default for N, the override cascade, the facts-vocabulary slice) waits on that second read.
   2. **`doc-72` dashboard index navigation:**
@@ -45,6 +45,7 @@ _beta.229 CUT 2026-09-24 11:28Z (07:28 EDT). **The numbers:** 30 PRs, 24 runtime
   3. **TASK-1070:** MERGED as #2505. It is open for its dev check: TTS plus a no-key transcription in dev.
   4. **The doc-61 economy pass**, due 2026-10-02.
 - **Watches (agent-run, no owner action)**:
+  - #2510: the next dev deploy's three services still connect to Redis (default family 6, unchanged); grep their boot logs for the Redis ready line;
   - beta.229's: the next nightly db-sync logs one run (#2497); the next account export's README line (#2500); the same-channel `summarized` register on Emily and lilith on prod;
   - carried: TASK-937, TASK-991/992's runtime clause, the doc-17 caching reading, TASK-901, the Emily pre-warm gate (TASK-971), and the `/inspect` masked-link render (#2259).
 - **🧑‍💻 Owner to-do**: (1) the beta.229 smoke, in `CURRENT.md`: a Vencord/Vesktop voice message in dev, direct and as a reply's referenced message, once with the Mistral key and once without; TASK-1069 stays open until it passes; (2) TASK-907: review the commitment facts with `/memory facts character:<Emily> tag:commitment:promise` (the tag filter is on prod now; the Sort A-Z workaround is retired) and note any welcomed pet name NOT extracted (TASK-950); (3) TASK-1027's call: strip look-alike brackets by Unicode category (recommended — fails safe, at the price of a mangled CJK filename) or accept the pass-through; (4) TASK-960's call: keep the multi-tag fan-out parallel (siblings blind to each other within the turn, recommended) or serialize it so later slots see earlier replies; (5) TASK-961's call: keep `/history clear` as a context boundary (recommended) or make a soft clear forget too; (6) TASK-104: trim and re-upload the 8 over-cap voice references, then `pnpm ops voice-refs:audit --env prod`; (7) leisure, unchanged: card-level examples for Emily; the voice-harness blind review.

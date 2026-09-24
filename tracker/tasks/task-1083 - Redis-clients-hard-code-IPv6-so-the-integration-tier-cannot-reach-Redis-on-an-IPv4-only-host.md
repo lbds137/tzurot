@@ -3,9 +3,10 @@ id: TASK-1083
 title: >-
   Redis clients hard-code IPv6, so the integration tier cannot reach Redis on an
   IPv4-only host
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-24 17:42'
+updated_date: '2026-09-24 18:43'
 labels:
   - 'area:redis'
   - 'size:S'
