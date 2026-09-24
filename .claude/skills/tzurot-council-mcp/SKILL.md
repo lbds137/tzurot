@@ -1,7 +1,7 @@
 ---
 name: tzurot-council-mcp
-description: 'Multi-perspective AI consultation. Invoke with /tzurot-council-mcp for major refactors (>500 lines), structured debugging after failed attempts, or when a technical decision has multiple viable approaches.'
-lastUpdated: '2026-08-13'
+description: 'Multi-perspective AI consultation. Invoke with /tzurot-council-mcp for major refactors (>500 lines), structured debugging after failed attempts, or when a technical decision has multiple viable approaches (`debate` for contested ones).'
+lastUpdated: '2026-09-24'
 ---
 
 # Council MCP Procedures
@@ -62,6 +62,26 @@ mcp__council__brainstorm({
 });
 ```
 
+## Debate Procedure
+
+**Use for** a contested design decision with two or more viable options — where you would otherwise ask one model and trust it, or hand-run a parallel panel plus a tiebreaker. **Not for** single-answer questions, code review, or debugging; `ask`, `code_review` and `debug` serve those.
+
+```typescript
+mcp__council__debate({
+  topic: 'Job fan-out for memory backfill: Redis Streams or BullMQ?',
+  positions: ['Use Redis Streams', 'Use BullMQ'], // 2–4; omit for each model's own view
+  // models: 1–4 (default ~openai/gpt-sol-latest, ~z-ai/glm-latest, ~moonshotai/kimi-latest)
+  // synthesis_model: defaults to the active model
+  // rounds: 1 = openings only; 2 = openings + rebuttals (default)
+});
+```
+
+With `positions` set, debater _i_ uses `models[i % models.length]` (the schema's own rule) — two positions against the three-model default use only the first two models, and more positions than models cycles so one model argues two stances.
+
+**Cost and time**: one call per debater per round plus the synthesis — 7 calls by default, several minutes with reasoning models. For a cheap run pass `rounds: 1` or GLM-only `models` (flat-rate plan).
+
+**Reading the result**: the synthesis's recommendation is ONE model's reading, not a verdict — report the real disagreements it lists, not just the pick. A failed debater renders as a `⚠️ … failed:` line under its heading and is dropped, and the debate continues, while at least two debaters answered (probed: three debaters with one invalid model id ran as two and still synthesized). Below two respondents the call errors with `Too few debaters answered to hold a debate` — no partial result. The footer's debater and call counts include the failed slot, so read the ⚠️ lines, not the footer, for who answered. The respondent-count vocabulary rule in § Model Selection (below) applies to the debaters who answered. When the debaters share a family, pass a `synthesis_model` from a different one.
+
 ## Model Selection
 
 ### Always call `list_models` first
@@ -72,8 +92,9 @@ mcp__council__brainstorm({
 
 ```typescript
 // Run BEFORE picking a model:
-mcp__council__list_models({ provider: 'google', search: 'gemini' });
-mcp__council__list_models({ provider: 'anthropic', search: 'claude' });
+mcp__council__list_models({ provider: 'z-ai' });
+mcp__council__list_models({ provider: 'moonshotai' });
+mcp__council__list_models({ search: 'latest' }); // every floating alias
 
 // Or get a task-based recommendation:
 mcp__council__recommend_model({ task: 'reasoning' });
@@ -81,24 +102,29 @@ mcp__council__recommend_model({ task: 'reasoning' });
 
 (Cached IDs from prior sessions are landmines — a preview model has 404'd mid-session after being superseded.)
 
+**Aliases are the default form**: `~vendor/family-latest` floats to the family's current release, which is the fix for ID drift. Use a pinned ID only where no alias exists — today that is Qwen (`qwen/qwen3.8-max-0902`; re-resolve it via `list_models({ provider: 'qwen' })`).
+
 ### When a model 404s mid-session
 
 End the failed session, call `list_models` to find a replacement with similar capabilities (reasoning → reasoning, coding → coding), and restart. **Do not retry the original ID** — it's gone, not transient.
 
 ### Recommended models by task
 
-| Task Type        | Recommended Models                                                                                              | Notes                                                                                                            |
-| ---------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Reasoning/Design | **GLM 5.2 · Kimi K3 · Qwen 3.8 Max · DeepSeek v4 Pro** (run all four in parallel) → Claude Sonnet/Opus fallback | **Avoid DeepSeek R1** — dated, and a different generation from v4 Pro. Verify IDs via `list_models` (they drift) |
-| Coding/Review    | Claude Sonnet 4, Claude Opus 4                                                                                  | Tool-use variants of Gemini also work for structured refactor tasks                                              |
-| Vision/Images    | Gemini 2.5 Flash, Gemini 2.5 Pro                                                                                | (verify availability with `list_models`)                                                                         |
-| Long Documents   | Gemini (1M token context)                                                                                       | (verify availability with `list_models`)                                                                         |
+| Task Type        | Recommended Models                                                                                      | Notes                                       |
+| ---------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Reasoning/Design | `~z-ai/glm-latest` · `~moonshotai/kimi-latest` · `~deepseek/deepseek-pro-latest` · Qwen (pinned, above) | The design panel — run all four in parallel |
+| Reasoning (solo) | `~openai/gpt-astra-latest`, `~google/gemini-pro-latest`, `~openai/gpt-sol-latest`                       | `recommend_model({ task: 'reasoning' })`    |
+| Coding/Review    | `~openai/gpt-sol-latest`, `~deepseek/deepseek-pro-latest`, `~moonshotai/kimi-latest`                    | `~openai/gpt-astra-latest` for heavy coding |
+| Vision/Images    | `~google/gemini-pro-latest`, `qwen/qwen3.8-max-0902`, `~moonshotai/kimi-latest`                         | Re-resolve the Qwen pin via `list_models`   |
+| Long Documents   | `~google/gemini-pro-latest`, `~z-ai/glm-latest`, `~deepseek/deepseek-pro-latest`                        | All 1M context                              |
 
-**The roster is four**: for open design decisions, run **GLM 5.2 · Kimi K3 · Qwen 3.8 Max · DeepSeek v4 Pro** in parallel (`z-ai/glm-5.2` — 1M context; `moonshotai/kimi-k3` — see the Kimi note below; `qwen/qwen3.8-max` — GA successor to 3.7 Max, 1M context, multimodal reasoning; `deepseek/deepseek-v4-pro` — 1M context, owner addition) and verify each ID via `list_models` first (the registry can lag a new release; fall back to the prior version of the same family). If those are unavailable, fall back to Claude Sonnet / Opus.
+**No Anthropic models**: the owner's policy is that council supplies other families' perspectives, because Claude Code already spawns its own independent Claude reviewers. An explicit `~anthropic/...` override works but is never the recommendation. When a listed model is unavailable, fall back to another listed family (or the same family's cheaper tier, e.g. `~deepseek/deepseek-flash-latest`).
 
-**DeepSeek R1 is still off the roster**, on explicit user feedback — it is dated and design questions need SOTA. That is a judgment about R1, not about the vendor: v4 Pro is a later generation and carries none of R1's exclusion. Don't read "avoid DeepSeek" as a family-wide ban, and don't reinstate R1 as a v4 Pro fallback. Fall back to the family's cheaper tier instead; failing that, to Claude. That cheaper tier is real — `deepseek/deepseek-v4-flash` was listed alongside v4 Pro when this line was written, and "flash" is the registry's own branding here rather than a Gemini-ism borrowed by mistake. Re-resolve its exact ID via `list_models` anyway rather than trusting this string.
+**Cost**: the default and active model is `~openai/gpt-sol-latest`. GLM calls route to the flat-rate Z.ai coding plan (one retry on OpenRouter), so GLM is nearly free and cheap to run wide; every other family bills per token on OpenRouter.
 
-**Kimi specifically**: `moonshotai/kimi-k3` is the current SOTA pick (verify via `list_models` — this line will go stale exactly the way `kimi-k2.7-code` did); `kimi-k2.7-code` is superseded and should not be the default. K3 has **capacity pressure under demand** — expect occasional long waits (a council call has exceeded the 120s foreground window and backgrounded) — so falling back to the prior K2.x is a sanctioned practical compromise when K3 is unavailable, not a preference.
+**DeepSeek R1 stays off the roster**, on explicit user feedback — it is dated and design questions need SOTA. That is a judgment about R1, not about the vendor: the current DeepSeek Pro is a later generation and carries none of R1's exclusion. Don't read "avoid DeepSeek" as a family-wide ban, and don't reinstate R1 as a fallback; fall back to the family's Flash tier instead, then to another listed family.
+
+**Kimi specifically**: `~moonshotai/kimi-latest` has **capacity pressure under demand** — expect occasional long waits (a council call has exceeded the 120s foreground window and backgrounded). Falling back to the prior pinned Kimi release from `list_models` is a sanctioned practical compromise when the current one is unavailable, not a preference.
 
 **An empty response body is a distinct failure from a 404.** A superseded or overloaded model can return a well-formed response whose content is empty — observed on `kimi-k2.7-code`, and separately explainable by that family's reasoning-tag quirks. Treat an empty body as "this model did not answer": re-run once on the CURRENT model for that family before spending a tiebreaker slot, and never count it as a verdict. A silent member shrinks the panel rather than abstaining. Say how many actually answered, then read the outcome against the RESPONDING panel as though that were the whole panel — the general rule, of which these are only examples: three answering 2-1 is a three-model split, not a 3-1 majority; three answering 3-0 is a three-model consensus, not a 4-0. Silence never reads as a "split" in the sense the section below means; that word is reserved for models that actually disagreed. **Below three respondents, report the count and drop the shape word** — "both models that answered agreed", not "consensus"; "the one model that answered said X", not "unanimous". Consensus implies a panel wide enough to have disagreed, and at N≤2 that breadth is exactly what is missing; this is a floor on the vocabulary, not an exception to the rule above. The 2-2 / 3-1 / 4-0 shapes below assume all four answered.
 
@@ -107,7 +133,7 @@ End the failed session, call `list_models` to find a replacement with similar ca
 ```typescript
 mcp__council__code_review({
   code: myCode,
-  model: 'anthropic/claude-sonnet-4', // verify with list_models first
+  model: '~deepseek/deepseek-pro-latest', // verify with list_models first
 });
 ```
 
@@ -115,12 +141,12 @@ mcp__council__code_review({
 
 ```typescript
 // Verify the model ID first (drift!)
-const models = await mcp__council__list_models({ provider: 'google', search: 'gemini' });
-// pick a current SOTA reasoning model from the response
+const models = await mcp__council__list_models({ search: 'latest' });
+// pick a current reasoning alias from the response
 
 // Start session
 const { session_id } = await mcp__council__start_conversation({
-  model: 'google/gemini-3.1-pro-preview', // ⚠️ verify with list_models — IDs drift
+  model: '~google/gemini-pro-latest', // ⚠️ verify with list_models
   system_prompt: 'You are a TypeScript architecture expert',
   initial_message: 'Review this service design...',
 });
@@ -150,10 +176,10 @@ user asks to "re-council with the full picture," that's this failure.
 ## When the Council Splits
 
 Don't silently pick a side. Run a tiebreaker pass with a model from a different
-family than the split participants (e.g., Gemini Pro), give it both positions
-verbatim, and report the split + tiebreaker reasoning to the user. Cost is not a
-blocker for council usage — the user's standing position is that a better
-decision is worth the tokens.
+family than the split participants (any listed family not already on the
+panel), give it both positions verbatim, and report the split + tiebreaker
+reasoning to the user. Cost is not a blocker for council usage — the user's
+standing position is that a better decision is worth the tokens. `debate` with `positions` set to the two sides is the standard way to run the tiebreaker — but pass `models` explicitly, listing only families not on the split panel: the default debate panel (GPT, GLM, Kimi) overlaps the four-model design panel (GLM, Kimi, Qwen, DeepSeek), so the defaults would re-litigate with two models that already voted. The 2-2 rule below still holds — the synthesis argues, it does not vote.
 
 **A four-model panel is even, so 2-2 is a real outcome** — the trio could always
 produce a majority, and this one cannot. Do NOT resolve a 2-2 by counting a
@@ -175,13 +201,25 @@ case is weak or the rule encodes a hard safety constraint.
 
 ## Available Tools
 
-| Tool                            | Purpose               |
-| ------------------------------- | --------------------- |
-| `mcp__council__ask`             | General questions     |
-| `mcp__council__brainstorm`      | Brainstorm ideas      |
-| `mcp__council__code_review`     | Code review           |
-| `mcp__council__debug`           | Structured debugging  |
-| `mcp__council__refactor`        | Refactoring plans     |
-| `mcp__council__test_cases`      | Test case suggestions |
-| `mcp__council__explain`         | Explain code/concepts |
-| `mcp__council__recommend_model` | Model recommendations |
+All tools are `mcp__council__<name>`; `server_info` lists the live set.
+
+| Tool                       | Purpose                                       |
+| -------------------------- | --------------------------------------------- |
+| `ask`                      | General questions                             |
+| `brainstorm`               | Brainstorm ideas                              |
+| `debate`                   | 2–4 models argue a decision, then a synthesis |
+| `synthesize_perspectives`  | Merge supplied viewpoints into one summary    |
+| `code_review`              | Code review                                   |
+| `debug`                    | Structured debugging                          |
+| `refactor`                 | Refactoring plans                             |
+| `test_cases`               | Test case suggestions                         |
+| `explain`                  | Explain code/concepts                         |
+| `start_conversation`       | Open a multi-turn session                     |
+| `continue_conversation`    | Send the next turn in a session               |
+| `get_conversation_history` | Read a session's turns                        |
+| `list_conversations`       | List open sessions                            |
+| `end_conversation`         | Close a session (optionally summarize)        |
+| `list_models`              | Search available model IDs and aliases        |
+| `recommend_model`          | Task-based model recommendations              |
+| `set_model`                | Change the active (default) model             |
+| `server_info`              | Version, tools, active model, call stats      |
