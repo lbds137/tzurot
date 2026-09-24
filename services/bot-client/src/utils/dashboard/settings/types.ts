@@ -133,10 +133,15 @@ export type DashboardLevel = 'global' | 'channel' | 'personality' | 'user-defaul
  * Dashboard view state
  */
 export enum DashboardView {
-  /** Overview showing all settings */
+  /** Overview showing all settings (the current concern page on paged configs) */
   OVERVIEW = 'overview',
   /** Drill-down view for a specific setting */
   SETTING = 'setting',
+  /**
+   * Index (hub) of a paged dashboard: every page by label plus a jump select.
+   * Navigation only — no setting values render here.
+   */
+  INDEX = 'index',
 }
 
 /**
@@ -187,7 +192,7 @@ export interface SettingsDashboardSession {
 export interface SettingsPage {
   /** Stable page id (not rendered) */
   id: string;
-  /** Page label rendered in the `Page N/M · <Label>` indicator */
+  /** Page label — rendered in the overview title and footer, and as the page's index entry */
   label: string;
   /** Ids of the settings shown on this page (must exist in config.settings) */
   settingIds: string[];
@@ -209,9 +214,10 @@ export interface SettingsDashboardConfig {
   settings: SettingDefinition[];
   /**
    * Concern pages (§3.3 pagination-by-concern). When present, the overview
-   * renders one page at a time with prev/next navigation and no Close button
-   * (D18 — native dismiss suffices on ephemeral dashboards). When absent, the
-   * dashboard renders flat exactly as before (channel/character dashboards).
+   * renders one page at a time with prev/next navigation, an `N/M` indicator
+   * and an Index button that opens the page index, and no Close button (D18 —
+   * native dismiss suffices on ephemeral dashboards). When absent, the
+   * dashboard renders flat, with no page navigation and no index.
    */
   pages?: SettingsPage[];
   /**
