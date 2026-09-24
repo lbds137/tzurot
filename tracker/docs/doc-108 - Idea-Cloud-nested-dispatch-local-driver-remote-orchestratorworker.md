@@ -10,6 +10,8 @@ Status: proposed 2026-09-23 (owner request relayed by a sibling session). **Owne
 2. Then fold the routine-based cloud mode into `/tzurot-orchestration` as a third dispatch mode. It allows at most one cloud unit alongside one local unit, and only for units that need no `.env` or local DB.
 3. Routines bill the plan limits, not the $250 credit, and the owner accepted the higher weekly burn that comes with the extra throughput.
 
+**Lane routing (owner proposal, 2026-09-24, adopted as the default):** backlog-drain items go to the cloud lane, and feature and theme work stays in the local lane. Feature work needs owner rulings mid-build, dev deploys and smoke sittings, migrations applied to dev, and Railway logs, and it runs review rounds that come back to the local tree. Exception: a drain item needing Railway, prod data, real `.env` secrets, or a local-only tool (for example, the council MCP server) stays local. Fold this into `/tzurot-orchestration` § Cloud dispatch after #2512 merges.
+
 ## Why
 
 The Steam Deck caps the drain at one gate-running unit at a time (`reference_steamdeck_resource_limits` memory; `05-tooling.md` § Resource Constraints), and its RAM is shared with the owner's desktop load. On 2026-09-23 a tmpfs `/tmp/node-compile-cache` also reached 4.9 GB (TASK-1063). Moving installs, builds and gates off the Deck would allow more than one unit in flight and would stop dispatches competing with the IDE for memory.
