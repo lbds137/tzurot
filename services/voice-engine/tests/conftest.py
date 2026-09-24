@@ -33,7 +33,7 @@ from tests.helpers import FakeTranscription  # noqa: E402 -- must import after s
 
 
 @pytest.fixture(autouse=True)
-def _reset_state() -> Generator[None, None, None]:
+def _reset_state() -> Generator[None]:
     """Clear models/voice_cache/voice_locks and rebind the module-level asyncio
     primitives before each test.
 
@@ -104,7 +104,7 @@ def api_key(monkeypatch: pytest.MonkeyPatch) -> str:
 
 
 @pytest.fixture()
-async def client() -> AsyncGenerator[httpx.AsyncClient, None]:
+async def client() -> AsyncGenerator[httpx.AsyncClient]:
     """httpx async client wired to the FastAPI app (no real server)."""
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),

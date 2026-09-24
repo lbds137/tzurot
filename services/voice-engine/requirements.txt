@@ -5,11 +5,11 @@ python-multipart>=0.0.18,<1.0.0
 
 # Audio processing
 scipy>=1.14.0,<2.0.0
-librosa>=0.10.2,<0.11.0
+librosa>=0.11.0,<0.12.0
 # soundfile is required by pocket-tts>=2.0 for reading reference audio in
-# formats libsndfile supports (ogg, flac, aiff, wav, etc); without it,
-# pocket-tts raises ImportError. MP3 reference audio continues to go through
-# librosa/ffmpeg as before — soundfile/libsndfile does not decode MP3.
+# formats libsndfile supports (ogg, flac, aiff, wav, mp3); without it,
+# pocket-tts raises ImportError. The libsndfile soundfile bundles lists MP3
+# among its formats; which decoder pocket-tts picks for an MP3 reference is not verified.
 soundfile>=0.12.0,<1.0.0
 # numpy 2.x required by pocket-tts>=1.1.0; nemo_toolkit 2.1+ targets numpy 2.x
 numpy>=2.0,<3.0

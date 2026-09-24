@@ -1,6 +1,6 @@
 # voice-engine — Python standards
 
-Loaded only when working under `services/voice-engine/`. Python 3.11+ with
+Loaded only when working under `services/voice-engine/`. Python 3.13+ with
 FastAPI; these patterns are enforced by `ruff`, `mypy --strict`, and `pytest`.
 
 ## Error Handling
