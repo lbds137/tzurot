@@ -16,12 +16,12 @@
  * itself must never be the thing that breaks a caller.
  */
 
-import { createHash } from 'node:crypto';
 import { EmbedBuilder, escapeMarkdown, type Client } from 'discord.js';
 import { DISCORD_COLORS, stripMarkdownDelimiters } from '@tzurot/common-types/constants/discord';
 import { ApiErrorCategory, GUEST_MODE_CATEGORY } from '@tzurot/common-types/constants/error';
 import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { sha256Hex } from '@tzurot/common-types/utils/sha256Hex';
 import { postOwnerChannelEmbed } from '../utils/ownerChannel.js';
 import { cappedInlineField } from '../utils/embedLimits.js';
 
@@ -224,7 +224,7 @@ function hashFrames(frames: string[], errorCode: string, rescued: boolean): stri
   // the SAME category land in separate dedup buckets — see the invariant
   // paragraph on `reportQuotaFallbackRescue`.
   const material = `${frames.length > 0 ? frames.join('\n') : errorCode}::rescued=${String(rescued)}`;
-  return createHash('sha256').update(material).digest('hex');
+  return sha256Hex(material);
 }
 
 /**

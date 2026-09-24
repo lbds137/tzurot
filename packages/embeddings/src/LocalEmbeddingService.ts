@@ -20,8 +20,8 @@
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { createHash } from 'node:crypto';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { sha256Hex } from '@tzurot/common-types/utils/sha256Hex';
 import type {
   IEmbeddingService,
   WorkerMessage,
@@ -317,7 +317,7 @@ export class LocalEmbeddingService implements IEmbeddingService {
    * Hash text content for cache key
    */
   static hashContent(text: string): string {
-    return createHash('sha256').update(text).digest('hex').slice(0, 16);
+    return sha256Hex(text, { length: 16 });
   }
 
   /**

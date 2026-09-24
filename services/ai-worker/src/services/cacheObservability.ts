@@ -13,9 +13,9 @@
  * and no user content: only hex digests, a duration, and a ratio.
  */
 
-import { createHash } from 'node:crypto';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { Logger } from 'pino';
+import { sha256Hex } from '@tzurot/common-types/utils/sha256Hex';
 import { contentToText } from '../utils/baseMessageContent.js';
 import { HISTORY_ENTRY_OPEN } from '../jobs/utils/conversationUtils.js';
 import { SECTION_SEPARATOR, type SectionDescription } from './prompt/sections.js';
@@ -29,14 +29,12 @@ const CHAT_LOG_SECTION_ID = 'chat_log';
 /**
  * SHA-256 over the RAW bytes, first {@link HASH_PREFIX_CHARS} hex chars.
  *
- * Deliberately not `utils/duplicateDetection.ts`'s `contentHash`: that one
- * lowercases and trims before hashing, because it answers a semantic
- * question ("is this the same response again?"). This one answers a
- * byte-identity question — a normalization step would hide exactly the byte
- * instability these hashes exist to hunt.
+ * No normalization is applied — this answers a byte-identity question, and a
+ * normalization step would hide exactly the byte instability these hashes
+ * exist to hunt.
  */
 export function promptHash(text: string): string {
-  return createHash('sha256').update(text, 'utf8').digest('hex').slice(0, HASH_PREFIX_CHARS);
+  return sha256Hex(text, { length: HASH_PREFIX_CHARS, encoding: 'utf8' });
 }
 
 /**
