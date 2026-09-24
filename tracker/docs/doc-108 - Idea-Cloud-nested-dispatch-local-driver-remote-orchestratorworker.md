@@ -93,10 +93,19 @@ Owner steer: the pilot must exercise the REAL path, a local session spawning clo
   put its key results in its tool output or keep the final message short.
   The Agent tool's `isolation: "remote"` is NOT a cloud path: on 2026-09-24
   it ran the agent in a local worktree on the Deck, as it had on 09-23.
-- **After the credit (2026-11-05 expiry, or used up):** the docs do not
-  say. Routines "draw down subscription usage the same way interactive
-  sessions do" (routines docs), so plan-limit billing is the likely
-  fallback. That is an inference, not a documented fact.
+- **After the credit (2026-11-05 expiry, or used up), cloud sessions keep
+  working on the plan.** This is documented, in the "Limitations" section of
+  code.claude.com/docs/en/claude-code-on-the-web: "cloud sessions share rate
+  limits with all other Claude and Claude Code usage within your account …
+  There is no separate compute charge for the cloud VM." Anthropic's
+  ClaudeDevs account on X (reported; quoted consistently across search
+  results, the post itself returned HTTP 402) says: "Cloud sessions run on
+  your Pro or Max plan, like the rest of Claude Code. This promo is an
+  optional one-time credit that your cloud sessions spend first, before
+  falling back onto your normal plan usage." So while it lasts, the credit
+  spares the weekly limit; afterwards, a cloud session costs the same plan
+  usage as a local one. How the credit is metered (token rates, presumably)
+  is not stated anywhere found.
 - **Owner directive (2026-09-24):** every assumed cloud limitation gets
   confirmed by a probe before it constrains the mode, with a mitigation tried
   where possible.
