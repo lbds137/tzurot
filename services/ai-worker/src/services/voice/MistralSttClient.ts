@@ -142,10 +142,7 @@ export async function mistralTranscribeAudio(opts: MistralSTTOptions): Promise<M
   // Multipart form-data with the audio buffer + model. Use the global
   // FormData/Blob — undici (Node 18+) supports them natively.
   const form = new FormData();
-  // Buffer's underlying ArrayBufferLike could be a SharedArrayBuffer; BlobPart's
-  // Uint8Array constraint is narrower (ArrayBuffer only). The double-cast is
-  // required to bridge the two — pnpm `tsc` rejects the bare Buffer otherwise.
-  const audioBlob = new Blob([opts.audioBuffer as unknown as ArrayBuffer], {
+  const audioBlob = new Blob([opts.audioBuffer], {
     type: opts.contentType,
   });
   form.append('file', audioBlob, opts.filename);

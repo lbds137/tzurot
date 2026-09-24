@@ -40,7 +40,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@types/node": "^26.6.1",
+    "@types/node": "^24.13.6",
     "@tzurot/test-utils": "workspace:*"
   }
 }

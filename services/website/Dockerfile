@@ -15,7 +15,7 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Build the static site
 # -----------------------------------------------------------------------------
-FROM node:25-slim AS builder
+FROM node:24-slim AS builder
 
 RUN npm install -g pnpm
 

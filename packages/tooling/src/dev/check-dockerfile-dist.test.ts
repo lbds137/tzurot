@@ -38,9 +38,9 @@ const BASE_PACKAGES = packagesMap({
 describe('extractRunnerDistCopies', () => {
   it('extracts dist copies from the final stage only', () => {
     const dockerfile = [
-      'FROM node:25-slim AS builder',
+      'FROM node:24-slim AS builder',
       'COPY --from=pruner /app/packages/common-types/dist ./packages/common-types/dist',
-      'FROM node:25-slim AS runner',
+      'FROM node:24-slim AS runner',
       'COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist',
       'COPY --from=builder /app/packages/clients/dist ./packages/clients/dist',
       'COPY --from=builder /app/services/bot-client/dist ./services/bot-client/dist',
@@ -56,7 +56,7 @@ describe('extractRunnerDistCopies', () => {
 
   it('ignores non-dist copies in the runner stage', () => {
     const dockerfile = [
-      'FROM node:25-slim AS runner',
+      'FROM node:24-slim AS runner',
       'COPY --from=pruner /app/out/json/ .',
       'COPY --from=builder /app/node_modules/.pnpm ./node_modules/.pnpm',
       'COPY prisma ./prisma',
@@ -68,7 +68,7 @@ describe('extractRunnerDistCopies', () => {
 
   it('treats a single-stage Dockerfile as all-runner', () => {
     const dockerfile = [
-      'FROM node:25-slim',
+      'FROM node:24-slim',
       'COPY --from=builder /app/packages/embeddings/dist ./packages/embeddings/dist',
     ].join('\n');
 
@@ -77,7 +77,7 @@ describe('extractRunnerDistCopies', () => {
 
   it('matches dist copies with subpaths after /dist', () => {
     const dockerfile = [
-      'FROM node:25-slim AS runner',
+      'FROM node:24-slim AS runner',
       'COPY --from=builder /app/packages/common-types/dist/index.js ./packages/common-types/dist/index.js',
     ].join('\n');
 
@@ -86,9 +86,9 @@ describe('extractRunnerDistCopies', () => {
 
   it('anchors on the stage explicitly named `runner`, ignoring a later stage', () => {
     const dockerfile = [
-      'FROM node:25-slim AS builder',
+      'FROM node:24-slim AS builder',
       'COPY --from=pruner /app/packages/common-types/dist ./packages/common-types/dist',
-      'FROM node:25-slim AS runner',
+      'FROM node:24-slim AS runner',
       'COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist',
       'FROM scratch AS export',
       'COPY --from=builder /app/packages/clients/dist ./packages/clients/dist',
@@ -101,9 +101,9 @@ describe('extractRunnerDistCopies', () => {
 
   it('falls back to the last FROM stage, scanning to end of file, when no stage is named runner', () => {
     const dockerfile = [
-      'FROM node:25-slim AS builder',
+      'FROM node:24-slim AS builder',
       'COPY --from=pruner /app/packages/common-types/dist ./packages/common-types/dist',
-      'FROM node:25-slim AS final',
+      'FROM node:24-slim AS final',
       'COPY --from=builder /app/packages/clients/dist ./packages/clients/dist',
       'COPY --from=builder /app/services/bot-client/dist ./services/bot-client/dist',
     ].join('\n');
@@ -116,9 +116,9 @@ describe('extractRunnerDistCopies', () => {
 
   it('does not re-anchor onto a stage whose name merely begins with `runner`', () => {
     const dockerfile = [
-      'FROM node:25-slim AS runner',
+      'FROM node:24-slim AS runner',
       'COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist',
-      'FROM node:25-slim AS runner-debug',
+      'FROM node:24-slim AS runner-debug',
       'COPY --from=builder /app/packages/clients/dist ./packages/clients/dist',
     ].join('\n');
 
@@ -129,7 +129,7 @@ describe('extractRunnerDistCopies', () => {
 
   it('still matches a runner stage with trailing whitespace or a lowercase `as`', () => {
     const trailingSpace = [
-      'FROM node:25-slim AS runner   ',
+      'FROM node:24-slim AS runner   ',
       'COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist',
       'FROM scratch AS export',
       'COPY --from=builder /app/packages/clients/dist ./packages/clients/dist',
@@ -148,7 +148,7 @@ describe('extractRunnerDistCopies', () => {
     // trailing export stage rather than the runner. Documented, not desired;
     // no service Dockerfile uses the flag form.
     const dockerfile = [
-      'FROM --platform=$BUILDPLATFORM node:25-slim AS runner',
+      'FROM --platform=$BUILDPLATFORM node:24-slim AS runner',
       'COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist',
       'FROM scratch AS export',
       'COPY --from=builder /app/packages/clients/dist ./packages/clients/dist',
@@ -159,9 +159,9 @@ describe('extractRunnerDistCopies', () => {
 
   it('uses the LAST stage when multiple stages are named runner', () => {
     const dockerfile = [
-      'FROM node:25-slim AS runner',
+      'FROM node:24-slim AS runner',
       'COPY --from=builder /app/packages/clients/dist ./packages/clients/dist',
-      'FROM node:25-slim AS runner',
+      'FROM node:24-slim AS runner',
       'COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist',
     ].join('\n');
 
@@ -211,8 +211,8 @@ describe('collectTransitiveDeps', () => {
 
 describe('checkService', () => {
   const IN_SYNC_DOCKERFILE = [
-    'FROM node:25-slim AS builder',
-    'FROM node:25-slim AS runner',
+    'FROM node:24-slim AS builder',
+    'FROM node:24-slim AS runner',
     'COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist',
     'COPY --from=builder /app/packages/clients/dist ./packages/clients/dist',
     'COPY --from=builder /app/services/bot-client/dist ./services/bot-client/dist',
@@ -224,7 +224,7 @@ describe('checkService', () => {
 
   it('flags a missing dep COPY (the PR #1145 regression shape)', () => {
     const missingClients = [
-      'FROM node:25-slim AS runner',
+      'FROM node:24-slim AS runner',
       'COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist',
       'COPY --from=builder /app/services/bot-client/dist ./services/bot-client/dist',
     ].join('\n');
@@ -245,7 +245,7 @@ describe('checkService', () => {
       '@tzurot/bot-client': ['services/bot-client', ['@tzurot/clients']],
     });
     const dockerfile = [
-      'FROM node:25-slim AS runner',
+      'FROM node:24-slim AS runner',
       'COPY --from=builder /app/packages/clients/dist ./packages/clients/dist',
       'COPY --from=builder /app/services/bot-client/dist ./services/bot-client/dist',
     ].join('\n');
@@ -265,7 +265,7 @@ describe('checkService', () => {
       '@tzurot/bot-client': ['services/bot-client', ['@tzurot/clients']],
     });
     const dockerfile = [
-      'FROM node:25-slim AS runner',
+      'FROM node:24-slim AS runner',
       'COPY --from=builder /app/packages/clients/dist ./packages/clients/dist',
       'COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist',
       'COPY --from=builder /app/services/bot-client/dist ./services/bot-client/dist',
@@ -276,7 +276,7 @@ describe('checkService', () => {
 
   it('flags a stale COPY for a removed dependency', () => {
     const staleEmbeddings = [
-      'FROM node:25-slim AS runner',
+      'FROM node:24-slim AS runner',
       'COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist',
       'COPY --from=builder /app/packages/clients/dist ./packages/clients/dist',
       'COPY --from=builder /app/packages/embeddings/dist ./packages/embeddings/dist',
@@ -293,7 +293,7 @@ describe('checkService', () => {
 
   it("flags a missing COPY of the service's own dist", () => {
     const noOwnDist = [
-      'FROM node:25-slim AS runner',
+      'FROM node:24-slim AS runner',
       'COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist',
       'COPY --from=builder /app/packages/clients/dist ./packages/clients/dist',
     ].join('\n');
@@ -390,12 +390,12 @@ describe('checkDockerfileDist (orchestration)', () => {
 
   const IN_SYNC_DOCKERFILES: Record<string, string> = {
     'services/bot-client': [
-      'FROM node:25-slim AS runner',
+      'FROM node:24-slim AS runner',
       'COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist',
       'COPY --from=builder /app/services/bot-client/dist ./services/bot-client/dist',
     ].join('\n'),
     'services/api-gateway': [
-      'FROM node:25-slim AS runner',
+      'FROM node:24-slim AS runner',
       'COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist',
       'COPY --from=builder /app/services/api-gateway/dist ./services/api-gateway/dist',
     ].join('\n'),
@@ -467,7 +467,7 @@ describe('checkDockerfileDist (orchestration)', () => {
   it('sets exit code 1 and reports MISSING when a dep COPY is absent', async () => {
     mockWorkspace({
       'services/bot-client': [
-        'FROM node:25-slim AS runner',
+        'FROM node:24-slim AS runner',
         'COPY --from=builder /app/services/bot-client/dist ./services/bot-client/dist',
       ].join('\n'),
     });
@@ -484,7 +484,7 @@ describe('checkDockerfileDist (orchestration)', () => {
   it('reports only the broken service and excludes the passing one when one of two is broken', async () => {
     mockWorkspace({
       'services/bot-client': [
-        'FROM node:25-slim AS runner',
+        'FROM node:24-slim AS runner',
         'COPY --from=builder /app/services/bot-client/dist ./services/bot-client/dist',
       ].join('\n'), // missing the common-types COPY
     });
@@ -503,10 +503,10 @@ describe('checkDockerfileDist (orchestration)', () => {
   it('sums findings across both services when both are broken', async () => {
     mockWorkspace({
       'services/bot-client': [
-        'FROM node:25-slim AS runner',
+        'FROM node:24-slim AS runner',
         'COPY --from=builder /app/services/bot-client/dist ./services/bot-client/dist',
       ].join('\n'), // missing common-types (1 finding)
-      'services/api-gateway': 'FROM node:25-slim AS runner', // missing common-types AND own dist (2 findings)
+      'services/api-gateway': 'FROM node:24-slim AS runner', // missing common-types AND own dist (2 findings)
     });
 
     const { checkDockerfileDist } = await import('./check-dockerfile-dist.js');
@@ -534,7 +534,7 @@ describe('checkDockerfileDist (orchestration)', () => {
   it('fails, not merely warns, when a Dockerfile has no stage named runner', async () => {
     mockWorkspace({
       'services/bot-client': [
-        'FROM node:25-slim AS final',
+        'FROM node:24-slim AS final',
         'COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist',
         'COPY --from=builder /app/services/bot-client/dist ./services/bot-client/dist',
       ].join('\n'),
@@ -558,7 +558,7 @@ describe('checkDockerfileDist (orchestration)', () => {
   it('fails when a stage follows AS runner, since that later stage is what ships', async () => {
     mockWorkspace({
       'services/bot-client': [
-        'FROM node:25-slim AS runner',
+        'FROM node:24-slim AS runner',
         'COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist',
         'COPY --from=builder /app/services/bot-client/dist ./services/bot-client/dist',
         'FROM scratch AS export',
@@ -580,22 +580,22 @@ describe('checkDockerfileDist (orchestration)', () => {
 
 describe('classifyRunnerStage', () => {
   it('reports named-last only when a stage is named runner AND nothing follows it', () => {
-    expect(classifyRunnerStage('FROM node:25-slim AS runner')).toBe('named-last');
+    expect(classifyRunnerStage('FROM node:24-slim AS runner')).toBe('named-last');
     expect(classifyRunnerStage('FROM node AS builder\nFROM node AS runner')).toBe('named-last');
     expect(classifyRunnerStage('FROM node AS runner\nFROM scratch AS export')).toBe(
       'named-not-last'
     );
-    expect(classifyRunnerStage('FROM node:25-slim AS runner-debug')).toBe('unnamed');
-    expect(classifyRunnerStage('FROM node:25-slim AS final')).toBe('unnamed');
-    expect(classifyRunnerStage('FROM node:25-slim')).toBe('unnamed');
+    expect(classifyRunnerStage('FROM node:24-slim AS runner-debug')).toBe('unnamed');
+    expect(classifyRunnerStage('FROM node:24-slim AS final')).toBe('unnamed');
+    expect(classifyRunnerStage('FROM node:24-slim')).toBe('unnamed');
   });
 
   it('classifies a mixed-case stage NAME, not just a mixed-case `as` keyword', () => {
     // Pins the JSDoc's claim that the `i` flag — required for as/AS keyword
     // variance — necessarily extends to the stage name too. Also guards a
     // future accidental tightening to case-sensitive name matching.
-    expect(classifyRunnerStage('FROM node:25-slim AS Runner')).toBe('named-last');
-    expect(classifyRunnerStage('FROM node:25-slim AS RUNNER')).toBe('named-last');
+    expect(classifyRunnerStage('FROM node:24-slim AS Runner')).toBe('named-last');
+    expect(classifyRunnerStage('FROM node:24-slim AS RUNNER')).toBe('named-last');
   });
 
   it('agrees with the anchoring it reports on', () => {

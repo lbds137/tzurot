@@ -686,7 +686,7 @@ describe('OpenRouterFetch', () => {
       const response = mockResponse(okBody, 200);
       // The clone is the only thing parseClonedBody reads, so advancing the
       // fake clock inside its `text()` simulates a body that lags its headers.
-      response.clone = (): Response =>
+      (response as { clone: () => Response }).clone = (): Response =>
         ({
           text: async (): Promise<string> => {
             vi.advanceTimersByTime(1234);
@@ -715,7 +715,7 @@ describe('OpenRouterFetch', () => {
       const response = mockResponse(okBody, 200);
       // The prod specimen: headers arrived, then the caller's timeout fired
       // while the body was still streaming.
-      response.clone = (): Response =>
+      (response as { clone: () => Response }).clone = (): Response =>
         ({
           text: (): Promise<string> =>
             Promise.reject(new DOMException('This operation was aborted', 'AbortError')),
@@ -754,7 +754,7 @@ describe('OpenRouterFetch', () => {
       const response = mockResponse(okBody, 200);
       // A rejection that is not an Error at all — `err.name` does not exist, so
       // the log has nothing to name the failure with except the value's type.
-      response.clone = (): Response =>
+      (response as { clone: () => Response }).clone = (): Response =>
         ({
           text: (): Promise<string> => Promise.reject('boom'),
         }) as unknown as Response;
