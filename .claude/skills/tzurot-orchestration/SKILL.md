@@ -189,7 +189,7 @@ reverts a `~/.bashrc` PATH edit as persistence, so every Bash call repeats
 the `export` line itself:
 
 ```bash
-case "$(hostname) $(pwd)" in steamdeck*|*/home/deck*) echo 'ON THE DECK: STOP';; esac
+case "$(hostname) $(pwd)" in steamdeck*|*/home/deck*) { echo 'ON THE DECK: STOP'; exit 1; };; esac
 export LC_ALL=C.UTF-8 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 PATH=/opt/node24/bin:$PATH   # every call
 [ -x /opt/node24/bin/node ] || { curl -fsSL https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-x64.tar.xz | tar -xJ -C /opt && ln -sfn /opt/node-v24.21.0-linux-x64 /opt/node24; }
 redis-server --daemonize yes --dir /tmp && redis-cli ping   # --dir keeps dump.rdb out of the repo
