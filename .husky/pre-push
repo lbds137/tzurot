@@ -100,9 +100,13 @@ elif [ -z "$CODE_FILES" ] && [ -z "$PYTHON_FILES" ]; then
 fi
 
 # 4. Detect resource-constrained environment
-# Use LOW_RESOURCE_MODE=1 env var to enable throttling (e.g., for Steam Deck),
-# or let this step auto-detect a low core count (e.g., a small cloud VM) —
-# either trigger sets LOW_RESOURCE_MODE. Can also be set in .env or shell profile.
+# Three triggers set LOW_RESOURCE_MODE: the LOW_RESOURCE_MODE=1 env var
+# (e.g., for Steam Deck), a LOW_RESOURCE_MODE= line in .env, or this step's
+# own auto-detect of a low core count (e.g., a small cloud VM). Set
+# LOW_RESOURCE_MODE to 0, false, off, or no (any case) to opt out and skip auto-detect.
+# The Node heap cap follows the explicit variable or a small total memory
+# reading, not the core-count trigger — a low core count alone throttles
+# concurrency but does not shrink the heap on a host with plenty of RAM.
 TURBO_ARGS="--output-logs=errors-only"
 
 # Source LOW_RESOURCE_MODE from .env if not already set
@@ -110,10 +114,19 @@ if [ -z "$LOW_RESOURCE_MODE" ] && [ -f ".env" ]; then
     LOW_RESOURCE_MODE=$(grep -E '^LOW_RESOURCE_MODE=' .env | cut -d '=' -f2-)
 fi
 
+# An explicit off value, in any letter case, opts out of auto-detect entirely.
+LOW_RESOURCE_OPT_OUT=""
+case "$(printf '%s' "$LOW_RESOURCE_MODE" | tr 'A-Z' 'a-z')" in
+    0|false|off|no)
+        LOW_RESOURCE_MODE=""
+        LOW_RESOURCE_OPT_OUT=1
+        ;;
+esac
+
 # Auto-detect a low core count when LOW_RESOURCE_MODE is still unset. An
 # empty or non-numeric core count is treated as unknown and does not throttle.
 LOW_RESOURCE_TRIGGER="LOW_RESOURCE_MODE set"
-if [ -z "$LOW_RESOURCE_MODE" ]; then
+if [ -z "$LOW_RESOURCE_MODE" ] && [ -z "$LOW_RESOURCE_OPT_OUT" ]; then
     CPU_COUNT=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null)
     case "$CPU_COUNT" in
         ''|*[!0-9]*) ;;
@@ -130,8 +143,29 @@ if [ -n "$LOW_RESOURCE_MODE" ]; then
     echo "${YELLOW}Low-resource mode enabled ($LOW_RESOURCE_TRIGGER) - throttling builds${NC}"
     # Limit to 1 concurrent task to prevent memory explosion
     TURBO_ARGS="$TURBO_ARGS --concurrency=1"
-    # Cap Node.js memory to 2GB per process
-    export NODE_OPTIONS="--max-old-space-size=2048"
+    # Cap Node.js memory to 2GB per process when the trigger was the explicit
+    # variable, or when total memory is small enough that the cap is safe —
+    # a low core count alone (e.g. a beefy cloud VM with few vCPUs) should not
+    # shrink the heap.
+    if [ "$LOW_RESOURCE_TRIGGER" = "LOW_RESOURCE_MODE set" ]; then
+        export NODE_OPTIONS="--max-old-space-size=2048"
+    else
+        MEM_TOTAL_KB=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null)
+        case "$MEM_TOTAL_KB" in
+            ''|*[!0-9]*)
+                echo "memory not capped: total memory unknown"
+                ;;
+            *)
+                MEM_TOTAL_GIB=$((MEM_TOTAL_KB / 1048576))
+                if [ "$MEM_TOTAL_GIB" -le 16 ]; then
+                    export NODE_OPTIONS="--max-old-space-size=2048"
+                    echo "capping Node heap at 2 GB (${MEM_TOTAL_GIB} GiB total)"
+                else
+                    echo "memory not capped: ${MEM_TOTAL_GIB} GiB total"
+                fi
+                ;;
+        esac
+    fi
     # Export the flag itself so the vitest subprocess (turbo → pnpm → vitest)
     # sees it and drops maxWorkers to 1 (see vitest.config.ts). Sourced from
     # .env above as a local shell var; without this export child processes
