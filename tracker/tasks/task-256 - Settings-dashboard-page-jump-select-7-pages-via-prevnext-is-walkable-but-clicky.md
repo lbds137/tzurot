@@ -3,10 +3,10 @@ id: TASK-256
 title: >-
   Settings dashboard page-jump select (7 pages via prev/next is walkable but
   clicky)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-13 00:00'
-updated_date: '2026-09-04 19:36'
+updated_date: '2026-09-24 15:36'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -32,5 +32,10 @@ author: digest-pass
 created: 2026-09-04 19:36
 ---
 Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `settingsButtonBuilders.ts` still builds only a ◀ Prev / indicator / Next ▶ row (no page-jump select). Deliberately deferred UX polish; promote-when (owner friction report, or an 8th page) hasn't fired. Evidence: `git grep -n "◀\|▶"` in `utils/dashboard/settings/settingsButtonBuilders.ts` → confirmed prev/next-only row, comment at line 111-112 describes exactly this shape.
+---
+
+created: 2026-09-24 15:36
+---
+Absorbed by doc-72 PR A (#2507, merged 2026-09-24 as eb0983e98): the 11-page admin dashboard opens on a page index with one jump select, and every paged settings page has an Index button. The council ruled out a per-page jump select (two selects on one message invite mis-taps on a phone).
 ---
 <!-- COMMENTS:END -->
