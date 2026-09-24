@@ -6,11 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-21 19:49'
-updated_date: '2026-09-24 12:46'
+updated_date: '2026-09-24 12:50'
 labels:
   - 'area:ai-worker'
   - 'size:M'
-  - 'state:owner'
+  - 'state:observable'
 dependencies: []
 priority: high
 ordinal: 1033000
@@ -38,8 +38,10 @@ SLICE 1 SHIPPED 2026-09-22 in #2471 (develop ee7de373b, six review rounds): same
 READ PLAN (owner, 2026-09-22): 09-22 in the diary thread is the mode-OFF day; the owner flips summarized on and chats 09-23, noting the flip time. Compare the within-day curves (OFF day vs ON day), split at the flip time, not the halves. Open product question for slice 2, raised by the owner: does user-only stay a user-facing choice once summarized is proven? Cost does not argue for it (summaries are already produced by the memory pipeline, so summarized adds no model call at render). It stays for now as the fallback arm if the summaries themselves carry the drifted register; decide at slice 2 whether to drop it from the dashboard.
 FLIP (owner, 2026-09-23, recorded ~08:50 EDT / 12:50Z; exact flip time before that, same morning): summarized turned on in dev for Emily; the owner also "added lilith-tzel-shani to the roster" (owner words; read as summarized on for her too - confirm at read time whether she also speaks in the diary thread, since a second responder in the channel changes the history shape the curve measures). The first 09-23 message in the diary thread went to PROD before the owner synced and switched to dev, so the dev read starts at the second message (one-message gap, negligible). Lilith OFF baseline: the owner chatted with her a little on 09-22 (owner, 2026-09-23), so her OFF day is 09-22 too, with a smaller sample than Emily; find which channel(s) at read time and report her sample size beside her curve.
 READ 2026-09-24: inconclusive, the mode barely engaged (details in the 2026-09-24 comment).
-Owner question: lower sameChannelVerbatimExchanges from 10 to 3 on Emily and Lilith for one more read day, so the mode engages inside a one-day thread?
-Recommendation: yes, N 3 for one day — with one thread per day and 10-16 turns per character, N 10 left Emily with zero summarized turns, so a second read at N 10 would measure nothing again; the knob is on each character's Memory settings page and reverts in one edit.
+OWNER RULING 2026-09-24 (AskUserQuestion, "Yes, N=3"): the owner sets sameChannelVerbatimExchanges to 3 on Emily and Lilith (Memory settings page) for one more read day. The second read runs once that day's thread is complete:
+- Find the day's thread(s) with docs/local/handoffs/voice-drift-probe-1039.ts, then run voice-drift-read-1039.ts on them, split at the time N changed. Compare against the 09-22 OFF thread 1551910122136281108.
+- Confirm engagement from the ai-worker "Same-channel history rendered" lines (summarized greater than 0) in the env the owner chatted in. The diagnostic rows and logs are env-local, while the memories sync.
+- Then the read decides slice 2 and whether N returns to 10.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Comments
