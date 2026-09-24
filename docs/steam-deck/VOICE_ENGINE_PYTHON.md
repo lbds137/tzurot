@@ -1,45 +1,48 @@
 # Voice Engine Python Workflow on Steam Deck
 
-The `services/voice-engine/` service runs Python (FastAPI + heavy ML deps), but SteamOS is an immutable filesystem with no `pip`. Python work has to happen inside the `tzurot-dev` distrobox container, not on the host.
+The `services/voice-engine/` service runs Python (FastAPI + heavy ML deps).
+Quality checks (ruff, mypy, pytest) run through `uv`, pinned to the same
+Python version as prod and CI — no distrobox, no host `pip install`.
 
-## Why distrobox
+## Toolchain
 
-| Environment  | Has `python3`? | Has `pip`? | Use for                   |
-| ------------ | -------------- | ---------- | ------------------------- |
-| SteamOS host | Yes (3.11+)    | **No**     | Reading code only         |
-| `tzurot-dev` | Yes (3.13+)    | Yes        | Running tests, installing |
+| Piece        | Source                                                                                                                            |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `uv`         | mise (`~/Documents/dev-docs/mise/config.toml`)                                                                                    |
+| Python 3.11  | `services/voice-engine/.python-version`, matching prod's `python:3.11-slim` and CI's `voice-engine-tests` job                     |
+| Dependencies | `services/voice-engine/requirements-dev.txt`, installed by `uv` on demand into its own cache — never `pip install`d onto the host |
 
-The host's Python is unusable for development because the immutable filesystem blocks `pip install`. The `tzurot-dev` Fedora 41 distrobox has Python 3.13+ and pip and is the only place voice-engine work can happen. Run `python3 --version` inside the container to confirm the exact version on your machine — the base image updates with Fedora releases.
+`uv run --no-project` reads `.python-version` and fetches (or reuses a
+cached) matching interpreter, then installs `requirements-dev.txt` into an
+ephemeral environment for the single invocation. `--no-project` keeps uv
+from treating `services/voice-engine` as a project (creating and syncing a
+`.venv` from `pyproject.toml`), so each run uses exactly the requirements
+file CI installs.
 
-## Running Python tests
+## Running the checks
 
-Wrap any Python command in `distrobox enter` (adjust the path to match where you've checked out the repo):
-
-```bash
-# Replace /home/deck/Projects/tzurot with your checkout path
-distrobox enter tzurot-dev -- bash -c "cd /home/deck/Projects/tzurot && python3 -m pytest services/voice-engine/tests/"
-```
-
-The `bash -c` wrapper is necessary because `distrobox enter -- <cmd>` doesn't preserve the working directory by default — `cd` first inside the wrapped shell.
-
-## Installing dev dependencies
-
-Inside the container (again, adjust the `cd` path for your checkout):
+`.husky/pre-push` runs these automatically for any push touching Python
+files. To run them by hand from the repo root:
 
 ```bash
-distrobox enter tzurot-dev
-cd /home/deck/Projects/tzurot
-pip install -r services/voice-engine/requirements-dev.txt
+cd services/voice-engine
+uv run --no-project --with-requirements requirements-dev.txt -- ruff check .
+uv run --no-project --with-requirements requirements-dev.txt -- mypy --strict server.py tests/
+uv run --no-project --with-requirements requirements-dev.txt -- python3 -m pytest tests/ -q
 ```
-
-`requirements-dev.txt` includes the FastAPI test client, numpy, and scipy. Heavy ML deps (NeMo, PocketTTS, torch) are **not** in requirements-dev — they're mocked in `conftest.py` so the test suite runs without GPU/CUDA tooling.
 
 ## When you need the heavy ML deps
 
-For integration testing against real models, the deps live in `requirements.txt` (not `-dev`). Installing them on the Steam Deck distrobox is possible but slow and disk-hungry. Most development can stay on the mocked test path.
+For integration testing against real models, the deps live in
+`requirements.txt` (not `-dev`). The same pattern should work with
+`uv run --no-project --with-requirements requirements.txt -- ...`, but it
+has not been exercised on the Deck and would be slow and disk-hungry.
+
+Most development can stay on the mocked test path: the heavy ML deps
+(NeMo, PocketTTS, torch) are mocked in `conftest.py`.
 
 ## Related
 
-- `services/voice-engine/README.md` — service overview and architecture
+- `services/voice-engine/CLAUDE.md` — the service's Python standards and conventions
 - `~/Documents/dev-docs/STEAM_DECK_DEV_ENVIRONMENT.md` _(machine-local, not in repo)_ — full dev environment setup (containers, Node, etc.)
 - [`SSH_SETUP.md`](./SSH_SETUP.md) — Git SSH setup for the same dev environment

@@ -1,6 +1,9 @@
 {
   "*.{ts,tsx}": ["prettier --write", "eslint --fix --max-warnings=0 --no-warn-ignored"],
-  "*.py": ["ruff check --fix", "ruff format"],
+  "*.py": [
+    "uv run --directory services/voice-engine --no-project --with-requirements requirements-dev.txt -- ruff check --fix",
+    "uv run --directory services/voice-engine --no-project --with-requirements requirements-dev.txt -- ruff format"
+  ],
   "*.{md,json,yml,yaml}": ["prettier --write"],
   "*.{ts,tsx,js,jsx,json}": ["secretlint"]
 }
