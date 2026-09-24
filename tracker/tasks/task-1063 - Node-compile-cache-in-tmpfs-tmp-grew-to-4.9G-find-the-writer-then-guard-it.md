@@ -1,9 +1,10 @@
 ---
 id: TASK-1063
 title: 'Node compile cache in tmpfs /tmp grew to 4.9G: find the writer, then guard it'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-23 22:44'
+updated_date: '2026-09-24 00:36'
 labels:
   - 'area:tooling'
   - 'size:M'
@@ -22,4 +23,5 @@ Update (same day): after deletion the ef5a0af0 dir regrew to 580 files, 578 of t
 WRITER FOUND (same evening, sibling session's watcher; verified by reading the file): ESLint 10.10.0. node_modules/.pnpm/eslint@10.10.0_jiti@2.7.0/node_modules/eslint/bin/eslint.js calls `mod.enableCompileCache?.()` at startup (no dir argument, so os.tmpdir() unless NODE_COMPILE_CACHE is set). Bursts of +2,831 and +2,618 files landed as lint-staged eslint --fix and turbo lint processes exited; every commit touching .ts and every lint run adds a burst, and nothing evicts old entries. Machine-level fix applied by the owner-approved env cleanup: NODE_COMPILE_CACHE=$HOME/.cache/node-compile-cache in the shell profile (disk, not tmpfs) plus a deck-doctor prune above 2 GB. Remaining repo-side question: after the switch, verify ESLint's argument-less enableCompileCache() writes to the NODE_COMPILE_CACHE path (run one lint, check both dirs); if it does, the repo needs no change (keeping the speedup) and this task closes; if not, set NODE_DISABLE_COMPILE_CACHE=1 in the lint-staged and lint scripts.
 Fix shape: (1) identify the writer: sample `find /tmp/node-compile-cache -type f | wc -l` per subdir over a normal working session and correlate growth with what ran (or inotifywait on the dir); (2) guard regardless of source: a check in pnpm ops health (or a doctor command) that warns when /tmp/node-compile-cache exceeds a threshold (e.g. 500M or 50k files) and names the prune command; (3) once the writer is known, either pin NODE_COMPILE_CACHE to a disk path for that process or set NODE_DISABLE_COMPILE_CACHE=1 there.
 Acceptance: the writer is named with evidence; a health check warns past the threshold and is exercised against a synthetic oversized dir; the chosen pin/disable is applied where the writer runs.
+CLOSED 2026-09-23 on the remaining-question criterion above. After the session restart NODE_COMPILE_CACHE=/home/deck/.cache/node-compile-cache was set; one `npx eslint packages/common-types/src/constants/ai.ts` run grew that dir 6.2M -> 24M (new subdir v24.21.0-x64-964aae3f-1000) while /tmp/node-compile-cache stayed at 164M (`du -sh` before and after). So ESLint's argument-less enableCompileCache() honours the env pin and the repo needs no change. The threshold guard is the machine-level deck-doctor prune above 2 GB (outside the repo, not exercised in this check). The 164M left in /tmp predates the pin and clears at reboot.
 <!-- SECTION:DESCRIPTION:END -->
