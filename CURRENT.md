@@ -1,8 +1,8 @@
 # Current
 
-> **Version**: v3.0.0-beta.228 — "the drain finishes, and the vxreddit renderer" (6 PRs / 6 runtime / 104 range files; no migrations; PR #2469 merged 2026-09-21 22:08Z, main `de26c3f1d`; finalize done, tagged `latest`). Constituent detail: git + release notes.
+> **Version**: v3.0.0-beta.229 — "Vencord voice transcription, db-sync single-flight, and Node 24" (30 PRs / 24 runtime / 402 files; no migrations; release PR #2501, fast-forwarded to main `9cb29c9c4` at 2026-09-24 11:28Z after the rebase-merge refused 166 commits; finalize was a no-op; tagged `latest`). Constituent detail: git + release notes.
 >
-> **Previous**: v3.0.0-beta.227 — "attachment provenance, the embed diagnostic, and the gateway hardening" (9 PRs / 8 runtime / 116 PR-diff files; no migrations; 2026-09-21 00:34Z, `56e36674d`).
+> **Previous**: v3.0.0-beta.228 — "the drain finishes, and the vxreddit renderer" (6 PRs / 6 runtime / 104 range files; no migrations; 2026-09-21 22:08Z, `de26c3f1d`).
 
 ---
 
@@ -15,11 +15,11 @@
 - **Done 2026-09-13**: the Default `system_prompts` row edited on dev and prod (v1 then v2; long-form under doc-97 Phase 2) · `WEEKLY_AUDIT_GH_TOKEN` set (Dependabot row reads; deletion-safety row fixed by #2413) · `TZUROT_RAILWAY_API_TOKEN_DEV`/`_PROD` in the local `.env` (tooling reads them after the TASK-62 follow-up) · the TASK-798 prod measurement · the stale `.bashrc` OpenRouter key revoked · the Waffles Share-Memories question CLOSED by ruling (deal with it if it recurs) · the privacy-policy z.ai summaries bullet committed.
 - **Agent-run, no owner action**: the doc-17 gap-bucket cache read · the Emily gate and dead-row read · TASK-702 probe · TASK-62 env-suffixed token read · TASK-951 `.env.example` guard · TASK-838 cadence ledger then the doc-61 economy pass (ruled 2026-09-13, Opus lane) · the #2270 link-share watcher · the five `state:observable` watches TASK-952–956.
 
-## 🚢 2026-09-24 — beta.229 cut in progress (Opus 5.5)
+## 🚢 2026-09-24 — beta.229 RELEASED (Opus 5.5; owner approved the merge and kept the summarized mode live; first prod boots on Node 24 clean, 0 error lines in 15 min)
 
 **Range final**: 30 PRs, 24 runtime, 402 files; no migrations (`release:premigrate --dry-run`: nothing to premigrate); version bumped on develop (`9feea7eaa`). A split local release review (four read-only area reviewers) found one Medium and one Low, both fixed in #2500; api-gateway, ai-worker and packages/infra came back clean.
 
-**⚠ Deploy decision (owner)**: the dev flip of `sameChannelRenderMode: summarized` on Emily and lilith-tzel-shani (09-23 ~08:50 EDT) reaches prod through the last-write-wins db sync. beta.228 strips the key and beta.229 reads it, so the mode goes LIVE for those two characters on prod at deploy. The prod row was not re-read. Clearing it on prod would sync back and erase the dev ON state before the TASK-1039 read.
+**Deploy decision, ruled KEEP by the owner 2026-09-24**: the dev flip of `sameChannelRenderMode: summarized` on Emily and lilith-tzel-shani (09-23 ~08:50 EDT) reaches prod through the last-write-wins db sync. beta.228 strips the key and beta.229 reads it, so the mode goes LIVE for those two characters on prod at deploy. The prod row was not re-read. Clearing it on prod would sync back and erase the dev ON state before the TASK-1039 read.
 
 **beta.229 smoke checklist (dev; report pass/fail by number)**:
 
@@ -61,7 +61,7 @@
 
 **Filed**: TASK-1070 (voice-engine to Python 3.13, after the cut) · TASK-1072 · TASK-1073 · TASK-1074–1076 (the TASK-1069 follow-ups). The TASK-802 comment gained the edit-dashboard name sites.
 
-**Next**, in order: (1) the beta.229 release PR and the owner's merge approval (the section above); (2) `release:finalize`, `release:publish`, and the next-release plan; (3) the TASK-1039 read; (4) TASK-1070 (Python 3.13); (5) the drain on 5.5: `pnpm tracker task list -s "To Do" -l state:ready -l size:S --plain`.
+**Next**, in order (the beta.230 plan is in `backlog/now.md`): (1) the owner's beta.229 Vencord smoke, which closes TASK-1069; (2) the TASK-1039 read; (3) TASK-1070 (Python 3.13); (4) `doc-72`, with a council pass at pickup; (5) the drain on 5.5: `pnpm tracker task list -s "To Do" -l state:ready -l size:S --plain`.
 
 **Keep for Fable**: the doc-97 Phase 4 slice 2 design, council passes, semantic specs.
 
