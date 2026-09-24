@@ -3,9 +3,10 @@ id: TASK-1079
 title: >-
   Share Chat History drill-down on both character dashboards builds a 107-char
   customId and throws
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-24 14:11'
+updated_date: '2026-09-24 16:57'
 labels:
   - 'area:bot-client'
   - 'size:M'
