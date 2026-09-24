@@ -1,10 +1,10 @@
 [project]
 name = "voice-engine"
 version = "0.1.0"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py313"
 line-length = 120
 # E/W: pycodestyle, F: pyflakes, I: isort, UP: pyupgrade,
 # B: flake8-bugbear, SIM: flake8-simplify, RUF: ruff-specific
@@ -16,7 +16,7 @@ lint.per-file-ignores."server.py" = ["B008"]
 quote-style = "double"
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
