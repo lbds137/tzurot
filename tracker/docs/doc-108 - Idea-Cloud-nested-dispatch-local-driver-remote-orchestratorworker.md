@@ -58,6 +58,7 @@ Owner steer: the pilot must exercise the REAL path, a local session spawning clo
   - Every `create` auto-attaches ALL the account's claude.ai connectors (Gmail, Drive, Calendar, PayPal, Claude_Code_Remote), even with `"mcp_connections": []`, so each create is followed by `update` with `clear_mcp_connections: true`, before `run_once_at`.
   - `run_once_at` must be in the future (2–3 min out works). The run starts about 1 min after it.
 - **Unit run: TASK-1055**, Opus 5.5 orchestrator allowed one Sonnet worker, gates run in the cloud, deliverable a pushed `feat/task-1055-single-flight-sync`, and no PR (the driver opens it). It ran concurrently with the Deck's local gates for another PR, the first time two gate-running units were in flight at once. Result: pending at this writing.
+  - Mid-run wrinkle, from the run log: in a routine the cloud orchestrator IS its session's main loop, so `dispatch-posture-gate.sh` applies to it. Instead of handing edits to the Sonnet worker, it made them itself, split into ≤5-line Edit calls after the hook blocked 6- and 8-line ones. That complies with the letter of the hook (its message offers splitting), but it is slow and fragments the edits. For the cloud mode in `/tzurot-orchestration`, the spec should say plainly that the orchestrator delegates ALL src edits to its worker.
 
 ## Pilot
 

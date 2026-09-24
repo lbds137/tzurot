@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-24 01:25'
+updated_date: '2026-09-24 01:31'
 labels:
   - 'area:voice'
   - 'size:M'
@@ -23,3 +24,12 @@ Evidence from PyPI metadata (curl pypi.org/pypi/<pkg>/json, 2026-09-24): librosa
 Fix shape: bump the Dockerfile base, the CI python-version and the TASK-1068 .python-version together; build the image and run a real STT and TTS smoke against it (dev voice-engine), not only the mocked tests.
 Acceptance: prod image, CI and the local pin agree on 3.12 or later, and a real transcription plus a TTS synthesis succeed on the new image in dev.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+created: 2026-09-24 01:31
+---
+3.13 check (owner asked, 2026-09-24, PyPI metadata): librosa 0.11.0 declares 3.8 to 3.13 (requires_python >=3.8), so 3.13 needs only the librosa pin moved from <0.11.0 to the 0.11.x line; librosa 0.10.x declares nothing past 3.12. NeMo 2.7.3 (latest 2.x) requires >=3.10 but lists only 3.10 in classifiers, while prod already runs it on 3.11, so its classifiers under-report and NeMo is the real unknown. sentencepiece 0.2.2 (14 cp313-or-universal wheels), soundfile 0.14.0 (8) and audioread 3.1.0 (pure) have 3.13 wheels. Not checked: CPU-only torch wheels for 3.13 from the PyTorch index the Dockerfile uses, and the 3.13 removal of stdlib audioop/aifc (memory, not probed). Recommendation: target 3.13 with librosa 0.11.x; fall back to 3.12 only if the trial build or the real STT/TTS smoke fails on NeMo or torch.
+---
+<!-- COMMENTS:END -->
