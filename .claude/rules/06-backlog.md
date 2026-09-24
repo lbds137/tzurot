@@ -141,6 +141,7 @@ A session is ALSO not done until every item that shipped during the session is c
 
 - List the PRs merged during the session
 - For each PR, search the tracker (`--search` by title/topic), `pnpm tracker doc search`, AND grep `backlog/` (recursive) — mark any matching entry Done / **remove it**
+- **When a merged PR completes a PHASE (or the last slice) of a theme doc, grep the doc id — `grep -rn 'doc-N' backlog/ tracker/docs/` — and rewrite every hit's status words.** A PR-title grep never matches a roadmap line that names the epic by id ("doc-12 closes Phase A", "Phase 2 is queued"): two shipped phases sat marked queued/untouched in `cold/queue.md` for four weeks that way.
 - For any entry annotated "PROMOTED to Current Focus" or similar, re-verify the fix actually shipped; if yes, remove
 - Remove any entry whose fix-shape points to code that no longer needs fixing (grep the file to confirm) — the "genuinely obsolete" path, not time-based pruning
 - **Did every rule-out decided this session actually get committed?** Name each item ruled out this session and confirm its commit exists — a decision that stayed in chat removed nothing.
