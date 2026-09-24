@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-09-22'
+lastUpdated: '2026-09-24'
 ---
 
 # Orchestrator Mode
@@ -31,11 +31,12 @@ on the per-release owner-approval gate (`00-critical.md` § Merge Approval),
 which is model-independent. Schema and migration work, and any owner-taste
 call, still escalate to the owner regardless of driver.
 
-| Driver                                          | Posture                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Fable main loop** _(PRIMARY — routine work)_  | **Nested dispatch is the STANDARD** — mechanics and contract in § Nested dispatch below; Fable's own full-diff read stays the gate. Inline only for: trivial mechanical edits (~≤5 lines), or work where writing the spec genuinely costs more than the edit. Review-round fixes are NOT an inline carve-out — batch each round's findings into one dispatch, preferring a SendMessage resume of the unit's own orchestrator (/tzurot-review-response § 3a).                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| **Opus main loop** _(BACKUP — low Fable usage)_ | **Nested dispatch for SUBSTANTIVE units under this driver too** (owner call): one fresh Opus orchestrator + Sonnet worker per unit, same § Nested dispatch contract, with the Opus main loop's own full-diff read as the gate. The fresh-context layer, not the model tier, is the defect-catcher — a fresh instance of the SAME model re-verifies spec premises the authoring context cannot see past, and its marginal cost bills the non-binding budget. Mechanical-class units may go single-hop Sonnet (§ Worker model tier). But do NOT delegate work finishable in a handful of tool calls: Opus 5 over-delegates by documented tendency (prompting guide § controlling subagent spawning). Review-round fix batches are dispatch work under this driver too (/tzurot-review-response § 3a) — the handful-of-tool-calls exception never covers them: inline round-fixes are how self-fed review loops start. |
-| **Bulk reading/exploration**                    | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use. **Any read fan-out of ~4+ files, or any search across unknown locations, goes to `Explore` with `model: "haiku"` passed on the Agent call — never inline** (mechanism below the table).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Driver                                                | Posture                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fable main loop** _(PRIMARY — routine work)_        | **Nested dispatch is the STANDARD** — mechanics and contract in § Nested dispatch below; Fable's own full-diff read stays the gate. Inline only for: trivial mechanical edits (~≤5 lines), or work where writing the spec genuinely costs more than the edit. Review-round fixes are NOT an inline carve-out — batch each round's findings into one dispatch, preferring a SendMessage resume of the unit's own orchestrator (/tzurot-review-response § 3a).                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **Opus main loop** _(BACKUP — low Fable usage)_       | **Nested dispatch for SUBSTANTIVE units under this driver too** (owner call): one fresh Opus orchestrator + Sonnet worker per unit, same § Nested dispatch contract, with the Opus main loop's own full-diff read as the gate. The fresh-context layer, not the model tier, is the defect-catcher — a fresh instance of the SAME model re-verifies spec premises the authoring context cannot see past, and its marginal cost bills the non-binding budget. Mechanical-class units may go single-hop Sonnet (§ Worker model tier). But do NOT delegate work finishable in a handful of tool calls: Opus 5 over-delegates by documented tendency (prompting guide § controlling subagent spawning). Review-round fix batches are dispatch work under this driver too (/tzurot-review-response § 3a) — the handful-of-tool-calls exception never covers them: inline round-fixes are how self-fed review loops start. |
+| **Cloud unit** _(at most one, beside one local unit)_ | A unit's orchestrator + worker and gates run in a cloud VM and deliver a pushed branch; the driver's full-diff read stays the gate. Launch, step 0, and what stays local: § Cloud dispatch below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Bulk reading/exploration**                          | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use. **Any read fan-out of ~4+ files, or any search across unknown locations, goes to `Explore` with `model: "haiku"` passed on the Agent call — never inline** (mechanism below the table).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 **Why Explore gets `model: "haiku"` per-call**: the built-in Explore inherits
 the main-loop model (per the Agent tool's own schema: an omitted `model` "uses
@@ -153,6 +154,77 @@ monitor. `pnpm ops worktree:transfer <path> --base <sha>` runs the checks from
 `add -A` through the removal in that order and refuses on the first failure,
 so that half is one call; the gates, commit, PR and monitor stay yours. The
 review gate is not delegated and not skipped for a clean-looking report.
+
+## Cloud dispatch — one cloud unit beside one local unit
+
+A unit's orchestrator + worker and all its gates run in a Claude Code cloud
+session (a VM that clones GitHub). Evidence and billing: doc-108. **When**: at
+most ONE cloud unit in flight, beside at most one local gate-running unit
+(`05-tooling.md`'s one-gate rule still governs the local side). Stays local:
+Railway operations and data probes (the VM has no Railway CLI or token),
+anything needing a real secret value from `.env`, and applying migrations to
+dev or prod. Everything else is eligible: the component tier, `pnpm quality`,
+migration AUTHORING against the VM's own Postgres, and the integration tier —
+the Deck runs out of memory on it; the VM is the only place outside CI that can.
+
+**Launch (driver).** `claude --cloud "<prompt>"` refuses a non-TTY call
+("--cloud requires an interactive terminal"), so write the spec to a prompt
+file, write a two-line launcher file, and run the launcher under `script`:
+
+```bash
+cd <repo>
+exec claude --cloud "$(cat <prompt file>)"
+```
+
+`script -qfec 'sh <launcher file>' /dev/null` prints "Created cloud session"
+and a `claude --teleport <id>` line; `<id>` is the session id. The Agent
+tool's `isolation: "remote"` is NOT a cloud path: it silently runs in a local
+worktree. Routines (RemoteTrigger) work but bill the plan instead of the
+one-time cloud credit; they are the fallback only. **Environment**: `claude
+--cloud` from the Deck lands in **Default (Full)**, whose setup script
+(doc-108) installs Node 24 into `/opt/node24` and `postgresql-16-pgvector`,
+cached for about 7 days. Processes are not cached, so every cloud spec opens
+with this step 0. The VM's auto-mode classifier
+reverts a `~/.bashrc` PATH edit as persistence, so every Bash call repeats
+the `export` line itself:
+
+```bash
+case "$(hostname) $(pwd)" in steamdeck*|*/home/deck*) echo 'ON THE DECK: STOP';; esac
+export LC_ALL=C.UTF-8 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 PATH=/opt/node24/bin:$PATH   # every call
+[ -x /opt/node24/bin/node ] || { curl -fsSL https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-x64.tar.xz | tar -xJ -C /opt && ln -sfn /opt/node-v24.21.0-linux-x64 /opt/node24; }
+redis-server --daemonize yes --dir /tmp && redis-cli ping   # --dir keeps dump.rdb out of the repo
+pg_ctlcluster 16 main start
+git fetch origin develop main:main   # local main: pnpm quality's workflow-sync guard
+git checkout -B <type/description> origin/<pushed base branch>   # pre-push enforces the name shape
+cp .env.example .env && sed -i -E 's/^(BOT_OWNER_ID|DISCORD_CLIENT_ID|GUILD_ID)=.*/\1=100000000000000000/' .env
+pnpm install --frozen-lockfile && pnpm --filter "./packages/**" build
+su postgres -c "psql -c \"CREATE ROLE tzurot LOGIN SUPERUSER PASSWORD 'tzurot'\""   # this line on: Postgres units only
+su postgres -c "createdb -O tzurot tzurot_integration_test"   # the name must end in _test
+su postgres -c "psql -d tzurot_integration_test -c 'CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS citext'"
+export DATABASE_URL=postgresql://tzurot:tzurot@localhost:5432/tzurot_integration_test
+npx prisma migrate deploy && REDIS_IP_FAMILY=4 pnpm test:integration   # the VM has no IPv6
+```
+
+**Contract points that differ from § Nested dispatch.** The base must be
+PUSHED: the VM clones GitHub, so a local-only commit is not a valid base. The
+deliverable is a pushed branch and no PR (no `gh` in the VM); the driver opens
+it with `gh pr create --head <branch>` and arms the monitor as usual. The
+cloud orchestrator is its session's own main loop, so `dispatch-posture-gate.sh`
+applies to it, and the spec tells it to hand all src edits above five lines to
+ONE Sonnet worker. Observed behavior: units have ignored that and split their
+edits into five-line pieces instead, which is correct but slow.
+
+**Reading the result.** RemoteTrigger `get_run_log` with the session id,
+paging with its cursor. The log truncates long messages, so the spec makes the
+unit write its report to `/tmp/report.md`, print it in Bash calls of at most
+700 characters each, and keep its final message to about three lines. The
+driver's full-diff read (`git fetch`, then `git diff
+origin/develop...origin/<branch>`) stays the review gate, as in § When the
+worker reports. Relay the session link to the owner in chat only, never in a
+commit, PR body, or doc (`00-critical.md` § Claude Session URLs Are Secrets).
+**Review rounds**: a cloud session cannot be messaged back into, so a round's
+fixes go to a local worktree dispatch or a fresh cloud unit on the pushed
+branch, per `/tzurot-review-response` § 3a.
 
 ## The spec template
 
