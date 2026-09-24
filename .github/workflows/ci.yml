@@ -420,6 +420,14 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
+      - name: Clean build artifacts
+        if: steps.gate.outputs.run != 'false'
+        run: find . -name "*.tsbuildinfo" -delete && find ./packages/*/dist -type d -exec rm -rf {} + 2>/dev/null || true
+
+      - name: Build packages
+        if: steps.gate.outputs.run != 'false'
+        run: pnpm --filter './packages/*' build
+
       # Skip Stryker when the diff cannot have moved any tracked score:
       # no tracked package (or workspace dep of one) affected, no shared
       # config/baseline/machinery change. Fail-open — a gate error runs the
@@ -429,14 +437,6 @@ jobs:
         id: gate
         if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop'
         run: pnpm ops mutation:gate
-
-      - name: Clean build artifacts
-        if: steps.gate.outputs.run != 'false'
-        run: find . -name "*.tsbuildinfo" -delete && find ./packages/*/dist -type d -exec rm -rf {} + 2>/dev/null || true
-
-      - name: Build packages
-        if: steps.gate.outputs.run != 'false'
-        run: pnpm --filter './packages/*' build
 
       - name: Run mutation testing (config-resolver)
         if: steps.gate.outputs.run != 'false'
