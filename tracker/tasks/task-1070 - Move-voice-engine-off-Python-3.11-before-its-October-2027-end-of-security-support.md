@@ -6,13 +6,13 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-24 01:25'
-updated_date: '2026-09-24 01:31'
+updated_date: '2026-09-24 04:00'
 labels:
   - 'area:voice'
   - 'size:M'
   - 'state:ready'
 dependencies: []
-priority: low
+priority: medium
 ordinal: 1064000
 ---
 
@@ -31,5 +31,10 @@ Acceptance: prod image, CI and the local pin agree on 3.12 or later, and a real 
 created: 2026-09-24 01:31
 ---
 3.13 check (owner asked, 2026-09-23, PyPI metadata): librosa 0.11.0 declares 3.8 to 3.13 (requires_python >=3.8), so 3.13 needs only the librosa pin moved from <0.11.0 to the 0.11.x line; librosa 0.10.x declares nothing past 3.12. NeMo 2.7.3 (latest 2.x) requires >=3.10 but lists only 3.10 in classifiers, while prod already runs it on 3.11, so its classifiers under-report and NeMo is the real unknown. sentencepiece 0.2.2 (14 cp313-or-universal wheels), soundfile 0.14.0 (8) and audioread 3.1.0 (pure) have 3.13 wheels. Not checked: CPU-only torch wheels for 3.13 from the PyTorch index the Dockerfile uses, and the 3.13 removal of stdlib audioop/aifc (memory, not probed). Recommendation: target 3.13 with librosa 0.11.x; fall back to 3.12 only if the trial build or the real STT/TTS smoke fails on NeMo or torch.
+---
+created: 2026-09-24 00:20
+---
+Raised to MEDIUM (owner, 2026-09-24: "I thought we were going to try 3.13 rather than stay on 3.11?"). The target is 3.13, per the recommendation above. TASK-1068 (PR #2498) pins services/voice-engine/.python-version to 3.11 deliberately, because that pin exists to match prod; CI's voice-engine job now reads the same file. So the move is one PR: bump the Dockerfile base, move librosa to 0.11.x, and change `.python-version` (CI follows automatically). Before the PR, build the image and run a real STT and TTS smoke on dev, since CI mocks the ML stack.
+Sequencing: right after the beta.229 cut, not inside it. It needs that dev smoke, and beta.229 is already past both backstops.
 ---
 <!-- COMMENTS:END -->
