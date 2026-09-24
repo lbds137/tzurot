@@ -11,6 +11,8 @@ import {
   buildEnumButtons,
   buildEditButtons,
   buildBackButton,
+  buildResetAllRow,
+  buildResetPageRow,
 } from './settingsButtonBuilders.js';
 import {
   type SettingDefinition,
@@ -448,6 +450,142 @@ describe('settingsButtonBuilders', () => {
       expect(buttons).toHaveLength(1);
       expect(buttons[0].label).toBe('Back to Overview');
       expect(buttons[0].custom_id).toBe('test-settings::back::test-entity');
+    });
+  });
+
+  describe('buildResetPageRow', () => {
+    const pagedConfig = (
+      overrides: Partial<SettingsDashboardConfig> = {}
+    ): SettingsDashboardConfig => ({
+      ...createTestConfig(),
+      pages: [
+        { id: 'p0', label: 'Page One', settingIds: EXTENDED_CONTEXT_SETTINGS.map(s => s.id) },
+      ],
+      ...overrides,
+    });
+
+    it('returns null on a flat config (no pages)', () => {
+      expect(buildResetPageRow(createTestConfig(), createTestSession())).toBeNull();
+    });
+
+    it('returns null on a page holding a plain setting (no Auto to return to)', () => {
+      const plainSetting: SettingDefinition = {
+        id: 'sysFlag',
+        label: 'Sys Flag',
+        emoji: '🎛️',
+        description: 'A system flag.',
+        type: SettingType.BOOLEAN,
+        plainDisplay: true,
+      };
+      const config: SettingsDashboardConfig = {
+        ...createTestConfig(),
+        settings: [...EXTENDED_CONTEXT_SETTINGS, plainSetting],
+        pages: [
+          {
+            id: 'p0',
+            label: 'Page One',
+            settingIds: [...EXTENDED_CONTEXT_SETTINGS.map(s => s.id), 'sysFlag'],
+          },
+        ],
+      };
+
+      expect(buildResetPageRow(config, createTestSession())).toBeNull();
+    });
+
+    it('renders label, emoji, Danger style, and a page-scoped customId', () => {
+      const row = buildResetPageRow(pagedConfig(), createTestSession());
+      expect(row).not.toBeNull();
+      const [button] = getButtons(row!);
+
+      expect(button.label).toBe('Reset page');
+      expect(button.emoji?.name).toBe('♻️');
+      expect(button.style).toBe(ButtonStyle.Danger);
+      expect(button.custom_id).toBe('test-settings::reset::test-entity::page:p0');
+    });
+
+    it('Reset page is disabled when nothing on the page is set here', () => {
+      const row = buildResetPageRow(pagedConfig(), createTestSession());
+      const [button] = getButtons(row!);
+
+      expect(button.disabled).toBe(true);
+    });
+
+    it('Reset page is enabled when one setting on the page is set here', () => {
+      const session = createTestSession({
+        maxMessages: {
+          localValue: 25,
+          hasLocalOverride: true,
+          effectiveValue: 25,
+          source: 'channel',
+          parentValue: 50,
+        },
+      });
+      const row = buildResetPageRow(pagedConfig(), session);
+      const [button] = getButtons(row!);
+
+      expect(button.disabled).toBe(false);
+    });
+
+    it('a stored explicit OFF counts as set', () => {
+      const session = createTestSession({
+        maxAge: {
+          localValue: null,
+          hasLocalOverride: true,
+          effectiveValue: null,
+          source: 'channel',
+          parentValue: 7200,
+        },
+      });
+      const row = buildResetPageRow(pagedConfig(), session);
+      const [button] = getButtons(row!);
+
+      expect(button.disabled).toBe(false);
+    });
+  });
+
+  describe('buildResetAllRow', () => {
+    it('returns null without config.resetAll', () => {
+      expect(buildResetAllRow(createTestConfig(), createTestSession())).toBeNull();
+    });
+
+    it('renders label, emoji, Danger style, and the all-scope customId when opted in', () => {
+      const config: SettingsDashboardConfig = { ...createTestConfig(), resetAll: true };
+
+      const row = buildResetAllRow(config, createTestSession());
+      expect(row).not.toBeNull();
+      const [button] = getButtons(row!);
+
+      expect(button.label).toBe('Reset all');
+      expect(button.emoji?.name).toBe('♻️');
+      expect(button.style).toBe(ButtonStyle.Danger);
+      expect(button.custom_id).toBe('test-settings::reset::test-entity::all');
+    });
+
+    it('Reset all is disabled when nothing in the dashboard is set here', () => {
+      const config: SettingsDashboardConfig = { ...createTestConfig(), resetAll: true };
+
+      const row = buildResetAllRow(config, createTestSession());
+      const [button] = getButtons(row!);
+
+      expect(button.disabled).toBe(true);
+    });
+
+    it('Reset all is enabled when one setting anywhere is set here', () => {
+      const config: SettingsDashboardConfig = { ...createTestConfig(), resetAll: true };
+      const session = createTestSession({
+        maxMessages: {
+          localValue: 25,
+          hasLocalOverride: true,
+          effectiveValue: 25,
+          source: 'channel',
+          parentValue: 50,
+        },
+      });
+
+      const row = buildResetAllRow(config, session);
+      const [button] = getButtons(row!);
+
+      expect(button.disabled).toBe(false);
     });
   });
 });

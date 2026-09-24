@@ -85,6 +85,9 @@ describe('compacted settings customId → canonical UUID at every consumer', () 
     entityType: ENTITY_TYPE,
     settingsConfig: config,
     createUpdateHandler,
+    // Not this file's concern (no reset-family customId is driven here) —
+    // required since createResetHandler is no longer opt-in.
+    createResetHandler: vi.fn(() => vi.fn()),
   });
 
   beforeEach(() => {

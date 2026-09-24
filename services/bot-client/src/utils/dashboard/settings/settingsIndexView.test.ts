@@ -163,6 +163,32 @@ describe('settingsIndexView', () => {
       expect(embed.description ?? '').toContain('DESCRIPTION_NOTE_SENTINEL');
     });
 
+    it("prefers session.descriptionNote over the config's when both are set", () => {
+      const embed = buildIndexEmbed(
+        configWithPages(pagesOf(4), { descriptionNote: 'CONFIG_NOTE' }),
+        session({ descriptionNote: 'SESSION_NOTE' })
+      ).toJSON();
+      const description = embed.description ?? '';
+      expect(description).toContain('SESSION_NOTE');
+      expect(description).not.toContain('CONFIG_NOTE');
+    });
+
+    it('renders 2 rows (jump + Reset all) when the config opts in, 1 row without', () => {
+      const withoutResetAll = buildIndexMessage(configWithPages(pagesOf(4)), session());
+      expect(withoutResetAll.components).toHaveLength(1);
+
+      const withResetAll = buildIndexMessage(
+        configWithPages(pagesOf(4), { resetAll: true }),
+        session()
+      );
+      expect(withResetAll.components).toHaveLength(2);
+      const resetRow = withResetAll.components[1].toJSON() as {
+        components: Array<{ custom_id: string; label: string }>;
+      };
+      expect(resetRow.components[0].custom_id).toBe('test-settings::reset::global::all');
+      expect(resetRow.components[0].label).toBe('Reset all');
+    });
+
     it("throws past Discord's 25-option cap instead of truncating", () => {
       expect(() => jumpSelect(configWithPages(pagesOf(26)))).toThrow(/25-option limit/);
       expect(jumpSelect(configWithPages(pagesOf(25))).options).toHaveLength(25);

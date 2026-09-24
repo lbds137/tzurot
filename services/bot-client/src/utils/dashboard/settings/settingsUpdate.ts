@@ -81,6 +81,28 @@ export function mapSettingToApiUpdate(
 }
 
 /**
+ * Build the ONE cascade PATCH body that returns every listed setting to Auto
+ * at this tier (Reset page / Reset all): the merge of each setting's own
+ * `mapSettingToApiUpdate(id, null)`, so a setting whose wire form differs
+ * from its id keeps its mapping. Returns null — fail closed, write nothing —
+ * when the list is empty or names a setting the cascade body does not know.
+ */
+export function buildClearBody(settingIds: readonly string[]): Record<string, unknown> | null {
+  if (settingIds.length === 0) {
+    return null;
+  }
+  const body: Record<string, unknown> = {};
+  for (const settingId of settingIds) {
+    const mapped = mapSettingToApiUpdate(settingId, null);
+    if (mapped === null) {
+      return null;
+    }
+    Object.assign(body, mapped);
+  }
+  return body;
+}
+
+/**
  * Handle the set button — directly set a value (tri-state/boolean/enum
  * buttons). Lives here with the update mapping (rather than in
  * SettingsDashboardHandler) so the router file stays under the `max-lines`

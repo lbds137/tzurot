@@ -7,7 +7,13 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
-import { handleIndexButton, handleJumpSelect } from './settingsNavigationHandlers.js';
+import {
+  handleBackButton,
+  handleCloseButton,
+  handleIndexButton,
+  handleJumpSelect,
+  handlePageButton,
+} from './settingsNavigationHandlers.js';
 import {
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
@@ -75,6 +81,67 @@ function renderedTitle(i: ReturnType<typeof interaction>): string | undefined {
 describe('settingsNavigationHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe('handleBackButton', () => {
+    it('returns to the overview of the session current page, clearing the active setting', async () => {
+      const i = interaction();
+      await handleBackButton(
+        i as never,
+        config(),
+        session({ view: DashboardView.SETTING, activeSetting: 'maxMessages', page: 1 })
+      );
+
+      const stored = storedSession();
+      expect(stored.view).toBe(DashboardView.OVERVIEW);
+      expect(stored.activeSetting).toBeUndefined();
+      expect(stored.lastActivityAt.getTime()).toBeGreaterThan(0);
+      expect(renderedTitle(i)).toBe('Test Settings · Bravo');
+    });
+  });
+
+  describe('handleCloseButton', () => {
+    it('deletes the session and renders the closed message', async () => {
+      const i = interaction();
+      const s = session();
+
+      await handleCloseButton(i as never, config(), s);
+
+      expect(mockSessionManager.delete).toHaveBeenCalledWith(s.userId, 'test-settings', s.entityId);
+      expect(i.editReply).toHaveBeenCalledWith({
+        content: 'Settings dashboard closed.',
+        embeds: [],
+        components: [],
+      });
+    });
+  });
+
+  describe('handlePageButton', () => {
+    const TWO_PAGES = FOUR_PAGES.slice(0, 2);
+
+    it('next advances the stored session page and re-renders the overview', async () => {
+      const i = interaction();
+      await handlePageButton(i as never, config(TWO_PAGES), session({ page: 0 }), 'next');
+
+      const stored = storedSession();
+      expect(stored.page).toBe(1);
+      expect(stored.view).toBe(DashboardView.OVERVIEW);
+      expect(renderedTitle(i)).toBe('Test Settings · Bravo');
+    });
+
+    it('clamps at the last page (stale Next on the edge is a no-op re-render)', async () => {
+      const i = interaction();
+      await handlePageButton(i as never, config(TWO_PAGES), session({ page: 1 }), 'next');
+
+      expect(storedSession().page).toBe(1);
+    });
+
+    it('prev from a stale over-range page clamps into range first', async () => {
+      const i = interaction();
+      await handlePageButton(i as never, config(TWO_PAGES), session({ page: 99 }), 'prev');
+
+      expect(storedSession().page).toBe(0); // clamp(99→1) then -1
+    });
   });
 
   describe('handleIndexButton', () => {

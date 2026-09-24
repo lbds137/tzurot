@@ -37,7 +37,6 @@ import {
 } from '../../utils/gatewayServiceCalls.js';
 import {
   type SettingsDashboardConfig,
-  type SettingsDashboardSession,
   type SettingsData,
   type SettingUpdateHandler,
   type SettingUpdateResult,
@@ -47,6 +46,7 @@ import {
   VOICE_CASCADE_SETTINGS,
   buildCascadePages,
   mapSettingToApiUpdate,
+  buildClearBody,
   buildCascadeSettingsData,
 } from '../../utils/dashboard/settings/index.js';
 
@@ -74,15 +74,18 @@ export const CHANNEL_SETTINGS_CONFIG: SettingsDashboardConfig = {
   color: DISCORD_COLORS.BLURPLE,
   settings: CASCADE_PAGES.settings,
   pages: CASCADE_PAGES.pages,
-  // "Clear every channel-tier override" — the DELETE endpoint has existed
-  // since the manifest gained clearChannelConfigOverrides; this is its UX
-  // surface. The shared handler puts a Tier-A Cancel/Confirm step in front
-  // (design-system §3.5: bulk-destructive dashboard clicks confirm; the
-  // typed-phrase Tier B stays reserved for irreversible purge-class acts).
-  resetButton: { label: 'Reset to defaults' },
+  // Reset all on the hub (plus Reset page on every page). This dashboard's
+  // messages used to carry a scope-less whole-dashboard reset button; such a
+  // message still resolves, as Reset all.
+  resetAll: true,
+  legacyBareResetMeansAll: true,
   scopeNote: () =>
     "📍 Applies to members in this channel who haven't set their own value. Personal settings override these.",
 };
+
+/** Shown on every render when the channel has no activated character. */
+const NO_CHARACTER_NOTE =
+  'ℹ️ No character activated — character-level defaults not included in cascade.';
 
 /**
  * Handle /channel settings command - shows interactive dashboard
@@ -125,22 +128,15 @@ export async function handleChannelSettings(context: DeferredCommandContext): Pr
 
     // When no personality is activated, the channel-scoped resolve simply
     // omits the personality tier — hardcoded/admin/channel are still resolved.
-    const config =
-      personalityId === undefined
-        ? {
-            ...CHANNEL_SETTINGS_CONFIG,
-            descriptionNote:
-              'ℹ️ No character activated — character-level defaults not included in cascade.',
-          }
-        : CHANNEL_SETTINGS_CONFIG;
-
+    // The note rides the session (not a config copy) so every re-render keeps it.
     // Create and display the dashboard - uses interaction for Discord.js compatibility
     await createSettingsDashboard(interaction, {
-      config,
+      config: CHANNEL_SETTINGS_CONFIG,
       data,
       entityId: channelId,
       entityName: `<#${channelId}>`,
       userId,
+      descriptionNote: personalityId === undefined ? NO_CHARACTER_NOTE : undefined,
     });
 
     logger.info({ channelId, userId }, 'Dashboard opened');
@@ -168,7 +164,8 @@ export async function handleChannelSettings(context: DeferredCommandContext): Pr
  * session outlives a permission revocation: a moderator demoted mid-session
  * would otherwise keep mutating channel overrides until the session expired.
  * Authority has to hold at the CLICK, not just at the open — most of all for
- * reset, which clears every override at once.
+ * Reset page and Reset all, which clear many overrides at once. It runs inside
+ * `patchChannelOverrides`, the one write path both handlers share.
  *
  * Returns a failure result to hand straight back (composed upstream as
  * `Failed to update: …` / `Failed to reset: …`), or null when still permitted.
@@ -193,54 +190,30 @@ function denyIfPermissionRevoked(
  * (interaction routers) so the channelId binding lives in exactly one place.
  */
 function createUpdateHandler(channelId: string): SettingUpdateHandler {
-  return async (interaction, session, settingId, newValue) => {
-    const denied = denyIfPermissionRevoked(interaction);
-    if (denied !== null) {
-      logger.warn({ channelId, userId: interaction.user.id }, 'Update denied: permission revoked');
-      return denied;
+  return async (interaction, _session, settingId, newValue) => {
+    // Map setting ID to API body using shared utility
+    const body = mapSettingToApiUpdate(settingId, newValue);
+    if (body === null) {
+      return { success: false, error: 'Unknown setting' };
     }
-    return handleSettingUpdate(interaction, session, settingId, newValue, channelId);
+    return patchChannelOverrides(interaction, channelId, body, { settingId, newValue });
   };
 }
 
 /**
- * Build a per-interaction reset handler bound to a specific channel ID —
- * clears EVERY channel-tier override via the DELETE endpoint, then refetches
- * the resolved cascade so the overview re-renders with inherited values.
+ * Build a per-interaction batch clear (Reset page / Reset all) bound to a
+ * specific channel ID: the listed settings' null mappings merged into ONE
+ * PATCH through the same write path as a single setting — so the permission
+ * re-check, the cache invalidation and the refetch each run once. Settings
+ * the dashboard does not show are never named, so they are left as they are.
  */
 function createResetHandler(channelId: string): SettingsResetHandler {
-  return async (interaction: ButtonInteraction): Promise<SettingUpdateResult> => {
-    const userId = interaction.user.id;
-    const denied = denyIfPermissionRevoked(interaction);
-    if (denied !== null) {
-      logger.warn({ channelId, userId }, 'Reset denied: permission revoked');
-      return denied;
+  return async (interaction, _session, settingIds) => {
+    const body = buildClearBody(settingIds);
+    if (body === null) {
+      return { success: false, error: 'Unknown setting' };
     }
-    logger.debug({ channelId, userId }, 'Resetting channel overrides');
-
-    try {
-      const { userClient } = clientsFor(interaction);
-      const result = await userClient.clearChannelConfigOverrides(channelId);
-
-      if (!result.ok) {
-        logger.warn({ error: result.error, channelId }, 'Reset failed');
-        return { success: false, error: result.error };
-      }
-
-      invalidateChannelSettingsCache(channelId);
-
-      const channelSettings = await getChannelSettingsCached(channelId);
-      const personalityId = channelSettings?.settings?.activatedPersonalityId ?? undefined;
-      const newData = await fetchAndConvertSettingsData(userClient, personalityId, channelId);
-
-      logger.info({ channelId, userId }, 'Channel overrides reset');
-      return { success: true, newData };
-    } catch (error) {
-      logger.error({ err: error, channelId }, 'Error resetting channel overrides');
-      // Composed into `Failed to reset: <error>` upstream — keep this a
-      // bare cause so the message doesn't read "Failed to reset: Failed…".
-      return { success: false, error: 'unexpected error, please try again' };
-    }
+    return patchChannelOverrides(interaction, channelId, body, { settingIds });
   };
 }
 
@@ -295,33 +268,33 @@ async function fetchAndConvertSettingsData(
 }
 
 /**
- * Handle setting updates from the dashboard.
- * Sends updates to the channel config-overrides API endpoint.
+ * The one channel-tier write path, shared by the single-setting handler and
+ * the batch clear: re-check Manage Messages, PATCH the channel config-overrides
+ * endpoint, invalidate the channel settings cache, and refetch the resolved
+ * data. `logFields` names what was written (one setting, or the reset's ids).
  */
-async function handleSettingUpdate(
+async function patchChannelOverrides(
   interaction: ButtonInteraction | ModalSubmitInteraction,
-  _session: SettingsDashboardSession,
-  settingId: string,
-  newValue: unknown,
-  channelId: string
+  channelId: string,
+  body: Record<string, unknown>,
+  logFields: Record<string, unknown>
 ): Promise<SettingUpdateResult> {
   const userId = interaction.user.id;
 
-  logger.debug({ settingId, newValue, channelId, userId }, 'Updating setting');
+  const denied = denyIfPermissionRevoked(interaction);
+  if (denied !== null) {
+    logger.warn({ ...logFields, channelId, userId }, 'Update denied: permission revoked');
+    return denied;
+  }
+
+  logger.debug({ ...logFields, channelId, userId }, 'Updating setting');
 
   try {
-    // Map setting ID to API body using shared utility
-    const body = mapSettingToApiUpdate(settingId, newValue);
-
-    if (body === null) {
-      return { success: false, error: 'Unknown setting' };
-    }
-
     const { userClient } = clientsFor(interaction);
     const result = await userClient.updateChannelConfigOverrides(channelId, body);
 
     if (!result.ok) {
-      logger.warn({ settingId, error: result.error, channelId }, 'Update failed');
+      logger.warn({ ...logFields, error: result.error, channelId }, 'Update failed');
       return { success: false, error: result.error };
     }
 
@@ -333,11 +306,13 @@ async function handleSettingUpdate(
     const personalityId = channelSettings?.settings?.activatedPersonalityId ?? undefined;
     const newData = await fetchAndConvertSettingsData(userClient, personalityId, channelId);
 
-    logger.info({ settingId, newValue, channelId, userId }, 'Setting updated');
+    logger.info({ ...logFields, channelId, userId }, 'Setting updated');
 
     return { success: true, newData };
   } catch (error) {
-    logger.error({ err: error, settingId, channelId }, 'Error updating setting');
+    logger.error({ err: error, ...logFields, channelId }, 'Error updating setting');
+    // Composed into `Failed to update: …` / `Failed to reset: …` upstream —
+    // keep this a bare cause.
     return { success: false, error: 'unexpected error, please try again' };
   }
 }

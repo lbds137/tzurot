@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { UserClient } from '@tzurot/clients';
 
-const { mockPatchFn, mockResolveFn, mockMapSettingToApiUpdate } = vi.hoisted(() => ({
-  mockPatchFn: vi.fn(),
-  mockResolveFn: vi.fn(),
-  mockMapSettingToApiUpdate: vi.fn(),
-}));
+const { mockPatchFn, mockResolveFn, mockMapSettingToApiUpdate, mockBuildClearBody } = vi.hoisted(
+  () => ({
+    mockPatchFn: vi.fn(),
+    mockResolveFn: vi.fn(),
+    mockMapSettingToApiUpdate: vi.fn(),
+    mockBuildClearBody: vi.fn(),
+  })
+);
 
 const stubUserClient = {} as unknown as UserClient;
 
@@ -15,10 +18,12 @@ vi.mock('../../gatewayClients.js', () => ({
 
 vi.mock('./settingsUpdate.js', () => ({
   mapSettingToApiUpdate: mockMapSettingToApiUpdate,
+  buildClearBody: mockBuildClearBody,
 }));
 
 import {
   createSettingsUpdateHandler,
+  createSettingsResetHandler,
   convertCascadeToSettingsData,
   type SettingUpdateConfig,
 } from './settingsUpdateFactory.js';
@@ -181,5 +186,51 @@ describe('createSettingsUpdateHandler', () => {
     expect(result.success).toBe(true);
     // sourceTier was 'personality', so maxMessages (source: 'personality') should be local
     expect(result.newData?.maxMessages.localValue).toBe(25);
+  });
+});
+
+describe('createSettingsResetHandler', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockBuildClearBody.mockReturnValue({ maxMessages: null, maxAge: null });
+  });
+
+  it('calls patchFn once with the merged null body and the entityId, re-resolves, and returns fresh data', async () => {
+    mockPatchFn.mockResolvedValueOnce({ ok: true, status: 200, data: {} });
+    mockResolveFn.mockResolvedValueOnce({ ok: true, status: 200, data: fullResolvedCascade });
+
+    const handler = createSettingsResetHandler(TEST_ENTITY_ID, TEST_CONFIG);
+    const result = await handler(mockInteraction, mockSession, ['maxMessages', 'maxAge']);
+
+    expect(mockBuildClearBody).toHaveBeenCalledWith(['maxMessages', 'maxAge']);
+    expect(mockPatchFn).toHaveBeenCalledTimes(1);
+    expect(mockPatchFn).toHaveBeenCalledWith(stubUserClient, TEST_ENTITY_ID, {
+      maxMessages: null,
+      maxAge: null,
+    });
+    expect(mockResolveFn).toHaveBeenCalledWith(stubUserClient, TEST_ENTITY_ID);
+    expect(result.success).toBe(true);
+    expect(result.newData?.maxMessages.localValue).toBe(25);
+  });
+
+  it('returns a failure result without calling resolveFn when the PATCH fails', async () => {
+    mockPatchFn.mockResolvedValueOnce({ ok: false, status: 500, error: 'Server error' });
+
+    const handler = createSettingsResetHandler(TEST_ENTITY_ID, TEST_CONFIG);
+    const result = await handler(mockInteraction, mockSession, ['maxMessages', 'maxAge']);
+
+    expect(result).toEqual({ success: false, error: 'Server error' });
+    expect(mockResolveFn).not.toHaveBeenCalled();
+  });
+
+  it('returns Unknown setting and calls neither patchFn nor resolveFn when buildClearBody refuses', async () => {
+    mockBuildClearBody.mockReturnValueOnce(null);
+
+    const handler = createSettingsResetHandler(TEST_ENTITY_ID, TEST_CONFIG);
+    const result = await handler(mockInteraction, mockSession, ['unknownSetting']);
+
+    expect(result).toEqual({ success: false, error: 'Unknown setting' });
+    expect(mockPatchFn).not.toHaveBeenCalled();
+    expect(mockResolveFn).not.toHaveBeenCalled();
   });
 });

@@ -24,8 +24,10 @@ import {
 import {
   buildDescriptionPreamble,
   buildOverviewMessage,
+  resolveDescriptionNote,
   DISCORD_SELECT_OPTIONS_LIMIT,
 } from './SettingsDashboardBuilder.js';
+import { buildResetAllRow } from './settingsButtonBuilders.js';
 
 /**
  * A paged dashboard with at least this many pages opens on the index; one
@@ -63,8 +65,9 @@ export function buildIndexEmbed(
     : `Editing **${safeName}** — pick a page from the menu below.`;
 
   let description = `${preamble}\n\n${pageLines.join('\n')}\n\n${hint}`;
-  if (config.descriptionNote !== undefined && config.descriptionNote.length > 0) {
-    description += `\n\n${config.descriptionNote}`;
+  const note = resolveDescriptionNote(config, session);
+  if (note !== undefined && note.length > 0) {
+    description += `\n\n${note}`;
   }
 
   return new EmbedBuilder()
@@ -105,16 +108,23 @@ export function buildIndexSelectMenu(
 }
 
 /**
- * Build the complete index message. No Close control: the overview has none
- * either (D18 — native dismiss plus the session TTL handle teardown).
+ * Build the complete index message: the jump select, then Reset all on a
+ * dashboard that opts into it (rows: jump + reset = 2). No Close control: the
+ * overview has none either (D18 — native dismiss plus the session TTL handle
+ * teardown).
  */
 export function buildIndexMessage(
   config: SettingsDashboardConfig,
   session: SettingsDashboardSession
 ): { embeds: EmbedBuilder[]; components: ActionRowBuilder<MessageActionRowComponentBuilder>[] } {
+  const components = [buildIndexSelectMenu(config, session)];
+  const resetAllRow = buildResetAllRow(config, session);
+  if (resetAllRow !== null) {
+    components.push(resetAllRow);
+  }
   return {
     embeds: [buildIndexEmbed(config, session)],
-    components: [buildIndexSelectMenu(config, session)],
+    components,
   };
 }
 
