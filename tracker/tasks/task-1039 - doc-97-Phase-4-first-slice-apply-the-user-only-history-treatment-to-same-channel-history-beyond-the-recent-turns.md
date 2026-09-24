@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-21 19:49'
-updated_date: '2026-09-24 12:50'
+updated_date: '2026-09-24 16:08'
 labels:
   - 'area:ai-worker'
   - 'size:M'
@@ -64,5 +64,10 @@ READ RUN 2026-09-24 (dev + prod, read-only, aggregates only; scripts docs/local/
 - New observation: both fresh threads open in the long low-exclamation register from turn 1 (Emily 09-22 turns 1-10: 812 chars, 0.37 excl/1k, vs the doc-97 fresh-thread baseline 241 chars / 4.1). An empty same-channel history cannot produce that, so under one-thread-per-day usage same-channel history is not what sets the register. Candidates, untested: the owner's diary-entry length (reply length tracks input), retrieved memories, the card.
 - Side: summarized turn 3's verbatim prefix also appears in that prompt (both its summary and its verbatim matched), possibly via memory retrieval; unverified. The missing rendered marker is filed as TASK-1077.
 - Slice 2 is not decided by this read. Next step is the owner question in the description.
+---
+
+created: 2026-09-24 16:08
+---
+N=3 SET (owner, 2026-09-24 ~12:08 EDT): sameChannelVerbatimExchanges=3 on Emily and Lilith, set in PROD (beta.229 carries the mode). The second read therefore runs on prod: confirm engagement from the PROD ai-worker 'Same-channel history rendered' lines (summarized > 0) and prod llm_diagnostic_logs; memories sync both ways, so the register numbers can come from either env. Split the read day at the set time above; the setting reaches dev at the next nightly sync.
 ---
 <!-- COMMENTS:END -->
