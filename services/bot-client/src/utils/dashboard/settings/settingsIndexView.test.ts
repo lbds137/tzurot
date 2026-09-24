@@ -30,7 +30,10 @@ const pagesOf = (count: number): SettingsPage[] =>
     settingIds: [EXTENDED_CONTEXT_SETTINGS[0].id],
   }));
 
-const configWithPages = (pages?: SettingsPage[]): SettingsDashboardConfig => ({
+const configWithPages = (
+  pages?: SettingsPage[],
+  overrides: Partial<SettingsDashboardConfig> = {}
+): SettingsDashboardConfig => ({
   level: 'global',
   entityType: 'test-settings',
   titlePrefix: 'Test',
@@ -38,7 +41,20 @@ const configWithPages = (pages?: SettingsPage[]): SettingsDashboardConfig => ({
   settings: EXTENDED_CONTEXT_SETTINGS,
   ...(pages !== undefined ? { pages } : {}),
   scopeNote: () => 'test scope',
+  ...overrides,
 });
+
+/**
+ * A paged config whose `overviewDescription`/`scopeNote` don't name the
+ * entity — mirrors `ADMIN_SETTINGS_CONFIG`'s shape (static copy, `scopeNote`
+ * ignoring its parameter) so the index's "Editing **name**" hint stays
+ * meaningful to test against.
+ */
+const configWithPagesNoNamePreamble = (pages?: SettingsPage[]): SettingsDashboardConfig =>
+  configWithPages(pages, {
+    overviewDescription: 'Static copy that never names the entity.',
+    scopeNote: () => 'static scope copy',
+  });
 
 const session = (overrides: Partial<SettingsDashboardSession> = {}): SettingsDashboardSession => ({
   level: 'global',
@@ -66,6 +82,11 @@ describe('settingsIndexView', () => {
       expect(adminPages).toHaveLength(11);
     });
 
+    it("the admin index description (preamble + 11 page lines + hint) stays under Discord's 4096-char embed-description cap", () => {
+      const embed = buildIndexEmbed(ADMIN_SETTINGS_CONFIG, session()).toJSON();
+      expect((embed.description ?? '').length).toBeLessThan(4096);
+    });
+
     it('jump select offers every page, in page order, valued by page id', () => {
       const select = jumpSelect(ADMIN_SETTINGS_CONFIG);
       expect(select.options.map(o => o.label)).toEqual(adminPages.map(p => p.label));
@@ -77,10 +98,13 @@ describe('settingsIndexView', () => {
     it('embed lists every page label, one line each, in page order', () => {
       const embed = buildIndexEmbed(ADMIN_SETTINGS_CONFIG, session()).toJSON();
       expect(embed.title).toBe('Global Settings · Index');
-      const lines = (embed.description ?? '').split('\n');
-      adminPages.forEach((page, i) => {
-        expect(lines[i]).toBe(`**${i + 1}.** ${page.label}`);
-      });
+      // Page lines sit below the scope-disclosure preamble now (TASK: index
+      // gains the preamble), so locate them by their own numbered-line shape
+      // rather than assuming they start at line 0.
+      const pageLines = (embed.description ?? '')
+        .split('\n')
+        .filter(line => /^\*\*\d+\.\*\*/.test(line));
+      expect(pageLines).toEqual(adminPages.map((page, i) => `**${i + 1}.** ${page.label}`));
     });
   });
 
@@ -95,10 +119,10 @@ describe('settingsIndexView', () => {
       expect(onlyComponent[0].type).toBe(3); // ComponentType.StringSelect
     });
 
-    it('closes with a one-line hint naming the entity, escaped against masked links', () => {
+    it('closes with a one-line hint naming the entity, escaped against masked links, when the preamble does not already name it', () => {
       const name = '[click me](https://evil.example)';
       const embed = buildIndexEmbed(
-        configWithPages(pagesOf(4)),
+        configWithPagesNoNamePreamble(pagesOf(4)),
         session({ entityName: name })
       ).toJSON();
       const description = embed.description ?? '';
@@ -106,6 +130,37 @@ describe('settingsIndexView', () => {
         `Editing **${escapeMarkdown(name, { maskedLink: true })}** — pick a page from the menu below.`
       );
       expect(description).not.toContain(`**${name}**`);
+    });
+
+    it('omits the redundant "Editing name" hint when the preamble already names the entity (the default overviewDescription template)', () => {
+      const embed = buildIndexEmbed(
+        configWithPages(pagesOf(4)),
+        session({ entityName: 'Global Settings' })
+      ).toJSON();
+      const description = embed.description ?? '';
+      expect(description).toContain('Configure extended context settings for **Global Settings**.');
+      expect(description).not.toContain('Editing **Global Settings**');
+      expect(description).toContain('Pick a page from the menu below.');
+    });
+
+    it('renders the scope-disclosure preamble above the page list — a sentinel scopeNote appears on the index', () => {
+      const embed = buildIndexEmbed(configWithPagesNoNamePreamble(pagesOf(4)), session()).toJSON();
+      expect(embed.description ?? '').toContain('static scope copy');
+    });
+
+    it("renders the admin dashboard's real scope-note text on the index landing render", () => {
+      const embed = buildIndexEmbed(ADMIN_SETTINGS_CONFIG, session()).toJSON();
+      expect(embed.description ?? '').toContain(
+        "🌐 Applies to everyone, bot-wide. Character, channel, and each user's own settings override these."
+      );
+    });
+
+    it('renders a descriptionNote sentinel on the index too, when the config carries one', () => {
+      const embed = buildIndexEmbed(
+        configWithPages(pagesOf(4), { descriptionNote: 'DESCRIPTION_NOTE_SENTINEL' }),
+        session()
+      ).toJSON();
+      expect(embed.description ?? '').toContain('DESCRIPTION_NOTE_SENTINEL');
     });
 
     it("throws past Discord's 25-option cap instead of truncating", () => {
