@@ -222,6 +222,12 @@ describe('contentHash', () => {
     const hash = contentHash('test content');
     expect(hash).toMatch(/^[a-f0-9]{16}$/);
   });
+
+  it('golden: matches the pinned sha256Hex 16-char digest', () => {
+    // Normalizes (lowercase + trim) to exactly the golden fixture used by
+    // sha256Hex.golden.test.ts: 'tzurot-golden-input'.
+    expect(contentHash('  TZUROT-GOLDEN-INPUT  ')).toBe('81a9e0f66dc8e966');
+  });
 });
 
 // ============================================================================

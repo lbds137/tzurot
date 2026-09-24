@@ -15,7 +15,7 @@
  * normalization chosen on purpose rather than inherited.
  */
 
-import { createHash } from 'node:crypto';
+import { sha256Hex } from './sha256Hex.js';
 
 /**
  * A card field's value as it reaches the checksum. `null`/`undefined` are
@@ -94,5 +94,5 @@ export function hashCharacterCard(fields: Record<string, CardFieldValue>): strin
     .filter(entry => entry.value.length > 0)
     .map(entry => `${entry.key}:${String(entry.value.length)}:${entry.value}`);
 
-  return createHash('sha256').update(entries.join('\n')).digest('hex');
+  return sha256Hex(entries.join('\n'));
 }

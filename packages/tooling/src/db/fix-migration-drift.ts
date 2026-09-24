@@ -6,10 +6,10 @@
  */
 
 import fs from 'node:fs';
-import crypto from 'node:crypto';
 import path from 'node:path';
 import chalk from 'chalk';
 import { DB_POOL_DEFAULTS } from '@tzurot/common-types/services/poolConfig';
+import { sha256Hex } from '@tzurot/common-types/utils/sha256Hex';
 import { createPrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   type Environment,
@@ -71,7 +71,7 @@ export async function fixMigrationDrift(
       const fileContent = fs.readFileSync(filePath);
 
       // Calculate SHA-256 exactly as Prisma does
-      const checksum = crypto.createHash('sha256').update(fileContent).digest('hex');
+      const checksum = sha256Hex(fileContent);
 
       console.log(`Migration: ${migrationName}`);
       console.log(chalk.dim(`Checksum:  ${checksum}`));

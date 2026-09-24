@@ -6,10 +6,10 @@
  */
 
 import fs from 'node:fs';
-import crypto from 'node:crypto';
 import path from 'node:path';
 import chalk from 'chalk';
 import { DB_POOL_DEFAULTS } from '@tzurot/common-types/services/poolConfig';
+import { sha256Hex } from '@tzurot/common-types/utils/sha256Hex';
 import { createPrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   type Environment,
@@ -71,7 +71,7 @@ export async function checkMigrationDrift(options: CheckDriftOptions = {}): Prom
 
       // Read file as binary buffer (exactly as Prisma does)
       const fileContent = fs.readFileSync(filePath);
-      const fileChecksum = crypto.createHash('sha256').update(fileContent).digest('hex');
+      const fileChecksum = sha256Hex(fileContent);
 
       if (dbChecksum === fileChecksum) {
         console.log(chalk.green(`✅ ${migrationName}: OK`));

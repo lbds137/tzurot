@@ -9,8 +9,8 @@
  * route for a truncated value into a log field.
  */
 
-import { createHash } from 'node:crypto';
 import { getConfig } from '../config/config.js';
+import { sha256Hex } from './sha256Hex.js';
 import { truncateByCodePoints } from './codePointTruncation.js';
 
 /**
@@ -60,7 +60,7 @@ export function contentPreview(
  * is always safe to log, deployed or not.
  */
 export function contentDigest(text: string): string {
-  return createHash('sha256').update(text).digest('hex').substring(0, 12);
+  return sha256Hex(text, { length: 12 });
 }
 
 /**

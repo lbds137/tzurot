@@ -8,7 +8,7 @@
  * different UUIDs from existing ones, breaking deduplication.
  */
 
-import crypto from 'crypto';
+import { sha256Hex } from '../utils/sha256Hex.js';
 import { v5 as uuidv5 } from 'uuid';
 import { DNS_NAMESPACE } from '../utils/deterministicUuid.js';
 
@@ -22,7 +22,7 @@ export const MEMORY_NAMESPACE = uuidv5('tzurot-v3-memory', DNS_NAMESPACE);
  * If a collision did occur, ON CONFLICT DO NOTHING would silently skip the duplicate.
  */
 export function hashContent(content: string): string {
-  return crypto.createHash('sha256').update(content).digest('hex').slice(0, 32);
+  return sha256Hex(content, { length: 32 });
 }
 
 /**

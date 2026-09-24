@@ -3,7 +3,7 @@
  * under the `max-lines` limit — no behavior change, no `this` dependency.
  */
 
-import { createHash } from 'crypto';
+import { sha256Hex } from '@tzurot/common-types/utils/sha256Hex';
 import { SUMMARY_SOFT_CAP_TOKENS } from './constants.js';
 
 /** Full 64-char sha256 hex — `duplicateDetection.ts`'s `contentHash` is NOT
@@ -11,7 +11,7 @@ import { SUMMARY_SOFT_CAP_TOKENS } from './constants.js';
  *  case-only edit would be invisible), while `memories.source_content_hash`
  *  is VarChar(64) and this idempotence check needs the exact content. */
 export function hashContentFull(content: string): string {
-  return createHash('sha256').update(content).digest('hex');
+  return sha256Hex(content);
 }
 
 /** Assemble the concrete regeneration feedback lines from the first pass's
