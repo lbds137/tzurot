@@ -19,12 +19,13 @@
  * (`services/api-gateway/src/routes/user/account/export.ts`) enforces a
  * 24-hour cooldown (`EXPORT_COOLDOWN_HOURS`) on completed jobs, so a real
  * user can't re-trigger the most expensive read path in the system on
- * every page reload. This route deliberately does NOT apply that cooldown,
- * because the smoke runs on its own weekly cadence against a system-
- * reserved sentinel account that is not a user-facing account — there is no
- * quota to protect. The bypass is scoped to this internal route via the
- * `checkCooldown` parameter on the shared `createExportJobOrConflict`; the
- * user route's own cooldown enforcement is untouched. The active-job
+ * every page reload. This route still bypasses that 24h window — the smoke
+ * runs on its own weekly cadence against a system-reserved sentinel
+ * account, not a real user's quota — but it applies its own much shorter
+ * recent-completion window (`SMOKE_RECENT_COMPLETION_MINUTES` below). The
+ * two windows share the same `recentCompletionWindowMs` parameter on
+ * `createExportJobOrConflict`; the user route's own 24h window is
+ * untouched. The active-job
  * (pending/in_progress) conflict check is NOT part of the bypass — a smoke
  * that stampedes a running export is a bug, and this route returns the same
  * 409 the user route would.
@@ -66,6 +67,16 @@ const logger = createLogger('internal-export-smoke');
  * bounded-query rule, not because the sentinel is expected to approach it.
  */
 const SENTINEL_QUERY_BOUND = 500;
+
+/**
+ * Must exceed bot-client's `STARTUP_RETRY_DELAY_MS` (5 min,
+ * `services/bot-client/src/utils/startupRetry.ts`) plus the first start
+ * request's own duration, so the ExportSmokeScheduler startup retry after a
+ * connection drop cannot start a second real export when the first already
+ * completed; far below the scheduler's own cadence, so a legitimate weekly
+ * run is never refused.
+ */
+const SMOKE_RECENT_COMPLETION_MINUTES = 15;
 
 interface ExpectedCountsSnapshot {
   personas: { id: string; name: string }[];
@@ -225,6 +236,10 @@ async function snapshotExpectedCounts(
  * sentinel row via `ensureOrphanSentinel` if it doesn't yet exist (cheap
  * and idempotent — an `ON CONFLICT DO NOTHING` upsert, same cost as a
  * lookup once the row exists).
+ *
+ * Caller contract (isGatewayUnreachedFailure, bot-client
+ * utils/gatewayNotReady.ts): never answer 404/502/503 after the export job
+ * has been created.
  */
 export const handleStartExportSmoke = (deps: RouteDeps): RequestHandler =>
   asyncHandler(async (req, res: Response) => {
@@ -247,12 +262,13 @@ export const handleStartExportSmoke = (deps: RouteDeps): RequestHandler =>
 
     let exportJobId: string;
     let conflictStatus: string | null;
+    let onCooldown: boolean;
     try {
-      ({ exportJobId, conflictStatus } = await createExportJobOrConflict(
+      ({ exportJobId, conflictStatus, onCooldown } = await createExportJobOrConflict(
         deps.prisma,
         sentinelId,
         expiresAt,
-        false
+        SMOKE_RECENT_COMPLETION_MINUTES * 60 * 1000
       ));
     } catch (error: unknown) {
       if (isPrismaUniqueConstraintError(error)) {
@@ -273,6 +289,17 @@ export const handleStartExportSmoke = (deps: RouteDeps): RequestHandler =>
         res,
         ErrorResponses.conflict(
           `An export-smoke run is already ${conflictStatus}. Wait for it to complete.`
+        )
+      );
+      return;
+    }
+
+    if (onCooldown) {
+      logger.info({ sentinelId }, 'Export-smoke run refused — recent completion inside window');
+      sendError(
+        res,
+        ErrorResponses.conflict(
+          `An export-smoke run completed within the last ${SMOKE_RECENT_COMPLETION_MINUTES} minutes. Not starting another.`
         )
       );
       return;

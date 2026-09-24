@@ -42,9 +42,10 @@
  * fixed delay instead — that failure isn't a real smoke result, just bad
  * timing. A startup timeout or an HTTP 504 is deliberately NOT retried this
  * way: either could mean the request reached a live gateway that started the
- * export job before timing out, and the gateway's conflict check only 409s
- * on a pending/in-progress job, not a completed one — so a retry here could
- * start a second real export job. Those keep the immediate-alert,
+ * export job before timing out. The gateway's start route 409s on a
+ * pending/in-progress job and on one completed within its short
+ * recent-completion window, but that window is a backstop, not a licence to
+ * retry a request that may have started a job. Those keep the immediate-alert,
  * cooldown-armed behavior instead. The retry is an ordinary run: any failure
  * on it — not-ready or otherwise — alerts and arms the cooldown like normal.
  * A not-ready failure MID-run (a poll or download hiccup after the job

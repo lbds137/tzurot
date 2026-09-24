@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Client } from 'discord.js';
 import type { Redis } from 'ioredis';
 import type { GatewayFailure } from '../utils/gatewayNotReady.js';
+import { API_ERROR_SUBCODE } from '@tzurot/common-types/constants/error';
 
 const mockDbSync = vi.fn();
 const mockGetSystemSettings = vi.fn();
@@ -778,5 +779,51 @@ describe('startup-run gateway-not-ready retry', () => {
     await vi.advanceTimersByTimeAsync(FIVE_MINUTES_MS);
 
     expect(mockDbSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('a 409 DB_SYNC_IN_PROGRESS on the startup-retry trigger posts nothing, cooldown untouched', async () => {
+    const redis = makeStatefulRedis(null);
+    mockDbSync.mockResolvedValueOnce({
+      ok: false,
+      kind: 'http',
+      status: 409,
+      error: 'A database sync is already running. Wait for it to finish.',
+      code: API_ERROR_SUBCODE.DB_SYNC_IN_PROGRESS,
+    });
+
+    await runNightlyDbSync(client, redis, 'startup-retry');
+
+    expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
+    expect(redis.del).not.toHaveBeenCalled();
+    expect(await redis.get(COOLDOWN_KEY)).not.toBeNull();
+  });
+
+  it('a 409 DB_SYNC_IN_PROGRESS on an interval trigger posts nothing, cooldown untouched', async () => {
+    const redis = makeStatefulRedis(null);
+    mockDbSync.mockResolvedValueOnce({
+      ok: false,
+      kind: 'http',
+      status: 409,
+      error: 'A database sync is already running (interval trigger fixture).',
+      code: API_ERROR_SUBCODE.DB_SYNC_IN_PROGRESS,
+    });
+
+    await runNightlyDbSync(client, redis, 'interval');
+    expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
+    expect(redis.del).not.toHaveBeenCalled();
+    expect(await redis.get(COOLDOWN_KEY)).not.toBeNull();
+  });
+
+  it('a plain 409 without the DB_SYNC_IN_PROGRESS subcode still posts the failure embed', async () => {
+    const redis = makeStatefulRedis(null);
+    mockDbSync.mockResolvedValueOnce({
+      ok: false,
+      kind: 'http',
+      status: 409,
+      error: 'conflict without a subcode',
+    });
+    await runNightlyDbSync(client, redis, 'interval');
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+    expect(lastPostedTitle()).toContain('Nightly database sync failed');
   });
 });

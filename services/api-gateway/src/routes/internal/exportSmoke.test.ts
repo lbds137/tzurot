@@ -5,7 +5,7 @@
  * `createExportJobOrConflict` and `ensureOrphanSentinel` are mocked — they
  * carry their own coverage (`export.test.ts`, `OrphanSentinelBootstrap`'s own
  * callers) — so this file's load-bearing case is the wiring: the sentinel id
- * and `checkCooldown: false` crossing into `createExportJobOrConflict`, the
+ * and the 15-minute recent-completion window crossing into `createExportJobOrConflict`, the
  * job data crossing into the queue seam, and the expected-counts snapshot
  * shape.
  */
@@ -114,21 +114,21 @@ describe('POST /api/internal/export-smoke/start', () => {
     });
   });
 
-  it('forwards the sentinel id and checkCooldown:false to createExportJobOrConflict (the deliberate bypass)', async () => {
+  it('forwards the sentinel id and the 15-minute recent-completion window to createExportJobOrConflict (the deliberate 24h-cooldown bypass)', async () => {
     const mockPrisma = buildMockPrisma();
     const app = buildApp(mockPrisma);
 
     await request(app).post(START_ROUTE).send({});
 
     expect(mockCreateExportJobOrConflict).toHaveBeenCalledTimes(1);
-    const [, userIdArg, , checkCooldownArg] = mockCreateExportJobOrConflict.mock.calls[0] as [
+    const [, userIdArg, , windowMsArg] = mockCreateExportJobOrConflict.mock.calls[0] as [
       unknown,
       string,
       unknown,
-      boolean,
+      number,
     ];
     expect(userIdArg).toBe(SENTINEL_ID);
-    expect(checkCooldownArg).toBe(false);
+    expect(windowMsArg).toBe(15 * 60 * 1000);
   });
 
   it('forwards {userId: sentinelId, exportJobId} to the queue seam', async () => {
@@ -158,6 +158,24 @@ describe('POST /api/internal/export-smoke/start', () => {
     const response = await request(app).post(START_ROUTE).send({});
 
     expect(response.status).toBe(409);
+  });
+
+  it('returns 409 and does not enqueue when onCooldown is true (recent-completion window)', async () => {
+    mockCreateExportJobOrConflict.mockResolvedValue({
+      exportJobId: 'export-job-1',
+      downloadToken: 'token-1',
+      conflictStatus: null,
+      onCooldown: true,
+    });
+    const mockPrisma = buildMockPrisma();
+    const mockAdd = vi.fn();
+    const app = buildApp(mockPrisma, {
+      aiQueue: { add: mockAdd } as unknown as RouteDeps['aiQueue'],
+    });
+    const response = await request(app).post(START_ROUTE).send({});
+
+    expect(response.status).toBe(409);
+    expect(mockAdd).not.toHaveBeenCalled();
   });
 
   it('returns 503 when the queue is not configured', async () => {

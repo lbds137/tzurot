@@ -50,13 +50,17 @@
  * second real sync on top of the first — those keep the immediate-post,
  * cooldown-stays-armed behavior. Ordinary (interval) ticks never get this
  * treatment: a failure there posts and keeps the cooldown armed
- * unconditionally, as before. `stopNightlyDbSyncScheduler` clears a pending
+ * unconditionally, as before. One further exception applies to EVERY
+ * trigger: a 409 carrying `DB_SYNC_IN_PROGRESS` means another sync already
+ * covers the day, so this run skips silently — no post, no retry, cooldown
+ * stays armed. `stopNightlyDbSyncScheduler` clears a pending
  * retry timer along with the scheduler's own timers.
  */
 
 import { AttachmentBuilder, EmbedBuilder, type Client } from 'discord.js';
 import type { Redis } from 'ioredis';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { API_ERROR_SUBCODE } from '@tzurot/common-types/constants/error';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettingsRegistry';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -64,7 +68,7 @@ import { escapeFenceBreaks } from '../utils/fenceEscape.js';
 import { getOwnerClient } from '../utils/gatewayClients.js';
 import { createIntervalScheduler } from '@tzurot/common-types/utils/intervalScheduler';
 import { postOwnerChannelEmbed } from '../utils/ownerChannel.js';
-import { isGatewayUnreachedFailure } from '../utils/gatewayNotReady.js';
+import { isGatewayUnreachedFailure, type GatewayFailure } from '../utils/gatewayNotReady.js';
 import { createStartupRetry, STARTUP_RETRY_DELAY_MS } from '../utils/startupRetry.js';
 import {
   buildSyncReportText,
@@ -103,6 +107,11 @@ const SCHEDULED_SYNC_OPTIONS = { dryRun: false, allowSchemaSkew: false } as cons
 
 /** A single sync-cycle invocation's trigger — decides both the hour gate and the not-ready retry eligibility. */
 type SyncTrigger = 'interval' | 'startup' | 'startup-retry';
+
+/** True when the gateway refused because another sync already holds the single-flight guard. */
+function isDbSyncInProgressFailure(failure: GatewayFailure): boolean {
+  return failure.kind === 'http' && failure.code === API_ERROR_SUBCODE.DB_SYNC_IN_PROGRESS;
+}
 
 const startupRetry = createStartupRetry();
 
@@ -244,6 +253,63 @@ async function releaseCooldownForStartupRetry(
   }
 }
 
+/**
+ * Handles a failed dbSync result: skips silently when another sync already
+ * holds the guard, retries once on a startup deploy-window failure,
+ * otherwise posts the failure embed. Extracted from `runNightlyDbSync` to
+ * keep that function's cognitive complexity under the lint budget.
+ */
+async function handleFailedSync(
+  client: Client,
+  redis: Redis,
+  trigger: SyncTrigger,
+  result: GatewayFailure
+): Promise<void> {
+  if (isDbSyncInProgressFailure(result)) {
+    logger.info(
+      { trigger },
+      'A db sync is already running on the gateway — skipping this run without alerting'
+    );
+    return;
+  }
+  if (trigger === 'startup' && isGatewayUnreachedFailure(result)) {
+    // Release the cooldown this same run just armed — the retry re-arms
+    // it on its own attempt, so a concurrent 15-minute tick sees the
+    // cooldown and skips instead of stacking a second sync (pinned by
+    // "a tick overlapping the retry skips on the cooldown"). If a stop
+    // lands while this call is still in flight, the release still
+    // happens and no retry re-arms it — intended, since the sync did not
+    // run and the next process start runs it normally (pinned by "a stop
+    // that lands while the startup dbSync call is still in flight wins —
+    // no retry arms after").
+    const cooldownReleased = await releaseCooldownForStartupRetry(
+      redis,
+      result.kind,
+      result.status
+    );
+    if (cooldownReleased) {
+      logger.warn(
+        {
+          kind: result.kind,
+          status: result.status,
+          error: result.error,
+          retryInMs: STARTUP_RETRY_DELAY_MS,
+        },
+        'Gateway not ready on the startup nightly sync — released the cooldown, retrying once before alerting'
+      );
+      startupRetry.schedule(() => runNightlyDbSync(client, redis, 'startup-retry'));
+      return;
+    }
+  }
+  logger.error({ status: result.status, error: result.error }, 'Nightly db sync failed');
+  await postOwnerChannelEmbed(
+    client,
+    buildNightlySyncFailureEmbed(
+      `The scheduled sync did not complete (HTTP ${String(result.status)}):\n\`\`\`\n${escapeFenceBreaks(result.error)}\n\`\`\``
+    )
+  );
+}
+
 /** Exported for tests — one full sync cycle. */
 export async function runNightlyDbSync(
   client: Client,
@@ -270,42 +336,7 @@ export async function runNightlyDbSync(
     const result = await getOwnerClient().dbSync(SCHEDULED_SYNC_OPTIONS);
 
     if (!result.ok) {
-      if (trigger === 'startup' && isGatewayUnreachedFailure(result)) {
-        // Release the cooldown this same run just armed — the retry re-arms
-        // it on its own attempt, so a concurrent 15-minute tick sees the
-        // cooldown and skips instead of stacking a second sync (pinned by
-        // "a tick overlapping the retry skips on the cooldown"). If a stop
-        // lands while this call is still in flight, the release still
-        // happens and no retry re-arms it — intended, since the sync did not
-        // run and the next process start runs it normally (pinned by "a stop
-        // that lands while the startup dbSync call is still in flight wins —
-        // no retry arms after").
-        const cooldownReleased = await releaseCooldownForStartupRetry(
-          redis,
-          result.kind,
-          result.status
-        );
-        if (cooldownReleased) {
-          logger.warn(
-            {
-              kind: result.kind,
-              status: result.status,
-              error: result.error,
-              retryInMs: STARTUP_RETRY_DELAY_MS,
-            },
-            'Gateway not ready on the startup nightly sync — released the cooldown, retrying once before alerting'
-          );
-          startupRetry.schedule(() => runNightlyDbSync(client, redis, 'startup-retry'));
-          return;
-        }
-      }
-      logger.error({ status: result.status, error: result.error }, 'Nightly db sync failed');
-      await postOwnerChannelEmbed(
-        client,
-        buildNightlySyncFailureEmbed(
-          `The scheduled sync did not complete (HTTP ${String(result.status)}):\n\`\`\`\n${escapeFenceBreaks(result.error)}\n\`\`\``
-        )
-      );
+      await handleFailedSync(client, redis, trigger, result);
       return;
     }
 

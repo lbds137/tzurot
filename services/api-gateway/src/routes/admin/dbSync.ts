@@ -9,8 +9,14 @@ import { DbSyncSchema } from '@tzurot/common-types/schemas/api/admin';
 import { transientPoolOptions } from '@tzurot/common-types/services/poolConfig';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { API_ERROR_SUBCODE } from '@tzurot/common-types/constants/error';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { DatabaseSyncService } from '../../services/DatabaseSyncService.js';
+import {
+  acquireDbSyncSingleFlight,
+  releaseDbSyncSingleFlight,
+  DbSyncSingleFlightUnavailableError,
+} from '../../services/sync/dbSyncSingleFlight.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -19,6 +25,10 @@ import { getOrCreateUserService } from '../../services/AuthMiddleware.js';
 import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('admin-db-sync');
+
+/** Shared 503 body for both single-flight-guard-unavailable branches below. */
+const GUARD_UNAVAILABLE_MESSAGE =
+  'Database sync single-flight guard is unavailable (Redis); refusing to sync without it.';
 
 /**
  * True when this run actually wrote rows to the named table. A dry run
@@ -46,6 +56,10 @@ function syncWroteTable(
  * generated mounts.ts codegen. The returned `RequestHandler` is
  * composition-ready; middleware (auth, rate limiters) is applied by
  * the caller at the mount site.
+ *
+ * Caller contract (isGatewayUnreachedFailure, bot-client
+ * utils/gatewayNotReady.ts): never answer 404/502/503 after the sync has
+ * started.
  */
 export const handleDbSync = (deps: RouteDeps): RequestHandler =>
   asyncHandler(async (req: Request, res: Response) => {
@@ -72,78 +86,103 @@ export const handleDbSync = (deps: RouteDeps): RequestHandler =>
       );
     }
 
+    if (deps.redis === undefined) {
+      return sendError(res, ErrorResponses.serviceUnavailable(GUARD_UNAVAILABLE_MESSAGE));
+    }
+
+    let token: string;
+    try {
+      const acquired = await acquireDbSyncSingleFlight(deps.redis);
+      if (acquired === null) {
+        logger.info({ dryRun }, 'Database sync refused — another sync is already running');
+        return sendError(res, {
+          ...ErrorResponses.conflict('A database sync is already running. Wait for it to finish.'),
+          code: API_ERROR_SUBCODE.DB_SYNC_IN_PROGRESS,
+        });
+      }
+      token = acquired;
+    } catch (error) {
+      if (error instanceof DbSyncSingleFlightUnavailableError) {
+        return sendError(res, ErrorResponses.serviceUnavailable(GUARD_UNAVAILABLE_MESSAGE));
+      }
+      throw error;
+    }
+
     logger.info({ dryRun, allowSchemaSkew }, 'Starting database sync');
+    try {
+      // Create Prisma clients for dev and prod databases using driver adapters.
+      // transientPoolOptions caps these short-lived cross-env sync pools and gives
+      // them a finite acquisition timeout (the adapter ignores connection_limit).
+      const devAdapter = new PrismaPg({
+        connectionString: config.DEV_DATABASE_URL,
+        ...transientPoolOptions(),
+      });
+      const devClient = new PrismaClient({ adapter: devAdapter });
 
-    // Create Prisma clients for dev and prod databases using driver adapters.
-    // transientPoolOptions caps these short-lived cross-env sync pools and gives
-    // them a finite acquisition timeout (the adapter ignores connection_limit).
-    const devAdapter = new PrismaPg({
-      connectionString: config.DEV_DATABASE_URL,
-      ...transientPoolOptions(),
-    });
-    const devClient = new PrismaClient({ adapter: devAdapter });
+      const prodAdapter = new PrismaPg({
+        connectionString: config.PROD_DATABASE_URL,
+        ...transientPoolOptions(),
+      });
+      const prodClient = new PrismaClient({ adapter: prodAdapter });
 
-    const prodAdapter = new PrismaPg({
-      connectionString: config.PROD_DATABASE_URL,
-      ...transientPoolOptions(),
-    });
-    const prodClient = new PrismaClient({ adapter: prodAdapter });
+      // Execute sync - the service handles connect/disconnect internally
+      const syncService = new DatabaseSyncService(devClient, prodClient);
+      const result = await syncService.sync({ dryRun, allowSchemaSkew });
 
-    // Execute sync - the service handles connect/disconnect internally
-    const syncService = new DatabaseSyncService(devClient, prodClient);
-    const result = await syncService.sync({ dryRun, allowSchemaSkew });
+      logger.info({ result }, 'Database sync complete');
 
-    logger.info({ result }, 'Database sync complete');
-
-    if (syncWroteTable(result, 'users', dryRun)) {
-      // A sync writes bulk, unenumerable rows — no per-user id list to target,
-      // so the local provisioning cache needs a full clear rather than
-      // per-user eviction (contrast the per-user invalidation on the
-      // set-default-persona / account-delete routes, where the changed id IS
-      // known).
-      //   (1) Evict THIS process synchronously (tightest fix; no round-trip).
-      getOrCreateUserService(deps.prisma).clearCache();
-      //   (2) Broadcast so every OTHER process (ai-worker's context pipeline
-      //       has its own long-lived UserService) drops its cache too.
-      try {
-        await deps.userCacheInvalidation?.invalidateAll();
-      } catch (error) {
-        // Swallowed: THIS process was cleared synchronously above, and the
-        // sync already committed, so the request must still succeed. Blast
-        // radius of a failed broadcast: other processes' UserService caches
-        // stay stale until the ~1h TTL. Bounded, self-healing.
-        logger.warn({ err: error }, 'Post-sync user-cache broadcast failed');
+      if (syncWroteTable(result, 'users', dryRun)) {
+        // A sync writes bulk, unenumerable rows — no per-user id list to target,
+        // so the local provisioning cache needs a full clear rather than
+        // per-user eviction (contrast the per-user invalidation on the
+        // set-default-persona / account-delete routes, where the changed id IS
+        // known).
+        //   (1) Evict THIS process synchronously (tightest fix; no round-trip).
+        getOrCreateUserService(deps.prisma).clearCache();
+        //   (2) Broadcast so every OTHER process (ai-worker's context pipeline
+        //       has its own long-lived UserService) drops its cache too.
+        try {
+          await deps.userCacheInvalidation?.invalidateAll();
+        } catch (error) {
+          // Swallowed: THIS process was cleared synchronously above, and the
+          // sync already committed, so the request must still succeed. Blast
+          // radius of a failed broadcast: other processes' UserService caches
+          // stay stale until the ~1h TTL. Bounded, self-healing.
+          logger.warn({ err: error }, 'Post-sync user-cache broadcast failed');
+        }
       }
-    }
 
-    if (
-      syncWroteTable(result, 'personas', dryRun) ||
-      syncWroteTable(result, 'user_personality_configs', dryRun) ||
-      syncWroteTable(result, 'users', dryRun)
-    ) {
-      // All THREE tables feed PersonaResolver: `personas` (the rows), the
-      // override table (which persona applies per personality), and `users`
-      // (`default_persona_id` — the same field whose change makes the
-      // set-default route broadcast on this channel). A sync bulk-writes any
-      // of them without going through the routes that publish per-user
-      // invalidation, so a write to any staleness-poisons the same cache.
-      // Broadcast-only:
-      // the subscribers on this channel live in ai-worker; the gateway holds
-      // no subscribed persona resolver to clear locally (its private
-      // instances are a separately-tracked gap).
-      try {
-        await deps.personaCacheInvalidation?.invalidateAll();
-      } catch (error) {
-        // Swallowed for the same reason as the users half: the sync already
-        // committed. Blast radius: subscribed resolver caches stay stale for
-        // one resolver TTL. Bounded, self-healing.
-        logger.warn({ err: error }, 'Post-sync persona-cache broadcast failed');
+      if (
+        syncWroteTable(result, 'personas', dryRun) ||
+        syncWroteTable(result, 'user_personality_configs', dryRun) ||
+        syncWroteTable(result, 'users', dryRun)
+      ) {
+        // All THREE tables feed PersonaResolver: `personas` (the rows), the
+        // override table (which persona applies per personality), and `users`
+        // (`default_persona_id` — the same field whose change makes the
+        // set-default route broadcast on this channel). A sync bulk-writes any
+        // of them without going through the routes that publish per-user
+        // invalidation, so a write to any staleness-poisons the same cache.
+        // Broadcast-only:
+        // the subscribers on this channel live in ai-worker; the gateway holds
+        // no subscribed persona resolver to clear locally (its private
+        // instances are a separately-tracked gap).
+        try {
+          await deps.personaCacheInvalidation?.invalidateAll();
+        } catch (error) {
+          // Swallowed for the same reason as the users half: the sync already
+          // committed. Blast radius: subscribed resolver caches stay stale for
+          // one resolver TTL. Bounded, self-healing.
+          logger.warn({ err: error }, 'Post-sync persona-cache broadcast failed');
+        }
       }
-    }
 
-    sendCustomSuccess(res, {
-      success: true,
-      ...result,
-      timestamp: new Date().toISOString(),
-    });
+      sendCustomSuccess(res, {
+        success: true,
+        ...result,
+        timestamp: new Date().toISOString(),
+      });
+    } finally {
+      await releaseDbSyncSingleFlight(deps.redis, token);
+    }
   });

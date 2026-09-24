@@ -63,21 +63,21 @@ export interface CreateOrConflictResult {
  * so a re-export upserts the same row — replacing any previous
  * completed/failed export and invalidating its download URL. An active
  * (pending/in_progress) job always triggers a 409; a completed job newer
- * than the cooldown window triggers a 409 too, but ONLY when `checkCooldown`
- * is true.
+ * than `recentCompletionWindowMs` triggers a 409 too.
  *
- * `checkCooldown: false` is the export-path smoke's deliberate bypass (see
- * `internal/exportSmoke.ts`): the smoke runs on its own weekly cadence
- * against a system-reserved sentinel account, not a real user's export
- * quota, so the 24h user-facing cooldown doesn't apply to it. The
- * active-job conflict check is NOT skippable by either caller — a smoke
- * that stampedes a running export is a bug, not a feature.
+ * The user route passes the 24h cooldown; the export-path smoke passes its
+ * own much shorter window (see `internal/exportSmoke.ts`), because it runs
+ * weekly against the system-reserved sentinel account, not a real user's
+ * quota — yet a startup retry must still be unable to start a second real
+ * export right behind one that just completed. The active-job conflict check
+ * is NOT skippable by either caller — a smoke that stampedes a running
+ * export is a bug, not a feature.
  */
 export async function createExportJobOrConflict(
   prisma: PrismaClient,
   userId: string,
   expiresAt: Date,
-  checkCooldown: boolean
+  recentCompletionWindowMs: number
 ): Promise<CreateOrConflictResult> {
   const exportJobId = generateExportJobUuid(
     userId,
@@ -88,7 +88,6 @@ export async function createExportJobOrConflict(
   // Fresh random token on every (re)creation — a previously-shared download
   // URL stops working the moment the export is re-run.
   const downloadToken = generateExportDownloadToken();
-  const cooldownFloor = new Date(Date.now() - EXPORT_COOLDOWN_HOURS * 60 * 60 * 1000);
 
   const outcome = await prisma.$transaction(async tx => {
     const existingJob = await tx.exportJob.findFirst({
@@ -103,19 +102,17 @@ export async function createExportJobOrConflict(
       return { conflictStatus: existingJob.status, onCooldown: false };
     }
 
-    if (checkCooldown) {
-      const recentCompleted = await tx.exportJob.findFirst({
-        where: {
-          userId,
-          sourceService: ACCOUNT_EXPORT_SOURCE,
-          status: 'completed',
-          completedAt: { gt: cooldownFloor },
-        },
-      });
+    const recentCompleted = await tx.exportJob.findFirst({
+      where: {
+        userId,
+        sourceService: ACCOUNT_EXPORT_SOURCE,
+        status: 'completed',
+        completedAt: { gt: new Date(Date.now() - recentCompletionWindowMs) },
+      },
+    });
 
-      if (recentCompleted !== null) {
-        return { conflictStatus: null, onCooldown: true };
-      }
+    if (recentCompleted !== null) {
+      return { conflictStatus: null, onCooldown: true };
     }
 
     await tx.exportJob.upsert({
@@ -171,7 +168,7 @@ function createStartExportHandler(prisma: PrismaClient, queue: Queue) {
         prisma,
         userId,
         expiresAt,
-        true
+        EXPORT_COOLDOWN_HOURS * 60 * 60 * 1000
       ));
     } catch (error: unknown) {
       if (isPrismaUniqueConstraintError(error)) {
