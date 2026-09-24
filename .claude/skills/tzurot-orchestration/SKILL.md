@@ -211,7 +211,10 @@ PUSHED: the VM clones GitHub, so a local-only commit is not a valid base. The
 deliverable is a pushed branch and no PR (no `gh` in the VM); the driver opens
 it with the canonical PR-create command from `/tzurot-git-workflow` § Create
 PR, plus `--head <branch>` (the repo's default branch is `main`, so `--base
-develop` stays explicit), and arms the monitor as usual. The
+develop` stays explicit). The main tree is not on the pushed branch, so the
+driver arms the standard CI monitor with the SHA substitution pointed at the
+fetched remote branch instead of `HEAD`: `git fetch origin <branch>`, then
+`--sha $(git rev-parse origin/<branch>)`. The
 cloud orchestrator is its session's own main loop, so `dispatch-posture-gate.sh`
 applies to it, and the spec tells it to hand all src edits above five lines to
 ONE Sonnet worker. Observed behavior: units have ignored that and split their
@@ -223,7 +226,7 @@ characters (marked `… [+N chars]`), so the spec makes the unit write its
 report to `/tmp/report.md` and print it in Bash calls of at most 350
 characters each, and keep its final message to about three lines. The
 driver's full-diff read (`git fetch`, then `git diff
-origin/develop...origin/<branch>`) stays the review gate, as in § When the
+origin/<pushed base branch>...origin/<branch>`) stays the review gate, as in § When the
 worker reports. Relay the session link to the owner in chat only, never in a
 commit, PR body, or doc (`00-critical.md` § Claude Session URLs Are Secrets).
 **Review rounds**: a cloud session cannot be messaged back into, so a round's
