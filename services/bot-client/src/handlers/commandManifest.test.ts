@@ -74,10 +74,12 @@ function buildEntry(cmd: Command): ManifestEntry {
 describe('command manifest', () => {
   let handler: CommandHandler;
 
+  // Setup imports every command module, so it needs more than vitest's
+  // default hook budget under a loaded machine.
   beforeAll(async () => {
     handler = new CommandHandler();
     await handler.loadCommands();
-  });
+  }, 30_000);
 
   it('generates the command manifest and guards against drift', async () => {
     const commands = [...handler.getCommands().values()]

@@ -100,8 +100,9 @@ elif [ -z "$CODE_FILES" ] && [ -z "$PYTHON_FILES" ]; then
 fi
 
 # 4. Detect resource-constrained environment
-# Use LOW_RESOURCE_MODE=1 env var to enable throttling (e.g., for Steam Deck)
-# Can be set in .env or shell profile
+# Use LOW_RESOURCE_MODE=1 env var to enable throttling (e.g., for Steam Deck),
+# or let this step auto-detect a low core count (e.g., a small cloud VM) —
+# either trigger sets LOW_RESOURCE_MODE. Can also be set in .env or shell profile.
 TURBO_ARGS="--output-logs=errors-only"
 
 # Source LOW_RESOURCE_MODE from .env if not already set
@@ -109,8 +110,24 @@ if [ -z "$LOW_RESOURCE_MODE" ] && [ -f ".env" ]; then
     LOW_RESOURCE_MODE=$(grep -E '^LOW_RESOURCE_MODE=' .env | cut -d '=' -f2-)
 fi
 
+# Auto-detect a low core count when LOW_RESOURCE_MODE is still unset. An
+# empty or non-numeric core count is treated as unknown and does not throttle.
+LOW_RESOURCE_TRIGGER="LOW_RESOURCE_MODE set"
+if [ -z "$LOW_RESOURCE_MODE" ]; then
+    CPU_COUNT=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null)
+    case "$CPU_COUNT" in
+        ''|*[!0-9]*) ;;
+        *)
+            if [ "$CPU_COUNT" -le 4 ]; then
+                LOW_RESOURCE_MODE=1
+                LOW_RESOURCE_TRIGGER="$CPU_COUNT cores detected"
+            fi
+            ;;
+    esac
+fi
+
 if [ -n "$LOW_RESOURCE_MODE" ]; then
-    echo "${YELLOW}Low-resource mode enabled - throttling builds${NC}"
+    echo "${YELLOW}Low-resource mode enabled ($LOW_RESOURCE_TRIGGER) - throttling builds${NC}"
     # Limit to 1 concurrent task to prevent memory explosion
     TURBO_ARGS="$TURBO_ARGS --concurrency=1"
     # Cap Node.js memory to 2GB per process
