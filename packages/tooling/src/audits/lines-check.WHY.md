@@ -14,11 +14,39 @@ The gate runs in `pnpm quality`, the CI lint job, AND the pre-push docs-only
 fast path — the last one matters most, because doc-only pushes skip every heavy
 check and are exactly how these surfaces bloat.
 
+On top of the per-surface ratchet, the gate ALSO enforces a fixed instructions
+ceiling: `CLAUDE.md` + `.claude/rules/*.md`, summed as `.length`, must stay at
+or under `INSTRUCTION_CHARS_CEILING` (`lines-ceiling.ts`). It merges into the
+same failure list and findings count as the per-surface budgets, but it is not
+one of them — see § Hard ceiling (not a baseline).
+
 `--breakdown` adds a read-only per-file ranking of every surface, worst-first
 by bytes: the gate says whether a surface is over budget, the ranking says
 which of its files to open. It is **not** wired into any of those automated
 paths and never gates anything — it is run by hand, by whoever is doing the
 economy pass in `/tzurot-doc-audit`.
+
+## Hard ceiling (not a baseline)
+
+`INSTRUCTION_CHARS_CEILING` mirrors Claude Code's own instruction-file warning
+total (150,000 characters on a 1M-context driver), minus a 3,000-character
+allowance for the machine-local `~/.claude/CLAUDE.md` that CI cannot see (it
+is not checked in, and this ceiling does not measure it). It sums `.length` —
+UTF-16 code units — because that is what the harness itself sums when deciding
+whether to warn; the `rules` surface's `bytes` dimension measures UTF-8 bytes,
+a different unit, and the two are not interchangeable. It counts `CLAUDE.md`,
+which the `rules` surface does not.
+
+It is a fixed number, never a baseline entry, because the limit it mirrors is
+external: `lines:update-baseline` can ratchet every OTHER budget here up or
+down because those budgets are ours to hold, but nobody here owns the
+harness's warning threshold, so no refresh path may raise this one.
+
+Hedge: the harness derives the limit from the model's context window (floored
+at 120,000, as read from the Claude Code 2.1.281 binary), so a driver with a
+different context window gets a different total, and the value is not verified
+stable across harness versions — this ceiling mirrors observed behavior, not a
+documented contract.
 
 ## Why
 
@@ -89,3 +117,10 @@ logic changes. (3) **Hollow measurements**: a surface whose glob matches
 zero files is a failure, never a 0-line pass — moving `.claude/rules/`,
 renaming `CURRENT.md`, or moving `.claude/skills/` cannot silently disarm the
 gate.
+
+The instructions ceiling has its own decay coverage in
+`lines-ceiling.test.ts`: a fixed-ceiling pass/fail boundary, CLAUDE.md's
+contribution to the sum, a multibyte case pinning `.length` over
+`Buffer.byteLength`, and hollow measurement for a missing `CLAUDE.md` or an
+empty rules glob — plus a `runLinesCheck` wiring case proving the gate itself
+fails when the ceiling is exceeded.

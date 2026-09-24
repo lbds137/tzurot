@@ -120,9 +120,20 @@ The tool produces _candidates_ for human review, not verdicts:
 The tool catches drift. The complement, per `.claude/rules/03-database.md` "Optional Columns Require Null-Semantics Documentation", catches introduction:
 
 - **PR template checkbox** in `.github/pull_request_template.md` flags any PR adding a new `?` field and requires the contributor to confirm the field has a null-semantics comment.
-- **Triple-slash convention** in the rule file documents the four canonical patterns (state machine / default-fallback / deferred-set / state-machine-by-status). New optional columns should pick a pattern and document accordingly.
+- **Triple-slash convention**: the rule requires a null-semantics comment on every new optional column; the four canonical patterns it names are below. New optional columns should pick a pattern and document accordingly.
 
 Combined, the goal is to make a "fake-optional" column impossible to introduce silently. Existing fake-optionals are caught by the audit; new ones are caught by the PR review process.
+
+## Null-semantics pattern shapes
+
+Use one of these shapes in the `///` comment to make the intent explicit:
+
+| Pattern                     | Meaning                                                                                     | Example                                                                                                                                                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **State machine**           | Null until a specific event populates it; never reverts. Reads guard with `!= null` checks. | `/// Null until the user completes NSFW verification; populated to current time on success.` (`users.nsfwVerifiedAt`)                                                                               |
+| **Default-fallback**        | Null means "use the cascade fallback." Reads use `?? globalDefault` to resolve.             | `/// User-level STT provider override; when NULL, transcription derives from the user's default TTS provider, otherwise falls back to the self-hosted voice-engine.` (`users.defaultSttProviderId`) |
+| **Deferred-set**            | Null on creation, populated by a background worker / async job. Reads guard via truthiness. | `/// Populated by the PendingMemoryProcessor retry loop on each attempt; null on initial insert.` (`pending_memories.lastAttemptAt`)                                                                |
+| **State-machine-by-status** | Tied to a status column; nullable while the row is not yet in the right state.              | `/// Null until job status='completed'; populated atomically with the status transition.` (`export_jobs.fileContent`)                                                                               |
 
 ## Operational expectations
 

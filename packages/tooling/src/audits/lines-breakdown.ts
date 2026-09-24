@@ -16,10 +16,10 @@ import chalk from 'chalk';
 import { SURFACE_NAMES, measureSurfaceFiles, type FileMeasurement } from './lines-surfaces.js';
 
 /**
- * Bytes per token, for the derived estimates in the reports only. Roughly right
- * for English prose and markdown across current tokenizers, and deliberately
- * NOT used by any gate — a threshold resting on a rule of thumb would be a
- * threshold nobody could reason about.
+ * Bytes per token, for the derived estimates in the reports only. Calibrated
+ * against one `/context` reading of this repo's always-loaded markdown; it is
+ * an estimate only, and deliberately NOT used by any gate — a threshold
+ * resting on a rule of thumb would be a threshold nobody could reason about.
  *
  * Exported so the gate's per-surface estimate and the ranking's per-file
  * estimate are the same number by construction. They are two views of one
@@ -27,7 +27,7 @@ import { SURFACE_NAMES, measureSurfaceFiles, type FileMeasurement } from './line
  * nothing failing — jscpd cannot catch it either, since the declaration is
  * shorter than its `minLines` threshold.
  */
-export const BYTES_PER_TOKEN_ESTIMATE = 4;
+export const EST_BYTES_PER_TOKEN = 2.8;
 
 /**
  * One ranked per-file row, worst-first by bytes.
@@ -82,7 +82,7 @@ export function rankSurfaceFiles(files: FileMeasurement[]): BreakdownRow[] {
  * own signal, lost to formatting.
  */
 export function formatTokenEstimate(bytes: number): string {
-  const tokens = bytes / BYTES_PER_TOKEN_ESTIMATE;
+  const tokens = bytes / EST_BYTES_PER_TOKEN;
   if (tokens < 1000) {
     return `≈${Math.round(tokens)} tok`;
   }

@@ -14,10 +14,8 @@
 
 **\* Both line rules run with `skipBlankLines` + `skipComments`**
 (separate `max-lines` and `max-lines-per-function` blocks in `eslint.config.js`,
-carrying the same options), so `wc -l` is NOT the metric — a comment-heavy
-395-raw-line file counted 196, and an unnecessary extraction was justified on
-that false premise. `pnpm lint` is the only arbiter; to see the counted size,
-force it out with
+carrying the same options), so `wc -l` is NOT the metric. `pnpm lint` is the
+only arbiter; to see the counted size, force it out with
 `npx eslint <file> --rule '{"max-lines":["error",{"max":1,"skipBlankLines":true,"skipComments":true}]}'`.
 
 **Note**: Test files (`*.test.ts`, `*.spec.ts`) are excluded from the
@@ -79,9 +77,7 @@ comment itself (`// not verified: assumes the caller already acked`).
 claim** — `00-critical.md`'s probe-first rule applies at the moment you write
 the comment, not only when you state the claim in prose. "cac returns the last
 value for a repeated flag", "the timeout means it was delivered": probe (a
-`--help`, a one-line call) or hedge in the comment. Explaining a shape feels
-like documentation rather than assertion, which is exactly why this shape got
-past the rule twice in one session.
+`--help`, a one-line call) or hedge in the comment.
 
 In CODE files the VALUE half (`never null`, `always populated`, `cannot be
 <value>`) is caught mechanically by `claim-shape-guard.sh`, which skips `*.md`
@@ -101,11 +97,6 @@ both directions from the branch point:
   then re-check every comment, docstring, and test written about their OLD
   routing. Adding a branch re-routes inputs without editing a line of the prose
   that describes them, so this half has no other tripwire.
-
-Both halves are mechanically findable from the branch point alone. The
-inbound half is the one nothing else in this corpus covers — the Grep Rule
-searches for a known pattern, and `/tzurot-bug-remediation`'s class sweep fires
-on a BUG, while this class is created while writing new code that works.
 
 ## TypeScript Strict Rules
 
@@ -190,20 +181,7 @@ Don't file Zod schema tests under "contract."
 
 ### Fake Timers (ALWAYS Use)
 
-```typescript
-beforeEach(() => {
-  vi.useFakeTimers();
-});
-afterEach(() => {
-  vi.restoreAllMocks();
-});
-
-// Promise rejections with fake timers (CRITICAL)
-const promise = asyncFunction();
-const assertion = expect(promise).rejects.toThrow('Error'); // Attach handler FIRST
-await vi.runAllTimersAsync(); // Then advance
-await assertion;
-```
+`vi.useFakeTimers()` in `beforeEach`, `vi.restoreAllMocks()` in `afterEach`. For a promise expected to reject, **attach the assertion before advancing timers** (`const assertion = expect(promise).rejects.toThrow(...)`, then `await vi.runAllTimersAsync()`, then `await assertion`) — pattern: `/tzurot-testing` § 2. Check for Fake Timer Issues.
 
 ### When to Add Tests
 
@@ -232,12 +210,7 @@ Schema tests colocate like everything else: `schemas/api/persona.ts` → `schema
 
 ### Constant Naming
 
-```typescript
-export const MY_CONFIG = {
-  /** Description */
-  VALUE: 123,
-} as const; // Always use 'as const'
-```
+`SCREAMING_SNAKE` config objects with a JSDoc line per member, always declared `as const`.
 
 ## Module Organization
 
