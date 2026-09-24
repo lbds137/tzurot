@@ -2062,7 +2062,7 @@ describe('index navigation through the router (landing, Index button, jump selec
   describe('jump select', () => {
     it('acks first, then jumps to the selected page (not a setting lookup)', async () => {
       mockSessionManager.get.mockReturnValue(liveSession({ view: 'index' }));
-      const interaction = component('test-settings::jump::entity-1', ['3']);
+      const interaction = component('test-settings::jump::entity-1', ['p3']);
 
       await handleSettingsSelectMenu(interaction as never, FOUR_PAGES);
 

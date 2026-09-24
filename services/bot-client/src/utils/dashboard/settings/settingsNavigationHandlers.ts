@@ -19,9 +19,6 @@ import { buildOverviewMessage } from './SettingsDashboardBuilder.js';
 import { buildIndexMessage } from './settingsIndexView.js';
 import { storeSession } from './SettingsSessionStorage.js';
 
-/** A page option's value: the page's position in `config.pages`. */
-const PAGE_INDEX_VALUE = /^\d+$/;
-
 /**
  * Index button → the index view. A flat config has no index (and its overview
  * renders no Index button), so a stale Index click on a dashboard whose pages
@@ -45,10 +42,14 @@ export async function handleIndexButton(
 }
 
 /**
- * Jump select → the chosen page's overview. The selected value is clamped
- * like the prev/next path, so a stale menu from a since-shrunk page list
- * cannot render an out-of-range page; a value that is not a page index (a
- * forged interaction) keeps the session's current page.
+ * Jump select → the chosen page's overview. The selected value is the
+ * page's stable id, resolved to its CURRENT position in `config.pages` at
+ * click time — so a deploy that reorders pages while the index message is
+ * still open still lands the click on the page the user read, not on
+ * whatever now sits at that position. The resolved position is clamped like
+ * the prev/next path, so a stale menu from a since-shrunk page list cannot
+ * render an out-of-range page; an id with no matching page (a removed page,
+ * or a forged interaction) keeps the session's current page.
  */
 export async function handleJumpSelect(
   interaction: StringSelectMenuInteraction,
@@ -56,7 +57,8 @@ export async function handleJumpSelect(
   session: SettingsDashboardSession
 ): Promise<void> {
   const selected = interaction.values[0];
-  const target = PAGE_INDEX_VALUE.test(selected) ? Number(selected) : session.page;
+  const resolvedIndex = (config.pages ?? []).findIndex(page => page.id === selected);
+  const target = resolvedIndex === -1 ? session.page : resolvedIndex;
   session.page = clampPage(config, target);
   session.view = DashboardView.OVERVIEW;
   session.activeSetting = undefined;

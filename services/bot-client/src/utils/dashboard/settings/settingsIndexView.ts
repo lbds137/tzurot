@@ -61,7 +61,9 @@ export function buildIndexEmbed(
 
 /**
  * Build the index's jump select: one option per page, labeled by the page
- * label, valued by the page's position in `config.pages`.
+ * label, valued by the page's stable id (resolved back to a position at
+ * click time by `handleJumpSelect`) — a position value would go stale if a
+ * deploy reorders `config.pages` while the index message is still open.
  */
 export function buildIndexSelectMenu(
   config: SettingsDashboardConfig,
@@ -81,9 +83,7 @@ export function buildIndexSelectMenu(
     .setCustomId(buildSettingsCustomId(config.entityType, 'jump', session.entityId))
     .setPlaceholder('Jump to a page…')
     .addOptions(
-      pages.map((page, index) =>
-        new StringSelectMenuOptionBuilder().setLabel(page.label).setValue(String(index))
-      )
+      pages.map(page => new StringSelectMenuOptionBuilder().setLabel(page.label).setValue(page.id))
     );
 
   return new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(menu);
