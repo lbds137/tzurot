@@ -49,6 +49,16 @@ Owner steer: the pilot must exercise the REAL path, a local session spawning clo
 - **RemoteTrigger is a working programmatic spawn path WITH a return channel.** Actions `create` + `run` start a routine run now; `list_runs` + `get_run_log` let the local driver read the run's log and final result, which is better than SendMessage to a cloud session (one-way: cloud sessions cannot message back, per the cross-session messaging docs).
 - Remaining programmatic spawn path: routines (`/schedule`, the RemoteTrigger tool), which the $250 credit does not cover. So they bill the plan, the same budget a local nested dispatch already bills. Remaining semi-manual path: the owner opens an idle cloud session in a real terminal or the web, and the local driver dispatches to it with SendMessage; results come back as a pushed branch, since cloud sessions cannot message back.
 
+## Routine pilot 2026-09-24 (owner: "probe, then one unit", plan-billed)
+
+- **Placement probe PASSED.** A one-shot routine created by the local session ran in "Default (Trusted)" (`env_011CUR2aSkNzZj7jpJ2CoCrY`): hostname `vm`, 4 CPUs, 15Gi RAM, no swap, kernel 6.18.44-fc (Firecracker), root, cwd `/home/user/tzurot`. It finished in 18 s, and `get_run_log` returned its final message to the driver. It had Node v22.22.2, pnpm 10.30.3, Python 3.11.15; npm registry and api.github.com both answered HTTP 200; the repo's `.claude` hooks fired (19 hook events) without trouble. No setup script is configured on the environment.
+- **Mechanics a spec must carry:**
+  - The clone checks out the DEFAULT branch (`main`), so step 0 switches to `develop`.
+  - Node 24 must be installed in step 0. The unit run installed it and reported v24.21.0.
+  - Every `create` auto-attaches ALL the account's claude.ai connectors (Gmail, Drive, Calendar, PayPal, Claude_Code_Remote), even with `"mcp_connections": []`, so each create is followed by `update` with `clear_mcp_connections: true`, before `run_once_at`.
+  - `run_once_at` must be in the future (2–3 min out works). The run starts about 1 min after it.
+- **Unit run: TASK-1055**, Opus 5.5 orchestrator allowed one Sonnet worker, gates run in the cloud, deliverable a pushed `feat/task-1055-single-flight-sync`, and no PR (the driver opens it). It ran concurrently with the Deck's local gates for another PR, the first time two gate-running units were in flight at once. Result: pending at this writing.
+
 ## Pilot
 
 One ordinary `state:ready` backlog unit, dispatched remotely, with the local gates skipped:
