@@ -80,3 +80,59 @@ reached for by name. Two members added from that session:
   defaults button on every settings page").
 - **Density**: the hub page is also the answer to the row count — a group page
   should hold one concern, not every setting of the scope.
+
+## Council pass (2026-09-24, pickup)
+
+**Code state at pickup (read, not recalled):**
+- **Paged dashboards:** admin settings has 11 pages (Memory, Context & Display,
+  Voice, plus 8 `System ·` pages; `SYSTEM_SETTINGS_PAGES` in
+  `systemSettingsConfig.ts`). User defaults has 3 (`buildCascadePages`).
+  Navigation is prev/next only.
+- **Flat dashboards:** character settings, character overrides and channel
+  settings show all ~17 cascade settings on one overview (`settings:` spreads
+  in their command files).
+- **Reset today:** channel settings alone has a whole-dashboard reset
+  (`resetButton` in `channel/settings.ts`).
+- **Rows:** a page uses at most 3 of the 5 (settings select, the pagination
+  row, and a reset row when one exists).
+
+**Three models asked** (`~openai/gpt-sol-latest`, `z-ai/glm-5.3-prime`, and
+the server default, which answered as an Anthropic model).
+
+**Unanimous:**
+- A hub for the 11-page admin dashboard.
+- No per-page jump select: it duplicates the hub, costs a row, and puts two
+  selects on one message, which invites mis-taps on a phone. TASK-256 is
+  absorbed by the hub.
+- The Index button goes in an existing row.
+- Back from a setting returns to the page it was opened from.
+- Dashboards of 3 pages or fewer don't LAND on the hub.
+- Build inside the settings machinery. The browse surfaces (143-item character
+  browse) need their own design, such as a filter or a letter bucket, and no
+  generic paged-index framework is built now.
+- No undo for reset-all.
+
+**Split:**
+- **Flat dashboards → concern pages.** GPT and GLM said yes: it fixes the
+  scanning, and every dashboard then shares one grammar. The Anthropic answer
+  said no: fix the select labels instead. The owner's density note above sides
+  with splitting.
+- **Reset-all.** GLM and the Anthropic answer said build it, labeled with a
+  count, behind its own confirm state, idempotent, and landing back on the hub
+  when the session has expired. GPT said defer it, and never let it silently
+  include admin defaults.
+
+**Owner rulings (2026-09-24, AskUserQuestion):**
+- **Landing, "Page 1 + Index button":** a dashboard of 3 pages or fewer opens
+  on page 1. Every page of every paged dashboard carries an Index button that
+  opens the hub. Only dashboards of 4+ pages (today, admin's 11) LAND on the
+  hub.
+- **Admin reset, "Not on admin":** Reset all appears only on hubs whose scope
+  holds the user's own overrides: user defaults, character settings, character
+  overrides and channel settings. The admin hub gets no Reset all, and admin
+  keeps per-page reset only.
+
+**Planned units:**
+- **PR A, navigation:** the hub view, the landing threshold, the Index button,
+  and the flat → concern-page split. Closes TASK-256.
+- **PR B, resets:** TASK-1001's per-page reset, plus the hub's reset-all.
