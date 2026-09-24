@@ -176,6 +176,7 @@ describe('POST /api/internal/export-smoke/start', () => {
 
     expect(response.status).toBe(409);
     expect(mockAdd).not.toHaveBeenCalled();
+    expect((response.body as { code?: string }).code).toBe('EXPORT_SMOKE_RECENT_COMPLETION');
   });
 
   it('returns 503 when the queue is not configured', async () => {

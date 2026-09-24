@@ -59,7 +59,7 @@ function syncWroteTable(
  *
  * Caller contract (isGatewayUnreachedFailure, bot-client
  * utils/gatewayNotReady.ts): never answer 404/502/503 after the sync has
- * started.
+ * started. Prescriptive; not pinned by a test.
  */
 export const handleDbSync = (deps: RouteDeps): RequestHandler =>
   asyncHandler(async (req: Request, res: Response) => {
