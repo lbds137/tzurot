@@ -10,6 +10,7 @@ import { handleDbSync } from './dbSync.js';
 import type { RouteDeps } from '../routeDeps.js';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 import { getOrCreateUserService } from '../../services/AuthMiddleware.js';
+import { DB_SYNC_SINGLE_FLIGHT_KEY } from '../../services/sync/dbSyncSingleFlight.js';
 
 // Mock DatabaseSyncService
 const mockSync = vi.fn();
@@ -149,6 +150,16 @@ describe('POST /api/admin/db-sync', () => {
       expect(mockSync).not.toHaveBeenCalled();
     });
 
+    it('a dry run with no Redis configured answers 200 and still syncs', async () => {
+      app = buildApp(undefined, undefined, null);
+      mockSync.mockResolvedValue(makeSyncResult());
+
+      const response = await request(app).post('/admin/db-sync').send({ dryRun: true });
+
+      expect(response.status).toBe(200);
+      expect(mockSync).toHaveBeenCalledWith({ dryRun: true, allowSchemaSkew: false });
+    });
+
     it('503s when redis.set rejects, without calling sync', async () => {
       const brokenRedis = {
         set: vi.fn().mockRejectedValue(new Error('connection reset')),
@@ -171,7 +182,7 @@ describe('POST /api/admin/db-sync', () => {
       const redis = createWorkingRedis() as NonNullable<RouteDeps['redis']>;
       // Seed the guard as already held, mirroring "another token stored in
       // the double" — the dry run below must neither read nor clear it.
-      await redis.set('db-sync:single-flight', 'held-by-another-sync', 'PX', 1_800_000, 'NX');
+      await redis.set(DB_SYNC_SINGLE_FLIGHT_KEY, 'held-by-another-sync', 'PX', 1_800_000, 'NX');
       const setCallsBeforeDryRun = (redis.set as ReturnType<typeof vi.fn>).mock.calls.length;
       app = buildApp(undefined, undefined, redis);
       mockSync.mockResolvedValue(makeSyncResult());
@@ -183,7 +194,7 @@ describe('POST /api/admin/db-sync', () => {
       // No new `set` call from the dry run itself.
       expect((redis.set as ReturnType<typeof vi.fn>).mock.calls.length).toBe(setCallsBeforeDryRun);
       expect(redis.del as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
-      await expect(redis.get('db-sync:single-flight')).resolves.toBe('held-by-another-sync');
+      await expect(redis.get(DB_SYNC_SINGLE_FLIGHT_KEY)).resolves.toBe('held-by-another-sync');
     });
 
     it('a dry run with the guard free never writes the key: no `set` call on the Redis double', async () => {

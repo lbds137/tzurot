@@ -20,6 +20,7 @@
 import { type Request, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { API_ERROR_SUBCODE } from '@tzurot/common-types/constants/error';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   RetentionRunBeginRequestSchema,
   RetentionRunBeginResponseSchema,
@@ -42,6 +43,8 @@ import {
   type RunLeaseHolder,
 } from '../../services/retention/runLease.js';
 import type { RouteDeps } from '../routeDeps.js';
+
+const logger = createLogger('internal-retention-run');
 
 /** Lease label for a leased call whose body carried no runContext. */
 export const UNLABELLED_RUN = 'unlabelled retention run';
@@ -70,7 +73,16 @@ function sendLeaseConflict(
   sendError(res, body);
 }
 
-function sendLeaseUnavailable(res: Response): void {
+/**
+ * `error` is omitted for the missing-`deps.redis` case and passed for the
+ * `RunLeaseUnavailableError` case — the two `withLease` call sites below.
+ */
+function sendLeaseUnavailable(res: Response, error?: unknown): void {
+  if (error === undefined) {
+    logger.warn({ reason: 'redis-not-configured' }, 'Refusing retention run: lease unavailable');
+  } else {
+    logger.warn({ err: error }, 'Refusing retention run: lease unavailable');
+  }
   sendError(
     res,
     ErrorResponses.serviceUnavailable(
@@ -96,7 +108,7 @@ async function withLease<T>(
     return await op(new RunLease(deps.redis));
   } catch (error) {
     if (error instanceof RunLeaseUnavailableError) {
-      sendLeaseUnavailable(res);
+      sendLeaseUnavailable(res, error);
       return null;
     }
     throw error;
