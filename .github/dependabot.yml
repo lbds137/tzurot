@@ -73,6 +73,13 @@ updates:
       # remove this ignore there too.
       - dependency-name: 'ioredis'
         update-types: ['version-update:semver-major']
+      # @types/node tracks the Node runtime major pinned in .node-version
+      # (Dockerfiles, CI and engines all follow it; node-version-pin.test.ts
+      # in packages/tooling enforces the match). A types major ahead of the
+      # runtime admits APIs prod does not have, so the types move only
+      # together with the runtime, in a deliberate bump of .node-version.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
 
   # GitHub Actions workflow file dependencies — separate ecosystem.
   - package-ecosystem: 'github-actions'

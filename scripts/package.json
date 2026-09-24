@@ -18,7 +18,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@types/node": "^26.6.1",
+    "@types/node": "^24.13.6",
     "ts-morph": "^28.0.0",
     "vitest": "^4.1.11"
   }

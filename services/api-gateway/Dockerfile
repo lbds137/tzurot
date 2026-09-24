@@ -8,7 +8,7 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Prune the monorepo to only include what api-gateway needs
 # -----------------------------------------------------------------------------
-FROM node:25-slim AS pruner
+FROM node:24-slim AS pruner
 
 RUN npm install -g turbo pnpm
 
@@ -24,7 +24,7 @@ RUN turbo prune @tzurot/api-gateway --docker
 # -----------------------------------------------------------------------------
 # Stage 2: Install dependencies using pruned package.json files
 # -----------------------------------------------------------------------------
-FROM node:25-slim AS installer
+FROM node:24-slim AS installer
 
 RUN npm install -g pnpm
 
@@ -60,7 +60,7 @@ RUN pnpm turbo run build --filter=@tzurot/api-gateway...
 # -----------------------------------------------------------------------------
 # Stage 4: Production runtime
 # -----------------------------------------------------------------------------
-FROM node:25-slim AS runner
+FROM node:24-slim AS runner
 
 RUN npm install -g pnpm
 

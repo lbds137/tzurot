@@ -43,7 +43,7 @@
   },
   "devDependencies": {
     "@types/estree": "^1.0.9",
-    "@types/node": "^26.6.1",
+    "@types/node": "^24.13.6",
     "@types/semver": "^7.8.0",
     "@vitest/coverage-v8": "^4.1.11",
     "ajv": "^8.20.0",

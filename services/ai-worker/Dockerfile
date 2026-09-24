@@ -8,7 +8,7 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Prune the monorepo to only include what ai-worker needs
 # -----------------------------------------------------------------------------
-FROM node:25-slim AS pruner
+FROM node:24-slim AS pruner
 
 RUN npm install -g turbo pnpm
 
@@ -24,7 +24,7 @@ RUN turbo prune @tzurot/ai-worker --docker
 # -----------------------------------------------------------------------------
 # Stage 2: Install dependencies using pruned package.json files
 # -----------------------------------------------------------------------------
-FROM node:25-slim AS installer
+FROM node:24-slim AS installer
 
 # Install OpenSSL for Prisma (required at both build and runtime)
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
@@ -63,7 +63,7 @@ RUN pnpm turbo run build --filter=@tzurot/ai-worker...
 # -----------------------------------------------------------------------------
 # Stage 4: Production runtime
 # -----------------------------------------------------------------------------
-FROM node:25-slim AS runner
+FROM node:24-slim AS runner
 
 # Install OpenSSL for Prisma runtime (required for query execution).
 # Install ffmpeg for audio post-processing — output-side EBU R128 loudness

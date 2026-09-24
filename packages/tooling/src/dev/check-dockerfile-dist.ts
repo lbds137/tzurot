@@ -63,12 +63,12 @@ const WORKSPACE_GROUPS = ['packages', 'services'];
 const DIST_COPY_PATTERN =
   /^\s*COPY\s+--from=\S+\s+\/app\/((?:packages|services)\/[^/\s]+)\/dist(?:[/\s]|$)/;
 
-/** Matches any Dockerfile stage start, e.g. `FROM node:25-slim AS runner` */
+/** Matches any Dockerfile stage start, e.g. `FROM node:24-slim AS runner` */
 const STAGE_START_PATTERN = /^\s*FROM\s/i;
 
 /**
  * Matches a stage named exactly `runner` — case-insensitively, e.g.
- * `FROM node:25-slim AS runner`. The `i` flag is needed for the legitimate
+ * `FROM node:24-slim AS runner`. The `i` flag is needed for the legitimate
  * `as`/`AS` keyword variance and necessarily extends to the stage name too,
  * so `AS Runner` also anchors here even though Docker's own `--from=` stage
  * references are case-sensitive. Harmless: no Dockerfile here mixes case.
