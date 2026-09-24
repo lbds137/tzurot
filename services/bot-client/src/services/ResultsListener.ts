@@ -49,7 +49,8 @@ export class ResultsListener {
       port: parsedUrl.port,
       password: parsedUrl.password,
       username: parsedUrl.username,
-      family: 6, // Railway private network uses IPv6
+      // family: default (6) comes from the shared resolver — Railway's IPv6
+      // private network; REDIS_IP_FAMILY overrides for IPv4-only dev hosts.
     });
 
     this.redis = new IORedis({
