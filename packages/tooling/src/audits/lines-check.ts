@@ -45,6 +45,7 @@ import {
 } from './baseline-meta.js';
 import { emitSummary } from './summary.js';
 import { reportBreakdown, formatTokenEstimate } from './lines-breakdown.js';
+import { checkInstructionCeiling, formatInstructionCeilingLine } from './lines-ceiling.js';
 
 import {
   LINES_IMPL_VERSION,
@@ -338,18 +339,32 @@ function runLinesCheckGate(options: LinesCheckOptions): 'ok' | 'fail' {
     }
   }
 
-  if (outcome.status === 'fail') {
+  // A hard ceiling, not a baseline dimension: it merges into the same
+  // failure list and findings count, but `lines:update-baseline` has no
+  // power over it — the limit is external (the harness's own warning total),
+  // so nothing here can ratchet it up.
+  const ceiling = checkInstructionCeiling(rootDir);
+  console.log(formatInstructionCeilingLine(ceiling));
+  const failures =
+    ceiling.failure === null ? outcome.failures : [...outcome.failures, ceiling.failure];
+
+  if (failures.length > 0) {
     console.error(chalk.red.bold('✗ Always-loaded context ratchet failed:'));
-    for (const failure of outcome.failures) {
+    for (const failure of failures) {
       console.error(chalk.red(`   ${failure}`));
     }
-    console.error(
-      chalk.dim(
-        'Either trim the surface back under its budget, or — if the growth is ' +
-          'intentional — run `pnpm ops lines:update-baseline`.'
-      )
-    );
-    return failOutcome(options, outcome.failures.length, outcome.surfaces.length);
+    // A ceiling-only failure has no baseline to refresh — its own failure text
+    // already names the fix (trim, see `--breakdown`) — so this hint is only
+    // correct when a baseline-surface failure is actually present.
+    if (outcome.failures.length > 0) {
+      console.error(
+        chalk.dim(
+          'Either trim the surface back under its budget, or — if the growth is ' +
+            'intentional — run `pnpm ops lines:update-baseline`.'
+        )
+      );
+    }
+    return failOutcome(options, failures.length, outcome.surfaces.length);
   }
 
   console.log(chalk.green('✓ Always-loaded context surfaces within their budgets'));
@@ -362,7 +377,7 @@ function runLinesCheckGate(options: LinesCheckOptions): 'ok' | 'fail' {
 /**
  * One report line per (surface, dimension). The bytes line carries a derived
  * token estimate, because "172579 bytes" is not a quantity anyone can weigh
- * against a session budget while "~43k tokens" is — but the gate compares the
+ * against a session budget while "~62k tokens" is — but the gate compares the
  * bytes, so the estimate can never be the thing that passes or fails a build.
  */
 function formatDimensionLine(surfaceName: string, dim: DimensionEvaluation): string {

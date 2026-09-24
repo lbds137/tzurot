@@ -14,31 +14,19 @@ Each layer points down. No upward references. No duplicated content.
 
 ## Where to Put New Docs
 
-| Doc Type                         | Location                                                   | When                                                                                                                                                            |
-| -------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Constraint/standard              | `.claude/rules/`                                           | Enforced during all work — **only if it applies repo-wide**; one service's conventions go in that service's `CLAUDE.md` (next row)                              |
-| Service-scoped standard          | `services/<name>/CLAUDE.md`                                | Conventions for ONE service — loads only when working under that directory, so it costs nothing elsewhere (e.g. `services/voice-engine/CLAUDE.md`)              |
-| Procedure/workflow               | `.claude/skills/`                                          | Step-by-step how-tos                                                                                                                                            |
-| Living intent (LLD + EARS specs) | `docs/intent/<segment>/`                                   | Per-segment design + `@spec`-linked requirements; pilot: memory-archive                                                                                         |
-| Architecture decision            | `docs/reference/architecture/`                             | After implementation                                                                                                                                            |
-| Caching design                   | `docs/reference/caching/`                                  | Cache patterns, pub/sub                                                                                                                                         |
-| Database reference               | `docs/reference/database/`                                 | Schema, drift, Prisma                                                                                                                                           |
-| Deployment procedure             | `docs/reference/deployment/`                               | Railway, production                                                                                                                                             |
-| Feature docs                     | `docs/reference/features/`                                 | User-facing behavior                                                                                                                                            |
-| Command reference                | `docs/commands.md`                                         | The user-facing slash-command list                                                                                                                              |
-| Developer guide                  | `docs/reference/guides/`                                   | How-tos for common tasks                                                                                                                                        |
-| Operations runbook               | `docs/reference/operations/`                               | Maintenance, backups                                                                                                                                            |
-| Coding standard                  | `docs/reference/standards/`                                | Patterns to follow                                                                                                                                              |
-| Templates                        | `docs/reference/templates/`                                | Reusable doc scaffolding                                                                                                                                        |
-| Test procedure                   | `docs/reference/testing/`                                  | Manual test plans, setup                                                                                                                                        |
-| Tooling reference                | `docs/reference/tooling/`                                  | CLI, ops commands                                                                                                                                               |
-| Future idea                      | `docs/proposals/backlog/`                                  | Good idea, not scheduled                                                                                                                                        |
-| Post-mortem                      | `docs/incidents/`                                          | After incident resolution                                                                                                                                       |
-| Research note                    | `docs/research/`                                           | Distilled AI insights **with a public audience** (see "Audience check" below)                                                                                   |
-| Local working notes              | `docs/local/` (gitignored)                                 | Internal working material without a public audience                                                                                                             |
-| Steam Deck setup                 | `docs/steam-deck/`                                         | Dev environment guides                                                                                                                                          |
-| Work tracking                    | `CURRENT.md`, `BACKLOG.md` + `backlog/**/*.md`, `tracker/` | Root-level. `BACKLOG.md` is the load manifest; curated files live under `backlog/`; the small-item pool is the `tracker/` task store (query via `pnpm tracker`) |
-| Per-Claude memory                | `~/.claude/projects/*tzurot*/memory/`                      | Per-user context, preferences, time-bound state (not git-tracked)                                                                                               |
+- Constraint/standard → `.claude/rules/` — **only if it applies repo-wide**; one service's conventions go in that service's `CLAUDE.md`
+- Service-scoped standard → `services/<name>/CLAUDE.md` (loads only when working under that directory, e.g. `services/voice-engine/CLAUDE.md`)
+- Procedure/workflow → `.claude/skills/` (step-by-step how-tos)
+- Living intent (LLD + EARS specs) → `docs/intent/<segment>/` (per-segment design + `@spec`-linked requirements; pilot: memory-archive)
+- Under `docs/reference/`: architecture decisions (after implementation) → `architecture/`; cache patterns, pub/sub → `caching/`; schema, drift, Prisma → `database/`; Railway, production → `deployment/`; user-facing behavior → `features/`; how-tos for common tasks → `guides/`; maintenance, backups → `operations/`; patterns to follow → `standards/`; reusable doc scaffolding → `templates/`; manual test plans, setup → `testing/`; CLI, ops commands → `tooling/`
+- The user-facing slash-command list → `docs/commands.md`
+- Future idea (good, not scheduled) → `docs/proposals/backlog/`
+- Post-mortem (after resolution) → `docs/incidents/`
+- Research note (distilled AI insights **with a public audience** — see "Audience check" below) → `docs/research/`
+- Local working notes without a public audience → `docs/local/` (gitignored)
+- Steam Deck dev-environment guides → `docs/steam-deck/`
+- Work tracking → root `CURRENT.md` and `BACKLOG.md` (the load manifest), curated files under `backlog/**/*.md`, the small-item pool in `tracker/` (query via `pnpm tracker`)
+- Per-Claude memory → `~/.claude/projects/*tzurot*/memory/` (per-user context, preferences, time-bound state; not git-tracked)
 
 ## Audience check (public repo)
 
@@ -69,18 +57,7 @@ A command block in a rule, skill, or reference doc is code that a future session
 
 ## Reference Root Files
 
-These live directly in `docs/reference/` (not in a subdirectory):
-
-| File                          | Contents                              |
-| ----------------------------- | ------------------------------------- |
-| `DOCUMENTATION_PHILOSOPHY.md` | Full rationale and decision flowchart |
-| `STATIC_ANALYSIS.md`          | dependency-cruiser, knip, cpd         |
-| `GITHUB_CLI_REFERENCE.md`     | gh CLI patterns                       |
-| `RAILWAY_CLI_REFERENCE.md`    | Railway CLI patterns                  |
-| `REASONING_MODEL_FORMATS.md`  | LLM reasoning output formats          |
-| `v2-patterns-reference.md`    | Legacy v2 patterns                    |
-| `audit-enforcement.md`        | Audit-tool registry criteria + layers |
-| `CPD_CAMPAIGN_AUDIT.md`       | CPD campaign close-out audit          |
+Files that live directly in `docs/reference/` (not in a subdirectory) are indexed in `docs/README.md`.
 
 ## Related
 

@@ -737,11 +737,11 @@ describe('per-dimension report lines name the REAL reason', () => {
       }
     );
 
-    // 2000 bytes / 4 / 1000 -> rounds to 1k; the line carries value, estimate,
-    // limit and baseline together.
-    // One formatter across gate and ranking: 2000 bytes is ~500 estimated
+    // 2000 bytes / 2.8 -> ~714 estimated tokens; the line carries value,
+    // estimate, limit and baseline together.
+    // One formatter across gate and ranking: 2000 bytes is ~714 estimated
     // tokens, which the old whole-thousand rounding rendered as "1k".
-    expect(output).toContain('2000 bytes ≈500 tok (limit 2100, baseline 2000)');
+    expect(output).toContain('2000 bytes ≈714 tok (limit 2100, baseline 2000)');
     expect(output).toContain('1000 lines (limit 1050, baseline 1000)');
   });
 
@@ -798,6 +798,10 @@ describe('runLinesCheck --breakdown wiring', () => {
     await writeFile(join(tmp, '.claude/rules/00-a.md'), 'rule\n');
     await writeFile(join(tmp, 'CURRENT.md'), 'status\n');
     await writeFile(join(tmp, '.claude/skills/example/SKILL.md'), 'skill\n');
+    // The instructions ceiling requires CLAUDE.md to exist (a hollow
+    // measurement is a failure, never a silent pass) — well under the
+    // ceiling, so it never contributes a finding of its own.
+    await writeFile(join(tmp, 'CLAUDE.md'), 'claude\n');
     const baselinePath = join(tmp, 'baseline.json');
     const m = measureSurfaces(tmp);
     await writeFile(

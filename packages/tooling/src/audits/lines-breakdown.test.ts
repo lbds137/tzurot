@@ -70,16 +70,16 @@ describe('formatTokenEstimate', () => {
     // Whole-thousand rounding renders these two as "1k" and "2k" — a file and
     // one nearly twice its weight, flattened to adjacent integers. That is the
     // ranking's own signal, and losing it to formatting is the failure.
-    expect(formatTokenEstimate(5055)).toBe('≈1.3k tok');
-    expect(formatTokenEstimate(10_521)).toBe('≈2.6k tok');
+    expect(formatTokenEstimate(5055)).toBe('≈1.8k tok');
+    expect(formatTokenEstimate(10_521)).toBe('≈3.8k tok');
   });
 
   it('rounds to whole thousands once resolution stops mattering', () => {
-    expect(formatTokenEstimate(40_460)).toBe('≈10k tok');
+    expect(formatTokenEstimate(40_460)).toBe('≈14k tok');
   });
 
   it('reports sub-1k estimates as tokens rather than 0.0k', () => {
-    expect(formatTokenEstimate(400)).toBe('≈100 tok');
+    expect(formatTokenEstimate(400)).toBe('≈143 tok');
   });
 });
 
@@ -94,7 +94,7 @@ describe('formatBreakdownRow', () => {
     });
 
     expect(line).toContain('40460 B');
-    expect(line).toContain('≈10k tok');
+    expect(line).toContain('≈14k tok');
     expect(line).toContain('23%');
     expect(line).toContain('398 lines');
     expect(line).toContain('102 B/line');

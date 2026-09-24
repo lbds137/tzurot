@@ -62,9 +62,10 @@ target database instead.
 
 ## Similarity queries
 
-Vector search goes through `prisma.$queryRaw`, never the ORM — see
-`.claude/rules/03-database.md` § pgvector Operations for the canonical query
-shape (cosine distance, `<->`, `LIMIT`).
+Vector search goes through `prisma.$queryRaw`, never the ORM — the canonical
+query is `services/ai-worker/src/services/PgvectorQueryBuilder.ts` (cosine
+distance `<=>`, a max-distance bound, `LIMIT`); the rule is
+`.claude/rules/03-database.md` § pgvector Operations.
 
 ---
 

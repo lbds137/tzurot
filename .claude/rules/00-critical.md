@@ -6,18 +6,7 @@ These constraints MUST always be followed. Violations cause bugs, security issue
 
 ### Shell Command Safety
 
-Never use string interpolation in shell commands.
-
-```typescript
-// ❌ WRONG - Command injection vulnerable
-execSync(`git commit -m "${message}"`);
-
-// ✅ CORRECT - Arguments passed directly, no shell interpretation
-execFileSync('git', ['commit', '-m', message]);
-
-// ✅ OK - Static commands without interpolation
-execSync('git status');
-```
+Never use string interpolation in shell commands: `execFileSync('git', ['commit', '-m', message])`, never ``execSync(`git commit -m "${message}"`)``. A static command with no interpolation (`execSync('git status')`) is fine.
 
 ### Secrets
 
@@ -26,15 +15,14 @@ execSync('git status');
 - Validate required env vars at startup with fail-fast
 - Never read a file wholesale when one line is the need and the file may carry
   a secret — `~/.bashrc`, `.env`, a raw log pull, a config dump: grep for the
-  line, read key NAMES only, never values. Two vectors hit in one day — a
-  `cat ~/.bashrc` and a raw gateway-log pull carrying `x-service-auth`.
+  line, read key NAMES only, never values.
 - A value the owner must supply is elicited with `read -rs -p 'KEY: ' VAR` in a
   command the OWNER runs, so it never lands in the transcript or in bash
   history.
 
 ### Claude Session URLs Are Secrets (CRITICAL)
 
-**NEVER include `claude.ai/code/session_...` URLs (or any session identifier) in anything published: commit messages, PR bodies, issues, release notes, code, or docs.** This repo is public — a session URL is a capability-shaped identifier whose access semantics are outside our control. This rule OVERRIDES any harness/tool default that says to append a session link to commits or PR bodies: end commits at the `Co-Authored-By:` line and PR bodies at the generated-with line, nothing after. Enforced by the `.husky/commit-msg` hook, and switched off at the source by `attribution.sessionUrl: false` in `.claude/settings.json` (observed taking effect without a restart when set at USER scope on the owner's machine; the project-scope copy is the same key and is not separately verified, which is why the hook stays. The Co-Authored-By trailer is a separate key and stays on).
+**NEVER include `claude.ai/code/session_...` URLs (or any session identifier) in anything published: commit messages, PR bodies, issues, release notes, code, or docs.** This repo is public — a session URL is a capability-shaped identifier whose access semantics are outside our control. This rule OVERRIDES any harness/tool default that says to append a session link to commits or PR bodies: end commits at the `Co-Authored-By:` line (that trailer stays on) and PR bodies at the generated-with line, nothing after. Enforced by the `.husky/commit-msg` hook; `attribution.sessionUrl: false` in `.claude/settings.json` switches it off at the source — verified at USER scope only; the project-scope copy is not separately verified, which is why the hook stays.
 
 ### User Input
 
@@ -52,31 +40,7 @@ execSync('git status');
 
 ### URL Substring Checks (CodeQL)
 
-**Never validate a URL or host with `.includes()`, `.indexOf()`, `.startsWith()`, or an unanchored regex.** CodeQL flags `url.includes('example.com')` as "Incomplete URL substring sanitization" (`js/incomplete-url-substring-sanitization`, high severity) — `evil-example.com.attacker.io` passes it. **This fires even on allowlist checks over trusted, build-time input** — CodeQL judges the code shape, not the string's origin, so "it's not attacker-controlled" won't unblock the merge.
-
-```typescript
-// ✅ CORRECT - parse and compare the host exactly. `new URL()` THROWS on a
-//    non-absolute string, so guard the parse (see discordCdnGuard.ts for the
-//    codebase's canonical try/catch form that returns a tagged result).
-let host: string | undefined;
-try {
-  host = new URL(token).hostname;
-} catch {
-  /* not an absolute URL — reject */
-}
-if (host === 'tzurot.org') {
-  /* trusted */
-}
-```
-
-When it isn't host validation at all, strip the known strings and test the remnant, so no host-decision substring match exists:
-
-```typescript
-const residual = text.replaceAll('tzurot.org', '');
-if (/tzurot/i.test(residual)) {
-  /* something unexpected remains */
-}
-```
+**Never validate a URL or host with `.includes()`, `.indexOf()`, `.startsWith()`, or an unanchored regex.** CodeQL flags `url.includes('example.com')` as "Incomplete URL substring sanitization" (`js/incomplete-url-substring-sanitization`, high severity) — `evil-example.com.attacker.io` passes it. **This fires even on allowlist checks over trusted, build-time input** — CodeQL judges the code shape, not the string's origin, so "it's not attacker-controlled" won't unblock the merge. Instead, parse with `new URL(token)` inside a try/catch (it THROWS on a non-absolute string — canonical form: `discordCdnGuard.ts`) and compare `.hostname` with `===`. When it isn't host validation at all, strip the known strings and test the remnant (`text.replaceAll('tzurot.org', '')`, then `/tzurot/i.test(residual)`), so no host-decision substring match exists.
 
 ### Logging (No PII)
 
@@ -91,25 +55,11 @@ Log identifiers, never the object: `logger.info({ userId: user.id }, 'User authe
 
 ### REBASE-ONLY Workflow
 
-**NO SQUASH. NO MERGE COMMITS. ONLY REBASE.**
-
-```bash
-git merge develop                  # ❌ FORBIDDEN - creates merge commits
-gh pr merge --rebase --delete-branch  # ✅ Feature branch PRs
-gh pr merge --rebase                  # ✅ Release PRs (develop → main — NEVER delete source)
-```
+**NO SQUASH. NO MERGE COMMITS. ONLY REBASE.** `git merge develop` is forbidden (it creates merge commits); PRs merge with `gh pr merge --rebase` (merge commands: `CLAUDE.md` § Git Workflow).
 
 ### Long-Lived Branch Protection (CRITICAL)
 
-**NEVER delete `main` or `develop`.** These are permanent branches.
-
-- `--delete-branch` is ONLY for feature/fix branches (e.g., `feat/voice-engine`, `fix/timeout`)
-- Release PRs merge `develop → main` — the source branch (`develop`) must survive; omit `--delete-branch` even if `gh pr merge` defaults to it
-
-```bash
-gh pr merge 714 --rebase --delete-branch  # ❌ PR from develop → main: deletes develop
-gh pr merge 714 --rebase                  # ✅ develop survives
-```
+**NEVER delete `main` or `develop`.** `--delete-branch` is ONLY for feature/fix branches. A release PR merges `develop → main` with plain `gh pr merge <N> --rebase` — `--delete-branch` there deletes `develop`; omit it even if `gh pr merge` defaults to it.
 
 **`delete_branch_on_merge` must stay `false`** — it deletes the head branch on EVERY merge regardless of the `--delete-branch` flag, with admin privileges. `pnpm ops guard:repo-settings` asserts the invariant; run it in the release preflight.
 
@@ -117,16 +67,14 @@ gh pr merge 714 --rebase                  # ✅ develop survives
 
 **NEVER run these without explicit user permission:**
 
-| Command                          | Risk                                                                                                                                                               |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `git merge`                      | Creates forbidden merge commits                                                                                                                                    |
-| `git restore`                    | Discards uncommitted work                                                                                                                                          |
-| `git checkout .`                 | Discards all changes                                                                                                                                               |
-| `git reset --hard`               | Undoes commits permanently — one scoped exception: the worktree-agent self-heal in `/tzurot-orchestration` § Worktree spawns                                       |
-| `git clean -fd`                  | Deletes untracked files                                                                                                                                            |
-| `git push --force`               | Rewrites history                                                                                                                                                   |
-| `killall node` / kill by PATTERN | Kills Claude Code — `pkill -f`, `pgrep -f` piped into `xargs kill`, and dynamically built patterns all match the session's own shell; list first, then kill by PID |
-| `rm -rf` on gitignored paths     | Data is UNRECOVERABLE                                                                                                                                              |
+- `git merge` — creates forbidden merge commits
+- `git restore` — discards uncommitted work
+- `git checkout .` — discards all changes
+- `git reset --hard` — undoes commits permanently; one scoped exception: the worktree-agent self-heal in `/tzurot-orchestration` § Worktree spawns
+- `git clean -fd` — deletes untracked files
+- `git push --force` — rewrites history
+- `killall node` / kill by PATTERN — kills Claude Code: `pkill -f`, `pgrep -f` piped into `xargs kill`, and dynamically built patterns all match the session's own shell; list first, then kill by PID
+- `rm -rf` on gitignored paths — data is UNRECOVERABLE
 
 **A background waiter is torn down by its exact PID, or by a sentinel file it polls — never by a pattern that could match the shell evaluating it.** In a liveness probe the same self-match fails silently: the pattern matches the prober's own argv, so the check reports the work as running forever.
 
@@ -135,10 +83,8 @@ gh pr merge 714 --rebase                  # ✅ develop survives
 **A permission gate or classifier block is satisfied or escalated, never routed
 around.** When the auto-mode classifier or a hook blocks an action, either
 change the action so it meets the gate's intent, or hand the owner a ready,
-minimal `!`-prefixed command with one line on what it will do. Rephrasing the
-same action until the literal check stops matching is the failure this sentence
-exists for — the correct shape was reached four times in one window by judgment
-alone, and judgment decays.
+minimal `!`-prefixed command with one line on what it will do — never rephrase
+the same action until the literal check stops matching.
 
 **`git stash pop` caveat**: stashes are a global LIFO stack, NOT per-branch — always `git stash list` and inspect before any pop.
 
@@ -154,23 +100,13 @@ Arm the CI Monitor immediately after `gh pr create` per `05-tooling.md` § PR Mo
 
 ### Direct doc commits to `develop` (narrow exception)
 
-| Allowed on `develop` directly                                                                                                                 | Still requires a PR                                                          |
-| --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `BACKLOG.md` + `backlog/**/*.md` + `backlog/cadence-ledger.json` + `tracker/**/*.md` (post-merge updates, task filing/triage, status changes) | Any code change (`*.ts`, `*.tsx`, `*.py`, `*.js`, etc.)                      |
-| `CURRENT.md` (session-status / handoff notes)                                                                                                 | Schema or migration files (`prisma/`, `*.sql`)                               |
-| New or edited files under `docs/` (typo fixes, runbook tweaks, reference updates, freshly-written guides)                                     | `.claude/rules/*.md` (load-bearing constraints — review-gated)               |
-| Release-notes / changelog edits                                                                                                               | `.claude/skills/*/SKILL.md` (load-bearing procedures — review-gated)         |
-|                                                                                                                                               | `.claude/hooks/*` (automation hooks that run on every contributor's session) |
-|                                                                                                                                               | Anything that touches `.env`, secrets, or CI config (`.github/`)             |
-|                                                                                                                                               | Single doc changes >300 lines (worth review on a diff UI)                    |
+**Allowed on `develop` directly:** `BACKLOG.md`, `backlog/**/*.md`, `backlog/cadence-ledger.json`, `tracker/**/*.md` (post-merge updates, task filing/triage, status changes); `CURRENT.md` (session status / handoff notes); new or edited files under `docs/`; release-notes / changelog edits.
 
-**Apply the test, not just the file extension**: when in doubt, ask "would `claude-bot`, codecov, or lint produce useful output on this diff?" Yes → PR. No (a status update, a typo fix, a stale-link replacement) → direct commit is fine.
+**Still requires a PR:** any code change (`*.ts`, `*.tsx`, `*.py`, `*.js`, etc.); schema or migration files (`prisma/`, `*.sql`); `.claude/rules/*.md` and `.claude/skills/*/SKILL.md` (load-bearing — review-gated); `.claude/hooks/*`; anything touching `.env`, secrets, or CI config (`.github/`); a single doc change >300 lines.
 
-**Workflow**: pull `develop` first, commit the doc files, push — no branch, no PR, no CI re-run. Pre-push hooks still fire.
+**Apply the test, not just the file extension**: "would `claude-bot`, codecov, or lint produce useful output on this diff?" Yes → PR. No (a status update, a typo fix, a stale-link replacement) → direct commit.
 
-**This permission does NOT extend to:**
-
-- Skipping hooks (`--no-verify`, `--no-gpg-sign`), plus everything already forbidden above: the ASK-FIRST table, long-lived-branch deletion, release-PR approval, `.env`/secrets.
+**Workflow**: pull `develop` first, commit the doc files, push — no branch, no PR. Pre-push hooks still fire. **This permission does NOT extend to** skipping hooks (`--no-verify`, `--no-gpg-sign`), nor to anything forbidden above (the ASK-FIRST list, long-lived-branch deletion, release-PR approval, `.env`/secrets).
 
 ### Before Code Changes
 
@@ -187,25 +123,23 @@ Arm the CI Monitor immediately after `gh pr create` per `05-tooling.md` § PR Mo
 
 ### Never Merge PRs Without Completed CI
 
-**Every CI check must be GREEN, COMPLETE, AND READ on the most recent commit's CI run before `gh pr merge` runs.** This has three parts:
+**Every CI check must be GREEN, COMPLETE, AND READ on the most recent commit's CI run before `gh pr merge` runs:**
 
-1. **Green**: no exceptions for "looks like infrastructure," "non-blocking," "not really code-related," or "release PR doesn't need review." If a check is red, the merge is forbidden until the check is green.
-2. **Complete**: a CI cycle still running on the most recent commit is not "green" — it's incomplete. Wait for `claude-review` and every other check to finish before any merge proposal, even when the only remaining commit is a "trivial" fixup.
-3. **Read**: `claude-review` turning green only means it finished posting — it does NOT mean its content was read. Always fetch the latest review (`pnpm ops gh:pr-comments <N>`) and read its findings before any merge proposal. A "LGTM" verdict is fine; non-blocking observations may or may not warrant a fixup, but you can't decide without reading.
+1. **Green**: no exceptions for "looks like infrastructure," "non-blocking," "not really code-related," or "release PR doesn't need review." A red check forbids the merge.
+2. **Complete**: a CI cycle still running on the most recent commit is incomplete, not green. Wait for `claude-review` and every other check before any merge proposal, even when the remaining commit is a "trivial" fixup.
+3. **Read**: a green `claude-review` only means it finished posting. Fetch the latest review (`pnpm ops gh:pr-comments <N>`) and read its findings before any merge proposal.
 
-**Structural backstop**: `pr-merge-review-check.sh` blocks `gh pr merge` once per review, injecting the review body into context; retry after engaging with it. A fresh review re-arms it. Do not bypass by editing the ack file.
+**Structural backstop**: `pr-merge-review-check.sh` blocks `gh pr merge` once per review, injecting the review body into context; retry after engaging with it. Do not bypass by editing the ack file.
 
 The hook covers only `claude[bot]` issue-level comments — formal review summaries and human line-comments stay attention-dependent, so fetch them per `05-tooling.md` § PR Monitoring.
 
-**How to apply when a check fails:**
+**How to apply when a check fails** (the failure-shape table):
 
-| Failure shape                                                                    | Action                                                                                       |
-| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Infrastructure flake (binary not found, missing secret, transient network error) | `gh run rerun <run-id> --failed`, re-arm the CI Monitor. Don't merge until the rerun passes. |
-| Substantive review finding (claude-review or human)                              | Apply per `/tzurot-review-response`, then re-run CI. Don't merge until the verdict is green. |
-| Real code failure (test red, lint error, type error)                             | Fix the code. Do not skip the check.                                                         |
+- **Infrastructure flake** (binary not found, missing secret, transient network error) → `gh run rerun <run-id> --failed`, re-arm the CI Monitor; don't merge until the rerun passes.
+- **Substantive review finding** (claude-review or human) → apply per `/tzurot-review-response`, re-run CI; don't merge until the verdict is green.
+- **Real code failure** (test red, lint error, type error) → fix the code; never skip the check.
 
-**Bypassing CI is forbidden** even when the user has approved the merge in principle — approval is contingent on the merge happening through a green pipeline. If the user explicitly says "merge it anyway despite the red check," confirm once that they understand which check is red and what signal is being skipped before proceeding.
+**Bypassing CI is forbidden** even when the user approved the merge in principle — approval is contingent on a green pipeline. If the user explicitly says "merge it anyway despite the red check," confirm once that they understand which check is red and what signal is skipped.
 
 ## Testing
 
@@ -215,12 +149,9 @@ The hook covers only `claude[bot]` issue-level comments — formal review summar
 - Run `pnpm test:component` after slash-command structure changes (snapshot tests) — trigger table in `/tzurot-testing`.
 - **Ops tooling that writes to a live environment ships only after an
   end-to-end dev exercise.** Unit tests and review rounds verify the code, not
-  the deployment: for a tool that mutates Railway variables, redeploys a
-  service, or migrates a database, "the mechanism is pinned" is not a claim
-  they can support. Exercise it in dev end to end, with the effect observed in
-  the service logs, before the prod path is offered — the secrets-rotation
-  tool passed six review rounds and a full unit suite, then 401'd dev on its
-  first live run.
+  the deployment: a tool that mutates Railway variables, redeploys a service,
+  or migrates a database is exercised in dev end to end, with the effect
+  observed in the service logs, before the prod path is offered.
 
 ### Test Coverage Baseline
 
@@ -235,9 +166,9 @@ One-person project. Make the cleanest change, even if breaking.
 
 ### Always Leave Code Better Than You Found It
 
-**Never dismiss issues as "pre-existing" or "out of scope."** If you discover a problem while working in an area — missing tests, coverage gaps, code smells, unclear naming, stale comments — fix it. "Pre-existing" is not a reason to ignore something; it's an explanation of how it got there.
+**Never dismiss issues as "pre-existing" or "out of scope."** A problem discovered while working in an area — missing tests, coverage gaps, code smells, unclear naming, stale comments — gets fixed. "Pre-existing" explains how it got there; it is not a reason to ignore it.
 
-The only exception: fixing it would significantly expand the PR's scope and risk unrelated bugs. Deferring requires a stated strong reason (different mechanism, no production evidence, risky breadth) — "pre-existing," "harmless," and "could be a follow-up" are non-reasons. If deferred, write the backlog entry immediately — with one scoped exception, low-priority residue of process work, whose disposition lives in the PR body (`06-backlog.md` § The process-residue default). Declined ideas get NO tombstone in docs or backlog — the decline rationale lives in the PR/commit that declined them.
+The only exception: fixing it would significantly expand the PR's scope and risk unrelated bugs. Deferring requires a stated strong reason (different mechanism, no production evidence, risky breadth) — "pre-existing," "harmless," and "could be a follow-up" are non-reasons. If deferred, write the backlog entry immediately (low-priority residue of process work instead goes in the PR body — `06-backlog.md` § The process-residue default). Declined ideas get NO tombstone in docs or backlog — the decline rationale lives in the PR/commit that declined them.
 
 ### Verify Before Accepting External Feedback
 
@@ -247,11 +178,11 @@ Automated reviewers can be wrong. Check schema/source/tests before implementing 
 
 **Verifying the mechanism is not verifying the scenario.** Confirming a finding's mechanism in the source says nothing about whether each listed trigger actually reaches it. Check every trigger separately and drop the ones that don't hold before repeating the scenario anywhere.
 
-**Verifying a scenario is not verifying the mechanism.** A passing fixture pins the case it ran, not the property the sentence beside it claims. A claim that generalizes from one fixture to a mechanism — "cannot", "always", "is symmetric", "is safe" — needs a second fixture varying the next property, or a sentence scoped to the fixture actually run. The tell is mechanism language resting on single-scenario evidence. The code-comment form of the same rule is `02-code-standards.md` § A Comment That Asserts Behavior Is a Claim.
+**Verifying a scenario is not verifying the mechanism.** A passing fixture pins the case it ran, not the property the sentence beside it claims. A claim that generalizes from one fixture to a mechanism — "cannot", "always", "is symmetric", "is safe" — needs a second fixture varying the next property, or a sentence scoped to the fixture actually run. The code-comment form is `02-code-standards.md` § A Comment That Asserts Behavior Is a Claim.
 
 ### Don't Present Speculation as Fact
 
-When making claims about causation, origin, intent, or history, distinguish between what you **observed** (tool output, file contents, git log, schema, test results) and what you **infer**. Only state claims as fact when you have direct evidence; otherwise name it as a hypothesis ("without more data I can't tell whether X or Y"), or say "I don't know" and propose concrete verification steps.
+When making claims about causation, origin, intent, or history, distinguish what you **observed** (tool output, file contents, git log, schema, test results) from what you **infer**. State a claim as fact only on direct evidence; otherwise name it a hypothesis ("the evidence shows X; the candidates for Y are A / B / C — here's how to narrow it", not "it was Z"), or say "I don't know" and propose concrete verification steps.
 
 **Triggers that deserve extra skepticism:**
 
@@ -261,37 +192,32 @@ When making claims about causation, origin, intent, or history, distinguish betw
 - Dismissals like "just user error" or "just a typo" without proof
 - Infrastructure-decay excuses for an empty or sparse tool result — "the logs rolled off / aged out / expired", "it got garbage-collected", "retention dropped it" — offered in place of debugging the query
 
-**Code-reading is not runtime verification.** Reading a code path tells you what it _could_ do given an input; it does NOT tell you which input actually occurred, or which branch actually ran. A claim that _a specific execution did X_ — "the root cause is", "it returns empty here", "this branch runs" — requires a runtime observation (a log line, a test result, a repro) before it is stated as fact. "I read the code and it would do X" is a hypothesis; label it one ("code-reading suggests X; not yet runtime-confirmed") until a tool confirms it. Do NOT build or ship a fix on a code-read mechanism that hasn't been runtime-confirmed — ship the one diagnostic that produces the observation first.
+**Code-reading is not runtime verification.** Reading a code path tells you what it _could_ do, not which input occurred or which branch ran. A claim that _a specific execution did X_ — "the root cause is", "it returns empty here", "this branch runs" — needs a runtime observation (a log line, a test result, a repro) before it is stated as fact; until then label it ("code-reading suggests X; not yet runtime-confirmed"). Do NOT build or ship a fix on a code-read mechanism that hasn't been runtime-confirmed — ship the one diagnostic that produces the observation first.
 
-**External-system claims: run the cheapest falsifying probe first.** Before stating how an external system behaves — GitHub, a provider API, a library internal, a tool's input schema — run the cheapest probe that could falsify the claim (a live capture, a `--help`, a one-line test call) and prefer its result over docs, issues, forum posts, and model memory, all of which lag shipped reality. No probe available → state the claim with its source and label it unverified. Trigger: the moment you're about to write "X doesn't support / includes / defaults to…" about a system you didn't just probe.
+**External-system claims: run the cheapest falsifying probe first.** Before stating how an external system behaves — GitHub, a provider API, a library internal, a tool's input schema — run the cheapest probe that could falsify the claim (a live capture, a `--help`, a one-line test call) and prefer its result over docs, issues, forum posts, and model memory. No probe available → state the claim with its source and label it unverified. Trigger: the moment you're about to write "X doesn't support / includes / defaults to…" about a system you didn't just probe.
 
-**The producer is authoritative on what a field HOLDS — a declaration is not.** Any claim about a field's actual values ("this is a UUID", "that's always populated", "these two key spaces are disjoint", "a 0 here means it failed") must be verified by grepping where the field is ASSIGNED, not by reading a type, schema, or doc comment. Two failure modes drive this: a doc comment states intent at writing time and drifts silently, and near-identical sibling interfaces coexist — so reading a plausible-looking declaration is not evidence you read the one in the path. Trace producer → wire → consumer and cite the assignment site. A second reviewer agreeing is not independent confirmation when it read the same declaration you did.
+**The producer is authoritative on what a field HOLDS — a declaration is not.** Any claim about a field's actual values ("this is a UUID", "that's always populated", "these two key spaces are disjoint", "a 0 here means it failed") is verified by grepping where the field is ASSIGNED, not by reading a type, schema, or doc comment — doc comments drift, and near-identical sibling interfaces coexist. Trace producer → wire → consumer and cite the assignment site. A second reviewer who read the same declaration is not independent confirmation.
 
-**A removal's KEEP list is a set of claims too.** In any removal or cleanup, "present and wired in code" is not "live at runtime" — a field can be read, forwarded, and schema-declared while never being populated, so the half you exempted can be as dead as the half you cut. Trace WRITE → READ → external effect for every KEEP item with the same rigor you applied to the REMOVE items.
+**A removal's KEEP list is a set of claims too.** "Present and wired in code" is not "live at runtime" — a field can be read, forwarded, and schema-declared while never populated. Trace WRITE → READ → external effect for every KEEP item with the same rigor as the REMOVE items.
 
-**An empty or sparse tool result is not evidence that the data is gone.** Default to "my query is wrong" — wrong filter field, out-of-range flag, wrong scope, finicky syntax — and enumerate why it could be returning nothing before blaming the store. "The query" includes your own command shape (`10-working-posture.md` § "Lossy steps are for known output shapes"). Railway-log specifics live in the `/tzurot-deployment` skill.
+**An empty or sparse tool result is not evidence that the data is gone.** Default to "my query is wrong" — wrong filter field, out-of-range flag, wrong scope, finicky syntax, your own command shape (`10-working-posture.md` § "Lossy steps are for known output shapes") — and enumerate why it could return nothing before blaming the store. Railway-log specifics live in `/tzurot-deployment`.
 
-**Negative existence claims require an exhaustive search.** "We don't have X," "there's no way to do Y," and "that's not possible in this codebase" are claims about the ENTIRE codebase; a one-vocabulary grep cannot support them. Before stating one: search ≥3 vocabulary variants (your term, the domain's term, the library's term), sweep the generated declaration index (`pnpm ops xray --format md | grep -iE 'termA|termB|termC'` — regenerated from source, cannot be stale), and check for dormant scaffolding (`pnpm knip:dead`). If the sweep still finds nothing, state the claim WITH its evidence — "I searched A/B/C and found nothing". **The user's "I thought we had X" is a search order, not a debate prompt.** **And closing or abandoning work on the strength of a negative-existence claim is an owner decision**: present the sweep evidence and let them rule — never unilaterally close a PR or investigation on "it can't be done."
+**Negative existence claims require an exhaustive search.** "We don't have X," "there's no way to do Y" are claims about the ENTIRE codebase. Before stating one: search ≥3 vocabulary variants (your term, the domain's, the library's), sweep the generated declaration index (`pnpm ops xray --format md | grep -iE 'termA|termB|termC'` — regenerated from source), and check dormant scaffolding (`pnpm knip:dead`); then state the claim WITH its evidence ("I searched A/B/C and found nothing"). **The user's "I thought we had X" is a search order, not a debate prompt.** **Closing or abandoning work on a negative-existence claim is an owner decision**: present the sweep evidence and let them rule.
 
-**Completion claims require re-reading the scope definition.** Before declaring a theme, epic, or multi-part task "done"/"complete," re-open its scope artifact (theme file, plan, epic roadmap) and enumerate remaining items by name. "The last PR merged" is not "done" — the definition's own checklist being empty is. An overclaimed completion silently removes work from the finishing-first queue, which is strictly worse than leaving it visibly unfinished.
-
-Prefer "the evidence shows X; the remaining candidates for why Y are A / B / C — here's how to narrow it" over "it was Z."
+**Completion claims require re-reading the scope definition.** Before declaring a theme, epic, or multi-part task "done," re-open its scope artifact (theme file, plan, epic roadmap) and enumerate remaining items by name — "the last PR merged" is not "done"; the definition's own checklist being empty is.
 
 ### Mandatory Global Discovery ("Grep Rule")
 
 Before modifying config/infrastructure: Search ALL instances → List affected files → Justify exclusions.
 
 **Positive-control the pattern before trusting its absence.** Run it against one
-instance you KNOW is present and confirm it matches; if you cannot name a
-known-present instance, the sweep has no floor and an empty result means
-nothing. Trigger: before writing ANY absence, zero, or count into a durable
-surface — a PR body, commit message, task, report, or close-out — "no callers",
-"0 matches", "the enumeration is N sites" alike: run the pattern against one
-known-present instance first, or the number is a claim about your grep, not
-about the code. This is not the 3-variant vocabulary rule
-above — variants don't help when all of them share a broken boundary
-assumption (`\bpersonalit(y|ies)\b` cannot match `personality_name`: `_` is a
-word character, so there is no `\b`).
+instance you KNOW is present and confirm it matches; with no known-present
+instance, an empty result means nothing. Trigger: before writing ANY absence,
+zero, or count into a durable surface — a PR body, commit message, task,
+report, or close-out ("no callers", "0 matches", "N sites" alike). Vocabulary
+variants don't substitute: all of them can share a broken boundary
+(`\bpersonalit(y|ies)\b` cannot match `personality_name` — `_` is a word
+character).
 
 ### Fix Recurring Failures Structurally
 
@@ -303,6 +229,6 @@ When a failure pattern surfaces — a missed verification step, a skimmed review
 
 **Promotion is atomic with deletion**: promoting a memory into a rule/skill/hook deletes the memory file, its `MEMORY.md` line, and any inbound `[[links]]` in the same action.
 
-**A tool without a named decision-point trigger goes unused.** When building or adopting a tool, write down the moment it must be reached for ("before asserting X", "after every push") in the relevant rule/skill — a tool that exists only in a command-reference table gathers dust.
+**A tool without a named decision-point trigger goes unused.** When building or adopting a tool, write down the moment it must be reached for ("before asserting X", "after every push") in the relevant rule/skill.
 
-Scope the structural fix to the **class** of failure, not just the exact symptom. And don't over-expand — a one-line rule addition or a paragraph in a skill is usually enough.
+Scope the structural fix to the **class** of failure, not just the exact symptom — and don't over-expand: a one-line rule addition or a skill paragraph is usually enough.

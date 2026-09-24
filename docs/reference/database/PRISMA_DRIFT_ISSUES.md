@@ -254,6 +254,13 @@ Drift patterns are defined in `prisma/drift-ignore.json`:
 
 When adding new protected indexes, update both this document AND `drift-ignore.json`.
 
+### The two protection tiers
+
+- **`ignorePatterns`** — regexes that strip unwanted SQL from Prisma's generated migration. Most entries are `DROP INDEX` patterns (the index should survive Prisma's drop), but the array also handles `CREATE INDEX` patterns where Prisma generates the wrong shape: `memories_chunk_group_id_idx` has both a DROP entry **and** a CREATE entry — Prisma emits a non-partial CREATE that gets stripped, and the manually-written partial-index CREATE in the migration body is what actually applies. This tier is the minimum required for any partial/special index Prisma can't represent.
+- **`protectedIndexes`** — DROP suppression **plus** full `recreateSQL`, and the single source of truth for the drop-without-recreate gate (`pnpm ops db:check-safety` — run by `.husky/pre-commit` on any staged migration, by `pnpm quality`, and by the CI lint job; `protectedIndexRegistry.ts` loads and validates the entries, and `check-migration-safety.ts` compiles each `dropPattern`/`createPattern` to a `RegExp`) as well as for `db:inspect`'s live-DB presence report. Add an entry here only when a recovery path is worth having — a one-line recreate after an accidental drop. The IVFFlat vector index lives here because losing it silently degrades query performance by ~100x.
+
+Current split: `idx_memories_embedding` and `memories_chunk_group_id_idx` are in **both** arrays (DROP suppression + recreate SQL); `idx_memory_facts_embedding` is in **`protectedIndexes` only** (that one entry supplies both the DROP suppression and the recreate SQL); `llm_configs_free_default_unique`, `llm_configs_global_name_unique`, `llm_configs_default_unique`, `tts_configs_free_default_unique`, `tts_configs_global_name_unique`, `idx_memories_is_locked`, and `idx_memories_null_embedding` are in **`ignorePatterns` only** (DROP suppression alone is enough — no expensive recreate cost). When adding a new partial/special index, default to `ignorePatterns`-only and promote to `protectedIndexes` only if recovery SQL would be valuable.
+
 ## Prevention Checklist
 
 When creating new indexes that Prisma can't represent:

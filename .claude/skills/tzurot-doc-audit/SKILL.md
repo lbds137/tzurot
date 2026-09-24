@@ -1,7 +1,7 @@
 ---
 name: tzurot-doc-audit
 description: 'Documentation and auto-memory freshness audit. Invoke with /tzurot-doc-audit to review docs and Claude auto-memory for staleness, items in the wrong layer, missing-tool drift, and always-loaded passages that no longer earn their context cost.'
-lastUpdated: '2026-09-15'
+lastUpdated: '2026-09-23'
 ---
 
 # Documentation Audit Procedure
@@ -110,7 +110,7 @@ Auto-memory audit runs inside `/tzurot-doc-audit` but on its own shorter cadence
 | `00-critical.md`          | Security rules still reflect current patterns? Post-mortem table current?                                                                                                          |
 | `01-architecture.md`      | Service boundaries match dependency-cruiser rules? Anti-patterns table current?                                                                                                    |
 | `02-code-standards.md`    | ESLint limits match `eslint.config.js`? Testing patterns current?                                                                                                                  |
-| `03-database.md`          | Cache implementations table accurate? Protected indexes list current?                                                                                                              |
+| `03-database.md`          | Protected indexes list current? (The cache TTL table lives in `durability-tiers.md` — § Existing cache implementations.)                                                           |
 | `04-discord.md`           | Shared utilities table lists all browse/dashboard helpers?                                                                                                                         |
 | `05-tooling.md`           | All `pnpm ops` commands listed? `pnpm quality` description accurate?                                                                                                               |
 | `06-backlog.md`           | HOT/COLD topology table matches actual `backlog/` layout (`now.md` + `active-epic.md` hot; `cold/` themes/ideas/follow-ups/epic-log)? Granularity-ladder + staleness rules intact? |
@@ -308,8 +308,8 @@ These catch drift between docs and code:
 | CI steps                                | `.github/workflows/ci.yml` job steps      |
 | Pre-push checks                         | `.husky/pre-push` numbered steps          |
 | Package.json shortcuts                  | `OPS_CLI_REFERENCE.md` shortcuts table    |
-| Documentation placement table (07)      | Actual `docs/reference/` subdirectories   |
-| Cache implementations (03-database.md)  | Actual cache classes in codebase          |
+| Documentation placement list (07)       | Actual `docs/reference/` subdirectories   |
+| Cache table (`durability-tiers.md`)     | Actual cache classes in codebase          |
 
 ## After Audit
 

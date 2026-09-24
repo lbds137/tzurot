@@ -28,25 +28,17 @@ full Opus statement), and review-round fixes are dispatch work under ANY
 driver — the missing fresh reader, not the budget, is the reason
 (`/tzurot-review-response` § 3a). Inline is a narrow exception: a ≤5-line
 mechanical edit in a file already in context, or work where the spec would
-genuinely cost more than the edit — and `dispatch-posture-gate.sh` MEASURES
-that five, counting the touched lines of the edit's own old/new text, so a
-larger inline src edit is hard-blocked rather than acked; a comment-only
-edit above five lines is dispatched or split like any other. The five is
-the OUTER gate rather than a sibling of the other clause: above five
-touched lines dispatch is the only path, whichever justification applied,
-so "the spec would cost more than the edit" lives INSIDE the cap and never
-beside it. Read fan-outs
-of ~4+ files go to Explore (`model: haiku`);
-file mutations use the Edit tool, never interpreter rewrite-scripts in
-Bash. The reason is arithmetic, not ideology: every main-loop tool call
-re-reads the full context (~50k weighted tokens per call, measured; ~85% of
-main-loop spend is that cache re-read, and the per-call cost scales with
-context length), so inline legwork bills the scarcest budget at the highest
-rate. Two corollaries with the same arithmetic: **batch independent
-bookkeeping commands into one Bash call** (each avoided call saves a full
-context re-read), and **treat compaction at clean unit boundaries as a cost
-lever, naming boundaries proactively** — halving average context roughly
-halves the dominant main-loop cost line. Enforced by
+genuinely cost more than the edit. `dispatch-posture-gate.sh` MEASURES that
+five (touched lines of the edit's own old/new text) and hard-blocks a larger
+inline src edit; a comment-only edit above five lines is dispatched or split
+like any other. The five is the OUTER gate: above it dispatch is the only
+path, whichever justification applied. Read fan-outs of ~4+ files go to
+Explore (`model: haiku`); file mutations use the Edit tool, never interpreter
+rewrite-scripts in Bash. The reason is arithmetic: every main-loop tool call
+re-reads the full context, so inline legwork bills the scarcest budget at the
+highest rate. Same arithmetic, two corollaries: **batch independent
+bookkeeping commands into one Bash call**, and **treat compaction at clean
+unit boundaries as a cost lever, naming boundaries proactively**. Enforced by
 `dispatch-posture-gate.sh` and `python-heredoc-edit-guard.sh`; measured by
 `/tzurot-usage-audit` (whose § Step 4a names the over-trajectory response).
 
@@ -66,15 +58,11 @@ code that reads it. The tracker first (`pnpm tracker doc search <term>` AND
 surfaces the tracker does not index: `docs/incidents/`,
 `docs/reference/architecture/`, `backlog/references.md`, and `docs/local/`
 (gitignored — owner risk-accepts and policy decisions live there, and only a
-local read can find them). A clean tracker
-search alone is a negative existence claim, and `00-critical.md` governs
-those. Code and docs give the current value; the decision record is what
-says whether someone already weighed this exact change, closed it, and with
-what numbers — a retention bump reached review calling its storage cost
-unmeasured while an idea doc had measured it and recorded
-**Closed: no widening**. A prior close is not a veto; reversing it is often
-right. But it is reversed **deliberately, with the reason written back into
-the doc that closed it**, never by a session that did not know it existed.
+local read can find them). A clean tracker search alone is a negative
+existence claim (`00-critical.md` governs those). A prior close is not a veto;
+reversing it is often right — but **deliberately, with the reason written
+back into the doc that closed it**, never by a session that did not know it
+existed.
 
 ## Principle from advisors, target from the code
 
@@ -115,7 +103,7 @@ applied when the edit's own assertions have a trivially-true branch. Assert
 every scripted replacement's target; prefer the Edit tool below ~5 replaces.
 After a bulk rename/move, also grep for the OLD token in its variant forms —
 bare basename, each prefix depth, backticked mention — before declaring the
-sweep complete; the canonical-form grep alone has under-swept three times.
+sweep complete.
 A line number computed before an intervening edit to the same file is stale —
 re-locate the target by content before the next line-addressed edit.
 
@@ -159,25 +147,19 @@ absent; from `develop`, the branch's own new files read as absent. Name a ref
 other than the checkout you are standing in. Only after those pass does "the
 data isn't there" become a hypothesis — and stating it is governed by
 `00-critical.md` § "An empty or sparse tool result" (the store side of this
-same seam). Two write-side shapes are blocked pre-hoc by `lossy-pipe-guard.sh`
-— a filtered `git commit`/`push`, and a `gh` read truncated by head/tail/`sed
--n` — but that is two command families, not the class. The read-side check
-above is yours to run: a hook once claimed it and was retired, because it
-needed the command's RESULT, which exists only post-hoc, and non-blocking
-post-hoc hook output never reaches the agent. No channel can carry it, so for
-everything the guard does not name, the rule is the mechanism.
+same seam). `lossy-pipe-guard.sh` blocks only two write-side shapes pre-hoc —
+a filtered `git commit`/`push`, and a `gh` read truncated by head/tail/`sed
+-n`; for everything else the read-side check above is yours to run (no hook
+can carry it: it needs the command's result).
 
-That tell only fires on a result that LOOKS wrong, and the costlier half of
-this class produces a plausible one: a window that hides the section deciding
-the question, or an aggregate summed from the visible rows and reported as the
-total — a subtotal is a well-formed number, so nothing looks off. Neither has a
-tell, so this half triggers at CLAIM time rather than at result time. Before
-stating what a file says or does not say, read it whole or state the window you
-read. Before stating a count, sum, or ranking as complete, derive it from the
-whole result set rather than the part on screen — and RE-derive it whenever the
-thing it counts changes, not only when first written: a correctly-derived count
-carried through later edits (a rebase, a trim, more cases) is still a
-well-formed number, so nothing flags it. An exit code read through a
+That tell only fires on a result that LOOKS wrong; the costlier half of this
+class produces a plausible one — a window that hides the deciding section, or
+an aggregate summed from the visible rows and reported as the total. So this
+half triggers at CLAIM time. Before stating what a file says or does not say,
+read it whole or state the window you read. Before stating a count, sum, or
+ranking as complete, derive it from the whole result set rather than the part
+on screen — and RE-derive it whenever the thing it counts changes (a rebase, a
+trim, more cases), not only when first written. An exit code read through a
 pipeline is the same seam: `PIPESTATUS` is indexed per stage, so `[0]` is the
 FIRST command's status, not the one whose result you want — index the stage you
 mean, or do not pipe.
@@ -196,9 +178,8 @@ state what you verified and how, not just what you did.
 Each release is planned at the previous cut — theme, contents, waiting-on list,
 exclusions, deploy notes, cut criterion — and the cut is proposed when its
 waiting-on list empties (drafting step: `/tzurot-git-workflow` § Release, final
-step). Ad-hoc accumulation narrowed work selection to next-thing-only; the plan
-is the named moment the bigger picture gets looked at. The two triggers below
-are BACKSTOPS: a planned theme that balloons still cuts.
+step). The two triggers below are BACKSTOPS: a planned theme that balloons
+still cuts.
 
 Backstop one: when unreleased **merged PRs that touch runtime** reach roughly ten,
 or the release notes would need more than two themes, propose a cut — accumulation
@@ -217,14 +198,10 @@ slice per PR, fix-forward for a release review's non-blocking finding rather
 than holding the train.
 
 **Backstop two — REVIEW capacity, which the runtime count does not measure.**
-"Cut non-runtime batches at convenience" is right about prod risk and wrong
-about the reviewer: the release PR renders the whole range's diff, so a set
-that is mostly `docs/`/`.claude/`/`tracker/` still puts every one of those
-files in front of the review that the first backstop exists to protect.
-GitHub stops rendering a diff at **300 files** (its documented limit), and
-attention degrades well before that. `release:range` prints the range's file
-count and flags ~250; treat that as a cut trigger on its own, even at a low
-runtime count.
+The release PR renders the whole range's diff, non-runtime files included, and
+GitHub stops rendering a diff at **300 files**. `release:range` prints the
+range's file count and flags ~250; treat that as a cut trigger on its own,
+even at a low runtime count.
 
 ## SKILL CHECK reminders are binding
 
@@ -257,25 +234,17 @@ irreversibles); decisions the evidence already made, make — and show the
 evidence.
 
 **At unit completion, the user-facing report PRECEDES the durable-surface
-writes** (board pushes, CURRENT.md, tracker edits). The owner compacts at
-pause points, and a `/compact` routinely lands between the board push and the
-report that was queued to follow it — six consecutive boundaries in one mined
-day each killed an undelivered close-out this way, reading to the owner as a
-stall. The recovery rule (deliver first post-compaction) already exists; this
-is the ordering that stops the report needing recovery at all.
+writes** (board pushes, CURRENT.md, tracker edits) — the owner compacts at
+pause points, and a `/compact` landing between the writes and a queued report
+kills the report.
 
-These are two distinct utterances, and the turn needs both: **the report
-leads, a short confirmation closes.** So a unit-completing turn never ENDS on
-a tool call either — when bookkeeping writes follow the report, the last thing
-in the turn is text saying they landed, never the tool result itself. Three
-failure shapes are observed — two of ordering, one of non-execution: the
-report queued behind the writes and killed by compaction; the turn ending
-silently on a successful write; and the turn ending on a STATED INTENTION to
-act ("running the close-out now") — an announced action is not a close; do
-it, or report what blocks it. A fourth costume is the same failure: the turn
-ending on a `PushNotification`, which feels like delivery — a PushNotification
-is not the report, and `turn-end-shape-gate.sh` blocks the stop once when the
-turn's last content block is a tool call.
+**The report leads, a short confirmation closes.** A unit-completing turn
+never ENDS on a tool call: when bookkeeping writes follow the report, the last
+thing in the turn is text saying they landed. Nor does it end on a STATED
+INTENTION to act ("running the close-out now") — do it, or report what blocks
+it — nor on a `PushNotification`, which is not the report
+(`turn-end-shape-gate.sh` blocks the stop once when the turn's last content
+block is a tool call).
 
 A compaction offer is not a release from the ledger: when the owner asks
 whether to compact — or types `/compact` — while a close-out is still owed,
@@ -290,9 +259,7 @@ surrounding code; a comment is never the authority on its own liveness, and a
 named STATUS lives on a board — open the board. Corollary, before writing the
 first line of a task's `Fix shape:`: grep for what the FIX would be called,
 not just the symptom — deriving a good design is weak evidence it is unbuilt,
-since the same reasoning produced it once already (a registered, unit-tested
-tool was nearly rebuilt from first principles with its name sitting in a
-doc comment already read that session).
+since the same reasoning produced it once already.
 
 ## Work selection finishes first
 

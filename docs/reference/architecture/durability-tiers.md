@@ -145,8 +145,9 @@ Neither cleanly — it is **narrowed**. Its scaling analysis is still correct an
 still useful; its headline finding is resolved and its inventory is stale.
 Bolting a durability column onto it would produce one document answering two
 questions and re-staling the inventory it already got wrong. So durability lives
-here, the always-loaded table in `03-database.md` points here for tiers, and
-`CACHING_AUDIT.md` keeps the scaling axis with its inventory marked historical.
+here, the per-cache TTL table (below, moved out of the always-loaded
+`03-database.md`) carries each cache's tier, and `CACHING_AUDIT.md` keeps the
+scaling axis with its inventory marked historical.
 
 ## Adding a cache
 
@@ -157,5 +158,32 @@ here, the always-loaded table in `03-database.md` points here for tiers, and
    history row is the system of record, Redis is L1. Yes → tier 3: it needs a
    home that is not a TTL, which may be a table of ours or an external system of
    record you can actually re-read.
-4. Add the row to `03-database.md`'s table **with its tier**, and put the real
+4. Add the row to the cache table below **with its tier**, and put the real
    TTL constant in it.
+
+## Existing cache implementations
+
+Tier column as defined above. **Verify a row against its constant before
+relying on it** — every value here was re-read from source, and a stale TTL is
+a wrong premise for every reader.
+
+| Cache               | Location                     | TTL          | Tier | Type                                                                              |
+| ------------------- | ---------------------------- | ------------ | ---- | --------------------------------------------------------------------------------- |
+| Channel Activation  | `gatewayServiceCalls.ts`     | 30s          | 1    | TTLCache + pub/sub                                                                |
+| Admin Settings      | `gatewayServiceCalls.ts`     | 60s          | 1    | TTLCache (in-memory)                                                              |
+| Personality         | `PersonalityService.ts`      | 5 min        | 1    | TTLCache + pub/sub                                                                |
+| Personality (bot)   | `HttpPersonalityLoader.ts`   | 5 min        | 1    | TTLCache (+ 60s negative)                                                         |
+| Denylist            | `DenylistCache.ts`           | -            | 1    | In-memory + pub/sub                                                               |
+| User                | `UserService.ts`             | 1h           | 1    | TTLCache (in-memory) — `USER_CACHE_TTL_MS`                                        |
+| Autocomplete        | `autocompleteCache.ts`       | 60s          | 1    | TTLCache (+ LRU-bounded stale, 500)                                               |
+| Forwarded Origin    | `forwardedOriginCache.ts`    | 1h / 5 min   | 1    | TTLCache ×2 (positive / negative, maxSize 500)                                    |
+| OpenRouter Models   | `OpenRouterModelCache.ts`    | 5 min / 24h  | 1    | **Two-tier**: memory L1 → Redis; refreshed on a schedule (TTL/3), not by requests |
+| Vision Description  | `VisionDescriptionCache.ts`  | 1h           | 2    | Redis L1 over `attachmentEnrichment`                                              |
+| Voice Transcript    | `VoiceTranscriptCache.ts`    | 1h           | 2    | Redis `setex` at `INTERVALS.VOICE_TRANSCRIPT_TTL`, L1 over the row                |
+| Redis Dedup         | `RedisDeduplicationCache.ts` | configurable | 1    | Redis-backed                                                                      |
+| Model Capability    | `ModelCapabilityChecker.ts`  | 5 min        | 1    | TTLCache (maxSize 500)                                                            |
+| Context-Length Memo | `ModelCapabilityChecker.ts`  | 24h          | 1    | TTLCache (maxSize 500)                                                            |
+
+**Cache invalidation services** (Redis pub/sub): `CacheInvalidationService`,
+`LlmConfigCacheInvalidationService`, `ChannelActivationCacheInvalidationService`,
+`ApiKeyCacheInvalidationService`, `PersonaCacheInvalidationService`.

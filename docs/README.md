@@ -26,7 +26,7 @@ For doc placement, naming, and lifecycle rules, see `.claude/rules/07-documentat
 | `testing/`      | Test procedures and checklists                            |
 | `tooling/`      | OPS CLI reference, tooling docs                           |
 
-Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`, `GITHUB_CLI_REFERENCE.md`, `RAILWAY_CLI_REFERENCE.md`, `REASONING_MODEL_FORMATS.md`, `v2-patterns-reference.md`
+Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md` (full rationale and decision flowchart), `STATIC_ANALYSIS.md` (dependency-cruiser, knip, cpd), `GITHUB_CLI_REFERENCE.md`, `RAILWAY_CLI_REFERENCE.md`, `REASONING_MODEL_FORMATS.md` (LLM reasoning output formats), `v2-patterns-reference.md` (legacy v2 patterns), `audit-enforcement.md` (audit-tool registry criteria + layers), `CPD_CAMPAIGN_AUDIT.md` (CPD campaign close-out audit)
 
 **Key docs:**
 

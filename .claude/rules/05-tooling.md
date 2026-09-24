@@ -2,34 +2,18 @@
 
 ## Essential Commands
 
-```bash
-# Development
-pnpm dev              # Start all services
-pnpm test             # Run unit tests
-pnpm test:component   # Run component tests (snapshots, cross-service)
-pnpm quality          # full static gate (composition: package.json scripts.quality)
-pnpm lint             # Lint all packages
-pnpm lint:errors      # Show only errors
-
-# Static Analysis
-pnpm depcruise        # Check architecture boundaries
-pnpm knip             # Find unused code/exports/deps
-pnpm knip:dead        # Find dead files (only imported by own tests)
-
-# Focused (changed packages only)
-pnpm focus:lint       # Lint changed packages
-pnpm focus:test       # Test changed packages
-```
+Beyond `CLAUDE.md` § Commands: `pnpm lint` / `pnpm lint:errors` (errors only),
+`pnpm depcruise` (architecture boundaries), `pnpm knip` (unused
+code/exports/deps), `pnpm knip:dead` (files only imported by their own tests),
+and `pnpm focus:lint` / `pnpm focus:test` (changed packages only).
 
 **Two local gate caches are shaped for correctness, not speed.** `pnpm
-depcruise` runs **uncached** by design: its `strategy: 'content'` result cache
-was observed reporting green with a real import cycle on disk (and red after
-the cycle was removed), so `.dependency-cruiser.cjs` carries no `cache` block
-and every run costs ~10s instead of ~2s (TASK-902). `turbo run lint` hashes the
-root `eslint.config.js` through `$TURBO_ROOT$`, so an ESLint **rule** change
-invalidates every lint task rather than reporting a stale green (TASK-940) —
-the custom rule sources under `packages/tooling/src/eslint/` need no entry of
-their own, reaching the hash via the `@tzurot/tooling#build` dependency.
+depcruise` runs **uncached** by design — its content cache reported stale
+results in both directions, so `.dependency-cruiser.cjs` carries no `cache`
+block; don't add one back. `turbo run lint` hashes the root `eslint.config.js`
+through `$TURBO_ROOT$`, so an ESLint **rule** change invalidates every lint
+task; the custom rule sources under `packages/tooling/src/eslint/` reach the
+hash via the `@tzurot/tooling#build` dependency and need no entry of their own.
 
 ## Resource Constraints (CRITICAL)
 
@@ -88,26 +72,20 @@ the staged command, `pnpm ops secrets:rotate-byok --env prod --stage 1|2|3`
 daily bot-client check nags the owner channel when one lapses.
 
 Rotating any other shared service secret is `pnpm ops secrets:rotate-env
---env <env> --name <KEY>`, never the dashboard — it derives the inheriting
-services, skips Railway's implicit deploys, and stamps the ledger. For a name
-whose verifier dual-accepts `<KEY>_PREVIOUS` (`INTERNAL_SERVICE_SECRET`,
-verified by api-gateway) `--stage 1|2|3` is REQUIRED and there is no window:
-stage 1 preserves the old value and redeploys only the verifier, stage 2
-rolls the presenters, stage 3 clears `_PREVIOUS`. Every other shared name
-takes the single-shot path and still has a brief 401 mismatch window while
-services redeploy.
+--env <env> --name <KEY>`, never the dashboard. For a name whose verifier
+dual-accepts `<KEY>_PREVIOUS` (`INTERNAL_SERVICE_SECRET`) `--stage 1|2|3` is
+REQUIRED; stage semantics and the single-shot 401 window:
+`OPS_CLI_REFERENCE.md` § Secrets Commands.
 
 ### Security Advisories
 
 `pnpm ops security:advisories` classifies each open Dependabot advisory from
 the resolved lockfile tree: **direct** (Dependabot auto-PRs the fix),
-**transitive** (needs a manual `pnpm.overrides` bump — no PR will ever
-appear), or **direct+transitive** (every declaration is already patched but
-a vulnerable copy still resolves transitively — Dependabot sees nothing to
-bump, so this ALSO needs the override). **Decision-point trigger:**
-the release security-preflight (`/tzurot-git-workflow` § Release) — ride any
-transitive or direct+transitive advisory that has a fix into the release via
-an override. Degrades to "unavailable", never blocks.
+**transitive**, or **direct+transitive** (declarations patched, a vulnerable
+copy still resolves) — the last two never get a Dependabot PR and need a manual
+`pnpm.overrides` bump. **Decision-point trigger:** the release
+security-preflight (`/tzurot-git-workflow` § Release) — ride any transitive or
+direct+transitive advisory that has a fix into the release via an override.
 
 ### Test Audits
 
@@ -126,26 +104,25 @@ the ratchet: `02-code-standards.md` § CPD.
 
 All guards hard-fail on findings. `guard:workflow-sync` covers ONLY `claude-code-review.yml` and `claude.yml` — those must land via a **main-cut** branch (a develop-first change silently disables claude-review on every PR until the next release); it self-skips on main-cut branches, `--base main` overrides. Other workflow files (`ci.yml`) may land via develop like any code change.
 
-**After editing any hook, run its probe** — `guard:hook-probes` is the backstop, not the loop. Registry: `packages/tooling/src/dev/check-hook-probes-registry.ts`, bidirectional over `.claude/hooks/*.sh` AND `.husky/`. Local precondition: `develop-code-commit-guard.probe.sh` needs local `develop` and `main` branches — `git fetch origin develop:develop` if it fails on a fresh clone. A probe for a self-referential guard — one whose trigger pattern appears in its own test text — keeps that pattern in the probe file as fixture data fed on stdin, never in the invoking command line, so it cannot trip the guard it tests.
+**After editing any hook, run its probe** — `guard:hook-probes` is the backstop, not the loop. Registry: `packages/tooling/src/dev/check-hook-probes-registry.ts`, bidirectional over `.claude/hooks/*.sh` AND `.husky/`. `develop-code-commit-guard.probe.sh` needs local `develop` and `main` branches (`git fetch origin develop:develop` on a fresh clone). A probe for a self-referential guard keeps its trigger pattern in the probe file as fixture data fed on stdin, never in the invoking command line.
 
 `pnpm ops lines:check` keeps the always-loaded surfaces (`.claude/rules`
-total, `CURRENT.md`, `.claude/skills` bodies) within their LINE and BYTE budgets; `--breakdown` ranks
-every file worst-first by bytes — the trim order the `/tzurot-doc-audit`
-economy pass consumes. `pnpm ops lines:update-baseline` makes budget growth
-explicit (same `--update` contract as cpd/test:audit); `--surface <name>`
-scopes the write — the unscoped write ratchets a trimmed surface DOWN and a
-grown one UP in the same commit.
+total, `CURRENT.md`, `.claude/skills` bodies) within their LINE and BYTE
+budgets, and holds `CLAUDE.md` + `.claude/rules/*.md` under a hard 147,000-char
+ceiling (Claude Code's instruction-file warning total, which no baseline
+refresh can raise); `--breakdown` ranks every file worst-first by bytes — the
+trim order the `/tzurot-doc-audit` economy pass consumes. `pnpm ops
+lines:update-baseline` makes budget growth explicit; `--surface <name>` scopes
+the write — the unscoped write ratchets a trimmed surface DOWN and a grown one
+UP in the same commit.
 
 ### Backlog lint + digest
 
 `pnpm ops backlog` (also `pnpm backlog:lint`) gates structural checks over
 `now.md`, cross-references, and tracker task files; `pnpm ops backlog:digest`
-is the session-start briefing and never gates. Gate details and the triage
-axes live in `06-backlog.md`. **The check list is `backlogLint.ts`'s
-`problems` array, not any prose enumeration** — read the array. `pnpm ops
-backlog` ALSO prints a **non-gating** warning naming any uncommitted file
-under `tracker/` (invisible to every query until committed); it never sets
-the exit code, so an uncommitted task file does not fail CI.
+is the session-start briefing and never gates. **The check list is
+`backlogLint.ts`'s `problems` array, not any prose enumeration** — read the
+array. Its warning naming an uncommitted file under `tracker/` is non-gating.
 
 ### Audit-tool infrastructure (Layers 1-3)
 
@@ -157,18 +134,7 @@ the exit code, so an uncommitted task file does not fail CI.
 
 ### Commit Message Format
 
-```bash
-git commit -m "$(cat <<'EOF'
-feat(ai-worker): add pgvector memory retrieval
-
-Brief description of what and why.
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>
-EOF
-)"
-```
+`type(scope): subject`, a body saying what and why, then the generated-with line and the `Co-Authored-By:` trailer (the heredoc template: `/tzurot-git-workflow` § 2. Create Commit).
 
 **Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`, `debug` (+ standard `build`, `ci`, `revert`, `style`; every valid type is also a valid branch prefix)
 **Scopes:** every `packages/` + `services/` directory name (generated), plus `tests` and the static root set — `backlog`, `ci`, `deps`, `docs`, `hooks`, `husky`, `legal`, `prisma`, `repo`, `rules`, `skills`. Source of truth is `allScopes` in `commitlint.config.cjs`; read it rather than trusting a list here.
@@ -178,22 +144,18 @@ EOF
 #### The `debug` type
 
 `debug` = temporary diagnostic instrumentation in a production path, added to
-confirm a bug's runtime behaviour and removed in a cleanup PR. Use it for BOTH
-the add and the remove. Permanent observability is `feat`, not `debug` — the
-distinction is lifecycle.
-
-`git log --grep '^debug[:(]' origin/develop..HEAD` surfaces instrumentation
-still live on a branch (empty = clean). Older forgotten scaffolding is caught by
-`pnpm ops dev:stale-debug` (blame-based, weekly `ops health`).
+confirm a bug's runtime behaviour and removed in a cleanup PR — use it for BOTH
+the add and the remove. Permanent observability is `feat`: the distinction is
+lifecycle. `git log --grep '^debug[:(]' origin/develop..HEAD` surfaces
+instrumentation still live on a branch (empty = clean); `pnpm ops
+dev:stale-debug` (weekly `ops health`) catches older forgotten scaffolding.
 
 When a `fix`/`feat` commit removes a probe instead of a dedicated `debug:`
-remove commit, it carries the trailer `Retires-debug: <sha>` so
-`dev:stale-debug` stops tracking that probe; a later commit may carry the
-trailer for a probe that was already absorbed. Git parses trailers from the
-message's FINAL paragraph only, so the line goes beside `Co-Authored-By`,
-below the generated-with line (probe: `git log -1 --format=%B | git
-interpret-trailers --parse`). One SHA per line is the tested form; several on
-one line, space- or comma-separated, also resolve.
+remove commit, it carries the trailer `Retires-debug: <sha>` (one SHA per line)
+so `dev:stale-debug` stops tracking it. Git parses trailers from the FINAL
+paragraph only, so the line goes beside `Co-Authored-By`, below the
+generated-with line (probe: `git log -1 --format=%B | git interpret-trailers
+--parse`).
 
 ### PR Monitoring (automatic — do not wait to be asked)
 
@@ -202,60 +164,54 @@ one line, space- or comma-separated, also resolve.
 **Verify the push landed first** (the `-> branch` ref-update line, or `git status -sb` in-sync) — a monitor on a push that never landed reports a stale run as fresh.
 
 **One monitor per PR: `TaskStop` this PR's previous monitor before arming a
-new one** (a release PR alongside a feature PR keeps one each). The reporting
+new one** (a release PR alongside a feature PR keeps one each) — the reporting
 half is not SHA-pinned, so a stale watcher reports current state under an older
-push's label. **If the id is gone** (compaction): `TaskList` cannot enumerate monitors, so recover from the
-notification — every monitor event carries its own `task-id`; `TaskStop` that id
-when one fires for a PR already reported at this SHA.
+push's label. **If the id is gone** (compaction): `TaskList` cannot enumerate
+monitors, so `TaskStop` the `task-id` carried by the next event that fires for
+a PR already reported at this SHA.
 
-Arm the Monitor with this as its `command`, **substitution included** — copy it verbatim and only replace `N` with the PR number. Never transcribe the SHA by hand; a hand-completed SHA passes any format check, and the gate refuses it (`git cat-file`) rather than watching it:
+Arm the Monitor with this as its `command`, **substitution included** — copy it verbatim and only replace `N` with the PR number; never transcribe the SHA by hand:
 
 ```bash
 pnpm -C "$(git rev-parse --show-toplevel)" ops gh:ci-gate N --sha $(git rev-parse HEAD)
 ```
 
-The `-C "$(git rev-parse --show-toplevel)"` root-anchors the command: the Monitor runs in a subprocess whose cwd is not guaranteed to be the checkout, and a bare `pnpm ops` from a subdirectory exits 254 with `Command "ops" not found`; `git rev-parse --show-toplevel` resolves from any subdirectory of the checkout that holds the branch (including a worktree, where it correctly returns the WORKTREE root, not the main checkout).
+The `-C` root-anchor, and why the substitution is safe to paste: [`pr-monitoring.md`](../../docs/reference/tooling/pr-monitoring.md).
 
-**The substitution resolves when the Monitor executes, not when you pushed — so arm it immediately, from the checkout that holds the branch.** Two things change what it resolves to: a branch hop in that checkout (filing a tracker task between pushes is the usual one), and a shell whose cwd is a different checkout than the worktree holding the branch — the substitution runs in the persistent shell cwd, so a worktree-held branch armed from the repo root resolves the main checkout's `HEAD`. Either value still names a real local commit, so the `git cat-file` check passes; the gate then reads the PR's head SHA from GitHub and refuses a `--sha` that is not it, printing both, so the cost is a re-arm rather than a mis-watch. That head read is fail-open — when GitHub cannot be read the gate arms anyway and prints that the drift check did not run — which is why arming promptly still matters.
+**The substitution resolves when the Monitor executes, not when you pushed — so arm it immediately, from the checkout that holds the branch.** A branch hop in that checkout, or a shell cwd in a different checkout than the worktree holding the branch, resolves a different `HEAD`; the gate refuses a `--sha` that is not the PR head (a re-arm, not a mis-watch), but that head read is fail-open when GitHub cannot be read.
 
 **This invocation is duplicated in three places on purpose** — here, the hook heredoc, and `/tzurot-git-workflow`. `pnpm ops guard:monitor-command` fails CI if the copies diverge, so change all three.
 
 Pass `timeout_ms: 1800000` (30 min) and `persistent: false`. **The `false` is a deliberate departure from the Monitor tool's own guidance — don't "correct" it back**: `TaskList` cannot see a watcher, so its own timeout is the only thing bounding it. If it expires, re-arm.
 
-The gate waits for the `CI` run to complete and for nothing else on that SHA to be in flight, then hands off to `gh pr checks --watch`. It prints exactly one sentinel (table below) and then the final check list. Its behaviour is covered by `packages/tooling/src/gh/ci-gate.test.ts`.
-
-**Exit-code semantics — "Monitor script failed (exit 1)" can be cosmetic.** The final `gh pr checks` exits non-zero whenever ANY check is red, and `fixup-check` is intentionally red on a fixup-bearing branch until autosquash. Read the event stream for the outcome; treat the exit code as informational.
+The gate waits for the `CI` run to complete with nothing else on that SHA in flight, hands off to `gh pr checks --watch`, and prints exactly one sentinel (list below), then the final check list. **"Monitor script failed (exit 1)" can be cosmetic**: the final `gh pr checks` exits non-zero whenever ANY check is red, and `fixup-check` is intentionally red on a fixup-bearing branch until autosquash — read the event stream for the outcome.
 
 When the monitor fires, **all four** of the following must happen — do not stop after step 1 even if every check passed:
 
-1. Note the final CI state from `gh pr checks N`, **and run the SHA-pinned run-list query below** — a green check list is not proof CI ran. Numbers and enumerations in the PR body and the commit body are re-derived against the head REF (`git grep <pat> HEAD`, `git show HEAD:<path>`), never the working tree: a working-tree grep run while standing on the wrong branch produced a stale zero that only the merge gate caught.
-2. Fetch new reviewer feedback. GitHub splits it across **three** endpoints that `gh api /issues/N/comments` does not cover together:
-   - `pnpm ops gh:pr-comments N` — conversation + inline line-level review comments
+1. Note the final CI state from `gh pr checks N`, **and run the SHA-pinned run-list query below**. Numbers and enumerations in the PR body and the commit body are re-derived against the head REF (`git grep <pat> HEAD`, `git show HEAD:<path>`), never the working tree.
+2. Fetch new reviewer feedback from all **three** endpoints (`gh api /issues/N/comments` does not cover them together):
+   - `pnpm ops gh:pr-comments N` — conversation + inline line-level review comments (where human reviewers leave blocking feedback)
    - `pnpm ops gh:pr-reviews N` — review summaries (Approve / Request Changes / Comment)
    - `pnpm ops gh:pr-info N` — PR-level state
 
-   Inline line comments are where human reviewers leave blocking feedback. Track the last reported comment's timestamp so a later push doesn't re-report it, and **include human reviewers** alongside the bots.
+   Track the last reported comment's timestamp so a later push doesn't re-report it, and **include human reviewers** alongside the bots. **claude-review health**: a green check means the action _completed_, not that a body was posted — if no new `claude[bot]` comment exists after a green run, `gh run rerun <run-id>` before proceeding.
 
-   **claude-review health**: a green check means the action _completed_, not that a body was posted. If no new `claude[bot]` comment exists after a green run, `gh run rerun <run-id>` before proceeding.
+3. In one concise message, report CI pass/fail **and** any new review findings (blocking vs. non-blocking); if there are no new reviews, say so. **Read every `###` section of each review body — do not rely on the trailing Summary** — and every `claude[bot]` entry when there are several.
 
-3. In one concise message, report CI pass/fail **and** any new review findings (blocking vs. non-blocking). If there are no new reviews, say so explicitly.
+4. **Apply review feedback — INVOKE `/tzurot-review-response` first, before touching anything.**
 
-   **Read every `###` section of each review body — do not rely on the trailing Summary**, which routinely under-reports what the body flags. If multiple `claude[bot]` entries exist, read every one.
+If CI fails or CodeQL flags a new alert, surface it via `PushNotification`.
 
-4. **Apply review feedback — INVOKE `/tzurot-review-response` first, before touching anything.** That skill carries the full procedure; applying feedback from memory is how rubber-stamping creeps back in.
-
-If CI fails or CodeQL flags a new alert, surface it via `PushNotification` — that class of feedback changes what the user does next.
-
-**A green `gh pr checks` list is not proof CI ran.** A run that dies before dispatch (`startup_failure`) creates zero jobs and therefore zero check-runs, so it is absent from the check list entirely while the surviving workflows print clean green. Confirm the run list for the head SHA:
+**A green `gh pr checks` list is not proof CI ran.** A run that dies before dispatch (`startup_failure`) creates zero check-runs, so it is absent from the list while the surviving workflows print green. Confirm the run list for the head SHA:
 
 ```bash
 gh api "repos/{owner}/{repo}/actions/runs?head_sha=$(git rev-parse HEAD)" \
   --jq '.workflow_runs[] | "\(.status) \(.conclusion // "-") \(.name)"'
 ```
 
-`head_sha` filters server-side, so the result is exhaustive — don't substitute a client-side filter over `gh run list`. **An empty result minutes after a push means "not indexed yet", not "no run dispatched"**: re-query before concluding anything. Anything not `completed success` (or `skipped`) is a finding, and **pin on the SHA, never a timestamp window**.
+Don't substitute a client-side filter over `gh run list` (`head_sha` filters server-side, so the result is exhaustive). **An empty result minutes after a push means "not indexed yet"**: re-query before concluding anything. Anything not `completed success` (or `skipped`) is a finding; **pin on the SHA, never a timestamp window**.
 
-**A red check with zero steps never ran — that's infrastructure, not your diff**, and is rerun-eligible per `00-critical.md`'s failure-shape table. `gh pr checks` renders it identically to a real failure, so read the step count when a job fails without an obvious cause:
+**A red check with zero steps never ran — that's infrastructure, not your diff**, and is rerun-eligible per `00-critical.md`'s failure-shape table. `gh pr checks` renders it like a real failure, so read the step count when a job fails without an obvious cause:
 
 ```bash
 gh api "repos/{owner}/{repo}/actions/runs/<run-id>/jobs?per_page=100" \
@@ -266,27 +222,20 @@ gh api "repos/{owner}/{repo}/actions/runs/<run-id>/jobs?per_page=100" \
 
 **Outcome handling — read WHICH sentinel printed, not just whether one did.** Only the first means CI finished:
 
-| Sentinel                  | Meaning                                                             | Action                               |
-| ------------------------- | ------------------------------------------------------------------- | ------------------------------------ |
-| `CI_COMPLETE`             | CI finished and nothing else was in flight                          | proceed to the review fetch          |
-| `CI_GATE_TIMEOUT`         | the gate gave up at 25 min; CI never reached a releasable state     | re-arm; do NOT assume CI passed      |
-| `CI_GATE_STARTUP_FAILURE` | a run died before dispatch (zero jobs, invisible in `gh pr checks`) | `gh run rerun <run-id>`, then re-arm |
-| _none of them_            | the Monitor's own 30-min `timeout_ms` killed the process            | re-arm                               |
+- `CI_COMPLETE` — CI finished and nothing else was in flight → proceed to the review fetch
+- `CI_GATE_TIMEOUT` — the gate gave up at 25 min → re-arm; do NOT assume CI passed
+- `CI_GATE_STARTUP_FAILURE` — a run died before dispatch (invisible in `gh pr checks`) → `gh run rerun <run-id>`, then re-arm
+- _none of them_ — the Monitor's own 30-min `timeout_ms` killed the process → re-arm
 
-**After the sentinel, the gate also counts claude-review cycles on the PR** and
-prints two things off that count. From ≥1 cycle it prints
-`📋 REVIEW ROUNDS ARE DISPATCH WORK`, the mechanical trigger for
+**After the sentinel, the gate counts claude-review cycles on the PR.** From ≥1
+cycle it prints `📋 REVIEW ROUNDS ARE DISPATCH WORK` — the trigger for
 `/tzurot-review-response` § 3a: batch the round's findings into ONE worker
-dispatch rather than applying them inline. At ≥6 it also prints
-`⚠️ REVIEW_ROUND_CAP` — the mechanical trigger for `/tzurot-review-response`
+dispatch. At ≥6 it also prints `⚠️ REVIEW_ROUND_CAP` — the trigger for
 § 5a: stop iterating in this context and hand the open findings to a
-fresh-context implementer or the owner. The count is advisory and fail-open; an
-`unavailable` line means the check did not run, not that the PR is under the
-cap. One known inflation: a PR editing the claude workflow files still creates a
-review-workflow run per push while the action self-skips, so a workflow-sync PR
-can trip the warning on push churn rather than real rounds.
+fresh-context implementer or the owner. An `unavailable` line means the count
+did not run, not that the PR is under the cap.
 
-After a session restart, a re-fetch may re-surface already-reported comments once (the dedup timestamp lives in conversation state) — expected, not a dedup bug.
+After a session restart, a re-fetch may re-surface already-reported comments once — expected, not a dedup bug.
 
 **Merge mechanics.** When a merge follows a verification run in the same turn (a re-fetched check list, a review re-read), chain them with `&&` so a failed check halts before the destructive step. When the target branch moved under a long-lived feature branch, re-derive diffstats and counts against the MERGE-BASE, not the target's current HEAD.
 
@@ -296,38 +245,17 @@ Conventional Changelog format. **Release title**: `v3.0.0-beta.XX` (version
 number only, no summary). **Body** starts directly with H3 category headings, in
 this order when present — **Breaking Changes**, **Features**, **Bug Fixes**,
 **Improvements**, **Chores**, **Tests**, **Database Migrations** — omitting empty
-ones. Line items are `- **scope:** description (#123)`. End with the Full
-Changelog compare link. The shape to copy:
-
-```markdown
-### Features
-
-- **scope:** description (#PR)
-
-### Bug Fixes
-
-- **scope:** description (#PR)
-
-### Improvements
-
-- **scope:** description (#PR)
-
-**Full Changelog**: https://github.com/lbds137/tzurot/compare/vOLD...vNEW
-```
+ones. Line items are `- **scope:** description (#123)`. End with
+`**Full Changelog**: https://github.com/lbds137/tzurot/compare/vOLD...vNEW`.
 
 ## No Standalone Scripts
 
 **All tooling lives in `packages/tooling/`** as TypeScript, never as bash
 scripts. New dev tool: `src/dev/<name>.ts` + colocated test + registration
 in `src/commands/dev.ts` (+ a root `package.json` shortcut if frequent).
-
 **Exception:** `scripts/` may hold one-off migration/codegen scripts that run
 once and are deleted.
 
 ## References
 
-- Full tooling guide: `packages/tooling/README.md`
-- Ops CLI reference: `docs/reference/tooling/OPS_CLI_REFERENCE.md`
-- Static analysis: `docs/reference/STATIC_ANALYSIS.md`
-- Railway CLI: `docs/reference/RAILWAY_CLI_REFERENCE.md`
-- GitHub CLI: `docs/reference/GITHUB_CLI_REFERENCE.md`
+`packages/tooling/README.md` (full tooling guide), `docs/reference/tooling/OPS_CLI_REFERENCE.md`, `docs/reference/STATIC_ANALYSIS.md`, `docs/reference/RAILWAY_CLI_REFERENCE.md`, `docs/reference/GITHUB_CLI_REFERENCE.md`.
