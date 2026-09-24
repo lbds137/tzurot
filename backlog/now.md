@@ -10,6 +10,8 @@ _Active bugs observed in production. Fix before new features. Cleared issues are
 
 _Recently resolved items move to the GitHub release notes at ship time — this section stays empty between incidents (history: git + releases)._
 
+- 🐛 `[FIX]` **TASK-1079**: the Share Chat History drill-down on both character dashboards builds a 107-character customId, and discord.js throws on it. It has been reachable on prod since beta.209. This is measured in the builders and not yet confirmed in prod logs.
+
 _(2026-09-21: the vxreddit Components-V2 entry REMOVED — fix #2461 verified on dev by the owner smoke, Emily described the art; prod verification is the same check after beta.228. The entry's capture, probe and PR history live on TASK-1024 and in git.)_
 
 
