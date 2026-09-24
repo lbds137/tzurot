@@ -7,6 +7,7 @@
 
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import type { ConfigOverrideSource } from '@tzurot/common-types/schemas/api/configOverrides';
+import { compactEntityId, expandEntityId } from './settingsEntityIdCodec.js';
 
 /**
  * Setting type determines the UI pattern used
@@ -150,7 +151,10 @@ export enum DashboardView {
 export interface SettingsDashboardSession {
   /** Dashboard level */
   level: DashboardLevel;
-  /** Entity ID (channel ID, personality slug, or 'global') */
+  /**
+   * Entity ID (channel ID, personality UUID, user ID, or 'global') — the
+   * canonical value, never the compacted customId segment
+   */
   entityId: string;
   /** Display name for the entity */
   entityName: string;
@@ -333,7 +337,9 @@ export function getPageSettings(
 const SETTINGS_CUSTOM_ID_DELIMITER = '::';
 
 /**
- * Build a custom ID for settings dashboard interactions
+ * Build a custom ID for settings dashboard interactions. A lowercase UUID
+ * entityId is compacted (`compactEntityId`) so the id fits Discord's 100-char
+ * customId cap; `parseSettingsCustomId` restores the canonical UUID.
  */
 export function buildSettingsCustomId(
   entityType: string,
@@ -341,7 +347,7 @@ export function buildSettingsCustomId(
   entityId: string,
   extra?: string
 ): string {
-  const parts = [entityType, action, entityId];
+  const parts = [entityType, action, compactEntityId(entityId)];
   if (extra !== undefined) {
     parts.push(extra);
   }
@@ -351,8 +357,15 @@ export function buildSettingsCustomId(
 /**
  * Parse a settings dashboard custom ID
  *
- * Format: {entityType}::{action}::{entityId}[::{extra}]
+ * Format: {entityType}::{action}::{entitySegment}[::{extra}]
  * Example: 'admin-settings::select::global' or 'admin-settings::set::global::enabled:true'
+ *
+ * The entity segment is the entityId as `buildSettingsCustomId` wrote it: a
+ * UUID entity appears compacted (`~` + 22 base64url chars), anything else
+ * raw. The returned `entityId` is always the canonical value — the compacted
+ * form is expanded back to the lowercase dashed UUID, and a raw segment
+ * (including a raw UUID from a message rendered before compaction) passes
+ * through unchanged — so session lookups keyed by the canonical id still hit.
  *
  * Note: entityType should NOT contain '::' delimiter to ensure correct parsing.
  * Use hyphens for compound types (e.g., 'admin-settings' not 'admin::settings').
@@ -369,12 +382,12 @@ export function parseSettingsCustomId(customId: string): {
   }
 
   // Use destructuring with rest to preserve extra segments
-  const [entityType, action, entityId, ...rest] = parts;
+  const [entityType, action, entitySegment, ...rest] = parts;
 
   return {
     entityType,
     action,
-    entityId,
+    entityId: expandEntityId(entitySegment),
     // Re-join extra segments in case they contain the delimiter
     extra: rest.length > 0 ? rest.join(SETTINGS_CUSTOM_ID_DELIMITER) : undefined,
   };
