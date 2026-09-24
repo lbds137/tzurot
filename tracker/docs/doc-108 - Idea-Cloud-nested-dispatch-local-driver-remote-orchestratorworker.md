@@ -127,7 +127,10 @@ The VM is Ubuntu 24.04 with 4 CPUs, 15 GiB RAM, no swap and 30 GB of disk, runni
 | Subagents | PASS (an Explore subagent ran inside the VM) | — |
 | Railway | No CLI and no token. The API host answers a POST | Owner's call: a token in the environment's secrets. Default: Railway ops and data probes stay local |
 
-**Setup-script candidate** for the cloud environment's Setup script field (claude.ai/code → environment settings; it runs as root before the session and is cached). Reconstructed from the probe's commands and not yet run as a setup script; the first cloud unit validates it:
+**Setup script** for the cloud environment's Setup script field. The field is reached from a computer, at claude.ai/code or the Desktop app: open the cloud button above the message box, hover over the environment, and click its gear. The script runs as root before the session, is cached as a filesystem snapshot, and re-runs about every 7 days or when edited.
+- `claude --cloud` from the Deck lands in **Default (Full)**; the owner read this from the TASK-1083 session page on 2026-09-24. That is the environment to configure.
+- The TASK-1083 unit's step 0 ran these same installs successfully; they have not yet run as a setup script.
+- A unit's step 0 still starts Postgres and Redis, because running processes are not cached.
 
 ```bash
 #!/bin/bash
