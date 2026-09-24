@@ -1,9 +1,10 @@
 ---
 id: TASK-1001
 title: Reset to defaults button on every settings page
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-17 17:40'
+updated_date: '2026-09-24 18:24'
 labels:
   - 'area:bot-client'
   - 'size:M'
