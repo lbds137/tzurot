@@ -1,10 +1,10 @@
 ---
 id: TASK-1063
 title: 'Node compile cache in tmpfs /tmp grew to 4.9G: find the writer, then guard it'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-23 22:44'
-updated_date: '2026-09-24 01:24'
+updated_date: '2026-09-24 02:19'
 labels:
   - 'area:tooling'
   - 'size:M'
@@ -32,5 +32,9 @@ CLOSED 2026-09-23 on the remaining-question criterion above. After the session r
 created: 2026-09-24 01:24
 ---
 REOPENED 2026-09-24: the close was wrong. It rested on one direct npx eslint run, which never goes through turbo. turbo 2.10.13 runs tasks in strict env mode (turbo.json declares only CI and NODE_ENV per task, no envMode or passThroughEnv), which strips NODE_COMPILE_CACHE, so ESLint under turbo run lint still writes to os.tmpdir(). Measured: with /tmp/node-compile-cache moved aside, npx turbo run lint --filter=@tzurot/identity --force recreated it with 2840 files; the same run with --env-mode=loose created nothing. Diagnosis first raised by the gh-rclone-mise-migration session (the dir reappeared at 20:54 local and reached 30 MB by 21:09). Fix: add globalPassThroughEnv NODE_COMPILE_CACHE at the top level of turbo.json (pass-through reaches tasks without entering the cache hash; CI leaves it unset, so no-op there). Acceptance: the same forced turbo lint writes to the NODE_COMPILE_CACHE dir and leaves /tmp untouched.
+---
+created: 2026-09-24 02:20
+---
+DONE 2026-09-24: PR #2495 (3eff99203) added globalPassThroughEnv NODE_COMPILE_CACHE to turbo.json. Acceptance met, measured through turbo this time: with /tmp/node-compile-cache moved aside, the same forced turbo lint left it absent; with NODE_COMPILE_CACHE pointed at a fresh scratch dir the run wrote 3,382 files there (positive control); a full turbo run lint --concurrency=1 (13 tasks run) also left /tmp absent. CI 22/22 green.
 ---
 <!-- COMMENTS:END -->
