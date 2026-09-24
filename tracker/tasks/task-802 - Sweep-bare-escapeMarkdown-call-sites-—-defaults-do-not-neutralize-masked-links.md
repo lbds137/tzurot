@@ -4,6 +4,7 @@ title: Sweep bare escapeMarkdown call sites — defaults do not neutralize maske
 status: To Do
 assignee: []
 created_date: '2026-08-28 23:12'
+updated_date: '2026-09-24 07:28'
 labels:
   - 'area:bot-client'
   - 'size:M'
@@ -38,3 +39,12 @@ When this sweep runs, widen the enumeration to BOTH shapes: sites that escape in
 Acceptance: the classification is in the closing PR body, every user-authored site rendering into a parsing surface passes maskedLink, and one test pins a masked-link input rendering inert at a representative site.
 Member added from PR 2369 review: the two-arg form escapeMarkdown(x, { maskedLink: true }) is now inlined at five bot-client sites (ErrorChannelReporter escapePersonaName, confirmDestructive createHardDeleteConfig, confirmAction buildDeleteConfirmation, SettingsDashboardHandler reset confirm, history/purge not-found) with no shared helper; the sweep should extract one (e.g. escapeEntityName in a bot-client util) so a future site cannot forget the option.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+created: 2026-09-24 07:28
+---
+New members from the beta.229 split release review (2026-09-24). The settings-dashboard overview (buildOverviewEmbed) is fixed in the release-review PR. The main edit dashboard (DashboardBuilder.ts getTitle/getDescription callbacks) still interpolates user-chosen names with no escaping at all: services/bot-client/src/commands/character/config.ts (Editing: displayName title), services/bot-client/src/commands/preset/config.ts (Preset: data.name title), services/bot-client/src/commands/persona/config.ts (Persona: data.name title; the preferredName line in the description). Titles vs descriptions: whether Discord renders a masked link in an embed TITLE is unverified; the persona description line renders markdown. Fix with escapeMarkdown(name, { maskedLink: true }) at each site, with a test per site.
+---
+<!-- COMMENTS:END -->
