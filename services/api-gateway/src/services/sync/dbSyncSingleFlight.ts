@@ -1,7 +1,10 @@
 /**
- * db-sync single-flight guard — refuses a second concurrent
+ * db-sync single-flight guard — refuses a second concurrent WRITING
  * `POST /api/admin/db-sync` while one is already running, instead of
- * letting two syncs race writes across the same dev<->prod pair.
+ * letting two syncs race writes across the same dev<->prod pair. A dry run
+ * writes nothing, so `handleDbSync` never acquires or checks this guard for
+ * one — it can neither hold it nor be refused by it (both dry-run cases in
+ * `routes/admin/dbSync.test.ts` pin this).
  *
  * Same SET-PX-NX / GET-then-DEL shape as
  * `services/api-gateway/src/services/retention/runLease.ts`, narrowed to a

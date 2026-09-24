@@ -162,6 +162,40 @@ describe('POST /api/admin/db-sync', () => {
       expect(response.status).toBe(503);
       expect(mockSync).not.toHaveBeenCalled();
     });
+
+    it('a dry run proceeds and answers 200 while the guard is held by another sync — the held key is untouched', async () => {
+      // `createWorkingRedis` returns `RouteDeps['redis']` (`Redis | undefined`)
+      // to match the fixture's own declared type, but the factory always
+      // constructs a real double — narrow it so this test can seed/read it
+      // directly, the way it would a live Redis instance under test.
+      const redis = createWorkingRedis() as NonNullable<RouteDeps['redis']>;
+      // Seed the guard as already held, mirroring "another token stored in
+      // the double" — the dry run below must neither read nor clear it.
+      await redis.set('db-sync:single-flight', 'held-by-another-sync', 'PX', 1_800_000, 'NX');
+      const setCallsBeforeDryRun = (redis.set as ReturnType<typeof vi.fn>).mock.calls.length;
+      app = buildApp(undefined, undefined, redis);
+      mockSync.mockResolvedValue(makeSyncResult());
+
+      const response = await request(app).post('/admin/db-sync').send({ dryRun: true });
+
+      expect(response.status).toBe(200);
+      expect(mockSync).toHaveBeenCalledWith({ dryRun: true, allowSchemaSkew: false });
+      // No new `set` call from the dry run itself.
+      expect((redis.set as ReturnType<typeof vi.fn>).mock.calls.length).toBe(setCallsBeforeDryRun);
+      expect(redis.del as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+      await expect(redis.get('db-sync:single-flight')).resolves.toBe('held-by-another-sync');
+    });
+
+    it('a dry run with the guard free never writes the key: no `set` call on the Redis double', async () => {
+      const redis = createWorkingRedis() as NonNullable<RouteDeps['redis']>;
+      app = buildApp(undefined, undefined, redis);
+      mockSync.mockResolvedValue(makeSyncResult());
+
+      const response = await request(app).post('/admin/db-sync').send({ dryRun: true });
+
+      expect(response.status).toBe(200);
+      expect(redis.set as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+    });
   });
 
   let app: Express;

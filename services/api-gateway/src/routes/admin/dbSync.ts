@@ -16,6 +16,7 @@ import {
   acquireDbSyncSingleFlight,
   releaseDbSyncSingleFlight,
   DbSyncSingleFlightUnavailableError,
+  type DbSyncSingleFlightRedis,
 } from '../../services/sync/dbSyncSingleFlight.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -49,6 +50,56 @@ function syncWroteTable(
     return false;
   }
   return stats.devToProd + stats.prodToDev + stats.deleted > 0;
+}
+
+/** Outcome of {@link acquireGuardOrRefuse} — see its doc comment for the three shapes. */
+type GuardAcquireResult =
+  | { kind: 'acquired'; token: string; redis: DbSyncSingleFlightRedis }
+  | { kind: 'dry-run' }
+  | { kind: 'responded' };
+
+/**
+ * Acquire the single-flight guard for a real sync, or skip it for a dry run
+ * — the guard serializes WRITING syncs only (`DatabaseSyncService.sync`
+ * gates its whole flush phase on `!options.dryRun`), so a dry run neither
+ * holds it nor is refused by it, and a missing `deps.redis` is fatal only
+ * for a real sync.
+ *
+ * Returns `'dry-run'` (no guard touched), `'acquired'` (token + the redis it
+ * was acquired from, paired so the caller's `finally` can release without
+ * re-narrowing `deps.redis`), or `'responded'` when this function already
+ * sent the response (503/409) and the caller must return immediately.
+ */
+async function acquireGuardOrRefuse(
+  deps: RouteDeps,
+  dryRun: boolean,
+  res: Response
+): Promise<GuardAcquireResult> {
+  if (dryRun) {
+    return { kind: 'dry-run' };
+  }
+  if (deps.redis === undefined) {
+    sendError(res, ErrorResponses.serviceUnavailable(GUARD_UNAVAILABLE_MESSAGE));
+    return { kind: 'responded' };
+  }
+  try {
+    const acquired = await acquireDbSyncSingleFlight(deps.redis);
+    if (acquired === null) {
+      logger.info({ dryRun }, 'Database sync refused — another sync is already running');
+      sendError(res, {
+        ...ErrorResponses.conflict('A database sync is already running. Wait for it to finish.'),
+        code: API_ERROR_SUBCODE.DB_SYNC_IN_PROGRESS,
+      });
+      return { kind: 'responded' };
+    }
+    return { kind: 'acquired', token: acquired, redis: deps.redis };
+  } catch (error) {
+    if (error instanceof DbSyncSingleFlightUnavailableError) {
+      sendError(res, ErrorResponses.serviceUnavailable(GUARD_UNAVAILABLE_MESSAGE));
+      return { kind: 'responded' };
+    }
+    throw error;
+  }
 }
 
 /**
@@ -86,27 +137,12 @@ export const handleDbSync = (deps: RouteDeps): RequestHandler =>
       );
     }
 
-    if (deps.redis === undefined) {
-      return sendError(res, ErrorResponses.serviceUnavailable(GUARD_UNAVAILABLE_MESSAGE));
+    const guardResult = await acquireGuardOrRefuse(deps, dryRun, res);
+    if (guardResult.kind === 'responded') {
+      return;
     }
-
-    let token: string;
-    try {
-      const acquired = await acquireDbSyncSingleFlight(deps.redis);
-      if (acquired === null) {
-        logger.info({ dryRun }, 'Database sync refused — another sync is already running');
-        return sendError(res, {
-          ...ErrorResponses.conflict('A database sync is already running. Wait for it to finish.'),
-          code: API_ERROR_SUBCODE.DB_SYNC_IN_PROGRESS,
-        });
-      }
-      token = acquired;
-    } catch (error) {
-      if (error instanceof DbSyncSingleFlightUnavailableError) {
-        return sendError(res, ErrorResponses.serviceUnavailable(GUARD_UNAVAILABLE_MESSAGE));
-      }
-      throw error;
-    }
+    const token = guardResult.kind === 'acquired' ? guardResult.token : null;
+    const guardRedis = guardResult.kind === 'acquired' ? guardResult.redis : undefined;
 
     logger.info({ dryRun, allowSchemaSkew }, 'Starting database sync');
     try {
@@ -183,6 +219,8 @@ export const handleDbSync = (deps: RouteDeps): RequestHandler =>
         timestamp: new Date().toISOString(),
       });
     } finally {
-      await releaseDbSyncSingleFlight(deps.redis, token);
+      if (token !== null && guardRedis !== undefined) {
+        await releaseDbSyncSingleFlight(guardRedis, token);
+      }
     }
   });
