@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { AccountExportData } from './AccountExportAssembler.js';
+import { EXPORT_NOTES, type AccountExportData } from './AccountExportAssembler.js';
 import { buildAccountExportFiles } from './AccountExportFiles.js';
 
 const NOW = new Date('2026-07-15T12:00:00Z');
@@ -92,6 +92,15 @@ describe('buildAccountExportFiles', () => {
     );
     expect(withAdmin['account/admin-settings.json']).toContain('"id": "a1"');
     expect(withAdmin['README.md']).toContain('admin settings');
+  });
+
+  it("README's 'What is NOT included' section documents the memory-bookkeeping exclusion", () => {
+    const files = buildAccountExportFiles(
+      makeData({ meta: { exportedAt: NOW.toISOString(), formatVersion: 3, notes: EXPORT_NOTES } })
+    );
+
+    expect(files['README.md']).toContain('## What is NOT included');
+    expect(files['README.md']).toContain('Memory rows omit internal bookkeeping');
   });
 
   it('writes user-defaults from the profile config-cascade defaults', () => {
