@@ -3,9 +3,10 @@ id: TASK-1092
 title: >-
   pre-push throttle is opt-in, so 4-core cloud VMs starve the commandManifest
   beforeAll past 10s
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-24 22:37'
+updated_date: '2026-09-24 23:28'
 labels:
   - 'area:husky'
   - 'size:S'
