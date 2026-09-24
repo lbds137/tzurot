@@ -19,7 +19,7 @@
  */
 
 import { v5 as uuidv5, v7 as uuidv7 } from 'uuid';
-import crypto from 'crypto';
+import { sha256Hex } from './sha256Hex.js';
 
 /**
  * Standard DNS namespace UUID (RFC 4122).
@@ -284,7 +284,7 @@ export function generateMemoryChunkGroupUuid(
   originalText: string
 ): string {
   // Create a SHA-256 hash of the content for deterministic, collision-resistant grouping
-  const contentHash = crypto.createHash('sha256').update(originalText).digest('hex').slice(0, 32);
+  const contentHash = sha256Hex(originalText, { length: 32 });
   return uuidv5(
     `memory_chunk_group:${personaId}:${personalityId}:${contentHash}`,
     TZUROT_NAMESPACE
@@ -349,7 +349,7 @@ export function generatePendingMemoryUuid(
   personalityId: string,
   text: string
 ): string {
-  const contentHash = crypto.createHash('sha256').update(text).digest('hex').slice(0, 32);
+  const contentHash = sha256Hex(text, { length: 32 });
   return uuidv5(`pending_memory:${personaId}:${personalityId}:${contentHash}`, TZUROT_NAMESPACE);
 }
 
@@ -365,7 +365,7 @@ export function generateMemoryFactUuid(
   personaId: string | null,
   statement: string
 ): string {
-  const statementHash = crypto.createHash('sha256').update(statement).digest('hex').slice(0, 32);
+  const statementHash = sha256Hex(statement, { length: 32 });
   return uuidv5(
     `memory_fact:${personalityId}:${personaId ?? 'world'}:${statementHash}`,
     TZUROT_NAMESPACE

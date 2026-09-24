@@ -23,7 +23,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { sha256Hex } from '@tzurot/common-types/utils/sha256Hex';
 
 export interface BaselineMeta {
   /** Tool-internal version string (semver or hash). Convention: the package.json version, or a hash of the tool's source if it's evolving fast. */
@@ -120,7 +120,7 @@ export function checkMetaDrift(
  */
 export function hashConfigSlice(slice: unknown): string {
   const serialized = JSON.stringify(slice);
-  return createHash('sha256').update(serialized).digest('hex').slice(0, 12);
+  return sha256Hex(serialized, { length: 12 });
 }
 
 /**

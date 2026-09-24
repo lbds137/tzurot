@@ -13,8 +13,8 @@
  * would send an unchanged command set can skip the PUT entirely.
  */
 
-import { createHash } from 'node:crypto';
 import type { EnvConfig } from '@tzurot/common-types/config/config';
+import { sha256Hex } from '@tzurot/common-types/utils/sha256Hex';
 
 // A durable "last registered" marker, not a cache: no TTL by design. A key
 // for a rotated client id is orphaned, at the cost of one string per scope.
@@ -39,7 +39,7 @@ export function shouldAutoRegisterCommands(
  */
 export function hashCommandBody(commands: unknown[]): string {
   const canonical = commands.map(command => JSON.stringify(command)).sort();
-  return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
+  return sha256Hex(JSON.stringify(canonical));
 }
 
 /** Which route a registration PUTs to, and the key its hash is stored under. */

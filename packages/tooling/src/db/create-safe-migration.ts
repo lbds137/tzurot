@@ -19,13 +19,13 @@
  */
 
 import { spawn } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { createInterface } from 'node:readline';
 import chalk from 'chalk';
 import { DB_POOL_DEFAULTS } from '@tzurot/common-types/services/poolConfig';
 import { createPrismaClient } from '@tzurot/common-types/services/prisma';
+import { sha256Hex } from '@tzurot/common-types/utils/sha256Hex';
 import {
   type Environment,
   validateEnvironment,
@@ -224,7 +224,7 @@ function reportSanitizationResults(
  * Compute SHA-256 checksum of file contents (matches Prisma's checksum format)
  */
 export function computeFileChecksum(content: string): string {
-  return createHash('sha256').update(content, 'utf-8').digest('hex');
+  return sha256Hex(content, { encoding: 'utf-8' });
 }
 
 /**

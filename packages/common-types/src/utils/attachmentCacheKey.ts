@@ -16,7 +16,7 @@
  * (image descriptions) so the two normalization strategies can't drift.
  */
 
-import crypto from 'crypto';
+import { sha256Hex } from './sha256Hex.js';
 
 /** The minimal attachment fields needed to derive a stable cache key. */
 export interface AttachmentCacheKeyParts {
@@ -40,6 +40,6 @@ export function deriveAttachmentCacheKey(prefix: string, parts: AttachmentCacheK
   }
 
   const baseUrl = parts.url.split('?')[0];
-  const urlHash = crypto.createHash('sha256').update(baseUrl).digest('hex');
+  const urlHash = sha256Hex(baseUrl);
   return `${prefix}url:${urlHash}`;
 }

@@ -6,11 +6,10 @@
  * produce consistent slug formats.
  */
 
-import crypto from 'crypto';
-
 import { DISCORD_LIMITS } from '../constants/discord.js';
 import { SLUG_MIN_LENGTH } from '../schemas/api/personality.js';
 import { isBotOwner } from './ownerMiddleware.js';
+import { sha256Hex } from './sha256Hex.js';
 
 /** Hex chars of the truncated-tail hash appended when a slug is too long. */
 const SLUG_TAIL_HASH_LENGTH = 6;
@@ -45,13 +44,8 @@ function fitSlugToMaxLength(base: string, suffix: string, maxLength: number): st
   // callers are NOT gated the same way — keep this fallback.
   const kept = keptEnd > 0 ? base.slice(0, keptEnd) : 'x';
   const removedTail = base.slice(keptEnd);
-  // Non-security disambiguation hash (collision avoidance, not a credential) —
-  // SHA-256 mirrors attachmentCacheKey.ts; only the first few hex chars are used.
-  const tailHash = crypto
-    .createHash('sha256')
-    .update(removedTail)
-    .digest('hex')
-    .slice(0, SLUG_TAIL_HASH_LENGTH);
+  // Non-security disambiguation hash (collision avoidance, not a credential).
+  const tailHash = sha256Hex(removedTail, { length: SLUG_TAIL_HASH_LENGTH });
   return `${kept}-${tailHash}${suffix}`;
 }
 

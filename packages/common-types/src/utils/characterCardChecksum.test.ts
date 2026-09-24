@@ -5,9 +5,9 @@ import { hashCharacterCard } from './characterCardChecksum.js';
 describe('hashCharacterCard', () => {
   it('emits a full 64-hex digest, sized for the VarChar(64) column', () => {
     const digest = hashCharacterCard({ characterInfo: 'A quiet archivist.' });
-    // 64, not 16: the repo's other sha-256 helper truncates and this one must
-    // not — a truncated value in a 64-wide column throws away collision
-    // resistance for nothing.
+    // The checksum is the full 64-char digest (sha256Hex with no length) — a
+    // truncated value in a 64-wide column throws away collision resistance
+    // for nothing.
     expect(digest).toMatch(/^[0-9a-f]{64}$/);
   });
 

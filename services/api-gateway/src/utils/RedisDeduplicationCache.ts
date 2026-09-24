@@ -8,11 +8,11 @@
  * since all instances share the same deduplication state.
  */
 
-import { createHash } from 'node:crypto';
 import type { Redis } from 'ioredis';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { INTERVALS } from '@tzurot/common-types/constants/timing';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { sha256Hex } from '@tzurot/common-types/utils/sha256Hex';
 import type { GenerateRequest, CachedRequest } from '../types.js';
 
 const logger = createLogger('RequestDeduplication');
@@ -248,7 +248,7 @@ export class RedisDeduplicationCache {
 
     // Create stable hash using SHA-256 for the entire message
     // 16 hex chars = 64 bits of entropy (sufficient for current usage)
-    const messageHash = createHash('sha256').update(messageStr).digest('hex').substring(0, 16);
+    const messageHash = sha256Hex(messageStr, { length: 16 });
 
     return `${personalityName}:${contextStr}:${messageHash}`;
   }

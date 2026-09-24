@@ -17,8 +17,8 @@
  * - Cross-turn detection functions from crossTurnDetection.ts
  */
 
-import { createHash } from 'node:crypto';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { sha256Hex } from '@tzurot/common-types/utils/sha256Hex';
 
 const logger = createLogger('DuplicateDetection');
 
@@ -275,7 +275,7 @@ export function wordJaccardSimilarity(a: string, b: string): number {
  */
 export function contentHash(content: string): string {
   const normalized = content.toLowerCase().trim();
-  return createHash('sha256').update(normalized).digest('hex').substring(0, 16);
+  return sha256Hex(normalized, { length: 16 });
 }
 
 // ============================================================================
