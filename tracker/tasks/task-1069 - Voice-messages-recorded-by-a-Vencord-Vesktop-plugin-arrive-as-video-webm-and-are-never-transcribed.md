@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-24 01:23'
+updated_date: '2026-09-24 06:57'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -30,8 +31,14 @@ created: 2026-09-23 23:40
 ---
 RAW SAMPLE (2026-09-23, read-only GET /channels/{id}/messages/{id} with the dev bot token, metadata only). The voice message is the REFERENCED message: the trigger was the owner's text reply to it (type 19), so the fix must classify voice on the referenced-message path too. The voice message itself: message flags 8192 (IS_VOICE_MESSAGE set), one attachment, filename voice-message.ogg, content_type video/webm, duration_secs 29.2, NO waveform, attachment flags 32 (IS_ANIMATED). So the waveform candidate is ruled out for this plugin; the discriminator is the message-level IsVoiceMessage flag (with a duration), independent of content type. A plain video/webm upload carries no such flag and stays a file. Still to verify before routing: the STT path accepts webm/opus (voice-engine and the Mistral provider).
 ---
+
 created: 2026-09-24 00:55
 ---
 CONTAINER (2026-09-24, first 16 bytes of the attachment via a ranged GET, no audio content read): `1A 45 DF A3`, the EBML header. So the bytes are WebM despite the `.ogg` filename. Grounding (read-only agent, file:line in the local spec): downstream already accepts a non-audio content type when `isVoiceMessage === true` (ai-worker `AudioTranscriptionJob.ts`, api-gateway `jobChainOrchestrator.ts`, ai-worker `RAGUtils.ts`), so bot-client only needs to set the flag from `message.flags.has(MessageFlags.IsVoiceMessage)` on the live, referenced and forwarded paths. voice-engine's MIME allowlist is `audio/*`-only, and the Mistral client passes the filename through, so ai-worker should sniff magic bytes to send the true type (EBML → `audio/webm` + `.webm`, OggS → `audio/ogg`). Nested-dispatch spec written 2026-09-24, dispatched once PR #2497's round-3 worker has reported (one gate-running unit on the Deck at a time).
+---
+
+created: 2026-09-24 06:57
+---
+Merged in #2499 (a9f3c3d87 on develop, 2026-09-24), with a WebM-to-Ogg remux in ai-worker after the runtime probe showed voice-engine cannot decode WebM. Stays open until the owner's dev smoke confirms live transcription (the smoke item goes into CURRENT.md with the beta.229 checklist).
 ---
 <!-- COMMENTS:END -->
