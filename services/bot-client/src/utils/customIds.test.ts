@@ -12,10 +12,10 @@ import {
   ApikeyCustomIds,
   PresetCustomIds,
   DestructiveCustomIds,
-  ChannelCustomIds,
   PersonaCustomIds,
   getCommandFromCustomId,
 } from './customIds.js';
+import { buildDashboardCustomId } from './dashboard/types.js';
 
 describe('customIds', () => {
   describe('CUSTOM_ID_DELIMITER', () => {
@@ -438,7 +438,7 @@ describe('customIds', () => {
       const customId = PersonaCustomIds.menu('persona-abc');
       const parsed = PersonaCustomIds.parse(customId);
       expect(parsed?.action).toBe('menu');
-      expect(parsed?.personaId).toBe('persona-abc');
+      expect(parsed).toEqual({ action: 'menu', entityId: 'persona-abc' });
     });
 
     it('should round-trip apikey set', () => {
@@ -527,8 +527,6 @@ describe('customIds', () => {
       it('expand', () => assertValidCustomId(PersonaCustomIds.expand('test', 'field'), 'persona'));
       it('overrideCreate', () =>
         assertValidCustomId(PersonaCustomIds.overrideCreate('test'), 'persona'));
-      it('browsePage', () =>
-        assertValidCustomId(PersonaCustomIds.browsePage(1, 'date'), 'persona'));
     });
 
     describe('ApikeyCustomIds - all builders must use :: delimiter', () => {
@@ -695,127 +693,126 @@ describe('customIds', () => {
     });
   });
 
-  describe('ChannelCustomIds', () => {
-    describe('builders', () => {
-      it('should build listPage customId with page and sort', () => {
-        expect(ChannelCustomIds.listPage(0, 'date')).toBe('channel::list::0::date');
-        expect(ChannelCustomIds.listPage(3, 'name')).toBe('channel::list::3::name');
-      });
+  describe('PersonaCustomIds', () => {
+    const ID = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
+    const PID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 
-      it('should build listInfo customId', () => {
-        expect(ChannelCustomIds.listInfo()).toBe('channel::list::info');
-      });
-
-      it('should build sortToggle customId', () => {
-        expect(ChannelCustomIds.sortToggle(2, 'name')).toBe('channel::sort::2::name');
-        expect(ChannelCustomIds.sortToggle(0, 'date')).toBe('channel::sort::0::date');
+    describe('builders — byte-identical to the pre-family templates', () => {
+      it.each([
+        ['menu', () => PersonaCustomIds.menu(ID), `persona::menu::${ID}`],
+        ['modal', () => PersonaCustomIds.modal(ID, 'identity'), `persona::modal::${ID}::identity`],
+        ['close', () => PersonaCustomIds.close(ID), `persona::close::${ID}`],
+        ['refresh', () => PersonaCustomIds.refresh(ID), `persona::refresh::${ID}`],
+        ['delete', () => PersonaCustomIds.delete(ID), `persona::delete::${ID}`],
+        [
+          'confirmDelete',
+          () => PersonaCustomIds.confirmDelete(ID),
+          `persona::confirm-delete::${ID}`,
+        ],
+        ['cancelDelete', () => PersonaCustomIds.cancelDelete(ID), `persona::cancel-delete::${ID}`],
+        ['create', () => PersonaCustomIds.create(), 'persona::create'],
+        ['expand', () => PersonaCustomIds.expand(ID, 'content'), `persona::expand::${ID}::content`],
+        [
+          'overrideCreate',
+          () => PersonaCustomIds.overrideCreate(PID),
+          `persona::override-create::${PID}`,
+        ],
+      ])('%s', (_name, build, expected) => {
+        expect(build()).toBe(expected);
       });
     });
 
-    describe('parse', () => {
-      it('should return null for non-channel customIds', () => {
-        expect(ChannelCustomIds.parse('character::seed')).toBeNull();
-        expect(ChannelCustomIds.parse('me::profile::create')).toBeNull();
-      });
-
-      it('should return null for malformed customIds (too short)', () => {
-        expect(ChannelCustomIds.parse('channel')).toBeNull();
-      });
-
-      it('should parse list customId with page and sort', () => {
-        const result = ChannelCustomIds.parse('channel::list::2::date');
-        expect(result).toEqual({
-          command: 'channel',
-          action: 'list',
-          page: 2,
-          sort: 'date',
+    describe('parse shapes', () => {
+      it('parses menu', () => {
+        expect(PersonaCustomIds.parse(`persona::menu::${ID}`)).toEqual({
+          action: 'menu',
+          entityId: ID,
         });
       });
 
-      it('should parse list customId with name sort', () => {
-        const result = ChannelCustomIds.parse('channel::list::5::name');
-        expect(result).toEqual({
-          command: 'channel',
-          action: 'list',
-          page: 5,
-          sort: 'name',
+      it('parses modal', () => {
+        expect(PersonaCustomIds.parse(`persona::modal::${ID}::identity`)).toEqual({
+          action: 'modal',
+          entityId: ID,
+          sectionId: 'identity',
         });
       });
 
-      it('should parse sort toggle customId', () => {
-        const result = ChannelCustomIds.parse('channel::sort::1::name');
-        expect(result).toEqual({
-          command: 'channel',
-          action: 'sort',
-          page: 1,
-          sort: 'name',
+      it('parses expand', () => {
+        expect(PersonaCustomIds.parse(`persona::expand::${ID}::content`)).toEqual({
+          action: 'expand',
+          entityId: ID,
+          field: 'content',
         });
       });
 
-      it('should parse list info customId (no page/sort)', () => {
-        const result = ChannelCustomIds.parse('channel::list::info');
-        expect(result).toEqual({
-          command: 'channel',
-          action: 'list',
+      it('parses override-create', () => {
+        expect(PersonaCustomIds.parse(`persona::override-create::${PID}`)).toEqual({
+          action: 'override-create',
+          personalityId: PID,
         });
       });
 
-      it('should handle action without page/sort params', () => {
-        const result = ChannelCustomIds.parse('channel::activate');
-        expect(result).toEqual({
-          command: 'channel',
-          action: 'activate',
+      it('parses cancel_edit with a sectionId', () => {
+        expect(PersonaCustomIds.parse(`persona::cancel_edit::${ID}::identity`)).toEqual({
+          action: 'cancel_edit',
+          entityId: ID,
+          sectionId: 'identity',
         });
       });
-    });
 
-    describe('isChannel', () => {
-      it('should return true for channel customIds', () => {
-        expect(ChannelCustomIds.isChannel('channel::list::0::date')).toBe(true);
-        expect(ChannelCustomIds.isChannel('channel::sort::1::name')).toBe(true);
-      });
-
-      it('should return false for non-channel customIds', () => {
-        expect(ChannelCustomIds.isChannel('character::seed')).toBe(false);
-        expect(ChannelCustomIds.isChannel('persona::create')).toBe(false);
+      it('parses cancel_edit without a sectionId — no sectionId key', () => {
+        const result = PersonaCustomIds.parse(`persona::cancel_edit::${ID}`);
+        expect(result).toEqual({ action: 'cancel_edit', entityId: ID });
+        expect(Object.hasOwn(result ?? {}, 'sectionId')).toBe(false);
       });
     });
-  });
 
-  describe('ChannelCustomIds round-trip', () => {
-    it('should round-trip list page', () => {
-      const customId = ChannelCustomIds.listPage(3, 'date');
-      const parsed = ChannelCustomIds.parse(customId);
-      expect(parsed?.page).toBe(3);
-      expect(parsed?.sort).toBe('date');
+    describe('rejects', () => {
+      it.each([
+        ['modal with too few segments', 'persona::modal::abc'],
+        ['extra segments on menu', 'persona::menu::a::b'],
+        ['unknown action', 'persona::fake_action::x'],
+        ['wrong prefix', 'character::menu::x'],
+        [
+          'browse is not a persona-family action (live browse ids come from createBrowseCustomIdHelpers)',
+          'persona::browse::info',
+        ],
+      ])('%s', (_label, customId) => {
+        expect(PersonaCustomIds.parse(customId)).toBeNull();
+      });
     });
 
-    it('should round-trip sort toggle', () => {
-      const customId = ChannelCustomIds.sortToggle(2, 'name');
-      const parsed = ChannelCustomIds.parse(customId);
-      expect(parsed?.action).toBe('sort');
-      expect(parsed?.page).toBe(2);
-      expect(parsed?.sort).toBe('name');
-    });
-  });
+    describe('cross-convention agreement with buildDashboardCustomId', () => {
+      it.each(['menu', 'close', 'refresh', 'back', 'delete'] as const)(
+        '%s: family and dashboard builder agree on segment order',
+        action => {
+          const customId = buildDashboardCustomId('persona', action, ID);
+          expect(PersonaCustomIds.parse(customId)).toEqual({ action, entityId: ID });
+        }
+      );
 
-  describe('ChannelCustomIds delimiter enforcement', () => {
-    it('listPage', () => {
-      const customId = ChannelCustomIds.listPage(1, 'date');
-      expect(customId).toContain('::');
-      expect(getCommandFromCustomId(customId)).toBe('channel');
+      it.each(['modal', 'view_full', 'edit_truncated', 'open_editor', 'cancel_edit'] as const)(
+        '%s: family and dashboard builder agree on segment order (with sectionId)',
+        action => {
+          const customId = buildDashboardCustomId('persona', action, ID, 'identity');
+          expect(PersonaCustomIds.parse(customId)).toEqual({
+            action,
+            entityId: ID,
+            sectionId: 'identity',
+          });
+        }
+      );
     });
 
-    it('listInfo', () => {
-      const customId = ChannelCustomIds.listInfo();
-      expect(customId).toContain('::');
-      expect(getCommandFromCustomId(customId)).toBe('channel');
-    });
+    describe('isPersona', () => {
+      it('returns true for persona customIds', () => {
+        expect(PersonaCustomIds.isPersona('persona::menu::abc')).toBe(true);
+      });
 
-    it('sortToggle', () => {
-      const customId = ChannelCustomIds.sortToggle(0, 'name');
-      expect(customId).toContain('::');
-      expect(getCommandFromCustomId(customId)).toBe('channel');
+      it('returns false for non-persona customIds', () => {
+        expect(PersonaCustomIds.isPersona('character::menu::abc')).toBe(false);
+      });
     });
   });
 });

@@ -14,10 +14,18 @@
  * - UUIDs contain hyphens: abc12345-def6-7890-abcd-ef1234567890
  * - Slugs may contain hyphens: my-personality-name
  * Using `-` would cause parsing to fail when splitting.
+ *
+ * New command customId families are declared with `defineCustomIdFamily`
+ * (`./customIdFamily.ts`), which derives typed build/parse/is helpers from a
+ * segment-list-per-action declaration. The per-command objects still
+ * hand-written directly in this file are pending migration to that factory.
  */
 
-/** Delimiter used between custom ID segments */
-export const CUSTOM_ID_DELIMITER = '::';
+import { CUSTOM_ID_DELIMITER, defineCustomIdFamily, seg } from './customIdFamily.js';
+
+// Re-exported for the many existing importers of `CUSTOM_ID_DELIMITER` from
+// this file; `customIdFamily.ts` owns the constant (see its JSDoc for why).
+export { CUSTOM_ID_DELIMITER };
 
 // ============================================================================
 // CHARACTER COMMAND
@@ -334,190 +342,48 @@ export const DestructiveCustomIds = {
 } as const;
 
 // ============================================================================
-// CHANNEL COMMAND
-// ============================================================================
-
-/** Sort options for `/channel browse` */
-type ChannelListSortType = 'date' | 'name';
-
-/** Result type for ChannelCustomIds.parse */
-interface ChannelParseResult {
-  command: 'channel';
-  action: string;
-  page?: number;
-  sort?: ChannelListSortType;
-}
-
-export const ChannelCustomIds = {
-  /**
-   * Build list pagination button customId
-   * Format: channel::list::{page}::{sort}
-   */
-  listPage: (page: number, sort: ChannelListSortType) => `channel::list::${page}::${sort}` as const,
-
-  /** Build list page info button customId (disabled) */
-  listInfo: () => 'channel::list::info' as const,
-
-  /**
-   * Build sort toggle button customId
-   * Format: channel::sort::{page}::{newSort}
-   */
-  sortToggle: (page: number, newSort: ChannelListSortType) =>
-    `channel::sort::${page}::${newSort}` as const,
-
-  /** Parse channel customId */
-  parse: (customId: string): ChannelParseResult | null => {
-    const parts = customId.split(CUSTOM_ID_DELIMITER);
-    if (parts[0] !== 'channel' || parts.length < 2) {
-      return null;
-    }
-
-    const action = parts[1];
-    const result: ChannelParseResult = { command: 'channel', action };
-
-    // For list and sort actions, parse page and sort
-    if ((action === 'list' || action === 'sort') && parts[2] !== undefined && parts[2] !== 'info') {
-      const pageNum = parseInt(parts[2], 10);
-      if (!isNaN(pageNum)) {
-        result.page = pageNum;
-      }
-      if (parts[3] === 'date' || parts[3] === 'name') {
-        result.sort = parts[3];
-      }
-    }
-
-    return result;
-  },
-
-  /** Check if customId belongs to channel command */
-  isChannel: (customId: string): boolean => customId.startsWith('channel::'),
-} as const;
-
-// ============================================================================
 // PERSONA COMMAND
 // ============================================================================
 
-/** Sort options for persona browse */
-export type PersonaBrowseSortType = 'date' | 'name';
+const entityId = seg.str('entityId');
+const sectionId = seg.str('sectionId');
 
-/** Result type for PersonaCustomIds.parse */
-interface PersonaParseResult {
-  command: 'persona';
-  action: string;
-  personaId?: string;
-  sectionId?: string;
-  field?: string;
-  personalityId?: string;
-  page?: number;
-  sort?: PersonaBrowseSortType;
-}
+const personaFamily = defineCustomIdFamily('persona', {
+  // Dashboard actions — these strings are ALSO produced by
+  // `buildDashboardCustomId`/`ModalFactory`/`truncationGate/buttons.ts`; the
+  // two conventions must agree on segment order (pinned by the agreement
+  // tests in customIds.test.ts).
+  menu: [entityId],
+  modal: [entityId, sectionId],
+  close: [entityId],
+  refresh: [entityId],
+  back: [entityId],
+  delete: [entityId],
+  'confirm-delete': [entityId],
+  'cancel-delete': [entityId],
+  edit_truncated: [entityId, sectionId],
+  open_editor: [entityId, sectionId],
+  view_full: [entityId, sectionId],
+  cancel_edit: [entityId, seg.optional(sectionId)],
+  // Per-command actions
+  create: [],
+  expand: [entityId, seg.str('field')],
+  'override-create': [seg.str('personalityId')],
+});
 
 export const PersonaCustomIds = {
-  // Dashboard actions (entityType = 'persona' for routing)
-  /** Build menu customId for dashboard select menu */
-  menu: (personaId: string) => `persona::menu::${personaId}` as const,
-
-  /** Build modal customId for section edit */
-  modal: (personaId: string, sectionId: string) =>
-    `persona::modal::${personaId}::${sectionId}` as const,
-
-  /** Build close button customId */
-  close: (personaId: string) => `persona::close::${personaId}` as const,
-
-  /** Build refresh button customId */
-  refresh: (personaId: string) => `persona::refresh::${personaId}` as const,
-
-  /** Build delete button customId */
-  delete: (personaId: string) => `persona::delete::${personaId}` as const,
-
-  /** Build confirm delete button customId */
-  confirmDelete: (personaId: string) => `persona::confirm-delete::${personaId}` as const,
-
-  /** Build cancel delete button customId */
-  cancelDelete: (personaId: string) => `persona::cancel-delete::${personaId}` as const,
-
-  // Create actions
-  /** Create new persona modal */
-  create: () => 'persona::create' as const,
-
-  // View actions
-  /** Expand content field button */
-  expand: (personaId: string, field: string) => `persona::expand::${personaId}::${field}` as const,
-
-  // Override actions
-  /** Create persona for override flow */
-  overrideCreate: (personalityId: string) => `persona::override-create::${personalityId}` as const,
-
-  // Browse actions
-  /** Build browse pagination button customId */
-  browsePage: (page: number, sort: PersonaBrowseSortType) =>
-    `persona::browse::${page}::${sort}` as const,
-
-  /** Build browse select menu customId */
-  browseSelect: (page: number, sort: PersonaBrowseSortType) =>
-    `persona::browse-select::${page}::${sort}` as const,
-
-  /** Build browse info button customId (disabled) */
-  browseInfo: () => 'persona::browse::info' as const,
-
-  /** Parse persona customId */
-  // eslint-disable-next-line sonarjs/cognitive-complexity -- Parser for 5+ custom ID formats with early-return pattern matching per action type
-  parse: (customId: string): PersonaParseResult | null => {
-    const parts = customId.split(CUSTOM_ID_DELIMITER);
-    if (parts[0] !== 'persona' || parts.length < 2) {
-      return null;
-    }
-
-    const action = parts[1];
-    const result: PersonaParseResult = { command: 'persona', action };
-
-    // Handle browse actions
-    if (action === 'browse' || action === 'browse-select') {
-      if (parts[2] !== 'info' && parts[2] !== undefined) {
-        const pageNum = parseInt(parts[2], 10);
-        if (!isNaN(pageNum)) {
-          result.page = pageNum;
-        }
-        if (parts[3] === 'date' || parts[3] === 'name') {
-          result.sort = parts[3];
-        }
-      }
-      return result;
-    }
-
-    // Handle expand action: persona::expand::personaId::field
-    if (action === 'expand') {
-      result.personaId = parts[2];
-      result.field = parts[3];
-      return result;
-    }
-
-    // Handle override-create action: persona::override-create::personalityId
-    if (action === 'override-create') {
-      result.personalityId = parts[2];
-      return result;
-    }
-
-    // Handle modal action: persona::modal::personaId::sectionId
-    if (action === 'modal') {
-      result.personaId = parts[2];
-      result.sectionId = parts[3];
-      return result;
-    }
-
-    // Default: personaId in third position
-    if (parts[2] !== undefined) {
-      result.personaId = parts[2];
-    }
-    if (parts[3] !== undefined) {
-      result.sectionId = parts[3];
-    }
-
-    return result;
-  },
-
-  /** Check if customId belongs to persona command */
-  isPersona: (customId: string): boolean => customId.startsWith('persona::'),
+  menu: personaFamily.build.menu,
+  modal: personaFamily.build.modal,
+  close: personaFamily.build.close,
+  refresh: personaFamily.build.refresh,
+  delete: personaFamily.build.delete,
+  confirmDelete: personaFamily.build['confirm-delete'],
+  cancelDelete: personaFamily.build['cancel-delete'],
+  create: personaFamily.build.create,
+  expand: personaFamily.build.expand,
+  overrideCreate: personaFamily.build['override-create'],
+  parse: personaFamily.parse,
+  isPersona: personaFamily.is,
 } as const;
 
 // ============================================================================

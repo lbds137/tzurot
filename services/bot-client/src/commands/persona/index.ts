@@ -156,7 +156,7 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
   if (parsed.action === 'create') {
     // Create new persona modal
     await handleCreateModalSubmit(interaction);
-  } else if (parsed.action === 'override-create' && parsed.personalityId !== undefined) {
+  } else if (parsed.action === 'override-create') {
     // Create persona for override - personalityId from customId
     await handleOverrideCreateModalSubmit(interaction, parsed.personalityId);
   } else {
@@ -230,11 +230,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
   }
 
   if (parsed.action === 'expand') {
-    if (parsed.personaId !== undefined && parsed.field !== undefined) {
-      await handleExpandContent(interaction, parsed.personaId, parsed.field);
-    } else {
-      logger.warn({ customId, parsed }, 'Missing personaId or field for expand action');
-    }
+    await handleExpandContent(interaction, parsed.entityId, parsed.field);
   } else {
     logger.warn({ customId, parsed }, 'Unknown button action');
   }

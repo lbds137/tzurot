@@ -176,7 +176,7 @@ async function handleSectionModalSubmit(
 /**
  * Handle select menu interactions for dashboard.
  *
- * The select-menu customId follows `persona::menu::{personaId}` and the
+ * The select-menu customId follows `persona::menu::{entityId}` and the
  * selected value is `edit-{sectionId}`. We resolve the section context,
  * detect any over-length fields, and gate the modal behind a truncation
  * warning when present. Otherwise the modal opens directly. Mirrors the
@@ -184,13 +184,13 @@ async function handleSectionModalSubmit(
  * `commands/character/dashboard.ts` `handleSelectMenu`.
  */
 export async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
-  // Parse the persona-typed customId to extract personaId.
+  // Parse the persona-typed customId to extract entityId.
   const parsed = PersonaCustomIds.parse(interaction.customId);
-  if (parsed?.personaId === undefined) {
+  if (parsed?.action !== 'menu') {
     logger.warn({ customId: interaction.customId }, 'Unrecognized persona select menu customId');
     return;
   }
-  const entityId = parsed.personaId;
+  const entityId = parsed.entityId;
 
   // Discord's contract says a select-menu interaction always carries at
   // least one value, but nothing structurally prevents an empty array —
@@ -389,77 +389,73 @@ async function handleCancelDeleteButton(
 export async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const parsed = PersonaCustomIds.parse(interaction.customId);
   if (parsed === null) {
-    // Fall back to dashboard parsing for standard actions
-    const dashboardParsed = parseDashboardCustomId(interaction.customId);
-    if (dashboardParsed?.entityType !== 'persona' || dashboardParsed.entityId === undefined) {
-      return;
-    }
-
-    const entityId = dashboardParsed.entityId;
-    const action = dashboardParsed.action;
-
-    switch (action) {
-      case 'close':
-        await handleCloseButton(interaction, entityId);
-        break;
-      case 'refresh':
-        await handleRefreshButton(interaction, entityId);
-        break;
-      case 'delete':
-        await handleDeleteButton(interaction, entityId);
-        break;
-    }
-    return;
-  }
-
-  const entityId = parsed.personaId;
-  if (entityId === undefined) {
+    // A persona customId the family does not declare or that fails its
+    // segment validation. DASHBOARD_ACTIONS gates routing, so reaching here
+    // means the Set and the family drifted; the raw action segment is
+    // logged so the drift is diagnosable. Discord shows "Interaction Failed".
+    logger.warn(
+      {
+        customId: interaction.customId,
+        action: parseDashboardCustomId(interaction.customId)?.action,
+      },
+      'Unknown dashboard action; dropping'
+    );
     return;
   }
 
   switch (parsed.action) {
     case 'close':
-      await handleCloseButton(interaction, entityId);
+      await handleCloseButton(interaction, parsed.entityId);
       break;
     case 'back':
       await ackUpdate(interaction);
-      await handleSharedBackButton(interaction, 'persona', entityId);
+      await handleSharedBackButton(interaction, 'persona', parsed.entityId);
       break;
     case 'refresh':
-      await handleRefreshButton(interaction, entityId);
+      await handleRefreshButton(interaction, parsed.entityId);
       break;
     case 'delete':
-      await handleDeleteButton(interaction, entityId);
+      await handleDeleteButton(interaction, parsed.entityId);
       break;
     case 'confirm-delete':
-      await handleConfirmDeleteButton(interaction, entityId);
+      await handleConfirmDeleteButton(interaction, parsed.entityId);
       break;
     case 'cancel-delete':
-      await handleCancelDeleteButton(interaction, entityId);
+      await handleCancelDeleteButton(interaction, parsed.entityId);
+      break;
+    case 'cancel_edit':
+      await handleCancelEditButton(interaction);
+      break;
+    case 'edit_truncated':
+    case 'open_editor':
+    case 'view_full':
+      await dispatchTruncationGateAction(
+        interaction,
+        parsed.action,
+        parsed.entityId,
+        parsed.sectionId
+      );
       break;
     default:
-      if (isTruncationGateAction(parsed.action)) {
-        await dispatchTruncationGateAction(interaction, parsed.action, entityId, parsed.sectionId);
-      } else {
-        // Unknown action with a valid customId shape — DASHBOARD_ACTIONS
-        // gates the routing, so reaching here means the Set and the handlers
-        // drifted. Logs the violation so it's diagnosable; Discord still
-        // shows "Interaction Failed", since acking unknown actions safely
-        // needs more context than this layer has.
-        logger.warn(
-          { customId: interaction.customId, action: parsed.action, entityId },
-          'Unknown dashboard action; dropping'
-        );
-      }
+      // A declared non-dashboard persona action (e.g. `expand`) reaching the
+      // dashboard handler — DASHBOARD_ACTIONS gates routing upstream, so this
+      // path only fires if that gate and this switch drift apart.
+      logger.warn(
+        {
+          customId: interaction.customId,
+          action: parsed.action,
+          entityId: 'entityId' in parsed ? parsed.entityId : undefined,
+        },
+        'Unknown dashboard action; dropping'
+      );
   }
 }
 
 /**
- * Truncation-gate button actions. The literal-type union keeps the
- * dispatcher exhaustive: adding a member here without a switch case fails
- * compilation at the never-check, instead of surfacing as a runtime
- * "Interaction Failed". DASHBOARD_ACTIONS spreads this tuple, so the
- * routing gate can't drift from the dispatcher either.
+ * Truncation-gate button actions that route through `dispatchTruncationGateAction`.
+ * `cancel_edit` is handled directly in `handleButton` (it needs no `sectionId`).
+ * DASHBOARD_ACTIONS spreads this tuple, so the routing gate can't drift from
+ * the dispatcher.
  */
 const TRUNCATION_GATE_ACTIONS = [
   'edit_truncated',
@@ -469,35 +465,18 @@ const TRUNCATION_GATE_ACTIONS = [
 ] as const;
 type TruncationGateAction = (typeof TRUNCATION_GATE_ACTIONS)[number];
 
-function isTruncationGateAction(action: string): action is TruncationGateAction {
-  return (TRUNCATION_GATE_ACTIONS as readonly string[]).includes(action);
-}
-
 /**
- * Dispatch truncation-gate button actions. Extracted from `handleButton` to
- * keep its cyclomatic complexity under the project's max-20 ceiling.
- *
- * `cancel_edit` is the only branch that doesn't need `sectionId`; the
- * other three log + drop if a malformed customId arrives without it,
- * so the silent-no-op case is observable in logs.
+ * Dispatch truncation-gate button actions that carry a `sectionId`. Extracted
+ * from `handleButton` to keep its cyclomatic complexity under the project's
+ * max-20 ceiling. `cancel_edit` is excluded from this dispatcher's action
+ * type — it needs no `sectionId` and is handled directly in `handleButton`.
  */
 async function dispatchTruncationGateAction(
   interaction: ButtonInteraction,
-  action: TruncationGateAction,
+  action: Exclude<TruncationGateAction, 'cancel_edit'>,
   entityId: string,
-  sectionId: string | undefined
+  sectionId: string
 ): Promise<void> {
-  if (action === 'cancel_edit') {
-    await handleCancelEditButton(interaction);
-    return;
-  }
-  if (sectionId === undefined) {
-    logger.warn(
-      { customId: interaction.customId, action },
-      'Truncation-gate action received without sectionId; dropping'
-    );
-    return;
-  }
   switch (action) {
     case 'edit_truncated':
       await handleEditTruncatedButton(interaction, entityId, sectionId);

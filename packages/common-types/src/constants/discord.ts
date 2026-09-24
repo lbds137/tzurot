@@ -76,6 +76,8 @@ export const DISCORD_LIMITS = {
    *  an autocompleted string option reuses it as its max length so typed values
    *  can always be offered back as a choice. */
   AUTOCOMPLETE_CHOICE_MAX_LENGTH: 100,
+  /** Discord's component customId character limit (buttons, select menus, modals) */
+  CUSTOM_ID_MAX_LENGTH: 100,
   /** Maximum length for modal text input (paragraph style) */
   MODAL_INPUT_MAX_LENGTH: 4000,
   /** Max `message` option length on the `/chat`-family commands — Nitro's max
