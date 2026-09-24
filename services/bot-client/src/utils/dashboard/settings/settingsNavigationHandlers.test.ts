@@ -104,8 +104,8 @@ describe('settingsNavigationHandlers', () => {
   });
 
   describe('handleJumpSelect', () => {
-    it('jumps to the selected page (page 3 of 4) and renders that page', async () => {
-      const i = interaction(['2']);
+    it('jumps to the selected page (page 3 of 4, id p2) and renders that page', async () => {
+      const i = interaction(['p2']);
       await handleJumpSelect(i as never, config(), session({ view: DashboardView.INDEX, page: 0 }));
 
       const stored = storedSession();
@@ -115,16 +115,36 @@ describe('settingsNavigationHandlers', () => {
       expect(renderedTitle(i)).toBe('Test Settings · Charlie');
     });
 
-    it('clamps a value past a since-shrunk page list to the last page', async () => {
-      const i = interaction(['9']);
-      await handleJumpSelect(i as never, config(), session({ view: DashboardView.INDEX }));
+    it('resolves the id to its CURRENT position when a deploy reorders config.pages', async () => {
+      // The select was built from FOUR_PAGES order (p0..p3), but the config
+      // handed to the handler has since been reordered — the clicked id
+      // (Charlie, p2) must land on ITS new position, not the old one.
+      const reordered = config([FOUR_PAGES[3], FOUR_PAGES[2], FOUR_PAGES[0], FOUR_PAGES[1]]);
+      const i = interaction(['p2']);
+      await handleJumpSelect(
+        i as never,
+        reordered,
+        session({ view: DashboardView.INDEX, page: 0 })
+      );
 
-      expect(storedSession().page).toBe(3);
-      expect(renderedTitle(i)).toBe('Test Settings · Delta');
+      expect(storedSession().page).toBe(1); // Charlie is now at position 1
+      expect(renderedTitle(i)).toBe('Test Settings · Charlie');
     });
 
-    it('a value that is not a page index keeps the current page', async () => {
-      for (const forged of ['abc', '-1', '1.5', '']) {
+    it('clamps a stale session page past a since-shrunk page list to the last page', async () => {
+      // The clicked id (p3 / Delta) no longer exists in the shrunk 2-page
+      // list, so the handler falls back to the session's own page — which is
+      // itself stale (3, from before the shrink) and needs clamping.
+      const shrunk = config(FOUR_PAGES.slice(0, 2));
+      const i = interaction(['p3']);
+      await handleJumpSelect(i as never, shrunk, session({ view: DashboardView.INDEX, page: 3 }));
+
+      expect(storedSession().page).toBe(1);
+      expect(renderedTitle(i)).toBe('Test Settings · Bravo');
+    });
+
+    it('an id with no matching page (removed page, or a forged value) keeps the current page', async () => {
+      for (const forged of ['abc', '-1', '1.5', '', 'p99']) {
         vi.clearAllMocks();
         const i = interaction([forged]);
         await handleJumpSelect(
