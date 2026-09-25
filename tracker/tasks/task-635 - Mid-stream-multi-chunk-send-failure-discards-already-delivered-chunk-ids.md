@@ -1,9 +1,10 @@
 ---
 id: TASK-635
 title: Mid-stream multi-chunk send failure discards already-delivered chunk ids
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-16 23:44'
+updated_date: '2026-09-25 13:13'
 labels:
   - 'area:bot-client'
   - 'size:S'
