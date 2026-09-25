@@ -1,10 +1,10 @@
 ---
 id: TASK-628
 title: 'ModelFactory polish: mode-aware filter log + complete AIProvider test mock'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-16 16:59'
-updated_date: '2026-09-04 19:37'
+updated_date: '2026-09-25 00:43'
 labels:
   - 'area:ai-worker'
   - 'size:S'
