@@ -61,12 +61,21 @@ jobs:
     # its own rather than a lint-job step: guard:gate-parity pairs lint-job
     # steps with `pnpm quality`, and this check has no meaningful local twin
     # on a machine whose /bin/sh is bash.
+    # shellcheck -s sh rides beside sh -n: a semantic bashism such as [ a == b ]
+    # parses fine under dash and misbehaves silently, and only a linter flags it.
     runs-on: ubuntu-latest
+    env:
+      HOOKS: .husky/pre-commit .husky/pre-push .husky/commit-msg
     steps:
       - uses: actions/checkout@v7
       - name: Parse lifecycle hooks with /bin/sh (dash)
         run: |
-          for f in .husky/pre-commit .husky/pre-push .husky/commit-msg; do sh -n "$f" || exit 1; done
+          for f in $HOOKS; do sh -n "$f" || exit 1; done
+      - name: Lint lifecycle hooks with shellcheck (sh dialect)
+        run: |
+          command -v shellcheck >/dev/null || (sudo apt-get update && sudo apt-get install -y shellcheck)
+          shellcheck --version
+          shellcheck -s sh $HOOKS
 
   lint:
     runs-on: ubuntu-latest

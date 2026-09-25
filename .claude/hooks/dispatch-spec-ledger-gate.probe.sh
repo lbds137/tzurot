@@ -496,7 +496,7 @@ fi
 
 # Unquoted on purpose: the list is space-separated and each entry is a flag
 # token, so word splitting is the parse and no entry can glob.
-# shellcheck disable=SC2086 -- intentional word splitting over the flag list
+# shellcheck disable=SC2086
 for FLAG in $PROBE_FLAGS; do
   run_iso 2 "phantom pnpm script" "table entry ${FLAG} skips its value: a declared script there does not rescue the phantom" \
     "$FIXTURE" worktree \
