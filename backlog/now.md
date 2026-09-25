@@ -33,7 +33,7 @@ _beta.230 CUT 2026-09-25 15:05Z (11:05 EDT). **The numbers:** 29 PRs, 19 runtime
   - TASK-1027 is the owner's call;
   - no model-parameter experiments;
   - the owner clears sessions with `/clear`, so every handoff lives on disk.
-- **In**: _(empty at the cut; grows as PRs merge)_. First up: #2534 (TASK-979, the compact deferred-refs reminder; round-1 fixup committed locally, rebases onto the released develop and pushes once) and the `.github/rulesets/branch-protection.json` snapshot refresh for the `hook-posix-parse` re-add.
+- **In**: #2534 (TASK-979, the compact deferred-refs reminder the hooks print; two rounds, `20c33ce8c`). Next up: #2536 (the `.github/rulesets/branch-protection.json` snapshot refresh for the `hook-posix-parse` re-add; one Low finding, the README counts, folded in).
 - **Waiting on**:
   1. **The TASK-1039 second read** at N=3 on Emily and Lilith (owner ruling 2026-09-24; set by the owner). Slice 2 (the measured default for N, the override cascade, the facts-vocabulary slice) waits on it. If the read does not move the register, slice 2 is not in this train either and the theme collapses to the drain.
   2. **TASK-1070's dev check** (owner smoke, `CURRENT.md` § beta.230 item 1): one TTS reply and one no-key transcription in dev on the Python 3.13 voice-engine. Not a cut blocker; it closes the task.
