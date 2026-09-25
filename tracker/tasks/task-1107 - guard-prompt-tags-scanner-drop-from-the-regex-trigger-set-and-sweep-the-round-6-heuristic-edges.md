@@ -3,9 +3,10 @@ id: TASK-1107
 title: >-
   guard:prompt-tags scanner: drop } from the regex trigger set and sweep the
   round-6 heuristic edges
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-25 18:28'
+updated_date: '2026-09-25 19:14'
 labels:
   - 'area:tooling'
   - 'size:S'
