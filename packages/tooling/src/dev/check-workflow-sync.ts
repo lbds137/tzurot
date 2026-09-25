@@ -43,6 +43,7 @@
 
 import { execFileSync } from 'node:child_process';
 import chalk from 'chalk';
+import { ensureRef } from './git-ensure-ref.js';
 
 /**
  * The workflows that self-validate against main. Add an entry when a new
@@ -188,20 +189,6 @@ export function resolvePrBase(
     // `could not read the PR base ()` — an empty parenthetical reads as a bug
     // in the guard rather than as an unexplained failure of the lookup.
     return { base: null, reason: detail.length > 0 ? detail : 'gh failed without a message' };
-  }
-}
-
-/**
- * Make sure `origin/<branch>` exists locally — fetch it when absent (shallow
- * CI checkouts have only the pushed branch). NOTE: an existing-but-STALE ref
- * is used as-is (CI always checks out fresh; locally a stale ref can produce
- * a stale verdict — `git fetch origin <branch>` refreshes it).
- */
-function ensureRef(runGit: (args: string[]) => string, branch: string): void {
-  try {
-    runGit(['rev-parse', '--verify', `origin/${branch}`]);
-  } catch {
-    runGit(['fetch', 'origin', branch, '--depth=1']);
   }
 }
 

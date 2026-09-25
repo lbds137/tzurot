@@ -183,7 +183,7 @@ function registerSyncGuards(cli: CAC): void {
   cli
     .command(
       'guard:repo-settings',
-      'Fail when deletion of a long-lived branch (main, develop) is reachable via GitHub settings'
+      'Fail when deletion of a long-lived branch (main, develop) is reachable via GitHub settings, or when the main ruleset requires a status check with no job in origin/main ci.yml'
     )
     .option('--json', 'Emit the raw settings surface as JSON')
     .example('ops guard:repo-settings')

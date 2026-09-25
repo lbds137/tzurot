@@ -21,16 +21,16 @@ per live ruleset, no speculative variants. Git history has them if they are ever
 
 ## How they differ, and why
 
-|                       | `main`       | `develop`                |
-| --------------------- | ------------ | ------------------------ |
-| Pull request required | yes          | yes                      |
-| Merge method          | rebase only  | rebase only              |
-| Branch deletion       | blocked      | blocked                  |
-| Linear history        | required     | required                 |
-| Required checks       | the 13 below | those 13 + `fixup-check` |
-| Force-push            | blocked      | **allowed**              |
-| Admin bypass          | **never**    | **always**               |
-| Copilot review        | on           | **off**                  |
+|                       | `main`       | `develop`                                     |
+| --------------------- | ------------ | --------------------------------------------- |
+| Pull request required | yes          | yes                                           |
+| Merge method          | rebase only  | rebase only                                   |
+| Branch deletion       | blocked      | blocked                                       |
+| Linear history        | required     | required                                      |
+| Required checks       | the 12 below | those 12 + `hook-posix-parse` + `fixup-check` |
+| Force-push            | blocked      | **allowed**                                   |
+| Admin bypass          | **never**    | **always**                                    |
+| Copilot review        | on           | **off**                                       |
 
 **`allowed_merge_methods` lives inside the `pull_request` rule, so a branch with no
 `pull_request` rule has no merge-method enforcement at all.** That is why `develop`
@@ -69,11 +69,10 @@ The last of those is a live open choice rather than a constraint:
 
 ## Required status checks
 
-Both branches require these 13:
-
-`lint` · `build` · `unit-tests (ai-worker | api-gateway | bot-client | packages | tooling | website)` ·
-`component-integration-tests` · `docker-build-smoke-ok` · `voice-engine-tests` · `mutation-tests` ·
-`hook-posix-parse`
+`main` requires these 12: `lint` · `build` ·
+`unit-tests (ai-worker | api-gateway | bot-client | packages | tooling | website)` ·
+`component-integration-tests` · `docker-build-smoke-ok` · `voice-engine-tests` · `mutation-tests`.
+`develop` requires those 12 plus `hook-posix-parse` and `fixup-check`.
 
 Chosen because they always run and must always be green. Deliberately **excluded**:
 `codecov/patch`, `CodeQL`, `GitGuardian Security Checks`, `claude-review` — third-party or
@@ -83,13 +82,25 @@ the review body has been read. **`CodeQL` is path-filtered and genuinely does no
 some PRs** (a docs-only PR touching this directory produced no CodeQL run at all) — as a
 required context it would leave those PRs permanently unmergeable.
 
+**A context joins the MAIN list only after the release that ships its job reaches `main`; until
+then it is develop-only.** `pnpm ops guard:repo-settings` (release preflight and
+`pnpm ops health` — not a CI gate, CI tokens cannot read rulesets) fails on any main-required
+context that `origin/main`'s `ci.yml` does not produce (matrix legs are matched exactly), and
+WARNS when a develop-only context's job has since reached `main` — that warning is the re-add
+prompt; apply it after the release merges, then refresh `branch-protection.json` from live.
+`main` has no bypass actor, so a required context no main-cut PR can produce deadlocks every
+release PR (`hook-posix-parse` did exactly that to #2516 the day it landed on develop after
+the beta.229 cut).
+
 **`develop` additionally requires `fixup-check`; `main` must NOT.** The job blocks a merge
 while unsquashed `fixup!`/`squash!` commits remain, so requiring it on `develop` gives that
 structural teeth against a UI merge (agent discipline is not the only path in). But it is
 `if:`-gated off for `main` and `develop` refs, and on a release PR — whose head ref IS
 `develop` — it reports **`skipping`**, not `pass` (observed on release PR #1979). Requiring
 it on `main`, where there is **no bypass actor**, risks permanently deadlocking every
-release PR. The asymmetry is the point; do not "fix" it into symmetry.
+release PR. The asymmetry is the point; do not "fix" it into symmetry. The guard fails if
+`main` ever requires it (`MAIN_EXEMPT_CONTEXTS` in
+`packages/tooling/src/dev/main-required-checks.ts`).
 
 `strict` is **off** on both, and that was decided rather than defaulted. Turning it on
 requires every PR to be up to date with its base before merging, which would catch the
@@ -158,4 +169,6 @@ the same payload, then update the IDs above.
 
 **Renaming a CI job is a two-step change.** A required context that never reports blocks
 merges forever, and on `main` there is no bypass. Update the protection snapshot and apply
-it in the same change as the `ci.yml` rename.
+it in the same change as the `ci.yml` rename. A NEW job is a two-release change: `develop`'s
+ruleset in the PR that adds it, `main`'s only after the release that ships it (the guard's
+warning says when).

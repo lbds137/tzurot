@@ -23,10 +23,21 @@
  * Binary sync-check (like guard:duplicate-exports), NOT audit-class: no
  * threshold, no WHY.md, no --summary. Network-dependent, so it degrades to a
  * reported reason and exits 0 rather than blocking on a query it cannot run.
+ *
+ * A second, independent invariant lives here too: every status check `main`'s ruleset REQUIRES
+ * must be a job `main`'s own `ci.yml` actually produces (matrix legs expanded, matched
+ * exactly) — `main` has no bypass actor, so a required context with no matching leg is a
+ * permanent release-PR deadlock, not a flaky check. The sibling module
+ * `main-required-checks.ts` owns that rule (and the develop-only "re-add" warning) as its own
+ * `RequiredChecksSurface`, computed in a SEPARATE try/catch from the deletion-safety sweep
+ * below and rendered as its own report section — an unreadable `origin/main` must not blind
+ * this guard's primary safety check the way an unparseable ruleset blinds the whole sweep
+ * (that ruleset IS the deletion-safety verdict's own input; origin/main's ci.yml is not).
  */
 
 import { execFileSync } from 'node:child_process';
 import { GH_TIMEOUT_MS, describeGhFailure } from '../audits/health-extras.js';
+import { collectRequiredChecks, type RequiredChecksSurface } from './main-required-checks.js';
 
 /** Branches that must never be deletable. */
 export const LONG_LIVED_BRANCHES = ['main', 'develop'] as const;
@@ -76,7 +87,10 @@ export type RepoSettingsSurface =
       available: true;
       deleteBranchOnMerge: boolean;
       branches: BranchDeletionState[];
+      /** Deletion-safety findings ONLY — required-checks findings live in `requiredChecks`. */
       findings: RepoSettingsFinding[];
+      /** The second invariant's own sub-surface; degrades independently (see module header). */
+      requiredChecks: RequiredChecksSurface;
     }
   | { available: false; reason: string };
 
@@ -86,6 +100,8 @@ export interface ActiveBranchRuleset {
   branches: string[];
   hasDeletionRule: boolean;
   bypassActorCount: number;
+  /** `context` strings from every `required_status_checks` rule (deduped by caller, not here). */
+  requiredChecks: string[];
 }
 
 /**
@@ -165,7 +181,8 @@ function fetchRulesetIdsNdjson(timeoutMs: number): string {
 
 /** The GraphQL read behind {@link fetchDeleteBranchOnMerge}. */
 const DELETE_BRANCH_ON_MERGE_QUERY =
-  'query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { deleteBranchOnMerge } }';
+  'query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ' +
+  'deleteBranchOnMerge } }';
 
 /**
  * Fetch `deleteBranchOnMerge`; throws when the field is missing or not a boolean.
@@ -325,8 +342,29 @@ export function parseRulesetDetail(raw: string): ActiveBranchRuleset | undefined
   // evidence of how that mode behaves for a repo-setting-driven delete.
   const bypassActors = detail.bypass_actors;
   const bypassActorCount = Array.isArray(bypassActors) ? bypassActors.length : 0;
+  const requiredChecks = parseRequiredChecks(rules);
 
-  return { branches, hasDeletionRule, bypassActorCount };
+  return { branches, hasDeletionRule, bypassActorCount, requiredChecks };
+}
+
+/**
+ * `context` strings from every `required_status_checks` rule's
+ * `parameters.required_status_checks[]`; a missing or malformed block contributes nothing
+ * rather than throwing — same posture as the rest of this narrowing.
+ */
+function parseRequiredChecks(rules: unknown[]): string[] {
+  return rules
+    .filter(rule => asRecord(rule)?.type === 'required_status_checks')
+    .flatMap(rule => {
+      const params = asRecord(asRecord(rule)?.parameters);
+      const checks = params?.required_status_checks;
+      if (!Array.isArray(checks)) {
+        return [];
+      }
+      return checks
+        .map(c => asRecord(c)?.context)
+        .filter((c): c is string => typeof c === 'string');
+    });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -507,11 +545,18 @@ export function collectRepoSettings(options: CollectRepoSettingsOptions = {}): R
       }
     }
     const branches = deriveBranchStates(rulesets);
+    // A second invariant, evaluated over the same ruleset sweep, but in its OWN
+    // try/catch (inside main-required-checks.ts's collectRequiredChecks): an
+    // unreadable origin/main must not blind the deletion-safety verdict above,
+    // which is this guard's primary purpose — unlike an unparseable ruleset,
+    // which IS that verdict's own input and rightly degrades the whole sweep.
+    const requiredChecks = collectRequiredChecks(rulesets, budget);
     return {
       available: true,
       deleteBranchOnMerge,
       branches,
       findings: evaluateRepoSettings(deleteBranchOnMerge, branches),
+      requiredChecks,
     };
   } catch (error) {
     return { available: false, reason: describeGhFailure(error) };
@@ -523,6 +568,35 @@ const SEVERITY_ICON: Record<FindingSeverity, string> = {
   HIGH: '❌',
   MEDIUM: '⚠️',
 };
+
+/** '' + one `WARNING (not a failure)` line per warning, or [] when there are none. */
+function warningLines(warnings: string[]): string[] {
+  return warnings.length === 0
+    ? []
+    : ['', ...warnings.map(w => `  ⚠️  WARNING (not a failure): ${w}`)];
+}
+
+/**
+ * The required-checks sub-surface's lines, appended after the deletion state lines: an
+ * `unavailable` line, its own `❌ N main-required-check finding(s):` block when findings are
+ * present, or just the re-add warning lines when clean.
+ */
+function requiredChecksLines(surface: RequiredChecksSurface): string[] {
+  if (!surface.available) {
+    return ['', `  main-required-checks: unavailable — ${surface.reason}`];
+  }
+  if (surface.findings.length === 0) {
+    return warningLines(surface.warnings);
+  }
+  const count = surface.findings.length;
+  return [
+    '',
+    `❌ ${count} main-required-check finding${count === 1 ? '' : 's'}:`,
+    '',
+    ...surface.findings.map(f => `  ❌ ${f.severity}: ${f.message}`),
+    ...warningLines(surface.warnings),
+  ];
+}
 
 /** Render the human-readable report (degradation-aware). */
 export function formatRepoSettingsReport(surface: RepoSettingsSurface): string {
@@ -540,14 +614,14 @@ export function formatRepoSettingsReport(surface: RepoSettingsSurface): string {
   });
 
   if (surface.findings.length === 0) {
-    // The headline claims only what zero findings establish. It does NOT claim
-    // every branch carries an un-bypassable deletion rule: the clean state is
-    // reachable with delete_branch_on_merge off and develop's deletion rule
-    // fully bypassable, which is what the per-branch lines below would then say
-    // — a headline asserting otherwise contradicts its own report. The
-    // probe-verified note is scoped to the one thing the probe established: a
-    // deletion rule with NO bypass actors holds against the admin-privileged
-    // path (see `isDeletionReachable` for the measurement).
+    // The headline claims only what zero DELETION findings establish — it says nothing about
+    // the required-checks sub-surface, rendered separately below via requiredChecksLines. It
+    // does NOT claim every branch carries an un-bypassable deletion rule: the clean state is
+    // reachable with delete_branch_on_merge off and develop's deletion rule fully bypassable,
+    // which is what the per-branch lines below would then say — a headline asserting
+    // otherwise contradicts its own report. The probe-verified note is scoped to the one
+    // thing the probe established: a deletion rule with NO bypass actors holds against the
+    // admin-privileged path (see `isDeletionReachable` for the measurement).
     return [
       '✓ No deletion-safety findings. What each branch actually carries is in the ' +
         'per-branch state below: a deletion rule with no bypass actors is probe-verified ' +
@@ -556,6 +630,7 @@ export function formatRepoSettingsReport(surface: RepoSettingsSurface): string {
         'delete_branch_on_merge below is the protection that assumes nothing.',
       `  delete_branch_on_merge: ${String(surface.deleteBranchOnMerge)}`,
       ...stateLines,
+      ...requiredChecksLines(surface.requiredChecks),
     ].join('\n');
   }
 
@@ -567,6 +642,7 @@ export function formatRepoSettingsReport(surface: RepoSettingsSurface): string {
     '',
     `  delete_branch_on_merge: ${String(surface.deleteBranchOnMerge)}`,
     ...stateLines,
+    ...requiredChecksLines(surface.requiredChecks),
   ];
   return lines.join('\n');
 }
@@ -576,8 +652,8 @@ interface RepoSettingsCommandOptions {
 }
 
 /**
- * `guard:repo-settings` entry point. Hard-fails on findings (guards gate), but
- * fails OPEN when the API is unreadable — never block on a query it cannot run.
+ * `guard:repo-settings` entry point. Hard-fails on findings from EITHER sub-surface (guards
+ * gate), but fails OPEN when the API is unreadable — never block on a query it cannot run.
  */
 export function checkRepoSettings(options: RepoSettingsCommandOptions = {}): void {
   const surface = collectRepoSettings();
@@ -586,7 +662,11 @@ export function checkRepoSettings(options: RepoSettingsCommandOptions = {}): voi
   } else {
     console.log(formatRepoSettingsReport(surface));
   }
-  if (surface.available && surface.findings.length > 0) {
+  const hasFindings =
+    surface.available &&
+    (surface.findings.length > 0 ||
+      (surface.requiredChecks.available && surface.requiredChecks.findings.length > 0));
+  if (hasFindings) {
     process.exitCode = 1;
   }
 }

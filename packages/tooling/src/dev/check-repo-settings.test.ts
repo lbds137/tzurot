@@ -2,7 +2,7 @@
  * Tests for the repo deletion-safety guard.
  *
  * The pure pieces (parsing, derivation, evaluation, rendering) are tested
- * directly; the `gh` seam is mocked and the args crossing it are asserted.
+ * directly; the `gh`/`git` seam is mocked and the args crossing it are asserted.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -13,6 +13,7 @@ vi.mock('node:child_process', () => ({
 
 import { execFileSync } from 'node:child_process';
 import { GH_TIMEOUT_MS } from '../audits/health-extras.js';
+import { GIT_SHOW_TIMEOUT_MS, MAIN_CI_WORKFLOW_REF } from './main-required-checks.js';
 import {
   LONG_LIVED_BRANCHES,
   isDeletionReachable,
@@ -24,9 +25,22 @@ import {
   collectRepoSettings,
   formatRepoSettingsReport,
   checkRepoSettings,
+  REPO_SETTINGS_BUDGET_MS,
   type ActiveBranchRuleset,
   type BranchDeletionState,
 } from './check-repo-settings.js';
+
+/** The `required_status_checks` rule shape (`.github/rulesets/branch-protection.json`). */
+function buildRequiredChecksRule(contexts: string[]): unknown {
+  return {
+    type: 'required_status_checks',
+    parameters: {
+      strict_required_status_checks_policy: false,
+      do_not_enforce_on_create: false,
+      required_status_checks: contexts.map(context => ({ context })),
+    },
+  };
+}
 
 /** A ruleset detail payload as GitHub returns it, with overridable pieces. */
 function rulesetDetail(overrides: {
@@ -36,7 +50,12 @@ function rulesetDetail(overrides: {
   bypassActors?: unknown[];
   enforcement?: string;
   target?: string;
+  requiredChecks?: string[];
 }): string {
+  const rules: unknown[] = (overrides.rules ?? ['deletion']).map(type => ({ type }));
+  if (overrides.requiredChecks !== undefined) {
+    rules.push(buildRequiredChecksRule(overrides.requiredChecks));
+  }
   return JSON.stringify({
     id: 1,
     enforcement: overrides.enforcement ?? 'active',
@@ -47,10 +66,36 @@ function rulesetDetail(overrides: {
         exclude: overrides.excludeRefs ?? [],
       },
     },
-    rules: (overrides.rules ?? ['deletion']).map(type => ({ type })),
+    rules,
     bypass_actors: overrides.bypassActors ?? [],
   });
 }
+
+/**
+ * The 8 job shapes behind the 12 live main required-check contexts, matrix legs included:
+ * `unit-tests` expands to its 6-cell matrix (mirroring the live ci.yml shape), the rest are
+ * bare job ids.
+ */
+const DEFAULT_MAIN_WORKFLOW =
+  'jobs:\n' +
+  '  lint: {}\n' +
+  '  build: {}\n' +
+  '  unit-tests:\n' +
+  '    name: "unit-tests (${{ matrix.cell }})"\n' +
+  '    strategy:\n' +
+  '      matrix:\n' +
+  '        include:\n' +
+  '          - cell: bot-client\n' +
+  '          - cell: ai-worker\n' +
+  '          - cell: api-gateway\n' +
+  '          - cell: website\n' +
+  '          - cell: tooling\n' +
+  '          - cell: packages\n' +
+  '  component-integration-tests: {}\n' +
+  '  docker-build-smoke: {}\n' +
+  '  docker-build-smoke-ok: {}\n' +
+  '  voice-engine-tests: {}\n' +
+  '  mutation-tests: {}\n';
 
 function state(overrides: Partial<BranchDeletionState> & { branch: string }): BranchDeletionState {
   return {
@@ -62,7 +107,13 @@ function state(overrides: Partial<BranchDeletionState> & { branch: string }): Br
 }
 
 function ruleset(overrides: Partial<ActiveBranchRuleset> = {}): ActiveBranchRuleset {
-  return { branches: ['main'], hasDeletionRule: true, bypassActorCount: 0, ...overrides };
+  return {
+    branches: ['main'],
+    hasDeletionRule: true,
+    bypassActorCount: 0,
+    requiredChecks: [],
+    ...overrides,
+  };
 }
 
 describe('parseRulesetIds', () => {
@@ -96,6 +147,7 @@ describe('parseRulesetDetail', () => {
       branches: ['develop'],
       hasDeletionRule: true,
       bypassActorCount: 1,
+      requiredChecks: [],
     });
   });
 
@@ -134,7 +186,19 @@ describe('parseRulesetDetail', () => {
 
   it('treats a missing rules/bypass_actors/conditions block as empty rather than throwing', () => {
     const parsed = parseRulesetDetail(JSON.stringify({ enforcement: 'active', target: 'branch' }));
-    expect(parsed).toEqual({ branches: [], hasDeletionRule: false, bypassActorCount: 0 });
+    expect(parsed).toEqual({
+      branches: [],
+      hasDeletionRule: false,
+      bypassActorCount: 0,
+      requiredChecks: [],
+    });
+  });
+
+  it('parses required_status_checks contexts', () => {
+    expect(
+      parseRulesetDetail(rulesetDetail({ requiredChecks: ['lint', 'unit-tests (tooling)'] }))
+        ?.requiredChecks
+    ).toEqual(['lint', 'unit-tests (tooling)']);
   });
 });
 
@@ -315,13 +379,20 @@ describe('collectRepoSettings', () => {
     vi.clearAllMocks();
   });
 
-  /** Wire the gh seam: repo settings, ruleset list, then per-id details. */
+  /** Wire the gh + git seam: repo settings, ruleset list, per-id details, and origin/main's ci.yml. */
   function mockGh(options: {
     deleteBranchOnMerge?: boolean;
     list?: number[];
     details?: Record<string, string>;
+    mainWorkflow?: string;
   }): void {
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+    vi.mocked(execFileSync).mockImplementation((cmd, args) => {
+      if (cmd === 'git') {
+        const gitArgs = args as string[];
+        if (gitArgs[0] === 'rev-parse') return 'abc123\n';
+        if (gitArgs[0] === 'fetch') return '';
+        return options.mainWorkflow ?? DEFAULT_MAIN_WORKFLOW;
+      }
       const path = (args as string[])[1];
       if (path === 'graphql') {
         return JSON.stringify({
@@ -344,7 +415,9 @@ describe('collectRepoSettings', () => {
     // Ruleset 1 needs a real detail fixture: it is the third fetch, which the
     // budget still permits. Ruleset 2 deliberately has none — the budget must
     // stop the sweep BEFORE that fetch, so a shim error there would mean the
-    // deadline failed to fire.
+    // deadline failed to fire. The ruleset loop's own budget exhaustion (below)
+    // fires before the git read is ever reached, so this test is unaffected by
+    // the required-checks sub-surface.
     mockGh({
       list: [1, 2],
       details: { 'repos/{owner}/{repo}/rulesets/1': rulesetDetail({ refs: ['~ALL'] }) },
@@ -378,7 +451,8 @@ describe('collectRepoSettings', () => {
     // 0.6 of a per-call timeout per read, against a 2T budget. Elapsed at each
     // consultation is 0.6T / 1.2T / 1.8T, so remaining is 1.4T / 0.8T / 0.2T —
     // only the FIRST call is clamped by the ceiling; the other two are already
-    // below it.
+    // below it. Ruleset id 1 has no detail fixture, so the sweep never reaches
+    // the required-checks read.
     const now = (): number => GH_TIMEOUT_MS * 0.6 * ticks++;
 
     collectRepoSettings({ now });
@@ -403,8 +477,10 @@ describe('collectRepoSettings', () => {
     // the per-call ceiling — the clamp returns an integer whenever remaining
     // exceeds the ceiling, so a naive fractional clock never reaches the branch
     // at all. (Learned by canary: a half-millisecond tick left this test green
-    // with Math.floor removed.) At 20000.25 per tick the two consultations see
-    // 39999.75 (clamped to 30000) and 19999.5 (fractional, unclamped).
+    // with Math.floor removed.) At 20000.25 per tick the two gh consultations
+    // see 39999.75 (clamped to 30000) and 19999.5 (fractional, unclamped); the
+    // required-checks read's own budget() calls run out and degrade THAT
+    // sub-surface independently, without ever handing execFileSync a call.
     //
     // Node rejects a non-integer `timeout` with ERR_OUT_OF_RANGE — verified by
     // running it — which the catch would swallow into a misleading
@@ -426,7 +502,8 @@ describe('collectRepoSettings', () => {
     // 0 and 1 on the second consultation: 2T - 59999.5 = 0.5. The `left <= 0`
     // throw does not catch that, and Math.floor alone would turn it into 0 —
     // which Node reads as NO TIMEOUT rather than expire-now, handing that call
-    // an unbounded wait.
+    // an unbounded wait. The third consultation (rulesets list) exhausts the
+    // budget outright, so the required-checks read is never reached.
     let ticks = 0;
     const now = (): number => ticks++ * 59999.5;
 
@@ -443,16 +520,77 @@ describe('collectRepoSettings', () => {
     expect(surface.available).toBe(true);
   });
 
+  it('Fix 3: the git show timeout is capped by the sweep budget', () => {
+    mockGh({ list: [] });
+    collectRepoSettings({ now: () => 0 });
+    const zeroClockShow = vi
+      .mocked(execFileSync)
+      .mock.calls.find(c => c[0] === 'git' && (c[1] as string[])[0] === 'show');
+    expect(zeroClockShow?.[2]).toMatchObject({ timeout: GIT_SHOW_TIMEOUT_MS });
+
+    vi.clearAllMocks();
+    mockGh({ list: [] });
+    // The FIRST now() call captures startedAt; every later consultation returns a
+    // constant REPO_SETTINGS_BUDGET_MS - 5_000 elapsed, so every subsequent git/gh
+    // call — including the `show` — sees exactly 5_000ms remaining.
+    let calls = 0;
+    const now = (): number => (calls++ === 0 ? 0 : REPO_SETTINGS_BUDGET_MS - 5_000);
+
+    collectRepoSettings({ now });
+    const clampedShow = vi
+      .mocked(execFileSync)
+      .mock.calls.find(c => c[0] === 'git' && (c[1] as string[])[0] === 'show');
+    expect(clampedShow?.[2]).toMatchObject({ timeout: 5_000 });
+  });
+
+  it('fetches origin/main when the ref is missing locally, then still reads it', () => {
+    let revParseCalls = 0;
+    vi.mocked(execFileSync).mockImplementation((cmd, args) => {
+      if (cmd === 'git') {
+        const gitArgs = args as string[];
+        if (gitArgs[0] === 'rev-parse') {
+          revParseCalls++;
+          throw new Error('unknown revision');
+        }
+        if (gitArgs[0] === 'fetch') return '';
+        return DEFAULT_MAIN_WORKFLOW; // show
+      }
+      const path = (args as string[])[1];
+      if (path === 'graphql') {
+        return JSON.stringify({ data: { repository: { deleteBranchOnMerge: false } } });
+      }
+      if (path === 'repos/{owner}/{repo}/rulesets') return '';
+      throw new Error(`unexpected gh path: ${path}`);
+    });
+
+    const surface = collectRepoSettings();
+
+    expect(revParseCalls).toBe(1);
+    const gitCalls = vi.mocked(execFileSync).mock.calls.filter(c => c[0] === 'git');
+    expect(gitCalls.map(c => c[1])).toContainEqual(['fetch', 'origin', 'main', '--depth=1']);
+    expect(gitCalls.map(c => c[1])).toContainEqual(['show', MAIN_CI_WORKFLOW_REF]);
+    expect(surface.available).toBe(true);
+  });
+
   it('passes gh arguments as an array (never an interpolated shell string)', () => {
     mockGh({ list: [] });
 
     collectRepoSettings();
 
-    for (const call of vi.mocked(execFileSync).mock.calls) {
-      expect(call[0]).toBe('gh');
+    const calls = vi.mocked(execFileSync).mock.calls;
+    for (const call of calls.filter(c => c[0] === 'gh')) {
       expect(Array.isArray(call[1])).toBe(true);
       expect((call[1] as string[])[0]).toBe('api');
     }
+    const gitCalls = calls.filter(c => c[0] === 'git');
+    expect(gitCalls.length).toBeGreaterThanOrEqual(2);
+    for (const call of gitCalls) {
+      expect(Array.isArray(call[1])).toBe(true);
+    }
+    expect(gitCalls.map(c => c[1])).toContainEqual([
+      'show',
+      'origin/main:.github/workflows/ci.yml',
+    ]);
   });
 
   it('fetches the ruleset list with --paginate and a streaming projection', () => {
@@ -578,6 +716,171 @@ describe('collectRepoSettings', () => {
     if (surface.available) return;
     expect(surface.reason).toContain('deleteBranchOnMerge');
   });
+
+  it('G1 seam: a main-required context missing from origin/main ci.yml surfaces as a HIGH finding', () => {
+    mockGh({
+      list: [7],
+      details: {
+        'repos/{owner}/{repo}/rulesets/7': rulesetDetail({
+          refs: ['~DEFAULT_BRANCH'],
+          rules: ['deletion'],
+          requiredChecks: ['lint', 'hook-posix-parse'],
+        }),
+      },
+      mainWorkflow: 'jobs:\n  lint: {}\n',
+    });
+    const surface = collectRepoSettings();
+
+    expect(surface.available).toBe(true);
+    if (!surface.available) return;
+    expect(surface.requiredChecks.available).toBe(true);
+    if (!surface.requiredChecks.available) return;
+    const target = surface.requiredChecks.findings.find(
+      f => f.severity === 'HIGH' && f.message.includes('`hook-posix-parse`')
+    );
+    expect(target).toBeDefined();
+    expect(target?.message).toContain('wait until the release');
+    expect(surface.requiredChecks.warnings).toEqual([]);
+  });
+
+  it('live shape: the 12 main + 14 develop contexts pass cleanly', () => {
+    const mainChecks = [
+      'lint',
+      'build',
+      'unit-tests (ai-worker)',
+      'unit-tests (api-gateway)',
+      'unit-tests (bot-client)',
+      'unit-tests (packages)',
+      'unit-tests (tooling)',
+      'unit-tests (website)',
+      'component-integration-tests',
+      'docker-build-smoke-ok',
+      'voice-engine-tests',
+      'mutation-tests',
+    ];
+    const developChecks = [...mainChecks, 'fixup-check', 'hook-posix-parse'];
+    mockGh({
+      list: [7, 8],
+      details: {
+        'repos/{owner}/{repo}/rulesets/7': rulesetDetail({
+          refs: ['~DEFAULT_BRANCH'],
+          rules: ['deletion'],
+          requiredChecks: mainChecks,
+        }),
+        'repos/{owner}/{repo}/rulesets/8': rulesetDetail({
+          refs: ['refs/heads/develop'],
+          rules: ['deletion'],
+          bypassActors: [{ actor_type: 'RepositoryRole', bypass_mode: 'always' }],
+          requiredChecks: developChecks,
+        }),
+      },
+    });
+
+    const clean = collectRepoSettings();
+
+    expect(clean.available).toBe(true);
+    if (clean.available) {
+      expect(clean.findings).toEqual([]);
+      expect(clean.requiredChecks.available).toBe(true);
+      if (clean.requiredChecks.available) {
+        expect(clean.requiredChecks.findings).toEqual([]);
+        expect(clean.requiredChecks.warnings).toEqual([]);
+      }
+    }
+
+    mockGh({
+      list: [7, 8],
+      details: {
+        'repos/{owner}/{repo}/rulesets/7': rulesetDetail({
+          refs: ['~DEFAULT_BRANCH'],
+          rules: ['deletion'],
+          requiredChecks: mainChecks,
+        }),
+        'repos/{owner}/{repo}/rulesets/8': rulesetDetail({
+          refs: ['refs/heads/develop'],
+          rules: ['deletion'],
+          bypassActors: [{ actor_type: 'RepositoryRole', bypass_mode: 'always' }],
+          requiredChecks: developChecks,
+        }),
+      },
+      mainWorkflow: DEFAULT_MAIN_WORKFLOW + '  hook-posix-parse: {}\n',
+    });
+    const withJob = collectRepoSettings();
+
+    expect(withJob.available).toBe(true);
+    if (!withJob.available) return;
+    expect(withJob.findings).toEqual([]);
+    expect(withJob.requiredChecks.available).toBe(true);
+    if (!withJob.requiredChecks.available) return;
+    expect(withJob.requiredChecks.findings).toEqual([]);
+    expect(withJob.requiredChecks.warnings).toHaveLength(1);
+    expect(withJob.requiredChecks.warnings[0]).toContain('`hook-posix-parse`');
+    expect(withJob.requiredChecks.warnings.some(w => w.includes('fixup-check'))).toBe(false);
+  });
+
+  it('decouples: an unreadable origin/main degrades only the required-checks sub-surface', () => {
+    // NO ruleset at all, so both branches lack a deletion rule — the deletion-safety findings
+    // this fixture produces are the ones asserted below, isolating the decoupling from an
+    // incidentally-empty findings array.
+    vi.mocked(execFileSync).mockImplementation((cmd, args) => {
+      if (cmd === 'git') {
+        const error = new Error('Command failed') as Error & { stderr: string };
+        error.stderr = "fatal: invalid object name 'origin/main'\n";
+        throw error;
+      }
+      const path = (args as string[])[1];
+      if (path === 'graphql') {
+        return JSON.stringify({ data: { repository: { deleteBranchOnMerge: false } } });
+      }
+      if (path === 'repos/{owner}/{repo}/rulesets') {
+        return '';
+      }
+      throw new Error(`unexpected gh path: ${path}`);
+    });
+
+    const surface = collectRepoSettings();
+
+    expect(surface.available).toBe(true);
+    if (!surface.available) return;
+    expect(surface.findings.some(f => f.severity === 'HIGH')).toBe(true);
+    expect(surface.requiredChecks.available).toBe(false);
+    if (surface.requiredChecks.available) return;
+    expect(surface.requiredChecks.reason).toContain('invalid object name');
+  });
+
+  it('via checkRepoSettings, a clean deletion fixture with git failing prints only the required-checks degradation', () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    process.exitCode = undefined;
+    vi.mocked(execFileSync).mockImplementation((cmd, args) => {
+      if (cmd === 'git') {
+        const error = new Error('Command failed') as Error & { stderr: string };
+        error.stderr = "fatal: invalid object name 'origin/main'\n";
+        throw error;
+      }
+      const path = (args as string[])[1];
+      if (path === 'graphql') {
+        return JSON.stringify({ data: { repository: { deleteBranchOnMerge: false } } });
+      }
+      if (path === 'repos/{owner}/{repo}/rulesets') return '7\n8';
+      if (path === 'repos/{owner}/{repo}/rulesets/7') {
+        return rulesetDetail({ refs: ['~DEFAULT_BRANCH'], rules: ['deletion'] });
+      }
+      if (path === 'repos/{owner}/{repo}/rulesets/8') {
+        return rulesetDetail({
+          refs: ['refs/heads/develop'],
+          rules: ['deletion'],
+          bypassActors: [{ actor_type: 'RepositoryRole', bypass_mode: 'always' }],
+        });
+      }
+      throw new Error(`unexpected gh path: ${path}`);
+    });
+
+    checkRepoSettings();
+
+    expect(process.exitCode).toBeUndefined();
+    const printed = vi.mocked(console.log).mock.calls.flat().join('\n');
+    expect(printed).toContain('main-required-checks: unavailable');
+  });
 });
 
 describe('fetchDeleteBranchOnMerge', () => {
@@ -628,8 +931,8 @@ describe('formatRepoSettingsReport', () => {
         state({ branch: 'develop', deletionRuleFullyBypassable: true, hasBypassActors: true }),
       ],
       findings: [],
+      requiredChecks: { available: true, findings: [], warnings: [] },
     });
-
     expect(text).toContain('✓ No deletion-safety findings');
     // The clean report must describe observed CONFIGURATION and never promise
     // an outcome. The premise underneath it — that a bypass-actor-free deletion
@@ -666,11 +969,88 @@ describe('formatRepoSettingsReport', () => {
         { severity: 'CRITICAL', message: 'boom' },
         { severity: 'HIGH', message: 'no deletion rule' },
       ],
+      requiredChecks: { available: true, findings: [], warnings: [] },
     });
 
     expect(text).toContain('2 repo deletion-safety findings:');
     expect(text).toContain('CRITICAL: boom');
     expect(text).toContain('HIGH: no deletion rule');
+  });
+
+  it('renders warnings after the clean state, keeping the clean headline', () => {
+    const text = formatRepoSettingsReport({
+      available: true,
+      deleteBranchOnMerge: false,
+      branches: [state({ branch: 'main' }), state({ branch: 'develop' })],
+      findings: [],
+      requiredChecks: { available: true, findings: [], warnings: ['re-add X'] },
+    });
+
+    expect(text.startsWith('✓ No deletion-safety findings')).toBe(true);
+    expect(text).toContain('WARNING (not a failure): re-add X');
+  });
+
+  it('renders warnings alongside findings', () => {
+    const text = formatRepoSettingsReport({
+      available: true,
+      deleteBranchOnMerge: true,
+      branches: [state({ branch: 'main' })],
+      findings: [{ severity: 'HIGH', message: 'no deletion rule' }],
+      requiredChecks: { available: true, findings: [], warnings: ['re-add X'] },
+    });
+    expect(text).toContain('HIGH: no deletion rule');
+    expect(text).toContain('WARNING (not a failure): re-add X');
+  });
+
+  it('Fix 4 (i): renders both headlines when a deletion finding and a required-check finding are both present', () => {
+    const text = formatRepoSettingsReport({
+      available: true,
+      deleteBranchOnMerge: true,
+      branches: [state({ branch: 'main' }), state({ branch: 'develop', hasDeletionRule: false })],
+      findings: [{ severity: 'HIGH', message: 'no deletion rule' }],
+      requiredChecks: {
+        available: true,
+        findings: [{ severity: 'HIGH', message: 'main requires `bogus`' }],
+        warnings: [],
+      },
+    });
+
+    expect(text).toContain('1 repo deletion-safety finding:');
+    expect(text).toContain('HIGH: no deletion rule');
+    expect(text).toContain('1 main-required-check finding:');
+    expect(text).toContain('HIGH: main requires `bogus`');
+  });
+
+  it('Fix 4 (ii): renders a checks-only finding under the clean deletion headline', () => {
+    const text = formatRepoSettingsReport({
+      available: true,
+      deleteBranchOnMerge: false,
+      branches: [state({ branch: 'main' }), state({ branch: 'develop' })],
+      findings: [],
+      requiredChecks: {
+        available: true,
+        findings: [{ severity: 'HIGH', message: 'main requires `bogus`' }],
+        warnings: [],
+      },
+    });
+
+    expect(text.startsWith('✓ No deletion-safety findings')).toBe(true);
+    expect(text).toContain('❌ 1 main-required-check finding:');
+  });
+
+  it('Fix 4 (iii): renders the unavailable required-checks line while leaving the deletion block intact', () => {
+    const text = formatRepoSettingsReport({
+      available: true,
+      deleteBranchOnMerge: false,
+      branches: [state({ branch: 'main' }), state({ branch: 'develop' })],
+      findings: [],
+      requiredChecks: { available: false, reason: "fatal: invalid object name 'origin/main'" },
+    });
+
+    expect(text.startsWith('✓ No deletion-safety findings')).toBe(true);
+    expect(text).toContain(
+      "main-required-checks: unavailable — fatal: invalid object name 'origin/main'"
+    );
   });
 });
 
@@ -682,7 +1062,8 @@ describe('checkRepoSettings', () => {
   });
 
   it('exits nonzero on findings', () => {
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+    vi.mocked(execFileSync).mockImplementation((cmd, args) => {
+      if (cmd === 'git') return 'jobs:\n  lint: {}\n';
       const path = (args as string[])[1];
       if (path === 'graphql') {
         return JSON.stringify({ data: { repository: { deleteBranchOnMerge: true } } });
@@ -707,7 +1088,8 @@ describe('checkRepoSettings', () => {
   });
 
   it('emits the raw surface under --json', () => {
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+    vi.mocked(execFileSync).mockImplementation((cmd, args) => {
+      if (cmd === 'git') return 'jobs:\n  lint: {}\n';
       const path = (args as string[])[1];
       if (path === 'graphql') {
         return JSON.stringify({ data: { repository: { deleteBranchOnMerge: false } } });
@@ -723,5 +1105,66 @@ describe('checkRepoSettings', () => {
     };
     expect(printed.available).toBe(true);
     expect(printed.deleteBranchOnMerge).toBe(false);
+  });
+
+  it('sets exitCode from a main-required-checks finding too', () => {
+    vi.mocked(execFileSync).mockImplementation((cmd, args) => {
+      if (cmd === 'git') return 'jobs:\n  lint: {}\n';
+      const path = (args as string[])[1];
+      if (path === 'graphql')
+        return JSON.stringify({ data: { repository: { deleteBranchOnMerge: false } } });
+      if (path === 'repos/{owner}/{repo}/rulesets') return '7\n8';
+      if (path === 'repos/{owner}/{repo}/rulesets/7') {
+        return rulesetDetail({
+          refs: ['~DEFAULT_BRANCH'],
+          rules: ['deletion'],
+          requiredChecks: ['bogus-context'],
+        });
+      }
+      if (path === 'repos/{owner}/{repo}/rulesets/8') {
+        return rulesetDetail({
+          refs: ['refs/heads/develop'],
+          rules: ['deletion'],
+          bypassActors: [{ actor_type: 'RepositoryRole', bypass_mode: 'always' }],
+        });
+      }
+      throw new Error(`unexpected gh path: ${path}`);
+    });
+    checkRepoSettings();
+
+    expect(process.exitCode).toBe(1);
+    const printed = vi.mocked(console.log).mock.calls.flat().join('\n');
+    expect(printed).toContain('1 main-required-check finding:');
+    expect(printed).toContain('`bogus-context`');
+  });
+
+  it('a warning-only surface leaves exitCode untouched and prints WARNING', () => {
+    vi.mocked(execFileSync).mockImplementation((cmd, args) => {
+      if (cmd === 'git') return 'jobs:\n  lint: {}\n  hook-posix-parse: {}\n';
+      const path = (args as string[])[1];
+      if (path === 'graphql')
+        return JSON.stringify({ data: { repository: { deleteBranchOnMerge: false } } });
+      if (path === 'repos/{owner}/{repo}/rulesets') return '7\n8';
+      if (path === 'repos/{owner}/{repo}/rulesets/7') {
+        return rulesetDetail({
+          refs: ['~DEFAULT_BRANCH'],
+          rules: ['deletion'],
+          requiredChecks: ['lint'],
+        });
+      }
+      if (path === 'repos/{owner}/{repo}/rulesets/8') {
+        return rulesetDetail({
+          refs: ['refs/heads/develop'],
+          rules: ['deletion'],
+          bypassActors: [{ actor_type: 'RepositoryRole', bypass_mode: 'always' }],
+          requiredChecks: ['lint', 'hook-posix-parse'],
+        });
+      }
+      throw new Error(`unexpected gh path: ${path}`);
+    });
+    checkRepoSettings();
+
+    expect(process.exitCode).toBeUndefined();
+    expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain('WARNING');
   });
 });
