@@ -1,8 +1,8 @@
 # Current
 
-> **Version**: v3.0.0-beta.229 — "Vencord voice transcription, db-sync single-flight, and Node 24" (30 PRs / 24 runtime / 402 files; no migrations; release PR #2501, fast-forwarded to main `9cb29c9c4` at 2026-09-24 11:28Z after the rebase-merge refused 166 commits; finalize was a no-op; tagged `latest`). Constituent detail: git + release notes.
+> **Version**: v3.0.0-beta.230 — "the doc-72 dashboard index and resets, the custom-id family, the message-render fixes" (29 PRs / 19 runtime / 247 files / 117 commits; no migrations; release PR #2535, fast-forwarded to main `af26f53d7` at 2026-09-25 15:05Z after the rebase-merge refused; finalize a no-op; tagged `latest`). Constituent detail: git + release notes.
 >
-> **Previous**: v3.0.0-beta.228 — "the drain finishes, and the vxreddit renderer" (6 PRs / 6 runtime / 104 range files; no migrations; 2026-09-21 22:08Z, `de26c3f1d`).
+> **Previous**: v3.0.0-beta.229 — "Vencord voice transcription, db-sync single-flight, and Node 24" (30 PRs / 24 runtime / 402 files; no migrations; 2026-09-24 11:28Z, `9cb29c9c4`).
 
 ---
 
