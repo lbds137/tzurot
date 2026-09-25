@@ -364,7 +364,7 @@ if [ "$RC" -eq 1 ]; then
   return 0
 fi
 
-IDS=$(printf '%s\n' "$REF_SPANS" | grep -oPi '(?<![A-Za-z-])(TASK-[0-9]+|doc-[0-9]+)' | tr 'A-Z' 'a-z' | sort -u)
+IDS=$(printf '%s\n' "$REF_SPANS" | grep -oPi '(?<![A-Za-z-])(TASK-[0-9]+|doc-[0-9]+)' | tr '[:upper:]' '[:lower:]' | sort -u)
 # `set -o pipefail` (top of file) is what makes this RC carry a mid-pipeline
 # grep failure rather than sort's status — probed: a PCRE error propagates
 # as 2 through tr|sort under pipefail. Removing pipefail would silently turn

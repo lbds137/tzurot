@@ -40,7 +40,7 @@ fi
 pnpm ops guard:env-example || exit 1
 
 # 2. Determine what files are being pushed
-UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo "")
+UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo "")
 
 if [ -n "$UPSTREAM" ]; then
     CHANGED_FILES=$(git diff --name-only "$UPSTREAM" HEAD 2>/dev/null || true)
@@ -59,7 +59,8 @@ fi
 # trigger touched earlier on the branch would otherwise slip by unseen).
 # Informational only; never blocks the push.
 if [ -n "$CHANGED_FILES" ]; then
-    # shellcheck disable=SC2086 -- word-splitting the file list is intended
+    # Word-splitting the file list is intended.
+    # shellcheck disable=SC2086
     pnpm ops dev:deferred-refs --compact $CHANGED_FILES || true
 fi
 
@@ -116,7 +117,7 @@ fi
 
 # An explicit off value, in any letter case, opts out of auto-detect entirely.
 LOW_RESOURCE_OPT_OUT=""
-case "$(printf '%s' "$LOW_RESOURCE_MODE" | tr 'A-Z' 'a-z')" in
+case "$(printf '%s' "$LOW_RESOURCE_MODE" | tr '[:upper:]' '[:lower:]')" in
     0|false|off|no)
         LOW_RESOURCE_MODE=""
         LOW_RESOURCE_OPT_OUT=1
@@ -197,8 +198,9 @@ fi
 # Ensure CI mode (no watch mode, no prompts)
 export CI=true
 
-# shellcheck disable=SC2086 - Intentional word splitting for Turbo args
-# TURBO_FILTER and TURBO_ARGS are space-separated flags, never contain spaces in values
+# Intentional word splitting for Turbo args: TURBO_FILTER and TURBO_ARGS are
+# space-separated flags, never contain spaces in values.
+# shellcheck disable=SC2086
 if ! pnpm turbo run build lint test $TURBO_FILTER $TURBO_ARGS; then
     echo "${RED}Pre-push checks failed!${NC}"
     echo "Fix the issues before pushing, or use: git push --no-verify"
@@ -207,6 +209,8 @@ fi
 
 # 7. Run test file type checking (BLOCKING - catches test type errors)
 echo "Running test file type checking..."
+# Intentional word splitting for Turbo args: TURBO_FILTER and TURBO_ARGS are
+# space-separated flags, never contain spaces in values.
 # shellcheck disable=SC2086
 if ! pnpm turbo run typecheck:spec $TURBO_FILTER $TURBO_ARGS; then
     echo "${RED}Test file type checking failed!${NC}"
