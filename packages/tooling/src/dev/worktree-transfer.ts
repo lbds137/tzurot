@@ -219,8 +219,9 @@ function checkNothingOutsidePatch(ctx: TransferContext): TransferResult | null {
   return null;
 }
 
-function checkNoUnpushedRemotes(ctx: TransferContext): TransferResult | null {
-  const out = ctx.runGit(['log', '--oneline', '--not', '--remotes'], ctx.worktreePath);
+/** Refuse when the worktree holds a commit no remote branch can reach. @internal Exported for testing */
+export function checkNoUnpushedRemotes(ctx: TransferContext): TransferResult | null {
+  const out = ctx.runGit(['log', '--oneline', 'HEAD', '--not', '--remotes'], ctx.worktreePath);
   if (out.trim().length > 0) {
     return refuse(
       'no-unpushed-remotes',

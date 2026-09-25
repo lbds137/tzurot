@@ -1,15 +1,19 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Every other test injects `runGit`, so this mock is reached only by the
 // default-path test below — the one case that exercises the real `execFileSync`.
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn(() => '') }));
 
 import { execFileSync } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import {
   transferWorktree,
   performRemoval,
   findWorktreeBlock,
   findFirstWorktreePath,
+  checkNoUnpushedRemotes,
   WORKTREE_TRANSFER_TIMEOUT_MS,
   WORKTREE_TRANSFER_MAX_BUFFER,
   type TransferContext,
@@ -50,7 +54,7 @@ function happyHandlers(overrides: Partial<Record<string, string>> = {}) {
     [`${WORKTREE}::diff --cached --binary`]: PATCH,
     [`${MAIN_TREE}::diff --cached --binary`]: PATCH,
     [`${WORKTREE}::status --porcelain`]: 'M  file.ts\n',
-    [`${WORKTREE}::log --oneline --not --remotes`]: '',
+    [`${WORKTREE}::log --oneline HEAD --not --remotes`]: '',
     [`${WORKTREE}::log --oneline aaa111..HEAD`]: '',
     [`${MAIN_TREE}::worktree unlock ${WORKTREE}`]: '',
     [`${MAIN_TREE}::worktree remove --force ${WORKTREE}`]: '',
@@ -94,7 +98,7 @@ describe('transferWorktree happy path', () => {
       `${WORKTREE}::add -A`,
       `${WORKTREE}::diff --cached --binary`,
       `${WORKTREE}::status --porcelain`,
-      `${WORKTREE}::log --oneline --not --remotes`,
+      `${WORKTREE}::log --oneline HEAD --not --remotes`,
       `${WORKTREE}::log --oneline aaa111..HEAD`,
     ]);
     // Call index 9 is `git apply --index <tmpfile>` — the temp path varies per run.
@@ -411,7 +415,7 @@ describe('transferWorktree refusals', () => {
 
   it('check 6: refuses on commits not reachable from any remote, before the main tree is touched', () => {
     const runGit = gitStubWithApply(
-      happyHandlers({ [`${WORKTREE}::log --oneline --not --remotes`]: 'abc1234 wip\n' })
+      happyHandlers({ [`${WORKTREE}::log --oneline HEAD --not --remotes`]: 'abc1234 wip\n' })
     );
     const result = transferWorktree({ worktreePath: WORKTREE, runGit });
     expect(result).toMatchObject({ check: 'no-unpushed-remotes' });
@@ -623,6 +627,59 @@ describe('performRemoval', () => {
     );
     const calls = runGit.mock.calls.map(([args]) => args.join(' '));
     expect(calls).toContain(`worktree remove --force ${WORKTREE}`);
+  });
+});
+
+describe('checkNoUnpushedRemotes against a real git repo', () => {
+  let tmpDir: string;
+  let workDir: string;
+
+  beforeEach(async () => {
+    const real = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-transfer-fixture-'));
+    const remoteDir = path.join(tmpDir, 'remote.git');
+    workDir = path.join(tmpDir, 'work');
+    const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+    real.execFileSync('git', ['-c', 'init.defaultBranch=main', 'init', '--bare', remoteDir], {
+      cwd: tmpDir,
+      env,
+    });
+    real.execFileSync('git', ['-c', 'init.defaultBranch=main', 'clone', remoteDir, workDir], {
+      cwd: tmpDir,
+      env,
+    });
+    real.execFileSync('git', ['config', 'user.email', 't@t'], { cwd: workDir, env });
+    real.execFileSync('git', ['config', 'user.name', 't'], { cwd: workDir, env });
+    real.execFileSync('git', ['commit', '--allow-empty', '-m', 'a'], { cwd: workDir, env });
+    real.execFileSync('git', ['push', '-u', 'origin', 'main'], { cwd: workDir, env });
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('returns null when pushed, refuses when a commit is unpushed, and returns null again once pushed', async () => {
+    const real = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+    const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+    const runGit = (args: string[], cwd?: string): string =>
+      real.execFileSync('git', args, { cwd, encoding: 'utf-8', env }) as string;
+    const ctx: TransferContext = {
+      runGit,
+      mainTreeRoot: '',
+      worktreePath: workDir,
+      mainHead: '',
+      branch: '',
+      patch: '',
+      worktreeListing: '',
+    };
+
+    expect(checkNoUnpushedRemotes(ctx)).toBeNull();
+
+    real.execFileSync('git', ['commit', '--allow-empty', '-m', 'b'], { cwd: workDir, env });
+    expect(checkNoUnpushedRemotes(ctx)).toMatchObject({ check: 'no-unpushed-remotes' });
+
+    real.execFileSync('git', ['push'], { cwd: workDir, env });
+    expect(checkNoUnpushedRemotes(ctx)).toBeNull();
   });
 });
 
