@@ -106,11 +106,13 @@ export function registerDevCommands(cli: CAC): void {
       'Surface tracker tasks (tracker/tasks/) referencing the given (or staged) files — informational, never fails'
     )
     .option('--staged', 'Use the git staged file list')
+    .option('--compact', 'One line per file: the task count and up to two ids; the hooks use this')
     .example('ops dev:deferred-refs --staged')
     .example('ops dev:deferred-refs services/ai-worker/src/services/MemoryRetriever.ts')
-    .action(async (files: string[], options: { staged?: boolean }) => {
+    .example('ops dev:deferred-refs --staged --compact')
+    .action(async (files: string[], options: { staged?: boolean; compact?: boolean }) => {
       const { checkDeferredRefs } = await import('../dev/check-deferred-refs.js');
-      await checkDeferredRefs({ staged: options.staged, files });
+      await checkDeferredRefs({ staged: options.staged, compact: options.compact, files });
     });
 
   registerSchemaAuditCommand(cli);
