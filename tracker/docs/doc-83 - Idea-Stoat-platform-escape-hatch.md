@@ -39,3 +39,22 @@ Instead of cloning Discord or building a client against a reverse-engineered Dis
 ## Promote when
 
 The owner decides to invest in a platform exit — first step would be a scoping spike: stand up a self-hosted Stoat instance, probe the bot API hands-on, and read the upstream roadmap/issue tracker for slash-command intent.
+
+## 2026-09-25 owner input (relayed from Discord #general via the Deck management session)
+
+Still parked; nothing scheduled. Recorded because the requirements moved.
+
+Her words:
+
+- "I honestly want to fork and self host something so Tzurot has a proper home"
+- "thinking about having Claude look into Spacebar"
+- "I just want a Discord clone without their shitty leadership"
+- "if I do this I'd definitely explore cross platform federation"
+
+What changed:
+
+- **Federation is a new requirement.** Cross-platform federation was not in this doc before. It weighs against a plain Discord-API reimplementation (Spacebar has no federation story; Stoat has none either) and is the one axis where the Matrix-shaped option in `doc-79` scores, so the two docs now pull in different directions and any spike has to score federation explicitly.
+- **Stoat data point.** A server member who tried Stoat reported it is "very similar for the end-user, but server setup/management/bot support is a bit under developed from a staffing perspective"; the owner replied "that's my beef with Stoat". That tilts the comparison above toward Spacebar for the bot surface. The same member was scathing about Matrix, which `doc-79`'s brief currently favours for sovereignty; a counterpoint to weigh, not a verdict.
+- **Cross-link**: `doc-79` (Theme: Platform decoupling) is the sovereignty framing this idea would serve; its brief lives in `docs/local/PLATFORM_DECOUPLING_BRIEF.md`.
+
+Ripeness (driver's read, owner's call): the stated intent ("have Claude look into Spacebar") is a bounded read-only spike, not a build. If she un-parks it, the first unit is the Spacebar interactions-completeness spike from the section above (slash commands, components, modals, autocomplete, webhooks, voice messages), scored against the discord.js surface `bot-client` actually uses, plus one paragraph on what federation would mean for each candidate. Offered on the owner queue in `backlog/now.md`.
