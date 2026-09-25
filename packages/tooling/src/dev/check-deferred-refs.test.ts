@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { join } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 
 vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
@@ -16,9 +18,11 @@ import {
   extractDeferredRefs,
   matchFiles,
   checkDeferredRefs,
+  renderMatches,
   DEFERRED_REFS_TIMEOUT_MS,
 } from './check-deferred-refs.js';
 import type { TrackerTask } from './trackerTasks.js';
+import type { DeferredMatch, DeferredRef } from './check-deferred-refs.js';
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -231,6 +235,122 @@ describe('matchFiles', () => {
   });
 });
 
+/** Minimal DeferredRef fixture for renderMatches tests. */
+function fixtureRef(taskId: string, title: string, taskFile: string): DeferredRef {
+  return { pathToken: 'irrelevant', isPrefix: false, title, taskId, taskFile };
+}
+
+/** Render a match's lines with chalk color codes stripped. */
+function renderStripped(matches: DeferredMatch[], compact: boolean): string[] {
+  return renderMatches(matches, compact).map(line => stripVTControlCharacters(line));
+}
+
+describe('renderMatches', () => {
+  it('compact mode: one line per file, N tasks by distinct id count (1, 2, and 5+ collapse to "+N more")', () => {
+    const matches: DeferredMatch[] = [
+      { file: 'f1.ts', refs: [fixtureRef('TASK-10', 'title 10', 'tracker/tasks/task-10.md')] },
+      {
+        file: 'f2.ts',
+        refs: [
+          fixtureRef('TASK-20', 'title 20', 'tracker/tasks/task-20.md'),
+          fixtureRef('TASK-21', 'title 21', 'tracker/tasks/task-21.md'),
+        ],
+      },
+      {
+        file: 'f3.ts',
+        refs: [
+          fixtureRef('TASK-30', 'title 30', 'tracker/tasks/task-30.md'),
+          fixtureRef('TASK-31', 'title 31', 'tracker/tasks/task-31.md'),
+          fixtureRef('TASK-32', 'title 32', 'tracker/tasks/task-32.md'),
+          fixtureRef('TASK-33', 'title 33', 'tracker/tasks/task-33.md'),
+          fixtureRef('TASK-34', 'title 34', 'tracker/tasks/task-34.md'),
+        ],
+      },
+    ];
+
+    const lines = renderStripped(matches, true);
+
+    expect(lines).toContain('   f1.ts — 1 task: TASK-10');
+    expect(lines).toContain('   f2.ts — 2 tasks: TASK-20, TASK-21');
+    expect(lines).toContain('   f3.ts — 5 tasks: TASK-30, TASK-31, +3 more');
+  });
+
+  it('compact mode: the first count past COMPACT_IDS_SHOWN prints "+1 more" (n = 3)', () => {
+    const matches: DeferredMatch[] = [
+      {
+        file: 'f3.ts',
+        refs: [
+          fixtureRef('TASK-30', 'title 30', 'tracker/tasks/task-30.md'),
+          fixtureRef('TASK-31', 'title 31', 'tracker/tasks/task-31.md'),
+          fixtureRef('TASK-32', 'title 32', 'tracker/tasks/task-32.md'),
+        ],
+      },
+    ];
+
+    const lines = renderStripped(matches, true);
+
+    expect(lines).toContain('   f3.ts — 3 tasks: TASK-30, TASK-31, +1 more');
+  });
+
+  it('compact mode dedupes refs sharing the same task id before counting', () => {
+    const matches: DeferredMatch[] = [
+      {
+        file: 'f.ts',
+        refs: [
+          fixtureRef('TASK-a', 'title a', 'tracker/tasks/task-a.md'),
+          fixtureRef('TASK-a', 'title a', 'tracker/tasks/task-a.md'),
+          fixtureRef('TASK-b', 'title b', 'tracker/tasks/task-b.md'),
+        ],
+      },
+    ];
+
+    const lines = renderStripped(matches, true);
+
+    expect(lines).toContain('   f.ts — 2 tasks: TASK-a, TASK-b');
+  });
+
+  it('compact trailer caps the named files at 3 and appends "…" only past the cap', () => {
+    const refs = [fixtureRef('TASK-1', 'title', 'tracker/tasks/task-1.md')];
+    const fourFiles: DeferredMatch[] = ['f1', 'f2', 'f3', 'f4'].map(file => ({ file, refs }));
+    const threeFiles: DeferredMatch[] = ['f1', 'f2', 'f3'].map(file => ({ file, refs }));
+
+    const fourLines = renderStripped(fourFiles, true);
+    const trailer = fourLines.find(line => line.includes('Reminder only'));
+    expect(trailer).toBe(
+      '   Reminder only — never blocks. Full list: pnpm ops dev:deferred-refs f1 f2 f3 …'
+    );
+
+    const threeLines = renderStripped(threeFiles, true);
+    const threeTrailer = threeLines.find(line => line.includes('Reminder only'));
+    expect(threeTrailer).toMatch(/f1 f2 f3$/);
+    expect(threeTrailer).not.toContain('…');
+  });
+
+  it('full mode is pinned to the exact legacy output shape', () => {
+    const matches: DeferredMatch[] = [
+      {
+        file: 'services/ai-worker/src/x.ts',
+        refs: [
+          fixtureRef('TASK-x', 'title x', 'tracker/tasks/x.md'),
+          fixtureRef('TASK-y', 'title y', 'tracker/tasks/y.md'),
+        ],
+      },
+    ];
+
+    const lines = renderStripped(matches, false);
+
+    expect(lines).toEqual([
+      '',
+      '📌 Backlog tasks reference files in this change:',
+      '   services/ai-worker/src/x.ts',
+      '     • TASK-x  title x (tracker/tasks/x.md)',
+      '     • TASK-y  title y (tracker/tasks/y.md)',
+      '   Reminder only — fold one in if it fits, or carry on. Never blocks.',
+      '',
+    ]);
+  });
+});
+
 /** Render a TrackerTask back into on-disk task-file shape for the fs mocks. */
 function taskFileContent(t: TrackerTask): string {
   return [
@@ -355,5 +475,49 @@ describe('checkDeferredRefs (CLI entry)', () => {
     expect(execFileSync).not.toHaveBeenCalled();
     const output = logSpy.mock.calls.flat().join('\n');
     expect(output).toContain('Temporal-marker');
+  });
+
+  it('compact mode logs exactly header + one line per file + trailer + 2 blank lines (11 calls for 7 files)', async () => {
+    const sevenFileTasks = Array.from({ length: 7 }, (_, i) =>
+      task(
+        `TASK-${100 + i}`,
+        `Follow-up for file ${i}`,
+        `See \`services/ai-worker/src/compact${i}.ts\` for details.`
+      )
+    );
+    mockStore(sevenFileTasks);
+    const files = Array.from({ length: 7 }, (_, i) => `services/ai-worker/src/compact${i}.ts`);
+
+    await checkDeferredRefs({ compact: true, files });
+
+    expect(logSpy).toHaveBeenCalledTimes(11);
+  });
+
+  it('compact mode: prefix-matched file shows the task count and no bullet lines', async () => {
+    mockStore(SAMPLE_TASKS);
+
+    await checkDeferredRefs({ compact: true, files: ['services/voice-engine/app/main.py'] });
+
+    const output = stripVTControlCharacters(logSpy.mock.calls.flat().join('\n'));
+    expect(output).toContain('— 1 task: TASK-2');
+    expect(output.split('\n').some(line => line.includes('•'))).toBe(false);
+  });
+});
+
+describe('husky hooks pass --compact', () => {
+  it('pre-commit passes --staged --compact to dev:deferred-refs', async () => {
+    const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs');
+    const repoRoot = join(import.meta.dirname, '../../../..');
+    const content = actualFs.readFileSync(join(repoRoot, '.husky/pre-commit'), 'utf-8');
+
+    expect(content).toContain('pnpm ops dev:deferred-refs --staged --compact || true');
+  });
+
+  it('pre-push passes --compact $CHANGED_FILES to dev:deferred-refs', async () => {
+    const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs');
+    const repoRoot = join(import.meta.dirname, '../../../..');
+    const content = actualFs.readFileSync(join(repoRoot, '.husky/pre-push'), 'utf-8');
+
+    expect(content).toContain('pnpm ops dev:deferred-refs --compact $CHANGED_FILES || true');
   });
 });

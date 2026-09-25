@@ -60,7 +60,7 @@ fi
 # Informational only; never blocks the push.
 if [ -n "$CHANGED_FILES" ]; then
     # shellcheck disable=SC2086 -- word-splitting the file list is intended
-    pnpm ops dev:deferred-refs $CHANGED_FILES || true
+    pnpm ops dev:deferred-refs --compact $CHANGED_FILES || true
 fi
 
 # 3. Check if only docs/config changed

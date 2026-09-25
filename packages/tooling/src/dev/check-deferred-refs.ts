@@ -240,6 +240,78 @@ interface CheckOptions {
   staged?: boolean;
   /** Explicit file list (used when staged is false) */
   files?: string[];
+  /** One line per file (count + up to two ids) instead of the full enumeration; the hooks pass this */
+  compact?: boolean;
+}
+
+/** Trailer cap on how many matched files get named before falling back to "…" */
+const COMPACT_TRAILER_FILE_CAP = 3;
+
+/** How many distinct task ids the compact summary spells out before collapsing into "+N more" */
+const COMPACT_IDS_SHOWN = 2;
+
+/** Distinct task ids from a match's refs, first-seen order (a task can contribute 2+ refs to one file). */
+function distinctTaskIds(refs: DeferredRef[]): string[] {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const ref of refs) {
+    if (!seen.has(ref.taskId)) {
+      seen.add(ref.taskId);
+      ids.push(ref.taskId);
+    }
+  }
+  return ids;
+}
+
+/** Render one match's compact "N tasks: TASK-a, TASK-b, +M more" summary. */
+function compactSummary(refs: DeferredRef[]): string {
+  const ids = distinctTaskIds(refs);
+  const n = ids.length;
+  const shown = ids.slice(0, COMPACT_IDS_SHOWN).join(', ');
+  if (n <= COMPACT_IDS_SHOWN) {
+    return `${n} ${n === 1 ? 'task' : 'tasks'}: ${shown}`;
+  }
+  return `${n} tasks: ${shown}, +${n - COMPACT_IDS_SHOWN} more`;
+}
+
+/** Full-mode lines: every match's file line plus one bullet per ref. */
+function renderFullLines(matches: DeferredMatch[]): string[] {
+  const lines: string[] = [];
+  for (const match of matches) {
+    lines.push(chalk.white(`   ${match.file}`));
+    for (const ref of match.refs) {
+      lines.push(chalk.dim(`     • ${ref.taskId}  ${ref.title} (${ref.taskFile})`));
+    }
+  }
+  lines.push(chalk.dim('   Reminder only — fold one in if it fits, or carry on. Never blocks.'));
+  return lines;
+}
+
+/** Compact-mode lines: one line per match plus a capped trailer. */
+function renderCompactLines(matches: DeferredMatch[]): string[] {
+  const lines: string[] = [];
+  for (const match of matches) {
+    lines.push(chalk.white(`   ${match.file} — ${compactSummary(match.refs)}`));
+  }
+  const shownFiles = matches.slice(0, COMPACT_TRAILER_FILE_CAP).map(match => match.file);
+  const ellipsis = matches.length > COMPACT_TRAILER_FILE_CAP ? ' …' : '';
+  lines.push(
+    chalk.dim(
+      `   Reminder only — never blocks. Full list: pnpm ops dev:deferred-refs ${shownFiles.join(' ')}${ellipsis}`
+    )
+  );
+  return lines;
+}
+
+/**
+ * Render every line the CLI entry prints for a set of matches, full or
+ * compact, including the leading and trailing blank lines.
+ * @internal Exported for testing
+ */
+export function renderMatches(matches: DeferredMatch[], compact: boolean): string[] {
+  const header = chalk.yellow.bold('📌 Backlog tasks reference files in this change:');
+  const body = compact ? renderCompactLines(matches) : renderFullLines(matches);
+  return ['', header, ...body, ''];
 }
 
 /**
@@ -264,16 +336,9 @@ export async function checkDeferredRefs(options: CheckOptions = {}): Promise<voi
       return;
     }
 
-    console.log('');
-    console.log(chalk.yellow.bold('📌 Backlog tasks reference files in this change:'));
-    for (const match of matches) {
-      console.log(chalk.white(`   ${match.file}`));
-      for (const ref of match.refs) {
-        console.log(chalk.dim(`     • ${ref.taskId}  ${ref.title} (${ref.taskFile})`));
-      }
+    for (const line of renderMatches(matches, options.compact === true)) {
+      console.log(line);
     }
-    console.log(chalk.dim('   Reminder only — fold one in if it fits, or carry on. Never blocks.'));
-    console.log('');
   } catch (error) {
     console.error(
       chalk.dim(
