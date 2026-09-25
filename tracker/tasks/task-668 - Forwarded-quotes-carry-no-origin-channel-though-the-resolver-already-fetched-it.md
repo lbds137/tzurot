@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-19 00:47'
+updated_date: '2026-09-25 02:52'
 labels:
   - 'area:bot-client'
   - 'size:S'
-  - 'state:ready'
+  - 'state:observable'
 dependencies: []
 priority: medium
 ordinal: 668000
@@ -47,6 +48,8 @@ Acceptance, per clause:
 3. "the DM case is decided and pinned by a test" - MET. No channel attribute at all, and the test asserts permissionsFor is never even called.
 
 Close this when the smoke item passes, not before.
+
+Relabelled state:observable 2026-09-25 (it sat as state:ready in the drain query with no code work left). Watch signal: any prod or dev `/inspect` of a reply to a cross-channel forward whose quote element carries a `channel=` attribute closes clause 1; the beta.206 smoke item was never reported either way.
 
 Scope narrowed, deliberately: channelId was dropped. Nothing reads a channel id, and a snowflake in the prompt is a token the model cannot expand - the same reasoning the authorPersonalityId docs give for why from_id is not authorId.
 
