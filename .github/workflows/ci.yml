@@ -312,13 +312,13 @@ jobs:
             junit: ./services/api-gateway/junit.xml
           - cell: website
             filter: --filter=@tzurot/website
-            coverage: ''
-            flags: ''
+            coverage: ./services/website/coverage/lcov.info
+            flags: website
             junit: ./services/website/junit.xml
           - cell: tooling
             filter: --filter=@tzurot/tooling
-            coverage: ''
-            flags: ''
+            coverage: ./packages/tooling/coverage/lcov.info
+            flags: tooling
             junit: ./packages/tooling/junit.xml
           - cell: packages
             # Every workspace package except tooling (its own cell above).
