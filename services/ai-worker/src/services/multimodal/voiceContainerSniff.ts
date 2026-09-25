@@ -48,7 +48,7 @@ function startsWithSignature(bytes: Uint8Array, signature: readonly number[]): b
 /**
  * Replace `name`'s final extension with `extension`, or synthesize one when
  * `name` is absent/empty. Exported so AudioProcessor can build the same
- * `.ogg`-suffixed filename for a remuxed attachment.
+ * `.ogg`-suffixed filename for a transcoded attachment.
  */
 export function withAudioExtension(name: string | undefined, extension: string): string {
   if (name === undefined || name.length === 0) {
