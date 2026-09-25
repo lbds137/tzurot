@@ -3,9 +3,10 @@ id: TASK-984
 title: >-
   packages/tooling declares no typecheck script, so pnpm typecheck silently
   skips the whole package
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-14 23:06'
+updated_date: '2026-09-25 13:51'
 labels:
   - 'area:tooling'
   - 'size:S'
