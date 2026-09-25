@@ -192,13 +192,14 @@ fi
 # Surface deferred-backlog entries that reference staged files (informational).
 # Many tracker tasks are gated on "opportunistic when next
 # touching <file>" — a trigger that only fires if the committer remembers the
-# entry exists. This makes the trigger structural: matches print as a reminder,
-# never block. `|| true` guards against tool failure breaking commits.
+# entry exists. This makes the trigger structural: matches print as a compact
+# reminder (one line per file; the bare command lists every task), never
+# block. `|| true` guards against tool failure breaking commits.
 # Scoped to commits touching services/, packages/, or prisma/ so doc-only
 # commits skip the tsx startup cost.
 STAGED_SRC_FOR_DEFERRED=$(git diff --cached --name-only | grep -E '^(services|packages|prisma)/' || true)
 if [ -n "$STAGED_SRC_FOR_DEFERRED" ]; then
-    pnpm ops dev:deferred-refs --staged || true
+    pnpm ops dev:deferred-refs --staged --compact || true
 fi
 
 # Check for dangerous Prisma migrations
