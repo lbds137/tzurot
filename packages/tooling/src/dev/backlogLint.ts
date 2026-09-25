@@ -529,8 +529,8 @@ export function readLiveTaskFiles(rootDir: string): string[] {
  * The archive is how an item exits the pool, so the two directories must be
  * disjoint and the archive must hold one file per id — and each copy parses
  * fine on its own, so nothing else surfaces the overlap. This is
- * `06-backlog.md`'s "a missing label is indistinguishable from absent work"
- * read in reverse.
+ * `06-backlog.md`'s missing-axes gate (a task no query can reach is absent
+ * work) read in reverse.
  *
  * Compared by id token rather than by full filename, so a rename on either
  * side cannot hide it — and because the id, not the title, is what every CLI

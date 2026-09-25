@@ -173,6 +173,15 @@ Queues set `defaultJobOptions` — bounded `attempts` with exponential `backoff`
 
 `setTimeout` is fine for request timeouts and one-time delays (an `AbortController` abort). A persistent `setInterval` is a scaling blocker — use a BullMQ repeatable job (`queue.add(name, {}, { repeat: { every } })`) instead.
 
+## DMs silent: diagnosis order
+
+1. **Interactions work, messages don't** = Discord delivers interactions (HTTPS, no intents) but not MESSAGE_CREATE (gateway: intents + install scope). That's Discord-side, not our code.
+2. **Guild fine, DMs not** = the message-content intent is on; narrow to DM state.
+3. **Root cause: post-reconnect DM subscription loss.** Discord doesn't re-subscribe a bot to existing DM channels on gateway reconnect (guilds re-subscribe via GUILD_CREATE), so after every deploy or restart plain DMs drop until an interaction re-opens the channel. "Deauth + reauth fixes it" only worked because it re-opened the channel. The fix is shipped: `services/StartupDMPrewarmer.ts` + `services/DMCacheWarmer.ts` in bot-client. If it recurs, read the prewarmer's logs first; it may have missed the user or failed.
+4. Only then check Dev Portal settings (User Install contexts/scopes, MESSAGE CONTENT intent, Authorized Apps, Message Requests).
+
+Don't pull Railway logs filtered for DM activity when no events reach the bot; absence of our logs is consistent with gateway non-delivery. The log shape when it IS this bug: `Ignoring system message` with `messageType=20` (one slash-command messageCreate, zero Default/Reply types since the last interaction). DM entry points: `DMSessionProcessor.ts`, `nsfwVerification.ts`.
+
 ## Observability
 
 ### Correlation IDs

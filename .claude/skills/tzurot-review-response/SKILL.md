@@ -1,7 +1,7 @@
 ---
 name: tzurot-review-response
 description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → decided when engineering-only, ASK when it carries a product/UX, user-visible, schema, spend, data-rights, or security dimension, changes an existing test assertion, or changes an async boundary or external contract), check reviewer-vs-agent signal conflict, batch-present the four sections, step back at ~3 automated rounds (rule of thumb), and hard-cap at ~6 — hand off to a fresh context or the owner. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
-lastUpdated: '2026-09-22'
+lastUpdated: '2026-09-25'
 ---
 
 # Review-Response Iteration
@@ -319,6 +319,6 @@ Before each round's consolidated message:
 ## Relationship to the rules
 
 - **`00-critical.md`** § "Merge Approval" governs the merge gate (standing authorization for feature/fix PRs once truly ready; the release PR always needs explicit approval). This procedure governs iteration _before_ that gate; nothing here loosens it.
-- **`00-critical.md`** "NEVER modify tests to make them pass" remains in force. The test-suite gate in rule 3 fails closed — a trivial-shape edit that breaks tests is escalated, not covered up by modifying tests.
+- **harness `core.md`** § Safety ("Never modify a test, lint rule or guard just to get past it") remains in force. The test-suite gate in rule 3 fails closed — a trivial-shape edit that breaks tests is escalated, not covered up by modifying tests.
 - **`05-tooling.md`** PR-monitoring step 4 delegates to this skill.
 - **`06-backlog.md`** out-of-scope tracking still applies — items explicitly flagged as follow-ups are filed as tracker tasks (or the appropriate `backlog/**/*.md` file) per rule 4's "Backlog candidates" section — except low-priority process-work residue, which `06-backlog.md` § The process-residue default keeps in the PR body.

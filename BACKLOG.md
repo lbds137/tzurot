@@ -14,13 +14,13 @@ Keeping the pool and the cold files out of the session-start load is the whole p
 
 ## Session-start load (HOT)
 
-| Surface                                            | What                                                                                   |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `BACKLOG.md` (this file)                           | Load manifest + filing decision-tree                                                   |
-| [`backlog/now.md`](backlog/now.md)                 | 🚨 Production Issues · 🎯 Current Focus (≤3) · ⚡ Quick Wins (≤5) · 📥 Untriaged (≤10) |
-| [`backlog/active-epic.md`](backlog/active-epic.md) | Current epic roadmap + current phase                                                   |
-| [`backlog/references.md`](backlog/references.md)   | Cross-links to research docs / post-mortems                                            |
-| `pnpm ops backlog:digest`                          | Generated tracker briefing: per-area counts · oldest 20 · newest 10 (~60 lines)        |
+| Surface                                            | What                                                                                                          |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `BACKLOG.md` (this file)                           | Load manifest + filing decision-tree                                                                          |
+| [`backlog/now.md`](backlog/now.md)                 | 🚨 Production Issues · 🚢 Next Release · 🎯 Current Focus (≤3) · ⚡ Quick Wins (≤5) · 📥 Untriaged (≤10)      |
+| [`backlog/active-epic.md`](backlog/active-epic.md) | Current epic roadmap + current phase                                                                          |
+| [`backlog/references.md`](backlog/references.md)   | Cross-links to research docs / post-mortems                                                                   |
+| `pnpm ops backlog:digest`                          | Generated tracker briefing: per-area counts · owner queue · oldest 20 (aging surface) · newest 10 (~60 lines) |
 
 ## The tracker store (query on demand)
 
@@ -76,5 +76,5 @@ Items are **never** deleted by calendar. The digest's oldest-20 surface exists s
 
 - **Tags** (backlog markdown files): 🏗️ `[LIFT]` refactor/debt · ✨ `[FEAT]` feature · 🐛 `[FIX]` bug · 🧹 `[CHORE]` maintenance. Tracker tasks use `area:*` labels instead.
 - **Direct doc-commits to `develop`**: `backlog/**/*.md` and `tracker/**/*.md` are in the doc-commit-allowed list (per `.claude/rules/00-critical.md`) — routine triage needs no PR.
-- **Triage rules, caps, and the staleness principle**: `.claude/rules/06-backlog.md`.
+- **Tracker conventions and the staleness principle**: `.claude/rules/06-backlog.md`. The caps are in the HOT table above; triage rules (the filing decision-tree) live in this file's own § Where does a new item go?
 - **Lint**: `pnpm ops backlog` gates the caps, `cold/queue.md` doc-reference integrity, and tracker task-file parse integrity (in `pnpm quality` + CI).
