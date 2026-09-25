@@ -362,6 +362,7 @@ describe('findContentRefs (against real repo)', () => {
       'cache:inspect',
       'cadence:mark',
       'cadence:status',
+      'codegen:routes',
       'context',
       'cpd:check',
       'cpd:filtered',

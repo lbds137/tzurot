@@ -51,6 +51,8 @@ EOF
 test "$(git rev-parse HEAD)" = "$(git ls-remote origin "refs/heads/<branch>" | cut -f1)" && echo PUSH_LANDED
 ```
 
+- A commit-body line starting with `#` is dropped when git cleans the message in editor/strip mode (`-m` and `-F` keep it). Start such lines with a word ("PR #2466 …"); same for `#TASK` prefixes.
+
 ### 3. Push
 
 ```bash
@@ -148,6 +150,8 @@ entry, then `/tzurot-review-response`. Do not stop after the CI check: only
 `CI_COMPLETE` means CI finished, and a green check list is not proof CI ran.
 
 **Merge gate is green-only** — every check green before `gh pr merge`, release PRs included; infrastructure-shaped failures get `gh run rerun <run-id> --failed` and a re-armed Monitor, never a merge through the red (`00-critical.md` § Never Merge PRs Without Completed CI).
+
+- **A CodeQL default-setup run** (`dynamic/github-code-scanning/codeql`, named `PR #N`; only on PRs targeting `main`) can't be rerun: `gh run rerun` says "cannot be rerun" and both REST rerun endpoints return 403. On an infra flake (e.g. `getaddrinfo EAI_AGAIN github.com` in init), refresh the SHA: `git commit --amend --no-edit` on the single unmerged commit, `git push --force-with-lease`, then re-arm the gate. Budget one amend cycle before merging a `main`-targeted PR.
 
 ### Before merging: the head branch must be checked out NOWHERE
 

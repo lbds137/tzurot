@@ -16,7 +16,7 @@ _Ordered index of future themes. Grep-on-demand — not loaded at session start.
 >
 ### Half-finished — epics with shipped work and no slot
 
-_One row per epic whose theme doc has a done step and a not-done step and which holds no slot. Bin: **gated** (a named trigger), **owner** (a decision on the owner queue), **pivoted** (the slot moved on, nothing named the remainder — convert to drain tasks). Written at promotion time (`06-backlog.md` § Promoting a theme, step 1) and rewritten when a phase ships; the digest prints it (TASK-1090). Built 2026-09-24 from a full read of the theme docs; the prior one-line list named five and missed three._
+_One row per epic whose theme doc has a done step and a not-done step and which holds no slot. Bin: **gated** (a named trigger), **owner** (a decision on the owner queue), **pivoted** (the slot moved on, nothing named the remainder — convert to drain tasks). Written at promotion time (`/tzurot-docs` § Promoting a theme to Active Epic, step 1) and rewritten when a phase ships; the digest prints it (TASK-1090). Built 2026-09-24 from a full read of the theme docs; the prior one-line list named five and missed three._
 
 | Epic | Remainder | Bin | Trigger / disposition |
 | --- | --- | --- | --- |

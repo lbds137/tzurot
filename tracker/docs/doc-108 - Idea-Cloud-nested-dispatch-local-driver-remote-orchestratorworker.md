@@ -111,6 +111,7 @@ Owner steer: the pilot must exercise the REAL path, a local session spawning clo
 - **Owner directive (2026-09-24):** every assumed cloud limitation gets
   confirmed by a probe before it constrains the mode, with a mitigation tried
   where possible.
+- **Credit spent (2026-09-25 04:20):** the one-time $250 cloud credit (claimed 2026-09-23) is exhausted. Cloud sessions now bill the shared weekly plan quota like local work, so the one-cloud-unit cap is binding, not a courtesy (owner re-confirmed the cap 2026-09-25). Delivered on the credit: TASK-614 (#2523), TASK-777 (#2524), TASK-733 (#2529), PR-6a (#2520). Local usage sweeps no longer see all spend: cloud units bill but leave no local JSONL.
 
 ### Capability probe results (2026-09-24, one `--cloud` session, ~20 min, $3)
 

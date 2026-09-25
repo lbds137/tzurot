@@ -44,7 +44,7 @@ unit boundaries as a cost lever, naming boundaries proactively**. Enforced by
 
 ## Boards are snapshots; git and code are the truth
 
-`06-backlog.md` § Freshness-check covers presenting entries; the extension here
+harness `core.md` § Boards are snapshots; git and code are the truth covers presenting entries; the extension here
 is ACTING: before building against any board entry, verify it against the log
 and code — work described as "next" may have shipped, "duplicated code" may
 have diverged to zero clones. The user's "I think we already did that" is a
@@ -59,7 +59,7 @@ surfaces the tracker does not index: `docs/incidents/`,
 `docs/reference/architecture/`, `backlog/references.md`, and `docs/local/`
 (gitignored — owner risk-accepts and policy decisions live there, and only a
 local read can find them). A clean tracker search alone is a negative
-existence claim (`00-critical.md` governs those). A prior close is not a veto;
+existence claim (harness `core.md` § Negative existence and the grep rule governs those). A prior close is not a veto;
 reversing it is often right — but **deliberately, with the reason written
 back into the doc that closed it**, never by a session that did not know it
 existed.
@@ -146,8 +146,8 @@ absent; from `develop`, the branch's own new files read as absent. Name a ref
 `git ls-tree -r --name-only <ref>`) whenever the answer has to hold somewhere
 other than the checkout you are standing in. Only after those pass does "the
 data isn't there" become a hypothesis — and stating it is governed by
-`00-critical.md` § "An empty or sparse tool result" (the store side of this
-same seam). `lossy-pipe-guard.sh` blocks only two write-side shapes pre-hoc —
+harness `core.md` § Lossy steps are for known output shapes (its "List why it
+could come back empty before blaming the store" bullet). `lossy-pipe-guard.sh` blocks only two write-side shapes pre-hoc —
 a filtered `git commit`/`push`, and a `gh` read truncated by head/tail/`sed
 -n`; for everything else the read-side check above is yours to run (no hook
 can carry it: it needs the command's result).

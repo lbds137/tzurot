@@ -4,8 +4,9 @@
 # "guaranteed to", "only ever".
 #
 # Those phrasings state what a field or value HOLDS at runtime, which is a
-# claim only the producer can settle (.claude/rules/00-critical.md § "The
-# producer is authoritative on what a field HOLDS"). A doc comment states the
+# claim only the producer can settle (harness core.md § Don't present
+# speculation as fact — the producer is authoritative on what a field HOLDS).
+# A doc comment states the
 # author's intent at writing time and drifts silently; near-identical sibling
 # interfaces make a plausible-looking declaration weak evidence.
 #
@@ -117,6 +118,6 @@ MATCHES=$(git -c diff.mnemonicprefix=false -c core.quotepath=false diff --cached
 
 printf 'CLAIM-SHAPE GUARD: staged line(s) assert what a field/value always or never holds:\n'
 printf '%s\n' "$MATCHES" | sed 's/^/  /'
-printf 'Per 00-critical § the producer is authoritative: verify each at its producer/assignment site and cite it, or amend.\n'
+printf 'Per harness core.md § Don'\''t present speculation as fact (the producer is authoritative): verify each at its producer/assignment site and cite it, or amend.\n'
 
 exit 0
