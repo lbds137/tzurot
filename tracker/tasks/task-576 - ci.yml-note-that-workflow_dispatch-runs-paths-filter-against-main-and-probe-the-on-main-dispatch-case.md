@@ -3,10 +3,10 @@ id: TASK-576
 title: >-
   ci.yml: note that workflow_dispatch runs paths-filter against main, and probe
   the on-main dispatch case
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 22:39'
-updated_date: '2026-09-04 19:37'
+updated_date: '2026-09-25 00:41'
 labels:
   - 'area:ci'
   - 'size:S'
