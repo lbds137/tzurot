@@ -3,9 +3,10 @@ id: TASK-733
 title: >-
   crossChannelMessageSchema cannot express a quote-bearing row - dedup pins need
   casts
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-22 17:07'
+updated_date: '2026-09-25 06:23'
 labels:
   - 'area:ai-worker'
   - 'size:S'
