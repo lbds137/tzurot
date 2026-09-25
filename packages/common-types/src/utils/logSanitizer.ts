@@ -150,7 +150,8 @@ function isRedactedExactName(lowerKey: string, value: unknown): boolean {
  * that function's complexity under the lint threshold.
  */
 function isSensitiveField(lowerKey: string, value: unknown): boolean {
-  const matchesApiKeyPattern = lowerKey.includes('apikey') || lowerKey.includes('api_key');
+  // Separator-tolerant (`apikey`, `api_key`, `api-key`), matching the JSON-string pattern above.
+  const matchesApiKeyPattern = /api[_-]?key/.test(lowerKey);
   // Allowlist for `apikey*` metadata fields whose VALUE is a discriminator
   // (e.g., `'user'` / `'system'`) — not the key itself. Without this, fields
   // like `apiKeySource` get over-redacted because they contain `apikey` as

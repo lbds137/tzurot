@@ -52,6 +52,9 @@ describe('logSanitizer', () => {
     it('should redact JSON API key values', () => {
       const message = '{"api_key": "sk-1234567890abcdefghijklmnop", "model": "gpt-4"}';
       expect(sanitizeLogMessage(message)).toBe('{"api_key": "[REDACTED]", "model": "gpt-4"}');
+      expect(sanitizeLogMessage('{"api-key": "plain-value-6", "model": "gpt-4"}')).toBe(
+        '{"api-key": "[REDACTED]", "model": "gpt-4"}'
+      );
     });
 
     it('should redact multiple keys in one message', () => {
@@ -129,10 +132,9 @@ describe('logSanitizer', () => {
     });
 
     it('should NOT redact apiKeySource metadata field — it carries no key value', () => {
-      // Regression test for an over-redaction bug discovered 2026-04-29:
-      // the broad `lowerKey.includes('apikey')` check matched `apiKeySource`
-      // even though that field is a `'user'`/`'system'` discriminator with
-      // no sensitive content. Tightened via `API_KEY_METADATA_FIELDS` allowlist.
+      // Regression guard for an over-redaction bug: the api-key name pattern
+      // matches `apiKeySource` even though that field is a `'user'`/`'system'`
+      // discriminator with no sensitive content, so `API_KEY_METADATA_FIELDS` exempts it.
       const obj = {
         apiKey: 'sk-1234567890abcdefghijklmnop',
         apiKeySource: 'user' as const,
@@ -140,6 +142,30 @@ describe('logSanitizer', () => {
       const result = sanitizeObject(obj) as Record<string, unknown>;
       expect(result.apiKey).toBe('[REDACTED]');
       expect(result.apiKeySource).toBe('user');
+    });
+
+    it('should redact hyphenated api-key names while still exempting apiKeySource', () => {
+      const obj = {
+        'api-key': 'plain-value-1',
+        'x-api-key': 'plain-value-2',
+        apiKeySource: 'user' as const,
+      };
+      const result = sanitizeObject(obj) as Record<string, unknown>;
+      expect(result['api-key']).toBe('[REDACTED]');
+      expect(result['x-api-key']).toBe('[REDACTED]');
+      expect(result.apiKeySource).toBe('user');
+    });
+
+    it('should redact separator-variant secret, token, and password names', () => {
+      const obj = {
+        'client-secret': 'plain-value-3',
+        'access-token': 'plain-value-4',
+        'x-password': 'plain-value-5',
+      };
+      const result = sanitizeObject(obj) as Record<string, unknown>;
+      expect(result['client-secret']).toBe('[REDACTED]');
+      expect(result['access-token']).toBe('[REDACTED]');
+      expect(result['x-password']).toBe('[REDACTED]');
     });
 
     it('should handle nested objects', () => {
@@ -364,6 +390,18 @@ describe('logSanitizer', () => {
       );
       expect(redactSensitiveQueryValues('/x?clientSecret=canary-delta-0004')).toBe(
         '/x?clientSecret=[REDACTED]'
+      );
+    });
+
+    it('should redact a hyphenated api-key query value and leave a non-sensitive sibling untouched', () => {
+      expect(redactSensitiveQueryValues('https://x.test/p?api-key=abc123&id=7')).toBe(
+        'https://x.test/p?api-key=[REDACTED]&id=7'
+      );
+    });
+
+    it('should redact a percent-encoded api-key name, preserving the raw key in the output', () => {
+      expect(redactSensitiveQueryValues('/x?api%2Dkey=abc123&id=7')).toBe(
+        '/x?api%2Dkey=[REDACTED]&id=7'
       );
     });
 
