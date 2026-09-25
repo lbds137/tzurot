@@ -3,9 +3,10 @@ id: TASK-1096
 title: >-
   guard:repo-settings asserts every main-required status check is a job in main
   ci.yml
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-25 01:45'
+updated_date: '2026-09-25 07:04'
 labels:
   - 'area:ci'
   - 'size:S'
