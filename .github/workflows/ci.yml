@@ -580,6 +580,11 @@ jobs:
           # ("fatal: shallow file has changed since we read it" flakes).
           fetch-depth: 0
 
+      # On workflow_dispatch the event payload has no `before` field, so
+      # paths-filter diffs only the tip commit (observed on a dispatched
+      # run: every gated step below was skipped while the job reported
+      # success). A manual dispatch is a request to run everything, so
+      # each gated step below also runs on that event.
       - uses: dorny/paths-filter@v4
         id: filter
         with:
@@ -588,29 +593,29 @@ jobs:
               - 'services/voice-engine/**'
 
       - name: Setup Python
-        if: steps.filter.outputs.voice-engine == 'true'
+        if: steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch'
         uses: actions/setup-python@v7
         with:
           python-version-file: 'services/voice-engine/.python-version'
 
       - name: Install test dependencies
-        if: steps.filter.outputs.voice-engine == 'true'
+        if: steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch'
         run: pip install -r services/voice-engine/requirements-dev.txt
 
       - name: Run ruff linter
-        if: steps.filter.outputs.voice-engine == 'true'
+        if: steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch'
         run: cd services/voice-engine && ruff check .
 
       - name: Run mypy type checker
-        if: steps.filter.outputs.voice-engine == 'true'
+        if: steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch'
         run: cd services/voice-engine && mypy --strict server.py tests/
 
       - name: Run voice-engine tests
-        if: steps.filter.outputs.voice-engine == 'true'
+        if: steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch'
         run: cd services/voice-engine && python -m pytest tests/ -v --cov=server --cov-report=xml:coverage.xml
 
       - name: Upload voice-engine coverage to Codecov
-        if: ${{ !cancelled() && steps.filter.outputs.voice-engine == 'true' }}
+        if: ${{ !cancelled() && (steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch') }}
         uses: codecov/codecov-action@v7
         with:
           # PyPI install path: the default binary download verifies its GPG
@@ -668,6 +673,11 @@ jobs:
           # ("fatal: shallow file has changed since we read it" flakes).
           fetch-depth: 0
 
+      # On workflow_dispatch the event payload has no `before` field, so
+      # paths-filter diffs only the tip commit (observed on a dispatched
+      # run: every gated step below was skipped while the job reported
+      # success). A manual dispatch is a request to run everything, so
+      # each gated step below also runs on that event.
       - uses: dorny/paths-filter@v4
         id: filter
         with:
@@ -707,14 +717,14 @@ jobs:
               - 'package.json'
 
       - name: Build image
-        if: steps.filter.outputs[matrix.service] == 'true'
+        if: steps.filter.outputs[matrix.service] == 'true' || github.event_name == 'workflow_dispatch'
         run: docker build ${{ matrix.context }} -f services/${{ matrix.service }}/Dockerfile ${{ matrix.args }} -t smoke/${{ matrix.service }}${{ matrix.tag_suffix }}:ci
 
       # The website legs go beyond build-success: serve the image and assert
       # the per-brand CONTENT (robots directives + the legal-page brand
       # substitution) — a build can succeed with either ternary branch flipped.
       - name: Verify served website content per brand
-        if: matrix.service == 'website' && steps.filter.outputs[matrix.service] == 'true'
+        if: matrix.service == 'website' && (steps.filter.outputs[matrix.service] == 'true' || github.event_name == 'workflow_dispatch')
         run: |
           docker run -d --rm --name website-smoke -p 8080:8080 smoke/${{ matrix.service }}${{ matrix.tag_suffix }}:ci
           # --retry-all-errors, not just --retry-connrefused: during nginx's
