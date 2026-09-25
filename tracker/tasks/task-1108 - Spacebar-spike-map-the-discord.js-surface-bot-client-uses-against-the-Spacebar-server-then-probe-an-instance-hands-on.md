@@ -3,9 +3,10 @@ id: TASK-1108
 title: >-
   Spacebar spike: map the discord.js surface bot-client uses against the
   Spacebar server, then probe an instance hands-on
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-25 18:51'
+updated_date: '2026-09-25 19:57'
 labels:
   - 'area:bot-client'
   - 'size:M'
@@ -35,4 +36,9 @@ PART 1 DONE 2026-09-25 (local read-only agent; docs/local/spacebar-spike.md; doc
 created: 2026-09-25 15:30
 ---
 OWNER RULING 2026-09-25: fork Spacebar (upstream contributions conditional on their stance toward AI contributions; otherwise the fork stays private). Part 2 is GO: the podman probe on the Deck against upstream d211b0d, per the probe list in doc-83. The fork repo comes with the first patch.
+---
+
+created: 2026-09-25 15:57
+---
+PART 2 DONE 2026-09-25 (local probe agent, ~24 min): result table and first-patch list on doc-83; long form docs/local/spacebar-probe.md. Task closes: every acceptance clause is met and the owner ruled (fork Spacebar). The fork work continues in its own repo and session; the Tzurot-side host-override work and the pointer live on doc-83 until the fork theme doc exists.
 ---
