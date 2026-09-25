@@ -44,11 +44,6 @@ vi.mock('@tzurot/common-types/constants/ai', async () => {
   );
   return {
     ...actual,
-    AIProvider: {
-      OpenRouter: 'openrouter',
-      ElevenLabs: 'elevenlabs',
-      ZaiCoding: 'zai-coding',
-    },
     AI_DEFAULTS: {
       MAX_TOKENS: 4096,
       REASONING_MODEL_MAX_TOKENS: {
@@ -620,54 +615,11 @@ describe('ModelFactory', () => {
   });
 
   // ===================================
-  // Restricted parameter filtering
+  // Param filtering by route
   // ===================================
 
-  describe('restricted parameter filtering', () => {
-    it('should filter frequencyPenalty for GLM 4.5 Air', () => {
-      const config: ModelConfig = {
-        modelName: 'z-ai/glm-4.5-air:free',
-        frequencyPenalty: 0.5,
-        temperature: 0.9,
-      };
-
-      createChatModel(config);
-
-      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
-      expect(callArgs.frequencyPenalty).toBeUndefined();
-      expect(callArgs.temperature).toBe(0.9); // Other params preserved
-    });
-
-    it('should filter presencePenalty for GLM 4.5 Air', () => {
-      const config: ModelConfig = {
-        modelName: 'z-ai/glm-4.5-air:free',
-        presencePenalty: 0.3,
-      };
-
-      createChatModel(config);
-
-      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
-      expect(callArgs.presencePenalty).toBeUndefined();
-    });
-
-    it('should filter seed and topK from modelKwargs for GLM 4.5 Air', () => {
-      const config: ModelConfig = {
-        modelName: 'z-ai/glm-4.5-air:free',
-        seed: 42,
-        topK: 40,
-        topP: 0.95, // top_p IS supported by Z.AI
-      };
-
-      createChatModel(config);
-
-      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
-      const kwargs = callArgs.modelKwargs as Record<string, unknown> | undefined;
-      expect(kwargs?.seed).toBeUndefined();
-      expect(kwargs?.top_k).toBeUndefined();
-      expect(callArgs.topP).toBe(0.95); // Supported param preserved
-    });
-
-    it('should preserve all params for non-restricted models', () => {
+  describe('param filtering by route', () => {
+    it('passes every sampling param through on the OpenRouter route', () => {
       const config: ModelConfig = {
         modelName: 'anthropic/claude-sonnet-4.5',
         frequencyPenalty: 0.5,
@@ -684,34 +636,33 @@ describe('ModelFactory', () => {
       expect(kwargs.seed).toBe(42);
     });
 
-    it('should filter multiple unsupported params at once for GLM 4.5 Air', () => {
+    it('passes frequency/presence/seed/top_k through for glm-4.5-air on the OpenRouter route', () => {
+      // A recorded OpenRouter probe showed the upstream accepts every one of
+      // these params for glm-4.5-air; the retired per-model denylist would
+      // have stripped all four.
       const config: ModelConfig = {
         modelName: 'z-ai/glm-4.5-air:free',
         frequencyPenalty: 0.5,
         presencePenalty: 0.3,
         seed: 42,
-        topP: 0.95,
         topK: 40,
-        repetitionPenalty: 1.05,
       };
 
       createChatModel(config);
 
       const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
-      // Unsupported params filtered (per Z.AI docs)
-      expect(callArgs.frequencyPenalty).toBeUndefined();
-      expect(callArgs.presencePenalty).toBeUndefined();
-      // Supported params preserved
-      expect(callArgs.topP).toBe(0.95);
-      // All modelKwargs params were unsupported, so modelKwargs is omitted entirely
-      expect(callArgs.modelKwargs).toBeUndefined();
+      expect(callArgs.frequencyPenalty).toBe(0.5);
+      expect(callArgs.presencePenalty).toBe(0.3);
+      const kwargs = callArgs.modelKwargs as Record<string, unknown>;
+      expect(kwargs.seed).toBe(42);
+      expect(kwargs.top_k).toBe(40);
     });
 
-    it('should apply provider-tier z.ai-direct filter to ALL models (not just glm-4.5-air)', () => {
+    it('should apply provider-tier z.ai-direct filter to ALL models', () => {
       // Critical: when routing direct to z.ai, the strict supported-params list
       // applies regardless of which GLM variant. glm-4.7 via OpenRouter would
-      // pass these params; glm-4.7 direct-to-z.ai would 400. The provider-tier
-      // filter handles this without needing one regex per model.
+      // pass these params; glm-4.7 direct-to-z.ai would 400. The filter keys
+      // on the provider, never on the model name.
       const config: ModelConfig = {
         modelName: 'glm-4.7',
         provider: AIProvider.ZaiCoding,
@@ -736,9 +687,8 @@ describe('ModelFactory', () => {
 
     it('should NOT apply z.ai-direct filter when route is OpenRouter (even for glm-4.7)', () => {
       // Inverse of the previous test: same model name routed via OpenRouter
-      // does NOT get the strict z.ai-tier filter — OpenRouter normalizes params.
-      // Only the per-model RESTRICTED_PARAM_MODELS pattern applies (which doesn't
-      // currently include glm-4.7).
+      // does NOT get the strict z.ai-tier filter — OpenRouter normalizes
+      // params, and the OpenRouter route gets no param filter at all.
       const config: ModelConfig = {
         modelName: 'z-ai/glm-4.7',
         // provider not set → uses env-level default (openrouter in this test)
@@ -1316,26 +1266,11 @@ describe('ModelFactory', () => {
       expect(callArgs.modelKwargs).toEqual({ response_format: { type: 'text' } });
     });
 
-    it('leaves the OpenRouter route on denylist semantics for glm-4.5-air', () => {
-      // The per-model OpenRouter entry must NOT become an allowlist: params
-      // OpenRouter handles (here response_format) have to survive.
+    it('lets the OpenRouter route keep reasoning', () => {
+      // An allowlist applied to the OpenRouter route would strip the
+      // reasoning object entirely; this pins that the route gets no filter.
       createChatModel({
-        modelName: 'z-ai/glm-4.5-air:free',
-        responseFormat: { type: 'text' },
-        seed: 42,
-      });
-
-      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
-      const kwargs = callArgs.modelKwargs as Record<string, unknown>;
-      expect(kwargs.response_format).toEqual({ type: 'text' });
-      expect(kwargs.seed).toBeUndefined();
-    });
-
-    it('lets the OpenRouter route keep reasoning for a restricted model', () => {
-      // The sharpest edge of the denylist/allowlist split: an allowlist applied
-      // to the OpenRouter route would strip the reasoning object entirely.
-      createChatModel({
-        modelName: 'z-ai/glm-4.5-air:free',
+        modelName: 'z-ai/glm-4.7',
         thinking: 'high',
       });
 

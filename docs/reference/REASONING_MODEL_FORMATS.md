@@ -196,7 +196,7 @@ readable via `/inspect`.
 
 ## Pipeline Flow
 
-1. **Request** - `ModelFactory.buildModelKwargs` merges the provider-appropriate thinking params from `buildThinkingKwargs()` (`modelFactory/thinkingTranslation.ts`) into `modelKwargs` — `reasoning: {...}` for OpenRouter, `thinking: {...}` + `reasoning_effort` for z.ai-direct — which LangChain passes through to the API as top-level body keys. On the z.ai route, `filterRestrictedParams` then applies the `ZAI_DIRECT_SUPPORTED_PARAMS` allowlist. OpenRouter-only extras (`transforms`, `route`, `verbosity`) are injected by the custom fetch wrapper (`OpenRouterFetch.ts`) on the request side.
+1. **Request** - `ModelFactory.buildModelKwargs` merges the provider-appropriate thinking params from `buildThinkingKwargs()` (`modelFactory/thinkingTranslation.ts`) into `modelKwargs` — `reasoning: {...}` for OpenRouter, `thinking: {...}` + `reasoning_effort` for z.ai-direct — which LangChain passes through to the API as top-level body keys. On the z.ai route, `applyZaiDirectAllowlist` then applies the `ZAI_DIRECT_SUPPORTED_PARAMS` allowlist. OpenRouter-only extras (`transforms`, `route`, `verbosity`) are injected by the custom fetch wrapper (`OpenRouterFetch.ts`) on the request side.
 
 2. **Raw-Response Capture** - For OpenRouter models, `__includeRawResponse: true` surfaces the complete raw API response at `additional_kwargs.__raw_response` after LangChain parses it. (The custom fetch no longer mutates response bodies for reasoning — its only response-side job is 400-recovery, below.)
 
