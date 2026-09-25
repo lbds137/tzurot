@@ -165,10 +165,10 @@ Per .claude/rules/05-tooling.md (PR Monitoring), arm a Monitor now:
   abbreviated SHA and a well-formed one naming no local commit, but the point of
   the substitution is that there is nothing left to get wrong.
 
-  The gate waits for the CI workflow RUN to complete and for nothing else on
-  that SHA to still be in flight; do not swap it for a fixed 'sleep', because
-  run creation itself can lag the push by minutes (see 05-tooling.md § PR
-  Monitoring).
+  The gate waits for the CI workflow RUN to complete, for nothing else on
+  that SHA to still be in flight, and for the Claude Code Review run to exist
+  and complete; do not swap it for a fixed 'sleep', because run creation
+  itself can lag the push by minutes (see 05-tooling.md § PR Monitoring).
 
   Arm a Monitor with description "CI + reviews for PR #$PR_NUM", timeout_ms
   1800000, persistent false (deliberately NOT true — a forgotten session-length
@@ -178,7 +178,8 @@ Per .claude/rules/05-tooling.md (PR Monitoring), arm a Monitor now:
 
 When it fires:
 - Inspect \`gh pr checks $PR_NUM\` output for pass/fail summary.
-- If no "CI_COMPLETE" line appeared, the 30-min timeout fired first — re-arm.
+- If no "CI_COMPLETE" line appeared, read WHICH sentinel did (05-tooling.md § PR
+  Monitoring lists them); none at all means the 30-min timeout fired first — re-arm.
 - Fetch new feedback. Conversation comments + inline code-review comments
   + review summaries live in THREE different endpoints — you need all three:
     pnpm ops gh:pr-comments $PR_NUM   # conversation + line-level

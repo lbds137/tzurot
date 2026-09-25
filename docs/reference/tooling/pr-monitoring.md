@@ -40,7 +40,12 @@ promptly still matters.
 
 A `sleep` and a hand-written poll loop were both measured emitting a premature
 `CI_COMPLETE`; the gate waits for the `CI` run to complete and for nothing else
-on that SHA to be in flight before handing off to `gh pr checks --watch`.
+on that SHA to be in flight before handing off to `gh pr checks --watch`. It
+also asserts that a `Claude Code Review` run exists for the SHA and has
+completed — a run that has not been created yet is invisible to the in-flight
+check, so inferring quiescence from its absence released the gate before the
+review had posted; if none appears within `REVIEW_RUN_GRACE_MS` of CI
+settling, the gate prints `CI_GATE_REVIEW_MISSING` and exits non-zero.
 
 ## The review-round count
 
