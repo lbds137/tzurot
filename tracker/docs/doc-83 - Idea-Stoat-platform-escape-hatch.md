@@ -58,3 +58,7 @@ What changed:
 - **Cross-link**: `doc-79` (Theme: Platform decoupling) is the sovereignty framing this idea would serve; its brief lives in `docs/local/PLATFORM_DECOUPLING_BRIEF.md`.
 
 Ripeness (driver's read, owner's call): the stated intent ("have Claude look into Spacebar") is a bounded read-only spike, not a build. If she un-parks it, the first unit is the Spacebar interactions-completeness spike from the section above (slash commands, components, modals, autocomplete, webhooks, voice messages), scored against the discord.js surface `bot-client` actually uses, plus one paragraph on what federation would mean for each candidate. Offered on the owner queue in `backlog/now.md`.
+
+## Status 2026-09-25: UN-PARKED for the spike
+
+Owner ruling 2026-09-25: "I'd like to do the spike soon." The spike is `TASK-1108` (part 1 the read-only map against Spacebar's server source plus the federation paragraphs; part 2 the hands-on instance probe). No new repo for the spike; a fork is a decision the spike informs. This doc receives the dated summary and the recommendation when part 1 lands.
