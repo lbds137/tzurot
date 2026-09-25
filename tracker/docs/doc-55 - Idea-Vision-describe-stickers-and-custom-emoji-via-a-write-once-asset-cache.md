@@ -26,8 +26,9 @@ a correction, which is the more useful lesson:
    `services/ai-worker/src/services/context/visionDescriptionWriter.ts` because
    the filename is lowercase. That false absence reached the plan, the PR body,
    and the owner before the round-6 review caught it. This doc was RIGHT.
-   (`00-critical.md` § negative existence claims requires ≥3 vocabulary variants
-   plus an xray sweep; one case-sensitive `find` is not that.) The real structure
+   (harness `core.md` § Negative existence and the grep rule requires ≥3 vocabulary
+   variants, and `00-critical.md` § Don't Present Speculation as Fact adds the
+   xray sweep; one case-sensitive `find` is not that.) The real structure
    is two layers: `VisionDescriptionCache` (Redis `vision:canon:{id}`, 1h TTL,
    tier-promoted) caches the description, and
    `VisionDescriptionWriter.persistTriggerDescriptions` upgrades the persisted

@@ -1,7 +1,7 @@
 ---
 name: tzurot-bug-remediation
 description: 'The recurring-bug remediation protocol: runtime evidence → root cause → exhaustive class sweep → seam-tier regression test → structural guard. Invoke with /tzurot-bug-remediation when a bug recurs, a "fixed" class regresses, the owner says a failure "keeps biting", OR at the FIRST fix of a path-specific UI/flow bug (create/edit/browse/view/delete) — to sweep sibling flows before declaring it fixed.'
-lastUpdated: '2026-08-09'
+lastUpdated: '2026-09-25'
 ---
 
 # Bug Remediation Protocol
@@ -20,8 +20,8 @@ The five steps run IN ORDER. Skipping one is how the bug comes back.
 
 - Reproduce, or capture the failing runtime observation (log line, prod trace,
   failing test). **Never fix on a code-read mechanism** — "code-reading suggests
-  X" is a hypothesis until a tool confirms it (`00-critical.md` § code-reading
-  is not runtime verification).
+  X" is a hypothesis until a tool confirms it (harness `core.md` § Don't present
+  speculation as fact — code-reading is not runtime verification).
 - If the observation isn't capturable today, **ship the one diagnostic that
   produces it** as its own commit (the `debug` type exists for this) and stop —
   the fix waits for the observation.

@@ -1,7 +1,7 @@
 ---
 name: tzurot-deployment
 description: 'Railway deployment procedures. Invoke with /tzurot-deployment for deploying, checking logs, and troubleshooting.'
-lastUpdated: '2026-09-14'
+lastUpdated: '2026-09-25'
 ---
 
 # Deployment Procedures
@@ -172,7 +172,7 @@ The `--filter` flag uses Railway's query DSL (`@level:error`, quoted phrases lik
 
 **Self-serve first**: before asking the owner for runtime facts, exhaust what's already retrievable — Railway CLI (incl. ended deploys), dev probe logs, and any `/inspect` output the owner already posted (its timestamps anchor log queries). Routing retrievable facts through the owner is the recurring anti-pattern ("you should have all the info you need already").
 
-Railway retains logs; an empty or suspiciously short result almost always means the **query** is wrong, not that the logs "rolled off" or "aged out" (this is a named anti-pattern in `.claude/rules/00-critical.md` § "Don't Present Speculation as Fact"). The real culprits, in order of how often they bite:
+Railway retains logs; an empty or suspiciously short result almost always means the **query** is wrong, not that the logs "rolled off" or "aged out" (harness `core.md` § Lossy steps are for known output shapes: list why it could come back empty before blaming the store). The real culprits, in order of how often they bite:
 
 - **`--lines` has a cap (~5000).** Values like `6000`/`8000` fail with `Error in limit - Invalid input` and return **zero rows** — which looks identical to "no matching logs." Stay at `--lines 5000` or below; to reach further back, narrow by deployment ID (above) rather than raising `--lines`.
 - **Filter by the field the log actually carries.** A vision/image error logs `attachmentId` and `url`, not the top-level `requestId` — so `--filter "<requestId>"` silently misses it and you see only the job-start/complete lines. When the error isn't where you expect, it's logged under a different field: pull a window and `grep` locally instead of trusting one `--filter`.

@@ -246,6 +246,12 @@ GLM-4.5-Air has been observed improvising a reasoning channel by wrapping chain-
 
 ---
 
+## Fixes tried and rejected (don't retry)
+
+**GLM:** every revision ships a NEW reasoning-tag vocabulary (4.5-air `<from_id>/<user>/<message>`; 4.7 `<user>/<character>/<analysis>`). Prefer model-agnostic strips over per-model gates, and on a new revision verify the existing strips fire. Patched: echo-parroting (`stripUserMessageEcho`), XML receipts and hallucinated tool XML (`stripResponseArtifacts`). History regurgitation is attention-level and can't be patched at the request layer; the remedy is dropping the model from free defaults. 4.5-air lost `:free`; don't invest unless it resurfaces. Failed, don't retry: a nonce in the system prompt; temperature jitter (collapses quality); a prompt-level "never output XML tags" (fights RL training; the post-processor strips are load-bearing, prompt bans are hedges); reasoning off entirely (output goes repetitive).
+
+**Kimi K2.x:** K2.6's marker-less "Final decision:" narration is unhandled by design (low value); run any K2.6 preset with `reasoning.enabled: false` (~10x faster/cheaper, equivalent quality). `ResponsePostProcessor.ts` warn-logs when reasoning was enabled and extraction found nothing; that is the "K2.7 breaks again" detector. Failed, don't retry: a prompt-level `<think>` instruction (fights training); heuristic splits on "Final decision:" (false positives on roleplay). An OpenRouter bug report was ruled out on merit; reopen only if a K2.x ships high-quality reasoning with the same bug.
+
 ## Debugging
 
 Use `/inspect <message_id>` to see extraction details:

@@ -1,7 +1,7 @@
 ---
 name: tzurot-reuse-scout
 description: 'Pre-write reuse scouting + drifted-duplicate consolidation. Invoke with /tzurot-reuse-scout before writing new detection/normalization/resolution logic, or when a bug is found in logic that exists in more than one place.'
-lastUpdated: '2026-07-05'
+lastUpdated: '2026-09-25'
 ---
 
 # Reuse Scout Procedures
@@ -34,7 +34,7 @@ pnpm knip:dead                                              # dormant scaffoldin
   `01-architecture.md` § Autocomplete Utilities.
 - **The owner's "don't we already have X?" is a search order, not a debate
   prompt** — vague memory has repeatedly beaten confident absence claims
-  (`00-critical.md` § negative existence claims).
+  (harness `core.md` § Negative existence and the grep rule; Tzurot's xray/knip:dead additions: `00-critical.md` § Don't Present Speculation as Fact).
 - Found something? Extend or call it — don't fork it. Found something _almost_
   right? Apply the 2-callback ceiling (`02-code-standards.md`) before deciding
   between extending and writing anew; if writing anew, note in the PR why the
@@ -56,6 +56,14 @@ When a bug lives in duplicated logic:
   hand-maintained parallel lists (those drift).
 - `pnpm ops guard:duplicate-exports` catches same-name exports; it does NOT
   catch same-behavior-different-name — that's this sweep.
+
+## Config-route helpers — scope and boundary
+
+`services/api-gateway/src/utils/configRouteHelpers.ts` + `normalizeConfigNameOnPromote.ts` standardize the CRUD config-route shape: `parseBodyOrSendError`, `findConfigOrSendNotFound`, `findGlobalConfigOrSendError`, `findAdminUserOrSendError`, `ensureNoNameCollision`, `shapeDeleteResponse`, `applyOwnerNamePromotion` (signatures in the file).
+
+**Apply these helpers when:** the route follows the fetch-validate-respond shape over a top-level config row (LlmConfig, TtsConfig, similar future resources).
+
+**Do NOT apply these helpers when:** the route uses cascade-override semantics (`user/{tts,stt,model}-override.ts`). Cascade overrides set/clear values on a personality-scoped key — a fundamentally different domain shape than CRUD. Forcing CRUD helpers there is the Wrong Abstraction trap.
 
 ## Boundary
 

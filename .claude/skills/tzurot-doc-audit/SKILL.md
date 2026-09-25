@@ -1,7 +1,7 @@
 ---
 name: tzurot-doc-audit
 description: 'Documentation and auto-memory freshness audit. Invoke with /tzurot-doc-audit to review docs and Claude auto-memory for staleness, items in the wrong layer, missing-tool drift, and always-loaded passages that no longer earn their context cost.'
-lastUpdated: '2026-09-23'
+lastUpdated: '2026-09-25'
 ---
 
 # Documentation Audit Procedure
@@ -105,18 +105,18 @@ Auto-memory audit runs inside `/tzurot-doc-audit` but on its own shorter cadence
 
 ### 2. Rules Files (`.claude/rules/`)
 
-| File                      | Check                                                                                                                                                                              |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `00-critical.md`          | Security rules still reflect current patterns? Post-mortem table current?                                                                                                          |
-| `01-architecture.md`      | Service boundaries match dependency-cruiser rules? Anti-patterns table current?                                                                                                    |
-| `02-code-standards.md`    | ESLint limits match `eslint.config.js`? Testing patterns current?                                                                                                                  |
-| `03-database.md`          | Protected indexes list current? (The cache TTL table lives in `durability-tiers.md` — § Existing cache implementations.)                                                           |
-| `04-discord.md`           | Shared utilities table lists all browse/dashboard helpers?                                                                                                                         |
-| `05-tooling.md`           | All `pnpm ops` commands listed? `pnpm quality` description accurate?                                                                                                               |
-| `06-backlog.md`           | HOT/COLD topology table matches actual `backlog/` layout (`now.md` + `active-epic.md` hot; `cold/` themes/ideas/follow-ups/epic-log)? Granularity-ladder + staleness rules intact? |
-| `07-documentation.md`     | Placement table covers all `docs/reference/` subdirs? Lifecycle rules current?                                                                                                     |
-| `09-interaction-style.md` | Interaction guidance still reflects current feedback (no premature-stopping, etc.)?                                                                                                |
-| `10-working-posture.md`   | Each posture still names a trigger → behavior? Cross-references to rules/skills resolve?                                                                                           |
+| File                      | Check                                                                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `00-critical.md`          | Security rules still reflect current patterns? Post-mortem table current?                                                       |
+| `01-architecture.md`      | Service boundaries match dependency-cruiser rules? Anti-patterns table current?                                                 |
+| `02-code-standards.md`    | ESLint limits match `eslint.config.js`? Testing patterns current?                                                               |
+| `03-database.md`          | Protected indexes list current? (The cache TTL table lives in `durability-tiers.md` — § Existing cache implementations.)        |
+| `04-discord.md`           | Shared utilities table lists all browse/dashboard helpers?                                                                      |
+| `05-tooling.md`           | All `pnpm ops` commands listed? `pnpm quality` description accurate?                                                            |
+| `06-backlog.md`           | `BACKLOG.md` HOT/COLD table matches the actual `backlog/` layout; granularity ladder intact? 06-backlog staleness rules intact? |
+| `07-documentation.md`     | Placement table covers all `docs/reference/` subdirs? Lifecycle rules current?                                                  |
+| `09-interaction-style.md` | Interaction guidance still reflects current feedback (no premature-stopping, etc.)?                                             |
+| `10-working-posture.md`   | Each posture still names a trigger → behavior? Cross-references to rules/skills resolve?                                        |
 
 **How to verify 05-tooling.md:**
 

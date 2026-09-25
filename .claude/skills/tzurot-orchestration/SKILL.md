@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit; and the cloud dispatch mode (one cloud unit beside one local unit). Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-09-24'
+lastUpdated: '2026-09-25'
 ---
 
 # Orchestrator Mode
@@ -155,6 +155,10 @@ monitor. `pnpm ops worktree:transfer <path> --base <sha>` runs the checks from
 so that half is one call; the gates, commit, PR and monitor stay yours. The
 review gate is not delegated and not skipped for a clean-looking report.
 
+After a worktree transfer, rebuild EVERY edited package's dist before the gates (a stale `config-resolver` dist reddened the conformance tier). A nested-dispatch worktree needs `cache-invalidation` built, and `clients`/`embeddings` before `tooling`. Batch a drain by DEFECT CLASS (e.g. "a gate the repo believes is running and is not": one spec, one canary table) rather than by area. An independent second read of a unit finds gaps the spec-following orchestrator can't.
+
+`worktree:transfer` refuses `no-unpushed-base` when `release:finalize` rewrote develop under a running worktree. The content is on develop under a new SHA: confirm with `git diff --stat <old-base> <new-twin>` (only finalize-carried files differ), then transfer by hand: `git -C <wt> add -A && git -C <wt> diff --cached > patch`, `git apply`, `cmp` the applied `git diff --cached` against the patch, and `git cherry origin/develop <wt-branch>` (no `+` lines) before `git worktree unlock`, `remove --force` and `branch -D`. When a dispatch spans a `release:finalize`, plan for this path.
+
 ## Cloud dispatch — one cloud unit beside one local unit
 
 A unit's orchestrator + worker and all its gates run in a Claude Code cloud
@@ -180,8 +184,8 @@ exec claude --cloud "$(cat <prompt file>)"
 `script -qfec 'sh <launcher file>' /dev/null` prints "Created cloud session"
 and a `claude --teleport <id>` line; `<id>` is the session id. The Agent
 tool's `isolation: "remote"` is NOT a cloud path: it silently runs in a local
-worktree. Routines (RemoteTrigger) work but bill the plan instead of the
-one-time cloud credit; they are the fallback only. **Environment**: `claude
+worktree. Routines (RemoteTrigger) work and bill the plan like cloud sessions now do;
+they are the fallback only. **Environment**: `claude
 --cloud` from the Deck lands in **Default (Full)**, whose setup script
 (doc-108) installs Node 24 into `/opt/node24` and `postgresql-16-pgvector`,
 cached for about 7 days. Processes are not cached, so every cloud spec opens
@@ -206,6 +210,8 @@ export DATABASE_URL=postgresql://tzurot:tzurot@localhost:5432/tzurot_integration
 pnpm ops db:migrate && REDIS_IP_FAMILY=4 pnpm test:integration   # never raw prisma migrate (03-database.md); the VM has no IPv6
 ```
 
+**Record the id at once:** append the `session_…` id to `docs/local/dispatch/cloud-sessions.md` the moment the launcher prints it; the ledger is the only place it survives a `/clear`. Read the id from the `script` output, never from a TUI. Never pipe into `claude --cloud` to fake a TTY: a piped invocation runs LOCALLY and silently ignores `--cloud`. The driver runs the launcher itself (owner-authorized); don't hand the owner a `!` line for it.
+
 **Contract points that differ from § Nested dispatch.** The base must be
 PUSHED: the VM clones GitHub, so a local-only commit is not a valid base. The
 deliverable is a pushed branch and no PR (no `gh` in the VM); the driver opens
@@ -218,7 +224,7 @@ fetched remote branch instead of `HEAD`: `git fetch origin <branch>`, then
 cloud orchestrator is its session's own main loop, so `dispatch-posture-gate.sh`
 applies to it, and the spec tells it to hand all src edits above five lines to
 ONE Sonnet worker. Observed behavior: units have ignored that and split their
-edits into five-line pieces instead, which is correct but slow.
+edits into five-line pieces instead, which is correct but slow. The VM never loads harness `core.md`, so every cloud spec pastes that file's § Safety section verbatim under a `## Harness safety rules` heading (source on the driver's machine: `/home/deck/Projects/claude-harness/plugins/harness/rules/core.md`), refreshed at each launch; without it a cloud unit has no written ask-first list at all.
 
 **Reading the result.** RemoteTrigger `get_run_log` with the session id,
 paging with its cursor. `get_run_log` cuts each log entry at roughly 400
@@ -303,8 +309,12 @@ a gap the worker will fill by guessing.
    parallel (`05-tooling.md` § Resource Constraints).
    **Default the gate list to the touched packages' WHOLE-package commands**
    (`pnpm --filter <pkg> test`) plus every repo-level gate CI runs for them.
+
+   Two repo-level gates no per-package command can see, so name them explicitly: `pnpm depcruise` (circular imports, boundaries) for any unit that creates a module or adds an import edge between existing modules, and `pnpm cpd && pnpm ops cpd:check` (duplication ratchet) for any unit that adds a route file, a PUT/DELETE pair, or two sibling handlers with a shared preamble. Both run only inside `pnpm quality`, which a worktree can't run whole. Extracting a new leaf module or a module-private helper (no re-export file) to break a cycle or a clone is a pre-authorized routine decision.
+
    A file-scoped test list is systematically narrower than CI. Name individual files only IN ADDITION, as a canary.
    **The canary set opens with the unit's PURPOSE** — one sentence under its own `## Purpose` heading, placed as the first entry of this item, saying what the unit exists to make true — and the canary that falsifies THAT sentence is named and run FIRST. Read its failure COUNT, not just that it is non-zero: a claim-derived canary reddens its own test by construction, but a purpose canary reddens however much of the suite genuinely depends on the purpose, so a count low against the code paths the purpose spans is a coverage gap to close before proceeding. A spec with no purpose canary is a spec defect; the orchestrator says so rather than proceeding. Canaries here follow the same rule as the nested-dispatch contract, whichever driver dispatches: derived from the claims the PR body will make, one falsifying mutation per claim, each scoped to the case it runs, and cut strictly inside the fixture rather than on the boundary under test (§ Nested dispatch).
+
 8. **Branch setup** — as a separate first step. The develop-code-commit-guard
    evaluates the current branch before compound commands run, so branch
    creation has to land on its own before any edit. For worktree spawns this
@@ -441,6 +451,16 @@ operations:
 git worktree list                 # the worker's worktree should still be listed
 git branch --show-current         # the orchestrator tree must NOT be on the worker's branch
 ```
+
+### Cleaning up stale agent worktrees
+
+The harness leaves `.claude/worktrees/agent-*` trees and their `.git/worktrees/*/locked` files behind after the session exits; expect it after every heavy dispatch session.
+
+1. The lock's pid is the Claude Code session process itself, the same pid for every worktree of that session. So "pid dead" gates removal only AFTER the session ends. In-session, the only safe gate is this skill's transfer pair: the applied diff byte-identical AND `git log --oneline --not --remotes` empty.
+2. Per tree: `git -C <wt> status --short` (dirty is normal: transferred diffs) and the unpushed-commit check, run WITHOUT `2>/dev/null` (suppressed stderr once reported 0 over real pre-rebase commits).
+3. Verify dirty files as shipped: hash-match against `origin/develop`, else blob-in-history (`git log --all --reflog --find-object=<hash>`), else spot-diff (residue is pre-prettier or pre-squash).
+4. `git worktree unlock <wt> && git worktree remove --force <wt>`, then `git worktree prune`.
+5. Orphan `worktree-agent-*` branches outnumber trees. `git branch -d` refusing means nothing, because rebase-merge rewrites SHAs. The gate is `git cherry origin/develop <b>`: zero `+` lines is safe. Check each `+` commit by subject (`git log origin/develop --grep=<subject>`); it's usually a pre-rebase or pre-final-round copy of merged work. Then `-D`.
 
 ## While the worker runs
 

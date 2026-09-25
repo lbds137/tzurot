@@ -15,11 +15,31 @@ through `$TURBO_ROOT$`, so an ESLint **rule** change invalidates every lint
 task; the custom rule sources under `packages/tooling/src/eslint/` reach the
 hash via the `@tzurot/tooling#build` dependency and need no entry of their own.
 
+### After a branch switch, and stale dist
+
+- **After every branch switch in the main tree**, run `pnpm --filter "./packages/**" build` (~1 min) before any gate, not just common-types. Alternating the checkout between two PR branches leaves `clients`/`conversation-history` dist built from the other branch (symptoms: 155 bot-client files failing `Cannot find package '@tzurot/common-types/schemas/api/<file>'`, ai-worker typecheck missing an export). After ANY common-types edit, `pnpm --filter @tzurot/common-types build` before dependent tests. A new constant read from stale dist is `undefined`, so `size >= undefined` silently no-ops while the suite stays green; assert new limits through the constant, never a hardcoded copy.
+- **Schema-divergent branches:** the generated Prisma client (`packages/common-types/src/generated/prisma/`) keeps whichever branch last ran `prisma generate`. Symptoms: component tests failing `The column X does not exist in the current database`, or TS2353 unknown-property errors. After switching: `npx prisma generate && cd packages/common-types && pnpm build`.
+- **Hooks read dist, not src.** The pre-commit `codegen:routes` regenerates route clients from BUILT `packages/clients` dist, so a transferred diff that adds a route commits generated `user-client.ts`/`mounts.ts` WITHOUT it, silently. Before committing a transferred diff touching `packages/clients/src/routes/**`: `pnpm --filter @tzurot/clients build`, `pnpm ops codegen:routes`, and compare the route count to the orchestrator's report. In reverse, a pre-push on another branch rebuilds `clients` without this branch's route, and the api-gateway conformance test (`ROUTE_MANIFEST` from dist) fails with "no matching manifest route" until `clients` is rebuilt.
+- **Stale dist despite clean-first builds** (dist `.d.ts` shows an old signature while `src/` is right; tsc no-ops via tsbuildinfo): purge cache, dist and tsbuildinfo TOGETHER, then rebuild. Partial remedies each failed.
+  ```bash
+  safe-clean .turbo                   # turbo 2 caches only here; safe-clean refuses anything but known cache names
+  pnpm --filter @tzurot/<pkg> build   # clean-first: the build script removes dist and tsbuildinfo itself
+  ```
+  Worktrees share the main tree's turbo cache, and a restored `tooling#build` artifact can lack `dist/eslint/` (`ERR_MODULE_NOT_FOUND …/tooling/dist/eslint/index.js`). `--force` isn't durable across commits, so for a worktree that will push more than once: `safe-clean <main>/.turbo <wt>/packages/tooling/.turbo` then `npx turbo run build --filter=@tzurot/tooling --force` (the tooling build is clean-first, so its dist and tsbuildinfo go with it). Package builds stay clean-first (`rm -rf dist tsconfig.tsbuildinfo && tsc`; TASK-489).
+
 ## Resource Constraints (CRITICAL)
 
-**NEVER run heavy commands in parallel** — `pnpm test`, `pnpm test:component`,
-`pnpm quality`, `pnpm typecheck`. The Steam Deck OOM-kills the IDE and Claude
-Code. Run sequentially: `pnpm test && pnpm quality`.
+The Deck (~14 GB RAM) OOM-kills the IDE and Claude Code under heavy commands.
+
+- **At most ONE gate-running unit at a time, across agents:** one live worktree dispatch OR main-tree gates, never both. Pre-staging the next unit means writing specs, not dispatching. Each bare worktree is a full `pnpm install` + build.
+- **Commit before any heavy command.**
+- Never run heavy commands in parallel (`pnpm test`, `test:component`, `quality`, `typecheck`). Never run `pnpm test:int` locally; CI is its gate.
+- Run heavy gates in the FOREGROUND, in ≤10-minute chunks; background runs get killed by the harness memory stop.
+- **`pnpm quality`:** first warm lint with `npx turbo run lint --concurrency=1 --output-logs=errors-only`, then `LOW_RESOURCE_MODE=1 NODE_OPTIONS=--max-old-space-size=3072 pnpm quality`. The 3072 heap cap is mandatory; `knip` is the second OOM site and the lint warm-up doesn't protect it. If the chain still dies, run it in four sequential pieces with the cap exported: (1) lint, format:check, both `codegen:*` `--check`, topology:check; (2) knip; (3) knip:dead, cpd, `ops cpd:check`, `ops test:audit`, depcruise; (4) typecheck, typecheck:spec, backlog:lint and the `guard:*` commands. Read `package.json` `scripts.quality` for the current composition, and say plainly in the report that the pieces were run rather than implying the one command passed.
+- **Full test suite:** after one watchdog kill of `pnpm test`/`test:low-mem`, go straight to the per-package loop: `for p in common-types api-gateway ai-worker bot-client tooling; do pnpm --filter @tzurot/$p test -- --maxWorkers=2; done`. Cap workers with `--maxWorkers=2`, never `--poolOptions.forks.maxForks` (vitest's CAC rejects it). `LOW_RESOURCE_MODE` is read by `.husky/pre-push` and root `vitest.config.ts` (maxWorkers 1), but doesn't throttle turbo's per-package fan-out on a bare `pnpm test`; the throttled full-suite script is `pnpm test:low-mem`.
+- **Pre-push first-attempt flake** (bare `husky - pre-push script failed (code 1)`): retry once; if it persists, set `LOW_RESOURCE_MODE=1` in `.env`. The ai-worker full-run flake isn't cured by it: run `pnpm --filter @tzurot/ai-worker test` alone, and if green, rerun the full suite once.
+- **Capture exit codes directly:** `cmd > log 2>&1; echo EXIT=$?`, never `| tee log; echo $?` (that reports tee's status), and send full-run output to a file so the failing test name survives.
+- **Before blaming the agents for a lockup,** read `journalctl -k -o cat` and rank the OOM dump's `[pid]` rows by rss+swapents×4KB, and ask what else was open. The last measured lockup was a browser at a 7.6 GB peak with zero node processes in the dump.
 
 ## Ops CLI (`pnpm ops`)
 
@@ -127,6 +147,14 @@ array. Its warning naming an uncommitted file under `tracker/` is non-gating.
 ### Audit-tool infrastructure (Layers 1-3)
 
 **Before adding a new audit tool, read [`docs/reference/audit-enforcement.md`](../../docs/reference/audit-enforcement.md)** — skipping its checklist fails CI in non-obvious ways.
+
+### Gate and count traps
+
+- A unit that adds a column or a job type lists the api-gateway component tier (sync column guard) and `pnpm --filter @tzurot/tooling build` (job-type topology map, and tooling's only tsc pass) among its gates. A text-pinned SQL string needs a live dev dry run before the PR opens.
+- `release:range` counts dependency groups and root-config chores as runtime; hand counts that exclude them under-read the backstop trigger.
+- Classify runtime commits with a POSITIVE path pattern: `^(services/|packages/(common-types|identity|clients|embeddings|cache-invalidation|config-resolver|conversation-history)/|prisma/)`. A negative-exclusion regex once reported 0 runtime commits for a release that shipped nine.
+- `git status --porcelain` quotes any path with a space (every tracker filename), so whole-tree counts use `-z`. A line-oriented grep for import consumers is blind to multi-line imports; positive-control it.
+- Design-doc prose describing code outlives the code change by about one merge. Sweep it at the close-out of the PR that changed the mechanism.
 
 ## Git Workflow
 
@@ -248,6 +276,10 @@ this order when present — **Breaking Changes**, **Features**, **Bug Fixes**,
 **Improvements**, **Chores**, **Tests**, **Database Migrations** — omitting empty
 ones. Line items are `- **scope:** description (#123)`. End with
 `**Full Changelog**: https://github.com/lbds137/tzurot/compare/vOLD...vNEW`.
+
+### Model calls from tooling
+
+GLM-family calls from tooling, pilots, evals and one-off scripts go through the owner's flat-rate Z.ai coding plan, never metered OpenRouter: the `zai-coding` provider, base URL `AI_ENDPOINTS.ZAI_CODING_BASE_URL` (`@tzurot/common-types/constants/ai`), a bare model id (`glm-5.3`), key `ZAI_CODING_API_KEY`. OpenRouter is only for families the plan doesn't carry (e.g. an Anthropic judge). The production extraction worker already runs on the plan; any summarizer mirrors it. Before any model-calling spec, add a Premise-ledger row for each call family's provider and cost model. The key is NOT in the local `.env`. Pull it into the shell at run time (`railway variables --environment development --service ai-worker --json | jq -r .ZAI_CODING_API_KEY`), and never write it to disk or print it. The plan endpoint honours `thinking: { type: 'disabled' }`; OpenRouter's GLM route rejects every reasoning-off form ("Reasoning is mandatory for this endpoint"). The one sanctioned on-disk copy is council's TPM-sealed `~/.claude-mcp-servers/council/credentials/keys.cred` (owner-approved); don't "fix" it.
 
 ## No Standalone Scripts
 

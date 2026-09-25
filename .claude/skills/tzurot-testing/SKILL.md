@@ -176,6 +176,47 @@ crosses a mocked seam before writing more cases. This is the coverage-illusion
 class: a mock missing one property leaves the dependent branch green and
 untested; a feature flag can no-op silently under a fully green suite.
 
+## Seam-assertion elaborations (Core Principles 7-8)
+
+**Cover every render MODE, not just the default one.** A branching renderer
+(full vs. deduped, live vs. stored, enabled vs. disabled) leaves its
+non-default arms as untested forwarding paths — enumerate the modes and
+assert the seam in each. When the forwarded value **cost money** (vision,
+transcription, an external fetch), mock the paid boundary to return a
+sentinel and assert the sentinel reaches the final output — a field-parity
+allowlist only catches the field you already know about. Reference: the
+(deduped × full) × (live × stored) matrix in
+`services/ai-worker/src/services/ReferencedMessageFormatter.test.ts`.
+
+**A shared mutable context is a seam too, with no mock to assert across.**
+Pipeline steps, middleware, and anything handing data to a later stage by
+writing a field on a shared object (`job.data.context`, `req`, an
+accumulating result): each step's unit tests construct that object
+themselves, so neither can observe what the other produced. Whenever a step
+writes a field a later step reads, keep ONE test that runs those steps
+**in order**.
+
+**The specific tell is a default-coalescing write-back**: `x = ctx.field ??
+[]`, `?? {}`, `|| fallback` written BACK onto the shared object erases the
+distinction the later step reads. Where absence carries meaning, say so in a
+comment at the write site and pin BOTH states in the sequencing test —
+absent stays absent, empty stays empty (`??` falls through on `undefined`,
+never on `[]`). Reference:
+`services/ai-worker/src/jobs/handlers/pipeline/steps/extendedContextVisionSeam.test.ts`.
+
+**The RESPONSE direction crosses a Zod strip no mock can see.** Typed clients return
+`outputSchema.safeParse(...).data`, so a response key not declared in the wire schema
+is deleted before the caller ever sees it — and a mocked client skips that parse. Pin
+survival at the boundary: `Schema.safeParse(payloadWithSentinel)` → assert `result.data` still carries it.
+
+**The sweep must cover every test TIER, not just the ones a local
+`pnpm test` runs** — `tests/e2e/` (integration + contract) pins producer
+shapes too. Before pushing any cross-service string-shape change (job ids,
+fixture fields, wire formats): (a) grep the OLD shape's distinctive tokens
+repo-wide _including `tests/`_, and (b) run
+`npx vitest run --config vitest.integration.config.ts tests/e2e/contracts/`
+(~2s; the full-`test:integration` OOM ban does not cover this subset).
+
 ## Stacked gates: make upstream gates inert
 
 When asserting gate N in a multi-gate pipeline — a hook with several checks, a

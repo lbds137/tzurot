@@ -39,7 +39,7 @@ prisma/                 # Database schema
 
 All rules load automatically from `.claude/rules/`:
 
-- **00-critical.md** - Security, git safety, testing (NEVER modify tests to pass)
+- **00-critical.md** - Security, git safety, testing
 - **01-architecture.md** - Service boundaries (bot-client never uses Prisma)
 - **02-code-standards.md** - ESLint limits, TypeScript, testing patterns
 - **03-database.md** - Prisma, pgvector, caching
