@@ -7,7 +7,6 @@ import { serializeCrossChannelHistory } from './CrossChannelSerializer.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { type CrossChannelHistoryGroupEntry } from '@tzurot/common-types/types/schemas/message';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
-import type { StructuredHistoryEntry } from '../../jobs/utils/conversationTypes.js';
 import { getPriorConversationsWrapperOverheadText } from '../../jobs/utils/conversationUtils.js';
 import type { RealRenderSettings } from './RealMessagesBuilder.js';
 
@@ -419,23 +418,12 @@ describe('serializeCrossChannelHistory', () => {
   });
 
   describe('deduped reference wording (TASK-726 rider — no prior pin existed)', () => {
-    // Dedup is ID-derived, not a flag: a group whose second message quotes a
-    // Discord id ALREADY carried by an earlier message in the SAME group.
-    //
-    // `discordMessageId` and `messageMetadata` are NOT in `crossChannelMessageSchema`
-    // (verified: `packages/common-types/src/types/schemas/message.ts`'s
-    // `crossChannelMessageSchema` carries neither field) — the wire contract for
-    // a cross-channel message is narrower than `StructuredHistoryEntry`. The
-    // renderer this test exercises (`formatConversationHistoryAsXml`, called
-    // per-group by `formatCrossChannelHistoryAsXml`) reads both fields
-    // dynamically regardless of that narrower declared type, so the cast below
-    // exercises real behaviour rather than fabricating an unreachable shape —
-    // but it does mean today's TYPE SYSTEM cannot express a cross-channel quote
-    // dedup at all, only the runtime renderer can. Flagged rather than silently
-    // worked around.
+    // Dedup is ID-derived: the second row quotes a Discord id already carried
+    // by an earlier row in the same group. Both fields are part of
+    // `crossChannelMessageSchema`.
     function groupWithDedupedReference(): CrossChannelHistoryGroupEntry {
       const quotedId = 'msg-quoted-1';
-      const messages: StructuredHistoryEntry[] = [
+      const messages: CrossChannelHistoryGroupEntry['messages'] = [
         {
           id: 'msg-1',
           role: MessageRole.User,
@@ -466,9 +454,7 @@ describe('serializeCrossChannelHistory', () => {
           },
         },
       ];
-      return createGroup({
-        messages: messages as unknown as CrossChannelHistoryGroupEntry['messages'],
-      });
+      return createGroup({ messages });
     }
 
     it('flag-on: dedups to the real-messages stub wording, not the chat_log phrasing', () => {

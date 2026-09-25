@@ -285,20 +285,34 @@ export const messageMetadataSchema = z.object({
 
 /**
  * Cross-channel message schema
- * A message from cross-channel conversation history (subset of apiConversationMessageSchema)
+ * A Pick of the main history-row shape (`apiConversationMessageSchema`) for
+ * the fields the cross-channel renderer reads. The quote-dedup fields
+ * (`discordMessageId`, `messageMetadata.referencedMessages`) and forward
+ * fields (`isForwarded`, `messageMetadata.forwardedFrom`) are declared here
+ * so a quote-bearing row survives any `safeParse` of this schema — an
+ * undeclared key is stripped. `messageMetadata` uses `messageMetadataSchema`,
+ * not the API schema's untyped record, because the renderer's
+ * `StructuredHistoryEntry.messageMetadata` needs the structured shape to flow
+ * into `formatConversationHistoryAsXml`.
  */
-export const crossChannelMessageSchema = z.object({
-  id: z.string().optional(),
-  role: z.nativeEnum(MessageRole),
-  content: z.string(),
-  tokenCount: z.number().optional(),
-  createdAt: z.string().optional(),
-  personaId: z.string().optional(),
-  personaName: z.string().optional(),
-  discordUsername: z.string().optional(),
-  personalityId: z.string().optional(),
-  personalityName: z.string().optional(),
-});
+export const crossChannelMessageSchema = apiConversationMessageSchema
+  .pick({
+    id: true,
+    role: true,
+    content: true,
+    tokenCount: true,
+    createdAt: true,
+    personaId: true,
+    personaName: true,
+    discordUsername: true,
+    personalityId: true,
+    personalityName: true,
+    discordMessageId: true,
+    isForwarded: true,
+  })
+  .extend({
+    messageMetadata: messageMetadataSchema.optional(),
+  });
 
 /**
  * Cross-channel history group schema
