@@ -1,10 +1,10 @@
 ---
 id: TASK-777
 title: 'gh:ci-gate can fire CI_COMPLETE before the claude-review run exists'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-26 22:43'
-updated_date: '2026-08-26 23:04'
+updated_date: '2026-09-25 02:42'
 labels:
   - 'area:ci'
   - 'size:S'
