@@ -40,9 +40,15 @@ flags:
   common-types:
     paths:
       - packages/common-types/
+  tooling:
+    paths:
+      - packages/tooling/
   voice-engine:
     paths:
       - services/voice-engine/
+  website:
+    paths:
+      - services/website/
   # Component tests (PGLite) cover all services + packages
   component:
     paths:
