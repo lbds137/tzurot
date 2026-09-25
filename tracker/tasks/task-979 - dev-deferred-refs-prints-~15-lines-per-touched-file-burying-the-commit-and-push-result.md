@@ -3,9 +3,10 @@ id: TASK-979
 title: >-
   dev:deferred-refs prints ~15 lines per touched file, burying the commit and
   push result
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-14 18:14'
+updated_date: '2026-09-25 15:23'
 labels:
   - 'area:tooling'
   - 'size:S'
