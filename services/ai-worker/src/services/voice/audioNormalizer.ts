@@ -22,9 +22,9 @@
  * - Voice-engine multi-chunk: round-tripped via voice-engine /v1/audio/transcode
  * Now unified: every path → single ffmpeg pass → Opus output.
  *
- * This module also hosts {@link remuxWebmToOgg}, an unrelated STT-side (input)
- * remux rather than the TTS-side (output) normalization above — it lives here
- * because both share the same `runFfmpeg` process runner.
+ * This module also hosts {@link transcodeWebmToOgg}, an unrelated STT-side
+ * (input) transcode rather than the TTS-side (output) normalization above —
+ * it lives here because both share the same `runFfmpeg` process runner.
  */
 
 import { spawn } from 'node:child_process';
@@ -146,29 +146,35 @@ export async function normalizeLoudness(
 }
 
 /**
- * Stream-copy (no re-encode) a WebM/Opus buffer into an Ogg/Opus buffer, for
- * STT: voice-engine's decoder (librosa, over the in-memory upload) does not
- * read WebM and rejects it with "Format not recognised", so a Vencord/Vesktop
+ * Transcode a WebM/Opus buffer into an Ogg/Opus buffer, for STT:
+ * voice-engine's decoder (librosa, over the in-memory upload) does not read
+ * WebM and rejects it with "Format not recognised", so a Vencord/Vesktop
  * voice message — sniffed as EBML/WebM by `resolveVoiceAudioLabel` in
- * `voiceContainerSniff.ts` — is remuxed to Ogg before any STT provider sees
- * it. No logging here — the caller (AudioProcessor) logs the outcome.
+ * `voiceContainerSniff.ts` — is transcoded to Ogg before any STT provider
+ * sees it. No logging here — the caller (AudioProcessor) logs the outcome.
  *
- * `-c:a copy` means the Opus audio stream is repackaged into a new Ogg
- * container, never decoded or re-encoded — fast, and lossless relative to the
- * original encode.
+ * The recording client stamps the Opus packets with a jittered timeline; a
+ * stream copy would carry that jitter straight into the Ogg granule
+ * positions, which libsndfile then rejects as malformed. `asetpts=N/SR/TB`
+ * re-labels the decoded frames with a contiguous timeline, and the stream is
+ * re-encoded with libopus at 64kbps; no `-ac` flag is passed (not verified:
+ * assumes ffmpeg keeps the source channel count when it is omitted). The
+ * stream-copy route was tried and ruled out: ffmpeg's `setts` bitstream
+ * filter aborted on this input in the same host probe.
  *
  * No explicit input-format flag: a manual probe against real WebM/Opus
  * samples with ffmpeg n7.1.1 confirmed ffmpeg demuxes WebM correctly through
- * non-seekable stdin/stdout pipes with no `-f matroska` (or similar) hint,
- * and the resulting Ogg/Opus output decoded fine. This module's unit tests
- * mock `spawn`, so they exercise the args this function passes but do NOT
- * cover ffmpeg's actual demuxing behavior — that's what the probe verified.
+ * non-seekable stdin/stdout pipes with no `-f matroska` (or similar) hint.
+ * This module's unit tests mock `spawn`, so they pin only the args this
+ * function passes and do NOT cover ffmpeg's demuxing or libsndfile's
+ * acceptance; a host probe against a real Vencord recording verified that
+ * libsndfile opens the transcoded output.
  *
  * @param input - WebM/Opus source bytes.
  * @returns Ogg/Opus bytes (content-type: audio/ogg).
  * @throws if ffmpeg is missing from PATH, exits non-zero, or times out.
  */
-export async function remuxWebmToOgg(input: Buffer): Promise<Buffer> {
+export async function transcodeWebmToOgg(input: Buffer): Promise<Buffer> {
   return runFfmpeg(
     [
       '-hide_banner',
@@ -177,8 +183,12 @@ export async function remuxWebmToOgg(input: Buffer): Promise<Buffer> {
       '-i',
       'pipe:0',
       '-vn',
+      '-af',
+      'asetpts=N/SR/TB',
       '-c:a',
-      'copy',
+      'libopus',
+      '-b:a',
+      '64k',
       '-f',
       'ogg',
       'pipe:1',
