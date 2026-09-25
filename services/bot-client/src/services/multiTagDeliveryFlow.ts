@@ -38,6 +38,7 @@ import {
   type RuntimeSlot,
 } from './multiTagCoordinatorHelpers.js';
 import type { SlotDeliveryService, EphemeralErrorContext } from './SlotDeliveryService.js';
+import { PartialDeliveryError } from './partialDelivery.js';
 import { confirmDelivery, setDmSessionPersonality } from '../utils/gatewayServiceCalls.js';
 import type { MultiTagPersistence } from './MultiTagPersistence.js';
 
@@ -178,6 +179,21 @@ async function deliverSlot(
       },
       'Slot delivery threw — continuing to next slot'
     );
+    // This catch sends no error notice (unlike MessageHandler's error paths),
+    // so a PartialDeliveryError's delivered chunks are persisted alone as the
+    // turn's single row — deliverSuccess itself persisted nothing before
+    // throwing. persistPartialDelivery never throws, so a failure here can't
+    // stop a sibling slot's delivery. The slot-delivered marker is also set
+    // here because the slot's chunks reached Discord and its turn row is
+    // persisted, so crash recovery must not re-dispatch it (a re-dispatch
+    // would send the full response again beside the visible partial chunks
+    // and write a second, divergent row). Pinned by "persists a
+    // PartialDeliveryError's delivered chunks alone and still delivers the
+    // sibling slot" in multiTagDeliveryFlow.test.ts.
+    if (err instanceof PartialDeliveryError && slot.result !== undefined) {
+      await deps.slotDelivery.persistPartialDelivery(err, slot.result, slotContext);
+      await deps.persistence.markSlotDelivered(slot.jobId);
+    }
   }
 }
 

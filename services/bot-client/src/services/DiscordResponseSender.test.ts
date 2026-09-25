@@ -9,6 +9,7 @@ import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import type { Message } from 'discord.js';
 import { DiscordAPIError, TextChannel, ThreadChannel } from 'discord.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
+import { PartialDeliveryError } from './partialDelivery.js';
 
 // Mock dependencies
 vi.mock('../redis.js', () => ({
@@ -601,11 +602,94 @@ describe('DiscordResponseSender', () => {
         })
       ).rejects.toThrow('webhook 500');
 
-      // The loop aborts on the failed chunk and the throw carries no ids —
-      // including the id of chunk 1, which WAS delivered. Callers therefore
-      // persist nothing for a mid-stream multi-chunk failure; surfacing that
-      // partial progress is a tracked follow-up, not a property of this path.
+      // The loop aborts on the failed chunk, but the throw is no longer the
+      // bare original error — `sendResponse` wraps it into a
+      // `PartialDeliveryError` carrying chunk 1's id (`msg-1`), pinned by the
+      // partial-delivery cases below. `.toThrow('webhook 500')` still passes
+      // because the wrapper embeds the original error's message text.
       expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledTimes(2);
+    });
+
+    it('wraps a mid-stream webhook failure into a PartialDeliveryError carrying the delivered chunk', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      // 'word '.repeat(450) is 2250 chars — splits into exactly 2 chunks
+      // under the 2000-char mock splitter.
+      const content = 'word '.repeat(450);
+      const sendError = new Error('webhook 500');
+      mockWebhookManager.sendAsPersonality
+        .mockResolvedValueOnce({ id: 'msg-1' })
+        .mockRejectedValueOnce(sendError);
+
+      const sendPromise = sender.sendResponse({
+        content,
+        personality: mockPersonality,
+        ...senderTargetFrom(mockMessage),
+      });
+
+      const caught = (await sendPromise.catch((e: unknown) => e)) as PartialDeliveryError;
+
+      expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledTimes(2);
+      expect(caught).toBeInstanceOf(PartialDeliveryError);
+      expect(caught.chunkMessageIds).toEqual(['msg-1']);
+      expect(caught.deliveredContent).toBe(
+        mockWebhookManager.sendAsPersonality.mock.calls[0][2] as string
+      );
+      expect(caught.cause).toBe(sendError);
+      expect(caught.message).toContain('webhook 500');
+    });
+
+    it('keeps every real chunk in a PartialDeliveryError when the standalone footer chunk fails', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      // 2 real chunks (2000 + 1990 chars); the `modelUsed: 'test-model'`
+      // footer doesn't fit into the 1990-char chunk, so it becomes chunk 3.
+      const content = 'a'.repeat(2000) + 'b'.repeat(1990);
+      mockWebhookManager.sendAsPersonality
+        .mockResolvedValueOnce({ id: 'msg-1' })
+        .mockResolvedValueOnce({ id: 'msg-2' })
+        .mockRejectedValueOnce(new Error('footer send 500'));
+
+      const sendPromise = sender.sendResponse({
+        content,
+        personality: mockPersonality,
+        ...senderTargetFrom(mockMessage),
+        modelUsed: 'test-model',
+      });
+
+      const caught = (await sendPromise.catch((e: unknown) => e)) as PartialDeliveryError;
+
+      expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledTimes(3);
+      // Fixture self-check: the footer really did land as its own chunk.
+      const thirdChunk = mockWebhookManager.sendAsPersonality.mock.calls[2][2] as string;
+      expect(thirdChunk.startsWith('-# Model:')).toBe(true);
+      expect(caught).toBeInstanceOf(PartialDeliveryError);
+      expect(caught.chunkMessageIds).toEqual(['msg-1', 'msg-2']);
+      expect(caught.deliveredContent).toBe('a'.repeat(2000) + '\n' + 'b'.repeat(1990));
+      expect(caught.deliveredContent).not.toContain('-# Model');
+      expect(caught.message).toContain('2 of 3 chunks');
+    });
+
+    it('propagates the original error unchanged when the FIRST webhook chunk fails', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      const content = 'word '.repeat(450);
+      const sendError = new Error('webhook 500 on first chunk');
+      mockWebhookManager.sendAsPersonality.mockRejectedValueOnce(sendError);
+
+      const caught = (await sender
+        .sendResponse({
+          content,
+          personality: mockPersonality,
+          ...senderTargetFrom(mockMessage),
+        })
+        .catch((e: unknown) => e)) as unknown;
+
+      expect(caught).toBe(sendError);
+      expect(caught).not.toBeInstanceOf(PartialDeliveryError);
     });
   });
 
@@ -657,6 +741,59 @@ describe('DiscordResponseSender', () => {
       expect(result.chunkMessageIds).toEqual(['dm-msg-1', 'dm-msg-2']);
       expect(result.chunkCount).toBe(2);
     });
+
+    it('wraps a mid-stream DM failure into a PartialDeliveryError with the prefix stripped from delivered content', async () => {
+      const mockChannel = createMockTextChannel('dm-123');
+      const mockMessage = createMockMessage(mockChannel, null);
+      const sendError = new Error('dm send failed on chunk 3');
+      const sendMock = mockChannel.send as ReturnType<typeof vi.fn>;
+      sendMock
+        .mockResolvedValueOnce({ id: 'dm-1' })
+        .mockResolvedValueOnce({ id: 'dm-2' })
+        .mockRejectedValueOnce(sendError);
+
+      // 'word '.repeat(1000) is 5000 chars; with the 14-char DM prefix the
+      // raw content is 5014 chars — splits into exactly 3 chunks under the
+      // 2000-char mock splitter.
+      const content = 'word '.repeat(1000);
+
+      const caught = (await sender
+        .sendResponse({
+          content,
+          personality: mockPersonality,
+          ...senderTargetFrom(mockMessage),
+        })
+        .catch((e: unknown) => e)) as PartialDeliveryError;
+
+      expect(sendMock).toHaveBeenCalledTimes(3);
+      expect(caught).toBeInstanceOf(PartialDeliveryError);
+      expect(caught.chunkMessageIds).toEqual(['dm-1', 'dm-2']);
+      expect(caught.cause).toBe(sendError);
+
+      const sent0 = (sendMock.mock.calls[0][0] as { content: string }).content;
+      const sent1 = (sendMock.mock.calls[1][0] as { content: string }).content;
+      const prefix = '**Test Bot:** ';
+      expect(caught.deliveredContent).not.toContain('**Test Bot:**');
+      expect(caught.deliveredContent).toBe(sent0.slice(prefix.length) + '\n' + sent1);
+    });
+
+    it('propagates the original error unchanged when the FIRST DM chunk fails', async () => {
+      const mockChannel = createMockTextChannel('dm-123');
+      const mockMessage = createMockMessage(mockChannel, null);
+      const sendError = new Error('dm send failed on chunk 1');
+      (mockChannel.send as ReturnType<typeof vi.fn>).mockRejectedValueOnce(sendError);
+
+      const caught = (await sender
+        .sendResponse({
+          content: 'word '.repeat(1000),
+          personality: mockPersonality,
+          ...senderTargetFrom(mockMessage),
+        })
+        .catch((e: unknown) => e)) as unknown;
+
+      expect(caught).toBe(sendError);
+      expect(caught).not.toBeInstanceOf(PartialDeliveryError);
+    });
   });
 
   describe('sendResponse - DM permanent-failure stamping', () => {
@@ -694,6 +831,35 @@ describe('DiscordResponseSender', () => {
       ).rejects.toBe(blocked);
 
       expect(mockReportPersonaDmUndeliverable).toHaveBeenCalledWith('111111111111111111', '50007');
+    });
+
+    it('wraps a permanent-classification failure into a PartialDeliveryError when a chunk was already delivered', async () => {
+      const mockChannel = createMockDmChannel('dm-partial-1', '666666666666666666');
+      const mockMessage = createMockMessage(mockChannel, null);
+      const blocked = new DiscordAPIError(
+        { code: 50007, message: 'Cannot send messages to this user' },
+        50007,
+        403,
+        'POST',
+        'url',
+        {}
+      );
+      (mockChannel.send as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce({ id: 'dm-1' })
+        .mockRejectedValueOnce(blocked);
+
+      const caught = (await sender
+        .sendResponse({
+          content: 'word '.repeat(1000),
+          personality: mockPersonality,
+          ...senderTargetFrom(mockMessage),
+        })
+        .catch((e: unknown) => e)) as PartialDeliveryError;
+
+      expect(caught).toBeInstanceOf(PartialDeliveryError);
+      expect(caught.cause).toBe(blocked);
+      expect(mockReportPersonaDmUndeliverable).toHaveBeenCalledTimes(1);
+      expect(mockReportPersonaDmUndeliverable).toHaveBeenCalledWith('666666666666666666', '50007');
     });
 
     it('reports 50278 as permanent and still propagates the failure', async () => {

@@ -400,15 +400,20 @@ export class ConversationPersistence {
       thinkingContent,
     } = options;
 
-    // Invariant: history mirrors what is actually on Discord. Both send paths
-    // in DiscordResponseSender throw on failure and push an id per delivered
-    // chunk (`sendViaWebhook` via the throwing `sendAsPersonality`,
-    // `sendViaDM` via `channel.send`), so zero ids means no message reached
-    // Discord and persisting here would fabricate a turn. That makes this a
-    // defensive guard rather than a reachable path — pinned by "skips the save
-    // when chunkMessageIds is empty" below and by "propagates a webhook send
-    // failure instead of returning a short id list" in
-    // DiscordResponseSender.test.ts.
+    // Invariant: history mirrors what is actually on Discord. A send that
+    // fails after at least one chunk was already delivered surfaces from
+    // `DiscordResponseSender.sendResponse` as a `PartialDeliveryError`
+    // carrying those ids — the caller's error path persists them (see
+    // `partialDelivery.ts`'s `resolveErrorPathTurn`/`settleErrorPathTurn`),
+    // never this method with an empty array. A throw with ZERO delivered
+    // chunks rethrows the original error unchanged, so zero ids HERE still
+    // means nothing reached Discord and persisting would fabricate a turn —
+    // this remains a defensive guard, not a reachable path. Pinned by "skips
+    // the save when chunkMessageIds is empty" below, by the sender's
+    // first-chunk-failure tests ("propagates the original error unchanged
+    // when the FIRST webhook chunk fails" / "...FIRST DM chunk fails" in
+    // DiscordResponseSender.test.ts), and by the partial-delivery cases
+    // alongside them.
     if (chunkMessageIds.length === 0) {
       logger.warn('No chunk message IDs, skipping assistant message save');
       return;

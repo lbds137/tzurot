@@ -29,6 +29,7 @@ import { redisService } from '../redis.js';
 import { buildBotAudioFilename } from '../utils/botAudioClassifier.js';
 import { classifyDmError, dmErrorCode } from '../utils/dmErrorClassifier.js';
 import { reportPersonaDmUndeliverable } from '../utils/retentionGatewayCalls.js';
+import { stripDmPrefix, toSendFailure } from './partialDelivery.js';
 
 const logger = createLogger('DiscordResponseSender');
 
@@ -177,6 +178,12 @@ export class DiscordResponseSender {
    * - Webhook vs DM routing
    * - Discord message ID tracking
    * - Redis webhook storage
+   *
+   * @throws {@link PartialDeliveryError} (from `./partialDelivery.js`) when a
+   * chunk fails after at least one earlier chunk was already delivered; the
+   * original error otherwise. See `sendResponse` tests in
+   * `DiscordResponseSender.test.ts` ("propagates a webhook send failure
+   * instead of returning a short id list" and the partial-delivery cases).
    */
   async sendResponse(options: SendResponseOptions): Promise<DiscordSendResult> {
     const { content, personality, channel, guildId, clientId } = options;
@@ -198,22 +205,40 @@ export class DiscordResponseSender {
         channel instanceof NewsChannel ||
         channel instanceof ThreadChannel);
 
-    const rawContent = isWebhookChannel ? content : `**${personality.displayName}:** ${content}`;
+    const dmPrefix = `**${personality.displayName}:** `;
+    const rawContent = isWebhookChannel ? content : dmPrefix + content;
     const chunks = splitMessage(rawContent);
+    // Undecorated parallel of `chunks`, captured BEFORE `appendFooterToChunks`
+    // mutates the last entry with the footer, and with the DM speaker prefix
+    // stripped off chunk 0. A persisted partial-delivery row must read like a
+    // truncated success row — `result.content` is stored undecorated, without
+    // the DM prefix — and the footer/TTS decoration rides only the LAST
+    // chunk (or a chunk of its own), which a mid-stream failure never
+    // delivers, so `plainChunks` excludes it by construction. Any forced-
+    // split markers `splitMessage` itself applies (a trailing "..." on a
+    // force-split fragment, re-balanced code fences) are NOT removed here —
+    // they're internal to the splitter, not this layer's decoration.
+    const plainChunks = chunks.map((chunk, i) =>
+      i === 0 && !isWebhookChannel ? stripDmPrefix(chunk, dmPrefix) : chunk
+    );
     appendFooterToChunks(chunks, footer);
 
     const chunkMessageIds: string[] = [];
     const sendOpts: ChunkedSendOptions = { chunks, personality, chunkMessageIds, ttsFiles };
 
-    if (isWebhookChannel) {
-      await this.sendViaWebhook(channel, sendOpts);
-    } else {
-      // Cast invariant: within TypingChannel (TextChannel | DMChannel |
-      // NewsChannel | PublicThread | PrivateThread), reaching this branch
-      // requires guildId === null AND not-instanceof-Text/News/Thread —
-      // which leaves only DMChannel. If TypingChannel ever expands,
-      // re-derive the membership rather than trusting this cast.
-      await this.sendViaDM(channel as DMChannel, sendOpts);
+    try {
+      if (isWebhookChannel) {
+        await this.sendViaWebhook(channel, sendOpts);
+      } else {
+        // Cast invariant: within TypingChannel (TextChannel | DMChannel |
+        // NewsChannel | PublicThread | PrivateThread), reaching this branch
+        // requires guildId === null AND not-instanceof-Text/News/Thread —
+        // which leaves only DMChannel. If TypingChannel ever expands,
+        // re-derive the membership rather than trusting this cast.
+        await this.sendViaDM(channel as DMChannel, sendOpts);
+      }
+    } catch (error) {
+      throw toSendFailure(error, { chunkMessageIds, plainChunks, totalChunks: chunks.length });
     }
 
     logger.debug(
@@ -245,7 +270,12 @@ export class DiscordResponseSender {
 
       // `sendAsPersonality` returns a non-nullable Message and throws on
       // failure, so the id push is unconditional — identical to `sendViaDM`.
-      // A failed chunk aborts the loop rather than yielding a short id list.
+      // A failed chunk aborts the loop; `sendResponse`'s wrapping try/catch
+      // converts the abort into a `PartialDeliveryError` carrying the ids
+      // pushed so far (zero delivered chunks means the original error
+      // propagates unchanged) — see `toSendFailure` and its tests in
+      // `partialDelivery.test.ts`, plus the webhook partial-delivery cases in
+      // `DiscordResponseSender.test.ts`.
       const sentMessage = await this.webhookManager.sendAsPersonality(
         channel,
         personality,
@@ -253,8 +283,8 @@ export class DiscordResponseSender {
         files
       );
 
-      await redisService.storeWebhookMessage(sentMessage.id, personality.id);
       chunkMessageIds.push(sentMessage.id);
+      await redisService.storeWebhookMessage(sentMessage.id, personality.id);
     }
   }
 
@@ -284,8 +314,8 @@ export class DiscordResponseSender {
         throw error;
       }
 
-      await redisService.storeWebhookMessage(sentMessage.id, personality.id);
       chunkMessageIds.push(sentMessage.id);
+      await redisService.storeWebhookMessage(sentMessage.id, personality.id);
     }
   }
 
