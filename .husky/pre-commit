@@ -254,7 +254,7 @@ if [ -n "$STAGED_CLAUDE_DOCS" ]; then
             continue
         fi
         # No-op if already today (avoids noisy diffs for same-day commits)
-        if grep -qE "^lastUpdated: ['\"]$TODAY['\"]" "$file"; then
+        if grep -qE "^lastUpdated: ['\"]${TODAY}['\"]" "$file"; then
             continue
         fi
         # Replace the first lastUpdated value. Quote style follows whatever
