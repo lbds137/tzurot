@@ -3,9 +3,10 @@ id: TASK-1002
 title: >-
   guard:prompt-tags misreads a quote glyph inside a regex character class as an
   opening string literal
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-17 22:05'
+updated_date: '2026-09-25 18:29'
 labels:
   - 'area:tooling'
   - 'size:S'
