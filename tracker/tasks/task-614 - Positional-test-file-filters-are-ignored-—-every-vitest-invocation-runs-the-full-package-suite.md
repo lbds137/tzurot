@@ -3,9 +3,10 @@ id: TASK-614
 title: >-
   Positional test-file filters are ignored — every vitest invocation runs the
   full package suite
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-15 01:24'
+updated_date: '2026-09-25 01:30'
 labels:
   - 'area:testing'
   - 'size:S'
