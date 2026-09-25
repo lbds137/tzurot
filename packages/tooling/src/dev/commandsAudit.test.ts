@@ -64,9 +64,10 @@ describe('commandsAudit: loadManifest', () => {
     expect(loaded.commands[0].name).toBe('memory');
   });
 
+  // Pins the ordering: no literal `--` (vitest drops what follows), file before `-u`.
   it('throws a helpful error when the manifest is missing', () => {
     expect(() => loadManifest({ manifestPath: '/no/such/manifest.json' })).toThrow(
-      /Generate it with/
+      /Generate it with: pnpm --filter @tzurot\/bot-client test --run src\/handlers\/commandManifest\.test\.ts -u$/
     );
   });
 

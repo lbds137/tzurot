@@ -51,7 +51,7 @@ export function loadManifest(options: CommandsAuditOptions = {}): CommandManifes
   } catch (err) {
     throw new Error(
       `Failed to read command manifest at ${manifestPath}. ` +
-        `Generate it with: pnpm --filter @tzurot/bot-client test -- -u src/handlers/commandManifest.test.ts`,
+        `Generate it with: pnpm --filter @tzurot/bot-client test --run src/handlers/commandManifest.test.ts -u`,
       { cause: err }
     );
   }

@@ -521,8 +521,11 @@ jobs:
       - name: Build packages
         run: pnpm --filter './packages/*' build
 
+      # No `--` before the flag: pnpm forwards a literal `--` and vitest ignores
+      # everything after it, so `-- --coverage` ran the tier with coverage OFF and
+      # the upload step below found no lcov.info.
       - name: Run component tests with coverage
-        run: pnpm test:component -- --coverage
+        run: pnpm test:component --coverage
         env:
           # Component tests use in-process PGLite and never dial out; this only
           # satisfies the config layer's non-empty DATABASE_URL check. It happens
