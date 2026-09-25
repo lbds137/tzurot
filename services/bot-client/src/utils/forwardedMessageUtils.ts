@@ -216,7 +216,7 @@ export function extractForwardedAttachments(message: Message): AttachmentMetadat
     return attachments;
   }
 
-  for (const snapshot of snapshots.values()) {
+  for (const [snapshotIndex, snapshot] of Array.from(snapshots.values()).entries()) {
     // Extract regular attachments from snapshot. Each snapshot's OWN
     // IsVoiceMessage flag governs its attachments — a compound forward can
     // carry more than one snapshot, and they don't share a flag.
@@ -229,8 +229,11 @@ export function extractForwardedAttachments(message: Message): AttachmentMetadat
       }
     }
 
-    // Extract images from snapshot embeds
-    const embedImages = extractEmbedImages(snapshot.embeds);
+    // Extract images from snapshot embeds, scoped to this snapshot's own
+    // position so two snapshots' first embeds never mint the same name — the
+    // XML echo side (MessageContentBuilder, SnapshotFormatter) derives the
+    // same scope from the same `messageSnapshots` iteration order.
+    const embedImages = extractEmbedImages(snapshot.embeds, { snapshotIndex });
     if (embedImages !== undefined) {
       attachments.push(...embedImages);
     }

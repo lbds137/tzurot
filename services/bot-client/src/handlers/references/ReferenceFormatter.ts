@@ -154,12 +154,15 @@ export class ReferenceFormatter {
 
     const forwardMarker = await this.snapshotFormatter.buildForwardMarker(message);
 
-    for (const snapshot of message.messageSnapshots.values()) {
+    for (const [snapshotIndex, snapshot] of Array.from(
+      message.messageSnapshots.values()
+    ).entries()) {
       const snapshotReference = this.snapshotFormatter.formatSnapshot(
         snapshot,
         s.nextNumber,
         message,
-        forwardMarker
+        forwardMarker,
+        snapshotIndex
       );
       s.rawReferences.push(snapshotReference);
       // All snapshots of one forward share the crawled entry's discordUrl, and

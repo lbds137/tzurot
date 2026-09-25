@@ -33,4 +33,24 @@ describe('embedMediaAttachmentName', () => {
   it('renders both the embed and media index 1-based', () => {
     expect(embedMediaAttachmentName(1, 2)).toBe('embed-2-media-3.png');
   });
+
+  it('scopes a media name to the media-2 forwarded snapshot', () => {
+    expect(embedMediaAttachmentName(0, 2, { snapshotIndex: 1 })).toBe(
+      'forward-2-embed-1-media-3.png'
+    );
+  });
+});
+
+describe('snapshot-scoped naming', () => {
+  it('scopes an image name to the first forwarded snapshot', () => {
+    expect(embedImageAttachmentName(0, EMBED_NAMING.IMAGE_SLOT, { snapshotIndex: 0 })).toBe(
+      'forward-1-embed-1-image.png'
+    );
+  });
+
+  it('scopes a thumbnail name to a later embed in a later forwarded snapshot', () => {
+    expect(embedImageAttachmentName(2, EMBED_NAMING.THUMBNAIL_SLOT, { snapshotIndex: 1 })).toBe(
+      'forward-2-embed-3-thumbnail.png'
+    );
+  });
 });

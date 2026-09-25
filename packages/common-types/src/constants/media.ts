@@ -128,6 +128,8 @@ export enum AttachmentType {
 export const EMBED_NAMING = {
   /** Prefix opening every embed-derived synthetic attachment name */
   PREFIX: 'embed-',
+  /** Prefix scoping an embed name to the forwarded snapshot it came from (`forward-K-embed-N-…`) */
+  SNAPSHOT_PREFIX: 'forward-',
   /** Slot suffix for an embed's main image */
   IMAGE_SLOT: 'image',
   /** Slot suffix for an embed's thumbnail */

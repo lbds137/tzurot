@@ -59,7 +59,16 @@ export class MessageFormatter {
     if (isForwarded && hasForwardedSnapshots(message)) {
       return {
         content: withStickerAndPollDescriptions(message, extractForwardedContentForPrompt(message)),
-        attachments: extractForwardedAttachments(message),
+        // `buildRawReference` echoes the WRAPPER's embeds via
+        // `EmbedParser.parseMessageEmbeds`, so the wrapper's own embed images
+        // must be minted here too or those echoed names dangle — the same
+        // shape `MessageContentBuilder` uses for the triggering message.
+        // Wrapper names (`embed-N-…`) cannot collide with snapshot names
+        // (`forward-K-embed-N-…`).
+        attachments: [
+          ...extractForwardedAttachments(message),
+          ...(extractEmbedImages(message.embeds) ?? []),
+        ],
       };
     }
 

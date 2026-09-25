@@ -618,7 +618,7 @@ describe('EmbedParser', () => {
     it('threads the live message id through to the diagnostic', () => {
       const embed: APIEmbed = { type: EmbedType.Link, url: 'https://example.com/unfurl' };
 
-      EmbedParser.formatEmbedElement(embed, 0, 1, 'msg-live-1');
+      EmbedParser.formatEmbedElement(embed, 0, 1, { messageId: 'msg-live-1' });
 
       expect(logEmptyEmbedShape).toHaveBeenCalledWith(embed, 'msg-live-1');
     });
@@ -685,6 +685,32 @@ describe('EmbedParser', () => {
 
       const colorLines = result.split('\n').filter(line => line.startsWith('<color>'));
       expect(colorLines).toEqual(['<color>#123456</color>']);
+    });
+
+    it('echoes forward-1-embed-1-image.png and forward-1-embed-1-thumbnail.png for a snapshot-scoped embed', () => {
+      const embed: APIEmbed = {
+        image: { url: 'https://example.com/image.png' },
+        thumbnail: { url: 'https://example.com/thumb.png' },
+      };
+
+      const result = EmbedParser.formatEmbedElement(embed, 0, 1, { scope: { snapshotIndex: 0 } });
+
+      expect(result).toContain(
+        '<image filename="forward-1-embed-1-image.png" url="https://example.com/image.png"/>'
+      );
+      expect(result).toContain(
+        '<thumbnail filename="forward-1-embed-1-thumbnail.png" url="https://example.com/thumb.png"/>'
+      );
+    });
+
+    it("a snapshot-scoped embed's gallery items echo `forward-1-embed-1-media-1.png`", () => {
+      const embed = VXREDDIT_COMPONENTS_V2_EMBED as unknown as APIEmbed;
+
+      const result = EmbedParser.formatEmbedElement(embed, 0, 1, { scope: { snapshotIndex: 0 } });
+
+      expect(result).toContain(
+        '<image filename="forward-1-embed-1-media-1.png" url="https://i.redd.it/exampleimg01.jpeg"/>'
+      );
     });
   });
 
@@ -764,6 +790,22 @@ describe('EmbedParser', () => {
       expect(result).toContain('<title>Test Title</title>');
       expect(result).toContain('<description>Test Description</description>');
       expect(result).toContain('</embed>');
+    });
+
+    it("always names the wrapper message's own embeds unscoped, never forward-K-", () => {
+      const mockEmbed = {
+        toJSON: () => ({ image: { url: 'https://example.com/image.png' } }),
+      };
+
+      const mockMessage = {
+        id: 'msg-wrapper-1',
+        embeds: [mockEmbed],
+      } as unknown as Message;
+
+      const result = EmbedParser.parseMessageEmbeds(mockMessage);
+
+      expect(result).toContain('<image filename="embed-1-image.png"');
+      expect(result).not.toContain('forward-');
     });
 
     it('should parse message with multiple embeds', () => {
