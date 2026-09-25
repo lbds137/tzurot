@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-24 01:23'
-updated_date: '2026-09-25 22:29'
+updated_date: '2026-09-25 23:09'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -45,5 +45,10 @@ Merged in #2499 (a9f3c3d87 on develop, 2026-09-24), with a WebM-to-Ogg remux in 
 created: 2026-09-25 22:29
 ---
 PROD SMOKE (2026-09-25, owner): BYOK/Mistral PASS - relabel + remux ran, Mistral transcribed the remuxed Ogg (request 09c02ef7). voice-engine FAIL - voice-engine cold-started 73 s, then /v1/transcribe answered 500: librosa/soundfile LibsndfileError "Supported file format but file is malformed" on the remuxed Ogg (request 6581b177, 22:18:23Z). Native Discord voice messages went through voice-engine fine the same day (16:55Z, 19:43Z). Reproduced on the Deck with the real recording: Chrome MediaRecorder stamps each 60 ms Opus packet with jittered wall-clock timestamps (709 packets, 708 irregular steps), the stream copy carries them into Ogg granule positions, libsndfile 1.2.2 rejects that. Metadata stripping, muxer flags and the setts bitstream filter (ffmpeg aborts) do not fix it; decode + asetpts=N/SR/TB + libopus 64k re-encode does (soundfile opens it, 2041920 frames). Fix unit: replace the stream copy with that transcode in audioNormalizer.ts (rename to transcodeWebmToOgg), spec written, dispatch pending the usage window. Forwarding untestable: Vencord cannot forward a voice message. Re-upload dead end filed as TASK-1112.
+---
+
+created: 2026-09-25 23:09
+---
+CORRECTION to the previous comment (caught by the fix unit orchestrator): "708 irregular steps" was a measurement error - my step check was written for 20 ms frames, so every 60 ms step registered as irregular. The real ffprobe figures: 709 packets, all 0.060 s, with 112 of the 708 steps off 0.060 (mostly at the start, down to 0.052). The mechanism and fix stand: the old args fail in libsndfile, the new args open. Fix PR: #2542 (transcodeWebmToOgg: asetpts=N/SR/TB + libopus 64k). Stays open until the no-key Vencord re-smoke passes on prod after the beta.231 deploy.
 ---
 <!-- COMMENTS:END -->
