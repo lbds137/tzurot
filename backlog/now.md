@@ -10,8 +10,6 @@ _Active bugs observed in production. Fix before new features. Cleared issues are
 
 _Recently resolved items move to the GitHub release notes at ship time — this section stays empty between incidents (history: git + releases)._
 
-- 🐛 `[FIX]` **TASK-1079**: the Share Chat History drill-down on both character dashboards builds a 107-character customId, and discord.js throws on it. It has been reachable on prod since beta.209. **Fixed on develop as #2508** (`22a9cb0cd`, 2026-09-24): UUID entity ids are compacted in the customId, and a ratchet builds every dashboard message and holds every id at ≤ 100. It ships with beta.230; remove this entry at that cut.
-
 _(2026-09-21: the vxreddit Components-V2 entry REMOVED — fix #2461 verified on dev by the owner smoke, Emily described the art; prod verification is the same check after beta.228. The entry's capture, probe and PR history live on TASK-1024 and in git.)_
 
 
@@ -55,7 +53,8 @@ _beta.229 CUT 2026-09-24 11:28Z (07:28 EDT). **The numbers:** 30 PRs, 24 runtime
   - Keep ranges small enough for a normal `gh pr merge --rebase`. beta.229's 166 commits needed the fast-forward fallback, and its 402 files needed the split local review.
   - **Cut step (owner ruling 2026-09-24): re-add `hook-posix-parse` to the MAIN ruleset's required checks after this release merges.** It was removed live on 2026-09-24 because the job exists only on develop's `ci.yml` (#2506, post-cut) and its presence deadlocked every main-cut PR (#2516). beta.230 ships the job to main; TASK-1096 adds the guard that fails on a main-required context with no job on main and warns when a job is safe to re-add.
   - The digest sweep on prod runs only for the listed pairs (spend ceiling = listed pairs × ≤12/day, D8) — TASK-1038's promotion widens that list automatically, so its spend line is part of its spec; retention is live and autonomous from beta.222 (kill switch: `RETENTION_AUTORUN_ENABLED=false` on bot-client); the reminder DM (beta.223) forms its first prod cohort on or after 2026-10-04. Prod ops writes under auto mode: `release:premigrate` and `db:safe-migrate` are `autoMode.soft_deny` at user scope by design; `release:premigrate` also carries a `permissions.ask` rule, so it prompts (forwarded to the phone) instead of reaching the classifier.
-- **Cut when**: `doc-72` is merged, and doc-97 Phase 4 slice 2 is merged if the TASK-1039 read moves the register. If the read does not move it, the cut goes when `doc-72` lands. The standing backstops are ~10 runtime PRs and ~250 files; `release:range` reads 0 PRs at the write.
+- **Cut RULED 2026-09-25 (owner, "cut now")**: doc-72 is in; slice 2 moves to beta.231 regardless of the TASK-1039 read; #2534 does not ride (one review finding open at the cut). Range at the ruling: 29 PRs, 19 runtime, 247 files, 117 commits, no migrations. Smoke checklist in `CURRENT.md`.
+- **Cut when** (superseded by the ruling above): `doc-72` is merged, and doc-97 Phase 4 slice 2 is merged if the TASK-1039 read moves the register. If the read does not move it, the cut goes when `doc-72` lands. The standing backstops are ~10 runtime PRs and ~250 files; `release:range` reads 0 PRs at the write.
 - **🗺️ Horizon (rolling three releases, re-touched at every cut)**:
   - **beta.230**: this block.
   - **beta.231**:

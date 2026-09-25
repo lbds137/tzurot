@@ -15,6 +15,26 @@
 - **Done 2026-09-13**: the Default `system_prompts` row edited on dev and prod (v1 then v2; long-form under doc-97 Phase 2) · `WEEKLY_AUDIT_GH_TOKEN` set (Dependabot row reads; deletion-safety row fixed by #2413) · `TZUROT_RAILWAY_API_TOKEN_DEV`/`_PROD` in the local `.env` (tooling reads them after the TASK-62 follow-up) · the TASK-798 prod measurement · the stale `.bashrc` OpenRouter key revoked · the Waffles Share-Memories question CLOSED by ruling (deal with it if it recurs) · the privacy-policy z.ai summaries bullet committed.
 - **Agent-run, no owner action**: the doc-17 gap-bucket cache read · the Emily gate and dead-row read · TASK-702 probe · TASK-62 env-suffixed token read · TASK-951 `.env.example` guard · TASK-838 cadence ledger then the doc-61 economy pass (ruled 2026-09-13, Opus lane) · the #2270 link-share watcher · the five `state:observable` watches TASK-952–956.
 
+## 🚢 2026-09-25 — beta.230 CUT (Fable; owner ruled "cut now" 2026-09-25 ~10:20 EDT; doc-97 slice 2 moves to beta.231 regardless of the TASK-1039 read)
+
+**Range at the cut**: 29 PRs, 19 runtime, 247 files, 117 commits; no migrations; version bumped on develop. Both backstops had fired; the plan's own criterion was met on the doc-72 half (PR A #2507, PR B #2509 merged) and the slice-2 half is deferred by ruling. Preflight clean: `guard:repo-settings` no deletion-safety findings, `security:advisories` none open, no dependabot PRs. #2534 (TASK-979, non-runtime) does NOT ride: its review carries one low-severity finding (`COMPACT_IDS_SHOWN` does not parameterize the display it names); its round is dispatch work after the release PR is open, and it merges onto the finalized develop.
+
+**Risk: medium.** No schema change. Runtime-unverified paths: voice-engine on Python 3.13 (#2505, TASK-1070's dev check still open), the mid-stream failure persistence (#2530, an error path nothing can smoke), cross-channel quote and forward rendering (#2529).
+
+**beta.230 smoke checklist (report pass/fail by number)**:
+
+1. ⏳ _needs-smoke_ (dev, before or after the cut — the owner's choice): the TASK-1070 dev check, one TTS reply and one voice message transcribed with NO STT key (the voice-engine path on Python 3.13).
+   - **Pass:** the audio plays and the transcription lands; the voice-engine logs show no import or codec error on the first request.
+   - **Why limited:** the docker-build-smoke proves the 3.13 image builds and the dev deploy proves boot; neither exercises a real STT/TTS call.
+2. ⏳ _needs-smoke_ (prod, after the deploy): open any settings dashboard, page through the index (the jump select and the concern pages), Reset page on one page, Reset all from the hub (doc-72, #2507 + #2509; the ≤100-char customId ratchet #2508 is exercised by the same walk).
+   - **Pass:** every page renders, the reset buttons ask for confirmation and clear the page or the hub, no `Invalid Form Body` in the bot-client logs.
+
+- **Agent-run (no owner action; observability instead of smoke)**:
+  - the first forwarded message with images and the first cross-channel quoted reply on prod after the deploy (#2528, #2529) — read the prompt block in the logs;
+  - the first mid-stream send failure on prod (#2530) — the persisted row carries the delivered chunks and the owner alert dedups on the partial's cause frames;
+  - each service's first boot on the new deps (#2503, #2517) and the voice-engine's first boot on 3.13;
+  - **cut step after the merge**: re-add `hook-posix-parse` to the MAIN ruleset's required checks (owner ruling 2026-09-24), re-run `guard:repo-settings`, refresh `.github/rulesets/branch-protection.json` from live.
+
 ## 🚢 2026-09-24 — beta.229 RELEASED (Opus 5.5; owner approved the merge and kept the summarized mode live; first prod boots on Node 24 clean, 0 error lines in 15 min)
 
 **Range final**: 30 PRs, 24 runtime, 402 files; no migrations (`release:premigrate --dry-run`: nothing to premigrate); version bumped on develop (`9feea7eaa`). A split local release review (four read-only area reviewers) found one Medium and one Low, both fixed in #2500; api-gateway, ai-worker and packages/infra came back clean.
