@@ -123,107 +123,40 @@ export const ZAI_PARAM_DISPOSITIONS: Readonly<
 };
 
 /**
- * Params the glm-4.5-air upstream rejects when routed through OpenRouter.
+ * Apply the z.ai-direct param allowlist to first-class params and
+ * modelKwargs, mutating modelKwargs in place. z.ai-direct gets the allowlist
+ * because its chat-completion endpoint enforces one supported-params contract
+ * for every GLM variant it serves, regardless of model name. Every other route
+ * is a no-op here, since OpenRouter routes get no SDK-boundary param filter
+ * (see the `ZAI_DIRECT_SUPPORTED_PARAMS` comment above for why).
  *
- * A DENYLIST, deliberately: on the OpenRouter route everything else must pass
- * through untouched (`reasoning`, `transforms`, and any future OpenRouter
- * param), so an allowlist here would strip params OpenRouter handles fine.
- * This is the observed-rejected set for that one upstream — it is not z.ai's
- * direct contract and moves independently of it.
+ * @returns The first-class params with any disallowed one set to undefined (frequencyPenalty, presencePenalty)
  */
-const GLM_45_AIR_OPENROUTER_UNSUPPORTED_PARAMS: ReadonlySet<string> = new Set([
-  'frequency_penalty',
-  'presence_penalty',
-  'repetition_penalty',
-  'seed',
-  'top_k',
-  'min_p',
-  'top_a',
-  'logit_bias',
-]);
-
-/**
- * Models with restricted parameter sets even when routed through OpenRouter.
- * Some upstream providers reject params that OpenRouter's normalization layer
- * doesn't translate. The pattern matches by model name substring.
- *
- * Maps model patterns to sets of unsupported parameter names (snake_case API keys).
- * Filtering covers both first-class ChatOpenAI params and modelKwargs.
- */
-const RESTRICTED_PARAM_MODELS: { pattern: RegExp; unsupported: ReadonlySet<string> }[] = [
-  {
-    // glm-4.5-air observed to 400 with "Invalid API parameter" (code 1210)
-    // when these params are passed via OpenRouter despite OpenRouter's normalization.
-    pattern: /glm-4\.5-air/i,
-    unsupported: GLM_45_AIR_OPENROUTER_UNSUPPORTED_PARAMS,
-  },
-];
-
-/**
- * How a resolved filter decides whether a param name is sent.
- *
- * - `allow`: send only names in the set (provider-tier, z.ai-direct).
- * - `deny`: send everything except names in the set (per-model, OpenRouter).
- */
-type ParamFilter =
-  { mode: 'allow'; params: ReadonlySet<string> } | { mode: 'deny'; params: ReadonlySet<string> };
-
-/**
- * Resolve the param filter for a given (modelName, provider) pair.
- *
- * Provider-tier filter (z.ai-direct) takes precedence — z.ai's chat-completion
- * endpoint enforces a single supported-params contract for every GLM variant it
- * serves, regardless of model name. For other providers (e.g. OpenRouter), fall
- * back to per-model regex matching against `RESTRICTED_PARAM_MODELS`.
- */
-function resolveParamFilter(modelName: string, effectiveProvider: AIProvider): ParamFilter | null {
-  if (effectiveProvider === AIProvider.ZaiCoding) {
-    return { mode: 'allow', params: ZAI_DIRECT_SUPPORTED_PARAMS };
-  }
-  for (const entry of RESTRICTED_PARAM_MODELS) {
-    if (entry.pattern.test(modelName)) {
-      return { mode: 'deny', params: entry.unsupported };
-    }
-  }
-  return null;
-}
-
-/** Whether `filter` strips `key` from the outbound request. */
-function isFilteredOut(filter: ParamFilter, key: string): boolean {
-  return filter.mode === 'allow' ? !filter.params.has(key) : filter.params.has(key);
-}
-
-/**
- * Filter unsupported sampling params for models with restricted parameter sets.
- * Mutates modelKwargs in place and returns cleaned first-class params.
- *
- * @returns Object with filtered first-class params (frequency_penalty, presence_penalty)
- */
-function filterRestrictedParams(
+function applyZaiDirectAllowlist(
   modelName: string,
   effectiveProvider: AIProvider,
   firstClassParams: { frequencyPenalty?: number; presencePenalty?: number },
   modelKwargs: Record<string, unknown>
 ): { frequencyPenalty?: number; presencePenalty?: number } {
-  const filter = resolveParamFilter(modelName, effectiveProvider);
-  if (filter === null) {
+  const allowed = effectiveProvider === AIProvider.ZaiCoding ? ZAI_DIRECT_SUPPORTED_PARAMS : null;
+  if (allowed === null) {
     return firstClassParams;
   }
 
   const filtered: string[] = [];
   let { frequencyPenalty, presencePenalty } = firstClassParams;
 
-  if (frequencyPenalty !== undefined && isFilteredOut(filter, 'frequency_penalty')) {
+  if (frequencyPenalty !== undefined && !allowed.has('frequency_penalty')) {
     frequencyPenalty = undefined;
     filtered.push('frequency_penalty');
   }
-  if (presencePenalty !== undefined && isFilteredOut(filter, 'presence_penalty')) {
+  if (presencePenalty !== undefined && !allowed.has('presence_penalty')) {
     presencePenalty = undefined;
     filtered.push('presence_penalty');
   }
   // Filter from modelKwargs (keys are already snake_case)
   for (const key of Object.keys(modelKwargs)) {
-    if (isFilteredOut(filter, key)) {
+    if (!allowed.has(key)) {
       delete modelKwargs[key];
       filtered.push(key);
     }
@@ -231,7 +164,7 @@ function filterRestrictedParams(
   if (filtered.length > 0) {
     logger.warn(
       { modelName, filteredParams: filtered },
-      'Filtered unsupported params for restricted model to prevent 400 errors'
+      'Dropped params outside the z.ai direct allowlist'
     );
   }
 
@@ -525,9 +458,9 @@ function buildZaiCodingModel(
       temperature: shared.temperature,
       topP: shared.topP,
       maxTokens: shared.maxTokens,
-      // frequencyPenalty/presencePenalty omitted: filterRestrictedParams strips
-      // them to undefined for z.ai-direct (provider-tier filter), so they would
-      // always log as undefined and add noise without signal.
+      // frequencyPenalty/presencePenalty omitted: applyZaiDirectAllowlist strips
+      // them to undefined for z.ai-direct, so they would always log as
+      // undefined and add noise without signal.
       modelKwargs: shared.hasModelKwargs ? shared.modelKwargs : undefined,
     },
     'Creating z.ai coding model'
@@ -544,11 +477,11 @@ function buildZaiCodingModel(
       maxRetries: 0,
       // frequencyPenalty / presencePenalty intentionally excluded:
       // z.ai's chat-completion API returns 400 "Invalid API parameter" (code
-      // 1210) for both. filterRestrictedParams strips them in `shared` before
-      // we get here (provider-tier filter), but we also exclude them at the
-      // constructor call so the contract is self-evident — a future caller
-      // that calls buildZaiCodingModel without the filter doesn't get a
-      // silent 400 from z.ai.
+      // 1210) for both. applyZaiDirectAllowlist strips them in `shared`
+      // before we get here, but we also exclude them at the constructor call
+      // so the contract is self-evident — a future caller that calls
+      // buildZaiCodingModel without the filter doesn't get a silent 400 from
+      // z.ai.
       maxTokens: shared.maxTokens,
       modelKwargs: shared.hasModelKwargs ? shared.modelKwargs : undefined,
       configuration: {
@@ -581,7 +514,7 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
 
   const maxTokens = getEffectiveMaxTokens(modelName, modelConfig.maxTokens, modelConfig.thinking);
   const modelKwargs = buildModelKwargs(modelConfig, provider);
-  const { frequencyPenalty, presencePenalty } = filterRestrictedParams(
+  const { frequencyPenalty, presencePenalty } = applyZaiDirectAllowlist(
     modelName,
     provider,
     {
