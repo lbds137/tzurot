@@ -1,9 +1,10 @@
 ---
 id: TASK-1081
 title: Wire shellcheck -s sh into the hook-posix-parse CI job
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-24 14:11'
+updated_date: '2026-09-25 20:47'
 labels:
   - 'area:tooling'
   - 'size:S'
