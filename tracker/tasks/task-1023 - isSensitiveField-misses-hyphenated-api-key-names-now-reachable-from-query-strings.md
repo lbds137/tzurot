@@ -3,9 +3,10 @@ id: TASK-1023
 title: >-
   isSensitiveField misses hyphenated api-key names, now reachable from query
   strings
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-18 23:57'
+updated_date: '2026-09-25 08:03'
 labels:
   - 'area:common-types'
   - 'size:S'
