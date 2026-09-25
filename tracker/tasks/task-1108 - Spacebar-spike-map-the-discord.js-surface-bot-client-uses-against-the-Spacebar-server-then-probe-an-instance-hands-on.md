@@ -31,3 +31,8 @@ created: 2026-09-25 15:28
 ---
 PART 1 DONE 2026-09-25 (local read-only agent; docs/local/spacebar-spike.md; doc-83 carries the summary and recommendation). Verdict: Spacebar has the persona path, interactions reply half is stubs (deferred reply TODO, editReply unknown webhook, modal/autocomplete missing); discord.js host override is possible via rest.api/rest.cdn/rest.mediaProxy with three bot-client/ai-worker touch points; no federation on Spacebar or Stoat. Recommendation: patch-set fork of Spacebar, provisional; part 2 (podman probe on the Deck) decides. Task stays open for part 2; owner rules on the fork.
 ---
+
+created: 2026-09-25 15:30
+---
+OWNER RULING 2026-09-25: fork Spacebar (upstream contributions conditional on their stance toward AI contributions; otherwise the fork stays private). Part 2 is GO: the podman probe on the Deck against upstream d211b0d, per the probe list in doc-83. The fork repo comes with the first patch.
+---
