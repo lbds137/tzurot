@@ -9,7 +9,7 @@ vi.mock('node:child_process', () => ({
   spawn: mockSpawn,
 }));
 
-import { normalizeLoudness, remuxWebmToOgg } from './audioNormalizer.js';
+import { normalizeLoudness, transcodeWebmToOgg } from './audioNormalizer.js';
 
 /**
  * Build a fake child process whose `close` event the test can drive
@@ -150,47 +150,53 @@ describe('normalizeLoudness', () => {
   });
 });
 
-describe('remuxWebmToOgg', () => {
+describe('transcodeWebmToOgg', () => {
   beforeEach(() => {
     mockSpawn.mockReset();
   });
 
-  it('remuxWebmToOgg stream-copies WebM to Ogg over stdin/stdout', async () => {
+  it('transcodeWebmToOgg transcodes WebM to Ogg with a contiguous timeline over stdin/stdout', async () => {
     const { emitter, capturedStdin } = makeFakeChild({
-      stdoutChunks: [Buffer.from('OggS-remuxed-bytes')],
+      stdoutChunks: [Buffer.from('OggS-transcoded-bytes')],
     });
     mockSpawn.mockReturnValue(emitter);
 
     const input = Buffer.from('webm-input-bytes');
-    const result = await remuxWebmToOgg(input);
+    const result = await transcodeWebmToOgg(input);
 
     expect(mockSpawn.mock.calls[0][0]).toBe('ffmpeg');
-    expect(mockSpawn.mock.calls[0][1]).toEqual([
+    const args = mockSpawn.mock.calls[0][1] as string[];
+    expect(args).toEqual([
       '-hide_banner',
       '-loglevel',
       'error',
       '-i',
       'pipe:0',
       '-vn',
+      '-af',
+      'asetpts=N/SR/TB',
       '-c:a',
-      'copy',
+      'libopus',
+      '-b:a',
+      '64k',
       '-f',
       'ogg',
       'pipe:1',
     ]);
+    expect(args[args.indexOf('-af') + 1]).toBe('asetpts=N/SR/TB');
 
     expect(Buffer.concat(capturedStdin).toString('utf8')).toBe('webm-input-bytes');
     expect(result).toBeInstanceOf(Buffer);
-    expect(result.toString('utf8')).toBe('OggS-remuxed-bytes');
+    expect(result.toString('utf8')).toBe('OggS-transcoded-bytes');
   });
 
-  it('remuxWebmToOgg rejects when ffmpeg exits non-zero', async () => {
+  it('transcodeWebmToOgg rejects when ffmpeg exits non-zero', async () => {
     const { emitter } = makeFakeChild({
       exitCode: 1,
       stderrChunks: ['ffmpeg: invalid input format\n'],
     });
     mockSpawn.mockReturnValue(emitter);
 
-    await expect(remuxWebmToOgg(Buffer.from('bad'))).rejects.toThrow(/code=1/);
+    await expect(transcodeWebmToOgg(Buffer.from('bad'))).rejects.toThrow(/code=1/);
   });
 });

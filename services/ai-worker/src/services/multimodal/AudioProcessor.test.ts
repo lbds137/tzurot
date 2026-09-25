@@ -58,9 +58,9 @@ vi.mock('../voice/MistralSttClient.js', async importOriginal => {
   };
 });
 
-const mockRemuxWebmToOgg = vi.fn();
+const mockTranscodeWebmToOgg = vi.fn();
 vi.mock('../voice/audioNormalizer.js', () => ({
-  remuxWebmToOgg: (...args: unknown[]) => mockRemuxWebmToOgg(...args),
+  transcodeWebmToOgg: (...args: unknown[]) => mockTranscodeWebmToOgg(...args),
 }));
 
 // Mock fetch
@@ -75,7 +75,7 @@ describe('AudioProcessor', () => {
     mockGetHealth.mockReset().mockResolvedValue({ asr: true, tts: true });
     mockWaitForVoiceEngine.mockReset().mockResolvedValue({ ready: true, elapsedMs: 0 });
     mockElevenLabsSTT.mockReset();
-    mockRemuxWebmToOgg.mockReset();
+    mockTranscodeWebmToOgg.mockReset();
   });
 
   afterEach(() => {
@@ -773,7 +773,7 @@ describe('AudioProcessor', () => {
     describe('Voice container relabeling (Vencord/Vesktop video/webm)', () => {
       // Declared video/webm (the Vencord/Vesktop mislabel), bytes are actually
       // an EBML container (WebM audio) — the attachment must be relabeled
-      // audio/webm AND remuxed to Ogg before reaching any STT provider
+      // audio/webm AND transcoded to Ogg before reaching any STT provider
       // (voice-engine's in-memory decoder cannot read WebM).
       const webmVoiceAttachment: AttachmentMetadata = {
         url: 'https://cdn.discordapp.com/voice-message.ogg',
@@ -783,7 +783,7 @@ describe('AudioProcessor', () => {
         size: 4096,
       };
       const ebmlBytes = Uint8Array.from([0x1a, 0x45, 0xdf, 0xa3, 0x00, 0x00, 0x00, 0x00]);
-      const remuxedSentinel = Buffer.from('OggS-remuxed-sentinel-bytes');
+      const transcodedSentinel = Buffer.from('OggS-transcoded-sentinel-bytes');
 
       beforeEach(() => {
         (global.fetch as any).mockResolvedValue({
@@ -792,8 +792,8 @@ describe('AudioProcessor', () => {
         });
       });
 
-      it('sends the remuxed Ogg buffer, audio/ogg and a .ogg name to the BYOK provider for a WebM voice message', async () => {
-        mockRemuxWebmToOgg.mockResolvedValue(remuxedSentinel);
+      it('sends the transcoded Ogg buffer, audio/ogg and a .ogg name to the BYOK provider for a WebM voice message', async () => {
+        mockTranscodeWebmToOgg.mockResolvedValue(transcodedSentinel);
         mockMistralSTT.mockResolvedValue({ text: 'transcribed webm voice' });
 
         const result = await transcribeAudio(webmVoiceAttachment, {
@@ -802,34 +802,34 @@ describe('AudioProcessor', () => {
         });
 
         expect(result.text).toBe('transcribed webm voice');
-        expect(mockRemuxWebmToOgg).toHaveBeenCalledWith(Buffer.from(ebmlBytes.buffer));
+        expect(mockTranscodeWebmToOgg).toHaveBeenCalledWith(Buffer.from(ebmlBytes.buffer));
         expect(mockMistralSTT).toHaveBeenCalledWith(
           expect.objectContaining({
-            audioBuffer: remuxedSentinel,
+            audioBuffer: transcodedSentinel,
             contentType: 'audio/ogg',
             filename: 'voice-message.ogg',
           })
         );
       });
 
-      it('sends the remuxed Ogg buffer, audio/ogg and a .ogg name to voice-engine for a WebM voice message', async () => {
-        mockRemuxWebmToOgg.mockResolvedValue(remuxedSentinel);
+      it('sends the transcoded Ogg buffer, audio/ogg and a .ogg name to voice-engine for a WebM voice message', async () => {
+        mockTranscodeWebmToOgg.mockResolvedValue(transcodedSentinel);
         mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'transcribed via voice-engine' });
 
         const result = await transcribeAudio(webmVoiceAttachment, { provider: 'voice-engine' });
 
         expect(result.text).toBe('transcribed via voice-engine');
-        expect(mockRemuxWebmToOgg).toHaveBeenCalledWith(Buffer.from(ebmlBytes.buffer));
+        expect(mockTranscodeWebmToOgg).toHaveBeenCalledWith(Buffer.from(ebmlBytes.buffer));
         expect(mockVoiceEngineTranscribe).toHaveBeenCalledWith(
-          remuxedSentinel,
+          transcodedSentinel,
           'voice-message.ogg',
           'audio/ogg'
         );
       });
 
-      it('falls back to the relabeled WebM when the remux fails and still transcribes', async () => {
-        mockRemuxWebmToOgg.mockRejectedValue(new Error('ffmpeg exited with code=1'));
+      it('falls back to the relabeled WebM when the transcode fails and still transcribes', async () => {
+        mockTranscodeWebmToOgg.mockRejectedValue(new Error('ffmpeg exited with code=1'));
         mockMistralSTT.mockResolvedValue({ text: 'transcribed fallback webm' });
 
         const result = await transcribeAudio(webmVoiceAttachment, {
@@ -847,7 +847,7 @@ describe('AudioProcessor', () => {
         );
       });
 
-      it('does not remux an OggS voice attachment declared video/webm', async () => {
+      it('does not transcode an OggS voice attachment declared video/webm', async () => {
         const oggsBytes = Uint8Array.from([0x4f, 0x67, 0x67, 0x53, 0x00, 0x00, 0x00, 0x00]);
         (global.fetch as any).mockResolvedValue({
           ok: true,
@@ -861,13 +861,13 @@ describe('AudioProcessor', () => {
         });
 
         expect(result.text).toBe('transcribed oggs voice');
-        expect(mockRemuxWebmToOgg).not.toHaveBeenCalled();
+        expect(mockTranscodeWebmToOgg).not.toHaveBeenCalled();
         expect(mockMistralSTT).toHaveBeenCalledWith(
           expect.objectContaining({ contentType: 'audio/ogg' })
         );
       });
 
-      it('does not remux a plain audio/ogg voice attachment', async () => {
+      it('does not transcode a plain audio/ogg voice attachment', async () => {
         const plainAudioAttachment: AttachmentMetadata = {
           url: 'https://cdn.discordapp.com/voice.ogg',
           name: 'voice.ogg',
@@ -888,7 +888,7 @@ describe('AudioProcessor', () => {
         });
 
         expect(result.text).toBe('transcribed plain audio');
-        expect(mockRemuxWebmToOgg).not.toHaveBeenCalled();
+        expect(mockTranscodeWebmToOgg).not.toHaveBeenCalled();
       });
     });
 

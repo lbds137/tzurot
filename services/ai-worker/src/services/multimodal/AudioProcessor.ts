@@ -32,7 +32,7 @@ import {
   MistralSttApiError,
   MistralSttTimeoutError,
 } from '../voice/MistralSttClient.js';
-import { remuxWebmToOgg } from '../voice/audioNormalizer.js';
+import { transcodeWebmToOgg } from '../voice/audioNormalizer.js';
 import { resolveVoiceAudioLabel, withAudioExtension } from './voiceContainerSniff.js';
 
 const logger = createLogger('AudioProcessor');
@@ -422,16 +422,19 @@ function toArrayBuffer(buffer: Buffer): ArrayBuffer {
  * sniffs the downloaded bytes and relabels it (logged below for both the
  * `relabeled` and `unrecognized` outcomes; `not-applicable` logs nothing).
  * When the sniff recognizes EBML/WebM specifically, the bytes are ALSO
- * remuxed (stream copy, no re-encode — the ffmpeg binary the ai-worker image
- * installs, `services/ai-worker/Dockerfile`) to Ogg, because voice-engine's
- * in-memory decoder (librosa) cannot read WebM and rejects it with "Format
- * not recognised" (probed at runtime). No claim is made that any STT
- * provider itself accepts WebM — the remux exists to give every provider
- * (BYOK and voice-engine alike) a container they can read.
+ * transcoded to Ogg, because voice-engine's in-memory decoder (librosa)
+ * cannot read WebM and rejects it with "Format not recognised" (probed at
+ * runtime). It decodes, re-times the frames contiguously and re-encodes,
+ * rather than stream-copying, because libsndfile rejects the granule
+ * positions a stream copy carries over from the recording client's
+ * jittered timeline. No claim is made that any STT provider itself accepts
+ * WebM — the transcode exists to give every provider (BYOK and
+ * voice-engine alike) a container they can read.
  *
- * A remux failure (spawn error, non-zero exit, timeout, over-size) is caught
- * and logged; this function falls back to the relabeled-but-unremuxed WebM
- * bytes rather than throwing, so a BYOK provider still gets a chance at it.
+ * A transcode failure (spawn error, non-zero exit, timeout, over-size) is
+ * caught and logged; this function falls back to the
+ * relabeled-but-untranscoded WebM bytes rather than throwing, so a BYOK
+ * provider still gets a chance at it.
  */
 async function prepareVoiceAudioForStt(
   attachment: AttachmentMetadata,
@@ -461,14 +464,14 @@ async function prepareVoiceAudioForStt(
   }
 
   try {
-    const remuxed = await remuxWebmToOgg(Buffer.from(audioBuffer));
+    const transcoded = await transcodeWebmToOgg(Buffer.from(audioBuffer));
     logger.info(
       {
         declaredContentType: attachment.contentType,
         inputBytes: audioBuffer.byteLength,
-        outputBytes: remuxed.length,
+        outputBytes: transcoded.length,
       },
-      'Remuxed WebM voice attachment to Ogg for STT'
+      'Transcoded WebM voice attachment to Ogg for STT'
     );
     return {
       attachment: {
@@ -476,12 +479,12 @@ async function prepareVoiceAudioForStt(
         contentType: CONTENT_TYPES.AUDIO_OGG,
         name: withAudioExtension(attachment.name, '.ogg'),
       },
-      audioBuffer: toArrayBuffer(remuxed),
+      audioBuffer: toArrayBuffer(transcoded),
     };
   } catch (error) {
     logger.warn(
       { err: error, declaredContentType: attachment.contentType },
-      'WebM-to-Ogg remux failed; sending the relabeled WebM to STT'
+      'WebM-to-Ogg transcode failed; sending the relabeled WebM to STT'
     );
     return { attachment: relabeled, audioBuffer };
   }
@@ -515,7 +518,7 @@ export async function transcribeAudio(
 
   // Fetch audio once — shared by all transcription paths. The cache lookup
   // above stays keyed on the ORIGINAL attachment — only the provider-facing
-  // calls below see the prepared (relabeled and/or remuxed) copy.
+  // calls below see the prepared (relabeled and/or transcoded) copy.
   const audioBuffer = await fetchAudioBuffer(attachment.url);
   const prepared = await prepareVoiceAudioForStt(attachment, audioBuffer);
 
