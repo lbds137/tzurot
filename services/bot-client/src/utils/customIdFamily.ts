@@ -228,7 +228,7 @@ function validateActionSegments(action: string, specs: readonly SegmentSpec[]): 
  * throw the strict-mode poison-pill accessor TypeError.
  * `prototype`/`constructor`/`toString` assign fine and are deliberately NOT
  * in this set. Pinned by customIdFamily.test.ts's reserved-action-name tests
- * (`name`/`length` throw) and its `constructor`/`toString` positive test
+ * (`name`/`length`/`caller`/`arguments` throw) and its `constructor`/`toString` positive test
  * (does not throw, `is.constructor` works).
  * `__proto__` is reserved for a different reason: bracket assignment on the
  * plain `perAction` object invokes the inherited setter instead of creating
@@ -282,6 +282,9 @@ function assertSegmentValue(
       `customId build for ${actionLabel} segment "${spec.name}" produced a value containing "${CUSTOM_ID_DELIMITER}"`
     );
   }
+  // CUSTOM_ID_DELIMITER[0] stands for "the delimiter's char" only because
+  // both chars of "::" are the same; a heterogeneous delimiter would need a
+  // real suffix-overlap check.
   if (!isLast && value.endsWith(CUSTOM_ID_DELIMITER[0])) {
     throw new Error(
       `customId build for ${actionLabel} segment "${spec.name}" ends with ":" on a non-terminal segment, which would merge with the delimiter`
@@ -459,4 +462,52 @@ export function defineCustomIdFamily<P extends string, const A extends ActionMap
     parse: buildParseFn(prefix, actions),
     is: buildIsFn(prefix, actions),
   };
+}
+
+// ============================================================================
+// Presets
+// ============================================================================
+
+/** The three steps of the Tier-B destructive confirmation flow. */
+export const DESTRUCTIVE_STEPS = ['confirm_button', 'cancel_button', 'modal_submit'] as const;
+
+/** One step of the destructive confirmation flow. */
+export type DestructiveStep = (typeof DESTRUCTIVE_STEPS)[number];
+
+/** A str segment that rejects the empty string at build AND parse. */
+function nonEmptyStr<N extends string>(name: N): SegmentSpec<N, string, false> {
+  return codec(name, {
+    encode(value: string) {
+      if (value === '') {
+        throw new Error(`Segment "${name}" requires a non-empty value`);
+      }
+      return value;
+    },
+    decode(raw: string) {
+      return raw === '' ? undefined : raw;
+    },
+  });
+}
+
+/**
+ * Destructive-confirmation preset: spread into any family's action map to
+ * give it the shared `destructive` action —
+ * `{prefix}::destructive::{step}::{operation}::{entityId?}`.
+ * The step segment is named `step`, not `action`: `action` is a reserved
+ * segment name (the parse result's discriminant).
+ */
+export function destructivePreset(): {
+  readonly destructive: readonly [
+    SegmentSpec<'step', DestructiveStep, false>,
+    SegmentSpec<'operation', string, false>,
+    SegmentSpec<'entityId', string, true>,
+  ];
+} {
+  return {
+    destructive: [
+      enumSeg('step', DESTRUCTIVE_STEPS),
+      nonEmptyStr('operation'),
+      optionalSeg(str('entityId')),
+    ],
+  } as const;
 }

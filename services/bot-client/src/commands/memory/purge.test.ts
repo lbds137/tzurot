@@ -329,9 +329,9 @@ describe('handlePurgeButton (button routing)', () => {
     expect(interaction.showModal).not.toHaveBeenCalled();
   });
 
-  it('rejects unknown actions', async () => {
+  it('rejects a well-formed step that is not a button step (modal_submit on a button)', async () => {
     const interaction = createMockButtonInteraction(
-      `memory::destructive::nonsense_button::${MEMORY_PURGE_OPERATION}`
+      `memory::destructive::modal_submit::${MEMORY_PURGE_OPERATION}`
     );
 
     await handlePurgeButton(interaction);
@@ -339,6 +339,17 @@ describe('handlePurgeButton (button routing)', () => {
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('Unknown') })
     );
+  });
+
+  it('replies Malformed (parse null) for a step outside the enum', async () => {
+    const interaction = createMockButtonInteraction(
+      `memory::destructive::nonsense_button::${MEMORY_PURGE_OPERATION}`
+    );
+    await handlePurgeButton(interaction);
+    expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Malformed purge interaction') })
+    );
+    expect(interaction.showModal).not.toHaveBeenCalled();
   });
 
   it('rejects proceed click from a different user (cross-user guard)', async () => {
