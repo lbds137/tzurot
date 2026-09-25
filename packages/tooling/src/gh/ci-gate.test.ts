@@ -2,15 +2,15 @@ import { describe, it, expect, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import {
   GATE_DEFAULTS,
-  GhApiError,
   describeWaitState,
   gitHasCommit,
+  isCiSettled,
   isReleasable,
   classifyHeadSha,
   confirmHeadSha,
   describeHeadMismatch,
   parseGateState,
-  reportReviewRounds,
+  REVIEW_WORKFLOW,
   RUNS_PAGE_SIZE as GATE_PAGE_SIZE,
   SENTINELS,
   shouldReportError,
@@ -20,6 +20,7 @@ import {
   type WaitDeps,
   type WorkflowRun,
 } from './ci-gate.js';
+import { GhApiError } from './ghCall.js';
 import { UsageError } from '../utils/errors.js';
 
 let nextRunId = 1000;
@@ -31,6 +32,8 @@ const run = (name: string, status: string, conclusion: string | null = null): Wo
 });
 
 const DONE = (name: string) => run(name, 'completed', 'success');
+/** A completed `Claude Code Review` run — the positive assertion the fix requires. */
+const REVIEW_DONE = (conclusion = 'success') => run(REVIEW_WORKFLOW, 'completed', conclusion);
 
 /**
  * Drives waitForCi over a scripted sequence of poll results. Time advances by
@@ -58,6 +61,23 @@ function harness(sequence: (WorkflowRun[] | Error)[], opts: { repeatLast?: boole
   return { deps, logs, calls: () => calls };
 }
 
+// runCiGate sets process.exitCode on a non-releasable outcome; leaking that
+// would fail the whole vitest run. Returns what it was set to so the exit
+// code itself is ASSERTED, not merely contained — otherwise dropping or
+// inverting that line passes every test using this helper. Hoisted to file
+// scope: both the orchestration describe and the real-deps wiring describe
+// need it.
+const captureExitCode = async (fn: () => Promise<void>): Promise<number | string | undefined> => {
+  const prior = process.exitCode;
+  process.exitCode = undefined;
+  try {
+    await fn();
+    return process.exitCode;
+  } finally {
+    process.exitCode = prior;
+  }
+};
+
 describe('parseGateState', () => {
   it('separates pending runs, the anchor, and startup failures', () => {
     const dead = run('Deploy', 'completed', 'startup_failure');
@@ -79,11 +99,21 @@ describe('parseGateState', () => {
   it('counts a genuinely failed anchor as complete', () => {
     expect(parseGateState([run('CI', 'completed', 'failure')]).anchorComplete).toBe(true);
   });
+
+  it('computes reviewComplete: true for any completed conclusion but startup_failure, false when absent', () => {
+    expect(parseGateState([DONE('CI'), REVIEW_DONE()]).reviewComplete).toBe(true);
+    expect(parseGateState([DONE('CI'), REVIEW_DONE('skipped')]).reviewComplete).toBe(true);
+    expect(parseGateState([DONE('CI')]).reviewComplete).toBe(false);
+    expect(
+      parseGateState([DONE('CI'), run(REVIEW_WORKFLOW, 'completed', 'startup_failure')])
+        .reviewComplete
+    ).toBe(false);
+  });
 });
 
 describe('isReleasable', () => {
-  it('releases when the anchor is done and nothing is pending', () => {
-    expect(isReleasable(parseGateState([DONE('CI'), DONE('Lint')]))).toBe(true);
+  it('releases when the anchor is done, nothing is pending, and the review run is done', () => {
+    expect(isReleasable(parseGateState([DONE('CI'), DONE('Lint'), REVIEW_DONE()]))).toBe(true);
   });
 
   it('holds when no runs exist yet (run creation lags the push)', () => {
@@ -99,6 +129,12 @@ describe('isReleasable', () => {
   it('holds when a slower check is still running after the anchor finished', () => {
     // The bug the old gate had: CI was assumed to outlast everything.
     expect(isReleasable(parseGateState([DONE('CI'), run('CodeQL', 'queued')]))).toBe(false);
+  });
+
+  it('holds when CI is settled but no review run exists yet', () => {
+    const state = parseGateState([DONE('CI')]);
+    expect(isCiSettled(state)).toBe(true);
+    expect(isReleasable(state)).toBe(false);
   });
 });
 
@@ -316,19 +352,22 @@ describe('describeWaitState', () => {
 
 describe('waitForCi', () => {
   it('releases as soon as the state is releasable', async () => {
-    const { deps, logs } = harness([[DONE('CI')]]);
+    const { deps, logs } = harness([[DONE('CI'), REVIEW_DONE()]]);
     await expect(waitForCi('sha', deps)).resolves.toBe('releasable');
     expect(logs).toEqual([]); // healthy and fast → silent
   });
 
   it('keeps waiting through empty and partial states', async () => {
-    const { deps, calls } = harness([[], [run('CI', 'in_progress')], [DONE('CI')]]);
+    const { deps, calls } = harness([[], [run('CI', 'in_progress')], [DONE('CI'), REVIEW_DONE()]]);
     await expect(waitForCi('sha', deps)).resolves.toBe('releasable');
     expect(calls()).toBe(3);
   });
 
   it('reports a gh api failure immediately instead of waiting silently', async () => {
-    const { deps, logs } = harness([new GhApiError('HTTP 401: Bad credentials'), [DONE('CI')]]);
+    const { deps, logs } = harness([
+      new GhApiError('HTTP 401: Bad credentials'),
+      [DONE('CI'), REVIEW_DONE()],
+    ]);
     await waitForCi('sha', deps);
     expect(logs[0]).toContain('gh api failed (1x)');
     expect(logs[0]).toContain('Bad credentials');
@@ -336,7 +375,7 @@ describe('waitForCi', () => {
 
   it('throttles repeat failures but reports recovery', async () => {
     const failures = Array.from({ length: 12 }, () => new GhApiError('boom'));
-    const { deps, logs } = harness([...failures, [DONE('CI')]]);
+    const { deps, logs } = harness([...failures, [DONE('CI'), REVIEW_DONE()]]);
     await waitForCi('sha', deps);
     const failureLines = logs.filter(l => l.includes('gh api failed'));
     // 1st and 10th only — not one line per 30-second poll.
@@ -352,7 +391,7 @@ describe('waitForCi', () => {
 
   it('emits a heartbeat so a slow gate is distinguishable from a dead one', async () => {
     const stalled = Array.from({ length: 40 }, () => [run('CI', 'in_progress')]);
-    const { deps, logs } = harness([...stalled, [DONE('CI')]]);
+    const { deps, logs } = harness([...stalled, [DONE('CI'), REVIEW_DONE()]]);
     await waitForCi('sha', deps);
     const beats = logs.filter(l => l.startsWith('⏳'));
     expect(beats.length).toBeGreaterThan(0);
@@ -365,7 +404,7 @@ describe('waitForCi', () => {
     // gate exists for: a broken gate must not read as a slow one, and over a
     // long outage the heartbeat is the only thing still speaking.
     const outage = Array.from({ length: 40 }, () => new GhApiError('HTTP 500'));
-    const { deps, logs } = harness([...outage, [DONE('CI')]]);
+    const { deps, logs } = harness([...outage, [DONE('CI'), REVIEW_DONE()]]);
     await waitForCi('sha', deps);
     const beats = logs.filter(l => l.startsWith('⏳'));
     expect(beats.length).toBeGreaterThan(0);
@@ -382,196 +421,71 @@ describe('waitForCi', () => {
     // The gate must report its own timeout, not be killed mid-poll by Monitor.
     expect(GATE_DEFAULTS.MAX_WAIT_MS).toBeLessThan(1_800_000);
   });
-});
 
-describe('countReviewCycles', () => {
-  /** Per-call scripted mock: countReviewCycles makes two differently-shaped calls. */
-  async function withGh(
-    responses: (args: string[]) => string,
-    run: (mod: typeof import('./ci-gate.js')) => number
-  ): Promise<{ result?: number; error?: unknown; calls: string[][] }> {
-    vi.resetModules();
-    const calls: string[][] = [];
-    vi.doMock('node:child_process', () => ({
-      execFileSync: (_cmd: string, args: string[]) => {
-        calls.push(args);
-        return responses(args);
-      },
-    }));
-    const mod = await import('./ci-gate.js');
-    let result: number | undefined;
-    let error: unknown;
-    try {
-      result = run(mod);
-    } catch (thrown) {
-      error = thrown;
-    }
-    vi.doUnmock('node:child_process');
-    vi.resetModules();
-    return { result, error, calls };
-  }
-
-  /** The `gh pr view` half's real shape: head ref and creation stamp, tab-separated. */
-  const PR_VIEW = 'my-branch\t2026-08-29T16:30:33Z\n';
-
-  it('counts review WORKFLOW runs for the head branch, not claude[bot] comments', async () => {
-    // The same login also posts from the @claude mention workflow, so a
-    // comment-based count inflates on chatty threads — the workflow-run count
-    // is the review-cycle signal.
-    const { result, calls } = await withGh(
-      args => (args[1] === 'view' ? PR_VIEW : '7'),
-      mod => mod.countReviewCycles(2124)
+  it('declares the review run missing after the grace, measured from CI settling — not from gate start', async () => {
+    // 4 unsettled polls (CI still in flight), then CI settles from the 5th
+    // poll on with no review run ever appearing. The grace clock starts
+    // counting from THAT poll, not from gate start: total calls are the 4
+    // unsettled polls, plus one grace window's worth of settled polls
+    // (GRACE / POLL_INTERVAL), plus the one poll that crosses the threshold.
+    const { deps, calls, logs } = harness(
+      [...Array.from({ length: 4 }, () => [run('CI', 'in_progress')]), [DONE('CI')]],
+      { repeatLast: true }
     );
-    expect(result).toBe(7);
-    expect(calls[0].slice(0, 3)).toEqual(['pr', 'view', '2124']);
-    expect(calls[1][1]).toContain(
-      '/actions/workflows/claude-code-review.yml/runs?branch=my-branch'
+    await expect(waitForCi('sha', deps)).resolves.toBe('review-missing');
+    expect(calls()).toBe(
+      4 + GATE_DEFAULTS.REVIEW_RUN_GRACE_MS / GATE_DEFAULTS.POLL_INTERVAL_MS + 1
     );
+    expect(logs.at(-1)).toContain('no "Claude Code Review" run');
   });
 
-  it('floors the run query at the PR creation time so a REUSED branch name cannot inflate it', async () => {
-    // The observed failure: a release PR's head ref is `develop`, reused by
-    // every release, so an unfloored count returned 594 against 1 real cycle
-    // and tripped the cap warning on every single release.
-    const { calls } = await withGh(
-      args => (args[1] === 'view' ? 'develop\t2026-08-29T16:30:33Z\n' : '1'),
-      mod => mod.countReviewCycles(2251)
-    );
-    expect(calls[0]).toContain('headRefName,createdAt');
-    expect(calls[1][1]).toContain('&created=%3E%3D2026-08-29T16:30:33Z');
+  it('waits for a review run that appears in flight and releases only once it completes', async () => {
+    const { deps, calls } = harness([
+      [DONE('CI')],
+      [DONE('CI'), run('Claude Code Review', 'in_progress')],
+      [DONE('CI'), REVIEW_DONE()],
+    ]);
+    await expect(waitForCi('sha', deps)).resolves.toBe('releasable');
+    expect(calls()).toBe(3);
   });
 
-  it('an empty head-branch answer throws rather than counting the wrong branch', async () => {
-    const { error } = await withGh(
-      args => (args[1] === 'view' ? '' : '3'),
-      mod => mod.countReviewCycles(2124)
-    );
-    expect(String(error)).toContain('no head branch name');
+  it('a review run that exists but skipped counts as dispatched', async () => {
+    const { deps, calls } = harness([[DONE('CI'), REVIEW_DONE('skipped')]]);
+    await expect(waitForCi('sha', deps)).resolves.toBe('releasable');
+    expect(calls()).toBe(1);
   });
 
-  it('a malformed creation stamp throws rather than querying an unfloored range', async () => {
-    // Falling back to an unfloored query on a bad timestamp would silently
-    // restore the 594-cycle bug — the loud failure is the safer default, and
-    // reportReviewRounds already fails open on a throw.
-    const { error } = await withGh(
-      args => (args[1] === 'view' ? 'b\tnot-a-timestamp\n' : '3'),
-      mod => mod.countReviewCycles(2124)
+  it('a gh api outage does not reset the review grace clock', async () => {
+    const { deps, calls } = harness(
+      [[DONE('CI')], new GhApiError('HTTP 500'), new GhApiError('HTTP 500'), [DONE('CI')]],
+      { repeatLast: true }
     );
-    expect(String(error)).toContain('no usable creation timestamp');
+    await expect(waitForCi('sha', deps)).resolves.toBe('review-missing');
+    // The two failed polls still counted time toward the grace window.
+    expect(calls()).toBe(GATE_DEFAULTS.REVIEW_RUN_GRACE_MS / GATE_DEFAULTS.POLL_INTERVAL_MS + 1);
   });
 
-  it('a head ref with no creation stamp at all throws', async () => {
-    // `@tsv` emits a lone field when createdAt is absent, so the split yields
-    // undefined rather than an empty string — both must reach the same throw.
-    const { error } = await withGh(
-      args => (args[1] === 'view' ? 'b\n' : '3'),
-      mod => mod.countReviewCycles(2124)
+  it('a CI rerun going back in flight resets the grace clock', async () => {
+    const { deps, calls } = harness(
+      [[DONE('CI')], [DONE('CI')], [run('CI', 'in_progress')], [DONE('CI')]],
+      { repeatLast: true }
     );
-    expect(String(error)).toContain('no usable creation timestamp');
-  });
-
-  it('an EMPTY run-count response throws instead of coercing to zero', async () => {
-    // Number('') is 0 — uncaught, an empty stdout would read as "checked,
-    // zero rounds" and skip the warning silently.
-    const { error } = await withGh(
-      args => (args[1] === 'view' ? PR_VIEW : ''),
-      mod => mod.countReviewCycles(2124)
+    await expect(waitForCi('sha', deps)).resolves.toBe('review-missing');
+    expect(calls()).toBe(
+      3 + GATE_DEFAULTS.REVIEW_RUN_GRACE_MS / GATE_DEFAULTS.POLL_INTERVAL_MS + 1
     );
-    expect(String(error)).toContain('unparseable review-cycle count');
-  });
-
-  it('an unparseable run count throws with the payload named', async () => {
-    const { error } = await withGh(
-      args => (args[1] === 'view' ? PR_VIEW : 'not-a-number'),
-      mod => mod.countReviewCycles(2124)
-    );
-    expect(String(error)).toContain('unparseable review-cycle count');
   });
 });
 
-describe('reportReviewRounds', () => {
-  it('warns with the count and the hand-off pointer at the round-cap threshold, alongside the dispatch reminder', () => {
-    const lines: string[] = [];
-    reportReviewRounds(
-      2124,
-      m => lines.push(m),
-      () => 6
-    );
-    expect(lines).toHaveLength(2);
-    expect(lines[0]).toContain('REVIEW ROUNDS ARE DISPATCH WORK');
-    expect(lines[1]).toContain('REVIEW_ROUND_CAP: 6 claude-review cycles on PR #2124');
-    expect(lines[1]).toContain('/tzurot-review-response § 5a');
-  });
-
-  it('stays silent on the round-cap warning below its threshold, but still prints the dispatch reminder', () => {
-    const lines: string[] = [];
-    reportReviewRounds(
-      2124,
-      m => lines.push(m),
-      () => 5
-    );
-    expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain('REVIEW ROUNDS ARE DISPATCH WORK');
-    expect(lines.some(l => l.includes('REVIEW_ROUND_CAP'))).toBe(false);
-  });
-
-  it('prints the dispatch reminder at exactly one cycle — the boundary of the reminder threshold', () => {
-    const lines: string[] = [];
-    reportReviewRounds(
-      2124,
-      m => lines.push(m),
-      () => 1
-    );
-    expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain('REVIEW ROUNDS ARE DISPATCH WORK');
-    expect(lines[0]).toContain('dispatch');
-    expect(lines[0]).toContain('§ 3a');
-  });
-
-  it('stays silent entirely at zero cycles', () => {
-    const lines: string[] = [];
-    reportReviewRounds(
-      2124,
-      m => lines.push(m),
-      () => 0
-    );
-    expect(lines).toHaveLength(0);
-  });
-
-  it('a count failure prints only the unavailability line — no dispatch reminder, no cap warning', () => {
-    // Fail-open is deliberate, but SILENT fail-open would read as under-cap —
-    // the line is the difference between "checked, fine" and "did not check".
-    const lines: string[] = [];
-    reportReviewRounds(
-      2124,
-      m => lines.push(m),
-      () => {
-        throw new Error('gh exploded');
-      }
-    );
-    expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain('review-cycle count unavailable');
-    expect(lines[0]).toContain('gh exploded');
+describe('the sentinel set', () => {
+  it('gives review-missing its own sentinel, distinct from every other outcome', () => {
+    expect(SENTINELS['review-missing']).toBe('CI_GATE_REVIEW_MISSING');
+    expect(new Set(Object.values(SENTINELS)).size).toBe(Object.keys(SENTINELS).length);
   });
 });
 
 describe('runCiGate (orchestration)', () => {
   const SHA = 'a'.repeat(40);
-
-  // runCiGate sets process.exitCode on a non-releasable outcome; leaking that
-  // would fail the whole vitest run. Returns what it was set to so the exit
-  // code itself is ASSERTED, not merely contained — otherwise dropping or
-  // inverting that line passes every test in this file.
-  const captureExitCode = async (fn: () => Promise<void>): Promise<number | string | undefined> => {
-    const prior = process.exitCode;
-    process.exitCode = undefined;
-    try {
-      await fn();
-      return process.exitCode;
-    } finally {
-      process.exitCode = prior;
-    }
-  };
 
   /** Records the ordered sequence of side effects so ordering can be asserted. */
   function orchestrationHarness(runs: WorkflowRun[]) {
@@ -610,7 +524,7 @@ describe('runCiGate (orchestration)', () => {
   });
 
   it('arms anyway when the PR head cannot be determined', async () => {
-    const { events, overrides } = orchestrationHarness([DONE('CI')]);
+    const { events, overrides } = orchestrationHarness([DONE('CI'), REVIEW_DONE()]);
     const exitCode = await captureExitCode(() =>
       runCiGate(1992, { sha: SHA }, { ...overrides, prHead: () => undefined })
     );
@@ -623,7 +537,7 @@ describe('runCiGate (orchestration)', () => {
     // The fail-open promise belongs to confirmHeadSha, not to fetchPrHeadSha's
     // internal catch — an override that throws must not surface as a stack
     // trace and stop the monitor arming.
-    const { events, overrides } = orchestrationHarness([DONE('CI')]);
+    const { events, overrides } = orchestrationHarness([DONE('CI'), REVIEW_DONE()]);
     const exitCode = await captureExitCode(() =>
       runCiGate(
         1992,
@@ -644,7 +558,7 @@ describe('runCiGate (orchestration)', () => {
     // The old bash gate had `sleep 5` here; porting dropped it silently. The
     // final report reads the same eventually-consistent check-run index that
     // --watch just polled, so querying in the same instant can read a stale list.
-    const { events, overrides } = orchestrationHarness([DONE('CI')]);
+    const { events, overrides } = orchestrationHarness([DONE('CI'), REVIEW_DONE()]);
     const exitCode = await captureExitCode(() => runCiGate(1992, { sha: SHA }, overrides));
     const order = events.filter(e => !e.startsWith('log:⏱'));
     expect(order).toEqual([
@@ -680,6 +594,17 @@ describe('runCiGate (orchestration)', () => {
     expect(events.some(e => e.startsWith('settle:'))).toBe(false);
     expect(events).toContain('checks:1992:report');
     expect(events).toContain(`log:${SENTINELS['startup-failure']}`);
+    expect(events).toContain('reviewRounds:1992');
+    expect(exitCode).toBe(1);
+  });
+
+  it('emits CI_GATE_REVIEW_MISSING and exit 1, never CI_COMPLETE, when the review run never appears', async () => {
+    const { events, overrides } = orchestrationHarness([DONE('CI')]);
+    const exitCode = await captureExitCode(() => runCiGate(1992, { sha: SHA }, overrides));
+    expect(events).toContain(`log:${SENTINELS['review-missing']}`);
+    expect(events).not.toContain(`log:${SENTINELS.releasable}`);
+    expect(events).not.toContain('checks:1992:watch');
+    expect(events).toContain('checks:1992:report');
     expect(events).toContain('reviewRounds:1992');
     expect(exitCode).toBe(1);
   });
@@ -745,7 +670,7 @@ describe('runCiGate with its REAL dependencies (wiring seam)', () => {
         if (args[1].includes('/pulls/')) return 'A'.repeat(40);
         // The review-cycle count: at the cap, so the REAL warning path runs.
         if (args[1].includes('/actions/workflows/')) return '6';
-        return JSON.stringify([DONE('CI')]);
+        return JSON.stringify([DONE('CI'), REVIEW_DONE()]);
       },
     }));
     const mod = await import('./ci-gate.js');
@@ -793,7 +718,7 @@ describe('runCiGate with its REAL dependencies (wiring seam)', () => {
     vi.doMock('node:child_process', () => ({
       execFileSync: (_cmd: string, args: string[]) => {
         if (args[0] !== 'api') return '';
-        if (!args[1].includes('/pulls/')) return JSON.stringify([DONE('CI')]);
+        if (!args[1].includes('/pulls/')) return JSON.stringify([DONE('CI'), REVIEW_DONE()]);
         pullsCalls += 1;
         return 'b'.repeat(40); // never agrees — a real, persistent mismatch
       },
@@ -826,9 +751,14 @@ describe('runCiGate with its REAL dependencies (wiring seam)', () => {
         // would fail FULL_SHA and drop into the fail-open branch — the test's
         // assertions would still pass while silently not exercising the head
         // check at all.
-        return args[1].includes('/pulls/')
-          ? 'a'.repeat(40)
-          : JSON.stringify(Array.from({ length: GATE_PAGE_SIZE }, () => DONE('CI')));
+        if (args[1].includes('/pulls/')) return 'a'.repeat(40);
+        // One review run plus (ceiling - 1) CI runs, keeping the page AT the
+        // ceiling while still satisfying the review-run assertion so the
+        // gate releases on its first poll rather than waiting out the grace.
+        return JSON.stringify([
+          REVIEW_DONE(),
+          ...Array.from({ length: GATE_PAGE_SIZE - 1 }, () => DONE('CI')),
+        ]);
       },
     }));
     const mod = await import('./ci-gate.js');
@@ -849,6 +779,50 @@ describe('runCiGate with its REAL dependencies (wiring seam)', () => {
 
     expect(stdout.some(l => l.includes('page ceiling'))).toBe(true);
     expect(stderr).toEqual([]);
+  });
+
+  it('the review grace runs on the REAL clock', async () => {
+    // If this hangs, fake timers do not advance Date.now() under
+    // advanceTimersByTimeAsync — an unverified premise (see the spec's
+    // Premise ledger #7). Do not loosen this test to work around a hang;
+    // report it instead.
+    vi.resetModules();
+    vi.useFakeTimers();
+    const argvs: string[][] = [];
+    vi.doMock('node:child_process', () => ({
+      execFileSync: (_cmd: string, args: string[]) => {
+        argvs.push(args);
+        if (args[0] === 'pr' && args[1] === 'view') return 'feat-branch\t2026-08-29T16:30:33Z\n';
+        if (args[0] !== 'api') return '';
+        if (args[1].includes('/pulls/')) return 'a'.repeat(40);
+        if (args[1].includes('/actions/workflows/')) return '0';
+        // The runs query returns a settled CI with no review run — forever.
+        return JSON.stringify([DONE('CI')]);
+      },
+    }));
+    const mod = await import('./ci-gate.js');
+    const logs: string[] = [];
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((m: unknown) => {
+      logs.push(String(m));
+    });
+
+    const exitCode = await captureExitCode(async () => {
+      const promise = mod.runCiGate(1992, { sha: 'a'.repeat(40) });
+      await vi.advanceTimersByTimeAsync(
+        mod.GATE_DEFAULTS.REVIEW_RUN_GRACE_MS + mod.GATE_DEFAULTS.POLL_INTERVAL_MS
+      );
+      await promise;
+    });
+
+    logSpy.mockRestore();
+    vi.useRealTimers();
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
+
+    expect(logs).toContain('CI_GATE_REVIEW_MISSING');
+    expect(logs).not.toContain('CI_COMPLETE');
+    expect(argvs.some(a => a.includes('--watch'))).toBe(false);
+    expect(exitCode).toBe(1);
   });
 });
 

@@ -2,7 +2,7 @@
  * The CI gate that PR monitoring waits on.
  *
  * Replaces the hand-pasted bash one-liner that used to live (in triplicate) in
- * the rule, the skill, and the hook. Owning it here buys three things the
+ * the rule, the skill, and the hook. Owning it here buys four things the
  * one-liner structurally could not:
  *
  * 1. **Argument validation.** An abbreviated SHA matches nothing in
@@ -15,6 +15,10 @@
  * 3. **A release condition that isn't one workflow's name.** See
  *    `isReleasable` — the old gate assumed the `CI` workflow always outlasts
  *    every other check, which rested on a single measurement.
+ * 4. **A positive review-run assertion.** A run that has not been created yet
+ *    is invisible to the in-flight check, so the gate asserts the
+ *    `Claude Code Review` run exists and completed, and prints
+ *    `CI_GATE_REVIEW_MISSING` when none appears within `REVIEW_RUN_GRACE_MS`.
  *
  * Waiting on the RUN rather than a fixed `sleep` is still the core idea:
  * `gh pr checks --watch` snapshots the check list at start time, so handing off
@@ -26,12 +30,17 @@ import { execFileSync } from 'node:child_process';
 import { UsageError } from '../utils/errors.js';
 import { REPO } from './github-api.js';
 import { isTimeoutKill } from '../utils/timeoutKill.js';
+import { GhApiError, ghCall } from './ghCall.js';
+import { reportReviewRounds } from './reviewRounds.js';
 
 /** Full 40-char hex. The API silently returns nothing for an abbreviated SHA. */
 const FULL_SHA = /^[0-9a-f]{40}$/i;
 
 /** The workflow whose completion means every other check has long since registered. */
 const ANCHOR_WORKFLOW = 'CI';
+
+/** The workflow whose run existing-and-completed is asserted before the gate releases. */
+export const REVIEW_WORKFLOW = 'Claude Code Review';
 
 export const GATE_DEFAULTS = {
   /** Between polls. Matches the old loop; well under any API rate limit. */
@@ -56,24 +65,23 @@ export const GATE_DEFAULTS = {
    */
   HEAD_RECHECK_MS: 3_000,
   /**
-   * claude-review cycles on one PR at which the gate prints the hand-off
-   * warning. Mirrors the ~6-round hard cap in /tzurot-review-response § 5a —
-   * measured marathons (13, 10 and 8 rounds in one mined window) were
-   * self-fed, with later rounds fixing earlier rounds' fixes, and nothing
-   * mechanical surfaced the cap while it was being crossed. Firing AT 6 —
-   * one cycle before the skill's "past ~6" hand-off point — is deliberate:
-   * the warning must land while the decision is still ahead, so do not
-   * "correct" this to > 6.
+   * How long after the CI run is first observed complete-and-quiescent the
+   * gate waits for a `REVIEW_WORKFLOW` run to appear before declaring it
+   * missing. Measured from the first poll that observes CI settled — the
+   * gate has no earlier knowledge of completion — never from gate start.
+   *
+   * Sampled once (11 PR pushes in one evening, review-run `created_at` minus
+   * the CI run's on the same head SHA): 2–4s on every synchronize push; the
+   * three larger lags (26s, 82s, 179s) were opened events, where the review
+   * run waits on the PR being created after the push. Those lags are
+   * PUSH-relative; this clock is SETTLE-relative, so it normally has CI's
+   * whole duration on top of it — but a very fast pipeline gives it nothing,
+   * so the bound is set at ~1.7× the largest observed push-relative lag, not
+   * "well above" it. The incident this guards against was a review created
+   * minutes late (unquantified). A miss costs one false
+   * CI_GATE_REVIEW_MISSING that a re-query clears. Tighten once measured.
    */
-  REVIEW_ROUND_WARN_THRESHOLD: 6,
-  /**
-   * Review-cycle count at and above which the dispatch-posture reminder
-   * prints. One completed cycle is already a round of findings to apply, and
-   * `/tzurot-review-response` § 3a routes review-round fixes through a worker
-   * dispatch regardless of driver — so the reminder fires on the first cycle
-   * rather than waiting for the round-cap threshold above.
-   */
-  REVIEW_ROUND_DISPATCH_REMINDER_THRESHOLD: 1,
+  REVIEW_RUN_GRACE_MS: 300_000,
 } as const;
 
 export interface WorkflowRun {
@@ -90,6 +98,12 @@ export interface GateState {
   pending: string[];
   /** The anchor workflow finished, and not by dying before dispatch. */
   anchorComplete: boolean;
+  /**
+   * A run named `REVIEW_WORKFLOW` exists and reached `completed` (any
+   * conclusion but `startup_failure` — a skipped review still counts as
+   * having dispatched).
+   */
+  reviewComplete: boolean;
   /** Runs that died before dispatch — terminal instantly, with zero jobs. */
   startupFailures: { name: string; id: number }[];
 }
@@ -102,10 +116,32 @@ export function parseGateState(runs: WorkflowRun[]): GateState {
       r =>
         r.name === ANCHOR_WORKFLOW && r.status === 'completed' && r.conclusion !== 'startup_failure'
     ),
+    reviewComplete: runs.some(
+      r =>
+        r.name === REVIEW_WORKFLOW && r.status === 'completed' && r.conclusion !== 'startup_failure'
+    ),
     startupFailures: runs
       .filter(r => r.conclusion === 'startup_failure')
       .map(r => ({ name: r.name, id: r.id })),
   };
+}
+
+/**
+ * The anchor-complete-and-nothing-pending condition alone — the release
+ * condition before the review-run assertion existed. This is the moment the
+ * review-run grace clock starts (see `REVIEW_RUN_GRACE_MS`): CI has gone
+ * quiet, so from here the gate is waiting on the review run alone.
+ *
+ * A review run that HAS been created (queued or in_progress) sits in
+ * `pending`, so this is false while it runs: the grace clock never starts or
+ * resets on an in-flight review, because an in-flight run is proof of
+ * dispatch and the grace exists only for the never-created case. A
+ * slow-but-dispatched review is therefore bounded by MAX_WAIT_MS alone, by
+ * design — pinned by the waitForCi test "waits for a review run that appears
+ * in flight and releases only once it completes".
+ */
+export function isCiSettled(state: GateState): boolean {
+  return state.totalRuns > 0 && state.anchorComplete && state.pending.length === 0;
 }
 
 /**
@@ -122,9 +158,16 @@ export function parseGateState(runs: WorkflowRun[]): GateState {
  * fast one, and they're all terminal.
  *
  * Together: the anchor pins the floor, the pending check catches anything slower.
+ *
+ * A third blind spot survives both: "nothing pending" cannot see a run that
+ * has not been CREATED yet, so a review workflow that has not dispatched at
+ * all reads as nothing left to wait for — the anchor-plus-pending state above
+ * is satisfied vacuously. The review run is therefore asserted POSITIVELY —
+ * it must exist for this SHA and have reached `completed` — rather than
+ * inferred from its absence off the pending list.
  */
 export function isReleasable(state: GateState): boolean {
-  return state.totalRuns > 0 && state.anchorComplete && state.pending.length === 0;
+  return isCiSettled(state) && state.reviewComplete;
 }
 
 export interface GateArgs {
@@ -302,14 +345,6 @@ export function describeHeadMismatch(prNumber: number, sha: string, prHead: stri
   );
 }
 
-/** Thrown when `gh api` fails, so the loop can report it instead of swallowing it. */
-export class GhApiError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'GhApiError';
-  }
-}
-
 /**
  * The API page size, and the point at which the result may be truncated.
  *
@@ -363,151 +398,6 @@ export function fetchRuns(
 
 const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
-export const REVIEW_COUNT_TIMEOUT_MS = 15_000;
-
-/**
- * Run one bounded `gh` call, shaping failures the way `fetchRuns` does: name
- * the kill signal when there is one, keep the detail non-empty either way,
- * and surface everything as GhApiError so callers own the loudness decision.
- */
-function ghCall(args: string[], timeoutMs: number): string {
-  try {
-    return execFileSync('gh', args, {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: timeoutMs,
-    });
-  } catch (error) {
-    const { stderr, signal } = error as { stderr?: string; signal?: string | null };
-    const reported = (stderr ?? '') || (error as Error).message || '';
-    const first = reported.trim().split('\n')[0] ?? '';
-    const killed = signal !== undefined && signal !== null ? `killed by ${signal}` : '';
-    const detail = [first, killed].filter(part => part !== '').join(' — ');
-    throw new GhApiError(detail === '' ? 'gh failed with no output' : detail);
-  }
-}
-
-/** The workflow whose runs ARE the review cycles — one run per reviewed push. */
-export const REVIEW_WORKFLOW_FILE = 'claude-code-review.yml';
-
-/**
- * Count claude-review cycles on the PR by counting the review WORKFLOW's runs
- * for the PR's head branch — not `claude[bot]` issue comments, which the
- * `@claude` mention workflow also posts from the same login, so a chatty
- * review thread would inflate a comment-based count past the cap. A rerun
- * bumps a run's attempt counter rather than creating a run, so reruns don't
- * inflate this either. The runs query is scoped by BRANCH NAME, not PR, so it
- * is ALSO floored at the PR's creation time: without that floor a reused
- * branch name carries every prior same-name PR's runs into the count. That is
- * not the rare case it reads as — a release PR's head ref is `develop`, which
- * every release reuses by design, so an unfloored count returns the repo's
- * entire release-review history (hundreds of cycles against a real count of
- * one) and trips the cap warning on every release. Accepted gap that remains,
- * the more common one on an actively-steered PR: the count
- * cannot see OWNER INTERVENTIONS, which reset the skill's own round cap —
- * six pushes with the owner actively directing throughout still counts as
- * six. The warning text says "counts reviewed pushes" for exactly that
- * reason; the §5a judgment stays with the reader. The 1:1 push-to-run
- * assumption also rests on claude-code-review.yml triggering ONLY on
- * pull_request [opened, synchronize] — another trigger (dispatch, schedule)
- * would silently inflate this count. Throws on
- * any gh/parse failure; the caller decides how loud an unavailable count
- * should be.
- */
-export function countReviewCycles(prNumber: number): number {
-  const [headRef = '', createdAt = ''] = ghCall(
-    [
-      'pr',
-      'view',
-      String(prNumber),
-      '--json',
-      'headRefName,createdAt',
-      '--jq',
-      '[.headRefName, .createdAt] | @tsv',
-    ],
-    REVIEW_COUNT_TIMEOUT_MS
-  )
-    .trim()
-    .split('\t');
-  if (headRef === '') {
-    throw new GhApiError(`PR #${prNumber} has no head branch name`);
-  }
-  // Shape-checked rather than merely non-empty because it is interpolated raw
-  // below: `encodeURIComponent` would percent-encode the colons, and only the
-  // unencoded form was probed against the live API. The absence of fractional
-  // seconds is an EXTERNAL-FORMAT assumption about `gh pr view --json
-  // createdAt` — probed against live PRs, not read off a doc — so a GitHub
-  // change here would start failing this check. That degrades safely: the
-  // throw reaches reportReviewRounds, which fails open to its "unavailable"
-  // line rather than silently reinstating an unfloored count.
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(createdAt)) {
-    throw new GhApiError(`PR #${prNumber} has no usable creation timestamp: '${createdAt}'`);
-  }
-  const raw = ghCall(
-    [
-      'api',
-      // `.total_count` is the API's own full count, so pagination cannot
-      // silently truncate it the way an array-length count would past page 1.
-      // `%3E%3D` is `>=`, the API's own range-filter syntax.
-      `repos/${REPO}/actions/workflows/${REVIEW_WORKFLOW_FILE}/runs` +
-        `?branch=${encodeURIComponent(headRef)}&created=%3E%3D${createdAt}&per_page=1`,
-      '--jq',
-      '.total_count',
-    ],
-    REVIEW_COUNT_TIMEOUT_MS
-  );
-  // Number('') is 0, not NaN — an empty stdout would read as "checked, zero
-  // rounds", the silent-skip shape this whole path exists to avoid.
-  const trimmed = raw.trim();
-  const total = trimmed === '' ? Number.NaN : Number(trimmed);
-  if (Number.isNaN(total)) {
-    throw new GhApiError(`unparseable review-cycle count: ${trimmed.slice(0, 120)}`);
-  }
-  return total;
-}
-
-/**
- * Print the § 5a hand-off warning when the PR's review-cycle count has
- * reached the cap, and — at any successfully-read count of at least one
- * cycle — the dispatch-posture reminder ahead of it. Both are advisory and
- * fail-open BY DESIGN: the gate's job is CI state, and a count hiccup must
- * not turn a green gate red — but the unavailability is still printed on its
- * own line, because a silent skip would read as "under the cap" (the same
- * silence-looks-like-success shape the sentinels exist to remove). Nothing
- * beyond that unavailability line prints when the count could not be read:
- * there is no count to compare against either threshold.
- */
-export function reportReviewRounds(
-  prNumber: number,
-  log: (message: string) => void,
-  count: (pr: number) => number = countReviewCycles
-): void {
-  let cycles: number;
-  try {
-    cycles = count(prNumber);
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    log(`⚠️  review-cycle count unavailable (${detail}) — the round-cap check did not run.`);
-    return;
-  }
-  if (cycles >= GATE_DEFAULTS.REVIEW_ROUND_DISPATCH_REMINDER_THRESHOLD) {
-    log(
-      "📋 REVIEW ROUNDS ARE DISPATCH WORK: batch this round's findings into ONE " +
-        'worker dispatch (/tzurot-review-response § 3a); inline application is the ' +
-        'exception, not the default.'
-    );
-  }
-  if (cycles >= GATE_DEFAULTS.REVIEW_ROUND_WARN_THRESHOLD) {
-    log(
-      `⚠️  REVIEW_ROUND_CAP: ${cycles} claude-review cycles on PR #${prNumber} — ` +
-        'at the ~6-round cap. This counts reviewed pushes and cannot see owner ' +
-        'interventions (which reset the cap), so judge before acting: if the rounds ' +
-        'were self-fed, hand the open findings to a fresh-context implementer or the ' +
-        'owner (/tzurot-review-response § 5a).'
-    );
-  }
-}
-
 export interface WaitDeps {
   fetch: (sha: string) => WorkflowRun[];
   now: () => number;
@@ -515,7 +405,7 @@ export interface WaitDeps {
   log: (message: string) => void;
 }
 
-export type WaitOutcome = 'releasable' | 'startup-failure' | 'timeout';
+export type WaitOutcome = 'releasable' | 'startup-failure' | 'review-missing' | 'timeout';
 
 /**
  * One sentinel per outcome, so absence of `CI_COMPLETE` is not the only signal.
@@ -526,11 +416,17 @@ export type WaitOutcome = 'releasable' | 'startup-failure' | 'timeout';
  * always reaches the print. Emitting `CI_COMPLETE` for a give-up would let a
  * reader scanning for the sentinel read "gave up without CI ever finishing" as a
  * normal completion — the exact ambiguity this command exists to remove.
+ *
+ * `review-missing` covers the same shape for the positive review-run
+ * assertion: CI can settle while the review workflow has not dispatched at
+ * all, and that is a distinct failure from both a genuine timeout and a
+ * startup failure, so it gets its own sentinel rather than folding into either.
  */
 export const SENTINELS: Record<WaitOutcome, string> = {
   releasable: 'CI_COMPLETE',
   timeout: 'CI_GATE_TIMEOUT',
   'startup-failure': 'CI_GATE_STARTUP_FAILURE',
+  'review-missing': 'CI_GATE_REVIEW_MISSING',
 };
 
 /**
@@ -547,7 +443,10 @@ export function describeWaitState(state: GateState | undefined): string {
   if (state === undefined) return 'no data (gh api failing)';
   if (state.totalRuns === 0) return 'no runs registered yet';
   const pending = state.pending.length > 0 ? state.pending.join(', ') : 'none';
-  return `pending: ${pending}; anchor ${state.anchorComplete ? 'done' : 'not done'}`;
+  return (
+    `pending: ${pending}; anchor ${state.anchorComplete ? 'done' : 'not done'}` +
+    `; review ${state.reviewComplete ? 'done' : 'not done'}`
+  );
 }
 
 /** One poll: the fetched state, or undefined when `gh api` failed (already reported). */
@@ -574,7 +473,36 @@ function pollOnce(
 }
 
 /**
- * Poll until the gate releases, a run dies before dispatch, or we run out of time.
+ * Tracks the review-run grace clock across polls, and reports whether it has
+ * expired. Isolated from `waitForCi` to keep that function's branching within
+ * the lint budget; the three rules below are the whole contract:
+ *
+ * - A poll that fails (`state === undefined`) leaves the clock untouched — it
+ *   carries no fresh information either way.
+ * - A poll that shows CI no longer settled resets the clock: a CI rerun going
+ *   back in flight means the gate is not yet waiting on the review run alone.
+ *   The same holds while the review run itself is queued or in progress: it
+ *   sits in `pending`, so `isCiSettled` is false (see its JSDoc).
+ * - A poll that shows CI settled starts the clock on its FIRST such poll
+ *   (`??` on the carried value) and reports expiry once `REVIEW_RUN_GRACE_MS` has elapsed.
+ */
+function trackReviewGrace(
+  state: GateState | undefined,
+  ciSettledAt: number | undefined,
+  now: number
+): { ciSettledAt: number | undefined; graceExpired: boolean } {
+  if (state === undefined) return { ciSettledAt, graceExpired: false };
+  if (!isCiSettled(state)) return { ciSettledAt: undefined, graceExpired: false };
+  const settledAt = ciSettledAt ?? now;
+  return {
+    ciSettledAt: settledAt,
+    graceExpired: now - settledAt >= GATE_DEFAULTS.REVIEW_RUN_GRACE_MS,
+  };
+}
+
+/**
+ * Poll until the gate releases, a run dies before dispatch, the review run
+ * fails to appear within its grace window, or we run out of time.
  *
  * `startup-failure` exits early on purpose: such a run is terminal the instant it
  * appears and creates zero jobs, so it is invisible in `gh pr checks` — waiting
@@ -586,11 +514,18 @@ function pollOnce(
  * immediately is more useful than waiting to see whether the anchor survives.
  * The message names which workflow died, and the final `gh pr checks` report
  * still prints, so nothing is lost if the rest of the run turns out healthy.
+ *
+ * `review-missing` exits once CI has settled (`isCiSettled`) but the review
+ * run has not appeared within `REVIEW_RUN_GRACE_MS` of that settling — timed
+ * from the first poll that observed settlement, not from gate start, since a
+ * run that had not been created yet is exactly the blind spot `isReleasable`
+ * closes. See `trackReviewGrace` for the clock's exact rules.
  */
 export async function waitForCi(sha: string, deps: WaitDeps): Promise<WaitOutcome> {
   const started = deps.now();
   const errors = { consecutive: 0 };
   let lastHeartbeat = started;
+  let ciSettledAt: number | undefined;
 
   for (;;) {
     const state = pollOnce(sha, deps, errors);
@@ -609,6 +544,19 @@ export async function waitForCi(sha: string, deps: WaitDeps): Promise<WaitOutcom
       return 'startup-failure';
     }
     if (state !== undefined && isReleasable(state)) return 'releasable';
+
+    const grace = trackReviewGrace(state, ciSettledAt, deps.now());
+    ciSettledAt = grace.ciSettledAt;
+    if (grace.graceExpired) {
+      deps.log(
+        `❌ CI finished but no "${REVIEW_WORKFLOW}" run exists for this SHA after ` +
+          `${Math.round(GATE_DEFAULTS.REVIEW_RUN_GRACE_MS / 60_000)}m. Nothing ran, so ` +
+          'there is nothing to rerun: re-query the run list; if it is still absent, the ' +
+          'workflow did not dispatch — check its on: filter against the PR event ' +
+          '(05-tooling.md § PR Monitoring).'
+      );
+      return 'review-missing';
+    }
 
     const elapsed = deps.now() - started;
     if (elapsed >= GATE_DEFAULTS.MAX_WAIT_MS) {

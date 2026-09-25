@@ -184,7 +184,7 @@ The `-C` root-anchor, and why the substitution is safe to paste: [`pr-monitoring
 
 Pass `timeout_ms: 1800000` (30 min) and `persistent: false`. **The `false` is a deliberate departure from the Monitor tool's own guidance — don't "correct" it back**: `TaskList` cannot see a watcher, so its own timeout is the only thing bounding it. If it expires, re-arm.
 
-The gate waits for the `CI` run to complete with nothing else on that SHA in flight, hands off to `gh pr checks --watch`, and prints exactly one sentinel (list below), then the final check list. **"Monitor script failed (exit 1)" can be cosmetic**: the final `gh pr checks` exits non-zero whenever ANY check is red, and `fixup-check` is intentionally red on a fixup-bearing branch until autosquash — read the event stream for the outcome.
+The gate waits for the `CI` run to complete with nothing else on that SHA in flight AND for a `Claude Code Review` run to exist and complete (a skipped one counts), hands off to `gh pr checks --watch`, and prints exactly one sentinel (list below), then the final check list. **"Monitor script failed (exit 1)" can be cosmetic**: the final `gh pr checks` exits non-zero whenever ANY check is red, and `fixup-check` is intentionally red on a fixup-bearing branch until autosquash — read the event stream for the outcome.
 
 When the monitor fires, **all four** of the following must happen — do not stop after step 1 even if every check passed:
 
@@ -222,9 +222,10 @@ gh api "repos/{owner}/{repo}/actions/runs/<run-id>/jobs?per_page=100" \
 
 **Outcome handling — read WHICH sentinel printed, not just whether one did.** Only the first means CI finished:
 
-- `CI_COMPLETE` — CI finished and nothing else was in flight → proceed to the review fetch
+- `CI_COMPLETE` — CI finished, nothing else was in flight, and the review run completed → proceed to the review fetch
 - `CI_GATE_TIMEOUT` — the gate gave up at 25 min → re-arm; do NOT assume CI passed
 - `CI_GATE_STARTUP_FAILURE` — a run died before dispatch (invisible in `gh pr checks`) → `gh run rerun <run-id>`, then re-arm
+- `CI_GATE_REVIEW_MISSING` — CI finished but no `Claude Code Review` run existed for the SHA within the 5-min grace → re-query the run list; if it is still absent the workflow never dispatched, so `gh run rerun` has nothing to rerun and a re-push is not a reliable lever — check its `on:` filter against the PR event
 - _none of them_ — the Monitor's own 30-min `timeout_ms` killed the process → re-arm
 
 **After the sentinel, the gate counts claude-review cycles on the PR.** From ≥1
