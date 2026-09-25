@@ -1,9 +1,10 @@
 ---
 id: TASK-719
 title: Forwarded references can echo embed filenames that were never minted
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-21 20:44'
+updated_date: '2026-09-25 06:34'
 labels:
   - 'area:bot-client'
   - 'size:S'
