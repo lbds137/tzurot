@@ -57,7 +57,8 @@ _beta.230 CUT 2026-09-25 15:05Z (11:05 EDT). **The numbers:** 29 PRs, 19 runtime
     - `doc-107`, once the digest shape settles;
     - the UX-epic slice (`doc-14` waves 4–6);
     - slice C's dead-row report (TASK-971);
-    - the TASK-802 escaping sweep, which now includes the edit-dashboard name sites.
+    - the TASK-802 escaping sweep, which now includes the edit-dashboard name sites;
+    - TASK-1074, the undecodable-audio reply (voice-engine 415/422, ai-worker failure reason, bot-client message) — owner ruling 2026-09-25: rides beta.232, not the beta.231 fix-forward train.
   - **Backlog slope**: not measured at the beta.230 cut either; measure at beta.231 (filed vs. closed over the window, from the tracker's `created`/`updated` dates).
 ### 🎯 Current Focus (max 3)
 
