@@ -1,8 +1,8 @@
 # Current
 
-> **Version**: v3.0.0-beta.230 — "the doc-72 dashboard index and resets, the custom-id family, the message-render fixes" (29 PRs / 19 runtime / 247 files / 117 commits; no migrations; release PR #2535, fast-forwarded to main `af26f53d7` at 2026-09-25 15:05Z after the rebase-merge refused; finalize a no-op; tagged `latest`). Constituent detail: git + release notes.
+> **Version**: v3.0.0-beta.231 — "the Vencord voice-engine fix, and the drain" (8 PRs / 3 runtime / 68 files; no migrations; release PR #2543, rebase-merged 2026-09-25 23:53Z; `release:finalize` aligned develop, `main` = `develop` = `f06f7cc30`; tagged `latest`). Constituent detail: git + release notes.
 >
-> **Previous**: v3.0.0-beta.229 — "Vencord voice transcription, db-sync single-flight, and Node 24" (30 PRs / 24 runtime / 402 files; no migrations; 2026-09-24 11:28Z, `9cb29c9c4`).
+> **Previous**: v3.0.0-beta.230 — "the doc-72 dashboard index and resets, the custom-id family, the message-render fixes" (29 PRs / 19 runtime / 247 files; no migrations; 2026-09-25 15:05Z, `af26f53d7`).
 
 ---
 
@@ -14,6 +14,10 @@
 - **Leisure (unchanged, do not re-surface)**: the voice-harness blind review · the slice P 30-row spot check · TASK-104 · ~~TASK-133~~ (round trip DONE 2026-09-13 with the smoke pass) · card-level examples for Emily in her own register.
 - **Done 2026-09-13**: the Default `system_prompts` row edited on dev and prod (v1 then v2; long-form under doc-97 Phase 2) · `WEEKLY_AUDIT_GH_TOKEN` set (Dependabot row reads; deletion-safety row fixed by #2413) · `TZUROT_RAILWAY_API_TOKEN_DEV`/`_PROD` in the local `.env` (tooling reads them after the TASK-62 follow-up) · the TASK-798 prod measurement · the stale `.bashrc` OpenRouter key revoked · the Waffles Share-Memories question CLOSED by ruling (deal with it if it recurs) · the privacy-policy z.ai summaries bullet committed.
 - **Agent-run, no owner action**: the doc-17 gap-bucket cache read · the Emily gate and dead-row read · TASK-702 probe · TASK-62 env-suffixed token read · TASK-951 `.env.example` guard · TASK-838 cadence ledger then the doc-61 economy pass (ruled 2026-09-13, Opus lane) · the #2270 link-share watcher · the five `state:observable` watches TASK-952–956.
+
+## 🚢 2026-09-25 — beta.231 RELEASED (Fable; a fix-forward cut the owner ruled at ~18:40 EDT and approved at ~19:45 EDT)
+
+**Why and what**: the owner's prod smoke of the beta.229 Vencord voice path passed on Mistral and failed on voice-engine (request `6581b177`: libsndfile rejected the stream-copied Ogg as malformed). Root cause reproduced on the Deck with the real recording: Chrome's MediaRecorder stamps 60 ms Opus packets with a jittered timeline (112 of 708 steps off), the stream copy carries it into the granule positions. Fix #2542 decodes, re-times (`asetpts=N/SR/TB`) and re-encodes (libopus 64k), still Ogg; `remuxWebmToOgg` → `transcodeWebmToOgg`. One review round (a comment hedge), merged `bdfe4b5b3`. Range 8 PRs / 3 runtime / 68 files, no migrations; release PR #2543 rebase-merged normally (35 commits), one holistic review body with no blocking findings, finalize aligned develop at `f06f7cc30`, tag + Release published, beta.230 demoted. **The one open confirmation** is the prod re-smoke (beta.229 checklist item 1 below): the container ffmpeg's `asetpts`/`libopus` support was not probed from the Deck; the fallback on failure is today's behaviour plus a `WebM-to-Ogg transcode failed` warn. **Filed at the cut**: TASK-1112 (a plain re-upload of a voice file is a dead end; owner question), TASK-1074 ruled onto beta.232. **Misses**: the lossy-pipe guard tripped twice, one commit header over 100, the packet-jitter count mis-measured until the unit re-ran ffprobe, one temp-path slip on the first prod log pull; the beta.230 cut had skipped its CURRENT.md header reset (caught by `bump-version`, fixed in the bump commit).
 
 ## 🚢 2026-09-25 — beta.230 RELEASED (Fable; owner ruled "cut now" ~10:20 EDT and approved the merge ~11:00 EDT; doc-97 slice 2 moves to beta.231 regardless of the TASK-1039 read)
 
