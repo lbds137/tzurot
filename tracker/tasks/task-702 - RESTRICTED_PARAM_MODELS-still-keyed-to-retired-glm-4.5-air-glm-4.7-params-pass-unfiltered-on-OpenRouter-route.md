@@ -3,9 +3,10 @@ id: TASK-702
 title: >-
   RESTRICTED_PARAM_MODELS still keyed to retired glm-4.5-air - glm-4.7 params
   pass unfiltered on OpenRouter route
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-20 16:17'
+updated_date: '2026-09-25 00:43'
 labels:
   - 'area:ai-worker'
   - 'size:S'
