@@ -3,7 +3,8 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { MessageFlags, MessageFlagsBitField } from 'discord.js';
+import { Collection, MessageFlags, MessageFlagsBitField, MessageReferenceType } from 'discord.js';
+import type { Message, MessageSnapshot } from 'discord.js';
 import { MessageFormatter } from './MessageFormatter.js';
 import { createMockMessage, createMockUser } from '../../test/mocks/Discord.mock.js';
 
@@ -56,8 +57,28 @@ vi.mock('../../utils/forwardedMessageUtils.js', () => ({
 describe('MessageFormatter', () => {
   let formatter: MessageFormatter;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+
+    // `vi.clearAllMocks()` clears call history, not a `mockImplementation`/
+    // `mockReturnValue` set by an earlier test — reset every mocked
+    // collaborator back to its module-level default (matching the `vi.mock`
+    // factories above) so a later test never inherits an earlier one's
+    // real-implementation plug or custom return value.
+    const { extractEmbedImages } = await import('../../utils/embedImageExtractor.js');
+    vi.mocked(extractEmbedImages).mockReturnValue([]);
+    const { EmbedParser } = await import('../../utils/EmbedParser.js');
+    vi.mocked(EmbedParser.parseMessageEmbeds).mockReturnValue([] as unknown as string);
+    const {
+      isForwardedMessage,
+      hasForwardedSnapshots,
+      extractForwardedAttachments,
+      extractForwardedContentForPrompt,
+    } = await import('../../utils/forwardedMessageUtils.js');
+    vi.mocked(isForwardedMessage).mockReturnValue(false);
+    vi.mocked(hasForwardedSnapshots).mockReturnValue(false);
+    vi.mocked(extractForwardedAttachments).mockReturnValue([]);
+    vi.mocked(extractForwardedContentForPrompt).mockReturnValue('');
 
     formatter = new MessageFormatter();
   });
@@ -605,6 +626,98 @@ describe('MessageFormatter', () => {
       // Should have fallen back to regular attachment extraction
       expect(result.attachments).toHaveLength(1);
       expect(result.attachments?.[0].url).toBe('https://example.com/fallback-image.jpg');
+    });
+
+    it('a forwarded reference whose wrapper carries an image embed mints that image and echoes its name', async () => {
+      const actualEmbedImageExtractor = await vi.importActual<
+        typeof import('../../utils/embedImageExtractor.js')
+      >('../../utils/embedImageExtractor.js');
+      const actualEmbedParser = await vi.importActual<typeof import('../../utils/EmbedParser.js')>(
+        '../../utils/EmbedParser.js'
+      );
+      const { extractEmbedImages } = await import('../../utils/embedImageExtractor.js');
+      const { EmbedParser } = await import('../../utils/EmbedParser.js');
+      vi.mocked(extractEmbedImages).mockImplementation(
+        actualEmbedImageExtractor.extractEmbedImages
+      );
+      vi.mocked(EmbedParser.parseMessageEmbeds).mockImplementation(m =>
+        actualEmbedParser.EmbedParser.parseMessageEmbeds(m)
+      );
+
+      const {
+        isForwardedMessage,
+        hasForwardedSnapshots,
+        extractForwardedAttachments,
+        extractForwardedContentForPrompt,
+      } = await import('../../utils/forwardedMessageUtils.js');
+      vi.mocked(isForwardedMessage).mockReturnValue(true);
+      vi.mocked(hasForwardedSnapshots).mockReturnValue(true);
+      vi.mocked(extractForwardedAttachments).mockReturnValue([]);
+      vi.mocked(extractForwardedContentForPrompt).mockReturnValue('');
+
+      const wrapperEmbedPayload = { image: { url: 'https://example.com/wrapper-image.png' } };
+      const message = createMockMessage({
+        id: 'forwarding-wrapper-embed',
+        content: '',
+        author: createMockUser(),
+        attachments: new Map() as any,
+        embeds: [{ ...wrapperEmbedPayload, toJSON: () => wrapperEmbedPayload } as any],
+      });
+
+      const result = formatter.buildRawReference(message, 1).reference;
+
+      expect(result.attachments?.map(a => a.name)).toContain('embed-1-image.png');
+      expect(result.embeds).toContain('filename="embed-1-image.png"');
+      expect(extractEmbedImages).toHaveBeenCalledWith(message.embeds);
+    });
+
+    it('a forwarded reference with a snapshot image embed carries the scoped name forward-1-embed-1-image.png in its attachments', async () => {
+      const actualForwardedMessageUtils = await vi.importActual<
+        typeof import('../../utils/forwardedMessageUtils.js')
+      >('../../utils/forwardedMessageUtils.js');
+      const actualEmbedImageExtractor = await vi.importActual<
+        typeof import('../../utils/embedImageExtractor.js')
+      >('../../utils/embedImageExtractor.js');
+
+      const {
+        isForwardedMessage,
+        hasForwardedSnapshots,
+        extractForwardedAttachments,
+        extractForwardedContentForPrompt,
+      } = await import('../../utils/forwardedMessageUtils.js');
+      const { extractEmbedImages } = await import('../../utils/embedImageExtractor.js');
+      vi.mocked(isForwardedMessage).mockReturnValue(true);
+      vi.mocked(hasForwardedSnapshots).mockReturnValue(true);
+      vi.mocked(extractForwardedAttachments).mockImplementation(
+        actualForwardedMessageUtils.extractForwardedAttachments
+      );
+      vi.mocked(extractForwardedContentForPrompt).mockReturnValue('Forwarded with image');
+      vi.mocked(extractEmbedImages).mockImplementation(
+        actualEmbedImageExtractor.extractEmbedImages
+      );
+
+      const snapshotEmbedPayload = { image: { url: 'https://example.com/snapshot-image.png' } };
+      const messageSnapshots = new Collection<string, MessageSnapshot>();
+      messageSnapshots.set('1', {
+        content: 'Forwarded with image',
+        embeds: [{ ...snapshotEmbedPayload, toJSON: () => snapshotEmbedPayload }],
+        attachments: new Collection(),
+        createdTimestamp: Date.now(),
+      } as unknown as MessageSnapshot);
+
+      const message = createMockMessage({
+        id: 'forwarding-snapshot-embed',
+        content: '',
+        author: createMockUser(),
+        attachments: new Map() as any,
+        embeds: [],
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+      });
+
+      const result = formatter.buildRawReference(message, 1).reference;
+
+      expect(result.attachments?.map(a => a.name)).toContain('forward-1-embed-1-image.png');
     });
   });
 });

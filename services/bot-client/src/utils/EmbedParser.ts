@@ -8,7 +8,7 @@
 import { EmbedType, type APIEmbed, type APIEmbedField, type Message } from 'discord.js';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 import { EMBED_NAMING } from '@tzurot/common-types/constants/media';
-import { embedImageAttachmentName } from './embedAttachmentName.js';
+import { type EmbedNameScope, embedImageAttachmentName } from './embedAttachmentName.js';
 import { logEmptyEmbedShape, sortedEmbedKeys } from './embedShapeDiagnostics.js';
 import { embedComponentsHaveContent, formatEmbedComponentsXml } from './embedComponents.js';
 
@@ -158,6 +158,14 @@ function formatFields(fields: APIEmbedField[] | undefined): string[] {
   return parts;
 }
 
+/** Options for {@link EmbedParser.formatEmbedElement}. */
+interface FormatEmbedElementOptions {
+  /** Live message id for the no-content diagnostic log (absent for stored/snapshot embeds) */
+  messageId?: string;
+  /** Snapshot scope for embeds inside a forwarded snapshot; absent for the message's own embeds */
+  scope?: EmbedNameScope;
+}
+
 /**
  * Embed Parser
  * Handles extraction and formatting of Discord embeds as XML
@@ -166,15 +174,16 @@ export class EmbedParser {
   /**
    * Parse a single embed into XML format
    * @param embed - Discord embed object
-   * @param embedIndex - Zero-based index of this embed within its message's embed
+   * @param embedIndex - Zero-based index of this embed within its source embed
    * array; used to derive the same synthetic attachment filename the extractor
    * mints for this embed's image/thumbnail slots and for each item of its
    * Components-V2 media gallery (`embed-N-media-M.png`, minted by
    * `embedMediaAttachmentName` and echoed by `formatEmbedComponentsXml`), so a
    * vision description in the attachments block can be bound back to this embed
+   * @param scope - Snapshot scope, when this embed came from a forwarded snapshot
    * @returns Formatted embed XML string
    */
-  static parseEmbed(embed: APIEmbed, embedIndex: number): string {
+  static parseEmbed(embed: APIEmbed, embedIndex: number, scope?: EmbedNameScope): string {
     const parts: string[] = [];
 
     // Add title with optional URL
@@ -211,9 +220,10 @@ export class EmbedParser {
 
     // Add image — the filename is the join key to the <attachments> entry the
     // vision pipeline produces for this same embed slot; both sides derive it
-    // from the embed index independently (see embedAttachmentName.ts).
+    // from the embed index (plus the snapshot scope for a forwarded embed)
+    // independently (see embedAttachmentName.ts).
     if (hasValue(embed.image?.url)) {
-      const imageFilename = embedImageAttachmentName(embedIndex, EMBED_NAMING.IMAGE_SLOT);
+      const imageFilename = embedImageAttachmentName(embedIndex, EMBED_NAMING.IMAGE_SLOT, scope);
       parts.push(
         `<image filename="${escapeXml(imageFilename)}" url="${escapeXml(embed.image.url)}"/>`
       );
@@ -221,7 +231,11 @@ export class EmbedParser {
 
     // Add thumbnail
     if (hasValue(embed.thumbnail?.url)) {
-      const thumbnailFilename = embedImageAttachmentName(embedIndex, EMBED_NAMING.THUMBNAIL_SLOT);
+      const thumbnailFilename = embedImageAttachmentName(
+        embedIndex,
+        EMBED_NAMING.THUMBNAIL_SLOT,
+        scope
+      );
       parts.push(
         `<thumbnail filename="${escapeXml(thumbnailFilename)}" url="${escapeXml(embed.thumbnail.url)}"/>`
       );
@@ -234,7 +248,7 @@ export class EmbedParser {
     }
 
     // Add Components-V2 content (text/media/accent color), when present
-    parts.push(...formatEmbedComponentsXml(embed, embedIndex));
+    parts.push(...formatEmbedComponentsXml(embed, embedIndex, scope));
 
     // Add footer
     if (hasValue(embed.footer?.text)) {
@@ -296,9 +310,9 @@ export class EmbedParser {
    * @param embed - Discord embed object
    * @param embedIndex - Zero-based index of this embed within its source array
    * @param embedCount - Total number of embeds in the source array
-   * @param messageId - The live Discord message's id, when available, for the
-   *   diagnostic log on a no-content render (absent for stored/snapshot
-   *   embeds, which have no live message to identify)
+   * @param options - `messageId` for the no-content diagnostic log (absent for
+   *   stored/snapshot embeds, which have no live message to identify), and
+   *   `scope` when this embed came from a forwarded snapshot
    * @returns The wrapped `<embed>...</embed>` element for a content-bearing
    *   embed, or one of the two `rendered="false"` marker forms otherwise
    */
@@ -306,13 +320,13 @@ export class EmbedParser {
     embed: APIEmbed,
     embedIndex: number,
     embedCount: number,
-    messageId?: string
+    options: FormatEmbedElementOptions = {}
   ): string {
     const numAttr = embedCount > 1 ? ` number="${embedIndex + 1}"` : '';
-    const body = this.parseEmbed(embed, embedIndex);
+    const body = this.parseEmbed(embed, embedIndex, options.scope);
 
     if (!embedHasRenderableContent(embed)) {
-      logEmptyEmbedShape(embed, messageId);
+      logEmptyEmbedShape(embed, options.messageId);
       const keysAttr = formatEmbedKeysAttr(embed);
       if (body.length === 0) {
         return `<embed${numAttr} rendered="false"${keysAttr}/>`;
@@ -334,7 +348,9 @@ export class EmbedParser {
     }
 
     const embedStrings = message.embeds.map((embed, index) =>
-      this.formatEmbedElement(embed.toJSON(), index, message.embeds.length, message.id)
+      this.formatEmbedElement(embed.toJSON(), index, message.embeds.length, {
+        messageId: message.id,
+      })
     );
 
     return embedStrings.join('\n');

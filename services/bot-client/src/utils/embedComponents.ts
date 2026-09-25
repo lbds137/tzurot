@@ -19,7 +19,7 @@ import {
 } from 'discord.js';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 import { EMBED_LIMITS } from '@tzurot/common-types/constants/media';
-import { embedMediaAttachmentName } from './embedAttachmentName.js';
+import { type EmbedNameScope, embedMediaAttachmentName } from './embedAttachmentName.js';
 
 /**
  * Read the Components-V2 tree attached to an embed, if any.
@@ -305,8 +305,14 @@ export function embedComponentsHaveContent(embed: APIEmbed): boolean {
  * TextDisplay content is left verbatim; the model reads markdown. Returns an
  * empty array when there is nothing to render. The media numbering here
  * matches `extractEmbedImages` because both read `walkEmbedComponents`.
+ *
+ * @param scope - Snapshot scope, when this embed came from a forwarded snapshot
  */
-export function formatEmbedComponentsXml(embed: APIEmbed, embedIndex: number): string[] {
+export function formatEmbedComponentsXml(
+  embed: APIEmbed,
+  embedIndex: number,
+  scope?: EmbedNameScope
+): string[] {
   const nodes = readEmbedComponents(embed);
   const lines: string[] = [];
   let mediaIndex = 0;
@@ -316,7 +322,7 @@ export function formatEmbedComponentsXml(embed: APIEmbed, embedIndex: number): s
       lines.push(`<text>${escapeXml(part.content)}</text>`);
       continue;
     }
-    const filename = embedMediaAttachmentName(embedIndex, mediaIndex);
+    const filename = embedMediaAttachmentName(embedIndex, mediaIndex, scope);
     mediaIndex++;
     const descriptionAttr =
       part.media.description !== undefined

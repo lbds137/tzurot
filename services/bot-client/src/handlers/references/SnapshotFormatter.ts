@@ -86,18 +86,23 @@ export class SnapshotFormatter {
    *   resolved once per forwarded MESSAGE by the caller. Required rather than
    *   defaulted: a fallback here would silently re-introduce the per-snapshot
    *   recomputation this parameter exists to remove.
+   * @param snapshotIndex - Zero-based position of this snapshot in the
+   *   forwarding message's snapshot collection; scopes the synthetic embed
+   *   image names so they match what the other snapshot walkers mint.
    * @returns Formatted referenced message with isForwarded flag
    */
   formatSnapshot(
     snapshot: MessageSnapshot,
     referenceNumber: number,
     forwardedFrom: Message,
-    forwardMarker: string
+    forwardMarker: string,
+    snapshotIndex: number
   ): ReferencedMessage {
     // Extract location context from the forwarding message (since snapshot doesn't have it)
     // Use XML format consistent with MessageFormatter for unified formatting
     const environment = extractDiscordEnvironment(forwardedFrom);
     const locationContext = formatLocationAsXml(environment);
+    const scope = { snapshotIndex };
 
     // Process regular attachments from snapshot
     const regularAttachments =
@@ -108,7 +113,7 @@ export class SnapshotFormatter {
         : undefined;
 
     // Extract images from snapshot embeds (for vision model processing)
-    const embedImages = extractEmbedImages(snapshot.embeds);
+    const embedImages = extractEmbedImages(snapshot.embeds, scope);
 
     // Forwarded stickers get the same treatment — without this a forwarded
     // sticker reached the model as an image with no name behind it. The NAME
@@ -133,7 +138,9 @@ export class SnapshotFormatter {
               // message_snapshots → channel.messages._add), so its embeds are Embed instances
               // and toJSON() is always present — the same assumption extractEmbedImages makes.
               const apiEmbed = embed.toJSON();
-              return EmbedParser.formatEmbedElement(apiEmbed, index, snapshot.embeds.length);
+              return EmbedParser.formatEmbedElement(apiEmbed, index, snapshot.embeds.length, {
+                scope,
+              });
             })
             .join('\n')
         : '';

@@ -5,23 +5,32 @@
  * to AttachmentMetadata format so they can be processed by the vision model.
  * Each synthetic attachment is named from the embed's own index and image
  * slot (see `embedAttachmentName.ts`), not a running counter, so the name is
- * reproducible from the embed's position alone. Covers three slots: the
- * legacy image, the legacy thumbnail, and each item of a Components-V2
- * media gallery.
+ * reproducible from the embed's position alone — plus, for an embed inside a
+ * forwarded snapshot, that snapshot's own position, so two snapshots' embeds
+ * never share a name. Covers three slots: the legacy image, the legacy
+ * thumbnail, and each item of a Components-V2 media gallery.
  */
 
 import { type Embed } from 'discord.js';
 import { CONTENT_TYPES, EMBED_NAMING } from '@tzurot/common-types/constants/media';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
-import { embedImageAttachmentName, embedMediaAttachmentName } from './embedAttachmentName.js';
+import {
+  type EmbedNameScope,
+  embedImageAttachmentName,
+  embedMediaAttachmentName,
+} from './embedAttachmentName.js';
 import { readEmbedComponents, collectEmbedComponentMedia } from './embedComponents.js';
 
 /**
  * Extract image and thumbnail URLs from Discord embeds as attachment metadata
  * @param embeds - Array of Discord embeds (can be undefined)
+ * @param scope - Snapshot scope, when these embeds came from a forwarded snapshot
  * @returns Array of attachment metadata for embed images, or undefined if no images
  */
-export function extractEmbedImages(embeds: Embed[] | undefined): AttachmentMetadata[] | undefined {
+export function extractEmbedImages(
+  embeds: Embed[] | undefined,
+  scope?: EmbedNameScope
+): AttachmentMetadata[] | undefined {
   if (!embeds || embeds.length === 0) {
     return undefined;
   }
@@ -48,7 +57,7 @@ export function extractEmbedImages(embeds: Embed[] | undefined): AttachmentMetad
       imageAttachments.push({
         url: imageUrl,
         contentType: CONTENT_TYPES.IMAGE_PNG,
-        name: embedImageAttachmentName(embedIndex, EMBED_NAMING.IMAGE_SLOT),
+        name: embedImageAttachmentName(embedIndex, EMBED_NAMING.IMAGE_SLOT, scope),
         isEmbedPreview: true,
         size: undefined,
       });
@@ -59,7 +68,7 @@ export function extractEmbedImages(embeds: Embed[] | undefined): AttachmentMetad
       imageAttachments.push({
         url: thumbnailUrl,
         contentType: CONTENT_TYPES.IMAGE_PNG,
-        name: embedImageAttachmentName(embedIndex, EMBED_NAMING.THUMBNAIL_SLOT),
+        name: embedImageAttachmentName(embedIndex, EMBED_NAMING.THUMBNAIL_SLOT, scope),
         isEmbedPreview: true,
         size: undefined,
       });
@@ -70,7 +79,7 @@ export function extractEmbedImages(embeds: Embed[] | undefined): AttachmentMetad
       imageAttachments.push({
         url: media.proxyUrl ?? media.url,
         contentType: media.contentType ?? CONTENT_TYPES.IMAGE_PNG,
-        name: embedMediaAttachmentName(embedIndex, mediaIndex),
+        name: embedMediaAttachmentName(embedIndex, mediaIndex, scope),
         isEmbedPreview: true,
         size: undefined,
         ...(media.spoiler === true ? { isSpoiler: true } : {}),

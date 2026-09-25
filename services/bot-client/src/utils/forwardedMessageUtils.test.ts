@@ -462,6 +462,87 @@ describe('forwardedMessageUtils', () => {
       expect(extractForwardedAttachments(message)).toEqual([]);
     });
 
+    it('scopes each snapshot embed image name so a compound forward mints unique names', () => {
+      // createMockMessage's `snapshots[].embeds` option only accepts
+      // `{ title?, description? }`, which extractEmbedImages never reads an
+      // image off of — build the collection directly so each snapshot embed
+      // carries a real `image.url` and `toJSON()`.
+      const withImages = createMockMessage({
+        referenceType: MessageReferenceType.Forward,
+      });
+      const snapshotsMap = new Map([
+        [
+          'snapshot-0',
+          {
+            content: '',
+            attachments: new Map(),
+            embeds: [
+              {
+                image: { url: 'https://cdn.discord.com/s1-image.png' },
+                toJSON: () => ({ image: { url: 'https://cdn.discord.com/s1-image.png' } }),
+              },
+            ],
+          },
+        ],
+        [
+          'snapshot-1',
+          {
+            content: '',
+            attachments: new Map(),
+            embeds: [
+              {
+                image: { url: 'https://cdn.discord.com/s2-image.png' },
+                toJSON: () => ({ image: { url: 'https://cdn.discord.com/s2-image.png' } }),
+              },
+            ],
+          },
+        ],
+      ]);
+      (withImages as unknown as { messageSnapshots: unknown }).messageSnapshots = {
+        size: snapshotsMap.size,
+        values: () => snapshotsMap.values(),
+        first: () => snapshotsMap.values().next().value,
+      };
+
+      const attachments = extractForwardedAttachments(withImages);
+
+      expect(attachments.map(a => a.name)).toEqual([
+        'forward-1-embed-1-image.png',
+        'forward-2-embed-1-image.png',
+      ]);
+      expect(new Set(attachments.map(a => a.name)).size).toBe(attachments.length);
+    });
+
+    it('scopes a single-snapshot forward as forward-1, not the unscoped name', () => {
+      const message = createMockMessage({
+        referenceType: MessageReferenceType.Forward,
+      });
+      const snapshotsMap = new Map([
+        [
+          'snapshot-0',
+          {
+            content: '',
+            attachments: new Map(),
+            embeds: [
+              {
+                image: { url: 'https://cdn.discord.com/only-image.png' },
+                toJSON: () => ({ image: { url: 'https://cdn.discord.com/only-image.png' } }),
+              },
+            ],
+          },
+        ],
+      ]);
+      (message as unknown as { messageSnapshots: unknown }).messageSnapshots = {
+        size: snapshotsMap.size,
+        values: () => snapshotsMap.values(),
+        first: () => snapshotsMap.values().next().value,
+      };
+
+      const attachments = extractForwardedAttachments(message);
+
+      expect(attachments.map(a => a.name)).toEqual(['forward-1-embed-1-image.png']);
+    });
+
     it('extractForwardedAttachments reads IsVoiceMessage from each snapshot', () => {
       const message = createMockMessage({
         referenceType: MessageReferenceType.Forward,

@@ -251,7 +251,7 @@ export async function buildMessageContent(
       // Process snapshot embeds - collect as XML for structured formatting
       const snapshots = getSnapshots(message);
       if (includeEmbeds && snapshots !== undefined) {
-        for (const snapshot of snapshots.values()) {
+        for (const [snapshotIndex, snapshot] of Array.from(snapshots.values()).entries()) {
           if (snapshot.embeds !== undefined && snapshot.embeds.length > 0) {
             for (let index = 0; index < snapshot.embeds.length; index++) {
               const embed = snapshot.embeds[index];
@@ -260,7 +260,9 @@ export async function buildMessageContent(
               // and toJSON() is always present — the same assumption extractEmbedImages makes.
               const apiEmbed = embed.toJSON();
               embedsXml.push(
-                EmbedParser.formatEmbedElement(apiEmbed, index, snapshot.embeds.length)
+                EmbedParser.formatEmbedElement(apiEmbed, index, snapshot.embeds.length, {
+                  scope: { snapshotIndex },
+                })
               );
             }
           }
@@ -338,7 +340,9 @@ export async function buildMessageContent(
     for (let index = 0; index < message.embeds.length; index++) {
       const embed = message.embeds[index];
       embedsXml.push(
-        EmbedParser.formatEmbedElement(embed.toJSON(), index, message.embeds.length, message.id)
+        EmbedParser.formatEmbedElement(embed.toJSON(), index, message.embeds.length, {
+          messageId: message.id,
+        })
       );
     }
   }

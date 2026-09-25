@@ -475,4 +475,25 @@ describe('extractEmbedImages', () => {
     expect(urlsFromExtraction).toEqual(parsed.map(p => p.url));
     expect(names).toHaveLength(EMBED_LIMITS.MAX_MEDIA_PER_EMBED);
   });
+
+  describe('snapshot scope', () => {
+    it('scopes the image, thumbnail, and gallery-media names to the forwarded snapshot', () => {
+      const embeds = [
+        {
+          image: { url: 'https://example.com/image.png' },
+          thumbnail: { url: 'https://example.com/thumb.png' },
+          toJSON: () => VXREDDIT_COMPONENTS_V2_EMBED,
+        },
+      ] as unknown as Embed[];
+
+      const result = extractEmbedImages(embeds, { snapshotIndex: 1 });
+
+      expect(result).toHaveLength(3);
+      expect(result?.map(a => a.name)).toEqual([
+        'forward-2-embed-1-image.png',
+        'forward-2-embed-1-thumbnail.png',
+        'forward-2-embed-1-media-1.png',
+      ]);
+    });
+  });
 });

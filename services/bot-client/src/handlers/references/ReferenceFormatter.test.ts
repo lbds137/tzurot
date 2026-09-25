@@ -3,13 +3,15 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { type Collection, MessageReferenceType } from 'discord.js';
+import { Collection, MessageReferenceType } from 'discord.js';
 import type { Message, MessageSnapshot } from 'discord.js';
 import { ReferenceFormatter } from './ReferenceFormatter.js';
 import type { ReferenceMetadata } from './types.js';
 import { createMockMessage } from '../../test/mocks/Discord.mock.js';
 import type { MessageFormatter } from './MessageFormatter.js';
-import type { SnapshotFormatter } from './SnapshotFormatter.js';
+import { SnapshotFormatter } from './SnapshotFormatter.js';
+import { extractForwardedAttachments } from '../../utils/forwardedMessageUtils.js';
+import { buildMessageContent } from '../../utils/MessageContentBuilder.js';
 
 const { mockLogger } = vi.hoisted(() => ({
   mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -880,6 +882,12 @@ describe('ReferenceFormatter', () => {
         .mocked(mockSnapshotFormatter.formatSnapshot)
         .mock.calls.map(call => call[3]);
       expect(markers).toEqual(['(forwarded message)', '(forwarded message)']);
+      // Each snapshot's zero-based position in the collection, passed as the
+      // 5th argument — the scope the OTHER snapshot walkers derive too.
+      const snapshotIndexes = vi
+        .mocked(mockSnapshotFormatter.formatSnapshot)
+        .mock.calls.map(call => call[4]);
+      expect(snapshotIndexes).toEqual([0, 1]);
       // Ordering is now structural rather than disciplined: the loop body has no
       // await left, so numbering cannot interleave. Still pinned, because the
       // numbering contract is what callers depend on.
@@ -887,6 +895,140 @@ describe('ReferenceFormatter', () => {
       // All snapshots share the crawled entry's discordUrl and trackLink uses
       // Map.set, so the LAST snapshot's number wins the link.
       expect(result.updatedContent).toBe('See [Reference 2]');
+    });
+  });
+
+  describe('snapshot-scoped embed naming (real collaborators)', () => {
+    it('mints forward-K-embed-1-image.png for each snapshot of a non-deduplicated compound forward', async () => {
+      const realSnapshotFormatter = new SnapshotFormatter();
+      vi.spyOn(realSnapshotFormatter, 'buildForwardMarker').mockResolvedValue(
+        '(forwarded message)'
+      );
+      const realFormatter = new ReferenceFormatter(mockMessageFormatter, realSnapshotFormatter);
+
+      const embedOne = { image: { url: 'https://cdn.discord.com/compound-s1.png' } };
+      const embedTwo = { image: { url: 'https://cdn.discord.com/compound-s2.png' } };
+      const snapshotsMap = new Map([
+        [
+          's0',
+          {
+            content: 'first',
+            attachments: new Map(),
+            embeds: [{ ...embedOne, toJSON: () => embedOne }],
+          },
+        ],
+        [
+          's1',
+          {
+            content: 'second',
+            attachments: new Map(),
+            embeds: [{ ...embedTwo, toJSON: () => embedTwo }],
+          },
+        ],
+      ]);
+      const messageSnapshots = {
+        size: snapshotsMap.size,
+        values: () => snapshotsMap.values(),
+        first: () => snapshotsMap.values().next().value,
+      } as unknown as Collection<string, MessageSnapshot>;
+
+      const forwardedMessage = createMockMessage({
+        id: 'compound-forward',
+        content: '',
+        createdAt: new Date('2025-01-01T12:00:00Z'),
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+      });
+
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'compound-forward',
+          {
+            message: forwardedMessage,
+            metadata: {
+              messageId: 'compound-forward',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+            },
+          },
+        ],
+      ]);
+
+      const result = await realFormatter.format('', crawledMessages, 10);
+
+      expect(result.rawReferences).toHaveLength(2);
+      expect(result.rawReferences[0].attachments?.map(a => a.name)).toEqual([
+        'forward-1-embed-1-image.png',
+      ]);
+      expect(result.rawReferences[0].embeds).toContain('filename="forward-1-embed-1-image.png"');
+      expect(result.rawReferences[1].attachments?.map(a => a.name)).toEqual([
+        'forward-2-embed-1-image.png',
+      ]);
+      expect(result.rawReferences[1].embeds).toContain('filename="forward-2-embed-1-image.png"');
+    });
+
+    it('all three snapshot walkers mint and echo the same forward-K names for one compound forward', async () => {
+      // Pins the header claim in embedAttachmentName.ts: extractForwardedAttachments,
+      // buildMessageContent's snapshot loop, and ReferenceFormatter's (via
+      // SnapshotFormatter) all iterate the same message.messageSnapshots
+      // collection in the same order, so their forward-K ordinals agree
+      // without either producer knowing about the others.
+      const embedOne = { image: { url: 'https://cdn.discord.com/walker-s1.png' } };
+      const embedTwo = { image: { url: 'https://cdn.discord.com/walker-s2.png' } };
+      const snapshotOne = {
+        content: 'first',
+        attachments: new Collection(),
+        embeds: [{ ...embedOne, toJSON: () => embedOne }],
+      } as unknown as MessageSnapshot;
+      const snapshotTwo = {
+        content: 'second',
+        attachments: new Collection(),
+        embeds: [{ ...embedTwo, toJSON: () => embedTwo }],
+      } as unknown as MessageSnapshot;
+      const messageSnapshots = new Collection<string, MessageSnapshot>([
+        ['s0', snapshotOne],
+        ['s1', snapshotTwo],
+      ]);
+
+      const forwardedMessage = createMockMessage({
+        id: 'three-walker-forward',
+        content: '',
+        createdAt: new Date('2025-01-01T12:00:00Z'),
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+      });
+
+      const expected = ['forward-1-embed-1-image.png', 'forward-2-embed-1-image.png'];
+
+      // Walker 1: extractForwardedAttachments
+      const forwardedAttachments = extractForwardedAttachments(forwardedMessage);
+      expect(forwardedAttachments.map(a => a.name)).toEqual(expected);
+
+      // Walker 2: buildMessageContent's snapshot loop
+      const built = await buildMessageContent(forwardedMessage);
+      expect(built.attachments.map(a => a.name)).toEqual(expected);
+
+      // Walker 3: ReferenceFormatter.format, via the real SnapshotFormatter
+      const realSnapshotFormatter = new SnapshotFormatter();
+      const realFormatter = new ReferenceFormatter(mockMessageFormatter, realSnapshotFormatter);
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'three-walker-forward',
+          {
+            message: forwardedMessage,
+            metadata: {
+              messageId: 'three-walker-forward',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+            },
+          },
+        ],
+      ]);
+      const result = await realFormatter.format('', crawledMessages, 10);
+      const referencePathNames = result.rawReferences.flatMap(
+        ref => ref.attachments?.map(a => a.name) ?? []
+      );
+      expect(referencePathNames).toEqual(expected);
     });
   });
 });

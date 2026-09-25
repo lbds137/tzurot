@@ -111,7 +111,7 @@ describe('SnapshotFormatter', () => {
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(result.attachments).toEqual([
         expect.objectContaining({ id: '77', isSticker: true, contentType: 'image/png' }),
@@ -142,7 +142,7 @@ describe('SnapshotFormatter', () => {
         ]),
       });
 
-      const result = formatter.formatSnapshot(snapshot, 1, createMockMessage(), GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, createMockMessage(), GENERIC_MARKER, 0);
 
       expect(result.content).toBe('[Stickers: wave — Wumpus waves hello]');
       expect(result.attachments).toBeUndefined();
@@ -165,7 +165,7 @@ describe('SnapshotFormatter', () => {
         ]),
       });
 
-      const result = formatter.formatSnapshot(snapshot, 1, createMockMessage(), GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, createMockMessage(), GENERIC_MARKER, 0);
 
       expect(result.content).toBe('look at this\n\n[Stickers: shipit]');
     });
@@ -181,7 +181,7 @@ describe('SnapshotFormatter', () => {
         ]),
       });
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(result.content).toBe('plain text');
     });
@@ -199,7 +199,7 @@ describe('SnapshotFormatter', () => {
         createdAt: new Date('2025-01-01T14:00:00Z'),
       });
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(result).toEqual({
         referenceNumber: 1,
@@ -229,7 +229,8 @@ describe('SnapshotFormatter', () => {
         snapshot,
         1,
         createMockMessage({ id: 'fwd-1' }),
-        GENERIC_MARKER
+        GENERIC_MARKER,
+        0
       );
 
       expect(result.content).toBe('The answer is 42.');
@@ -247,7 +248,8 @@ describe('SnapshotFormatter', () => {
         second,
         2,
         createMockMessage({ id: 'fwd-1' }),
-        GENERIC_MARKER
+        GENERIC_MARKER,
+        0
       );
 
       expect(result.content).toBe('Second reply.');
@@ -263,7 +265,8 @@ describe('SnapshotFormatter', () => {
         snapshot,
         1,
         createMockMessage({ id: 'fwd-1' }),
-        GENERIC_MARKER
+        GENERIC_MARKER,
+        0
       );
 
       expect(result.content).toBe('my hot take\n-# just my opinion though');
@@ -276,7 +279,7 @@ describe('SnapshotFormatter', () => {
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(result.content).toBe('');
     });
@@ -290,7 +293,7 @@ describe('SnapshotFormatter', () => {
         createdAt: new Date('2025-01-01T15:00:00Z'),
       });
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(result.timestamp).toBe('2025-01-01T15:00:00.000Z');
     });
@@ -299,7 +302,7 @@ describe('SnapshotFormatter', () => {
       const snapshot = createMockSnapshot();
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 5, forwardedFrom, GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 5, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(result.isForwarded).toBe(true);
       expect(result.referenceNumber).toBe(5);
@@ -324,7 +327,7 @@ describe('SnapshotFormatter', () => {
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(result.attachments).toHaveLength(1);
       expect(result.attachments?.[0].url).toBe('https://example.com/image.png');
@@ -349,7 +352,7 @@ describe('SnapshotFormatter', () => {
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(result.attachments?.[0].isVoiceMessage).toBe(true);
     });
@@ -361,7 +364,7 @@ describe('SnapshotFormatter', () => {
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(result.attachments).toBeUndefined();
     });
@@ -392,7 +395,7 @@ describe('SnapshotFormatter', () => {
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(result.attachments).toHaveLength(2);
       expect(result.attachments?.[0].url).toBe('https://example.com/file.pdf');
@@ -416,7 +419,7 @@ describe('SnapshotFormatter', () => {
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(result.embeds).toBe('<embed>\nEmbed Title\nEmbed Description\n</embed>');
     });
@@ -443,7 +446,7 @@ describe('SnapshotFormatter', () => {
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(result.embeds).toBe(
         '<embed number="1">\nFirst Embed\nFirst Description\n</embed>\n<embed number="2">\nSecond Embed\nSecond Description\n</embed>'
@@ -465,7 +468,7 @@ describe('SnapshotFormatter', () => {
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(result.embeds).toBe('<embed>\nJSON Embed\nJSON Description\n</embed>');
     });
@@ -477,7 +480,7 @@ describe('SnapshotFormatter', () => {
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(result.embeds).toBe('');
     });
@@ -489,7 +492,7 @@ describe('SnapshotFormatter', () => {
 
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(result.embeds).toBe('');
     });
@@ -503,13 +506,17 @@ describe('SnapshotFormatter', () => {
     // asserting the mock's own reimplementation of the marker would not
     // catch a wiring bug at this seam.
     it('routes embed wrapping through EmbedParser.formatEmbedElement', async () => {
+      const { extractEmbedImages } = await import('../../utils/embedImageExtractor.js');
       const embedData = {} as APIEmbed;
       const snapshot = createMockSnapshot({ embeds: [{ toJSON: () => embedData } as any] });
       const forwardedFrom = createMockMessage();
 
-      formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
-      expect(EmbedParser.formatEmbedElement).toHaveBeenCalledWith(embedData, 0, 1);
+      expect(EmbedParser.formatEmbedElement).toHaveBeenCalledWith(embedData, 0, 1, {
+        scope: { snapshotIndex: 0 },
+      });
+      expect(extractEmbedImages).toHaveBeenCalledWith(snapshot.embeds, { snapshotIndex: 0 });
     });
 
     it('forwards embedCount from the snapshot array length, not a hardcoded value', async () => {
@@ -520,10 +527,14 @@ describe('SnapshotFormatter', () => {
       const snapshot = createMockSnapshot({ embeds: [firstEmbed, secondEmbed] });
       const forwardedFrom = createMockMessage();
 
-      formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
-      expect(EmbedParser.formatEmbedElement).toHaveBeenNthCalledWith(1, firstEmbedData, 0, 2);
-      expect(EmbedParser.formatEmbedElement).toHaveBeenNthCalledWith(2, secondEmbedData, 1, 2);
+      expect(EmbedParser.formatEmbedElement).toHaveBeenNthCalledWith(1, firstEmbedData, 0, 2, {
+        scope: { snapshotIndex: 0 },
+      });
+      expect(EmbedParser.formatEmbedElement).toHaveBeenNthCalledWith(2, secondEmbedData, 1, 2, {
+        scope: { snapshotIndex: 0 },
+      });
     });
 
     it('hands EmbedParser the toJSON() payload of a real discord.js Embed, not the instance', async () => {
@@ -538,13 +549,50 @@ describe('SnapshotFormatter', () => {
       const snapshot = createMockSnapshot({ embeds: [realEmbed] });
       const forwardedFrom = createMockMessage();
 
-      formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(EmbedParser.formatEmbedElement).toHaveBeenCalledWith(
         expect.objectContaining({ components: expect.any(Array) }),
         0,
-        1
+        1,
+        { scope: { snapshotIndex: 0 } }
       );
+    });
+  });
+
+  describe('snapshot-scoped naming (real collaborators)', () => {
+    it('mints and echoes forward-2-embed-1-image.png for a snapshot at index 1', async () => {
+      const actualEmbedImageExtractor = await vi.importActual<
+        typeof import('../../utils/embedImageExtractor.js')
+      >('../../utils/embedImageExtractor.js');
+      const actualEmbedParser = await vi.importActual<typeof import('../../utils/EmbedParser.js')>(
+        '../../utils/EmbedParser.js'
+      );
+      const { extractEmbedImages } = await import('../../utils/embedImageExtractor.js');
+      vi.mocked(extractEmbedImages).mockImplementationOnce(
+        actualEmbedImageExtractor.extractEmbedImages
+      );
+      vi.mocked(EmbedParser.formatEmbedElement).mockImplementationOnce(
+        (embed, embedIndex, embedCount, options) =>
+          actualEmbedParser.EmbedParser.formatEmbedElement(embed, embedIndex, embedCount, options)
+      );
+
+      const embedPayload = { image: { url: 'https://example.com/snap-image.png' } };
+      const snapshot = createMockSnapshot({
+        embeds: [{ ...embedPayload, toJSON: () => embedPayload } as any],
+      });
+      const forwardedFrom = createMockMessage();
+
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 1);
+
+      const mintedNames = (result.attachments ?? []).map(a => a.name);
+      expect(mintedNames).toContain('forward-2-embed-1-image.png');
+      expect(result.embeds).toContain('filename="forward-2-embed-1-image.png"');
+      const echoedNames = [...(result.embeds ?? '').matchAll(/filename="([^"]+)"/g)].map(m => m[1]);
+      expect(echoedNames).toEqual(['forward-2-embed-1-image.png']);
+      for (const name of echoedNames) {
+        expect(mintedNames).toContain(name);
+      }
     });
   });
 
@@ -791,7 +839,7 @@ describe('SnapshotFormatter', () => {
       const snapshot = createMockSnapshot();
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(result.authorUsername).toBe('Unknown User');
       expect(result.authorDisplayName).toBe('Unknown User');
@@ -802,7 +850,7 @@ describe('SnapshotFormatter', () => {
       const snapshot = createMockSnapshot();
       const forwardedFrom = createMockMessage();
 
-      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER);
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom, GENERIC_MARKER, 0);
 
       expect(result.webhookId).toBeUndefined();
     });

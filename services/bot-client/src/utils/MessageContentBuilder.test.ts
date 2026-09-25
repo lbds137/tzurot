@@ -40,6 +40,11 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
+/** Every `filename="…"` value carried by an embeds-XML string. */
+function echoedFilenames(xml: string): string[] {
+  return [...xml.matchAll(/filename="([^"]+)"/g)].map(match => match[1]);
+}
+
 // Helper to create mock attachments
 function createMockAttachment(overrides: Partial<Attachment> = {}): Attachment {
   return {
@@ -472,9 +477,9 @@ describe('MessageContentBuilder', () => {
 
       const mintedNames = result.attachments.map(a => a.name);
       expect(mintedNames).toEqual([
-        'embed-1-image.png',
-        'embed-1-thumbnail.png',
-        'embed-2-image.png',
+        'forward-1-embed-1-image.png',
+        'forward-1-embed-1-thumbnail.png',
+        'forward-1-embed-2-image.png',
       ]);
 
       const embedsXml = (result.embedsXml ?? []).join('\n');
@@ -510,7 +515,7 @@ describe('MessageContentBuilder', () => {
 
       const embedsXml = (result.embedsXml ?? []).join('\n');
       expect(embedsXml).toContain('<text>-# vxReddit</text>');
-      expect(embedsXml).toContain('<image filename="embed-1-media-1.png"');
+      expect(embedsXml).toContain('<image filename="forward-1-embed-1-media-1.png"');
       expect(embedsXml).not.toContain('rendered="false"');
     });
 
@@ -772,6 +777,79 @@ describe('MessageContentBuilder', () => {
       expect(result.embedsXml).toBeDefined();
       expect(result.embedsXml![0]).toContain('<embed>');
       expect(result.attachments.length).toBeGreaterThan(0);
+    });
+
+    it('scopes each snapshot of a compound forward so minted and echoed names never collide', async () => {
+      const compoundEmbedOne = { image: { url: 'https://cdn.discord.com/embeds/s1.png' } };
+      const compoundEmbedTwo = { image: { url: 'https://cdn.discord.com/embeds/s2.png' } };
+      const messageSnapshots = new Collection<string, MessageSnapshot>();
+      messageSnapshots.set('1', {
+        content: 'Snapshot one',
+        embeds: [{ ...compoundEmbedOne, toJSON: () => compoundEmbedOne }],
+        attachments: new Collection(),
+        createdTimestamp: Date.now(),
+      } as unknown as MessageSnapshot);
+      messageSnapshots.set('2', {
+        content: 'Snapshot two',
+        embeds: [{ ...compoundEmbedTwo, toJSON: () => compoundEmbedTwo }],
+        attachments: new Collection(),
+        createdTimestamp: Date.now(),
+      } as unknown as MessageSnapshot);
+
+      const message = createMockMessage({
+        content: '',
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+      });
+
+      const result = await buildMessageContent(message);
+
+      const minted = result.attachments.map(a => a.name);
+      const echoed = echoedFilenames((result.embedsXml ?? []).join('\n'));
+
+      expect(minted).toEqual(['forward-1-embed-1-image.png', 'forward-2-embed-1-image.png']);
+      expect([...echoed].sort()).toEqual([...minted].sort());
+      for (const name of echoed) {
+        expect(minted).toContain(name);
+      }
+      expect(new Set(minted).size).toBe(minted.length);
+      expect(new Set(echoed).size).toBe(echoed.length);
+    });
+
+    it('scopes a forward whose wrapper also carries its own image embed alongside the snapshot embed', async () => {
+      const wrapperEmbedPayload = { image: { url: 'https://cdn.discord.com/wrapper.png' } };
+      const snapshotEmbedPayload = { image: { url: 'https://cdn.discord.com/snapshot.png' } };
+      const wrapperEmbeds = [
+        { ...wrapperEmbedPayload, toJSON: () => wrapperEmbedPayload },
+      ] as unknown as Embed[];
+
+      const messageSnapshots = new Collection<string, MessageSnapshot>();
+      messageSnapshots.set('1', {
+        content: 'Forwarded content',
+        embeds: [{ ...snapshotEmbedPayload, toJSON: () => snapshotEmbedPayload }],
+        attachments: new Collection(),
+        createdTimestamp: Date.now(),
+      } as unknown as MessageSnapshot);
+
+      const message = createMockMessage({
+        content: '',
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+        embeds: wrapperEmbeds,
+      });
+
+      const result = await buildMessageContent(message);
+
+      const minted = result.attachments.map(a => a.name);
+      const echoed = echoedFilenames((result.embedsXml ?? []).join('\n'));
+
+      expect(minted).toEqual(['forward-1-embed-1-image.png', 'embed-1-image.png']);
+      expect([...echoed].sort()).toEqual([...minted].sort());
+      for (const name of echoed) {
+        expect(minted).toContain(name);
+      }
+      expect(new Set(minted).size).toBe(minted.length);
+      expect(new Set(echoed).size).toBe(echoed.length);
     });
   });
 
