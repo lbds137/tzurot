@@ -3,9 +3,10 @@ id: TASK-1019
 title: >-
   worktree:transfer no-unpushed-remotes check runs git log --not --remotes with
   no positive revision, so it never fires
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-18 16:48'
+updated_date: '2026-09-25 13:44'
 labels:
   - 'area:tooling'
   - 'size:S'
