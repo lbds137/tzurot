@@ -4,6 +4,7 @@ title: STT format failures reply with the voice-outage message
 status: To Do
 assignee: []
 created_date: '2026-09-24 05:53'
+updated_date: '2026-09-25 22:47'
 labels:
   - 'area:voice'
   - 'size:M'
@@ -20,3 +21,12 @@ Why: voice-engine /v1/transcribe (services/voice-engine/server.py:630) answers 5
 Fix shape: voice-engine answers 415 or 422 for an undecodable body; ai-worker maps that to a distinct non-retryable failure reason (for example unsupported-format); bot-client renders a could-not-read-this-audio-format reply instead of the outage text.
 Acceptance: an undecodable voice attachment produces the format reply, not the outage reply, with a test pinning the mapping at each hop.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+created: 2026-09-25 22:47
+---
+Owner ruling 2026-09-25: scheduled for beta.232 (listed in backlog/now.md horizon). Context: the owner hit this exact misreport on prod the same day - a Vencord voice message the voice-engine could not decode (TASK-1069 follow-up) was answered with the voice-outage message. The transcode fix removes that instance; this task fixes the message class.
+---
+<!-- COMMENTS:END -->
