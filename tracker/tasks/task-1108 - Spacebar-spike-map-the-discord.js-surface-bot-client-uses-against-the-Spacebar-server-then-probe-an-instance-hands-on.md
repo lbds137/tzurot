@@ -26,3 +26,8 @@ Part 2 (hands-on, depends on part 1 answering the host question yes): podman-com
 
 Acceptance: every checklist row has a verdict with a cite; the federation paragraphs exist; doc-83 has a dated summary and a recommendation (fork Spacebar / adopt Stoat / neither) for the owner to rule on.
 <!-- SECTION:DESCRIPTION:END -->
+
+created: 2026-09-25 15:28
+---
+PART 1 DONE 2026-09-25 (local read-only agent; docs/local/spacebar-spike.md; doc-83 carries the summary and recommendation). Verdict: Spacebar has the persona path, interactions reply half is stubs (deferred reply TODO, editReply unknown webhook, modal/autocomplete missing); discord.js host override is possible via rest.api/rest.cdn/rest.mediaProxy with three bot-client/ai-worker touch points; no federation on Spacebar or Stoat. Recommendation: patch-set fork of Spacebar, provisional; part 2 (podman probe on the Deck) decides. Task stays open for part 2; owner rules on the fork.
+---
