@@ -109,6 +109,21 @@ describe('check-prompt-tags', () => {
       const src = 'const n = x - /[\'"]/.source; type T = Foo<phantom>; const s = "<real>";';
       expect([...extractStructuralTags(src)].sort()).toEqual(['real']);
     });
+
+    it('reads a slash after an object-literal `}` on the same line as division', () => {
+      const src = "const r = {x: 1} / '<kept>' / 2;";
+      expect(extractStructuralTags(src).has('kept')).toBe(true);
+    });
+
+    it('still reads a regex after a block-closing `}` on the NEXT line (via the newline entry)', () => {
+      const src =
+        'function f() { return 1 }\n/[\'"]/.test(x); type T = Foo<phantom>; const s = "<real>";';
+      expect([...extractStructuralTags(src)].sort()).toEqual(['real']);
+    });
+    it('reads a slash after an identifier ending in `return` as division, not a regex start', () => {
+      const src = "const q = customreturn / '<kept>' / 2;";
+      expect(extractStructuralTags(src).has('kept')).toBe(true);
+    });
   });
 
   describe('stripComments', () => {
@@ -198,6 +213,29 @@ describe('check-prompt-tags', () => {
       const src =
         'const n = /a/ /* one\ntwo */ /["\']/.source; type T = Foo<phantom>; const s = "<real>";';
       expect([...extractStructuralTags(src)].sort()).toEqual(['real']);
+    });
+
+    it('keeps a `//` directly after a colon (untrimmed), but strips it when whitespace separates them', () => {
+      const opts = { comments: true, regexLiterals: true };
+      expect(scanSource('case 1:// see <c1>\nconst a = "<real>";', opts).code).toContain(
+        '// see <c1>'
+      );
+      expect(scanSource('case 1: // see <c1>\nconst a = "<real>";', opts).code).not.toContain(
+        '<c1>'
+      );
+      expect([...extractStructuralTags("case 1:// see '<c1>'\nconst a = 1;")]).toEqual(['c1']);
+    });
+
+    it('treats only `\\n` as a line terminator (`\\r` ends no string, line comment, or regex candidate)', () => {
+      const opts = { comments: true, regexLiterals: true };
+      expect(scanSource("a = 'x\rb'", opts).literals).toEqual(["'x\rb'"]);
+      expect(scanSource("a = 'x\nb'", opts).literals).toEqual(["'x", "'"]);
+      const commentResult = scanSource("a; // c\r'<x>'\nb", opts);
+      expect(commentResult.code).toBe('a; \nb');
+      expect(commentResult.literals).toEqual([]);
+      const regexResult = scanSource("x = /a\r'<y>'/;", opts);
+      expect(regexResult.code).toBe('x = ;');
+      expect(regexResult.literals).toEqual([]);
     });
   });
 

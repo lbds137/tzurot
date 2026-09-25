@@ -175,8 +175,10 @@ export interface ScanOptions {
 }
 
 // Positions where a following `/` starts an expression (a regex literal)
-// rather than dividing.
-const REGEX_PRECEDERS = new Set('(,=:[!&|?{};\n+-*%<>~^');
+// rather than dividing. `}` is deliberately absent: after an object literal
+// (`{x: 1} / 2`) a same-line `/` is division; a block-closing `}` followed by
+// a regex on the NEXT line still reads as a regex through the `\n` entry.
+const REGEX_PRECEDERS = new Set('(,=:[!&|?{;\n+-*%<>~^');
 const REGEX_FLAGS = new Set(['g', 'i', 'm', 's', 'u', 'y', 'v', 'd']);
 
 function isIdentChar(ch: string | undefined): boolean {
@@ -352,13 +354,23 @@ function handleSlash(
  * UNVERIFIED ASSUMPTIONS (known blind spots), evidenced only by the
  * `analyzePromptTags (real tree)` test in check-prompt-tags.test.ts — assumed
  * not to occur in the scan roots, not proven: (1) a `/` after any token not
- * in `REGEX_PRECEDERS` — `)`, an identifier, a keyword other than `return`
+ * in `REGEX_PRECEDERS` — `)`, `}`, an identifier, a keyword other than `return`
  * (`typeof`, `case`, `throw`, ...) — is read as division even when it starts
- * a regex; (2) a property named `return` (`obj.return / 2`) is read as a regex
- * start; (3) a template literal whose `${...}` expression contains a nested
- * backtick ends early. A regex left un-stripped by (1) is harmless unless it
- * carries a quote glyph, which then opens a phantom string exactly as before
- * this scanner; (2) can strip a slash-delimited span, string literal included.
+ * a regex (for `}` this covers a block-closing brace followed by a regex
+ * statement on the same line); (2) a property named `return` (`obj.return / 2`)
+ * is read as a regex start; (3) a template literal whose `${...}` expression
+ * contains a nested backtick ends early; (4) the `://` keep above is an
+ * untrimmed `code.endsWith(':')` check on the emitted code, so it keeps ANY
+ * `//` immediately following a colon, not only in URLs — `case 1:// note` and
+ * `{ key:// note` keep the comment text in `code` (scanned as code, so a quote
+ * glyph in it opens a string literal whose tags are extracted), while
+ * `case 1: // note` (whitespace between) strips the comment; (5) only `\n` is
+ * a line terminator — `\r`, U+2028, and U+2029 do not end a line comment, do
+ * not end an unterminated `'`/`"` string, and do not stop a candidate regex
+ * literal (the `\r` arms are pinned by the `scanSource` tests). A
+ * regex left un-stripped by (1) is harmless unless it carries a quote glyph,
+ * which then opens a phantom string exactly as before this scanner; (2) can
+ * strip a slash-delimited span, string literal included.
  */
 export function scanSource(source: string, options: ScanOptions): ScanResult {
   let code = '';
