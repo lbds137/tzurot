@@ -168,7 +168,7 @@ can carry, traced to what actually reaches z.ai:
 | Authored field                                                    | Carrier                     | On the z.ai-direct path                                                                              |
 | ----------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `temperature`, `top_p`, `max_tokens`                              | first-class `ChatOpenAI`    | passed — z.ai documents all three ✅                                                                   |
-| `frequency_penalty`, `presence_penalty`                           | first-class                 | stripped by `filterRestrictedParams`, AND re-excluded at the constructor ✅                            |
+| `frequency_penalty`, `presence_penalty`                           | first-class                 | stripped by `applyZaiDirectAllowlist`, AND re-excluded at the constructor ✅                            |
 | `top_k`, `repetition_penalty`, `min_p`, `top_a`, `seed`           | `modelKwargs`               | stripped by name ✅                                                                                    |
 | `logit_bias`                                                      | `modelKwargs`               | stripped by name ✅                                                                                    |
 | `response_format`                                                 | `modelKwargs`               | passed — z.ai documents it ✅ (VALUE not yet checked: we emit `text`/`json_object`)                    |
@@ -405,7 +405,7 @@ and pin a test that the two mappings agree. Without it, Zod strip-mode would
   `enabled`) across every tier incl. `tests/e2e`; type fixtures with `satisfies`.
 - **PR B — z.ai translation + allowlist flip. ✅ SHIPPED as #2112 (2026-08-16)** —
   `modelFactory/thinkingTranslation.ts` owns the table; `ZAI_DIRECT_SUPPORTED_PARAMS`
-  allowlist replaces the denylist (glm-4.5-air-via-OpenRouter keeps its own denylist);
+  allowlist replaces the denylist (glm-4.5-air-via-OpenRouter kept its own denylist until TASK-702 retired it);
   `ZAI_PARAM_DISPOSITIONS` + parity test enforce per-key dispositions at compile time
   AND test time. Two polish nits routed to TASK-628 at the review round cap.
   Original scope follows. Step 0: live probe on the dev
