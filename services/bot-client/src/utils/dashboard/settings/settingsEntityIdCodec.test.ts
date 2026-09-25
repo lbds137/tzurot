@@ -6,6 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { generatePersonalityUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { compactEntityId, expandEntityId } from './settingsEntityIdCodec.js';
 import { buildSettingsCustomId, parseSettingsCustomId } from './types.js';
 
@@ -142,5 +143,22 @@ describe('settings customId round-trip per entityId producer', () => {
     expect(compacted).not.toBe(legacy);
     expect(parseSettingsCustomId(compacted)?.entityId).toBe(PERSONALITY_UUID);
     expect(parseSettingsCustomId(legacy)?.entityId).toBe(PERSONALITY_UUID);
+  });
+});
+
+describe('buildSettingsCustomId length guard', () => {
+  it('allows a customId exactly at the cap', () => {
+    const prefix = buildSettingsCustomId('character-settings', 'set', SNOWFLAKE, '');
+    const extra = 'x'.repeat(DISCORD_LIMITS.CUSTOM_ID_MAX_LENGTH - prefix.length);
+    const result = buildSettingsCustomId('character-settings', 'set', SNOWFLAKE, extra);
+    expect(result).toHaveLength(DISCORD_LIMITS.CUSTOM_ID_MAX_LENGTH);
+  });
+
+  it('throws when the joined customId exceeds the cap', () => {
+    const prefix = buildSettingsCustomId('character-settings', 'set', SNOWFLAKE, '');
+    const extra = 'x'.repeat(DISCORD_LIMITS.CUSTOM_ID_MAX_LENGTH - prefix.length + 1);
+    expect(() => buildSettingsCustomId('character-settings', 'set', SNOWFLAKE, extra)).toThrow(
+      'customId for character-settings::set is 101 chars (max 100)'
+    );
   });
 });

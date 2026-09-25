@@ -7,6 +7,7 @@
 
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import type { ConfigOverrideSource } from '@tzurot/common-types/schemas/api/configOverrides';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { compactEntityId, expandEntityId } from './settingsEntityIdCodec.js';
 
 /**
@@ -357,7 +358,8 @@ const SETTINGS_CUSTOM_ID_DELIMITER = '::';
 /**
  * Build a custom ID for settings dashboard interactions. A lowercase UUID
  * entityId is compacted (`compactEntityId`) so the id fits Discord's 100-char
- * customId cap; `parseSettingsCustomId` restores the canonical UUID.
+ * customId cap; `parseSettingsCustomId` restores the canonical UUID. Throws
+ * when the joined id still exceeds `DISCORD_LIMITS.CUSTOM_ID_MAX_LENGTH`.
  */
 export function buildSettingsCustomId(
   entityType: string,
@@ -369,7 +371,14 @@ export function buildSettingsCustomId(
   if (extra !== undefined) {
     parts.push(extra);
   }
-  return parts.join(SETTINGS_CUSTOM_ID_DELIMITER);
+  const customId = parts.join(SETTINGS_CUSTOM_ID_DELIMITER);
+  // Discord rejects a custom id over the cap at send time; failing here names the action.
+  if (customId.length > DISCORD_LIMITS.CUSTOM_ID_MAX_LENGTH) {
+    throw new Error(
+      `customId for ${entityType}${SETTINGS_CUSTOM_ID_DELIMITER}${action} is ${customId.length} chars (max ${DISCORD_LIMITS.CUSTOM_ID_MAX_LENGTH})`
+    );
+  }
+  return customId;
 }
 
 /**
