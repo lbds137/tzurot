@@ -144,8 +144,6 @@ export const KNOWN_NON_PROMPT_TAGS: Record<string, string> = {
   summary: 'The <details> caption in the same export transcript; never emitted to a prompt.',
   digits: 'Doc placeholder in a RateLimitCache error message ("user:<digits>").',
   failed: 'Error-body placeholder string in Mistral voice clients ("<failed to read body...>").',
-  typeof:
-    'Extractor artifact: regex-literal quotes in logSanitizer.ts skew string pairing so a type expression is captured. Not emitted.',
 };
 
 // A structural tag literal INSIDE a string/template — `<tag>`, `</tag>`,
@@ -164,33 +162,266 @@ const TAG_PROPERTY = /\btag\s*:\s*['"]([a-z][a-z0-9_]*)['"]/g;
 // as that positional literal, never as `<tag>` in source. `[^,]+` already spans
 // whitespace, so no adjacent `\s*` (avoids the super-linear-backtracking class).
 const HELPER_TAG_ARG = /addArraySection\([^,]+,[^,]+,\s*['"]([a-z][a-z0-9_]*)['"]/g;
-// String and template literals — their CONTENTS are where emitted tags live.
-const STRING_LITERALS = /`(?:[^`\\]|\\.)*`|'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"/gs;
 
-/** Strip line + block comments so tags mentioned in prose don't count as emitted. */
+/** `code` is the scanned source with comments/regex literals removed and string/template literals copied back in verbatim; `literals` holds each string/template literal (delimiters included) in source order. */
+export interface ScanResult {
+  code: string;
+  literals: string[];
+}
+
+export interface ScanOptions {
+  readonly comments: boolean;
+  readonly regexLiterals: boolean;
+}
+
+// Positions where a following `/` starts an expression (a regex literal)
+// rather than dividing.
+const REGEX_PRECEDERS = new Set('(,=:[!&|?{};\n+-*%<>~^');
+const REGEX_FLAGS = new Set(['g', 'i', 'm', 's', 'u', 'y', 'v', 'd']);
+
+function isIdentChar(ch: string | undefined): boolean {
+  return ch !== undefined && /[A-Za-z0-9_$]/.test(ch);
+}
+
+/**
+ * True when the emitted `code` so far ends (ignoring trailing spaces/tabs) at
+ * start-of-input, one of `REGEX_PRECEDERS`, or the keyword `return` with no
+ * identifier character immediately before it.
+ */
+function precedesRegex(code: string): boolean {
+  let i = code.length;
+  while (i > 0 && (code[i - 1] === ' ' || code[i - 1] === '\t')) {
+    i--;
+  }
+  if (i === 0) {
+    return true;
+  }
+  if (REGEX_PRECEDERS.has(code[i - 1])) {
+    return true;
+  }
+  if (code.endsWith('return', i)) {
+    return !isIdentChar(code[i - 'return'.length - 1]);
+  }
+  return false;
+}
+
+/** `source[i]` is just past a regex literal's closing slash. Returns the index past its flag letters. */
+function skipRegexFlags(source: string, i: number): number {
+  let j = i;
+  while (j < source.length && REGEX_FLAGS.has(source[j])) {
+    j++;
+  }
+  return j;
+}
+
+/**
+ * `source[start]` is `/`. Returns the index just past the closing slash and
+ * its flag letters, or -1 when a newline or end of input comes first (then
+ * the `/` is not a regex literal — division/copy-through applies instead).
+ */
+function skipRegexLiteral(source: string, start: number): number {
+  let i = start + 1;
+  let inClass = false;
+  while (i < source.length) {
+    const ch = source[i];
+    if (ch === '\\') {
+      if (i + 1 >= source.length || source[i + 1] === '\n') {
+        return -1;
+      }
+      i += 2;
+      continue;
+    }
+    if (ch === '\n') {
+      return -1;
+    }
+    if (ch === '[') {
+      inClass = true;
+    } else if (ch === ']') {
+      inClass = false;
+    } else if (ch === '/' && !inClass) {
+      return skipRegexFlags(source, i + 1);
+    }
+    i++;
+  }
+  return -1;
+}
+
+/**
+ * `source[start]` is one of `' " \``. Returns the index just past the
+ * literal (the matching quote is inclusive; end of input is clamped). `\`
+ * escapes the next char, including an escaped newline. For `'`/`"` a raw
+ * newline ends the literal EXCLUSIVE of the newline itself, so it is left for
+ * code state; a template literal has no such cutoff.
+ */
+function readQuotedLiteral(source: string, start: number): number {
+  const quote = source[start];
+  let i = start + 1;
+  while (i < source.length) {
+    const ch = source[i];
+    if (ch === '\\') {
+      i = i + 1 < source.length ? i + 2 : source.length;
+      continue;
+    }
+    if (ch === quote) {
+      return i + 1;
+    }
+    if (ch === '\n' && quote !== '`') {
+      return i;
+    }
+    i++;
+  }
+  return source.length;
+}
+
+interface SlashResult {
+  emit: string;
+  next: number;
+  isRegex: boolean;
+}
+
+/** The after-regex state survives a block comment only when the comment stays on one line; a newline inside it resets the state the way a bare newline does. */
+function afterRegexSurvives(
+  afterRegex: boolean,
+  source: string,
+  from: number,
+  closeIdx: number
+): boolean {
+  return (
+    afterRegex && !source.slice(from, closeIdx === -1 ? source.length : closeIdx).includes('\n')
+  );
+}
+
+/** Classifies `source[i] === '/'` as a comment, a regex literal, or division. */
+function handleSlash(
+  source: string,
+  i: number,
+  code: string,
+  options: ScanOptions,
+  afterRegex: boolean
+): SlashResult {
+  const nextChar = source[i + 1];
+  if (options.comments && nextChar === '/') {
+    if (code.endsWith(':')) {
+      return { emit: '//', next: i + 2, isRegex: false };
+    }
+    const nlIdx = source.indexOf('\n', i);
+    return { emit: '', next: nlIdx === -1 ? source.length : nlIdx, isRegex: afterRegex };
+  }
+  if (options.comments && nextChar === '*') {
+    const closeIdx = source.indexOf('*/', i + 2);
+    return {
+      emit: '',
+      next: closeIdx === -1 ? source.length : closeIdx + 2,
+      isRegex: afterRegexSurvives(afterRegex, source, i, closeIdx),
+    };
+  }
+  if (
+    options.regexLiterals &&
+    nextChar !== '/' &&
+    nextChar !== '*' &&
+    !afterRegex &&
+    precedesRegex(code)
+  ) {
+    const end = skipRegexLiteral(source, i);
+    if (end !== -1) {
+      return { emit: '', next: end, isRegex: true };
+    }
+  }
+  return { emit: '/', next: i + 1, isRegex: false };
+}
+
+/**
+ * Single-pass source scanner: walks `source` by index, tracking whether it is
+ * currently in code, a string, a template literal, or a regex literal, so
+ * string/template content is never read as a comment or regex and a quote
+ * inside a regex literal never opens a string (pinned by the `string-aware
+ * scanning` tests). `code` is the source with comments and regex literals
+ * removed (delimiters and all) and string/template literals copied back in
+ * verbatim; `literals` holds each string/template literal (delimiters
+ * included) in source order.
+ *
+ * A `//` immediately after `:` is kept rather than treated as a comment (URL
+ * parity with the previous comment stripper — `https://x` survives). A `/`
+ * that would start a regex but has no closing slash before a newline or end
+ * of input is kept as division, and a `/` immediately after a just-skipped
+ * regex literal is also division, never a new regex start. A template
+ * literal's `${...}` interpolation is copied verbatim as part of the literal,
+ * with no nesting awareness.
+ *
+ * Same heuristic class as the extractor it feeds, not a real tokenizer.
+ * UNVERIFIED ASSUMPTIONS (known blind spots), evidenced only by the
+ * `analyzePromptTags (real tree)` test in check-prompt-tags.test.ts — assumed
+ * not to occur in the scan roots, not proven: (1) a `/` after any token not
+ * in `REGEX_PRECEDERS` — `)`, an identifier, a keyword other than `return`
+ * (`typeof`, `case`, `throw`, ...) — is read as division even when it starts
+ * a regex; (2) a property named `return` (`obj.return / 2`) is read as a regex
+ * start; (3) a template literal whose `${...}` expression contains a nested
+ * backtick ends early. A regex left un-stripped by (1) is harmless unless it
+ * carries a quote glyph, which then opens a phantom string exactly as before
+ * this scanner; (2) can strip a slash-delimited span, string literal included.
+ */
+export function scanSource(source: string, options: ScanOptions): ScanResult {
+  let code = '';
+  const literals: string[] = [];
+  let afterRegex = false;
+  let i = 0;
+  while (i < source.length) {
+    const ch = source[i];
+    if (ch === "'" || ch === '"' || ch === '`') {
+      const end = readQuotedLiteral(source, i);
+      const lit = source.slice(i, end);
+      literals.push(lit);
+      code += lit;
+      afterRegex = false;
+      i = end;
+      continue;
+    }
+    if (ch === '/') {
+      const result = handleSlash(source, i, code, options, afterRegex);
+      code += result.emit;
+      afterRegex = result.isRegex;
+      i = result.next;
+      continue;
+    }
+    code += ch;
+    if (ch !== ' ' && ch !== '\t') {
+      afterRegex = false;
+    }
+    i++;
+  }
+  return { code, literals };
+}
+
+/** The scanner run in comment-only mode; a quote inside a regex literal still opens a string here — only `scanSource` with both options has the full guarantee. */
 export function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  return scanSource(source, { comments: true, regexLiterals: false }).code;
+}
+
+/** The scanner run in regex-literal-only mode; a quote inside a comment still opens a string here — only `scanSource` with both options has the full guarantee. */
+export function stripRegexLiterals(source: string): string {
+  return scanSource(source, { comments: false, regexLiterals: true }).code;
 }
 
 /**
  * Extract the set of structural tag names emitted by a source file — literal
  * `<tag>`/`<tag${...}>` forms inside string/template literals, data-driven
  * `tag: 'name'` field-definition values, AND section-helper positional tag
- * arguments. Comments are stripped first; scanning inside string literals keeps
- * TypeScript generics out of the result.
+ * arguments. One scanner pass separates code from string/template literals,
+ * skipping comments and regex literals along the way; scanning inside string
+ * literals keeps TypeScript generics out of the result.
  */
 export function extractStructuralTags(source: string): Set<string> {
-  const stripped = stripComments(source);
+  const { code, literals } = scanSource(source, { comments: true, regexLiterals: true });
   const tags = new Set<string>();
-  for (const literal of stripped.match(STRING_LITERALS) ?? []) {
+  for (const literal of literals) {
     for (const match of literal.matchAll(TSX_TAG)) {
       tags.add(match[1]);
     }
   }
-  for (const match of stripped.matchAll(TAG_PROPERTY)) {
+  for (const match of code.matchAll(TAG_PROPERTY)) {
     tags.add(match[1]);
   }
-  for (const match of stripped.matchAll(HELPER_TAG_ARG)) {
+  for (const match of code.matchAll(HELPER_TAG_ARG)) {
     tags.add(match[1]);
   }
   return tags;

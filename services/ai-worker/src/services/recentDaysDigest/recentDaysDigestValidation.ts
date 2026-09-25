@@ -21,18 +21,9 @@ export { hasFirstPerson, findFirstPersonToken };
 
 export type DigestLengthState = 'within_soft' | 'over_soft' | 'overflow';
 
-// Punctuation stripped before n-gram comparison, built from character codes
-// rather than as quote glyphs sitting in a regex character class:
-// guard:prompt-tags' string-literal scanner is a plain quote-pairing regex,
-// not a real tokenizer, and a literal straight quote in a `/[...]/` class
-// reads to it as an opening string that then hunts for a close quote through
-// unrelated code below. Codes: apostrophe, quotation mark, left/right single
-// quotation marks, left/right double quotation marks.
-const PUNCTUATION_CODES = [39, 34, 8216, 8217, 8220, 8221];
-const PUNCTUATION_REGEX = new RegExp(
-  `[${PUNCTUATION_CODES.map(code => String.fromCharCode(code)).join('')}.,!?;:()]`,
-  'g'
-);
+// Punctuation stripped before n-gram comparison: straight and curly quotes,
+// sentence punctuation, and parentheses.
+const PUNCTUATION_REGEX = /['"‘’“”.,!?;:()]/g;
 
 /** Lowercase, strip punctuation, split on whitespace — the same normalization
  *  on both the digest and the source content, so a quoted run survives case
