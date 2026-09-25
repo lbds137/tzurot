@@ -23,7 +23,7 @@ _(2026-09-21: the vxreddit Components-V2 entry REMOVED — fix #2461 verified on
 
 
 
-### 🚢 Next Release — beta.231 (theme: doc-97 Phase 4 slice 2 if the TASK-1039 second read moves the register; otherwise the drain)
+### 🚢 Next Release — beta.231 (theme: the drain; the TASK-1039 second read on 2026-09-25 did not move the register, so doc-97 Phase 4 slice 2 is out)
 
 _beta.230 CUT 2026-09-25 15:05Z (11:05 EDT). **The numbers:** 29 PRs, 19 runtime, 247 files, 117 commits, no migrations; release PR #2535; `main` = `develop` = `af26f53d7`. **How it merged:** the first CI run failed the always-loaded line budget (CURRENT.md at 123 lines), fixed by trimming shipped history; `gh pr merge --rebase` refused ("This branch can't be rebased"), so the documented fast-forward, finalize a no-op. **Contents:** the doc-72 dashboard index and resets (#2507, #2509), the custom-id family core (#2520, #2526), the message-render fixes (#2528, #2529, #2530), voice-engine on Python 3.13 (#2505). **The second look:** two claude-review bodies on the release PR, no blocking findings; the one observation (no structural length guard in the settings custom-id builder) is a tracker task. **Owner rulings at the cut:** cut now, slice 2 to beta.231 regardless of the read, #2534 does not ride. **Deploy:** bot-client and voice-engine boots clean 15:06–15:08Z, 0 error lines in 20 min; `hook-posix-parse` re-added to the main ruleset (13 required checks, guard clean)._
 
@@ -35,7 +35,7 @@ _beta.230 CUT 2026-09-25 15:05Z (11:05 EDT). **The numbers:** 29 PRs, 19 runtime
   - the owner clears sessions with `/clear`, so every handoff lives on disk.
 - **In**: #2534 (TASK-979, the compact deferred-refs reminder the hooks print; two rounds, `20c33ce8c`) · #2536 (the `.github/rulesets/branch-protection.json` snapshot refresh for the `hook-posix-parse` re-add plus the README counts; two rounds, `14c276f5c`) · #2538 (TASK-1102, `buildSettingsCustomId` throws past Discord's custom-id cap; one round, `306e6d5eb`) · #2537 (TASK-1002, `guard:prompt-tags` scans source with one string-aware scanner, both workarounds removed; six rounds at the cap, the round-6 edges are TASK-1107; `beaf5f123`).
 - **Waiting on**:
-  1. **The TASK-1039 second read** at N=3 on Emily and Lilith (owner ruling 2026-09-24; set by the owner). Slice 2 (the measured default for N, the override cascade, the facts-vocabulary slice) waits on it. If the read does not move the register, slice 2 is not in this train either and the theme collapses to the drain.
+  1. ~~The TASK-1039 second read at N=3~~ DONE 2026-09-25: engagement confirmed on prod (summarized 1..10 across the 09-24 thread at N=3), register unmoved (Emily 1186 chars / 0.00 excl per 1k under the mode vs 874 / 0.25 on the OFF thread; fresh-thread baseline 241 / 4.1). Slice 2 is out of this train. Owner call pending: N back to 10 on Emily and Lilith (recommended). Numbers on TASK-1039.
   2. **TASK-1070's dev check** (owner smoke, `CURRENT.md` § beta.230 item 1): one TTS reply and one no-key transcription in dev on the Python 3.13 voice-engine. Not a cut blocker; it closes the task.
   3. **The doc-61 economy pass**, due 2026-10-02.
 - **Watches (agent-run, no owner action)**:
@@ -49,7 +49,7 @@ _beta.230 CUT 2026-09-25 15:05Z (11:05 EDT). **The numbers:** 29 PRs, 19 runtime
   - `hook-posix-parse` is a main-required check from 2026-09-25; any rename of that job is the two-step change in `.github/rulesets/README.md`.
   - Keep ranges small enough for a normal `gh pr merge --rebase`: beta.229 (166 commits) and beta.230 (117 commits) both needed the fast-forward fallback, so the threshold is below 117 commits, not the ~200 the skill cites. The always-loaded line budget on `CURRENT.md` is checked by CI's lint job on the release PR but NOT by a code-bearing pre-push (TASK-1101 is the classifier gap); run `pnpm ops lines:check` before opening the release PR.
   - The digest sweep on prod runs only for the listed pairs (spend ceiling = listed pairs × ≤12/day, D8) — TASK-1038's promotion widens that list automatically, so its spend line is part of its spec; retention is live and autonomous from beta.222 (kill switch: `RETENTION_AUTORUN_ENABLED=false` on bot-client); the reminder DM (beta.223) forms its first prod cohort on or after 2026-10-04. Prod ops writes under auto mode: `release:premigrate` and `db:safe-migrate` are `autoMode.soft_deny` at user scope by design; `release:premigrate` also carries a `permissions.ask` rule, so it prompts (forwarded to the phone) instead of reaching the classifier.
-- **Cut when**: doc-97 Phase 4 slice 2 is merged, if the TASK-1039 second read moves the register. If the read does not move it, the train is a drain train and cuts on the standing backstops (~10 runtime PRs and ~250 files); `release:range` reads 0 PRs at the write.
+- **Cut when**: a drain train (the TASK-1039 read did not move the register): cuts on the standing backstops (~10 runtime PRs and ~250 files); `release:range` at the 2026-09-25 read: 4 PRs, 2 runtime, 28 files; #2539 open.
 - **🗺️ Horizon (rolling three releases, re-touched at every cut)**:
   - **beta.231**: this block.
   - **beta.232**:
