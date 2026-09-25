@@ -5,19 +5,42 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MessageType } from 'discord.js';
+import { MessageType, TextChannel } from 'discord.js';
 import { MessageHandler } from './MessageHandler.js';
 import { BotMessageFilter } from '../processors/BotMessageFilter.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import type { Message } from 'discord.js';
 import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
-import type { DiscordResponseSender } from '../services/DiscordResponseSender.js';
+// Value import (not type-only): the wiring test below constructs a REAL
+// DiscordResponseSender instance; every other usage in this file still only
+// needs the type, which a value import also satisfies.
+import { DiscordResponseSender } from '../services/DiscordResponseSender.js';
 import type { ConversationPersistence } from '../services/ConversationPersistence.js';
 import type { JobTracker } from '../services/JobTracker.js';
 import type { SlotDeliveryService } from '../services/SlotDeliveryService.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { MultiTagCoordinator } from '../services/MultiTagCoordinator.js';
 import type { MaintenanceFlag } from '@tzurot/common-types/services/MaintenanceFlag';
+import { PartialDeliveryError } from '../services/partialDelivery.js';
+import { stripErrorSpoiler } from '@tzurot/common-types/constants/error';
+import type { WebhookManager } from '../utils/WebhookManager.js';
+
+// Only needed for the wiring test's REAL DiscordResponseSender — every other
+// test in this file mocks `responseSender` directly and never imports the
+// module that pulls these in.
+vi.mock('../redis.js', () => ({
+  redisService: {
+    storeWebhookMessage: vi.fn().mockResolvedValue(undefined),
+    getWebhookPersonality: vi.fn(),
+    getTTSAudio: vi.fn().mockResolvedValue(null),
+    checkHealth: vi.fn(),
+    close: vi.fn(),
+  },
+}));
+
+vi.mock('../utils/retentionGatewayCalls.js', () => ({
+  reportPersonaDmUndeliverable: vi.fn(),
+}));
 
 // confirmDelivery + updateDiagnosticResponseIds moved off GatewayClient to the
 // gatewayServiceCalls module; route them to a holder so the existing
@@ -80,6 +103,7 @@ const mockJobTracker = {
 const mockSlotDelivery = {
   deliverSuccess: vi.fn(),
   deliverError: vi.fn(),
+  deliverErrorAfterPartial: vi.fn(),
 };
 
 // Multi-tag coordinator — default to "not owning" any job and "not stale" so
@@ -160,6 +184,7 @@ describe('MessageHandler', () => {
     // implementation per-test.)
     mockSlotDelivery.deliverSuccess.mockResolvedValue({ chunkMessageIds: ['m1', 'm2'] });
     mockSlotDelivery.deliverError.mockResolvedValue(undefined);
+    mockSlotDelivery.deliverErrorAfterPartial.mockResolvedValue(undefined);
   });
 
   describe('handleMessage - Chain of Responsibility', () => {
@@ -947,6 +972,55 @@ describe('MessageHandler', () => {
           channel: mockContext.channel,
         })
       );
+    });
+
+    it('routes a PartialDeliveryError from deliverSuccess through deliverErrorAfterPartial, not deliverError', async () => {
+      const jobId = 'job-partial';
+      const result = {
+        requestId: 'req-partial',
+        success: true,
+        content: 'Content',
+      };
+
+      const mockMessage = {
+        id: 'msg-partial',
+        reply: vi.fn().mockResolvedValue({ id: 'reply-partial' }),
+      } as unknown as Message;
+
+      const mockPersonality = { id: 'p-1', name: 'Bot' };
+
+      const mockContext = {
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-1',
+        userMessageContent: 'Message',
+        userMessageTime: new Date(),
+      };
+
+      const partial = new PartialDeliveryError({
+        chunkMessageIds: ['id-1'],
+        deliveredContent: 'delivered text',
+        totalChunks: 2,
+        cause: new Error('boom'),
+      });
+
+      mockJobTracker.getContext.mockReturnValue(mockContext);
+      mockSlotDelivery.deliverSuccess.mockRejectedValue(partial);
+
+      const disposition = await messageHandler.handleJobResult(jobId, result);
+
+      expect(disposition).toBe('delivered');
+      expect(mockSlotDelivery.deliverErrorAfterPartial).toHaveBeenCalledWith(
+        partial,
+        expect.any(String),
+        expect.objectContaining({ success: true, content: 'Content' }),
+        expect.objectContaining({ personality: mockPersonality, channel: mockContext.channel })
+      );
+      expect(mockSlotDelivery.deliverError).not.toHaveBeenCalled();
     });
 
     it('should handle chunked messages correctly', async () => {
@@ -1863,6 +1937,93 @@ describe('MessageHandler', () => {
       expect(ctx.channel.send).not.toHaveBeenCalled();
     });
 
+    it('composes delivered text + error notice into one row when the success send partially failed and the error notice succeeds', async () => {
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      const partial = new PartialDeliveryError({
+        chunkMessageIds: ['id-1'],
+        deliveredContent: 'delivered text',
+        totalChunks: 2,
+        cause: new Error('boom'),
+      });
+      mockResponseSender.sendResponse
+        .mockRejectedValueOnce(partial)
+        .mockResolvedValueOnce({ chunkMessageIds: ['err-1'] });
+
+      const disposition = await messageHandler.handleJobResult('job-slash-partial-ok', {
+        requestId: 'req-slash',
+        success: true,
+        content: 'Hi',
+      } as unknown as LLMGenerationResult);
+
+      expect(disposition).toBe('delivered');
+      const sentErrorContent = mockResponseSender.sendResponse.mock.calls[1][0].content as string;
+      const strippedError = stripErrorSpoiler(sentErrorContent);
+      expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledTimes(1);
+      expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'delivered text\n' + strippedError,
+          chunkMessageIds: ['id-1', 'err-1'],
+        })
+      );
+    });
+
+    it('persists only the delivered text when the success send partially failed and the error notice also fails', async () => {
+      const channelSend = vi.fn().mockResolvedValue({ id: 'fb-partial' });
+      const ctx = createSlashContext({
+        channel: { id: 'channel-slash', send: channelSend } as any,
+      });
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      const partial = new PartialDeliveryError({
+        chunkMessageIds: ['id-1'],
+        deliveredContent: 'delivered text',
+        totalChunks: 2,
+        cause: new Error('boom'),
+      });
+      mockResponseSender.sendResponse
+        .mockRejectedValueOnce(partial)
+        .mockRejectedValueOnce(new Error('error notice also failed'));
+
+      const disposition = await messageHandler.handleJobResult('job-slash-partial-fail', {
+        requestId: 'req-slash',
+        success: true,
+        content: 'Hi',
+      } as unknown as LLMGenerationResult);
+
+      expect(disposition).toBe('delivered');
+      expect(channelSend).toHaveBeenCalledTimes(1);
+      expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledTimes(1);
+      expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledWith(
+        expect.objectContaining({ content: 'delivered text', chunkMessageIds: ['id-1'] })
+      );
+    });
+
+    it('persists the partial delivered text alone in weigh-in mode, even though the error text stays out', async () => {
+      const ctx = createSlashContext({ isWeighInMode: true });
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      const partial = new PartialDeliveryError({
+        chunkMessageIds: ['id-1'],
+        deliveredContent: 'delivered text',
+        totalChunks: 2,
+        cause: new Error('boom'),
+      });
+      mockResponseSender.sendResponse
+        .mockRejectedValueOnce(partial)
+        .mockResolvedValueOnce({ chunkMessageIds: ['err-1'] });
+
+      const disposition = await messageHandler.handleJobResult('job-slash-partial-weighin', {
+        requestId: 'req-slash',
+        success: true,
+        content: 'Hi',
+      } as unknown as LLMGenerationResult);
+
+      expect(disposition).toBe('delivered');
+      expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledTimes(1);
+      expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledWith(
+        expect.objectContaining({ content: 'delivered text', chunkMessageIds: ['id-1'] })
+      );
+    });
+
     it('routes null content (success=true, content=null) through the error path', async () => {
       // sendSlashErrorResponse still persists even on the error path, so we can't use
       // saveAssistantMessageFromFields as a proxy for "took the error path" here.
@@ -1902,6 +2063,57 @@ describe('MessageHandler', () => {
       expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
         expect.objectContaining({ fallbackFromProvider: 'zai-coding' })
       );
+    });
+
+    describe('wiring: real DiscordResponseSender crosses the PartialDeliveryError seam', () => {
+      it('wiring: a mid-stream success-send failure persists delivered text + error notice in one row', async () => {
+        const mockWebhookManager = {
+          sendAsPersonality: vi
+            .fn()
+            .mockResolvedValueOnce({ id: 'id-1' })
+            .mockRejectedValueOnce(new Error('webhook 500'))
+            .mockResolvedValueOnce({ id: 'err-1' }),
+        };
+        const realSender = new DiscordResponseSender(
+          mockWebhookManager as unknown as WebhookManager
+        );
+        const wiringHandler = new MessageHandler({
+          processors: [mockProcessor1, mockProcessor2, mockProcessor3],
+          responseSender: realSender,
+          persistence: mockPersistence as unknown as ConversationPersistence,
+          jobTracker: mockJobTracker as unknown as JobTracker,
+          slotDelivery: mockSlotDelivery as unknown as SlotDeliveryService,
+          coordinator: mockCoordinator as unknown as MultiTagCoordinator,
+          personalityService: mockPersonalityService as unknown as IPersonalityLoader,
+          client: mockClient as unknown as import('discord.js').Client,
+          maintenanceFlag: mockMaintenanceFlag as unknown as MaintenanceFlag,
+        });
+
+        const channel = Object.create(TextChannel.prototype);
+        channel.id = 'channel-wire-1';
+        const ctx = createSlashContext({
+          channel: channel as any,
+          guildId: 'guild-wire-1',
+        });
+        mockJobTracker.getContext.mockReturnValue(ctx);
+
+        // Word-based, no punctuation: the REAL splitMessage word-wraps this
+        // into exactly 2 chunks under the 2000-char cap.
+        const content = 'word '.repeat(450).trim();
+
+        const disposition = await wiringHandler.handleJobResult('job-slash-wiring', {
+          requestId: 'req-slash-wiring',
+          success: true,
+          content,
+        } as unknown as LLMGenerationResult);
+
+        expect(disposition).toBe('delivered');
+        expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledTimes(3);
+        expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledTimes(1);
+        expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledWith(
+          expect.objectContaining({ chunkMessageIds: ['id-1', 'err-1'] })
+        );
+      });
     });
   });
 });

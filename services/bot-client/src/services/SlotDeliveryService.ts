@@ -18,6 +18,11 @@
  *
  * Error path is parallel: send the error content, persist a stripped version,
  * update diagnostics. On webhook failure, fall back to a direct message.reply.
+ * A `deliverSuccess` that throws a `PartialDeliveryError` (chunk N>1 failed
+ * after N-1 delivered) is NOT handled here — the caller's error path
+ * (`deliverErrorAfterPartial`, or `persistPartialDelivery` for a caller that
+ * sends no error notice) composes the turn's single row from the delivered
+ * chunks plus whatever the error path adds.
  */
 
 import type { Message } from 'discord.js';
@@ -29,6 +34,11 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DiscordResponseSender } from './DiscordResponseSender.js';
 import type { ConversationPersistence } from './ConversationPersistence.js';
 import { updateDiagnosticResponseIds } from '../utils/gatewayServiceCalls.js';
+import {
+  settleErrorPathTurn,
+  type PartialDeliveryError,
+  type PersistableTurn,
+} from './partialDelivery.js';
 import {
   buildErrorResultMetadataPassthrough,
   buildResultMetadataPassthrough,
@@ -107,6 +117,12 @@ export class SlotDeliveryService {
    * "content is a non-empty string"). Callers must fork to `deliverError`
    * when content is missing/empty. Direct tests exercise the throw (see
    * `SlotDeliveryService.test.ts`).
+   *
+   * A mid-stream send failure after at least one chunk was already delivered
+   * throws `PartialDeliveryError` WITHOUT persisting anything here — the
+   * caller's error path (`deliverErrorAfterPartial`, or `persistPartialDelivery`
+   * via `multiTagDeliveryFlow`'s catch) writes the turn's single row. Pinned by
+   * the sequencing test in `SlotDeliveryService.test.ts`.
    *
    * @throws Error if `result.content` is empty, null, undefined, or non-string.
    */
@@ -210,31 +226,86 @@ export class SlotDeliveryService {
     result: LLMGenerationResult,
     slot: SlotDeliveryContext
   ): Promise<void> {
-    const chunkMessageIds = await this.sendErrorViaWebhook(errorContent, result, slot);
-    if (chunkMessageIds === null) {
-      // Webhook failed and the reply-fallback already ran (or also failed).
-      return;
-    }
+    await this.deliverErrorTurn(errorContent, result, slot, undefined);
+  }
 
-    // Webhook succeeded — persistence/diagnostic failures from here are
-    // logged but MUST NOT trigger the reply fallback (would double-send).
-    try {
-      await this.persistence.saveAssistantMessage({
-        message: slot.message,
-        personality: slot.personality,
-        personaId: slot.personaId,
-        content: stripErrorSpoiler(errorContent),
-        chunkMessageIds,
-        userMessageTime: slot.userMessageTime,
-      });
-    } catch (persistError) {
-      logger.error(
-        { err: persistError, personalityId: slot.personality.id },
-        'Failed to persist error message to conversation history (webhook already sent)'
-      );
-    }
+  /**
+   * Deliver an error response after `deliverSuccess` threw a
+   * `PartialDeliveryError` (a mid-stream send failure delivered at least one
+   * chunk before failing). The error notice is sent once, exactly like
+   * `deliverError`, but the persisted row carries BOTH the delivered text and
+   * the error text — the turn's single conversation-history row — rather than
+   * the error text alone. When the error-notice send itself fails too, only
+   * the delivered text is persisted.
+   */
+  async deliverErrorAfterPartial(
+    partial: PartialDeliveryError,
+    errorContent: string,
+    result: LLMGenerationResult,
+    slot: SlotDeliveryContext
+  ): Promise<void> {
+    await this.deliverErrorTurn(errorContent, result, slot, partial);
+  }
 
-    this.updateErrorDiagnostics(result, chunkMessageIds);
+  /**
+   * Shared error-turn delivery for `deliverError` and `deliverErrorAfterPartial`:
+   * sends the error notice via webhook (reply-fallback on send failure, same
+   * as before), then composes and persists the turn's single row —
+   * `partial`'s delivered chunks plus the error notice, or the error notice
+   * alone when there is no partial. Persistence and diagnostic-update
+   * failures are logged but never trigger the reply fallback (would
+   * double-send); `settleErrorPathTurn` itself never throws.
+   */
+  private async deliverErrorTurn(
+    errorContent: string,
+    result: LLMGenerationResult,
+    slot: SlotDeliveryContext,
+    partial: PartialDeliveryError | undefined
+  ): Promise<void> {
+    const errorIds = await this.sendErrorViaWebhook(errorContent, result, slot);
+    await settleErrorPathTurn({
+      partial,
+      errorTurn:
+        errorIds === null
+          ? null
+          : { content: stripErrorSpoiler(errorContent), chunkMessageIds: errorIds },
+      persistErrorText: true,
+      save: turn => this.saveTurn(slot, turn),
+      requestId: result.requestId,
+      logContext: { personalityId: slot.personality.id },
+    });
+  }
+
+  /**
+   * Persist a `PartialDeliveryError`'s delivered chunks alone, for a caller
+   * whose catch sends no error notice (the multi-tag delivery flow's
+   * per-slot catch — `deliverSuccess` threw and nothing else runs). Never
+   * throws, so a persist failure here can't stop a sibling slot's delivery.
+   */
+  async persistPartialDelivery(
+    partial: PartialDeliveryError,
+    result: LLMGenerationResult,
+    slot: SlotDeliveryContext
+  ): Promise<void> {
+    await settleErrorPathTurn({
+      partial,
+      errorTurn: null,
+      persistErrorText: true,
+      save: turn => this.saveTurn(slot, turn),
+      requestId: result.requestId,
+      logContext: { personalityId: slot.personality.id },
+    });
+  }
+
+  /** Shared `saveAssistantMessage` mapping for both error-turn save sites. */
+  private saveTurn(slot: SlotDeliveryContext, turn: PersistableTurn): Promise<void> {
+    return this.persistence.saveAssistantMessage({
+      message: slot.message,
+      personality: slot.personality,
+      personaId: slot.personaId,
+      userMessageTime: slot.userMessageTime,
+      ...turn,
+    });
   }
 
   /**
@@ -291,14 +362,6 @@ export class SlotDeliveryService {
         // Already logged the webhook error; ignore reply failure to avoid noise.
       });
       return null;
-    }
-  }
-
-  private updateErrorDiagnostics(result: LLMGenerationResult, chunkMessageIds: string[]): void {
-    if (chunkMessageIds.length > 0) {
-      void updateDiagnosticResponseIds(result.requestId, chunkMessageIds).catch(err => {
-        logger.warn({ err }, 'Failed to update diagnostic response IDs for error');
-      });
     }
   }
 }

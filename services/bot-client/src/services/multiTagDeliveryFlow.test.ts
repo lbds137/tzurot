@@ -8,6 +8,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Message } from 'discord.js';
+import { TextChannel } from 'discord.js';
 import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
 import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -20,10 +21,39 @@ import {
 import type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
 import { confirmDelivery, setDmSessionPersonality } from '../utils/gatewayServiceCalls.js';
 import { reportJobError } from '../observability/ErrorChannelReporter.js';
+import { PartialDeliveryError } from './partialDelivery.js';
+// Wiring test only: real SlotDeliveryService wrapping a real
+// DiscordResponseSender, to cross the PartialDeliveryError seam the mocked
+// `slotDelivery` in every other test in this file can't observe.
+import { SlotDeliveryService } from './SlotDeliveryService.js';
+import { DiscordResponseSender } from './DiscordResponseSender.js';
+import type { ConversationPersistence } from './ConversationPersistence.js';
+import type { WebhookManager } from '../utils/WebhookManager.js';
 
 vi.mock('../utils/gatewayServiceCalls.js', () => ({
   confirmDelivery: vi.fn(),
   setDmSessionPersonality: vi.fn(),
+  // Needed by the real `partialDelivery.ts` module the wiring test pulls in
+  // transitively (via the real SlotDeliveryService) — every other test here
+  // mocks `slotDelivery` directly and never reaches this seam.
+  updateDiagnosticResponseIds: vi.fn().mockResolvedValue(undefined),
+}));
+
+// Only needed for the wiring test's REAL DiscordResponseSender — every other
+// test in this file mocks `slotDelivery` directly and never imports the
+// module that pulls these in.
+vi.mock('../redis.js', () => ({
+  redisService: {
+    storeWebhookMessage: vi.fn().mockResolvedValue(undefined),
+    getWebhookPersonality: vi.fn(),
+    getTTSAudio: vi.fn().mockResolvedValue(null),
+    checkHealth: vi.fn(),
+    close: vi.fn(),
+  },
+}));
+
+vi.mock('../utils/retentionGatewayCalls.js', () => ({
+  reportPersonaDmUndeliverable: vi.fn(),
 }));
 
 vi.mock('../observability/ErrorChannelReporter.js', () => {
@@ -113,6 +143,7 @@ describe('deliverGroup', () => {
   let slotDelivery: {
     deliverSuccess: ReturnType<typeof vi.fn>;
     deliverError: ReturnType<typeof vi.fn>;
+    persistPartialDelivery: ReturnType<typeof vi.fn>;
   };
   let persistence: {
     deleteEntry: ReturnType<typeof vi.fn>;
@@ -127,6 +158,7 @@ describe('deliverGroup', () => {
     slotDelivery = {
       deliverSuccess: vi.fn().mockResolvedValue({ chunkMessageIds: ['m1'] }),
       deliverError: vi.fn().mockResolvedValue(undefined),
+      persistPartialDelivery: vi.fn().mockResolvedValue(undefined),
     };
     persistence = {
       deleteEntry: vi.fn().mockResolvedValue(undefined),
@@ -482,6 +514,49 @@ describe('deliverGroup', () => {
     expect(vi.mocked(confirmDelivery)).toHaveBeenCalledWith('job-Bob');
   });
 
+  it("persists a PartialDeliveryError's delivered chunks alone and still delivers the sibling slot", async () => {
+    const partial = new PartialDeliveryError({
+      chunkMessageIds: ['id-1'],
+      deliveredContent: 'delivered text',
+      totalChunks: 2,
+      cause: new Error('boom'),
+    });
+    slotDelivery.deliverSuccess
+      .mockRejectedValueOnce(partial)
+      .mockResolvedValueOnce({ chunkMessageIds: ['m2'] });
+
+    const entry = buildEntry({
+      slots: [
+        buildSlot('Alice', { slotIndex: 0, jobId: 'job-Alice' }),
+        buildSlot('Bob', { slotIndex: 1, jobId: 'job-Bob' }),
+      ],
+    });
+
+    await deliverGroup(entry, deps);
+
+    expect(slotDelivery.persistPartialDelivery).toHaveBeenCalledTimes(1);
+    expect(slotDelivery.persistPartialDelivery).toHaveBeenCalledWith(
+      partial,
+      entry.slots[0].result,
+      expect.objectContaining({ personality: entry.slots[0].personality })
+    );
+    expect(persistence.markSlotDelivered).toHaveBeenCalledWith('job-Alice');
+    // Bob's slot still delivers despite Alice's partial-delivery failure.
+    expect(slotDelivery.deliverSuccess).toHaveBeenCalledTimes(2);
+    expect(persistence.markSlotDelivered).toHaveBeenCalledWith('job-Bob');
+  });
+
+  it('does NOT call persistPartialDelivery for a plain Error thrown by deliverSuccess', async () => {
+    slotDelivery.deliverSuccess.mockRejectedValueOnce(new Error('plain failure'));
+    const entry = buildEntry({
+      slots: [buildSlot('Alice', { slotIndex: 0, jobId: 'job-Alice' })],
+    });
+
+    await deliverGroup(entry, deps);
+
+    expect(slotDelivery.persistPartialDelivery).not.toHaveBeenCalled();
+  });
+
   it('appends a truncation notice when entry.truncated is true', async () => {
     const entry = buildEntry({ truncated: true, maxTags: MULTI_TAG.MAX_TAGS });
 
@@ -584,6 +659,54 @@ describe('deliverGroup', () => {
     // Confirmation cleanup still ran despite the failed notice
     expect(vi.mocked(confirmDelivery)).toHaveBeenCalled();
     expect(persistence.deleteEntry).toHaveBeenCalled();
+  });
+
+  describe('wiring: real SlotDeliveryService + real DiscordResponseSender', () => {
+    it('wiring: a mid-stream send failure persists the delivered chunk via persistPartialDelivery, through the real chain', async () => {
+      const mockWebhookManager = {
+        sendAsPersonality: vi
+          .fn()
+          .mockResolvedValueOnce({ id: 'id-1' })
+          .mockRejectedValueOnce(new Error('webhook 500')),
+      };
+      const realSender = new DiscordResponseSender(mockWebhookManager as unknown as WebhookManager);
+      const realPersistence = { saveAssistantMessage: vi.fn().mockResolvedValue(undefined) };
+      const realSlotDelivery = new SlotDeliveryService({
+        responseSender: realSender,
+        persistence: realPersistence as unknown as ConversationPersistence,
+      });
+
+      const channel = Object.create(TextChannel.prototype);
+      channel.id = 'channel-wire-1';
+
+      // Word-based, no punctuation: the REAL splitMessage word-wraps this into
+      // exactly 2 chunks under the 2000-char cap.
+      const content = 'word '.repeat(450).trim();
+      const entry = buildEntry({
+        channel: channel as unknown as TypingChannel,
+        guildId: 'guild-wire-1',
+        slots: [
+          buildSlot('Alice', {
+            slotIndex: 0,
+            jobId: 'job-Alice',
+            result: { requestId: 'req-Alice', success: true, content } as LLMGenerationResult,
+          }),
+        ],
+      });
+
+      const wiringDeps: DeliveryFlowDeps = {
+        slotDelivery: realSlotDelivery,
+        persistence: persistence as unknown as DeliveryFlowDeps['persistence'],
+      };
+
+      await deliverGroup(entry, wiringDeps);
+
+      expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledTimes(2);
+      expect(realPersistence.saveAssistantMessage).toHaveBeenCalledTimes(1);
+      expect(realPersistence.saveAssistantMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ chunkMessageIds: ['id-1'] })
+      );
+    });
   });
 });
 

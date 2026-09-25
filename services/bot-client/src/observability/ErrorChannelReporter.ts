@@ -24,6 +24,7 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { sha256Hex } from '@tzurot/common-types/utils/sha256Hex';
 import { postOwnerChannelEmbed } from '../utils/ownerChannel.js';
 import { cappedInlineField } from '../utils/embedLimits.js';
+import { PartialDeliveryError } from '../services/partialDelivery.js';
 
 const logger = createLogger('ErrorChannelReporter');
 
@@ -496,6 +497,19 @@ export function reportError(report: ErrorReport): void {
  * throw where the job never reached the queue (PersonalityMessageHandler's
  * DM-session catch). Passing the real error lets the reporter hash its stack
  * frames for dedup, unlike the category-keyed reportJobError below.
+ *
+ * Stack frames for the dedup hash come from the error's `cause` only for a
+ * {@link PartialDeliveryError}, and only when that cause is an Error, because
+ * that wrapper has a single constructor site, `toSendFailure` (grep
+ * `new PartialDeliveryError` outside tests), so its own stack would hash
+ * every underlying failure into one bucket. Any other error
+ * keeps its own frames even when it carries a `cause`, because its outer
+ * stack names the call site that failed (a generic network error's cause
+ * would otherwise merge unrelated call sites into one bucket). The error
+ * code still names the outer error. Pinned by "hashes the cause's frames but
+ * names the outer error", "uses the error's own frames when it has no
+ * cause", and "keeps a non-partial error's own frames even when it has a
+ * cause" in `ErrorChannelReporter.test.ts`.
  */
 export function reportDeliveryFailure(
   error: unknown,
@@ -503,6 +517,8 @@ export function reportDeliveryFailure(
   personalityName: string | undefined
 ): void {
   const name = error instanceof Error ? error.constructor.name : 'UnknownError';
+  const frameSource =
+    error instanceof PartialDeliveryError && error.cause instanceof Error ? error.cause : error;
   reportError({
     source: 'job',
     errorCode: name,
@@ -512,7 +528,7 @@ export function reportDeliveryFailure(
     // fallback-rescued success, so the Model field is `metadata.modelUsed`
     // rather than a swap chain.
     ...deriveDiagnosticFields(result, false),
-    error,
+    error: frameSource,
   });
 }
 

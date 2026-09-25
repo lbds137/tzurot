@@ -37,6 +37,7 @@ import type { SlotDeliveryService } from '../services/SlotDeliveryService.js';
 import type { MultiTagCoordinator } from '../services/MultiTagCoordinator.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { messageJobContextToSlotContext } from './messageJobContextToSlotContext.js';
+import { PartialDeliveryError, settleErrorPathTurn } from '../services/partialDelivery.js';
 
 /** Notice prepended to a late-recovered reply so the user knows why it's late. */
 const LATE_RECOVERY_NOTICE = '-# ⏰ This reply took longer than expected to generate.\n\n';
@@ -414,7 +415,14 @@ export class MessageHandler {
     } catch (error) {
       logger.error({ err: error, jobId }, 'Error handling job result');
       reportDeliveryFailure(error, result, jobContext.personality.name);
-      await this.slotDelivery.deliverError(buildErrorContent(result), result, slotContext);
+      const errorContent = buildErrorContent(result);
+      // A mid-stream send failure carries a PartialDeliveryError with the
+      // chunks already on Discord — route it through the partial-aware
+      // error path so the turn's single persisted row includes them, rather
+      // than losing the delivered text under the 3-arg `deliverError` path.
+      await (error instanceof PartialDeliveryError
+        ? this.slotDelivery.deliverErrorAfterPartial(error, errorContent, result, slotContext)
+        : this.slotDelivery.deliverError(errorContent, result, slotContext));
     }
   }
 
@@ -527,7 +535,13 @@ export class MessageHandler {
     } catch (error) {
       logger.error({ err: error, jobId }, 'Error handling slash job result');
       reportDeliveryFailure(error, result, jobContext.personality.name);
-      await this.sendSlashErrorResponse(jobId, buildErrorContent(result), result, jobContext);
+      await this.sendSlashErrorResponse(
+        jobId,
+        buildErrorContent(result),
+        result,
+        jobContext,
+        error
+      );
     }
   }
 
@@ -536,62 +550,32 @@ export class MessageHandler {
    * reply was already finalized when the job was submitted, so the only
    * delivery surface is `channel.send` (or the response sender for
    * webhook/DM-aware delivery with the error embed shape).
+   *
+   * `cause` is the error that sent `handleSlashJobResult` here — when it's a
+   * `PartialDeliveryError` (the success send delivered chunks before
+   * failing), its delivered text rides into the turn's single persisted row
+   * alongside the error notice, via `settleErrorPathTurn`.
    */
   private async sendSlashErrorResponse(
     jobId: string,
     errorContent: string,
     result: LLMGenerationResult,
-    jobContext: SlashJobContext
+    jobContext: SlashJobContext,
+    cause?: unknown
   ): Promise<void> {
     const { channel, guildId, clientId, personality, personaId, userMessageTime, isWeighInMode } =
       jobContext;
 
+    let errorChunkIds: string[] | null = null;
     try {
-      const { chunkMessageIds } = await this.responseSender.sendResponse({
+      ({ chunkMessageIds: errorChunkIds } = await this.responseSender.sendResponse({
         content: errorContent,
         personality,
         channel,
         guildId,
         clientId,
         ...buildErrorResultMetadataPassthrough(result),
-      });
-
-      // Persist the (spoiler-stripped) error to conversation history so the
-      // slash-error path matches the @mention error path's behavior — see
-      // sendErrorResponse above, which has always done this. The trade-off:
-      // the error becomes visible to the next turn's LLM context. Acceptable
-      // because (a) it mirrors what users see on screen, and (b) divergence
-      // between the two paths would be more surprising than the parity cost.
-      //
-      // Isolated catch, symmetric with handleSlashJobResult's persist above:
-      // the error content is already delivered, so a persist failure must not
-      // fall into the outer catch and channel.send a SECOND error message.
-      // Pinned by "a persist failure after a delivered ERROR send does not
-      // post a second error message" in MessageHandler.test.ts.
-      if (!isWeighInMode) {
-        try {
-          await this.persistence.saveAssistantMessageFromFields({
-            channelId: channel.id,
-            guildId,
-            personality,
-            personaId,
-            content: stripErrorSpoiler(errorContent),
-            chunkMessageIds,
-            userMessageTime,
-          });
-        } catch (persistError) {
-          logger.error(
-            { err: persistError, jobId },
-            'Failed to persist slash error message to conversation history (error already sent)'
-          );
-        }
-      }
-
-      if (chunkMessageIds.length > 0) {
-        void updateDiagnosticResponseIds(result.requestId, chunkMessageIds).catch(err => {
-          logger.warn({ err }, 'Failed to update diagnostic response IDs for slash error');
-        });
-      }
+      }));
     } catch (sendError) {
       logger.error(
         { err: sendError, jobId },
@@ -603,5 +587,41 @@ export class MessageHandler {
         // Last-resort: silently drop. We've already logged the primary failure.
       });
     }
+
+    // Persist the (spoiler-stripped) error to conversation history so the
+    // slash-error path matches the @mention error path's behavior. The
+    // trade-off: the error becomes visible to the next turn's LLM context.
+    // Acceptable because (a) it mirrors what users see on screen, and (b)
+    // divergence between the two paths would be more surprising than the
+    // parity cost. `persistErrorText: !isWeighInMode` keeps the error TEXT
+    // out of history exactly as before in weigh-in mode — but a partial
+    // send's delivered text is still persisted even there: it's part of the
+    // reply the user actually saw, not a system error notice.
+    //
+    // `settleErrorPathTurn` never throws, so a persist failure surviving the
+    // retry can't fall into an outer catch and post a SECOND error message —
+    // pinned by "a persist failure after a delivered ERROR send does not post
+    // a second error message" in MessageHandler.test.ts. Diagnostics are
+    // preserved too: after a successful error send, the error ids (plus any
+    // partial ids) reach `updateDiagnosticResponseIds`, even in weigh-in mode.
+    await settleErrorPathTurn({
+      partial: cause instanceof PartialDeliveryError ? cause : undefined,
+      errorTurn:
+        errorChunkIds === null
+          ? null
+          : { content: stripErrorSpoiler(errorContent), chunkMessageIds: errorChunkIds },
+      persistErrorText: !isWeighInMode,
+      save: turn =>
+        this.persistence.saveAssistantMessageFromFields({
+          channelId: channel.id,
+          guildId,
+          personality,
+          personaId,
+          userMessageTime,
+          ...turn,
+        }),
+      requestId: result.requestId,
+      logContext: { jobId },
+    });
   }
 }

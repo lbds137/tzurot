@@ -5,16 +5,40 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Message } from 'discord.js';
+import { TextChannel } from 'discord.js';
 import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
 import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { SlotDeliveryService, type SlotDeliveryContext } from './SlotDeliveryService.js';
-import type { DiscordResponseSender } from './DiscordResponseSender.js';
+// Value import (not type-only): the wiring test below constructs a REAL
+// DiscordResponseSender instance; every other usage in this file still only
+// needs the type, which a value import also satisfies.
+import { DiscordResponseSender } from './DiscordResponseSender.js';
 import type { ConversationPersistence } from './ConversationPersistence.js';
 import { updateDiagnosticResponseIds } from '../utils/gatewayServiceCalls.js';
+import { PartialDeliveryError } from './partialDelivery.js';
+import { stripErrorSpoiler } from '@tzurot/common-types/constants/error';
+import type { WebhookManager } from '../utils/WebhookManager.js';
 
 vi.mock('../utils/gatewayServiceCalls.js', () => ({
   updateDiagnosticResponseIds: vi.fn(),
+}));
+
+// Only needed for the wiring test's REAL DiscordResponseSender — every other
+// test in this file mocks `responseSender` directly and never imports the
+// module that pulls these in.
+vi.mock('../redis.js', () => ({
+  redisService: {
+    storeWebhookMessage: vi.fn().mockResolvedValue(undefined),
+    getWebhookPersonality: vi.fn(),
+    getTTSAudio: vi.fn().mockResolvedValue(null),
+    checkHealth: vi.fn(),
+    close: vi.fn(),
+  },
+}));
+
+vi.mock('../utils/retentionGatewayCalls.js', () => ({
+  reportPersonaDmUndeliverable: vi.fn(),
 }));
 
 const personality = {
@@ -325,6 +349,181 @@ describe('SlotDeliveryService', () => {
 
       expect(slot.message.reply).toHaveBeenCalledWith('In-character error');
       expect(persistence.saveAssistantMessage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deliverErrorAfterPartial', () => {
+    const failResult = {
+      requestId: 'req-partial',
+      success: false,
+      error: 'thing broke mid-stream',
+    } as LLMGenerationResult;
+
+    it('composes delivered text + stripped error text into one persisted row when the error send succeeds', async () => {
+      responseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-1'] });
+      const partial = new PartialDeliveryError({
+        chunkMessageIds: ['id-1'],
+        deliveredContent: 'delivered text',
+        totalChunks: 2,
+        cause: new Error('boom'),
+      });
+      const errorContentWithSpoiler = 'Oops! ||*(error: boom; reference: ref-1)*||';
+      const slot = buildSlotContext();
+
+      await service.deliverErrorAfterPartial(partial, errorContentWithSpoiler, failResult, slot);
+
+      const strippedError = stripErrorSpoiler(errorContentWithSpoiler);
+      expect(persistence.saveAssistantMessage).toHaveBeenCalledTimes(1);
+      expect(persistence.saveAssistantMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'delivered text\n' + strippedError,
+          chunkMessageIds: ['id-1', 'err-1'],
+        })
+      );
+      await Promise.resolve();
+      expect(vi.mocked(updateDiagnosticResponseIds)).toHaveBeenCalledWith('req-partial', [
+        'id-1',
+        'err-1',
+      ]);
+    });
+
+    it('persists only the delivered text when the error notice send also fails', async () => {
+      responseSender.sendResponse.mockRejectedValue(new Error('webhook 500 again'));
+      const partial = new PartialDeliveryError({
+        chunkMessageIds: ['id-1'],
+        deliveredContent: 'delivered text',
+        totalChunks: 2,
+        cause: new Error('boom'),
+      });
+      const slot = buildSlotContext();
+
+      await service.deliverErrorAfterPartial(partial, 'Error occurred', failResult, slot);
+
+      expect(slot.message.reply).toHaveBeenCalledTimes(1);
+      expect(slot.message.reply).toHaveBeenCalledWith('Error occurred');
+      expect(persistence.saveAssistantMessage).toHaveBeenCalledTimes(1);
+      expect(persistence.saveAssistantMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'delivered text',
+          chunkMessageIds: ['id-1'],
+        })
+      );
+    });
+  });
+
+  describe('deliverSuccess → deliverErrorAfterPartial sequencing (one persisted row per turn)', () => {
+    it('persists nothing on the failed deliverSuccess call, exactly once after the error-path call', async () => {
+      const partial = new PartialDeliveryError({
+        chunkMessageIds: ['id-1'],
+        deliveredContent: 'delivered text',
+        totalChunks: 2,
+        cause: new Error('boom'),
+      });
+      responseSender.sendResponse
+        .mockRejectedValueOnce(partial)
+        .mockResolvedValueOnce({ chunkMessageIds: ['err-1'] });
+      const result = buildSuccessResult();
+      const slot = buildSlotContext();
+
+      const caught = await service.deliverSuccess(result, slot).catch((e: unknown) => e);
+
+      expect(caught).toBeInstanceOf(PartialDeliveryError);
+      expect(persistence.saveAssistantMessage).not.toHaveBeenCalled();
+
+      await service.deliverErrorAfterPartial(
+        caught as PartialDeliveryError,
+        'Error occurred',
+        result,
+        slot
+      );
+
+      expect(persistence.saveAssistantMessage).toHaveBeenCalledTimes(1);
+      expect(persistence.saveAssistantMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ chunkMessageIds: ['id-1', 'err-1'] })
+      );
+    });
+  });
+
+  describe('persistPartialDelivery', () => {
+    it('persists the delivered chunks alone, once', async () => {
+      const partial = new PartialDeliveryError({
+        chunkMessageIds: ['id-1'],
+        deliveredContent: 'delivered text',
+        totalChunks: 2,
+        cause: new Error('boom'),
+      });
+      const result = buildSuccessResult();
+      const slot = buildSlotContext();
+
+      await service.persistPartialDelivery(partial, result, slot);
+
+      expect(persistence.saveAssistantMessage).toHaveBeenCalledTimes(1);
+      expect(persistence.saveAssistantMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ content: 'delivered text', chunkMessageIds: ['id-1'] })
+      );
+    });
+
+    it('resolves (never throws) when the persist itself rejects', async () => {
+      persistence.saveAssistantMessage.mockRejectedValue(new Error('db down'));
+      const partial = new PartialDeliveryError({
+        chunkMessageIds: ['id-1'],
+        deliveredContent: 'delivered text',
+        totalChunks: 2,
+        cause: new Error('boom'),
+      });
+      const result = buildSuccessResult();
+      const slot = buildSlotContext();
+
+      await expect(service.persistPartialDelivery(partial, result, slot)).resolves.toBeUndefined();
+    });
+  });
+
+  describe('wiring: real DiscordResponseSender crosses the PartialDeliveryError seam', () => {
+    it('wiring: deliverSuccess + deliverErrorAfterPartial persist one row through a REAL sender', async () => {
+      const mockWebhookManager = {
+        sendAsPersonality: vi
+          .fn()
+          .mockResolvedValueOnce({ id: 'id-1' })
+          .mockRejectedValueOnce(new Error('webhook 500'))
+          .mockResolvedValueOnce({ id: 'err-1' }),
+      };
+      const realSender = new DiscordResponseSender(mockWebhookManager as unknown as WebhookManager);
+      const realPersistence = { saveAssistantMessage: vi.fn().mockResolvedValue(undefined) };
+      const wiringService = new SlotDeliveryService({
+        responseSender: realSender,
+        persistence: realPersistence as unknown as ConversationPersistence,
+      });
+
+      const channel = Object.create(TextChannel.prototype);
+      channel.id = 'channel-wire-1';
+      const slot = buildSlotContext({
+        channel: channel as unknown as TypingChannel,
+        guildId: 'guild-wire-1',
+      });
+      // Word-based, no punctuation: the REAL splitMessage word-wraps this into
+      // exactly 2 chunks under the 2000-char cap (400 words ≈ 1999 chars, then
+      // the remaining 50 words).
+      const content = 'word '.repeat(450).trim();
+      const result = buildSuccessResult({ content });
+
+      const caught = (await wiringService
+        .deliverSuccess(result, slot)
+        .catch((e: unknown) => e)) as PartialDeliveryError;
+
+      expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledTimes(2);
+      expect(caught).toBeInstanceOf(PartialDeliveryError);
+
+      await wiringService.deliverErrorAfterPartial(caught, 'Error occurred', result, slot);
+
+      expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledTimes(3);
+      expect(realPersistence.saveAssistantMessage).toHaveBeenCalledTimes(1);
+      const persistedTurn = realPersistence.saveAssistantMessage.mock.calls[0][0] as {
+        content: string;
+        chunkMessageIds: string[];
+      };
+      expect(persistedTurn.chunkMessageIds).toEqual(['id-1', 'err-1']);
+      const sentChunk1 = mockWebhookManager.sendAsPersonality.mock.calls[0][2] as string;
+      expect(persistedTurn.content.startsWith(sentChunk1)).toBe(true);
     });
   });
 });

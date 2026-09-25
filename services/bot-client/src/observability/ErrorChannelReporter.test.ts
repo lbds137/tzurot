@@ -22,6 +22,7 @@ import {
 } from './ErrorChannelReporter.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { EMBED_CAPS } from '../utils/embedLimits.js';
+import { PartialDeliveryError } from '../services/partialDelivery.js';
 
 function makeReport(overrides: Partial<ErrorReport> = {}): ErrorReport {
   return {
@@ -158,6 +159,76 @@ describe('ErrorChannelReporter', () => {
       expect(fields.find(f => f.name === 'Model')?.value).toBe('anthropic/claude-sonnet-4');
       expect(fields.find(f => f.name === 'Provider')?.value).toBe('openrouter');
       expect(fields.find(f => f.name === 'Duration')?.value).toBe('1234ms');
+    });
+
+    it("hashes the cause's frames but names the outer error", () => {
+      __resetErrorChannelReporterForTests();
+      initErrorChannelReporter(fakeClient());
+
+      const inner = new TypeError('inner failure');
+      inner.stack = [
+        'TypeError: inner failure',
+        '    at innerSendFrame (/app/inner-send.ts:11:3)',
+        '    at innerLoopFrame (/app/inner-loop.ts:22:5)',
+      ].join('\n');
+      const outer = new PartialDeliveryError({
+        chunkMessageIds: ['id-1'],
+        deliveredContent: 'x',
+        totalChunks: 2,
+        cause: inner,
+      });
+
+      reportDeliveryFailure(outer, { requestId: 'req-cause' }, undefined);
+
+      const embed = mockPostOwnerChannelEmbed.mock.calls[0][1] as {
+        toJSON: () => { title?: string; fields?: { name: string; value: string }[] };
+      };
+      const json = embed.toJSON();
+      const framesField = json.fields?.find(f => f.name === 'Frames')?.value ?? '';
+      expect(framesField).toContain('/app/inner-send.ts:11:3');
+      expect(framesField).toContain('/app/inner-loop.ts:22:5');
+      expect(json.title).toContain('PartialDeliveryError');
+      expect(json.title).not.toContain('TypeError');
+    });
+
+    it("uses the error's own frames when it has no cause", () => {
+      __resetErrorChannelReporterForTests();
+      initErrorChannelReporter(fakeClient());
+
+      const plain = new RangeError('no cause');
+      plain.stack = ['RangeError: no cause', '    at ownFrame (/app/own-frame.ts:7:9)'].join('\n');
+
+      reportDeliveryFailure(plain, { requestId: 'req-nocause' }, undefined);
+
+      const embed = mockPostOwnerChannelEmbed.mock.calls[0][1] as {
+        toJSON: () => { title?: string; fields?: { name: string; value: string }[] };
+      };
+      const json = embed.toJSON();
+      const framesField = json.fields?.find(f => f.name === 'Frames')?.value ?? '';
+      expect(framesField).toContain('/app/own-frame.ts:7:9');
+      expect(json.title).toContain('RangeError');
+    });
+
+    it("keeps a non-partial error's own frames even when it has a cause", () => {
+      __resetErrorChannelReporterForTests();
+      initErrorChannelReporter(fakeClient());
+
+      const inner = new TypeError('net cause');
+      inner.stack = ['TypeError: net cause', '    at netCauseFrame (/app/net-cause.ts:31:4)'].join(
+        '\n'
+      );
+      const outer = new Error('outer', { cause: inner });
+      outer.stack = ['Error: outer', '    at callSiteFrame (/app/call-site.ts:41:6)'].join('\n');
+
+      reportDeliveryFailure(outer, { requestId: 'req-plain-cause' }, undefined);
+
+      const embed = mockPostOwnerChannelEmbed.mock.calls[0][1] as {
+        toJSON: () => { fields?: { name: string; value: string }[] };
+      };
+      const json = embed.toJSON();
+      const framesField = json.fields?.find(f => f.name === 'Frames')?.value ?? '';
+      expect(framesField).toContain('/app/call-site.ts:41:6');
+      expect(framesField).not.toContain('/app/net-cause.ts:31:4');
     });
   });
 
