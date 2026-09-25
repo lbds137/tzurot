@@ -59,7 +59,7 @@ _One row per epic whose theme doc has a done step and a not-done step and which 
 ### Side track (owner-paced, meta not product)
 
 - **Meta-Harness Spinoff** (`doc-64`) — extract the portable Claude Code process layer (epistemics/posture rules, hooks, skills, agent contracts; later the audit/ratchet tooling) into its own home, likely a user-level-installable plugin; Phase 0 inventory decides the split empirically. **Owner re-raised 2026-08-31** ("the tooling stuff essentially — stuff that is reusable / potentially useful beyond the Tzurot context"). Council pass before promotion.
-- **Private brain repo** (`doc-65`) — version-controlled memory store symlinked into the harness path; the PRIVATE layer of the doc-64 split, smaller and can go first (brain-management mechanisms ship in the plugin).
+- ~~**Private brain repo**~~ — REALIZED 2026-09-23: the shared auto-memory dir is the private repo `lbds137/claude-memory` (`~/Documents/claude-memory`, via `autoMemoryDirectory`, hourly backup timer); the idea doc was removed 2026-09-25. Brain-management mechanisms still ship in the doc-64 plugin.
 - **Read-only backlog browser on the website** (`doc-76`) — hosted, read-only dashboard over tracker/backlog; static-gen at website build is the leading shape _(primarily for the owner's own visualization)_
 
 ### Unscheduled pool (pick by dependency + value when a slot opens)
