@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-09-18'
+lastUpdated: '2026-09-25'
 ---
 
 # Git Workflow Procedures
@@ -390,6 +390,8 @@ gh pr list --author "app/dependabot" --state open   # any auto-PRs to ride along
 ```
 
 **`guard:repo-settings` belongs in the preflight specifically**, because the release merge is the one merge whose head branch is `develop`. A CRITICAL finding means the next release merge will delete `develop` — fix it before cutting (`00-critical.md` § Long-Lived Branch Protection).
+
+The same guard checks every main-required status check against the job ids in `origin/main`'s `ci.yml` and prints a re-add WARNING for a develop-only context whose job this release carries to `main`. Apply that re-add to the main ruleset after the release merges, re-run the guard, and refresh `.github/rulesets/branch-protection.json` from live.
 
 `security:advisories` is the primary check. The ride-along candidate is a transitive or direct+transitive advisory with a fix — Dependabot can never PR one, so widen/add the `pnpm.overrides` entry, `pnpm install`, and verify the lockfile resolves the patched version (`05-tooling.md` § Security Advisories).
 
