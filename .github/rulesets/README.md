@@ -21,16 +21,16 @@ per live ruleset, no speculative variants. Git history has them if they are ever
 
 ## How they differ, and why
 
-|                       | `main`       | `develop`                                     |
-| --------------------- | ------------ | --------------------------------------------- |
-| Pull request required | yes          | yes                                           |
-| Merge method          | rebase only  | rebase only                                   |
-| Branch deletion       | blocked      | blocked                                       |
-| Linear history        | required     | required                                      |
-| Required checks       | the 12 below | those 12 + `hook-posix-parse` + `fixup-check` |
-| Force-push            | blocked      | **allowed**                                   |
-| Admin bypass          | **never**    | **always**                                    |
-| Copilot review        | on           | **off**                                       |
+|                       | `main`       | `develop`                |
+| --------------------- | ------------ | ------------------------ |
+| Pull request required | yes          | yes                      |
+| Merge method          | rebase only  | rebase only              |
+| Branch deletion       | blocked      | blocked                  |
+| Linear history        | required     | required                 |
+| Required checks       | the 13 below | those 13 + `fixup-check` |
+| Force-push            | blocked      | **allowed**              |
+| Admin bypass          | **never**    | **always**               |
+| Copilot review        | on           | **off**                  |
 
 **`allowed_merge_methods` lives inside the `pull_request` rule, so a branch with no
 `pull_request` rule has no merge-method enforcement at all.** That is why `develop`
@@ -69,10 +69,11 @@ The last of those is a live open choice rather than a constraint:
 
 ## Required status checks
 
-`main` requires these 12: `lint` · `build` ·
+`main` requires these 13: `lint` · `build` ·
 `unit-tests (ai-worker | api-gateway | bot-client | packages | tooling | website)` ·
-`component-integration-tests` · `docker-build-smoke-ok` · `voice-engine-tests` · `mutation-tests`.
-`develop` requires those 12 plus `hook-posix-parse` and `fixup-check`.
+`component-integration-tests` · `docker-build-smoke-ok` · `voice-engine-tests` · `mutation-tests` ·
+`hook-posix-parse`.
+`develop` requires those 13 plus `fixup-check`.
 
 Chosen because they always run and must always be green. Deliberately **excluded**:
 `codecov/patch`, `CodeQL`, `GitGuardian Security Checks`, `claude-review` — third-party or
