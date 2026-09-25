@@ -45,8 +45,10 @@ export function buildFallbackEnvironment(
 
 /**
  * Map resolved cross-channel groups to the API/job payload format (Date→string serialization).
- * Note: `discordMessageId` is intentionally omitted — it's only used for current-channel
- * quote deduplication and is not relevant for cross-channel historical context.
+ * The quote/forward fields (`discordMessageId`, `isForwarded`, `messageMetadata`)
+ * are carried through so the per-group renderer can dedup a quote against an
+ * earlier row in the same group and render replies/forwards, matching the
+ * current-channel path.
  */
 export function mapCrossChannelToApiFormat(
   groups: ResolvedCrossChannelGroup[]
@@ -64,6 +66,9 @@ export function mapCrossChannelToApiFormat(
       discordUsername: msg.discordUsername,
       personalityId: msg.personalityId,
       personalityName: msg.personalityName,
+      discordMessageId: msg.discordMessageId,
+      isForwarded: msg.isForwarded,
+      messageMetadata: msg.messageMetadata,
     })),
   }));
 }

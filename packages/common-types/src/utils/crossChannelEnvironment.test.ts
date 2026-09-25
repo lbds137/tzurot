@@ -101,6 +101,93 @@ describe('mapCrossChannelToApiFormat', () => {
     expect(msg.personalityId).toBe('pers-1');
     expect(msg.personalityName).toBe('TestBot');
   });
+
+  it('forwards discordMessageId, isForwarded, and messageMetadata.referencedMessages', () => {
+    const date = new Date('2026-02-26T10:00:00Z');
+    const groups = [
+      {
+        channelEnvironment: {
+          type: 'dm' as const,
+          channel: { id: 'ch-3', name: 'DM', type: 'dm' },
+        },
+        messages: [
+          {
+            id: 'msg-3',
+            role: MessageRole.User,
+            content: 'Quoting something',
+            tokenCount: 5,
+            createdAt: date,
+            personaId: 'p-1',
+            channelId: 'ch-3',
+            guildId: null,
+            discordMessageId: ['d-3'],
+            isForwarded: true,
+            messageMetadata: {
+              referencedMessages: [
+                {
+                  discordMessageId: 'd-quoted',
+                  authorUsername: 'bob',
+                  authorDisplayName: 'Bob',
+                  content: 'original',
+                  timestamp: '2026-02-26T09:00:00.000Z',
+                  locationContext: '#general',
+                },
+              ],
+            },
+          } as CrossChannelHistoryGroup['messages'][0],
+        ],
+      },
+    ];
+
+    const result = mapCrossChannelToApiFormat(groups);
+
+    const msg = result[0].messages[0];
+    expect(msg.discordMessageId).toEqual(['d-3']);
+    expect(msg.isForwarded).toBe(true);
+    expect(msg.messageMetadata).toEqual({
+      referencedMessages: [
+        {
+          discordMessageId: 'd-quoted',
+          authorUsername: 'bob',
+          authorDisplayName: 'Bob',
+          content: 'original',
+          timestamp: '2026-02-26T09:00:00.000Z',
+          locationContext: '#general',
+        },
+      ],
+    });
+  });
+
+  it('maps absent messageMetadata/isForwarded to undefined (absent stays absent)', () => {
+    const date = new Date('2026-02-26T10:00:00Z');
+    const groups = [
+      {
+        channelEnvironment: {
+          type: 'dm' as const,
+          channel: { id: 'ch-4', name: 'DM', type: 'dm' },
+        },
+        messages: [
+          {
+            id: 'msg-4',
+            role: MessageRole.User,
+            content: 'No metadata here',
+            tokenCount: 5,
+            createdAt: date,
+            personaId: 'p-1',
+            channelId: 'ch-4',
+            guildId: null,
+            discordMessageId: ['d-4'],
+          } as CrossChannelHistoryGroup['messages'][0],
+        ],
+      },
+    ];
+
+    const result = mapCrossChannelToApiFormat(groups);
+
+    const msg = result[0].messages[0];
+    expect(msg.isForwarded).toBeUndefined();
+    expect(msg.messageMetadata).toBeUndefined();
+  });
 });
 
 describe('applyCrossChannelRenderMode', () => {

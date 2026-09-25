@@ -11,7 +11,7 @@ _One pass, one PR: the low-priority residue the 2026-09-16 grounding agents foun
 - **`summary_model` records the first call's model** even when a regeneration produced the stored text, contradicting its own schema comment (`archiveSummaryStore.ts`).
 - **`memory:summarize` default `--limit 5000` vs the global daily cap 2000**: the sweep enqueues 2.5× what a day can bill and the surplus delays for hours with no warning. Print the cap and the enqueued count side by side.
 - **The `zai-coding` route gate** delays a misconfigured `extractionProvider` 10 min per job and logs at most once per hour, so a misconfiguration reads as a permanently stalled queue.
-- **Cross-channel turns lose all metadata** in `mapCrossChannelToApiFormat` (`crossChannelEnvironment.ts:52-66`): a reply-with-image renders as bare text. May be moot if Phase 4 replaces the feed.
+- ~~**Cross-channel turns lose all metadata** in `mapCrossChannelToApiFormat` (`crossChannelEnvironment.ts:52-66`): a reply-with-image renders as bare text.~~ Resolved by TASK-733: the mapper now forwards `discordMessageId`, `isForwarded`, and the persisted `messageMetadata`, and `crossChannelMessageSchema` declares them.
 - **DMs are eligible cross-channel sources with no guild filter** while the current-channel path has an `isolatedDm` mechanism; the asymmetry is documented only in dashboard help text. Design input for Phase 4, otherwise a docs fix.
 - **`memory_facts.pool` is inert**: neither prompt query filters `pool` or `is_fiction` although prose claims "the private pool"; `is_fiction` is the live half. Fix the prose or the query.
 - **A correction copies the old tags forward verbatim** and exposes no tag editing, so a correction cannot recategorize a fact.

@@ -84,6 +84,37 @@ describe('crossChannelMessageSchema', () => {
     const result = crossChannelMessageSchema.safeParse(msg);
     expect(result.success).toBe(false);
   });
+
+  it('survives the Zod strip: a quote-bearing row keeps discordMessageId, isForwarded, and messageMetadata', () => {
+    const quoteBearingRow = {
+      role: MessageRole.User,
+      content: 'replying to it',
+      discordMessageId: ['d-1'],
+      isForwarded: true,
+      messageMetadata: {
+        referencedMessages: [
+          {
+            discordMessageId: 'quoted-1',
+            authorUsername: 'bob',
+            authorDisplayName: 'Bob',
+            content: 'original',
+            timestamp: '2026-02-26T10:00:00.000Z',
+            locationContext: '#general',
+          },
+        ],
+        forwardedFrom: { authorName: 'Bob' },
+      },
+    };
+
+    const result = crossChannelMessageSchema.safeParse(quoteBearingRow);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.discordMessageId).toEqual(['d-1']);
+    expect(result.data.isForwarded).toBe(true);
+    expect(result.data.messageMetadata?.referencedMessages?.[0].discordMessageId).toBe('quoted-1');
+    expect(result.data.messageMetadata?.forwardedFrom?.authorName).toBe('Bob');
+  });
 });
 
 describe('crossChannelHistoryGroupSchema', () => {
@@ -184,6 +215,42 @@ describe('crossChannelHistoryGroupSchema', () => {
 
     const result = crossChannelHistoryGroupSchema.safeParse(group);
     expect(result.success).toBe(true);
+  });
+
+  it('survives the Zod strip: a quote-bearing row in a group keeps referencedMessages', () => {
+    const group = {
+      channelEnvironment: {
+        type: 'dm',
+        channel: { id: 'dm-1', name: 'DM', type: 'dm' },
+      },
+      messages: [
+        {
+          role: MessageRole.User,
+          content: 'replying to it',
+          discordMessageId: ['d-1'],
+          isForwarded: true,
+          messageMetadata: {
+            referencedMessages: [
+              {
+                discordMessageId: 'quoted-1',
+                authorUsername: 'bob',
+                authorDisplayName: 'Bob',
+                content: 'original',
+                timestamp: '2026-02-26T10:00:00.000Z',
+                locationContext: '#general',
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    const result = crossChannelHistoryGroupSchema.safeParse(group);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const msg = result.data.messages[0];
+    expect(msg.messageMetadata?.referencedMessages?.[0].discordMessageId).toBe('quoted-1');
   });
 });
 
