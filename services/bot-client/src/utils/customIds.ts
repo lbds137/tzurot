@@ -21,7 +21,14 @@
  * hand-written directly in this file are pending migration to that factory.
  */
 
-import { CUSTOM_ID_DELIMITER, defineCustomIdFamily, seg } from './customIdFamily.js';
+import {
+  CUSTOM_ID_DELIMITER,
+  defineCustomIdFamily,
+  destructivePreset,
+  seg,
+  type CustomIdFamily,
+  type DestructiveStep,
+} from './customIdFamily.js';
 
 // Re-exported for the many existing importers of `CUSTOM_ID_DELIMITER` from
 // this file; `customIdFamily.ts` owns the constant (see its JSDoc for why).
@@ -254,7 +261,8 @@ export const PresetCustomIds = {
  *
  * entityId is a single `::`-free segment. Keep it SHORT (a snowflake, a
  * fixed token): unbounded values (e.g. a personality slug, up to 50 chars)
- * blow the 100-char cap and make setCustomId throw — such state rides the
+ * blow the 100-char cap, and the build itself throws a named Error (the
+ * family core's length assertion) — such state rides the
  * warning embed's `footerText` and is read back from the parent message
  * (see history-purge's `parsePurgeSlugFromFooter`).
  */
@@ -262,22 +270,44 @@ export interface DestructiveParseResult {
   /** The source command (e.g., 'history', 'character') */
   source: string;
   /** The action type */
-  action: 'confirm_button' | 'cancel_button' | 'modal_submit';
+  action: DestructiveStep;
   /** Operation identifier (e.g., 'hard-delete', 'delete') */
   operation: string;
   /** Entity identifier (personality slug, etc.) */
   entityId?: string;
 }
 
-/** Shared builder for the three destructive customId shapes. */
+type DestructiveFamily = ReturnType<typeof defineDestructiveFamily>;
+
+function defineDestructiveFamily(
+  source: string
+): CustomIdFamily<string, ReturnType<typeof destructivePreset>> {
+  return defineCustomIdFamily(source, destructivePreset());
+}
+
+/**
+ * Per-source families, populated ONLY by the builders (sources come from
+ * code, so the set is finite). `parse` reads the cache but never writes it:
+ * its source is Discord-supplied, and caching it would grow without bound.
+ */
+const destructiveFamilies = new Map<string, DestructiveFamily>();
+
+function destructiveFamilyForBuild(source: string): DestructiveFamily {
+  let family = destructiveFamilies.get(source);
+  if (family === undefined) {
+    family = defineDestructiveFamily(source);
+    destructiveFamilies.set(source, family);
+  }
+  return family;
+}
+
 function buildDestructiveId(
-  action: 'confirm_button' | 'cancel_button' | 'modal_submit',
+  step: DestructiveStep,
   source: string,
   operation: string,
   entityId?: string
 ): string {
-  const base = `${source}::destructive::${action}::${operation}`;
-  return entityId !== undefined ? `${base}::${entityId}` : base;
+  return destructiveFamilyForBuild(source).build.destructive(step, operation, entityId);
 }
 
 export const DestructiveCustomIds = {
@@ -314,31 +344,44 @@ export const DestructiveCustomIds = {
   /**
    * Parse destructive customId
    * Expected format: {source}::destructive::{action}::{operation}::{entityId?}
+   * Returns null on fewer than four segments, a second segment other than
+   * `destructive`, a step outside the three-value enum, an empty operation,
+   * or extra segments past entityId.
    */
   parse: (customId: string): DestructiveParseResult | null => {
-    const parts = customId.split(CUSTOM_ID_DELIMITER);
-    if (parts.length < 4 || parts[1] !== 'destructive') {
+    const source = getCommandFromCustomId(customId);
+    if (source === null || source === '') {
       return null;
     }
 
-    const source = parts[0];
-    const action = parts[2] as 'confirm_button' | 'cancel_button' | 'modal_submit';
-    const operation = parts[3];
-    const entityId = parts[4];
-
-    return {
+    const family = destructiveFamilies.get(source) ?? defineDestructiveFamily(source);
+    const parsed = family.parse(customId);
+    if (parsed === null) {
+      return null;
+    }
+    const result: DestructiveParseResult = {
       source,
-      action,
-      operation,
-      entityId,
+      action: parsed.step,
+      operation: parsed.operation,
     };
+    if (parsed.entityId !== undefined) {
+      result.entityId = parsed.entityId;
+    }
+    return result;
   },
 
   /**
-   * Check if customId belongs to destructive confirmation flow
-   * Checks for "::destructive::" pattern anywhere in the customId
+   * Check if customId belongs to destructive confirmation flow.
+   * Checks that the second segment is exactly `destructive`.
    */
-  isDestructive: (customId: string): boolean => customId.includes('::destructive::'),
+  isDestructive: (customId: string): boolean => {
+    const source = getCommandFromCustomId(customId);
+    return (
+      source !== null &&
+      source !== '' &&
+      customId.startsWith(`${source}${CUSTOM_ID_DELIMITER}destructive${CUSTOM_ID_DELIMITER}`)
+    );
+  },
 } as const;
 
 // ============================================================================

@@ -135,7 +135,7 @@ describe('handlePurgeHistory', () => {
 
   it('carries ONLY the channelId in entityId; the slug rides the footer', async () => {
     // The slug can reach SLUG_MAX_LENGTH (50) — in the customId it blew
-    // Discord's 100-char budget and made setCustomId throw. Keeping the
+    // Discord's 100-char budget and the customId build throws. Keeping the
     // customId payload to the snowflake makes the overflow structurally
     // impossible; the slug travels via the embed footer instead.
     const longSlug = 'a'.repeat(50);
