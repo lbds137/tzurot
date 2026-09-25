@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: 'Testing procedures. Invoke with /tzurot-testing for test execution, coverage audits, and debugging test failures.'
-lastUpdated: '2026-08-23'
+lastUpdated: '2026-09-25'
 ---
 
 # Testing Procedures
@@ -19,8 +19,10 @@ pnpm test
 # Run specific service
 pnpm --filter @tzurot/ai-worker test
 
-# Run specific file
-pnpm test -- MyService.test.ts
+# Run specific file — never `test -- <file>`: pnpm forwards the literal `--` and
+# vitest drops everything after it (full suite); a value-less flag such as `-u`
+# goes AFTER the file or it swallows the path
+pnpm --filter @tzurot/ai-worker test --run src/services/MyService.test.ts
 
 # Run the component tier (PGLite) — NOT included in `pnpm test`
 pnpm test:component
@@ -103,7 +105,7 @@ resolution, making the assertion pass/fail for the wrong reason.
 ### 1. Run Specific Test
 
 ```bash
-pnpm test -- MyService.test.ts --reporter=verbose
+pnpm --filter @tzurot/ai-worker test --run src/services/MyService.test.ts --reporter=verbose
 ```
 
 ### 2. Check for Fake Timer Issues
