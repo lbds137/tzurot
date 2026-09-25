@@ -73,6 +73,9 @@
           },
           {
             "context": "mutation-tests"
+          },
+          {
+            "context": "hook-posix-parse"
           }
         ]
       }
