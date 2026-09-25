@@ -3,9 +3,10 @@ id: TASK-1102
 title: >-
   buildSettingsCustomId has no structural length guard; the TASK-1079 class
   rests on one enumeration test
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-25 15:10'
+updated_date: '2026-09-25 16:32'
 labels:
   - 'area:bot-client'
   - 'size:S'
