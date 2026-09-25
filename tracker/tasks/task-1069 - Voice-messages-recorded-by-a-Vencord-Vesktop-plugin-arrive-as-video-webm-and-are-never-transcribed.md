@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-24 01:23'
-updated_date: '2026-09-24 06:57'
+updated_date: '2026-09-25 22:29'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -40,5 +40,10 @@ CONTAINER (2026-09-24, first 16 bytes of the attachment via a ranged GET, no aud
 created: 2026-09-24 06:57
 ---
 Merged in #2499 (a9f3c3d87 on develop, 2026-09-24), with a WebM-to-Ogg remux in ai-worker after the runtime probe showed voice-engine cannot decode WebM. Stays open until the owner's dev smoke confirms live transcription (the smoke item goes into CURRENT.md with the beta.229 checklist).
+---
+
+created: 2026-09-25 22:29
+---
+PROD SMOKE (2026-09-25, owner): BYOK/Mistral PASS - relabel + remux ran, Mistral transcribed the remuxed Ogg (request 09c02ef7). voice-engine FAIL - voice-engine cold-started 73 s, then /v1/transcribe answered 500: librosa/soundfile LibsndfileError "Supported file format but file is malformed" on the remuxed Ogg (request 6581b177, 22:18:23Z). Native Discord voice messages went through voice-engine fine the same day (16:55Z, 19:43Z). Reproduced on the Deck with the real recording: Chrome MediaRecorder stamps each 60 ms Opus packet with jittered wall-clock timestamps (709 packets, 708 irregular steps), the stream copy carries them into Ogg granule positions, libsndfile 1.2.2 rejects that. Metadata stripping, muxer flags and the setts bitstream filter (ffmpeg aborts) do not fix it; decode + asetpts=N/SR/TB + libopus 64k re-encode does (soundfile opens it, 2041920 frames). Fix unit: replace the stream copy with that transcode in audioNormalizer.ts (rename to transcodeWebmToOgg), spec written, dispatch pending the usage window. Forwarding untestable: Vencord cannot forward a voice message. Re-upload dead end filed as TASK-1112.
 ---
 <!-- COMMENTS:END -->
