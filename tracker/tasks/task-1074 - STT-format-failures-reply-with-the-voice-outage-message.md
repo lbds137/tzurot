@@ -1,10 +1,10 @@
 ---
 id: TASK-1074
 title: STT format failures reply with the voice-outage message
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-24 05:53'
-updated_date: '2026-09-26 00:17'
+updated_date: '2026-09-26 04:49'
 labels:
   - 'area:voice'
   - 'size:M'
