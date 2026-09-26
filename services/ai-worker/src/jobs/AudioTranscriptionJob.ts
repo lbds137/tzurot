@@ -16,28 +16,34 @@ import {
   audioTranscriptionJobDataSchema,
 } from '@tzurot/common-types/types/jobs';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
-import { isTimeoutError, isTooLongError } from '@tzurot/common-types/utils/errors';
+import {
+  isTimeoutError,
+  isTooLongError,
+  isUnsupportedFormatError,
+} from '@tzurot/common-types/utils/errors';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { transcribeAudio } from '../services/multimodal/AudioProcessor.js';
+import { isDeterministicSttRejection } from '../services/multimodal/sttRejection.js';
 import { withRetry, RetryError } from '../utils/retry.js';
 import { checkQueueAge } from '../utils/jobAgeGate.js';
 
 const logger = createLogger('AudioTranscriptionJob');
 
 /**
- * Outer-retry eligibility for the transcription job. Three classes fast-fail —
+ * Outer-retry eligibility for the transcription job. Four classes fast-fail —
  * re-running them just wastes time on a guaranteed-identical failure, and re-grinding
  * a timeout would blow the (now larger) budget up to 3×:
  *   - config errors ("No STT provider available") — no provider appears on retry
  *   - timeouts — audio too slow for the budget; a retry hits the same wall
  *   - too-long — a deterministic over-the-cap rejection
+ *   - unsupported format — undecodable bytes; a retry decodes the same bytes
  * Everything else (transient network / 5xx) stays retryable.
  */
 function isRetryableTranscriptionError(err: unknown): boolean {
   if (err instanceof Error && err.message.startsWith('No STT provider available')) {
     return false;
   }
-  if (isTimeoutError(err) || isTooLongError(err)) {
+  if (isTimeoutError(err) || isDeterministicSttRejection(err)) {
     return false;
   }
   return true;
@@ -54,6 +60,9 @@ function classifyFailureReason(root: unknown): SttFailureReason {
   }
   if (isTooLongError(root)) {
     return 'too_long';
+  }
+  if (isUnsupportedFormatError(root)) {
+    return 'unsupported_format';
   }
   if (root instanceof Error && root.message.startsWith('No STT provider available')) {
     return 'unavailable';

@@ -21,9 +21,9 @@ strict = true
 warn_return_any = true
 warn_unused_configs = true
 
-# Heavy ML dependencies — no type stubs available, not installed in CI
+# No type stubs available (heavy ML deps are also not installed in CI; soundfile is)
 [[tool.mypy.overrides]]
-module = ["librosa", "nemo.*", "pocket_tts", "scipy.*"]
+module = ["librosa", "nemo.*", "pocket_tts", "scipy.*", "soundfile"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

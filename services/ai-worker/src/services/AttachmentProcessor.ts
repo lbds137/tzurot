@@ -25,6 +25,7 @@ import {
   type RenderableAttachment,
 } from './prompt/QuoteFormatter.js';
 import { OWN_VOICE_DESCRIPTION } from './voice/ownVoiceGuard.js';
+import { isDeterministicSttRejection } from './multimodal/sttRejection.js';
 import { withRetry } from '../utils/retry.js';
 import { filterStickersBySetting } from '@tzurot/common-types/services/stickerVisionGate';
 import { isOwnPersonaVoice } from '@tzurot/common-types/utils/ownVoice';
@@ -331,6 +332,11 @@ async function processVoiceAttachment(options: ProcessVoiceOptions): Promise<Bui
         maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
         logger: log,
         operationName: `Voice transcription (reference ${referenceNumber})`,
+        // Timeouts stay retryable here — deliberate; this path's budget
+        // differs from the job's own fast-fail. Only the two deterministic
+        // pre-inference rejections fast-fail, since a retry re-sends the
+        // same bytes to the same decision.
+        shouldRetry: error => !isDeterministicSttRejection(error),
       }
     );
     return { url: attachment.url, attachment: { ...identity, description: result.value.text } };

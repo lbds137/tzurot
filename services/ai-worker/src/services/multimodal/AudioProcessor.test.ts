@@ -8,7 +8,11 @@ import { VoiceEngineError } from '../voice/VoiceEngineClient.js';
 import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
-import { TimeoutError, AudioTooLongError } from '@tzurot/common-types/utils/errors';
+import {
+  TimeoutError,
+  AudioTooLongError,
+  UnsupportedAudioFormatError,
+} from '@tzurot/common-types/utils/errors';
 
 // Create mock functions
 const mockVoiceTranscriptCacheGet = vi.fn().mockResolvedValue(null);
@@ -364,6 +368,30 @@ describe('AudioProcessor', () => {
 
         await expect(transcribeAudio(attachment, { provider: 'voice-engine' })).rejects.toThrow(
           AudioTooLongError
+        );
+      });
+
+      it('throws UnsupportedAudioFormatError when voice-engine rejects audio as undecodable (415)', async () => {
+        const attachment: AttachmentMetadata = {
+          url: 'https://cdn.discordapp.com/audio.ogg',
+          name: 'audio.ogg',
+          contentType: CONTENT_TYPES.AUDIO_OGG,
+          size: 1024,
+        };
+
+        // 415 is non-transient → fast-fails (no retry/backoff). Must propagate as a
+        // typed UnsupportedAudioFormatError, not be swallowed to null.
+        mockVoiceEngineTranscribe.mockRejectedValue(
+          new VoiceEngineError(415, 'Audio format not recognised')
+        );
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
+        (global.fetch as any).mockResolvedValue({
+          ok: true,
+          arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
+        });
+
+        await expect(transcribeAudio(attachment, { provider: 'voice-engine' })).rejects.toThrow(
+          UnsupportedAudioFormatError
         );
       });
     });

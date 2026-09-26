@@ -9,6 +9,7 @@ import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettingsRegistry';
 import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { UnsupportedAudioFormatError } from '@tzurot/common-types/utils/errors';
 import type { ResolveVisionConfigOptions } from './multimodal/visionAuthResolver.js';
 import type { ApiKeyResolver } from './ApiKeyResolver.js';
 import { generateFromInvokeMock } from '@tzurot/test-utils/invokeMockChatModel';
@@ -760,6 +761,33 @@ describe('MultimodalProcessor', () => {
       });
       // Fallback includes error category
       expect(results[0].description).toMatch(/Audio transcription failed after \d+ attempts \(/);
+    });
+
+    it('fast-fails a deterministic UnsupportedAudioFormatError instead of retrying', async () => {
+      const attachments: AttachmentMetadata[] = [
+        {
+          url: 'https://cdn.discordapp.com/audio1.ogg',
+          name: 'audio1.ogg',
+          contentType: CONTENT_TYPES.AUDIO_OGG,
+          size: 2048,
+        },
+      ];
+
+      mockTranscribeAudio.mockRejectedValue(new UnsupportedAudioFormatError('bad format'));
+
+      const promise = processAttachments(attachments, mockPersonality, { isGuestMode: false });
+
+      await vi.runAllTimersAsync();
+
+      const results = await promise;
+
+      expect(mockTranscribeAudio).toHaveBeenCalledTimes(1);
+      expect(results).toHaveLength(1);
+      expect(results[0]).toMatchObject({
+        type: AttachmentType.Audio,
+        originalUrl: 'https://cdn.discordapp.com/audio1.ogg',
+      });
+      expect(results[0].description).toMatch(/Audio transcription failed after 1 attempts \(/);
     });
 
     it('should process empty attachment array', async () => {

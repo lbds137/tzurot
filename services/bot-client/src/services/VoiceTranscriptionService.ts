@@ -19,6 +19,7 @@ import {
   isSttUnavailableError,
   isTimeoutError,
   isTooLongError,
+  isUnsupportedFormatError,
 } from '@tzurot/common-types/utils/errors';
 import { urlPrefix } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -52,8 +53,9 @@ const TRANSCRIPTION_TAKING_LONGER_MS = 20_000;
 /**
  * Map a transcription failure to its user-facing reply. Each typed error
  * carries a distinct user action: timeout → try again in a moment (cold
- * start), too-long → send shorter audio, unavailable → retries already ran,
- * wait and retry. Everything else stays generic.
+ * start), too-long → send shorter audio, unsupported format → resend in a
+ * supported format, unavailable → retries already ran, wait and retry.
+ * Everything else stays generic.
  */
 function classifyTranscriptionErrorMessage(error: unknown): string {
   if (isTimeoutError(error)) {
@@ -61,6 +63,9 @@ function classifyTranscriptionErrorMessage(error: unknown): string {
   }
   if (isTooLongError(error)) {
     return 'Sorry, that voice message is too long to transcribe. Please try sending a shorter one.';
+  }
+  if (isUnsupportedFormatError(error)) {
+    return "Sorry, I couldn't read that audio format. Please try again with a WAV, MP3, OGG, or FLAC file.";
   }
   if (isSttUnavailableError(error)) {
     return 'Sorry, the voice service is temporarily unavailable — it was retried several times without luck. Please try again shortly.';
