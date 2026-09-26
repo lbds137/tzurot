@@ -27,6 +27,7 @@ import { type SttProvider } from '@tzurot/common-types/types/sttProvider';
 import {
   TimeoutError,
   AudioTooLongError,
+  UnsupportedAudioFormatError,
   SttUnavailableError,
 } from '@tzurot/common-types/utils/errors';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -465,8 +466,8 @@ async function transcribeOnce(
   // it arrives here as a Completed status with empty content + a structured
   // failureReason. Reconstruct a typed error from that reason — Error instances can't
   // survive the BullMQ/Redis job boundary, so failureReason is the wire carrier — so
-  // VoiceTranscriptionService can show "taking too long" / "too long" instead of the
-  // generic "couldn't transcribe".
+  // VoiceTranscriptionService can show "taking too long" / "too long" / "couldn't read
+  // that audio format" instead of the generic "couldn't transcribe".
   const failureReason = data.result?.failureReason;
   if (failureReason === 'timeout') {
     // VOICE_ENGINE_API is the timeout that actually fires upstream (the ai-worker's
@@ -476,6 +477,9 @@ async function transcribeOnce(
   }
   if (failureReason === 'too_long') {
     throw new AudioTooLongError(data.result?.error);
+  }
+  if (failureReason === 'unsupported_format') {
+    throw new UnsupportedAudioFormatError(data.result?.error);
   }
   if (failureReason === 'unavailable') {
     // The per-provider retries within the cascade already ran server-side

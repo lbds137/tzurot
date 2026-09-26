@@ -60,6 +60,29 @@ export function isTooLongError(error: unknown): error is AudioTooLongError {
 }
 
 /**
+ * Audio bytes could not be decoded — the codec/container isn't one the self-hosted
+ * STT decoder recognises.
+ *
+ * Distinct from {@link AudioTooLongError}: unsupported-format is also a deterministic
+ * rejection BEFORE inference, but the decoder never produces a usable array at all
+ * (as opposed to too-long, which decodes fine and then exceeds the duration cap).
+ * bot-client maps this to a "could not read this format" user message; the STT job
+ * carries it across the job boundary as `failureReason: 'unsupported_format'` (Error
+ * instances don't survive BullMQ/Redis serialization).
+ */
+export class UnsupportedAudioFormatError extends Error {
+  constructor(detail?: string) {
+    super(detail ?? 'Audio format not recognised');
+    this.name = 'UnsupportedAudioFormatError';
+  }
+}
+
+/** Check whether an error is an {@link UnsupportedAudioFormatError} (name-based, survives bundling). */
+export function isUnsupportedFormatError(error: unknown): error is UnsupportedAudioFormatError {
+  return error instanceof Error && error.name === 'UnsupportedAudioFormatError';
+}
+
+/**
  * The STT service was unavailable after the per-provider retries within the
  * cascade all failed. (Job-level retries deliberately do NOT run for this
  * shape — "No STT provider available" fast-fails the job to avoid re-running

@@ -38,7 +38,11 @@ vi.mock('@tzurot/common-types/utils/discord', async () => {
 });
 
 import { splitMessage } from '@tzurot/common-types/utils/discord';
-import { AudioTooLongError, SttUnavailableError } from '@tzurot/common-types/utils/errors';
+import {
+  AudioTooLongError,
+  UnsupportedAudioFormatError,
+  SttUnavailableError,
+} from '@tzurot/common-types/utils/errors';
 import { voiceTranscriptCache } from '../redis.js';
 import { transcribe } from '../utils/gatewayServiceCalls.js';
 
@@ -833,6 +837,33 @@ describe('VoiceTranscriptionService', () => {
       expect(result).toBeNull();
       expect(message.reply).toHaveBeenCalledWith({
         content: expect.stringContaining('too long'),
+        allowedMentions: { parse: [], repliedUser: false },
+      });
+    });
+
+    it('should show a format message when transcription rejects with UnsupportedAudioFormatError', async () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/123.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice.ogg',
+            size: 50000,
+            duration: 5,
+          },
+        ],
+      });
+
+      vi.mocked(transcribe).mockRejectedValue(
+        new UnsupportedAudioFormatError('Audio format not recognised')
+      );
+
+      const result = await service.transcribe(message, false, false);
+
+      expect(result).toBeNull();
+      expect(message.reply).toHaveBeenCalledWith({
+        content:
+          "Sorry, I couldn't read that audio format. Please try again with a WAV, MP3, OGG, or FLAC file.",
         allowedMentions: { parse: [], repliedUser: false },
       });
     });
