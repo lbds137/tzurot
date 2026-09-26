@@ -33,9 +33,9 @@ _beta.231 CUT 2026-09-25 23:53Z (19:53 EDT), a fix-forward train. **The numbers:
   - TASK-1027 is the owner's call;
   - no model-parameter experiments;
   - the owner clears sessions with `/clear`, so every handoff lives on disk.
-- **In**: (empty at the cut; grows as PRs merge).
+- **In**: #2544 (TASK-1074, merged 2026-09-26 04:48Z: voice-engine answers 415 for undecodable audio, bot-client renders the format reply; round 1 also made the chat-attachment retries fast-fail the two deterministic STT rejections). Filed from it: TASK-1113 (a tooling test fails under an exported FORCE_COLOR) and TASK-1114 (the STT job result.error loses the typed detail).
 - **Waiting on**:
-  1. **TASK-1074, the undecodable-audio reply** (owner ruling 2026-09-25: rides this train) — voice-engine answers 415/422 for a body its decoder cannot read, ai-worker maps it to a distinct non-retryable reason, bot-client renders a could-not-read-this-format reply instead of the outage message. size:M, three services, one PR.
+  1. ~~**TASK-1074, the undecodable-audio reply**~~ MERGED as #2544 (owner ruling 2026-09-25: rides this train) — voice-engine answers 415/422 for a body its decoder cannot read, ai-worker maps it to a distinct non-retryable reason, bot-client renders a could-not-read-this-format reply instead of the outage message. size:M, three services, one PR.
   2. ~~The beta.231 prod re-smoke~~ PASS 2026-09-26 00:02Z (relabel → transcode → transcribed via voice-engine); TASK-1069 CLOSED.
   2b. **TASK-1112, a raw voice-file upload is transcribed** (owner ruling 2026-09-25: yes, in this train, not a hotfix) — a plain attachment that sniffs as audio-only is treated as audio even without `IsVoiceMessage`; a video/webm with a video track stays a file. size:S once TASK-1074's shape is known; the two touch the same prepare step, so sequence them.
   3. **TASK-1070's dev check** (owner smoke, `CURRENT.md` § beta.230 item 1): one TTS reply and one no-key transcription in dev on the Python 3.13 voice-engine. Not a cut blocker; it closes the task.
@@ -52,7 +52,7 @@ _beta.231 CUT 2026-09-25 23:53Z (19:53 EDT), a fix-forward train. **The numbers:
   - `hook-posix-parse` is a main-required check from 2026-09-25; any rename of that job is the two-step change in `.github/rulesets/README.md`.
   - Keep ranges small enough for a normal `gh pr merge --rebase`: beta.229 (166 commits) and beta.230 (117 commits) both needed the fast-forward fallback, so the threshold is below 117 commits, not the ~200 the skill cites. The always-loaded line budget on `CURRENT.md` is checked by CI's lint job on the release PR but NOT by a code-bearing pre-push (TASK-1101 is the classifier gap); run `pnpm ops lines:check` before opening the release PR.
   - The digest sweep on prod runs only for the listed pairs (spend ceiling = listed pairs × ≤12/day, D8) — TASK-1038's promotion widens that list automatically, so its spend line is part of its spec; retention is live and autonomous from beta.222 (kill switch: `RETENTION_AUTORUN_ENABLED=false` on bot-client); the reminder DM (beta.223) forms its first prod cohort on or after 2026-10-04. Prod ops writes under auto mode: `release:premigrate` and `db:safe-migrate` are `autoMode.soft_deny` at user scope by design; `release:premigrate` also carries a `permissions.ask` rule, so it prompts (forwarded to the phone) instead of reaching the classifier.
-- **Cut when**: TASK-1074 has merged (the theme item), or the standing backstops fire first (~10 runtime PRs and ~250 files); `release:range` at the 2026-09-25 cut: 0 PRs.
+- **Cut when**: TASK-1074 (merged, #2544) AND TASK-1112 have merged (TASK-1112 joined this train on the owner ruling of 2026-09-25, after this line was first written), or the standing backstops fire first (~10 runtime PRs and ~250 files); `release:range` at the 2026-09-25 cut: 0 PRs.
 - **🗺️ Horizon (rolling three releases, re-touched at every cut)**:
   - **beta.232**: this block.
   - **beta.233**:
