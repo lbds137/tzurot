@@ -50,9 +50,7 @@
 
 **beta.229 smoke checklist (dev; report pass/fail by number)**:
 
-1. ⏳ _needs-smoke_ (RE-RUN after beta.231 deploys): a Vencord/Vesktop voice message (TASK-1069, #2499, fix #2542). Run on prod 2026-09-25: Mistral-BYOK PASS; voice-engine FAIL (libsndfile rejected the stream-copied Ogg; #2542 transcodes instead); forwarding untestable (Vencord cannot forward a voice message).
-   - **Repro:** send one with no STT key (the voice-engine path); a Discord reply to it with text covers the referenced-message path.
-   - **Pass:** transcribed, and the ai-worker log shows `Relabeled voice attachment from its container bytes`, then `Transcoded WebM voice attachment to Ogg for STT`. A `WebM-to-Ogg transcode failed` warn means the image's ffmpeg lacks `asetpts` or `libopus` (the one premise not verified from the Deck).
+1. ~~a Vencord/Vesktop voice message (TASK-1069, #2499, fix #2542)~~ PASS 2026-09-26 00:02Z on prod, beta.231, no STT key: the ai-worker log shows `Relabeled` → `Transcoded WebM voice attachment to Ogg for STT` → `Audio transcribed via voice-engine` (107 chars), so the container ffmpeg carries `asetpts` and `libopus`. Mistral-BYOK had passed on beta.230. TASK-1069 CLOSED. Forwarding stays untestable (Vencord cannot forward a voice message). The raw re-upload of the same file as a plain attachment is still not transcribed (owner screenshot 2026-09-25 20:04 EDT: Discord renders it as a plain audio file) — TASK-1112, owner ruled it into beta.232.
 
 - **Agent-run (no owner action)**:
   - each service's first boot on Node 24, in dev then prod;

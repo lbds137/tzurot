@@ -36,7 +36,8 @@ _beta.231 CUT 2026-09-25 23:53Z (19:53 EDT), a fix-forward train. **The numbers:
 - **In**: (empty at the cut; grows as PRs merge).
 - **Waiting on**:
   1. **TASK-1074, the undecodable-audio reply** (owner ruling 2026-09-25: rides this train) — voice-engine answers 415/422 for a body its decoder cannot read, ai-worker maps it to a distinct non-retryable reason, bot-client renders a could-not-read-this-format reply instead of the outage message. size:M, three services, one PR.
-  2. **The beta.231 prod re-smoke** (owner, `CURRENT.md` § beta.229 item 1): one no-key Vencord voice message on prod. Closes TASK-1069; not a cut blocker.
+  2. ~~The beta.231 prod re-smoke~~ PASS 2026-09-26 00:02Z (relabel → transcode → transcribed via voice-engine); TASK-1069 CLOSED.
+  2b. **TASK-1112, a raw voice-file upload is transcribed** (owner ruling 2026-09-25: yes, in this train, not a hotfix) — a plain attachment that sniffs as audio-only is treated as audio even without `IsVoiceMessage`; a video/webm with a video track stays a file. size:S once TASK-1074's shape is known; the two touch the same prepare step, so sequence them.
   3. **TASK-1070's dev check** (owner smoke, `CURRENT.md` § beta.230 item 1): one TTS reply and one no-key transcription in dev on the Python 3.13 voice-engine. Not a cut blocker; it closes the task.
   4. **The doc-61 economy pass**, due 2026-10-02.
   5. Owner call carried: N back to 10 on Emily and Lilith after the TASK-1039 read (recommended; numbers on TASK-1039).
@@ -60,7 +61,7 @@ _beta.231 CUT 2026-09-25 23:53Z (19:53 EDT), a fix-forward train. **The numbers:
     - the UX-epic slice (`doc-14` waves 4–6);
     - slice C's dead-row report (TASK-971);
     - the TASK-802 escaping sweep, which now includes the edit-dashboard name sites;
-    - TASK-1112 if the owner answers yes (audio-only plain uploads transcribed without the voice flag).
+    - (TASK-1112 moved up into beta.232's waiting-on on the owner's yes.)
   - **Backlog slope (measured at the beta.231 cut from the tracker's `created_date`/`updated_date`, window 2026-09-25 11:05 → 19:53 local, the beta.230 → beta.231 span)**: filed 10, closed 7, open 367 (`status: To Do`). A one-day window on a filing-heavy day; re-measure at the beta.232 cut over its full span before reading a trend.
 ### 🎯 Current Focus (max 3)
 
