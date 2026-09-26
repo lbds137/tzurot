@@ -503,6 +503,12 @@ describe('isTransientVoiceEngineError', () => {
     expect(isTransientVoiceEngineError(new VoiceEngineError(404, 'Not Found'))).toBe(false);
   });
 
+  it('should return false for VoiceEngineError 415', () => {
+    expect(
+      isTransientVoiceEngineError(new VoiceEngineError(415, 'Audio format not recognised'))
+    ).toBe(false);
+  });
+
   it('should return true for TypeError("fetch failed")', () => {
     expect(isTransientVoiceEngineError(new TypeError('fetch failed'))).toBe(true);
   });

@@ -23,6 +23,7 @@ except Exception:
 | Check                     | Pattern                                                 |
 | ------------------------- | ------------------------------------------------------- |
 | File size                 | `len(await file.read()) > MAX_AUDIO_UPLOAD_BYTES` → 413 |
+| Undecodable audio         | `soundfile.LibsndfileError` from `librosa.load` → 415   |
 | Voice ID (path traversal) | `_VOICE_ID_RE.match(voice_id)` → 400                    |
 | MIME type                 | `content_type not in _AUDIO_EXTENSIONS` → 400           |
 | Text length               | `len(text) > MAX_TTS_TEXT_LENGTH` → 400                 |

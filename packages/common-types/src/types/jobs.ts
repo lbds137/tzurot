@@ -216,12 +216,14 @@ export type AnyJobData = AudioTranscriptionJobData | ImageDescriptionJobData | L
  * right user-facing message: a self-hosted STT timeout or an over-the-cap "too long"
  * read very differently from a generic failure. Set only when `success === false`.
  *
- * - `timeout`     — voice-engine STT exceeded its budget (long audio / slow CPU).
- * - `too_long`    — audio exceeded the hard duration cap (rejected before inference).
- * - `unavailable` — no STT provider produced text (BYOK failed + voice-engine down/empty).
- * - `other`       — any other failure.
+ * - `timeout`             — voice-engine STT exceeded its budget (long audio / slow CPU).
+ * - `too_long`            — audio exceeded the hard duration cap (rejected before inference).
+ * - `unsupported_format`  — the audio bytes could not be decoded (rejected before inference).
+ * - `unavailable`         — no STT provider produced text (BYOK failed + voice-engine down/empty).
+ * - `other`               — any other failure.
  */
-export type SttFailureReason = 'timeout' | 'too_long' | 'unavailable' | 'other';
+export type SttFailureReason =
+  'timeout' | 'too_long' | 'unsupported_format' | 'unavailable' | 'other';
 
 /**
  * Audio transcription result
@@ -330,7 +332,9 @@ export const audioTranscriptionResultSchema = z.object({
   /** Error message if failed */
   error: z.string().optional(),
   /** Machine-readable failure cause (set only when success=false) — see SttFailureReason. */
-  failureReason: z.enum(['timeout', 'too_long', 'unavailable', 'other']).optional(),
+  failureReason: z
+    .enum(['timeout', 'too_long', 'unsupported_format', 'unavailable', 'other'])
+    .optional(),
   metadata: z
     .object({
       processingTimeMs: z.number().optional(),

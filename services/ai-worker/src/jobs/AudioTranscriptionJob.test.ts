@@ -8,7 +8,11 @@ import type { Job } from 'bullmq';
 import type { AudioTranscriptionJobData } from '@tzurot/common-types/types/jobs';
 import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { JobType } from '@tzurot/common-types/constants/queue';
-import { TimeoutError, AudioTooLongError } from '@tzurot/common-types/utils/errors';
+import {
+  TimeoutError,
+  AudioTooLongError,
+  UnsupportedAudioFormatError,
+} from '@tzurot/common-types/utils/errors';
 
 // Mock transcribeAudio and withRetry
 vi.mock('../services/multimodal/AudioProcessor.js', () => ({
@@ -193,6 +197,9 @@ describe('AudioTranscriptionJob', () => {
       // (now larger) budget for a guaranteed-identical failure.
       expect(shouldRetry(new TimeoutError(1000, 'voice engine request'))).toBe(false);
       expect(shouldRetry(new AudioTooLongError('Audio too long'))).toBe(false);
+      expect(shouldRetry(new UnsupportedAudioFormatError('Audio format not recognised'))).toBe(
+        false
+      );
     });
 
     it('tags failureReason="timeout" when the root cause is a TimeoutError', async () => {
@@ -254,6 +261,39 @@ describe('AudioTranscriptionJob', () => {
 
       expect(result.success).toBe(false);
       expect(result.failureReason).toBe('too_long');
+    });
+
+    it('tags failureReason="unsupported_format" when the root cause is an UnsupportedAudioFormatError', async () => {
+      const jobData: AudioTranscriptionJobData = {
+        requestId: 'test-req-unsupported-format',
+        jobType: JobType.AudioTranscription,
+        attachment: {
+          url: 'https://example.com/weird.bin',
+          name: 'weird.bin',
+          contentType: CONTENT_TYPES.AUDIO_OGG,
+          size: 2048,
+          duration: 5,
+        },
+        context: { userId: 'user-123', channelId: 'channel-456' },
+        responseDestination: { type: 'discord', channelId: 'channel-456' },
+      };
+      const job = {
+        id: 'audio-unsupported-format',
+        data: jobData,
+      } as Job<AudioTranscriptionJobData>;
+
+      mockWithRetry.mockRejectedValue(
+        new RetryError(
+          'Audio transcription failed',
+          1,
+          new UnsupportedAudioFormatError('Audio format not recognised')
+        )
+      );
+
+      const result = await processAudioTranscriptionJob(job, { provider: 'voice-engine' });
+
+      expect(result.success).toBe(false);
+      expect(result.failureReason).toBe('unsupported_format');
     });
 
     it('tags failureReason="unavailable" for a no-provider failure', async () => {

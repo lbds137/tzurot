@@ -15,7 +15,12 @@ import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type SttDispatch, type SttProvider } from '@tzurot/common-types/types/sttProvider';
-import { isTimeoutError, TimeoutError, AudioTooLongError } from '@tzurot/common-types/utils/errors';
+import {
+  isTimeoutError,
+  TimeoutError,
+  AudioTooLongError,
+  UnsupportedAudioFormatError,
+} from '@tzurot/common-types/utils/errors';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { withRetry, RetryError } from '../../utils/retry.js';
 import { validateAttachmentUrl, isDataUrl } from '../../utils/attachmentFetch.js';
@@ -90,14 +95,15 @@ async function fetchAudioBuffer(url: string): Promise<ArrayBuffer> {
 /**
  * Classify a voice-engine failure from `transcribeWithVoiceEngine`'s catch. THROWS a
  * typed error for terminal causes the caller must surface (too-long → AudioTooLongError,
- * timeout → TimeoutError); RETURNS for genuine unavailability (auth / any other failure),
- * signaling the caller to fall through to null so the BYOK→voice-engine cascade and the
- * "no provider" path still work. Unwraps RetryError to the root cause first.
+ * undecodable → UnsupportedAudioFormatError, timeout → TimeoutError); RETURNS for genuine
+ * unavailability (auth / any other failure), signaling the caller to fall through to null
+ * so the BYOK→voice-engine cascade and the "no provider" path still work. Unwraps
+ * RetryError to the root cause first.
  *
  * Extracted from the catch to keep `transcribeWithVoiceEngine` under the cognitive-
- * complexity limit; the un-laundering of timeout/too-long is the whole point of the
- * branch set (a swallowed timeout becomes a generic "no provider" error and the user
- * sees the wrong message).
+ * complexity limit; the un-laundering of timeout/too-long/undecodable is the whole point
+ * of the branch set (a swallowed timeout becomes a generic "no provider" error and the
+ * user sees the wrong message).
  */
 function rethrowIfTerminalVoiceEngineError(error: unknown): void {
   const originalError = error instanceof RetryError ? error.lastError : error;
@@ -106,6 +112,12 @@ function rethrowIfTerminalVoiceEngineError(error: unknown): void {
   if (originalError instanceof VoiceEngineError && originalError.status === 413) {
     logger.warn({ err: originalError }, 'Voice engine rejected audio as too long');
     throw new AudioTooLongError(originalError.message);
+  }
+
+  // Undecodable (415) — the decoder cannot read the bytes; rejected before inference. Propagate typed.
+  if (originalError instanceof VoiceEngineError && originalError.status === 415) {
+    logger.warn({ err: originalError }, 'Voice engine rejected audio as undecodable');
+    throw new UnsupportedAudioFormatError(originalError.message);
   }
 
   // Timeout — slow/stalled inference (long audio on CPU). Propagate the TimeoutError.

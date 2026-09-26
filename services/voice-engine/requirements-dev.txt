@@ -14,6 +14,7 @@ python-multipart>=0.0.18,<1.0.0
 # Audio processing (used by test fixtures and WAV generation in endpoints)
 numpy>=2.0,<3.0
 scipy>=1.14.0,<2.0.0
+soundfile>=0.12.0,<1.0.0  # server.py imports it for the decode-error class (LibsndfileError)
 
 # Heavy ML deps (librosa, nemo_toolkit, pocket-tts) are mocked via
 # sys.modules in conftest.py — they require PyTorch which is too large for CI.

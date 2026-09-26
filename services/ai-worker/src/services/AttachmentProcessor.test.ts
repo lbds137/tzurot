@@ -8,6 +8,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { AttachmentType } from '@tzurot/common-types/constants/media';
+import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
+import { AudioTooLongError, UnsupportedAudioFormatError } from '@tzurot/common-types/utils/errors';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { processAttachmentsParallel } from './AttachmentProcessor.js';
 import { OWN_VOICE_DESCRIPTION } from './voice/ownVoiceGuard.js';
@@ -498,6 +500,101 @@ describe('AttachmentProcessor', () => {
       expect(result[0].attachment).toEqual({
         kind: 'voice',
         filename: 'voice.ogg',
+        contentType: 'audio/ogg',
+        durationSeconds: 5,
+        status: 'untranscribed',
+      });
+    });
+
+    it('fast-fails a deterministic AudioTooLongError instead of retrying', async () => {
+      mockTranscribeAudio.mockRejectedValue(new AudioTooLongError('too long'));
+
+      const promise = processAttachmentsParallel({
+        attachments: [
+          {
+            url: 'https://example.com/voice-too-long.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice-too-long.ogg',
+            size: 5000,
+            isVoiceMessage: true,
+            duration: 600,
+          },
+        ],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+      });
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockTranscribeAudio).toHaveBeenCalledTimes(1);
+      expect(result).toHaveLength(1);
+      expect(result[0].attachment).toEqual({
+        kind: 'voice',
+        filename: 'voice-too-long.ogg',
+        contentType: 'audio/ogg',
+        durationSeconds: 600,
+        status: 'untranscribed',
+      });
+    });
+
+    it('fast-fails a deterministic UnsupportedAudioFormatError instead of retrying', async () => {
+      mockTranscribeAudio.mockRejectedValue(new UnsupportedAudioFormatError('bad format'));
+
+      const promise = processAttachmentsParallel({
+        attachments: [
+          {
+            url: 'https://example.com/voice-bad-format.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice-bad-format.ogg',
+            size: 5000,
+            isVoiceMessage: true,
+            duration: 5,
+          },
+        ],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+      });
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockTranscribeAudio).toHaveBeenCalledTimes(1);
+      expect(result).toHaveLength(1);
+      expect(result[0].attachment).toEqual({
+        kind: 'voice',
+        filename: 'voice-bad-format.ogg',
+        contentType: 'audio/ogg',
+        durationSeconds: 5,
+        status: 'untranscribed',
+      });
+    });
+
+    it('control: still retries a plain transient transcription error MAX_ATTEMPTS times', async () => {
+      mockTranscribeAudio.mockRejectedValue(new Error('STT connection reset'));
+
+      const promise = processAttachmentsParallel({
+        attachments: [
+          {
+            url: 'https://example.com/voice-transient.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice-transient.ogg',
+            size: 5000,
+            isVoiceMessage: true,
+            duration: 5,
+          },
+        ],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+      });
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockTranscribeAudio).toHaveBeenCalledTimes(RETRY_CONFIG.MAX_ATTEMPTS);
+      expect(result[0].attachment).toEqual({
+        kind: 'voice',
+        filename: 'voice-transient.ogg',
         contentType: 'audio/ogg',
         durationSeconds: 5,
         status: 'untranscribed',

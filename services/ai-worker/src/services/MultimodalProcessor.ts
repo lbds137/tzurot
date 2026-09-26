@@ -27,6 +27,7 @@ import { describeImage, type VisionLoggingContext } from './multimodal/VisionPro
 import { describeImageWithFallback } from './multimodal/describeImageWithFallback.js';
 import type { ResolveVisionConfigOptions } from './multimodal/visionAuthResolver.js';
 import { transcribeAudio } from './multimodal/AudioProcessor.js';
+import { isDeterministicSttRejection } from './multimodal/sttRejection.js';
 
 const logger = createLogger('MultimodalProcessor');
 
@@ -323,7 +324,9 @@ export async function processAttachments(
   // failure there returns normally and the wrapper sees success. What the wrapper
   // is actually live for: non-vision attachment types (audio/STT, documents) and
   // the legacy single-model `describeImage` branch taken when no `visionAuth`
-  // bundle was supplied, both of which can still throw.
+  // bundle was supplied, both of which can still throw. Deterministic STT
+  // rejections are excluded from `shouldRetry` because a retry would re-send
+  // identical bytes to the same pre-inference decision.
   const results = await withParallelRetry(
     attachments,
     attachment =>
@@ -340,7 +343,7 @@ export async function processAttachments(
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
       logger,
       operationName: 'Attachment processing',
-      shouldRetry: shouldRetryError,
+      shouldRetry: error => !isDeterministicSttRejection(error) && shouldRetryError(error),
     }
   );
 

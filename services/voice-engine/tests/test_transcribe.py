@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 import httpx
 import pytest
+import soundfile
 
 import server
 
@@ -210,6 +211,29 @@ async def test_transcribe_rejects_too_long_audio(
     assert "too long" in response.json()["detail"].lower()
     # Rejected BEFORE any inference — the whole point of the pre-decode cap.
     assert mock_asr.transcribe.call_count == 0
+
+
+async def test_transcribe_rejects_undecodable_audio_with_415(client: httpx.AsyncClient, mock_asr: MagicMock) -> None:
+    cast(Any, server).librosa.load.side_effect = soundfile.LibsndfileError(1, "Error opening audio: ")
+
+    response = await client.post(
+        "/v1/transcribe",
+        files={"file": ("voice.ogg", b"not audio at all", "audio/ogg")},
+    )
+
+    assert response.status_code == 415
+    assert "not recognised" in response.json()["detail"].lower()
+    # Rejected BEFORE any inference — the decoder never produced an array to feed it.
+    assert mock_asr.transcribe.call_count == 0
+
+
+async def test_transcribe_non_decode_load_error_stays_500(client: httpx.AsyncClient, mock_asr: MagicMock) -> None:
+    # Only the decoder's own error class maps to 415; any other load failure keeps the generic 500.
+    cast(Any, server).librosa.load.side_effect = RuntimeError("resampler exploded")
+
+    response = await client.post("/v1/transcribe", files={"file": ("voice.ogg", b"OggS" + b"\x00" * 100, "audio/ogg")})
+
+    assert response.status_code == 500
 
 
 async def test_transcribe_serializes_concurrent_chunked_calls(

@@ -4,6 +4,7 @@ import { JobStatus } from '@tzurot/common-types/constants/queue';
 import {
   TimeoutError,
   AudioTooLongError,
+  UnsupportedAudioFormatError,
   SttUnavailableError,
 } from '@tzurot/common-types/utils/errors';
 
@@ -382,6 +383,26 @@ describe('raw-fetch helpers (allow-listed)', () => {
 
     await expect(transcribe([{ url: 'a', contentType: 'audio/ogg' }], 'user-1')).rejects.toThrow(
       AudioTooLongError
+    );
+  });
+
+  it('transcribe reconstructs an UnsupportedAudioFormatError from failureReason=unsupported_format', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        jobId: 'jt-unsupported-format',
+        status: JobStatus.Completed,
+        result: {
+          success: false,
+          content: '',
+          failureReason: 'unsupported_format',
+          error: 'Audio format not recognised',
+        },
+      }),
+    } as Response);
+
+    await expect(transcribe([{ url: 'a', contentType: 'audio/ogg' }], 'user-1')).rejects.toThrow(
+      UnsupportedAudioFormatError
     );
   });
 

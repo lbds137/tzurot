@@ -549,6 +549,21 @@ describe('BullMQ Job Contract Tests', () => {
       const result = audioTranscriptionResultSchema.safeParse(minimalResult);
       expect(result.success).toBe(true);
     });
+
+    it('should validate a failed result with failureReason "unsupported_format"', () => {
+      const failedResult: AudioTranscriptionResult = {
+        requestId: 'req-audio-format',
+        success: false,
+        error: 'Audio format not recognised',
+        failureReason: 'unsupported_format',
+      };
+
+      const result = audioTranscriptionResultSchema.safeParse(failedResult);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.failureReason).toBe('unsupported_format');
+      }
+    });
   });
 
   describe('Schema Validation - LLM Generation Job', () => {

@@ -4,6 +4,8 @@ import {
   isTimeoutError,
   AudioTooLongError,
   isTooLongError,
+  UnsupportedAudioFormatError,
+  isUnsupportedFormatError,
   SttUnavailableError,
   isSttUnavailableError,
   normalizeErrorForLogging,
@@ -78,6 +80,43 @@ describe('isTooLongError', () => {
     expect(isTooLongError(null)).toBe(false);
     expect(isTooLongError({ name: 'AudioTooLongError' })).toBe(false);
   });
+
+  it('returns false for an UnsupportedAudioFormatError', () => {
+    expect(isTooLongError(new UnsupportedAudioFormatError())).toBe(false);
+  });
+});
+
+describe('UnsupportedAudioFormatError', () => {
+  it('uses the provided detail as the message', () => {
+    const err = new UnsupportedAudioFormatError('Audio format not recognised');
+    expect(err.name).toBe('UnsupportedAudioFormatError');
+    expect(err.message).toBe('Audio format not recognised');
+  });
+
+  it('falls back to a default message when no detail is given', () => {
+    const err = new UnsupportedAudioFormatError();
+    expect(err.name).toBe('UnsupportedAudioFormatError');
+    expect(err.message).toBe('Audio format not recognised');
+  });
+});
+
+describe('isUnsupportedFormatError', () => {
+  it('returns true for our UnsupportedAudioFormatError class', () => {
+    expect(isUnsupportedFormatError(new UnsupportedAudioFormatError())).toBe(true);
+  });
+
+  it('returns true for a native Error tagged with name "UnsupportedAudioFormatError"', () => {
+    const err = new Error('unsupported format');
+    err.name = 'UnsupportedAudioFormatError';
+    expect(isUnsupportedFormatError(err)).toBe(true);
+  });
+
+  it('returns false for an AudioTooLongError and generic/non-Error values', () => {
+    expect(isUnsupportedFormatError(new AudioTooLongError())).toBe(false);
+    expect(isUnsupportedFormatError(new Error('boom'))).toBe(false);
+    expect(isUnsupportedFormatError(null)).toBe(false);
+    expect(isUnsupportedFormatError({ name: 'UnsupportedAudioFormatError' })).toBe(false);
+  });
 });
 
 describe('SttUnavailableError', () => {
@@ -108,6 +147,7 @@ describe('isSttUnavailableError', () => {
   it('returns false for sibling typed errors and generic/non-Error values', () => {
     expect(isSttUnavailableError(new TimeoutError(1, 'op'))).toBe(false);
     expect(isSttUnavailableError(new AudioTooLongError())).toBe(false);
+    expect(isSttUnavailableError(new UnsupportedAudioFormatError())).toBe(false);
     expect(isSttUnavailableError(new Error('boom'))).toBe(false);
     expect(isSttUnavailableError(null)).toBe(false);
     expect(isSttUnavailableError({ name: 'SttUnavailableError' })).toBe(false);

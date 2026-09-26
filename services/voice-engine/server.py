@@ -27,6 +27,7 @@ import librosa
 import nemo.collections.asr as nemo_asr
 import numpy as np
 import scipy.io.wavfile
+import soundfile
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 from pocket_tts import TTSModel
@@ -633,6 +634,7 @@ async def transcribe(file: UploadFile = File(...)) -> dict[str, str]:
     Transcribe audio to text with native punctuation and capitalization.
 
     Accepts: WAV, FLAC, OGG, MP3
+    Undecodable bytes (the codec can't be read) return 415.
     Returns: { "text": "Properly punctuated transcription." }
     """
     asr_model = models.get("asr")
@@ -649,14 +651,21 @@ async def transcribe(file: UploadFile = File(...)) -> dict[str, str]:
         # Semaphore caps concurrency to prevent OOM on Railway 4GB ceiling.
         loop = asyncio.get_running_loop()
         async with _inference_semaphore:
-            # librosa decodes an in-memory input through soundfile only (undecodable bytes
-            # raise LibsndfileError, with no audioread fallback); the image's libsndfile
-            # lists MP3 alongside OGG, FLAC and WAV
+            # The decode goes through soundfile, and undecodable bytes raise
+            # LibsndfileError — observed in a runtime probe against the production
+            # image, not exercised by this service's tests, which mock librosa. If
+            # an installed librosa ever falls back to another backend for some
+            # codec, that failure would surface as the generic 500 rather than 415.
+            # The image's libsndfile lists MP3 alongside OGG, FLAC and WAV.
             audio_array: np.ndarray[Any, np.dtype[np.floating[Any]]]
             sample_rate: int
-            audio_array, sample_rate = await loop.run_in_executor(
-                None, partial(librosa.load, io.BytesIO(audio_bytes), sr=None, mono=True)
-            )
+            try:
+                audio_array, sample_rate = await loop.run_in_executor(
+                    None, partial(librosa.load, io.BytesIO(audio_bytes), sr=None, mono=True)
+                )
+            except soundfile.LibsndfileError:
+                logger.warning("Undecodable audio upload", exc_info=True)
+                raise HTTPException(status_code=415, detail="Audio format not recognised") from None
 
             # Resample to 16kHz if needed (librosa already returns float32 mono)
             if sample_rate != STT_SAMPLE_RATE:
