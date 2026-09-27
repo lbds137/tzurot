@@ -3,10 +3,10 @@ id: TASK-1122
 title: >-
   Bulk character card import from the tzurot-characters repo via the /character
   import path
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-27 10:23'
-updated_date: '2026-09-27 10:24'
+updated_date: '2026-09-27 18:04'
 labels:
   - 'area:tooling'
   - 'size:L'
