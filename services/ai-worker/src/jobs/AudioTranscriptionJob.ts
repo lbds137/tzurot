@@ -22,6 +22,7 @@ import {
   isUnsupportedFormatError,
 } from '@tzurot/common-types/utils/errors';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { filenameShape } from '@tzurot/common-types/utils/logContentPreview';
 import { transcribeAudio } from '../services/multimodal/AudioProcessor.js';
 import { isDeterministicSttRejection } from '../services/multimodal/sttRejection.js';
 import { withRetry, RetryError } from '../utils/retry.js';
@@ -134,7 +135,7 @@ export async function processAudioTranscriptionJob(
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
       shouldRetry: isRetryableTranscriptionError,
       logger,
-      operationName: `Audio transcription (${attachment.name})`,
+      operationName: `Audio transcription (.${filenameShape(attachment.name)?.extension ?? 'unknown'})`,
     });
 
     logger.info(

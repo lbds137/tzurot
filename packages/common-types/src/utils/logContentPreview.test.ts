@@ -10,6 +10,7 @@ import {
   contentDigest,
   idPrefix,
   urlPrefix,
+  filenameShape,
 } from './logContentPreview.js';
 
 const setConfig = (NODE_ENV: string, LOG_CONTENT_PREVIEWS: boolean): void => {
@@ -190,5 +191,53 @@ describe('urlPrefix', () => {
     setConfig('production', false);
     expect(contentPreviewsEnabled()).toBe(false);
     expect(urlPrefix('https://example.com/path/to/resource.png', 20)).toBe('https://example.com/');
+  });
+});
+
+describe('filenameShape', () => {
+  it('extracts a lowercased extension and the full name length', () => {
+    expect(filenameShape('photo.PNG')).toEqual({ extension: 'png', nameLength: 9 });
+  });
+
+  it('returns extension undefined when there is no dot', () => {
+    expect(filenameShape('README')).toEqual({ extension: undefined, nameLength: 6 });
+  });
+
+  it('treats a dotfile as having no extension', () => {
+    expect(filenameShape('.env')).toEqual({ extension: undefined, nameLength: 4 });
+  });
+
+  it('uses the text after the LAST dot for a multi-dot name', () => {
+    expect(filenameShape('archive.tar.gz')).toEqual({ extension: 'gz', nameLength: 14 });
+  });
+
+  it('rejects a candidate extension longer than 10 characters', () => {
+    const name = 'a.abcdefghijk'; // 11-char candidate
+    expect(filenameShape(name)).toEqual({ extension: undefined, nameLength: name.length });
+  });
+
+  it('rejects a non-alphanumeric candidate extension', () => {
+    expect(filenameShape('x.my secret')).toEqual({ extension: undefined, nameLength: 11 });
+  });
+
+  it('rejects a trailing dot with no extension', () => {
+    expect(filenameShape('file.')).toEqual({ extension: undefined, nameLength: 5 });
+  });
+
+  it('returns undefined for null input', () => {
+    expect(filenameShape(null)).toBeUndefined();
+  });
+
+  it('returns undefined for undefined input', () => {
+    expect(filenameShape(undefined)).toBeUndefined();
+  });
+
+  it('never leaks the filename stem into the serialized result', () => {
+    const serialized = JSON.stringify(filenameShape('secret-diary.txt'));
+    expect(serialized).not.toContain('secret');
+  });
+
+  it('counts an astral emoji as one code point, not two UTF-16 units', () => {
+    expect(filenameShape('😀.png')).toEqual({ extension: 'png', nameLength: 5 });
   });
 });

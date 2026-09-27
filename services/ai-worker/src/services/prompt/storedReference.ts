@@ -22,6 +22,7 @@ import {
   type StoredReferencedMessage,
 } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { filenameShape } from '@tzurot/common-types/utils/logContentPreview';
 import {
   attachmentEnrichment,
   buildRenderableAttachments,
@@ -105,7 +106,7 @@ function collectEnrichment(
       // habit this whole change exists to break. Reachable when a transcription
       // result carries no attachment URL and the processor defaults it to ''.
       logger.warn(
-        { requestId, kind: attachment.kind, filename: attachment.filename },
+        { requestId, kind: attachment.kind, file: filenameShape(attachment.filename) },
         'Enrichment has no attachment URL to key it by — reached the prompt, will not survive replay'
       );
       return [];

@@ -21,6 +21,7 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { type AttachmentDescriptionAttribution } from '@tzurot/common-types/types/diagnostic';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { filenameShape } from '@tzurot/common-types/utils/logContentPreview';
 import { withParallelRetry } from '../utils/parallelRetry.js';
 import { shouldRetryError, parseApiError } from '../utils/apiErrorParser.js';
 import { describeImage, type VisionLoggingContext } from './multimodal/VisionProcessor.js';
@@ -167,7 +168,7 @@ async function transcribeAudioAttachment(
   const transcribed = await transcribeAudio(attachment, dispatch, prefetched);
   logger.info(
     {
-      name: attachment.name,
+      file: filenameShape(attachment.name),
       requestedSttProvider: dispatch.provider,
       actualSttProvider: transcribed.actualProvider,
     },
@@ -260,7 +261,7 @@ async function processSingleAttachment(
         }
       );
     }
-    logger.info({ name: attachment.name }, 'Processed image attachment');
+    logger.info({ file: filenameShape(attachment.name) }, 'Processed image attachment');
     return {
       type: AttachmentType.Image,
       description,
@@ -280,7 +281,7 @@ async function processSingleAttachment(
   const audioOnly = await sniffPlainWebmForAudioOnly(attachment);
   if (audioOnly !== null) {
     logger.info(
-      { name: attachment.name, byteLength: audioOnly.byteLength },
+      { file: filenameShape(attachment.name), byteLength: audioOnly.byteLength },
       'Plain WebM upload is audio-only; routing to STT'
     );
     return transcribeAudioAttachment(attachment, sttDispatch, audioOnly);
@@ -294,7 +295,7 @@ async function processSingleAttachment(
   // transcription failed" description — a soundless video then read to the
   // model (and the user) as a broken voice message.
   logger.info(
-    { name: attachment.name, contentType: attachment.contentType },
+    { file: filenameShape(attachment.name), contentType: attachment.contentType },
     'Attachment type unsupported — passing through as file stub'
   );
   return {
@@ -387,7 +388,7 @@ export async function processAttachments(
 
     logger.warn(
       {
-        attachment: attachment?.name ?? 'unknown',
+        file: filenameShape(attachment?.name),
         attempts: result.attempts,
         error: result.error,
       },

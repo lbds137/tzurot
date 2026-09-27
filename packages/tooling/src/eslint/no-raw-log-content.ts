@@ -48,6 +48,32 @@
  * on, whose Error messages print to the operator's terminal. Pinned by the
  * `errorSinks option` describe in `no-raw-log-content.test.ts`.
  *
+ * Pattern C — RAW FILENAME READ, at both sinks: a non-computed property
+ * read of `name` / `filename` / `fileName` / `originalName` off a "file-ish"
+ * object (an identifier, or the last segment of a member chain, named
+ * `attachment` / `att` / `file` / `upload`, or ending in `Attachment` /
+ * `File` — case-sensitive, so `profile.name` does not match but
+ * `firstFile.name` does). A filename is user-authored content — the stem can
+ * carry arbitrary text — so the sanctioned route is `filenameShape(name)`
+ * (`@tzurot/common-types/utils/logContentPreview`), which reduces it to an
+ * extension and a length; a call to `filenameShape` is exempt at both sinks,
+ * like `contentDigest`. Reported as `rawFilename` at a log sink and
+ * `rawFilenameInError` at an Error sink, whose remedy differs: an Error
+ * message can carry `filenameShape(name)?.extension` (or omit the filename
+ * entirely) but never the raw name — the message rides `err` into every log
+ * line that handles it. `errorSinks: false` skips this check at the Error
+ * sink along with every other Error-sink check (below). The one-hop const
+ * mechanism above applies here too (`const n = file.name; logger.warn({ n })`),
+ * plus a destructuring-specific shorthand consuming the same one-hop budget:
+ * `const { name } = attachment; logger.info({ name })` is flagged by
+ * resolving the destructured property back to its file-ish source, but a
+ * second hop through it (`const { name } = attachment; const w = name;
+ * logger.info({ w })`) is not, matching the plain-const two-hop case.
+ * Optional chaining (`attachment?.name`) is followed through its
+ * `ChainExpression` wrapper. The walk also enters a call's arguments, so a
+ * filename passed into any call whose result is logged is flagged even when
+ * the callee never logs it — wrap it at that call.
+ *
  * What the rule cannot see (by design — the reach is per-file, per-sink).
  * Each limit is pinned as a passing case in `no-raw-log-content.test.ts`:
  *   - cross-function flow: a helper that returns `text.slice(0, n)`, or a
@@ -57,7 +83,10 @@
  *     (`const a = s.slice(0, 9); const b = a; log({ b })`);
  *   - log-call arguments after the first (the pino message string);
  *   - truncation through other helpers (`truncateText(s, n)`), which are
- *     not `.slice` / `.substring` calls.
+ *     not `.slice` / `.substring` calls;
+ *   - a filename read through a COMPUTED member (`attachments[0].name`);
+ *   - a filename destructured from a function PARAMETER
+ *     (`({ name }: Attachment) => ...`) rather than a `const` declarator.
  *
  * Receiver typing: when the file has no type program (the rule enabled in a
  * block without `projectService`), every `.slice(0, n)` / `.substring(0, n)`
@@ -65,6 +94,7 @@
  */
 
 import type { Rule, Scope } from 'eslint';
+import { type MessageId, MESSAGES } from './no-raw-log-content-messages.js';
 
 /** Pino-style log methods; the receiver name is deliberately NOT matched. */
 const LOG_METHODS = new Set(['info', 'warn', 'error', 'debug', 'trace', 'fatal']);
@@ -78,13 +108,19 @@ const DIGEST_CALLEE = 'contentDigest';
 /** The dev-gated preview gate: sanctioned in a log field, a finding in an Error message. */
 const PREVIEW_CALLEE = 'contentPreview';
 
-type MessageId = 'rawTruncation' | 'rawTruncationInError' | 'rawResponseBody' | 'previewInError';
+/** The filename gate (extension + length, never the stem): exempt at every sink. */
+const FILENAME_SHAPE_CALLEE = 'filenameShape';
 
-/** What one kind of sink reports for a raw truncation and for a `contentPreview` call. */
+/** Non-computed property names that read a filename off a file-ish object. */
+const FILENAME_PROPS = new Set(['name', 'filename', 'fileName', 'originalName']);
+
+/** What one kind of sink reports for a raw truncation, a `contentPreview` call, and a raw filename read. */
 interface SinkPolicy {
   truncation: MessageId;
   /** `null` when `contentPreview` is sanctioned at this sink (its subtree is skipped). */
   preview: MessageId | null;
+  /** `null` when a filename read is out of scope at this sink (Error sinks). */
+  filename: MessageId | null;
 }
 
 /** The rule's one option; `errorSinks: false` skips every Error-constructor sink. */
@@ -92,8 +128,16 @@ interface RuleOptions {
   errorSinks?: boolean;
 }
 
-const LOG_SINK: SinkPolicy = { truncation: 'rawTruncation', preview: null };
-const ERROR_SINK: SinkPolicy = { truncation: 'rawTruncationInError', preview: 'previewInError' };
+const LOG_SINK: SinkPolicy = {
+  truncation: 'rawTruncation',
+  preview: null,
+  filename: 'rawFilename',
+};
+const ERROR_SINK: SinkPolicy = {
+  truncation: 'rawTruncationInError',
+  preview: 'previewInError',
+  filename: 'rawFilenameInError',
+};
 
 interface AstNode {
   type: string;
@@ -192,6 +236,47 @@ function isTextBodyInit(init: AstNode | null | undefined): boolean {
   );
 }
 
+/**
+ * The name that decides whether an object is "file-ish": an Identifier's own
+ * name, or — for a non-computed member chain (`msg.attachment`) — its last
+ * property name. A computed object (`attachments[0]`) has no such name.
+ */
+function fileIshObjectName(node: AstNode): string | undefined {
+  if (node.type === 'Identifier') {
+    return node.name as string;
+  }
+  if (node.type === 'MemberExpression' && node.computed !== true) {
+    const property = node.property as AstNode;
+    return property.type === 'Identifier' ? (property.name as string) : undefined;
+  }
+  return undefined;
+}
+
+/** `attachment`, `att`, `file`, `upload`, or a name ending in `Attachment`/`File` (case-sensitive). */
+function isFileIshName(name: string): boolean {
+  return (
+    name === 'attachment' ||
+    name === 'att' ||
+    name === 'file' ||
+    name === 'upload' ||
+    name.endsWith('Attachment') ||
+    name.endsWith('File')
+  );
+}
+
+/** `attachment.name`, `att.filename`, `msg.attachment.name` — a filename read off a file-ish object. */
+function isFilenameRead(node: AstNode): boolean {
+  if (node.type !== 'MemberExpression' || node.computed === true) {
+    return false;
+  }
+  const property = node.property as AstNode;
+  if (property.type !== 'Identifier' || !FILENAME_PROPS.has(property.name as string)) {
+    return false;
+  }
+  const objectName = fileIshObjectName(node.object as AstNode);
+  return objectName !== undefined && isFileIshName(objectName);
+}
+
 /** `new Error(...)`, `new GatewayError(...)`, `new errors.FooError(...)`. */
 function isErrorConstruction(node: AstNode): boolean {
   if (node.type !== 'NewExpression') {
@@ -272,9 +357,21 @@ function isStringReceiver(env: WalkEnv, receiver: AstNode): boolean {
   return env.checker.isTypeAssignableTo(type, env.checker.getStringType());
 }
 
+/** True when a filename read at a log sink is reported here; anything else walks on as before. */
+function collectMemberExpression(node: AstNode, state: WalkState): boolean {
+  if (state.sink.filename === null || !isFilenameRead(node)) {
+    return false;
+  }
+  state.out.push({ node, messageId: state.sink.filename });
+  return true;
+}
+
 /** Walk a sink subtree collecting findings into `state.out`. */
 function collect(env: WalkEnv, node: AstNode, state: WalkState): void {
   if (node.type === 'CallExpression' && collectCall(env, node, state)) {
+    return;
+  }
+  if (node.type === 'MemberExpression' && collectMemberExpression(node, state)) {
     return;
   }
   if (node.type === 'Identifier') {
@@ -300,7 +397,7 @@ function collect(env: WalkEnv, node: AstNode, state: WalkState): void {
  */
 function collectCall(env: WalkEnv, node: AstNode, state: WalkState): boolean {
   const name = calleeName(node);
-  if (name === DIGEST_CALLEE) {
+  if (name === DIGEST_CALLEE || name === FILENAME_SHAPE_CALLEE) {
     return true;
   }
   if (name === PREVIEW_CALLEE) {
@@ -320,8 +417,57 @@ function collectCall(env: WalkEnv, node: AstNode, state: WalkState): boolean {
   return true;
 }
 
+/**
+ * `const { name } = attachment;` — resolves an identifier back to the
+ * declarator's `init` when it was destructured from a filename-prop key
+ * (`name` / `filename` / `fileName` / `originalName`, plain or via an
+ * `AssignmentPattern` default) matching this identifier's own name. Returns
+ * `null` when the identifier isn't such a destructured binding at all — a
+ * plain `const` (`const n = file.name`) or a function-parameter pattern
+ * (`({ name }: Attachment) => ...`, not a `VariableDeclarator`) don't match.
+ */
+function destructuredFilenameSource(env: WalkEnv, identifier: AstNode): AstNode | null {
+  const def = resolveVariable(env.context, identifier)?.defs[0];
+  if (def?.type !== 'Variable') {
+    return null;
+  }
+  const declaratorId = (def.node as unknown as { id: AstNode }).id;
+  const declaratorInit = (def.node as { init?: AstNode | null }).init;
+  if (
+    declaratorId.type !== 'ObjectPattern' ||
+    declaratorInit === null ||
+    declaratorInit === undefined
+  ) {
+    return null;
+  }
+  const name = identifier.name as string;
+  const matched = (declaratorId.properties as AstNode[]).some(property => {
+    if (property.type !== 'Property' || property.computed === true) {
+      return false;
+    }
+    const key = property.key as AstNode;
+    if (key.type !== 'Identifier' || !FILENAME_PROPS.has(key.name as string)) {
+      return false;
+    }
+    let value = property.value as AstNode;
+    if (value.type === 'AssignmentPattern') {
+      value = value.left as AstNode;
+    }
+    return value.type === 'Identifier' && value.name === name;
+  });
+  return matched ? declaratorInit : null;
+}
+
 /** A `.text()` body is a finding; a `const` is entered once (the one hop). */
 function collectIdentifier(env: WalkEnv, node: AstNode, state: WalkState): void {
+  const destructuredSource = state.hops > 0 ? destructuredFilenameSource(env, node) : null;
+  if (destructuredSource !== null) {
+    const objectName = fileIshObjectName(destructuredSource);
+    if (objectName !== undefined && isFileIshName(objectName) && state.sink.filename !== null) {
+      state.out.push({ node, messageId: state.sink.filename });
+      return;
+    }
+  }
   const binding = variableInit(env, node);
   if (binding === null) {
     return;
@@ -345,30 +491,10 @@ const rule: Rule.RuleModule = {
     type: 'problem',
     docs: {
       description:
-        'Disallow raw string truncation or raw response bodies reaching log fields and Error messages, and contentPreview reaching Error messages — route content through contentPreview (log fields only) or contentDigest',
+        'Disallow raw string truncation, raw response bodies, or raw filename reads reaching log fields and Error messages, and contentPreview reaching Error messages — route content through contentPreview (log fields only), contentDigest, or filenameShape (filenames; only its extension in an Error message)',
       recommended: true,
     },
-    messages: {
-      rawTruncation:
-        'Raw string truncation reaching a log field. User content goes through ' +
-        'contentPreview(text, n) (dev-gated) or contentDigest(text) ' +
-        '(@tzurot/common-types/utils/logContentPreview); an identifier or URL prefix ' +
-        'goes through idPrefix(id) / urlPrefix(url, n) so the intent is named.',
-      rawTruncationInError:
-        'Raw string truncation reaching an Error message, which rides `err` into log ' +
-        'lines. Put the length and contentDigest(text) ' +
-        '(@tzurot/common-types/utils/logContentPreview) in the message, never a preview; ' +
-        'an identifier or URL prefix goes through idPrefix(id) / urlPrefix(url, n) so ' +
-        'the intent is named.',
-      previewInError:
-        'contentPreview reaching an Error message. A preview belongs in a log field ' +
-        'only; an Error message rides `err` into every log line that handles it. Put ' +
-        'the length and contentDigest(text) in the message instead.',
-      rawResponseBody:
-        'Raw response body (bound from `.text()`) reaching a log field or an Error ' +
-        'message. Log its length and contentDigest(body); a preview goes through ' +
-        'contentPreview(body, n) in a log field, never into an Error message.',
-    },
+    messages: MESSAGES,
     schema: [
       {
         type: 'object',

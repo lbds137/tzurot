@@ -29,6 +29,7 @@ import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/disc
 import { type ReferenceAuthorRole } from '@tzurot/common-types/types/schemas/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { filenameShape } from '@tzurot/common-types/utils/logContentPreview';
 import { isOwnPersonaVoice } from '@tzurot/common-types/utils/ownVoice';
 import type { LlmConfigResolver, VisionConfigResolver } from '@tzurot/config-resolver';
 import { flowProducer } from '../queue.js';
@@ -152,7 +153,7 @@ function createAudioTranscriptionJobs(params: AudioJobParams): PreprocessingJobs
     });
 
     logger.info(
-      { jobId, requestId: audioRequestId, referenceNumber, attachmentName: attachment.name },
+      { jobId, requestId: audioRequestId, referenceNumber, file: filenameShape(attachment.name) },
       'Added audio transcription child job'
     );
   }
