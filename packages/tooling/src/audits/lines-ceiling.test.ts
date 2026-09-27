@@ -10,7 +10,6 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import chalk from 'chalk';
 import {
   INSTRUCTION_CHARS_CEILING,
   evaluateInstructionCeiling,
@@ -312,8 +311,6 @@ describe('runLinesCheck wiring — the ceiling gates the CLI shell', () => {
   }
 
   it('omits the update-baseline hint on a ceiling-only failure', async () => {
-    const priorLevel = chalk.level;
-    chalk.level = 0;
     const output: string[] = [];
     const record = (...args: unknown[]): void => {
       output.push(args.map(String).join(' '));
@@ -332,13 +329,10 @@ describe('runLinesCheck wiring — the ceiling gates the CLI shell', () => {
     } finally {
       logSpy.mockRestore();
       errorSpy.mockRestore();
-      chalk.level = priorLevel;
     }
   });
 
   it('prints the update-baseline hint on a surface budget failure', async () => {
-    const priorLevel = chalk.level;
-    chalk.level = 0;
     const output: string[] = [];
     const record = (...args: unknown[]): void => {
       output.push(args.map(String).join(' '));
@@ -357,7 +351,6 @@ describe('runLinesCheck wiring — the ceiling gates the CLI shell', () => {
     } finally {
       logSpy.mockRestore();
       errorSpy.mockRestore();
-      chalk.level = priorLevel;
     }
   });
 });
