@@ -1,9 +1,10 @@
 ---
 id: TASK-1117
 title: doc-audit skill deletes shared memory files without an owner yes
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-27 09:48'
+updated_date: '2026-09-27 11:12'
 labels:
   - 'area:skills'
   - 'size:S'

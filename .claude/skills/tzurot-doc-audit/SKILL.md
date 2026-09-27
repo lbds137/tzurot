@@ -1,7 +1,7 @@
 ---
 name: tzurot-doc-audit
-description: 'Documentation and auto-memory freshness audit. Invoke with /tzurot-doc-audit to review docs and Claude auto-memory for staleness, items in the wrong layer, missing-tool drift, and always-loaded passages that no longer earn their context cost.'
-lastUpdated: '2026-09-25'
+description: 'Documentation freshness audit. Invoke with /tzurot-doc-audit to review docs, rules, and skills for staleness, items in the wrong layer, missing-tool drift, and always-loaded passages that no longer earn their context cost. The shared auto-memory audit is `harness:doc-audit` § Step 2.'
+lastUpdated: '2026-09-27'
 ---
 
 # Documentation Audit Procedure
@@ -20,10 +20,6 @@ Fast triage before a full audit:
 # What docs exist?
 find docs/ -name '*.md' | sort
 
-# What auto-memory entries exist? (Section 0 covers these — skip if
-# this returns "No such file or directory" on a fresh install)
-ls ~/.claude/projects/*tzurot*/memory/
-
 # Recent changes (last 30 days)?
 git log --since="30 days ago" --name-only --pretty=format: -- docs/ .claude/rules/ .claude/skills/ | sort -u | grep .
 
@@ -41,58 +37,18 @@ grep -r 'lastUpdated' .claude/skills/*/SKILL.md
 
 Work through each section. For each item, verify accuracy and fix inline or note for follow-up.
 
-**Section 0 runs FIRST** because memory entries that migrate to other layers (rules, docs, skills) will affect those sections' audits later.
+**Section 0 runs FIRST** because a memory promoted into a Tzurot rule, doc, or skill changes what those sections then audit.
 
 ### 0. Auto-Memory Audit (run FIRST)
 
-Claude's auto-memory in `~/.claude/projects/*tzurot*/memory/` accumulates per-session knowledge that may belong in more durable, team-visible layers. Each memory file is catalogued in `~/.claude/projects/*tzurot*/memory/MEMORY.md` (the index Claude reads at session start). Audit all entries before moving on — items that migrate to rules/docs/skills affect those layers' audits in later sections.
+The shared auto-memory store (`~/Documents/claude-memory`, shared by every Claude
+session on this machine) is audited by `harness:doc-audit` § Step 2, not here —
+nothing in this skill deletes a memory file. When a memory's destination is a
+Tzurot rule, skill, or doc, write that destination here; the memory's own
+deletion is proposed to the owner through `harness:doc-audit`'s gate.
 
-```bash
-# Skip this section if the memory directory doesn't exist (fresh install,
-# different machine) — there's nothing to audit. The 2>/dev/null + ||
-# fallback turns the bash glob-expansion error into a friendly skip
-# signal so a copy-paster sees clean output.
-ls ~/.claude/projects/*tzurot*/memory/ 2>/dev/null \
-  || echo "(no memory directory found — skip Section 0)"
-
-# If the glob silently expands to nothing (different checkout path),
-# find the project directory manually:
-ls ~/.claude/projects/ 2>/dev/null | grep -i tzurot \
-  || echo "(no tzurot project directory found in ~/.claude/projects/)"
-```
-
-#### How to classify each memory file
-
-Read each file and pick the matching trigger first — these are the heuristics for choosing a verdict in the table below:
-
-- **Memory content already exists verbatim in a rule/doc/skill** → **Delete** (no migration needed; this is the steady-state outcome — once the initial backlog is cleared, most future audits hit this case)
-- Memory references a constraint that's now enforced by a rule → **Delete** (it's redundant)
-- Memory describes a multi-step procedure → **Migrate to `.claude/skills/`** (skill candidate)
-- Memory captures a one-time investigation finding → **Migrate to `docs/research/`** if distilled to TL;DR, or **Delete** if used and outdated
-- Memory describes "always do X for this project" → **Migrate to `.claude/rules/`** (rule candidate)
-- Memory describes "this user prefers X" or time-bound state → **Keep in memory** (per-user context, not generalizable)
-
-#### Verdict table
-
-| Verdict                          | Action                                                                                                                                                                                                         | When                                                                                                                                                                                                                                            |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Keep in memory**               | No action                                                                                                                                                                                                      | Per-user context (e.g., user's recovery period), working-preference feedback that doesn't generalize to "always do X," time-bound project state (e.g., a deadline), or anything that's volatile or specific to one person's view of the project |
-| **Migrate to `.claude/rules/`**  | **Verify the target rule already covers, or will cover, the full intent — including any edge cases the memory captures.** Then: add content to the rule file, delete the memory file, update `MEMORY.md` index | Constraint that should apply to every session and every developer ("the rule"). Driving example: `feedback_out_of_scope_tracking.md` → `06-backlog.md` (Session 1)                                                                              |
-| **Migrate to `docs/reference/`** | **Verify the target doc captures the full intent — nuance, examples, exceptions.** Then: create or extend the reference doc, delete the memory file, update `MEMORY.md` index                                  | Persistent technical reference (architecture decision, runbook, design rationale)                                                                                                                                                               |
-| **Migrate to `.claude/skills/`** | **Verify the target skill captures the full intent.** Then: create or extend the skill, delete the memory file, update `MEMORY.md` index                                                                       | Procedural knowledge ("how to do X") that should be invocable as a procedure                                                                                                                                                                    |
-| **Delete**                       | Remove the memory file, remove from `MEMORY.md` index                                                                                                                                                          | Stale, no longer relevant, redundant with content already captured elsewhere, or describes a one-time investigation that's been resolved                                                                                                        |
-
-The "verify target covers full intent" step in the three migrate verdicts is load-bearing: a memory entry often has nuance (a specific exception, a concrete failure case) that the destination file doesn't yet cover. If you delete the memory before the destination has the nuance, the nuance is gone. Either extend the destination first, or downgrade the verdict to **Keep** until the destination is updated.
-
-After processing each file, the order matters — for migrate verdicts especially, do these steps in sequence:
-
-1. **Write to the destination layer first** (rule, doc, or skill — verifying it captures the full intent of the memory entry)
-2. **Delete the memory file**
-3. **Update `MEMORY.md`** (the index) to remove deleted entries and revise descriptions for any that changed
-
-Doing them out of order risks orphaning the memory's nuance: if you delete the memory file before the destination has the content, the nuance is gone (the verdict table's bold "Verify the target..." callouts above guard against this).
-
-Auto-memory audit runs inside `/tzurot-doc-audit` but on its own shorter cadence (`memory-prune` in `backlog/cadence-ledger.json`), so this section may run alone. **Stamp it when done:** `pnpm ops cadence:mark memory-prune`, then commit `backlog/cadence-ledger.json` to develop.
+Stamp it when done: `pnpm ops cadence:mark memory-prune`, then commit
+`backlog/cadence-ledger.json` to develop.
 
 ### 1. docs/README.md Index
 
