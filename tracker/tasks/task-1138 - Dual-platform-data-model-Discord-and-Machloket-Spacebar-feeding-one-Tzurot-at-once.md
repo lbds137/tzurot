@@ -10,7 +10,7 @@ labels:
   - 'area:db'
   - 'area:bot-client'
   - 'size:L'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 1130000
@@ -23,8 +23,7 @@ Why: owner requirement 2026-09-27 (relayed verbatim by the Machloket client sess
 
 What: a design doc first (docs/proposals or a tracker doc), then a phased rollout. It must: enumerate every store keyed by a platform ID (schema introspection + the deterministic-UUID generators in common-types, not a sampled grep); choose the platform dimension (a platform column, or a platform-namespaced seed for the deterministic UUIDs); route outbound sends (bot-client results listener, release/retention DM workers) to the right platform's process; decide the migration path for existing rows (all Discord).
 
-Owner question: should one person's Discord and Machloket accounts be the same Tzurot user (shared personas, memories, settings) or separate users?
-Recommendation: separate users by default, keyed by (platform, platform id); cross-platform linking later as an explicit opt-in, because silent merging across platforms is a data-rights and privacy decision and separate users are the safe default that linking can build on.
+OWNER RULING 2026-09-27 (~17:30, relayed by the Spacebar fork session, confirmed by the owner directly in the Tzurot session via AskUserQuestion): ONE Tzurot user per person — Discord and Machloket accounts share personas, memories and settings — reached through an EXPLICIT link flow: accounts stay separate until linked, linking requires proof from both sides (e.g. a link command on one platform confirmed on the other), and the design includes a merge path for data written before the link. Auto-linking was offered and not chosen. The link/proof flow and the pre-link merge semantics are the driver's design calls (engineering), except any user-visible merge conflict policy, which goes back to the owner.
 
-Acceptance: design doc merged with the store inventory and the owner's answer recorded; rollout phases filed as tasks.
+Acceptance: design doc merged with the store inventory, the (platform, platform id) identity model, the link/proof flow and the pre-link merge path; rollout phases filed as tasks.
 <!-- SECTION:DESCRIPTION:END -->
