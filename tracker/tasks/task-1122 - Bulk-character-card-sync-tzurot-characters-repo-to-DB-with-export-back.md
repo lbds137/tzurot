@@ -28,7 +28,11 @@ What: an ops command in `packages/tooling` (for example `pnpm ops characters:imp
 - Validate every card against the shared import schema before anything is written; stop the batch on any invalid card.
 - Renames only through an explicit old→new slug map, never inferred.
 - Ownership: a card whose slug belongs to another user (Lila's friend's Cynessa and Sister Camila) is refused unless explicitly allowed.
+- Duplicate guard: in the dry run, flag any would-be CREATE whose name or displayName matches an existing row the same owner holds, and refuse `--apply` on it without an explicit rename-map entry or a `--create-new` override. The 2026-09-27 export found 7 cards whose slug differs from their DB row (for example `bambi-moakh` against `bambi-bat-qol`), which a slug-keyed import would otherwise duplicate.
 - First step when building: read the import route and confirm what "incremental replace" does with a field ABSENT from the card (left untouched, or cleared?), since the DB carries data no card has yet (below). Report that behaviour in the PR and pin it with a test; don't assume it.
+- Birth fields: `PersonalityCreateSchema` has no `birthMonth`/`birthDay`/`birthYear`, and the plain z.object strips unknown keys, so a card's birth fields would be dropped silently (from reading the code, not a run). Confirm with a test; if cards should carry them, add them to the input schema as part of this work (one row has a birth date: rich-fairbank).
+
+Readiness: the cards in tzurot-characters are NOT import-ready yet. Per the characters session (2026-09-27), the canonical final versions come from Lila's delivered-file download at the Deck, then a slug reconciliation and a one-time backfill of DB-only author fields (baseline export at the characters session's job dir). Build and test the tool against dev meanwhile; the first real import waits for that session's go.
 
 Premises (dev DB, read-only, 2026-09-27): `definition_public` is false on all 217 personalities; 36 have tags, 70 have custom_fields, 1 has a birth date; Sera, Vaggi and Lila Elyona have personality_age in the DB although their cards lack it. Target (owner ruling 2026-09-27): dev first, then prod. Every batch runs dry-run then apply on dev, the owner checks the characters in the dev bot, and the same cards go to prod as a separate step.
 
