@@ -44,6 +44,28 @@
 # A redirect operator (`>`, `2>`, `&>`, ...) also ends the argument set:
 # everything after it names a file or heredoc delimiter, never the pattern.
 #
+# Literal recurrence: the bracket idiom only defeats the SHELL's own cmdline
+# match, because the invoking shell's cmdline carries the bracketed text
+# (`[p]attern`), not the bare literal (`pattern`). `pgrep -f`/`pkill -f` runs
+# a substring regex search over the WHOLE cmdline of every process, so if
+# that same literal ALSO occurs, unbracketed, anywhere else in the command
+# text -- a `kill`/`rm`/`echo` target built from the same name later on the
+# same line -- the invocation still self-matches there. For EVERY bracketed
+# word, this hook derives the literal the documented idiom represents
+# (`[p]attern` -> `pattern`; a single leading one-char class only -- anything
+# more complex, a multi-char class or a missing close-bracket at position 2,
+# is treated as un-derivable and contributes no literal, no extra block) and
+# blocks when any derived literal occurs anywhere else in the full command
+# text, reporting the first one found. A quoted pattern containing a space
+# (`'[n]ode server.js'`) reaches the word scan split across multiple words --
+# the scan has no quote awareness, so a bracket word that opened a quote but
+# does not itself close it is likewise un-derivable and skipped: this check
+# is a literal SUBSTRING search, an approximation of the tool's regex match
+# that is exact for plain names and paths but not for a pattern containing
+# regex metacharacters. The bracket idiom breaks contiguity inside its own
+# word (`[f]oo` never contains the substring `foo`), so the search needs no
+# special-casing to exclude the pattern word's own occurrence.
+#
 # Fixture check: run .claude/hooks/self-matching-pattern-guard.probe.sh after ANY edit.
 
 set -uo pipefail
@@ -71,9 +93,11 @@ GUARD_CMD=$(jq -r '.tool_input.command // empty' <<<"$INPUT" 2>/dev/null || echo
 # Join a trailing-backslash continuation first (keeps the invocation open
 # across it), THEN turn every remaining newline into a `;` separator token.
 GUARD_CMD="${GUARD_CMD//\\$'\n'/ }"
-read -ra WORDS <<< "${GUARD_CMD//$'\n'/ ; }"
+CMD_TEXT="${GUARD_CMD//$'\n'/ ; }"
+read -ra WORDS <<< "$CMD_TEXT"
 
 blocked=0
+recurring_literal=""
 inv_open=0
 declare -a inv=()
 redirect_re='^([0-9]*[<>]|&>)'
@@ -94,7 +118,8 @@ is_start_word() {
 # is never passed in) as a SET: blocks when a full-cmdline flag is present
 # and no argument word opens with the bracket idiom.
 evaluate_invocation() {
-  local w p has_f=0 has_bracket=0
+  local w p pl lit quote_char has_f=0 has_bracket=0
+  local -a literals=()
   for w in "$@"; do
     if [ "$has_f" -eq 0 ]; then
       if [ "$w" = "--full" ] || [[ "$w" =~ ^-[a-zA-Z]*f[a-zA-Z]*$ ]]; then
@@ -102,15 +127,59 @@ evaluate_invocation() {
       fi
     fi
     # Strip one leading quote character (including a leading $ that precedes
-    # one, for $'...'/$"...") before checking the bracket idiom.
+    # one, for $'...'/$"...") before checking the bracket idiom. quote_char
+    # records which quote (if any) was stripped, so the un-derivable check
+    # below can test the ORIGINAL word for the matching close.
     p="$w"
+    quote_char=""
     case "$p" in
-      \$\'*|\$\"*) p="${p:2}" ;;
-      \'*|\"*) p="${p:1}" ;;
+      \$\'*) quote_char="'"; p="${p:2}" ;;
+      \$\"*) quote_char='"'; p="${p:2}" ;;
+      \'*) quote_char="'"; p="${p:1}" ;;
+      \"*) quote_char='"'; p="${p:1}" ;;
     esac
-    [ "${p:0:1}" = "[" ] && has_bracket=1
+    if [ "${p:0:1}" = "[" ]; then
+      has_bracket=1
+      # A quoted bracketed pattern containing a space (`'[n]ode server.js'`)
+      # reaches this word split across multiple words -- the word scan has
+      # no quote awareness, so this word alone never carries the close
+      # quote. When the word OPENED a quote but does not itself END with
+      # the matching quote character, the full pattern spans more than one
+      # word and this word's literal is un-derivable: skip deriving a
+      # literal for it (but it still counts toward has_bracket, since the
+      # bracket idiom itself is still present). An unquoted pattern, or one
+      # fully quoted within this single word, is unaffected.
+      if [ -n "$quote_char" ] && [[ "$w" != *"$quote_char" ]]; then
+        continue
+      fi
+      # Derive the literal only for the documented idiom -- a single
+      # leading one-char class. Strip a matching trailing quote first so
+      # the derived literal doesn't carry a stray quote character; anything
+      # more complex (no `]` closing the class at position 2) is
+      # un-derivable and this word contributes no literal, skipping the
+      # recurrence check below for it.
+      pl="$p"
+      case "$pl" in
+        *\'|*\") pl="${pl%?}" ;;
+      esac
+      [ "${pl:2:1}" = "]" ] && literals+=("${pl:1:1}${pl:3}")
+    fi
   done
-  [ "$has_f" -eq 1 ] && [ "$has_bracket" -eq 0 ] && blocked=1
+  if [ "$has_f" -eq 1 ] && [ "$has_bracket" -eq 0 ]; then
+    blocked=1
+    return
+  fi
+  if [ "$has_f" -eq 1 ]; then
+    # Every bracket word's derivable literal is checked, not just the last
+    # one seen -- report the FIRST one (in word order) that recurs.
+    for lit in "${literals[@]}"; do
+      if [[ "$CMD_TEXT" == *"$lit"* ]]; then
+        blocked=1
+        recurring_literal="$lit"
+        return
+      fi
+    done
+  fi
 }
 
 for w in "${WORDS[@]}"; do
@@ -173,7 +242,26 @@ if [ "$blocked" -ne 1 ]; then
   exit 0
 fi
 
-cat >&2 << 'MSG'
+if [ -n "$recurring_literal" ]; then
+  # Interpolate the derived literal via printf '%s', never an unquoted
+  # heredoc -- the literal comes straight from the command text being
+  # analyzed, and an unquoted heredoc would expand a `$(...)`/backtick
+  # sequence inside it instead of just printing it.
+  {
+    printf '%s\n' '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+    printf '%s\n' 'SELF-MATCHING PATTERN GUARD — bracketed literal recurs unbracketed'
+    printf '%s\n' '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+    printf '%s\n' 'The bracket idiom only defeats the match on the bracketed word'
+    printf 'itself: this cmdline also carries the literal %s elsewhere,\n' "$recurring_literal"
+    printf '%s\n' 'unbracketed. `pgrep -f`/`pkill -f` matches the WHOLE cmdline, so'
+    printf '%s\n' 'it still self-matches there too.'
+    printf '\n'
+    printf '%s\n' 'Bracket that occurrence as well, or drop the -f/--full flag and'
+    printf '%s\n' 'match by PID instead.'
+    printf '%s\n' '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+  } >&2
+else
+  cat >&2 << 'MSG'
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SELF-MATCHING PATTERN GUARD — pgrep -f / pkill -f matches this shell
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -187,4 +275,5 @@ in your cmdline does not match the regex) — or list PIDs first and act
 by PID, or wait on a PID file.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 MSG
+fi
 exit 2
