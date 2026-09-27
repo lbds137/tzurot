@@ -149,6 +149,51 @@ run 0 "ANSI-C quoted bracket idiom"  "pgrep -f \$'[n]ode'"
 run 0 "bracket idiom with a stderr redirect" "pgrep -f '[n]ode' 2>/dev/null"
 run 0 "bracket idiom with a stdout redirect" "pkill -f '[n]ode' > out.log"
 
+# --- literal recurrence: a bracketed pattern's derived literal reappears -----
+# unbracketed elsewhere in the SAME command text. The bracket idiom only
+# defeats the match on the bracketed word itself; `pgrep -f`/`pkill -f`
+# matches the whole cmdline, so a plain-text copy of the same literal later
+# on the line self-matches there too.
+
+# The incident shape: a bracketed full-cmdline pattern feeding a kill, plus
+# a later `rm -rf` built from the same name, unbracketed, on the same line.
+run 2 "bracketed pattern's literal recurs in a later rm -rf target" \
+  "pkill -f '[f]oo-probe'; rm -rf /tmp/foo-probe"
+
+# The mirror: a bracketed pattern whose literal has no other occurrence
+# anywhere in the command text must still pass.
+run 0 "bracketed pattern with no other occurrence of its literal" \
+  "pgrep -f '[f]oo-probe'"
+
+# The literal appearing only as a substring of a LONGER word elsewhere.
+# Decision (recommendation in the spec): still block -- the -f match is a
+# regex search over the full cmdline, so a substring occurrence self-matches
+# exactly like a whole-word one; this hook does not special-case word
+# boundaries anywhere else in its scan either.
+run 2 "bracketed pattern's literal recurs as a substring of a longer word" \
+  "pkill -f '[f]oo-probe'; echo foo-probe-extra"
+
+# A quoted bracketed pattern containing a SPACE reaches the word scan split
+# across two words (`'[n]ode` + `server.js'`) -- un-derivable, since the word
+# scan has no quote awareness and cannot see the pattern whole, so an
+# unrelated later occurrence of "node" must not block it.
+run 0 "quoted multi-word bracketed pattern is un-derivable, unrelated later word" \
+  "pgrep -f '[n]ode server.js'; echo \"using node here\""
+
+# Two bracket words in one invocation where only the FIRST one's literal
+# recurs later -- every bracket word must be checked, not just the last one.
+run 2 "first of two bracket words has the recurring literal, second does not" \
+  "pgrep -f '[f]oo' '[b]ar'; echo foo-elsewhere"
+
+# The double-quoted form derives its literal the same way as the single-quoted one.
+run 2 "double-quoted bracketed pattern whose literal recurs" \
+  "pkill -f \"[f]oo-probe\"; rm -rf /tmp/foo-probe"
+
+# The literal recurring as the invocation's own command word still self-matches:
+# the shell running the command carries that unbracketed text in its cmdline.
+run 2 "bracketed pattern whose literal is the command's own name" \
+  "pkill -f '[p]kill'"
+
 # --- malformed / edge inputs -------------------------------------------------
 # These three carry no pgrep/pkill substring at all, so they exit at the
 # raw-payload fast path and never reach the jq decode below. They still pin

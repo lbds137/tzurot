@@ -3,9 +3,10 @@ id: TASK-1115
 title: >-
   self-matching-pattern-guard misses a bracketed pattern whose plain literal
   recurs in the same command
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-27 08:38'
+updated_date: '2026-09-27 13:36'
 labels:
   - 'area:hooks'
   - 'size:S'
