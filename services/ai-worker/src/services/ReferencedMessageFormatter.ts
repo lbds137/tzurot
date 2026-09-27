@@ -181,7 +181,10 @@ function buildDedupedAttachments(
       return undefined;
     }
     matched.add(hit);
-    return hit.description;
+    // A File entry's description is the unsupported-type stub, never content:
+    // it must not become enrichment (a plain video/webm would render it as a
+    // voice transcript). Still marked matched, so the orphan loop skips it.
+    return hit.type === AttachmentType.File ? undefined : hit.description;
   });
 
   // Enrichment whose attachment row is missing still renders. A description is

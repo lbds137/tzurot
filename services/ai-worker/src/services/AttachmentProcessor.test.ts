@@ -13,6 +13,12 @@ import { AudioTooLongError, UnsupportedAudioFormatError } from '@tzurot/common-t
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { processAttachmentsParallel } from './AttachmentProcessor.js';
 import { OWN_VOICE_DESCRIPTION } from './voice/ownVoiceGuard.js';
+import { buildStoredAttachments, toStoredReference } from './prompt/storedReference.js';
+import {
+  hexToArrayBuffer,
+  CHROMIUM_AUDIO_WEBM_PREFIX_HEX,
+  FFMPEG_AV_WEBM_PREFIX_HEX,
+} from '../test/mocks/fixtures/webmHeaders.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets
 const {
@@ -21,6 +27,7 @@ const {
   mockGetSystemSetting,
   mockLogger,
   mockChildLogger,
+  mockFetchAudioBuffer,
 } = vi.hoisted(() => {
   const child = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   return {
@@ -37,6 +44,7 @@ const {
       error: vi.fn(),
       child: vi.fn(() => child),
     },
+    mockFetchAudioBuffer: vi.fn(),
   };
 });
 
@@ -57,6 +65,14 @@ vi.mock('./MultimodalProcessor.js', () => ({
   transcribeAudio: mockTranscribeAudio,
 }));
 
+// AttachmentProcessor now imports the real plainWebmAudioSniff module (not
+// mocked) so a plain video/webm's routing decision is exercised for real;
+// only its own fetch dependency is mocked, matching plainWebmAudioSniff's own
+// test.
+vi.mock('./multimodal/AudioProcessor.js', () => ({
+  fetchAudioBuffer: (...args: unknown[]) => mockFetchAudioBuffer(...args),
+}));
+
 describe('AttachmentProcessor', () => {
   /** The renderable half of each built pair — what these cases assert on. */
   const rendered = (built: { attachment: unknown }[]): unknown[] =>
@@ -66,6 +82,11 @@ describe('AttachmentProcessor', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // clearAllMocks preserves a configured mockResolvedValue/mockRejectedValue
+    // (it only clears call history), so an explicit reset here keeps one
+    // test's fetch outcome from leaking into the next — the same leak
+    // `mockGetSystemSetting.mockReturnValueOnce` above guards against.
+    mockFetchAudioBuffer.mockReset();
     vi.useFakeTimers();
 
     mockPersonality = {
@@ -1315,6 +1336,352 @@ describe('AttachmentProcessor', () => {
         'Image processing failed'
       );
       expect(mockChildLogger.error).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('plain video/webm reference attachments', () => {
+    // A voice recording re-uploaded as a plain file arrives `video/webm` with
+    // no voice flag, so `classifyAttachment` routes it through the `file`
+    // case — which now sniffs its bytes before falling back to a stub.
+    const plainWebm = {
+      url: 'https://example.com/plain.webm',
+      contentType: 'video/webm',
+      name: 'plain.webm',
+      size: 4096,
+    };
+
+    it('SEAM: routes an audio-only plain webm to STT and renders it as voice', async () => {
+      const buffer = hexToArrayBuffer(CHROMIUM_AUDIO_WEBM_PREFIX_HEX);
+      mockFetchAudioBuffer.mockResolvedValue(buffer);
+      mockTranscribeAudio.mockResolvedValue({
+        text: 'hello there',
+        actualProvider: 'voice-engine',
+      });
+
+      const result = await processAttachmentsParallel({
+        attachments: [plainWebm],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].attachment).toEqual({
+        kind: 'voice',
+        filename: 'plain.webm',
+        contentType: 'video/webm',
+        durationSeconds: undefined,
+        description: 'hello there',
+      });
+      expect(mockFetchAudioBuffer).toHaveBeenCalledTimes(1);
+      expect(mockFetchAudioBuffer).toHaveBeenCalledWith(plainWebm.url);
+      // The sniff's own fetch is the ONLY fetch — transcribeAudio must reuse
+      // those bytes rather than downloading the attachment a second time.
+      expect(mockTranscribeAudio).toHaveBeenCalledTimes(1);
+      expect(mockTranscribeAudio.mock.calls[0][2]).toBe(buffer);
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        { referenceNumber: 1, byteLength: buffer.byteLength },
+        'Plain WebM upload is audio-only; routing to STT'
+      );
+    });
+
+    it('CHAIN: the live transcript survives persist and replay (processAttachmentsParallel → toStoredReference → buildStoredAttachments)', async () => {
+      mockFetchAudioBuffer.mockResolvedValue(hexToArrayBuffer(CHROMIUM_AUDIO_WEBM_PREFIX_HEX));
+      mockTranscribeAudio.mockResolvedValue({
+        text: 'hello there',
+        actualProvider: 'voice-engine',
+      });
+
+      const built = await processAttachmentsParallel({
+        attachments: [plainWebm],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+      });
+      const stored = toStoredReference(
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-1',
+          discordUserId: 'discord-user-1',
+          authorUsername: 'alice',
+          authorDisplayName: 'Alice',
+          authorRole: 'user',
+          content: '',
+          embeds: '',
+          timestamp: '2026-07-31T12:00:00.000Z',
+          locationContext: '<location channel="general"/>',
+          attachments: [plainWebm],
+        },
+        built
+      );
+
+      expect(buildStoredAttachments(stored)).toEqual([
+        {
+          kind: 'voice',
+          filename: 'plain.webm',
+          contentType: 'video/webm',
+          durationSeconds: undefined,
+          description: 'hello there',
+        },
+      ]);
+    });
+
+    it('renders an A/V plain webm (has a video track) as a file stub, without calling STT', async () => {
+      mockFetchAudioBuffer.mockResolvedValue(hexToArrayBuffer(FFMPEG_AV_WEBM_PREFIX_HEX));
+
+      const result = await processAttachmentsParallel({
+        attachments: [plainWebm],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+      });
+
+      expect(result[0].attachment).toEqual({
+        kind: 'file',
+        filename: 'plain.webm',
+        contentType: 'video/webm',
+      });
+      expect(mockTranscribeAudio).not.toHaveBeenCalled();
+    });
+
+    it('falls back to a file stub when the sniff fetch rejects', async () => {
+      mockFetchAudioBuffer.mockRejectedValue(new Error('network down'));
+
+      const result = await processAttachmentsParallel({
+        attachments: [plainWebm],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+      });
+
+      expect(result[0].attachment).toEqual({
+        kind: 'file',
+        filename: 'plain.webm',
+        contentType: 'video/webm',
+      });
+      expect(mockTranscribeAudio).not.toHaveBeenCalled();
+    });
+
+    it('never sniffs a non-webm file', async () => {
+      const result = await processAttachmentsParallel({
+        attachments: [
+          {
+            url: 'https://example.com/doc.pdf',
+            contentType: 'application/pdf',
+            name: 'document.pdf',
+            size: 50000,
+          },
+        ],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+      });
+
+      expect(result[0].attachment).toEqual({
+        kind: 'file',
+        filename: 'document.pdf',
+        contentType: 'application/pdf',
+      });
+      expect(mockFetchAudioBuffer).not.toHaveBeenCalled();
+    });
+
+    it('renders untranscribed when STT fails on an audio-only plain webm', async () => {
+      mockFetchAudioBuffer.mockResolvedValue(hexToArrayBuffer(CHROMIUM_AUDIO_WEBM_PREFIX_HEX));
+      mockTranscribeAudio.mockRejectedValue(new UnsupportedAudioFormatError('bad format'));
+
+      const promise = processAttachmentsParallel({
+        attachments: [plainWebm],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+      });
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockTranscribeAudio).toHaveBeenCalledTimes(1);
+      expect(result[0].attachment).toEqual({
+        kind: 'voice',
+        filename: 'plain.webm',
+        contentType: 'video/webm',
+        status: 'untranscribed',
+      });
+    });
+
+    it('renders OWN_VOICE_DESCRIPTION for an own-persona audio-only plain webm, without calling STT', async () => {
+      mockFetchAudioBuffer.mockResolvedValue(hexToArrayBuffer(CHROMIUM_AUDIO_WEBM_PREFIX_HEX));
+
+      const result = await processAttachmentsParallel({
+        attachments: [plainWebm],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+        authorRole: 'assistant',
+      });
+
+      expect(mockTranscribeAudio).not.toHaveBeenCalled();
+      expect(mockFetchAudioBuffer).not.toHaveBeenCalled();
+      expect(result[0].attachment).toEqual({
+        kind: 'voice',
+        filename: 'plain.webm',
+        contentType: 'video/webm',
+        description: OWN_VOICE_DESCRIPTION,
+      });
+    });
+
+    it('renders the plain file stub for an own-persona non-webm file, without fetching', async () => {
+      const result = await processAttachmentsParallel({
+        attachments: [
+          {
+            url: 'https://example.com/doc.pdf',
+            contentType: 'application/pdf',
+            name: 'document.pdf',
+            size: 50000,
+          },
+        ],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+        authorRole: 'assistant',
+      });
+
+      expect(result[0].attachment).toEqual({
+        kind: 'file',
+        filename: 'document.pdf',
+        contentType: 'application/pdf',
+      });
+      expect(mockFetchAudioBuffer).not.toHaveBeenCalled();
+    });
+
+    it('never renders a File-typed preprocessed stub as a voice description; sniffs and transcribes instead', async () => {
+      const buffer = hexToArrayBuffer(CHROMIUM_AUDIO_WEBM_PREFIX_HEX);
+      mockFetchAudioBuffer.mockResolvedValue(buffer);
+      mockTranscribeAudio.mockResolvedValue({
+        text: 'transcribed for real',
+        actualProvider: 'voice-engine',
+      });
+
+      const result = await processAttachmentsParallel({
+        attachments: [plainWebm],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+        preprocessedAttachments: [
+          {
+            type: AttachmentType.File,
+            description: 'Unsupported file type: video/webm',
+            originalUrl: plainWebm.url,
+            metadata: plainWebm,
+          },
+        ],
+      });
+
+      expect(result[0].attachment).toEqual({
+        kind: 'voice',
+        filename: 'plain.webm',
+        contentType: 'video/webm',
+        durationSeconds: undefined,
+        description: 'transcribed for real',
+      });
+      expect(mockFetchAudioBuffer).toHaveBeenCalledTimes(1);
+      expect(mockTranscribeAudio).toHaveBeenCalledTimes(1);
+    });
+
+    it('renders the STT result, not the stub, for a voice-flagged attachment with a File-typed preprocessed entry', async () => {
+      const voiceFlagged = {
+        url: 'https://example.com/voice-flagged.webm',
+        contentType: 'video/webm',
+        name: 'voice-flagged.webm',
+        size: 4096,
+        isVoiceMessage: true,
+        duration: 6,
+      };
+      mockTranscribeAudio.mockResolvedValue({
+        text: 'stt transcript',
+        actualProvider: 'voice-engine',
+      });
+
+      const result = await processAttachmentsParallel({
+        attachments: [voiceFlagged],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+        preprocessedAttachments: [
+          {
+            type: AttachmentType.File,
+            description: 'Unsupported file type: video/webm',
+            originalUrl: voiceFlagged.url,
+            metadata: voiceFlagged,
+          },
+        ],
+      });
+
+      expect(result[0].attachment).toEqual({
+        kind: 'voice',
+        filename: 'voice-flagged.webm',
+        contentType: 'video/webm',
+        durationSeconds: 6,
+        description: 'stt transcript',
+      });
+      expect(mockTranscribeAudio).toHaveBeenCalledTimes(1);
+    });
+
+    it('reuses an Audio-typed preprocessed hit for a plain webm without any fetch or STT call', async () => {
+      const result = await processAttachmentsParallel({
+        attachments: [plainWebm],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+        preprocessedAttachments: [
+          {
+            type: AttachmentType.Audio,
+            description: 'Preprocessed transcript',
+            originalUrl: plainWebm.url,
+            metadata: plainWebm,
+          },
+        ],
+      });
+
+      expect(result[0].attachment).toEqual({
+        kind: 'voice',
+        filename: 'plain.webm',
+        contentType: 'video/webm',
+        durationSeconds: undefined,
+        description: 'Preprocessed transcript',
+      });
+      expect(mockFetchAudioBuffer).not.toHaveBeenCalled();
+      expect(mockTranscribeAudio).not.toHaveBeenCalled();
+    });
+
+    it('still renders the file stub for a non-webm file with an Audio-typed preprocessed hit', async () => {
+      const pdf = {
+        url: 'https://example.com/doc.pdf',
+        contentType: 'application/pdf',
+        name: 'document.pdf',
+        size: 50000,
+      };
+
+      const result = await processAttachmentsParallel({
+        attachments: [pdf],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+        preprocessedAttachments: [
+          {
+            type: AttachmentType.Audio,
+            description: 'Preprocessed transcript',
+            originalUrl: pdf.url,
+            metadata: pdf,
+          },
+        ],
+      });
+
+      expect(result[0].attachment).toEqual({
+        kind: 'file',
+        filename: 'document.pdf',
+        contentType: 'application/pdf',
+      });
+      expect(mockFetchAudioBuffer).not.toHaveBeenCalled();
+      expect(mockTranscribeAudio).not.toHaveBeenCalled();
     });
   });
 });

@@ -825,5 +825,71 @@ describe('QuoteFormatter', () => {
 
       expect(renderAttachment(built.attachment)).not.toContain('spoiler');
     });
+
+    describe('a plain video/webm carrying a stored transcript', () => {
+      // A voice recording re-uploaded as a plain file arrives `video/webm`
+      // with no voice flag, so `classifyAttachment` puts it in the `file`
+      // arm. The reference path's byte sniff already decided whether it is
+      // audio-only before any description reaches here, so a description's
+      // mere presence is what promotes it to `voice` — this module does no
+      // byte sniffing of its own.
+      const plainWebm = {
+        url: 'https://cdn/plain.webm',
+        name: 'plain.webm',
+        contentType: 'video/webm',
+      };
+
+      it('renders as voice when a transcript is present', () => {
+        const [built] = buildRenderableAttachments([plainWebm], () => 'hello there');
+
+        expect(built.attachment).toEqual({
+          kind: 'voice',
+          filename: 'plain.webm',
+          contentType: 'video/webm',
+          description: 'hello there',
+        });
+      });
+
+      it('stays a file when the describe callback returns undefined', () => {
+        const [built] = buildRenderableAttachments([plainWebm], none);
+
+        expect(built.attachment).toEqual({
+          kind: 'file',
+          filename: 'plain.webm',
+          contentType: 'video/webm',
+        });
+      });
+
+      it('stays a file when the describe callback returns an empty string', () => {
+        const [built] = buildRenderableAttachments([plainWebm], () => '');
+
+        expect(built.attachment).toEqual({
+          kind: 'file',
+          filename: 'plain.webm',
+          contentType: 'video/webm',
+        });
+      });
+
+      it('does NOT apply to other video content types — a described video/mp4 stays a file', () => {
+        const videoMp4 = { ...plainWebm, contentType: 'video/mp4' };
+        const [built] = buildRenderableAttachments([videoMp4], () => 'a described video');
+
+        expect(built.attachment).toEqual({
+          kind: 'file',
+          filename: 'plain.webm',
+          contentType: 'video/mp4',
+        });
+      });
+
+      it('does NOT apply to an ordinary described document', () => {
+        const [built] = buildRenderableAttachments([doc], () => 'a quarterly report');
+
+        expect(built.attachment).toEqual({
+          kind: 'file',
+          filename: 'report.pdf',
+          contentType: 'application/pdf',
+        });
+      });
+    });
   });
 });

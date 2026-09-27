@@ -175,8 +175,9 @@ export interface BuiltAttachment {
  * enrichment the caller can find for it.
  *
  * `describe` is the ONE thing that differs between producers: the live path
- * correlates preprocessing results by URL, the stored path correlates persisted
- * descriptions by filename. Everything after that — classify, pick the arm,
+ * correlates preprocessing results by URL, and so does the stored path (see
+ * `storedReference.ts`'s `buildStoredAttachments`, keyed by URL against
+ * `attachmentEnrichment`). Everything after that — classify, pick the arm,
  * name the absence — was two copies of the same fifteen lines, and they had
  * already drifted once (see `classifyAttachment`). A miss returns the
  * modality's own "no enrichment" status rather than a bare element, so the
@@ -184,7 +185,9 @@ export interface BuiltAttachment {
  *
  * Enrichment for an attachment that classifies as `file` is DROPPED, because
  * `RenderableFile` has no slot for it. That is a real (if rare) loss, so
- * callers pair this with a count check — see `warnOnDroppedEnrichment`.
+ * callers pair this with a count check — see `warnOnDroppedEnrichment`. One
+ * exception: a plain `video/webm` carrying a stored transcript — see
+ * `renderableFor`.
  */
 export function buildRenderableAttachments<T extends AttachmentSource>(
   attachments: readonly T[],
@@ -222,6 +225,15 @@ function renderableFor(
         ? { kind: 'voice', ...identity, durationSeconds: att.duration, description }
         : { kind: 'voice', ...identity, durationSeconds: att.duration, status: 'untranscribed' };
     case 'file':
+      // A plain (non-voice-flagged) `video/webm` carrying a stored transcript
+      // is one the reference path's byte sniff (`sniffPlainWebmForAudioOnly`)
+      // already routed to STT — the transcript IS the evidence it was
+      // audio-only. This path is synchronous and does no byte sniffing of its
+      // own, so a plain WebM with no description stays a file: no bytes were
+      // inspected here to say otherwise.
+      if (att.contentType === CONTENT_TYPES.VIDEO_WEBM && description !== undefined) {
+        return { kind: 'voice', ...identity, durationSeconds: att.duration, description };
+      }
       return { kind: 'file', ...identity };
   }
 }

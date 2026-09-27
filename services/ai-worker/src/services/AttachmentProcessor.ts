@@ -8,6 +8,7 @@
 
 import type { Logger } from 'pino';
 import { type AIProvider } from '@tzurot/common-types/constants/ai';
+import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
 import {
   type ReferencedMessage,
@@ -26,6 +27,7 @@ import {
 } from './prompt/QuoteFormatter.js';
 import { OWN_VOICE_DESCRIPTION } from './voice/ownVoiceGuard.js';
 import { isDeterministicSttRejection } from './multimodal/sttRejection.js';
+import { sniffPlainWebmForAudioOnly } from './multimodal/plainWebmAudioSniff.js';
 import { withRetry } from '../utils/retry.js';
 import { filterStickersBySetting } from '@tzurot/common-types/services/stickerVisionGate';
 import { isOwnPersonaVoice } from '@tzurot/common-types/utils/ownVoice';
@@ -281,11 +283,14 @@ interface ProcessVoiceOptions {
   preprocessed?: ProcessedAttachment;
   sttDispatch?: SttDispatch;
   authorRole?: ReferenceAuthorRole;
+  /** Bytes the plain-WebM sniff already fetched, passed through to `transcribeAudio` so they are not downloaded twice. */
+  prefetched?: ArrayBuffer;
 }
 
 /** Process voice message attachment */
 async function processVoiceAttachment(options: ProcessVoiceOptions): Promise<BuiltAttachment> {
-  const { attachment, referenceNumber, log, preprocessed, sttDispatch, authorRole } = options;
+  const { attachment, referenceNumber, log, preprocessed, sttDispatch, authorRole, prefetched } =
+    options;
   // Identity only — NOT a whole RenderableVoice. `kind` and the enrichment are
   // supplied per return site, because the type makes description and status
   // mutually exclusive and a pre-built object cannot commit to either arm.
@@ -308,7 +313,14 @@ async function processVoiceAttachment(options: ProcessVoiceOptions): Promise<Bui
     return { url: attachment.url, attachment: { ...identity, description: OWN_VOICE_DESCRIPTION } };
   }
 
-  if (preprocessed?.description !== undefined && preprocessed.description !== '') {
+  // A File-typed hit's description is the unsupported-type stub, not a
+  // transcript — mirrors the guard in ReferencedMessageFormatter.ts
+  // `buildDedupedAttachments` (`hit.type === AttachmentType.File ? undefined : hit.description`).
+  if (
+    preprocessed?.description !== undefined &&
+    preprocessed.description !== '' &&
+    preprocessed.type !== AttachmentType.File
+  ) {
     log.debug({ referenceNumber, url: attachment.url }, 'Using preprocessed voice transcription');
     return {
       url: attachment.url,
@@ -327,7 +339,7 @@ async function processVoiceAttachment(options: ProcessVoiceOptions): Promise<Bui
       'Transcribing voice message'
     );
     const result = await withRetry(
-      () => transcribeAudio(attachment, sttDispatch ?? { provider: 'voice-engine' }),
+      () => transcribeAudio(attachment, sttDispatch ?? { provider: 'voice-engine' }, prefetched),
       {
         maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
         logger: log,
@@ -410,8 +422,81 @@ async function processImageAttachment(options: ProcessImageOptions): Promise<Bui
   }
 }
 
+/** Options for processing an attachment `classifyAttachment` calls `file` (internal) */
+type ProcessPlainFileOptions = Omit<ProcessVoiceOptions, 'prefetched'>;
+
 /**
- * Process a single attachment (image or voice message).
+ * Process an attachment `classifyAttachment` classified as `file`.
+ *
+ * A plain (non-voice-flagged) `video/webm` upload is exactly what a voice
+ * recording looks like when re-uploaded as a file rather than sent through
+ * Discord's voice-message UI. An own-persona plain webm short-circuits before
+ * any fetch, same as every other route into `processVoiceAttachment`. If a
+ * preprocessed hit for it already exists (a non-`File`-typed entry with a
+ * non-empty description), that prior paid work wins over any network call —
+ * same order as `processImageAttachment`/`processVoiceAttachment` — and this
+ * routes straight to `processVoiceAttachment` with no sniff or fetch.
+ * Otherwise its bytes get one sniff (`sniffPlainWebmForAudioOnly`) before it
+ * is treated as an ordinary document: audio-only routes to STT via
+ * `processVoiceAttachment`, carrying the already-fetched bytes so they are
+ * not downloaded twice; anything else (a video track, a non-webm file, an
+ * oversize or size-less attachment) falls through to the plain file stub
+ * unchanged. A non-webm `file`-classified attachment always falls through to
+ * the stub, even with a preprocessed hit — that hit belongs to a different
+ * rendering path.
+ */
+async function processPlainFileAttachment(
+  options: ProcessPlainFileOptions
+): Promise<BuiltAttachment> {
+  const { attachment, referenceNumber, log, preprocessed, authorRole } = options;
+
+  const isPlainWebm = attachment.contentType === CONTENT_TYPES.VIDEO_WEBM;
+
+  // Own-persona plain webm: skip the fetch entirely, same as every other
+  // route into processVoiceAttachment (see its own guard for why). A
+  // non-webm own-persona file still falls through to the plain stub below —
+  // this short-circuit only applies to the audio-transcript path.
+  if (isPlainWebm && isOwnPersonaVoice(authorRole)) {
+    return processVoiceAttachment(options);
+  }
+
+  if (
+    isPlainWebm &&
+    preprocessed?.description !== undefined &&
+    preprocessed.description !== '' &&
+    preprocessed.type !== AttachmentType.File
+  ) {
+    return processVoiceAttachment(options);
+  }
+
+  // A File-typed preprocessed hit falls through to the sniff below rather
+  // than being trusted like an Audio-typed hit above: its only producer
+  // (MultimodalProcessor's unsupported-type stub) cannot say whether its sniff
+  // found a video track or its fetch failed, so this function sniffs itself.
+  const audioOnly = await sniffPlainWebmForAudioOnly(attachment);
+  if (audioOnly !== null) {
+    log.info(
+      { referenceNumber, byteLength: audioOnly.byteLength },
+      'Plain WebM upload is audio-only; routing to STT'
+    );
+    return processVoiceAttachment({ ...options, prefetched: audioOnly });
+  }
+
+  return {
+    url: attachment.url,
+    attachment: {
+      kind: 'file',
+      filename: attachment.name,
+      contentType: attachment.contentType,
+      spoiler: attachmentSpoiler(attachment),
+    },
+  };
+}
+
+/**
+ * Process a single attachment (image or voice message). A plain `video/webm`
+ * upload is sniffed and routed to STT when its bytes are audio-only; see
+ * `processPlainFileAttachment`.
  * Handles vision model or transcription processing with graceful error handling.
  */
 async function processSingleAttachment(
@@ -457,14 +542,13 @@ async function processSingleAttachment(
         log,
       });
     case 'file':
-      return {
-        url: attachment.url,
-        attachment: {
-          kind: 'file',
-          filename: attachment.name,
-          contentType: attachment.contentType,
-          spoiler: attachmentSpoiler(attachment),
-        },
-      };
+      return processPlainFileAttachment({
+        attachment,
+        referenceNumber,
+        log,
+        preprocessed,
+        sttDispatch,
+        authorRole,
+      });
   }
 }
