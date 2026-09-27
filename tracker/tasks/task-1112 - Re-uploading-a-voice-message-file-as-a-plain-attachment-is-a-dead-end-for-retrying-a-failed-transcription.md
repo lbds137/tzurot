@@ -3,10 +3,10 @@ id: TASK-1112
 title: >-
   Re-uploading a voice-message file as a plain attachment is a dead end for
   retrying a failed transcription
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-25 22:29'
-updated_date: '2026-09-27 08:35'
+updated_date: '2026-09-27 10:24'
 labels:
   - 'area:ai-worker'
   - 'area:voice'
