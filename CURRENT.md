@@ -1,8 +1,8 @@
 # Current
 
-> **Version**: v3.0.0-beta.231 — "the Vencord voice-engine fix, and the drain" (8 PRs / 3 runtime / 68 files; no migrations; release PR #2543, rebase-merged 2026-09-25 23:53Z; `release:finalize` aligned develop, `main` = `develop` = `f06f7cc30`; tagged `latest`). Constituent detail: git + release notes.
+> **Version**: v3.0.0-beta.232 — "the voice-retry fixes" (2 PRs / 2 runtime / 69 files; no migrations; release PR #2546, rebase-merged 2026-09-27 10:52Z; `release:finalize` aligned develop, `main` = `develop` = `db576a093`; tagged `latest`). Constituent detail: git + release notes.
 >
-> **Previous**: v3.0.0-beta.230 — "the doc-72 dashboard index and resets, the custom-id family, the message-render fixes" (29 PRs / 19 runtime / 247 files; no migrations; 2026-09-25 15:05Z, `af26f53d7`).
+> **Previous**: v3.0.0-beta.231 — "the Vencord voice-engine fix, and the drain" (8 PRs / 3 runtime / 68 files; no migrations; 2026-09-25 23:53Z, `f06f7cc30`).
 
 ---
 
@@ -14,6 +14,10 @@
 - **Leisure (unchanged, do not re-surface)**: the voice-harness blind review · the slice P 30-row spot check · TASK-104 · ~~TASK-133~~ (round trip DONE 2026-09-13 with the smoke pass) · card-level examples for Emily in her own register.
 - **Done 2026-09-13**: the Default `system_prompts` row edited on dev and prod (v1 then v2; long-form under doc-97 Phase 2) · `WEEKLY_AUDIT_GH_TOKEN` set (Dependabot row reads; deletion-safety row fixed by #2413) · `TZUROT_RAILWAY_API_TOKEN_DEV`/`_PROD` in the local `.env` (tooling reads them after the TASK-62 follow-up) · the TASK-798 prod measurement · the stale `.bashrc` OpenRouter key revoked · the Waffles Share-Memories question CLOSED by ruling (deal with it if it recurs) · the privacy-policy z.ai summaries bullet committed.
 - **Agent-run, no owner action**: the doc-17 gap-bucket cache read · the Emily gate and dead-row read · TASK-702 probe · TASK-62 env-suffixed token read · TASK-951 `.env.example` guard · TASK-838 cadence ledger then the doc-61 economy pass (ruled 2026-09-13, Opus lane) · the #2270 link-share watcher · the five `state:observable` watches TASK-952–956.
+
+## 🚢 2026-09-27 — beta.232 RELEASED (Opus 5.5; owner approved the cut and the merge ~06:50 EDT)
+
+**What**: #2544 (TASK-1074: undecodable audio gets a "couldn't read that audio format" reply; voice-engine 415, non-retryable) and #2545 (TASK-1112: a plain re-uploaded voice file, `video/webm` with no voice flag, is byte-sniffed and transcribed when it has no video track; three review rounds, no blockers), plus the getting-started guide fix. One holistic review body, no findings. **Smoke (needs-smoke tier, owner, on prod)**: (1) re-upload a Vencord voice message as a plain file; the character should answer the transcript. Failure signal: no `Plain WebM upload is audio-only; routing to STT` line in ai-worker. **Filed at the cut**: TASK-1116 (quoted/forwarded path), TASK-1120 (A/V fixtures), TASK-1121 and TASK-1123 (owner calls: filenames in logs, privacy wording), TASK-1122 (bulk card import). **Misses**: the published notes went out mangled by a sed whose delimiter appeared in the replacement, fixed within minutes with `gh release edit`; a filtered push and a self-matching pgrep that killed the tool shell (TASK-1115 filed).
 
 ## 🚢 2026-09-25 — beta.231 RELEASED (Fable; a fix-forward cut the owner ruled at ~18:40 EDT and approved at ~19:45 EDT)
 
