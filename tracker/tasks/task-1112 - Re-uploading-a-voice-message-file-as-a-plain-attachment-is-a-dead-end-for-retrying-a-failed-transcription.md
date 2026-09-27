@@ -6,11 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-25 22:29'
-updated_date: '2026-09-26 00:07'
+updated_date: '2026-09-27 08:35'
 labels:
-  - 'area:bot-client'
+  - 'area:ai-worker'
   - 'area:voice'
-  - 'size:S'
+  - 'size:M'
   - 'state:ready'
 dependencies: []
 priority: medium
