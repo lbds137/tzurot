@@ -686,7 +686,10 @@ describe('MultimodalProcessor', () => {
       });
 
       expect(results).toHaveLength(1);
-      expect(results[0].type).toBe(AttachmentType.File);
+      expect(results[0]).toMatchObject({
+        type: AttachmentType.File,
+        description: 'Attachment type video/webm is not supported — content not analyzed',
+      });
       expect(mockFetchAudioBuffer).not.toHaveBeenCalled();
       expect(mockTranscribeAudio).not.toHaveBeenCalled();
 
