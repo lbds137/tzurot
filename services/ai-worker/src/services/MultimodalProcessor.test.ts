@@ -13,12 +13,19 @@ import { UnsupportedAudioFormatError } from '@tzurot/common-types/utils/errors';
 import type { ResolveVisionConfigOptions } from './multimodal/visionAuthResolver.js';
 import type { ApiKeyResolver } from './ApiKeyResolver.js';
 import { generateFromInvokeMock } from '@tzurot/test-utils/invokeMockChatModel';
+import {
+  hexToArrayBuffer,
+  CHROMIUM_AUDIO_WEBM_PREFIX_HEX,
+  FFMPEG_AV_WEBM_PREFIX_HEX,
+} from '../test/mocks/fixtures/webmHeaders.js';
+import { PLAIN_WEBM_SNIFF_MAX_BYTES } from './multimodal/plainWebmAudioSniff.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets
 const {
   mockModelInvoke,
   mockCreateChatModel,
   mockTranscribeAudio,
+  mockFetchAudioBuffer,
   mockCheckModelVisionSupport,
   mockVisionCacheGet,
   mockVisionCacheStore,
@@ -29,6 +36,7 @@ const {
   mockModelInvoke: vi.fn(),
   mockCreateChatModel: vi.fn(),
   mockTranscribeAudio: vi.fn(),
+  mockFetchAudioBuffer: vi.fn(),
   mockCheckModelVisionSupport: vi.fn(),
   mockVisionCacheGet: vi.fn(),
   mockVisionCacheStore: vi.fn(),
@@ -82,6 +90,7 @@ vi.mock('../utils/apiErrorParser.js', () => ({
 // Mock AudioProcessor — orchestrator tests shouldn't test STT internals
 vi.mock('./multimodal/AudioProcessor.js', () => ({
   transcribeAudio: (...args: unknown[]) => mockTranscribeAudio(...args),
+  fetchAudioBuffer: (...args: unknown[]) => mockFetchAudioBuffer(...args),
 }));
 
 // Mock the image-materialization step so these tests exercise vision-call
@@ -131,6 +140,7 @@ describe('MultimodalProcessor', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFetchAudioBuffer.mockReset();
 
     // Pin only the operator vision floor; every other key keeps its real
     // registry fallback. A blanket stub would hand model-valued settings a
@@ -594,6 +604,91 @@ describe('MultimodalProcessor', () => {
       // Neither paid boundary may fire for an unsupported type.
       expect(mockTranscribeAudio).not.toHaveBeenCalled();
       expect(results[0].description).not.toContain('transcription failed');
+
+      vi.useFakeTimers();
+    });
+
+    it('routes a plain video/webm upload whose bytes are audio-only WebM to STT', async () => {
+      vi.useRealTimers();
+
+      const attachments: AttachmentMetadata[] = [
+        {
+          url: 'https://cdn.discordapp.com/voice-message.ogg',
+          name: 'voice-message.ogg',
+          contentType: 'video/webm',
+          size: 4096,
+        },
+      ];
+      const bytes = hexToArrayBuffer(CHROMIUM_AUDIO_WEBM_PREFIX_HEX);
+      mockFetchAudioBuffer.mockResolvedValue(bytes);
+      mockTranscribeAudio.mockResolvedValue({
+        text: 'plain webm transcript',
+        actualProvider: 'voice-engine',
+      });
+
+      const results = await processAttachments(attachments, mockPersonality, {
+        isGuestMode: false,
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].type).toBe(AttachmentType.Audio);
+      expect(results[0].description).toBe('plain webm transcript');
+      expect(mockTranscribeAudio).toHaveBeenCalledWith(
+        attachments[0],
+        { provider: 'voice-engine' },
+        bytes
+      );
+
+      vi.useFakeTimers();
+    });
+
+    it('keeps the file stub for a plain video/webm upload with a video track', async () => {
+      vi.useRealTimers();
+
+      const attachments: AttachmentMetadata[] = [
+        {
+          url: 'https://cdn.discordapp.com/clip.webm',
+          name: 'clip.webm',
+          contentType: 'video/webm',
+          size: 4096,
+        },
+      ];
+      mockFetchAudioBuffer.mockResolvedValue(hexToArrayBuffer(FFMPEG_AV_WEBM_PREFIX_HEX));
+
+      const results = await processAttachments(attachments, mockPersonality, {
+        isGuestMode: false,
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]).toMatchObject({
+        type: AttachmentType.File,
+        description: 'Attachment type video/webm is not supported — content not analyzed',
+      });
+      expect(mockTranscribeAudio).not.toHaveBeenCalled();
+
+      vi.useFakeTimers();
+    });
+
+    it('keeps the file stub without fetching when a plain video/webm upload is over the sniff cap', async () => {
+      vi.useRealTimers();
+
+      const attachments: AttachmentMetadata[] = [
+        {
+          url: 'https://cdn.discordapp.com/clip.webm',
+          name: 'clip.webm',
+          contentType: 'video/webm',
+          size: PLAIN_WEBM_SNIFF_MAX_BYTES + 1,
+        },
+      ];
+
+      const results = await processAttachments(attachments, mockPersonality, {
+        isGuestMode: false,
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].type).toBe(AttachmentType.File);
+      expect(mockFetchAudioBuffer).not.toHaveBeenCalled();
+      expect(mockTranscribeAudio).not.toHaveBeenCalled();
 
       vi.useFakeTimers();
     });

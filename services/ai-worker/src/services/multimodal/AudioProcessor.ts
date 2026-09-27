@@ -63,9 +63,11 @@ function isTransientElevenLabsError(error: unknown): boolean {
 
 /**
  * Fetch audio from a URL with timeout, returning a Buffer.
- * Shared by both ElevenLabs and voice-engine paths.
+ * Shared by both ElevenLabs and voice-engine paths. Also used by the
+ * plain-WebM sniff (`plainWebmAudioSniff.ts`) so a routed file is fetched the
+ * same way.
  */
-async function fetchAudioBuffer(url: string): Promise<ArrayBuffer> {
+export async function fetchAudioBuffer(url: string): Promise<ArrayBuffer> {
   // SSRF guard. Data URLs (from DownloadAttachmentsStep) short-circuit validation —
   // Node's fetch handles `data:` natively and the bytes are already trusted.
   const fetchUrl = isDataUrl(url) ? url : validateAttachmentUrl(url);
@@ -430,7 +432,8 @@ function toArrayBuffer(buffer: Buffer): ArrayBuffer {
 /**
  * Sniff and prepare the effective attachment + bytes for STT.
  *
- * A Vencord/Vesktop voice message declares `video/webm`; `resolveVoiceAudioLabel`
+ * A Vencord/Vesktop voice message declares `video/webm`, as does a plain
+ * audio-only WebM upload; `resolveVoiceAudioLabel`
  * sniffs the downloaded bytes and relabels it (logged below for both the
  * `relabeled` and `unrecognized` outcomes; `not-applicable` logs nothing).
  * When the sniff recognizes EBML/WebM specifically, the bytes are ALSO
@@ -513,10 +516,15 @@ async function prepareVoiceAudioForStt(
  * Throws only when ALL providers (the chosen one + voice-engine fallback)
  * fail to produce text — surfaces actionable "no STT available" errors
  * to the caller.
+ *
+ * @param prefetched bytes the caller already fetched (the plain-WebM
+ * audio-only sniff), used instead of fetching again; the transcript-cache
+ * lookup still runs first.
  */
 export async function transcribeAudio(
   attachment: AttachmentMetadata,
-  opts: SttDispatch
+  opts: SttDispatch,
+  prefetched?: ArrayBuffer
 ): Promise<TranscribeAudioResult> {
   const cached = await lookupCachedTranscript(attachment);
   if (cached !== null) {
@@ -528,10 +536,11 @@ export async function transcribeAudio(
     return { text: cached };
   }
 
-  // Fetch audio once — shared by all transcription paths. The cache lookup
-  // above stays keyed on the ORIGINAL attachment — only the provider-facing
-  // calls below see the prepared (relabeled and/or transcoded) copy.
-  const audioBuffer = await fetchAudioBuffer(attachment.url);
+  // Fetch audio once (unless the caller already did) — shared by all
+  // transcription paths. The cache lookup above stays keyed on the ORIGINAL
+  // attachment — only the provider-facing calls below see the prepared
+  // (relabeled and/or transcoded) copy.
+  const audioBuffer = prefetched ?? (await fetchAudioBuffer(attachment.url));
   const prepared = await prepareVoiceAudioForStt(attachment, audioBuffer);
 
   // Primary path — dispatch to the resolved provider. Each BYOK path

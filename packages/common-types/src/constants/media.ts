@@ -65,6 +65,8 @@ export const CONTENT_TYPES = {
   AUDIO_OGG: 'audio/ogg',
   /** WebM audio type (a sniffed Vencord/Vesktop voice message container) */
   AUDIO_WEBM: 'audio/webm',
+  /** WebM video type (Discord's label for a WebM upload, including an audio-only one) */
+  VIDEO_WEBM: 'video/webm',
   /** MP3 audio type */
   AUDIO_MP3: 'audio/mpeg',
   /** JSON content type */
