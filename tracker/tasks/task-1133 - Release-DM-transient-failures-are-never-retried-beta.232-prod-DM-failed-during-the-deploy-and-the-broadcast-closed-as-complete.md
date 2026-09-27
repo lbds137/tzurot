@@ -1,0 +1,29 @@
+---
+id: TASK-1133
+title: >-
+  Release DM transient failures are never retried: beta.232 prod DM failed
+  during the deploy and the broadcast closed as complete
+status: To Do
+assignee: []
+created_date: '2026-09-27 19:13'
+labels:
+  - 'area:bot-client'
+  - 'size:M'
+  - 'state:ready'
+dependencies: []
+priority: high
+ordinal: 1125000
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+Why: prod beta.232 (published 2026-09-27 10:53:17Z) announced to 1 recipient, but bot-client ReleaseDmWorker logged "Broadcast DM failed" kind="transient" code="Error" at 10:53:18.002Z (35 ms after enqueue), and api-gateway logged "Broadcast completed" with sent=0 failedTransient=1 at 10:53:18.080Z. Every hourly reconcile since reports alreadyAnnounced=1, so the DM was never retried. Two defects:
+
+1. failed_transient is terminal in practice. dmErrorClassifier.ts documents it as an infrastructure hiccup (rate limit, network, 5xx), which implies retry, but the resweep in api-gateway services/releaseReconcile.ts only re-enqueues pending rows of incomplete announcements, and an announcement whose rows are all non-pending is stamped complete (internal/releaseBroadcast.ts "Broadcast completed").
+2. Likely cause, not yet confirmed: the release publish (and so the webhook and the DM job) lands in the same minute as the prod redeploy the release merge triggers, and the worker hit a client that was not ready (generic Error, no Discord API code). Dev deploys on develop pushes, not at release time, which fits dev delivering while prod did not.
+
+What: (a) retry failed_transient rows, either BullMQ attempts with backoff in the worker, or the hourly resweep re-enqueueing failed_transient rows under an attempt cap (with the attempt count on the ledger row); (b) capture the underlying error message/class in the transient log line (a generic "Error" code hides the cause); (c) query prod release_delivery_log (read-only) for earlier releases to see whether this is systematic; (d) consider delaying the announce until the deploy settles.
+
+Acceptance: a transient DM failure is retried until it sends or exhausts a bounded attempt count; the log names the error cause.
+<!-- SECTION:DESCRIPTION:END -->
