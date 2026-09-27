@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-27 23:42'
+updated_date: '2026-09-27 23:43'
 labels:
   - 'area:tooling'
   - 'area:ai-worker'
@@ -25,3 +26,9 @@ What: (1) inside contentPreview's subtree, still run the filename check (a file-
 
 Acceptance: each of the three has a failing-then-passing test; lint over all packages stays clean.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+(4) Merge-gate claim scan on #2552: packages/common-types/src/utils/logContentPreview.ts filenameShape docblock says it 'never returns any part of the name itself' — false as written, the extension IS part of the name (review round 3 item 5). Reword to 'never returns the stem' and state the extension caveat (a <=10-char alnum suffix passes through).
+<!-- SECTION:NOTES:END -->
