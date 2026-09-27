@@ -3,10 +3,10 @@ id: TASK-1133
 title: >-
   Release DM transient failures are never retried: beta.232 prod DM failed
   during the deploy and the broadcast closed as complete
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-27 19:13'
-updated_date: '2026-09-27 21:03'
+updated_date: '2026-09-27 23:14'
 labels:
   - 'area:bot-client'
   - 'size:M'
@@ -35,4 +35,6 @@ Acceptance: a transient DM failure is retried until it sends or exhausts a bound
 Runtime-confirmed 2026-09-27 (railway logs, prod bot-client, deployment 7914fd8f4ebc): process start 10:53:13Z; 'Broadcast DM failed' kind=transient code=Error at 10:53:18.002Z; the same job's owner-channel embed at 10:53:18.075Z failed with 'Expected token to be set for this request, but none was present' (@discordjs/rest, i.e. before login); 'Successfully logged in to Discord' only at 10:53:22.99Z. Mechanism: bot-client serviceFactory.ts createDmWorkers constructs both BullMQ Workers (setupReleaseDmWorker, setupRetentionNotifyWorker) in createServices (index.ts:558), BEFORE client.login (index.ts:584), and BullMQ autoruns, so a job already queued when a new container boots is processed with a token-less client. Class = those 2 workers (git grep of new Worker( and bullmq imports in bot-client src; JobFailureListener QueueEvents starts after login). Also: worker never throws (sendOne catches), so queue attempts:3 never applies; releaseReconcile heals only status=pending rows; retention notices have no resweep at all. Spec: docs/local/dispatch/task-1133-spec.md.
 
 Absorbs TASK-288 (same failed_transient no-retry defect, filed 2026-07-16, its promote trigger fired with beta.232).
+
+Shipped in PR #2553 (3c3cb005e, 2026-09-27). Runtime confirmation pending: the next release, whose prod deploy and DM land together, should deliver with no Broadcast DM failed line.
 <!-- SECTION:NOTES:END -->

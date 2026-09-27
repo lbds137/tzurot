@@ -6,11 +6,12 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-27 23:06'
+updated_date: '2026-09-27 23:14'
 labels:
   - 'area:bot-client'
   - 'area:api-gateway'
   - 'size:S'
-  - 'state:dependent'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 1133000

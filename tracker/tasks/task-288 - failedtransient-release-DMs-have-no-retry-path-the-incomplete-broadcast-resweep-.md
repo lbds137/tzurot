@@ -1,10 +1,10 @@
 ---
 id: TASK-288
 title: failed_transient release DMs have no retry path (resweep gap)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-16 00:00'
-updated_date: '2026-09-27 21:03'
+updated_date: '2026-09-27 23:14'
 labels:
   - 'origin:review'
   - 'area:api-gateway'
@@ -28,4 +28,6 @@ Surfaced 2026-07-16 (#1683 r3 observation) — `failed_transient` release DMs ha
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-09-27: promote trigger FIRED. beta.232 prod blast: failedTransient=1 with errorCode 'Error' (not a durable Discord code); runtime cause was a boot race (worker ran before Discord login), see TASK-1133. TASK-1133 now owns the fix (ready-gating + bounded failed_transient resweep). Deliberate deviation from this task's fix shape: the bound is a time window (no schema column) rather than a per-row attempt count. Close this task with TASK-1133.
+
+Shipped with TASK-1133 in PR #2553 (3c3cb005e): time-window-bounded failed_transient resweep.
 <!-- SECTION:NOTES:END -->
