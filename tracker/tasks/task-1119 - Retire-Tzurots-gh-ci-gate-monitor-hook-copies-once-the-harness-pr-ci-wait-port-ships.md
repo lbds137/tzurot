@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-27 10:03'
+updated_date: '2026-09-27 19:47'
 labels:
   - 'area:hooks'
-  - 'size:S'
-  - 'state:dependent'
+  - 'size:M'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 1112000
@@ -24,3 +25,9 @@ What: when the Harness session reports the merged version, follow the retirement
 
 Acceptance: one pr-monitor reminder fires per PR push, not two; `pnpm ops guard:monitor-command` and `guard:hook-probes` pass; the three prose copies point at the harness mechanism.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Harness 0.3.12 merged 2026-09-27 (claude-harness main d760527) with bin/pr-ci-wait and the PostToolUse pr-monitor-reminder; Deck management is installing it. Startable once a Tzurot session runs on 0.3.12.
+<!-- SECTION:NOTES:END -->
