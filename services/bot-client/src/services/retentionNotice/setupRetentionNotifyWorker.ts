@@ -103,7 +103,14 @@ async function sendOne(
   } catch (error) {
     const classified = classifyDmError(error);
     logger.warn(
-      { userId: recipient.userId, kind: classified.kind, code: dmErrorCode(classified) },
+      {
+        userId: recipient.userId,
+        kind: classified.kind,
+        code: dmErrorCode(classified),
+        // A transient code is often just the error's class name ("Error"), so
+        // the serialized error carries the cause.
+        ...(classified.kind === 'transient' ? { err: error } : {}),
+      },
       'Retention notice DM failed'
     );
     return { status: OUTCOME_STATUS_BY_KIND[classified.kind], errorCode: dmErrorCode(classified) };
@@ -219,7 +226,10 @@ async function postBatchReport(
   await postOwnerChannelEmbed(client, embed);
 }
 
-/** Construct (but don't start-gate) the worker; caller owns close(). */
+/**
+ * Constructs the worker NOT running (`autorun: false`); the caller starts it
+ * via `startWorkersOnClientReady` and owns close().
+ */
 export function setupRetentionNotifyWorker(deps: RetentionNotifyWorkerDeps): Worker {
   const config = getConfig();
   if (config.REDIS_URL === undefined || config.REDIS_URL.length === 0) {
@@ -235,6 +245,10 @@ export function setupRetentionNotifyWorker(deps: RetentionNotifyWorkerDeps): Wor
     // One stall-recovery re-run for deploy-killed batches; the pre-send
     // filter makes the re-run spend-safe (no double-DMs).
     maxStalledCount: 1,
+    // The worker is started by the ready gate once the Discord client is
+    // ready; autorunning at construction processed queued jobs with a
+    // token-less client during boot.
+    autorun: false,
   });
 
   worker.on('failed', (job, err) => {
