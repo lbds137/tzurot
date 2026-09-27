@@ -3,12 +3,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const execFileSyncMock = vi.hoisted(() => vi.fn());
 vi.mock('child_process', () => ({ execFileSync: execFileSyncMock }));
 
-import { getServiceClientForEnv, resolveServiceClientOrExit } from './gateway-client.js';
+import {
+  getServiceClientForEnv,
+  resolveServiceClientOrExit,
+  getUserClientForEnv,
+} from './gateway-client.js';
+
+const BOT_OWNER_ID = '900000000000000099';
 
 const RAILWAY_VARS = {
   PUBLIC_GATEWAY_URL: 'https://api-gateway-development.up.railway.app',
   RAILWAY_PUBLIC_DOMAIN: 'api-gateway-development.up.railway.app',
   INTERNAL_SERVICE_SECRET: 'secret-value',
+  BOT_OWNER_ID,
 };
 
 describe('getServiceClientForEnv', () => {
@@ -108,5 +115,70 @@ describe('resolveServiceClientOrExit', () => {
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Railway CLI is logged in'));
     errorSpy.mockRestore();
     process.exitCode = undefined;
+  });
+});
+
+describe('getUserClientForEnv', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    execFileSyncMock.mockReturnValue(JSON.stringify(RAILWAY_VARS));
+  });
+
+  it('acts as the bot owner by default', () => {
+    const { client, actingDiscordId, isBotOwner } = getUserClientForEnv('dev');
+
+    expect(actingDiscordId).toBe(BOT_OWNER_ID);
+    expect(isBotOwner).toBe(true);
+    expect(client.actor).toBe(BOT_OWNER_ID);
+    expect(client.user).toEqual({
+      discordId: BOT_OWNER_ID,
+      username: BOT_OWNER_ID,
+      displayName: BOT_OWNER_ID,
+      isBot: false,
+    });
+  });
+
+  it('an explicit --as-user overrides the bot owner and is not flagged as owner', () => {
+    const otherUser = '900000000000000001';
+    const { actingDiscordId, isBotOwner } = getUserClientForEnv('dev', otherUser);
+
+    expect(actingDiscordId).toBe(otherUser);
+    expect(isBotOwner).toBe(false);
+  });
+
+  it('--as-user equal to the bot owner id is still flagged as owner', () => {
+    const { isBotOwner } = getUserClientForEnv('dev', BOT_OWNER_ID);
+
+    expect(isBotOwner).toBe(true);
+  });
+
+  it('throws an actionable error naming BOT_OWNER_ID when neither is available', () => {
+    const { BOT_OWNER_ID: _dropped, ...withoutOwner } = RAILWAY_VARS;
+    execFileSyncMock.mockReturnValue(JSON.stringify(withoutOwner));
+
+    expect(() => getUserClientForEnv('dev')).toThrow(/BOT_OWNER_ID/);
+  });
+
+  it('throws on a malformed --as-user rather than sending a bad snowflake', () => {
+    expect(() => getUserClientForEnv('dev', 'not-a-snowflake')).toThrow(/snowflake/);
+    expect(() => getUserClientForEnv('dev', '123')).toThrow(/snowflake/);
+  });
+
+  it('CANARY: validates --as-user before reading Railway credentials', () => {
+    expect(() => getUserClientForEnv('dev', 'not-a-snowflake')).toThrow(/snowflake/);
+    expect(execFileSyncMock).not.toHaveBeenCalled();
+  });
+
+  it('never prints the bot owner id or the service secret', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    getUserClientForEnv('dev');
+
+    for (const call of logSpy.mock.calls) {
+      const line = call.join(' ');
+      expect(line).not.toContain(BOT_OWNER_ID);
+      expect(line).not.toContain(RAILWAY_VARS.INTERNAL_SERVICE_SECRET);
+    }
+    logSpy.mockRestore();
   });
 });

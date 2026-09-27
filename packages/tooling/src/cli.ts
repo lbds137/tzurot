@@ -40,6 +40,7 @@ import { registerCpdCommands } from './commands/cpd.js';
 import { registerCodegenCommands } from './commands/codegen.js';
 import { registerTopologyCommands } from './commands/topology.js';
 import { registerPromptCommands } from './commands/prompt.js';
+import { registerCharactersCommands } from './commands/characters.js';
 import { UsageError, reportUsageError } from './utils/errors.js';
 import {
   classifyNoMatch,
@@ -79,6 +80,7 @@ registerCpdCommands(cli);
 registerCodegenCommands(cli);
 registerTopologyCommands(cli);
 registerPromptCommands(cli);
+registerCharactersCommands(cli);
 
 // Global options
 cli.help();

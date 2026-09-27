@@ -173,6 +173,79 @@ A user's `retention_reminded_at` stamp records the reminder was sent; any bot
 activity clears both stamps (`retention_notified_at` and
 `retention_reminded_at`), exiting the pipeline entirely.
 
+## Characters Commands
+
+| Command                                                                          | Description                                                              |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `pnpm ops characters:import --env dev --dir ./cards`                             | Dry run: report what an import of every card in `./cards` would do       |
+| `pnpm ops characters:import --env dev --dir ./cards --apply`                     | Write the changes (create/update) via the gateway                        |
+| `pnpm ops characters:import --env dev --dir ./cards --rename-map ./renames.json` | Treat cards whose slug is a rename-map value as an update to the old row |
+| `pnpm ops characters:import --env dev --dir ./cards --create-new my-slug`        | Allow `my-slug` to create despite matching an owned row's name           |
+| `pnpm ops characters:import --env dev --dir ./cards --allow-foreign other-slug`  | Allow updating `other-slug` even though another user owns that row       |
+| `pnpm ops characters:import --env dev --dir ./cards --only aria,kestrel`         | Import only the named card slugs from `--dir`                            |
+| `pnpm ops characters:import --env dev --dir ./cards --as-user <discordId>`       | Act as `<discordId>` instead of the bot owner (`BOT_OWNER_ID`)           |
+| `pnpm ops characters:import --env prod --dir ./cards --apply --force`            | Skip the production confirmation prompt (for non-interactive use)        |
+
+`characters:import` is a **dry run by default** — it never writes without
+`--apply`, and `--apply --env prod` asks for interactive confirmation before
+writing anything (`--force` skips it, for non-interactive/scripted use).
+Every card is validated against the same schema the Discord
+`/character import` command uses before any gateway call is made, so an
+invalid card among the selected files aborts the whole run with zero writes
+and zero network calls — **unless `--only` is given**, in which case a file
+that can't even be read or parsed as JSON has no slug to match against
+`--only`, so it can't be told apart from a file you didn't select: it prints
+a yellow `skipped (unreadable/invalid JSON, cannot match --only): <file>`
+warning instead of failing the run. Without `--only`, every file in `--dir`
+is implicitly selected and such a file still fails the run as before. A
+missing or unreadable `--dir` itself fails immediately with zero gateway
+calls. It builds each card's payload with the same `buildImportPayload`
+mapping bot-client's import command uses and writes through the same
+`POST /user/personality` / `PUT /user/personality/:slug` routes, so update
+semantics match the route exactly: **an absent field on the card leaves the
+stored value untouched, and `isPublic` is never written by an update**
+(reported as "not applied by update" — change visibility with the visibility
+toggle on the `/character edit` dashboard). A card's `avatarData` /
+`voiceReferenceData` always report as `changed` when present — they're opaque
+data (base64/data-URI blobs), so there's nothing to diff against the stored
+value.
+
+A card matching an existing slug you own is reported as `changed` (with the
+differing field names) or `unchanged`. A card with no existing row is `new`
+unless its name/displayName matches a row you already own (in the gateway's
+existing roster, or an EARLIER `new` card in the same batch), in which case
+it is `refused` as a likely duplicate — override per-card with
+`--create-new`. "Owned" means the row's PRIMARY owner: a row shared with the
+acting user as a co-owner is `refused` the same as any other foreign row
+unless the card's slug is listed in `--allow-foreign`. Two cards in the same
+batch that would write the same row — same slug twice, or a direct card and a
+`--rename-map` card landing on the same target — are not both applied: the
+later one is `refused` as `same target as <earlier card's slug> (same
+batch)`, with no override flag. `--rename-map` treats a card whose slug
+is a JSON map value as an update to the row at the map's key (the old slug)
+rather than a create at the new one — and since the gateway only allows a
+bot owner to change a slug, a rename attempted by `--as-user` is always
+`refused`. A rename whose TARGET slug is a 403 for the acting user (checked
+after the source-side checks, before the "already exists" check) is `refused`
+as `rename target <slug> not visible to the acting user`. `--dir` is scanned
+recursively for every `*.json` file, but the
+rename-map file itself is skipped by that scan (by resolved path) when it
+happens to sit inside `--dir`, so it is never misread as a card.
+
+Needs the Railway CLI logged in (credentials come from the `api-gateway`
+service's variables, same as the retention commands above); `--as-user`
+requires a Discord snowflake (17-20 digits) and is otherwise rejected before
+any gateway call. Under `--as-user`, a slug the acting user cannot see (a 403
+from the gateway) is `refused` per card — "not visible to the acting user" —
+without aborting the rest of the run. A non-owner `--as-user` run aborts
+before classification even starts — zero writes — when the number of PRIVATE
+(`isPublic: false`) rows in the gateway's list is at or above 100, the same
+cap `fetchUserPersonalities` applies to its private owned/co-owned query:
+past that point the private roster the run would classify against may itself
+be truncated. The co-owner id lookup that feeds that same query is also
+capped at 100, and the tool cannot detect that truncation from the list
+response.
+
 ## Telemetry Commands
 
 | Command                                   | Description                                                                            |
