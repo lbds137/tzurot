@@ -7,7 +7,7 @@
 
 import { type BaseMessage } from '@langchain/core/messages';
 import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
-import { AttachmentType } from '@tzurot/common-types/constants/media';
+import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
@@ -347,7 +347,10 @@ export function extractRecentHistoryWindow(
   return formatted;
 }
 
-/** Count image and audio attachments for timeout calculation */
+/**
+ * Count image and audio attachments for timeout calculation. A plain video/webm counts as audio: the chat path may route it to STT after a byte sniff (plainWebmAudioSniff.ts).
+ * This count runs before the sniff has the bytes, so it over-budgets a real video's timeout, the safe direction.
+ */
 export function countMediaAttachments(attachments?: AttachmentMetadata[]): {
   imageCount: number;
   audioCount: number;
@@ -357,8 +360,12 @@ export function countMediaAttachments(attachments?: AttachmentMetadata[]): {
       attachments?.filter(a => a.contentType.startsWith('image/') && a.isVoiceMessage !== true)
         .length ?? 0,
     audioCount:
-      attachments?.filter(a => a.contentType.startsWith('audio/') || a.isVoiceMessage === true)
-        .length ?? 0,
+      attachments?.filter(
+        a =>
+          a.contentType.startsWith('audio/') ||
+          a.isVoiceMessage === true ||
+          a.contentType === CONTENT_TYPES.VIDEO_WEBM
+      ).length ?? 0,
   };
 }
 

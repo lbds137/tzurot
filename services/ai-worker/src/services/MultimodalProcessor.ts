@@ -28,6 +28,7 @@ import { describeImageWithFallback } from './multimodal/describeImageWithFallbac
 import type { ResolveVisionConfigOptions } from './multimodal/visionAuthResolver.js';
 import { transcribeAudio } from './multimodal/AudioProcessor.js';
 import { isDeterministicSttRejection } from './multimodal/sttRejection.js';
+import { sniffPlainWebmForAudioOnly } from './multimodal/plainWebmAudioSniff.js';
 
 const logger = createLogger('MultimodalProcessor');
 
@@ -154,6 +155,35 @@ function sharedAssetVisionModel(): string {
   return getSystemSetting('fallbackVisionModel');
 }
 
+/** Transcribe an audio attachment and shape the result; `prefetched` carries bytes a caller already fetched. */
+async function transcribeAudioAttachment(
+  attachment: AttachmentMetadata,
+  sttDispatch: SttDispatch | undefined,
+  prefetched?: ArrayBuffer
+): Promise<ProcessedAttachment> {
+  // In-band attachment STT honors the user's resolved STT preference (or
+  // the voice-engine fallback when no caller computed one).
+  const dispatch: SttDispatch = sttDispatch ?? { provider: 'voice-engine' };
+  const transcribed =
+    prefetched === undefined
+      ? await transcribeAudio(attachment, dispatch)
+      : await transcribeAudio(attachment, dispatch, prefetched);
+  logger.info(
+    {
+      name: attachment.name,
+      requestedSttProvider: dispatch.provider,
+      actualSttProvider: transcribed.actualProvider,
+    },
+    'Processed audio attachment'
+  );
+  return {
+    type: AttachmentType.Audio,
+    description: transcribed.text,
+    originalUrl: attachment.url,
+    metadata: attachment,
+  };
+}
+
 /**
  * Process a single attachment (helper function for retry logic)
  */
@@ -245,28 +275,23 @@ async function processSingleAttachment(
     attachment.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ||
     attachment.isVoiceMessage === true
   ) {
-    // In-band attachment STT honors the user's resolved STT preference (or
-    // the voice-engine fallback when no caller computed one).
-    const transcribed = await transcribeAudio(
-      attachment,
-      sttDispatch ?? { provider: 'voice-engine' }
-    );
-    logger.info(
-      {
-        name: attachment.name,
-        requestedSttProvider: sttDispatch?.provider ?? 'voice-engine',
-        actualSttProvider: transcribed.actualProvider,
-      },
-      'Processed audio attachment'
-    );
-    return {
-      type: AttachmentType.Audio,
-      description: transcribed.text,
-      originalUrl: attachment.url,
-      metadata: attachment,
-    };
+    return transcribeAudioAttachment(attachment, sttDispatch);
   }
+
+  // A voice recording re-uploaded as a plain file arrives `video/webm` with
+  // no voice flag; its bytes decide whether it is audio.
+  const audioOnly = await sniffPlainWebmForAudioOnly(attachment);
+  if (audioOnly !== null) {
+    logger.info(
+      { name: attachment.name, byteLength: audioOnly.byteLength },
+      'Plain WebM upload is audio-only; routing to STT'
+    );
+    return transcribeAudioAttachment(attachment, sttDispatch, audioOnly);
+  }
+
   // No processor exists for this content-type (video, documents, archives…).
+  // An audio-only WebM was already routed to STT above; this stub is what a
+  // WebM with a video track (or any other unprocessed type) receives.
   // Return an honest stub rather than null: a null here used to fall into the
   // failure-mapping in processAttachments, which fabricated an "Audio
   // transcription failed" description — a soundless video then read to the

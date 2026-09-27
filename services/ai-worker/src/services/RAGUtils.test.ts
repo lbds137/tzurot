@@ -865,6 +865,19 @@ describe('RAGUtils', () => {
       expect(imageCount).toBe(0);
       expect(audioCount).toBe(2);
     });
+
+    it('counts a plain video/webm as audio (it may be sniffed and routed to STT)', () => {
+      const attachments: AttachmentMetadata[] = [
+        { url: 'u1', contentType: 'video/webm' },
+        { url: 'u2', contentType: 'video/webm', isVoiceMessage: true },
+        { url: 'u3', contentType: 'image/png' },
+        { url: 'u4', contentType: 'video/mp4' },
+      ];
+      const { imageCount, audioCount } = countMediaAttachments(attachments);
+      expect(imageCount).toBe(1);
+      // plain webm + voice-flagged webm (counted once, not twice); mp4 not counted
+      expect(audioCount).toBe(2);
+    });
   });
 
   describe('enrichConversationHistory', () => {

@@ -13,6 +13,10 @@ import {
   AudioTooLongError,
   UnsupportedAudioFormatError,
 } from '@tzurot/common-types/utils/errors';
+import {
+  hexToArrayBuffer,
+  CHROMIUM_AUDIO_WEBM_PREFIX_HEX,
+} from '../../test/mocks/fixtures/webmHeaders.js';
 
 // Create mock functions
 const mockVoiceTranscriptCacheGet = vi.fn().mockResolvedValue(null);
@@ -917,6 +921,73 @@ describe('AudioProcessor', () => {
 
         expect(result.text).toBe('transcribed plain audio');
         expect(mockTranscodeWebmToOgg).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('prefetched bytes (plain WebM upload)', () => {
+      it('uses prefetched bytes instead of fetching', async () => {
+        const attachment: AttachmentMetadata = {
+          url: 'https://cdn.discordapp.com/attachments/1/2/audio.ogg',
+          name: 'audio.ogg',
+          contentType: CONTENT_TYPES.AUDIO_OGG,
+          size: 8,
+        };
+        const prefetched = new Uint8Array([0x4f, 0x67, 0x67, 0x53, 0, 0, 0, 0]).buffer;
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'prefetched transcript' });
+
+        const result = await transcribeAudio(attachment, { provider: 'voice-engine' }, prefetched);
+
+        expect(result.text).toBe('prefetched transcript');
+        expect(global.fetch).not.toHaveBeenCalled();
+      });
+
+      it('relabels and transcodes a plain (unflagged) video/webm whose prefetched bytes are EBML audio', async () => {
+        const attachment: AttachmentMetadata = {
+          url: 'https://cdn.discordapp.com/voice-message.ogg',
+          name: 'voice-message.ogg',
+          contentType: 'video/webm',
+          size: 4096,
+        };
+        const prefetched = hexToArrayBuffer(CHROMIUM_AUDIO_WEBM_PREFIX_HEX);
+        const transcodedSentinel = Buffer.from('prefetched-transcoded-sentinel');
+        mockTranscodeWebmToOgg.mockResolvedValue(transcodedSentinel);
+        mockMistralSTT.mockResolvedValue({ text: 'transcribed prefetched webm' });
+
+        const result = await transcribeAudio(
+          attachment,
+          { provider: 'mistral', apiKey: 'sk_mi_test' },
+          prefetched
+        );
+
+        expect(result.text).toBe('transcribed prefetched webm');
+        expect(mockTranscodeWebmToOgg).toHaveBeenCalledWith(Buffer.from(prefetched));
+        expect(mockMistralSTT).toHaveBeenCalledWith(
+          expect.objectContaining({
+            audioBuffer: transcodedSentinel,
+            contentType: 'audio/ogg',
+            filename: 'voice-message.ogg',
+          })
+        );
+        expect(global.fetch).not.toHaveBeenCalled();
+      });
+
+      it('still serves the cached transcript first when prefetched bytes are supplied', async () => {
+        const attachment: AttachmentMetadata = {
+          url: 'https://cdn.discordapp.com/attachments/1/2/audio.ogg',
+          originalUrl: 'https://cdn.discordapp.com/attachments/1/2/audio.ogg',
+          name: 'audio.ogg',
+          contentType: CONTENT_TYPES.AUDIO_OGG,
+          size: 8,
+        };
+        mockVoiceTranscriptCacheGet.mockResolvedValue('cached transcript text');
+        const prefetched = new Uint8Array([0x4f, 0x67, 0x67, 0x53, 0, 0, 0, 0]).buffer;
+
+        const result = await transcribeAudio(attachment, { provider: 'voice-engine' }, prefetched);
+
+        expect(result.text).toBe('cached transcript text');
+        expect(mockTranscodeWebmToOgg).not.toHaveBeenCalled();
+        expect(global.fetch).not.toHaveBeenCalled();
       });
     });
 
