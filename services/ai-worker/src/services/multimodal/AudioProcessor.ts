@@ -519,7 +519,9 @@ async function prepareVoiceAudioForStt(
  *
  * @param prefetched bytes the caller already fetched (the plain-WebM
  * audio-only sniff), used instead of fetching again; the transcript-cache
- * lookup still runs first.
+ * lookup still runs first. No video-track check happens here (an EBML
+ * `video/webm` is transcribed as audio whatever it holds), so a caller routing
+ * an unflagged `video/webm` must run `sniffPlainWebmForAudioOnly` first.
  */
 export async function transcribeAudio(
   attachment: AttachmentMetadata,
