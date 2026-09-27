@@ -19,6 +19,7 @@
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { filenameShape } from '@tzurot/common-types/utils/logContentPreview';
 import { visionDescriptionCache } from '../../redis.js';
 import { isValidVisionDescription } from './visionDescriptionValidity.js';
 
@@ -115,7 +116,7 @@ async function waitForCoalescedDescription(
     const canonical = await visionDescriptionCache.getCanonical(cacheKeyOptions);
     if (canonical !== null && isValidVisionDescription(canonical.description)) {
       logger.info(
-        { attachmentId: attachment.id, attachmentName: attachment.name },
+        { attachmentId: attachment.id, file: filenameShape(attachment.name) },
         'Coalesced onto concurrent vision describe — no extra provider call'
       );
       return canonical;

@@ -123,7 +123,11 @@ describe('toStoredReference', () => {
     // and will not survive replay, so the log is the only place that shows up —
     // carrying the request id, or the log names no owner for the lost work.
     expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ requestId: 'req-keyless-3', kind: 'voice', filename: 'x.ogg' }),
+      expect.objectContaining({
+        requestId: 'req-keyless-3',
+        kind: 'voice',
+        file: { extension: 'ogg', nameLength: 5 },
+      }),
       expect.stringContaining('no attachment URL')
     );
   });

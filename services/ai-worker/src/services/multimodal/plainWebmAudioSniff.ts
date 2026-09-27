@@ -11,6 +11,7 @@
 import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { filenameShape } from '@tzurot/common-types/utils/logContentPreview';
 import { fetchAudioBuffer } from './AudioProcessor.js';
 import { ebmlHasVideoTrack, resolveVoiceAudioLabel } from './voiceContainerSniff.js';
 
@@ -55,7 +56,7 @@ export async function sniffPlainWebmForAudioOnly(
     buffer = await fetchAudioBuffer(attachment.url);
   } catch (error) {
     logger.warn(
-      { err: error, name: attachment.name },
+      { err: error, file: filenameShape(attachment.name) },
       'Plain WebM sniff fetch failed; keeping the file stub'
     );
     return null;

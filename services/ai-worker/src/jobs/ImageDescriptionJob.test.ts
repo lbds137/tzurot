@@ -170,7 +170,7 @@ describe('ImageDescriptionJob', () => {
         expect.objectContaining({
           maxAttempts: VISION_MAX_ATTEMPTS,
           globalTimeoutMs: TIMEOUTS.VISION_MODEL * VISION_MAX_ATTEMPTS,
-          operationName: 'Image description (image1.png)',
+          operationName: 'Image description (.png)',
           shouldRetry: expect.any(Function),
           // Telemetry hook — guards against silent regression of errorCategory
           // enrichment in failure logs.

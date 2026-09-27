@@ -20,10 +20,22 @@ const PRELUDE = [
   'declare function contentDigest(t: string): string;',
   'declare function idPrefix(id: string, n?: number): string;',
   'declare function urlPrefix(url: string, n: number): string;',
+  'declare function filenameShape(n: string | undefined | null): { extension: string | undefined; nameLength: number } | undefined;',
   'declare const text: string;',
   'declare const ids: string[];',
   'declare const LIMIT: number;',
   'declare const response: { status: number; text(): Promise<string> };',
+  'declare const err: Error;',
+  'declare const attachment: { name: string; filename?: string; fileName?: string; originalName?: string; id: string; contentType: string };',
+  'declare const att: { filename: string };',
+  'declare const file: { name: string };',
+  'declare const firstFile: { name: string };',
+  'declare const upload: { originalName: string };',
+  'declare const imageAttachment: { fileName: string };',
+  'declare const msg: { attachment: { name: string } };',
+  'declare const personality: { name: string };',
+  'declare const profile: { name: string };',
+  'declare const attachments: { name: string }[];',
   '',
 ].join('\n');
 
@@ -78,10 +90,12 @@ function findings(code: string): (string | undefined)[] {
 const PRELUDE_LINES = PRELUDE.split('\n').length - 1;
 
 describe('rule metadata', () => {
-  it('is a problem rule with all four message ids', () => {
+  it('is a problem rule with all six message ids', () => {
     expect(rule.meta?.type).toBe('problem');
     expect(Object.keys(rule.meta?.messages ?? {}).sort()).toEqual([
       'previewInError',
+      'rawFilename',
+      'rawFilenameInError',
       'rawResponseBody',
       'rawTruncation',
       'rawTruncationInError',
@@ -95,6 +109,8 @@ describe('rule metadata', () => {
     expect(rule.meta?.messages?.rawTruncationInError).toContain('contentDigest');
     expect(rule.meta?.messages?.rawTruncationInError).toContain('idPrefix');
     expect(rule.meta?.messages?.previewInError).toContain('contentDigest');
+    expect(rule.meta?.messages?.rawFilename).toContain('filenameShape');
+    expect(rule.meta?.messages?.rawFilenameInError).toContain('filenameShape');
   });
 });
 
@@ -394,6 +410,108 @@ describe('Error sinks — not flagged (valid)', () => {
 
   it('passes a truncation handed to a non-Error constructor', () => {
     expect(findings(`export const m = new Map([['b', text.slice(0, 5)]]);`)).toEqual([]);
+  });
+});
+
+describe('Error sinks — raw filename read (invalid)', () => {
+  it('flags a filename read in a template literal Error message', () => {
+    expect(findings('throw new Error(`bad file: ${file.name}`);')).toEqual(['rawFilenameInError']);
+  });
+
+  it('flags a filename read via one-hop const', () => {
+    const messages = lintTyped('const n = file.name;\nthrow new Error(`bad file: ${n}`);');
+    expect(messages.map(m => m.messageId)).toEqual(['rawFilenameInError']);
+    expect(messages[0].line).toBe(PRELUDE_LINES + 1);
+  });
+
+  it('with errorSinks: false, is clean at the Error sink', () => {
+    expect(lintTyped(`throw new Error(file.name);`, { errorSinks: false })).toEqual([]);
+  });
+
+  it('is clean via filenameShape', () => {
+    expect(
+      findings('throw new Error(`bad file: ${filenameShape(file.name)?.extension}`);')
+    ).toEqual([]);
+  });
+});
+
+describe('Pattern C — raw filename read reaching a log field (invalid)', () => {
+  it('flags a direct .name read off an attachment', () => {
+    expect(findings(`logger.info({ name: attachment.name }, 'm');`)).toEqual(['rawFilename']);
+  });
+
+  it('flags alongside an unrelated shorthand field', () => {
+    expect(findings(`logger.info({ err, name: attachment.name }, 'm');`)).toEqual(['rawFilename']);
+  });
+
+  it('flags an optional-chain read defaulted with ??', () => {
+    expect(findings(`logger.info({ attachment: attachment?.name ?? 'unknown' }, 'm');`)).toEqual([
+      'rawFilename',
+    ]);
+  });
+
+  it('flags the filename property name, not just name', () => {
+    expect(findings(`logger.info({ filename: att.filename }, 'm');`)).toEqual(['rawFilename']);
+  });
+
+  it('flags fileName off a name ending in Attachment', () => {
+    expect(findings(`logger.info({ n: imageAttachment.fileName }, 'm');`)).toEqual(['rawFilename']);
+  });
+
+  it('flags originalName off upload', () => {
+    expect(findings(`logger.info({ x: upload.originalName }, 'm');`)).toEqual(['rawFilename']);
+  });
+
+  it('flags a name read at the end of a member chain', () => {
+    expect(findings(`logger.info({ n: msg.attachment.name }, 'm');`)).toEqual(['rawFilename']);
+  });
+
+  it('flags a plain const one-hop', () => {
+    expect(findings(`const n = file.name;\nlogger.warn({ n }, 'm');`)).toEqual(['rawFilename']);
+  });
+
+  it('flags a filename passed into a call whose result is logged', () => {
+    expect(findings(`const r = helper(attachment.name);\nlogger.info({ r });`)).toEqual([
+      'rawFilename',
+    ]);
+  });
+  it('flags a destructured shorthand hop', () => {
+    expect(findings(`const { name } = attachment;\nlogger.info({ name }, 'm');`)).toEqual([
+      'rawFilename',
+    ]);
+  });
+
+  it('does not follow a second hop through a destructured shorthand, matching the plain-const case', () => {
+    expect(
+      findings(`const { name } = attachment;\nconst w = name;\nlogger.info({ w }, 'm');`)
+    ).toEqual([]);
+  });
+});
+
+describe('Pattern C — not flagged (valid)', () => {
+  it('passes a read wrapped in filenameShape', () => {
+    expect(findings(`logger.info({ file: filenameShape(attachment.name) }, 'm');`)).toEqual([]);
+  });
+
+  it('passes an unrelated .name read off a non-file-ish object', () => {
+    expect(findings(`logger.info({ name: personality.name }, 'm');`)).toEqual([]);
+    expect(findings(`logger.info({ n: profile.name }, 'm');`)).toEqual([]);
+  });
+
+  it('passes the id and contentType fields beside the filename', () => {
+    expect(
+      findings(`logger.info({ id: attachment.id, contentType: attachment.contentType }, 'm');`)
+    ).toEqual([]);
+  });
+
+  it('cannot see a filename read through a computed member (documented limit)', () => {
+    expect(findings(`logger.info({ n: attachments[0].name }, 'm');`)).toEqual([]);
+  });
+
+  it('cannot see a filename destructured from a function parameter (documented limit)', () => {
+    expect(
+      findings(`function f({ name }: { name: string }): void {\n  logger.info({ name });\n}`)
+    ).toEqual([]);
   });
 });
 

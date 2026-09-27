@@ -16,6 +16,7 @@ import {
   imageDescriptionJobDataSchema,
 } from '@tzurot/common-types/types/jobs';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { filenameShape } from '@tzurot/common-types/utils/logContentPreview';
 import { describeImage } from '../services/MultimodalProcessor.js';
 import { describeImageWithFallback } from '../services/multimodal/describeImageWithFallback.js';
 import { withRetry } from '../utils/retry.js';
@@ -242,7 +243,7 @@ async function processSingleImage(options: ProcessSingleImageOptions): Promise<I
         maxAttempts: VISION_MAX_ATTEMPTS,
         globalTimeoutMs: TIMEOUTS.VISION_MODEL * VISION_MAX_ATTEMPTS,
         logger,
-        operationName: `Image description (${attachment.name})`,
+        operationName: `Image description (.${filenameShape(attachment.name)?.extension ?? 'unknown'})`,
         shouldRetry: shouldRetryError,
         // Enrich failure logs with errorCategory, statusCode, etc. so post-deploy
         // telemetry can answer: "retry success rate per errorCategory".

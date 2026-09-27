@@ -46,10 +46,10 @@ Never use string interpolation in shell commands: `execFileSync('git', ['commit'
 
 Log identifiers, never the object: `logger.info({ userId: user.id }, 'User authenticated')`, not `{ user }`.
 
-**NEVER log:** Emails, phones, IPs, usernames, message content, API keys
+**NEVER log:** Emails, phones, IPs, usernames, message content, API keys, user-supplied filenames
 **Safe to log:** User IDs, guild IDs, channel IDs, timestamps, error codes
 
-**Enforced at lint time** by `@tzurot/no-raw-log-content`: a raw string truncation or `.text()` response body in a log call's fields, or (outside `packages/tooling`) an Error message, is an error — route content through `contentPreview` (log fields only)/`contentDigest` and id/token/URL prefixes through `idPrefix`/`urlPrefix` (`common-types/utils/logContentPreview.ts`).
+**Enforced at lint time** by `@tzurot/no-raw-log-content`: a raw string truncation or `.text()` response body in a log call's fields, or (outside `packages/tooling`) an Error message, is an error — route content through `contentPreview` (log fields only)/`contentDigest` and id/token/URL prefixes through `idPrefix`/`urlPrefix`; a raw attachment/file `.name`-style read in a log call's fields or (outside `packages/tooling`) an Error message is likewise an error — route it through `filenameShape`, only its extension in an Error message (`common-types/utils/logContentPreview.ts`).
 
 ## Git Safety
 

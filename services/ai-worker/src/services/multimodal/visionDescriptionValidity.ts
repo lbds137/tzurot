@@ -14,7 +14,7 @@
  * cached entries — the module is validity-centric, no longer purely pure.
  */
 
-import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
+import { contentPreview, filenameShape } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { visionDescriptionCache } from '../../redis.js';
 
@@ -98,7 +98,7 @@ export async function readValidCachedDescription(
   }
   if (isValidVisionDescription(cached.description)) {
     logger.debug(
-      { attachmentName: attachment.name, attachmentId: attachment.id },
+      { file: filenameShape(attachment.name), attachmentId: attachment.id },
       'Using cached vision description - avoiding duplicate API call'
     );
     return cached;

@@ -17,6 +17,7 @@ import {
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { filenameShape } from '@tzurot/common-types/utils/logContentPreview';
 import { imageSource, attachmentSpoiler } from '@tzurot/common-types/utils/attachmentProvenance';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
 import type { VisionLoggingContext } from './multimodal/VisionProcessor.js';
@@ -396,7 +397,7 @@ async function processImageAttachment(options: ProcessImageOptions): Promise<Bui
       {
         referenceNumber,
         url: attachment.url,
-        name: attachment.name,
+        file: filenameShape(attachment.name),
         hasUserApiKey: userApiKey !== undefined,
       },
       'Processing image (inline fallback)'
