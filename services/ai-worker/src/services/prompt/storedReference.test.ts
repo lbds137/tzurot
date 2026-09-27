@@ -335,6 +335,68 @@ describe('buildStoredAttachments', () => {
       },
     ]);
   });
+
+  it('replays a plain video/webm reference attachment as voice when a stored transcript exists', () => {
+    // A voice recording re-uploaded as a plain file — no isVoiceMessage flag —
+    // survives replay as `voice` because the STORED transcript is present,
+    // not because anything here re-sniffs the bytes: `renderableFor` promotes
+    // a plain `video/webm` to voice exactly when a description arrived.
+    const rendered = buildStoredAttachments({
+      ...base,
+      attachments: [
+        { url: 'https://cdn/plain.webm', contentType: 'video/webm', name: 'plain.webm' },
+      ],
+      attachmentEnrichment: [
+        { url: 'https://cdn/plain.webm', kind: 'voice', description: 'hello there' },
+      ],
+    });
+
+    expect(rendered).toEqual([
+      {
+        kind: 'voice',
+        filename: 'plain.webm',
+        contentType: 'video/webm',
+        description: 'hello there',
+      },
+    ]);
+  });
+
+  it('round-trips a plain video/webm rendered as voice through toStoredReference and back', () => {
+    // The two functions that must agree about the durable shape are the two
+    // functions in this file — this pins that a `voice`-kind built element
+    // whose identity carries a `video/webm` contentType survives the write
+    // and the replay as the same single voice element, never a duplicate and
+    // never demoted back to a file.
+    const built: BuiltAttachment[] = [
+      {
+        url: 'https://cdn/plain.webm',
+        attachment: {
+          kind: 'voice',
+          filename: 'plain.webm',
+          contentType: 'video/webm',
+          description: 'hello there',
+        },
+      },
+    ];
+    const stored = toStoredReference(liveRef(), built);
+
+    const replayed = buildStoredAttachments({
+      ...base,
+      attachments: [
+        { url: 'https://cdn/plain.webm', contentType: 'video/webm', name: 'plain.webm' },
+      ],
+      attachmentEnrichment: stored.attachmentEnrichment,
+    });
+
+    expect(replayed).toEqual([
+      {
+        kind: 'voice',
+        filename: 'plain.webm',
+        contentType: 'video/webm',
+        description: 'hello there',
+      },
+    ]);
+  });
 });
 
 describe('fromStoredReference', () => {
