@@ -164,10 +164,7 @@ async function transcribeAudioAttachment(
   // In-band attachment STT honors the user's resolved STT preference (or
   // the voice-engine fallback when no caller computed one).
   const dispatch: SttDispatch = sttDispatch ?? { provider: 'voice-engine' };
-  const transcribed =
-    prefetched === undefined
-      ? await transcribeAudio(attachment, dispatch)
-      : await transcribeAudio(attachment, dispatch, prefetched);
+  const transcribed = await transcribeAudio(attachment, dispatch, prefetched);
   logger.info(
     {
       name: attachment.name,

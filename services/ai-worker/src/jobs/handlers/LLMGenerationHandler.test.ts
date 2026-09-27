@@ -18,6 +18,7 @@ import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { LLMGenerationHandler } from './LLMGenerationHandler.js';
 import { DownloadAttachmentsStep } from './pipeline/steps/DownloadAttachmentsStep.js';
+import { DependencyStep } from './pipeline/steps/DependencyStep.js';
 import type { ApiKeyResolver, ApiKeyResolutionResult } from '../../services/ApiKeyResolver.js';
 
 // Mock the redis module (dynamic import)
@@ -916,6 +917,41 @@ describe('LLMGenerationHandler', () => {
         // technicalMessage is what surfaces in the spoiler tag — verify the
         // underlying error reaches the user-visible diagnostic.
         expect(result.errorInfo?.technicalMessage).toContain('rate limited');
+      });
+    });
+
+    describe('pipeline step order', () => {
+      it('runs DownloadAttachmentsStep before DependencyStep', async () => {
+        // Pins the ordering rationale in the constructor: DownloadAttachmentsStep
+        // must turn attachment URLs into data: URLs before DependencyStep's
+        // extended-context vision processing (via MultimodalProcessor's plain-WebM
+        // sniff) consumes them — otherwise it would re-download from the CDN.
+        const jobData = createValidJobData();
+        const job = { id: 'job-order-check', data: jobData } as Job<LLMGenerationJobData>;
+
+        const order: string[] = [];
+        const realDownloadProcess = DownloadAttachmentsStep.prototype.process;
+        const realDependencyProcess = DependencyStep.prototype.process;
+        const downloadSpy = vi
+          .spyOn(DownloadAttachmentsStep.prototype, 'process')
+          .mockImplementation(function (this: DownloadAttachmentsStep, context) {
+            order.push('DownloadAttachmentsStep');
+            return realDownloadProcess.call(this, context);
+          });
+        const dependencySpy = vi
+          .spyOn(DependencyStep.prototype, 'process')
+          .mockImplementation(function (this: DependencyStep, context) {
+            order.push('DependencyStep');
+            return realDependencyProcess.call(this, context);
+          });
+
+        try {
+          await handler.processJob(job);
+          expect(order).toEqual(['DownloadAttachmentsStep', 'DependencyStep']);
+        } finally {
+          downloadSpy.mockRestore();
+          dependencySpy.mockRestore();
+        }
       });
     });
 
