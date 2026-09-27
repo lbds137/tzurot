@@ -1,10 +1,10 @@
 ---
 id: TASK-1121
 title: Are user-supplied attachment filenames allowed in logs?
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-27 10:08'
-updated_date: '2026-09-27 11:02'
+updated_date: '2026-09-27 23:44'
 labels:
   - 'area:ai-worker'
   - 'size:M'
@@ -25,3 +25,9 @@ Recommendation: treat them as content. Log the extension and length (a small `fi
 
 Acceptance: the owner's ruling is recorded in `00-critical.md` § Logging; if the ruling is "content", every filename log field goes through the helper and the lint rule flags new raw ones.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped in PR #2552 (bc870d0a8, 2026-09-27) after 3 review rounds; round-3 nits + a docblock overclaim filed as TASK-1142.
+<!-- SECTION:NOTES:END -->
