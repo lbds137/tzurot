@@ -30,7 +30,7 @@ What: an ops command in `packages/tooling` (for example `pnpm ops characters:imp
 - Ownership: a card whose slug belongs to another user (Lila's friend's Cynessa and Sister Camila) is refused unless explicitly allowed.
 - First step when building: read the import route and confirm what "incremental replace" does with a field ABSENT from the card (left untouched, or cleared?), since the DB carries data no card has yet (below). Report that behaviour in the PR and pin it with a test; don't assume it.
 
-Premises (dev DB, read-only, 2026-09-27): `definition_public` is false on all 217 personalities; 36 have tags, 70 have custom_fields, 1 has a birth date; Sera, Vaggi and Lila Elyona have personality_age in the DB although their cards lack it. The owner has to decide which environment is the target: the live bot is prod, and the reconciliation compared against dev.
+Premises (dev DB, read-only, 2026-09-27): `definition_public` is false on all 217 personalities; 36 have tags, 70 have custom_fields, 1 has a birth date; Sera, Vaggi and Lila Elyona have personality_age in the DB although their cards lack it. Target (owner ruling 2026-09-27): dev first, then prod. Every batch runs dry-run then apply on dev, the owner checks the characters in the dev bot, and the same cards go to prod as a separate step.
 
 Gate: ops tooling that writes to a live environment ships only after an end-to-end dev exercise with the effect observed in the service logs (00-critical § Testing).
 
