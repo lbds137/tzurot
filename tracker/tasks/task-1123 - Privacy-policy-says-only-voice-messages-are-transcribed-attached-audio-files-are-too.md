@@ -3,9 +3,10 @@ id: TASK-1123
 title: >-
   Privacy policy says only voice messages are transcribed; attached audio files
   are too
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-27 10:41'
+updated_date: '2026-09-27 11:02'
 labels:
   - 'area:legal'
   - 'size:S'
