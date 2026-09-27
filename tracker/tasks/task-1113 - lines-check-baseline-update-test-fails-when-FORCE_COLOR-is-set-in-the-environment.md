@@ -3,9 +3,10 @@ id: TASK-1113
 title: >-
   lines-check baseline-update test fails when FORCE_COLOR is set in the
   environment
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-26 03:59'
+updated_date: '2026-09-27 12:28'
 labels:
   - 'area:tooling'
   - 'size:S'
