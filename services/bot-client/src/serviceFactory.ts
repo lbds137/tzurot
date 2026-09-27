@@ -23,6 +23,7 @@ import type { JobTracker } from './services/JobTracker.js';
 import { JobFailureListener } from './services/JobFailureListener.js';
 import { setupReleaseDmWorker } from './services/releaseDm/setupReleaseDmWorker.js';
 import { setupRetentionNotifyWorker } from './services/retentionNotice/setupRetentionNotifyWorker.js';
+import { startWorkersOnClientReady } from './services/dmWorkerReadyGate.js';
 import { ResponseOrderingService } from './services/ResponseOrderingService.js';
 import { DiscordResponseSender } from './services/DiscordResponseSender.js';
 import { MessageContextBuilder } from './services/MessageContextBuilder.js';
@@ -90,11 +91,12 @@ export interface Services {
    */
   multiTagStateQueue: Queue;
   /**
-   * Release-broadcast DM worker (bot-client's only BullMQ consumer) —
+   * Release-broadcast DM worker (one of bot-client's two BullMQ consumers) —
    * delivers gateway-produced broadcast batches as user DMs. Closed FIRST
    * in shutdown so no DM send straddles the process teardown.
    */
   releaseDmWorker: Worker;
+  /** Retention-notice DM worker, closed in the same early shutdown step. */
   retentionNotifyWorker: Worker;
 }
 
@@ -130,16 +132,19 @@ function createDenylistServices(cacheRedis: Redis): {
 
 /**
  * The two gateway-fed DM workers (release broadcast + retention notice) —
- * constructed eagerly, together, so shutdown ownership is explicit.
+ * constructed eagerly, together, so shutdown ownership is explicit, but NOT
+ * running: `createServices` runs before `client.login`, and a job processed
+ * before the client is ready fails every DM. Both start on Discord
+ * ClientReady via `startWorkersOnClientReady`.
  */
 function createDmWorkers(client: Client): {
   releaseDmWorker: Worker;
   retentionNotifyWorker: Worker;
 } {
-  return {
-    releaseDmWorker: setupReleaseDmWorker({ client }),
-    retentionNotifyWorker: setupRetentionNotifyWorker({ client }),
-  };
+  const releaseDmWorker = setupReleaseDmWorker({ client });
+  const retentionNotifyWorker = setupRetentionNotifyWorker({ client });
+  startWorkersOnClientReady(client, [releaseDmWorker, retentionNotifyWorker]);
+  return { releaseDmWorker, retentionNotifyWorker };
 }
 
 /**

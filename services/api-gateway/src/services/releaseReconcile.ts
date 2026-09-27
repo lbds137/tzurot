@@ -16,13 +16,18 @@
  * than the window remain silent by design — the internal route accepts a
  * larger lookbackHours (≤168) for deliberate manual catch-up.
  *
- * Two sweeps live here, both invoked by the same hourly run:
+ * Three passes live here, all invoked by the same hourly run:
  * - reconcileReleaseAnnouncements — the missing-announcement case (a
  *   GitHub release with no announcement row).
+ * - reopenTransientFailures — the bounded retry case (a failed_transient
+ *   delivery row is a bot-client-side hiccup, not a recipient-side one, so it
+ *   is re-opened to pending inside a bounded time window rather than left
+ *   terminal).
  * - sweepIncompleteBroadcasts — the announced-but-incomplete case (a crash
  *   mid-blast left an announcement whose pending ledger rows have no live
  *   job; the unique-version pre-check blocks re-announcing, so without this
- *   sweep the wedge is permanent).
+ *   sweep the wedge is permanent). Also re-enqueues whatever
+ *   reopenTransientFailures just re-opened, in the same run.
  */
 
 import { z } from 'zod';
@@ -230,6 +235,72 @@ export const INCOMPLETE_WEDGE_THRESHOLD_MS = 30 * 60 * 1000;
 
 /** Mirror of the missing-announcement sweep's per-run blast-radius cap. */
 export const MAX_RESWEEPS_PER_RUN = 3;
+
+/**
+ * How long after an announcement is created its failed_transient delivery
+ * rows stay retryable. Each hourly reconcile run (ai-worker
+ * scheduledJobSchedule.ts RELEASE_RECONCILE, cron '41 * * * *') re-opens
+ * them via reopenTransientFailures and the incomplete-broadcast sweep
+ * re-enqueues them in the same run. Retries only start once the announcement
+ * is past INCOMPLETE_WEDGE_THRESHOLD_MS, so a row gets at most 24 retries
+ * (one per hourly run inside the 23.5h eligible span) before failed_transient
+ * becomes terminal. Bounded by time rather than a per-row attempt count
+ * because the ledger has no attempt column.
+ */
+export const TRANSIENT_RETRY_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+export interface TransientReopenSummary {
+  announcementsReopened: number;
+  rowsReopened: number;
+}
+
+/**
+ * Re-open failed_transient release deliveries so the incomplete-broadcast
+ * sweep re-enqueues them: a failed_transient row is bot-client-side (rate
+ * limit, network, 5xx), not a recipient-side terminal outcome, so it must
+ * not stay permanently un-retried.
+ */
+export async function reopenTransientFailures(
+  prisma: PrismaClient
+): Promise<TransientReopenSummary> {
+  const now = Date.now();
+  const createdAt = {
+    gte: new Date(now - TRANSIENT_RETRY_WINDOW_MS),
+    lt: new Date(now - INCOMPLETE_WEDGE_THRESHOLD_MS),
+  };
+  // Announcement FIRST. A crash between the two writes then leaves an
+  // incomplete announcement with no pending rows, which the wedge sweep
+  // re-stamps and the next run re-opens; the reverse order would strand
+  // pending rows under a completed announcement, which nothing re-heals.
+  const announcements = await prisma.releaseAnnouncement.updateMany({
+    where: {
+      createdAt,
+      completedAt: { not: null },
+      deliveries: { some: { status: 'failed_transient' } },
+    },
+    data: { completedAt: null },
+  });
+  // Back to pending so the heal path's eligibility re-check, previous-DM
+  // resolution and re-enqueue apply unchanged, and the worker's pending
+  // pre-filter and the /deliveries pending-only guard accept the retry.
+  // errorCode cleared: the schema documents it as null unless status is
+  // failed_*.
+  const rows = await prisma.releaseDeliveryLog.updateMany({
+    where: { status: 'failed_transient', release: { createdAt } },
+    data: { status: 'pending', errorCode: null },
+  });
+  if (rows.count > 0) {
+    logger.info(
+      {
+        announcementsReopened: announcements.count,
+        rowsReopened: rows.count,
+        windowMs: TRANSIENT_RETRY_WINDOW_MS,
+      },
+      'Re-opened failed_transient release deliveries for retry'
+    );
+  }
+  return { announcementsReopened: announcements.count, rowsReopened: rows.count };
+}
 
 export interface ResweepSummary {
   scanned: number;

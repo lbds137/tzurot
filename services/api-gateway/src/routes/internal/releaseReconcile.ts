@@ -20,6 +20,7 @@ import { sendZodError } from '../../utils/zodHelpers.js';
 import {
   createGitHubReleasesFetcher,
   reconcileReleaseAnnouncements,
+  reopenTransientFailures,
   sweepIncompleteBroadcasts,
 } from '../../services/releaseReconcile.js';
 import type { RouteDeps } from '../routeDeps.js';
@@ -51,7 +52,11 @@ export const handleReleaseBroadcastReconcile = (deps: RouteDeps): RequestHandler
       }
     );
 
-    // Second sweep of the run: heal announced-but-incomplete wedges. Runs
+    // Runs BEFORE the incomplete-broadcast sweep so any row it re-opens to
+    // pending is re-enqueued by that sweep in this same run, not a run later.
+    await reopenTransientFailures(prisma);
+
+    // Third sweep of the run: heal announced-but-incomplete wedges. Runs
     // after the missing-announcement sweep so a release both missing AND
     // crashing mid-blast is handled across two hourly cycles, not zero.
     const resweep = await sweepIncompleteBroadcasts({ prisma, queue: releaseBroadcastQueue });

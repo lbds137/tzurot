@@ -6,8 +6,10 @@
  *   - `failed_permanent`: the user can never receive this DM (DMs closed,
  *     bot blocked, unknown user) — retrying is spam, and two consecutive
  *     permanents auto-disable the user's notifications server-side.
- *   - `failed_transient`: infrastructure hiccup (rate limit, network, 5xx) —
- *     a future retry sweep may re-attempt.
+ *   - `failed_transient`: infrastructure hiccup (rate limit, network, 5xx).
+ *     Release deliveries are retried by api-gateway's hourly reconcile within
+ *     `TRANSIENT_RETRY_WINDOW_MS` (releaseReconcile.ts); retention notices are
+ *     re-attempted only when the user is re-selected by a later notify run.
  *   - `bot_level`: the BOT is quarantined/limited (Discord 20026) and cannot
  *     create DMs. The recipient is perfectly reachable — the bot is not — so
  *     this is neither the user's fault nor an infra hiccup: it must never feed

@@ -6,16 +6,22 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DiscordAPIError, type Client } from 'discord.js';
-import { JobType } from '@tzurot/common-types/constants/queue';
+import { JobType, RETENTION_NOTIFY_QUEUE_NAME } from '@tzurot/common-types/constants/queue';
 import type { Job } from 'bullmq';
 
+const mockLogger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -24,7 +30,24 @@ vi.mock('../../utils/ownerChannel.js', () => ({
   postOwnerChannelEmbed: postOwnerChannelEmbedMock,
 }));
 
-const { createRetentionNotifyProcessor } = await import('./setupRetentionNotifyWorker.js');
+// Mock getConfig so setupRetentionNotifyWorker() finds a valid REDIS_URL
+// without environment setup; parseRedisUrl/createBullMQRedisConfig stay real
+// (pure URL parsing, deterministic).
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: () => actual.createTestConfig({ REDIS_URL: 'redis://localhost:6379' }),
+  };
+});
+
+const WorkerCtor = vi.hoisted(() => vi.fn());
+vi.mock('bullmq', () => ({ Worker: WorkerCtor }));
+
+const { createRetentionNotifyProcessor, setupRetentionNotifyWorker } =
+  await import('./setupRetentionNotifyWorker.js');
 
 const USER_A = '423e4567-e89b-42d3-a456-426614174000';
 const USER_B = '523e4567-e89b-42d3-a456-426614174000';
@@ -130,6 +153,41 @@ describe('createRetentionNotifyProcessor', () => {
       { userId: USER_A, notice: 'warning', status: 'failed_permanent', errorCode: '50278' },
     ]);
     expect(result).toEqual({ sent: 1, bounced: 1, skipped: 0 });
+  });
+
+  it('logs the causing error on a transient failure (the class name alone is not diagnostic)', async () => {
+    const cause = new Error('Expected token to be set for this request, but none was present');
+    const deps = makeDeps(() => Promise.reject(cause));
+    const processor = createRetentionNotifyProcessor(deps);
+
+    await processor(asJob(makePayload()));
+
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'transient', err: expect.any(Error) as Error }),
+      'Retention notice DM failed'
+    );
+  });
+
+  it('omits the err field on a permanent (50278) failure', async () => {
+    const gone = new DiscordAPIError(
+      { code: 50278, message: 'No mutual guilds' },
+      50278,
+      403,
+      'POST',
+      'url',
+      {}
+    );
+    const deps = makeDeps(() => Promise.reject(gone));
+    const processor = createRetentionNotifyProcessor(deps);
+
+    await processor(asJob(makePayload()));
+
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'permanent' }),
+      'Retention notice DM failed'
+    );
+    const warnFields = mockLogger.warn.mock.calls[0][0] as Record<string, unknown>;
+    expect(warnFields).not.toHaveProperty('err');
   });
 
   it('reports a 20026 as failed_bot_level — never a user-state signal (dev quarantine)', async () => {
@@ -309,5 +367,23 @@ describe('createRetentionNotifyProcessor', () => {
       toJSON: () => { description?: string };
     };
     expect(embed.toJSON().description).toContain('active again or already warned');
+  });
+});
+
+describe('setupRetentionNotifyWorker', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    WorkerCtor.mockImplementation(function () {
+      return { on: vi.fn() };
+    });
+  });
+
+  it('constructs the worker not running (autorun: false) so it cannot process jobs before Discord is ready', () => {
+    setupRetentionNotifyWorker({ client: {} as unknown as Client });
+
+    expect(WorkerCtor).toHaveBeenCalledTimes(1);
+    const [queueName, , options] = WorkerCtor.mock.calls[0] as [string, unknown, unknown];
+    expect(queueName).toBe(RETENTION_NOTIFY_QUEUE_NAME);
+    expect(options).toEqual(expect.objectContaining({ autorun: false }));
   });
 });

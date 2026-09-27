@@ -43,10 +43,12 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 import {
   createGitHubReleasesFetcher,
   reconcileReleaseAnnouncements,
+  reopenTransientFailures,
   sweepIncompleteBroadcasts,
   MAX_ANNOUNCEMENTS_PER_RUN,
   MAX_RESWEEPS_PER_RUN,
   INCOMPLETE_WEDGE_THRESHOLD_MS,
+  TRANSIENT_RETRY_WINDOW_MS,
   type FetchGitHubReleases,
 } from './releaseReconcile.js';
 import type { GitHubRelease } from '@tzurot/common-types/schemas/github/release';
@@ -529,6 +531,97 @@ describe('sweepIncompleteBroadcasts', () => {
 
     expect(summary.capped).toBe(true);
     expect(summary.stamped).toHaveLength(MAX_RESWEEPS_PER_RUN);
+  });
+});
+
+describe('reopenTransientFailures', () => {
+  function makePrisma(
+    overrides: {
+      announcementUpdateCount?: number;
+      rowUpdateCount?: number;
+    } = {}
+  ) {
+    return {
+      releaseAnnouncement: {
+        updateMany: vi.fn().mockResolvedValue({ count: overrides.announcementUpdateCount ?? 1 }),
+      },
+      releaseDeliveryLog: {
+        updateMany: vi.fn().mockResolvedValue({ count: overrides.rowUpdateCount ?? 2 }),
+      },
+    };
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const expectedCreatedAt = {
+    gte: new Date(NOW.getTime() - TRANSIENT_RETRY_WINDOW_MS),
+    lt: new Date(NOW.getTime() - INCOMPLETE_WEDGE_THRESHOLD_MS),
+  };
+
+  it('re-opens completed announcements with a failed_transient row, back to incomplete', async () => {
+    const prisma = makePrisma();
+
+    await reopenTransientFailures(prisma as unknown as PrismaClient);
+
+    expect(prisma.releaseAnnouncement.updateMany).toHaveBeenCalledWith({
+      where: {
+        createdAt: expectedCreatedAt,
+        completedAt: { not: null },
+        deliveries: { some: { status: 'failed_transient' } },
+      },
+      data: { completedAt: null },
+    });
+  });
+
+  it('re-opens failed_transient rows to pending with errorCode cleared', async () => {
+    const prisma = makePrisma();
+
+    await reopenTransientFailures(prisma as unknown as PrismaClient);
+
+    expect(prisma.releaseDeliveryLog.updateMany).toHaveBeenCalledWith({
+      where: { status: 'failed_transient', release: { createdAt: expectedCreatedAt } },
+      data: { status: 'pending', errorCode: null },
+    });
+  });
+
+  it('updates the announcement before the delivery row (crash-ordering safety)', async () => {
+    const prisma = makePrisma();
+
+    await reopenTransientFailures(prisma as unknown as PrismaClient);
+
+    expect(prisma.releaseAnnouncement.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      prisma.releaseDeliveryLog.updateMany.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('returns the exact counts from both updates', async () => {
+    const prisma = makePrisma({ announcementUpdateCount: 3, rowUpdateCount: 5 });
+
+    const result = await reopenTransientFailures(prisma as unknown as PrismaClient);
+
+    expect(result).toEqual({ announcementsReopened: 3, rowsReopened: 5 });
+  });
+
+  it('logs only when at least one row was reopened', async () => {
+    const zeroPrisma = makePrisma({ announcementUpdateCount: 0, rowUpdateCount: 0 });
+    await reopenTransientFailures(zeroPrisma as unknown as PrismaClient);
+    expect(mockLogger.info).not.toHaveBeenCalled();
+
+    mockLogger.info.mockClear();
+
+    const nonZeroPrisma = makePrisma({ announcementUpdateCount: 1, rowUpdateCount: 2 });
+    await reopenTransientFailures(nonZeroPrisma as unknown as PrismaClient);
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ announcementsReopened: 1, rowsReopened: 2 }),
+      'Re-opened failed_transient release deliveries for retry'
+    );
   });
 });
 

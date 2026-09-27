@@ -5,18 +5,24 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DiscordAPIError, type Client } from 'discord.js';
-import { JobType } from '@tzurot/common-types/constants/queue';
+import { JobType, RELEASE_BROADCAST_QUEUE_NAME } from '@tzurot/common-types/constants/queue';
 import type { ReleaseBroadcastRecipient } from '@tzurot/common-types/types/jobs';
 import type { BroadcastCompletionSummary } from '@tzurot/common-types/schemas/api/broadcast';
 import type { Job } from 'bullmq';
 
+const mockLogger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -25,7 +31,24 @@ vi.mock('../../utils/ownerChannel.js', () => ({
   postOwnerChannelEmbed: postOwnerChannelEmbedMock,
 }));
 
-const { createReleaseDmProcessor } = await import('./setupReleaseDmWorker.js');
+// Mock getConfig so setupReleaseDmWorker() finds a valid REDIS_URL without
+// environment setup; parseRedisUrl/createBullMQRedisConfig stay real (pure
+// URL parsing, deterministic).
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: () => actual.createTestConfig({ REDIS_URL: 'redis://localhost:6379' }),
+  };
+});
+
+const WorkerCtor = vi.hoisted(() => vi.fn());
+vi.mock('bullmq', () => ({ Worker: WorkerCtor }));
+
+const { createReleaseDmProcessor, setupReleaseDmWorker } =
+  await import('./setupReleaseDmWorker.js');
 
 const RELEASE_ID = '123e4567-e89b-42d3-a456-426614174000';
 const LOG_A = '223e4567-e89b-42d3-a456-426614174000';
@@ -187,6 +210,41 @@ describe('createReleaseDmProcessor', () => {
     );
     expect(reportedStatuses).toEqual(['failed_transient', 'failed_transient']);
     expect(result).toEqual({ sent: 0, failed: 2, skipped: 0 });
+  });
+
+  it('logs the causing error on a transient failure (the class name alone is not diagnostic)', async () => {
+    const cause = new Error('Expected token to be set for this request, but none was present');
+    const deps = makeDeps(() => Promise.reject(cause));
+    const processor = createReleaseDmProcessor(deps);
+
+    await processor(asJob(makePayload()));
+
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'transient', err: expect.any(Error) as Error }),
+      'Broadcast DM failed'
+    );
+  });
+
+  it('omits the err field on a permanent (50007) failure', async () => {
+    const blocked = new DiscordAPIError(
+      { code: 50007, message: 'Cannot send messages to this user' },
+      50007,
+      403,
+      'POST',
+      'url',
+      {}
+    );
+    const deps = makeDeps(() => Promise.reject(blocked));
+    const processor = createReleaseDmProcessor(deps);
+
+    await processor(asJob(makePayload()));
+
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'permanent' }),
+      'Broadcast DM failed'
+    );
+    const warnFields = mockLogger.warn.mock.calls[0][0] as Record<string, unknown>;
+    expect(warnFields).not.toHaveProperty('err');
   });
 
   it('fail-skips an invalid payload without touching Discord or the ledger', async () => {
@@ -384,5 +442,23 @@ describe('createReleaseDmProcessor', () => {
 
       expect(postOwnerChannelEmbedMock).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('setupReleaseDmWorker', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    WorkerCtor.mockImplementation(function () {
+      return { on: vi.fn() };
+    });
+  });
+
+  it('constructs the worker not running (autorun: false) so it cannot process jobs before Discord is ready', () => {
+    setupReleaseDmWorker({ client: {} as unknown as Client });
+
+    expect(WorkerCtor).toHaveBeenCalledTimes(1);
+    const [queueName, , options] = WorkerCtor.mock.calls[0] as [string, unknown, unknown];
+    expect(queueName).toBe(RELEASE_BROADCAST_QUEUE_NAME);
+    expect(options).toEqual(expect.objectContaining({ autorun: false }));
   });
 });

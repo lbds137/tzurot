@@ -57,14 +57,23 @@ Two consecutive permanent failures auto-disable the user's notifications
 the user's **standing DM**: `/notifications cleanup` deletes it on request,
 and the next blast's worker deletes it before sending the replacement.
 
-## Self-healing (the two reconcile sweeps)
+## Self-healing (the three reconcile passes)
 
-Both run in api-gateway, triggered hourly by ai-worker's scheduler through
+All three run in api-gateway, triggered hourly by ai-worker's scheduler through
 `POST /api/internal/release-broadcast/reconcile` (service-auth; accepts
 `lookbackHours` ≤ 168 for manual catch-up):
 
 - **Missing announcement** — a GitHub release with no announcement row
   (missed webhook, deploy-window race) is announced, capped at 3 per run.
+- **Bounded transient retry** — a `failed_transient` row is a bot-client-side
+  hiccup (rate limit, network, 5xx), not a recipient-side terminal outcome. A
+  release's `failed_transient` rows are reopened to `pending` (and their
+  announcement back to incomplete) once the release is past the
+  incomplete-wedge threshold, within a `TRANSIENT_RETRY_WINDOW_MS` (24h)
+  window from the release's creation — so a row gets up to ~24 hourly
+  retries before it stays failed_transient for good. Runs before the
+  incomplete-broadcast sweep so a just-reopened row is re-enqueued in the
+  same run.
 - **Announced but incomplete** — an announcement with `completedAt: null`
   older than 30 minutes is wedged, not live. Zero ledger rows → stamped
   complete with a loud error log (never auto-re-blasted; `/admin broadcast`

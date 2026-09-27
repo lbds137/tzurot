@@ -21,10 +21,12 @@ vi.mock('@tzurot/common-types/config/config', () => ({
 const reconcileMock = vi.hoisted(() => vi.fn());
 const fetcherFactoryMock = vi.hoisted(() => vi.fn());
 const sweepIncompleteMock = vi.hoisted(() => vi.fn());
+const reopenTransientMock = vi.hoisted(() => vi.fn());
 vi.mock('../../services/releaseReconcile.js', () => ({
   reconcileReleaseAnnouncements: reconcileMock,
   createGitHubReleasesFetcher: fetcherFactoryMock,
   sweepIncompleteBroadcasts: sweepIncompleteMock,
+  reopenTransientFailures: reopenTransientMock,
 }));
 
 import { handleReleaseBroadcastReconcile } from './releaseReconcile.js';
@@ -72,6 +74,7 @@ describe('POST /api/internal/release-broadcast/reconcile', () => {
     configMock.value = { GITHUB_API_TOKEN: undefined };
     reconcileMock.mockResolvedValue(SUMMARY);
     sweepIncompleteMock.mockResolvedValue(RESWEEP);
+    reopenTransientMock.mockResolvedValue({ announcementsReopened: 0, rowsReopened: 0 });
     fetcherFactoryMock.mockReturnValue(() => Promise.resolve([]));
   });
 
@@ -91,7 +94,7 @@ describe('POST /api/internal/release-broadcast/reconcile', () => {
     expect(reconcileMock).not.toHaveBeenCalled();
   });
 
-  it('runs both sweeps with defaults on an empty body and returns the merged summary', async () => {
+  it('runs all three passes with defaults on an empty body and returns the merged summary', async () => {
     const handler = handleReleaseBroadcastReconcile(makeDeps());
     const { req, res } = createMockReqRes({});
     await handler(req, res, vi.fn());
@@ -103,6 +106,12 @@ describe('POST /api/internal/release-broadcast/reconcile', () => {
     );
     // The incomplete-broadcast sweep runs on every reconcile invocation.
     expect(sweepIncompleteMock).toHaveBeenCalledWith({ prisma, queue });
+    expect(reopenTransientMock).toHaveBeenCalledWith(prisma);
+    // Re-opened rows must land BEFORE the incomplete-broadcast sweep runs, so
+    // they're re-enqueued in the same run rather than a run later.
+    expect(reopenTransientMock.mock.invocationCallOrder[0]).toBeLessThan(
+      sweepIncompleteMock.mock.invocationCallOrder[0]
+    );
     expect(res.json).toHaveBeenCalledWith({ ...SUMMARY, resweep: RESWEEP });
   });
 
