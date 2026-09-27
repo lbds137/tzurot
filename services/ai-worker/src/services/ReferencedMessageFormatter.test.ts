@@ -2619,6 +2619,39 @@ describe('ReferencedMessageFormatter', () => {
         expect(mockLogger.warn).not.toHaveBeenCalled();
       });
 
+      it('never renders a File stub on a plain video/webm as a voice transcript', async () => {
+        // A plain video/webm WITH a description renders as voice (the stored
+        // transcript is the evidence it was audio-only) — so a File stub's
+        // "not supported" text must not reach that arm as if it were one.
+        const url = 'https://cdn.example.com/clip.webm';
+        const webmStub = 'Attachment type video/webm is not supported — content not analyzed';
+        const { formatted } = await formatter.formatReferencedMessages(
+          [
+            refWithImage({
+              isDeduplicated: true,
+              attachments: [{ url, contentType: 'video/webm', name: 'clip.webm', size: 4000 }],
+            }),
+          ],
+          mockPersonality,
+          false,
+          {
+            1: [
+              {
+                type: AttachmentType.File,
+                description: webmStub,
+                originalUrl: url,
+                metadata: { url, name: 'clip.webm', contentType: 'video/webm', size: 4000 },
+              } satisfies ProcessedAttachment,
+            ],
+          }
+        );
+
+        expect(formatted).toContain('<file filename="clip.webm" type="video/webm"/>');
+        expect(formatted).not.toContain('<voice');
+        expect(formatted).not.toContain(webmStub);
+        expect(mockLogger.warn).not.toHaveBeenCalled();
+      });
+
       it('renders an ORPHANED file entry rather than dropping it', async () => {
         // No attachment row correlates, so the entry falls to the orphan loop —
         // where a File used to have no arm and vanished from the quote entirely.

@@ -3,10 +3,10 @@ id: TASK-1116
 title: >-
   Quoted/forwarded plain audio-only WebM still renders as a file stub (TASK-1112
   sibling flow)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-27 09:06'
-updated_date: '2026-09-27 10:24'
+updated_date: '2026-09-27 11:39'
 labels:
   - 'area:ai-worker'
   - 'area:voice'
