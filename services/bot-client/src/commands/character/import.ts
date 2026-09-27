@@ -8,12 +8,15 @@ import { type EnvConfig } from '@tzurot/common-types/config/config';
 import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { characterImportOptions } from '@tzurot/common-types/generated/commandOptions';
 import {
-  PersonalityCreateSchema,
   SLUG_PATTERN,
   SLUG_REQUIREMENTS_MESSAGE,
   SLUG_MIN_LENGTH,
 } from '@tzurot/common-types/schemas/api/personality';
 import { suggestSlugExample, normalizeSlugForUser } from '@tzurot/common-types/utils/slugUtils';
+import {
+  buildImportPayload,
+  getImportPayloadIssues,
+} from '@tzurot/common-types/utils/characterImportPayload';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { UserClient } from '@tzurot/clients';
@@ -265,74 +268,16 @@ async function validateAndProcessVoice(
  * Returns a user-friendly error message listing each field issue, or null if valid.
  */
 function validatePayloadFields(payload: Record<string, unknown>): string | null {
-  const result = PersonalityCreateSchema.safeParse(payload);
-  if (result.success) {
+  const issues = getImportPayloadIssues(payload);
+  if (issues.length === 0) {
     return null;
   }
 
-  const fieldErrors = result.error.issues.map(issue => {
-    const field = issue.path.join('.');
-    return `• **${field}**: ${issue.message}`;
-  });
+  const fieldErrors = issues.map(issue => `• **${issue.field}**: ${issue.message}`);
 
   return renderSpec(
     CATALOG.error.validation(`**Validation errors in import file:**\n${fieldErrors.join('\n')}`)
   );
-}
-
-// ============================================================================
-// PAYLOAD BUILDING
-// ============================================================================
-
-/**
- * Build API payload from parsed character data
- */
-function buildImportPayload(
-  data: Record<string, unknown>,
-  normalizedSlug: string,
-  avatarData: string | undefined,
-  voiceReferenceData: string | undefined
-): Record<string, unknown> {
-  const isPublic = typeof data.isPublic === 'boolean' ? data.isPublic : false;
-  // Absent in the JSON → private internals (the safe default for a shared file).
-  const definitionPublic =
-    typeof data.definitionPublic === 'boolean' ? data.definitionPublic : false;
-  // Attachment wins over the JSON field; fall back to the JSON payload's own
-  // embedded data if the user didn't attach one. Same precedence for both media.
-  const finalAvatarData =
-    avatarData ?? (typeof data.avatarData === 'string' ? data.avatarData : undefined);
-  const finalVoiceData =
-    voiceReferenceData ??
-    (typeof data.voiceReferenceData === 'string' ? data.voiceReferenceData : undefined);
-
-  return {
-    name: data.name,
-    slug: normalizedSlug,
-    characterInfo: data.characterInfo,
-    personalityTraits: data.personalityTraits,
-    displayName: data.displayName ?? undefined,
-    isPublic,
-    definitionPublic,
-    personalityTone: data.personalityTone ?? undefined,
-    personalityAge: data.personalityAge ?? undefined,
-    personalityAppearance: data.personalityAppearance ?? undefined,
-    personalityLikes: data.personalityLikes ?? undefined,
-    personalityDislikes: data.personalityDislikes ?? undefined,
-    conversationalGoals: data.conversationalGoals ?? undefined,
-    conversationalExamples: data.conversationalExamples ?? undefined,
-    customFields: data.customFields ?? undefined,
-    // Accepted as an array (the export shape) or a comma-separated string;
-    // the gateway schema normalizes, dedupes, and caps either form.
-    tags: data.tags ?? undefined,
-    avatarData: finalAvatarData,
-    voiceReferenceData: finalVoiceData,
-    // Enable voice whenever a reference is present. On CREATE this is stripped
-    // (not in the create schema) and derived from the reference server-side; on
-    // UPDATE (re-import into an existing slug) it's honored — without it, the
-    // re-import would store the reference but leave voice disabled.
-    voiceEnabled: finalVoiceData !== undefined ? true : undefined,
-    errorMessage: data.errorMessage ?? undefined,
-  };
 }
 
 // ============================================================================

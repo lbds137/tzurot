@@ -40,6 +40,8 @@ function buildUpdateData(
 ): Prisma.PersonalityUpdateInput {
   const updateData: Prisma.PersonalityUpdateInput = {};
 
+  // Mirrored by `SIMPLE_FIELDS` in packages/tooling/src/characters/classify.ts,
+  // pinned equal by that file's drift test in classify.test.ts.
   const simpleFields: (keyof PersonalityUpdateInput)[] = [
     'slug',
     'characterInfo',

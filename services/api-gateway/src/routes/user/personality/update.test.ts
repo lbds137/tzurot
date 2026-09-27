@@ -372,6 +372,33 @@ describe('PUT /api/user/personality/:slug (update)', () => {
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
+    it('absent card fields and isPublic are not written (import update semantics)', async () => {
+      stubExistingPersonality();
+      const handler = getUpdateHandler();
+      const { req, res } = createMockReqRes(
+        {
+          name: 'N',
+          slug: 'my-char',
+          characterInfo: 'x',
+          personalityTraits: 'y',
+          isPublic: true,
+        },
+        { slug: 'my-char' }
+      );
+
+      await handler(req, res);
+
+      const call = vi.mocked(mockPrisma.personality.update).mock.calls[0][0] as {
+        data: Record<string, unknown>;
+      };
+      expect('personalityAge' in call.data).toBe(false);
+      expect('personalityTone' in call.data).toBe(false);
+      expect('customFields' in call.data).toBe(false);
+      expect('tags' in call.data).toBe(false);
+      expect('isPublic' in call.data).toBe(false);
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
     it('rejects an over-cap tag list with a 400 and never writes', async () => {
       stubExistingPersonality();
       const handler = getUpdateHandler();

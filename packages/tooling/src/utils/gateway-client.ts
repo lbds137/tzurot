@@ -16,11 +16,19 @@
 
 import { execFileSync } from 'child_process';
 import chalk from 'chalk';
-import { ServiceClient } from '@tzurot/clients';
+import { ServiceClient, UserClient, asActor } from '@tzurot/clients';
 import { type Environment, getRailwayEnvName } from './env-runner.js';
 
 /** The Railway service that serves the internal API. */
 const GATEWAY_SERVICE = 'api-gateway';
+
+/**
+ * Discord snowflake shape (17-20 digits). `asUser` must already have been
+ * read from raw argv by the caller (`rawOptionValue`, never cac's parsed
+ * options — see that helper's own header comment for why an all-digit flag
+ * value can't survive cac's numeric coercion); this just bounds the shape.
+ */
+const SNOWFLAKE_PATTERN = /^\d{17,20}$/;
 
 /**
  * Read the variables set on a Railway service. Wraps the CLI/parse failure in
@@ -60,15 +68,25 @@ function requireVar(vars: Record<string, string>, keys: string[], env: Environme
   );
 }
 
+/** The gateway credentials shared by every gateway-backed client constructor. */
+export interface GatewayCredentials {
+  baseUrl: string;
+  serviceSecret: string;
+  /** Undefined when the environment has no BOT_OWNER_ID set (not fatal on its
+   *  own — only `getUserClientForEnv` requires it, and only absent `--as-user`). */
+  botOwnerId: string | undefined;
+}
+
 /**
- * A `ServiceClient` pointed at the given environment's gateway.
+ * Resolve the gateway's base URL, service secret, and bot-owner id for an
+ * environment.
  *
  * `local` reads the ambient env (the repo `.env` the CLI already loads);
  * `dev`/`prod` read the gateway service's Railway variables. Throws with an
  * actionable message naming the missing variable rather than failing later as
  * an opaque 401/ENOTFOUND.
  */
-export function getServiceClientForEnv(env: Environment): ServiceClient {
+function getGatewayCredentialsForEnv(env: Environment): GatewayCredentials {
   if (env === 'local') {
     const baseUrl = process.env.PUBLIC_GATEWAY_URL ?? process.env.GATEWAY_URL;
     const serviceSecret = process.env.INTERNAL_SERVICE_SECRET;
@@ -80,7 +98,12 @@ export function getServiceClientForEnv(env: Environment): ServiceClient {
     if (serviceSecret === undefined || serviceSecret.length === 0) {
       throw new Error('INTERNAL_SERVICE_SECRET not set in your local environment');
     }
-    return new ServiceClient({ baseUrl, serviceSecret });
+    const botOwnerId = process.env.BOT_OWNER_ID;
+    return {
+      baseUrl,
+      serviceSecret,
+      botOwnerId: botOwnerId !== undefined && botOwnerId.length > 0 ? botOwnerId : undefined,
+    };
   }
 
   console.log(chalk.dim(`Fetching gateway credentials from Railway ${getRailwayEnvName(env)}...`));
@@ -93,10 +116,22 @@ export function getServiceClientForEnv(env: Environment): ServiceClient {
       ? publicUrl
       : `https://${requireVar(vars, ['RAILWAY_PUBLIC_DOMAIN'], env)}`;
 
-  return new ServiceClient({
+  return {
     baseUrl,
     serviceSecret: requireVar(vars, ['INTERNAL_SERVICE_SECRET'], env),
-  });
+    botOwnerId:
+      vars.BOT_OWNER_ID !== undefined && vars.BOT_OWNER_ID.length > 0
+        ? vars.BOT_OWNER_ID
+        : undefined,
+  };
+}
+
+/**
+ * A `ServiceClient` pointed at the given environment's gateway.
+ */
+export function getServiceClientForEnv(env: Environment): ServiceClient {
+  const { baseUrl, serviceSecret } = getGatewayCredentialsForEnv(env);
+  return new ServiceClient({ baseUrl, serviceSecret });
 }
 
 /**
@@ -116,4 +151,64 @@ export function resolveServiceClientOrExit(env: Environment): ServiceClient | nu
     process.exitCode = 1;
     return null;
   }
+}
+
+/**
+ * A `UserClient` acting as the bot owner (default) or an explicit
+ * `--as-user` Discord id, pointed at the given environment's gateway.
+ *
+ * The synthesized `GatewayUser` sends the acting id as username/displayName
+ * rather than a real profile: `UserService`'s placeholder-username upgrade
+ * (`packages/identity/src/UserService.ts`) only overwrites a stored username
+ * that still equals the row's discordId (the shell-provisioning placeholder),
+ * so sending the id back as the username can never clobber a real stored
+ * username — the provisioning upgrade path is simply never triggered by this
+ * synthetic context.
+ *
+ * @throws Error naming BOT_OWNER_ID when `asUser` is omitted and the
+ *   environment has none configured, or when `asUser` isn't a Discord
+ *   snowflake (17-20 digits).
+ */
+export function getUserClientForEnv(
+  env: Environment,
+  asUser?: string
+): { client: UserClient; actingDiscordId: string; isBotOwner: boolean } {
+  if (asUser !== undefined && !SNOWFLAKE_PATTERN.test(asUser)) {
+    throw new Error(`--as-user must be a Discord snowflake (17-20 digits), got: "${asUser}"`);
+  }
+
+  const credentials = getGatewayCredentialsForEnv(env);
+
+  const actingDiscordId = asUser ?? credentials.botOwnerId;
+  if (actingDiscordId === undefined) {
+    const where =
+      env === 'local'
+        ? 'your local environment'
+        : `the ${GATEWAY_SERVICE} service in Railway ${getRailwayEnvName(env)}`;
+    throw new Error(
+      `BOT_OWNER_ID not set in ${where} and no --as-user was given. ` +
+        'Pass --as-user <discordId>, or set BOT_OWNER_ID.'
+    );
+  }
+
+  const client = new UserClient({
+    baseUrl: credentials.baseUrl,
+    serviceSecret: credentials.serviceSecret,
+    actor: asActor(actingDiscordId),
+    user: {
+      discordId: actingDiscordId,
+      username: actingDiscordId,
+      displayName: actingDiscordId,
+      isBot: false,
+    },
+  });
+
+  return {
+    client,
+    actingDiscordId,
+    // Compares the acting id to BOT_OWNER_ID on purpose: an explicit
+    // --as-user equal to the owner id counts as the owner, same as the
+    // default (no --as-user) path above.
+    isBotOwner: actingDiscordId === credentials.botOwnerId,
+  };
 }
