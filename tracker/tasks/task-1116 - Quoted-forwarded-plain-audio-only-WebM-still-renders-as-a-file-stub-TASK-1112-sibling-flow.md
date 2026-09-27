@@ -6,11 +6,12 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-27 09:06'
+updated_date: '2026-09-27 10:24'
 labels:
   - 'area:ai-worker'
   - 'area:voice'
   - 'size:M'
-  - 'state:dependent'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 1109000
