@@ -26,5 +26,7 @@ Fix shape: the header already carries the distinction, so no render change is st
 
 CARE: the constraint currently asserts voice is excluded and a test pins that exclusion (HardcodedConstraints.test.ts, the excludes-voice-transcripts case, with the reason in a comment above it). Option (a) narrows that exclusion to GENUINE voice messages, so the test, its name, and its comment must move together with the constraint or the pin will contradict the code.
 
+Second site (TASK-1116, PR 2548): in the reference/quote path (`AttachmentProcessor.processPlainFileAttachment`, `QuoteFormatter.renderableFor`) a transcribed plain audio-only `video/webm` renders as a `<voice>` element with no duration, the same element a genuine voice message gets; that path has no `[Audio: name]` header to carry the distinction. Option (a) alone does not reach it; the fix needs a marker on the quote element (e.g. a missing duration or an explicit uploaded-file attribute) that the constraint can name.
+
 Acceptance: a character receiving an uploaded audio file does not credit the sender with the wording of the transcript, while a genuine voice message still reads as that person own speech; both states pinned by tests, and the voice-exclusion comment updated to match the narrowed reasoning.
 <!-- SECTION:DESCRIPTION:END -->
