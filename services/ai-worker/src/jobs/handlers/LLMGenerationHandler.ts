@@ -164,6 +164,10 @@ export class LLMGenerationHandler {
     // - DownloadAttachmentsStep: Fetches Discord CDN bytes and embeds them as data: URLs.
     //   Runs before DependencyStep so extended-context vision processing consumes
     //   pre-downloaded bytes instead of re-fetching per attachment.
+    //   MultimodalProcessor's plain-WebM sniff (multimodal/plainWebmAudioSniff.ts)
+    //   relies on this ordering too — it reads the data: URL DownloadAttachmentsStep
+    //   already produced, so moving attachment processing ahead of it would
+    //   re-download every plain video/webm from the CDN.
     // - DependencyStep: Fetches preprocessing results AND processes extended context attachments.
     //   Runs after AuthStep because extended context vision processing needs the user's BYOK key
     //   to avoid leaking system API keys.
