@@ -83,7 +83,7 @@ export const retentionFixtures: Record<string, ConformanceEntry> = {
   },
 
   retentionNotifyReport: {
-    // A transient outcome stamps NOTHING by design (the queue retries it), so
+    // A transient outcome stamps NOTHING by design (the user rides the next notify run), so
     // this exercises the route's happy path without writing shared state.
     body: {
       outcomes: [

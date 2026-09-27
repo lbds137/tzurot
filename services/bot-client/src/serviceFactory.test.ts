@@ -154,6 +154,10 @@ vi.mock('./services/retentionNotice/setupRetentionNotifyWorker.js', () => ({
   setupRetentionNotifyWorker: vi.fn(() => S.retentionNotifyWorker),
 }));
 
+vi.mock('./services/dmWorkerReadyGate.js', () => ({
+  startWorkersOnClientReady: vi.fn(),
+}));
+
 vi.mock('./services/ResponseOrderingService.js', () => ({
   ResponseOrderingService: vi.fn(function () {
     return S.responseOrderingService;
@@ -240,6 +244,7 @@ import { WebhookManager } from './utils/WebhookManager.js';
 import { JobFailureListener } from './services/JobFailureListener.js';
 import { setupReleaseDmWorker } from './services/releaseDm/setupReleaseDmWorker.js';
 import { setupRetentionNotifyWorker } from './services/retentionNotice/setupRetentionNotifyWorker.js';
+import { startWorkersOnClientReady } from './services/dmWorkerReadyGate.js';
 import { registerServices } from './services/serviceRegistry.js';
 import {
   buildPersonalityChatPipeline,
@@ -296,6 +301,10 @@ describe('createServices', () => {
     expect(vi.mocked(WebhookManager)).toHaveBeenCalledWith(S.client);
     expect(vi.mocked(setupReleaseDmWorker)).toHaveBeenCalledWith({ client: S.client });
     expect(vi.mocked(setupRetentionNotifyWorker)).toHaveBeenCalledWith({ client: S.client });
+    expect(vi.mocked(startWorkersOnClientReady)).toHaveBeenCalledWith(S.client, [
+      S.releaseDmWorker,
+      S.retentionNotifyWorker,
+    ]);
     expect(vi.mocked(buildJobTrackingStack).mock.calls[0][0].discordClient).toBe(S.client);
     expect(vi.mocked(buildMultiTagStack).mock.calls[0][0].discordClient).toBe(S.client);
     expect(vi.mocked(buildMessageHandler).mock.calls[0][0].client).toBe(S.client);
