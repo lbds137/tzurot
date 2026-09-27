@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-24 13:20'
+updated_date: '2026-09-27 23:09'
 labels:
   - 'area:voice'
   - 'size:S'
@@ -22,3 +23,9 @@ Why: the Dockerfile CMD comment (services/voice-engine/Dockerfile, grep NEMO_CAC
 Fix shape: in the built image, load Parakeet with NEMO_CACHE_DIR set and trace where the .nemo archive extracts (strace or a NeMo debug log, or read the 2.7.3 restore path). Then either point the cache at the directory NeMo really uses, or correct the comment. If extraction repeats on every cold start, measure its cost on a dev wake.
 Acceptance: the Dockerfile comment states what 2.7.3 actually does, backed by the observation, and a dev cold start does not re-extract if a volume path can prevent it.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-09-27 disk cleanup (Deck management): ~/.cache/tzurot-voice-smoke/huggingface (2.6 GB: Parakeet + Pocket TTS models from the TASK-1070 local image run) is KEPT for this task's local image run. When this task closes, delete that directory with the owner's okay (not a safe-clean cache).
+<!-- SECTION:NOTES:END -->
