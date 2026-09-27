@@ -69,6 +69,12 @@ async function withTmpDir(run: (tmp: string) => Promise<void>): Promise<void> {
   }
 }
 
+// Pins the root vitest config's FORCE_COLOR=0 itself: CI exports no FORCE_COLOR and has no TTY, so chalk is level 0 there
+// with or without the pin; only the env assertion goes red in CI when the pin is dropped.
+it('runs with FORCE_COLOR=0 and chalk at level 0', () => {
+  expect([process.env.FORCE_COLOR, chalk.level]).toEqual(['0', 0]);
+});
+
 describe('evaluateSurfaceBudgets', () => {
   const budgets = baseline({
     rules: { lines: 100, graceMargin: 10, bytes: 8000, bytesGraceMargin: 500 },
@@ -757,9 +763,9 @@ describe('per-dimension report lines name the REAL reason', () => {
 
 describe('runLinesCheck --breakdown wiring', () => {
   /**
-   * Run the shell with console captured and colour forced off, so the
-   * assertions compare text rather than whatever chalk decided the runner's
-   * terminal supports.
+   * Run the shell with console captured, so the assertions compare text
+   * rather than whatever chalk decided the runner's terminal supports.
+   * (Colour level 0 is forced repo-wide by the root vitest config.)
    */
   async function captureShell(options: {
     tmp: string;
@@ -770,8 +776,6 @@ describe('runLinesCheck --breakdown wiring', () => {
     const record = (...args: unknown[]): void => {
       lines.push(args.map(String).join(' '));
     };
-    const priorLevel = chalk.level;
-    chalk.level = 0;
     const logSpy = vi.spyOn(console, 'log').mockImplementation(record);
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(record);
     try {
@@ -784,7 +788,6 @@ describe('runLinesCheck --breakdown wiring', () => {
     } finally {
       logSpy.mockRestore();
       errorSpy.mockRestore();
-      chalk.level = priorLevel;
     }
     return lines.join('\n');
   }

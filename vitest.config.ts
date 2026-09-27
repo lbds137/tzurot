@@ -4,6 +4,15 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // Chalk resolves its color level from supports-color at import time, so a caller
+    // shell exporting FORCE_COLOR (the Claude Code shell sets FORCE_COLOR=3) leaks into
+    // every chalk-formatted CLI-output assertion. Force level 0 for runs through this config
+    // and the package configs that merge it (the component, integration and eval configs are
+    // standalone and do not), whatever the shell exports; tooling's lines-check.test.ts's
+    // delta-shape test reddens under FORCE_COLOR=3 without this.
+    env: {
+      FORCE_COLOR: '0',
+    },
     // Limit worker threads to reduce memory usage (default uses all CPU cores).
     // With heavy mocking each worker can consume 500MB-1GB (v8 coverage pushes
     // higher). On CI / capable machines we run 3 workers (~2.1GB).

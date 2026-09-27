@@ -9,7 +9,6 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import chalk from 'chalk';
 import {
   rankSurfaceFiles,
   formatTokenEstimate,
@@ -116,18 +115,13 @@ describe('reportBreakdown', () => {
   }
 
   /**
-   * Capture console.log for one call, with colour forced OFF.
-   *
-   * Disabling chalk beats stripping SGR escapes afterwards: the row assertions
-   * read the LAST whitespace-delimited token of a line, and a trailing reset
-   * code would silently attach itself to the path being compared. Forcing the
-   * level also makes the test independent of whether the runner happens to
-   * look like a TTY.
+   * Capture console.log for one call. Colour is forced OFF repo-wide by the
+   * root vitest config: the row assertions read the LAST whitespace-delimited
+   * token of a line, and a trailing reset code would silently attach itself
+   * to the path being compared.
    */
   function captured(run: () => void): string {
     const lines: string[] = [];
-    const priorLevel = chalk.level;
-    chalk.level = 0;
     const spy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
       lines.push(args.map(String).join(' '));
     });
@@ -135,7 +129,6 @@ describe('reportBreakdown', () => {
       run();
     } finally {
       spy.mockRestore();
-      chalk.level = priorLevel;
     }
     return lines.join('\n');
   }
