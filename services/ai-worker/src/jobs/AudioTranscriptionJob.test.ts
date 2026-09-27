@@ -107,7 +107,7 @@ describe('AudioTranscriptionJob', () => {
         expect.objectContaining({
           maxAttempts: 3,
           shouldRetry: expect.any(Function),
-          operationName: 'Audio transcription (audio.ogg)',
+          operationName: 'Audio transcription (.ogg)',
         })
       );
     });

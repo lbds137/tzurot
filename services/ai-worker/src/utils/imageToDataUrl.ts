@@ -14,6 +14,7 @@
  */
 
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { type FilenameShape } from '@tzurot/common-types/utils/logContentPreview';
 import {
   validateAttachmentUrl,
   fetchAttachmentBytes,
@@ -48,7 +49,12 @@ export interface DownloadImageOptions {
   retryDelayMs?: number;
   /** Diagnostic correlation only. */
   jobId?: string;
-  name?: string;
+  /**
+   * The attachment's filename shape (extension + length only), logged on a
+   * retry-warn below. Callers pass `filenameShape(attachment.name)` — a
+   * filename is user content, so this never carries the raw stem.
+   */
+  file?: FilenameShape;
 }
 
 /**
@@ -102,7 +108,7 @@ async function fetchImageWithRetry(
       throw error;
     }
     logger.warn(
-      { jobId: options.jobId, name: options.name, err: error, isExternal },
+      { jobId: options.jobId, file: options.file, err: error, isExternal },
       'Image fetch failed, retrying once'
     );
     await new Promise(resolve => setTimeout(resolve, options.retryDelayMs ?? 500));

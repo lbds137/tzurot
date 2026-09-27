@@ -8,6 +8,7 @@
 
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { filenameShape } from '@tzurot/common-types/utils/logContentPreview';
 import { isDataUrl, HttpError } from '../../utils/attachmentFetch.js';
 import { downloadImageToDataUrl } from '../../utils/imageToDataUrl.js';
 import { ExpiredCdnUrlError, isDiscordCdnUrl } from '../../utils/discordCdnExpiry.js';
@@ -64,7 +65,7 @@ export async function resolveVisionImageUrl(
   try {
     const { dataUrl } = await downloadImageToDataUrl(attachment.url, {
       contentType: attachment.contentType,
-      name: attachment.name,
+      file: filenameShape(attachment.name),
       jobId: loggingContext.jobId,
     });
     return { kind: 'resolved', imageUrl: dataUrl };
@@ -90,7 +91,7 @@ export async function resolveVisionImageUrl(
       {
         jobId: loggingContext.jobId,
         attachmentId: attachment.id,
-        name: attachment.name,
+        file: filenameShape(attachment.name),
         err: error,
         imageFetchFallback: true,
       },

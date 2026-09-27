@@ -6,7 +6,9 @@
  * in development — see `contentPreviewsEnabled`. This module also holds the
  * two non-content prefix helpers (`idPrefix`, `urlPrefix`) — the
  * `@tzurot/no-raw-log-content` lint rule makes this module the sanctioned
- * route for a truncated value into a log field.
+ * route for a truncated value into a log field. `filenameShape` is the
+ * sanctioned route for a user-supplied filename (an attachment's `.name`):
+ * a filename is content, so only its extension and length are safe to log.
  */
 
 import { getConfig } from '../config/config.js';
@@ -81,4 +83,49 @@ export function idPrefix(id: string, n = 8): string {
  */
 export function urlPrefix(url: string, n: number): string {
   return url.substring(0, n);
+}
+
+/** The shape a filename reduces to when it's safe to log: extension and length only, never the stem. */
+export interface FilenameShape {
+  extension: string | undefined;
+  nameLength: number;
+}
+
+/**
+ * Reduces a user-supplied filename (an attachment's `.name`) to the only
+ * parts safe to log: its extension and its length. A filename is
+ * user-authored content — the stem can carry arbitrary text (`secret
+ * diary.txt`) — so this never returns any part of the name itself.
+ *
+ * `nameLength` counts code points, not UTF-16 units, matching
+ * `contentPreview`'s counting — an astral emoji in the filename counts as
+ * one character, not two.
+ *
+ * Returns `undefined` for `undefined`/`null` input, matching `contentPreview`
+ * so pino omits the field entirely rather than logging a literal `null`.
+ *
+ * The extension is the text after the LAST `.`, lowercased, and only when
+ * all of the following hold: the last dot isn't at index 0 (a dotfile like
+ * `.env` has no extension), the dot isn't the final character, the
+ * candidate is 1-10 characters, and it matches `/^[a-z0-9]+$/` after
+ * lowercasing. Otherwise `extension` is `undefined` — rejecting a long or
+ * odd "extension" outright (rather than truncating it) is deliberate: a
+ * truncated one would still leak up to 10 characters of user text (e.g.
+ * `notes.my secret` truncating to `my secret`).
+ *
+ * Pinned by the `filenameShape` describe in `logContentPreview.test.ts`.
+ */
+export function filenameShape(name: string | undefined | null): FilenameShape | undefined {
+  if (name === undefined || name === null) {
+    return undefined;
+  }
+  const lastDot = name.lastIndexOf('.');
+  let extension: string | undefined;
+  if (lastDot > 0 && lastDot < name.length - 1) {
+    const candidate = name.slice(lastDot + 1).toLowerCase();
+    if (candidate.length >= 1 && candidate.length <= 10 && /^[a-z0-9]+$/.test(candidate)) {
+      extension = candidate;
+    }
+  }
+  return { extension, nameLength: [...name].length };
 }
