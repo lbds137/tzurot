@@ -15,7 +15,7 @@
 | [tzurot-db-vector](./tzurot-db-vector/SKILL.md)             | Prisma migrations, drift fixes, pgvector                                       | `/tzurot-db-vector`       |
 | [tzurot-testing](./tzurot-testing/SKILL.md)                 | Test execution, coverage audits, tier verification                             | `/tzurot-testing`         |
 | [tzurot-council-mcp](./tzurot-council-mcp/SKILL.md)         | Multi-perspective AI consultation                                              | `/tzurot-council-mcp`     |
-| [tzurot-doc-audit](./tzurot-doc-audit/SKILL.md)             | Documentation + auto-memory freshness audit                                    | `/tzurot-doc-audit`       |
+| [tzurot-doc-audit](./tzurot-doc-audit/SKILL.md)             | Documentation freshness audit (memory audit: `harness:doc-audit`)              | `/tzurot-doc-audit`       |
 | [tzurot-arch-audit](./tzurot-arch-audit/SKILL.md)           | Architecture health audit                                                      | `/tzurot-arch-audit`      |
 | [tzurot-bug-remediation](./tzurot-bug-remediation/SKILL.md) | Recurring-bug protocol: evidence → class sweep → guard                         | `/tzurot-bug-remediation` |
 | [tzurot-reuse-scout](./tzurot-reuse-scout/SKILL.md)         | Pre-write reuse scouting, drifted-duplicate consolidation                      | `/tzurot-reuse-scout`     |

@@ -10,7 +10,7 @@
 
 Each layer points down. No upward references. No duplicated content.
 
-**A note on Claude auto-memory**: there is also a per-Claude-instance, machine-local memory store at `~/.claude/projects/*tzurot*/memory/` that accumulates knowledge across sessions. It is **not** a fourth durable layer — it's volatile, not git-tracked, and visible only to one Claude instance. Use it for per-user context, working preferences, and time-bound state. Anything that should be visible to every developer or apply to every session belongs in one of the three layers above. Placement criteria and migration triggers live in the `/tzurot-doc-audit` skill (Section 0).
+**A note on Claude auto-memory**: there is also a shared, machine-local memory store at `~/Documents/claude-memory` that accumulates knowledge across sessions. It is **not** a fourth durable layer: it is not git-tracked, and it is visible to every session on this machine but to no other developer. Use it for per-user context, working preferences, and time-bound state. Anything that should be visible to every developer or apply to every session belongs in one of the three layers above. Placement criteria and migration triggers live in `harness:doc-audit`.
 
 ## Where to Put New Docs
 
@@ -26,7 +26,7 @@ Each layer points down. No upward references. No duplicated content.
 - Local working notes without a public audience → `docs/local/` (gitignored)
 - Steam Deck dev-environment guides → `docs/steam-deck/`
 - Work tracking → root `CURRENT.md` and `BACKLOG.md` (the load manifest), curated files under `backlog/**/*.md`, the small-item pool in `tracker/` (query via `pnpm tracker`)
-- Per-Claude memory → `~/.claude/projects/*tzurot*/memory/` (per-user context, preferences, time-bound state; not git-tracked)
+- Shared machine memory → `~/Documents/claude-memory` (per-user context, preferences, time-bound state; shared by every session on this machine, not git-tracked)
 
 ## Audience check (public repo)
 
