@@ -7,6 +7,7 @@
 import type { Message } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { MessageLinkParser } from '@tzurot/common-types/utils/messageLinkParser';
+import { getConfig } from '@tzurot/common-types/config/config';
 import { extractForwardedContent } from '../../../utils/forwardedMessageUtils.js';
 import type { IReferenceStrategy } from './IReferenceStrategy.js';
 import { type ReferenceResult, ReferenceType } from '../types.js';
@@ -29,7 +30,10 @@ export class LinkReferenceStrategy implements IReferenceStrategy {
     // extractForwardedContent falls back to message.content for non-forwards.
     // Byte-faithful accessor, not the prompt variant: this text feeds the
     // message-link parser, which must see the snapshot exactly as written.
-    const links = MessageLinkParser.parseMessageLinks(extractForwardedContent(message));
+    const links = MessageLinkParser.parseMessageLinks(
+      extractForwardedContent(message),
+      getConfig().DISCORD_INSTANCE_ORIGIN
+    );
 
     if (links.length === 0) {
       return Promise.resolve([]);

@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { MessageLinkParser } from './messageLinkParser.js';
+import { DISCORD_HOST_PATTERN, MESSAGE_LINK_PATH_PATTERN } from './discordInstanceOrigin.js';
 
 describe('MessageLinkParser', () => {
   describe('parseMessageLinks', () => {
@@ -141,6 +142,71 @@ describe('MessageLinkParser', () => {
       expect(links[0].messageId).toBe('3');
       expect(links[1].messageId).toBe('3');
     });
+  });
+
+  describe('buildMessageLinkRegex / instance origin', () => {
+    const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+    const IPV6_ORIGIN = 'https://[::1]:8443';
+    const IPV6_LINK_URL = `${IPV6_ORIGIN}/channels/1/2/3`;
+    const IPV6_LINK_PARSED = [
+      { guildId: '1', channelId: '2', messageId: '3', fullUrl: IPV6_LINK_URL },
+    ];
+    it('composes MESSAGE_LINK_REGEX.source from the shared host+path constants', () => {
+      expect(MessageLinkParser.MESSAGE_LINK_REGEX.source).toBe(
+        `${DISCORD_HOST_PATTERN}${MESSAGE_LINK_PATH_PATTERN}`
+      );
+    });
+
+    it('returns an equivalent regex to MESSAGE_LINK_REGEX when origin is unset', () => {
+      expect(MessageLinkParser.buildMessageLinkRegex().source).toBe(
+        MessageLinkParser.MESSAGE_LINK_REGEX.source
+      );
+    });
+
+    it('does not parse an instance-origin link when origin is unset', () => {
+      const links = MessageLinkParser.parseMessageLinks(`${ORIGIN}/channels/1/2/3`);
+      expect(links).toHaveLength(0);
+    });
+
+    it('parses both an instance-origin link and a Discord link, in content order', () => {
+      const content = `see ${ORIGIN}/channels/1/2/3 and https://discord.com/channels/@me/4/5`;
+      const links = MessageLinkParser.parseMessageLinks(content, ORIGIN);
+
+      expect(links).toHaveLength(2);
+      expect(links[0]).toEqual({
+        guildId: '1',
+        channelId: '2',
+        messageId: '3',
+        fullUrl: `${ORIGIN}/channels/1/2/3`,
+      });
+      expect(links[1]).toEqual({
+        guildId: null,
+        channelId: '4',
+        messageId: '5',
+        fullUrl: 'https://discord.com/channels/@me/4/5',
+      });
+    });
+
+    it('does not parse a link on a different port than the configured origin', () => {
+      const links = MessageLinkParser.parseMessageLinks(
+        'https://deck.tail00338f.ts.net:9443/channels/1/2/3',
+        ORIGIN
+      );
+      expect(links).toHaveLength(0);
+    });
+
+    it('does not parse a link on a look-alike host', () => {
+      const links = MessageLinkParser.parseMessageLinks(
+        'https://deck.tail00338f.ts.net.evil.io:8443/channels/1/2/3',
+        ORIGIN
+      );
+      expect(links).toHaveLength(0);
+    });
+
+    it('parses a message link under an IPv6-literal instance origin', () =>
+      expect(MessageLinkParser.parseMessageLinks(IPV6_LINK_URL, IPV6_ORIGIN)).toEqual(
+        IPV6_LINK_PARSED
+      ));
   });
 
   describe('replaceLinksWithReferences', () => {

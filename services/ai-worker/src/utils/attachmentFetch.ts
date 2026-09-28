@@ -17,6 +17,8 @@
 import sharp from 'sharp';
 import { MEDIA_LIMITS, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { matchesInstanceCdnUrl } from '@tzurot/common-types/utils/discordInstanceOrigin';
 
 const logger = createLogger('attachmentFetch');
 
@@ -126,18 +128,40 @@ export class JobPayloadTooLargeError extends Error {
  *
  * Rules:
  * - Protocol must be https
- * - No credentials (username/password)
+ * - The URL matches the configured instance origin (scheme+host+port, no
+ *   credentials) AND its path is on the CDN/media-proxy path allowlist — if
+ *   so, it's returned immediately, before the checks below apply
  * - No non-standard ports
+ * - No credentials (username/password)
  * - Hostname is not an IP address (IPv4 or IPv6)
  * - Hostname is on the Discord CDN allowlist
  *
+ * @param instanceOrigin The configured self-hosted instance origin, if any.
+ *   Defaults to the live config's `DISCORD_INSTANCE_ORIGIN`; tests can pass
+ *   it explicitly.
  * @throws Error with a user-safe message on any rule violation.
  */
-export function validateAttachmentUrl(rawUrl: string): string {
+export function validateAttachmentUrl(
+  rawUrl: string,
+  instanceOrigin: string | undefined = getConfig().DISCORD_INSTANCE_ORIGIN
+): string {
   const url = new URL(rawUrl);
 
   if (url.protocol !== 'https:') {
     throw new Error('Invalid attachment URL: protocol must be https:');
+  }
+
+  // An exact configured-origin match, SCOPED to the CDN/media-proxy path
+  // allowlist, is decided here, before the port/
+  // credentials/IP-literal checks below: an operator who configures an
+  // IP-literal origin (e.g. `https://10.0.0.1:8443`) gets exactly that
+  // IP+port's CDN paths and nothing else — every other IP literal, and any
+  // path on THIS origin outside the CDN allowlist (including
+  // `${origin}/api/...`), falls through unchanged. `matchesInstanceCdnUrl`
+  // itself requires no credentials, so a credentialed URL never matches
+  // here and instead falls through to the checks below.
+  if (matchesInstanceCdnUrl(url, instanceOrigin)) {
+    return `${url.origin}${url.pathname}${url.search}`;
   }
 
   // Node's URL constructor normalizes the default HTTPS port to ''; an

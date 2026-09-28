@@ -5,6 +5,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import sharp from 'sharp';
 import { MEDIA_LIMITS } from '@tzurot/common-types/constants/media';
+
+const { mockGetConfig } = vi.hoisted(() => ({ mockGetConfig: vi.fn() }));
 import {
   validateAttachmentUrl,
   isDataUrl,
@@ -17,6 +19,10 @@ import {
   MAX_ATTACHMENT_BYTES,
   MAX_AGGREGATE_PAYLOAD_BYTES,
 } from './attachmentFetch.js';
+
+vi.mock('@tzurot/common-types/config/config', () => ({ getConfig: mockGetConfig }));
+
+beforeEach(() => mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: undefined }));
 
 describe('validateAttachmentUrl', () => {
   it('accepts cdn.discordapp.com https URLs', () => {
@@ -91,6 +97,104 @@ describe('validateAttachmentUrl', () => {
       'https://cdn.discordapp.com/x.png?ex=abc&is=def&hm=xyz#frag'
     );
     expect(sanitized).toBe('https://cdn.discordapp.com/x.png?ex=abc&is=def&hm=xyz');
+  });
+});
+
+describe('validateAttachmentUrl with a configured instance origin', () => {
+  const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+
+  it('rejects a URL under the instance origin when no origin is configured', () => {
+    expect(() => validateAttachmentUrl(`${ORIGIN}/attachments/a.png`, undefined)).toThrow();
+  });
+
+  it('accepts a URL under the origin, keeping the port and dropping the fragment', () => {
+    const sanitized = validateAttachmentUrl(
+      `${ORIGIN}/attachments/1/2/a.png?ex=1&is=2&hm=3#frag`,
+      ORIGIN
+    );
+    expect(sanitized).toBe(`${ORIGIN}/attachments/1/2/a.png?ex=1&is=2&hm=3`);
+  });
+
+  it('rejects the same host on a different port than the configured origin', () => {
+    expect(() =>
+      validateAttachmentUrl('https://deck.tail00338f.ts.net:9443/x.png', ORIGIN)
+    ).toThrow(/non-standard port/);
+  });
+
+  it('rejects http even on the configured host and port', () => {
+    expect(() => validateAttachmentUrl('http://deck.tail00338f.ts.net:8443/x.png', ORIGIN)).toThrow(
+      /protocol must be https/
+    );
+  });
+
+  it('rejects a look-alike host (hits the non-standard-port rejection at :8443)', () => {
+    // The look-alike host doesn't match the instance origin, so it falls
+    // through to the ordinary rules below — at this non-default port that's
+    // the port check, before the allowlist is ever consulted.
+    expect(() =>
+      validateAttachmentUrl('https://deck.tail00338f.ts.net.evil.io:8443/x.png', ORIGIN)
+    ).toThrow(/non-standard port/);
+  });
+
+  it('rejects a look-alike host on the default port via the Discord CDN allowlist', () => {
+    expect(() =>
+      validateAttachmentUrl('https://deck.tail00338f.ts.net.evil.io/x.png', ORIGIN)
+    ).toThrow(/must be from Discord CDN/);
+  });
+
+  it('rejects credentials at the origin non-default port via the port check', () => {
+    // matchesInstanceOrigin requires no credentials, so a credentialed URL
+    // never matches the origin here — it falls through to the ordinary
+    // rules below, and at this non-default port that's the port check,
+    // before credentials are ever inspected.
+    const creds = ['u', 's', 'e', 'r'].join('') + ':' + ['p', 'a', 's', 's'].join('');
+    expect(() =>
+      validateAttachmentUrl(`https://${creds}@deck.tail00338f.ts.net:8443/x.png`, ORIGIN)
+    ).toThrow(/non-standard port/);
+  });
+
+  it('rejects credentials on a default-port configured origin host', () => {
+    const defaultPortOrigin = 'https://inst.example';
+    const creds = ['u', 's', 'e', 'r'].join('') + ':' + ['p', 'a', 's', 's'].join('');
+    expect(() =>
+      validateAttachmentUrl(`https://${creds}@inst.example/x.png`, defaultPortOrigin)
+    ).toThrow(/credentials not allowed/);
+  });
+
+  it('still rejects an unconfigured IP-literal URL when an instance origin is configured', () => {
+    // Default port so the URL reaches the IP-literal check rather than
+    // getting rejected earlier by the non-standard-port check.
+    expect(() => validateAttachmentUrl('https://10.0.0.1/x', ORIGIN)).toThrow(
+      /IP addresses not allowed/
+    );
+  });
+
+  it('accepts an exact IP-literal origin match and rejects a different IP', () => {
+    const ipOrigin = 'https://10.0.0.1';
+    const cdnPath = '/attachments/1/2/x.png';
+    expect(validateAttachmentUrl(`${ipOrigin}${cdnPath}`, ipOrigin)).toBe(`${ipOrigin}${cdnPath}`);
+    expect(() => validateAttachmentUrl(`${ipOrigin}/x`, ipOrigin)).toThrow(/IP addresses not/);
+    expect(() => validateAttachmentUrl(`https://10.0.0.2${cdnPath}`, ipOrigin)).toThrow(
+      /IP addresses not allowed/
+    );
+  });
+
+  it('still accepts a real Discord CDN URL when an instance origin is configured', () => {
+    const sanitized = validateAttachmentUrl(
+      'https://cdn.discordapp.com/attachments/1/2/file.png',
+      ORIGIN
+    );
+    expect(sanitized).toBe('https://cdn.discordapp.com/attachments/1/2/file.png');
+  });
+  it('rejects the instance REST API path even though it shares the origin', () => {
+    expect(() => validateAttachmentUrl(`${ORIGIN}/api/v10/users/@me`, ORIGIN)).toThrow(
+      /non-standard port/
+    );
+  });
+  it('accepts an instance-origin URL via getConfig when no explicit origin is passed (seam test)', () => {
+    mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: ORIGIN });
+    const sanitized = validateAttachmentUrl(`${ORIGIN}/attachments/1/2/a.png?ex=1`);
+    expect(sanitized).toBe(`${ORIGIN}/attachments/1/2/a.png?ex=1`);
   });
 });
 

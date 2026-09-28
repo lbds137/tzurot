@@ -15,9 +15,10 @@ import validCommandFixture, { TO_JSON_SENTINEL } from './fixtures/validCommand.j
 import * as noDefaultExportFixture from './fixtures/noDefaultExport.js';
 import { deployedCommandsKey, type DeployedCommandsStore } from './commandRegistrationGate.js';
 
-const { mockPut, mockSetToken, mockLogger, mockGetConfig } = vi.hoisted(() => ({
+const { mockPut, mockSetToken, mockRestCtor, mockLogger, mockGetConfig } = vi.hoisted(() => ({
   mockPut: vi.fn(),
   mockSetToken: vi.fn(),
+  mockRestCtor: vi.fn(),
   mockLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
   mockGetConfig: vi.fn(),
 }));
@@ -27,6 +28,9 @@ const { mockPut, mockSetToken, mockLogger, mockGetConfig } = vi.hoisted(() => ({
 vi.mock('discord.js', async () => {
   const actual = await vi.importActual<typeof import('discord.js')>('discord.js');
   class MockREST {
+    constructor(options?: unknown) {
+      mockRestCtor(options);
+    }
     setToken(token: string): this {
       mockSetToken(token);
       return this;
@@ -106,6 +110,28 @@ describe('deployCommands', () => {
       await expect(noDefaultExportFixture.execute()).resolves.toBeUndefined();
 
       expect('default' in noDefaultExportFixture).toBe(false);
+    });
+  });
+
+  describe('instance-origin REST options', () => {
+    const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+
+    it('constructs REST with an empty options object when no origin is configured', async () => {
+      await deployCommands(false);
+
+      expect(mockRestCtor).toHaveBeenCalledWith({});
+    });
+
+    it('constructs REST with the instance-origin rest overrides when configured', async () => {
+      mockGetConfig.mockReturnValue({ ...FULL_CONFIG, DISCORD_INSTANCE_ORIGIN: ORIGIN });
+
+      await deployCommands(false);
+
+      expect(mockRestCtor).toHaveBeenCalledWith({
+        api: `${ORIGIN}/api`,
+        cdn: ORIGIN,
+        mediaProxy: ORIGIN,
+      });
     });
   });
 

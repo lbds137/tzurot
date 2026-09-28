@@ -18,6 +18,8 @@
  */
 
 import { ALLOWED_HOSTS } from './attachmentFetch.js';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { matchesInstanceCdnUrl } from '@tzurot/common-types/utils/discordInstanceOrigin';
 
 /** Grace period before a parsed expiry is trusted as past. Guards against local clock skew. */
 export const CDN_EXPIRY_SKEW_MS = 5 * 60 * 1000;
@@ -39,16 +41,34 @@ export type DiscordCdnExpiry =
 const UNPARSEABLE_EX: DiscordCdnExpiry = { known: false, reason: 'unparseable-ex' };
 
 /**
- * True when `url` is an `https://` URL on the Discord CDN allowlist.
- * Exact hostname comparison only — never a substring/prefix check on the raw
- * URL string (CodeQL `js/incomplete-url-substring-sanitization`).
+ * True when `url` is an `https://` URL on the Discord CDN allowlist, OR
+ * matches the configured self-hosted instance origin AND is on the CDN/
+ * media-proxy path allowlist (never the instance's REST API). Exact
+ * hostname comparison only — never a substring/prefix check on the raw URL
+ * string (CodeQL `js/incomplete-url-substring-sanitization`).
+ *
+ * Instance-origin URLs are treated as signed CDN URLs for expiry purposes: a
+ * self-hosted Discord-compatible (Spacebar) instance signs its CDN URLs with
+ * the same `ex`/`is`/`hm` query-param scheme (`ex` = hex epoch
+ * milliseconds), so this module's existing ms-range classification already
+ * applies to them without changes.
+ *
+ * @param instanceOrigin The configured self-hosted instance origin, if any.
+ *   Defaults to the live config's `DISCORD_INSTANCE_ORIGIN`; tests can pass
+ *   it explicitly.
  */
-export function isDiscordCdnUrl(url: string): boolean {
+export function isDiscordCdnUrl(
+  url: string,
+  instanceOrigin: string | undefined = getConfig().DISCORD_INSTANCE_ORIGIN
+): boolean {
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
     return false;
+  }
+  if (matchesInstanceCdnUrl(parsed, instanceOrigin)) {
+    return true;
   }
   // Same trailing-root-dot normalization as validateAttachmentUrl — a DNS
   // absolute form like `cdn.discordapp.com.` routes through the CDN fetch
@@ -61,9 +81,16 @@ export function isDiscordCdnUrl(url: string): boolean {
  * Read and classify the `ex` expiry param off a Discord CDN URL.
  * Returns `known: false` for anything this module cannot confidently
  * classify — see the module doc comment for the fail-open rationale.
+ *
+ * @param instanceOrigin The configured self-hosted instance origin, if any.
+ *   Defaults to the live config's `DISCORD_INSTANCE_ORIGIN`; tests can pass
+ *   it explicitly.
  */
-export function readDiscordCdnExpiry(url: string): DiscordCdnExpiry {
-  if (!isDiscordCdnUrl(url)) {
+export function readDiscordCdnExpiry(
+  url: string,
+  instanceOrigin: string | undefined = getConfig().DISCORD_INSTANCE_ORIGIN
+): DiscordCdnExpiry {
+  if (!isDiscordCdnUrl(url, instanceOrigin)) {
     return { known: false, reason: 'not-discord-cdn' };
   }
 
@@ -114,9 +141,17 @@ export class ExpiredCdnUrlError extends Error {
  * otherwise returns without side effects — every `known: false` case
  * (including a non-Discord-CDN URL) is a no-op, fail open. This is the one
  * place the expiry boundary is computed.
+ *
+ * @param instanceOrigin The configured self-hosted instance origin, if any.
+ *   Defaults to the live config's `DISCORD_INSTANCE_ORIGIN`; tests can pass
+ *   it explicitly.
  */
-export function assertDiscordCdnUrlNotExpired(url: string, nowMs: number = Date.now()): void {
-  const expiry = readDiscordCdnExpiry(url);
+export function assertDiscordCdnUrlNotExpired(
+  url: string,
+  nowMs: number = Date.now(),
+  instanceOrigin: string | undefined = getConfig().DISCORD_INSTANCE_ORIGIN
+): void {
+  const expiry = readDiscordCdnExpiry(url, instanceOrigin);
   if (expiry.known && nowMs > expiry.expiresAtMs + CDN_EXPIRY_SKEW_MS) {
     throw new ExpiredCdnUrlError(expiry.expiresAtMs);
   }

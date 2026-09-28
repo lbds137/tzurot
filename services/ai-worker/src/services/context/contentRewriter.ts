@@ -43,6 +43,7 @@ import {
   type UserMentionDeps,
 } from '@tzurot/common-types/utils/mentionRewriter';
 import { MessageLinkParser } from '@tzurot/common-types/utils/messageLinkParser';
+import { getConfig } from '@tzurot/common-types/config/config';
 
 export interface RewriteRawContentParams {
   raw: RawAssemblyInputs;
@@ -78,7 +79,10 @@ function buildLinkMap(
     numberByMessageId.set(ref.discordMessageId, ref.referenceNumber);
   }
 
-  for (const link of MessageLinkParser.parseMessageLinks(content)) {
+  for (const link of MessageLinkParser.parseMessageLinks(
+    content,
+    getConfig().DISCORD_INSTANCE_ORIGIN
+  )) {
     const referenceNumber = numberByMessageId.get(link.messageId);
     if (referenceNumber !== undefined) {
       linkMap.set(link.fullUrl, referenceNumber);
