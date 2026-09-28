@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-27 21:05'
+updated_date: '2026-09-28 04:07'
 labels:
   - 'area:bot-client'
   - 'area:ai-worker'
@@ -41,3 +42,9 @@ Acceptance: with the config unset every existing guard test passes unchanged; wi
 
 Joint boot is DECK-LOCAL (Spacebar fork session, 2026-09-27): the instance is tailnet-only (Tailscale Serve, no Funnel; public exposure would be an owner call), and Railway is not on the tailnet, so Railway dev cannot reach REST, gateway or CDN. Run bot-client (+ api-gateway, ai-worker) locally with the origin env set to https://deck.tail00338f.ts.net:8443; the Deck resolves that name to 127.0.0.1 (owner hosts line) and Caddy :8443 proxies to the instance (a discord.js 14.27 bot reached ClientReady there, 17:06). Data isolation: the local .env points at the local containers (tzurot-postgres localhost:5432 db `tzurot`, tzurot-redis localhost:6379, checked 2026-09-27), not Railway, so the boot touches no Railway data; to keep the owner's local dev data clean too, use a separate database (e.g. `tzurot_spacebar` on the same container, migrated with `pnpm ops db:migrate` against that URL) and a separate Redis db index (REDIS_URL `/1`), plus the instance's own bot token and application id.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Code merged 2026-09-28 04:06Z as PR #2554 (62962798e): per-process DISCORD_INSTANCE_ORIGIN; CDN guards path-scoped to DISCORD_INSTANCE_CDN_PATH_PREFIXES (never /api) after a round-3 SSRF finding. Stays OPEN for the Deck-local joint boot with the Spacebar fork session (separate DB tzurot_spacebar + Redis /1). Open item: Spacebar CDN signature IP/UA binding may 403 ai-worker fetches. Boot waits for the owner's go (weekly-limit pause).
+<!-- SECTION:NOTES:END -->
