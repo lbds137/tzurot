@@ -1,15 +1,17 @@
 ---
 id: doc-14
 title: >-
-  Theme: Platform-Portable UX Layer (Discord Design System) — ⏸ PARKED (resumes
-  as the immediate next epic)
+  Theme: Platform-Portable UX Layer (Discord Design System) — ACTIVE EPIC
+  (Phase 3 waves 4–6)
 type: other
 created_date: '2026-07-28 11:11'
 ---
 
-### Theme: Platform-Portable UX Layer (Discord Design System) — ⏸ PARKED (resumes as the immediate next epic)
+### Theme: Platform-Portable UX Layer (Discord Design System) — ACTIVE EPIC (Phase 3 waves 4–6)
 
-> **Status 2026-09-24 (half-finished sweep):** ACTIVE EPIC from 2026-09-24 (owner ruling; `backlog/active-epic.md`). Waves 4–6 remain; built on the cloud lane by shape (`doc-108`). The park note in the title is historical.
+> **Status 2026-09-24:** ACTIVE EPIC from 2026-09-24 (owner ruling; `backlog/active-epic.md`). Waves 4–6 remain; built on the cloud lane by shape (`doc-108`). The 2026-07-23 park note below is historical. (The file name still carries the old PARKED title; `doc-14` is the stable reference.)
+
+> **Machloket (Spacebar fork, `doc-83`) — assessed 2026-09-28:** Spacebar reimplements Discord's API, so the existing discord.js renderer serves it and **Phase 4 is NOT triggered** by it. Owner hard line (2026-09-28): Machloket implements at minimum everything Tzurot needs. Rule for every UX PR: if it introduces a discord.js primitive bot-client did not use before (a new interaction response type, component type, or REST route), flag it to the Spacebar fork session and add it to the conformance surface (TASK-1145). Revisit Phase 4 only if the Machloket client cannot render a component the render layer depends on.
 
 **⏸ PARKED 2026-07-23** mid-Phase-3, to let the Automated Inactivity Retention epic ([`backlog/active-epic.md`](../../backlog/active-epic.md)) through. **This is the beta-exit gate and resumes the moment retention ships** — it is next-up, not shelved. State below is current as of parking: Phase 3 Waves 0–3 shipped (beta.173/174), **Waves 4–6 remain** (see the Phase 3 row).
 
