@@ -1,12 +1,18 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import type { RawAssemblyInputs } from '@tzurot/common-types/types/schemas/rawEnvelope';
 import type { UserMentionDeps } from '@tzurot/common-types/utils/mentionRewriter';
 import { rewriteRawContent } from './contentRewriter.js';
 
+const { mockGetConfig } = vi.hoisted(() => ({ mockGetConfig: vi.fn() }));
+
 const USER_ID = '567890123456789012';
 const CHANNEL_ID = '123456789012345678';
 const ROLE_ID = '345678901234567890';
+
+vi.mock('@tzurot/common-types/config/config', () => ({ getConfig: mockGetConfig }));
+
+beforeEach(() => mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: undefined }));
 
 function makeDeps(overrides: Partial<UserMentionDeps> = {}): UserMentionDeps {
   return {
@@ -168,5 +174,17 @@ describe('rewriteRawContent', () => {
       deps: makeDeps(),
     });
     expect(result.messageContent).toBe('[Reference 1] @Vee #general @Mods');
+  });
+  it('rewrites an instance-origin link via getConfig (seam test)', async () => {
+    const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+    const url = `${ORIGIN}/channels/111111111111111111/222222222222222222/333333333333333333`;
+    mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: ORIGIN });
+    const result = await rewriteRawContent({
+      raw: raw({ rawMessageContent: `look at ${url} please` }),
+      rawReferences: [rawRef(2, '333333333333333333')],
+      personalityId: 'pers-1',
+      deps: makeDeps(),
+    });
+    expect(result.messageContent).toBe('look at [Reference 2] please');
   });
 });

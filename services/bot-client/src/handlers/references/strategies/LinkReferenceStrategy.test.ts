@@ -2,16 +2,23 @@
  * Tests for LinkReferenceStrategy
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Collection, type MessageSnapshot } from 'discord.js';
 import { LinkReferenceStrategy } from './LinkReferenceStrategy.js';
 import { ReferenceType } from '../types.js';
 import { createMockMessage } from '../../../test/mocks/Discord.mock.js';
 
+const { mockGetConfig } = vi.hoisted(() => ({ mockGetConfig: vi.fn() }));
+
+vi.mock('@tzurot/common-types/config/config', () => ({
+  getConfig: mockGetConfig,
+}));
+
 describe('LinkReferenceStrategy', () => {
   let strategy: LinkReferenceStrategy;
 
   beforeEach(() => {
+    mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: undefined });
     strategy = new LinkReferenceStrategy();
   });
 
@@ -120,6 +127,25 @@ describe('LinkReferenceStrategy', () => {
       guildId: '123',
       type: ReferenceType.LINK,
       discordUrl: 'https://discord.com/channels/123/456/789',
+    });
+  });
+
+  it('resolves a link under the configured origin (seam test)', async () => {
+    const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+    mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: ORIGIN });
+    const message = createMockMessage({
+      content: `Check this ${ORIGIN}/channels/123/456/789`,
+    });
+
+    const result = await strategy.extract(message);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      messageId: '789',
+      channelId: '456',
+      guildId: '123',
+      type: ReferenceType.LINK,
+      discordUrl: `${ORIGIN}/channels/123/456/789`,
     });
   });
 });

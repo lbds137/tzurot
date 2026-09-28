@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Events, Partials } from 'discord.js';
+import { Client, Events } from 'discord.js';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { registerProcessLifecycle } from '@tzurot/common-types/utils/processLifecycle';
@@ -14,6 +14,7 @@ import { handleCommandWithContext } from './handlers/commandDispatch.js';
 import { closeRedis, redis } from './redis.js';
 import { armBootWatchdog } from './utils/bootWatchdog.js';
 import { deployCommands } from './utils/deployCommands.js';
+import { buildDiscordClientOptions } from './utils/discordClientOptions.js';
 import { shouldAutoRegisterCommands } from './utils/commandRegistrationGate.js';
 import { respondToInteractionDuringMaintenance } from './utils/maintenanceResponses.js';
 import { deliverJobResult, type JobResultDeliveryDeps } from './services/deliverJobResult.js';
@@ -89,37 +90,11 @@ const config = {
   discordToken: envConfig.DISCORD_TOKEN,
 };
 
-// Initialize Discord client
-// Note: GuildMembers is a privileged intent requiring Discord Portal approval for 100+ servers.
-// It's required because without it, message.member is null and we can't access user roles,
-// display color, or join date for the AI context (activePersonaGuildInfo).
-// Note: Partials.Channel + Message + User are all required for DM events to
-// reliably fire after a process restart. Empirical diagnosis (raw-gateway
-// listener, 2026-04-26): with only Partials.Channel, DM MESSAGE_CREATE
-// packets reach the gateway listener but Discord.js silently drops them
-// before MessageCreate fires. The DM channel↔user resolution path needs
-// the user to be a partial when uncached (every fresh restart), and
-// Message partial covers reference-resolution edge cases.
-//
-// Forward-protection: Partials.Message also means any future
-// MESSAGE_UPDATE/DELETE handler must guard against partial Message
-// objects (check `message.partial === true` and fetch before accessing
-// `content`, `author`, etc.). MESSAGE_CREATE payloads are always
-// complete per Discord protocol, so the create path is unaffected.
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildWebhooks,
-    GatewayIntentBits.DirectMessages,
-    GatewayIntentBits.GuildMembers,
-  ],
-  partials: [Partials.Channel, Partials.Message, Partials.User],
-  // Disable all mention parsing from message content to prevent AI-generated
-  // @everyone/@here/@role pings. Reply-pings (repliedUser) are unaffected.
-  allowedMentions: { parse: [] },
-});
+// Initialize Discord client. Options (intents/partials/allowedMentions, and
+// the additive REST/CDN override for a configured self-hosted instance) live
+// in buildDiscordClientOptions — see its doc comment for the intent/partials
+// rationale.
+const client = new Client(buildDiscordClientOptions(envConfig.DISCORD_INSTANCE_ORIGIN));
 
 // These will be initialized in start()
 let services: ReturnType<typeof createServices>;
@@ -303,9 +278,10 @@ const gatewayWatchdog = startGatewayWatchdog(client, logger, {
 // hard-kills the process before client.destroy() can close the Discord gateway
 // session, leaving an orphaned shard that competes with the new instance until
 // Discord's session timeout. The DM-silence symptom that originally motivated
-// this fix was actually caused by missing Partials (see client instantiation
-// comment), but clean gateway shutdown on deploy is correct independent
-// behaviour and resolved its own latent issue.
+// this fix was actually caused by missing Partials (see
+// buildDiscordClientOptions's doc comment in discordClientOptions.ts), but
+// clean gateway shutdown on deploy is correct independent behaviour and
+// resolved its own latent issue.
 // Pure dispose sequence — the re-entry guard, hard-exit backstop, and terminal
 // exit semantics live in registerProcessLifecycle (common-types), which wraps
 // this and also owns the handler registration below.

@@ -319,6 +319,19 @@ describe('config', () => {
       ).toBe('https://gateway.example');
     });
 
+    it('normalizes DISCORD_INSTANCE_ORIGIN and rejects a non-origin value', () => {
+      expect(envSchema.parse({}).DISCORD_INSTANCE_ORIGIN).toBeUndefined();
+      expect(
+        envSchema.parse({ DISCORD_INSTANCE_ORIGIN: '' }).DISCORD_INSTANCE_ORIGIN
+      ).toBeUndefined();
+      expect(
+        envSchema.parse({ DISCORD_INSTANCE_ORIGIN: 'https://deck.tail00338f.ts.net:8443/' })
+          .DISCORD_INSTANCE_ORIGIN
+      ).toBe('https://deck.tail00338f.ts.net:8443');
+      expect(() => envSchema.parse({ DISCORD_INSTANCE_ORIGIN: 'http://x.example' })).toThrow();
+      expect(() => envSchema.parse({ DISCORD_INSTANCE_ORIGIN: 'https://x.example/api' })).toThrow();
+    });
+
     it('parses RAILWAY_ENVIRONMENT_NAME when set and treats empty/unset as undefined', () => {
       expect(envSchema.parse({}).RAILWAY_ENVIRONMENT_NAME).toBeUndefined();
       expect(

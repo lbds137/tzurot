@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   isDiscordCdnUrl,
   readDiscordCdnExpiry,
@@ -6,6 +6,8 @@ import {
   ExpiredCdnUrlError,
   CDN_EXPIRY_SKEW_MS,
 } from './discordCdnExpiry.js';
+
+const { mockGetConfig } = vi.hoisted(() => ({ mockGetConfig: vi.fn() }));
 
 const NOW_MS = 1_800_000_000_000; // an arbitrary fixed "now" for these tests
 
@@ -16,6 +18,10 @@ function urlWithExSeconds(exSeconds: number): string {
 function urlWithExMs(exMs: number): string {
   return `https://cdn.discordapp.com/attachments/1/2/x.png?ex=${exMs.toString(16)}&is=abc&hm=def`;
 }
+
+vi.mock('@tzurot/common-types/config/config', () => ({ getConfig: mockGetConfig }));
+
+beforeEach(() => mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: undefined }));
 
 describe('isDiscordCdnUrl', () => {
   it('is true for cdn.discordapp.com', () => {
@@ -154,5 +160,66 @@ describe('assertDiscordCdnUrlNotExpired', () => {
       expect(error).toBeInstanceOf(ExpiredCdnUrlError);
       expect((error as ExpiredCdnUrlError).expiresAtMs).toBe(expectedExpiresAtMs);
     }
+  });
+});
+
+describe('instance origin', () => {
+  const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+
+  function instanceUrlWithExMs(exMs: number): string {
+    return `${ORIGIN}/attachments/1/2/x.png?ex=${exMs.toString(16)}&is=abc&hm=def`;
+  }
+
+  it('is not treated as a Discord CDN URL when no instance origin is configured', () => {
+    expect(isDiscordCdnUrl(instanceUrlWithExMs(NOW_MS + 3600_000), undefined)).toBe(false);
+    expect(readDiscordCdnExpiry(instanceUrlWithExMs(NOW_MS + 3600_000), undefined)).toEqual({
+      known: false,
+      reason: 'not-discord-cdn',
+    });
+  });
+
+  it('is treated as a Discord CDN URL when the instance origin is configured', () => {
+    expect(isDiscordCdnUrl(instanceUrlWithExMs(NOW_MS + 3600_000), ORIGIN)).toBe(true);
+  });
+
+  it('is false for the same host on a different port', () => {
+    expect(
+      isDiscordCdnUrl('https://deck.tail00338f.ts.net:9443/attachments/1/2/x.png', ORIGIN)
+    ).toBe(false);
+  });
+
+  it('is false for a look-alike host', () => {
+    expect(
+      isDiscordCdnUrl('https://deck.tail00338f.ts.net.evil.io:8443/attachments/1/2/x.png', ORIGIN)
+    ).toBe(false);
+  });
+
+  it('is false for the instance REST API path on the same origin', () => {
+    expect(isDiscordCdnUrl(`${ORIGIN}/api/v10/users/@me`, ORIGIN)).toBe(false);
+  });
+  it('reads the ex expiry from an instance-origin URL the same way as a Discord CDN URL', () => {
+    const exMs = NOW_MS + 3600_000;
+    const result = readDiscordCdnExpiry(instanceUrlWithExMs(exMs), ORIGIN);
+    expect(result).toEqual({ known: true, expiresAtMs: exMs });
+  });
+});
+
+describe('instance origin via getConfig (seam tests, no explicit param)', () => {
+  const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+  it('isDiscordCdnUrl treats an instance-origin URL as CDN via getConfig', () => {
+    mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: ORIGIN });
+    expect(isDiscordCdnUrl(`${ORIGIN}/attachments/1/2/x.png?ex=1`)).toBe(true);
+  });
+  it('readDiscordCdnExpiry reads ex off instance-origin URL via getConfig', () => {
+    mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: ORIGIN });
+    const exMs = NOW_MS + 3600_000;
+    const url = `${ORIGIN}/attachments/1/2/x.png?ex=${exMs.toString(16)}&is=a&hm=b`;
+    expect(readDiscordCdnExpiry(url)).toEqual({ known: true, expiresAtMs: exMs });
+  });
+  it('assertDiscordCdnUrlNotExpired throws for an expired instance-origin URL via getConfig', () => {
+    mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: ORIGIN });
+    const exSeconds = Math.floor(NOW_MS / 1000) - 3600;
+    const url = `${ORIGIN}/attachments/1/2/x.png?ex=${exSeconds.toString(16)}&is=a&hm=b`;
+    expect(() => assertDiscordCdnUrlNotExpired(url, NOW_MS)).toThrow(ExpiredCdnUrlError);
   });
 });
