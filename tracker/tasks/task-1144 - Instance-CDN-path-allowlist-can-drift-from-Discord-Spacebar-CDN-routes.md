@@ -4,6 +4,7 @@ title: Instance CDN path allowlist can drift from Discord/Spacebar CDN routes
 status: To Do
 assignee: []
 created_date: '2026-09-28 04:07'
+updated_date: '2026-09-28 04:08'
 labels:
   - 'area:bot-client'
   - 'size:S'
@@ -22,3 +23,9 @@ What: when discord-api-types or @discordjs/rest is bumped, or an instance media 
 
 Acceptance: the list covers every CDNRoutes shape of the installed discord-api-types; /api stays excluded.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Spacebar fork session (2026-09-28) listed the instance's src/cdn/routes prefixes. Served there but NOT in DISCORD_INSTANCE_CDN_PATH_PREFIXES: discover-splashes/ (misspelled alias of discovery-splashes) and badge-icons/ — refused today (fail-closed). Add them on the next touch if the bot ever fetches either.
+<!-- SECTION:NOTES:END -->
