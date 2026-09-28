@@ -47,7 +47,7 @@
     "@types/semver": "^7.8.0",
     "@vitest/coverage-v8": "^4.1.11",
     "ajv": "^8.20.0",
-    "memfs": "^4.78.1",
+    "memfs": "^4.79.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11",
     "zod": "^4.6.5"

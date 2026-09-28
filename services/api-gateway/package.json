@@ -47,6 +47,6 @@
     "@types/supertest": "^7.2.1",
     "@tzurot/test-utils": "workspace:*",
     "fast-check": "^4.10.2",
-    "supertest": "^7.2.2"
+    "supertest": "^7.3.0"
   }
 }
