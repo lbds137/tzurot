@@ -18,6 +18,8 @@ import { type DiagnosticLog as ApiDiagnosticLog } from '@tzurot/common-types/sch
 import { type DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
 import { normalizeDateTime } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { instanceMessageLinkPattern } from '@tzurot/common-types/utils/discordInstanceOrigin';
 import { type UserClient } from '@tzurot/clients';
 import type { LookupResult, DiagnosticLog } from './types.js';
 
@@ -70,14 +72,33 @@ function adaptLog(log: ApiDiagnosticLog): DiagnosticLog {
 
 /**
  * Parse identifier to extract message ID if it's a Discord link
+ *
+ * @param instanceOrigin The configured self-hosted instance origin, if any.
+ *   Defaults to the live config's `DISCORD_INSTANCE_ORIGIN`; tests can pass
+ *   it explicitly.
  */
-export function parseIdentifier(identifier: string): {
+export function parseIdentifier(
+  identifier: string,
+  instanceOrigin: string | undefined = getConfig().DISCORD_INSTANCE_ORIGIN
+): {
   type: 'messageId' | 'requestId';
   value: string;
 } {
   const linkMatch = MESSAGE_LINK_REGEX.exec(identifier);
   if (linkMatch !== null) {
     return { type: 'messageId', value: linkMatch[2] };
+  }
+
+  if (instanceOrigin !== undefined) {
+    // instanceMessageLinkPattern's three capture groups are guild-or-@me,
+    // channel, message — group 3 is the message id, matching MESSAGE_LINK_REGEX's
+    // messageId semantics above.
+    const instanceLinkMatch = new RegExp(instanceMessageLinkPattern(instanceOrigin)).exec(
+      identifier
+    );
+    if (instanceLinkMatch !== null) {
+      return { type: 'messageId', value: instanceLinkMatch[3] };
+    }
   }
 
   if (UUID_REGEX.test(identifier)) {

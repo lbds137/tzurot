@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SERVICE_DEFAULTS, AIProvider } from '../constants/index.js';
+import { normalizeDiscordInstanceOrigin } from '../utils/discordInstanceOrigin.js';
 
 /** Type for optional string schema that accepts undefined or transforms empty string to undefined */
 type OptionalStringSchema = z.ZodType<string | undefined>;
@@ -50,6 +51,26 @@ export const envSchema = z.object({
   DISCORD_TOKEN: optionalNonEmptyString(), // Only required for bot-client
   DISCORD_CLIENT_ID: optionalDiscordId(),
   GUILD_ID: optionalDiscordId(), // Optional - for dev/testing command deployment
+  /**
+   * Per-process additive override naming a self-hosted Discord-compatible
+   * (Spacebar) instance origin for REST + CDN traffic. https only, exact
+   * origin (scheme+hostname+port), no path/query/hash. Unset = Discord
+   * (today's behavior, byte-identical).
+   */
+  DISCORD_INSTANCE_ORIGIN: optionalNonEmptyString().transform((val, ctx) => {
+    if (val === undefined) {
+      return undefined;
+    }
+    try {
+      return normalizeDiscordInstanceOrigin(val);
+    } catch (error) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: error instanceof Error ? error.message : 'Invalid DISCORD_INSTANCE_ORIGIN',
+      });
+      return z.NEVER;
+    }
+  }),
   AUTO_TRANSCRIBE_VOICE: z
     .enum(['true', 'false'])
     .optional()
@@ -407,6 +428,7 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     DISCORD_TOKEN: undefined,
     DISCORD_CLIENT_ID: undefined,
     GUILD_ID: undefined,
+    DISCORD_INSTANCE_ORIGIN: undefined,
     AUTO_TRANSCRIBE_VOICE: undefined,
     EXTRACTION_DAILY_LIMIT: 100,
     ZAI_CODING_API_KEY: undefined,

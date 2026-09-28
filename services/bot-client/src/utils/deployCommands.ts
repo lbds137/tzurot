@@ -11,6 +11,7 @@ import { dirname, join } from 'node:path';
 import type { Command } from '../types.js';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { discordRestOptions } from '@tzurot/common-types/utils/discordInstanceOrigin';
 import { getCommandFiles } from './commandFileUtils.js';
 import {
   hashCommandBody,
@@ -228,7 +229,10 @@ export async function deployCommands(
 
     logger.info({ count: commands.length }, 'Deploying commands to Discord');
 
-    const rest = new REST().setToken(token);
+    // `discordRestOptions(...) ?? {}` is equivalent to the bare `new REST()`
+    // constructor when no instance origin is configured (the discord.js
+    // REST constructor merges its argument over DefaultRestOptions).
+    const rest = new REST(discordRestOptions(config.DISCORD_INSTANCE_ORIGIN) ?? {}).setToken(token);
     await putCommands(rest, clientId, scope, commands);
 
     if (store !== undefined && hash !== undefined && key !== undefined) {

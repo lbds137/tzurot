@@ -8,6 +8,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Message, Client } from 'discord.js';
 import { resolveHistoryLinks } from './HistoryLinkResolver.js';
 
+const { mockGetConfig } = vi.hoisted(() => ({ mockGetConfig: vi.fn() }));
+
 // Partial mock: the real (relocated) MessageLinkParser must run — these
 // tests exercise actual link parsing; only the logger is stubbed.
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -40,6 +42,8 @@ vi.mock('./MessageContentBuilder.js', () => ({
     isForwarded: false,
   }),
 }));
+
+vi.mock('@tzurot/common-types/config/config', () => ({ getConfig: mockGetConfig }));
 
 // Test constants
 const USER_ID = 'user-123';
@@ -133,6 +137,7 @@ function createMockClient(options: {
 describe('HistoryLinkResolver', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: undefined });
   });
 
   describe('resolveHistoryLinks', () => {
@@ -581,6 +586,26 @@ describe('HistoryLinkResolver', () => {
 
       // Both PTB and Canary URLs should be recognized (though deduped to same target)
       expect(result.resolvedCount).toBe(1);
+    });
+    it('finds an instance-origin link via getConfig when scanning for links (seam test)', async () => {
+      const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+      mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: ORIGIN });
+      const linkedMessage = createMockMessage({ id: LINKED_MSG_ID, content: 'Linked content' });
+      const link = `${ORIGIN}/channels/${DEFAULT_GUILD_ID}/${DEFAULT_CHANNEL_ID}/${LINKED_MSG_ID}`;
+      const messages = [createMockMessage({ id: 'msg-1', content: `Check: ${link}` })];
+      const client = createMockClient({ messages: new Map([[LINKED_MSG_ID, linkedMessage]]) });
+      const result = await resolveHistoryLinks(messages, { client, budget: 100 });
+      expect(result.resolvedCount).toBe(1);
+    });
+    it('strips an instance-origin link from content during injection (seam test)', async () => {
+      const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+      mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: ORIGIN });
+      const link = `${ORIGIN}/channels/${DEFAULT_GUILD_ID}/${DEFAULT_CHANNEL_ID}/${LINKED_MSG_ID}`;
+      const linkedMessage = createMockMessage({ id: LINKED_MSG_ID, content: 'Linked content' });
+      const messages = [createMockMessage({ id: 'msg-1', content: `Check: ${link}` })];
+      const client = createMockClient({ messages: new Map([[LINKED_MSG_ID, linkedMessage]]) });
+      const result = await resolveHistoryLinks(messages, { client, budget: 100 });
+      expect(result.messages[0].content).not.toContain(ORIGIN);
     });
   });
 });

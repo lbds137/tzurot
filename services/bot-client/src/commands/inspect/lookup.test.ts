@@ -13,6 +13,8 @@ import type {
 import type { DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
 import type { GatewayResult, UserClient } from '@tzurot/clients';
 
+const { mockGetConfig } = vi.hoisted(() => ({ mockGetConfig: vi.fn() }));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
@@ -27,6 +29,10 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
     }),
   };
 });
+
+vi.mock('@tzurot/common-types/config/config', () => ({ getConfig: mockGetConfig }));
+
+beforeEach(() => mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: undefined }));
 
 function createMockDiagnosticPayload(): DiagnosticPayload {
   return {
@@ -175,6 +181,33 @@ describe('parseIdentifier', () => {
   it('should default unknown formats to requestId', () => {
     const result = parseIdentifier('something-unknown');
     expect(result).toEqual({ type: 'requestId', value: 'something-unknown' });
+  });
+
+  describe('with a configured instance origin', () => {
+    const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+
+    it('falls through to requestId for an instance link when no origin is configured', () => {
+      const result = parseIdentifier(`${ORIGIN}/channels/123/456/789`, undefined);
+      expect(result).toEqual({ type: 'requestId', value: `${ORIGIN}/channels/123/456/789` });
+    });
+
+    it('detects an instance-origin link as a messageId when the origin is configured', () => {
+      const result = parseIdentifier(`${ORIGIN}/channels/123/456/789`, ORIGIN);
+      expect(result).toEqual({ type: 'messageId', value: '789' });
+    });
+
+    it('does not detect a link on a different port than the configured origin', () => {
+      const result = parseIdentifier(
+        'https://deck.tail00338f.ts.net:9443/channels/123/456/789',
+        ORIGIN
+      );
+      expect(result.type).toBe('requestId');
+    });
+    it('detects an instance-origin link via getConfig when no origin arg is passed (seam test)', () => {
+      mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: ORIGIN });
+      const result = parseIdentifier(`${ORIGIN}/channels/123/456/789`);
+      expect(result).toEqual({ type: 'messageId', value: '789' });
+    });
   });
 });
 

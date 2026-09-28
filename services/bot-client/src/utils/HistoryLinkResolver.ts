@@ -21,6 +21,7 @@ import type { Message, Client } from 'discord.js';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { getConfig } from '@tzurot/common-types/config/config';
 import {
   MessageLinkParser,
   type ParsedMessageLink,
@@ -104,9 +105,10 @@ export async function resolveHistoryLinks(
 
   // Scan all messages for links
   const linksToResolve: { link: ParsedMessageLink; sourceMessage: Message }[] = [];
+  const instanceOrigin = getConfig().DISCORD_INSTANCE_ORIGIN;
 
   for (const msg of messages) {
-    const links = MessageLinkParser.parseMessageLinks(msg.content);
+    const links = MessageLinkParser.parseMessageLinks(msg.content, instanceOrigin);
     for (const link of links) {
       // Skip if target message is already in our context
       if (contextMessageIds.has(link.messageId)) {
@@ -409,9 +411,10 @@ function injectResolvedLinks(
   for (const resolved of resolvedLinks) {
     urlToResolved.set(resolved.url, resolved);
   }
+  const instanceOrigin = getConfig().DISCORD_INSTANCE_ORIGIN;
 
   for (const msg of messages) {
-    const links = MessageLinkParser.parseMessageLinks(msg.content);
+    const links = MessageLinkParser.parseMessageLinks(msg.content, instanceOrigin);
     if (links.length === 0) {
       continue;
     }
