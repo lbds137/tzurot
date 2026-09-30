@@ -690,6 +690,17 @@ Q2 in the original open-questions list is obsolete.)
   should grant under Discord union semantics). Machloket shipped context-menu commands
   (`8175774`) — TR-2.3's context-menu surface now invocable client-side; live verification
   pass on my bot's messages agreed.
+- **2026-09-30 ~18:40 — M3 closure REPRODUCED post-G8-restart.** The confirmation synthetic
+  (nonce 790793175) ran the full chain again after the fork's G8 restart: webhook persona
+  reply delivered, and the character's reply REFERENCED THE EARLIER CONVERSATION ("G13
+  already posted and locked in earlier") — conversation memory persists across turns and
+  server restarts (6 conversation_history rows). M3 is not just closed but stable. Live
+  Inspect-Message context-menu pass verified earlier this hour (Machloket right-click →
+  Apps → real reference-extraction chain, thin-but-PASS). Tzurot-side cleanup queue:
+  TURNTACE markers (diagnosis superseded — remove on transfer or skip), app-id hygiene
+  filter, TASK-1146, TASK-1145.
+  (`8175774`) — TR-2.3's context-menu surface now invocable client-side; live verification
+  pass on my bot's messages agreed.
 - **2026-09-30 ~18:35 — 🎯 M3 CLOSED: first real AI personality round-trip outside Discord.**
   Root cause of the 50013 was **G15** — the fork's permission LAYOUT diverges from Discord's
   bit meanings (their MANAGE_WEBHOOKS is bit 29, not 5; the first grant set Discord's bit 32
