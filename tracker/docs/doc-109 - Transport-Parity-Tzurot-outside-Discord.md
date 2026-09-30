@@ -520,6 +520,12 @@ Q2 in the original open-questions list is obsolete.)
   the original "double delivery" AND the first /random's 40060). Defensive unit queued our
   side: application_id filter in the InteractionCreate entry (no-op on Discord, immunity to
   foreign-interaction races on reimplementations; premise greps found no existing filter).
+- **2026-09-30 ~13:10 — AUTOCOMPLETE verified live (first), and Machloket's stalls classified.**
+  Their two /random attempts (13:03/13:05) reached the server as AUTOCOMPLETE interactions
+  (personalities field on the tag option → my handler → respond → their popup) — the first
+  live verification of the autocomplete interaction type (TR-2.3), and proof their sends died
+  client-side in the Enter→submit path (zero command executions from their user; their local
+  diagnosis, red-first, their side). The M3 blocker remains OUR prereqs-window stall.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
