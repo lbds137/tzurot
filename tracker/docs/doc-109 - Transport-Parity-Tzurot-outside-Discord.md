@@ -595,6 +595,18 @@ Q2 in the original open-questions list is obsolete.)
   (never-received vs hung-silently) post-hoc — coordinated re-run armed instead. Defensive
   application_id filter queued as HYGIENE (our ack-thief path was real pre-fix; no
   post-fix server leak motivates it beyond defense-in-depth).
+- **2026-09-30 ~15:30 — coordinated re-run settles it: the drop class SURVIVED the listener
+  fix, session-keyed.** Machloket's nonce 740498771: ledger create line present (type 2,
+  validated, HeadlessChrome), NO callback of any kind; my fresh log had my session live and
+  processing their type-4 autocomplete in the same second, but ZERO dispatch for the type-2 —
+  no command-dispatch line, no turn, nothing, while boot-owner type-2s dispatch reliably on
+  the same build. Accepted-but-not-dispatched, post-fix, keyed to the invoker session (their
+  type-2s vanish, their type-4s deliver, mine deliver). Fork notified with the matrix;
+  pipe-trace at their next announced restart should catch it (restart gated on one more
+  coordinated attempt so the drop occurs with tracing live). Machloket's client chain is now
+  verified clean end-to-end (submit fires, arrives, validates) — their remaining type-4
+  emitter hunt is legitimate-behavior confirmation, and TR-2.3 verification lands if they
+  confirm the composer means it.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
