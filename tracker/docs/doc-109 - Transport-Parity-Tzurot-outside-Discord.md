@@ -46,7 +46,9 @@ discord-api-types 0.38.55).
   GatewayWatchdog timestamps every raw event), and shard-lifecycle payloads (ShardResume's
   replayed events, ShardReady's unavailableGuilds). A liveness probe does
   `guild.members.fetch({ query: '', limit: 1 })` and waits for the GUILD_MEMBERS_CHUNK response —
-  query-based member fetch must work.
+  query-based member fetch must work. READY-completeness **fork-verified 2026-09-30**: full
+  READY in ~200 ms for both bot tokens, through the Caddy twin and direct, zero-guild bots
+  included; Tzurot's own retry confirms at the boot.
 - **TR-1.2 [S]** Message payload field parity for the fields handlers read (Appendix A group 1
   tallies): author identity incl. `.bot`, channel + channel.type (14 channel types consumed),
   embeds (incl. `image.proxyURL` preference — see TR-5), content, `messageSnapshots` (26 read
@@ -140,6 +142,13 @@ discord-api-types 0.38.55).
   instead of 10007 (fix G3 queued; Q8).
 - **TR-3.7 [S]** Typing indicator endpoint + reactions readable from fetched history
   (`reactions.cache`, `emoji.name`) and one `react('🔧')` maintenance ack.
+- **TR-3.8 [S]** `GET /oauth2/applications/@me` must return the **calling bot's** application.
+  Fork bug found 2026-09-30 (pre-boot): the route queried with a nonexistent path param, dropped
+  the where-key, and returned an arbitrary row — correct only by luck on single-app instances
+  (why `:3001` and every past probe passed); verified red on instance B's two apps (TzurotProbeB's
+  token received TzurotBot's app). Fix (~3 lines: lookup by the bot user's id) rides the
+  allowed_mentions patch. discord.js fetches this during READY (`client.application`), so a
+  wrong row corrupts application-scoped state on every connect.
 - **Explicitly NOT needed** (scope reducers for the fork): bulkDelete, channel create/rename,
   role/ban/kick mutations, invites, emoji/sticker upload, audit log, sweepers, sharding config,
   any voice gateway (TR-4).
@@ -344,6 +353,15 @@ Q2 in the original open-questions list is obsolete.)
   until their tranche 2 (in flight: pickers over the @/# candidate generators, snowflake values
   per the server contract, rendering against `resolved`). TR-8.1: client login field is
   email-labeled, compliant. No Tzurot exposure — nothing has booted against instance B yet.
+- **2026-09-30 ~04:20** Pre-retry conformance row from the fork: `oauth2/applications/@me`
+  returned an arbitrary application row on multi-app instances (where-key dropped via a
+  nonexistent path param) — single-app instances were accidentally correct; verified red on B
+  (TzurotProbeB token → TzurotBot app). Fix rides the allowed_mentions patch; **TR-3.8** added.
+  Gateway exonerated for TR-1.1 (full READY ~200 ms both tokens, Caddy + direct). Tzurot-side
+  probe: TzurotBot has ZERO guilds on B (`users/@me/guilds` → `[]`) — boot phase 1 = DM +
+  global commands + interactions; phase 2 (webhook path, TR-3.4) needs a guild + invite on B
+  (requested from fork/Machloket). Local `GUILD_ID` (a Discord guild id) is unset for both
+  deploy and bot launch → global registration.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
