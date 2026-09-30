@@ -473,6 +473,14 @@ Q2 in the original open-questions list is obsolete.)
   the boot log: zero) — likely the twin's own discord.js parsing a fork member payload; if it
   reproduces, the payload belongs in a fork [S] row (roles must be role-id arrays in member
   payloads). /random re-run with the seeded character still pending their focus fix.
+- **2026-09-30 ~09:50 — first FULL real-bot command round-trip: `/character browse` GREEN
+  server-side** (subcommand path, seeded character listed `total:1`, paginator rendered
+  client-side with `character::browse` customIds parsing; Machloket's subcommand picker +
+  focus fix verified live — `85a5a7e`). M3's last leg remains: the `/random` re-run never
+  reached the bot (zero executions, empty queue, no AI job) — likely lost in a websocket-502
+  window during the fork's restarts (three connect 502s logged, recovered; fork [S] watch:
+  gateway/Caddy availability across restarts). Client cosmetic noted: browse arrived with
+  `query:"/random"` (composer text leaked into the filter param).
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
