@@ -142,7 +142,14 @@ discord-api-types 0.38.55).
   gate relies on throw-for-non-member), 10013 (owner-gate DM path) — consumed as
   `(error as {code}).code`. Fork status 2026-09-30 (corrected): the enum HAS 10007 — the gap is
   the missing single thread-member GET route, which today returns a generic catch-all 404
-  instead of 10007 (fix G3 queued; Q8).
+  instead of 10007 (fix G3 queued; Q8). **G9 SHIPPED + probe-verified 2026-09-30**: unknown
+  snowflake → `{"code":10003,"message":"Unknown channel"}` (Discord-exact JSON); non-snowflake
+  → `{"code":50035,"message":"Invalid Form Body"}` (was a leaked 500). Divergence noted: the
+  fork sends **HTTP 400** where Discord sends 404 — Tzurot audit (2026-09-30): every
+  Discord-entity path keys on the JSON code (`VerificationMessageCleanup`) or blanket-swallows
+  (`JobTracker` delete catch); the `status === 404` sites in command files are OUR gateway API
+  calls, not Discord — no impact today. Hardening candidate: 50035 is not in the cleanup's
+  `EXPECTED_ERROR_CODES` set, so a corrupt stored id logs "unexpected" per cycle (non-fatal).
 - **TR-3.7 [S]** Typing indicator endpoint + reactions readable from fetched history
   (`reactions.cache`, `emoji.name`) and one `react('🔧')` maintenance ack.
 - **TR-3.8 [S]** `GET /oauth2/applications/@me` must return the **calling bot's** application.
@@ -406,6 +413,12 @@ Q2 in the original open-questions list is obsolete.)
   error mapping + invalid-id interception). Machloket TR-8.1 login consumer-verified; their
   changelog-modal finding is fork-UI debt (their task-4b); TzurotProbeB user id runtime-verified
   = app id `1554721481311768686`.
+- **2026-09-30 ~08:20 — fork G9 shipped (error-code mapping), probe-verified from the bot
+  side.** Unknown-entity JSON codes are now Discord-exact (10003 verified live); non-snowflake
+  ids get 400/50035 instead of a leaked 500. TR-3.6 row updated with the HTTP-400-vs-404
+  divergence + our code-vs-status audit (no impact; 50035 hardening candidate noted). Instance
+  B restarted (pid 355060) — bot auto-reconnect covers it; TR-3.9 temp-kick watch applies to
+  this reconnect.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
