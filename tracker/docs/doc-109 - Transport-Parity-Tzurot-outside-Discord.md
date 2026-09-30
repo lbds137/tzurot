@@ -504,6 +504,7 @@ Q2 in the original open-questions list is obsolete.)
   `/api/v9/users/@me/application-command-index` (400 — G10 serves v10) attributed to our
   stack; our greps find NO v9 pin in any REST construction path — fork asked to name the
   calling token for module attribution.
+- **2026-09-30 ~09:45 — Machloket silent-send fix shipped** (`063ccd4`): a refused interaction POST now surfaces status + server message in the command-error span and keeps the command state for retry (red-first, retry-asserted) — the lost-submission class now announces itself client-side.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
