@@ -1,3 +1,9 @@
+## 🛰️ ACTIVE THEME (local design lane): Transport Parity — Tzurot outside Discord (`doc-109`) — OPENED 2026-09-30
+
+_Kickoff Lila via Deck management 2026-09-30; deputy driver `dev-docs-66` while she is away. Fleet: this session (Tzurot requirements, joint boot, conformance tooling) · Spacebar server fork session (server side) · Machloket client session (client side). Requirements artifact: `pnpm tracker doc view doc-109` (TR-1..TR-9 + Appendix A surface inventory). Lane reconciliation (no theme shelved): this theme takes the LOCAL design-unit lane per the owner-agreed 2026-09-28 priority rule; `doc-8` is owner-run rollout (no build slots from us); `doc-14` UX waves keep the cloud lane; production issues still preempt. Tzurot-side units in order: doc-109 + Appendix A → TASK-1137 joint boot (Deck-local, DB `tzurot_spacebar` + Redis `/1`) → TASK-1145 conformance command + snapshot._
+
+---
+
 ## 🏗 Active Epic: Platform-Portable UX Layer, Phase 3 waves 4–6 (`doc-14`) — PROMOTED 2026-09-24
 
 _Owner call 2026-09-24 (Fable planning pass, AskUserQuestion): the slot opened because `doc-8` is in owner-run rollout and both roadmap blockers ahead of this item turned out shipped — `doc-12` P0–P1 landed 2026-08-25/26 (#2222–#2224; only the on-demand P2 counters remain, so the Phase C gate is MET) and caching Phase 2 is live on prod (`6c133831c`). Focus: the UX surface stops moving — the beta-exit gate (owner 2026-07-17), deprioritized 2026-07-25 but never cancelled. Finishing it un-pauses v2 parity builds (`doc-27`) and gives `doc-86` its surface standard._

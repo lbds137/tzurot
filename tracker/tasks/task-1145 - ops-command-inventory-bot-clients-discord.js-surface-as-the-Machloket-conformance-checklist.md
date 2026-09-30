@@ -24,3 +24,9 @@ What: a pnpm ops command (packages/tooling, per 05-tooling No Standalone Scripts
 
 Acceptance: the command runs on develop and lists every primitive category above with file refs; positive control: a known site (a showModal call, an autocomplete option) appears; the snapshot check, if built, fails when a new primitive is added.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-09-30: theme doc-109 (transport parity) opened; its Appendix A is the manual v1 of this command's output — the Spacebar fork and Machloket sessions consume that until the command + snapshot land (doc-109 TR-9.1). The command remains the owner-hard-line mechanical guard; Appendix A is dated and re-derived on UX-wave merges meanwhile.
+<!-- SECTION:NOTES:END -->
