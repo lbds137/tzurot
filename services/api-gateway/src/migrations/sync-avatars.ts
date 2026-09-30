@@ -5,9 +5,9 @@
  * on the volume. If they don't exist, decode from DB and write versioned files.
  *
  * Directory Structure:
- * /data/avatars/{first-char}/{slug}-{timestamp}.png
+ * {AVATAR_ROOT}/{first-char}/{slug}-{timestamp}.png
  *
- * Examples:
+ * Examples (shown at the default AVATAR_STORAGE_PATH of /data/avatars):
  * - /data/avatars/c/cold-1705827727111.png
  * - /data/avatars/m/my-personality-1705827727111.png
  *
@@ -60,7 +60,7 @@ async function tryDeleteFile(filePath: string, filename: string): Promise<boolea
  */
 async function cleanupOldVersionsSync(slug: string, currentTimestamp: number): Promise<number> {
   const subdir = getAvatarSubdir(slug);
-  // Glob pattern: /data/avatars/{first-char}/{slug}*.png
+  // Glob pattern: {AVATAR_ROOT}/{first-char}/{slug}*.png
   const pattern = `${AVATAR_ROOT}/${subdir}/${slug}*.png`;
 
   try {

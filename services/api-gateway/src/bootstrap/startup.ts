@@ -12,7 +12,7 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 const logger = createLogger('api-gateway');
 const envConfig = getConfig();
 
-const AVATAR_STORAGE_PATH = '/data/avatars';
+const AVATAR_STORAGE_PATH = envConfig.AVATAR_STORAGE_PATH;
 
 /**
  * Validate BYOK (Bring Your Own Key) encryption configuration

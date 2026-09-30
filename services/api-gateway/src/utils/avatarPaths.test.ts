@@ -38,6 +38,56 @@ describe('avatarPaths', () => {
     it('should be the expected path', () => {
       expect(AVATAR_ROOT).toBe('/data/avatars');
     });
+
+    it('follows an explicit AVATAR_STORAGE_PATH override', async () => {
+      // AVATAR_ROOT is a module-load const resolved from the shared config, so
+      // the override needs a fresh module instance to observe the new value.
+      const original = process.env.AVATAR_STORAGE_PATH;
+      process.env.AVATAR_STORAGE_PATH = '/home/dev/writable-avatars';
+      vi.resetModules();
+      try {
+        const mod = await import('./avatarPaths.js');
+        expect(mod.AVATAR_ROOT).toBe('/home/dev/writable-avatars');
+      } finally {
+        if (original === undefined) {
+          delete process.env.AVATAR_STORAGE_PATH;
+        } else {
+          process.env.AVATAR_STORAGE_PATH = original;
+        }
+        vi.resetModules();
+      }
+    });
+
+    it('resolves children under a trailing-slash root (schema strips the slash)', async () => {
+      // A trailing-slash root must not survive into AVATAR_ROOT: the
+      // containment checks compare against AVATAR_ROOT + '/', and resolve()
+      // never produces a double-slash prefix, so an unstripped root would
+      // reject every getSafeAvatarPath/ensureAvatarDir call while boot and
+      // health checks stay green.
+      const original = process.env.AVATAR_STORAGE_PATH;
+      process.env.AVATAR_STORAGE_PATH = '/tmp/trailing-avatars/';
+      vi.resetModules();
+      try {
+        const mod = await import('./avatarPaths.js');
+        expect(mod.AVATAR_ROOT).toBe('/tmp/trailing-avatars');
+        expect(mod.getSafeAvatarPath('test-slug')).toBe('/tmp/trailing-avatars/t/test-slug.png');
+        expect(mod.getSafeAvatarPath('test-slug', 1705827727111)).toBe(
+          '/tmp/trailing-avatars/t/test-slug-1705827727111.png'
+        );
+        // Re-import fs/promises in the reset registry so the fresh avatarPaths
+        // instance sees the mock this call configures.
+        const fs = await import('fs/promises');
+        vi.mocked(fs.mkdir).mockResolvedValue(undefined);
+        await expect(mod.ensureAvatarDir('test-slug')).resolves.toBe('/tmp/trailing-avatars/t');
+      } finally {
+        if (original === undefined) {
+          delete process.env.AVATAR_STORAGE_PATH;
+        } else {
+          process.env.AVATAR_STORAGE_PATH = original;
+        }
+        vi.resetModules();
+      }
+    });
   });
 
   describe('isValidSlug', () => {

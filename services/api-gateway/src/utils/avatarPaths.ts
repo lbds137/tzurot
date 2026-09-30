@@ -5,9 +5,9 @@
  * Implements defense-in-depth against path traversal attacks (CWE-22/23/36/73/99)
  *
  * Directory Structure:
- * /data/avatars/{first-char}/{slug}-{timestamp}.png
+ * {AVATAR_ROOT}/{first-char}/{slug}-{timestamp}.png
  *
- * Examples:
+ * Examples (shown at the default AVATAR_STORAGE_PATH of /data/avatars):
  * - /data/avatars/c/cold-1705827727111.png
  * - /data/avatars/m/my-personality-1705827727111.png
  * - /data/avatars/1/123bot-1705827727111.png
@@ -24,12 +24,13 @@
 
 import { resolve, basename } from 'path';
 import { unlink, mkdir, glob } from 'fs/promises';
+import { getConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('avatar-paths');
 
-/** Root directory for avatar file storage */
-export const AVATAR_ROOT = '/data/avatars';
+/** Root directory for avatar file storage — the configured AVATAR_STORAGE_PATH */
+export const AVATAR_ROOT = getConfig().AVATAR_STORAGE_PATH;
 
 /** Regex pattern for safe slug values (alphanumeric, underscore, hyphen only) */
 const SAFE_SLUG_PATTERN = /^[a-zA-Z0-9_-]+$/;
@@ -134,7 +135,7 @@ export function getAvatarSubdir(slug: string): string {
  * Security: Validates slug pattern AND verifies resolved path stays within AVATAR_ROOT
  * This double-check prevents path traversal even if slug validation somehow fails
  *
- * Path format: /data/avatars/{first-char}/{slug}-{timestamp}.png
+ * Path format: {AVATAR_ROOT}/{first-char}/{slug}-{timestamp}.png
  *
  * @param slug - The personality slug
  * @param timestamp - Optional timestamp for versioned filenames (e.g., Date.getTime())
@@ -164,7 +165,7 @@ export function getSafeAvatarPath(slug: string, timestamp?: number): string | nu
 /**
  * Ensures the avatar subdirectory exists for a slug
  *
- * Creates /data/avatars/{first-char}/ if it doesn't exist.
+ * Creates {AVATAR_ROOT}/{first-char}/ if it doesn't exist.
  * Safe to call multiple times (uses recursive: true).
  *
  * @param slug - The personality slug (must be valid)
@@ -276,7 +277,7 @@ export async function cleanupOldAvatarVersions(
 
   try {
     const subdir = getAvatarSubdir(slug);
-    // Glob pattern: /data/avatars/{first-char}/{slug}*.png
+    // Glob pattern: {AVATAR_ROOT}/{first-char}/{slug}*.png
     // This finds both versioned and legacy files for this slug
     // Security: slug is validated by isValidSlug (alphanumeric, underscore, hyphen only)
     // This prevents glob pattern injection (no *, ?, [, ], {, } characters allowed)
@@ -372,7 +373,7 @@ export async function deleteAllAvatarVersions(
   }
 
   const subdir = getAvatarSubdir(slug);
-  // Glob pattern: /data/avatars/{first-char}/{slug}*.png
+  // Glob pattern: {AVATAR_ROOT}/{first-char}/{slug}*.png
   // Security: slug is validated by isValidSlug (alphanumeric, underscore, hyphen only)
   // This prevents glob pattern injection (no *, ?, [, ], {, } characters allowed)
   const pattern = resolve(AVATAR_ROOT, subdir, `${slug}*.png`);
