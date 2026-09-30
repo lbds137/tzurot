@@ -607,6 +607,19 @@ Q2 in the original open-questions list is obsolete.)
   verified clean end-to-end (submit fires, arrives, validates) — their remaining type-4
   emitter hunt is legitimate-behavior confirmation, and TR-2.3 verification lands if they
   confirm the composer means it.
+- **2026-09-30 ~15:55 — coordinated traced minute executed; halves do NOT reconcile.** The
+  d6857fe17 restart rode cleanly (log snapshotted first this time). My synthetic nonce
+  790775849: ledger dispatched + defer held + stall silence — third consecutive stall across
+  two processes and a server restart. Machloket's nonce 726197207: the fork's ledger shows
+  full dispatch → my ACK (INTERACTION_SUCCESS on their pipe) → ephemeral reply DELIVERED on
+  their pipe — but my process shows ZERO trace: no turn execution from their user, no
+  enqueue, worker Generated count 0, in a window where my log was live and processing. Their
+  delivered MESSAGE_CREATE/UPDATE had no originating turn in my process (replay? queued
+  events? dispatch to a socket that wasn't my application's?). Open discriminator: the fork's
+  pipe line for 726197207 — did MY socket receive the INTERACTION_CREATE? If yes, the loss is
+  inside my process between gateway receipt and the CommandHandler log line (receipt-side
+  stall class — changes where instrumentation goes); if no, the ACK source is the question.
+  No further Tzurot-side action until that line is read.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
