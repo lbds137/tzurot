@@ -678,6 +678,18 @@ Q2 in the original open-questions list is obsolete.)
   their tag fix `89fa3f1` stands. Lila's validation card drafted for the deputy (5 bullets;
   item 2 pending the webhook bit). Remaining to M3 close: fork's permission bit → one
   synthetic → real AI personality reply via webhook persona.
+- **2026-09-30 ~18:30 — seed verified via the gate's own read; fork's stale-ephemeral read
+  corrected.** GET /api/user/nsfw with bootowner headers (the exact endpoint
+  `evaluateNsfwGate` consumes) returns `nsfwVerified: true, verifiedAt 18:12:32` — the seed
+  landed where the gate reads. The "Age Verification Required" ephemeral the fork read as
+  newest predates the seed; both post-seed synthetics PASSED the gate (command_events ok
+  3189/3014 ms, two worker generations, conversation_history 0→2 — a blocked turn never
+  reaches enqueue). My block log line exists only pre-seed (18:09:39). Sole remaining M3
+  blocker: webhook create 50013 post-grant — the fork was asked what their permission check
+  reads (role-permission union vs specific role vs join-time snapshot; @everyone's bit 32
+  should grant under Discord union semantics). Machloket shipped context-menu commands
+  (`8175774`) — TR-2.3's context-menu surface now invocable client-side; live verification
+  pass on my bot's messages agreed.
 - **2026-09-30 ~16:50 — attribution lesson recorded (all three sessions).** Machloket's
   amendment: visual attribution of ephemeral replies is UNTRUSTWORTHY — username overrides
   (TR-3.4) made the twin's reply DISPLAY as "TzurotBot"; the DB author field is the only
