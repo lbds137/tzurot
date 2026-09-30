@@ -650,6 +650,12 @@ Q2 in the original open-questions list is obsolete.)
   hasn't happened; the earlier "M3 user path DONE" line in this log is superseded by this
   entry. My instrumentation unit proceeds; TzurotProbeB foreign-answer behavior noted for
   Machloket's filter work.
+- **2026-09-30 ~16:50 — attribution lesson recorded (all three sessions).** Machloket's
+  amendment: visual attribution of ephemeral replies is UNTRUSTWORTHY — username overrides
+  (TR-3.4) made the twin's reply DISPLAY as "TzurotBot"; the DB author field is the only
+  truth. Standing rule for the boot: verify bot output by author/application ids in the DB or
+  the ledger, never by displayed name. Re-runs HOLD until the dispatch-owner restart; my
+  instrumentation unit is the active work meanwhile.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
