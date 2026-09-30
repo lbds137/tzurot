@@ -620,6 +620,20 @@ Q2 in the original open-questions list is obsolete.)
   inside my process between gateway receipt and the CommandHandler log line (receipt-side
   stall class — changes where instrumentation goes); if no, the ACK source is the question.
   No further Tzurot-side action until that line is read.
+- **2026-09-30 ~16:10 — Machloket's screenshot resolves their half; the DB splits my
+  mystery.** Their rendered ephemeral ("No characters carry the tag pick-one-for-the-boot")
+  is real bot output — the turn EXECUTED (their text-leak root cause also found: the focus
+  fallback picks the LAST seeded chip, so their note landed in `tag`; one-line fix + test
+  incoming). But my process log has NO execution lines for it (file ends at their
+  autocomplete line, single pid, alive) — executing-without-logging, the same silence that
+  hides my synthetic's post-defer continuation. **DB evidence narrows it**: `command_events`
+  (the audit table, written via a different path than the pino logs) shows 15 rows — pairs of
+  `random ok` (~130-204 ms) and `random user_error` through 13:44, ZERO after 13:44:57 —
+  while `conversation_history` is EMPTY (0 rows). So early turns completed OK silently
+  (logging broken), later turns surface as user_error, and no AI round-trip ever persisted.
+  Instrumentation unit (next): why post-defer logging dies + what user_error conceals; the
+  synthetic repro fires it at will. My earlier "stall" reframes: possibly erroring fast and
+  silently, not hanging.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
