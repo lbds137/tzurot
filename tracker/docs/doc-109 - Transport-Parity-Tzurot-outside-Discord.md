@@ -520,12 +520,16 @@ Q2 in the original open-questions list is obsolete.)
   the original "double delivery" AND the first /random's 40060). Defensive unit queued our
   side: application_id filter in the InteractionCreate entry (no-op on Discord, immunity to
   foreign-interaction races on reimplementations; premise greps found no existing filter).
-- **2026-09-30 ~13:10 — AUTOCOMPLETE verified live (first), and Machloket's stalls classified.**
-  Their two /random attempts (13:03/13:05) reached the server as AUTOCOMPLETE interactions
-  (personalities field on the tag option → my handler → respond → their popup) — the first
-  live verification of the autocomplete interaction type (TR-2.3), and proof their sends died
-  client-side in the Enter→submit path (zero command executions from their user; their local
-  diagnosis, red-first, their side). The M3 blocker remains OUR prereqs-window stall.
+- **2026-09-30 ~13:10 — autocomplete-shaped traffic observed; TR-2.3 verification PENDING
+  raw payloads.** Machloket's two /random attempts (13:03/13:05) produced type-4-shaped
+  autocomplete interactions from their user (my handler processed the personalities field on
+  the tag option) — but Machloket CORRECTED (their client has no type-4 sender; option popups
+  use static choices), so this is NOT counted as TR-2.3 verification. The fork's live request
+  instrumentation was asked for the raw INTERACTION_CREATE payloads (type + options) to
+  settle attribution — candidates: an unfound client path, fork mislabeling, or a G13-class
+  delivery interaction. Zero /random executions from their user stands definitive
+  (client-side Enter→submit failure, their red-first unit). The M3 blocker remains OUR
+  prereqs-window stall.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
