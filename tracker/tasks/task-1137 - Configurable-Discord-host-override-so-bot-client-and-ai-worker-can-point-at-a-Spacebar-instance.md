@@ -49,4 +49,8 @@ Joint boot is DECK-LOCAL (Spacebar fork session, 2026-09-27): the instance is ta
 Code merged 2026-09-28 04:06Z as PR #2554 (62962798e): per-process DISCORD_INSTANCE_ORIGIN; CDN guards path-scoped to DISCORD_INSTANCE_CDN_PATH_PREFIXES (never /api) after a round-3 SSRF finding. Stays OPEN for the Deck-local joint boot with the Spacebar fork session (separate DB tzurot_spacebar + Redis /1). Open item: Spacebar CDN signature IP/UA binding may 403 ai-worker fetches. Boot waits for the owner's go (weekly-limit pause).
 
 Spacebar fork session (2026-09-28): the instance serves the CDN at the origin root on the same port as /api (matches discordRestOptions); security.cdnSignUrls=false (also the code default), so the IP/UA-binding 403 concern is inert. If signing is ever enabled, set cdnSignatureIncludeIp and cdnSignatureIncludeUserAgent false first (bot-client and ai-worker fetch with different UAs). Joint boot still waits for the owner's go.
+
+<!-- SECTION:NOTES:BOOT:BEGIN -->
+2026-09-30 joint boot IN FLIGHT: origin https://deck.tail00338f.ts.net:8444 live (instance B, fork-verified + consumer-verified); tzurot_spacebar migrated (137); Redis /1; launch recipe in the driver role holds. Attempt 1: api-gateway crashed at startup — avatar storage hard-coded to `/data/avatars` (EACCES on host). Config-gated AVATAR_STORAGE_PATH fix dispatched (default unchanged); boot resumes on transfer. Findings keyed to doc-109 TR/Q ids per deputy rule.
+<!-- SECTION:NOTES:BOOT:END -->
 <!-- SECTION:NOTES:END -->
