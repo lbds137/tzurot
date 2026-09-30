@@ -505,6 +505,21 @@ Q2 in the original open-questions list is obsolete.)
   stack; our greps find NO v9 pin in any REST construction path — fork asked to name the
   calling token for module attribution.
 - **2026-09-30 ~09:45 — Machloket silent-send fix shipped** (`063ccd4`): a refused interaction POST now surfaces status + server message in the command-error span and keeps the command state for retry (red-first, retry-asserted) — the lost-submission class now announces itself client-side.
+- **2026-09-30 ~13:00 — synthetic /random: turn STARTS then STALLS (new M3 blocker, precise
+  window).** The fork's batched restart landed (B healthy); a synthetic /random invocation was
+  minted REST-side as the boot-owner (POST /api/v10/interactions, type 2 — bare `data.id/name`
+  got 10063; adding `data.version` + `session_id` + `nonce` succeeded → the required shape is
+  itself a finding) → **HTTP 204, defer held, personality loaded** (gateway: `boot-test`,
+  model `openrouter/auto`) → `character-turn "Processing chat request"` logged — then the turn
+  HANGS: no user-context/config-cascade call ever reaches the gateway, no error, no timeout;
+  bot, gateway (2 ms health), worker, fork routes all responsive. The stall is bot-side inside
+  the gates/user-context window (`resolveTurnPrereqs`), an await that neither resolves nor
+  throws. Next unit: instrument that window (or stack-dump a repro). ALSO from the fork:
+  **G13** — INTERACTION_CREATE is delivered to sessions BEYOND the target application (their
+  canary interaction was acked by OUR bot's type-4 at −31 ms; first responder wins — explains
+  the original "double delivery" AND the first /random's 40060). Defensive unit queued our
+  side: application_id filter in the InteractionCreate entry (no-op on Discord, immunity to
+  foreign-interaction races on reimplementations; premise greps found no existing filter).
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
