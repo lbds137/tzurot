@@ -331,6 +331,13 @@ Q2 in the original open-questions list is obsolete.)
   missing single thread-member GET route (generic catch-all 404, not a Discord-shaped 10007);
   fix G3 queued behind allowed_mentions, with a runtime red probe on instance B for
   before/after. Q8 and TR-3.6/7.2 rows updated.
+- **2026-09-30 ~03:50** Origin LIVE (`https://deck.tail00338f.ts.net:8444`, consumer-verified
+  from both sides; real tailnet cert via `/etc/hosts` → Caddy twin, no `NODE_EXTRA_CA_CERTS`).
+  Boot attempt 1 hit a **Tzurot-side** blocker: api-gateway is un-bootable on a non-root host —
+  avatar storage is hard-coded to the Railway volume path `/data/avatars`
+  (`startup.ts:15` + `avatarPaths.ts:32`; startup `mkdir` fails EACCES). Fix dispatched
+  (config-gated `AVATAR_STORAGE_PATH`, default unchanged → prod byte-identical). Prior-coverage
+  check: tracker task + doc searches for "avatar storage" both empty. Boot resumes on transfer.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
