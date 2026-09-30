@@ -355,7 +355,8 @@ Q2 in the original open-questions list is obsolete.)
   avatar storage is hard-coded to the Railway volume path `/data/avatars`
   (`startup.ts:15` + `avatarPaths.ts:32`; startup `mkdir` fails EACCES). Fix dispatched
   (config-gated `AVATAR_STORAGE_PATH`, default unchanged → prod byte-identical). Prior-coverage
-  check: tracker task + doc searches for "avatar storage" both empty. Boot resumes on transfer.
+  check: tracker task search empty; doc search's single hit (doc-67) is unrelated fuzzy noise.
+  Boot resumes on transfer.
 - **2026-09-30 ~04:10** Machloket self-correction: their `a1d443e` wired NUMBER to option type
   6 (USER) instead of 10 — fixed in `25a9aaf` (verified against the fork's `Application.ts`).
   Entity pickers (USER/CHANNEL/ROLE/MENTIONABLE/ATTACHMENT = 6/7/8/9/11) remain placeholders
