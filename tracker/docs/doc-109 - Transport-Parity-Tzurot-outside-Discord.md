@@ -452,6 +452,18 @@ Q2 in the original open-questions list is obsolete.)
   head: no blocking issues. The merge fast-forwarded the boot checkout with zero file changes
   — live services never restarted. Dev auto-deploys the fix (additive, default unchanged, no
   migration).
+- **2026-09-30 ~09:00 — fork TR-2.6 SHIPPED + M3 character seeded.** The @original gap is fixed
+  live on B (root cause: a blanket ORM filter hid ephemeral rows from finds without a flags key;
+  the component path already used the sanctioned opt-out, the interaction-token path now does
+  too — the token is the authorized reader of its own ephemerals; fork-verified defer 204 →
+  PATCH 200 → GET 200, followups included). G10 also live: @me DM command index. Both B
+  restarts ridden cleanly (TR-3.9 watch held). Tzurot side: "Boot Test Character"
+  (`boot-test`, public, owner machloket_boot01) seeded via `POST /api/user/personality`
+  (auth: x-service-auth + x-user-id + user-context headers) — /random has a character to pick;
+  `llm_configs` is EMPTY in the boot DB (the resolver's fallback behavior is the next empirical
+  question — if model resolution trips, its error names the next seed). Machloket re-running
+  /random + a DM command against G10. Roadmap M0–M5 published by the deputy
+  (claude-memory `project_parity_theme.md`); M3 is this session's.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
