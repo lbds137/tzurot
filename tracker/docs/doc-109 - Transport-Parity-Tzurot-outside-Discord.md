@@ -664,6 +664,20 @@ Q2 in the original open-questions list is obsolete.)
   hasn't happened; the earlier "M3 user path DONE" line in this log is superseded by this
   entry. My instrumentation unit proceeds; TzurotProbeB foreign-answer behavior noted for
   Machloket's filter work.
+- **2026-09-30 ~18:15 — G14 fix runtime-confirmed; second gate surfaced then cleared; two
+  last-mile items.** Post-`04ede03d1` synthetic: the channel guard PASSED (first time) —
+  G14 confirmed at runtime. The turn then surfaced the NSFW age-gate (my shipped compliance
+  behavior: users verify before chatting) — correct behavior, unmet precondition; seeded
+  `nsfw_verified=true` DB-side for both boot users (mirrors prod where users verify through
+  the flow). Next synthetic ran the FULL pipeline: echo sent, job enqueued, 3.2 s
+  processing, **first conversation_history row** — then two last-mile items: (1)
+  OPENROUTER_API_KEY missing from my boot launch env (my omission; ai-worker restarted with
+  it), (2) **50013 MANAGE_WEBHOOKS** on webhook create — the fork needs to add permission
+  bit 32 to TzurotBot's role on Boot Guild (asked). Machloket independently received the
+  real Age Verification embed pre-seed (their richest render: embed + markdown + footer);
+  their tag fix `89fa3f1` stands. Lila's validation card drafted for the deputy (5 bullets;
+  item 2 pending the webhook bit). Remaining to M3 close: fork's permission bit → one
+  synthetic → real AI personality reply via webhook persona.
 - **2026-09-30 ~16:50 — attribution lesson recorded (all three sessions).** Machloket's
   amendment: visual attribution of ephemeral replies is UNTRUSTWORTHY — username overrides
   (TR-3.4) made the twin's reply DISPLAY as "TzurotBot"; the DB author field is the only
