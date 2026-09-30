@@ -42,6 +42,9 @@ const optionalEncryptionKey = (): OptionalStringSchema =>
     .optional()
     .or(z.literal('').transform(() => undefined));
 
+/** Default avatar storage root — the Railway volume mount; see AVATAR_STORAGE_PATH below. */
+const DEFAULT_AVATAR_STORAGE_PATH = '/data/avatars';
+
 /**
  * Environment variable validation schema
  * Validates all required configuration at startup
@@ -166,6 +169,32 @@ export const envSchema = z.object({
     .optional()
     .transform(val => val?.split(',') ?? ['*'])
     .default(['*']),
+  /**
+   * Absolute directory where uploaded personality avatars are written and
+   * served from (api-gateway). Unset = `/data/avatars`, the Railway volume
+   * mount — prod behavior unchanged; a dev machine sets a writable path so
+   * the gateway can boot without the root-owned volume. Relative values are
+   * rejected: storage resolves against this root, and a cwd-relative path
+   * would silently move with the process working directory. Trailing slashes
+   * are stripped — they would otherwise survive into the avatar root and
+   * break its containment prefix check — and a blank value falls through to
+   * the default.
+   */
+  AVATAR_STORAGE_PATH: z
+    .string()
+    .transform(val => (val === '' ? DEFAULT_AVATAR_STORAGE_PATH : val)) // blank (`AVATAR_STORAGE_PATH=`) means the default
+    .pipe(
+      z
+        .string()
+        .regex(/^\//, 'Must be an absolute path (must start with /)')
+        // Strip trailing slashes: path.resolve() normalizes them in child
+        // paths but not in the root itself, so a trailing slash surviving
+        // into AVATAR_ROOT would make every containment check
+        // (`startsWith(AVATAR_ROOT + '/')`) reject. `/` stays `/`.
+        // ReDoS: {1,64} ceiling; real config values have 0-1 trailing slashes.
+        .transform(val => val.replace(/\/{1,64}$/, '') || '/')
+    )
+    .default(DEFAULT_AVATAR_STORAGE_PATH),
 
   // Environment
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -458,6 +487,7 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     PUBLIC_GATEWAY_URL: undefined,
     PUBLIC_SITE_URL: 'https://tzurot.org',
     CORS_ORIGINS: ['*'],
+    AVATAR_STORAGE_PATH: DEFAULT_AVATAR_STORAGE_PATH,
 
     // Environment
     NODE_ENV: 'test',

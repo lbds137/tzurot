@@ -18,6 +18,7 @@ vi.mock('@tzurot/common-types/config/config', async () => {
       REDIS_URL: 'redis://localhost:6379',
       DATABASE_URL: 'postgresql://localhost:5432/test',
       INTERNAL_SERVICE_SECRET: 'test-secret',
+      AVATAR_STORAGE_PATH: '/data/avatars',
     })),
   };
 });
@@ -126,12 +127,30 @@ describe('Startup Utilities', () => {
     });
 
     it('should create directory when it does not exist', async () => {
+      // Pin the config this test asserts against — earlier describes in this
+      // file set their own getConfig return values, and clearAllMocks does not
+      // restore the factory default.
+      vi.mocked(getConfig).mockReturnValue({
+        AVATAR_STORAGE_PATH: '/data/avatars',
+      } as ReturnType<typeof getConfig>);
       vi.mocked(access).mockRejectedValue(new Error('ENOENT'));
       vi.mocked(mkdir).mockResolvedValue(undefined);
 
       const { ensureAvatarDirectory } = await import('./startup.js');
       await expect(ensureAvatarDirectory()).resolves.toBeUndefined();
       expect(mkdir).toHaveBeenCalledWith('/data/avatars', { recursive: true });
+    });
+
+    it('should create the directory at the configured AVATAR_STORAGE_PATH', async () => {
+      vi.mocked(getConfig).mockReturnValue({
+        AVATAR_STORAGE_PATH: '/home/dev/writable-avatars',
+      } as ReturnType<typeof getConfig>);
+      vi.mocked(access).mockRejectedValue(new Error('ENOENT'));
+      vi.mocked(mkdir).mockResolvedValue(undefined);
+
+      const { ensureAvatarDirectory } = await import('./startup.js');
+      await expect(ensureAvatarDirectory()).resolves.toBeUndefined();
+      expect(mkdir).toHaveBeenCalledWith('/home/dev/writable-avatars', { recursive: true });
     });
 
     it('should throw when directory creation fails', async () => {

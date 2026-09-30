@@ -319,6 +319,47 @@ describe('config', () => {
       ).toBe('https://gateway.example');
     });
 
+    it('defaults AVATAR_STORAGE_PATH to the Railway volume path when unset', () => {
+      expect(envSchema.parse({}).AVATAR_STORAGE_PATH).toBe('/data/avatars');
+    });
+
+    it('honors an explicit AVATAR_STORAGE_PATH override', () => {
+      expect(
+        envSchema.parse({ AVATAR_STORAGE_PATH: '/home/dev/avatars' }).AVATAR_STORAGE_PATH
+      ).toBe('/home/dev/avatars');
+    });
+
+    it('rejects a relative AVATAR_STORAGE_PATH', () => {
+      // Storage paths feed mkdir/resolve; a relative value would land wherever
+      // the process cwd happens to be — fail-fast at boot beats that.
+      expect(() => envSchema.parse({ AVATAR_STORAGE_PATH: 'avatars' })).toThrow(/absolute path/);
+    });
+
+    it('strips a trailing slash from AVATAR_STORAGE_PATH', () => {
+      // path.resolve() normalizes trailing slashes in child paths but not in
+      // the root itself, so a trailing slash that survived into AVATAR_ROOT
+      // would make the containment prefix check reject every avatar operation.
+      expect(envSchema.parse({ AVATAR_STORAGE_PATH: '/foo/bar/' }).AVATAR_STORAGE_PATH).toBe(
+        '/foo/bar'
+      );
+      expect(envSchema.parse({ AVATAR_STORAGE_PATH: '/foo/bar///' }).AVATAR_STORAGE_PATH).toBe(
+        '/foo/bar'
+      );
+    });
+
+    it('keeps a bare "/" AVATAR_STORAGE_PATH intact after stripping', () => {
+      expect(envSchema.parse({ AVATAR_STORAGE_PATH: '/' }).AVATAR_STORAGE_PATH).toBe('/');
+    });
+
+    it('treats an empty AVATAR_STORAGE_PATH as unset (falls through to the default)', () => {
+      // Blank (`AVATAR_STORAGE_PATH=`) means the default, matching the
+      // optional-with-empty-semantics helpers; zod .default() alone only
+      // covers undefined, so '' would otherwise fail the absolute-path check.
+      expect(envSchema.parse({ AVATAR_STORAGE_PATH: '' }).AVATAR_STORAGE_PATH).toBe(
+        '/data/avatars'
+      );
+    });
+
     it('normalizes DISCORD_INSTANCE_ORIGIN and rejects a non-origin value', () => {
       expect(envSchema.parse({}).DISCORD_INSTANCE_ORIGIN).toBeUndefined();
       expect(
