@@ -481,6 +481,16 @@ Q2 in the original open-questions list is obsolete.)
   window during the fork's restarts (three connect 502s logged, recovered; fork [S] watch:
   gateway/Caddy availability across restarts). Client cosmetic noted: browse arrived with
   `query:"/random"` (composer text leaked into the filter param).
+- **2026-09-30 ~09:15 — M3 last leg blocked by gateway instability (fork, URGENT).** The
+  clean /random re-run (09:06Z, note whole, client receipt screenshot) never reached the bot:
+  the ws gateway to B is flapping — session tallies **65 "Shard reconnecting" / 49 ws 502s /
+  9 eventual readies** over ~2.5 h, while REST stays healthy (gateway/bot 200) — so the
+  failure is websocket-path-specific (fork gateway restart-loop vs Caddy twin ws proxying;
+  fork engaged with the signature). Interactions delivered in a drop window are LOST
+  (re-IDENTIFY clears the replay buffer) — two /random submissions lost so far. Machloket
+  told to hold re-runs until stable. Their two new client findings stand: text leak into
+  seeded optional params (mechanism under investigation their side) and the silent failed
+  interaction POST (client ignores the POST response — filed as their next-next unit).
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
