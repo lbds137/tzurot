@@ -31,7 +31,7 @@ export function createAvatarRouter(prisma: PrismaClient): Router {
   const router = Router();
 
   // Serve personality avatars with DB fallback
-  // Avatars are primarily served from filesystem (/data/avatars)
+  // Avatars are primarily served from the configured avatar storage root (default /data/avatars)
   // If not found on filesystem, fall back to database and cache to filesystem
   //
   // Supports two URL formats for cache-busting:
