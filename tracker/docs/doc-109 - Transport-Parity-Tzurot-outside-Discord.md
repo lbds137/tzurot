@@ -563,6 +563,16 @@ Q2 in the original open-questions list is obsolete.)
   Machloket corrections logged: their earlier stall was partly the DEV SERVICE WORKER (submit
   fires fine on the current build — the Enter-path theory is dead), and the type-4 question
   gains a SW-adjacent candidate location beyond their app code (fork's UA field correlates).
+- **2026-09-30 ~14:35 — sequencing converged; subscribe-window candidate weakened by
+  retro-evidence.** The create-logger wasn't live at 13:5x (lands with G13's restart, nonce
+  field committed); the fork's G13 worker mandate now covers all three delivery faces — leak
+  (foreign targeting), duplicate, total drop — with two live candidates for the drop
+  (subscribe-before-READY emit-to-zero; stale-listener swallow). My retro-test: the bot's
+  session was CONTINUOUSLY READY through the vanish window (last reconnect ended 10:17 local,
+  zero session events inside the window) — the plain subscribe-window variant is ruled out
+  for this drop unless the server-side session state diverged from the client's. Fleet
+  sequence: worker report → diff → announced restart (G13 + ledger + nonce + in/done) → my
+  synthetic repro reads the matrix → Machloket's /random re-run.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
