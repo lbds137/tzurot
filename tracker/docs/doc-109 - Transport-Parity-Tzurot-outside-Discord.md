@@ -389,9 +389,23 @@ Q2 in the original open-questions list is obsolete.)
   `INTERNAL_SERVICE_SECRET` and `OUTBOUND_DM_ALLOWLIST` required for any local multi-service
   boot — the avatar-path fix (PR #2558) was the first of FOUR local-boot blockers).
   **Fork findings**: (1) `GET /channels/{unknown}` returns a bare **500**, not Discord-shaped
-  10003 Unknown Channel (TR-3.6 gap); (2) instance B's seeded fixture channels carry
-  non-snowflake ids (`channel-456`) — TR-6.1 violated by seed data (the id GENERATOR is fine:
-  Boot Guild `1554722916606791818` is a proper snowflake).
+  10003 Unknown Channel (TR-3.6 gap); (2) ~~instance B's seeded fixture channels carry
+  non-snowflake ids~~ **CORRECTED 2026-09-30** — the `channel-456`/`reply-123` ids were OUR
+  stale fixture data in shared redis db0 (see the entry below); the fork's seed channels are
+  all proper snowflakes, TR-6.1 unviolated by the server.
+- **2026-09-30 ~07:55 — redis isolation bug (OURS) + fork correction accepted.** The fork
+  disproved the fixture-channel attribution (B's channels table: three proper snowflakes) —
+  root cause found and runtime-proven on our side: **REDIS_URL's db index is silently
+  dropped** (all 46 boot connections sat on shared db0 despite `/1`), so a stale
+  `nsfw:verification:pending:user-123` fixture (channel-456/reply-123, ~2026-09-17) leaked
+  into the boot. Filed as **TASK-1146**; boot remediated live onto a dedicated container
+  `tzurot-redis-boot` (:6380, fresh db) — stack relaunched, bot re-ClientReady, warn-loop gone.
+  Fork's refined TR-3.6 finding: unknown-channel is two-shaped — snowflake-unknown gets
+  `404 {"code":404}` (wrong shape; Discord = 10003), non-snowflake gets a bare 500 leaking
+  `QueryFailedError: invalid input syntax for type bigint` (their fix queued: per-entity
+  error mapping + invalid-id interception). Machloket TR-8.1 login consumer-verified; their
+  changelog-modal finding is fork-UI debt (their task-4b); TzurotProbeB user id runtime-verified
+  = app id `1554721481311768686`.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
