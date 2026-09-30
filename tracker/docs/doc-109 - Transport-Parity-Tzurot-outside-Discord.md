@@ -446,6 +446,12 @@ Q2 in the original open-questions list is obsolete.)
   versioned openapi artifact — doc-109's conformance references pin to it (path/version scheme
   pending from the fork). Deputy ops note: the glm-5.3-flash lane (sonnet/haiku worker slots) is
   rate-capped until 15:47 — dispatch on the opus lane or run small units inline until then.
+- **2026-09-30 ~08:45 — PR #2558 MERGED** (develop `5ec50642a`, branch deleted): the
+  avatar-path fix plus its review-round hardening (trailing-slash strip, blank→default,
+  prose sweep) is the theme's first shipped Tzurot PR. Round-1 review verdict at the final
+  head: no blocking issues. The merge fast-forwarded the boot checkout with zero file changes
+  — live services never restarted. Dev auto-deploys the fix (additive, default unchanged, no
+  migration).
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
