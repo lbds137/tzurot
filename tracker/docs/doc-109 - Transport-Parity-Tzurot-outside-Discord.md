@@ -63,6 +63,10 @@ discord-api-types 0.38.55).
   one of: replicate Discord's shape exactly (warmers keep carrying it), or re-deliver DM channel
   subscriptions on READY/resume (root-cause fix; warmers become redundant but harmless). Silent
   divergence reproduces the "DMs silent" failure class (`.claude/rules/04-discord.md`).
+  **Fork decision 2026-09-30: option (b)** — READY already builds DM channels from the
+  recipients list (`Identify.ts:232,:626`), resume replays per-session buffered events incl.
+  DMs (patch `7c69a3f10`, unit-tested); warmers redundant but harmless. Code-read; boot
+  verifies the runtime shape.
 - **TR-1.4 [S]** Resume + fresh IDENTIFY both deliver without loss: transient drops resume
   (session_id + resume gateway); process restarts IDENTIFY-fresh (deploys) and rely on TR-1.1's
   complete READY plus the startup warmers. Partials `[Channel, Message, User]` are configured
@@ -131,7 +135,9 @@ discord-api-types 0.38.55).
 - **TR-3.6 [S]** Discord numeric error codes: 10008 (Unknown Message), 10003 (Unknown Channel),
   50001 (Missing Access), 50013 (Missing Permissions), 10007 (Unknown Member — the private-thread
   gate relies on throw-for-non-member), 10013 (owner-gate DM path) — consumed as
-  `(error as {code}).code`.
+  `(error as {code}).code`. Fork status 2026-09-30: full-set diff pending (Q8); **10007 is NOT
+  in the fork's error enum today** (their grep) — the thread-member-fetch throw shape is a
+  likely server gap until that diff lands.
 - **TR-3.7 [S]** Typing indicator endpoint + reactions readable from fetched history
   (`reactions.cache`, `emoji.name`) and one `react('🔧')` maintenance ack.
 - **Explicitly NOT needed** (scope reducers for the fork): bulkDelete, channel create/rename,
@@ -179,16 +185,17 @@ Q2 in the original open-questions list is obsolete.)
 ## TR-6 — Identity & snowflakes
 
 - **TR-6.1 [S]** IDs must be **true Discord-epoch snowflakes**, not merely 17–20-digit strings:
-  discord.js derives `createdAt`/`createdTimestamp` from the id internally, and Tzurot relies on
-  that (echo `createdAt` anchoring ~80 ms, forwarded-message timestamps, snowflake-time ordering
-  of DB rows vs bot-observed snapshots). Validation everywhere is `^\d{17,20}$`
-  (`DISCORD_SNOWFLAKE.PATTERN`); mentions parse as `<@!?id>`. A custom epoch is fine iff the
-  derived timestamps are correct for it.
-- **TR-6.2 [S]** ID generation should not collide with real Discord snowflakes (custom epoch or
-  reserved bit pattern) — engineering recommendation, rationale: the both-at-once future may run
-  the two bot-client processes against ONE shared DB; colliding ID spaces would corrupt keying
-  silently. The fork session should confirm or push back; if shared-DB operation is ruled out
-  permanently this downgrades to hygiene.
+  discord.js derives `createdAt`/`createdTimestamp` from the id internally **with Discord's
+  epoch hard-coded** (fork finding 2026-09-30), and Tzurot relies on that (echo `createdAt`
+  anchoring ~80 ms, forwarded-message timestamps, snowflake-time ordering of DB rows vs
+  bot-observed snapshots). Validation everywhere is `^\d{17,20}$` (`DISCORD_SNOWFLAKE.PATTERN`);
+  mentions parse as `<@!?id>`. Any epoch other than Discord's silently shifts every derived
+  timestamp — instance ids MUST use Discord's epoch (fork does: `Snowflake.ts:15`).
+- **TR-6.2 — REVERSED 2026-09-30 (fork push-back accepted)**: the original recommendation
+  (custom epoch for collision isolation) contradicted TR-6.1 — discord.js's hard-coded epoch
+  makes a custom epoch impossible without patching the client, and the only mixed keyspace is
+  Tzurot's storage, not the server's. Collision isolation is Tzurot-side (the platform
+  dimension in TASK-1138). Not a server requirement.
 - **TR-6.3 [S+C]** User objects Discord-v10-shaped: id, username, globalName/displayName, tag,
   avatar, bot flag (bot-author filtering keys on `.bot`; webhook identity on `.webhookId`).
 
@@ -231,17 +238,23 @@ Q2 in the original open-questions list is obsolete.)
 
 ## Open questions
 
-- **Q1 [S]** Interaction token windows on the fork: ack deadline + token TTL, numerically?
-- **Q3 [S]** Rate-limit headers: Discord-shaped, partial, or absent? (429+retryAfter consumption
-  is confirmed — TR-3.2.)
-- **Q4 [S]** TR-1.3 choice: replicate Discord's DM non-resubscription, or fix it server-side?
-- **Q5 [S]** ID generation scheme (TR-6.2): custom epoch / reserved pattern — confirm or push
-  back.
-- **Q8 [S]** Error-code parity scope: will the fork emit the full TR-3.6 numeric set (incl.
-  10007 throw-for-non-member on thread-member fetch)?
-- **Q9 [S]** Embed images: does the fork rehost (proxyURL distinct) or is `proxyURL = url` the
-  shape?
-- **Q10 [S]** Query-based member fetch + on-demand GUILD_MEMBERS_CHUNK (TR-1.1 probe): supported?
+- **Q1 [S] — ANSWERED 2026-09-30 (code-read; boot confirms)**: ack window 3000 ms
+  (`routes/interactions/index.ts:243` → `INTERACTION_FAILURE`), token lifetime 15 min
+  (`util/imports/Interactions.ts:48`, unit-tested). Discord-shaped.
+- **Q3 [S] — ANSWERED (code-read)**: `X-RateLimit-*` headers exist
+  (`src/api/middlewares/RateLimit.ts`); exact 429 + `retry_after` shape verified at the boot.
+- **Q4 [S] — DECIDED 2026-09-30**: server-side fix, do NOT replicate Discord's wart (see TR-1.3).
+- **Q5 [S] — PUSH-BACK ACCEPTED 2026-09-30**: keep Discord's epoch; TR-6.2 reversed (see TR-6).
+- **Q8 [S] — PARTIAL**: full-set diff against the fork's `DiscordApiErrors` enum pending (the
+  TR-3.6 list was sent 2026-09-30: 10003, 10007, 10008, 10013, 50001, 50013 + 429/retryAfter).
+  One data point: **10007 is NOT in the enum today** — thread-member-fetch throw shape is a
+  likely server gap until the diff lands.
+- **Q9 [S] — ANSWERED (code-read)**: attachments ALWAYS rehost — `proxy_url` built as
+  `${cdnPublic}/attachments/<channel>/<message>/<file>` (`Attachment.ts:104`), always included.
+  Embed images NOT rehosted (passthrough, usually undefined) — Tzurot's `proxyURL ?? url`
+  fallback already handles both; no change needed.
+- **Q10 [S] — ANSWERED (code-read)**: query-based member fetch supported incl. discord.js's
+  empty-string-query quirk (`RequestGuildMembers.ts:42-53`); boot probe confirms the chunk.
 - **Q11 [T]** Is a CV2 `FileUpload` component actually BUILT by a live command (viewV2), or only
   present in the mapping? Settle at the joint boot.
 - Resolved by the inventory: ~~Q2 voice DAVE~~ (no voice gateway exists — TR-4); ~~Q6 CV2 used?~~
@@ -254,6 +267,16 @@ Q2 in the original open-questions list is obsolete.)
    added).
 2. TASK-1137 joint boot (Deck-local, DB `tzurot_spacebar` + Redis `/1`) with the Spacebar
    session — exercises TRs empirically, answers Q1/Q8/Q9/Q10/Q11.
+   **Deputy ruling 2026-09-30**: the production `:3001` instance and spacebar-postgres data are
+   OFF-LIMITS — the boot runs against a SECOND instance on another port with its own DB. Note
+   for instance B: Tzurot's `normalizeDiscordInstanceOrigin` accepts https origins only, so
+   instance B needs an https origin (Caddy route or another tailscale-serve port), not bare
+   `http://127.0.0.1:<port>`. Tzurot-side prep DONE 2026-09-30: DB `tzurot_spacebar` created on
+   tzurot-postgres and migrated (137 migrations, count verified); Redis `/1` wired at boot;
+   RAM checked (8.1 GB available). Boot findings are recorded here with TR/Q IDs (deputy rule:
+   the contract accumulates empirically, not just from static analysis). Machloket's
+   `TzurotProbe` bot (row-9, `/row9` serving buttons/selects/modals, DM-capable since `6d4f9d6`)
+   is the exerciser on the client side. TASK-1137 closes on the boot (both sessions agree).
 3. TASK-1145 ops command + snapshot (turns TR-9.1 mechanical).
 4. Gap analysis from the boot → PRs (Tzurot-side) / requirements deltas (peer-side).
 
@@ -270,6 +293,18 @@ Q2 in the original open-questions list is obsolete.)
   called out). TR-4 rewritten (no voice gateway), TR-3.4 webhooks promoted from open question,
   TR-6.1 strengthened to epoch semantics, Q2/Q6/Q7 resolved. Answers sent to Machloket (their
   classified list) and the conformance list pointed out to the Spacebar fork session.
+- **2026-09-30 ~02:40** Deputy approved the joint boot with constraints (:3001 + spacebar-
+  postgres off-limits; free -h before spawning; findings keyed to TR/Q ids). Tzurot-side prep
+  done: `tzurot_spacebar` migrated (137).
+- **2026-09-30 ~02:50** Spacebar fork answered from source: Q1 (3000 ms / 15 min), Q3 (headers
+  exist), Q4 (server-side DM fix — TR-1.3 option (b)), Q9 (attachments always rehost; embeds
+  passthrough — no Tzurot change), Q10 (query fetch supported); Q5 push-back ACCEPTED → TR-6.2
+  reversed; Q8 partial — 10007 missing from their enum (flagged gap). Their allowed_mentions
+  patch (TR-3.5 class) in flight; boot may run on the tip and re-probe after. Webhook execute
+  path heavily patched; parent-channel coverage checked at boot.
+- **2026-09-30 ~02:55** Machloket shipped the TR-1.5 client half (`6d4f9d6`): DM interactions
+  send no `guild_id`; full gate green. Their queue: slash option pickers (TR-2.3) → context
+  menus (TR-2.3). TzurotProbe (`/row9`) available as the boot's component exerciser.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
