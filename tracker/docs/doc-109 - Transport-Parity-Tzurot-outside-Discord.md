@@ -634,6 +634,20 @@ Q2 in the original open-questions list is obsolete.)
   Instrumentation unit (next): why post-defer logging dies + what user_error conceals; the
   synthetic repro fires it at will. My earlier "stall" reframes: possibly erroring fast and
   silently, not hanging.
+- **2026-09-30 ~18:05 — STALL SOLVED (fork ledger + my code read): it was my own ephemeral
+  error reply.** The owner ledger shows both coordinated interactions dispatched to MY pipe,
+  consumed by MY session (zero foreign consumers — G13b did not recur), my bot deferred
+  (type-5, DiscordBot UA, 52-66 ms), then produced an EPHEMERAL error reply, flags 64 —
+  **"This channel type is not supported"**, authored by my bot. Ephemeral = invisible in
+  channel REST, so three sessions read it as "silent stall with no artifacts." My resume
+  repro sharpened it: `command_events ok, 210 ms`, no echo, no enqueue, no conversation rows
+  — the turn erroring early and replying ephemerally. Mechanism (code-read, runtime
+  confirmation via the instrumentation unit in flight): `validateChannel` →
+  `isTypingChannel` keys on `channel.type`; `context.channel` is discord.js's hydration of
+  the INTERACTION_CREATE payload's embedded channel object — if the fork omits `type`
+  there, a good GuildText channel fails the guard. Fork asked to confirm the payload shape.
+  M3's pipe: PROVEN end to end (dispatch → my bot → my reply, all attributed); the content
+  is the last mile. Instrumentation worker dispatched (TURNTACE markers, bot-client only).
 - **2026-09-30 ~16:40 — REVERSAL on the traced-minute author: the twin answered, not my bot.**
   Fork DB evidence: the coordinated-run reply's `author_id`/`application_id` =
   1554721481311768686 = **TzurotProbeB** — identical catalog text (the twin runs the same
