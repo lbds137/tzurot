@@ -543,6 +543,16 @@ Q2 in the original open-questions list is obsolete.)
   call that never completes and defeats the rest-timeout** — two independent hangs, one
   class. The fork's incoming UA+body.type interaction logger (+ completion timestamps,
   requested) will discriminate wire-arrival vs pre-wire loss on the next repro.
+- **2026-09-30 ~14:00 — hang class gets a named mechanism + a discriminating matrix.** Fork
+  contribution: `@discordjs/rest`'s per-bucket queue is SEQUENTIAL and queued-not-started
+  requests get NO timeout — one never-settling request freezes every send behind it with
+  exactly our signature (no error, no timeout, externals responsive). Consistent with both
+  hangs. Landing with the announced G13 restart, per interaction: `[Interaction] create
+  {user,type,ua}` + `callback-in {id,type,ua}` + `callback-done {id,type,ms}` — the repro
+  matrix: **callback-in without callback-done** = fork handler hung (queue-block confirmed
+  server-side, duration locates it); **neither line** = the request never left our process
+  (frozen rest bucket); **in+done but client waiting** = response lost in the Caddy twin.
+  Next repro: one synthetic interaction after the G13 restart, then read the matrix.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
