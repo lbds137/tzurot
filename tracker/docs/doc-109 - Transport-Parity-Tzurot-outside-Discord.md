@@ -491,6 +491,19 @@ Q2 in the original open-questions list is obsolete.)
   told to hold re-runs until stable. Their two new client findings stand: text leak into
   seeded optional params (mechanism under investigation their side) and the silent failed
   interaction POST (client ignores the POST response — filed as their next-next unit).
+- **2026-09-30 ~09:35 — gateway-flap root cause RESOLVED (fork): restart cadence, not a defect.**
+  Instance B was restarted 12× tonight (every patch + 2 diagnostic builds); each restart dropped
+  all ws clients and the Caddy twin correctly 502'd the dead upstream. Fork practice fix,
+  effective now: **no restart of the live boot instance without a peer ping first; remaining
+  verification batched into ONE announced restart** (the announced ~15 s G4 restart at ~09:40Z
+  is that batch; none after tonight). The "urgent stability" watch closes as a process
+  practice. Same window: (1) **double-delivery CONFIRMED SERVER-SIDE** — the fork instrumented
+  the callback route and caught their own single interaction delivered twice at ageMs 29
+  (one-session bot, no twin); their next server unit; Machloket's origin instrumentation
+  stands down; the TR-2.6 watch resolves to gateway redelivery. (2) v9 question: the fork saw
+  `/api/v9/users/@me/application-command-index` (400 — G10 serves v10) attributed to our
+  stack; our greps find NO v9 pin in any REST construction path — fork asked to name the
+  calling token for module attribution.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
