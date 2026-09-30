@@ -464,6 +464,15 @@ Q2 in the original open-questions list is obsolete.)
   question — if model resolution trips, its error names the next seed). Machloket re-running
   /random + a DM command against G10. Roadmap M0–M5 published by the deputy
   (claude-memory `project_parity_theme.md`); M3 is this session's.
+- **2026-09-30 ~09:20 — Machloket round 4: DM chain VERIFIED LIVE.** G10 lists commands in the
+  DM composer; the invocation round-tripped the DM no-`guild_id` fix (TR-1.5 + G10 end-to-end
+  ✓); the twin answered. Their open client bugs (not server): note-option focus gap (typed text
+  lost), /character browse re-pick stall — both queued their side, fixed red-first locally.
+  Subcommand WIRE support committed (`b653e92`, 128 tests). Their flagged console line "Member
+  role is incorrectly sent as role object instead of role ID" is NOT from TzurotBot (grep of
+  the boot log: zero) — likely the twin's own discord.js parsing a fork member payload; if it
+  reproduces, the payload belongs in a fork [S] row (roles must be role-id arrays in member
+  payloads). /random re-run with the seeded character still pending their focus fix.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
