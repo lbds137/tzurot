@@ -553,6 +553,16 @@ Q2 in the original open-questions list is obsolete.)
   server-side, duration locates it); **neither line** = the request never left our process
   (frozen rest bucket); **in+done but client waiting** = response lost in the Caddy twin.
   Next repro: one synthetic interaction after the G13 restart, then read the matrix.
+- **2026-09-30 ~14:20 — new fork-side drop class: 204-then-VANISH.** Machloket captured their
+  submit verbatim (SW-blocked capture): POST /interactions, well-formed, boot-general channel,
+  TzurotBot app, session `VHXTFGWXBZ`, nonce `838488221`, ~13:5xZ — server answered **204**,
+  and my bot log for that window shows ZERO activity (verified). The interaction was accepted
+  and died between the route and INTERACTION_CREATE dispatch; contrast: the boot-owner's
+  synthetic invocations DID dispatch — dispatch works for some sessions, drops others
+  (G13-targeting-adjacent). Fork has the trace job (nonce/session/window + the new loggers).
+  Machloket corrections logged: their earlier stall was partly the DEV SERVICE WORKER (submit
+  fires fine on the current build — the Enter-path theory is dead), and the type-4 question
+  gains a SW-adjacent candidate location beyond their app code (fork's UA field correlates).
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
