@@ -573,25 +573,28 @@ Q2 in the original open-questions list is obsolete.)
   for this drop unless the server-side session state diverged from the client's. Fleet
   sequence: worker report → diff → announced restart (G13 + ledger + nonce + in/done) → my
   synthetic repro reads the matrix → Machloket's /random re-run.
-- **2026-09-30 ~14:50 — G13 LIVE (both fixable faces verified); G13b cross-app delivery real;
-  my stall is deterministic bot-side.** The fork's ledger: duplication FIXED (one delivery,
+- **2026-09-30 ~14:50 — G13 LIVE (both fixable faces verified); my stall is deterministic
+  bot-side.** The fork's ledger: duplication FIXED (one delivery,
   one ack) and the DM-close vanish FIXED (root cause: DM-close/kick/relationship-remove
   cancelling the bot's user-pipe listener while the client stayed READY — the server-side
-  tear my retro-test pointed at). **G13b** (cross-application delivery) confirmed with hard
-  evidence: the twin received G4Canary's interaction POST-fix (verbatim twin-log line) and
-  acked it; my own pre-fix log holds a g4btn "Unknown prefix" receipt (my bot replied to a
-  foreign button = it can 40060-block rightful handlers — an ack-thief); a post-twin-filter
-  canary was STILL acked by some DiscordBot/14.27 client — NOT my restarted bot (exact id,
-  zero hits) — residual acker = third client or the fork's own harness; pipe-trace ledger
-  lands with the next announced restart. **My character-turn stall**: frozen-bucket hypothesis
+  tear my retro-test pointed at). ~~G13b cross-app delivery~~ **RETRACTED by the fork
+  (~15:0x)**: their canary was mis-sedded — the script silently targeted TzurotProbeB, so
+  every "foreign acker" was the twin receiving its OWN interaction (DB-proven via the host
+  message's author); my zero-post-fix-hits answer was the truth — **no cross-app delivery
+  post-fix**. My pre-fix g4btn "Unknown prefix" receipt stands as a face of the now-fixed G13
+  bugs (and shows our unknown-prefix reply is a potential ack-thief for others' buttons — the
+  defensive filter stays queued as hygiene, no server leak motivating it). With a correct
+  canary, **G4 is fully runtime-green** (type-7 edits 204, mentions matrix Discord-exact).
+  Fork's honest ledger: three harness-born false findings tonight, every one caught by
+  verification. **My character-turn stall**: frozen-bucket hypothesis
   DEAD — a completely fresh process (new pid, fresh REST) stalls identically after a
   ledger-verified 69 ms defer; deterministic bug in the prereqs window, reproducible at will
   via the synthetic recipe; instrumentation unit next. Ledger note: my synthetic nonce
   811121814 defer-done 69 ms. Honest gap: my bot log ROTATED at the 14:14 restart without a
   snapshot, so Machloket's 13:25 nonce-958409436 delivery is indistinguishable
   (never-received vs hung-silently) post-hoc — coordinated re-run armed instead. Defensive
-  application_id filter PROMOTED to a required unit (protects the fleet from our ack-thief
-  path, not just us).
+  application_id filter queued as HYGIENE (our ack-thief path was real pre-fix; no
+  post-fix server leak motivates it beyond defense-in-depth).
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
