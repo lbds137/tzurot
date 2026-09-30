@@ -699,6 +699,14 @@ Q2 in the original open-questions list is obsolete.)
   Apps → real reference-extraction chain, thin-but-PASS). Tzurot-side cleanup queue:
   TURNTACE markers (diagnosis superseded — remove on transfer or skip), app-id hygiene
   filter, TASK-1146, TASK-1145.
+- **2026-09-30 ~18:50 — M3 closed from ALL THREE sides.** Machloket's own /random
+  (nonce 675929704) confirmed end to end in one frame: selection ephemeral, their tag fix
+  routing the note into `message` (verified in production), the typing indicator rendering
+  during the AI turn (TR-2.2-adjacent pass — narrows their remaining unit to the DEFER
+  placeholder only), persona reply via my webhook closed loop. G15 banked for M5 by both
+  client sessions (both compare permission bits; one shared mapping table will serve both
+  audits). Fleet state: M0–M3 done, M4 polish (TR-2.2, TURNTACE cleanup, app-id hygiene),
+  M5 conformance (TASK-1145 command + G15 table + pilot decision = Lila's).
   (`8175774`) — TR-2.3's context-menu surface now invocable client-side; live verification
   pass on my bot's messages agreed.
 - **2026-09-30 ~18:35 — 🎯 M3 CLOSED: first real AI personality round-trip outside Discord.**
