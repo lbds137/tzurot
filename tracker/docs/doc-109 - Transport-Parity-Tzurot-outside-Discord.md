@@ -634,6 +634,22 @@ Q2 in the original open-questions list is obsolete.)
   Instrumentation unit (next): why post-defer logging dies + what user_error conceals; the
   synthetic repro fires it at will. My earlier "stall" reframes: possibly erroring fast and
   silently, not hanging.
+- **2026-09-30 ~16:40 — REVERSAL on the traced-minute author: the twin answered, not my bot.**
+  Fork DB evidence: the coordinated-run reply's `author_id`/`application_id` =
+  1554721481311768686 = **TzurotProbeB** — identical catalog text (the twin runs the same
+  command code against its own empty character store), so Machloket's screenshot captured the
+  TWIN's answer to an interaction addressed to TzurotBot. **G13b un-retracted with the
+  hardest evidence yet** (exact interaction id, DB-proven author, wrong-application answer,
+  post-G13-fix) — cross-application delivery is REAL and live; the earlier retraction only
+  covered the bogus canary observations. Consequences: (1) my zero-trace read was RIGHT — my
+  process never executed their turn; my stall remains a real stall (synthetic on my pipe,
+  defer, silence). (2) The twin answers foreign interactions because the delivered payload
+  CLAIMS the twin's app id — delivery may rewrite payloads or the twin subscribes somewhere
+  carrying re-addressed ones; the dispatch-owner ledger (7eac48fc1) names the consuming
+  session + pipe on the next occurrence. (3) **M3 NOT done** — the round-trip through MY bot
+  hasn't happened; the earlier "M3 user path DONE" line in this log is superseded by this
+  entry. My instrumentation unit proceeds; TzurotProbeB foreign-answer behavior noted for
+  Machloket's filter work.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
