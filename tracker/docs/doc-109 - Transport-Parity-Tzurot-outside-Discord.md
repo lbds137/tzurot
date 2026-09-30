@@ -221,6 +221,9 @@ Q2 in the original open-questions list is obsolete.)
   Discord-shaped heartbeats, `client.ws.status` transitions the watchdog reads. A discord.js
   14.27 bot reached ClientReady on the instance 2026-09-27 17:06 **[as-exposed-today]** —
   login-level parity is proven; everything above this line is not yet.
+  **Auth divergence (fork, 2026-09-30)**: USER login on the fork is email-only
+  (`INVALID_LOGIN` on username; Discord accepts both) — affects Machloket's login UI and the
+  boot-owner account, not the bot's TOKEN login.
 - **TR-8.2 [S]** Presence: `setPresence`/`setActivity` with ActivityType Playing/Listening/
   Watching/Custom/Competing (persisted in Redis, restored at boot).
 - **TR-8.3 [T]** Instance bot token + application id (Spacebar session provides); joint boot
@@ -277,6 +280,14 @@ Q2 in the original open-questions list is obsolete.)
    the contract accumulates empirically, not just from static analysis). Machloket's
    `TzurotProbe` bot (row-9, `/row9` serving buttons/selects/modals, DM-capable since `6d4f9d6`)
    is the exerciser on the client side. TASK-1137 closes on the boot (both sessions agree).
+   **Instance B up 2026-09-30**: `http://127.0.0.1:3002`, own postgres (container
+   `spacebar-boot-postgres` :5434, db `spacebar`) — production `:3001` untouched. HTTPS origin
+   `https://deck.tail00338f.ts.net:8444` pending a Tailscale Serve route (asked of Deck
+   management); fallback = the fork's self-signed proxy + `NODE_EXTRA_CA_CERTS` on the bot
+   process. Credentials (TzurotBot + TzurotProbeB, tokens verified 200 on `/gateway/bot`) live
+   in the fork repo at `docs/local/boot-b/secrets.env` (mode 600, git-excluded) — read
+   in-shell at boot time, never copied into this repo. Q8/10007 accepted by the fork as gap G3,
+   queued behind the allowed_mentions patch.
 3. TASK-1145 ops command + snapshot (turns TR-9.1 mechanical).
 4. Gap analysis from the boot → PRs (Tzurot-side) / requirements deltas (peer-side).
 
@@ -305,6 +316,11 @@ Q2 in the original open-questions list is obsolete.)
 - **2026-09-30 ~02:55** Machloket shipped the TR-1.5 client half (`6d4f9d6`): DM interactions
   send no `guild_id`; full gate green. Their queue: slash option pickers (TR-2.3) → context
   menus (TR-2.3). TzurotProbe (`/row9`) available as the boot's component exerciser.
+- **2026-09-30 ~03:15** Instance B up (fork): `:3002` Deck-local, own postgres `:5434`,
+  production untouched; TzurotBot + TzurotProbeB credentials minted (200 on `/gateway/bot`),
+  secrets in the fork repo (`docs/local/boot-b/secrets.env`, 600, git-excluded). HTTPS origin
+  `:8444` asked of Deck management; fallback self-signed proxy + `NODE_EXTRA_CA_CERTS`. Login
+  divergence recorded (email-only user login — TR-8.1). Q8/10007 accepted as fork gap G3.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
