@@ -110,6 +110,15 @@ discord-api-types 0.38.55).
   zero hits) — ALL component routing survives restarts via the global CommandHandler on customId.
   The server must deliver INTERACTION_CREATE for any bot-sent message at any later time; no
   collector-TTL assumptions on either side.
+- **TR-2.6 [S] — deferred interactions must materialize an editable `@original`.** Found live in
+  the phase-1 exercise (2026-09-30): a successful type-5 defer (flags 64) is followed by
+  `PATCH /api/v10/webhooks/{app}/{token}/messages/@original` → **10008 Unknown message** — the
+  real reply AND the error fallback both died, leaving the user a blank deferred ephemeral. On
+  Discord a successful defer creates the `@original` message the interaction webhook can edit;
+  `editReply` after deferral is Tzurot's core delivery path (567 call sites). This gates nearly
+  every command. Related watch: **double interaction delivery** observed bot-side (first defer
+  OK, second got 40060 on the same token, ~3 ms apart; client double-POST vs gateway redelivery
+  unclassified — Machloket instrumenting interaction ids).
 
 ## TR-3 — REST surface, webhooks, rate limits
 
@@ -419,6 +428,24 @@ Q2 in the original open-questions list is obsolete.)
   divergence + our code-vs-status audit (no impact; 50035 hardening candidate noted). Instance
   B restarted (pid 355060) — bot auto-reconnect covers it; TR-3.9 temp-kick watch applies to
   this reconnect.
+- **2026-09-30 ~08:35 — phase-1 interactive exercise, first real round-trips (Machloket client
+  `machloket_boot01` in Boot Guild).** WORKING: guild slash round-trip (/row9), button + select
+  rendering, button ack, ephemeral with "Only you" footer (TR-2.2 client half verified — better
+  than their task list claimed). **TR-2.6 found** (the @original-after-defer gap — see the row;
+  the /random failure chain: double delivery → 40060 on the second defer, then 10008 on @original
+  twice; the owed reply was "No characters available", correct for the empty boot DB — the
+  relaunch-window theory is refuted by timestamps, failure hit 23 min post-relaunch). Machloket
+  correction adopted: **20 of our 21 commands are subcommand/group structured** — until their
+  subcommand unit lands, only flat commands (/random, /chime-in, /feedback, /inspect, /row9) are
+  client-usable; their top code unit now. DM slash commands show NO commands — the fork lacks an
+  @me command-index route (asked of them; blocks DM command discovery, TR-1.5-adjacent). Their
+  "Started interaction" invocation line = their task-14. Boot stack note: the PR-branch rebase
+  killed all three tsx-watch services (transient dist gap during clean-first rebuild — the
+  working-tree-rewrite hazard, same class as a branch hop); relaunched clean, all healthy.
+  **Deputy standing decision recorded**: the API contract's canonical home is the Spacebar repo's
+  versioned openapi artifact — doc-109's conformance references pin to it (path/version scheme
+  pending from the fork). Deputy ops note: the glm-5.3-flash lane (sonnet/haiku worker slots) is
+  rate-capped until 15:47 — dispatch on the opus lane or run small units inline until then.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
