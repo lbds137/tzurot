@@ -530,6 +530,19 @@ Q2 in the original open-questions list is obsolete.)
   delivery interaction. Zero /random executions from their user stands definitive
   (client-side Enter→submit failure, their red-first unit). The M3 blocker remains OUR
   prereqs-window stall.
+- **2026-09-30 ~13:40 — fork settles type-4 attribution; respond-path analysis converges the
+  hangs.** Server-side evidence: the payload type is the POST body verbatim (enum-validated)
+  and the POSTs authenticated as machloket_boot01's session — their stack DID emit type-4
+  (library-level as-you-type autocomplete from the option UI, not their command senders;
+  their next grep). My respond-path chase: the tag-autocomplete respond is awaited inside
+  guardedAutocomplete's try/catch whose ERROR PATH responds([]) itself — any throw OR any
+  @discordjs/rest 15s timeout would have produced a type-8 callback (even empty) on the fork.
+  Neither happened and no error logged → my side most likely never reached respond. SAME
+  signature as the /random turn stall: successful logged step → await that neither resolves
+  nor throws → every external responsive. **Convergence hypothesis: an await on a fork-path
+  call that never completes and defeats the rest-timeout** — two independent hangs, one
+  class. The fork's incoming UA+body.type interaction logger (+ completion timestamps,
+  requested) will discriminate wire-arrival vs pre-wire loss on the next repro.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
