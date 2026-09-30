@@ -690,6 +690,24 @@ Q2 in the original open-questions list is obsolete.)
   should grant under Discord union semantics). Machloket shipped context-menu commands
   (`8175774`) — TR-2.3's context-menu surface now invocable client-side; live verification
   pass on my bot's messages agreed.
+- **2026-09-30 ~18:35 — 🎯 M3 CLOSED: first real AI personality round-trip outside Discord.**
+  Root cause of the 50013 was **G15** — the fork's permission LAYOUT diverges from Discord's
+  bit meanings (their MANAGE_WEBHOOKS is bit 29, not 5; the first grant set Discord's bit 32
+  = their MANAGE_GUILD). Fork granted their bit (1<<29), verified webhook create 200. The
+  delivery synthetic (nonce 790792869) ran the complete chain, every layer attributed:
+  invoke 204 → INTERACTION_CREATE → defer → gates (NSFW passed via seed) → persona → config
+  → echo message → worker enqueue → **OpenRouter generation (266 completion tokens)** →
+  results stream → **webhook persona reply rendered as "Boot Test Character · TzurotBot"**
+  (TR-3.4 verified at runtime: username override + webhook message identity) →
+  conversation persistence (4 rows). command_events ok 3517 ms. **G15 filed by the fork as a
+  deliberate-schedule unit** (layout mapping table at the serialization boundary) — until it
+  lands, any permission computation against fork-serialized integers must use the fork's
+  layout, not discord.js PermissionFlagsBits (Tzurot note: our only checks are
+  ManageMessages/ViewChannel/ReadMessageHistory — verify their bit positions before relying
+  on them post-migration). Live Inspect-Message context-menu pass verified (Machloket
+  right-click → Apps → real reference-extraction chain, thin-but-PASS as predicted). M3's
+  remaining polish: TURNTACE cleanup when the instrumentation worker reports, Machloket's
+  TR-2.2 thinking-state. TASK-1137's joint boot: COMPLETE.
 - **2026-09-30 ~16:50 — attribution lesson recorded (all three sessions).** Machloket's
   amendment: visual attribution of ephemeral replies is UNTRUSTWORTHY — username overrides
   (TR-3.4) made the twin's reply DISPLAY as "TzurotBot"; the DB author field is the only
