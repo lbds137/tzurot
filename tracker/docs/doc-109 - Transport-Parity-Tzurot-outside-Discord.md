@@ -135,9 +135,9 @@ discord-api-types 0.38.55).
 - **TR-3.6 [S]** Discord numeric error codes: 10008 (Unknown Message), 10003 (Unknown Channel),
   50001 (Missing Access), 50013 (Missing Permissions), 10007 (Unknown Member — the private-thread
   gate relies on throw-for-non-member), 10013 (owner-gate DM path) — consumed as
-  `(error as {code}).code`. Fork status 2026-09-30: full-set diff pending (Q8); **10007 is NOT
-  in the fork's error enum today** (their grep) — the thread-member-fetch throw shape is a
-  likely server gap until that diff lands.
+  `(error as {code}).code`. Fork status 2026-09-30 (corrected): the enum HAS 10007 — the gap is
+  the missing single thread-member GET route, which today returns a generic catch-all 404
+  instead of 10007 (fix G3 queued; Q8).
 - **TR-3.7 [S]** Typing indicator endpoint + reactions readable from fetched history
   (`reactions.cache`, `emoji.name`) and one `react('🔧')` maintenance ack.
 - **Explicitly NOT needed** (scope reducers for the fork): bulkDelete, channel create/rename,
@@ -208,7 +208,8 @@ Q2 in the original open-questions list is obsolete.)
   TR-1.1).
 - **TR-7.2 [S+C]** Private-thread membership gate: `channel.members.fetch(viewerId)` must throw
   Discord's 10007 for non-members (TR-3.6) — the fork must enforce server-side, the client gets
-  the same error surface.
+  the same error surface. Fork current state: the route is absent → generic 404 today (Q8);
+  G3 restores the 10007 shape.
 - **TR-7.3 [S]** Owner override is Tzurot-internal (`BOT_OWNER_ID` + `isBotOwner`); no peer work,
   but the 10013 error-code path it rides is TR-3.6.
 - **TR-7.4 [S+C]** NSFW state: `guild.nsfwLevel === AgeRestricted` and `channel.nsfw` on
@@ -248,10 +249,14 @@ Q2 in the original open-questions list is obsolete.)
   (`src/api/middlewares/RateLimit.ts`); exact 429 + `retry_after` shape verified at the boot.
 - **Q4 [S] — DECIDED 2026-09-30**: server-side fix, do NOT replicate Discord's wart (see TR-1.3).
 - **Q5 [S] — PUSH-BACK ACCEPTED 2026-09-30**: keep Discord's epoch; TR-6.2 reversed (see TR-6).
-- **Q8 [S] — PARTIAL**: full-set diff against the fork's `DiscordApiErrors` enum pending (the
-  TR-3.6 list was sent 2026-09-30: 10003, 10007, 10008, 10013, 50001, 50013 + 429/retryAfter).
-  One data point: **10007 is NOT in the enum today** — thread-member-fetch throw shape is a
-  likely server gap until the diff lands.
+- **Q8 [S] — PARTIAL, corrected 2026-09-30**: full-set diff against the fork's
+  `DiscordApiErrors` enum pending (list sent: 10003, 10007, 10008, 10013, 50001, 50013 +
+  429/retryAfter). The enum DOES define `UNKNOWN_MEMBER`/10007 (`src/util/util/Constants.ts:547`
+  — the earlier "missing from enum" claim was a mistyped grep path, retracted by the fork). The
+  real gap: **the single thread-member GET route does not exist** —
+  `GET /channels/{id}/thread-members/{user_id}` falls through to the catch-all and returns a
+  generic 404 "Endpoint not found", never a Discord-shaped 10007. Fix G3 queued behind
+  allowed_mentions; a runtime red probe on instance B gives the patch its before/after.
 - **Q9 [S] — ANSWERED (code-read)**: attachments ALWAYS rehost — `proxy_url` built as
   `${cdnPublic}/attachments/<channel>/<message>/<file>` (`Attachment.ts:104`), always included.
   Embed images NOT rehosted (passthrough, usually undefined) — Tzurot's `proxyURL ?? url`
@@ -321,6 +326,11 @@ Q2 in the original open-questions list is obsolete.)
   secrets in the fork repo (`docs/local/boot-b/secrets.env`, 600, git-excluded). HTTPS origin
   `:8444` asked of Deck management; fallback self-signed proxy + `NODE_EXTRA_CA_CERTS`. Login
   divergence recorded (email-only user login — TR-8.1). Q8/10007 accepted as fork gap G3.
+- **2026-09-30 ~03:30** Correction (fork, self-caught): the "10007 missing from the enum" claim
+  was a mistyped grep path — `UNKNOWN_MEMBER` exists (`Constants.ts:547`). The real gap is the
+  missing single thread-member GET route (generic catch-all 404, not a Discord-shaped 10007);
+  fix G3 queued behind allowed_mentions, with a runtime red probe on instance B for
+  before/after. Q8 and TR-3.6/7.2 rows updated.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
