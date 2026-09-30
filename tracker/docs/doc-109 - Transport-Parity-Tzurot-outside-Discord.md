@@ -134,6 +134,9 @@ discord-api-types 0.38.55).
   bot messages (`DiscordResponseSender` duality).
 - **TR-3.5 [S]** `allowed_mentions` honored per-send and globally (`parse: []` everywhere — ping
   suppression is a product requirement, not decoration); `repliedUser: false` on reply-paths.
+  **Fork-verified 2026-09-30** (patch `18fb75e98`, runtime canary on B): plain send with
+  `{parse:[]}` + @everyone + user mention → `mention_everyone=false`, `mentions=[]`; absent
+  default on webhook/interaction sends follows Discord's documented `{parse:["users"]}`.
 - **TR-3.6 [S]** Discord numeric error codes: 10008 (Unknown Message), 10003 (Unknown Channel),
   50001 (Missing Access), 50013 (Missing Permissions), 10007 (Unknown Member — the private-thread
   gate relies on throw-for-non-member), 10013 (owner-gate DM path) — consumed as
@@ -149,6 +152,12 @@ discord-api-types 0.38.55).
   token received TzurotBot's app). Fix (~3 lines: lookup by the bot user's id) rides the
   allowed_mentions patch. discord.js fetches this during READY (`client.application`), so a
   wrong row corrupts application-scoped state on every connect.
+- **TR-3.9 [S]** Invite-create must default `temporary=false` (Discord's documented default).
+  Fork gap (self-filed 2026-09-30): the schema defaulted `temporary` to true — a joining member
+  silently became a temp member subject to membership loss on disconnect. First TzurotBot join
+  hit it; re-joined via an explicit `temporary:false` invite. **Boot watch item**: if TzurotBot
+  loses guild membership after a gateway reconnect, suspect the temp-kick (the fork fixes the
+  member row directly).
 - **Explicitly NOT needed** (scope reducers for the fork): bulkDelete, channel create/rename,
   role/ban/kick mutations, invites, emoji/sticker upload, audit log, sweepers, sharding config,
   any voice gateway (TR-4).
@@ -362,6 +371,12 @@ Q2 in the original open-questions list is obsolete.)
   global commands + interactions; phase 2 (webhook path, TR-3.4) needs a guild + invite on B
   (requested from fork/Machloket). Local `GUILD_ID` (a Discord guild id) is unset for both
   deploy and bot launch → global registration.
+- **2026-09-30 ~04:45** **SERVER-SIDE GO**: both fork fixes live on B (restart, new pid) —
+  `applications/@me` returns the calling bot's app (verified both tokens; TR-3.8 green at the
+  source), allowed_mentions `18fb75e98` canary green (TR-3.5). Boot Guild
+  `1554722916606791818` exists with TzurotBot in it → phase 2 unblocked. New fork-filed gap:
+  invite-create defaults `temporary=true` where Discord defaults false (**TR-3.9**, boot watch
+  item). Tzurot side: boot fires when the avatar-path worker lands (last blocker).
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
