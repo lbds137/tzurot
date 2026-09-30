@@ -378,6 +378,20 @@ Q2 in the original open-questions list is obsolete.)
   `1554722916606791818` exists with TzurotBot in it → phase 2 unblocked. New fork-filed gap:
   invite-create defaults `temporary=true` where Discord defaults false (**TR-3.9**, boot watch
   item). Tzurot side: boot fires when the avatar-path worker lands (last blocker).
+- **2026-09-30 ~06:15 — JOINT BOOT REACHED READY.** All three services up on the isolated stack
+  (api-gateway :3000 healthy `avatarStorage:true` — PR #2558's fix proving itself at runtime;
+  ai-worker :3005 healthy; bot-client **`Logged in as TzurotBot#6355`** via instance B's
+  gateway, shard ready, DM worker gate open), 21 commands deployed guild-scoped to Boot Guild.
+  Tzurot-side boot findings: local `.env` values leak through dotenv against instance boots
+  (`GUILD_ID` re-appeared after `env -u` → guild-route 404 "Unknown Server"; redis `localhost`
+  → IPv6 `::1` refused, launch uses `redis://127.0.0.1:6379/1`; ai-worker's health server
+  shares the `PORT` config → collided with the fork's `:3001`, boot uses `:3005`;
+  `INTERNAL_SERVICE_SECRET` and `OUTBOUND_DM_ALLOWLIST` required for any local multi-service
+  boot — the avatar-path fix (PR #2558) was the first of FOUR local-boot blockers).
+  **Fork findings**: (1) `GET /channels/{unknown}` returns a bare **500**, not Discord-shaped
+  10003 Unknown Channel (TR-3.6 gap); (2) instance B's seeded fixture channels carry
+  non-snowflake ids (`channel-456`) — TR-6.1 violated by seed data (the id GENERATOR is fine:
+  Boot Guild `1554722916606791818` is a proper snowflake).
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
