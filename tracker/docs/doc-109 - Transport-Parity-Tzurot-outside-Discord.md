@@ -743,6 +743,20 @@ Q2 in the original open-questions list is obsolete.)
   truth. Standing rule for the boot: verify bot output by author/application ids in the DB or
   the ledger, never by displayed name. Re-runs HOLD until the dispatch-owner restart; my
   instrumentation unit is the active work meanwhile.
+- **2026-10-01 ~21:45 EDT — BOOT-B RELAUNCHED for the beta.234 cycle; TASK-1146's deferred live CLIENT LIST check PASSED.** Tzurot half relaunched from the durable recipe
+  (`docs/local/boot-b/relaunch-raw.txt`, the canonical config-resolver-dist line plus the
+  worker's OPENROUTER_API_KEY retry) on develop `91ee1f9f0`+docs; REDIS_URL
+  `redis://127.0.0.1:6380/1` (the positive-control form), instance origin `:8444` verified 200
+  pre-launch. All three services healthy; Shard ready + Logged in as TzurotBot#6355, 0
+  unavailable guilds. CLIENT LIST on tzurot-redis-boot: **45/45 app connections on db=1** (the
+  lone db=0 row was the redis-cli probe itself, cmd=client|list) — fix `adcedd68a` (#2561)
+  verified live; TASK-1146 Done. Startup-race notes (all benign, one filed): the
+  gatewayServiceCalls health probe and StartupDMPrewarmer hit :3000 before the gateway
+  listened (co-launch race; the recipe launches all three simultaneously); DenylistCache
+  hydrate failed the same way and has NO retry — the cache stays empty (fail-open,
+  permissive) until an unrelated denylist invalidation event; gap filed as TASK-1154. Zero
+  level-50 errors after the first minute. Interactive half pending: Lila exercises the test
+  guild on the beta.233 build; Machloket client session coordinates client-side.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
