@@ -74,8 +74,9 @@ yours to inspect:
 
 ## Voice
 
-- **Talk to characters**: send a Discord voice message, or attach an audio
-  file, and it gets transcribed and answered like text.
+- **Talk to characters**: send a Discord voice message, attach an audio
+  file, or quote or forward one, and it gets transcribed and answered like
+  text.
 - **Hear them back**: characters can reply with speech. `/character voice set`
   enrolls a cloned voice for a character from reference audio; `/voice`
   configures which text-to-speech and transcription providers are used and
