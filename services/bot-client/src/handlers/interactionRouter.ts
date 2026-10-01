@@ -9,9 +9,18 @@
  * interaction that was not addressed to this application.
  */
 
-import type { Interaction } from 'discord.js';
+import type {
+  AutocompleteInteraction,
+  ButtonInteraction,
+  ChatInputCommandInteraction,
+  Interaction,
+  MessageContextMenuCommandInteraction,
+  ModalSubmitInteraction,
+  StringSelectMenuInteraction,
+} from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isForeignInteraction } from '../utils/foreignInteraction.js';
+import { INTERACTION_FAMILIES } from '../utils/interactionFamilies.js';
 import { isInteractionDenied } from '../processors/interactionDenylistGate.js';
 import { getThreadParentId } from '../utils/discordChannelTypes.js';
 import { stampUserActivity } from '../utils/gatewayServiceCalls.js';
@@ -78,34 +87,66 @@ export async function routeInteraction(
       return;
     }
 
-    if (interaction.isChatInputCommand()) {
-      // Retention: pure-client commands (e.g. /help) render bot-side and never
-      // reach the gateway, so stamp activity here for every chat-input command.
-      // Fire-and-forget — the wrapper logs on failure and never throws; the
-      // redundant stamp for gateway-reaching commands (which already stamp via
-      // getOrCreateUser) is a harmless idempotent NOW-write. Not awaited: the
-      // stamp must never delay or fail the 3-second ack path.
-      void stampUserActivity(interaction.user.id).catch(() => {
-        /* wrapper already logs; swallow so a rejection can't become unhandled */
-      });
+    // The family table is shared with the foreign-interaction classifier: the
+    // dispatch keys on the same matched family the drop log reports.
+    const family = INTERACTION_FAMILIES.find(f => f.guard(interaction));
+    if (family === undefined) {
+      return;
+    }
 
-      // The dispatcher owns the whole chat-input path, including the
-      // unknown-command reply when the lookup comes back empty.
-      await handleCommandWithContext(
-        interaction,
-        commandHandler.getCommand(interaction.commandName)
-      );
-    } else if (interaction.isMessageContextMenuCommand()) {
-      await commandHandler.handleContextMenuCommand(interaction);
-    } else if (interaction.isModalSubmit()) {
-      await commandHandler.handleModalInteraction(interaction);
-    } else if (interaction.isAutocomplete()) {
-      await commandHandler.handleAutocomplete(interaction);
-    } else if (interaction.isStringSelectMenu() || interaction.isButton()) {
-      // Route component interactions to their commands based on customId prefix
-      await commandHandler.handleComponentInteraction(interaction);
+    // The casts are the table's cost: TS cannot narrow through a table-driven
+    // guard, and each case's matched label is what establishes the
+    // interaction's type.
+    switch (family.label) {
+      case 'chat_input':
+        await dispatchChatInput(commandHandler, interaction as ChatInputCommandInteraction);
+        break;
+      case 'message_context_menu':
+        await commandHandler.handleContextMenuCommand(
+          interaction as MessageContextMenuCommandInteraction
+        );
+        break;
+      case 'modal_submit':
+        await commandHandler.handleModalInteraction(interaction as ModalSubmitInteraction);
+        break;
+      case 'autocomplete':
+        await commandHandler.handleAutocomplete(interaction as AutocompleteInteraction);
+        break;
+      case 'string_select_menu':
+      case 'button':
+        // Route component interactions to their commands based on customId prefix
+        await commandHandler.handleComponentInteraction(
+          interaction as StringSelectMenuInteraction | ButtonInteraction
+        );
+        break;
+      default:
+        // Classifier-only families (the entity select menus other than string
+        // selects) are recognized in the drop log but have no dispatch here.
+        break;
     }
   } catch (error) {
     logger.error({ err: error }, 'Error in interaction handler');
   }
+}
+
+/**
+ * Dispatch one chat-input interaction: stamp activity for retention, then
+ * hand the whole path to the dispatcher (which owns the unknown-command
+ * reply when the command lookup comes back empty).
+ */
+async function dispatchChatInput(
+  commandHandler: InteractionRouterDeps['commandHandler'],
+  interaction: ChatInputCommandInteraction
+): Promise<void> {
+  // Retention: pure-client commands (e.g. /help) render bot-side and never
+  // reach the gateway, so stamp activity here for every chat-input command.
+  // Fire-and-forget — the wrapper logs on failure and never throws; the
+  // redundant stamp for gateway-reaching commands (which already stamp via
+  // getOrCreateUser) is a harmless idempotent NOW-write. Not awaited: the
+  // stamp must never delay or fail the 3-second ack path.
+  void stampUserActivity(interaction.user.id).catch(() => {
+    /* wrapper already logs; swallow so a rejection can't become unhandled */
+  });
+
+  await handleCommandWithContext(interaction, commandHandler.getCommand(interaction.commandName));
 }

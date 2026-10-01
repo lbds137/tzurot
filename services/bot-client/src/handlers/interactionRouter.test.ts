@@ -93,6 +93,10 @@ function makeInteraction(
     isModalSubmit: () => fx.guard === 'isModalSubmit',
     isAutocomplete: () => fx.guard === 'isAutocomplete',
     isStringSelectMenu: () => fx.guard === 'isStringSelectMenu',
+    isUserSelectMenu: () => fx.guard === 'isUserSelectMenu',
+    isRoleSelectMenu: () => fx.guard === 'isRoleSelectMenu',
+    isChannelSelectMenu: () => fx.guard === 'isChannelSelectMenu',
+    isMentionableSelectMenu: () => fx.guard === 'isMentionableSelectMenu',
     isButton: () => fx.guard === 'isButton',
   } as unknown as Interaction;
 }
