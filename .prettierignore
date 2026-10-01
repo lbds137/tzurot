@@ -58,3 +58,8 @@ packages/tooling/coverage-topology.json
 # HuggingFace files kept byte-identical for sha verification — prettier must
 # not reformat the tokenizer/config JSON.
 packages/embeddings/models/
+
+# Auto-generated discord.js surface snapshot. `surface:inventory --check`
+# byte-compares the committed files against generator output; prettier
+# would reformat the JSON/tables and permanently break that comparison.
+docs/reference/conformance/
