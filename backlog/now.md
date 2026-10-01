@@ -30,7 +30,7 @@ _beta.233 CUT 2026-10-01 20:52Z, "the parity train". **The numbers:** 17 PRs, 12
 - **Driver**: GLM-routed deputy drove the beta.233 cut end-to-end (deputy posture). Owner decisions carried (binding): the memory-archive flips stay per character on their gates; no model-parameter experiments; the owner clears sessions with `/clear`, so every handoff lives on disk.
 - **In**: (empty at the cut.)
 - **Waiting on**:
-  1. **The joint Spacebar/Machloket boot** (TASK-1137 continuation): the fork's rename settled (machloket-server, history rewritten — e3e84c9ef tips, re-derive SHAs by subject); the boot recipe is updated at `docs/local/boot-b/relaunch-raw.txt` + README. First verification: the deferred live CLIENT LIST check for TASK-1146.
+  1. **The joint Spacebar/Machloket boot** (TASK-1137 continuation): the fork's rename settled (machloket-server, history rewritten — e3e84c9ef tips, re-derive SHAs by subject); the boot recipe is updated at `docs/local/boot-b/relaunch-raw.txt` + README. ~~First verification: the deferred live CLIENT LIST check for TASK-1146~~ **DONE 2026-10-01**: boot-b relaunched on the beta.233 build, 45/45 app connections on db=1 (TASK-1146 Done); the boot-race residue (DenylistCache hydrate has no retry) filed as TASK-1154. Boot-b is UP — interactive TR exercise pending (Lila + the Machloket client session).
   2. **TASK-1152** (deepmerge-ts >=8.0.0 override): needs a prisma-CLI verification at 8.x before riding; promote-when recorded.
   3. **TASK-1153** (overrides pin-form audit): conditional vs unconditional forms, next time the block is touched.
   4. **TASK-1150/1151** (skills structure-gate line + review-lows batch): ride the next skills PR.
