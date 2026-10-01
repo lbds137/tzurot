@@ -1,7 +1,7 @@
 ---
 name: tzurot-review-response
 description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → decided when engineering-only, ASK when it carries a product/UX, user-visible, schema, spend, data-rights, or security dimension, changes an existing test assertion, or changes an async boundary or external contract), check reviewer-vs-agent signal conflict, batch-present the four sections, step back at ~3 automated rounds (rule of thumb), and hard-cap at ~6 — hand off to a fresh context or the owner. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
-lastUpdated: '2026-09-25'
+lastUpdated: '2026-10-01'
 ---
 
 # Review-Response Iteration
@@ -137,7 +137,7 @@ git push --force-with-lease origin <branch>     # CI's fixup-check now passes
 gh pr merge <PR#> --rebase --delete-branch      # then merge (or use the web UI)
 ```
 
-**Amend the base commit's body in that sequence.** Fixup commits never touch the base message, so every count and enumeration written into it at round 0 is stale by merge time — re-derive them against the final diff and amend with the heredoc form above, never a bare `git commit --amend` (which opens `$EDITOR`). The merge gate's re-derive prompt covers the PR body, not the commit message. `--amend` reaches only the tip commit, which is the base commit on the ordinary one-semantic-commit-plus-fixups branch. On a multi-commit branch there is no agent-safe form of that pass: `git rebase -i` opens `$EDITOR` on its todo file (probed — a recorder editor was invoked and the rebase stalled), exactly the stall a bare `--amend` causes. So the non-tip bodies are the owner's interactive job, or the branch is collapsed to a single commit whose body is amended with the heredoc form above — never `git rebase -i` from an agent session. The one-line escape does not exist: `GIT_SEQUENCE_EDITOR=true git rebase -i <base>` opens no editor but accepts the all-`pick` todo verbatim, so it rewrites no message at all (probed — subjects unchanged). Line-number cites in the body are the first thing to go stale here — prefer grep-token cites (`/tzurot-git-workflow` § Before writing a closing reference in the PR body).
+**Amend the base commit's body in that sequence.** Fixup commits never touch the base message, so every count and enumeration written into it at round 0 is stale by merge time — re-derive them against the final diff and amend with the heredoc form above, never a bare `git commit --amend` (which opens `$EDITOR`). The merge gate's re-derive prompt covers the PR body, not the commit message. `--amend` reaches only the tip commit, which is the base commit on the ordinary one-semantic-commit-plus-fixups branch. On a multi-commit branch there is no agent-safe form of that pass: `git rebase -i` opens `$EDITOR` on its todo file, exactly the stall a bare `--amend` causes. The one-line escape does NOT exist: `GIT_SEQUENCE_EDITOR=true git rebase -i <base>` accepts the all-`pick` todo verbatim, so it rewrites no message at all — never run `git rebase -i` from an agent session; the non-tip bodies are the owner's interactive job, or the branch is collapsed to a single commit whose body is amended with the heredoc form above. Line-number cites in the body are the first thing to go stale here — prefer grep-token cites (`/tzurot-git-workflow` § Before writing a closing reference in the PR body).
 
 **Final-round one-push exception**: when a round's fixes are the _expected last edits_ (post-autosquash review findings, or a round the agent intends to merge after), combining the fixup with the pre-merge autosquash in ONE force-push is sanctioned — it saves a full CI cycle versus fixup-push → green → autosquash-push → green. Judgment call: use it only when nothing else is expected to change; if the next review finds more, the branch is already squashed and the next fixes start a fresh fixup cycle (no harm, just no savings).
 
@@ -147,9 +147,7 @@ Mid-PR rebase (i.e., autosquash + force-push between review rounds) is reserved 
 - A fixup breaks a semantic commit in a way that needs `rebase --edit` to amend (not just autosquash).
 - The underlying commit structure itself needs restructuring (splitting a commit, reordering, etc.) — not cosmetic polish.
 
-**"Tidy history for its own sake" is not on that list.** Force-push per round costs ~4 min of pre-push hook + full CI re-run + claude-review re-run per cycle — the cumulative wait time compounds across rounds for zero functional benefit. It also risks losing reviewer inline-comment anchors when history rewrites.
-
-Do not conflate "rebase-only merge strategy" (the project's convention — no merge commits, no squash-on-merge, use `gh pr merge --rebase`) with "rebase before every push" (a habit some contributors carry in from other projects). The first is required; the second is drift. **And do not assume `gh pr merge --rebase` will autosquash for you — it won't.**
+**"Tidy history for its own sake" is not on that list**: a per-round force-push costs ~4 min of pre-push hook + full CI re-run + claude-review re-run per cycle for zero functional benefit, and risks losing reviewer inline-comment anchors. And do not conflate the rebase-only MERGE strategy (required: `gh pr merge --rebase`, no squash, no merge commits) with a rebase-before-every-push habit — the first is the convention, the second is drift.
 
 For items escalated to ASK: do not apply. Skip to rule 4.
 
@@ -230,21 +228,7 @@ summary is where the falsification lands.)
 
 **This is a rule of thumb, not a hard stop** (owner call). Three rounds is where a loop usually stops being refinement — but a round-4 finding that is genuinely substantive (it makes a claim in the diff false, it names a real defect) gets FIXED, not deferred to a menu. Use judgement, and say in the round summary that the guideline was passed and why.
 
-When a PR reaches **round 4 without user intervention** and the remaining items are nits rather than defects, stop and present consolidated status:
-
-```
-PR #N has completed 3 rounds of review-respond. Remaining unresolved items:
-
-1. [semantic:control-flow] ... (raised round 2, still open)
-2. [semantic:contract] ...     (raised round 3, new)
-
-Each round's fixes have surfaced new findings. Options:
-- Merge as-is (remaining items → appropriate `backlog/**/*.md` file)
-- Rewrite the PR to address remaining items differently
-- Review the loop — maybe the PR scope is wrong
-```
-
-Long review loops are usually a convergence failure rather than genuine quality refinement, and the user is better positioned than the agent to decide whether to merge, rewrite, or abandon.
+When a PR reaches **round 4 without user intervention** and the remaining items are nits rather than defects, stop and present consolidated status: the round count, each still-open finding with the round that raised it, and the three options — merge as-is (remaining items → the appropriate `backlog/**/*.md` file), rewrite the PR differently, or review the loop for a scope problem. Long review loops are usually a convergence failure rather than genuine quality refinement, and the user is better positioned than the agent to decide whether to merge, rewrite, or abandon.
 
 The cap resets on user intervention. **"User intervention" means the user explicitly answered an ASK, approved/rejected an auto-apply call, or directed the agent to take a specific action.** Merely reading a round summary without a response, acknowledging with a thumbs-up emoji, or a "continue" that doesn't address an open ASK does not count — those are light-touch signals the user is still present, but the decision-fatigue pressure the round cap exists to bound is about _active_ user engagement, not _passive_ presence. When in doubt: if the user said something that would differently route an item (answered an ASK, amended a fix, told the agent to do X), reset the counter; if they didn't, don't reset.
 
@@ -302,19 +286,6 @@ When the user observes the agent making a category of change it handles well, ad
 When the user observes a mis-classification the agent should have avoided, add the specific shape to **Explicit non-trivial** with the mis-classification incident noted.
 
 Keep each entry self-contained so an observer can verify a candidate diff against one entry without reading the full file.
-
-## Checklist for the agent
-
-Before each round's consolidated message:
-
-- [ ] Every review item classified against trivial / non-trivial / unknown (rule 1), and every semantic item routed by decision owner — `[semantic:decided]` only when no product/UX, user-visible, schema, spend, data-rights, or security dimension exists and no existing test assertion, async boundary, or external contract changes
-- [ ] Every auto-apply candidate checked against reviewer label for signal conflict (rule 2)
-- [ ] Every "no action now" item routed by what would reopen it — Do it now (this file/diff) / File the batch (a named cross-file pass) / Backlog candidate (a named observable) / Dismissed (nothing) per rule 2's deferral rows; a Do-it-now item re-enters rule 1 and lands under Auto-applied or Asks; on a process-work PR a low-priority Backlog candidate becomes a `[residue]` line in the PR body instead of a task
-- [ ] Every origin-scoped finding ("pre-existing" / "not a regression") given a merits disposition — never Dismissed on origin alone (rule 2's origin-language row)
-- [ ] Every auto-applied fixup commit has a green package-level test run (rule 3)
-- [ ] Round-N message contains all four sections, even empty ones (rule 4)
-- [ ] If this is round 4+, consolidated status menu presented instead of another iteration (rule 5)
-- [ ] If this is round 7+, findings handed off to a fresh-context implementer or the owner instead of fixed directly (rule 5a)
 
 ## Relationship to the rules
 
