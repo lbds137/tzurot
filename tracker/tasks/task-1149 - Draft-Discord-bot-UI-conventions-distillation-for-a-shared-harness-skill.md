@@ -1,9 +1,10 @@
 ---
 id: TASK-1149
 title: Draft Discord bot UI conventions distillation for a shared harness skill
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-01 02:05'
+updated_date: '2026-10-01 17:25'
 labels:
   - 'area:docs'
   - 'size:S'

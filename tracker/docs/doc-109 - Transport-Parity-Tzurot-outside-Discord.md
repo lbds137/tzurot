@@ -268,8 +268,11 @@ Q2 in the original open-questions list is obsolete.)
 
 - **TR-9.1 [T]** TASK-1145: `pnpm ops` command deriving bot-client's discord.js surface from
   source → JSON + markdown + checked-in snapshot + CI check, so a PR that adds a primitive shows
-  up as a snapshot diff. Until it exists, **Appendix A is the conformance list** (v1, manual,
-  dated 2026-09-30) and the fork/Machloket sessions consume it from this doc.
+  up as a snapshot diff. **SHIPPED 2026-10-01 (PR #2562)**: the command is
+  `pnpm ops surface:inventory` and the live conformance list is the snapshot pair
+  `docs/reference/conformance/discord-surface.{json,md}` (2,886 entries / 6,667 sites;
+  `--write` regenerates, `--check` gates in quality + CI). Appendix A below is the dated v1
+  manual pass, kept as history.
 - **TR-9.2 [T]** Owner hard line (2026-09-28): a UX wave that adds a primitive the fork never
   heard about is the failure mode. The snapshot check is the mechanical guard; until then this
   doc's Appendix A carries a dated revision header and gets re-derived on every UX-wave merge.
@@ -327,7 +330,7 @@ Q2 in the original open-questions list is obsolete.)
    in the fork repo at `docs/local/boot-b/secrets.env` (mode 600, git-excluded) — read
    in-shell at boot time, never copied into this repo. Q8/10007 accepted by the fork as gap G3,
    queued behind the allowed_mentions patch.
-3. TASK-1145 ops command + snapshot (turns TR-9.1 mechanical).
+3. TASK-1145 ops command + snapshot (turns TR-9.1 mechanical) — SHIPPED 2026-10-01 (PR #2562).
 4. Gap analysis from the boot → PRs (Tzurot-side) / requirements deltas (peer-side).
 
 ## Coordination log
@@ -743,8 +746,10 @@ Q2 in the original open-questions list is obsolete.)
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
-> Derived 2026-09-30 by an inventory agent over develop; to be superseded by TASK-1145's
-> command (TR-9.1). Dated revision: re-derive on every UX-wave merge until then.
+> Derived 2026-09-30 by an inventory agent over develop. SUPERSEDED 2026-10-01 by
+> `pnpm ops surface:inventory` (TASK-1145, PR #2562): the live conformance list is
+> `docs/reference/conformance/discord-surface.{json,md}`; this appendix is the dated v1
+> manual pass, kept as history.
 
 # Tzurot Discord-API Surface Inventory (conformance checklist for a Spacebar-fork reimplementation)
 
