@@ -7,21 +7,17 @@ import {
   clearAllChannelSettingsCache,
   confirmDelivery,
   healthCheck,
-  stampUserActivity,
 } from './utils/gatewayServiceCalls.js';
 import { CommandHandler } from './handlers/CommandHandler.js';
-import { handleCommandWithContext } from './handlers/commandDispatch.js';
+import { routeInteraction } from './handlers/interactionRouter.js';
 import { closeRedis, redis } from './redis.js';
 import { armBootWatchdog } from './utils/bootWatchdog.js';
 import { deployCommands } from './utils/deployCommands.js';
 import { buildDiscordClientOptions } from './utils/discordClientOptions.js';
 import { shouldAutoRegisterCommands } from './utils/commandRegistrationGate.js';
-import { respondToInteractionDuringMaintenance } from './utils/maintenanceResponses.js';
 import { deliverJobResult, type JobResultDeliveryDeps } from './services/deliverJobResult.js';
 import { registerGuildMemberInfoReporter } from './services/GuildMemberInfoReporter.js';
 import { runBootRecovery } from './services/bootRecovery.js';
-import { isInteractionDenied } from './processors/interactionDenylistGate.js';
-import { getThreadParentId } from './utils/discordChannelTypes.js';
 import { StartupDMPrewarmer } from './services/StartupDMPrewarmer.js';
 import { registerShardLifecycleLogging } from './services/ShardLifecycleLogger.js';
 import {
@@ -115,64 +111,11 @@ client.on(Events.MessageCreate, message => {
   })();
 });
 
-// Interaction handler for slash commands, modals, autocomplete, and component interactions
+// Interaction handler for slash commands, modals, autocomplete, and component interactions.
+// The body lives in interactionRouter.ts, which owns the foreign-application
+// guard, the denylist check, the maintenance gate, and the dispatch branches.
 client.on(Events.InteractionCreate, interaction => {
-  // Warm the DM channel cache for this user; see DMCacheWarmer.ts for why.
-  services.dmCacheWarmer.warm(interaction.user);
-  void (async () => {
-    try {
-      // Denylist check — applies to ALL interaction types (silent deny)
-      if (
-        isInteractionDenied(services.denylistCache, {
-          userId: interaction.user.id,
-          guildId: interaction.guildId,
-          channelId: interaction.channelId,
-          parentChannelId: getThreadParentId(interaction.channel),
-        })
-      ) {
-        return;
-      }
-
-      // Maintenance gate — friendly ephemeral rejection instead of letting the
-      // interaction reach the (503ing) gateway during a migration window. The
-      // TTL-cached flag read stays well inside the 3-second ack budget; the
-      // maintenance reply itself is the ack.
-      if (await services.maintenanceFlag.isActive()) {
-        await respondToInteractionDuringMaintenance(interaction);
-        return;
-      }
-
-      if (interaction.isChatInputCommand()) {
-        // Retention: pure-client commands (e.g. /help) render bot-side and never
-        // reach the gateway, so stamp activity here for every chat-input command.
-        // Fire-and-forget — the wrapper logs on failure and never throws; the
-        // redundant stamp for gateway-reaching commands (which already stamp via
-        // getOrCreateUser) is a harmless idempotent NOW-write. Not awaited: the
-        // stamp must never delay or fail the 3-second ack path.
-        void stampUserActivity(interaction.user.id).catch(() => {
-          /* wrapper already logs; swallow so a rejection can't become unhandled */
-        });
-
-        // The dispatcher owns the whole chat-input path, including the
-        // unknown-command reply when the lookup comes back empty.
-        await handleCommandWithContext(
-          interaction,
-          commandHandler.getCommand(interaction.commandName)
-        );
-      } else if (interaction.isMessageContextMenuCommand()) {
-        await commandHandler.handleContextMenuCommand(interaction);
-      } else if (interaction.isModalSubmit()) {
-        await commandHandler.handleModalInteraction(interaction);
-      } else if (interaction.isAutocomplete()) {
-        await commandHandler.handleAutocomplete(interaction);
-      } else if (interaction.isStringSelectMenu() || interaction.isButton()) {
-        // Route component interactions to their commands based on customId prefix
-        await commandHandler.handleComponentInteraction(interaction);
-      }
-    } catch (error) {
-      logger.error({ err: error }, 'Error in interaction handler');
-    }
-  })();
+  void routeInteraction({ services, commandHandler }, interaction);
 });
 
 // Ready event
