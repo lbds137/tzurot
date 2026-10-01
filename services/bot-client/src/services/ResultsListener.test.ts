@@ -8,6 +8,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import { Redis } from 'ioredis';
+import { ResultsListener } from './ResultsListener.js';
 import { JobStatus } from '@tzurot/common-types/constants/queue';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 
@@ -21,17 +23,36 @@ interface JobResultForTest {
   result?: LLMGenerationResult;
 }
 
-// Mock ioredis to prevent actual connections during tests
+// Mock ioredis to prevent actual connections during tests. The factory must
+// stay CONSTRUCTIBLE (a `function`, not an arrow): ResultsListener's
+// constructor does `new IORedis(...)`, and an arrow impl has no [[Construct]]
+// slot, so `new (vi.fn(arrow))()` throws "is not a constructor".
 vi.mock('ioredis', () => ({
-  Redis: vi.fn(() => ({
-    on: vi.fn(),
-    connect: vi.fn().mockResolvedValue(undefined),
-    quit: vi.fn().mockResolvedValue(undefined),
-    xgroup: vi.fn().mockResolvedValue(undefined),
-    xreadgroup: vi.fn().mockResolvedValue(null),
-    xack: vi.fn().mockResolvedValue(1),
-  })),
+  Redis: vi.fn(function mockRedisCtor() {
+    return {
+      on: vi.fn(),
+      connect: vi.fn().mockResolvedValue(undefined),
+      quit: vi.fn().mockResolvedValue(undefined),
+      xgroup: vi.fn().mockResolvedValue(undefined),
+      xreadgroup: vi.fn().mockResolvedValue(null),
+      xack: vi.fn().mockResolvedValue(1),
+    };
+  }),
 }));
+
+// Mock getConfig so the constructor finds a valid REDIS_URL (carrying a /1 db
+// suffix) without environment setup. Same pattern as JobFailureListener.test.ts.
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: () => ({
+      REDIS_URL: 'redis://localhost:6379/1',
+    }),
+  };
+});
 
 describe('ResultsListener - JobResult Construction', () => {
   /**
@@ -215,6 +236,21 @@ describe('ResultsListener - JobResult Construction', () => {
 
       expect(actualMessage).toMatchObject(expectedStructure);
       expect(typeof actualMessage.result).toBe('string');
+    });
+  });
+
+  describe('Redis connection construction', () => {
+    it('passes db 1 from the REDIS_URL pathname to the ioredis constructor', () => {
+      vi.mocked(Redis).mockClear();
+
+      new ResultsListener();
+
+      // The mock factory is `Redis: vi.fn(() => ({...}))`, so the constructor
+      // options bag is the first entry of the recorded call args.
+      const lastCall = vi.mocked(Redis).mock.calls.at(-1);
+      expect(lastCall).toBeDefined();
+      const opts = (lastCall as unknown as [Record<string, unknown>])[0];
+      expect(opts.db).toBe(1);
     });
   });
 });
