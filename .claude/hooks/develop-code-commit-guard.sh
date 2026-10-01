@@ -5,9 +5,17 @@
 # dependency manifests, Dockerfiles, and .claude rules/skills/hooks must go
 # branch → PR → review.
 #
-# The gate keys off the DIRTY TREE, not the staging area: the failure shape
-# is an `git add … && git commit` chain, where at PreToolUse time nothing is
-# staged yet — only the working tree carries the signal.
+# The NO-override gate keys off the DIRTY TREE, not the staging area: the
+# failure shape is an `git add … && git commit` chain, where at PreToolUse
+# time nothing is staged yet — only the working tree carries the signal. The
+# OVERRIDE path is the opposite seam: the token exists for doc-only commits,
+# so what it must judge is what the commit would actually capture — the
+# INDEX plus the paths a `git add` in the same command would stage — and a
+# gated file in that set blocks even under the token (probe: "override:
+# staged .ts blocks, banner names the file"). A commit invocation that
+# stages-and-commits itself (`-a`/`--all`, a short-flag cluster containing
+# `a`, a pathspec) is the same hole by a third path — no `git add`, no index
+# change — and fails closed instead (probe: the auto-stage override cases).
 #
 # Matching notes (review-hardened):
 # - Heredoc bodies and quoted strings are stripped BEFORE any matching, so the
@@ -34,7 +42,11 @@
 #   command (typically the first): its presence in command position — never
 #   in quoted/heredoc prose — is the deliberate, review-visible unlock for
 #   the whole command. This is a visibility guard, not a security boundary,
-#   so per-segment env semantics are intentionally not modeled.
+#   so per-segment env semantics are intentionally not modeled. The unlock
+#   covers the doc-only gate only: under the token, the commit set (index +
+#   same-command adds) is still classified, and an add whose target set
+#   cannot be enumerated fails closed (probe: "override: in-command blanket
+#   add (git add .) cannot be verified").
 # - Known limitation: the branch check runs in CLAUDE_PROJECT_DIR; a command
 #   that cd's into a DIFFERENT checkout/worktree is checked against the main
 #   checkout's branch. Accepted — the failure pattern this guards is in-repo.
@@ -119,7 +131,15 @@ import sys
 # exits non-zero, which the caller treats as allow (fail-open); the probe,
 # not runtime, is what catches a missing lib.
 sys.path.insert(0, os.environ["HOOK_LIB"])
-from shell_quotes import strip_quoted, substitution_spans_matching
+from shell_quotes import (
+    strip_quoted,
+    strip_quoted_indexed,
+    strip_heredoc_bodies,
+    substitution_spans,
+    substitution_spans_matching,
+    resolve_placeholders,
+    QUOTED_SPAN,
+)
 
 cmd = os.environ.get("GUARD_CMD", "")
 if not cmd:
@@ -291,7 +311,7 @@ def _header_verdict(raw, classify_text):
     return _subject_verdict(_plain_subject(raw))
 
 
-def _emit(gate_verdict):
+def _emit(gate_verdict, payload_lines=()):
     # The header verdict is computed in ISOLATION from the gate verdict: an
     # unhandled exception here must degrade the header check to "ok" and
     # never take the develop/main review gate down with it. Without this
@@ -307,6 +327,12 @@ def _emit(gate_verdict):
         except Exception:
             header = "ok"
     print(f"HDR:{header}")
+    # Middle lines are free: the caller reads line 1 as the HDR verdict and
+    # the LAST line as the gate verdict. The override path carries its
+    # payload between them, one per line: parsed `git add` targets, plus a
+    # fail-closed marker when a commit invocation would auto-stage.
+    for line in payload_lines:
+        print(line)
     print(gate_verdict)
     raise SystemExit
 
@@ -317,6 +343,11 @@ def _emit(gate_verdict):
 # and erases the very line carrying `git commit`.)
 cmd = re.sub(r"\$\(cat <<'?\"?(\w+)'?\"?.*?\n\1\s*\)", "MSG", cmd, flags=re.S)
 cmd = re.sub(r"<<[-~]?\s*'?\"?(\w+)'?\"?.*?\n\1(?=\s|$)", "HEREDOC", cmd, flags=re.S)
+# Captured BEFORE the quote strip below turns every quoted span into `S`:
+# the override's add-parse extracts targets from THIS text via the indexed
+# strip, so a quoted target resolves to its real path instead of vanishing
+# into a placeholder (probe: "override: quoted add of a gated file blocks").
+heredoc_stripped = cmd
 
 # Quote stripping is a single left-to-right SCAN. The two independent regex
 # passes this replaces were a BYPASS of this blocking hook, measured:
@@ -434,11 +465,206 @@ if not detected:
 # supposed to be a deliberate, review-visible act, so it recognises exactly one
 # spelling. The failure direction is safe either way: an unrecognised spelling
 # BLOCKS, it never bypasses.
-for segment in re.split(r"&&|\|\||;|\||\n", cmd):
-    if re.match(r"\s*TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1(\s|$)", segment):
-        _emit("ok")
+segments = re.split(r"&&|\|\||;|\||\n", cmd)
+override_requested = any(
+    re.match(r"\s*TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1(\s|$)", s) for s in segments
+)
+if not override_requested:
+    _emit("check")
 
-_emit("check")
+# --- the override path: classify what the commit would capture ----------
+# The token used to emit "ok" unconditionally — a blanket pass that let a
+# pre-staged INDEX full of code ride a doc-only commit. The commit set under
+# the override is the index (`git diff --cached`, read by the caller after
+# this exits) PLUS the paths a `git add` in the SAME command would stage:
+# the hook runs before that add, so the index alone cannot see it. Specific
+# path arguments are handed to the caller for the gated classification; any
+# shape whose staged result cannot be enumerated (blanket flags, `.`, a
+# directory pathspec, a glob, an unmodeled flag) is reported as UNPARSABLE
+# and fails closed — blanket-allowing it would reintroduce the hole (probe:
+# "override: in-command blanket add (git add .) cannot be verified").
+# A commit invocation that stages-and-commits itself (`-a`/`--all`, a
+# short-flag cluster containing `a` such as `-am`, or a pathspec-limited
+# `git commit <path>`) is the same cannot-enumerate class — it stages
+# tracked content with no `git add` and no index change — and is reported
+# as COMMIT_UNMODELABLE into the same banner (probe: the three auto-stage
+# override cases).
+#
+# Compiled here rather than passed as an argument: the gitCommitPatternAgreement
+# test extracts is_commit_invocation's pattern by the single-line `re.search`
+# call shape it greps for, and hard-fails on a second occurrence anywhere in
+# this file — comments included, which is why this note spells no call shape.
+# ADD_RE is the board-commit-branch-gate.sh ADD_RE shape (`add` for `commit`);
+# it has no cross-hook case table.
+ADD_RE = re.compile(r"(?i)\bgit(?:\s+-+[^-\s]\S*(?:\s+[^-\s]\S*)?)*\s+add(?![-\w])")
+
+
+def _unparsable_add_token(token):
+    if not token:
+        # An empty pathspec (`git add ""`) stages nothing: there is no
+        # concrete path to classify.
+        return True
+    if QUOTED_SPAN in token:
+        # A quoted span whose value could not be consumed —
+        # resolve_placeholders leaves a surplus placeholder in place rather
+        # than raising, and a token still holding one names no real path.
+        return True
+    if token.startswith("-"):
+        # Every flag fails closed, not just the blanket ones: -f/-N keep the
+        # paths specific, but this parse does not model flag semantics, and
+        # the fail-closed direction only costs a re-spelled command.
+        return True
+    if token in (".", ".."):
+        return True
+    if token.endswith("/"):
+        # A directory pathspec stages everything gated under it; the gated
+        # classifier works on file paths and cannot enumerate a directory.
+        return True
+    if re.search(r"[*?\[]", token):
+        return True
+    return False
+
+
+def _commit_auto_stages(segment):
+    # True when a `git commit` invocation would stage-and-commit tracked
+    # content in one step. Both shapes below stage tracked files'
+    # working-tree content AT COMMIT TIME — no `git add` crosses this hook
+    # and the index never changes, so neither the caller's index read nor
+    # the add-parse can see what the commit will capture (probe:
+    # "override: commit -am auto-stage cannot be verified" and its --all /
+    # pathspec twins):
+    # - `--all`, `-a`, or a short-flag cluster containing `a` (`-am`,
+    #   `-ca`) — the same cluster shape the header subject extraction
+    #   anchors for `m`, here meaning "stages tracked changes";
+    # - any non-flag argument that is not the value of an exact
+    #   -m/--message/-F/--file flag — a pathspec. A cluster flag never
+    #   takes the next token as a value here: git hands the value to the
+    #   first value-taking letter in the cluster, so treating a cluster's
+    #   follower as a pathspec can only block a command, never pass one.
+    toks = segment.split()
+    commit_at = next((i for i, t in enumerate(toks) if t.lower() == "commit"), None)
+    if commit_at is None:
+        # Callers gate on is_commit_invocation, which pins a standalone
+        # `commit` token; reaching this branch means that assumption broke,
+        # so fail closed rather than guess.
+        return True
+    skip_value = False
+    for tok in toks[commit_at + 1 :]:
+        if skip_value:
+            skip_value = False
+            continue
+        if tok in ("MSG", "HEREDOC"):
+            # Placeholders the two message strips above wrote in place of
+            # message-shaped spans — the strips only ever stand in for
+            # message data, so a token surviving as MSG/HEREDOC names no
+            # repo path a commit could stage.
+            continue
+        if tok == "--all":
+            return True
+        if tok == "--":
+            # End of flags: the next non-flag token is a pathspec, and the
+            # bare-token branch below reports it.
+            continue
+        if tok.startswith("-"):
+            if not tok.startswith("--"):
+                body = tok[1:].split("=", 1)[0]
+                if re.fullmatch(r"[a-zA-Z]*", body) and "a" in body:
+                    return True
+            if tok in ("-m", "-F", "--message", "--file"):
+                skip_value = True
+            continue
+        # A bare non-flag argument: a pathspec. Message/file values were
+        # skipped above, so this cannot be one (probe: "override: plain -m
+        # commit passes with a tracked dirty gated file" — the control that
+        # keeps plain `-m "subject"` commits passing).
+        return True
+    return False
+
+
+add_paths = []
+add_unparsable = False
+commit_unmodelable = False
+
+
+def _collect_adds(text):
+    global add_unparsable
+    # Targets are resolved from the indexed strip of the raw text, not from
+    # the quote-stripped `cmd`: there every quoted span had collapsed to `S`,
+    # so `git add "services/gated.ts"` tokenized as the target `S` — no gated
+    # extension, override passed (probe: "override: quoted add of a gated
+    # file blocks"). strip_quoted_indexed keeps each bash word whole and each
+    # quoted span resolvable, which also resolves the backslash-escaped-space
+    # shape into one path the old `.split()` broke in two (probe:
+    # "override: backslash-escaped spaced gated path blocks, naming the real
+    # path").
+    stripped = strip_quoted_indexed(text)
+    if stripped is None:
+        # An unterminated quote (or a literal placeholder codepoint) leaves
+        # the quoted spans unresolvable: an add here fails closed through
+        # the UNPARSABLE banner instead of guessing what it would stage
+        # (probe: "override: an unterminated quoted add target cannot be
+        # verified").
+        view, values, unresolvable = text, [], True
+    else:
+        view, values = stripped
+        unresolvable = False
+    for m in ADD_RE.finditer(view):
+        if unresolvable:
+            add_unparsable = True
+            continue
+        if re.search(r"[;&|\n]", m.group()):
+            # The match itself spans a command separator: bash runs those as
+            # separate commands (`echo git`, then `add x.ts`), staging
+            # nothing — the per-segment search this replaces guaranteed the
+            # same exclusion.
+            continue
+        seg_start = m.end()
+        stop = re.search(r"[;&|\n]", view[seg_start:])
+        seg_end = seg_start + stop.start() if stop is not None else len(view)
+        # `re.finditer(r"\S+", …)` rather than `.split()`: the token's
+        # OFFSET in the view is what locates its placeholder values below.
+        # A token's index is the number of QUOTED_SPAN characters before its
+        # start, so a quoted span earlier in the command (an unrelated
+        # quoted argument) cannot be mistaken for this token's value. Under
+        # the raw fallback the view holds no placeholders and `values` is
+        # empty, so resolution reduces to the plain text.
+        for tok in re.finditer(r"\S+", view[seg_start:seg_end]):
+            start = seg_start + tok.start()
+            resolved, _ = resolve_placeholders(
+                tok.group(), values, view.count(QUOTED_SPAN, 0, start)
+            )
+            if resolved == "--":
+                continue
+            if _unparsable_add_token(resolved):
+                add_unparsable = True
+                continue
+            add_paths.append(resolved)
+
+
+_collect_adds(heredoc_stripped)
+# A `$( )`/backtick span is executed by bash — the same reason the develop/
+# main gate above scans span contents for commits — so an add inside a span
+# stages too. Each span is resolved through the same indexed strip (heredoc
+# bodies off the raw text first); a span whose strip fails lands in the
+# unresolvable fail-closed path above.
+for span in substitution_spans(strip_heredoc_bodies(raw_cmd)):
+    _collect_adds(span)
+    if is_commit_invocation(span) and _commit_auto_stages(span):
+        commit_unmodelable = True
+
+# The same segments the gate classified: a commit invocation carrying an
+# auto-stage shape fails closed even when the add half parsed cleanly
+# (probe: the three auto-stage override cases).
+for s in segments:
+    if is_commit_invocation(s) and _commit_auto_stages(s):
+        commit_unmodelable = True
+
+payload = [f"ADD_PATH:{p}" for p in add_paths]
+if add_unparsable:
+    payload.insert(0, "UNPARSABLE")
+if commit_unmodelable:
+    payload.insert(0, "COMMIT_UNMODELABLE")
+_emit("override", payload)
 PYEOF
 ) || exit 0
 
@@ -529,13 +755,178 @@ HDRBANNER
   fi
 fi
 
-[ "$GATE_VERDICT" != "check" ] && exit 0
+# "check" = no override (working-tree gate below); "override" = token
+# present — the branch check still applies, then the override block handles
+# it. Any other verdict ("ok", no commit detected) exits: the same
+# single-token test this replaces, with the override token added.
+case "$GATE_VERDICT" in
+  check | override) : ;;
+  *) exit 0 ;;
+esac
 
 cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null || exit 0
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
 if [ "$BRANCH" != "develop" ] && [ "$BRANCH" != "main" ]; then
   exit 0
+fi
+
+# The override path's gated classifier. The working-tree check below carries
+# the SAME two greps inline; the sites (helper, index, adds) are one decision
+# and must stay in agreement — the same hand-managed discipline the
+# gitCommitPatternAgreement test enforces for the detection regexes. The
+# inline copy below predates this helper and is left as-is on purpose.
+gate_classify() {
+  grep -E '\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|prisma|sql|sh|yml|yaml|json|toml)$|(^|/)Dockerfile[^/]*$|^\.github/|^\.claude/(rules|skills|hooks)/' \
+    | grep -vxF 'backlog/cadence-ledger.json'
+}
+
+if [ "$GATE_VERDICT" = "override" ]; then
+  # --- override: classify the commit SET, not the dirty tree -------------
+  # The token unlocks doc-only commits, so the working tree is irrelevant
+  # here (an incidentally dirty tree is the documented use). What matters is
+  # the index plus the same-command adds the python heredoc parsed onto the
+  # middle output lines; the last line is the verdict itself and line 1 is
+  # the HDR verdict, so everything between is add-target payload.
+  # NR>2/NR>1 keeps lines 2..N-1: line 1 is the HDR verdict and line N the
+  # gate verdict, so only the middle lines are payload.
+  OVERRIDE_PAYLOAD=$(printf '%s\n' "$VERDICT" | awk 'NR>2{print prev} NR>1{prev=$0}')
+  UNPARSABLE_ADD=0
+  ADD_PATHS=""
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    case "$line" in
+      # Both fail-closed signals share the banner: an add whose target this
+      # parse cannot enumerate, and a commit invocation that would
+      # auto-stage (same cannot-enumerate class).
+      UNPARSABLE | COMMIT_UNMODELABLE) UNPARSABLE_ADD=1 ;;
+      ADD_PATH:*) ADD_PATHS="${ADD_PATHS}${line#ADD_PATH:}"$'\n' ;;
+    esac
+  done <<< "$OVERRIDE_PAYLOAD"
+
+  # The index at PreToolUse time — the pre-staged-by-transfer shape. Mirror
+  # the working-tree check's --no-renames discipline: a staged gated→
+  # non-gated rename rendered as one rename line would otherwise check only
+  # the NEW path's extension; decomposed D/A lines check both sides.
+  STAGED_GATED=$(git diff --cached --name-only --no-renames 2>/dev/null \
+    | gate_classify || true)
+  ADD_GATED=""
+  if [ -n "$ADD_PATHS" ]; then
+    ADD_GATED=$(printf '%s' "$ADD_PATHS" | gate_classify || true)
+  fi
+
+  # Fail CLOSED on a shape-blind add: a blanket flag, `.`, a directory
+  # pathspec, a glob or an unmodeled flag stages a set this gate cannot
+  # enumerate, and blanket-allowing it would reintroduce the hole the
+  # override check closes (probe: "override: in-command blanket add (git
+  # add .) cannot be verified").
+  if [ "$UNPARSABLE_ADD" = "1" ]; then
+    cat >&2 <<'UNVBANNER'
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DEVELOP CODE-COMMIT GUARD — override token present, but the staged
+set cannot be verified
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The command stages a set this gate cannot enumerate — a `git add`
+whose target cannot be parsed (a blanket flag (-A/-u/--all), a bare
+`.`, a directory pathspec, a glob, or an unmodeled flag), or a
+`git commit` that auto-stages tracked content itself (`-a`, `--all`,
+a short-flag cluster containing `a` such as `-am`, or a
+pathspec-limited `git commit <path>`). Passing it unchecked would
+reintroduce the exact hole the override check closes.
+
+Gated files already in the index:
+UNVBANNER
+    if [ -n "$STAGED_GATED" ]; then
+      printf '%s\n' "$STAGED_GATED" >&2
+    else
+      printf '  (none)\n' >&2
+    fi
+    printf '\nParsed specific targets:\n' >&2
+    if [ -n "$ADD_PATHS" ]; then
+      printf '%s' "$ADD_PATHS" >&2
+    else
+      printf '  (none)\n' >&2
+    fi
+    cat >&2 <<'UNVFOOTER'
+
+Fix: stage SPECIFIC paths in its own Bash call first (e.g.
+git add tracker/tasks/task-x.md), then issue the commit with the
+token. Specific path arguments classify normally.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+UNVFOOTER
+    exit 2
+  fi
+
+  GATED_ALL=$(printf '%s\n%s' "$STAGED_GATED" "$ADD_GATED" | sed '/^$/d' | sort -u)
+  if [ -z "$GATED_ALL" ]; then
+    exit 0
+  fi
+
+  # Version-bump exception, mirroring the working-tree check below with ONE
+  # deliberate difference: the diff source follows what the commit will
+  # actually capture. An index-borne file commits its STAGED diff
+  # (`git diff --cached -U0`) — using `git diff HEAD` here would let
+  # unstaged noise on the same manifest defeat a genuine bump (probe:
+  # "override: staged bump passes with unstaged noise on the same
+  # manifest"). A command-carried add is the opposite: the add restages the
+  # file's working state, so `git diff HEAD -U0` IS the staged-to-be diff
+  # (probe: "override: in-command add of a version-only manifest bump
+  # passes").
+  VERSION_OK=1
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    if [ -n "$ADD_PATHS" ] && [[ $'\n'$ADD_PATHS$'\n' == *$'\n'"$f"$'\n'* ]]; then
+      SRC_DIFF=HEAD
+    else
+      SRC_DIFF=--cached
+    fi
+    if ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+      VERSION_OK=0; break   # untracked/new manifest is not a bump shape
+    fi
+    # ([^+-]|$): a bare +/- (added/removed EMPTY line) is still a change —
+    # without the |$ alternative it would be invisible to the check.
+    # Unquoted $SRC_DIFF is a deliberate two-form expansion (both values are
+    # literals this file assigned: `--cached` and `HEAD`).
+    CHANGED=$(git diff $SRC_DIFF -U0 -- "$f" 2>/dev/null | grep -E '^[+-]([^+-]|$)' || true)
+    if [ -z "$CHANGED" ] \
+      || printf '%s\n' "$CHANGED" | grep -vE '^[+-][[:space:]]*"version":' >/dev/null; then
+      VERSION_OK=0; break
+    fi
+  done <<< "$GATED_ALL"
+  if [ "$VERSION_OK" = "1" ]; then
+    exit 0
+  fi
+
+  GATED_COUNT=$(printf '%s\n' "$GATED_ALL" | wc -l)
+  cat >&2 <<'OVRBANNER'
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DEVELOP CODE-COMMIT GUARD — override token present, but review-gated
+files are in the commit set
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TZUROT_ALLOW_DEVELOP_CODE_COMMIT unlocks DOC-ONLY commits on
+develop/main; it does not waive the review gate. Gated files sit in
+the index (pre-staged) or in a `git add` carried by this same
+command:
+
+Gated files (first 10):
+OVRBANNER
+  printf '%s\n' "$GATED_ALL" | head -10 >&2
+  if [ "$GATED_COUNT" -gt 10 ]; then
+    printf '  …and %d more\n' "$((GATED_COUNT - 10))" >&2
+  fi
+  cat >&2 <<'OVRFOOTER'
+
+Fix: stage ONLY the doc files for this commit (specific paths), or
+move the code to a branch — git checkout -b <type>/<name> — and
+commit there.
+
+Remedy: issue the branch switch as its OWN Bash call, then commit in
+the next call. This gate evaluates the branch BEFORE your && chain
+runs, and a blocked PreToolUse call executes NONE of its chain — an
+earlier `git add` in the same chain did not run either.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OVRFOOTER
+  exit 2
 fi
 
 # Review-gated files anywhere in the dirty tree (staged, unstaged, untracked):
