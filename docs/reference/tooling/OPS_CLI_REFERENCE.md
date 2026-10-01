@@ -434,6 +434,26 @@ Analyze TypeScript codebase structure via AST parsing. Extracts classes, functio
 
 **Use case:** Architectural overview, tech debt assessment, LLM context for refactoring.
 
+## Surface Inventory Commands
+
+Type-checked inventory of bot-client's discord.js API surface. Builds a ts-morph Program over `services/bot-client/tsconfig.json`, resolves every call / new / property-access / enum-member / option-key site to its declaration, and keeps the sites whose declarations live under discord.js / @discordjs/* / discord-api-types. The committed snapshot pair lives in `docs/reference/conformance/`.
+
+| Command                                        | Description                                                                                    |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `pnpm ops surface:inventory`                   | Terminal report: every category, unclassified detail, totals + timing                          |
+| `pnpm ops surface:inventory --format json`     | JSON form (snapshot document plus `elapsedMs` at top level)                                    |
+| `pnpm ops surface:inventory --format markdown` | Markdown form (the snapshot markdown, without touching files)                                  |
+| `pnpm ops surface:inventory --write`           | Regenerate and write the snapshot pair in `docs/reference/conformance/`                        |
+| `pnpm ops surface:inventory --check`           | Byte-compare the committed pair against fresh output; exit 1 on drift (runs in `pnpm quality`) |
+
+**Options:**
+
+- `--format <fmt>` - Output format: `terminal` (default), `json`, `markdown`
+- `--write` - Write `discord-surface.json` + `discord-surface.md` (the pair is prettier-exempt; refresh and commit together)
+- `--check` - Drift gate; a missing snapshot file counts as drift
+
+**Notes:** The `unclassified` bucket is required and never dropped — unmapped discord.js classes and object-literal keys surface there; methods and property accesses land in `client-methods` (a brand-new method still trips the drift gate, as a `client-methods` diff). Enum members whose container no table names surface in `discord-enums` under container-qualified names (`ButtonStyle.Primary`); message-payload option keys with no builder receiver land in `message-options` (Webhook receivers stay `webhook-options`). doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual. `rest-outside-helpers` sees string-literal URLs only (a URL assembled at runtime is invisible to it).
+
 ## Test Audit Commands
 
 Ratchet audits to enforce test coverage (CI runs these automatically):

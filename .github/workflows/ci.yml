@@ -242,6 +242,13 @@ jobs:
       - name: Audit slash-command surface consistency
         run: pnpm ops commands:audit --summary
 
+      - name: Check discord.js surface snapshot is fresh
+        # Byte-compares docs/reference/conformance/discord-surface.{json,md}
+        # against a fresh type-checked inventory of bot-client's discord.js
+        # usage. A PR adding a new primitive fails here until the snapshot is
+        # refreshed: `pnpm ops surface:inventory --write`.
+        run: pnpm ops surface:inventory --check
+
       - name: Check dependency boundaries
         run: pnpm depcruise
 
