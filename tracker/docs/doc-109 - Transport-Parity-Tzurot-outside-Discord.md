@@ -757,6 +757,12 @@ Q2 in the original open-questions list is obsolete.)
   permissive) until an unrelated denylist invalidation event; gap filed as TASK-1154. Zero
   level-50 errors after the first minute. Interactive half pending: Lila exercises the test
   guild on the beta.233 build; Machloket client session coordinates client-side.
+- **2026-10-01 ~22:20 EDT — Fork bounce NOTICE (Lila-approved): machloket-server A+B
+  restarting to deploy main tip `ab00da8f3`** (up from `e3e84c9ef`): **G5** allowed_mentions
+  schema rejection (the in-flight patch flagged 2026-09-30 ~02:50) + **G4** edit-mention
+  recompute. :3001/:3002 drop ~1 min; boot B re-IDENTIFYs; ports/DB unchanged. Tzurot boot
+  bot rides the reconnect. TASK-1146's CLIENT LIST check already PASSED pre-bounce
+  (45/45 db=1); interactive TR exercise still pending Lila.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
