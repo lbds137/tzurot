@@ -23,4 +23,6 @@ What: distill the project-neutral design language (NOT the Tzurot TypeScript uti
 Acceptance: draft exists as a doc the Harness session can lift verbatim; YAGPDB slash pass offered a review against it.
 
 INPUT FROM YAGPDB CONSULT (2026-09-30): the customId DELIMITER is a project-level choice, not a universal rule - the invariant is "a delimiter that cannot occur in any segment the project encodes" (Tzurot uses `::` because slugs may contain `-`; YAGPDB uses `:` with colon-free segments, established by its channel_activity_pager `ca:stale:2`). The draft states the invariant and both implementations as examples. YAGPDB /db slash spec maps get->view, keys->browse, set/add/remove/delete keep names, dump stays as export (vocabulary table confirmed portable).
+
+INPUT FROM HARNESS SESSION (via YAGPDB, 2026-09-30): the skill's audience includes sessions that have never driven a bot - every Discord term (customId, ephemeral, defer, subcommand, component, and friends) gets a one-line inline definition in the draft. No term arrives undefined.
 <!-- SECTION:DESCRIPTION:END -->
