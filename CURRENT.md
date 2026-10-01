@@ -1,8 +1,8 @@
 # Current
 
-> **Version**: v3.0.0-beta.232 — "the voice-retry fixes" (2 PRs / 2 runtime / 69 files; no migrations; release PR #2546, rebase-merged 2026-09-27 10:52Z; `release:finalize` aligned develop, `main` = `develop` = `db576a093`; tagged `latest`). Constituent detail: git + release notes.
+> **Version**: v3.0.0-beta.233 — "the parity train" (17 PRs / 12 runtime / ~200 files & 32.5k lines, 62% of it the generated conformance snapshot; no migrations; release PR #2566 merged via the documented fast-forward fallback at 118 commits 2026-10-01 20:52Z; `main` = `develop` = `91ee1f9f0`; tagged `latest`). Two holistic release reviews: "No findings". Constituent detail: git + release notes.
 >
-> **Previous**: v3.0.0-beta.231 — "the Vencord voice-engine fix, and the drain" (8 PRs / 3 runtime / 68 files; no migrations; 2026-09-25 23:53Z, `f06f7cc30`).
+> **Previous**: v3.0.0-beta.232 — "the voice-retry fixes" (2 PRs / 2 runtime; 2026-09-27, `db576a093`).
 
 ---
 
@@ -15,19 +15,13 @@
 - **Done 2026-09-13**: the Default `system_prompts` row edited on dev and prod (v1 then v2; long-form under doc-97 Phase 2) · `WEEKLY_AUDIT_GH_TOKEN` set (Dependabot row reads; deletion-safety row fixed by #2413) · `TZUROT_RAILWAY_API_TOKEN_DEV`/`_PROD` in the local `.env` (tooling reads them after the TASK-62 follow-up) · the TASK-798 prod measurement · the stale `.bashrc` OpenRouter key revoked · the Waffles Share-Memories question CLOSED by ruling (deal with it if it recurs) · the privacy-policy z.ai summaries bullet committed.
 - **Agent-run, no owner action**: the doc-17 gap-bucket cache read · the Emily gate and dead-row read · TASK-702 probe · TASK-62 env-suffixed token read · TASK-951 `.env.example` guard · TASK-838 cadence ledger then the doc-61 economy pass (ruled 2026-09-13, Opus lane) · the #2270 link-share watcher · the five `state:observable` watches TASK-952–956.
 
-## 🧪 beta.233 dev smoke — owner, one sitting (asks 2026-10-01, before the release-merge sign-off; dev already runs everything through #2562)
+## 🧪 beta.233 dev smoke — ALL VERIFIED 2026-10-01 (owner, same day as the release)
 
-Derived from the release range (14 PRs, 12 runtime); only the needs-smoke tier is asked — the rest is CI'd or agent-watched. Report pass/fail by number.
+1. Slash-command round-trip on dev — PASS (covers #2560's filter, #2564's overrides, #2553's DM-worker path).
+2. Quoted voice transcription (link-paste shape; Vencord cannot forward) — VERIFIED on dev AND prod.
+3. TASK-1070 (carried from beta.230) — CLOSED from prod logs: 4 real transcriptions + Pocket TTS load/synthesize at 18:34Z on the 3.13 build; the no-key half passed 2026-09-26 post-3.13.
 
-1. ~~⏳ _needs-smoke_ (dev): one plain slash-command round-trip~~ **PASS 2026-10-01 (owner: "dev slash commands seem to work as expected")**.
-   - **Covers**: the app-id hygiene filter not over-dropping own-app interactions (#2560), the fast-uri/undici override bumps through the live call chain (#2564), and the DM-workers-on-ready boot path (#2553) if run in a DM.
-   - **Pass**: the normal response arrives; no foreign-interaction warn in bot-client logs for your own command.
-2. ~~⏳ _needs-smoke_ (dev): quote a plain audio-only WebM (link-paste shape; Vencord cannot forward voice)~~ **VERIFIED 2026-10-01 (owner), dev and prod both**.
-   - **Pass**: the character answers the transcript. **Failure signal**: it renders as a file stub; no transcription routing line in ai-worker.
-3. ~~_needs-smoke_ (dev, carried from beta.230 — closes TASK-1070)~~ **CLOSED from prod logs 2026-10-01** (owner saw transcriptions working on prod; ai-worker logs carry 4 real `Audio transcribed via voice-engine` lines at 18:34Z on the 3.13 build, Pocket TTS loaded and synthesized in the same window; the no-key half PASSED on prod 2026-09-26 post-3.13). TASK-1070 Done.
-   - **Pass**: audio plays, transcription lands, no import/codec error in the voice-engine logs on first request.
-
-**No owner action needed (CI or observability instead of smoke)**: #2554 instance-origin (default-off config; the Discord default path is unchanged), #2561 redis db-index (the live CLIENT LIST check is the first joint-boot item, agent-run), #2558 avatar-path configurability (defaults preserve behavior; the first real avatar use logs), #2551/#2562/#2549/#2563 (tooling and docs, CI-gated). The PROD smokes stay separate after the deploy: beta.230 item 2 (settings-dashboard walk) and the beta.232 item (plain voice re-upload on prod).
+No-owner-action items (CI/observability): #2554 default-off config · #2561 CLIENT LIST check at the next joint boot · #2558 avatar-path defaults · #2551/#2562/#2549/#2563 tooling+docs. PROD smokes still open: beta.230 item 2 (settings-dashboard walk) and the beta.232 item (plain voice re-upload on prod).
 
 ## 🚢 2026-09-27 — beta.232 RELEASED (Opus 5.5; owner approved the cut and the merge ~06:50 EDT)
 
