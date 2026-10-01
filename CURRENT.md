@@ -15,13 +15,27 @@
 - **Done 2026-09-13**: the Default `system_prompts` row edited on dev and prod (v1 then v2; long-form under doc-97 Phase 2) · `WEEKLY_AUDIT_GH_TOKEN` set (Dependabot row reads; deletion-safety row fixed by #2413) · `TZUROT_RAILWAY_API_TOKEN_DEV`/`_PROD` in the local `.env` (tooling reads them after the TASK-62 follow-up) · the TASK-798 prod measurement · the stale `.bashrc` OpenRouter key revoked · the Waffles Share-Memories question CLOSED by ruling (deal with it if it recurs) · the privacy-policy z.ai summaries bullet committed.
 - **Agent-run, no owner action**: the doc-17 gap-bucket cache read · the Emily gate and dead-row read · TASK-702 probe · TASK-62 env-suffixed token read · TASK-951 `.env.example` guard · TASK-838 cadence ledger then the doc-61 economy pass (ruled 2026-09-13, Opus lane) · the #2270 link-share watcher · the five `state:observable` watches TASK-952–956.
 
+## 🧪 beta.233 dev smoke — owner, one sitting (asks 2026-10-01, before the release-merge sign-off; dev already runs everything through #2562)
+
+Derived from the release range (14 PRs, 12 runtime); only the needs-smoke tier is asked — the rest is CI'd or agent-watched. Report pass/fail by number.
+
+1. ⏳ _needs-smoke_ (dev): one plain slash-command round-trip (any command → the character answers, in a channel or a DM).
+   - **Covers**: the app-id hygiene filter not over-dropping own-app interactions (#2560), the fast-uri/undici override bumps through the live call chain (#2564), and the DM-workers-on-ready boot path (#2553) if run in a DM.
+   - **Pass**: the normal response arrives; no foreign-interaction warn in bot-client logs for your own command.
+2. ⏳ _needs-smoke_ (dev): forward OR quote a plain audio-only WebM to a character — the quoted/forwarded sibling #2548 fixed (#2545 covered plain re-uploads in beta.232).
+   - **Pass**: the character answers the transcript. **Failure signal**: it renders as a file stub; no transcription routing line in ai-worker.
+3. ⏳ _needs-smoke_ (dev, carried from beta.230 — closes TASK-1070): one TTS reply plays, and one voice message transcribes with NO STT key, on the Python 3.13 voice-engine build.
+   - **Pass**: audio plays, transcription lands, no import/codec error in the voice-engine logs on first request.
+
+**No owner action needed (CI or observability instead of smoke)**: #2554 instance-origin (default-off config; the Discord default path is unchanged), #2561 redis db-index (the live CLIENT LIST check is the first joint-boot item, agent-run), #2558 avatar-path configurability (defaults preserve behavior; the first real avatar use logs), #2551/#2562/#2549/#2563 (tooling and docs, CI-gated). The PROD smokes stay separate after the deploy: beta.230 item 2 (settings-dashboard walk) and the beta.232 item (plain voice re-upload on prod).
+
 ## 🚢 2026-09-27 — beta.232 RELEASED (Opus 5.5; owner approved the cut and the merge ~06:50 EDT)
 
 **What**: #2544 (TASK-1074: undecodable audio gets a "couldn't read that audio format" reply; voice-engine 415, non-retryable) and #2545 (TASK-1112: a plain re-uploaded voice file, `video/webm` with no voice flag, is byte-sniffed and transcribed when it has no video track; three review rounds, no blockers), plus the getting-started guide fix. One holistic review body, no findings. **Smoke (needs-smoke tier, owner, on prod)**: (1) re-upload a Vencord voice message as a plain file; the character should answer the transcript. Failure signal: no `Plain WebM upload is audio-only; routing to STT` line in ai-worker. **Filed at the cut**: TASK-1116 (quoted/forwarded path), TASK-1120 (A/V fixtures), TASK-1121 and TASK-1123 (owner calls: filenames in logs, privacy wording), TASK-1122 (bulk card import). **Misses**: the published notes went out mangled by a sed whose delimiter appeared in the replacement, fixed within minutes with `gh release edit`; a filtered push and a self-matching pgrep that killed the tool shell (TASK-1115 filed).
 
-## 🚢 2026-09-25 — beta.231 RELEASED (Fable; a fix-forward cut the owner ruled at ~18:40 EDT and approved at ~19:45 EDT)
+## 🚢 2026-09-25 — beta.231 RELEASED (Fable; fix-forward cut, owner ruled and approved same evening)
 
-**Why and what**: the owner's prod smoke of the beta.229 Vencord voice path passed on Mistral and failed on voice-engine (request `6581b177`: libsndfile rejected the stream-copied Ogg as malformed). Root cause reproduced on the Deck with the real recording: Chrome's MediaRecorder stamps 60 ms Opus packets with a jittered timeline (112 of 708 steps off), the stream copy carries it into the granule positions. Fix #2542 decodes, re-times (`asetpts=N/SR/TB`) and re-encodes (libopus 64k), still Ogg; `remuxWebmToOgg` → `transcodeWebmToOgg`. One review round (a comment hedge), merged `bdfe4b5b3`. Range 8 PRs / 3 runtime / 68 files, no migrations; release PR #2543 rebase-merged normally (35 commits), one holistic review body with no blocking findings, finalize aligned develop at `f06f7cc30`, tag + Release published, beta.230 demoted. **The one open confirmation** is the prod re-smoke (beta.229 checklist item 1 below): the container ffmpeg's `asetpts`/`libopus` support was not probed from the Deck; the fallback on failure is today's behaviour plus a `WebM-to-Ogg transcode failed` warn. **Filed at the cut**: TASK-1112 (a plain re-upload of a voice file is a dead end; owner question), TASK-1074 ruled onto beta.232. **Misses**: the lossy-pipe guard tripped twice, one commit header over 100, the packet-jitter count mis-measured until the unit re-ran ffprobe, one temp-path slip on the first prod log pull; the beta.230 cut had skipped its CURRENT.md header reset (caught by `bump-version`, fixed in the bump commit).
+The Vencord voice path: MediaRecorder's jittered 60 ms Opus timeline survived the stream copy, so #2542 decodes, re-times (`asetpts`) and re-encodes (libopus 64k) to Ogg. Range 8 PRs / 3 runtime / 68 files; no migrations; release PR #2543 rebase-merged normally. The container-ffmpeg confirmation closed via beta.229 item 1 (PASS 2026-09-26); filed at the cut: TASK-1112 (→ beta.232), TASK-1074 (→ beta.232).
 
 ## 🚢 2026-09-25 — beta.230 RELEASED (Fable; owner ruled "cut now" ~10:20 EDT and approved the merge ~11:00 EDT; doc-97 slice 2 moves to beta.231 regardless of the TASK-1039 read)
 
@@ -46,21 +60,9 @@
   - ~~**cut step after the merge**: re-add `hook-posix-parse` to the MAIN ruleset's required checks~~ DONE 2026-09-25 (live PUT, guard clean; snapshot refresh in its own PR);
   - the next nightly db-sync run on the new build (the 07Z slot).
 
-## 🚢 2026-09-24 — beta.229 RELEASED (Opus 5.5; owner approved the merge and kept the summarized mode live; first prod boots on Node 24 clean, 0 error lines in 15 min)
+## 🚢 2026-09-24 — beta.229 RELEASED (Opus 5.5; first prod boots on Node 24 clean; the summarized same-channel mode ruled KEEP by the owner, live on prod for Emily and lilith-tzel-shani)
 
-**Range final**: 30 PRs, 24 runtime, 402 files; no migrations (`release:premigrate --dry-run`: nothing to premigrate); version bumped on develop (`9feea7eaa`). A split local release review (four read-only area reviewers) found one Medium and one Low, both fixed in #2500; api-gateway, ai-worker and packages/infra came back clean.
-
-**Deploy decision, ruled KEEP by the owner 2026-09-24**: the dev flip of `sameChannelRenderMode: summarized` on Emily and lilith-tzel-shani (09-23 ~08:50 EDT) reaches prod through the last-write-wins db sync. beta.228 strips the key and beta.229 reads it, so the mode goes LIVE for those two characters on prod at deploy. The prod row was not re-read. Clearing it on prod would sync back and erase the dev ON state before the TASK-1039 read.
-
-**beta.229 smoke checklist (dev; report pass/fail by number)**:
-
-1. ~~a Vencord/Vesktop voice message (TASK-1069, #2499, fix #2542)~~ PASS 2026-09-26 00:02Z on prod, beta.231, no STT key: the ai-worker log shows `Relabeled` → `Transcoded WebM voice attachment to Ogg for STT` → `Audio transcribed via voice-engine` (107 chars), so the container ffmpeg carries `asetpts` and `libopus`. Mistral-BYOK had passed on beta.230. TASK-1069 CLOSED. Forwarding stays untestable (Vencord cannot forward a voice message). The raw re-upload of the same file as a plain attachment is still not transcribed (owner screenshot 2026-09-25 20:04 EDT: Discord renders it as a plain audio file) — TASK-1112, owner ruled it into beta.232.
-
-- **Agent-run (no owner action)**:
-  - each service's first boot on Node 24, in dev then prod;
-  - the next nightly db-sync logs one run (#2497);
-  - the next account export's README carries the memory-bookkeeping line (#2500);
-  - the `/inspect` masked-link render (#2259) stays a carried watch.
+Range 30 PRs / 24 runtime / 402 files; no migrations. Smoke item 1 PASS 2026-09-26 on prod (the container ffmpeg carries `asetpts`/`libopus`; TASK-1069 CLOSED; forwarding untestable via Vencord). Agent-run items done or carried (the `/inspect` masked-link render stays a watch).
 
 ## 📋 Open items (near-term)
 
