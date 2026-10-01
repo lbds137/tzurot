@@ -24,7 +24,7 @@ Derived from the release range (14 PRs, 12 runtime); only the needs-smoke tier i
    - **Pass**: the normal response arrives; no foreign-interaction warn in bot-client logs for your own command.
 2. ⏳ _needs-smoke_ (dev): forward OR quote a plain audio-only WebM to a character — the quoted/forwarded sibling #2548 fixed (#2545 covered plain re-uploads in beta.232).
    - **Pass**: the character answers the transcript. **Failure signal**: it renders as a file stub; no transcription routing line in ai-worker.
-3. ⏳ _needs-smoke_ (dev, carried from beta.230 — closes TASK-1070): one TTS reply plays, and one voice message transcribes with NO STT key, on the Python 3.13 voice-engine build.
+3. ~~_needs-smoke_ (dev, carried from beta.230 — closes TASK-1070)~~ **CLOSED from prod logs 2026-10-01** (owner saw transcriptions working on prod; ai-worker logs carry 4 real `Audio transcribed via voice-engine` lines at 18:34Z on the 3.13 build, Pocket TTS loaded and synthesized in the same window; the no-key half PASSED on prod 2026-09-26 post-3.13). TASK-1070 Done.
    - **Pass**: audio plays, transcription lands, no import/codec error in the voice-engine logs on first request.
 
 **No owner action needed (CI or observability instead of smoke)**: #2554 instance-origin (default-off config; the Discord default path is unchanged), #2561 redis db-index (the live CLIENT LIST check is the first joint-boot item, agent-run), #2558 avatar-path configurability (defaults preserve behavior; the first real avatar use logs), #2551/#2562/#2549/#2563 (tooling and docs, CI-gated). The PROD smokes stay separate after the deploy: beta.230 item 2 (settings-dashboard walk) and the beta.232 item (plain voice re-upload on prod).

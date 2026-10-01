@@ -3,10 +3,10 @@ id: TASK-1070
 title: >-
   Move voice-engine off Python 3.11 before its October 2027 end of security
   support
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-24 01:25'
-updated_date: '2026-09-24 13:29'
+updated_date: '2026-10-01 19:07'
 labels:
   - 'area:voice'
   - 'size:M'
