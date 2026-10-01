@@ -26,4 +26,6 @@ What (all in services/bot-client interactionRouter/foreignInteraction/interactio
 5. Hedge or pin the dispatchChatInput comment claiming the activity stamp is a harmless idempotent NOW-write (claim-shape standard; relocated content).
 
 Acceptance: all five addressed in one bot-client PR; suite + quality green; the interactionRouter zero-ack set stays byte-intact.
+
+INPUT FROM PR #2561 ROUND 1 (claude-review 2026-10-01 08:14Z, all nits, merged-as-is per the reviewer's own offered path): (6) api-gateway queue.ts startup log omits db - the exact log line that would have caught the all-46-on-db-0 incident; add it for consistency with createIORedisClient. (7) ResultsListener.test.ts:248 comment describes the pre-fix arrow mock shape; the factory is now a constructible function - reword. (8) redis.test.ts /0 case's `?? 'collapsed-to-undefined'` only decorates the failure message, never changes pass/fail - simplify to a plain toBe(0).
 <!-- SECTION:DESCRIPTION:END -->
