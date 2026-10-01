@@ -49,6 +49,7 @@ export class ResultsListener {
       port: parsedUrl.port,
       password: parsedUrl.password,
       username: parsedUrl.username,
+      db: parsedUrl.db,
       // family: default (6) comes from the shared resolver — Railway's IPv6
       // private network; REDIS_IP_FAMILY overrides for IPv4-only dev hosts.
     });
@@ -58,6 +59,7 @@ export class ResultsListener {
       port: ioredisConfig.port,
       password: ioredisConfig.password,
       username: ioredisConfig.username,
+      db: ioredisConfig.db,
       family: ioredisConfig.family,
       connectTimeout: ioredisConfig.connectTimeout,
       commandTimeout: ioredisConfig.commandTimeout,
