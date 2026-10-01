@@ -233,10 +233,13 @@ describe('analyzeProject', () => {
     ).toBeDefined();
 
     // raw fetch to the Discord API is caught; other hosts are not recorded
+    // (exactly one rest-outside-helpers entry: the discord.com call — the
+    // fixture's example.com fetch produced no inventory entry; a regressed
+    // example.com match would merge into this entry and bump its count)
     expect(
       findEntry(entries, 'rest-outside-helpers', 'fetch', 'services/bot-client/src/fixture.ts')
-    ).toBeDefined();
-    expect(entries.some(entry => JSON.stringify(entry).includes('example.com'))).toBe(false);
+        ?.count
+    ).toBe(1);
 
     // the undeclared discord.js primitive surfaces as unclassified
     expect(
