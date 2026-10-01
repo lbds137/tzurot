@@ -17,6 +17,8 @@ interface RedisConnectionConfig {
   port: number;
   password?: string;
   username?: string;
+  /** Redis logical db index from the URL pathname (`/1` → 1). undefined when the URL carries none, so ioredis applies its own default; `/0` is db 0, a valid index distinct from undefined (pinned by parseRedisUrl tests in redis.test.ts). */
+  db?: number;
   family?: 0 | 4 | 6;
 }
 
@@ -25,6 +27,8 @@ export interface BullMQRedisConfig {
   port: number;
   password?: string;
   username?: string;
+  /** Redis logical db index from the URL pathname (`/1` → 1). undefined when the URL carries none, so ioredis applies its own default; `/0` is db 0, a valid index distinct from undefined (pinned by parseRedisUrl tests in redis.test.ts). */
+  db?: number;
   family: 0 | 4 | 6;
   connectTimeout: number;
   commandTimeout: number;
@@ -68,6 +72,7 @@ export function resolveRedisIpFamily(): 0 | 4 | 6 {
  * Parse Railway's REDIS_URL format into connection config
  *
  * Railway provides REDIS_URL like: redis://default:password@host:port
+ * A numeric `/N` pathname suffix is parsed into `db`; absent or non-numeric leaves `db` undefined.
  *
  * @param url Redis connection URL
  * @returns Connection config object
@@ -75,12 +80,14 @@ export function resolveRedisIpFamily(): 0 | 4 | 6 {
 export function parseRedisUrl(url: string): RedisConnectionConfig {
   try {
     const parsed = new URL(url);
+    const dbMatch = /^\/(\d+)$/.exec(parsed.pathname);
     return {
       host: parsed.hostname,
       port: parseInt(parsed.port || '6379', 10),
       password: parsed.password || undefined,
       // Railway uses 'default' as placeholder username - filter it out
       username: parsed.username && parsed.username !== 'default' ? parsed.username : undefined,
+      db: dbMatch === null ? undefined : Number.parseInt(dbMatch[1], 10),
     };
   } catch (error) {
     logger.error({ err: error }, '[RedisUtils] Failed to parse REDIS_URL');
@@ -116,6 +123,7 @@ export function createBullMQRedisConfig(config: RedisConnectionConfig): BullMQRe
     port: config.port,
     password: config.password,
     username: config.username,
+    db: config.db,
     // Defaults to 6: Railway private networking requires IPv6. REDIS_IP_FAMILY
     // overrides this for IPv4-only dev hosts — see resolveRedisIpFamily.
     family: config.family ?? resolveRedisIpFamily(),
@@ -151,6 +159,7 @@ export function createIORedisClient(
     port: parsedUrl.port,
     password: parsedUrl.password,
     username: parsedUrl.username,
+    db: parsedUrl.db,
   });
 
   serviceLogger.info(
@@ -160,6 +169,7 @@ export function createIORedisClient(
       hasPassword: ioredisConfig.password !== undefined,
       connectTimeout: ioredisConfig.connectTimeout,
       commandTimeout: ioredisConfig.commandTimeout,
+      db: ioredisConfig.db,
     },
     `[${serviceName}] Redis config (ioredis):`
   );
@@ -169,6 +179,7 @@ export function createIORedisClient(
     port: ioredisConfig.port,
     password: ioredisConfig.password,
     username: ioredisConfig.username,
+    db: ioredisConfig.db,
     family: ioredisConfig.family,
     connectTimeout: ioredisConfig.connectTimeout,
     commandTimeout: ioredisConfig.commandTimeout,

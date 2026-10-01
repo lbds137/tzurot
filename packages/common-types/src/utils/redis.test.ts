@@ -117,6 +117,39 @@ describe('parseRedisUrl', () => {
     });
   });
 
+  it('should parse a numeric pathname suffix into db', () => {
+    const result = parseRedisUrl('redis://user:password@localhost:6379/1');
+    expect(result).toEqual({
+      host: 'localhost',
+      port: 6379,
+      password: 'password',
+      username: 'user',
+      db: 1,
+    });
+  });
+
+  it('should parse /0 as db 0, distinct from undefined', () => {
+    const result = parseRedisUrl('redis://localhost:6379/0');
+    // `?? 'collapsed-to-undefined'` makes a dropped /0 collapse loud instead of
+    // vacuously green — db 0 is a valid index, not "no db specified".
+    expect(result.db ?? 'collapsed-to-undefined').toBe(0);
+  });
+
+  it('should leave db undefined when the URL has no pathname', () => {
+    const result = parseRedisUrl('redis://localhost:6379');
+    expect(result.db).toBeUndefined();
+  });
+
+  it('should leave db undefined for a bare trailing slash', () => {
+    const result = parseRedisUrl('redis://localhost:6379/');
+    expect(result.db).toBeUndefined();
+  });
+
+  it('should leave db undefined for a non-numeric pathname segment', () => {
+    const result = parseRedisUrl('redis://localhost:6379/foo');
+    expect(result.db).toBeUndefined();
+  });
+
   it('should throw in production on invalid URL', () => {
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
@@ -207,6 +240,25 @@ describe('createBullMQRedisConfig', () => {
 
     expect(config.password).toBe('secret');
     expect(config.username).toBe('admin');
+  });
+
+  it('should forward db when provided', () => {
+    const config = createBullMQRedisConfig({
+      host: 'localhost',
+      port: 6379,
+      db: 1,
+    });
+
+    expect(config.db).toBe(1);
+  });
+
+  it('should leave db undefined when the input has none', () => {
+    const config = createBullMQRedisConfig({
+      host: 'localhost',
+      port: 6379,
+    });
+
+    expect(config.db).toBeUndefined();
   });
 
   it('should enable readyCheck and disable lazyConnect', () => {
@@ -333,6 +385,39 @@ describe('createIORedisClient', () => {
 
     const opts = (client as unknown as { opts: Record<string, unknown> }).opts;
     expect(opts).not.toHaveProperty('maxRetriesPerRequest');
+  });
+
+  it('should pass db 1 through to the client for a /1 URL', () => {
+    const client = createIORedisClient(
+      'redis://localhost:6379/1',
+      'TestService',
+      mockLogger as never
+    );
+
+    const opts = (client as unknown as { opts: Record<string, unknown> }).opts;
+    expect(opts.db).toBe(1);
+  });
+
+  it('should leave db undefined for a URL without a pathname', () => {
+    const client = createIORedisClient(
+      'redis://localhost:6379',
+      'TestService',
+      mockLogger as never
+    );
+
+    const opts = (client as unknown as { opts: Record<string, unknown> }).opts;
+    expect(opts.db).toBeUndefined();
+  });
+
+  it('should log the db in the connection-config line', () => {
+    createIORedisClient('redis://localhost:6379/1', 'TestService', mockLogger as never);
+
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        db: 1,
+      }),
+      '[TestService] Redis config (ioredis):'
+    );
   });
 });
 
