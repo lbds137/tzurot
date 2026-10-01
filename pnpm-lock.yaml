@@ -7,7 +7,7 @@ settings:
 overrides:
   adm-zip@<0.6.1: '>=0.6.1 <0.7.0'
   sharp@<0.35.4: '>=0.35.4 <0.36.0'
-  undici: ^6.28.0
+  undici: ^6.28.1
   postcss@<8.5.23: '>=8.5.23 <9.0.0'
   path-to-regexp@>=8.0.0 <8.4.0: '>=8.4.0 <9.0.0'
   ioredis: ^5.11.1
@@ -16,7 +16,7 @@ overrides:
   hono@<4.12.27: '>=4.12.27 <5.0.0'
   '@hono/node-server@<2.0.10': '>=2.0.10 <3.0.0'
   fast-xml-builder@<1.1.7: '>=1.1.7 <2.0.0'
-  fast-uri@<4.1.2: '>=4.1.2 <5.0.0'
+  fast-uri@<4.1.5: '>=4.1.5 <5.0.0'
   lodash@>=4.0.0 <=4.17.22: '>=4.17.23 <5.0.0'
   ajv@>=6.0.0 <6.14.0: '>=6.14.0 <7.0.0'
   tar@<=7.5.10: '>=7.5.11 <8.0.0'
@@ -4454,8 +4454,8 @@ packages:
   fast-string-width@3.0.2:
     resolution: {integrity: sha512-gX8LrtNEI5hq8DVUfRQMbr5lpaS4nMIWV+7XEbXk2b8kiQIizgnlr12B4dA3ZEx3308ze0O4Q1R+cHts8kyUJg==}
 
-  fast-uri@4.1.3:
-    resolution: {integrity: sha512-7+72G6vLt7jjNas8SmSATx2qeyRIjxeqO3i4IkmDTxlqYZRKANhOe1bnovcp4WZmvsYrp60WyqPyHqgRiX0yXw==}
+  fast-uri@4.2.1:
+    resolution: {integrity: sha512-TmHQgewjHtMq1E5QKA0tOE0yeYGQs25KZC/ziJpubRtWI15W92e6vPFydWOeZBVROSHBYw/QhD9d5OefdD6LDg==}
 
   fast-wrap-ansi@0.2.2:
     resolution: {integrity: sha512-7F2Fl+TjRSenLqlU3UjSH0iyqopqoZIu7eZVpEirP2g1GtWa2G/ecEmBdgz31+Mxr+ELclgg6sokpSFIQiZ02Q==}
@@ -5499,7 +5499,7 @@ packages:
       '@aws-sdk/credential-provider-node': '>=3.972.0 <4'
       '@smithy/hash-node': '>=4.3.0 <5'
       '@smithy/signature-v4': '>=5.4.0 <6'
-      undici: ^6.28.0
+      undici: ^6.28.1
       ws: ^8.21.0
       zod: ^3.25 || ^4.0
     peerDependenciesMeta:
@@ -6481,10 +6481,6 @@ packages:
 
   undici-types@8.9.0:
     resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
-
-  undici@6.28.0:
-    resolution: {integrity: sha512-LIY910g9TI13YS95lrMFrs8Rm/u/irgHeTWoKCoteeJ04CUJ92eEfj0rVn+7VKMPBpUPiUoBKfhNyLI23EE/KA==}
-    engines: {node: '>=18.17'}
 
   undici@6.29.0:
     resolution: {integrity: sha512-R+RODBqp6i2pPflGdq+xIOUkl+RNfGgHwoinecKu/JCuf2uO06cOKoDbI2P7Dn6KcswdKwrczbU6IYJ6K8X+wg==}
@@ -7712,7 +7708,7 @@ snapshots:
       discord-api-types: 0.38.55
       magic-bytes.js: 1.13.0
       tslib: 2.8.1
-      undici: 6.28.0
+      undici: 6.29.0
 
   '@discordjs/util@1.2.0':
     dependencies:
@@ -9794,7 +9790,7 @@ snapshots:
   ajv@8.20.0:
     dependencies:
       fast-deep-equal: 3.1.3
-      fast-uri: 4.1.3
+      fast-uri: 4.2.1
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
@@ -10433,7 +10429,7 @@ snapshots:
       lodash.snakecase: 4.1.1
       magic-bytes.js: 1.13.0
       tslib: 2.8.1
-      undici: 6.28.0
+      undici: 6.29.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -10878,7 +10874,7 @@ snapshots:
     dependencies:
       fast-string-truncated-width: 3.0.3
 
-  fast-uri@4.1.3: {}
+  fast-uri@4.2.1: {}
 
   fast-wrap-ansi@0.2.2:
     dependencies:
@@ -12962,8 +12958,6 @@ snapshots:
   undici-types@7.24.6: {}
 
   undici-types@8.9.0: {}
-
-  undici@6.28.0: {}
 
   undici@6.29.0: {}
 
