@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit; and the cloud dispatch mode (one cloud unit beside one local unit). Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-09-25'
+lastUpdated: '2026-10-01'
 ---
 
 # Orchestrator Mode
@@ -38,12 +38,10 @@ call, still escalate to the owner regardless of driver.
 | **Cloud unit** _(at most one, beside one local unit)_ | A unit's orchestrator + worker and gates run in a cloud VM and deliver a pushed branch; the driver's full-diff read stays the gate. Launch, step 0, and what stays local: § Cloud dispatch below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | **Bulk reading/exploration**                          | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use. **Any read fan-out of ~4+ files, or any search across unknown locations, goes to `Explore` with `model: "haiku"` passed on the Agent call — never inline** (mechanism below the table).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
-**Why Explore gets `model: "haiku"` per-call**: the built-in Explore inherits
-the main-loop model (per the Agent tool's own schema: an omitted `model` "uses
-the agent definition's model, or inherits from the parent" — inference from
-that schema line, not a live probe), so an unpinned spawn bills the scarcest
-budget, while every file read inline re-bills as main-loop input on all later
-turns.
+**Why Explore gets `model: "haiku"` per-call**: an unpinned Explore inherits
+the main-loop model (inference from the tool schema, not a live probe) and
+bills the scarcest budget, while every file read inline re-bills as
+main-loop input on all later turns.
 
 **Worker model tier (settled)**: for a **mechanical-class** unit — one whose
 spec describes the edit precisely (renames, sweeps, fixture updates, applying
@@ -114,9 +112,7 @@ The dispatch prompt's non-negotiable contract points:
   `pnpm --filter <pkg> test` cannot resolve.
 - **The dispatching turn states the expected wall time** from the measured
   range for the unit class — initial units ~20–45 min, review-round fixes
-  ~5–20 min — so the owner has a "not stuck yet" horizon. A 45-minute dispatch
-  with no horizon stated drew three "is it stuck?" check-ins in 90 minutes, and
-  a plain range answers all three before they are asked.
+  ~5–20 min — so the owner has a "not stuck yet" horizon.
 - **Verification gates enumerated as exact commands** with the instruction to
   capture verbatim tails, run sequentially, and never run repo-wide heavy
   commands. The canary set opens with the purpose canary (§ The spec
@@ -133,31 +129,35 @@ The dispatch prompt's non-negotiable contract points:
   reports coverage while verifying nothing. The spec states the cut
   position, and the report shows the red tail.
 
-When the orchestrator reports, Fable's side is unchanged in substance from
-§ When the worker reports, plus the transfer shape that keeps gates out of the
-half-linked worktree: read the FULL diff in the worktree; then
-`git -C <worktree> add -A && git -C <worktree> diff --cached > patch` — the
-`add -A` first, because a plain `git diff` NEVER includes untracked files, so
-a unit that created a file (a new module's colocated test is the routine case)
-would transfer incomplete while every later check passed → confirm the main
-tree's feature branch is still at the SHA the dispatch named as base (work
-done in the main tree during the dispatch window moves the application
-target silently) → `git apply` there → **verify the applied diff is byte-identical
-to the patch AND that `git -C <worktree> status --porcelain` lists nothing
-outside it** → verify the worktree has no unpushed commits, then
-`git worktree remove --force` (sanctioned ONLY here, and resting on BOTH
-preceding checks: the byte-identical diff covers everything uncommitted, and
-the no-unpushed-commits check covers anything a worker committed against its
-contract — either alone leaves a loss window) → run the touched packages'
-test suites and `pnpm quality` in the main tree (sequentially) → commit → PR →
-monitor. `pnpm ops worktree:transfer <path> --base <sha>` runs the checks from
-`add -A` through the removal in that order and refuses on the first failure,
-so that half is one call; the gates, commit, PR and monitor stay yours. The
-review gate is not delegated and not skipped for a clean-looking report.
+When the orchestrator reports, the main loop's side: **read the FULL diff in
+the worktree** (your own read — § When the worker reports), confirm the main
+tree's feature branch is still at the SHA the dispatch named as base, then
+transfer: `pnpm ops worktree:transfer <path> --base <sha>` runs `add -A`
+(a plain `git diff` never includes untracked files — without it a
+worker-created file transfers silently incomplete) → patch → apply in the
+main tree → byte-identical compare → no-unpushed-commits check → worktree
+removal, refusing on the first failure. Both checks are the loss window:
+the byte-identical diff covers everything uncommitted, the no-unpushed
+check covers anything a worker committed against its contract — either
+alone leaves work deletable, so that removal's `--force` is sanctioned
+ONLY here. The touched packages' test suites and `pnpm quality` then run
+in the main tree (sequentially); the gates, commit, PR and monitor stay
+yours, and the review gate is not delegated and not skipped for a
+clean-looking report.
 
-After a worktree transfer, rebuild EVERY edited package's dist before the gates (a stale `config-resolver` dist reddened the conformance tier). A nested-dispatch worktree needs `cache-invalidation` built, and `clients`/`embeddings` before `tooling`. Batch a drain by DEFECT CLASS (e.g. "a gate the repo believes is running and is not": one spec, one canary table) rather than by area. An independent second read of a unit finds gaps the spec-following orchestrator can't.
-
-`worktree:transfer` refuses `no-unpushed-base` when `release:finalize` rewrote develop under a running worktree. The content is on develop under a new SHA: confirm with `git diff --stat <old-base> <new-twin>` (only finalize-carried files differ), then transfer by hand: `git -C <wt> add -A && git -C <wt> diff --cached > patch`, `git apply`, `cmp` the applied `git diff --cached` against the patch, and `git cherry origin/develop <wt-branch>` (no `+` lines) before `git worktree unlock`, `remove --force` and `branch -D`. When a dispatch spans a `release:finalize`, plan for this path.
+After a transfer, rebuild EVERY edited package's dist before the gates (a
+stale `config-resolver` dist reddened the conformance tier). A
+nested-dispatch worktree needs `cache-invalidation` built, and
+`clients`/`embeddings` before `tooling`. Batch a drain by DEFECT CLASS, not
+by area. An independent second read of a unit finds gaps the
+spec-following orchestrator can't. `worktree:transfer` refuses
+`no-unpushed-base` when `release:finalize` rewrote develop under a running
+worktree: confirm the content landed with `git diff --stat <old-base>
+<new-twin>` (only finalize-carried files differ), then transfer by hand:
+`git -C <wt> add -A && git -C <wt> diff --cached > patch`, `git apply`,
+`cmp` the applied `git diff --cached` against the patch, and
+`git cherry origin/develop <wt-branch>` (no `+` lines) before
+`git worktree unlock`, `remove --force` and `branch -D`.
 
 ## Cloud dispatch — one cloud unit beside one local unit
 
@@ -464,9 +464,9 @@ The harness leaves `.claude/worktrees/agent-*` trees and their `.git/worktrees/*
 
 ## While the worker runs
 
-Pre-stage the next unit's grounding — read the files, profile the data, draft
-the next spec. Never touch the worker's files while it holds them. Monitors
-exist so waiting is never the activity (`10-working-posture.md` § Momentum).
+Pre-stage the next unit's grounding; never touch the worker's files while it
+holds them (`10-working-posture.md` § Momentum — monitors exist so waiting is
+never the activity).
 
 **Board and tracker commits go to `develop` — check the branch first.** If the
 main tree is parked on a feature branch while a dispatch runs,
@@ -517,17 +517,18 @@ use subagents to verify or double-check your own work. Then:
 - Then the normal commit → PR → monitor cycle per `/tzurot-git-workflow`.
 - **Review-round hard cap (~6 rounds/PR)**: past it, stop iterating in this
   context — hand the open findings to a fresh-context implementer or the owner
-  (`/tzurot-review-response` § 5a carries the procedure; the pointer is here because the failure has occurred in inline, non-delegated orchestrator work).
+  (`/tzurot-review-response` § 5a).
 
 ## Opus-main-loop posture
 
-Four habits that matter more when Opus 5 drives the main loop than when it
+Habits that matter more when Opus 5 drives the main loop than when it
 works behind a spec.
 
 - **Compact at unit boundaries, proactively.** Error quality degrades as the
-  context window fills, and the degradation is invisible from inside it. Close
-  the unit out to `CURRENT.md` / the tracker first, then compact — a boundary
-  compaction loses nothing, while a mid-unit one loses the work-stack pointer.
+  context window fills, and the degradation is invisible from inside it.
+  Close the unit out to `CURRENT.md` / the tracker first, then compact — a
+  boundary compaction loses nothing, while a mid-unit one loses the
+  work-stack pointer (`10-working-posture.md` § Delegation posture).
 - **Calibrate written-deliverable length.** Opus 5's disk deliverables (docs,
   backlog entries, PR bodies, CURRENT.md paragraphs) run longer than prior
   models' by documented tendency. Match length to what the task needs — cover

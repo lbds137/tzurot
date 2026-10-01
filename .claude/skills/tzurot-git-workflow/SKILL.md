@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-09-25'
+lastUpdated: '2026-10-01'
 ---
 
 # Git Workflow Procedures
@@ -176,9 +176,9 @@ git -C <path> log --oneline HEAD --not --remotes  # empty = every commit is on a
 git worktree remove <path>                        # only once BOTH are empty
 ```
 
-**Plain `git worktree remove` does not protect you here.** It refuses only on a DIRTY worktree — modified or untracked files. A worktree whose work is **committed but never pushed** is clean by that definition, so plain removal takes it with exit 0, and `--delete-branch` at the merge step below then deletes the only ref holding those commits, leaving them reachable solely through a local reflog. That is precisely the resumed-worker scenario in § Resuming a worktree-isolated worker in `/tzurot-orchestration`, which is why the check is unconditional rather than a `--force` caveat.
+**Plain `git worktree remove` does not protect you here.** It refuses only on a DIRTY worktree — modified or untracked files. A worktree whose work is **committed but never pushed** is clean by that definition, so plain removal takes it with exit 0 and `--delete-branch` then deletes the only ref holding those commits, leaving them reachable solely through a local reflog (the resumed-worker scenario in `/tzurot-orchestration` § Resuming a worktree-isolated worker). The unpushed-commit check is unconditional, not a `--force` caveat.
 
-**`--not --remotes`, not `@{u}..`** — measured: `@{u}` dies with `fatal: no upstream configured` (exit 128) on a branch that was created but never pushed, which is precisely the state you are checking for, so the check would abort exactly when it matters. The explicit `HEAD` is load-bearing: with no positive revision there is no tip to walk from, so `git log --not --remotes` prints nothing even when commits are unpushed — measured, it reported clean on a never-pushed branch holding three.
+**`--not --remotes`, not `@{u}..`** — `@{u}` dies with `fatal: no upstream configured` on a branch that was created but never pushed, which is precisely the state being checked. The explicit `HEAD` is load-bearing: with no positive revision there is no tip to walk from, so the command prints nothing even when commits are unpushed.
 
 **If either is non-empty, do NOT remove the worktree yet — get the work to safety first**, then re-run the check and remove:
 
@@ -213,7 +213,7 @@ git ls-remote --exit-code --heads origin "<branch>"; case $? in
 esac
 ```
 
-**This is not the push-verify `ls-remote` from the Commit Procedure above.** That one reads the ref's SHA out of stdout to prove a push landed _at a specific commit_; this one asks only whether the ref exists at all, which is why it wants `--exit-code` and ignores stdout. Same command, opposite questions — don't swap one form for the other.
+**This is not the push-verify `ls-remote` from the Commit Procedure above** — that one proves a push landed at a specific commit; this one asks only whether the ref exists, which is why it wants `--exit-code`.
 
 **Use the `case`, not `&& … || …`.** `--exit-code` distinguishes the cases (`0` found, `2` no match, anything else an error), so read the status rather than its truthiness.
 
@@ -306,7 +306,6 @@ Answer these before being asked, as part of proposing the cut:
 - **Each smoke item carries a confidence tier** (canonical definition in
   `/tzurot-testing` § Human-Verification Requests) — offer the owner only the
   _needs-smoke_ tier, never the _high_ tier CI + review already cover.
-- Never cite "soaked in dev" as safety evidence (see /tzurot-deployment).
 
 ### 1. Version Bump
 
