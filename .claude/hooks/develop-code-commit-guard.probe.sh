@@ -219,6 +219,71 @@ run_reason() {
   fi
 }
 
+# run_staged <expected-exit> <label> <command> <space-separated paths to
+# create AND stage> [space-separated paths to create but leave unstaged]
+# The override path judges the INDEX of a standalone commit, so its cases
+# need files IN the index — run()'s dirty files never leave the working
+# tree. Stages the first list, dirties the second (the override ignores it —
+# pinning THAT is the point of the second list), resets the fixture index
+# after each case (the cleanup the rename case below also uses).
+run_staged() {
+  local expected="$1" label="$2" cmd="$3" staged="${4:-}" dirty="${5:-}" wt="${TARGET_WT:-$WT}" f actual
+  for f in $staged; do
+    mkdir -p "$wt/$(dirname "$f")"
+    printf 'probe\n' > "$wt/$f"
+  done
+  for f in $dirty; do
+    mkdir -p "$wt/$(dirname "$f")"
+    printf 'probe\n' > "$wt/$f"
+  done
+  [ -n "$staged" ] && git -C "$wt" add -- $staged
+  jq -n --arg c "$cmd" '{tool_name:"Bash",tool_input:{command:$c}}' \
+    | CLAUDE_PROJECT_DIR="$wt" "$HOOK" >/dev/null 2>&1
+  actual=$?
+  git -C "$wt" reset -q --hard HEAD
+  for f in $staged $dirty; do
+    rm -f "$wt/$f"
+  done
+  if [ "$actual" -eq "$expected" ]; then
+    printf 'PASS  (exit %d)  %s\n' "$actual" "$label"
+  else
+    printf 'FAIL  (exit %d, expected %d)  %s\n' "$actual" "$expected" "$label"
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+
+# run_staged_msg: run_staged plus the stderr needle assert from run_msg.
+run_staged_msg() {
+  local expected="$1" label="$2" cmd="$3" needle="$4" staged="${5:-}" dirty="${6:-}" wt="${TARGET_WT:-$WT}" f out actual
+  for f in $staged; do
+    mkdir -p "$wt/$(dirname "$f")"
+    printf 'probe\n' > "$wt/$f"
+  done
+  for f in $dirty; do
+    mkdir -p "$wt/$(dirname "$f")"
+    printf 'probe\n' > "$wt/$f"
+  done
+  [ -n "$staged" ] && git -C "$wt" add -- $staged
+  out=$(jq -n --arg c "$cmd" '{tool_name:"Bash",tool_input:{command:$c}}' \
+    | CLAUDE_PROJECT_DIR="$wt" "$HOOK" 2>&1)
+  actual=$?
+  git -C "$wt" reset -q --hard HEAD
+  for f in $staged $dirty; do
+    rm -f "$wt/$f"
+  done
+  if [ "$actual" -ne "$expected" ]; then
+    printf 'FAIL  (exit %d, expected %d)  %s\n' "$actual" "$expected" "$label"
+    FAILURES=$((FAILURES + 1))
+    return
+  fi
+  if ! printf '%s' "$out" | grep -qF "$needle"; then
+    printf 'FAIL  (message missing %q)  %s\n' "$needle" "$label"
+    FAILURES=$((FAILURES + 1))
+    return
+  fi
+  printf 'PASS  (exit %d, message ok)  %s\n' "$actual" "$label"
+}
+
 CANONICAL_HEREDOC='git add -A && git commit -m "$(cat <<'\''EOF'\''
 feat(ai-worker): add pgvector memory retrieval
 
@@ -424,8 +489,345 @@ run 2 "lowercase escape token does NOT unlock"    'tzurot_allow_develop_code_com
 run 2 "mixed-case escape token does NOT unlock"   'Tzurot_Allow_Develop_Code_Commit=1 git commit -m "x"'   'services/probe.ts'
 
 run 0 "escape hatch in command position"          'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "x"'   'services/probe.ts'
-run 0 "escape hatch, canonical heredoc form"      "TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 $CANONICAL_HEREDOC"  'services/probe.ts'
+# A bare heredoc before the commit is a second command, so the token call is
+# not standalone (the canonical heredoc MESSAGE is pinned standalone below).
+run_msg 2 "override: a bare heredoc before the commit is a second segment, refused" \
+  "TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 $EARLY_HEREDOC" 'cannot be verified' 'services/probe.ts'
 run 0 "non-git command"                           'echo hello'                                             'services/probe.ts'
+
+# --- the override judges the commit SET, not the dirty tree ----------------
+# The token used to be a blanket pass: the case that sat here expected exit 0
+# for `TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add -A && git commit` — the
+# staged-code-rides-along shape the override check exists to stop. Under the
+# token the commit must now STAND ALONE, so its set is exactly the index:
+# staged gated files block by name, and any other command shape is refused
+# into the "cannot be verified" banner (the standalone-rule rows below).
+run_staged_msg 2 "override: staged .ts blocks, banner names the file" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "x"' 'services/probe.ts' \
+  'services/probe.ts'
+run_staged 0 "override: staged tracker file passes, dirty code ignored" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "x"' \
+  'tracker/tasks/probe.md' 'services/probe.ts'
+run_msg 2 "override: in-command add of code is refused (not standalone)" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add services/probe.ts && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+run_msg 2 "override: in-command add of a doc file is refused (not standalone)" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add docs/probe-notes.md && git commit -m "x"' \
+  'cannot be verified' 'docs/probe-notes.md'
+run_msg 2 "override: in-command blanket add (git add .) cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add . && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+run_msg 2 "override: in-command add -A cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add -A && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+run_msg 2 "override: in-command glob add cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add services/*.ts && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+run_msg 2 "override: in-command directory add cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add services/ && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+run_msg 2 "override: add inside a command substitution is refused" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 out="$(git add services/probe.ts)" && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+# --- quoted / escaped add targets --------------------------------------------
+# These shapes defeated the earlier in-command add parse one at a time (a
+# quoted target read as the placeholder `S`, an escaped space split one path
+# in two). Under the standalone rule an add beside the token commit is refused
+# whatever its spelling, so every row here — doc twins included — blocks.
+run_msg 2 "override: quoted add of a gated file is refused" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add "services/probe.ts" && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+run_msg 2 "override: quoted add behind -- is refused" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add -- "services/probe.ts" && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+run_msg 2 "override: quoted add of a doc file is refused (not standalone)" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add "docs/probe-notes.md" && git commit -m "x"' \
+  'cannot be verified' 'docs/probe-notes.md'
+# The helpers split dirty/staged lists on spaces, so these fixtures are
+# created inline.
+mkdir -p "$WT/services" "$WT/docs"
+printf 'probe\n' > "$WT/services/my probe.ts"
+run_msg 2 "override: quoted add of a spaced gated path is refused" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add "services/my probe.ts" && git commit -m "x"' \
+  'cannot be verified'
+rm -f "$WT/services/my probe.ts"
+printf 'probe\n' > "$WT/docs/my notes.md"
+run_msg 2 "override: quoted add of a spaced doc path is refused (not standalone)" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add "docs/my notes.md" && git commit -m "x"' \
+  'cannot be verified'
+rm -f "$WT/docs/my notes.md"
+printf 'probe\n' > "$WT/services/my file.ts"
+run_msg 2 "override: backslash-escaped spaced gated path is refused" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add services/my\ file.ts && git commit -m "x"' \
+  'cannot be verified'
+rm -f "$WT/services/my file.ts"
+printf 'probe\n' > "$WT/docs/my notes.md"
+run_msg 2 "override: backslash-escaped spaced doc path is refused (not standalone)" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add docs/my\ notes.md && git commit -m "x"' \
+  'cannot be verified'
+rm -f "$WT/docs/my notes.md"
+run_msg 2 "override: an unterminated quoted add target cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add "services/probe.ts && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+
+# --- auto-stage commit shapes under the override -----------------------------
+# `git commit -a`/`--all` and a pathspec-limited `git commit <path>` stage
+# tracked files' working-tree content AT COMMIT TIME: no `git add` crosses the
+# hook and the index never changes, so the index read cannot see what the
+# commit will capture — these flags are refused even on a standalone commit.
+# The fixture is a TRACKED modified .ts — `-a` stages only tracked files, so
+# an untracked fixture would not pin the real shape.
+printf 'probe\n' > "$WT/services/bot-client/src/index.ts"
+run_msg 2 "override: commit -am auto-stage cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -am "x"' \
+  'cannot be verified'
+run_msg 2 "override: commit --all auto-stage cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit --all -m "x"' \
+  'cannot be verified'
+run_msg 2 "override: pathspec-limited commit cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit services/bot-client/src/index.ts -m "x"' \
+  'cannot be verified'
+# The control: a plain `-m` commit under the token with the SAME tracked dirty
+# gated file must stay exit 0 — the no-auto-stage path must not regress.
+# `--pathspec-from-file` is a pathspec by another spelling: the listed paths
+# are staged at commit time, so both spellings fail closed like a pathspec.
+run_msg 2 "override: commit --pathspec-from-file=<f> cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit --pathspec-from-file=probe-list.txt -m "x"' \
+  'cannot be verified'
+run_msg 2 "override: commit --pathspec-from-file <f> cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit --pathspec-from-file probe-list.txt -m "x"' \
+  'cannot be verified'
+# --include/--only stage only the paths they are given, and a path argument is
+# already the pathspec branch.
+run_msg 2 "override: commit --include <path> cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit --include services/bot-client/src/index.ts -m "x"' \
+  'cannot be verified'
+run_msg 2 "override: commit --only <path> cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit --only services/bot-client/src/index.ts -m "x"' \
+  'cannot be verified'
+# Ordinary long flags stay passing: only the auto-stage spellings fail closed.
+run 0 "override: commit --no-verify --amend --file=<f> passes" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit --no-verify --amend --file=probe-msg.txt'
+run 0 "override: plain -m commit passes with a tracked dirty gated file" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "x"'
+git -C "$WT" checkout -- services/bot-client/src/index.ts
+
+# --- index-writing git verbs beside the token commit -------------------------
+# Each verb below can change the index before the commit runs. An earlier
+# design kept a verb allowlist for these; the standalone rule refuses any
+# second command, so each row now pins that a would-be index writer beside
+# the token is refused. Each is a shape that once exited 0 under the token
+# with a gated file in play.
+for verb_cmd in \
+  'git apply --index probe.patch' \
+  'git apply --cached probe.patch' \
+  'git mv services/bot-client/src/index.ts docs/probe-moved.md' \
+  'git rm services/bot-client/src/index.ts' \
+  'git restore --staged --source=HEAD~1 services/bot-client/src/index.ts' \
+  'git checkout HEAD~1 -- services/bot-client/src/index.ts' \
+  'git cherry-pick -n HEAD~1' \
+  'git cherry-pick --no-commit HEAD~1' \
+  'git merge --squash HEAD~1' \
+  'git read-tree HEAD~1' \
+  'git update-index --add services/probe.ts' \
+  'git reset HEAD~1 -- services/bot-client/src/index.ts' \
+  'git -C . update-index --add services/probe.ts'; do
+  run_msg 2 "override: index-writing verb beside the commit cannot be verified: $verb_cmd" \
+    "TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 $verb_cmd && git commit -m \"x\"" \
+    'cannot be verified' 'services/probe.ts'
+done
+# An index-writing verb inside a command substitution executes too.
+run_msg 2 "override: index-writing verb inside a substitution cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 out="$(git update-index --add services/probe.ts)" && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+# `stage` is `add` by another name, refused beside the token like add.
+run_msg 2 "override: git stage of a gated file is refused" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git stage services/probe.ts && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+run_msg 2 "override: git stage of a doc file is refused (not standalone)" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git stage docs/probe-notes.md && git commit -m "x"' \
+  'cannot be verified' 'docs/probe-notes.md'
+
+# Directory pathspecs WITHOUT a trailing slash stage everything under them;
+# the earlier add parse needed the filesystem to see that. Refused now as a
+# second command, the rows stay as regression pins.
+run_msg 2 "override: bare directory add (no trailing slash) cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add services && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+run_msg 2 "override: nested directory add (no trailing slash) cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add services/bot-client && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+# A directory deleted from disk but present in HEAD: `git add <dir>` stages
+# the deletions, and `[ -d ]` alone cannot see it — the HEAD tree lookup does.
+mv "$WT/services/bot-client/src" "$TMP_BASE/probe-moved-src"
+run_msg 2 "override: add of a directory deleted from disk (in HEAD) cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add services/bot-client/src && git commit -m "x"' \
+  'cannot be verified'
+mv "$TMP_BASE/probe-moved-src" "$WT/services/bot-client/src"
+
+# Add targets the shell expands before git sees them — the last shapes the
+# earlier add parse had to enumerate; refused beside the token now.
+for exp_target in 'services/probe.{ts,md}' '$PROBE_TARGET' '${PROBE_TARGET}' \
+  '`echo services/probe.ts`' '$(echo services/probe.ts)' '"$PROBE_TARGET"'; do
+  run_msg 2 "override: shell-expanded add target cannot be verified: $exp_target" \
+    "TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add $exp_target && git commit -m \"x\"" \
+    'cannot be verified' 'services/probe.ts'
+done
+
+# Read-only verbs and a doc add around the token commit: these passed under
+# the earlier verb allowlist and are refused now — the standalone rule admits
+# no second command, read-only or not.
+run_msg 2 "override: status + doc add + commit is refused (not standalone)" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git status && git add docs/probe-notes.md && git commit -m "docs: x"' \
+  'cannot be verified' 'docs/probe-notes.md services/probe.ts'
+run_msg 2 "override: git -C . add of a doc file is refused (not standalone)" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git -C . add docs/probe-notes.md && git commit -m "docs: x"' \
+  'cannot be verified' 'docs/probe-notes.md'
+run_msg 2 "override: read-only verbs around a doc commit are refused (not standalone)" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git --no-pager diff --cached && git add docs/probe-notes.md && git commit -m "docs: x" && git log --oneline -1 && git show --stat HEAD && git rev-parse HEAD && git branch --show-current && git ls-files docs' \
+  'cannot be verified' 'docs/probe-notes.md'
+run_msg 2 "override: doc add + CANONICAL heredoc commit is refused (not standalone)" \
+  "TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add docs/probe-notes.md && ${CANONICAL_HEREDOC#git add -A && }" \
+  'cannot be verified' 'docs/probe-notes.md services/probe.ts'
+run_msg 2 "override: git -C . add of a gated file is refused" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git -C . add services/probe.ts && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+
+# --- commits inside a substitution -------------------------------------------
+# The earlier design scanned each span's segments; these rows passed under it
+# as doc-only commits. A token commit inside a substitution is not standalone,
+# so all of them are refused now, controls included.
+run_msg 2 "override: quoted prose in a span beside a doc commit is refused" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 OUT=$(gh pr comment 5 --body "reminder: git commit early and often") && git add docs/probe-notes.md && git commit -m "docs: x"' \
+  'cannot be verified' 'docs/probe-notes.md'
+run_msg 2 "override: a span commit with a multi-word quoted message is refused" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 OUT=$(git add docs/probe-notes.md && git commit -m "fix bug in docs")' \
+  'cannot be verified' 'docs/probe-notes.md'
+run_msg 2 "override: a span commit followed by a chained command is refused" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 OUT=$(git add docs/probe-notes.md && git commit -m y && git status)' \
+  'cannot be verified' 'docs/probe-notes.md'
+run_msg 2 "override: an auto-stage commit in a span still blocks" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 OUT=$(git commit -am x)' \
+  'cannot be verified'
+run_msg 2 "override: an auto-stage commit in a double-quoted span still blocks" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 OUT="$(git commit -am x)"' \
+  'cannot be verified'
+run_msg 2 "override: an auto-stage commit in a later span segment still blocks" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 OUT="$(git add docs/probe-notes.md && git commit -am x)"' \
+  'cannot be verified' 'docs/probe-notes.md'
+run_msg 2 "override: a pathspec commit with a quoted message in a span still blocks" \
+  "TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 OUT=\"\$(git status && git commit -m 'x' services/bot-client/src/index.ts)\"" \
+  'cannot be verified'
+
+# A `~`-leading add target is tilde-expanded by bash before git sees it — one
+# more shape the earlier add parse had to enumerate; refused beside the token.
+run_msg 2 "override: a tilde add target cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add ~/notes.md && git commit -m "x"' \
+  'cannot be verified'
+
+run_staged 2 "no override: a staged code file still blocks" \
+  'git commit -m "x"' 'services/probe.ts'
+# An in-command add of even a version-only manifest bump is a second command:
+# a release bump stages its manifests in one Bash call and commits under the
+# token in the next (the staged-bump rows at the end of this file).
+sed -i 's/"version": "[^"]*"/"version": "9.9.9-probe.3"/' "$WT/package.json"
+run_msg 2 "override: in-command add of a version-only manifest bump is refused (not standalone)" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add package.json && git commit -m "x"' \
+  'cannot be verified'
+git -C "$WT" checkout -- package.json 2>/dev/null
+sed -i 's/"version": "[^"]*"/"version": "9.9.9-probe.4"/' "$WT/package.json"
+printf '"probe": "x"\n' >> "$WT/package.json"
+run 2 "override: in-command add of a manifest with a non-version edit blocks" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add package.json && git commit -m "x"'
+git -C "$WT" checkout -- package.json 2>/dev/null
+
+# --- the standalone rule ------------------------------------------------------
+# Under the token the commit must stand alone, and its set is then exactly the
+# index. Rows marked RED-FIRST exited 0 on the previous in-command-parse
+# design (commit 8f214db7f) and were pasted red before the redesign landed.
+# RED-FIRST: a bare subshell glued its `)` onto the add target, so the old
+# suffix classifier saw `services/probe.ts)` and passed it.
+run_msg 2 "override: standalone rule: a bare subshell add before the token commit is refused" \
+  '(git add services/probe.ts) && TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "docs: x"' \
+  'cannot be verified' 'services/probe.ts'
+run_msg 2 "override: standalone rule: a spaced subshell add before the token commit is refused" \
+  '( git add services/probe.ts ) && TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "docs: x"' \
+  'cannot be verified' 'services/probe.ts'
+# The repo's canonical commit form, standalone, with a doc-only index: the
+# one substitution the rule admits. The control for every refusal here.
+run_staged 0 "override: standalone rule: CANONICAL heredoc commit with a doc-only index passes" \
+  "TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 ${CANONICAL_HEREDOC#git add -A && }" \
+  'tracker/tasks/probe.md' 'services/probe.ts'
+run_staged_msg 2 "override: standalone rule: a staged gated hook file blocks, naming it" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "docs: x"' '.claude/hooks/probe-gated.sh' \
+  'tracker/tasks/probe.md .claude/hooks/probe-gated.sh'
+# Ordinary flags, value-taking ones included, keep a standalone commit
+# passing: `--cleanup strip` consumes `strip`, `-SABCD1234` carries its key
+# attached, `--gpg-sign=` likewise.
+run_staged 0 "override: standalone rule: ordinary flags pass" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit --no-verify --signoff --allow-empty -q --cleanup strip --fixup=HEAD -m "docs: x"' \
+  'tracker/tasks/probe.md'
+run_staged 0 "override: standalone rule: an attached -S key passes" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -SABCD1234 -m "docs: x"' 'tracker/tasks/probe.md'
+run_staged 0 "override: standalone rule: --gpg-sign=<key> passes" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit --gpg-sign=ABCD1234 -m "docs: x"' 'tracker/tasks/probe.md'
+# `-S` takes its key ATTACHED only: git reads a separate next word as a
+# PATHSPEC (measured, git 2.50.1: `git commit -S f.ts` committed the unstaged
+# f.ts; `-S ABCD1234` failed "pathspec 'ABCD1234' did not match"). Reading it
+# as a key would let `-S services/x.ts` commit an unstaged gated file.
+run_staged_msg 2 "override: standalone rule: a separate -S word is a pathspec, refused" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -S ABCD1234 -m "docs: x"' 'pathspec argument' \
+  'tracker/tasks/probe.md'
+# RED-FIRST: git accepts any unique prefix of a long option, so
+# `--pathspec-from=` stages the listed paths like `--pathspec-from-file=`
+# (measured, git 2.50.1); the old parse matched the full spelling only.
+run_staged_msg 2 "override: standalone rule: an abbreviated --pathspec-from-file is refused" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit --pathspec-from=probe-list.txt -m "docs: x"' \
+  'cannot be verified' 'tracker/tasks/probe.md'
+# RED-FIRST: `-p` stages hunks interactively at commit time.
+run_staged_msg 2 "override: standalone rule: -p (patch) is refused" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -p -m "docs: x"' 'stages content' \
+  'tracker/tasks/probe.md'
+# The heredoc message is admitted only in its strict shape. Fixtures come
+# from here-documents so the invoking command line never carries them.
+read -r -d '' HEREDOC_OPENER_CHAIN <<'FIX'
+TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "$(cat <<'EOF' && git add services/probe.ts
+docs: x
+EOF
+)"
+FIX
+run_staged_msg 2 "override: standalone rule: a command on the heredoc opener line is refused" \
+  "$HEREDOC_OPENER_CHAIN" 'cannot be verified' 'tracker/tasks/probe.md' 'services/probe.ts'
+read -r -d '' HEREDOC_AFTER_TERMINATOR <<'FIX'
+TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "$(cat <<'EOF'
+docs: x
+EOF
+git add services/probe.ts
+)"
+FIX
+run_staged_msg 2 "override: a command between the heredoc terminator and the close is refused" \
+  "$HEREDOC_AFTER_TERMINATOR" 'cannot be verified' 'tracker/tasks/probe.md' 'services/probe.ts'
+# RED-FIRST: an UNQUOTED delimiter expands `$(…)` inside the body, so the add
+# runs; the old scan stripped the body as inert.
+read -r -d '' HEREDOC_UNQUOTED_DELIM <<'FIX'
+TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "$(cat <<EOF
+docs: x $(git add services/probe.ts)
+EOF
+)"
+FIX
+run_staged_msg 2 "override: standalone rule: an unquoted-delimiter heredoc message is refused" \
+  "$HEREDOC_UNQUOTED_DELIM" 'cannot be verified' 'tracker/tasks/probe.md' 'services/probe.ts'
+run_staged_msg 2 "override: standalone rule: a substitution inside the -m message is refused" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "docs: $(git add services/probe.ts)"' \
+  'cannot be verified' 'tracker/tasks/probe.md' 'services/probe.ts'
+# RED-FIRST (review finding 2): the version-bump exception now carries the
+# no-override path's every-gated-file-is-a-package.json restriction. A tracked
+# .ts whose staged diff is a single `"version":` line is not a release bump.
+printf '  "version": "9.9.9-probe.6",\n' >> "$WT/services/bot-client/src/index.ts"
+git -C "$WT" add services/bot-client/src/index.ts
+run_msg 2 "override: a staged version-only edit to a non-manifest gated file blocks" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "docs: x"' 'services/bot-client/src/index.ts'
+git -C "$WT" reset -q --hard HEAD
 
 # --- pathological flag runs must not hang the session ---------------------
 # The flag-value group here carried the same ambiguity that was MEASURED
@@ -789,6 +1191,42 @@ bump_probe 2 "bump plus a whitespace-only manifest edit blocks" blank
 # The exact shape the guard exists for: a correct bump riding with real
 # code — the non-manifest gated file short-circuits the exception.
 bump_probe 2 "bump plus an unrelated dirty code file blocks" codefile
+
+# The override path's version-bump mirror: the manifest set is judged on the
+# STAGED diff (--cached) for index-borne files, not the working diff —
+# unstaged noise on an index-borne manifest must not defeat a genuine bump,
+# and a staged non-version edit must still block.
+bump_probe_override() {
+  local expected="$1" label="$2" extra_edit="${3:-}"
+  sed -i 's/"version": "[^"]*"/"version": "9.9.9-probe.5"/' "$WT/package.json"
+  sed -i 's/"version": "[^"]*"/"version": "9.9.9-probe.5"/' "$WT/services/bot-client/package.json"
+  if [ "$extra_edit" = "extra" ]; then
+    printf '"probe": "x"\n' >> "$WT/services/bot-client/package.json"
+  fi
+  git -C "$WT" add -- package.json services/bot-client/package.json
+  if [ "$extra_edit" = "codefile" ]; then
+    printf 'probe\n' > "$WT/services/probe.ts"
+    git -C "$WT" add services/probe.ts
+  fi
+  if [ "$extra_edit" = "noise" ]; then
+    printf '"probe-noise": "y"\n' >> "$WT/services/bot-client/package.json"
+  fi
+  jq -n '{tool_name:"Bash",tool_input:{command:"TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m \"x\""}}' \
+    | CLAUDE_PROJECT_DIR="$WT" "$HOOK" >/dev/null 2>&1
+  local actual=$?
+  git -C "$WT" reset -q --hard HEAD
+  rm -f "$WT/services/probe.ts"
+  if [ "$actual" -eq "$expected" ]; then
+    printf 'PASS  (exit %d)  %s\n' "$actual" "$label"
+  else
+    printf 'FAIL  (exit %d, expected %d)  %s\n' "$actual" "$expected" "$label"
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+bump_probe_override 0 "override: staged version-only bump across manifests passes"
+bump_probe_override 0 "override: staged bump passes with unstaged noise on the same manifest" noise
+bump_probe_override 2 "override: staged bump plus a non-version manifest edit blocks" extra
+bump_probe_override 2 "override: staged bump plus a staged code file blocks" codefile
 
 if [ "$FAILURES" -gt 0 ]; then
   printf '\n%d probe(s) FAILED\n' "$FAILURES" >&2
