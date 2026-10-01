@@ -11,35 +11,9 @@
 import type { BaseInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getCommandFromCustomId } from './customIds.js';
+import { INTERACTION_FAMILIES } from './interactionFamilies.js';
 
 const logger = createLogger('foreignInteraction');
-
-/**
- * Classify the interaction family for the drop log, using discord.js's own
- * type guards in a fixed order (the order only matters for a mock that reports
- * more than one guard true; a real interaction matches exactly one).
- */
-function interactionTypeOf(interaction: BaseInteraction): string {
-  if (interaction.isChatInputCommand()) {
-    return 'chat_input';
-  }
-  if (interaction.isMessageContextMenuCommand()) {
-    return 'message_context_menu';
-  }
-  if (interaction.isModalSubmit()) {
-    return 'modal_submit';
-  }
-  if (interaction.isAutocomplete()) {
-    return 'autocomplete';
-  }
-  if (interaction.isStringSelectMenu()) {
-    return 'string_select_menu';
-  }
-  if (interaction.isButton()) {
-    return 'button';
-  }
-  return 'unknown';
-}
 
 /**
  * True when the interaction was addressed to a different application.
@@ -63,18 +37,26 @@ export function isForeignInteraction(interaction: BaseInteraction): boolean {
     return false;
   }
 
-  // Only the customId-bearing families carry a parseable command prefix; the
-  // raw customId can embed user slugs and is never logged — the parsed prefix
-  // is (pinned by the no-raw-customId test in ./foreignInteraction.test.ts).
+  // The shared family table classifies the interaction for the drop log and
+  // vouches for whether the family exposes a parseable customId command
+  // prefix; the raw customId can embed user slugs and is never logged — the
+  // parsed prefix is (pinned by the no-raw-customId test in
+  // ./foreignInteraction.test.ts).
+  const family = INTERACTION_FAMILIES.find(f => f.guard(interaction));
+
   let prefix: string | null = null;
-  if (interaction.isModalSubmit() || interaction.isStringSelectMenu() || interaction.isButton()) {
-    prefix = getCommandFromCustomId(interaction.customId);
+  if (family?.carriesCustomId === true) {
+    // TS cannot narrow through a table-driven guard; the matched row is what
+    // establishes that this family's interaction has a customId.
+    prefix = getCommandFromCustomId(
+      (interaction as BaseInteraction & { customId: string }).customId
+    );
   }
 
   logger.warn(
     {
       foreignApplicationId: interaction.applicationId,
-      interactionType: interactionTypeOf(interaction),
+      interactionType: family?.label ?? 'unknown',
       ...(prefix !== null ? { customIdPrefix: prefix } : {}),
     },
     'Ignoring interaction addressed to another application'
