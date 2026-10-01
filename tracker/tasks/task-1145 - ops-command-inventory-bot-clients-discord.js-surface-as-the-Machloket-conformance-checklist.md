@@ -3,9 +3,10 @@ id: TASK-1145
 title: >-
   ops command: inventory bot-client's discord.js surface as the Machloket
   conformance checklist
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-28 04:13'
+updated_date: '2026-10-01 17:25'
 labels:
   - 'area:tooling'
   - 'size:M'
@@ -28,5 +29,5 @@ Acceptance: the command runs on develop and lists every primitive category above
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-2026-09-30: theme doc-109 (transport parity) opened; its Appendix A is the manual v1 of this command's output — the Spacebar fork and Machloket sessions consume that until the command + snapshot land (doc-109 TR-9.1). The command remains the owner-hard-line mechanical guard; Appendix A is dated and re-derived on UX-wave merges meanwhile.
+2026-09-30: theme doc-109 (transport parity) opened; its Appendix A was the manual v1 of this command's output — the fork and Machloket sessions consumed it until this command shipped. 2026-10-01: SHIPPED (PR #2562) as `pnpm ops surface:inventory` + the snapshot pair at `docs/reference/conformance/` + the `--check` gate in quality and CI; the live conformance list is the snapshot, and doc-109's Appendix A is kept as dated history.
 <!-- SECTION:NOTES:END -->
