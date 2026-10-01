@@ -5,9 +5,19 @@
 # dependency manifests, Dockerfiles, and .claude rules/skills/hooks must go
 # branch → PR → review.
 #
-# The gate keys off the DIRTY TREE, not the staging area: the failure shape
-# is an `git add … && git commit` chain, where at PreToolUse time nothing is
-# staged yet — only the working tree carries the signal.
+# The NO-override gate keys off the DIRTY TREE, not the staging area: the
+# failure shape is an `git add … && git commit` chain, where at PreToolUse
+# time nothing is staged yet — only the working tree carries the signal. The
+# OVERRIDE path is the opposite seam: the token exists for doc-only commits,
+# so what it must judge is what the commit would actually capture, and a
+# gated file in that set blocks even under the token (probe: "override:
+# staged .ts blocks, banner names the file"). That set is only knowable when
+# nothing else in the command can change it, so the token commit must STAND
+# ALONE: one command, the token plus `git [globals] commit [flags]`, with no
+# other segment, subshell, substitution (the heredoc message excepted) or
+# auto-staging flag (probe: the "override: standalone rule" rows). The
+# commit set is then exactly the index, which is classified like the dirty
+# tree is.
 #
 # Matching notes (review-hardened):
 # - Heredoc bodies and quoted strings are stripped BEFORE any matching, so the
@@ -34,7 +44,10 @@
 #   command (typically the first): its presence in command position — never
 #   in quoted/heredoc prose — is the deliberate, review-visible unlock for
 #   the whole command. This is a visibility guard, not a security boundary,
-#   so per-segment env semantics are intentionally not modeled.
+#   so per-segment env semantics are intentionally not modeled. The unlock
+#   covers the doc-only gate only: a token found in ANY segment routes the
+#   command to the override path, which refuses every shape but the
+#   standalone token commit and then classifies the index.
 # - Known limitation: the branch check runs in CLAUDE_PROJECT_DIR; a command
 #   that cd's into a DIFFERENT checkout/worktree is checked against the main
 #   checkout's branch. Accepted — the failure pattern this guards is in-repo.
@@ -119,7 +132,7 @@ import sys
 # exits non-zero, which the caller treats as allow (fail-open); the probe,
 # not runtime, is what catches a missing lib.
 sys.path.insert(0, os.environ["HOOK_LIB"])
-from shell_quotes import strip_quoted, substitution_spans_matching
+from shell_quotes import strip_quoted, substitution_spans, substitution_spans_matching
 
 cmd = os.environ.get("GUARD_CMD", "")
 if not cmd:
@@ -423,6 +436,203 @@ if not detected:
     print("ok")
     raise SystemExit
 
+# --- the override path: the token commit must STAND ALONE ----------------
+# The token used to emit "ok" unconditionally — a blanket pass that let a
+# pre-staged INDEX full of code ride a doc-only commit. What a commit captures
+# is the index PLUS whatever the rest of the same command stages or rewrites
+# before the commit runs, and modelling that rest (add targets, a verb
+# allowlist, subshells, substitutions) missed one more bash shape every review
+# round. So under the token this guard models nothing beyond the commit
+# itself: the command must be the token commit ALONE, and then the commit set
+# IS the index, which the caller classifies with `git diff --cached`.
+# Everything else is refused with a reason, never guessed at:
+# - a second segment (`&&`, `||`, `;`, `|`, `&`, newline), a subshell or
+#   grouping paren, a redirect or any other heredoc, a `$` expansion, an
+#   ANSI-C `$'…'` string;
+# - a command substitution or backtick other than the canonical heredoc
+#   message `-m "$(cat <<'EOF' … EOF)"` (the strict form below);
+# - any word before `git` other than the token, any git verb but `commit`;
+# - a commit flag that stages content itself (`-a`/`--all`, `-p`/`--patch`,
+#   `--interactive`, `--pathspec-from-file`), a pathspec argument, and any
+#   flag outside the recognised set below.
+# Probe: the "override: standalone rule" rows.
+
+OVERRIDE_TOKEN = "TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1"
+# Global options that consume the FOLLOWING word as their value (`-C dir`,
+# `-c k=v`, `--git-dir dir`). The `=`-joined spellings are one word and need
+# no entry. An unlisted value-taking option makes its value read as the verb,
+# which is not `commit`, so the miss can only refuse, never pass.
+GIT_VALUE_GLOBALS = (
+    "-c", "-C", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--config-env",
+)
+# `git commit` options, taken from `git commit -h` (git 2.50.1). A REQUIRED
+# value is taken attached or as the next word. An OPTIONAL value (`-S[<keyid>]`,
+# `-u[<mode>]`, `--gpg-sign[=<keyid>]`, `--untracked-files[=<mode>]`) is taken
+# attached ONLY: git reads the next word as a PATHSPEC (measured, git 2.50.1:
+# `git commit -S f.ts` committed the unstaged f.ts, and `-S ABCD1234` failed
+# with "pathspec 'ABCD1234' did not match"), so it stays a pathspec here too.
+# Long options are matched by EXACT name because git accepts any unique
+# prefix (measured: `--pathspec-from=list.txt` staged the listed file like
+# `--pathspec-from-file=`), so an unrecognised spelling is refused rather than
+# read as harmless.
+COMMIT_SHORT_VALUE = "mFcCt"
+COMMIT_SHORT_OPTIONAL = "Su"
+COMMIT_SHORT_FLAG = "qvseionz"
+COMMIT_SHORT_STAGES = "ap"
+COMMIT_LONG_VALUE = (
+    "message", "file", "reuse-message", "reedit-message", "fixup", "squash",
+    "author", "date", "template", "cleanup", "trailer",
+)
+COMMIT_LONG_OPTIONAL = ("gpg-sign", "untracked-files")
+COMMIT_LONG_FLAG = (
+    "quiet", "verbose", "signoff", "edit", "include", "only", "verify",
+    "dry-run", "short", "branch", "ahead-behind", "porcelain", "long", "null",
+    "amend", "post-rewrite", "reset-author", "status", "pathspec-file-nul",
+    "allow-empty", "allow-empty-message",
+)
+COMMIT_LONG_STAGES = ("all", "patch", "interactive", "pathspec-from-file")
+COMMIT_LONG_KNOWN = COMMIT_LONG_VALUE + COMMIT_LONG_OPTIONAL + COMMIT_LONG_FLAG + COMMIT_LONG_STAGES
+
+# The opener of the ONE substitution allowed under the token: `$(cat <<'EOF'`
+# with a QUOTED delimiter (an unquoted one expands `$(…)` inside the body)
+# and nothing after it on the opener line (`$(cat <<'EOF' && git add x` runs
+# the add inside the substitution).
+MSG_HEREDOC_OPENER = re.compile(r"\$\(cat[ \t]+<<-?[ \t]*(['\"])(\w+)\1[ \t]*\n")
+SUBSTITUTION_CLOSE = re.compile(r"\s*\)")
+
+
+def _message_heredoc_end(text, opener):
+    # The index just past the `)` closing a strict heredoc-message
+    # substitution, or None when the shape is anything else. The terminator
+    # match is deliberately MORE lenient than bash (surrounding blanks allowed
+    # on every form): bash ends the body at the first line that is exactly the
+    # delimiter, so this match can only land on that line or an earlier one,
+    # and an earlier one leaves bash-body text in the scanned command, which
+    # can only refuse (argued from bash's documented terminator rule, not
+    # probed against an early-terminator fixture). After the terminator only
+    # blanks may precede the `)`,
+    # so no command can sit between the body and the close (probe: "override:
+    # a command between the heredoc terminator and the close is refused").
+    terminator = re.compile(r"^[ \t]*" + re.escape(opener.group(2)) + r"[ \t]*$", re.M)
+    found = terminator.search(text, opener.end())
+    if found is None:
+        return None
+    close = SUBSTITUTION_CLOSE.match(text, found.end())
+    return None if close is None else close.end()
+
+
+def _strip_message_heredocs(text):
+    # `text` with every strict heredoc-message substitution replaced by `MSG`,
+    # scanned with quote state so a `$(cat <<'EOF'` inside a single-quoted
+    # region (inert to bash, and able to pair quotes around live text) is never
+    # treated as a message. Anything not in the strict shape is left in place
+    # and refused downstream as an ordinary substitution.
+    # Escapes are approximated: any `\X` outside single quotes passes through
+    # as an opaque pair (bash strips the backslash in some double-quote
+    # cases). The quote state stays correct either way, and the output is
+    # re-parsed by shell_quotes' scanner, so the approximation only decides
+    # where a heredoc message may start.
+    out = []
+    quote = None
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch == "$" and quote != "'":
+            opener = MSG_HEREDOC_OPENER.match(text, i)
+            end = _message_heredoc_end(text, opener) if opener is not None else None
+            if end is not None:
+                out.append("MSG")
+                i = end
+                continue
+        if ch == "\\" and quote != "'" and i + 1 < len(text):
+            out.append(text[i : i + 2])
+            i += 2
+            continue
+        if ch in "'\"" and quote in (None, ch):
+            quote = ch if quote is None else None
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _commit_args_refusal(args):
+    # Why the words after `commit` make the commit set something other than
+    # the index, or None when they do not.
+    i = 0
+    while i < len(args):
+        word = args[i]
+        i += 1
+        if word == "--":
+            if i < len(args):
+                return f"the pathspec argument `{args[i]}` after `--`"
+            continue
+        if word.startswith("--"):
+            name = word[2:].split("=", 1)[0]
+            has_value = "=" in word
+            if name in COMMIT_LONG_STAGES:
+                return f"`--{name}`, which stages content at commit time"
+            if name in COMMIT_LONG_VALUE:
+                if not has_value:
+                    i += 1
+                continue
+            if name in COMMIT_LONG_OPTIONAL:
+                continue
+            negated = name[3:] if name.startswith("no-") else None
+            if not has_value and (name in COMMIT_LONG_FLAG or negated in COMMIT_LONG_KNOWN):
+                continue
+            return f"the unrecognised commit flag `{word}`"
+        if word.startswith("-") and len(word) > 1:
+            for pos, letter in enumerate(word[1:], start=1):
+                if letter in COMMIT_SHORT_STAGES:
+                    return f"`-{letter}` (in `{word}`), which stages content at commit time"
+                if letter in COMMIT_SHORT_VALUE:
+                    # The rest of the word is the value; a bare letter at the
+                    # end of the word takes the NEXT word instead.
+                    if pos == len(word) - 1:
+                        i += 1
+                    break
+                if letter in COMMIT_SHORT_OPTIONAL:
+                    break
+                if letter not in COMMIT_SHORT_FLAG:
+                    return f"the unrecognised commit flag `{word}`"
+            continue
+        return f"the pathspec argument `{word}`"
+    return None
+
+
+def _override_verdict(raw):
+    # "override" when `raw` is the standalone token commit, else
+    # "override-refused:<reason>" for the caller's banner.
+    text = _strip_message_heredocs(raw)
+    if "$'" in text:
+        return "override-refused:an ANSI-C $'...' string"
+    if substitution_spans(text):
+        return "override-refused:a command substitution or backtick other than the heredoc message"
+    flat = strip_quoted(text)
+    if flat is None:
+        return "override-refused:an unterminated quote"
+    flat = flat.strip()
+    shape = re.search(r"[;&|\n()`$<>]", flat)
+    if shape is not None:
+        char = "newline" if shape.group() == "\n" else shape.group()
+        return (
+            "override-refused:a second command, subshell, redirect or expansion "
+            f"(`{char}`)"
+        )
+    words = flat.split()
+    if not words or words[0] != OVERRIDE_TOKEN:
+        return "override-refused:a word before the token"
+    if len(words) < 2 or words[1].lower() != "git":
+        return "override-refused:a command other than git after the token"
+    i = 2
+    while i < len(words) and words[i].startswith("-"):
+        i += 2 if words[i] in GIT_VALUE_GLOBALS else 1
+    if i >= len(words) or words[i].lower() != "commit":
+        return "override-refused:a git verb other than commit"
+    reason = _commit_args_refusal(words[i + 1 :])
+    return "override" if reason is None else "override-refused:" + reason
+
+
 # Escape hatch: an assignment token leading a chain segment — never prose
 # (prose lived in quotes/heredocs, which are already stripped).
 #
@@ -436,7 +646,7 @@ if not detected:
 # BLOCKS, it never bypasses.
 for segment in re.split(r"&&|\|\||;|\||\n", cmd):
     if re.match(r"\s*TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1(\s|$)", segment):
-        _emit("ok")
+        _emit(_override_verdict(raw_cmd))
 
 _emit("check")
 PYEOF
@@ -529,13 +739,128 @@ HDRBANNER
   fi
 fi
 
-[ "$GATE_VERDICT" != "check" ] && exit 0
+# "check" = no override (working-tree gate below); "override" = the token
+# commit stands alone; "override-refused:<reason>" = token present on any
+# other command shape. The branch check still applies to all three, then the
+# override block handles the last two. Any other verdict ("ok", no commit
+# detected) exits.
+case "$GATE_VERDICT" in
+  check | override | override-refused:*) : ;;
+  *) exit 0 ;;
+esac
 
 cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null || exit 0
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
 if [ "$BRANCH" != "develop" ] && [ "$BRANCH" != "main" ]; then
   exit 0
+fi
+
+# The gated classifier, shared by both gates: the override path runs it over
+# the index, the working-tree check below over the dirty tree. One function,
+# so the two gates cannot drift apart.
+gate_classify() {
+  grep -E '\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|prisma|sql|sh|yml|yaml|json|toml)$|(^|/)Dockerfile[^/]*$|^\.github/|^\.claude/(rules|skills|hooks)/' \
+    | grep -vxF 'backlog/cadence-ledger.json'
+}
+
+# --- override, refused: the token on anything but a standalone commit -----
+# The python heredoc names the shape it refused; the commit set of such a
+# command is not knowable from here, so it fails closed (probe: the
+# "override: standalone rule" rows).
+case "$GATE_VERDICT" in
+  override-refused:*)
+    cat >&2 <<'REFBANNER'
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DEVELOP CODE-COMMIT GUARD — override token present, but the commit set
+cannot be verified
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Under TZUROT_ALLOW_DEVELOP_CODE_COMMIT the commit must STAND ALONE —
+the token plus `git [globals] commit [flags]` and nothing else — so
+that what it commits is exactly the index this guard reads. This
+command carries:
+REFBANNER
+    printf '  %s\n' "${GATE_VERDICT#override-refused:}" >&2
+    cat >&2 <<'REFFOOTER'
+
+Fix: run the token commit as its own Bash call, after staging SPECIFIC
+files in a separate Bash call (e.g. git add tracker/tasks/task-x.md).
+Allowed in the token call: -m/--message, -F/--file, the heredoc message
+-m "$(cat <<'EOF' … EOF)", and ordinary flags (--no-verify, --amend,
+--fixup=…, -S<keyid> attached, --signoff, --allow-empty, -q).
+Refused: any other segment (&&, ||, ;, |, newline), a subshell, any
+other substitution or backtick, a redirect, -a/--all, -p/--patch,
+--interactive, --pathspec-from-file, and pathspec arguments.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REFFOOTER
+    exit 2
+    ;;
+esac
+
+if [ "$GATE_VERDICT" = "override" ]; then
+  # --- override: the standalone commit's set is exactly the index ---------
+  # The token unlocks doc-only commits, so the working tree is irrelevant
+  # here (an incidentally dirty tree is the documented use); the index is
+  # what the commit captures. --no-renames, as in the working-tree check
+  # below: a staged gated→non-gated rename rendered as one rename line would
+  # check only the NEW path's extension; the decomposed D/A lines check the
+  # deleted side too.
+  STAGED_GATED=$(git diff --cached --name-only --no-renames 2>/dev/null \
+    | gate_classify || true)
+  if [ -z "$STAGED_GATED" ]; then
+    exit 0
+  fi
+
+  # Version-bump exception: the working-tree check below, mirrored exactly —
+  # its every-gated-file-is-a-package.json restriction included (probe:
+  # "override: a staged version-only edit to a non-manifest gated file
+  # blocks") — with the diff source switched to what the commit captures,
+  # the STAGED diff (`--cached`), so unstaged noise on the same manifest
+  # cannot defeat a genuine bump (probe: "override: staged bump passes with
+  # unstaged noise on the same manifest").
+  if ! printf '%s\n' "$STAGED_GATED" | grep -vE '(^|/)package\.json$' >/dev/null; then
+    VERSION_ONLY=1
+    while IFS= read -r f; do
+      if ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+        VERSION_ONLY=0; break   # untracked/new manifest is not a bump shape
+      fi
+      # ([^+-]|$): a bare +/- (added/removed EMPTY line) is still a change.
+      CHANGED=$(git diff --cached -U0 -- "$f" 2>/dev/null | grep -E '^[+-]([^+-]|$)' || true)
+      if [ -z "$CHANGED" ] \
+        || printf '%s\n' "$CHANGED" | grep -vE '^[+-][[:space:]]*"version":' >/dev/null; then
+        VERSION_ONLY=0; break
+      fi
+    done <<< "$STAGED_GATED"
+    if [ "$VERSION_ONLY" = "1" ]; then
+      exit 0
+    fi
+  fi
+
+  GATED_COUNT=$(printf '%s\n' "$STAGED_GATED" | wc -l)
+  cat >&2 <<'OVRBANNER'
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DEVELOP CODE-COMMIT GUARD — override token present, but review-gated
+files are in the commit set
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TZUROT_ALLOW_DEVELOP_CODE_COMMIT unlocks DOC-ONLY commits on
+develop/main; it does not waive the review gate. Gated files are
+staged in the index this commit would capture:
+
+Gated files (first 10):
+OVRBANNER
+  printf '%s\n' "$STAGED_GATED" | head -10 >&2
+  if [ "$GATED_COUNT" -gt 10 ]; then
+    printf '  …and %d more\n' "$((GATED_COUNT - 10))" >&2
+  fi
+  cat >&2 <<'OVRFOOTER'
+
+Fix: unstage the gated files (git restore --staged <path>) and stage
+ONLY the doc files for this commit, or move the code to a branch —
+git checkout -b <type>/<name> — and commit there. Either way, as its
+OWN Bash call before the token commit.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OVRFOOTER
+  exit 2
 fi
 
 # Review-gated files anywhere in the dirty tree (staged, unstaged, untracked):
@@ -555,8 +880,7 @@ fi
 # else included — stays gated.
 GATED_FILES=$(git status --porcelain -uall --no-renames 2>/dev/null \
   | cut -c4- \
-  | grep -E '\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|prisma|sql|sh|yml|yaml|json|toml)$|(^|/)Dockerfile[^/]*$|^\.github/|^\.claude/(rules|skills|hooks)/' \
-  | grep -vxF 'backlog/cadence-ledger.json' \
+  | gate_classify \
   || true)
 
 if [ -z "$GATED_FILES" ]; then
@@ -618,8 +942,8 @@ blocked PreToolUse call executes NONE of its chain — an earlier `git add`
 in the same chain did not run either.
 
 Doc-only commit with an incidentally dirty tree? Stage ONLY the doc
-files and prefix the command with TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1
-(assignment position, not prose — deliberate, review-visible friction).
+files in one Bash call, then run the commit ALONE in the next, prefixed
+with TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 (assignment position).
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 FOOTER
 exit 2
