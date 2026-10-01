@@ -67,6 +67,30 @@ const FAMILY_FIXTURES: FamilyFixture[] = [
     customId: RAW_CUSTOM_ID,
   },
   {
+    family: 'user select menu',
+    guard: 'isUserSelectMenu',
+    interactionType: 'user_select_menu',
+    customId: RAW_CUSTOM_ID,
+  },
+  {
+    family: 'role select menu',
+    guard: 'isRoleSelectMenu',
+    interactionType: 'role_select_menu',
+    customId: RAW_CUSTOM_ID,
+  },
+  {
+    family: 'channel select menu',
+    guard: 'isChannelSelectMenu',
+    interactionType: 'channel_select_menu',
+    customId: RAW_CUSTOM_ID,
+  },
+  {
+    family: 'mentionable select menu',
+    guard: 'isMentionableSelectMenu',
+    interactionType: 'mentionable_select_menu',
+    customId: RAW_CUSTOM_ID,
+  },
+  {
     family: 'button',
     guard: 'isButton',
     interactionType: 'button',
@@ -90,6 +114,10 @@ function makeInteraction(
     isModalSubmit: () => fx.guard === 'isModalSubmit',
     isAutocomplete: () => fx.guard === 'isAutocomplete',
     isStringSelectMenu: () => fx.guard === 'isStringSelectMenu',
+    isUserSelectMenu: () => fx.guard === 'isUserSelectMenu',
+    isRoleSelectMenu: () => fx.guard === 'isRoleSelectMenu',
+    isChannelSelectMenu: () => fx.guard === 'isChannelSelectMenu',
+    isMentionableSelectMenu: () => fx.guard === 'isMentionableSelectMenu',
     isButton: () => fx.guard === 'isButton',
   } as unknown as BaseInteraction;
 }
@@ -181,6 +209,10 @@ describe('isForeignInteraction', () => {
       isModalSubmit: () => true,
       isAutocomplete: () => false,
       isStringSelectMenu: () => false,
+      isUserSelectMenu: () => false,
+      isRoleSelectMenu: () => false,
+      isChannelSelectMenu: () => false,
+      isMentionableSelectMenu: () => false,
       isButton: () => false,
     } as unknown as BaseInteraction;
 
