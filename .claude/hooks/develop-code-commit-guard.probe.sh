@@ -219,6 +219,71 @@ run_reason() {
   fi
 }
 
+# run_staged <expected-exit> <label> <command> <space-separated paths to
+# create AND stage> [space-separated paths to create but leave unstaged]
+# The override path judges the INDEX plus same-command adds, so its cases
+# need files IN the index — run()'s dirty files never leave the working
+# tree. Stages the first list, dirties the second (the override ignores it —
+# pinning THAT is the point of the second list), resets the fixture index
+# after each case (the cleanup the rename case below also uses).
+run_staged() {
+  local expected="$1" label="$2" cmd="$3" staged="${4:-}" dirty="${5:-}" wt="${TARGET_WT:-$WT}" f actual
+  for f in $staged; do
+    mkdir -p "$wt/$(dirname "$f")"
+    printf 'probe\n' > "$wt/$f"
+  done
+  for f in $dirty; do
+    mkdir -p "$wt/$(dirname "$f")"
+    printf 'probe\n' > "$wt/$f"
+  done
+  [ -n "$staged" ] && git -C "$wt" add -- $staged
+  jq -n --arg c "$cmd" '{tool_name:"Bash",tool_input:{command:$c}}' \
+    | CLAUDE_PROJECT_DIR="$wt" "$HOOK" >/dev/null 2>&1
+  actual=$?
+  git -C "$wt" reset -q --hard HEAD
+  for f in $staged $dirty; do
+    rm -f "$wt/$f"
+  done
+  if [ "$actual" -eq "$expected" ]; then
+    printf 'PASS  (exit %d)  %s\n' "$actual" "$label"
+  else
+    printf 'FAIL  (exit %d, expected %d)  %s\n' "$actual" "$expected" "$label"
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+
+# run_staged_msg: run_staged plus the stderr needle assert from run_msg.
+run_staged_msg() {
+  local expected="$1" label="$2" cmd="$3" needle="$4" staged="${5:-}" dirty="${6:-}" wt="${TARGET_WT:-$WT}" f out actual
+  for f in $staged; do
+    mkdir -p "$wt/$(dirname "$f")"
+    printf 'probe\n' > "$wt/$f"
+  done
+  for f in $dirty; do
+    mkdir -p "$wt/$(dirname "$f")"
+    printf 'probe\n' > "$wt/$f"
+  done
+  [ -n "$staged" ] && git -C "$wt" add -- $staged
+  out=$(jq -n --arg c "$cmd" '{tool_name:"Bash",tool_input:{command:$c}}' \
+    | CLAUDE_PROJECT_DIR="$wt" "$HOOK" 2>&1)
+  actual=$?
+  git -C "$wt" reset -q --hard HEAD
+  for f in $staged $dirty; do
+    rm -f "$wt/$f"
+  done
+  if [ "$actual" -ne "$expected" ]; then
+    printf 'FAIL  (exit %d, expected %d)  %s\n' "$actual" "$expected" "$label"
+    FAILURES=$((FAILURES + 1))
+    return
+  fi
+  if ! printf '%s' "$out" | grep -qF "$needle"; then
+    printf 'FAIL  (message missing %q)  %s\n' "$needle" "$label"
+    FAILURES=$((FAILURES + 1))
+    return
+  fi
+  printf 'PASS  (exit %d, message ok)  %s\n' "$actual" "$label"
+}
+
 CANONICAL_HEREDOC='git add -A && git commit -m "$(cat <<'\''EOF'\''
 feat(ai-worker): add pgvector memory retrieval
 
@@ -424,8 +489,125 @@ run 2 "lowercase escape token does NOT unlock"    'tzurot_allow_develop_code_com
 run 2 "mixed-case escape token does NOT unlock"   'Tzurot_Allow_Develop_Code_Commit=1 git commit -m "x"'   'services/probe.ts'
 
 run 0 "escape hatch in command position"          'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "x"'   'services/probe.ts'
-run 0 "escape hatch, canonical heredoc form"      "TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 $CANONICAL_HEREDOC"  'services/probe.ts'
+run 0 "escape hatch, heredoc commit, no adds: dirty tree ignored" \
+  "TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 $EARLY_HEREDOC"                      'services/probe.ts'
 run 0 "non-git command"                           'echo hello'                                             'services/probe.ts'
+
+# --- the override judges the commit SET, not the dirty tree ----------------
+# The token used to be a blanket pass: the case that sat here expected exit 0
+# for `TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add -A && git commit` — the
+# staged-code-rides-along shape the override check exists to stop. It now
+# blocks; the pure pass path is pinned by the no-adds heredoc case above.
+run_staged_msg 2 "override: staged .ts blocks, banner names the file" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "x"' 'services/probe.ts' \
+  'services/probe.ts'
+run_staged 0 "override: staged tracker file passes, dirty code ignored" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "x"' \
+  'tracker/tasks/probe.md' 'services/probe.ts'
+run_msg 2 "override: in-command add of code blocks, banner names it" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add services/probe.ts && git commit -m "x"' \
+  'services/probe.ts' 'services/probe.ts'
+run 0 "override: in-command add of a doc file passes" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add docs/probe-notes.md && git commit -m "x"' \
+  'docs/probe-notes.md'
+run_msg 2 "override: in-command blanket add (git add .) cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add . && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+run_msg 2 "override: in-command add -A cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add -A && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+run_msg 2 "override: in-command glob add cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add services/*.ts && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+run_msg 2 "override: in-command directory add cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add services/ && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+run_msg 2 "override: add inside a command substitution blocks" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 out="$(git add services/probe.ts)" && git commit -m "x"' \
+  'services/probe.ts' 'services/probe.ts'
+# --- quoted / escaped add targets (the indexed-add parse) --------------------
+# The override's add-parse ran on the quote-STRIPPED text, so a quoted target
+# reached it as the placeholder `S` — no gated extension, exit 0. A quoted
+# `git add` was the same hole as a bare one, by other means. The resolution
+# cases below are the canaries: each one FAILED on the old parse, and their
+# first runs were pasted red before the fix landed.
+run_msg 2 "override: quoted add of a gated file blocks" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add "services/probe.ts" && git commit -m "x"' \
+  'services/probe.ts' 'services/probe.ts'
+run_msg 2 "override: quoted add behind -- still blocks" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add -- "services/probe.ts" && git commit -m "x"' \
+  'services/probe.ts' 'services/probe.ts'
+run 0 "override: quoted add of a doc file passes" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add "docs/probe-notes.md" && git commit -m "x"' \
+  'docs/probe-notes.md'
+# A quoted span RESOLVES to a real path, so a path containing a space is one
+# add target — classified under its own name, not skipped. The helpers split
+# dirty/staged lists on spaces, so these fixtures are created inline.
+mkdir -p "$WT/services" "$WT/docs"
+printf 'probe\n' > "$WT/services/my probe.ts"
+run_msg 2 "override: quoted add of a spaced gated path blocks, naming the real path" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add "services/my probe.ts" && git commit -m "x"' \
+  'services/my probe.ts'
+rm -f "$WT/services/my probe.ts"
+printf 'probe\n' > "$WT/docs/my notes.md"
+run 0 "override: quoted add of a spaced doc path passes" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add "docs/my notes.md" && git commit -m "x"'
+rm -f "$WT/docs/my notes.md"
+# A backslash-escaped space is ONE bash word: the old parse dropped the
+# backslash and split the path in two. The indexed parse resolves it, so the
+# block names the real path and the doc twin passes.
+printf 'probe\n' > "$WT/services/my file.ts"
+run_msg 2 "override: backslash-escaped spaced gated path blocks, naming the real path" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add services/my\ file.ts && git commit -m "x"' \
+  'services/my file.ts'
+rm -f "$WT/services/my file.ts"
+printf 'probe\n' > "$WT/docs/my notes.md"
+run 0 "override: backslash-escaped spaced doc path passes" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add docs/my\ notes.md && git commit -m "x"'
+rm -f "$WT/docs/my notes.md"
+# A quoted target that cannot be resolved (unterminated quote) has no
+# concrete path — the UNPARSABLE fail-closed class, not a guessed
+# classification.
+run_msg 2 "override: an unterminated quoted add target cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add "services/probe.ts && git commit -m "x"' \
+  'cannot be verified' 'services/probe.ts'
+
+# --- auto-stage commit shapes under the override -----------------------------
+# `git commit -a`/`--all` and a pathspec-limited `git commit <path>` stage
+# tracked files' working-tree content AT COMMIT TIME: no `git add` crosses the
+# hook and the index never changes, so neither the caller's index read nor the
+# add-parse can see what the commit will capture. The fixture is a TRACKED
+# modified .ts — `-a` stages only tracked files, so an untracked fixture would
+# not pin the real shape.
+printf 'probe\n' > "$WT/services/bot-client/src/index.ts"
+run_msg 2 "override: commit -am auto-stage cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -am "x"' \
+  'cannot be verified'
+run_msg 2 "override: commit --all auto-stage cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit --all -m "x"' \
+  'cannot be verified'
+run_msg 2 "override: pathspec-limited commit cannot be verified" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit services/bot-client/src/index.ts -m "x"' \
+  'cannot be verified'
+# The control: a plain `-m` commit under the token with the SAME tracked dirty
+# gated file must stay exit 0 — the no-auto-stage path must not regress.
+run 0 "override: plain -m commit passes with a tracked dirty gated file" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "x"'
+git -C "$WT" checkout -- services/bot-client/src/index.ts
+
+run_staged 2 "no override: a staged code file still blocks" \
+  'git commit -m "x"' 'services/probe.ts'
+# In-command add of a version-only manifest bump passes: at PreToolUse time
+# nothing is staged yet, so the HEAD diff IS the diff the add will stage.
+sed -i 's/"version": "[^"]*"/"version": "9.9.9-probe.3"/' "$WT/package.json"
+run 0 "override: in-command add of a version-only manifest bump passes" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add package.json && git commit -m "x"'
+git -C "$WT" checkout -- package.json 2>/dev/null
+sed -i 's/"version": "[^"]*"/"version": "9.9.9-probe.4"/' "$WT/package.json"
+printf '"probe": "x"\n' >> "$WT/package.json"
+run 2 "override: in-command add of a manifest with a non-version edit blocks" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add package.json && git commit -m "x"'
+git -C "$WT" checkout -- package.json 2>/dev/null
 
 # --- pathological flag runs must not hang the session ---------------------
 # The flag-value group here carried the same ambiguity that was MEASURED
@@ -789,6 +971,42 @@ bump_probe 2 "bump plus a whitespace-only manifest edit blocks" blank
 # The exact shape the guard exists for: a correct bump riding with real
 # code — the non-manifest gated file short-circuits the exception.
 bump_probe 2 "bump plus an unrelated dirty code file blocks" codefile
+
+# The override path's version-bump mirror: the manifest set is judged on the
+# STAGED diff (--cached) for index-borne files, not the working diff —
+# unstaged noise on an index-borne manifest must not defeat a genuine bump,
+# and a staged non-version edit must still block.
+bump_probe_override() {
+  local expected="$1" label="$2" extra_edit="${3:-}"
+  sed -i 's/"version": "[^"]*"/"version": "9.9.9-probe.5"/' "$WT/package.json"
+  sed -i 's/"version": "[^"]*"/"version": "9.9.9-probe.5"/' "$WT/services/bot-client/package.json"
+  if [ "$extra_edit" = "extra" ]; then
+    printf '"probe": "x"\n' >> "$WT/services/bot-client/package.json"
+  fi
+  git -C "$WT" add -- package.json services/bot-client/package.json
+  if [ "$extra_edit" = "codefile" ]; then
+    printf 'probe\n' > "$WT/services/probe.ts"
+    git -C "$WT" add services/probe.ts
+  fi
+  if [ "$extra_edit" = "noise" ]; then
+    printf '"probe-noise": "y"\n' >> "$WT/services/bot-client/package.json"
+  fi
+  jq -n '{tool_name:"Bash",tool_input:{command:"TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m \"x\""}}' \
+    | CLAUDE_PROJECT_DIR="$WT" "$HOOK" >/dev/null 2>&1
+  local actual=$?
+  git -C "$WT" reset -q --hard HEAD
+  rm -f "$WT/services/probe.ts"
+  if [ "$actual" -eq "$expected" ]; then
+    printf 'PASS  (exit %d)  %s\n' "$actual" "$label"
+  else
+    printf 'FAIL  (exit %d, expected %d)  %s\n' "$actual" "$expected" "$label"
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+bump_probe_override 0 "override: staged version-only bump across manifests passes"
+bump_probe_override 0 "override: staged bump passes with unstaged noise on the same manifest" noise
+bump_probe_override 2 "override: staged bump plus a non-version manifest edit blocks" extra
+bump_probe_override 2 "override: staged bump plus a staged code file blocks" codefile
 
 if [ "$FAILURES" -gt 0 ]; then
   printf '\n%d probe(s) FAILED\n' "$FAILURES" >&2
