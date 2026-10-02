@@ -763,6 +763,10 @@ Q2 in the original open-questions list is obsolete.)
   recompute. :3001/:3002 drop ~1 min; boot B re-IDENTIFYs; ports/DB unchanged. Tzurot boot
   bot rides the reconnect. TASK-1146's CLIENT LIST check already PASSED pre-bounce
   (45/45 db=1); interactive TR exercise still pending Lila.
+- **2026-10-01 ~22:40 EDT — Fork bounce #2 DONE: `9fe684b25` create-dedupe** — fixes a live
+  500 (any reply that @-mentions the referenced author failed to create). B-side runtime
+  canary 3/3 PASS (reply+OP-mention create 200, author exactly once). Boot bot rode the
+  reconnect (idle — interactive TR exercise still pending Lila).
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
