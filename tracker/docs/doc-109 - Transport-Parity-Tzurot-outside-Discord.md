@@ -767,6 +767,10 @@ Q2 in the original open-questions list is obsolete.)
   500 (any reply that @-mentions the referenced author failed to create). B-side runtime
   canary 3/3 PASS (reply+OP-mention create 200, author exactly once). Boot bot rode the
   reconnect (idle — interactive TR exercise still pending Lila).
+- **2026-10-02 ~00:45 EDT — Fork bounce #3: `9e8a0f19d..6c886b6eb`** — Discord-exact error
+  statuses + client-input 400s + interaction version pin. First bounce window that touches
+  **TR-3.6 error-code parity** directly: the probe faces after are unknown-channel 404,
+  forum-tag 400s, unknown-role-mention create. Boot bot idle; rides the reconnect.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
