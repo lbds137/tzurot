@@ -771,6 +771,11 @@ Q2 in the original open-questions list is obsolete.)
   statuses + client-input 400s + interaction version pin. First bounce window that touches
   **TR-3.6 error-code parity** directly: the probe faces after are unknown-channel 404,
   forum-tag 400s, unknown-role-mention create. Boot bot idle; rides the reconnect.
+  **RESULTS (fork, post-bounce): all clean on `6c886b6eb`** — unknown-channel **404 + 10003**
+  (the TR-3.6-adjacent face: first runtime error-code-parity evidence), forum-tag-missing
+  **400 50035**, unknown-role-mention **200**. Fourth face (thread-tag-edit 400) is
+  code-verified only — runtime blocked because forum tag creation doesn't exist on the fork
+  yet (upstream TODO); noted in the fork's triage file.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
