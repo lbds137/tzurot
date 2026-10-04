@@ -771,6 +771,21 @@ run_staged 0 "override: standalone rule: an attached -S key passes" \
   'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -SABCD1234 -m "docs: x"' 'tracker/tasks/probe.md'
 run_staged 0 "override: standalone rule: --gpg-sign=<key> passes" \
   'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit --gpg-sign=ABCD1234 -m "docs: x"' 'tracker/tasks/probe.md'
+# Git globals between `git` and `commit` keep a standalone token commit passing
+# (value-taking globals consume their value; joined `--git-dir=` is one word).
+run_staged 0 "override: standalone rule: git -c <k=v> before commit passes" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git -c user.email=x@y commit -m "docs: x"' 'tracker/tasks/probe.md'
+run_staged 0 "override: standalone rule: git -C . before commit passes" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git -C . commit -m "docs: x"' 'tracker/tasks/probe.md'
+run_staged 0 "override: standalone rule: joined --git-dir=.git before commit passes" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git --git-dir=.git commit -m "docs: x"' 'tracker/tasks/probe.md'
+# The two refusals that name the shape of the command after the token.
+run_staged_msg 2 "override: standalone rule: a non-commit git verb after globals is refused" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git --no-pager log commit' 'a git verb other than commit' \
+  'tracker/tasks/probe.md'
+run_staged_msg 2 "override: standalone rule: a non-git command after the token is refused" \
+  'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 echo git commit -m x' 'a command other than git after the token' \
+  'tracker/tasks/probe.md'
 # `-S` takes its key ATTACHED only: git reads a separate next word as a
 # PATHSPEC (measured, git 2.50.1: `git commit -S f.ts` committed the unstaged
 # f.ts; `-S ABCD1234` failed "pathspec 'ABCD1234' did not match"). Reading it
