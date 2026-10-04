@@ -3,9 +3,10 @@ id: TASK-1157
 title: >-
   Correct the G13b fixed-server-side claim in foreignInteraction.ts and reject
   AVATAR_STORAGE_PATH=/
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-04 16:26'
+updated_date: '2026-10-04 17:31'
 labels:
   - 'area:bot-client'
   - 'size:S'
