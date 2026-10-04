@@ -24,6 +24,8 @@ export interface ClassifiableHit {
   containerName?: string;
   /** Symbol name of the receiver type for member accesses/calls (e.g. 'Webhook'), when resolvable. */
   receiverTypeName?: string;
+  /** For option-key hits: name of the discord.js call the key was passed to (e.g. 'createWebhook'). */
+  callName?: string;
 }
 
 /** Interaction ack / response methods — sites where bot-client answers an interaction. */
@@ -161,14 +163,18 @@ function classifyConstruction(symbolName: string): SurfaceCategory {
 }
 
 /**
- * Option-key route by precedence: a Webhook receiver stays
- * `webhook-options`; any other builder receiver follows its builder class
+ * Option-key route by precedence: a Webhook receiver (or a createWebhook
+ * call) stays `webhook-options`; any other builder receiver follows its builder class
  * (`message-builders` / `command-options` / `components`); then the
  * MESSAGE_OPTION_KEYS vocabulary routes to `message-options`; only the
  * remainder falls to `unclassified`.
  */
 function classifyOptionKey(hit: ClassifiableHit): SurfaceCategory {
-  if (hit.receiverTypeName === 'Webhook') return 'webhook-options';
+  // createWebhook's receiver is a channel/guild, not a Webhook, but its
+  // options (name, avatar, reason) define the webhook itself.
+  if (hit.receiverTypeName === 'Webhook' || hit.callName === 'createWebhook') {
+    return 'webhook-options';
+  }
   if (hit.receiverTypeName !== undefined) {
     const builderCategory = builderClassCategory(hit.receiverTypeName);
     if (builderCategory !== undefined) return builderCategory;

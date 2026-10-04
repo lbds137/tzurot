@@ -273,14 +273,17 @@ Q2 in the original open-questions list is obsolete.)
   source → JSON + markdown + checked-in snapshot + CI check, so a PR that adds a primitive shows
   up as a snapshot diff. **SHIPPED 2026-10-01 (PR #2562)**: the command is
   `pnpm ops surface:inventory` and the live conformance list is the snapshot pair
-  `docs/reference/conformance/discord-surface.{json,md}` (2,886 entries / 6,667 sites;
+  `docs/reference/conformance/discord-surface.{json,md}` (2,901 entries / 6,749 sites;
   `--write` regenerates, `--check` gates in quality + CI). Appendix A below is the dated v1
   manual pass, kept as history.
 - **TR-9.2 [T]** Owner hard line (2026-09-28): a UX wave that adds a primitive the fork never
   heard about is the failure mode. The snapshot check (`surface:inventory --check`, TR-9.1) is
-  the mechanical guard. Known blind spot: a payload built in a variable and passed by
-  identifier (e.g. `webhook.send(webhookOptions)` in `WebhookManager`) contributes no option
-  keys, so `webhook-options` is empty (TASK-1156).
+  the mechanical guard. The former blind spot (a payload built in a variable and passed by
+  identifier, e.g. `webhook.send(webhookOptions)` in `WebhookManager`) is closed (TASK-1156):
+  identifier arguments contribute their initializer keys plus later `variable.key = …`
+  assignments, call arguments the literal keys their in-project callee returns, and a
+  parameter of a named interface/alias only a `*` marker (keys not statically known), so
+  `webhook-options` now lists the WebhookManager payload keys.
 
 ## Open questions
 
