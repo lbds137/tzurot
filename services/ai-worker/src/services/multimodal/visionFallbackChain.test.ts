@@ -349,6 +349,8 @@ describe('vision fallback chain (wiring / seam test)', () => {
   // solely inside `error.error.metadata.raw`, the provider's own response body as a string.
   // A message-substring stub could never catch a classifier that stops scanning that body.
   it('production-incident shape: provider refusal then rate-limit then a zero-choices 200 — all tiers walked, last category wins', async () => {
+    // The prod specimen's raw body verbatim, SSE framing included, with "text" swapped for
+    // "image" in the message so it matches this image-input scenario.
     const upstreamRaw =
       'data: {"error":{"code":"data_inspection_failed","param":null,"message":"Input image data may contain inappropriate content.","type":"data_inspection_failed"},"id":"chatcmpl-504609cb-81e7-9934-b24e-a40716306b6d"}\n\n';
     const providerRefusalError = Object.assign(new Error('400 Provider returned error'), {
