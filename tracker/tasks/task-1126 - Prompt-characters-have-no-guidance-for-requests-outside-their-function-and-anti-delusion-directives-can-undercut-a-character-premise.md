@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-27 14:32'
+updated_date: '2026-10-04 23:08'
 labels:
   - 'area:prompt'
   - 'size:M'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 1119000
@@ -28,7 +29,10 @@ What: decide where the fix lives, then write it. The owner leans system-prompt l
 Acceptance: a directive, or a documented per-card convention, that gives in-character handling for out-of-function requests and scopes anti-delusion language so that it does not deny the premise of a card. Checked against the source scenario on a free-tier model.
 
 No urgency: the user involved is banned.
-
-Owner question: should out-of-function-request handling and premise-safe anti-delusion scoping live in the shared system prompt or in each card?
-Recommendation: shared system prompt. The gap is generic (any character with a defined function hits it), and a per-card fix would need repeating across about 150 cards.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner decision 2026-10-04 (AskUserQuestion, chose the recommendation): fix it in the shared system prompt, not per card.
+<!-- SECTION:NOTES:END -->

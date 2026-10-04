@@ -3,14 +3,14 @@ id: TASK-960
 title: >-
   Verify whether a second personality in the same channel sees the first one
   reply this turn
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-13 17:24'
-updated_date: '2026-09-21 15:42'
+updated_date: '2026-10-04 23:08'
 labels:
   - 'area:ai-worker'
   - 'size:S'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 957000
@@ -28,7 +28,10 @@ ANSWER (read-only trace 2026-09-21; cites verified against develop 2a0aa4d36): i
 - The history query is unscoped by personality under the default setting. channelHistoryHydration.ts:76-84 passes personalityId to getChannelHistoryWindow only when shouldScopeHistoryToPersonality returns true; the default shareHistoryAcrossPersonalities is 'always' (packages/common-types/src/schemas/api/configOverrides.ts:179), for which it returns false (configOverrides.ts:93-107), so buildChannelHistoryWhere (packages/conversation-history/src/ConversationMessageMapper.ts:152-160) filters on channelId and deletedAt only. A sibling row that EXISTS at assembly time loads, and it renders attributed to the sibling: participantUtils.ts:38-72 reads msg.personalityName from the row and resolveAssistantRowRole gives it role 'character', which RealMessagesBuilder.ts:90-96 emits as a HumanMessage. (The langchainConverter mislabel in TASK-14 is a telemetry-only path, not the generation prompt.) Pinned by the three isolation tests at ContextAssembler.test.ts:1563-1612.
 - SEQUENTIAL turns (A replies, then the user pings B): B sees A. The assistant row is written by an awaited create in conversationAssistantMessage.ts:148-158 before that route responds at :189, and the bot-client only starts B afterwards.
 - PARALLEL turns (multi-tag fan-out): B does NOT see A. MultiTagCoordinator.ts:168-172 submits every slot in one Promise.all, so all N jobs assemble their prompts before any sibling row exists; replies are buffered and delivered in slot order, but each is generated blind to the others. This is the same blind spot shapes.inc fixed. ContextStep.ts:255 and :555 carry race-window telemetry (a warn when a job was created under 500 ms after the newest assistant row) that would also fire on near-miss cases.
-
-Owner question: in a multi-tag fan-out, should later slots be generated AFTER earlier slots complete so each character can see the replies already given this turn (serial, N times the latency), or stay parallel and blind as today?
-Recommendation: stay parallel. The coordinator was built parallel with ordered delivery on purpose, a serial chain multiplies wall time and timeout exposure by the slot count, and no user report shows incoherent multi-tag turns. Revisit only on such a report; a cheaper middle ground then would be a one-line prompt note naming the other characters replying this turn, which is not a build to file today.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Owner decision 2026-10-04 (AskUserQuestion, chose the recommendation): multi-tag fan-out stays parallel and blind as built; serial generation ruled out on latency and timeout exposure (N times the wall time) with no user report of incoherent multi-tag turns. Revisit only on such a report; the cheaper middle ground then is a prompt note naming the other characters replying this turn.
+<!-- SECTION:FINAL_SUMMARY:END -->
