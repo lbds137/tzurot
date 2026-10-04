@@ -646,7 +646,19 @@ def _override_verdict(raw):
 # BLOCKS, it never bypasses.
 for segment in re.split(r"&&|\|\||;|\||\n", cmd):
     if re.match(r"\s*TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1(\s|$)", segment):
-        _emit(_override_verdict(raw_cmd))
+        # Same isolation as the header verdict in `_emit`: an exception out of
+        # `_override_verdict` would exit the whole heredoc non-zero and the
+        # caller's `|| exit 0` would fail the ENTIRE hook open. On the token
+        # path that is an unreviewed commit, so degrade to a refusal instead.
+        # Not probed: forcing the exception needs a test-only seam in
+        # production code, which this guard does not carry.
+        try:
+            override_verdict = _override_verdict(raw_cmd)
+        except Exception:
+            override_verdict = (
+                "override-refused:an internal parse error (refusing rather than guessing)"
+            )
+        _emit(override_verdict)
 
 _emit("check")
 PYEOF
