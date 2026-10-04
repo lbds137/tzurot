@@ -170,6 +170,54 @@ export async function literalInitialized(webhook: Webhook, channel: TextChannel)
 }
 `;
 
+const FIXTURE_VARIABLE_UNION = `
+import { Webhook } from 'discord.js';
+
+interface NamedA {
+  content: string;
+}
+interface NamedB {
+  content: string;
+  username?: string;
+}
+
+export async function namedUnion(webhook: Webhook, payload: NamedA | NamedB): Promise<void> {
+  await webhook.send(payload);
+}
+
+export async function anonymousUnion(
+  webhook: Webhook,
+  payload: { content: string } | { content: string; avatarURL: string }
+): Promise<void> {
+  await webhook.send(payload);
+}
+
+export async function namedIntersection(
+  webhook: Webhook,
+  payload: NamedA & { username: string }
+): Promise<void> {
+  await webhook.send(payload);
+}
+
+export async function anonymousIntersection(
+  webhook: Webhook,
+  payload: { content: string } & { username: string }
+): Promise<void> {
+  await webhook.send(payload);
+}
+`;
+
+const FIXTURE_VARIABLE_ORDER = `
+import { Webhook, WebhookMessageCreateOptions } from 'discord.js';
+
+export async function twoSends(webhook: Webhook): Promise<void> {
+  const options: WebhookMessageCreateOptions = { content: 'x' };
+  await webhook.sendRaw(options);
+  options.threadId = 't';
+  await webhook.sendRaw(options);
+}
+`;
+
 const FIXTURE_MOCK_DIR = `
 import { Webhook } from 'discord.js';
 
@@ -222,6 +270,14 @@ function buildFixtureProject(): Project {
   project.createSourceFile(
     '/proj/services/bot-client/src/variableLiteralInit.ts',
     FIXTURE_VARIABLE_LITERAL_INIT
+  );
+  project.createSourceFile(
+    '/proj/services/bot-client/src/variableUnion.ts',
+    FIXTURE_VARIABLE_UNION
+  );
+  project.createSourceFile(
+    '/proj/services/bot-client/src/variableOrder.ts',
+    FIXTURE_VARIABLE_ORDER
   );
   project.createSourceFile(
     '/proj/services/bot-client/src/test/mocks/Discord.mock.ts',
@@ -427,6 +483,30 @@ describe('analyzeProject', () => {
     }
     // inline-typed variable: initializer {content} + `inline.files = …`
     expect(findEntry(entries, 'webhook-options', 'files', file)).toBeDefined();
+  });
+
+  it('records the marker for unions / intersections that include a named type, never silence', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/variableUnion.ts';
+    // namedUnion + namedIntersection each contribute one marker
+    expect(findEntry(entries, 'webhook-options', UNKNOWN_PAYLOAD_KEY, file)?.count).toBe(2);
+  });
+
+  it('records the properties of anonymous unions and intersections', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/variableUnion.ts';
+    expect(findEntry(entries, 'webhook-options', 'avatarURL', file)?.count).toBe(1);
+    // anonymousUnion + anonymousIntersection
+    expect(findEntry(entries, 'webhook-options', 'content', file)?.count).toBe(2);
+    expect(findEntry(entries, 'webhook-options', 'username', file)?.count).toBe(1);
+  });
+
+  it('counts a member assignment only for calls that follow it', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/variableOrder.ts';
+    // content is sent by both calls; threadId only by the second
+    expect(findEntry(entries, 'webhook-options', 'content', file)?.count).toBe(2);
+    expect(findEntry(entries, 'webhook-options', 'threadId', file)?.count).toBe(1);
   });
 
   it('classifies createWebhook options as webhook-options', () => {
