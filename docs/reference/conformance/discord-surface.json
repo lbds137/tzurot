@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 2901,
-    "sites": 6749
+    "entries": 2903,
+    "sites": 6756
   },
   "entries": [
     {
@@ -17144,7 +17144,7 @@
       "category": "message-options",
       "file": "services/bot-client/src/ux/render/reply.ts",
       "symbol": "flags",
-      "count": 3
+      "count": 4
     },
     {
       "category": "unclassified",
@@ -17281,6 +17281,12 @@
     {
       "category": "unclassified",
       "file": "services/bot-client/src/utils/commandContext/factories.ts",
+      "symbol": "*",
+      "count": 5
+    },
+    {
+      "category": "unclassified",
+      "file": "services/bot-client/src/utils/commandContext/factories.ts",
       "symbol": "ephemeral",
       "count": 2
     },
@@ -17317,6 +17323,12 @@
     {
       "category": "unclassified",
       "file": "services/bot-client/src/utils/dashboard/sharedBackButtonHandler.ts",
+      "symbol": "*",
+      "count": 1
+    },
+    {
+      "category": "unclassified",
+      "file": "services/bot-client/src/utils/deployCommands.ts",
       "symbol": "*",
       "count": 1
     },

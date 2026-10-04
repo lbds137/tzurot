@@ -17,9 +17,13 @@ import {
   Node,
   Project,
   SymbolFlags,
+  type ArrowFunction,
   type CallExpression,
   SyntaxKind,
   type Expression,
+  type FunctionDeclaration,
+  type FunctionExpression,
+  type MethodDeclaration,
   type Identifier,
   type NewExpression,
   type ObjectLiteralExpression,
@@ -193,8 +197,9 @@ function literalKeys(literal: ObjectLiteralExpression): string[] {
 /**
  * Keys a variable holding an object literal actually sends: the
  * initializer's keys plus every `variable.key = …` assignment in the
- * variable's enclosing function (or file). Deduped — a key set twice is one
- * key. Undefined when the identifier is not a variable initialized with an
+ * variable's enclosing function (or file) that textually PRECEDES the
+ * identifier being analysed (an assignment after the call cannot have been
+ * sent by it). Deduped — a key set twice is one key. Undefined when the identifier is not a variable initialized with an
  * object literal (the caller then falls back to the declared type).
  */
 function initializedVariableKeys(
@@ -218,6 +223,7 @@ function initializedVariableKeys(
     if (!Node.isPropertyAccessExpression(target)) continue;
     const owner = target.getExpression();
     if (!Node.isIdentifier(owner)) continue;
+    if (assignment.getStart() >= identifier.getStart()) continue;
     if (typeChecker.getSymbolAtLocation(owner) === symbol) keys.add(target.getName());
   }
   return [...keys];
@@ -259,16 +265,46 @@ function isNamedDeclaredType(type: TsMorphType): boolean {
  */
 function typedPayloadKeys(argument: Node, typeChecker: TypeChecker): string[] {
   const type = typeChecker.getTypeAtLocation(argument).getNonNullableType();
+  if (type.isUnion()) return compositePayloadKeys(type, type.getUnionTypes());
+  if (type.isIntersection()) return compositePayloadKeys(type, type.getIntersectionTypes());
+  if (!isPayloadObject(type)) return [];
+  const names = payloadPropertyNames(type);
+  if (names.length === 0) return [];
+  return isNamedDeclaredType(type) ? [UNKNOWN_PAYLOAD_KEY] : names;
+}
+
+/**
+ * Payload keys of a union / intersection. Primitive / null-ish only members
+ * (including `boolean`) are no payload; any named or non-payload-object
+ * constituent leaves the sent keys unknown; otherwise the keys are the
+ * union of every (anonymous) constituent's properties.
+ */
+function compositePayloadKeys(type: TsMorphType, parts: TsMorphType[]): string[] {
+  if (!parts.some(part => part.isObject())) return [];
+  if (!parts.every(isAnonymousPayloadObject)) return [UNKNOWN_PAYLOAD_KEY];
+  const names = type.isUnion()
+    ? parts.flatMap(part => payloadPropertyNames(part))
+    : payloadPropertyNames(type);
+  return [...new Set(names)];
+}
+
+/** A plain object type: not a class instance, array or function. */
+function isPayloadObject(type: TsMorphType): boolean {
   // A generic class instance (ActionRowBuilder<T>) is a reference whose
   // TARGET is the class, so isClass() must be asked of the target too.
-  if (!type.isObject() || type.isArray() || (type.getTargetType() ?? type).isClass()) return [];
-  if (type.getCallSignatures().length > 0 || type.getConstructSignatures().length > 0) return [];
-  const names = type
+  if (!type.isObject() || type.isArray() || (type.getTargetType() ?? type).isClass()) return false;
+  return type.getCallSignatures().length === 0 && type.getConstructSignatures().length === 0;
+}
+
+function isAnonymousPayloadObject(type: TsMorphType): boolean {
+  return isPayloadObject(type) && !isNamedDeclaredType(type);
+}
+
+function payloadPropertyNames(type: TsMorphType): string[] {
+  return type
     .getProperties()
     .filter(isPayloadProperty)
     .map(property => property.getName());
-  if (names.length === 0) return [];
-  return isNamedDeclaredType(type) ? [UNKNOWN_PAYLOAD_KEY] : names;
 }
 
 /** Keys of an object literal as returned from a function: its own keys plus the keys of spread local object variables (`{ ...options, rest }`). */
@@ -302,7 +338,10 @@ function collectReturnedKeys(expression: Node, typeChecker: TypeChecker): string
 }
 
 /** The in-project function-like node a call expression invokes, when resolvable. */
-function resolveCalleeFunction(call: CallExpression, typeChecker: TypeChecker): Node | undefined {
+function resolveCalleeFunction(
+  call: CallExpression,
+  typeChecker: TypeChecker
+): FunctionDeclaration | MethodDeclaration | ArrowFunction | FunctionExpression | undefined {
   let symbol = typeChecker.getSymbolAtLocation(call.getExpression());
   if (symbol !== undefined && (symbol.getFlags() & SymbolFlags.Alias) !== 0) {
     symbol = typeChecker.getAliasedSymbol(symbol);
@@ -313,12 +352,15 @@ function resolveCalleeFunction(call: CallExpression, typeChecker: TypeChecker): 
   }
   const fn = Node.isVariableDeclaration(declaration) ? declaration.getInitializer() : declaration;
   if (fn === undefined) return undefined;
-  const isFunctionLike =
+  if (
     Node.isFunctionDeclaration(fn) ||
     Node.isMethodDeclaration(fn) ||
     Node.isArrowFunction(fn) ||
-    Node.isFunctionExpression(fn);
-  return isFunctionLike ? fn : undefined;
+    Node.isFunctionExpression(fn)
+  ) {
+    return fn;
+  }
+  return undefined;
 }
 
 /**
@@ -329,17 +371,7 @@ function resolveCalleeFunction(call: CallExpression, typeChecker: TypeChecker): 
  */
 function callReturnKeys(call: CallExpression, typeChecker: TypeChecker): string[] {
   const fn = resolveCalleeFunction(call, typeChecker);
-  if (
-    fn === undefined ||
-    !(
-      Node.isFunctionDeclaration(fn) ||
-      Node.isMethodDeclaration(fn) ||
-      Node.isArrowFunction(fn) ||
-      Node.isFunctionExpression(fn)
-    )
-  ) {
-    return [];
-  }
+  if (fn === undefined) return [];
   const body = fn.getBody();
   if (body === undefined) return [];
   const returned: Node[] = [];
@@ -361,8 +393,8 @@ function callReturnKeys(call: CallExpression, typeChecker: TypeChecker): string[
  * actually sends, never a whole declared member list:
  *  1. an object literal contributes its own keys;
  *  2. an identifier bound to a variable initialized with an object literal
- *     contributes the initializer's keys plus later `variable.key = …`
- *     assignments in the same function;
+ *     contributes the initializer's keys plus the `variable.key = …`
+ *     assignments in the same function that precede the call;
  *  3. a call expression contributes the keys of the object literals its
  *     in-project callee returns (see {@link callReturnKeys});
  *  4. any other expression is judged by its checked type: an anonymous object

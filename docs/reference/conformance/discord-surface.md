@@ -2910,7 +2910,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/subcommandRouter.ts | content | 2 |
 | services/bot-client/src/utils/subcommandRouter.ts | flags | 2 |
 | services/bot-client/src/ux/render/reply.ts | content | 4 |
-| services/bot-client/src/ux/render/reply.ts | flags | 3 |
+| services/bot-client/src/ux/render/reply.ts | flags | 4 |
 
 ## rest-outside-helpers
 
@@ -2942,6 +2942,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/services/GatewayWatchdog.ts | time | 1 |
 | services/bot-client/src/services/channelFetcher/ReactionProcessor.ts | limit | 1 |
 | services/bot-client/src/services/character/characterTurn.ts | Collection | 3 |
+| services/bot-client/src/utils/commandContext/factories.ts | * | 5 |
 | services/bot-client/src/utils/commandContext/factories.ts | ephemeral | 2 |
 | services/bot-client/src/utils/confirmation/confirmAction.ts | maskedLink | 1 |
 | services/bot-client/src/utils/confirmation/confirmDestructive.ts | maskedLink | 1 |
@@ -2949,6 +2950,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/dashboard/settings/SettingsDashboardBuilder.ts | maskedLink | 1 |
 | services/bot-client/src/utils/dashboard/settings/settingsResetFlow.ts | maskedLink | 1 |
 | services/bot-client/src/utils/dashboard/sharedBackButtonHandler.ts | * | 1 |
+| services/bot-client/src/utils/deployCommands.ts | * | 1 |
 | services/bot-client/src/utils/deployCommands.ts | REST | 1 |
 | services/bot-client/src/utils/deployCommands.ts | body | 2 |
 | services/bot-client/src/utils/modal/toolkit.ts | CheckboxBuilder | 1 |
@@ -2971,4 +2973,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 2901 entries across 6749 sites.
+Total: 2903 entries across 6756 sites.
