@@ -3,9 +3,10 @@ id: TASK-1161
 title: >-
   A provider 400 (Provider returned error) dead-ends the turn instead of falling
   back to another model
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-04 16:45'
+updated_date: '2026-10-04 22:40'
 labels:
   - 'area:ai-worker'
   - 'size:M'
@@ -23,3 +24,9 @@ What: (1) get the raw error body from the prod log or diagnostics for the specim
 Related: TASK-205 (empty-response retry; its claim "no text-generation equivalent of the vision fallback chain exists" is stale since quota fallback landed - re-verify there), TASK-1088 (explicit fallbackConfigId edge), TASK-822 (retry ladder wait budget), TASK-1050 (price ceiling on the paid floor).
 Acceptance: the specimen shape retargets to a fallback model and the turn answers; a genuine parameter-validation 400 still surfaces as BAD_REQUEST; both pinned by tests on the real classifier.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Shipped in PR #2572 (0cb8fd2d3). Root cause differed from the filed hypothesis: the specimen was not an upstream availability failure but an Alibaba input-filter refusal (data_inspection_failed, "Input text data may contain inappropriate content."), carried only in error.error.metadata.raw while the SDK message read "400 Provider returned error". detectSpecialCases scanned the message alone, so it classified BAD_REQUEST (non-retargetable). The fix scans the upstream raw body for the PROVIDER_CONTENT_REFUSED group only, which is already retargetable. Follow-ups: TASK-1172 (vision specimen fixture shape), TASK-1173 (sibling wrapped-400 hoists).
+<!-- SECTION:FINAL_SUMMARY:END -->
