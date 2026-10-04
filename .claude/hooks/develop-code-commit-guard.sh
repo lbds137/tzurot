@@ -776,6 +776,37 @@ gate_classify() {
     | grep -vxF 'backlog/cadence-ledger.json'
 }
 
+# The version-bump exception, shared by both gates. Reads the gated file list
+# on stdin; the arguments are the `git diff` source (`--cached` or `HEAD`).
+# Returns 0 only when ALL gated files are TRACKED package.json files whose
+# full diff touches nothing but "version" lines (the one code-shape a release
+# lands directly on develop, owner call); anything else returns 1 and the
+# caller falls through to its block. The every-gated-file-is-a-package.json
+# restriction is pinned by the probe "override: a staged version-only edit to
+# a non-manifest gated file blocks".
+# grep DRAINS rather than `-q`-quits: under pipefail an early exit kills the
+# producer with SIGPIPE and a real match reports as failure. Full reasoning
+# lives above the resolver in pr-body-ref-gate.sh.
+version_only_bump() {
+  local files f changed
+  files=$(cat)
+  if printf '%s\n' "$files" | grep -vE '(^|/)package\.json$' >/dev/null; then
+    return 1
+  fi
+  while IFS= read -r f; do
+    # untracked/new manifest is not a bump shape
+    git ls-files --error-unmatch "$f" >/dev/null 2>&1 || return 1
+    # ([^+-]|$): a bare +/- (added/removed EMPTY line) is still a change —
+    # without the |$ alternative it would be invisible to the check.
+    changed=$(git diff "$@" -U0 -- "$f" 2>/dev/null | grep -E '^[+-]([^+-]|$)' || true)
+    if [ -z "$changed" ] \
+      || printf '%s\n' "$changed" | grep -vE '^[+-][[:space:]]*"version":' >/dev/null; then
+      return 1
+    fi
+  done <<< "$files"
+  return 0
+}
+
 # --- override, refused: the token on anything but a standalone commit -----
 # The python heredoc names the shape it refused; the commit set of such a
 # command is not knowable from here, so it fails closed (probe: the
@@ -823,29 +854,12 @@ if [ "$GATE_VERDICT" = "override" ]; then
     exit 0
   fi
 
-  # Version-bump exception: the working-tree check below, mirrored exactly —
-  # its every-gated-file-is-a-package.json restriction included (probe:
-  # "override: a staged version-only edit to a non-manifest gated file
-  # blocks") — with the diff source switched to what the commit captures,
-  # the STAGED diff (`--cached`), so unstaged noise on the same manifest
-  # cannot defeat a genuine bump (probe: "override: staged bump passes with
-  # unstaged noise on the same manifest").
-  if ! printf '%s\n' "$STAGED_GATED" | grep -vE '(^|/)package\.json$' >/dev/null; then
-    VERSION_ONLY=1
-    while IFS= read -r f; do
-      if ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
-        VERSION_ONLY=0; break   # untracked/new manifest is not a bump shape
-      fi
-      # ([^+-]|$): a bare +/- (added/removed EMPTY line) is still a change.
-      CHANGED=$(git diff --cached -U0 -- "$f" 2>/dev/null | grep -E '^[+-]([^+-]|$)' || true)
-      if [ -z "$CHANGED" ] \
-        || printf '%s\n' "$CHANGED" | grep -vE '^[+-][[:space:]]*"version":' >/dev/null; then
-        VERSION_ONLY=0; break
-      fi
-    done <<< "$STAGED_GATED"
-    if [ "$VERSION_ONLY" = "1" ]; then
-      exit 0
-    fi
+  # Version-bump exception, diff source = the STAGED diff (`--cached`): it is
+  # what the commit captures, so unstaged noise on the same manifest cannot
+  # defeat a genuine bump (probe: "override: staged bump passes with unstaged
+  # noise on the same manifest").
+  if printf '%s\n' "$STAGED_GATED" | version_only_bump --cached; then
+    exit 0
   fi
 
   GATED_COUNT=$(printf '%s\n' "$STAGED_GATED" | wc -l)
@@ -899,32 +913,10 @@ if [ -z "$GATED_FILES" ]; then
   exit 0
 fi
 
-# Version-bump exception: a release bump dirties every workspace
-# package.json on exactly its "version" line — the one code-shape a
-# release lands directly on develop (owner call). Allowed only when ALL
-# gated files are TRACKED package.json files whose full diff vs HEAD
-# touches nothing but "version" lines; anything else falls through to
-# the block.
-# grep DRAINS rather than `-q`-quits: under pipefail an early exit kills the
-# producer with SIGPIPE and a real match reports as failure. Full reasoning
-# lives above the resolver in pr-body-ref-gate.sh.
-if ! printf '%s\n' "$GATED_FILES" | grep -vE '(^|/)package\.json$' >/dev/null; then
-  VERSION_ONLY=1
-  while IFS= read -r f; do
-    if ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
-      VERSION_ONLY=0; break   # untracked/new manifest is not a bump shape
-    fi
-    # ([^+-]|$): a bare +/- (added/removed EMPTY line) is still a change —
-    # without the |$ alternative it would be invisible to the check.
-    CHANGED=$(git diff HEAD -U0 -- "$f" 2>/dev/null | grep -E '^[+-]([^+-]|$)' || true)
-    if [ -z "$CHANGED" ] \
-      || printf '%s\n' "$CHANGED" | grep -vE '^[+-][[:space:]]*"version":' >/dev/null; then
-      VERSION_ONLY=0; break
-    fi
-  done <<< "$GATED_FILES"
-  if [ "$VERSION_ONLY" = "1" ]; then
-    exit 0
-  fi
+# Version-bump exception, diff source = the dirty tree vs HEAD: a release bump
+# dirties every workspace package.json, and this gate judges the whole tree.
+if printf '%s\n' "$GATED_FILES" | version_only_bump HEAD; then
+  exit 0
 fi
 
 GATED_COUNT=$(printf '%s\n' "$GATED_FILES" | wc -l)
