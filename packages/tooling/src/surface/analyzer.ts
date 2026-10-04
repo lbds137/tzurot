@@ -47,7 +47,7 @@ import type { SurfaceCategory, SurfaceEntry, SurfaceInventory } from './types.js
 const SURFACE_DECLARATION_FAMILY =
   /node_modules\/(discord\.js|discord-api-types|@discordjs\/[a-z-]+)\//;
 
-/** Belt-and-braces test exclusion — the bot-client tsconfig already excludes tests; fixtures/mocks in tests must not enter the inventory. */
+/** Test-file exclusion. The bot-client tsconfig excludes only `*.test.ts`, so this is the sole guard for `.spec.ts`, `.mock.ts` and `/src/test/` files; fixtures/mocks must not enter the inventory. */
 const TEST_FILE_PATTERN = /\.test\.ts$|\.spec\.ts$|\.mock\.ts$|\/src\/test\//;
 
 /** Hostnames that mark a raw fetch/axios call as a Discord REST call outside the typed helpers. */
