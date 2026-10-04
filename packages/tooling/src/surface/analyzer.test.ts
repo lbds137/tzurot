@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ModuleKind, ModuleResolutionKind, Project, ScriptTarget } from 'ts-morph';
 
-import { analyzeProject, UNKNOWN_PAYLOAD_KEY } from './analyzer.js';
+import { analyzeProject } from './analyzer.js';
+import { UNKNOWN_PAYLOAD_KEY } from './payloadKeys.js';
 import type { SurfaceEntry } from './types.js';
 
 // ts-morph program creation has a cold-start cost (see xray/analyzer.test.ts);
@@ -270,6 +271,66 @@ export function mockSuffixSite(webhook: Webhook): void {
 }
 `;
 
+const FIXTURE_SPREAD_GAPS = `
+import { Webhook, WebhookMessageCreateOptions } from 'discord.js';
+
+declare function externalExtras(): WebhookMessageCreateOptions;
+
+function spreadNamedParam(extra: WebhookMessageCreateOptions): WebhookMessageCreateOptions {
+  return { ...extra, threadId: 't' };
+}
+
+function spreadCall(): WebhookMessageCreateOptions {
+  return { ...externalExtras(), avatarURL: 'a' };
+}
+
+function spreadMember(holder: { inner: WebhookMessageCreateOptions }): WebhookMessageCreateOptions {
+  return { ...holder.inner, username: 'u' };
+}
+
+function spreadResolved(): WebhookMessageCreateOptions {
+  const base = { content: 'x' };
+  return { ...base, files: [] };
+}
+
+export async function sendAll(webhook: Webhook, extra: WebhookMessageCreateOptions): Promise<void> {
+  await webhook.sendRaw(spreadNamedParam(extra));
+  await webhook.sendRaw(spreadCall());
+  await webhook.sendRaw(spreadMember({ inner: extra }));
+  await webhook.sendRaw(spreadResolved());
+}
+`;
+
+const FIXTURE_RETURNED_IDENTIFIER = `
+import { Webhook, WebhookMessageCreateOptions } from 'discord.js';
+
+function passThrough(extra: WebhookMessageCreateOptions): WebhookMessageCreateOptions {
+  return extra;
+}
+
+function resolvedLocal(): WebhookMessageCreateOptions {
+  const local: WebhookMessageCreateOptions = { content: 'x' };
+  return local;
+}
+
+export async function sendReturned(webhook: Webhook, extra: WebhookMessageCreateOptions): Promise<void> {
+  await webhook.sendRaw(passThrough(extra));
+  await webhook.sendRaw(resolvedLocal());
+}
+`;
+
+const FIXTURE_NESTED_WRITE = `
+import { Webhook, WebhookMessageCreateOptions } from 'discord.js';
+
+export async function nestedWrite(webhook: Webhook): Promise<void> {
+  const options: WebhookMessageCreateOptions = { content: 'x' };
+  const other: { threadId?: string } = {};
+  other.threadId = 't';
+  options.allowedMentions!.parse = [];
+  await webhook.sendRaw(options);
+}
+`;
+
 const GLOBAL_TYPES = `
 declare function fetch(input: string): Promise<unknown>;
 `;
@@ -320,6 +381,12 @@ function buildFixtureProject(): Project {
     FIXTURE_ALIAS_UNION
   );
   project.createSourceFile('/proj/services/bot-client/src/variableReassign.ts', FIXTURE_REASSIGN);
+  project.createSourceFile('/proj/services/bot-client/src/spreadGaps.ts', FIXTURE_SPREAD_GAPS);
+  project.createSourceFile('/proj/services/bot-client/src/nestedWrite.ts', FIXTURE_NESTED_WRITE);
+  project.createSourceFile(
+    '/proj/services/bot-client/src/returnedIdentifier.ts',
+    FIXTURE_RETURNED_IDENTIFIER
+  );
   project.createSourceFile(
     '/proj/services/bot-client/src/test/mocks/Discord.mock.ts',
     FIXTURE_MOCK_DIR
@@ -579,6 +646,44 @@ describe('analyzeProject', () => {
     // content is sent by both calls; threadId only by the second
     expect(findEntry(entries, 'webhook-options', 'content', file)?.count).toBe(2);
     expect(findEntry(entries, 'webhook-options', 'threadId', file)?.count).toBe(1);
+  });
+
+  it('records the marker beside the known keys for spreads a returned literal cannot resolve', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/spreadGaps.ts';
+    // named-typed param spread, call spread and member spread each add one marker;
+    // the object-literal-initialized spread (spreadResolved) adds none
+    expect(findEntry(entries, 'webhook-options', UNKNOWN_PAYLOAD_KEY, file)?.count).toBe(3);
+    for (const key of ['threadId', 'avatarURL', 'username']) {
+      expect(findEntry(entries, 'webhook-options', key, file)?.count).toBe(1);
+    }
+  });
+
+  it('still resolves a spread of an object-literal-initialized variable without a marker', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/spreadGaps.ts';
+    expect(findEntry(entries, 'webhook-options', 'content', file)?.count).toBe(1);
+    expect(findEntry(entries, 'webhook-options', 'files', file)?.count).toBe(1);
+  });
+
+  it('counts the top-level key of a nested member write and ignores other variables', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/nestedWrite.ts';
+    expect(findEntry(entries, 'webhook-options', 'content', file)?.count).toBe(1);
+    expect(findEntry(entries, 'webhook-options', 'allowedMentions', file)?.count).toBe(1);
+    // `parse` is nested, and `other.threadId` is a write to a different variable
+    // (`parse` still appears as its own client-methods site; only the payload keys matter here)
+    for (const absent of ['parse', 'threadId']) {
+      expect(findEntry(entries, 'webhook-options', absent, file)).toBeUndefined();
+    }
+  });
+
+  it('records the marker for a returned identifier with no literal initializer, keys for a resolved one', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/returnedIdentifier.ts';
+    // passThrough returns its parameter (unreadable → one marker); resolvedLocal adds content
+    expect(findEntry(entries, 'webhook-options', UNKNOWN_PAYLOAD_KEY, file)?.count).toBe(1);
+    expect(findEntry(entries, 'webhook-options', 'content', file)?.count).toBe(1);
   });
 
   it('classifies createWebhook options as webhook-options', () => {
