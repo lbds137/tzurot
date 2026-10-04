@@ -4,8 +4,8 @@
  * An interaction whose `applicationId` is not this bot's own was not addressed
  * to us: processing it would ack an interaction the owning application never
  * saw. The gateway does not deliver such interactions; a fork gateway can
- * (its cross-application delivery bug has been fixed server-side, and this is
- * the defense-in-depth half). Drop them before anything else runs.
+ * (an open fork bug whose mechanism is not yet identified; see doc-109 G13b).
+ * This guard is the defense against it. Drop them before anything else runs.
  */
 
 import type { BaseInteraction } from 'discord.js';
