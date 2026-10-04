@@ -2040,18 +2040,23 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/dashboard/DashboardBuilder.ts | ButtonBuilder | 5 |
 | services/bot-client/src/utils/dashboard/DashboardBuilder.ts | StringSelectMenuBuilder | 1 |
 | services/bot-client/src/utils/dashboard/DashboardBuilder.ts | StringSelectMenuOptionBuilder | 2 |
+| services/bot-client/src/utils/dashboard/settings/SettingsDashboardBuilder.ts | * | 1 |
 | services/bot-client/src/utils/dashboard/settings/SettingsDashboardBuilder.ts | ActionRowBuilder | 1 |
 | services/bot-client/src/utils/dashboard/settings/SettingsDashboardBuilder.ts | StringSelectMenuBuilder | 1 |
 | services/bot-client/src/utils/dashboard/settings/SettingsDashboardBuilder.ts | StringSelectMenuOptionBuilder | 1 |
+| services/bot-client/src/utils/dashboard/settings/SettingsModalFactory.ts | * | 1 |
 | services/bot-client/src/utils/dashboard/settings/SettingsModalFactory.ts | ActionRowBuilder | 1 |
 | services/bot-client/src/utils/dashboard/settings/SettingsModalFactory.ts | ModalBuilder | 1 |
 | services/bot-client/src/utils/dashboard/settings/SettingsModalFactory.ts | TextInputBuilder | 1 |
 | services/bot-client/src/utils/dashboard/settings/SettingsModalFactory.ts | TextInputStyle.Short | 1 |
+| services/bot-client/src/utils/dashboard/settings/settingsButtonBuilders.ts | * | 15 |
 | services/bot-client/src/utils/dashboard/settings/settingsButtonBuilders.ts | ActionRowBuilder | 7 |
 | services/bot-client/src/utils/dashboard/settings/settingsButtonBuilders.ts | ButtonBuilder | 15 |
+| services/bot-client/src/utils/dashboard/settings/settingsIndexView.ts | * | 1 |
 | services/bot-client/src/utils/dashboard/settings/settingsIndexView.ts | ActionRowBuilder | 1 |
 | services/bot-client/src/utils/dashboard/settings/settingsIndexView.ts | StringSelectMenuBuilder | 1 |
 | services/bot-client/src/utils/dashboard/settings/settingsIndexView.ts | StringSelectMenuOptionBuilder | 1 |
+| services/bot-client/src/utils/dashboard/settings/settingsModalSubmit.ts | * | 1 |
 | services/bot-client/src/utils/dashboard/settings/settingsModalSubmit.ts | ActionRowBuilder | 1 |
 | services/bot-client/src/utils/dashboard/settings/settingsModalSubmit.ts | ButtonBuilder | 1 |
 | services/bot-client/src/utils/dashboard/terminalScreen.ts | ActionRowBuilder | 1 |
@@ -2060,6 +2065,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/dashboard/truncationGate/buttons.ts | ButtonBuilder | 4 |
 | services/bot-client/src/utils/modal/retry.ts | ActionRowBuilder | 1 |
 | services/bot-client/src/utils/modal/retry.ts | ButtonBuilder | 1 |
+| services/bot-client/src/utils/modal/toolkit.ts | * | 4 |
 | services/bot-client/src/utils/modal/toolkit.ts | LabelBuilder | 1 |
 | services/bot-client/src/utils/modal/toolkit.ts | ModalBuilder | 1 |
 | services/bot-client/src/utils/modal/toolkit.ts | StringSelectMenuBuilder | 1 |
@@ -2528,10 +2534,12 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/inspect/embed.ts | name | 7 |
 | services/bot-client/src/commands/inspect/embed.ts | text | 1 |
 | services/bot-client/src/commands/inspect/embed.ts | value | 7 |
+| services/bot-client/src/commands/inspect/extendedViews.ts | * | 1 |
 | services/bot-client/src/commands/inspect/extendedViews.ts | EmbedBuilder | 3 |
 | services/bot-client/src/commands/inspect/extendedViews.ts | inline | 2 |
 | services/bot-client/src/commands/inspect/extendedViews.ts | name | 2 |
 | services/bot-client/src/commands/inspect/extendedViews.ts | value | 2 |
+| services/bot-client/src/commands/inspect/views.ts | * | 1 |
 | services/bot-client/src/commands/inspect/views.ts | AttachmentBuilder | 3 |
 | services/bot-client/src/commands/inspect/views.ts | EmbedBuilder | 3 |
 | services/bot-client/src/commands/inspect/views.ts | inline | 3 |
@@ -2928,6 +2936,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/batchDelete.ts | componentType | 1 |
 | services/bot-client/src/commands/memory/batchDelete.ts | filter | 1 |
 | services/bot-client/src/commands/memory/batchDelete.ts | time | 1 |
+| services/bot-client/src/commands/memory/search.ts | * | 1 |
 | services/bot-client/src/handlers/CommandHandler.ts | Collection | 2 |
 | services/bot-client/src/index.ts | Client | 1 |
 | services/bot-client/src/index.ts | intents | 1 |
@@ -2942,6 +2951,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/services/GatewayWatchdog.ts | time | 1 |
 | services/bot-client/src/services/channelFetcher/ReactionProcessor.ts | limit | 1 |
 | services/bot-client/src/services/character/characterTurn.ts | Collection | 3 |
+| services/bot-client/src/services/character/chimeInTag.ts | * | 1 |
 | services/bot-client/src/utils/commandContext/factories.ts | * | 5 |
 | services/bot-client/src/utils/commandContext/factories.ts | ephemeral | 2 |
 | services/bot-client/src/utils/confirmation/confirmAction.ts | maskedLink | 1 |
@@ -2973,4 +2983,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 2903 entries across 6756 sites.
+Total: 2913 entries across 6783 sites.

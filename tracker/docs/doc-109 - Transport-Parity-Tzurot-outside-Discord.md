@@ -273,7 +273,7 @@ Q2 in the original open-questions list is obsolete.)
   source → JSON + markdown + checked-in snapshot + CI check, so a PR that adds a primitive shows
   up as a snapshot diff. **SHIPPED 2026-10-01 (PR #2562)**: the command is
   `pnpm ops surface:inventory` and the live conformance list is the snapshot pair
-  `docs/reference/conformance/discord-surface.{json,md}` (2,903 entries / 6,756 sites;
+  `docs/reference/conformance/discord-surface.{json,md}` (2,913 entries / 6,783 sites;
   `--write` regenerates, `--check` gates in quality + CI). Appendix A below is the dated v1
   manual pass, kept as history.
 - **TR-9.2 [T]** Owner hard line (2026-09-28): a UX wave that adds a primitive the fork never
