@@ -115,8 +115,9 @@ discord-api-types 0.38.55).
   `PATCH /api/v10/webhooks/{app}/{token}/messages/@original` → **10008 Unknown message** — the
   real reply AND the error fallback both died, leaving the user a blank deferred ephemeral. On
   Discord a successful defer creates the `@original` message the interaction webhook can edit;
-  `editReply` after deferral is Tzurot's core delivery path (567 call sites). This gates nearly
-  every command. Related watch: **double interaction delivery** observed bot-side (first defer
+  `editReply` after deferral is Tzurot's core delivery path (567 call sites). **SHIPPED +
+  fork-verified 2026-09-30** (log entry ~09:00). Related watch (resolved to gateway redelivery,
+  log ~09:35): **double interaction delivery** observed bot-side (first defer
   OK, second got 40060 on the same token, ~3 ms apart; client double-POST vs gateway redelivery
   unclassified — Machloket instrumenting interaction ids).
 
@@ -149,12 +150,14 @@ discord-api-types 0.38.55).
 - **TR-3.6 [S]** Discord numeric error codes: 10008 (Unknown Message), 10003 (Unknown Channel),
   50001 (Missing Access), 50013 (Missing Permissions), 10007 (Unknown Member — the private-thread
   gate relies on throw-for-non-member), 10013 (owner-gate DM path) — consumed as
-  `(error as {code}).code`. Fork status 2026-09-30 (corrected): the enum HAS 10007 — the gap is
-  the missing single thread-member GET route, which today returns a generic catch-all 404
-  instead of 10007 (fix G3 queued; Q8). **G9 SHIPPED + probe-verified 2026-09-30**: unknown
+  `(error as {code}).code`. **G3 SHIPPED**: the single thread-member GET route returns
+  Discord's 10007 (fork `96b208fba` "Channels: single thread-member fetch with Discord's
+  10007", in the running fork build as of 2026-10-04; not yet probed from Tzurot's side; Q8).
+  **G9 SHIPPED + probe-verified 2026-09-30**: unknown
   snowflake → `{"code":10003,"message":"Unknown channel"}` (Discord-exact JSON); non-snowflake
-  → `{"code":50035,"message":"Invalid Form Body"}` (was a leaked 500). Divergence noted: the
-  fork sends **HTTP 400** where Discord sends 404 — Tzurot audit (2026-09-30): every
+  → `{"code":50035,"message":"Invalid Form Body"}` (was a leaked 500). HTTP status: Discord-exact
+  since fork bounce #3 (`9e8a0f19d`; runtime unknown-channel → **404 + 10003**, log
+  2026-10-02 ~00:45). Before that the fork sent 400 where Discord sends 404. Tzurot audit (2026-09-30): every
   Discord-entity path keys on the JSON code (`VerificationMessageCleanup`) or blanket-swallows
   (`JobTracker` delete catch); the `status === 404` sites in command files are OUR gateway API
   calls, not Discord — no impact today. Hardening candidate: 50035 is not in the cleanup's
@@ -242,8 +245,8 @@ Q2 in the original open-questions list is obsolete.)
   TR-1.1).
 - **TR-7.2 [S+C]** Private-thread membership gate: `channel.members.fetch(viewerId)` must throw
   Discord's 10007 for non-members (TR-3.6) — the fork must enforce server-side, the client gets
-  the same error surface. Fork current state: the route is absent → generic 404 today (Q8);
-  G3 restores the 10007 shape.
+  the same error surface. Fork state: G3 shipped the route with the 10007 shape (`96b208fba`,
+  see TR-3.6); not yet probed from Tzurot's side (Q8).
 - **TR-7.3 [S]** Owner override is Tzurot-internal (`BOT_OWNER_ID` + `isBotOwner`); no peer work,
   but the 10013 error-code path it rides is TR-3.6.
 - **TR-7.4 [S+C]** NSFW state: `guild.nsfwLevel === AgeRestricted` and `channel.nsfw` on
@@ -274,8 +277,10 @@ Q2 in the original open-questions list is obsolete.)
   `--write` regenerates, `--check` gates in quality + CI). Appendix A below is the dated v1
   manual pass, kept as history.
 - **TR-9.2 [T]** Owner hard line (2026-09-28): a UX wave that adds a primitive the fork never
-  heard about is the failure mode. The snapshot check is the mechanical guard; until then this
-  doc's Appendix A carries a dated revision header and gets re-derived on every UX-wave merge.
+  heard about is the failure mode. The snapshot check (`surface:inventory --check`, TR-9.1) is
+  the mechanical guard. Known blind spot: a payload built in a variable and passed by
+  identifier (e.g. `webhook.send(webhookOptions)` in `WebhookManager`) contributes no option
+  keys, so `webhook-options` is empty (TASK-1156).
 
 ## Open questions
 
@@ -292,8 +297,9 @@ Q2 in the original open-questions list is obsolete.)
   — the earlier "missing from enum" claim was a mistyped grep path, retracted by the fork). The
   real gap: **the single thread-member GET route does not exist** —
   `GET /channels/{id}/thread-members/{user_id}` falls through to the catch-all and returns a
-  generic 404 "Endpoint not found", never a Discord-shaped 10007. Fix G3 queued behind
-  allowed_mentions; a runtime red probe on instance B gives the patch its before/after.
+  generic 404 "Endpoint not found", never a Discord-shaped 10007. **G3 SHIPPED** (fork
+  `96b208fba`, in the running build); the full-set enum diff and a Tzurot-side 10007 probe
+  are still open.
 - **Q9 [S] — ANSWERED (code-read)**: attachments ALWAYS rehost — `proxy_url` built as
   `${cdnPublic}/attachments/<channel>/<message>/<file>` (`Attachment.ts:104`), always included.
   Embed images NOT rehosted (passthrough, usually undefined) — Tzurot's `proxyURL ?? url`
@@ -317,7 +323,9 @@ Q2 in the original open-questions list is obsolete.)
    for instance B: Tzurot's `normalizeDiscordInstanceOrigin` accepts https origins only, so
    instance B needs an https origin (Caddy route or another tailscale-serve port), not bare
    `http://127.0.0.1:<port>`. Tzurot-side prep DONE 2026-09-30: DB `tzurot_spacebar` created on
-   tzurot-postgres and migrated (137 migrations, count verified); Redis `/1` wired at boot;
+   tzurot-postgres and migrated (137 migrations, count verified); Redis `/1` intended at boot
+   (correction: the db index was silently dropped until `adcedd68a`, see log ~07:55 on
+   2026-10-01; TASK-1146's live CLIENT LIST confirmed db=1 afterwards);
    RAM checked (8.1 GB available). Boot findings are recorded here with TR/Q IDs (deputy rule:
    the contract accumulates empirically, not just from static analysis). Machloket's
    `TzurotProbe` bot (row-9, `/row9` serving buttons/selects/modals, DM-capable since `6d4f9d6`)
@@ -328,8 +336,8 @@ Q2 in the original open-questions list is obsolete.)
    management); fallback = the fork's self-signed proxy + `NODE_EXTRA_CA_CERTS` on the bot
    process. Credentials (TzurotBot + TzurotProbeB, tokens verified 200 on `/gateway/bot`) live
    in the fork repo at `docs/local/boot-b/secrets.env` (mode 600, git-excluded) — read
-   in-shell at boot time, never copied into this repo. Q8/10007 accepted by the fork as gap G3,
-   queued behind the allowed_mentions patch.
+   in-shell at boot time, never copied into this repo. Q8/10007 accepted by the fork as gap G3
+   (since shipped: `96b208fba`).
 3. TASK-1145 ops command + snapshot (turns TR-9.1 mechanical) — SHIPPED 2026-10-01 (PR #2562).
 4. Gap analysis from the boot → PRs (Tzurot-side) / requirements deltas (peer-side).
 
@@ -580,7 +588,8 @@ Q2 in the original open-questions list is obsolete.)
   bot-side.** The fork's ledger: duplication FIXED (one delivery,
   one ack) and the DM-close vanish FIXED (root cause: DM-close/kick/relationship-remove
   cancelling the bot's user-pipe listener while the client stayed READY — the server-side
-  tear my retro-test pointed at). ~~G13b cross-app delivery~~ **RETRACTED by the fork
+  tear my retro-test pointed at). (This retraction was itself reversed at ~16:40: G13b is
+  real. Current status is in the 2026-10-04 entry at the end of this log.) ~~G13b cross-app delivery~~ **RETRACTED by the fork
   (~15:0x)**: their canary was mis-sedded — the script silently targeted TzurotProbeB, so
   every "foreign acker" was the twin receiving its OWN interaction (DB-proven via the host
   message's author); my zero-post-fix-hits answer was the truth — **no cross-app delivery
@@ -710,8 +719,6 @@ Q2 in the original open-questions list is obsolete.)
   client sessions (both compare permission bits; one shared mapping table will serve both
   audits).~~ G15 RULED OUT (~16:25 EDT entry). Fleet state: M0–M3 done, M4 polish (TR-2.2, TURNTACE cleanup, app-id hygiene),
   M5 conformance (TASK-1145 command + pilot decision = Lila's).
-  (`8175774`) — TR-2.3's context-menu surface now invocable client-side; live verification
-  pass on my bot's messages agreed.
 - **2026-09-30 ~18:35 — 🎯 M3 CLOSED: first real AI personality round-trip outside Discord.**
   ~~Root cause of the 50013 was **G15** — the fork's permission LAYOUT diverges from Discord's
   bit meanings (their MANAGE_WEBHOOKS is bit 29, not 5; the first grant set Discord's bit 32
@@ -776,6 +783,18 @@ Q2 in the original open-questions list is obsolete.)
   **400 50035**, unknown-role-mention **200**. Fourth face (thread-tag-edit 400) is
   code-verified only — runtime blocked because forum tag creation doesn't exist on the fork
   yet (upstream TODO); noted in the fork's triage file.
+- **2026-10-04 — G13b status of record: NEVER FIXED (the mechanism was never named).** The fork
+  confirmed (Machloket Server session, 2026-10-04) that no commit claims G13b. The only
+  commits that touch it are logging: `d6857fe17` (log the carrying pipe) and `7eac48fc1`
+  ([Dispatch] owning-session lines). `7f2089421` (G13) predates the ~16:40 un-retraction, so
+  it cannot be the fix. The fork's gaps file still says "Mechanism UNNAMED". The only evidence
+  for absence is that it did not recur in the ~18:05 run, so any recent fix would be
+  incidental and unverified. Tzurot's "fixed server-side" claim (commit `81bfb5b1d` and the
+  `foreignInteraction.ts` header) is unsupported; the source comment correction is TASK-1157.
+  If it recurs: send the fork the interaction id and timestamp; their instance logs' ledger
+  lines name the carrying subscription. Same sweep (GLM-week audit): TR-2.6, TR-3.6, TR-7.2,
+  TR-9.2, Q8 and roadmap item 2 rows brought up to date; one copy-paste duplicate removed from
+  the ~18:50 entry.
 
 ## Appendix A — discord.js surface inventory (v1, manual pass, 2026-09-30)
 
