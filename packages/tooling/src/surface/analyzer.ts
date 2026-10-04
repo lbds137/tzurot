@@ -174,6 +174,8 @@ function tryRecordRestOutsideHelper(
 /** A property is a payload key unless it is a method or comes from a non-surface declaration file (lib / @types, e.g. Buffer's `length`). */
 function isPayloadProperty(property: TsMorphSymbol): boolean {
   const declarations = property.getDeclarations();
+  // No declarations: `every` on [] is true, so the property is excluded — a
+  // symbol with no declaration cannot be shown to be a surface key.
   if (declarations.every(d => Node.isMethodSignature(d) || Node.isMethodDeclaration(d))) {
     return false;
   }
