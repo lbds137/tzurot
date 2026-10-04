@@ -54,6 +54,9 @@ export declare class Webhook {
 export declare class TextChannel {
   createWebhook(options: { name: string; reason?: string }): Promise<Webhook>;
 }
+export declare class ModalBuilder {
+  setTitle(title: string): this;
+}
 export declare class WeirdFuturePrimitive {
   ping(): void;
 }
@@ -331,6 +334,112 @@ export async function nestedWrite(webhook: Webhook): Promise<void> {
 }
 `;
 
+// Direct call arguments whose callee has no readable body.
+const FIXTURE_UNRESOLVABLE_CALLEE = `
+import { Webhook, WebhookMessageCreateOptions } from 'discord.js';
+
+declare function ambientOptions(): WebhookMessageCreateOptions;
+
+interface OptionsFactory {
+  make(): WebhookMessageCreateOptions;
+}
+
+function literalOptions(): WebhookMessageCreateOptions {
+  return { username: 'u' };
+}
+
+export async function sendUnresolvable(webhook: Webhook, factory: OptionsFactory): Promise<void> {
+  await webhook.sendRaw(ambientOptions());
+  await webhook.sendRaw(factory.make());
+  await webhook.sendRaw(literalOptions());
+}
+`;
+
+// Returned-expression shapes beyond literals, identifiers and conditionals.
+const FIXTURE_RETURN_SHAPES = `
+import { Webhook, WebhookMessageCreateOptions } from 'discord.js';
+
+declare function ambientOptions(): WebhookMessageCreateOptions;
+
+function innerLiteral(): WebhookMessageCreateOptions {
+  return { avatarURL: 'a' };
+}
+
+function asCast(): WebhookMessageCreateOptions {
+  return { content: 'x' } as WebhookMessageCreateOptions;
+}
+
+function satisfiesCheck(): { username: string } {
+  return { username: 'u' } satisfies { username: string };
+}
+
+function nonNullLocal(): WebhookMessageCreateOptions {
+  const local: WebhookMessageCreateOptions | undefined = { threadId: 't' };
+  return local!;
+}
+
+function delegatesResolvable(): WebhookMessageCreateOptions {
+  return innerLiteral();
+}
+
+function delegatesAmbient(): WebhookMessageCreateOptions {
+  return ambientOptions();
+}
+
+function returnsMember(holder: { inner: WebhookMessageCreateOptions }): WebhookMessageCreateOptions {
+  return holder.inner;
+}
+
+function pingA(n: number): WebhookMessageCreateOptions {
+  return n > 0 ? pingB(n - 1) : { files: [] };
+}
+
+function pingB(n: number): WebhookMessageCreateOptions {
+  return pingA(n);
+}
+
+export async function sendShapes(
+  webhook: Webhook,
+  holder: { inner: WebhookMessageCreateOptions }
+): Promise<void> {
+  await webhook.sendRaw(asCast());
+  await webhook.send(satisfiesCheck());
+  await webhook.sendRaw(nonNullLocal());
+  await webhook.sendRaw(delegatesResolvable());
+  await webhook.sendRaw(delegatesAmbient());
+  await webhook.sendRaw(returnsMember(holder));
+  await webhook.sendRaw(pingA(1));
+}
+`;
+
+// Builders whose returned value is not a payload object (a string, a class
+// instance) beside a control whose returned local is a named payload type.
+const FIXTURE_NON_PAYLOAD_RETURNS = `
+import { BaseInteraction, ModalBuilder, Webhook, WebhookMessageCreateOptions } from 'discord.js';
+
+declare function ambientOptions(): WebhookMessageCreateOptions;
+
+function textReply(name: string): string {
+  return \`hello \${name}\`;
+}
+
+function buildModal(): ModalBuilder {
+  const m = new ModalBuilder().setTitle('t');
+  return m;
+}
+
+function declaredLocal(): WebhookMessageCreateOptions {
+  const local: WebhookMessageCreateOptions = ambientOptions();
+  return local;
+}
+
+export async function sendNonPayload(interaction: BaseInteraction, webhook: Webhook): Promise<void> {
+  await interaction.reply(textReply('x'));
+  interaction.showModal(buildModal());
+  await webhook.sendRaw(declaredLocal());
+}
+`;
+
 const GLOBAL_TYPES = `
 declare function fetch(input: string): Promise<unknown>;
 `;
@@ -386,6 +495,15 @@ function buildFixtureProject(): Project {
   project.createSourceFile(
     '/proj/services/bot-client/src/returnedIdentifier.ts',
     FIXTURE_RETURNED_IDENTIFIER
+  );
+  project.createSourceFile(
+    '/proj/services/bot-client/src/unresolvableCallee.ts',
+    FIXTURE_UNRESOLVABLE_CALLEE
+  );
+  project.createSourceFile('/proj/services/bot-client/src/returnShapes.ts', FIXTURE_RETURN_SHAPES);
+  project.createSourceFile(
+    '/proj/services/bot-client/src/nonPayloadReturns.ts',
+    FIXTURE_NON_PAYLOAD_RETURNS
   );
   project.createSourceFile(
     '/proj/services/bot-client/src/test/mocks/Discord.mock.ts',
@@ -684,6 +802,41 @@ describe('analyzeProject', () => {
     // passThrough returns its parameter (unreadable → one marker); resolvedLocal adds content
     expect(findEntry(entries, 'webhook-options', UNKNOWN_PAYLOAD_KEY, file)?.count).toBe(1);
     expect(findEntry(entries, 'webhook-options', 'content', file)?.count).toBe(1);
+  });
+
+  it('records the marker for a call argument whose callee has no readable body', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/unresolvableCallee.ts';
+    // ambient `declare function` + interface method: one marker each, never silence
+    expect(findEntry(entries, 'webhook-options', UNKNOWN_PAYLOAD_KEY, file)?.count).toBe(2);
+    // a resolvable callee returning a literal still yields exactly its keys
+    expect(findEntry(entries, 'webhook-options', 'username', file)?.count).toBe(1);
+    for (const key of ['content', 'avatarURL', 'threadId', 'allowedMentions', 'files']) {
+      expect(findEntry(entries, 'webhook-options', key, file)).toBeUndefined();
+    }
+  });
+
+  it('reads returned casts, satisfies, non-null assertions and delegated calls', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/returnShapes.ts';
+    // asCast, satisfiesCheck, nonNullLocal, delegatesResolvable, and the
+    // literal branch of the mutually recursive pingA / pingB pair
+    for (const key of ['content', 'username', 'threadId', 'avatarURL', 'files']) {
+      expect(findEntry(entries, 'webhook-options', key, file)?.count, key).toBe(1);
+    }
+    // delegatesAmbient (bodiless callee) + returnsMember (member access)
+    expect(findEntry(entries, 'webhook-options', UNKNOWN_PAYLOAD_KEY, file)?.count).toBe(2);
+  });
+
+  it('records no marker for a returned string or builder instance, the marker for a named payload local', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/nonPayloadReturns.ts';
+    const markers = entries.filter(
+      entry => entry.file === file && entry.symbol === UNKNOWN_PAYLOAD_KEY
+    );
+    // only declaredLocal (named interface, no literal initializer) is unknown;
+    // textReply (template string) and buildModal (class instance) are no payload
+    expect(markers.map(entry => [entry.category, entry.count])).toEqual([['webhook-options', 1]]);
   });
 
   it('classifies createWebhook options as webhook-options', () => {

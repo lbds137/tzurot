@@ -145,6 +145,42 @@ describe('assignedKeys', () => {
     expect(keys('o')).toEqual([]);
   });
 
+  it('returns the literal key for an element-access write with a string key', () => {
+    const quoted = firstAssignment("const o: { k?: number } = {}; o['k'] = 1;");
+    expect(quoted.keys('o')).toEqual(['k']);
+    const template = firstAssignment('const o: { k?: number } = {}; o[`k`] = 1;');
+    expect(template.keys('o')).toEqual(['k']);
+  });
+
+  it('returns the marker for an element-access write with a computed key', () => {
+    const { keys } = firstAssignment(
+      "declare const name: 'k'; const o: { k?: number } = {}; o[name] = 1;"
+    );
+    expect(keys('o')).toEqual([UNKNOWN_PAYLOAD_KEY]);
+  });
+
+  it('returns the top-level key for nested writes mixing member and element access', () => {
+    const elementThenMember = firstAssignment(
+      "const o: { a?: { b?: number } } = {}; o['a']!.b = 1;"
+    );
+    expect(elementThenMember.keys('o')).toEqual(['a']);
+    const memberThenElement = firstAssignment(
+      "const o: { a?: { b?: number } } = {}; o.a!['b'] = 1;"
+    );
+    expect(memberThenElement.keys('o')).toEqual(['a']);
+    const computedTop = firstAssignment(
+      "declare const name: 'a'; const o: { a?: { b?: number } } = {}; o[name]!.b = 1;"
+    );
+    expect(computedTop.keys('o')).toEqual([UNKNOWN_PAYLOAD_KEY]);
+  });
+
+  it('returns nothing for an element-access write rooted at a different variable', () => {
+    const { keys } = firstAssignment(
+      "const o: { k?: number } = {}; const p: { k?: number } = {}; p['k'] = 1;"
+    );
+    expect(keys('o')).toEqual([]);
+  });
+
   it('returns the literal keys for a whole reassignment and the marker otherwise', () => {
     const literal = firstAssignment('let o: { a?: number } = {}; o = { a: 1 };');
     expect(literal.keys('o')).toEqual(['a']);
