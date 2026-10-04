@@ -835,6 +835,17 @@ run_staged_msg 2 "override: standalone rule: an unquoted-delimiter heredoc messa
 run_staged_msg 2 "override: standalone rule: a substitution inside the -m message is refused" \
   'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "docs: $(git add services/probe.ts)"' \
   'cannot be verified' 'tracker/tasks/probe.md' 'services/probe.ts'
+# Pin: the canonical heredoc message does not admit a SECOND live substitution
+# elsewhere on the commit line (here an --author value).
+read -r -d '' HEREDOC_PLUS_SECOND_SUBST <<'FIX'
+TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit --author="$(git log -1 --format=%an)" -m "$(cat <<'EOF'
+docs: x
+EOF
+)"
+FIX
+run_staged_msg 2 "override: standalone rule: a second substitution beside the heredoc message is refused" \
+  "$HEREDOC_PLUS_SECOND_SUBST" 'command substitution or backtick other than the heredoc message' \
+  'tracker/tasks/probe.md'
 # RED-FIRST (review finding 2): the version-bump exception now carries the
 # no-override path's every-gated-file-is-a-package.json restriction. A tracked
 # .ts whose staged diff is a single `"version":` line is not a release bump.
