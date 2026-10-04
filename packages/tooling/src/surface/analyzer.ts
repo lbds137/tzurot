@@ -18,6 +18,7 @@ import {
   Project,
   SymbolFlags,
   type ArrowFunction,
+  type BinaryExpression,
   type CallExpression,
   SyntaxKind,
   type Expression,
@@ -196,11 +197,22 @@ function literalKeys(literal: ObjectLiteralExpression): string[] {
 
 /**
  * Keys a variable holding an object literal actually sends: the
- * initializer's keys plus every `variable.key = …` assignment in the
- * variable's enclosing function (or file) that textually PRECEDES the
- * identifier being analysed (an assignment after the call cannot have been
- * sent by it). Deduped — a key set twice is one key. Undefined when the identifier is not a variable initialized with an
- * object literal (the caller then falls back to the declared type).
+ * initializer's keys, plus what every assignment in the variable's enclosing
+ * function (or file) that textually PRECEDES the identifier being analysed
+ * adds. An assignment after the call cannot have been sent by it.
+ *
+ * Two assignment shapes count:
+ *  - `variable.key = …` adds `key`;
+ *  - a whole reassignment `variable = { … }` adds that literal's keys. A
+ *    reassignment to anything that is not an object literal (a call, another
+ *    identifier) cannot be read statically, so it adds
+ *    {@link UNKNOWN_PAYLOAD_KEY} beside the keys already found — the gap
+ *    stays visible instead of silent.
+ *
+ * Branches are not modelled: assignments in any branch before the call are
+ * all counted (an over-approximation). Keys are deduped — a key set twice is
+ * one key. Undefined when the identifier is not a variable initialized with
+ * an object literal (the caller then falls back to the declared type).
  */
 function initializedVariableKeys(
   identifier: Identifier,
@@ -219,14 +231,28 @@ function initializedVariableKeys(
   );
   for (const assignment of scope?.getDescendantsOfKind(SyntaxKind.BinaryExpression) ?? []) {
     if (assignment.getOperatorToken().getKind() !== SyntaxKind.EqualsToken) continue;
-    const target = assignment.getLeft();
-    if (!Node.isPropertyAccessExpression(target)) continue;
-    const owner = target.getExpression();
-    if (!Node.isIdentifier(owner)) continue;
     if (assignment.getStart() >= identifier.getStart()) continue;
-    if (typeChecker.getSymbolAtLocation(owner) === symbol) keys.add(target.getName());
+    for (const key of assignedKeys(assignment, symbol, typeChecker)) keys.add(key);
   }
   return [...keys];
+}
+
+/** Keys one `=` assignment adds to `symbol`'s object: `symbol.key = …`, or a whole `symbol = …` reassignment. */
+function assignedKeys(
+  assignment: BinaryExpression,
+  symbol: TsMorphSymbol,
+  typeChecker: TypeChecker
+): string[] {
+  const target = assignment.getLeft();
+  if (Node.isIdentifier(target)) {
+    if (typeChecker.getSymbolAtLocation(target) !== symbol) return [];
+    const assigned = assignment.getRight();
+    return Node.isObjectLiteralExpression(assigned) ? literalKeys(assigned) : [UNKNOWN_PAYLOAD_KEY];
+  }
+  if (!Node.isPropertyAccessExpression(target)) return [];
+  const owner = target.getExpression();
+  if (!Node.isIdentifier(owner)) return [];
+  return typeChecker.getSymbolAtLocation(owner) === symbol ? [target.getName()] : [];
 }
 
 /** A property is a payload key unless it is a method or comes from a non-surface declaration file (lib / @types, e.g. Buffer's `length`). */
@@ -262,6 +288,13 @@ function isNamedDeclaredType(type: TsMorphType): boolean {
  * objects and contribute nothing. An anonymous object type (inferred from a
  * literal, or written inline) contributes its properties; a named
  * interface / alias contributes only {@link UNKNOWN_PAYLOAD_KEY}.
+ *
+ * The NAMED check runs on the outer type first, so an alias over a union or
+ * intersection (`type P = { a } | { b }`) is one named type, not its members.
+ *
+ * Design note: optional members of an ANONYMOUS type are counted. Optionality
+ * is not a signal this heuristic uses; an inline annotation is written for
+ * this call site, so everything it declares is what the site can send.
  */
 function typedPayloadKeys(argument: Node, typeChecker: TypeChecker): string[] {
   const type = typeChecker.getTypeAtLocation(argument).getNonNullableType();
@@ -275,13 +308,16 @@ function typedPayloadKeys(argument: Node, typeChecker: TypeChecker): string[] {
 
 /**
  * Payload keys of a union / intersection. Primitive / null-ish only members
- * (including `boolean`) are no payload; any named or non-payload-object
- * constituent leaves the sent keys unknown; otherwise the keys are the
- * union of every (anonymous) constituent's properties.
+ * (including `boolean`) are no payload; a composite that is itself a NAMED
+ * alias, or that has any named or non-payload-object constituent, leaves
+ * the sent keys unknown; otherwise the keys are the union of every
+ * (anonymous) constituent's properties.
  */
 function compositePayloadKeys(type: TsMorphType, parts: TsMorphType[]): string[] {
   if (!parts.some(part => part.isObject())) return [];
-  if (!parts.every(isAnonymousPayloadObject)) return [UNKNOWN_PAYLOAD_KEY];
+  if (isNamedDeclaredType(type) || !parts.every(isAnonymousPayloadObject)) {
+    return [UNKNOWN_PAYLOAD_KEY];
+  }
   const names = type.isUnion()
     ? parts.flatMap(part => payloadPropertyNames(part))
     : payloadPropertyNames(type);
@@ -394,12 +430,15 @@ function callReturnKeys(call: CallExpression, typeChecker: TypeChecker): string[
  *  1. an object literal contributes its own keys;
  *  2. an identifier bound to a variable initialized with an object literal
  *     contributes the initializer's keys plus the `variable.key = …`
- *     assignments in the same function that precede the call;
+ *     assignments and whole `variable = …` reassignments in the same function
+ *     that precede the call;
  *  3. a call expression contributes the keys of the object literals its
  *     in-project callee returns (see {@link callReturnKeys});
  *  4. any other expression is judged by its checked type: an anonymous object
- *     type contributes its properties, a NAMED interface / alias contributes
- *     the single {@link UNKNOWN_PAYLOAD_KEY} marker.
+ *     type contributes its properties (optional members included — see
+ *     {@link typedPayloadKeys}), a NAMED interface / alias, including an
+ *     alias over a union, contributes the single {@link UNKNOWN_PAYLOAD_KEY}
+ *     marker.
  */
 function collectOptionKeys(argument: Node, typeChecker: TypeChecker): string[] {
   if (Node.isObjectLiteralExpression(argument)) return literalKeys(argument);

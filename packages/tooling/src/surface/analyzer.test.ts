@@ -218,6 +218,42 @@ export async function twoSends(webhook: Webhook): Promise<void> {
 }
 `;
 
+const FIXTURE_ALIAS_UNION = `
+import { Webhook } from 'discord.js';
+
+type AliasedPayload = { aliasA: string } | { aliasB: string };
+
+export async function aliasedUnion(webhook: Webhook, payload: AliasedPayload): Promise<void> {
+  await webhook.send(payload);
+}
+`;
+
+const FIXTURE_REASSIGN = `
+import { Webhook, WebhookMessageCreateOptions } from 'discord.js';
+
+declare function externalOptions(): WebhookMessageCreateOptions;
+
+export async function literalReassigned(webhook: Webhook, flag: boolean): Promise<void> {
+  let options: WebhookMessageCreateOptions = { content: 'x' };
+  if (flag) {
+    options = { content: 'x', threadId: 't' };
+  }
+  await webhook.sendRaw(options);
+}
+
+export async function nonLiteralReassigned(webhook: Webhook): Promise<void> {
+  let options: WebhookMessageCreateOptions = { username: 'u' };
+  options = externalOptions();
+  await webhook.sendRaw(options);
+}
+
+export async function reassignedAfterCall(webhook: Webhook): Promise<void> {
+  let options: WebhookMessageCreateOptions = { avatarURL: 'a' };
+  await webhook.sendRaw(options);
+  options = externalOptions();
+}
+`;
+
 const FIXTURE_MOCK_DIR = `
 import { Webhook } from 'discord.js';
 
@@ -279,6 +315,11 @@ function buildFixtureProject(): Project {
     '/proj/services/bot-client/src/variableOrder.ts',
     FIXTURE_VARIABLE_ORDER
   );
+  project.createSourceFile(
+    '/proj/services/bot-client/src/variableAliasUnion.ts',
+    FIXTURE_ALIAS_UNION
+  );
+  project.createSourceFile('/proj/services/bot-client/src/variableReassign.ts', FIXTURE_REASSIGN);
   project.createSourceFile(
     '/proj/services/bot-client/src/test/mocks/Discord.mock.ts',
     FIXTURE_MOCK_DIR
@@ -499,6 +540,37 @@ describe('analyzeProject', () => {
     // anonymousUnion + anonymousIntersection
     expect(findEntry(entries, 'webhook-options', 'content', file)?.count).toBe(2);
     expect(findEntry(entries, 'webhook-options', 'username', file)?.count).toBe(1);
+  });
+
+  it('records only the marker for a named alias over a union of anonymous objects', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/variableAliasUnion.ts';
+    expect(findEntry(entries, 'webhook-options', UNKNOWN_PAYLOAD_KEY, file)?.count).toBe(1);
+    for (const key of ['aliasA', 'aliasB']) {
+      expect(entries.some(entry => entry.file === file && entry.symbol === key)).toBe(false);
+    }
+  });
+
+  it('counts the keys of a whole reassignment that precedes the call', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/variableReassign.ts';
+    // literalReassigned: initializer {content} + reassignment {content, threadId}
+    expect(findEntry(entries, 'webhook-options', 'content', file)?.count).toBe(1);
+    expect(findEntry(entries, 'webhook-options', 'threadId', file)?.count).toBe(1);
+  });
+
+  it('records the marker beside the known keys for a non-literal reassignment before the call', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/variableReassign.ts';
+    expect(findEntry(entries, 'webhook-options', 'username', file)?.count).toBe(1);
+    // only nonLiteralReassigned reassigns to an unreadable value before its call
+    expect(findEntry(entries, 'webhook-options', UNKNOWN_PAYLOAD_KEY, file)?.count).toBe(1);
+  });
+
+  it('ignores a reassignment that follows the call', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/variableReassign.ts';
+    expect(findEntry(entries, 'webhook-options', 'avatarURL', file)?.count).toBe(1);
   });
 
   it('counts a member assignment only for calls that follow it', () => {
