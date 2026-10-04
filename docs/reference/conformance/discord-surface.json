@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 2913,
-    "sites": 6783
+    "entries": 2903,
+    "sites": 6758
   },
   "entries": [
     {
@@ -12103,12 +12103,6 @@
     {
       "category": "components",
       "file": "services/bot-client/src/utils/dashboard/settings/SettingsDashboardBuilder.ts",
-      "symbol": "*",
-      "count": 1
-    },
-    {
-      "category": "components",
-      "file": "services/bot-client/src/utils/dashboard/settings/SettingsDashboardBuilder.ts",
       "symbol": "ActionRowBuilder",
       "count": 1
     },
@@ -12122,12 +12116,6 @@
       "category": "components",
       "file": "services/bot-client/src/utils/dashboard/settings/SettingsDashboardBuilder.ts",
       "symbol": "StringSelectMenuOptionBuilder",
-      "count": 1
-    },
-    {
-      "category": "components",
-      "file": "services/bot-client/src/utils/dashboard/settings/SettingsModalFactory.ts",
-      "symbol": "*",
       "count": 1
     },
     {
@@ -12157,12 +12145,6 @@
     {
       "category": "components",
       "file": "services/bot-client/src/utils/dashboard/settings/settingsButtonBuilders.ts",
-      "symbol": "*",
-      "count": 15
-    },
-    {
-      "category": "components",
-      "file": "services/bot-client/src/utils/dashboard/settings/settingsButtonBuilders.ts",
       "symbol": "ActionRowBuilder",
       "count": 7
     },
@@ -12171,12 +12153,6 @@
       "file": "services/bot-client/src/utils/dashboard/settings/settingsButtonBuilders.ts",
       "symbol": "ButtonBuilder",
       "count": 15
-    },
-    {
-      "category": "components",
-      "file": "services/bot-client/src/utils/dashboard/settings/settingsIndexView.ts",
-      "symbol": "*",
-      "count": 1
     },
     {
       "category": "components",
@@ -12194,12 +12170,6 @@
       "category": "components",
       "file": "services/bot-client/src/utils/dashboard/settings/settingsIndexView.ts",
       "symbol": "StringSelectMenuOptionBuilder",
-      "count": 1
-    },
-    {
-      "category": "components",
-      "file": "services/bot-client/src/utils/dashboard/settings/settingsModalSubmit.ts",
-      "symbol": "*",
       "count": 1
     },
     {
@@ -12249,12 +12219,6 @@
       "file": "services/bot-client/src/utils/modal/retry.ts",
       "symbol": "ButtonBuilder",
       "count": 1
-    },
-    {
-      "category": "components",
-      "file": "services/bot-client/src/utils/modal/toolkit.ts",
-      "symbol": "*",
-      "count": 4
     },
     {
       "category": "components",
@@ -14917,12 +14881,6 @@
     {
       "category": "message-builders",
       "file": "services/bot-client/src/commands/inspect/extendedViews.ts",
-      "symbol": "*",
-      "count": 1
-    },
-    {
-      "category": "message-builders",
-      "file": "services/bot-client/src/commands/inspect/extendedViews.ts",
       "symbol": "EmbedBuilder",
       "count": 3
     },
@@ -14943,12 +14901,6 @@
       "file": "services/bot-client/src/commands/inspect/extendedViews.ts",
       "symbol": "value",
       "count": 2
-    },
-    {
-      "category": "message-builders",
-      "file": "services/bot-client/src/commands/inspect/views.ts",
-      "symbol": "*",
-      "count": 1
     },
     {
       "category": "message-builders",
@@ -17006,7 +16958,7 @@
       "category": "message-options",
       "file": "services/bot-client/src/utils/dashboard/settings/settingsResetFlow.ts",
       "symbol": "components",
-      "count": 1
+      "count": 2
     },
     {
       "category": "message-options",
@@ -17018,7 +16970,7 @@
       "category": "message-options",
       "file": "services/bot-client/src/utils/dashboard/settings/settingsResetFlow.ts",
       "symbol": "embeds",
-      "count": 1
+      "count": 2
     },
     {
       "category": "message-options",
@@ -17244,12 +17196,6 @@
     },
     {
       "category": "unclassified",
-      "file": "services/bot-client/src/commands/memory/search.ts",
-      "symbol": "*",
-      "count": 1
-    },
-    {
-      "category": "unclassified",
       "file": "services/bot-client/src/handlers/CommandHandler.ts",
       "symbol": "Collection",
       "count": 2
@@ -17331,12 +17277,6 @@
       "file": "services/bot-client/src/services/character/characterTurn.ts",
       "symbol": "Collection",
       "count": 3
-    },
-    {
-      "category": "unclassified",
-      "file": "services/bot-client/src/services/character/chimeInTag.ts",
-      "symbol": "*",
-      "count": 1
     },
     {
       "category": "unclassified",
