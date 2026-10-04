@@ -18,27 +18,23 @@ import {
   Project,
   SymbolFlags,
   type ArrowFunction,
-  type BinaryExpression,
   type CallExpression,
   SyntaxKind,
   type Expression,
   type FunctionDeclaration,
   type FunctionExpression,
   type MethodDeclaration,
-  type Identifier,
   type NewExpression,
   type ObjectLiteralExpression,
   type Node as TsMorphNode,
-  type ObjectLiteralElement,
   type PropertyAccessExpression,
-  type PropertyAssignment,
-  type ShorthandPropertyAssignment,
   type SourceFile,
   type Symbol as TsMorphSymbol,
   type Type as TsMorphType,
   type TypeChecker,
 } from 'ts-morph';
 
+import { initializedVariableKeys, literalKeys, UNKNOWN_PAYLOAD_KEY } from './payloadKeys.js';
 import { classify, compareSurfaceEntries, type ClassifiableHit } from './categories.js';
 import type { SurfaceCategory, SurfaceEntry, SurfaceInventory } from './types.js';
 
@@ -175,86 +171,6 @@ function tryRecordRestOutsideHelper(
   if (DISCORD_API_HOSTS.has(hostname)) record(calleeText);
 }
 
-/**
- * An object-literal KEY site: a property assignment or its shorthand
- * (`{ content }` — both kinds key the inventory identically via
- * `getName()`). Everything else `getProperties()` yields is not a key:
- * a SpreadAssignment (`...rest`) contributes no option key of its own,
- * and a method / accessor body is not an option key either.
- */
-function isOptionKeyElement(
-  property: ObjectLiteralElement
-): property is PropertyAssignment | ShorthandPropertyAssignment {
-  return Node.isPropertyAssignment(property) || Node.isShorthandPropertyAssignment(property);
-}
-
-function literalKeys(literal: ObjectLiteralExpression): string[] {
-  return literal
-    .getProperties()
-    .filter(isOptionKeyElement)
-    .map(property => property.getName());
-}
-
-/**
- * Keys a variable holding an object literal actually sends: the
- * initializer's keys, plus what every assignment in the variable's enclosing
- * function (or file) that textually PRECEDES the identifier being analysed
- * adds. An assignment after the call cannot have been sent by it.
- *
- * Two assignment shapes count:
- *  - `variable.key = …` adds `key`;
- *  - a whole reassignment `variable = { … }` adds that literal's keys. A
- *    reassignment to anything that is not an object literal (a call, another
- *    identifier) cannot be read statically, so it adds
- *    {@link UNKNOWN_PAYLOAD_KEY} beside the keys already found — the gap
- *    stays visible instead of silent.
- *
- * Branches are not modelled: assignments in any branch before the call are
- * all counted (an over-approximation). Keys are deduped — a key set twice is
- * one key. Undefined when the identifier is not a variable initialized with
- * an object literal (the caller then falls back to the declared type).
- */
-function initializedVariableKeys(
-  identifier: Identifier,
-  typeChecker: TypeChecker
-): string[] | undefined {
-  const symbol = typeChecker.getSymbolAtLocation(identifier);
-  const declaration = symbol?.getValueDeclaration();
-  if (symbol === undefined || declaration === undefined) return undefined;
-  if (!Node.isVariableDeclaration(declaration)) return undefined;
-  const initializer = declaration.getInitializer();
-  if (!Node.isObjectLiteralExpression(initializer)) return undefined;
-
-  const keys = new Set(literalKeys(initializer));
-  const scope = declaration.getFirstAncestor(
-    ancestor => Node.isFunctionLikeDeclaration(ancestor) || Node.isSourceFile(ancestor)
-  );
-  for (const assignment of scope?.getDescendantsOfKind(SyntaxKind.BinaryExpression) ?? []) {
-    if (assignment.getOperatorToken().getKind() !== SyntaxKind.EqualsToken) continue;
-    if (assignment.getStart() >= identifier.getStart()) continue;
-    for (const key of assignedKeys(assignment, symbol, typeChecker)) keys.add(key);
-  }
-  return [...keys];
-}
-
-/** Keys one `=` assignment adds to `symbol`'s object: `symbol.key = …`, or a whole `symbol = …` reassignment. */
-function assignedKeys(
-  assignment: BinaryExpression,
-  symbol: TsMorphSymbol,
-  typeChecker: TypeChecker
-): string[] {
-  const target = assignment.getLeft();
-  if (Node.isIdentifier(target)) {
-    if (typeChecker.getSymbolAtLocation(target) !== symbol) return [];
-    const assigned = assignment.getRight();
-    return Node.isObjectLiteralExpression(assigned) ? literalKeys(assigned) : [UNKNOWN_PAYLOAD_KEY];
-  }
-  if (!Node.isPropertyAccessExpression(target)) return [];
-  const owner = target.getExpression();
-  if (!Node.isIdentifier(owner)) return [];
-  return typeChecker.getSymbolAtLocation(owner) === symbol ? [target.getName()] : [];
-}
-
 /** A property is a payload key unless it is a method or comes from a non-surface declaration file (lib / @types, e.g. Buffer's `length`). */
 function isPayloadProperty(property: TsMorphSymbol): boolean {
   const declarations = property.getDeclarations();
@@ -266,15 +182,6 @@ function isPayloadProperty(property: TsMorphSymbol): boolean {
     return !sourceFile.isDeclarationFile() || isSurfaceDeclarationPath(sourceFile.getFilePath());
   });
 }
-
-/**
- * Marker key recorded for a call site whose payload is a value of a NAMED
- * interface / type alias that no literal in scope pins down (a parameter, a
- * variable without an object-literal initializer). The keys actually sent
- * are not statically known, so the site is made visible instead of omitted
- * or inflated to the full declared member list.
- */
-export const UNKNOWN_PAYLOAD_KEY = '*';
 
 /** A declared (interface or type-alias) type, as opposed to one inferred from a literal or written inline. */
 function isNamedDeclaredType(type: TsMorphType): boolean {
@@ -343,24 +250,35 @@ function payloadPropertyNames(type: TsMorphType): string[] {
     .map(property => property.getName());
 }
 
-/** Keys of an object literal as returned from a function: its own keys plus the keys of spread local object variables (`{ ...options, rest }`). */
+/**
+ * Keys of an object literal as returned from a function: its own keys plus
+ * the keys of spread local object variables (`{ ...options, rest }`). A
+ * spread whose keys cannot be read statically (a call, a member access, a
+ * parameter or any variable without an object-literal initializer) adds
+ * {@link UNKNOWN_PAYLOAD_KEY} beside the resolved keys — never silent.
+ */
 function returnedLiteralKeys(literal: ObjectLiteralExpression, typeChecker: TypeChecker): string[] {
   const keys = new Set(literalKeys(literal));
   for (const property of literal.getProperties()) {
     if (!Node.isSpreadAssignment(property)) continue;
     const spread = property.getExpression();
-    if (!Node.isIdentifier(spread)) continue;
-    for (const key of initializedVariableKeys(spread, typeChecker) ?? []) keys.add(key);
+    const spreadKeys = Node.isIdentifier(spread)
+      ? initializedVariableKeys(spread, typeChecker)
+      : undefined;
+    for (const key of spreadKeys ?? [UNKNOWN_PAYLOAD_KEY]) keys.add(key);
   }
   return [...keys];
 }
 
-/** Keys of one returned expression: a literal (conditional branches included) or a local variable. */
+/** Keys of one returned expression: a literal (conditional branches included) or a variable (no readable literal initializer → {@link UNKNOWN_PAYLOAD_KEY}). */
 function collectReturnedKeys(expression: Node, typeChecker: TypeChecker): string[] {
   if (Node.isObjectLiteralExpression(expression)) {
     return returnedLiteralKeys(expression, typeChecker);
   }
-  if (Node.isIdentifier(expression)) return initializedVariableKeys(expression, typeChecker) ?? [];
+  if (Node.isIdentifier(expression)) {
+    // no object-literal initializer to read → visible gap, never silent
+    return initializedVariableKeys(expression, typeChecker) ?? [UNKNOWN_PAYLOAD_KEY];
+  }
   if (Node.isConditionalExpression(expression)) {
     return [
       ...collectReturnedKeys(expression.getWhenTrue(), typeChecker),
@@ -401,9 +319,10 @@ function resolveCalleeFunction(
 
 /**
  * Keys returned by the in-project function a call expression invokes: the
- * object literals in its `return` statements (spread locals included) and a
- * returned local variable resolved like rule 2. Empty when the callee is
- * out-of-project, unresolvable, or returns no literal.
+ * object literals in its `return` statements (spread locals included; an
+ * unresolvable spread adds {@link UNKNOWN_PAYLOAD_KEY}) and a returned local
+ * variable resolved like rule 2. Empty when the callee is out-of-project,
+ * unresolvable, or returns no literal.
  */
 function callReturnKeys(call: CallExpression, typeChecker: TypeChecker): string[] {
   const fn = resolveCalleeFunction(call, typeChecker);
