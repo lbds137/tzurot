@@ -658,7 +658,7 @@ run_msg 2 "override: nested directory add (no trailing slash) cannot be verified
   'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add services/bot-client && git commit -m "x"' \
   'cannot be verified' 'services/probe.ts'
 # A directory deleted from disk but present in HEAD: `git add <dir>` stages
-# the deletions, and `[ -d ]` alone cannot see it — the HEAD tree lookup does.
+# the deletions. Refused as a second command like the rows above.
 mv "$WT/services/bot-client/src" "$TMP_BASE/probe-moved-src"
 run_msg 2 "override: add of a directory deleted from disk (in HEAD) cannot be verified" \
   'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git add services/bot-client/src && git commit -m "x"' \
