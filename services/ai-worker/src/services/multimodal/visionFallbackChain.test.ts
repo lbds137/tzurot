@@ -346,7 +346,7 @@ describe('vision fallback chain (wiring / seam test)', () => {
   // Classification here is the REAL `parseApiError`, fed the error shape the OpenAI SDK
   // produces for an OpenRouter-wrapped provider refusal: the message is only
   // `400 Provider returned error`, and the upstream code (`data_inspection_failed`) lives
-  // solely inside `error.metadata.raw`, the provider's own response body as a string.
+  // solely inside `error.error.metadata.raw`, the provider's own response body as a string.
   // A message-substring stub could never catch a classifier that stops scanning that body.
   it('production-incident shape: provider refusal then rate-limit then a zero-choices 200 — all tiers walked, last category wins', async () => {
     const upstreamRaw =
