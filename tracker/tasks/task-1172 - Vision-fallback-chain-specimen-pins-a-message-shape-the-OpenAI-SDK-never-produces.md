@@ -3,9 +3,10 @@ id: TASK-1172
 title: >-
   Vision fallback-chain specimen pins a message shape the OpenAI SDK never
   produces
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-04 22:27'
+updated_date: '2026-10-04 23:56'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -22,3 +23,9 @@ Why: TASK-1161 found that a real OpenRouter-wrapped Alibaba refusal arrives as m
 What: rebuild scenario 4 with the SDK envelope (message 400 Provider returned error, error.metadata.raw carrying the Alibaba body) and let the real parseApiError classify it, mocking only the model client boundary.
 Acceptance: scenario 4 goes red if the metadata.raw scan in apiErrorParser.detectSpecialCases is removed.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Shipped in PR #2573 (a4dfab07c): scenario 4 now builds the refusal with the real SDK envelope (code only in error.error.metadata.raw) and classifies every tier with the real parseApiError; a new classified-categories assertion makes removing the upstream-body scan go red (purpose canary 1/5 red, 0/5 before the assertion).
+<!-- SECTION:FINAL_SUMMARY:END -->
