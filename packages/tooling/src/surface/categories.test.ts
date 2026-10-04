@@ -76,6 +76,22 @@ describe('classify', () => {
     ).toBe('webhook-options');
   });
 
+  it('routes createWebhook option keys to webhook-options whatever the receiver', () => {
+    expect(
+      classify(
+        hit({
+          kind: 'option-key',
+          symbolName: 'name',
+          receiverTypeName: 'TextChannel',
+          callName: 'createWebhook',
+        })
+      )
+    ).toBe('webhook-options');
+    expect(
+      classify(hit({ kind: 'option-key', symbolName: 'name', receiverTypeName: 'TextChannel' }))
+    ).toBe('unclassified');
+  });
+
   it('routes Webhook receivers to webhook-options even for MESSAGE_OPTION_KEYS members (precedence (a) beats (c))', () => {
     for (const key of ['embeds', 'components', 'flags', 'allowedMentions']) {
       expect(

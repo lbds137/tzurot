@@ -81,6 +81,7 @@ export function renderSnapshotMarkdown(entries: SurfaceEntry[]): string {
     'The `unclassified` category is required and never dropped: unmapped constructions and object-literal keys surface there; methods and property accesses land in `client-methods`.',
     'Enum members whose container no table names surface in `discord-enums` under container-qualified names; message-payload option keys with no builder receiver land in `message-options` (the MESSAGE_OPTION_KEYS vocabulary).',
     '`rest-outside-helpers` sees string-literal URLs only.',
+    'An option key of `*` marks a call whose payload is a parameter or variable of a named interface/type alias with no literal in scope: the keys sent are not statically known.',
     '',
   ];
 

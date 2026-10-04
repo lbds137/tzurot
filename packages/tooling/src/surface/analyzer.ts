@@ -18,8 +18,11 @@ import {
   Project,
   SymbolFlags,
   type CallExpression,
+  SyntaxKind,
   type Expression,
+  type Identifier,
   type NewExpression,
+  type ObjectLiteralExpression,
   type Node as TsMorphNode,
   type ObjectLiteralElement,
   type PropertyAccessExpression,
@@ -27,6 +30,7 @@ import {
   type ShorthandPropertyAssignment,
   type SourceFile,
   type Symbol as TsMorphSymbol,
+  type Type as TsMorphType,
   type TypeChecker,
 } from 'ts-morph';
 
@@ -43,7 +47,7 @@ const SURFACE_DECLARATION_FAMILY =
   /node_modules\/(discord\.js|discord-api-types|@discordjs\/[a-z-]+)\//;
 
 /** Belt-and-braces test exclusion — the bot-client tsconfig already excludes tests; fixtures/mocks in tests must not enter the inventory. */
-const TEST_FILE_PATTERN = /\.test\.ts$|\.spec\.ts$/;
+const TEST_FILE_PATTERN = /\.test\.ts$|\.spec\.ts$|\.mock\.ts$|\/src\/test\//;
 
 /** Hostnames that mark a raw fetch/axios call as a Discord REST call outside the typed helpers. */
 const DISCORD_API_HOSTS = new Set(['discord.com', 'discordapp.com']);
@@ -179,6 +183,202 @@ function isOptionKeyElement(
   return Node.isPropertyAssignment(property) || Node.isShorthandPropertyAssignment(property);
 }
 
+function literalKeys(literal: ObjectLiteralExpression): string[] {
+  return literal
+    .getProperties()
+    .filter(isOptionKeyElement)
+    .map(property => property.getName());
+}
+
+/**
+ * Keys a variable holding an object literal actually sends: the
+ * initializer's keys plus every `variable.key = …` assignment in the
+ * variable's enclosing function (or file). Deduped — a key set twice is one
+ * key. Undefined when the identifier is not a variable initialized with an
+ * object literal (the caller then falls back to the declared type).
+ */
+function initializedVariableKeys(
+  identifier: Identifier,
+  typeChecker: TypeChecker
+): string[] | undefined {
+  const symbol = typeChecker.getSymbolAtLocation(identifier);
+  const declaration = symbol?.getValueDeclaration();
+  if (symbol === undefined || declaration === undefined) return undefined;
+  if (!Node.isVariableDeclaration(declaration)) return undefined;
+  const initializer = declaration.getInitializer();
+  if (!Node.isObjectLiteralExpression(initializer)) return undefined;
+
+  const keys = new Set(literalKeys(initializer));
+  const scope = declaration.getFirstAncestor(
+    ancestor => Node.isFunctionLikeDeclaration(ancestor) || Node.isSourceFile(ancestor)
+  );
+  for (const assignment of scope?.getDescendantsOfKind(SyntaxKind.BinaryExpression) ?? []) {
+    if (assignment.getOperatorToken().getKind() !== SyntaxKind.EqualsToken) continue;
+    const target = assignment.getLeft();
+    if (!Node.isPropertyAccessExpression(target)) continue;
+    const owner = target.getExpression();
+    if (!Node.isIdentifier(owner)) continue;
+    if (typeChecker.getSymbolAtLocation(owner) === symbol) keys.add(target.getName());
+  }
+  return [...keys];
+}
+
+/** A property is a payload key unless it is a method or comes from a non-surface declaration file (lib / @types, e.g. Buffer's `length`). */
+function isPayloadProperty(property: TsMorphSymbol): boolean {
+  const declarations = property.getDeclarations();
+  if (declarations.every(d => Node.isMethodSignature(d) || Node.isMethodDeclaration(d))) {
+    return false;
+  }
+  return declarations.some(d => {
+    const sourceFile = d.getSourceFile();
+    return !sourceFile.isDeclarationFile() || isSurfaceDeclarationPath(sourceFile.getFilePath());
+  });
+}
+
+/**
+ * Marker key recorded for a call site whose payload is a value of a NAMED
+ * interface / type alias that no literal in scope pins down (a parameter, a
+ * variable without an object-literal initializer). The keys actually sent
+ * are not statically known, so the site is made visible instead of omitted
+ * or inflated to the full declared member list.
+ */
+export const UNKNOWN_PAYLOAD_KEY = '*';
+
+/** A declared (interface or type-alias) type, as opposed to one inferred from a literal or written inline. */
+function isNamedDeclaredType(type: TsMorphType): boolean {
+  if (type.getAliasSymbol() !== undefined) return true;
+  return (type.getSymbol()?.getDeclarations() ?? []).some(d => Node.isInterfaceDeclaration(d));
+}
+
+/**
+ * Payload keys of an expression that no literal pins down. Class instances
+ * (builders, Collections), arrays, functions and primitives are not payload
+ * objects and contribute nothing. An anonymous object type (inferred from a
+ * literal, or written inline) contributes its properties; a named
+ * interface / alias contributes only {@link UNKNOWN_PAYLOAD_KEY}.
+ */
+function typedPayloadKeys(argument: Node, typeChecker: TypeChecker): string[] {
+  const type = typeChecker.getTypeAtLocation(argument).getNonNullableType();
+  // A generic class instance (ActionRowBuilder<T>) is a reference whose
+  // TARGET is the class, so isClass() must be asked of the target too.
+  if (!type.isObject() || type.isArray() || (type.getTargetType() ?? type).isClass()) return [];
+  if (type.getCallSignatures().length > 0 || type.getConstructSignatures().length > 0) return [];
+  const names = type
+    .getProperties()
+    .filter(isPayloadProperty)
+    .map(property => property.getName());
+  if (names.length === 0) return [];
+  return isNamedDeclaredType(type) ? [UNKNOWN_PAYLOAD_KEY] : names;
+}
+
+/** Keys of an object literal as returned from a function: its own keys plus the keys of spread local object variables (`{ ...options, rest }`). */
+function returnedLiteralKeys(literal: ObjectLiteralExpression, typeChecker: TypeChecker): string[] {
+  const keys = new Set(literalKeys(literal));
+  for (const property of literal.getProperties()) {
+    if (!Node.isSpreadAssignment(property)) continue;
+    const spread = property.getExpression();
+    if (!Node.isIdentifier(spread)) continue;
+    for (const key of initializedVariableKeys(spread, typeChecker) ?? []) keys.add(key);
+  }
+  return [...keys];
+}
+
+/** Keys of one returned expression: a literal (conditional branches included) or a local variable. */
+function collectReturnedKeys(expression: Node, typeChecker: TypeChecker): string[] {
+  if (Node.isObjectLiteralExpression(expression)) {
+    return returnedLiteralKeys(expression, typeChecker);
+  }
+  if (Node.isIdentifier(expression)) return initializedVariableKeys(expression, typeChecker) ?? [];
+  if (Node.isConditionalExpression(expression)) {
+    return [
+      ...collectReturnedKeys(expression.getWhenTrue(), typeChecker),
+      ...collectReturnedKeys(expression.getWhenFalse(), typeChecker),
+    ];
+  }
+  if (Node.isParenthesizedExpression(expression)) {
+    return collectReturnedKeys(expression.getExpression(), typeChecker);
+  }
+  return [];
+}
+
+/** The in-project function-like node a call expression invokes, when resolvable. */
+function resolveCalleeFunction(call: CallExpression, typeChecker: TypeChecker): Node | undefined {
+  let symbol = typeChecker.getSymbolAtLocation(call.getExpression());
+  if (symbol !== undefined && (symbol.getFlags() & SymbolFlags.Alias) !== 0) {
+    symbol = typeChecker.getAliasedSymbol(symbol);
+  }
+  const declaration = symbol?.getValueDeclaration();
+  if (declaration === undefined || declaration.getSourceFile().isDeclarationFile()) {
+    return undefined;
+  }
+  const fn = Node.isVariableDeclaration(declaration) ? declaration.getInitializer() : declaration;
+  if (fn === undefined) return undefined;
+  const isFunctionLike =
+    Node.isFunctionDeclaration(fn) ||
+    Node.isMethodDeclaration(fn) ||
+    Node.isArrowFunction(fn) ||
+    Node.isFunctionExpression(fn);
+  return isFunctionLike ? fn : undefined;
+}
+
+/**
+ * Keys returned by the in-project function a call expression invokes: the
+ * object literals in its `return` statements (spread locals included) and a
+ * returned local variable resolved like rule 2. Empty when the callee is
+ * out-of-project, unresolvable, or returns no literal.
+ */
+function callReturnKeys(call: CallExpression, typeChecker: TypeChecker): string[] {
+  const fn = resolveCalleeFunction(call, typeChecker);
+  if (
+    fn === undefined ||
+    !(
+      Node.isFunctionDeclaration(fn) ||
+      Node.isMethodDeclaration(fn) ||
+      Node.isArrowFunction(fn) ||
+      Node.isFunctionExpression(fn)
+    )
+  ) {
+    return [];
+  }
+  const body = fn.getBody();
+  if (body === undefined) return [];
+  const returned: Node[] = [];
+  if (Node.isBlock(body)) {
+    for (const ret of body.getDescendantsOfKind(SyntaxKind.ReturnStatement)) {
+      // only this function's own returns, not those of nested functions
+      if (ret.getFirstAncestor(a => Node.isFunctionLikeDeclaration(a)) !== fn) continue;
+      const expression = ret.getExpression();
+      if (expression !== undefined) returned.push(expression);
+    }
+  } else {
+    returned.push(body);
+  }
+  return [...new Set(returned.flatMap(expression => collectReturnedKeys(expression, typeChecker)))];
+}
+
+/**
+ * Option keys contributed by one call / new argument — the keys the code
+ * actually sends, never a whole declared member list:
+ *  1. an object literal contributes its own keys;
+ *  2. an identifier bound to a variable initialized with an object literal
+ *     contributes the initializer's keys plus later `variable.key = …`
+ *     assignments in the same function;
+ *  3. a call expression contributes the keys of the object literals its
+ *     in-project callee returns (see {@link callReturnKeys});
+ *  4. any other expression is judged by its checked type: an anonymous object
+ *     type contributes its properties, a NAMED interface / alias contributes
+ *     the single {@link UNKNOWN_PAYLOAD_KEY} marker.
+ */
+function collectOptionKeys(argument: Node, typeChecker: TypeChecker): string[] {
+  if (Node.isObjectLiteralExpression(argument)) return literalKeys(argument);
+  if (Node.isIdentifier(argument)) {
+    const keys = initializedVariableKeys(argument, typeChecker);
+    if (keys !== undefined) return keys;
+  }
+  if (Node.isCallExpression(argument)) return callReturnKeys(argument, typeChecker);
+  return typedPayloadKeys(argument, typeChecker);
+}
+
 /**
  * Walk one scoped source file, recording every discord.js-surface site into
  * `hits`. The call / new / property-access branches are mutually exclusive
@@ -209,12 +409,11 @@ function walkFile(
     const sym = resolveSurfaceSymbol(callee, typeChecker);
     if (sym !== undefined) {
       const receiverTypeName = resolveReceiverTypeName(callee, typeChecker);
-      record({ kind: 'call', symbolName: sym.getName(), receiverTypeName });
+      const callName = sym.getName();
+      record({ kind: 'call', symbolName: callName, receiverTypeName });
       for (const argument of node.getArguments()) {
-        if (!Node.isObjectLiteralExpression(argument)) continue;
-        for (const property of argument.getProperties()) {
-          if (!isOptionKeyElement(property)) continue;
-          record({ kind: 'option-key', symbolName: property.getName(), receiverTypeName });
+        for (const key of collectOptionKeys(argument, typeChecker)) {
+          record({ kind: 'option-key', symbolName: key, receiverTypeName, callName });
         }
       }
     } else {
@@ -230,10 +429,9 @@ function walkFile(
     const className = sym.getName();
     record({ kind: 'new', symbolName: className });
     const [firstArgument] = node.getArguments();
-    if (!Node.isObjectLiteralExpression(firstArgument)) return;
-    for (const property of firstArgument.getProperties()) {
-      if (!isOptionKeyElement(property)) continue;
-      record({ kind: 'option-key', symbolName: property.getName(), receiverTypeName: className });
+    if (firstArgument === undefined) return;
+    for (const key of collectOptionKeys(firstArgument, typeChecker)) {
+      record({ kind: 'option-key', symbolName: key, receiverTypeName: className });
     }
   }
 

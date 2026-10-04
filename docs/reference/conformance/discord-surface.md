@@ -9,6 +9,7 @@ doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay man
 The `unclassified` category is required and never dropped: unmapped constructions and object-literal keys surface there; methods and property accesses land in `client-methods`.
 Enum members whose container no table names surface in `discord-enums` under container-qualified names; message-payload option keys with no builder receiver land in `message-options` (the MESSAGE_OPTION_KEYS vocabulary).
 `rest-outside-helpers` sees string-literal URLs only.
+An option key of `*` marks a call whose payload is a parameter or variable of a named interface/type alias with no literal in scope: the keys sent are not statically known.
 
 ## client-methods
 
@@ -1369,7 +1370,6 @@ Enum members whose container no table names surface in `discord-enums` under con
 | services/bot-client/src/services/retentionRun/retentionRunReport.ts | setFooter | 2 |
 | services/bot-client/src/services/retentionRun/retentionRunReport.ts | setTimestamp | 2 |
 | services/bot-client/src/services/retentionRun/retentionRunReport.ts | setTitle | 2 |
-| services/bot-client/src/test/mocks/Discord.mock.ts | id | 1 |
 | services/bot-client/src/utils/EmbedParser.ts | author | 6 |
 | services/bot-client/src/utils/EmbedParser.ts | color | 2 |
 | services/bot-client/src/utils/EmbedParser.ts | description | 3 |
@@ -1861,9 +1861,9 @@ Enum members whose container no table names surface in `discord-enums` under con
 | services/bot-client/src/commands/admin/index.ts | addStringOption | 8 |
 | services/bot-client/src/commands/admin/index.ts | addSubcommand | 12 |
 | services/bot-client/src/commands/admin/index.ts | addSubcommandGroup | 1 |
-| services/bot-client/src/commands/admin/index.ts | name | 9 |
+| services/bot-client/src/commands/admin/index.ts | name | 10 |
 | services/bot-client/src/commands/admin/index.ts | setAutocomplete | 3 |
-| services/bot-client/src/commands/admin/index.ts | value | 9 |
+| services/bot-client/src/commands/admin/index.ts | value | 10 |
 | services/bot-client/src/commands/channel/index.ts | SlashCommandBuilder | 1 |
 | services/bot-client/src/commands/channel/index.ts | addStringOption | 3 |
 | services/bot-client/src/commands/channel/index.ts | addSubcommand | 4 |
@@ -1891,7 +1891,9 @@ Enum members whose container no table names surface in `discord-enums` under con
 | services/bot-client/src/commands/deny/index.ts | addSubcommand | 7 |
 | services/bot-client/src/commands/deny/index.ts | addSubcommandGroup | 2 |
 | services/bot-client/src/commands/deny/index.ts | addUserOption | 4 |
+| services/bot-client/src/commands/deny/index.ts | name | 3 |
 | services/bot-client/src/commands/deny/index.ts | setAutocomplete | 1 |
+| services/bot-client/src/commands/deny/index.ts | value | 3 |
 | services/bot-client/src/commands/feedback/index.ts | SlashCommandBuilder | 1 |
 | services/bot-client/src/commands/feedback/index.ts | addStringOption | 1 |
 | services/bot-client/src/commands/help/index.ts | SlashCommandBuilder | 1 |
@@ -1912,9 +1914,9 @@ Enum members whose container no table names surface in `discord-enums` under con
 | services/bot-client/src/commands/memory/index.ts | addStringOption | 19 |
 | services/bot-client/src/commands/memory/index.ts | addSubcommand | 13 |
 | services/bot-client/src/commands/memory/index.ts | addSubcommandGroup | 2 |
-| services/bot-client/src/commands/memory/index.ts | name | 3 |
+| services/bot-client/src/commands/memory/index.ts | name | 6 |
 | services/bot-client/src/commands/memory/index.ts | setAutocomplete | 14 |
-| services/bot-client/src/commands/memory/index.ts | value | 3 |
+| services/bot-client/src/commands/memory/index.ts | value | 6 |
 | services/bot-client/src/commands/models/index.ts | SlashCommandBuilder | 1 |
 | services/bot-client/src/commands/models/index.ts | addStringOption | 3 |
 | services/bot-client/src/commands/models/index.ts | addSubcommand | 2 |
@@ -1951,7 +1953,9 @@ Enum members whose container no table names surface in `discord-enums` under con
 | services/bot-client/src/commands/shapes/index.ts | SlashCommandBuilder | 1 |
 | services/bot-client/src/commands/shapes/index.ts | addStringOption | 3 |
 | services/bot-client/src/commands/shapes/index.ts | addSubcommand | 6 |
+| services/bot-client/src/commands/shapes/index.ts | name | 1 |
 | services/bot-client/src/commands/shapes/index.ts | setAutocomplete | 2 |
+| services/bot-client/src/commands/shapes/index.ts | value | 1 |
 | services/bot-client/src/commands/viewReasoning.ts | ContextMenuCommandBuilder | 1 |
 | services/bot-client/src/commands/voice/index.ts | SlashCommandBuilder | 1 |
 | services/bot-client/src/commands/voice/index.ts | addStringOption | 1 |
@@ -1960,6 +1964,8 @@ Enum members whose container no table names surface in `discord-enums` under con
 | services/bot-client/src/commands/voice/index.ts | setAutocomplete | 1 |
 | services/bot-client/src/commands/voice/stt/subcommandBuilder.ts | addStringOption | 1 |
 | services/bot-client/src/commands/voice/stt/subcommandBuilder.ts | addSubcommand | 2 |
+| services/bot-client/src/commands/voice/stt/subcommandBuilder.ts | name | 1 |
+| services/bot-client/src/commands/voice/stt/subcommandBuilder.ts | value | 1 |
 | services/bot-client/src/commands/voice/tts/subcommandBuilder.ts | addStringOption | 4 |
 | services/bot-client/src/commands/voice/tts/subcommandBuilder.ts | addSubcommand | 4 |
 | services/bot-client/src/commands/voice/tts/subcommandBuilder.ts | setAutocomplete | 4 |
@@ -2129,10 +2135,6 @@ Enum members whose container no table names surface in `discord-enums` under con
 | services/bot-client/src/services/ReplyResolutionService.ts | ChannelType.DM | 1 |
 | services/bot-client/src/services/channelFetcher/messageTypeFilters.ts | MessageType.ChatInputCommand | 1 |
 | services/bot-client/src/services/channelFetcher/messageTypeFilters.ts | MessageType.ContextMenuCommand | 1 |
-| services/bot-client/src/test/mocks/Discord.mock.ts | ChannelType.DM | 1 |
-| services/bot-client/src/test/mocks/Discord.mock.ts | ChannelType.GuildCategory | 1 |
-| services/bot-client/src/test/mocks/Discord.mock.ts | ChannelType.GuildText | 1 |
-| services/bot-client/src/test/mocks/Discord.mock.ts | ChannelType.PublicThread | 1 |
 | services/bot-client/src/utils/EmbedParser.ts | EmbedType.Rich | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | ChannelType.GuildAnnouncement | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | ChannelType.GuildForum | 1 |
@@ -2504,10 +2506,10 @@ Enum members whose container no table names surface in `discord-enums` under con
 | services/bot-client/src/commands/character/tagsRendering.ts | value | 1 |
 | services/bot-client/src/commands/character/template.ts | AttachmentBuilder | 1 |
 | services/bot-client/src/commands/character/viewPages.ts | EmbedBuilder | 2 |
-| services/bot-client/src/commands/character/viewPages.ts | inline | 11 |
-| services/bot-client/src/commands/character/viewPages.ts | name | 11 |
+| services/bot-client/src/commands/character/viewPages.ts | inline | 13 |
+| services/bot-client/src/commands/character/viewPages.ts | name | 13 |
 | services/bot-client/src/commands/character/viewPages.ts | text | 2 |
-| services/bot-client/src/commands/character/viewPages.ts | value | 11 |
+| services/bot-client/src/commands/character/viewPages.ts | value | 13 |
 | services/bot-client/src/commands/feedback/index.ts | EmbedBuilder | 2 |
 | services/bot-client/src/commands/feedback/index.ts | name | 1 |
 | services/bot-client/src/commands/feedback/index.ts | text | 1 |
@@ -2522,10 +2524,10 @@ Enum members whose container no table names surface in `discord-enums` under con
 | services/bot-client/src/commands/history/stats.ts | name | 5 |
 | services/bot-client/src/commands/history/stats.ts | value | 5 |
 | services/bot-client/src/commands/inspect/embed.ts | EmbedBuilder | 1 |
-| services/bot-client/src/commands/inspect/embed.ts | inline | 6 |
-| services/bot-client/src/commands/inspect/embed.ts | name | 5 |
+| services/bot-client/src/commands/inspect/embed.ts | inline | 8 |
+| services/bot-client/src/commands/inspect/embed.ts | name | 7 |
 | services/bot-client/src/commands/inspect/embed.ts | text | 1 |
-| services/bot-client/src/commands/inspect/embed.ts | value | 5 |
+| services/bot-client/src/commands/inspect/embed.ts | value | 7 |
 | services/bot-client/src/commands/inspect/extendedViews.ts | EmbedBuilder | 3 |
 | services/bot-client/src/commands/inspect/extendedViews.ts | inline | 2 |
 | services/bot-client/src/commands/inspect/extendedViews.ts | name | 2 |
@@ -2615,15 +2617,15 @@ Enum members whose container no table names surface in `discord-enums` under con
 | services/bot-client/src/commands/voice/tts/guestModeValidation.ts | EmbedBuilder | 1 |
 | services/bot-client/src/commands/voice/tts/set.ts | EmbedBuilder | 1 |
 | services/bot-client/src/commands/voice/tts/set.ts | text | 1 |
-| services/bot-client/src/commands/voice/voices/browse.ts | inline | 1 |
-| services/bot-client/src/commands/voice/voices/browse.ts | name | 1 |
-| services/bot-client/src/commands/voice/voices/browse.ts | value | 1 |
+| services/bot-client/src/commands/voice/voices/browse.ts | inline | 2 |
+| services/bot-client/src/commands/voice/voices/browse.ts | name | 2 |
+| services/bot-client/src/commands/voice/voices/browse.ts | value | 2 |
 | services/bot-client/src/commands/voice/voices/delete.ts | EmbedBuilder | 1 |
 | services/bot-client/src/commands/voice/voices/purge.ts | EmbedBuilder | 1 |
 | services/bot-client/src/observability/ErrorChannelReporter.ts | EmbedBuilder | 1 |
-| services/bot-client/src/observability/ErrorChannelReporter.ts | inline | 4 |
-| services/bot-client/src/observability/ErrorChannelReporter.ts | name | 8 |
-| services/bot-client/src/observability/ErrorChannelReporter.ts | value | 8 |
+| services/bot-client/src/observability/ErrorChannelReporter.ts | inline | 7 |
+| services/bot-client/src/observability/ErrorChannelReporter.ts | name | 11 |
+| services/bot-client/src/observability/ErrorChannelReporter.ts | value | 11 |
 | services/bot-client/src/services/ArchivePromotionScheduler.ts | EmbedBuilder | 2 |
 | services/bot-client/src/services/ExportSmokeScheduler.ts | EmbedBuilder | 2 |
 | services/bot-client/src/services/ExportSmokeScheduler.ts | text | 2 |
@@ -2814,9 +2816,9 @@ Enum members whose container no table names surface in `discord-enums` under con
 | services/bot-client/src/commands/shapes/export.ts | embeds | 2 |
 | services/bot-client/src/commands/shapes/import.ts | components | 3 |
 | services/bot-client/src/commands/shapes/import.ts | embeds | 3 |
-| services/bot-client/src/commands/shapes/interactionHandlers.ts | components | 7 |
-| services/bot-client/src/commands/shapes/interactionHandlers.ts | content | 6 |
-| services/bot-client/src/commands/shapes/interactionHandlers.ts | embeds | 7 |
+| services/bot-client/src/commands/shapes/interactionHandlers.ts | components | 9 |
+| services/bot-client/src/commands/shapes/interactionHandlers.ts | content | 8 |
+| services/bot-client/src/commands/shapes/interactionHandlers.ts | embeds | 9 |
 | services/bot-client/src/commands/shapes/modal.ts | content | 2 |
 | services/bot-client/src/commands/shapes/modal.ts | embeds | 1 |
 | services/bot-client/src/commands/shapes/modal.ts | flags | 3 |
@@ -2828,6 +2830,7 @@ Enum members whose container no table names surface in `discord-enums` under con
 | services/bot-client/src/handlers/CommandHandler.ts | flags | 5 |
 | services/bot-client/src/handlers/commandDispatch.ts | content | 1 |
 | services/bot-client/src/handlers/commandDispatch.ts | flags | 2 |
+| services/bot-client/src/index.ts | allowedMentions | 1 |
 | services/bot-client/src/processors/BotMentionProcessor.ts | content | 1 |
 | services/bot-client/src/processors/DMSessionProcessor.ts | content | 1 |
 | services/bot-client/src/processors/PersonalityTriggerProcessor.ts | allowedMentions | 1 |
@@ -2846,9 +2849,9 @@ Enum members whose container no table names surface in `discord-enums` under con
 | services/bot-client/src/utils/chunkedReply.ts | embeds | 1 |
 | services/bot-client/src/utils/chunkedReply.ts | files | 1 |
 | services/bot-client/src/utils/chunkedReply.ts | flags | 4 |
-| services/bot-client/src/utils/confirmation/confirmDestructive.ts | components | 5 |
-| services/bot-client/src/utils/confirmation/confirmDestructive.ts | content | 9 |
-| services/bot-client/src/utils/confirmation/confirmDestructive.ts | embeds | 5 |
+| services/bot-client/src/utils/confirmation/confirmDestructive.ts | components | 6 |
+| services/bot-client/src/utils/confirmation/confirmDestructive.ts | content | 10 |
+| services/bot-client/src/utils/confirmation/confirmDestructive.ts | embeds | 6 |
 | services/bot-client/src/utils/confirmation/confirmDestructive.ts | flags | 4 |
 | services/bot-client/src/utils/dashboard/ackWithTimeoutCatch.ts | content | 1 |
 | services/bot-client/src/utils/dashboard/ackWithTimeoutCatch.ts | flags | 1 |
@@ -2865,17 +2868,17 @@ Enum members whose container no table names surface in `discord-enums` under con
 | services/bot-client/src/utils/dashboard/sessionHelpers.ts | content | 2 |
 | services/bot-client/src/utils/dashboard/sessionHelpers.ts | embeds | 1 |
 | services/bot-client/src/utils/dashboard/sessionHelpers.ts | flags | 1 |
-| services/bot-client/src/utils/dashboard/settings/SettingsDashboardHandler.ts | components | 1 |
+| services/bot-client/src/utils/dashboard/settings/SettingsDashboardHandler.ts | components | 2 |
 | services/bot-client/src/utils/dashboard/settings/SettingsDashboardHandler.ts | content | 4 |
-| services/bot-client/src/utils/dashboard/settings/SettingsDashboardHandler.ts | embeds | 1 |
+| services/bot-client/src/utils/dashboard/settings/SettingsDashboardHandler.ts | embeds | 2 |
 | services/bot-client/src/utils/dashboard/settings/SettingsDashboardHandler.ts | flags | 4 |
 | services/bot-client/src/utils/dashboard/settings/settingsModalSubmit.ts | components | 2 |
 | services/bot-client/src/utils/dashboard/settings/settingsModalSubmit.ts | content | 4 |
 | services/bot-client/src/utils/dashboard/settings/settingsModalSubmit.ts | embeds | 1 |
 | services/bot-client/src/utils/dashboard/settings/settingsModalSubmit.ts | flags | 4 |
-| services/bot-client/src/utils/dashboard/settings/settingsNavigationHandlers.ts | components | 3 |
+| services/bot-client/src/utils/dashboard/settings/settingsNavigationHandlers.ts | components | 5 |
 | services/bot-client/src/utils/dashboard/settings/settingsNavigationHandlers.ts | content | 1 |
-| services/bot-client/src/utils/dashboard/settings/settingsNavigationHandlers.ts | embeds | 3 |
+| services/bot-client/src/utils/dashboard/settings/settingsNavigationHandlers.ts | embeds | 5 |
 | services/bot-client/src/utils/dashboard/settings/settingsResetFlow.ts | components | 1 |
 | services/bot-client/src/utils/dashboard/settings/settingsResetFlow.ts | content | 1 |
 | services/bot-client/src/utils/dashboard/settings/settingsResetFlow.ts | embeds | 1 |
@@ -2897,9 +2900,9 @@ Enum members whose container no table names surface in `discord-enums` under con
 | services/bot-client/src/utils/modal/retry.ts | components | 1 |
 | services/bot-client/src/utils/modal/retry.ts | content | 2 |
 | services/bot-client/src/utils/modal/retry.ts | flags | 1 |
-| services/bot-client/src/utils/overrideBrowse.ts | components | 1 |
-| services/bot-client/src/utils/overrideBrowse.ts | content | 3 |
-| services/bot-client/src/utils/overrideBrowse.ts | embeds | 1 |
+| services/bot-client/src/utils/overrideBrowse.ts | components | 6 |
+| services/bot-client/src/utils/overrideBrowse.ts | content | 8 |
+| services/bot-client/src/utils/overrideBrowse.ts | embeds | 6 |
 | services/bot-client/src/utils/ownerChannel.ts | allowedMentions | 1 |
 | services/bot-client/src/utils/ownerChannel.ts | embeds | 1 |
 | services/bot-client/src/utils/permissions.ts | content | 4 |
@@ -2927,20 +2930,25 @@ Enum members whose container no table names surface in `discord-enums` under con
 | services/bot-client/src/commands/memory/batchDelete.ts | time | 1 |
 | services/bot-client/src/handlers/CommandHandler.ts | Collection | 2 |
 | services/bot-client/src/index.ts | Client | 1 |
+| services/bot-client/src/index.ts | intents | 1 |
+| services/bot-client/src/index.ts | partials | 1 |
+| services/bot-client/src/index.ts | rest | 1 |
 | services/bot-client/src/observability/ErrorChannelReporter.ts | maskedLink | 1 |
 | services/bot-client/src/processors/DMSessionProcessor.ts | limit | 1 |
+| services/bot-client/src/services/DiscordChannelFetcher.ts | before | 1 |
+| services/bot-client/src/services/DiscordChannelFetcher.ts | limit | 1 |
 | services/bot-client/src/services/GatewayWatchdog.ts | limit | 1 |
 | services/bot-client/src/services/GatewayWatchdog.ts | query | 1 |
 | services/bot-client/src/services/GatewayWatchdog.ts | time | 1 |
 | services/bot-client/src/services/channelFetcher/ReactionProcessor.ts | limit | 1 |
 | services/bot-client/src/services/character/characterTurn.ts | Collection | 3 |
-| services/bot-client/src/test/mocks/Discord.mock.ts | Collection | 1 |
-| services/bot-client/src/utils/WebhookManager.ts | name | 1 |
-| services/bot-client/src/utils/WebhookManager.ts | reason | 1 |
+| services/bot-client/src/utils/commandContext/factories.ts | ephemeral | 2 |
 | services/bot-client/src/utils/confirmation/confirmAction.ts | maskedLink | 1 |
 | services/bot-client/src/utils/confirmation/confirmDestructive.ts | maskedLink | 1 |
+| services/bot-client/src/utils/dashboard/postActionScreen.ts | * | 1 |
 | services/bot-client/src/utils/dashboard/settings/SettingsDashboardBuilder.ts | maskedLink | 1 |
 | services/bot-client/src/utils/dashboard/settings/settingsResetFlow.ts | maskedLink | 1 |
+| services/bot-client/src/utils/dashboard/sharedBackButtonHandler.ts | * | 1 |
 | services/bot-client/src/utils/deployCommands.ts | REST | 1 |
 | services/bot-client/src/utils/deployCommands.ts | body | 2 |
 | services/bot-client/src/utils/modal/toolkit.ts | CheckboxBuilder | 1 |
@@ -2952,6 +2960,15 @@ Enum members whose container no table names surface in `discord-enums` under con
 
 ## webhook-options
 
-(no entries)
+| file | symbol | count |
+| --- | --- | --- |
+| services/bot-client/src/utils/WebhookManager.ts | allowedMentions | 1 |
+| services/bot-client/src/utils/WebhookManager.ts | avatarURL | 1 |
+| services/bot-client/src/utils/WebhookManager.ts | content | 1 |
+| services/bot-client/src/utils/WebhookManager.ts | files | 1 |
+| services/bot-client/src/utils/WebhookManager.ts | name | 1 |
+| services/bot-client/src/utils/WebhookManager.ts | reason | 1 |
+| services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
+| services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 2886 entries across 6667 sites.
+Total: 2901 entries across 6749 sites.

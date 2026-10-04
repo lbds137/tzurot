@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 2886,
-    "sites": 6667
+    "entries": 2901,
+    "sites": 6749
   },
   "entries": [
     {
@@ -8142,12 +8142,6 @@
     },
     {
       "category": "client-methods",
-      "file": "services/bot-client/src/test/mocks/Discord.mock.ts",
-      "symbol": "id",
-      "count": 1
-    },
-    {
-      "category": "client-methods",
       "file": "services/bot-client/src/utils/EmbedParser.ts",
       "symbol": "author",
       "count": 6
@@ -11066,7 +11060,7 @@
       "category": "command-options",
       "file": "services/bot-client/src/commands/admin/index.ts",
       "symbol": "name",
-      "count": 9
+      "count": 10
     },
     {
       "category": "command-options",
@@ -11078,7 +11072,7 @@
       "category": "command-options",
       "file": "services/bot-client/src/commands/admin/index.ts",
       "symbol": "value",
-      "count": 9
+      "count": 10
     },
     {
       "category": "command-options",
@@ -11245,8 +11239,20 @@
     {
       "category": "command-options",
       "file": "services/bot-client/src/commands/deny/index.ts",
+      "symbol": "name",
+      "count": 3
+    },
+    {
+      "category": "command-options",
+      "file": "services/bot-client/src/commands/deny/index.ts",
       "symbol": "setAutocomplete",
       "count": 1
+    },
+    {
+      "category": "command-options",
+      "file": "services/bot-client/src/commands/deny/index.ts",
+      "symbol": "value",
+      "count": 3
     },
     {
       "category": "command-options",
@@ -11372,7 +11378,7 @@
       "category": "command-options",
       "file": "services/bot-client/src/commands/memory/index.ts",
       "symbol": "name",
-      "count": 3
+      "count": 6
     },
     {
       "category": "command-options",
@@ -11384,7 +11390,7 @@
       "category": "command-options",
       "file": "services/bot-client/src/commands/memory/index.ts",
       "symbol": "value",
-      "count": 3
+      "count": 6
     },
     {
       "category": "command-options",
@@ -11605,8 +11611,20 @@
     {
       "category": "command-options",
       "file": "services/bot-client/src/commands/shapes/index.ts",
+      "symbol": "name",
+      "count": 1
+    },
+    {
+      "category": "command-options",
+      "file": "services/bot-client/src/commands/shapes/index.ts",
       "symbol": "setAutocomplete",
       "count": 2
+    },
+    {
+      "category": "command-options",
+      "file": "services/bot-client/src/commands/shapes/index.ts",
+      "symbol": "value",
+      "count": 1
     },
     {
       "category": "command-options",
@@ -11655,6 +11673,18 @@
       "file": "services/bot-client/src/commands/voice/stt/subcommandBuilder.ts",
       "symbol": "addSubcommand",
       "count": 2
+    },
+    {
+      "category": "command-options",
+      "file": "services/bot-client/src/commands/voice/stt/subcommandBuilder.ts",
+      "symbol": "name",
+      "count": 1
+    },
+    {
+      "category": "command-options",
+      "file": "services/bot-client/src/commands/voice/stt/subcommandBuilder.ts",
+      "symbol": "value",
+      "count": 1
     },
     {
       "category": "command-options",
@@ -12608,30 +12638,6 @@
       "category": "discord-enums",
       "file": "services/bot-client/src/services/channelFetcher/messageTypeFilters.ts",
       "symbol": "MessageType.ContextMenuCommand",
-      "count": 1
-    },
-    {
-      "category": "discord-enums",
-      "file": "services/bot-client/src/test/mocks/Discord.mock.ts",
-      "symbol": "ChannelType.DM",
-      "count": 1
-    },
-    {
-      "category": "discord-enums",
-      "file": "services/bot-client/src/test/mocks/Discord.mock.ts",
-      "symbol": "ChannelType.GuildCategory",
-      "count": 1
-    },
-    {
-      "category": "discord-enums",
-      "file": "services/bot-client/src/test/mocks/Discord.mock.ts",
-      "symbol": "ChannelType.GuildText",
-      "count": 1
-    },
-    {
-      "category": "discord-enums",
-      "file": "services/bot-client/src/test/mocks/Discord.mock.ts",
-      "symbol": "ChannelType.PublicThread",
       "count": 1
     },
     {
@@ -14744,13 +14750,13 @@
       "category": "message-builders",
       "file": "services/bot-client/src/commands/character/viewPages.ts",
       "symbol": "inline",
-      "count": 11
+      "count": 13
     },
     {
       "category": "message-builders",
       "file": "services/bot-client/src/commands/character/viewPages.ts",
       "symbol": "name",
-      "count": 11
+      "count": 13
     },
     {
       "category": "message-builders",
@@ -14762,7 +14768,7 @@
       "category": "message-builders",
       "file": "services/bot-client/src/commands/character/viewPages.ts",
       "symbol": "value",
-      "count": 11
+      "count": 13
     },
     {
       "category": "message-builders",
@@ -14852,13 +14858,13 @@
       "category": "message-builders",
       "file": "services/bot-client/src/commands/inspect/embed.ts",
       "symbol": "inline",
-      "count": 6
+      "count": 8
     },
     {
       "category": "message-builders",
       "file": "services/bot-client/src/commands/inspect/embed.ts",
       "symbol": "name",
-      "count": 5
+      "count": 7
     },
     {
       "category": "message-builders",
@@ -14870,7 +14876,7 @@
       "category": "message-builders",
       "file": "services/bot-client/src/commands/inspect/embed.ts",
       "symbol": "value",
-      "count": 5
+      "count": 7
     },
     {
       "category": "message-builders",
@@ -15410,19 +15416,19 @@
       "category": "message-builders",
       "file": "services/bot-client/src/commands/voice/voices/browse.ts",
       "symbol": "inline",
-      "count": 1
+      "count": 2
     },
     {
       "category": "message-builders",
       "file": "services/bot-client/src/commands/voice/voices/browse.ts",
       "symbol": "name",
-      "count": 1
+      "count": 2
     },
     {
       "category": "message-builders",
       "file": "services/bot-client/src/commands/voice/voices/browse.ts",
       "symbol": "value",
-      "count": 1
+      "count": 2
     },
     {
       "category": "message-builders",
@@ -15446,19 +15452,19 @@
       "category": "message-builders",
       "file": "services/bot-client/src/observability/ErrorChannelReporter.ts",
       "symbol": "inline",
-      "count": 4
+      "count": 7
     },
     {
       "category": "message-builders",
       "file": "services/bot-client/src/observability/ErrorChannelReporter.ts",
       "symbol": "name",
-      "count": 8
+      "count": 11
     },
     {
       "category": "message-builders",
       "file": "services/bot-client/src/observability/ErrorChannelReporter.ts",
       "symbol": "value",
-      "count": 8
+      "count": 11
     },
     {
       "category": "message-builders",
@@ -16574,19 +16580,19 @@
       "category": "message-options",
       "file": "services/bot-client/src/commands/shapes/interactionHandlers.ts",
       "symbol": "components",
-      "count": 7
+      "count": 9
     },
     {
       "category": "message-options",
       "file": "services/bot-client/src/commands/shapes/interactionHandlers.ts",
       "symbol": "content",
-      "count": 6
+      "count": 8
     },
     {
       "category": "message-options",
       "file": "services/bot-client/src/commands/shapes/interactionHandlers.ts",
       "symbol": "embeds",
-      "count": 7
+      "count": 9
     },
     {
       "category": "message-options",
@@ -16653,6 +16659,12 @@
       "file": "services/bot-client/src/handlers/commandDispatch.ts",
       "symbol": "flags",
       "count": 2
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/index.ts",
+      "symbol": "allowedMentions",
+      "count": 1
     },
     {
       "category": "message-options",
@@ -16766,19 +16778,19 @@
       "category": "message-options",
       "file": "services/bot-client/src/utils/confirmation/confirmDestructive.ts",
       "symbol": "components",
-      "count": 5
+      "count": 6
     },
     {
       "category": "message-options",
       "file": "services/bot-client/src/utils/confirmation/confirmDestructive.ts",
       "symbol": "content",
-      "count": 9
+      "count": 10
     },
     {
       "category": "message-options",
       "file": "services/bot-client/src/utils/confirmation/confirmDestructive.ts",
       "symbol": "embeds",
-      "count": 5
+      "count": 6
     },
     {
       "category": "message-options",
@@ -16880,7 +16892,7 @@
       "category": "message-options",
       "file": "services/bot-client/src/utils/dashboard/settings/SettingsDashboardHandler.ts",
       "symbol": "components",
-      "count": 1
+      "count": 2
     },
     {
       "category": "message-options",
@@ -16892,7 +16904,7 @@
       "category": "message-options",
       "file": "services/bot-client/src/utils/dashboard/settings/SettingsDashboardHandler.ts",
       "symbol": "embeds",
-      "count": 1
+      "count": 2
     },
     {
       "category": "message-options",
@@ -16928,7 +16940,7 @@
       "category": "message-options",
       "file": "services/bot-client/src/utils/dashboard/settings/settingsNavigationHandlers.ts",
       "symbol": "components",
-      "count": 3
+      "count": 5
     },
     {
       "category": "message-options",
@@ -16940,7 +16952,7 @@
       "category": "message-options",
       "file": "services/bot-client/src/utils/dashboard/settings/settingsNavigationHandlers.ts",
       "symbol": "embeds",
-      "count": 3
+      "count": 5
     },
     {
       "category": "message-options",
@@ -17072,19 +17084,19 @@
       "category": "message-options",
       "file": "services/bot-client/src/utils/overrideBrowse.ts",
       "symbol": "components",
-      "count": 1
+      "count": 6
     },
     {
       "category": "message-options",
       "file": "services/bot-client/src/utils/overrideBrowse.ts",
       "symbol": "content",
-      "count": 3
+      "count": 8
     },
     {
       "category": "message-options",
       "file": "services/bot-client/src/utils/overrideBrowse.ts",
       "symbol": "embeds",
-      "count": 1
+      "count": 6
     },
     {
       "category": "message-options",
@@ -17196,6 +17208,24 @@
     },
     {
       "category": "unclassified",
+      "file": "services/bot-client/src/index.ts",
+      "symbol": "intents",
+      "count": 1
+    },
+    {
+      "category": "unclassified",
+      "file": "services/bot-client/src/index.ts",
+      "symbol": "partials",
+      "count": 1
+    },
+    {
+      "category": "unclassified",
+      "file": "services/bot-client/src/index.ts",
+      "symbol": "rest",
+      "count": 1
+    },
+    {
+      "category": "unclassified",
       "file": "services/bot-client/src/observability/ErrorChannelReporter.ts",
       "symbol": "maskedLink",
       "count": 1
@@ -17203,6 +17233,18 @@
     {
       "category": "unclassified",
       "file": "services/bot-client/src/processors/DMSessionProcessor.ts",
+      "symbol": "limit",
+      "count": 1
+    },
+    {
+      "category": "unclassified",
+      "file": "services/bot-client/src/services/DiscordChannelFetcher.ts",
+      "symbol": "before",
+      "count": 1
+    },
+    {
+      "category": "unclassified",
+      "file": "services/bot-client/src/services/DiscordChannelFetcher.ts",
       "symbol": "limit",
       "count": 1
     },
@@ -17238,21 +17280,9 @@
     },
     {
       "category": "unclassified",
-      "file": "services/bot-client/src/test/mocks/Discord.mock.ts",
-      "symbol": "Collection",
-      "count": 1
-    },
-    {
-      "category": "unclassified",
-      "file": "services/bot-client/src/utils/WebhookManager.ts",
-      "symbol": "name",
-      "count": 1
-    },
-    {
-      "category": "unclassified",
-      "file": "services/bot-client/src/utils/WebhookManager.ts",
-      "symbol": "reason",
-      "count": 1
+      "file": "services/bot-client/src/utils/commandContext/factories.ts",
+      "symbol": "ephemeral",
+      "count": 2
     },
     {
       "category": "unclassified",
@@ -17268,6 +17298,12 @@
     },
     {
       "category": "unclassified",
+      "file": "services/bot-client/src/utils/dashboard/postActionScreen.ts",
+      "symbol": "*",
+      "count": 1
+    },
+    {
+      "category": "unclassified",
       "file": "services/bot-client/src/utils/dashboard/settings/SettingsDashboardBuilder.ts",
       "symbol": "maskedLink",
       "count": 1
@@ -17276,6 +17312,12 @@
       "category": "unclassified",
       "file": "services/bot-client/src/utils/dashboard/settings/settingsResetFlow.ts",
       "symbol": "maskedLink",
+      "count": 1
+    },
+    {
+      "category": "unclassified",
+      "file": "services/bot-client/src/utils/dashboard/sharedBackButtonHandler.ts",
+      "symbol": "*",
       "count": 1
     },
     {
@@ -17324,6 +17366,54 @@
       "category": "unclassified",
       "file": "services/bot-client/src/utils/modal/toolkit.ts",
       "symbol": "RadioGroupOptionBuilder",
+      "count": 1
+    },
+    {
+      "category": "webhook-options",
+      "file": "services/bot-client/src/utils/WebhookManager.ts",
+      "symbol": "allowedMentions",
+      "count": 1
+    },
+    {
+      "category": "webhook-options",
+      "file": "services/bot-client/src/utils/WebhookManager.ts",
+      "symbol": "avatarURL",
+      "count": 1
+    },
+    {
+      "category": "webhook-options",
+      "file": "services/bot-client/src/utils/WebhookManager.ts",
+      "symbol": "content",
+      "count": 1
+    },
+    {
+      "category": "webhook-options",
+      "file": "services/bot-client/src/utils/WebhookManager.ts",
+      "symbol": "files",
+      "count": 1
+    },
+    {
+      "category": "webhook-options",
+      "file": "services/bot-client/src/utils/WebhookManager.ts",
+      "symbol": "name",
+      "count": 1
+    },
+    {
+      "category": "webhook-options",
+      "file": "services/bot-client/src/utils/WebhookManager.ts",
+      "symbol": "reason",
+      "count": 1
+    },
+    {
+      "category": "webhook-options",
+      "file": "services/bot-client/src/utils/WebhookManager.ts",
+      "symbol": "threadId",
+      "count": 1
+    },
+    {
+      "category": "webhook-options",
+      "file": "services/bot-client/src/utils/WebhookManager.ts",
+      "symbol": "username",
       "count": 1
     }
   ]

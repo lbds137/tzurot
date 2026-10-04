@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ModuleKind, ModuleResolutionKind, Project, ScriptTarget } from 'ts-morph';
 
-import { analyzeProject } from './analyzer.js';
+import { analyzeProject, UNKNOWN_PAYLOAD_KEY } from './analyzer.js';
 import type { SurfaceEntry } from './types.js';
 
 // ts-morph program creation has a cold-start cost (see xray/analyzer.test.ts);
@@ -37,8 +37,21 @@ export declare class EmbedBuilder {
   constructor(data?: { title?: string });
   addFields(f: { name: string; value: string }): this;
 }
+export interface WebhookMessageCreateOptions {
+  content?: string;
+  username?: string;
+  avatarURL?: string;
+  threadId?: string;
+  allowedMentions?: { parse: string[] };
+  files?: unknown[];
+  toJSON(): unknown;
+}
 export declare class Webhook {
   send(options: { content: string; username?: string; avatarURL?: string }): Promise<unknown>;
+  sendRaw(options: WebhookMessageCreateOptions): Promise<unknown>;
+}
+export declare class TextChannel {
+  createWebhook(options: { name: string; reason?: string }): Promise<Webhook>;
 }
 export declare class WeirdFuturePrimitive {
   ping(): void;
@@ -110,6 +123,69 @@ export async function testOnly(interaction: BaseInteraction): Promise<void> {
 }
 `;
 
+// Variable-passed payloads: the options object reaches the call by identifier.
+const FIXTURE_VARIABLE_ANNOTATED = `
+import { Webhook, WebhookMessageCreateOptions } from 'discord.js';
+
+export async function annotatedOnly(
+  webhook: Webhook,
+  annotatedOptions: WebhookMessageCreateOptions
+): Promise<void> {
+  await webhook.sendRaw(annotatedOptions);
+}
+
+export async function anonymousOnly(
+  webhook: Webhook,
+  inlinePayload: { content: string; files?: unknown[] }
+): Promise<void> {
+  await webhook.send(inlinePayload);
+}
+`;
+
+const FIXTURE_VARIABLE_RETURN = `
+import { Webhook, WebhookMessageCreateOptions } from 'discord.js';
+
+function buildOptions(flag: boolean): WebhookMessageCreateOptions {
+  const options: WebhookMessageCreateOptions = { content: 'x', username: 'u' };
+  return flag ? options : { ...options, threadId: 't' };
+}
+
+export async function viaCall(webhook: Webhook): Promise<void> {
+  await webhook.sendRaw(buildOptions(true));
+}
+`;
+
+const FIXTURE_VARIABLE_LITERAL_INIT = `
+import { Webhook, WebhookMessageCreateOptions, type TextChannel } from 'discord.js';
+
+export async function literalInitialized(webhook: Webhook, channel: TextChannel): Promise<void> {
+  const declared: WebhookMessageCreateOptions = { content: 'x', username: 'u' };
+  declared.threadId = 't';
+  declared.threadId = 't2';
+  await webhook.sendRaw(declared);
+  const inline: { content: string; username?: string; files?: unknown[] } = { content: 'x' };
+  inline.files = [];
+  await webhook.send(inline);
+  await channel.createWebhook({ name: 'n', reason: 'r' });
+}
+`;
+
+const FIXTURE_MOCK_DIR = `
+import { Webhook } from 'discord.js';
+
+export function mockDirSite(webhook: Webhook): void {
+  void webhook.send({ content: 'mock-dir' });
+}
+`;
+
+const FIXTURE_MOCK_SUFFIX = `
+import { Webhook } from 'discord.js';
+
+export function mockSuffixSite(webhook: Webhook): void {
+  void webhook.send({ content: 'mock-suffix' });
+}
+`;
+
 const GLOBAL_TYPES = `
 declare function fetch(input: string): Promise<unknown>;
 `;
@@ -135,6 +211,23 @@ function buildFixtureProject(): Project {
   // (services/bot-client/src relative to the fixture root '/proj').
   project.createSourceFile('/proj/services/bot-client/src/fixture.ts', FIXTURE);
   project.createSourceFile('/proj/services/bot-client/src/fixture.test.ts', FIXTURE_TEST);
+  project.createSourceFile(
+    '/proj/services/bot-client/src/variableAnnotated.ts',
+    FIXTURE_VARIABLE_ANNOTATED
+  );
+  project.createSourceFile(
+    '/proj/services/bot-client/src/variableReturn.ts',
+    FIXTURE_VARIABLE_RETURN
+  );
+  project.createSourceFile(
+    '/proj/services/bot-client/src/variableLiteralInit.ts',
+    FIXTURE_VARIABLE_LITERAL_INIT
+  );
+  project.createSourceFile(
+    '/proj/services/bot-client/src/test/mocks/Discord.mock.ts',
+    FIXTURE_MOCK_DIR
+  );
+  project.createSourceFile('/proj/services/bot-client/src/widget.mock.ts', FIXTURE_MOCK_SUFFIX);
   return project;
 }
 
@@ -292,6 +385,64 @@ describe('analyzeProject', () => {
     for (const entry of entries) {
       expect(entry.file.endsWith('.test.ts')).toBe(false);
     }
+  });
+
+  it('records only the unknown-payload marker for a parameter typed as a whole named interface', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/variableAnnotated.ts';
+    expect(findEntry(entries, 'webhook-options', UNKNOWN_PAYLOAD_KEY, file)?.count).toBe(1);
+    // the declared member list is NOT claimed as sent keys
+    for (const key of ['avatarURL', 'threadId', 'allowedMentions', 'toJSON']) {
+      expect(entries.some(entry => entry.file === file && entry.symbol === key)).toBe(false);
+    }
+  });
+
+  it('records the properties of an anonymous object type', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/variableAnnotated.ts';
+    expect(findEntry(entries, 'webhook-options', 'content', file)).toBeDefined();
+    expect(findEntry(entries, 'webhook-options', 'files', file)).toBeDefined();
+  });
+
+  it('records the literal subset an in-project function returns, not its declared return type', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/variableReturn.ts';
+    const recorded = entries.filter(
+      entry => entry.file === file && entry.category === 'webhook-options'
+    );
+    expect(recorded.map(entry => entry.symbol).sort()).toEqual(['content', 'threadId', 'username']);
+  });
+
+  it('uses the initializer keys plus later member assignments, not the full declared type', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/variableLiteralInit.ts';
+    // annotated variable: initializer {content, username} + `declared.threadId = …`
+    // (assigned twice — the key still counts once per send site)
+    expect(findEntry(entries, 'webhook-options', 'content', file)).toBeDefined();
+    expect(findEntry(entries, 'webhook-options', 'username', file)).toBeDefined();
+    expect(findEntry(entries, 'webhook-options', 'threadId', file)?.count).toBe(1);
+    // declared on the type but never set: must not appear
+    for (const unset of ['avatarURL', 'allowedMentions']) {
+      expect(entries.some(entry => entry.file === file && entry.symbol === unset)).toBe(false);
+    }
+    // inline-typed variable: initializer {content} + `inline.files = …`
+    expect(findEntry(entries, 'webhook-options', 'files', file)).toBeDefined();
+  });
+
+  it('classifies createWebhook options as webhook-options', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/variableLiteralInit.ts';
+    expect(findEntry(entries, 'webhook-options', 'name', file)).toBeDefined();
+    expect(findEntry(entries, 'webhook-options', 'reason', file)).toBeDefined();
+    expect(entries.some(entry => entry.category === 'unclassified' && entry.file === file)).toBe(
+      false
+    );
+  });
+
+  it('excludes /src/test/ directory files and *.mock.ts files from the inventory', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    expect(entries.some(entry => entry.file.includes('/src/test/'))).toBe(false);
+    expect(entries.some(entry => entry.file.endsWith('.mock.ts'))).toBe(false);
   });
 
   it('returns entries sorted by category, then file, then symbol', () => {
