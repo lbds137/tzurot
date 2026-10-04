@@ -8,6 +8,7 @@ import {
   deleteAllAvatarVersions,
   getAvatarSubdir,
   ensureAvatarDir,
+  isWithinRoot,
   AVATAR_ROOT,
 } from './avatarPaths.js';
 import { avatarUrlPath, AVATAR_URL_PREFIX } from '@tzurot/common-types/utils/avatarUrl';
@@ -59,11 +60,8 @@ describe('avatarPaths', () => {
     });
 
     it('resolves children under a trailing-slash root (schema strips the slash)', async () => {
-      // A trailing-slash root must not survive into AVATAR_ROOT: the
-      // containment checks compare against AVATAR_ROOT + '/', and resolve()
-      // never produces a double-slash prefix, so an unstripped root would
-      // reject every getSafeAvatarPath/ensureAvatarDir call while boot and
-      // health checks stay green.
+      // A trailing-slash root must be canonicalized before it becomes
+      // AVATAR_ROOT, so the exported root and the paths built under it agree.
       const original = process.env.AVATAR_STORAGE_PATH;
       process.env.AVATAR_STORAGE_PATH = '/tmp/trailing-avatars/';
       vi.resetModules();
@@ -87,6 +85,81 @@ describe('avatarPaths', () => {
         }
         vi.resetModules();
       }
+    });
+  });
+
+  describe('AVATAR_STORAGE_PATH=/ (filesystem root)', () => {
+    async function withRootStoragePath<T>(
+      run: (mod: typeof import('./avatarPaths.js')) => Promise<T>
+    ) {
+      const original = process.env.AVATAR_STORAGE_PATH;
+      process.env.AVATAR_STORAGE_PATH = '/';
+      vi.resetModules();
+      try {
+        return await run(await import('./avatarPaths.js'));
+      } finally {
+        if (original === undefined) {
+          delete process.env.AVATAR_STORAGE_PATH;
+        } else {
+          process.env.AVATAR_STORAGE_PATH = original;
+        }
+        vi.resetModules();
+      }
+    }
+
+    it('resolves children under a "/" root instead of rejecting them as outside root', async () => {
+      await withRootStoragePath(async mod => {
+        expect(mod.AVATAR_ROOT).toBe('/');
+        expect(mod.getSafeAvatarPath('test-slug')).toBe('/t/test-slug.png');
+        expect(mod.getSafeAvatarPath('test-slug', 1705827727111)).toBe(
+          '/t/test-slug-1705827727111.png'
+        );
+        const fs = await import('fs/promises');
+        vi.mocked(fs.mkdir).mockResolvedValue(undefined);
+        await expect(mod.ensureAvatarDir('test-slug')).resolves.toBe('/t');
+      });
+    });
+
+    it('still rejects traversal-shaped slugs under a "/" root', async () => {
+      await withRootStoragePath(async mod => {
+        expect(mod.getSafeAvatarPath('../etc/passwd')).toBeNull();
+        expect(mod.getSafeAvatarPath('..%2F..%2Fetc%2Fpasswd')).toBeNull();
+        await expect(mod.ensureAvatarDir('../etc')).resolves.toBeNull();
+      });
+    });
+  });
+
+  // The "absolute relative result" arm of isWithinRoot is not tested: on POSIX,
+  // path.relative() between two absolute paths never returns an absolute path
+  // (that arm only matters on Windows, across drives).
+  describe('isWithinRoot', () => {
+    it.each([
+      ['/data/avatars', '/data/avatars/c/cold.png', true],
+      ['/data/avatars', '/data/avatars/c', true],
+      ['/data/avatars', '/data/avatars', false],
+      ['/data/avatars', '/data', false],
+      ['/data/avatars', '/data/avatars/../x', false],
+      ['/data/avatars', '/etc/passwd', false],
+      ['/data/avatars', '/data/avatars-evil/x', false],
+      ['/data/avatars', '/data/avatars..x/y', false],
+      ['/', '/c/cold.png', true],
+      ['/', '/c', true],
+      ['/', '/', false],
+    ])('isWithinRoot(%s, %s) -> %s', (root, candidate, expected) => {
+      expect(isWithinRoot(root, candidate)).toBe(expected);
+    });
+
+    it('rejects a candidate whose relative path is exactly ".."', () => {
+      expect(isWithinRoot('/data/avatars/c', '/data/avatars')).toBe(false);
+    });
+
+    it('rejects a candidate whose relative path starts with "../"', () => {
+      expect(isWithinRoot('/data/avatars/c', '/data/avatars/d/x')).toBe(false);
+    });
+
+    it('accepts a child whose name merely begins with two dots', () => {
+      expect(isWithinRoot('/data/avatars', '/data/avatars/..hidden/x.png')).toBe(true);
+      expect(isWithinRoot('/', '/..hidden/x.png')).toBe(true);
     });
   });
 

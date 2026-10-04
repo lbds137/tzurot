@@ -19,10 +19,11 @@
  * 1. Validate slug format (alphanumeric, underscore, hyphen only)
  * 2. Derive subdirectory from first character (lowercased)
  * 3. Resolve path using path.resolve()
- * 4. Verify resolved path starts with expected root directory
+ * 4. Verify the resolved path is strictly inside the root directory
+ *    (separator-aware via path.relative, so a `/` root works)
  */
 
-import { resolve, basename } from 'path';
+import { resolve, basename, relative, isAbsolute, sep } from 'path';
 import { unlink, mkdir, glob } from 'fs/promises';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -114,6 +115,18 @@ export function isValidSlug(slug: string): boolean {
 }
 
 /**
+ * True when `candidate` is strictly inside `root` (not the root itself).
+ *
+ * Uses path.relative() rather than a `startsWith(root + '/')` prefix check: the
+ * prefix form builds `//` for a `/` root, which no resolved path starts with.
+ * Both arguments must already be resolved absolute paths.
+ */
+export function isWithinRoot(root: string, candidate: string): boolean {
+  const rel = relative(root, candidate);
+  return rel !== '' && rel !== '..' && !rel.startsWith('..' + sep) && !isAbsolute(rel);
+}
+
+/**
  * Gets the subdirectory name for a slug (first character, lowercased)
  *
  * Examples:
@@ -154,7 +167,7 @@ export function getSafeAvatarPath(slug: string, timestamp?: number): string | nu
 
   // Second layer: resolve and verify path stays within root
   const avatarPath = resolve(AVATAR_ROOT, subdir, filename);
-  if (!avatarPath.startsWith(AVATAR_ROOT + '/')) {
+  if (!isWithinRoot(AVATAR_ROOT, avatarPath)) {
     logger.warn({ slug, avatarPath }, 'Rejected avatar path outside root');
     return null;
   }
@@ -180,7 +193,7 @@ export async function ensureAvatarDir(slug: string): Promise<string | null> {
   const dirPath = resolve(AVATAR_ROOT, subdir);
 
   // Verify path is within root (defense in depth)
-  if (!dirPath.startsWith(AVATAR_ROOT + '/')) {
+  if (!isWithinRoot(AVATAR_ROOT, dirPath)) {
     logger.warn({ slug, dirPath }, 'Rejected avatar directory outside root');
     return null;
   }

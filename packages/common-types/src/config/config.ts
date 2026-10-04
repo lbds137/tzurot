@@ -176,9 +176,9 @@ export const envSchema = z.object({
    * the gateway can boot without the root-owned volume. Relative values are
    * rejected: storage resolves against this root, and a cwd-relative path
    * would silently move with the process working directory. Trailing slashes
-   * are stripped — they would otherwise survive into the avatar root and
-   * break its containment prefix check — and a blank value falls through to
-   * the default.
+   * are stripped (a bare `/` stays `/`) so the avatar root is in canonical
+   * form for the separator-aware containment check in api-gateway's
+   * `avatarPaths.ts`, and a blank value falls through to the default.
    */
   AVATAR_STORAGE_PATH: z
     .string()
@@ -187,10 +187,9 @@ export const envSchema = z.object({
       z
         .string()
         .regex(/^\//, 'Must be an absolute path (must start with /)')
-        // Strip trailing slashes: path.resolve() normalizes them in child
-        // paths but not in the root itself, so a trailing slash surviving
-        // into AVATAR_ROOT would make every containment check
-        // (`startsWith(AVATAR_ROOT + '/')`) reject. `/` stays `/`.
+        // Strip trailing slashes so the root is canonical (path.resolve()
+        // normalizes them in child paths but not in the root itself).
+        // `/` stays `/`.
         // ReDoS: {1,64} ceiling; real config values have 0-1 trailing slashes.
         .transform(val => val.replace(/\/{1,64}$/, '') || '/')
     )
