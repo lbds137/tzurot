@@ -3,9 +3,10 @@ id: TASK-1156
 title: >-
   surface:inventory misses variable-passed payload keys (webhook-options empty)
   and scopes test mocks in
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-04 16:26'
+updated_date: '2026-10-04 21:58'
 labels:
   - 'area:tooling'
   - 'size:M'
