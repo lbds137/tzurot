@@ -546,6 +546,37 @@ describe('classifyQuotaFailure', () => {
     expect(classifyQuotaFailure(new Error('connection reset by peer'))).toBeNull();
   });
 
+  it('retargets a real-shaped OpenRouter 400 whose upstream body is an Alibaba input-filter refusal', async () => {
+    // Runs the REAL classifier (no mocked category): the SDK message is only
+    // the generic envelope; the refusal code lives in error.error.metadata.raw.
+    const providerError = Object.assign(new Error('400 Provider returned error'), {
+      status: 400,
+      error: {
+        message: 'Provider returned error',
+        code: 400,
+        metadata: {
+          raw: 'data: {"error":{"code":"data_inspection_failed","param":null,"message":"Input text data may contain inappropriate content.","type":"data_inspection_failed"},"id":"chatcmpl-504609cb-81e7-9934-b24e-a40716306b6d"}\n\n',
+          provider_name: 'Alibaba',
+          is_byok: false,
+        },
+      },
+    });
+    const category = classifyQuotaFailure(
+      new RetryError('LLM invocation failed', 3, providerError)
+    );
+    expect(category).toBe(ApiErrorCategory.PROVIDER_CONTENT_REFUSED);
+
+    const target = await selectQuotaFallbackTarget({
+      failingModel: 'qwen/qwen3.8-omni-flash',
+      cacheKeyId: 'user:123',
+      category: category as NonNullable<typeof category>,
+      isGuestMode: false,
+      configResolver: buildResolver({ global: { model: 'paid/default' } }) as never,
+      caches: buildCaches(),
+    });
+    expect(target?.config.model).toBe('paid/default');
+  });
+
   it('treats a RATE_LIMIT (live 429) as retargetable — the failing turn gets rescued', () => {
     const rateLimit = new ApiError('429', {
       type: ApiErrorType.TRANSIENT,

@@ -120,10 +120,14 @@ const ERROR_PATTERNS = {
   ],
   // A provider's INPUT filter refused the payload. Listed before
   // CONTENT_POLICY so the narrower provider-refusal reading wins. Two
-  // providers are covered so far: Alibaba's (Qwen vision on OpenRouter) INPUT
+  // providers are covered so far: Alibaba's (Qwen on OpenRouter) INPUT
   // filter, which returns body code `data_inspection_failed` with "Input
-  // image data may contain inappropriate content"; and z.ai's content-safety
-  // refusal, anchored on "potentially unsafe or sensitive content". The
+  // image data may contain inappropriate content" or, for text input, "Input
+  // text data may contain inappropriate content"; and z.ai's content-safety
+  // refusal, anchored on "potentially unsafe or sensitive content". Through
+  // the OpenAI SDK, Alibaba's code arrives in the OpenRouter upstream body
+  // (`error.error.metadata.raw`), not in the generic message, so this group
+  // is also scanned there (see detectSpecialCases). The
   // advance-not-terminate semantics rest on a provider refusing what another
   // would accept. The two entries are NOT equally evidenced: other providers
   // were observed describing the image Alibaba's filter refused; for z.ai the
@@ -138,6 +142,7 @@ const ERROR_PATTERNS = {
   PROVIDER_CONTENT_REFUSED: [
     /data_inspection_failed/i,
     /input image data may contain inappropriate content/i,
+    /input text data may contain inappropriate content/i,
     ZAI_CONTENT_SAFETY_REFUSAL_PATTERN,
   ],
   // Content policy
@@ -330,6 +335,24 @@ function extractRateLimitResetMs(error: unknown): number | undefined {
 }
 
 /**
+ * Read the upstream provider's raw error body that OpenRouter forwards in its
+ * error envelope (`error.error.metadata.raw`), capped to
+ * MAX_ERROR_MESSAGE_LENGTH for the same ReDoS reason as message scans.
+ * Returns undefined when the envelope or a string `raw` is absent.
+ */
+function readUpstreamRawError(error: unknown): string | undefined {
+  if (
+    isErrorObject(error) &&
+    isErrorObject(error.error) &&
+    isErrorObject(error.error.metadata) &&
+    typeof error.error.metadata.raw === 'string'
+  ) {
+    return error.error.metadata.raw.substring(0, MAX_ERROR_MESSAGE_LENGTH);
+  }
+  return undefined;
+}
+
+/**
  * Detect error category from error message using pattern matching
  */
 function detectCategoryFromMessage(message: string): ApiErrorCategory | null {
@@ -425,7 +448,12 @@ export function isAccountCreditExhaustion(error: unknown): boolean {
  *
  * Provider content refusal: a provider's INPUT filter (e.g. Alibaba's
  * `data_inspection_failed`) also arrives wrapped in a 400; must classify as
- * PROVIDER_CONTENT_REFUSED for the same reason.
+ * PROVIDER_CONTENT_REFUSED for the same reason. The refusal patterns are read
+ * from the message AND from the OpenRouter upstream body
+ * (`error.error.metadata.raw`), where the SDK-shaped error carries the code
+ * while its message says only "400 Provider returned error". Only this group
+ * is scanned in the upstream body, so an ordinary validation 400 there stays
+ * BAD_REQUEST.
  *
  * Unpublished model id: OpenRouter's "not a valid model" wording for a model
  * that exists upstream but isn't yet published on OpenRouter also arrives
@@ -489,6 +517,15 @@ function detectSpecialCases(error: unknown): ApiErrorCategory | null {
     // same provider that just refused. Reads the shared ERROR_PATTERNS group
     // so the pattern list keeps a single home.
     if (ERROR_PATTERNS.PROVIDER_CONTENT_REFUSED.some(pattern => pattern.test(messageToSearch))) {
+      return ApiErrorCategory.PROVIDER_CONTENT_REFUSED;
+    }
+    // The SDK-shaped error carries the code only in the upstream body; scan
+    // it for this group alone so other upstream wording keeps status routing.
+    const upstreamRaw = readUpstreamRawError(error);
+    if (
+      upstreamRaw !== undefined &&
+      ERROR_PATTERNS.PROVIDER_CONTENT_REFUSED.some(pattern => pattern.test(upstreamRaw))
+    ) {
       return ApiErrorCategory.PROVIDER_CONTENT_REFUSED;
     }
     // An unpublished-model id arrives wrapped in a 400, exactly like the
