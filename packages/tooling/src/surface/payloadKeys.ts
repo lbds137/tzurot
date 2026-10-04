@@ -9,9 +9,11 @@ import {
   Node,
   SyntaxKind,
   type BinaryExpression,
+  type ElementAccessExpression,
   type Identifier,
   type ObjectLiteralExpression,
   type ObjectLiteralElement,
+  type PropertyAccessExpression,
   type PropertyAssignment,
   type ShorthandPropertyAssignment,
   type Symbol as TsMorphSymbol,
@@ -54,8 +56,10 @@ export function literalKeys(literal: ObjectLiteralExpression): string[] {
  * adds. An assignment after the call cannot have been sent by it.
  *
  * Two assignment shapes count:
- *  - `variable.key = …` adds `key`; a nested write `variable.key.deep = …`
- *    adds the top-level `key` (writes rooted at another variable add nothing);
+ *  - `variable.key = …` / `variable['key'] = …` adds `key`; a nested write
+ *    `variable.key.deep = …` adds the top-level `key`; a computed top-level
+ *    element key (`variable[name] = …`) adds {@link UNKNOWN_PAYLOAD_KEY}
+ *    (writes rooted at another variable add nothing);
  *  - a whole reassignment `variable = { … }` adds that literal's keys. A
  *    reassignment to anything that is not an object literal (a call, another
  *    identifier) cannot be read statically, so it adds
@@ -90,7 +94,27 @@ export function initializedVariableKeys(
   return [...keys];
 }
 
-/** Keys one `=` assignment adds to `symbol`'s object: `symbol.key = …` (also nested: `symbol.key.deep = …` adds `key`), or a whole `symbol = …` reassignment (unreadable → {@link UNKNOWN_PAYLOAD_KEY}). */
+/**
+ * Key one member access names: `.key` / `['key']` / `` [`key`] `` give `key`;
+ * a computed element key (`[name]`, `[0]`) cannot be read statically and
+ * gives {@link UNKNOWN_PAYLOAD_KEY}.
+ */
+function memberKey(access: PropertyAccessExpression | ElementAccessExpression): string {
+  if (Node.isPropertyAccessExpression(access)) return access.getName();
+  const argument = access.getArgumentExpression();
+  if (Node.isStringLiteral(argument) || Node.isNoSubstitutionTemplateLiteral(argument)) {
+    return argument.getLiteralText();
+  }
+  return UNKNOWN_PAYLOAD_KEY;
+}
+
+/**
+ * Keys one `=` assignment adds to `symbol`'s object: a member write
+ * `symbol.key = …` / `symbol['key'] = …` (also nested — `symbol.key.deep = …`
+ * and `symbol['key'].deep = …` add `key`; a computed top-level element key
+ * adds {@link UNKNOWN_PAYLOAD_KEY}), or a whole `symbol = …` reassignment
+ * (unreadable → {@link UNKNOWN_PAYLOAD_KEY}).
+ */
 export function assignedKeys(
   assignment: BinaryExpression,
   symbol: TsMorphSymbol,
@@ -102,16 +126,23 @@ export function assignedKeys(
     const assigned = assignment.getRight();
     return Node.isObjectLiteralExpression(assigned) ? literalKeys(assigned) : [UNKNOWN_PAYLOAD_KEY];
   }
-  if (!Node.isPropertyAccessExpression(target)) return [];
-  // Walk `a.b.c` down to its root: a nested write still sets the TOP-LEVEL key
-  // (`b`) on the tracked object, which is what the payload carries.
-  // A non-null assertion (`a.b!.c`) is transparent: it does not change the owner.
-  let topLevel = target;
+  if (!Node.isPropertyAccessExpression(target) && !Node.isElementAccessExpression(target)) {
+    return [];
+  }
+  // Walk `a.b.c` / `a['b'].c` down to its root: a nested write still sets the
+  // TOP-LEVEL key (`b`) on the tracked object, which is what the payload
+  // carries. A non-null assertion (`a.b!.c`) is transparent: it does not
+  // change the owner.
+  let topLevel: PropertyAccessExpression | ElementAccessExpression = target;
   let root: Node = target.getExpression();
-  while (Node.isPropertyAccessExpression(root) || Node.isNonNullExpression(root)) {
-    if (Node.isPropertyAccessExpression(root)) topLevel = root;
+  while (
+    Node.isPropertyAccessExpression(root) ||
+    Node.isElementAccessExpression(root) ||
+    Node.isNonNullExpression(root)
+  ) {
+    if (!Node.isNonNullExpression(root)) topLevel = root;
     root = root.getExpression();
   }
   if (!Node.isIdentifier(root)) return [];
-  return typeChecker.getSymbolAtLocation(root) === symbol ? [topLevel.getName()] : [];
+  return typeChecker.getSymbolAtLocation(root) === symbol ? [memberKey(topLevel)] : [];
 }

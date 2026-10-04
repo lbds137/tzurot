@@ -270,25 +270,49 @@ function returnedLiteralKeys(literal: ObjectLiteralExpression, typeChecker: Type
   return [...keys];
 }
 
-/** Keys of one returned expression: a literal (conditional branches included) or a variable (no readable literal initializer → {@link UNKNOWN_PAYLOAD_KEY}). */
-function collectReturnedKeys(expression: Node, typeChecker: TypeChecker): string[] {
+/**
+ * Keys of one returned expression: a literal (conditional branches included),
+ * a variable initialized with a literal, or a delegated call (read like a
+ * call argument — see {@link callKeys}). Parentheses, `as`, `satisfies` and
+ * `!` are transparent. Anything else — a variable without a literal
+ * initializer, a member access, an `await`, a string — is judged by its
+ * checked type ({@link typedPayloadKeys}): a named payload type gives
+ * {@link UNKNOWN_PAYLOAD_KEY}, an anonymous one its properties, and a value
+ * that is no payload object (a string, a builder instance) nothing.
+ * `visiting` carries the callers already on the stack (see {@link callReturnKeys}).
+ */
+function collectReturnedKeys(
+  expression: Node,
+  typeChecker: TypeChecker,
+  visiting: Set<Node>
+): string[] {
   if (Node.isObjectLiteralExpression(expression)) {
     return returnedLiteralKeys(expression, typeChecker);
   }
   if (Node.isIdentifier(expression)) {
-    // no object-literal initializer to read → visible gap, never silent
-    return initializedVariableKeys(expression, typeChecker) ?? [UNKNOWN_PAYLOAD_KEY];
+    // no object-literal initializer to read → judged by its checked type
+    return (
+      initializedVariableKeys(expression, typeChecker) ?? typedPayloadKeys(expression, typeChecker)
+    );
   }
   if (Node.isConditionalExpression(expression)) {
     return [
-      ...collectReturnedKeys(expression.getWhenTrue(), typeChecker),
-      ...collectReturnedKeys(expression.getWhenFalse(), typeChecker),
+      ...collectReturnedKeys(expression.getWhenTrue(), typeChecker, visiting),
+      ...collectReturnedKeys(expression.getWhenFalse(), typeChecker, visiting),
     ];
   }
-  if (Node.isParenthesizedExpression(expression)) {
-    return collectReturnedKeys(expression.getExpression(), typeChecker);
+  if (
+    Node.isParenthesizedExpression(expression) ||
+    Node.isAsExpression(expression) ||
+    Node.isSatisfiesExpression(expression) ||
+    Node.isNonNullExpression(expression)
+  ) {
+    return collectReturnedKeys(expression.getExpression(), typeChecker, visiting);
   }
-  return [];
+  if (Node.isCallExpression(expression)) {
+    return callKeys(expression, typeChecker, visiting);
+  }
+  return typedPayloadKeys(expression, typeChecker);
 }
 
 /** The in-project function-like node a call expression invokes, when resolvable. */
@@ -318,17 +342,32 @@ function resolveCalleeFunction(
 }
 
 /**
- * Keys returned by the in-project function a call expression invokes: the
- * object literals in its `return` statements (spread locals included; an
- * unresolvable spread adds {@link UNKNOWN_PAYLOAD_KEY}) and a returned local
- * variable resolved like rule 2. Empty when the callee is out-of-project,
- * unresolvable, or returns no literal.
+ * Keys returned by the in-project function a call expression invokes: every
+ * `return` expression read by {@link collectReturnedKeys} (object literals,
+ * spread locals, returned locals, delegated calls; anything else is judged by
+ * its checked type, so an unreadable payload adds {@link UNKNOWN_PAYLOAD_KEY}
+ * and a non-payload value adds nothing). Undefined when the callee cannot be read —
+ * out-of-project, unresolvable, or bodiless (an ambient `declare function`,
+ * an interface / abstract method, an overload signature) — so the caller
+ * falls back to the call's checked type. Empty only when the body was read
+ * and returns nothing.
+ *
+ * `visiting` holds the functions already being read up the stack: a call
+ * back into one of them (direct or mutual recursion) contributes nothing of
+ * its own, because that function's keys are already being collected by the
+ * outer frame.
  */
-function callReturnKeys(call: CallExpression, typeChecker: TypeChecker): string[] {
+function callReturnKeys(
+  call: CallExpression,
+  typeChecker: TypeChecker,
+  visiting: Set<Node>
+): string[] | undefined {
   const fn = resolveCalleeFunction(call, typeChecker);
-  if (fn === undefined) return [];
+  if (fn === undefined) return undefined;
   const body = fn.getBody();
-  if (body === undefined) return [];
+  if (body === undefined) return undefined;
+  if (visiting.has(fn)) return [];
+  visiting.add(fn);
   const returned: Node[] = [];
   if (Node.isBlock(body)) {
     for (const ret of body.getDescendantsOfKind(SyntaxKind.ReturnStatement)) {
@@ -340,7 +379,16 @@ function callReturnKeys(call: CallExpression, typeChecker: TypeChecker): string[
   } else {
     returned.push(body);
   }
-  return [...new Set(returned.flatMap(expression => collectReturnedKeys(expression, typeChecker)))];
+  const keys = new Set(
+    returned.flatMap(expression => collectReturnedKeys(expression, typeChecker, visiting))
+  );
+  visiting.delete(fn);
+  return [...keys];
+}
+
+/** Keys of a call expression's result: its callee's returns, or — when the callee cannot be read — the call's checked type ({@link typedPayloadKeys}). */
+function callKeys(call: CallExpression, typeChecker: TypeChecker, visiting: Set<Node>): string[] {
+  return callReturnKeys(call, typeChecker, visiting) ?? typedPayloadKeys(call, typeChecker);
 }
 
 /**
@@ -352,7 +400,9 @@ function callReturnKeys(call: CallExpression, typeChecker: TypeChecker): string[
  *     assignments and whole `variable = …` reassignments in the same function
  *     that precede the call;
  *  3. a call expression contributes the keys of the object literals its
- *     in-project callee returns (see {@link callReturnKeys});
+ *     in-project callee returns (see {@link callReturnKeys}); a callee that
+ *     cannot be read (out-of-project, unresolvable, or bodiless) falls
+ *     through to rule 4;
  *  4. any other expression is judged by its checked type: an anonymous object
  *     type contributes its properties (optional members included — see
  *     {@link typedPayloadKeys}), a NAMED interface / alias, including an
@@ -365,7 +415,7 @@ function collectOptionKeys(argument: Node, typeChecker: TypeChecker): string[] {
     const keys = initializedVariableKeys(argument, typeChecker);
     if (keys !== undefined) return keys;
   }
-  if (Node.isCallExpression(argument)) return callReturnKeys(argument, typeChecker);
+  if (Node.isCallExpression(argument)) return callKeys(argument, typeChecker, new Set());
   return typedPayloadKeys(argument, typeChecker);
 }
 
