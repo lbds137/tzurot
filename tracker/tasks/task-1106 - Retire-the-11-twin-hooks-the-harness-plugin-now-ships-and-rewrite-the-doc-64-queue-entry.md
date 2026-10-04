@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-25 17:52'
+updated_date: '2026-10-04 23:08'
 labels:
   - 'area:hooks'
   - 'size:M'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 1099000
@@ -22,8 +23,11 @@ Why: claude-harness docs/adoption-tzurot.md (commit f9435f6) lists 11 hooks unde
 
 Fix shape: follow the retire-a-twin procedure in adoption-tzurot.md for each of the 11 hooks (delete the project copy plus its probe registry entry, keep any Tzurot-only behaviour by upstreaming it first), one PR for the hooks and one direct doc commit for the queue.md entry pointing at the Deck management role.
 
-Owner question: retire all 11 twins now, or only the ones whose plugin version is a strict superset?
-Recommendation: retire the strict-superset ones first in one PR and list the rest with their delta, since a twin that carries Tzurot-only behaviour needs upstreaming before it can go.
-
 Acceptance: no .claude/hooks file has a same-named plugin twin without a recorded reason; guard:hook-probes green; the queue.md doc-64 entry names the Deck management role as the owner.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner decision 2026-10-04 (AskUserQuestion, chose the recommendation): retire the strict-superset twins first in one PR; list the rest with their Tzurot-only delta to upstream before they go.
+<!-- SECTION:NOTES:END -->

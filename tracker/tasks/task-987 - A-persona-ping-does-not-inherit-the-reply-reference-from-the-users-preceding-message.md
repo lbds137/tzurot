@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-15 01:22'
+updated_date: '2026-10-04 23:07'
 labels:
   - 'area:bot-client'
   - 'size:M'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 983000
@@ -24,9 +25,11 @@ Mechanism (code-read, NOT runtime-confirmed): ReplyReferenceStrategy.extract rea
 
 What is actually lost is the POINTER, not necessarily the text: in the observed case the persona still answered well, because the replied-to message was recent enough to sit in conversation history. The failure mode is worse when the reply target is older than the history window, or when several candidate messages make the referent ambiguous.
 
-Owner question: should a persona ping inherit the reply reference from the same users immediately preceding message when the pinging message carries none?
-
-Recommendation: yes, narrowly scoped - same author, same channel, only when the triggering message has NO reference of its own, and only looking back a small window (roughly 3 messages and roughly 2 minutes). Anything wider adopts an unrelated reply, which is worse than the current miss: it points the persona at the wrong message with full confidence instead of leaving it to rely on history.
-
 Acceptance: a reply-then-ping pair from one user in one channel produces the same referenced-message set as tagging the persona inside the reply; and a test pins that an older unrelated reply from the same user is NOT adopted.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner decision 2026-10-04 (AskUserQuestion, chose the recommendation): yes, narrowly: same author, same channel, only when the ping carries no reference of its own, look back about 3 messages and about 2 minutes.
+<!-- SECTION:NOTES:END -->

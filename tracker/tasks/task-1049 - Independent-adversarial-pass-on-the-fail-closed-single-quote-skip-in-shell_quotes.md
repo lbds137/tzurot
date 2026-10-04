@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-22 19:56'
+updated_date: '2026-10-04 23:08'
 labels:
   - 'area:tooling'
   - 'size:S'
@@ -24,3 +25,9 @@ Acceptance: a written verdict (bypass found or not) with the candidate list and 
 Owner question: who runs the break-it pass, since a subagent attempt was stopped by a safety classifier?
 Recommendation: the owner starts a fresh session with this task as its brief — a first-person request from the owner gives the pass the authorization context a delegated prompt lacked.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner decision 2026-10-04 (AskUserQuestion, chose the recommendation): the owner runs the break-it pass herself in a fresh session briefed with this task; stays in the owner queue until she does.
+<!-- SECTION:NOTES:END -->
