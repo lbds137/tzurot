@@ -3,9 +3,10 @@ id: TASK-1152
 title: >-
   Override deepmerge-ts >=8.0.0 (GHSA-ggr8-5vv4-36mx, high) with prisma-CLI
   verification
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-01 18:30'
+updated_date: '2026-10-04 16:29'
 labels:
   - 'area:deps'
   - 'size:S'
