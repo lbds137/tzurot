@@ -3,9 +3,10 @@ id: TASK-1160
 title: >-
   Free-tier guests fall to openrouter/free instead of the GLM 5.3 Flash
   piggyback or the configured free default
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-04 16:45'
+updated_date: '2026-10-04 22:05'
 labels:
   - 'area:ai-worker'
   - 'size:M'
@@ -22,3 +23,9 @@ Why: owner report 2026-10-04 (own words, apostrophe dropped): "GLM 5.3 Flash isn
 First step: read the prod log lines "z.ai free-tier denied" (reason field) and "Guest mode: overriding paid model with free model" for a recent guest turn; the reason names which of the five gates fired.
 Acceptance: root cause named with a log line; either the admission gate is corrected or the owner is told it is working as designed (silent denial) and the free-default setting to use; consider surfacing the deny reason in the reply footer if users cannot tell. Related tasks: TASK-860 (guest vision floor watch), TASK-188.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Root cause (prod ai-worker logs, 2026-10-04 03:14Z-22:03Z window): working as designed. All 10 piggyback denials in the window were reason=headroom: ZaiFreeTierAdmission logged consumedPct=95 headroomPercent=75 resetAt=2026-10-08T02:22:18Z on every guest turn from 14:18Z on. The z.ai coding plan weekly window is shared with owner GLM coding sessions plus extraction and archive-summary jobs (logged provider=zai-coding model=z-ai/glm-5.3), so the GLM-driven week consumed it past the 75% guard. Second hop: the configured free default qwen/qwen3.8-27b:free then took an OpenRouter 429 on 7 of the 12 overridden guest turns (QuotaFallback category=rate_limit, "No hop-1 retarget available — promoting the floor"), which is why openrouter/free answered even with a specific free default set. No gate defect. The piggyback reopens at the plan reset (2026-10-07 22:22 EDT) or if zaiHeadroomPercent is raised. Silent-denial UX follow-up filed as TASK-1171 (owner question).
+<!-- SECTION:FINAL_SUMMARY:END -->
