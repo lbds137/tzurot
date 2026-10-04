@@ -41,7 +41,7 @@ import { processAttachments } from '../MultimodalProcessor.js';
 import type { ResolveVisionConfigOptions } from './visionAuthResolver.js';
 import type { ApiKeyResolver } from '../ApiKeyResolver.js';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
-import { ApiErrorCategory, ERROR_MESSAGES } from '@tzurot/common-types/constants/error';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -342,55 +342,31 @@ describe('vision fallback chain (wiring / seam test)', () => {
   // failure instead of a raw TypeError. All three tiers get walked, in order, and the chain
   // exhausts gracefully — the returned placeholder must carry the LAST attempt's category
   // (EMPTY_RESPONSE), not the first tier's provider-refusal wording.
+  //
+  // Classification here is the REAL `parseApiError`, fed the error shape the OpenAI SDK
+  // produces for an OpenRouter-wrapped provider refusal: the message is only
+  // `400 Provider returned error`, and the upstream code (`data_inspection_failed`) lives
+  // solely inside `error.metadata.raw`, the provider's own response body as a string.
+  // A message-substring stub could never catch a classifier that stops scanning that body.
   it('production-incident shape: provider refusal then rate-limit then a zero-choices 200 — all tiers walked, last category wins', async () => {
-    const providerRefusalError = Object.assign(
-      new Error(
-        '400 Provider returned error: data_inspection_failed - Input image data may contain inappropriate content'
-      ),
-      { status: 400 }
-    );
+    const upstreamRaw =
+      'data: {"error":{"code":"data_inspection_failed","param":null,"message":"Input image data may contain inappropriate content.","type":"data_inspection_failed"},"id":"chatcmpl-504609cb-81e7-9934-b24e-a40716306b6d"}\n\n';
+    const providerRefusalError = Object.assign(new Error('400 Provider returned error'), {
+      status: 400,
+      error: {
+        message: 'Provider returned error',
+        code: 400,
+        metadata: { raw: upstreamRaw, provider_name: 'Alibaba', is_byok: false },
+      },
+    });
     const rateLimitError = Object.assign(new Error('429 rate limited'), { status: 429 });
 
-    // Drives classification per-tier by inspecting the error message — this test's whole
-    // point is that the category differs per attempt, which the suite's shared default
-    // (always RATE_LIMIT) can't express.
-    mockParseApiError.mockImplementation((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.includes('data_inspection_failed')) {
-        return {
-          category: ApiErrorCategory.PROVIDER_CONTENT_REFUSED,
-          type: 'PERMANENT',
-          statusCode: 400,
-          shouldRetry: false,
-          technicalMessage: message,
-          referenceId: 'test-ref',
-          requestId: undefined,
-        };
-      }
-      if (message.includes('rate limited')) {
-        return {
-          category: ApiErrorCategory.RATE_LIMIT,
-          type: 'TRANSIENT',
-          statusCode: 429,
-          shouldRetry: true,
-          technicalMessage: message,
-          referenceId: 'test-ref',
-          requestId: undefined,
-        };
-      }
-      if (message === ERROR_MESSAGES.EMPTY_RESPONSE) {
-        return {
-          category: ApiErrorCategory.EMPTY_RESPONSE,
-          type: 'TRANSIENT',
-          statusCode: undefined,
-          shouldRetry: true,
-          technicalMessage: message,
-          referenceId: 'test-ref',
-          requestId: undefined,
-        };
-      }
-      throw new Error(`unexpected error classified in test: ${message}`);
-    });
+    // Real classifier for every tier: the category differs per attempt because the real
+    // parser derives it from each error's own shape, not from a per-test stub.
+    const actualParser = await vi.importActual<typeof import('../../utils/apiErrorParser.js')>(
+      '../../utils/apiErrorParser.js'
+    );
+    mockParseApiError.mockImplementation(actualParser.parseApiError);
 
     mockCreateChatModel.mockImplementation(({ modelName }: { modelName: string }) => ({
       model: {
@@ -431,6 +407,15 @@ describe('vision fallback chain (wiring / seam test)', () => {
     expect(invokedModels[0]).toBe('primary/model');
     expect(invokedModels[1]).toBe('fallback/model');
     expect(invokedModels.length).toBeGreaterThanOrEqual(3);
+
+    // The real classifier read the refusal out of `metadata.raw`: the loop advances on any
+    // retryable category, so advancing alone can't show the upstream body was scanned.
+    const classifiedCategories = mockParseApiError.mock.results.map(
+      result => (result.value as { category: ApiErrorCategory }).category
+    );
+    expect(classifiedCategories).toContain(ApiErrorCategory.PROVIDER_CONTENT_REFUSED);
+    expect(classifiedCategories).toContain(ApiErrorCategory.RATE_LIMIT);
+    expect(classifiedCategories).toContain(ApiErrorCategory.EMPTY_RESPONSE);
   });
 
   // SCENARIO 5 — pins the ACCEPTED double-read in the BYOK reorder probe.
