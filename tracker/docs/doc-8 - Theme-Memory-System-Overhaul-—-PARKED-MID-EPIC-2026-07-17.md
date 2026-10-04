@@ -112,6 +112,16 @@ Corollary for whoever runs the re-entry: the no-bulk-re-extraction posture was a
 
 **Not scheduled by this note.** The owner explicitly framed both remarks as evidence that this theme needs scheduling eventually, not as an interrupt: _"not interrupting the current work, just annoyed."_ Do not promote this theme off the back of it.
 
+### OWNER DIRECTION 2026-10-04 — refined, cognition-like memory + knowledge; the facts/memories split needs a dig
+
+Owner, in the Characters session, relayed verbatim: _"right now the memories / facts stuff is a bit muddled so it may be worth having Tzurot dig into what is the best way to handle this - at this point I think the memory epic needs to focus hard on making characters have as refined a knowledge / memory system as possible - as close to how human cognition works as is feasible to implement in a cost-effective way"_. Same message ties it to character knowledge: card field limits (4,000 chars) are forcing lore off the cards, and that lore needs a vector-indexed home a character can pull from as needed (recorded in doc-88).
+
+What this adds to the 2026-08-21 direction above:
+
+- **Scope statement for re-entry.** The epic's goal is now stated by the owner: the most refined knowledge/memory system feasible, modeled on human cognition, under a cost constraint. That answers part of the 2026-08-21 open question (is the accepted artifact still the target?): the target is broader than the artifact's typed-memory phases. Re-entry design starts from this statement.
+- **First design question: the episode / fact / knowledge boundary.** The owner reads the current memories-vs-facts split as muddled. The re-entry HLD has to define what each layer is FOR (episodic recall, semantic facts about the user, character-owned knowledge/lore) before tuning any one of them. Character knowledge (doc-88) is part of that boundary, not a separate later concern.
+- **Not scheduled by this note**, same as 2026-08-21. It records direction for re-entry.
+
 ## Members added 2026-09-04 (TASK-888 pass)
 
 Five tracker rows absorbed here because **every one's promote-when is a phase of this parked epic**. A parked epic's members do not need individual pool slots — they need to be findable when it unparks, and a `state:ready` drain query offering them today is noise. Read this section together with § Re-entry triggers above: these are the rows that come back into scope when the trigger fires, and TASK-217 and TASK-227 name their gating phase explicitly.
