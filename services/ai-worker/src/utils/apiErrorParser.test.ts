@@ -346,7 +346,45 @@ describe('parseApiError', () => {
   });
 
   describe('provider content-refusal detection (data_inspection_failed)', () => {
-    it('classifies the real prod fixture (400 wrapping data_inspection_failed) as PROVIDER_CONTENT_REFUSED', () => {
+    // The OpenAI SDK's BadRequestError shape as OpenRouter delivers it: the
+    // message is only the generic envelope text, and the upstream provider's
+    // body (carrying the refusal code) is a STRING in error.error.metadata.raw.
+    const buildOpenRouterUpstreamError = (raw: string): Error =>
+      Object.assign(new Error('400 Provider returned error'), {
+        status: 400,
+        error: {
+          message: 'Provider returned error',
+          code: 400,
+          metadata: { raw, provider_name: 'Alibaba', is_byok: false },
+        },
+      });
+    const alibabaTextRefusalRaw =
+      'data: {"error":{"code":"data_inspection_failed","param":null,"message":"Input text data may contain inappropriate content.","type":"data_inspection_failed"},"id":"chatcmpl-504609cb-81e7-9934-b24e-a40716306b6d"}\n\n';
+
+    it('classifies the SDK-shaped OpenRouter 400 whose upstream body carries data_inspection_failed as PROVIDER_CONTENT_REFUSED', () => {
+      const result = parseApiError(buildOpenRouterUpstreamError(alibabaTextRefusalRaw));
+      expect(result.category).toBe(ApiErrorCategory.PROVIDER_CONTENT_REFUSED);
+      expect(result.shouldRetry).toBe(false);
+    });
+
+    it('classifies an upstream body carrying only the Alibaba text-input wording as PROVIDER_CONTENT_REFUSED', () => {
+      const raw =
+        'data: {"error":{"message":"Input text data may contain inappropriate content.","type":"filtered"}}\n\n';
+      const result = parseApiError(buildOpenRouterUpstreamError(raw));
+      expect(result.category).toBe(ApiErrorCategory.PROVIDER_CONTENT_REFUSED);
+    });
+
+    it('negative control: the same envelope with an ordinary validation error in the upstream body stays BAD_REQUEST', () => {
+      // The wording also matches the broad MODEL_NOT_FOUND `invalid.*model`
+      // pattern, so this pins that only the provider-refusal group is scanned
+      // in the upstream body.
+      const raw =
+        '{"error":{"code":"invalid_parameter","message":"invalid value for max_tokens on this model: must be <= 8192"}}';
+      const result = parseApiError(buildOpenRouterUpstreamError(raw));
+      expect(result.category).toBe(ApiErrorCategory.BAD_REQUEST);
+    });
+
+    it('classifies a wrapper that inlines data_inspection_failed into the message as PROVIDER_CONTENT_REFUSED', () => {
       const error = Object.assign(
         new Error(
           '400 Provider returned error: data_inspection_failed - Input image data may contain inappropriate content'
