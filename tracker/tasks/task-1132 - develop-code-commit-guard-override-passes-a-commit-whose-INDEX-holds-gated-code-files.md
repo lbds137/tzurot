@@ -3,9 +3,10 @@ id: TASK-1132
 title: >-
   develop-code-commit-guard override passes a commit whose INDEX holds gated
   code files
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-27 19:12'
+updated_date: '2026-10-04 19:41'
 labels:
   - 'area:hooks'
   - 'size:S'
