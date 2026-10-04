@@ -72,3 +72,7 @@ zero marginal cost — build A before even scoping B.
   **stimuli**. If both ship, the reaction listener is a shared seam — whichever
   lands second should reuse the first's listener plumbing.
 - TASK-355 — sticker/poll context enrichment (independent, buildable now).
+
+## Addendum 2026-10-04 (owner intake): channel system events (pins, renames)
+
+Owner asked whether characters know about pins and thread renames, and said they should be logged into extended context with metadata (old and new name, the pinned message) without triggering a character. Verified in code (read only): `isUserContentMessage` rejects ChannelPinnedMessage, ThreadCreated and the other system types for both the trigger path and the extended-context fetch, so these events never reach the model; no bot-client listener exists for `threadUpdate` or `channelPinsUpdate`. This is the same "event is real but inert" class as deletions and reactions above, and a Tier-A passive narration (a system line in rendered context, no new model call). Tracked as TASK-1158; read it for the open probe on whether a guild rename produces a message at all.

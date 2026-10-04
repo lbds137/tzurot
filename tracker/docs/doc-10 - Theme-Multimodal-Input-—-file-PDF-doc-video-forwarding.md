@@ -21,3 +21,7 @@ _Focus: capture and forward `video` and `file` input modalities to capable model
 #### chunkr (2026-07-05 ingest)
 
 Self-hostable document-ingestion service (PDF/PPTX/DOCX/images → layout-aware OCR → structured HTML/MD chunks for RAG; Docker, AGPL-3.0 + commercial dual-license; OSS lacks the cloud's proprietary models; maintenance slowing — v2.2.1 July 2025). Candidate for the file-upload parsing seam IF we want structure-preserving ingestion; AGPL needs a look before any embed. The agentic design's file-parser plugin note is the integration point.
+
+#### MarkItDown (2026-10-04 owner intake, low priority evaluation)
+
+Microsoft MarkItDown: a Python tool that converts office documents and PDFs to Markdown for LLM consumption. Candidate for the same file-upload parsing seam as chunkr above, as a text-extraction alternative to forwarding the native file part: parse a PDF/DOCX/PPTX/XLSX attachment to Markdown in a service (the voice-engine is the only Python service today) and inject the text. Not yet checked: license, a Python runtime placement, how it handles scanned PDFs (likely needs OCR), and the size/token bounds. Today non-image, non-audio attachments are rendered only as a text description by `MessageContentBuilder` (see the surfacing paragraph above), so any parser is net-new capability. Evaluation only; no task filed because the theme's promote trigger (prioritizing file input as a feature) has not fired.
