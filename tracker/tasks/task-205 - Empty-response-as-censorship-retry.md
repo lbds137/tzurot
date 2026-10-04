@@ -4,7 +4,7 @@ title: Empty-response-as-censorship retry
 status: To Do
 assignee: []
 created_date: '2026-07-05 00:00'
-updated_date: '2026-08-14 22:44'
+updated_date: '2026-10-04 16:47'
 labels:
   - 'area:ai-worker'
   - 'size:M'
@@ -22,3 +22,13 @@ Empty-response-as-censorship retry — **VERIFIED 2026-07-05, partial**: empty c
 
 **Why:** The remaining gap is a product design call, not a bug.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: intake-agent
+created: 2026-10-04 16:47
+---
+Intake 2026-10-04: a new specimen of the same gap class (provider "400 Provider returned error" on qwen/qwen3.8-omni-flash, user saw an error instead of a fallback) is TASK-1161. Staleness note to verify here: the claim that no text-generation fallback equivalent exists predates quotaFallback.ts (RETARGETABLE_CATEGORIES includes EMPTY_RESPONSE, SERVER_ERROR, TIMEOUT, NETWORK, CENSORED), so re-check what remains of this task against the code before building.
+---
+<!-- COMMENTS:END -->

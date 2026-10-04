@@ -93,3 +93,7 @@ Two related cleanups:
 #### ✨ Admin/User Error Context Differentiation
 
 Admin errors should show full technical context; user errors show sanitized version. Partially done in PR #587 (error display framework shipped); remaining: admin error responses include stack traces and internal context, user-facing errors show friendly messages without internals.
+
+#### 2026-10-04 owner intake: demand for the P2 slice
+
+Owner: "need analytics / usage stats that are more detailed, to help understand which features are used, how often, and by how many users (to help prioritize building new features / improving existing ones)". This is the demand trigger for the P2 "build only on demand" item. P0.1, P1.1 and P1.2 only cover slash commands and inference; plain-message turns, voice, vision, memory retrieval and per-character usage are unmeasured (`CommandEvent.characterId` is reserved but never populated). Scoped as TASK-1164; keep the content-free, privacy-rider, export and erasure constraints above.

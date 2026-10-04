@@ -4,7 +4,7 @@ title: Channel-wide conversation reset (all characters at once)
 status: To Do
 assignee: []
 created_date: '2026-08-11 18:37'
-updated_date: '2026-08-14 22:31'
+updated_date: '2026-10-04 16:47'
 labels:
   - 'area:bot-client'
   - 'size:M'
@@ -35,3 +35,13 @@ Acceptance: one invocation clears a channel conversation across every character 
 
 **DECIDED 2026-08-14 (owner, TASK-599 digest): build as scoped - Manage Messages gate + Tier B typed-phrase confirmation, whole-channel scope (every user rows), no per-user notification (same authority as mods bulk-deleting the channel actual messages). TASK-529 answered no-enforcement, so the theme Phase 1 gate is cleared.**
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: intake-agent
+created: 2026-10-04 16:47
+---
+Owner intake 2026-10-04 (history-clear question): the Manage Messages gate for the everyone scope already shipped on /history purge (purge.ts:78-106, smoke passed 2026-09-13), so only the multi-character whole-channel reset remains here. The owner also asked whether clear/purge affect extended context at all; that verification is TASK-1163. Do not build the channel-wide reset UI copy until TASK-1163 states what a reset hides from the model.
+---
+<!-- COMMENTS:END -->
