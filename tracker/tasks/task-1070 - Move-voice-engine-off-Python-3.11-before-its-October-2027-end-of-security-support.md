@@ -43,4 +43,9 @@ created: 2026-09-24 13:29
 ---
 MERGED 2026-09-24 as #2505 (e89e83bd9): Dockerfile, .python-version, pyproject and librosa 0.11.x on 3.13; the local image run passed a real TTS to STT round trip (WAV, Ogg/Opus, MP3). Stays OPEN for the acceptance clause "in dev": dev voice-engine boots on 3.13, then a TTS reply and a no-key voice transcription pass in dev. Watch memory against the 4 GB comments in server.py (local podman peak 5.8 GB, page cache unknown).
 ---
+
+created: 2026-10-04 16:26
+---
+Disposition of the acceptance wording (GLM-week audit F6): the "in dev" clause was met by prod evidence, which is stronger. The prod image runs 3.13 and served real transcriptions plus Pocket TTS synthesis (smoke item 3, CURRENT.md). The memory watch above was never measured. It moves to TASK-1155 rather than being dropped.
+---
 <!-- COMMENTS:END -->
