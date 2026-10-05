@@ -139,6 +139,41 @@ describe('pairTurns', () => {
     turns[2] = turn('user', 'u1', '2025-05-17T04:33:38.686Z');
     expect(messageOf(() => pairTurns(turns))).toContain('turn 2');
   });
+
+  describe('template collisions', () => {
+    const collisions: [string, string, string][] = [
+      ['user text containing the assistant separator', `a\n{assistant}: ${MARKER}`, 'fine'],
+      ['assistant text containing the assistant separator', 'fine', `a\n{assistant}: ${MARKER}`],
+      [
+        'assistant text ending in a referenced-content block',
+        'fine',
+        `a\n\n[Referenced content: ${MARKER}]`,
+      ],
+    ];
+
+    it.each(collisions)(
+      'refuses %s, naming the turn index only',
+      (_name, userText, assistantText) => {
+        const turns = [
+          ...twoPairs(),
+          turn('user', userText, '2025-05-17T05:00:00Z'),
+          turn('assistant', assistantText, '2025-05-17T05:00:01Z'),
+        ];
+        const message = messageOf(() => pairTurns(turns));
+        expect(message).toContain('turn 4');
+        expect(message).toContain('text collides with the stored memory template');
+        expect(message).not.toContain(MARKER);
+      }
+    );
+
+    it('accepts benign multi-line text', () => {
+      const turns = [
+        turn('user', 'line one\nline two\n\nline four', '2025-05-17T04:00:00Z'),
+        turn('assistant', '{assistant} mentioned inline\nsecond line', '2025-05-17T04:00:01Z'),
+      ];
+      expect(pairTurns(turns)).toHaveLength(1);
+    });
+  });
 });
 
 describe('formatImportedMemoryContent', () => {

@@ -25,6 +25,7 @@ import {
 import { UsageError } from '../utils/errors.js';
 import { getBotOwnerDiscordIdForEnv } from '../utils/gateway-client.js';
 import { getPrismaForEnv } from './prisma-env.js';
+import { insertMemoryRow, withLocalEmbeddings } from './memory-row-insert.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { idPrefix } from '@tzurot/common-types/utils/logContentPreview';
 import {
@@ -156,32 +157,6 @@ function printSummary(
   }
 }
 
-async function insertMemory(
-  prisma: PrismaClient,
-  row: ExpectedRow,
-  target: Target,
-  embedding: Float32Array
-): Promise<boolean> {
-  const embeddingStr = `[${Array.from(embedding).join(',')}]`;
-  const now = new Date();
-  const result = await prisma.$executeRaw`
-    INSERT INTO memories (
-      id, persona_id, personality_id, content, embedding,
-      is_summarized, session_id, canon_scope, summary_type,
-      channel_id, guild_id, message_ids, senders,
-      created_at, updated_at, source_system, type, is_locked, visibility
-    ) VALUES (
-      ${row.id}::uuid, ${target.personaId}::uuid, ${target.personalityId}::uuid,
-      ${row.content}, ${embeddingStr}::vector,
-      false, NULL, 'personal', NULL,
-      NULL, NULL, ARRAY[]::text[], ARRAY[]::text[],
-      ${row.createdAt}, ${now}, ${EXTERNAL_IMPORT_SOURCE_SYSTEM}, 'memory', false, 'normal'
-    )
-    ON CONFLICT (id) DO NOTHING
-  `;
-  return result > 0;
-}
-
 /** Embed and insert the rows not yet present, sequentially (single in-process ONNX model). */
 async function embedAndInsert(
   prisma: PrismaClient,
@@ -197,12 +172,7 @@ async function embedAndInsert(
     return { inserted, alreadyExisted, failed };
   }
 
-  const { LocalEmbeddingService } = await import('@tzurot/embeddings');
-  const embeddingService = new LocalEmbeddingService();
-  if (!(await embeddingService.initialize())) {
-    throw new Error('Failed to initialize embedding service');
-  }
-  try {
+  await withLocalEmbeddings(async embeddingService => {
     for (const row of todo) {
       try {
         const embedding = await embeddingService.getEmbedding(row.content);
@@ -211,7 +181,19 @@ async function embedAndInsert(
           failed++;
           continue;
         }
-        if (await insertMemory(prisma, row, target, embedding)) {
+        const wasInserted = await insertMemoryRow(prisma, {
+          id: row.id,
+          personaId: target.personaId,
+          personalityId: target.personalityId,
+          content: row.content,
+          embedding,
+          channelId: null,
+          guildId: null,
+          messageIds: [],
+          createdAt: row.createdAt,
+          sourceSystem: EXTERNAL_IMPORT_SOURCE_SYSTEM,
+        });
+        if (wasInserted) {
           inserted++;
         } else {
           alreadyExisted++;
@@ -221,9 +203,7 @@ async function embedAndInsert(
         failed++;
       }
     }
-  } finally {
-    await embeddingService.shutdown();
-  }
+  });
   return { inserted, alreadyExisted, failed };
 }
 
@@ -242,15 +222,21 @@ async function verifyImport(
       ids,
       ids.length
     );
+    // Extras = tagged rows for this target inside THIS file's prompt range that this
+    // file does not produce (e.g. pairs removed from an edited file). Other imports
+    // for the same character outside the range are not this import's rows.
     const extras = await tx.$queryRawUnsafe<{ id: string }[]>(
       `SELECT id FROM memories
        WHERE source_system = $1 AND personality_id = $2::uuid AND persona_id = $3::uuid
          AND id <> ALL($4::uuid[])
-       LIMIT $5`,
+         AND created_at BETWEEN $5 AND $6
+       LIMIT $7`,
       EXTERNAL_IMPORT_SOURCE_SYSTEM,
       target.personalityId,
       target.personaId,
       ids,
+      expected[0].createdAt,
+      expected[expected.length - 1].createdAt,
       EXTRAS_QUERY_LIMIT
     );
     return { actual: found, extraTaggedIds: extras.map(row => row.id) };

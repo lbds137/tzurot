@@ -10,7 +10,11 @@
 
 import { z } from 'zod';
 import { deterministicMemoryUuid } from '@tzurot/common-types/constants/memory';
-import { ASSISTANT_SEPARATOR, USER_PREFIX } from '@tzurot/common-types/utils/memoryContentSplit';
+import {
+  ASSISTANT_SEPARATOR,
+  USER_PREFIX,
+  splitMemoryContent,
+} from '@tzurot/common-types/utils/memoryContentSplit';
 import { UsageError } from '../utils/errors.js';
 
 /** `memories.source_system` tag for rows written by this command (VarChar(50)). */
@@ -56,7 +60,7 @@ export interface ActualRow {
 export interface VerifyInput {
   expected: ExpectedRow[];
   actual: ActualRow[];
-  /** Tagged rows for this personality+persona whose id is not in the expected set. */
+  /** Tagged rows for this personality+persona, inside the file's prompt range, whose id is not in the expected set. */
   extraTaggedIds: string[];
   target: { personalityId: string; personaId: string };
 }
@@ -121,6 +125,9 @@ export function pairTurns(turns: ConversationTurn[]): ImportPair[] {
     if (previous !== undefined && promptAt.getTime() <= previous.promptAt.getTime()) {
       throw new UsageError(`turn ${i}: prompt timestamp is not after turn ${i - 2}`);
     }
+    if (!roundTrips(user.text, assistant.text)) {
+      throw new UsageError(`turn ${i}: text collides with the stored memory template`);
+    }
     pairs.push({
       index: i / 2,
       promptAt,
@@ -129,6 +136,22 @@ export function pairTurns(turns: ConversationTurn[]): ImportPair[] {
     });
   }
   return pairs;
+}
+
+/**
+ * Whether the formatted content splits back into exactly these two turns. Turn
+ * text containing the assistant separator, or an assistant turn ending in a
+ * `[Referenced content: …]` block, would be mis-split (or excluded as
+ * unparseable) by every reader of the stored memory.
+ */
+function roundTrips(userText: string, assistantText: string): boolean {
+  const split = splitMemoryContent(formatImportedMemoryContent(userText, assistantText));
+  return (
+    split !== null &&
+    split.user === userText &&
+    split.assistant === assistantText &&
+    split.referenced === null
+  );
 }
 
 /**
