@@ -19,6 +19,9 @@
 # repo, git errors, no tracker/ dir. A broken gate must not block pushes.
 
 set -uo pipefail
+# Read-only status/diff here must not write .git/index.lock (git's opportunistic
+# index refresh); a hook killed mid-write leaves the lock behind for the session.
+export GIT_OPTIONAL_LOCKS=0
 
 [ -n "${TZUROT_ALLOW_UNCOMMITTED_TRACKER:-}" ] && exit 0
 
