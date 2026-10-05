@@ -63,6 +63,7 @@ import { UsageError } from '../utils/errors.js';
 const MARKER = 'SECRET-MARKER-7f3a';
 const PERSONALITY_ID = '22222222-2222-4222-8222-222222222222';
 const PERSONA_ID = 'abcdef12-1111-4111-8111-111111111111';
+const EXPECTED_TAG = EXTERNAL_IMPORT_SOURCE_SYSTEM;
 const OVERRIDE_PERSONA_ID = 'fedcba98-3333-4333-8333-333333333333';
 const USER_ID = '44444444-4444-4444-8444-444444444444';
 
@@ -451,5 +452,3 @@ describe('importConversation', () => {
     });
   });
 });
-
-const EXPECTED_TAG = EXTERNAL_IMPORT_SOURCE_SYSTEM;
