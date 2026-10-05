@@ -72,6 +72,8 @@ const TEST_DISCORD_USER_ID = 'discord-user-123';
 
 const mockPrisma = {
   $queryRaw: vi.fn(),
+  $executeRaw: vi.fn().mockResolvedValue(1),
+  $transaction: vi.fn((ops: unknown[]) => Promise.all(ops)),
 } as unknown as PrismaClient;
 
 function deps(): RouteDeps {
@@ -186,6 +188,43 @@ describe('memorySearch', () => {
         })
       );
       expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+    });
+
+    it('runs the semantic query with exact-recall ivfflat.probes in one transaction', async () => {
+      mockResolveProvisionedUserId.mockReturnValue(TEST_USER_ID);
+      mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
+      mockGenerateEmbedding.mockResolvedValue([0.1, 0.2, 0.3]);
+      mockFormatAsVector.mockReturnValue('[0.1,0.2,0.3]');
+      const queryRawMock = mockPrisma.$queryRaw as ReturnType<typeof vi.fn>;
+      const executeRawMock = mockPrisma.$executeRaw as ReturnType<typeof vi.fn>;
+      const transactionMock = mockPrisma.$transaction as ReturnType<typeof vi.fn>;
+      queryRawMock.mockResolvedValueOnce([
+        {
+          id: 'mem-1',
+          content: 'semantic hit',
+          created_at: new Date('2026-01-01'),
+          updated_at: new Date('2026-01-01'),
+          personality_name: 'Test Bot',
+          personality_id: TEST_PERSONALITY_ID,
+          is_locked: false,
+          distance: 0.1,
+        },
+      ]);
+
+      await handleSearch(deps())(
+        createMockReq({ query: 'test' }),
+        createMockRes(),
+        () => undefined
+      );
+
+      expect(executeRawMock).toHaveBeenCalledTimes(1);
+      const [strings] = executeRawMock.mock.calls[0] as [string[]];
+      expect(strings.join('')).toContain("set_config('ivfflat.probes'");
+      expect(transactionMock).toHaveBeenCalledTimes(1);
+      expect(transactionMock.mock.calls[0][0]).toHaveLength(2);
+      expect(executeRawMock.mock.invocationCallOrder[0]).toBeLessThan(
+        queryRawMock.mock.invocationCallOrder[0]
+      );
     });
 
     it('should perform semantic search and fall back to text on empty results', async () => {

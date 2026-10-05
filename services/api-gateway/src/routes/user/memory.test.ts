@@ -80,6 +80,9 @@ const mockPrisma = {
     findMany: vi.fn(),
   },
   $queryRaw: vi.fn(),
+  // semantic search runs through queryRawWithExactVectorSearch (set_config + query in one batch)
+  $executeRaw: vi.fn().mockResolvedValue(1),
+  $transaction: vi.fn((ops: unknown[]) => Promise.all(ops)),
 };
 
 import { handleGetStats } from './memory.js';

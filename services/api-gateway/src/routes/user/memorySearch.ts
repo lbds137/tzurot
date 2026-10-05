@@ -7,6 +7,7 @@ import type { RequestHandler, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { MemorySearchSchema } from '@tzurot/common-types/schemas/api/memory';
 import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { queryRawWithExactVectorSearch } from '@tzurot/common-types/services/vectorSearch';
 import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { RouteDeps } from '../routeDeps.js';
@@ -263,7 +264,10 @@ async function executeSemanticSearchWithFallback(
     limit,
     offset
   );
-  const semanticResults = await prisma.$queryRaw<SearchResultRow[]>(semanticQuery);
+  const semanticResults = await queryRawWithExactVectorSearch<SearchResultRow[]>(
+    prisma,
+    semanticQuery
+  );
 
   if (semanticResults.length > 0) {
     const { responseResults, hasMore } = transformResults(semanticResults, limit, true);

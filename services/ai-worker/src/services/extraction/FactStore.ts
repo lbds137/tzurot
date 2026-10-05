@@ -13,6 +13,7 @@
  */
 
 import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { queryRawWithExactVectorSearch } from '@tzurot/common-types/services/vectorSearch';
 import { LOCAL_EMBEDDING_DIMENSIONS, type IEmbeddingService } from '@tzurot/embeddings';
 import { generateMemoryFactUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
@@ -162,7 +163,7 @@ export class FactStore {
     const embeddingVector = `[${embedding.join(',')}]`;
     // @spec MEM-ARCH-032 — join personalities so the prompt path can compare
     // authorship against the responder and resolve {assistant} correctly
-    const rows = await this.prisma.$queryRaw<
+    const rows = await queryRawWithExactVectorSearch<
       {
         id: string;
         statement: string;
@@ -174,6 +175,7 @@ export class FactStore {
         similarity: number;
       }[]
     >(
+      this.prisma,
       Prisma.join(
         [
           Prisma.sql`
