@@ -30,7 +30,7 @@ _Drafted at the beta.234 cut during the weekly wind-down; the successor driver r
 - **In already**: none.
 - **Waiting on**: TASK-1171 (generic guest footer note, owner-decided 2026-10-04, rides this train); the carried items from the beta.234 block below (Spacebar/Machloket boot, TASK-1153, TASK-1150/1151, the doc-61 pass ~2026-10-31).
 - **Watches**: #2577 on prod (memory-search latency; replies slower, not erroring, is the regression shape); the owner's Lilith recall retest on dev (TASK-1177's last acceptance clause); TASK-1179 (http-cache-semantics advisory, no patch yet).
-- **Owner decisions open**: TASK-1178 (keep/drop/replace the IVFFlat indexes; recommendation keep, re-measure at ~25k rows per pair).
+- **Owner decisions**: none open. TASK-1178 ruled KEEP 2026-10-05 (low watch; reopens when the largest persona/personality pair passes ~25k memories).
 - **Explicitly NOT in**: as beta.234 below.
 - **Deploy notes**: no migrations pending.
 - **Cut when**: TASK-1171 merges, or the backstops (~10 runtime PRs / ~250 files) fire.
