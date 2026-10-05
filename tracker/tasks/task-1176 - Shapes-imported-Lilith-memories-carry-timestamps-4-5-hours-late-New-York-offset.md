@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-05 00:47'
-updated_date: '2026-10-05 00:51'
+updated_date: '2026-10-05 00:53'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -29,4 +29,6 @@ Acceptance: the root cause is named with a test; corrected rows match the export
 
 <!-- SECTION:NOTES:BEGIN -->
 Side finding 2026-10-05 (read-only prod): of the 2,759 shapes-inc lilith-tzel-shani rows, about 717 have a persona_id with no matching personas row (an inner join on personas drops them; a left join keeps 2,759). Not investigated: whether memories.persona_id lacks a foreign key or those personas were deleted without cascading. The 21-entry follow-up: 20 of the 21 unmatched export entries have an owner-persona prod row at the export timestamp +4h/+5h, so they are most likely post-import edits (dump for the Characters session at ~/Projects/tzurot-characters/export/shapes-compare-2026-10-04/unmatched.json, uncommitted).
+
+Characters-session follow-up 2026-10-05: all 21 unmatched export entries are explained: prod has the token {assistant} where the export has "Lilith:" (prod.replace({assistant}, Lilith) equals the export text exactly, 21/21; updated_at 2026-01-09 suggests a one-off normalisation pass). Harmless: mapQueryResultToDocument (services/ai-worker/src/utils/memoryUtils.ts) resolves {assistant} to the personality name at retrieval (code-read). Residue, cosmetic: 3 export entries still carry a literal "Lilith:" on prod (indexes 779, 977, 1373), and at least one blank memory row exists (content a single space, id prefix 491983fb, export index 1443; a second blank export entry, index 1894, not placed). Decide whether blank rows should be filtered when this task touches the import path.
 <!-- SECTION:NOTES:END -->
