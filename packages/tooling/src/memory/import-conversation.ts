@@ -25,7 +25,7 @@ import {
 import { UsageError } from '../utils/errors.js';
 import { getBotOwnerDiscordIdForEnv } from '../utils/gateway-client.js';
 import { getPrismaForEnv } from './prisma-env.js';
-import { insertMemoryRow, withLocalEmbeddings } from './memory-row-insert.js';
+import { describeError, insertMemoryRow, withLocalEmbeddings } from './memory-row-insert.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { idPrefix } from '@tzurot/common-types/utils/logContentPreview';
 import {
@@ -57,15 +57,6 @@ interface Target {
   personalityId: string;
   personaId: string;
   personaSource: PersonaSource;
-}
-
-/** Error class/code only: raw-SQL errors can echo bound parameter values (memory text). */
-function describeError(error: unknown): string {
-  if (error instanceof Error) {
-    const code = (error as { code?: unknown }).code;
-    return typeof code === 'string' ? `${error.name} ${code}` : error.name;
-  }
-  return 'Unknown';
 }
 
 /** Read + parse + pair the file BEFORE any DB connection. Never echoes file content. */
