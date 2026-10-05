@@ -22,7 +22,7 @@ import {
 } from '../utils/env-runner.js';
 import { getPrismaForEnv } from './prisma-env.js';
 import { parseDateRange, printDryRunPreview } from './backfill-cli-helpers.js';
-import { insertMemoryRow, withLocalEmbeddings } from './memory-row-insert.js';
+import { describeError, insertMemoryRow, withLocalEmbeddings } from './memory-row-insert.js';
 import { deterministicMemoryUuid } from '@tzurot/common-types/constants/memory';
 import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 
@@ -283,11 +283,7 @@ async function embedAndInsert(
           skipped++;
         }
       } catch (error) {
-        console.error(
-          chalk.red(
-            `   Error inserting ${id}: ${error instanceof Error ? error.message : 'Unknown'}`
-          )
-        );
+        console.error(chalk.red(`   Error inserting ${id}: ${describeError(error)}`));
         failed++;
       }
     }

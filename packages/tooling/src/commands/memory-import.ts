@@ -34,7 +34,10 @@ export function registerImportConversationCommand(cli: CAC): void {
       '--apply',
       'Write the memories (default is a dry run); re-running the same unedited file writes nothing, but an edited file that inserts or removes turns before the end writes new rows for the shifted tail (ids derive from pair position and prompt time)'
     )
-    .option('--verify', 'Read back and check count, content, created_at and target (read-only)')
+    .option(
+      '--verify',
+      "Read back and check count, content, created_at and target (read-only); extras are tagged rows in this file's prompt range, so an overlapping import for the same character shows up as extras"
+    )
     .option('--force', 'Skip production confirmation prompt')
     .action(async (options: ImportConversationCliOptions) => {
       if (options.file === undefined) {

@@ -24,6 +24,18 @@ export interface MemoryRowInsert {
   sourceSystem: string;
 }
 
+/**
+ * Error class/code only: raw-SQL errors can echo bound parameter values
+ * (memory text), so only the name and code are surfaced, never the message.
+ */
+export function describeError(error: unknown): string {
+  if (error instanceof Error) {
+    const code = (error as { code?: unknown }).code;
+    return typeof code === 'string' ? `${error.name} ${code}` : error.name;
+  }
+  return 'Unknown';
+}
+
 /** The slice of the embedding service the insert loops use. */
 export type EmbeddingProvider = Pick<LocalEmbeddingService, 'getEmbedding'>;
 
