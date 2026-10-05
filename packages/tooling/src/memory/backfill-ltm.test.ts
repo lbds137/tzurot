@@ -7,7 +7,30 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { hashContent, deterministicMemoryUuid } from '@tzurot/common-types/constants/memory';
+
+const mocks = vi.hoisted(() => ({
+  getPrismaForEnv: vi.fn(),
+}));
+
+vi.mock('./prisma-env.js', () => ({ getPrismaForEnv: mocks.getPrismaForEnv }));
+
+// validateEnvironment would exit the process without a DATABASE_URL / Railway login.
+vi.mock('../utils/env-runner.js', () => ({
+  validateEnvironment: vi.fn(),
+  showEnvironmentBanner: vi.fn(),
+  requireProductionConfirmation: vi.fn(),
+}));
+
+vi.mock('@tzurot/embeddings', () => ({
+  LocalEmbeddingService: class {
+    initialize = vi.fn().mockResolvedValue(true);
+    getEmbedding = vi.fn().mockResolvedValue(new Float32Array([0.5]));
+    shutdown = vi.fn().mockResolvedValue(undefined);
+  },
+}));
+
 import {
+  backfillLongTermMemories,
   pairMessages,
   deduplicatePairs,
   queryConversationHistory,
@@ -468,6 +491,44 @@ describe('backfill-ltm', () => {
 
       // The raw query template is called - just verify it was called
       expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('backfillLongTermMemories insert failures', () => {
+    it('does not surface the insert error message (which can echo bound memory text)', async () => {
+      const marker = 'MARKER-bound-memory-text-7f3a';
+      const mockPrisma = {
+        $queryRaw: vi
+          .fn()
+          .mockResolvedValue([
+            makeRow({ id: 'r1', role: 'user', content: 'Hello there' }),
+            makeRow({ id: 'r2', role: 'assistant', content: 'Hi!', discord_message_id: ['m2'] }),
+          ]),
+        $executeRaw: vi.fn().mockRejectedValue(new Error(marker)),
+      };
+      mocks.getPrismaForEnv.mockResolvedValue({
+        prisma: mockPrisma,
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      });
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+      try {
+        await backfillLongTermMemories({
+          env: 'local',
+          from: '2026-02-09',
+          to: '2026-02-17',
+        });
+
+        const errorOutput = errorSpy.mock.calls.flat().join('\n');
+        expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+        expect(errorOutput).toContain('Error inserting');
+        expect(errorOutput).not.toContain(marker);
+        expect(logSpy.mock.calls.flat().join('\n')).not.toContain(marker);
+      } finally {
+        errorSpy.mockRestore();
+        logSpy.mockRestore();
+      }
     });
   });
 });

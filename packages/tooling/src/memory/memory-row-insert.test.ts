@@ -14,7 +14,27 @@ vi.mock('@tzurot/embeddings', () => ({
   },
 }));
 
-import { insertMemoryRow, withLocalEmbeddings, type MemoryRowInsert } from './memory-row-insert.js';
+import {
+  describeError,
+  insertMemoryRow,
+  withLocalEmbeddings,
+  type MemoryRowInsert,
+} from './memory-row-insert.js';
+
+describe('describeError', () => {
+  it('returns name and code for an Error carrying a string code', () => {
+    const error = Object.assign(new Error('secret memory text'), { code: 'P2010' });
+    expect(describeError(error)).toBe('Error P2010');
+  });
+
+  it('returns only the name for an Error without a code', () => {
+    expect(describeError(new TypeError('secret memory text'))).toBe('TypeError');
+  });
+
+  it('returns Unknown for a non-Error', () => {
+    expect(describeError('secret memory text')).toBe('Unknown');
+  });
+});
 
 const ROW: MemoryRowInsert = {
   id: '11111111-1111-4111-8111-111111111111',
