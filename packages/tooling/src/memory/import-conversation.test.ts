@@ -55,6 +55,7 @@ import {
   buildExpectedRows,
   pairTurns,
   EXTERNAL_IMPORT_SOURCE_SYSTEM,
+  EXTRAS_QUERY_LIMIT,
 } from './import-conversation-core.js';
 import { requireProductionConfirmation } from '../utils/env-runner.js';
 import { UsageError } from '../utils/errors.js';
@@ -165,8 +166,9 @@ describe('importConversation', () => {
       expect(values[1]).toBe(PERSONA_ID);
       expect(values[2]).toBe(PERSONALITY_ID);
       expect(values[3]).toBe(EXPECTED[i].content);
-      expect((values[5] as Date).getTime()).toBe(EXPECTED[i].createdAt.getTime());
-      expect(values[7]).toBe(EXPECTED_TAG);
+      expect(values.slice(5, 8)).toEqual([null, null, []]);
+      expect((values[8] as Date).getTime()).toBe(EXPECTED[i].createdAt.getTime());
+      expect(values[10]).toBe(EXPECTED_TAG);
     }
     expect(mocks.shutdown).toHaveBeenCalled();
   });
@@ -374,6 +376,21 @@ describe('importConversation', () => {
         String(c[0]).includes('id <> ALL')
       );
       expect(extrasCall?.slice(1, 4)).toEqual([EXPECTED_TAG, PERSONALITY_ID, PERSONA_ID]);
+    });
+
+    it('scopes the extras query to the file prompt range', async () => {
+      captureConsole();
+      verifyRows();
+
+      await importConversation({ ...base, verify: true });
+
+      const extrasCall = mocks.txQueryRawUnsafe.mock.calls.find(c =>
+        String(c[0]).includes('id <> ALL')
+      );
+      expect(String(extrasCall?.[0])).toContain('created_at BETWEEN $5 AND $6');
+      expect(extrasCall?.[5]).toEqual(EXPECTED[0].createdAt);
+      expect(extrasCall?.[6]).toEqual(EXPECTED[EXPECTED.length - 1].createdAt);
+      expect(extrasCall?.[7]).toBe(EXTRAS_QUERY_LIMIT);
     });
 
     it('exits 1 on a FAIL', async () => {
