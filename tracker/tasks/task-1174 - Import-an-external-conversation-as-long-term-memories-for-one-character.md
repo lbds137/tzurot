@@ -4,11 +4,11 @@ title: Import an external conversation as long-term memories for one character
 status: To Do
 assignee: []
 created_date: '2026-10-05 00:11'
-updated_date: '2026-10-05 00:14'
+updated_date: '2026-10-05 00:20'
 labels:
   - 'area:tooling'
   - 'size:M'
-  - 'state:dependent'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 1165000
@@ -26,3 +26,9 @@ Acceptance: a dry run on dev prints the pair count and date range; an apply writ
 Verification is load-bearing (owner, via Characters 2026-10-04): the external copy is deleted only after this passes and the owner says so. The command ships a --verify read-back (read-only transaction) that checks, per environment: (a) rows tagged with this import equal the pair count in the file; (b) each row content equals the formatted pair rebuilt from the file text byte for byte; (c) each createdAt equals its prompt timestamp to the millisecond; (d) personalityId is lilith-tzel-shani and personaId is the owner persona. It prints a per-check pass/fail plus mismatching pair indexes (never content). Run on dev after apply and again on prod after the prod apply; send the result lines to the Characters session, which cross-checks against the file before anyone reports verified to the owner.
 Schedule: whenever convenient (owner). Blocked until the Characters session delivers the source file (pending a Chats-session check of two edited prompts). Dev apply first; prod apply only on the owner explicit go at apply time.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Source file delivered 2026-10-04 by the Characters session: ~/Projects/tzurot-characters/export/gemini-lilith-2025-05-17/import.json (private repo main f392579, sha256 94405a301694727a6fbfa125ca1fd27c46415d64b7e1a43055f0e7c4f6b6a6a6, re-hashed here). 88 messages = 44 strictly alternating user/assistant pairs; user timestamps unique and ascending (jq-checked); assistant turns carry their prompt timestamp. User texts are whitespace-trimmed; six end with an owner-chosen "[Lila attached an image: ...]" marker line. Read in place; never copy into this repo.
+<!-- SECTION:NOTES:END -->
