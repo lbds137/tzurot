@@ -22,6 +22,7 @@ import {
 } from '../utils/env-runner.js';
 import { getPrismaForEnv } from './prisma-env.js';
 import { parseDateRange, printDryRunPreview } from './backfill-cli-helpers.js';
+import { insertMemoryRow, withLocalEmbeddings } from './memory-row-insert.js';
 import { deterministicMemoryUuid } from '@tzurot/common-types/constants/memory';
 import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 
@@ -45,6 +46,9 @@ export interface ConversationRow {
   discord_message_id: string[];
   created_at: Date;
 }
+
+/** `memories.source_system` tag for rows written by this command. */
+const BACKFILL_SOURCE_SYSTEM = 'tzurot-v3';
 
 /** Default page size for conversation history queries (bounded per 03-database.md) */
 const DEFAULT_PAGE_SIZE = 10_000;
@@ -226,27 +230,18 @@ export async function insertMemory(
   content: string,
   embedding: Float32Array
 ): Promise<boolean> {
-  const embeddingStr = `[${Array.from(embedding).join(',')}]`;
-  const messageIds = [...pair.userMessageIds, ...pair.assistantMessageIds];
-  const now = new Date();
-
-  const result = await prisma.$executeRaw`
-    INSERT INTO memories (
-      id, persona_id, personality_id, content, embedding,
-      is_summarized, session_id, canon_scope, summary_type,
-      channel_id, guild_id, message_ids, senders,
-      created_at, updated_at, source_system, type, is_locked, visibility
-    ) VALUES (
-      ${id}::uuid, ${pair.personaId}::uuid, ${pair.personalityId}::uuid,
-      ${content}, ${embeddingStr}::vector,
-      false, NULL, 'personal', NULL,
-      ${pair.channelId}, ${pair.guildId}, ${messageIds}, ARRAY[]::text[],
-      ${pair.createdAt}, ${now}, 'tzurot-v3', 'memory', false, 'normal'
-    )
-    ON CONFLICT (id) DO NOTHING
-  `;
-
-  return result > 0;
+  return insertMemoryRow(prisma, {
+    id,
+    personaId: pair.personaId,
+    personalityId: pair.personalityId,
+    content,
+    embedding,
+    channelId: pair.channelId,
+    guildId: pair.guildId,
+    messageIds: [...pair.userMessageIds, ...pair.assistantMessageIds],
+    createdAt: pair.createdAt,
+    sourceSystem: BACKFILL_SOURCE_SYSTEM,
+  });
 }
 
 /**
@@ -258,51 +253,47 @@ async function embedAndInsert(
   prisma: PrismaClient,
   uniquePairs: Map<string, { pair: MemoryPair; content: string }>
 ): Promise<{ inserted: number; skipped: number; failed: number }> {
-  const { LocalEmbeddingService } = await import('@tzurot/embeddings');
-  const embeddingService = new LocalEmbeddingService();
-  const initialized = await embeddingService.initialize();
-  if (!initialized) {
-    throw new Error('Failed to initialize embedding service');
-  }
+  return withLocalEmbeddings(async embeddingService => {
+    let inserted = 0;
+    let skipped = 0;
+    let failed = 0;
+    let processed = 0;
 
-  let inserted = 0;
-  let skipped = 0;
-  let failed = 0;
-  let processed = 0;
+    for (const [id, { pair, content }] of uniquePairs) {
+      processed++;
+      if (processed % 100 === 0) {
+        console.log(
+          chalk.dim(
+            `   Progress: ${processed}/${uniquePairs.size} (${inserted} new, ${skipped} existing)`
+          )
+        );
+      }
 
-  for (const [id, { pair, content }] of uniquePairs) {
-    processed++;
-    if (processed % 100 === 0) {
-      console.log(
-        chalk.dim(
-          `   Progress: ${processed}/${uniquePairs.size} (${inserted} new, ${skipped} existing)`
-        )
-      );
-    }
-
-    try {
-      const embedding = await embeddingService.getEmbedding(content);
-      if (embedding === undefined) {
-        console.error(chalk.red(`   Failed to generate embedding for ${id}`));
+      try {
+        const embedding = await embeddingService.getEmbedding(content);
+        if (embedding === undefined) {
+          console.error(chalk.red(`   Failed to generate embedding for ${id}`));
+          failed++;
+          continue;
+        }
+        const wasInserted = await insertMemory(prisma, id, pair, content, embedding);
+        if (wasInserted) {
+          inserted++;
+        } else {
+          skipped++;
+        }
+      } catch (error) {
+        console.error(
+          chalk.red(
+            `   Error inserting ${id}: ${error instanceof Error ? error.message : 'Unknown'}`
+          )
+        );
         failed++;
-        continue;
       }
-      const wasInserted = await insertMemory(prisma, id, pair, content, embedding);
-      if (wasInserted) {
-        inserted++;
-      } else {
-        skipped++;
-      }
-    } catch (error) {
-      console.error(
-        chalk.red(`   Error inserting ${id}: ${error instanceof Error ? error.message : 'Unknown'}`)
-      );
-      failed++;
     }
-  }
 
-  await embeddingService.shutdown();
-  return { inserted, skipped, failed };
+    return { inserted, skipped, failed };
+  });
 }
 
 export async function backfillLongTermMemories(options: BackfillOptions): Promise<void> {
