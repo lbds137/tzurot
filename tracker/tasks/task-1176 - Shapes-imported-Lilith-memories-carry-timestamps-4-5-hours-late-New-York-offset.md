@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-05 00:47'
+updated_date: '2026-10-05 00:51'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -23,3 +24,9 @@ What: find the side that shifts (a unit test feeding a known epoch through impor
 Also seen, not acted on: 21 export entries have no exact-text match on prod (16 share their first 40 chars with a prod row, likely edited; 5 unexplained).
 Acceptance: the root cause is named with a test; corrected rows match the export to the second.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Side finding 2026-10-05 (read-only prod): of the 2,759 shapes-inc lilith-tzel-shani rows, about 717 have a persona_id with no matching personas row (an inner join on personas drops them; a left join keeps 2,759). Not investigated: whether memories.persona_id lacks a foreign key or those personas were deleted without cascading. The 21-entry follow-up: 20 of the 21 unmatched export entries have an owner-persona prod row at the export timestamp +4h/+5h, so they are most likely post-import edits (dump for the Characters session at ~/Projects/tzurot-characters/export/shapes-compare-2026-10-04/unmatched.json, uncommitted).
+<!-- SECTION:NOTES:END -->
