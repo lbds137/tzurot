@@ -10,10 +10,18 @@
 
 import { z } from 'zod';
 import { deterministicMemoryUuid } from '@tzurot/common-types/constants/memory';
+import { ASSISTANT_SEPARATOR, USER_PREFIX } from '@tzurot/common-types/utils/memoryContentSplit';
 import { UsageError } from '../utils/errors.js';
 
 /** `memories.source_system` tag for rows written by this command (VarChar(50)). */
 export const EXTERNAL_IMPORT_SOURCE_SYSTEM = 'external-import';
+
+/**
+ * Row cap on the verify "extra tagged rows" query. It bounds the query; the
+ * extras count in check (a) is then a lower bound once it reaches this value,
+ * and the check still FAILs on any extra.
+ */
+export const EXTRAS_QUERY_LIMIT = 1000;
 
 export interface ConversationTurn {
   role: 'user' | 'assistant';
@@ -124,12 +132,13 @@ export function pairTurns(turns: ConversationTurn[]): ImportPair[] {
 }
 
 /**
- * Same template the live path writes (`LongTermMemoryService` and the LTM
- * backfill); pinned by a test, not shared, because the services don't import
- * from tooling.
+ * The stored `{user}: …\n{assistant}: …` template. Built from the read-side
+ * constants (`USER_PREFIX`, `ASSISTANT_SEPARATOR`) and round-trip-tested
+ * against `splitMemoryContent`, so a change to the template that the readers
+ * parse cannot drift from what this command writes.
  */
 export function formatImportedMemoryContent(userText: string, assistantText: string): string {
-  return `{user}: ${userText}\n{assistant}: ${assistantText}`;
+  return `${USER_PREFIX}${userText}${ASSISTANT_SEPARATOR}${assistantText}`;
 }
 
 /**
@@ -201,8 +210,13 @@ export function compareVerifyRows(input: VerifyInput): VerifyCheck[] {
   }
 
   const countPass = missing.length === 0 && extraTaggedIds.length === 0;
+  // The extras query is capped (EXTRAS_QUERY_LIMIT), so a full page means "at least that many".
+  const extraLabel =
+    extraTaggedIds.length >= EXTRAS_QUERY_LIMIT
+      ? `${EXTRAS_QUERY_LIMIT}+`
+      : String(extraTaggedIds.length);
   const countDetail =
-    `${found.length}/${expected.length} rows, ${extraTaggedIds.length} extra` +
+    `${found.length}/${expected.length} rows, ${extraLabel} extra` +
     (missing.length > 0 ? `, missing pair indexes ${indexList(missing)}` : '');
 
   return [
