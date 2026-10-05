@@ -6,13 +6,13 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-04 16:46'
-updated_date: '2026-10-05 19:50'
+updated_date: '2026-10-05 19:51'
 labels:
   - 'area:bot-client'
   - 'size:S'
   - 'state:ready'
 dependencies: []
-priority: low
+priority: medium
 ordinal: 1158000
 ---
 
