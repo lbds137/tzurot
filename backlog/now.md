@@ -23,7 +23,19 @@ _(2026-09-21: the vxreddit Components-V2 entry REMOVED — fix #2461 verified on
 
 
 
-### 🚢 Next Release — beta.234 (theme: open — the joint Spacebar/Machloket boot, the dependency follow-ups, and whichever horizon item matures first; caching Phase 3 and doc-107 stay gated)
+### 🚢 Next Release — beta.235 (theme: open — TASK-1171's guest footer note plus the carried waiting-on items below; caching Phase 3 and doc-107 stay gated)
+
+_Drafted at the beta.234 cut during the weekly wind-down; the successor driver refines it._
+
+- **In already**: none.
+- **Waiting on**: TASK-1171 (generic guest footer note, owner-decided 2026-10-04, rides this train); the carried items from the beta.234 block below (Spacebar/Machloket boot, TASK-1153, TASK-1150/1151, the doc-61 pass ~2026-10-31).
+- **Watches**: #2577 on prod (memory-search latency; replies slower, not erroring, is the regression shape); the owner's Lilith recall retest on dev (TASK-1177's last acceptance clause); TASK-1179 (http-cache-semantics advisory, no patch yet).
+- **Owner decisions open**: TASK-1178 (keep/drop/replace the IVFFlat indexes; recommendation keep, re-measure at ~25k rows per pair).
+- **Explicitly NOT in**: as beta.234 below.
+- **Deploy notes**: no migrations pending.
+- **Cut when**: TASK-1171 merges, or the backstops (~10 runtime PRs / ~250 files) fire.
+
+### 🚢 beta.234 — SHIPPED 2026-10-05 (9 PRs / 5 runtime / 118 files; the record below is the pre-cut plan)
 
 _beta.233 CUT 2026-10-01 20:52Z, "the parity train". **The numbers:** 17 PRs, 12 runtime, ~200 files / 32.5k lines (62% the generated conformance snapshot), no migrations; release PR #2566 merged via the documented fast-forward fallback at 118 commits (the rebase-merge mechanical failure — threshold confirmed at/below 117); `main` = `develop` = `91ee1f9f0` (finalize a no-op on the FF path); tagged `latest`, beta.232 demoted. **Contents:** #2548 quoted/forwarded voice, #2551 card importer, #2552 filename logging, #2553 DM-worker ready-gate, #2554 instance origin, #2558 avatar path, #2560 foreign-interaction guard, #2561 redis db-index, #2562 surface inventory + drift gate, #2563 skills economy pass, #2564 fast-uri/undici overrides (clearing all 12 GitHub advisories at merge), #2565 claude-code-action main-cut (superseding #2555), #2567 CodeQL assertion fix, #2549/#2556/#2559 chores. **The second look:** two holistic claude-review bodies, both "No findings". **Preflight:** 12 advisories listed pre-merge — all resolved BY the merge (develop's lockfile carried the fixed versions; the tool reads main's tree); no deletion-safety findings. **Slope:** re-measure at the next cut (TASK-1152/1153 filed this window)._
 

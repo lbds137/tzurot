@@ -1,8 +1,8 @@
 # Current
 
-> **Version**: v3.0.0-beta.233 — "the parity train" (17 PRs / 12 runtime / ~200 files & 32.5k lines, 62% of it the generated conformance snapshot; no migrations; release PR #2566 merged via the documented fast-forward fallback at 118 commits 2026-10-01 20:52Z; `main` = `develop` = `91ee1f9f0`; tagged `latest`). Two holistic release reviews: "No findings". Constituent detail: git + release notes.
+> **Version**: v3.0.0-beta.234 — "the refusal fallback" (9 PRs / 5 runtime / 118 files, 61 commits; no migrations; release PR #2574 rebase-merged 2026-10-05 ~09:30Z after the Codecov certificate outage held it ~9h; widened by owner ruling with #2575/#2576/#2577; `main` = `develop` = `c3540c7e7`; tagged `latest`, beta.233 demoted). Holistic review's one finding (notes missing the widened PRs) was already fixed in the body when it posted. Smoke: observability — #2572's retarget log line on prod; #2577's check is the owner's Lilith recall retest (ask about Haida and Inui). Post-merge: Dependabot alert 176 (http-cache-semantics, high, no patch yet) → TASK-1179.
 >
-> **Previous**: v3.0.0-beta.232 — "the voice-retry fixes" (2 PRs / 2 runtime; 2026-09-27, `db576a093`).
+> **Previous**: v3.0.0-beta.233 — "the parity train" (17 PRs / 12 runtime; 2026-10-01, `91ee1f9f0`).
 
 ---
 
