@@ -26,8 +26,10 @@ import { UsageError } from '../utils/errors.js';
 import { getBotOwnerDiscordIdForEnv } from '../utils/gateway-client.js';
 import { getPrismaForEnv } from './prisma-env.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { idPrefix } from '@tzurot/common-types/utils/logContentPreview';
 import {
   EXTERNAL_IMPORT_SOURCE_SYSTEM,
+  EXTRAS_QUERY_LIMIT,
   buildExpectedRows,
   compareVerifyRows,
   formatVerifyLines,
@@ -47,9 +49,13 @@ export interface ImportConversationOptions {
   force?: boolean;
 }
 
+/** Where the target persona came from: a per-personality override, or the user's default. */
+type PersonaSource = 'override' | 'default';
+
 interface Target {
   personalityId: string;
   personaId: string;
+  personaSource: PersonaSource;
 }
 
 /** Error class/code only: raw-SQL errors can echo bound parameter values (memory text). */
@@ -93,22 +99,30 @@ async function resolveTarget(
   }
 
   const ownerDiscordId = getBotOwnerDiscordIdForEnv(env);
-  const users = await prisma.$queryRawUnsafe<{ default_persona_id: string }[]>(
-    'SELECT default_persona_id FROM users WHERE discord_id = $1 LIMIT 1',
+  const users = await prisma.$queryRawUnsafe<{ id: string; default_persona_id: string }[]>(
+    'SELECT id, default_persona_id FROM users WHERE discord_id = $1 LIMIT 1',
     ownerDiscordId
   );
   if (users[0] === undefined) {
     throw new UsageError('The bot owner has no user row in this environment');
   }
-  const personaId = users[0].default_persona_id;
+  // Same order as PersonaResolver: the per-personality override wins, then the user default.
+  const overrides = await prisma.$queryRawUnsafe<{ persona_id: string | null }[]>(
+    'SELECT persona_id FROM user_personality_configs WHERE user_id = $1::uuid AND personality_id = $2::uuid LIMIT 1',
+    users[0].id,
+    personalities[0].id
+  );
+  const overrideId = overrides[0]?.persona_id ?? null;
+  const personaId = overrideId ?? users[0].default_persona_id;
+  const personaSource: PersonaSource = overrideId === null ? 'default' : 'override';
   const personas = await prisma.$queryRawUnsafe<{ id: string }[]>(
     'SELECT id FROM personas WHERE id = $1::uuid LIMIT 1',
     personaId
   );
   if (personas[0] === undefined) {
-    throw new UsageError("The bot owner's default persona row is missing");
+    throw new UsageError(`The bot owner's ${personaSource} persona row is missing`);
   }
-  return { personalityId: personalities[0].id, personaId };
+  return { personalityId: personalities[0].id, personaId, personaSource };
 }
 
 async function findExistingIds(prisma: PrismaClient, ids: string[]): Promise<Set<string>> {
@@ -135,7 +149,7 @@ function printSummary(
     )
   );
   console.log(chalk.dim(`   Personality: ${slug}`));
-  console.log(chalk.dim(`   Persona: ${target.personaId.slice(0, 8)}…`));
+  console.log(chalk.dim(`   Persona: ${idPrefix(target.personaId)}… (${target.personaSource})`));
   console.log(chalk.dim(`   Already imported: ${existing}`));
   if (!apply) {
     console.log(chalk.blue('\n   DRY RUN — pass --apply to write'));
@@ -232,11 +246,12 @@ async function verifyImport(
       `SELECT id FROM memories
        WHERE source_system = $1 AND personality_id = $2::uuid AND persona_id = $3::uuid
          AND id <> ALL($4::uuid[])
-       LIMIT 1000`,
+       LIMIT $5`,
       EXTERNAL_IMPORT_SOURCE_SYSTEM,
       target.personalityId,
       target.personaId,
-      ids
+      ids,
+      EXTRAS_QUERY_LIMIT
     );
     return { actual: found, extraTaggedIds: extras.map(row => row.id) };
   });

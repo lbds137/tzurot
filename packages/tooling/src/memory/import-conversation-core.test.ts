@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   EXTERNAL_IMPORT_SOURCE_SYSTEM,
+  EXTRAS_QUERY_LIMIT,
   buildExpectedRows,
   compareVerifyRows,
   formatImportedMemoryContent,
@@ -12,6 +13,7 @@ import {
   type ConversationTurn,
   type ImportPair,
 } from './import-conversation-core.js';
+import { splitMemoryContent } from '@tzurot/common-types/utils/memoryContentSplit';
 import { UsageError } from '../utils/errors.js';
 
 const MARKER = 'SECRET-MARKER-7f3a';
@@ -140,11 +142,13 @@ describe('pairTurns', () => {
 });
 
 describe('formatImportedMemoryContent', () => {
-  it('matches the template LongTermMemoryService builds', () => {
-    const userMessage = 'hello';
+  it('round-trips through the read-side splitMemoryContent', () => {
+    const userMessage = 'hello\nwith a second line';
     const aiResponse = 'hi there';
-    const liveTemplate = `{user}: ${userMessage}\n{assistant}: ${aiResponse}`;
-    expect(formatImportedMemoryContent(userMessage, aiResponse)).toBe(liveTemplate);
+
+    const split = splitMemoryContent(formatImportedMemoryContent(userMessage, aiResponse));
+
+    expect(split).toEqual({ user: userMessage, assistant: aiResponse, referenced: null });
   });
 });
 
@@ -222,6 +226,16 @@ describe('compareVerifyRows', () => {
     const checks = run(actualRows(), ['55555555-5555-4555-8555-555555555555']);
     expect(checks[0].pass).toBe(false);
     expect(checks[0].detail).toContain('1 extra');
+  });
+
+  it('reports a lower bound when the extras query returned a full page', () => {
+    const full = Array.from(
+      { length: EXTRAS_QUERY_LIMIT },
+      () => '55555555-5555-4555-8555-555555555555'
+    );
+    const checks = run(actualRows(), full);
+    expect(checks[0].pass).toBe(false);
+    expect(checks[0].detail).toContain(`${EXTRAS_QUERY_LIMIT}+ extra`);
   });
 
   it('fails content on a one-byte drift and names the index', () => {
