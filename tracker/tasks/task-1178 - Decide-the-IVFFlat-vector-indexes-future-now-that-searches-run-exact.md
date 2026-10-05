@@ -4,12 +4,13 @@ title: Decide the IVFFlat vector indexes' future now that searches run exact
 status: To Do
 assignee: []
 created_date: '2026-10-05 06:11'
+updated_date: '2026-10-05 14:17'
 labels:
   - 'area:db'
   - 'size:M'
-  - 'state:owner'
+  - 'state:observable'
 dependencies: []
-priority: medium
+priority: low
 ordinal: 1169000
 ---
 
@@ -23,3 +24,9 @@ Recommendation: keep for now — drop is a schema change with no current latency
 
 Acceptance: a recorded decision; if replace, a migration PR with before/after recall@20 and latency on dev.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner ruling 2026-10-05: KEEP both IVFFlat indexes for now and revisit later. Promote when: the largest persona/personality pair passes ~25k memories (then re-measure exact latency and reopen keep/drop/replace).
+<!-- SECTION:NOTES:END -->
