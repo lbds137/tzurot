@@ -3,9 +3,10 @@ id: TASK-1177
 title: >-
   Memory retrieval misses most of the best matches: IVFFlat probes=1 with
   persona/personality post-filtering
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-05 05:17'
+updated_date: '2026-10-05 14:33'
 labels:
   - 'area:ai-worker'
   - 'size:M'
@@ -23,3 +24,9 @@ Measured (Lilith plus owner persona, about 6,000 candidate rows, top 20 against 
 What: make retrieval return the true nearest neighbours within the persona/personality filter. Candidates to measure (latency on prod-sized data, recall against exact): exact search for the filtered query, SET LOCAL ivfflat.probes in the query transaction, pgvector 0.8 iterative index scans (ivfflat.iterative_scan), or HNSW. The same check applies to memory_facts (idx_memory_facts_embedding, also IVFFlat lists=50).
 Acceptance: for a fixed query set, retrieval top 20 matches the exact top 20 (or a measured recall target the owner accepts) on dev, with latency recorded; a test pins the setting that makes it so; the Lilith recall test (ask about Haida and Inui) surfaces the imported memory.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Closed 2026-10-05. Shipped as PR 2577 in beta.234. Clauses 1-2 met (dev recall@20 57/200 -> 200/200 with latency recorded; vectorSearch.test.ts pins the setting). Clause 3 (live Lilith recall) FAILED on prod, but not on this mechanism: the live top-20 now equals an exact re-run (less today's in-channel rows excluded by excludeNewerThan). The imported Haida memories score 0.683 at best against the owner's query (rank 583/6,647; cutoff 0.751): an embedding-similarity limit, moved to TASK-1181 (lexical retrieval leg).
+<!-- SECTION:NOTES:END -->
