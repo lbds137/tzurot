@@ -11,6 +11,9 @@
 #   pointers keep recurring — see CLAUDE.md Compaction Instructions).
 
 set -uo pipefail
+# Read-only status/diff here must not write .git/index.lock (git's opportunistic
+# index refresh); a hook killed mid-write leaves the lock behind for the session.
+export GIT_OPTIONAL_LOCKS=0
 
 INPUT=$(cat)
 SOURCE=$(jq -r '.source // empty' <<<"$INPUT" 2>/dev/null || echo "")

@@ -67,6 +67,9 @@
 # included).
 
 set -uo pipefail
+# Read-only status/diff here must not write .git/index.lock (git's opportunistic
+# index refresh); a hook killed mid-write leaves the lock behind for the session.
+export GIT_OPTIONAL_LOCKS=0
 
 # The pre-filters below are the fast path, and a case-sensitive one is a hole
 # in its own right: `GIT COMMIT -m x` would exit at the raw-payload glob before
