@@ -32,7 +32,7 @@ export function registerImportConversationCommand(cli: CAC): void {
     .option('--personality <slug>', 'Personality slug the memories belong to (required)')
     .option(
       '--apply',
-      'Write the memories (default is a dry run); re-running the same unedited file writes nothing, but an edited file that inserts or removes turns before the end writes new rows for the shifted tail (ids derive from pair position and prompt time)'
+      'Write the memories (default is a dry run); re-running the same unedited file writes nothing, but an edited file that inserts or removes turns before the end writes new rows for the shifted tail (ids derive from pair position and prompt time); a text-only edit to a turn at the same position and timestamp is not picked up (the id is unchanged, so the insert is skipped), and --verify reports it as a content mismatch'
     )
     .option(
       '--verify',

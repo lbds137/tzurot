@@ -119,7 +119,7 @@ async function resolveTarget(
 
 async function findExistingIds(prisma: PrismaClient, ids: string[]): Promise<Set<string>> {
   const rows = await prisma.$queryRawUnsafe<{ id: string }[]>(
-    'SELECT id FROM memories WHERE id = ANY($1::uuid[]) LIMIT $2',
+    'SELECT id FROM memories WHERE id = ANY($1::uuid[]) LIMIT $2::int',
     ids,
     ids.length
   );
@@ -155,15 +155,16 @@ async function embedAndInsert(
   existing: Set<string>,
   target: Target
 ): Promise<{ inserted: number; alreadyExisted: number; failed: number }> {
-  let inserted = 0;
-  let failed = 0;
   const todo = rows.filter(row => !existing.has(row.id));
-  let alreadyExisted = rows.length - todo.length;
+  const alreadyPresent = rows.length - todo.length;
   if (todo.length === 0) {
-    return { inserted, alreadyExisted, failed };
+    return { inserted: 0, alreadyExisted: alreadyPresent, failed: 0 };
   }
 
-  await withLocalEmbeddings(async embeddingService => {
+  return withLocalEmbeddings(async embeddingService => {
+    let inserted = 0;
+    let failed = 0;
+    let alreadyExisted = alreadyPresent;
     for (const row of todo) {
       try {
         const embedding = await embeddingService.getEmbedding(row.content);
@@ -194,8 +195,8 @@ async function embedAndInsert(
         failed++;
       }
     }
+    return { inserted, alreadyExisted, failed };
   });
-  return { inserted, alreadyExisted, failed };
 }
 
 /** Read-only verification of what is in the DB against what the file implies. */
@@ -209,7 +210,7 @@ async function verifyImport(
     await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
     const found = await tx.$queryRawUnsafe<ActualRow[]>(
       `SELECT id, content, created_at, personality_id, persona_id
-       FROM memories WHERE id = ANY($1::uuid[]) LIMIT $2`,
+       FROM memories WHERE id = ANY($1::uuid[]) LIMIT $2::int`,
       ids,
       ids.length
     );
@@ -221,7 +222,7 @@ async function verifyImport(
        WHERE source_system = $1 AND personality_id = $2::uuid AND persona_id = $3::uuid
          AND id <> ALL($4::uuid[])
          AND created_at BETWEEN $5 AND $6
-       LIMIT $7`,
+       LIMIT $7::int`,
       EXTERNAL_IMPORT_SOURCE_SYSTEM,
       target.personalityId,
       target.personaId,
