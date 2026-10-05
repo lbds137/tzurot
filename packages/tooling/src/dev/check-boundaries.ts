@@ -62,6 +62,8 @@ export const BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS = [
   // Prisma client. bot-client has no client to hand it, and character writes
   // are the gateway's job regardless.
   'stampCardSourceHash',
+  // services/vectorSearch — runs a pgvector query through a Prisma client.
+  'queryRawWithExactVectorSearch',
   // services/guildMemberInfoStore — reads and writes user_guild_infos through a
   // Prisma client. bot-client observes the Discord events that feed this table
   // but reports them through the gateway's /internal/guild-member-info route;
