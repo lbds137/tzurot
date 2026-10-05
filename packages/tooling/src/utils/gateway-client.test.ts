@@ -7,6 +7,7 @@ import {
   getServiceClientForEnv,
   resolveServiceClientOrExit,
   getUserClientForEnv,
+  getBotOwnerDiscordIdForEnv,
 } from './gateway-client.js';
 
 const BOT_OWNER_ID = '900000000000000099';
@@ -180,5 +181,57 @@ describe('getUserClientForEnv', () => {
       expect(line).not.toContain(RAILWAY_VARS.INTERNAL_SERVICE_SECRET);
     }
     logSpy.mockRestore();
+  });
+});
+
+describe('getBotOwnerDiscordIdForEnv', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    execFileSyncMock.mockReturnValue(JSON.stringify(RAILWAY_VARS));
+  });
+
+  it('reads BOT_OWNER_ID from the api-gateway Railway service for dev', () => {
+    expect(getBotOwnerDiscordIdForEnv('dev')).toBe(BOT_OWNER_ID);
+    expect(execFileSyncMock.mock.calls[0][1]).toContain('api-gateway');
+  });
+
+  it('reads the ambient env for local, never Railway', () => {
+    const prev = process.env.BOT_OWNER_ID;
+    process.env.BOT_OWNER_ID = '800000000000000088';
+    try {
+      expect(getBotOwnerDiscordIdForEnv('local')).toBe('800000000000000088');
+      expect(execFileSyncMock).not.toHaveBeenCalled();
+    } finally {
+      if (prev === undefined) {
+        delete process.env.BOT_OWNER_ID;
+      } else {
+        process.env.BOT_OWNER_ID = prev;
+      }
+    }
+  });
+
+  it('throws naming BOT_OWNER_ID when unset on Railway', () => {
+    const { BOT_OWNER_ID: _dropped, ...withoutOwner } = RAILWAY_VARS;
+    execFileSyncMock.mockReturnValue(JSON.stringify(withoutOwner));
+
+    expect(() => getBotOwnerDiscordIdForEnv('prod')).toThrow(/BOT_OWNER_ID/);
+  });
+
+  it('treats an empty BOT_OWNER_ID as unset', () => {
+    execFileSyncMock.mockReturnValue(JSON.stringify({ ...RAILWAY_VARS, BOT_OWNER_ID: '' }));
+
+    expect(() => getBotOwnerDiscordIdForEnv('dev')).toThrow(/BOT_OWNER_ID/);
+  });
+
+  it('throws naming BOT_OWNER_ID when unset locally', () => {
+    const prev = process.env.BOT_OWNER_ID;
+    delete process.env.BOT_OWNER_ID;
+    try {
+      expect(() => getBotOwnerDiscordIdForEnv('local')).toThrow(/BOT_OWNER_ID/);
+    } finally {
+      if (prev !== undefined) {
+        process.env.BOT_OWNER_ID = prev;
+      }
+    }
   });
 });

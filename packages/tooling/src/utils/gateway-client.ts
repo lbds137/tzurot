@@ -68,6 +68,12 @@ function requireVar(vars: Record<string, string>, keys: string[], env: Environme
   );
 }
 
+/** BOT_OWNER_ID from an env-like record; an empty string counts as unset. */
+function extractBotOwnerId(source: Record<string, string | undefined>): string | undefined {
+  const value = source.BOT_OWNER_ID;
+  return value !== undefined && value.length > 0 ? value : undefined;
+}
+
 /** The gateway credentials shared by every gateway-backed client constructor. */
 export interface GatewayCredentials {
   baseUrl: string;
@@ -98,11 +104,10 @@ function getGatewayCredentialsForEnv(env: Environment): GatewayCredentials {
     if (serviceSecret === undefined || serviceSecret.length === 0) {
       throw new Error('INTERNAL_SERVICE_SECRET not set in your local environment');
     }
-    const botOwnerId = process.env.BOT_OWNER_ID;
     return {
       baseUrl,
       serviceSecret,
-      botOwnerId: botOwnerId !== undefined && botOwnerId.length > 0 ? botOwnerId : undefined,
+      botOwnerId: extractBotOwnerId(process.env),
     };
   }
 
@@ -119,11 +124,29 @@ function getGatewayCredentialsForEnv(env: Environment): GatewayCredentials {
   return {
     baseUrl,
     serviceSecret: requireVar(vars, ['INTERNAL_SERVICE_SECRET'], env),
-    botOwnerId:
-      vars.BOT_OWNER_ID !== undefined && vars.BOT_OWNER_ID.length > 0
-        ? vars.BOT_OWNER_ID
-        : undefined,
+    botOwnerId: extractBotOwnerId(vars),
   };
+}
+
+/**
+ * The bot owner's Discord id for an environment, for commands that act on the
+ * owner's own rows directly (no gateway call). Same source as the gateway
+ * credentials: the ambient env for `local`, the api-gateway service's Railway
+ * variables for `dev`/`prod`.
+ *
+ * @throws Error naming BOT_OWNER_ID when the environment has none configured.
+ */
+export function getBotOwnerDiscordIdForEnv(env: Environment): string {
+  const source = env === 'local' ? process.env : readServiceVariables(env, GATEWAY_SERVICE);
+  const botOwnerId = extractBotOwnerId(source);
+  if (botOwnerId === undefined) {
+    const where =
+      env === 'local'
+        ? 'your local environment'
+        : `the ${GATEWAY_SERVICE} service in Railway ${getRailwayEnvName(env)}`;
+    throw new Error(`BOT_OWNER_ID not set in ${where}. Set it, then retry.`);
+  }
+  return botOwnerId;
 }
 
 /**
