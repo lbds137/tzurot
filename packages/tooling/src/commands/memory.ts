@@ -9,6 +9,7 @@ import type { Environment } from '../utils/env-runner.js';
 import { parseIntFlag } from '../utils/cli-args.js';
 import { UsageError } from '../utils/errors.js';
 import type { RawRenderPilotOptions } from '../memory/render-pilot-cli.js';
+import { registerImportConversationCommand } from './memory-import.js';
 
 const ENV_OPTION = '--env <env>';
 const ENV_OPTION_DESC = 'Environment: local, dev, or prod';
@@ -347,6 +348,8 @@ function registerSummarizeSweepCommand(cli: CAC): void {
 }
 
 export function registerMemoryCommands(cli: CAC): void {
+  registerImportConversationCommand(cli);
+
   // Analyze duplicate memories
   cli
     .command('memory:analyze', 'Analyze duplicate memories in the database')
