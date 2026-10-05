@@ -60,6 +60,18 @@ vi.mock('@tzurot/common-types/constants/discord', async () => {
   };
 });
 
+// The helper's own $executeRaw (set_config) would collide with the retrieval-stamp
+// assertions on $executeRaw below, so the default is a passthrough to $queryRaw;
+// the canary test swaps in the real helper via mockImplementationOnce.
+const { mockQueryRawWithExactVectorSearch } = vi.hoisted(() => ({
+  mockQueryRawWithExactVectorSearch: vi.fn(
+    (prisma: { $queryRaw: (q: unknown) => unknown }, query: unknown) => prisma.$queryRaw(query)
+  ),
+}));
+vi.mock('@tzurot/common-types/services/vectorSearch', () => ({
+  queryRawWithExactVectorSearch: mockQueryRawWithExactVectorSearch,
+}));
+
 const { mockLoggerWarn, mockLoggerDebug } = vi.hoisted(() => ({
   mockLoggerWarn: vi.fn(),
   mockLoggerDebug: vi.fn(),
@@ -442,6 +454,38 @@ describe('PgvectorMemoryAdapter', () => {
       // The validation gate runs before any DB call — confirms we never
       // burn an embedding-API request on a known-bad input.
       expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
+    });
+
+    it('runs the vector query with exact-recall ivfflat.probes in one transaction', async () => {
+      const actual = await vi.importActual<
+        typeof import('@tzurot/common-types/services/vectorSearch')
+      >('@tzurot/common-types/services/vectorSearch');
+      mockQueryRawWithExactVectorSearch.mockImplementationOnce((prisma, query) =>
+        actual.queryRawWithExactVectorSearch(prisma as never, query as never)
+      );
+      const executeRawMock = vi.fn().mockResolvedValue(1);
+      const queryRawMock = vi.fn().mockResolvedValue([]);
+      const transactionMock = vi.fn((ops: unknown[]) => Promise.all(ops));
+      const mockPrisma = {
+        $queryRaw: queryRawMock,
+        $executeRaw: executeRawMock,
+        $transaction: transactionMock,
+      };
+      const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
+
+      await adapter.queryMemories('any query', {
+        personaId: 'persona-123',
+        includeSiblings: false,
+      });
+
+      expect(executeRawMock).toHaveBeenCalledTimes(1);
+      const [strings] = executeRawMock.mock.calls[0] as [string[]];
+      expect(strings.join('')).toContain("set_config('ivfflat.probes'");
+      expect(transactionMock).toHaveBeenCalledTimes(1);
+      expect(transactionMock.mock.calls[0][0]).toHaveLength(2);
+      expect(executeRawMock.mock.invocationCallOrder[0]).toBeLessThan(
+        queryRawMock.mock.invocationCallOrder[0]
+      );
     });
 
     it('maps prisma rows into PgvectorMemoryDocument[] with normalized metadata', async () => {

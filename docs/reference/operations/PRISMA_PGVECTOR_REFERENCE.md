@@ -45,6 +45,17 @@ faster queries at some recall cost.
 If a future index build hits the same error, reduce `lists` rather than
 retrying — for HNSW the equivalent knobs are `m` and `ef_construction`.
 
+## Query-time probes
+
+Every `<=>` query runs through `queryRawWithExactVectorSearch`
+(`packages/common-types/src/services/vectorSearch.ts`), which sets
+`ivfflat.probes` to `PGVECTOR_SEARCH.IVFFLAT_PROBES` (32768, the GUC maximum)
+transaction-locally. At the default `probes = 1` a persona/personality-filtered
+query scanned one of 50 lists and post-filtered, missing most true neighbours
+(dev, 2026-10-05: 57/200 of the exact top-20 across 10 queries). With the
+setting: 200/200, ~30 ms execution on a 6.6k-row persona/personality pair and
+~95 ms for a 22k-row persona-only search. A new vector query must use the helper.
+
 ## Creating a vector index by hand
 
 Always idempotent:

@@ -151,6 +151,32 @@ describe('FactStore', () => {
     });
   });
 
+  describe('findSimilarActiveFacts', () => {
+    it('sets exact-recall ivfflat.probes in the same transaction, before the vector query', async () => {
+      const executeRawMock = vi.fn().mockResolvedValue(1);
+      const queryRawMock = vi.fn().mockResolvedValue([]);
+      const transactionMock = vi.fn((ops: unknown[]) => Promise.all(ops));
+      const prisma = {
+        $executeRaw: executeRawMock,
+        $queryRaw: queryRawMock,
+        $transaction: transactionMock,
+      } as unknown as PrismaClient;
+      const store = new FactStore(prisma, makeEmbeddingService());
+
+      await store.findSimilarActiveFacts(new Array(384).fill(0.1), PERSONALITY, PERSONA);
+
+      expect(executeRawMock).toHaveBeenCalledTimes(1);
+      const [strings] = executeRawMock.mock.calls[0] as [string[]];
+      expect(strings.join('')).toContain("set_config('ivfflat.probes'");
+      expect(transactionMock).toHaveBeenCalledTimes(1);
+      expect(transactionMock.mock.calls[0][0]).toHaveLength(2);
+      expect(queryRawMock).toHaveBeenCalledTimes(1);
+      expect(executeRawMock.mock.invocationCallOrder[0]).toBeLessThan(
+        queryRawMock.mock.invocationCallOrder[0]
+      );
+    });
+  });
+
   describe('findActiveFactsBySourceMemoryIds', () => {
     it('caps the row count with a LIMIT clause of exactly 200', async () => {
       const m = makePrisma();

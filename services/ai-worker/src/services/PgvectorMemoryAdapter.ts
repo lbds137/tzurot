@@ -5,6 +5,7 @@
 
 import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { queryRawWithExactVectorSearch } from '@tzurot/common-types/services/vectorSearch';
 import { generateMemoryChunkGroupUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { splitTextByTokens } from '@tzurot/common-types/utils/textChunker';
@@ -124,7 +125,10 @@ export class PgvectorMemoryAdapter {
         'Querying memories with pgvector'
       );
 
-      const memories = await this.prisma.$queryRaw<MemoryQueryResult[]>(sqlQuery);
+      const memories = await queryRawWithExactVectorSearch<MemoryQueryResult[]>(
+        this.prisma,
+        sqlQuery
+      );
       documents = memories.map(mapQueryResultToDocument);
 
       // Expand results with sibling chunks (default: true for complete memory retrieval)
