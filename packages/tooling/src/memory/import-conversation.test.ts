@@ -62,6 +62,8 @@ import { UsageError } from '../utils/errors.js';
 const MARKER = 'SECRET-MARKER-7f3a';
 const PERSONALITY_ID = '22222222-2222-4222-8222-222222222222';
 const PERSONA_ID = 'abcdef12-1111-4111-8111-111111111111';
+const OVERRIDE_PERSONA_ID = 'fedcba98-3333-4333-8333-333333333333';
+const USER_ID = '44444444-4444-4444-8444-444444444444';
 
 const TURNS = [
   { role: 'user', text: `question one ${MARKER}`, timestamp: '2025-05-17T04:33:38.686Z' },
@@ -78,13 +80,25 @@ const EXPECTED = buildExpectedRows(
 
 /** Route the glue's lookup queries; `existing` lists ids already in `memories`. */
 function routeLookups(
-  opts: { existing?: string[]; slug?: boolean; user?: boolean; persona?: boolean } = {}
+  opts: {
+    existing?: string[];
+    slug?: boolean;
+    user?: boolean;
+    persona?: boolean;
+    /** A user_personality_configs row (its persona_id may be null); omitted = no row. */
+    override?: { persona_id: string | null };
+  } = {}
 ) {
-  const { existing = [], slug = true, user = true, persona = true } = opts;
-  mocks.queryRawUnsafe.mockImplementation(async (sql: string) => {
+  const { existing = [], slug = true, user = true, persona = true, override } = opts;
+  mocks.queryRawUnsafe.mockImplementation(async (sql: string, ...params: unknown[]) => {
     if (sql.includes('FROM personalities')) return slug ? [{ id: PERSONALITY_ID }] : [];
-    if (sql.includes('FROM users')) return user ? [{ default_persona_id: PERSONA_ID }] : [];
-    if (sql.includes('FROM personas')) return persona ? [{ id: PERSONA_ID }] : [];
+    if (sql.includes('FROM users')) {
+      return user ? [{ id: USER_ID, default_persona_id: PERSONA_ID }] : [];
+    }
+    if (sql.includes('FROM user_personality_configs')) {
+      return override === undefined ? [] : [override];
+    }
+    if (sql.includes('FROM personas')) return persona ? [{ id: params[0] }] : [];
     if (sql.includes('FROM memories')) return existing.map(id => ({ id }));
     return [];
   });
@@ -179,6 +193,69 @@ describe('importConversation', () => {
     expect(mocks.getEmbedding).toHaveBeenCalledWith(EXPECTED[1].content);
   });
 
+  describe('persona resolution', () => {
+    const overrideRows = buildExpectedRows(
+      pairTurns(TURNS as Parameters<typeof pairTurns>[0]),
+      OVERRIDE_PERSONA_ID,
+      PERSONALITY_ID
+    );
+
+    it('uses the per-personality override for inserts, ids and the verify target', async () => {
+      const lines = captureConsole();
+      routeLookups({ override: { persona_id: OVERRIDE_PERSONA_ID } });
+      mocks.txQueryRawUnsafe.mockImplementation(async (sql: string) =>
+        sql.includes('id <> ALL')
+          ? []
+          : overrideRows.map(row => ({
+              id: row.id,
+              content: row.content,
+              created_at: row.createdAt,
+              personality_id: PERSONALITY_ID,
+              persona_id: OVERRIDE_PERSONA_ID,
+            }))
+      );
+
+      await importConversation({ ...base, apply: true, verify: true });
+
+      expect(mocks.executeRaw).toHaveBeenCalledTimes(2);
+      for (const [i, call] of mocks.executeRaw.mock.calls.entries()) {
+        expect(call[1]).toBe(overrideRows[i].id);
+        expect(call[2]).toBe(OVERRIDE_PERSONA_ID);
+      }
+      const extrasCall = mocks.txQueryRawUnsafe.mock.calls.find(c =>
+        String(c[0]).includes('id <> ALL')
+      );
+      expect(extrasCall?.[3]).toBe(OVERRIDE_PERSONA_ID);
+      const overrideCall = mocks.queryRawUnsafe.mock.calls.find(c =>
+        String(c[0]).includes('FROM user_personality_configs')
+      );
+      expect(overrideCall?.slice(1)).toEqual([USER_ID, PERSONALITY_ID]);
+      const out = lines.join('\n');
+      expect(out).toContain('Persona: fedcba98… (override)');
+      expect(out).toContain('PASS (d) target');
+    });
+
+    it('falls back to the default persona when the override row has a null persona_id', async () => {
+      const lines = captureConsole();
+      routeLookups({ override: { persona_id: null } });
+
+      await importConversation({ ...base, apply: true });
+
+      expect(mocks.executeRaw.mock.calls[0][2]).toBe(PERSONA_ID);
+      expect(lines.join('\n')).toContain('Persona: abcdef12… (default)');
+    });
+
+    it('uses the default persona when there is no override row', async () => {
+      const lines = captureConsole();
+      routeLookups();
+
+      await importConversation({ ...base, apply: true });
+
+      expect(mocks.executeRaw.mock.calls[0][2]).toBe(PERSONA_ID);
+      expect(lines.join('\n')).toContain('Persona: abcdef12… (default)');
+    });
+  });
+
   it('refuses an unknown personality slug', async () => {
     routeLookups({ slug: false });
     await expect(importConversation(base)).rejects.toBeInstanceOf(UsageError);
@@ -262,6 +339,26 @@ describe('importConversation', () => {
       expect(mocks.txOrder[0]).toBe('execute');
       expect(mocks.txExecuteRawUnsafe).toHaveBeenCalledWith('SET TRANSACTION READ ONLY');
       const out = lines.join('\n');
+      expect(out).toContain('PASS (a) count: 2/2 rows, 0 extra');
+      expect(out).toContain('PASS (d) target');
+      expect(process.exitCode).toBeUndefined();
+    });
+
+    it('with --apply --verify, verifies after the inserts in the same call', async () => {
+      const lines = captureConsole();
+      verifyRows();
+
+      await importConversation({ ...base, apply: true, verify: true });
+
+      expect(mocks.executeRaw).toHaveBeenCalledTimes(2);
+      const lastInsert = Math.max(...mocks.executeRaw.mock.invocationCallOrder);
+      const firstVerify = Math.min(
+        mocks.txExecuteRawUnsafe.mock.invocationCallOrder[0],
+        ...mocks.txQueryRawUnsafe.mock.invocationCallOrder
+      );
+      expect(firstVerify).toBeGreaterThan(lastInsert);
+      const out = lines.join('\n');
+      expect(out).toContain('Inserted: 2');
       expect(out).toContain('PASS (a) count: 2/2 rows, 0 extra');
       expect(out).toContain('PASS (d) target');
       expect(process.exitCode).toBeUndefined();
