@@ -4,10 +4,11 @@ title: Import an external conversation as long-term memories for one character
 status: To Do
 assignee: []
 created_date: '2026-10-05 00:11'
+updated_date: '2026-10-05 00:14'
 labels:
   - 'area:tooling'
   - 'size:M'
-  - 'state:ready'
+  - 'state:dependent'
 dependencies: []
 priority: medium
 ordinal: 1165000
@@ -22,4 +23,6 @@ What: an ops command that reads a JSON file of ordered {role, text, timestamp} t
 Check before building: whether the archive-summary, digest and fact-extraction jobs pick up imported memory rows (and whether that is wanted), and how recall renders a 2025 createdAt ("N days ago" phrasing).
 Privacy: the source file is private and explicit in places; it stays outside the repo (owner private repos or the job scratch dir), is never committed, and the command never logs content (contentPreview rules).
 Acceptance: a dry run on dev prints the pair count and date range; an apply writes that many rows; a re-run writes 0; a recall test in dev surfaces an imported memory.
+Verification is load-bearing (owner, via Characters 2026-10-04): the external copy is deleted only after this passes and the owner says so. The command ships a --verify read-back (read-only transaction) that checks, per environment: (a) rows tagged with this import equal the pair count in the file; (b) each row content equals the formatted pair rebuilt from the file text byte for byte; (c) each createdAt equals its prompt timestamp to the millisecond; (d) personalityId is lilith-tzel-shani and personaId is the owner persona. It prints a per-check pass/fail plus mismatching pair indexes (never content). Run on dev after apply and again on prod after the prod apply; send the result lines to the Characters session, which cross-checks against the file before anyone reports verified to the owner.
+Schedule: whenever convenient (owner). Blocked until the Characters session delivers the source file (pending a Chats-session check of two edited prompts). Dev apply first; prod apply only on the owner explicit go at apply time.
 <!-- SECTION:DESCRIPTION:END -->
