@@ -115,6 +115,9 @@
 # accident, mirroring lossy-pipe-guard's stated boundary.
 
 set -uo pipefail
+# Read-only status/diff here must not write .git/index.lock (git's opportunistic
+# index refresh); a hook killed mid-write leaves the lock behind for the session.
+export GIT_OPTIONAL_LOCKS=0
 
 INPUT=$(cat 2>/dev/null) || exit 0
 COMMAND=$(printf '%s' "$INPUT" | jq -r '
