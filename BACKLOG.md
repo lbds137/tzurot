@@ -6,7 +6,7 @@ This is the **load manifest** for the backlog. Three surfaces:
 
 - **HOT** (`backlog/` curated files + the generated digest) — read at session start.
 - **`tracker/`** (Backlog.md store) — tasks (small items) + docs (themes/ideas); **query on demand, never load wholesale**.
-- **COLD** (`backlog/cold/`) — the theme queue + epic log; grep-on-demand.
+- **COLD** (`backlog/cold/`) — the theme queue; grep-on-demand.
 
 Keeping the pool and the cold files out of the session-start load is the whole point — session-start context is _now_, not the full archive of future work.
 
@@ -45,7 +45,7 @@ Full conventions (labels, finishing, integrity gating): [`.claude/rules/06-backl
 | ------------------------------------------------ | ------------------------------------------------------------------ |
 | [`backlog/cold/queue.md`](backlog/cold/queue.md) | Ordered index of future themes → references tracker docs (`doc-N`) |
 
-Theme and idea content lives in the tracker doc store (`tracker/docs/` — `Theme:`/`Idea:`-titled docs, shared search index with tasks): `pnpm tracker doc search <query>` · `pnpm tracker doc view <id>` · `pnpm tracker doc create 'Idea: Title'`.
+Theme and idea content lives in the tracker doc store (`tracker/docs/` — `Theme:`/`Idea:`-titled docs, plus `Reference:` docs for link lists that no theme owns, shared search index with tasks): `pnpm tracker doc search <query>` · `pnpm tracker doc view <id>` · `pnpm tracker doc create 'Idea: Title'`.
 
 ---
 
