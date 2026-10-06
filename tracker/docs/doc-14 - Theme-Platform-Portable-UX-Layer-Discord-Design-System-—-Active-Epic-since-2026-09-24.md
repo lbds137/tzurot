@@ -1,12 +1,12 @@
 ---
 id: doc-14
 title: >-
-  Theme: Platform-Portable UX Layer (Discord Design System) — ACTIVE EPIC
-  (Phase 3 waves 4–6)
+  Theme: Platform-Portable UX Layer (Discord Design System) — Active Epic since
+  2026-09-24
 type: other
 created_date: '2026-07-28 11:11'
+updated_date: '2026-10-06 03:15'
 ---
-
 ### Theme: Platform-Portable UX Layer (Discord Design System) — ACTIVE EPIC (Phase 3 waves 4–6)
 
 > **Status 2026-09-24:** ACTIVE EPIC from 2026-09-24 (owner ruling; `backlog/active-epic.md`). Waves 4–6 remain; built on the cloud lane by shape (`doc-108`). The 2026-07-23 park note below is historical. (The file name still carries the old PARKED title; `doc-14` is the stable reference.)
