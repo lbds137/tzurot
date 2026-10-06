@@ -5,7 +5,6 @@ type: other
 created_date: '2026-10-06 02:30'
 ---
 
-
 _Moved verbatim from `backlog/references.md` when that file was folded away (2026-10-05). Each entry carries its own evaluate-when trigger. Research write-ups are indexed in `docs/research/README.md`._
 
 - **claude-code-from-source** (github.com/alejandrobalderas/claude-code-from-source — owner link 2026-07-10, "worth looking through soonish") — may inform the Tzurot agentic plans (governing artifact: `docs/proposals/backlog/agentic-scaffolding.md` — hand-rolled loop, three shims, recall/search/image v1). **Evaluate-when**: before the agentic scaffolding build starts — one read-through session comparing its loop/tool-dispatch/context-management mechanics against the artifact's decided design; adopt-a-piece or record the decline.
