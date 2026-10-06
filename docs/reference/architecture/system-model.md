@@ -68,7 +68,8 @@
    notify and purge steps unattended behind the server-side circuit breaker and a
    run lease shared with the operator CLIs, and posts a run report;
    `RETENTION_AUTORUN_ENABLED=false` drops it to a report-only nag. Design record:
-   [`inactivity-retention-purge.md`](../../proposals/backlog/inactivity-retention-purge.md).
+   [`inactivity-retention-purge.md`](../../proposals/backlog/inactivity-retention-purge.md), with its
+   sync prerequisite [`conversation-history-sync-unification.md`](../../proposals/backlog/conversation-history-sync-unification.md).
 7. **Release comms.** GitHub release webhook → broadcast queue → bot-client DM worker →
    per-recipient delivery ledger; an hourly reconcile sweep catches missed releases.
 8. **Shapes.inc migration.** BYOK auth, then two one-way doors: IMPORT ingests a
