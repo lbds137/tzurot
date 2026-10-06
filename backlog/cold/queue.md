@@ -34,50 +34,49 @@ _One row per epic whose theme doc has a done step and a not-done step and which 
 
 ### Phase A — Rock Solid
 
-- **Follow-Up Pool Drain** (`doc-7`) — **ACTIVE EPIC.** The outflow half of the #1787 admission bar: the small-item pool (now `tracker/`) grew 3.1× in five weeks (+48/week) and a full read found ~0 rows removable, so the pile is honest. Carries the measurement (123 opportunistic vs 103 event-gated triggers; 72 distinct named targets with zero repeats; ~73 rows clustering into 13 domain batches, ~55 scattered singletons). Phase 2 is where the ruled-out exit stops being theoretical, and it gates the rationale-check tooling filed as tracker `doc-47`.
-- **v2 Parity + Legacy Retirement** (`doc-27`) — Phase 0 (disposition matrix over the 21 v2 command files + non-command behavior sweep) is read-only and runs NOW; the matrix unlocks deleting `tzurot-legacy/` (private `data/` relocated off-repo first — 00-critical). Parity BUILDS stay paused until UX waves 4–6 (Phase B). "I really wanna kill the legacy folder" still stands.
-- **Observability & Telemetry** (`doc-12`) — **closes Phase A; THE GATE for Phase C — MET 2026-08-26: P0.1/P0.2/P1.1–1.3 shipped (#2222–#2224); P2 (memory-pipeline and voice counters) builds on demand only.** Structured-log telemetry, user analytics, error-serialization audits. Session-mining evidence: across three corpora (Jul 3–20), ~15 production/cost/security incidents entered ONLY through the owner's own eyeballs — a 25-day-undetected 100k-token regression, a cost spike found on the billing page, a prod db-sync break seen via screenshot, a blast reaching 268 non-users found via community screenshots. There is no error-rate/cost/anomaly telemetry that fires before the owner notices. Agentic loops and character-initiated messages are precisely "the bot spends and acts unwatched" — this layer ships first.
+- **Follow-Up Pool Drain** (`doc-7`) — the standing background unit (not the Active Epic since 2026-09-24; `doc-14` is).
+- **v2 Parity + Legacy Retirement** (`doc-27`) — Phase 0 matrix runs now; parity BUILDS gated on `doc-14`.
+- **Observability & Telemetry** (`doc-12`) — closes Phase A; gate for Phase C MET 2026-08-26.
 - _Phase-A quality pool (pull as train themes by capacity)_: **Ratchet Bidirectionality** (`doc-63`) · **Type-Assertion Audit + Deterministic Ratchet** (`doc-23`) · **PGLite Fidelity + Real-Postgres Integration Tier** (`doc-13`) · **Database Performance Audit** (`doc-3`) · **Security Audit Pass** (`doc-19`).
 
 ### Phase B — Finish the half-done
 
-- **Provider Prompt Caching** (`doc-17`, operational record in `active-epic.md`) — **Phase 2 SHIPPED (real-messages mode ON in prod since 2026-09-08).** Remaining: the gap-bucket cache reading, then the Phase 3 (explicit markers) decision — marginal, the dominant z.ai route caches implicitly.
-- **Platform-Portable UX Layer waves 4–6** (`doc-14`) — **ACTIVE EPIC from 2026-09-24 (`active-epic.md`).** PR-6a factory core+pilot → 6b destructive preset → 7 `/deny` redesign (doc-87 — **direction 2 decided 2026-09-02**: `/deny user {scope}` + `/deny server`, mirrored by `/undeny`; the doc's § Decision has the shape) → 8 picker hygiene → 9/10 factory sweep + router adoption. Finishing this un-pauses v2 parity builds and gives doc-86 a surface standard. Phase 4 (adapter) stays trigger-gated on a real second platform.
-- **Guild / Server Management** (`doc-75`) — Phase 1 is a live correctness defect (a channel-tier setting is silently outranked by both user tiers, so mods set defaults believing they set ceilings) plus the legibility fix — eligible to ride EARLIER as a fix train. Later phases (channel-wide reset, allowlist/denylist from `doc-26`) follow the UX standard. The cross-cutting owner decision — when a server's authority outranks an individual's — has a defensible "never", but the current state answers it by accident.
-- **Typing Indicator Reliability** (`doc-24`) — diagnose and fix intermittent typing-indicator dropouts during long responses _(partial — the typing-send helper shipped; the investigation + 2 sub-items remain)_
-- **Character Portability** (`doc-2`) — import/export characters and user data; users own their data _(partial — /character export + shapes-import shipped; PNG card import + sidecar prompts remain)_
+- **Provider Prompt Caching** (`doc-17`) — Phase 2 shipped; the cache reading, then the Phase 3 decision.
+- **Platform-Portable UX Layer waves 4–6** (`doc-14`) — Active Epic since 2026-09-24 (`active-epic.md`).
+- **Guild / Server Management** (`doc-75`) — Phase 1 is a correctness defect; may ride earlier as a fix.
+- **Typing Indicator Reliability** (`doc-24`) — partial; remainder is TASK-1087.
+- **Character Portability** (`doc-2`) — partial; PNG card import + sidecar prompts remain.
 
 ### Phase C — Gated features
 
-- **Next-Gen AI Capabilities** (`doc-11`) — agentic scaffolding (**DESIGN ACCEPTED 2026-07-05**, boulder #4: hand-rolled loop on @langchain/core vocabulary, final-turn protocol, wall-clock budget, v1 tools = recall_memories → web_search → generate_image), web search/fetch, deep research agent, advanced prompt features. **Gate: doc-12 shipped + the artifact's own Phase-0 contract suite.** The Lorebooks line migrates to doc-88.
-- **User-installable app — a second product surface** (`doc-105`) — commands in DMs with other people, group DMs, and servers Tzurot is not in; interactions only, embeds for character identity, five follow-ups per interaction. **Research COMPLETE 2026-09-17** (`docs/proposals/backlog/user-installable-app.md`); Phase 0 is a manual probe plus four owner rulings (spend policy, DM storage, third-party content, per-context persona). Owner: "worth investigating … may want to follow up at some point."
-- **Feature-flag lifecycle for system settings** (`doc-106`) — 13 of 34 settings are rollout switches or per-character lists in practice, zero ever retired; a `lifecycle` registry field + a retire-task gate + the first retirements (`realMessagesEnabled` first). Owner intake 2026-09-18: "we probably need a more formalized / codified approach."
-- **Knowledge Store (pgvector substrate)** (`doc-88`) — general knowledge substrate sibling to the memory system, scoped broad at filing (lorebooks/documents + cross-character world knowledge), narrowed at design; consumes the memory epic's retrieval learnings and eval harness. Council pass + likely design boulder. _(Owner-initiated 2026-08-31.)_
-- **Character-initiated messages — the shapes.inc "free will" feature** (`doc-86`) — let a character start a conversation unprompted. **Directly user-requested 2026-08-30**, and the owner promised that user a heads-up when it ships — an open commitment to a named person. Phase 0 is entirely product decisions (consent granularity, cadence + quiet hours, who pays for an unasked-for turn, what triggers it, DM vs channel), all owner calls, council pass before plan-mode; the substrate is already there (BullMQ repeatable jobs, `dmUndeliverableSince`, `lastActiveAt`). **Gate: doc-75's moderator controls + doc-12** — a proactive message is precisely what a channel allowlist exists to stop. Mine `ARCHITECTURE_DECISIONS.md` § 7 for questions, not mechanism (historical artifact; its LangGraph design is not the shipped stack). **Owner call 2026-09-02: a prior-art research pass comes BEFORE any Phase 0 decision** — shapes.inc's "free will" (closed source, so user discussions and official posts hinting at the mechanism are the only signals) and any other provider with character-initiated messaging — distilled to `docs/research/`. The owner is unsure whether this belongs under doc-11's agentic features; the research pass answers that framing too. Build gate unchanged.
-- **Tag-Scoped Sharing (context + memories + facts)** (`doc-67`) — unify cross-channel history sharing, the all-characters LTM toggle, and fact scoping into ONE per-user mechanism, consuming doc-60's character tags. Sequenced after doc-60's tag substrate; council pass before plan-mode. _(Owner-initiated 2026-08-09.)_
+- **Next-Gen AI Capabilities** (`doc-11`) — design accepted; gate `doc-12` MET, waits for the train after `doc-14`.
+- **User-installable app** (`doc-105`) — research complete; Phase 0 probe + four owner rulings.
+- **Feature-flag lifecycle for system settings** (`doc-106`) — owner intake 2026-09-18.
+- **Knowledge Store (pgvector substrate)** (`doc-88`) — consumes memory-epic retrieval learnings.
+- **Character-initiated messages** (`doc-86`) — gate: `doc-75` + `doc-12`; owner promised a named user a heads-up on ship.
+- **Tag-Scoped Sharing** (`doc-67`) — after `doc-60`'s tag substrate.
 
 ### Side track (owner-paced, meta not product)
 
-- **Meta-Harness Spinoff** (`doc-64`) — extract the portable Claude Code process layer (epistemics/posture rules, hooks, skills, agent contracts; later the audit/ratchet tooling) into its own home, likely a user-level-installable plugin; Phase 0 inventory decides the split empirically. **Owner re-raised 2026-08-31** ("the tooling stuff essentially — stuff that is reusable / potentially useful beyond the Tzurot context"). **MOVED 2026-09-25 to the Deck management role**: the plugin lives at `~/Projects/claude-harness` and already ships the shared rules, guard hooks, `usage-audit` and `session-mining`; what remains on the Tzurot side is TASK-1106 (retire the 11 twin hooks per `claude-harness/docs/adoption-tzurot.md`). No council pass pending here.
-- ~~**Private brain repo**~~ — REALIZED 2026-09-23: the shared auto-memory dir is the private repo `lbds137/claude-memory` (`~/Documents/claude-memory`, via `autoMemoryDirectory`, hourly backup timer); the idea doc was removed 2026-09-25. Brain-management mechanisms still ship in the doc-64 plugin.
-- **Read-only backlog browser on the website** (`doc-76`) — hosted, read-only dashboard over tracker/backlog; static-gen at website build is the leading shape _(primarily for the owner's own visualization)_
+- **Meta-Harness Spinoff** (`doc-64`) — moved to the Deck management role; Tzurot remainder = TASK-1106.
+- **Read-only backlog browser on the website** (`doc-76`)
 
 ### Unscheduled pool (pick by dependency + value when a slot opens)
 
-- **Platform decoupling — survive losing a platform account** (`doc-79`) — reaching your own personas must not depend on one platform's account standing. Phase 0 is an END-USER AUTH layer (precondition: api-gateway trusts an `X-User-Id` header outright, so exposing it to a browser before that lands is a total-compromise bug). Then a solo web chat fallback, then platform-neutral keys. Brief verified against develop 2026-08-19; its "25 common-types files import discord.js" is really 3 production files. Unscrubbed brief in gitignored `docs/local/`.
-- **Audit system-prompt effectiveness from stored reasoning traces** (`doc-85`) — mine the rolling 30-day `thinking_content` corpus for where the model fights the prompt. Phase 1 is a hand-read of a sample + measuring corpus depth (a negative kills the theme cheaply). All extracts are user conversation content: `docs/local/` only, never committed. _(Owner-initiated 2026-08-30.)_
-- **First-use onboarding DM + data-training disclosure** (`doc-6`) — one-time system DM on first use; discloses the no-training-by-default policy + BYOK; shares the system-DM primitive with the release-notes theme
-- **System model + intent linkage (internal)** (`doc-22`) — the only system-wide architecture doc is the 2025-10-02 founding-decisions file (describes 3 services; there are 4). Phase 0 generates the map from existing mechanical sources (xray/routes/schema/manifest); LID assessed and deliberately deferred to Phase 2.
-- **User-facing docs + discoverability** (`doc-25`) — /help adequacy audit → feature inventory → quick-start → help revamp + staleness-resistant doc pipeline; first-touch slice lives in the onboarding-DM theme
-- **Preset Cascade Standardization (multi-PR epic)** (`doc-15`) — character-tier preset editing + cross-tier cascade UX parity. **⬅ SPINE for the settings cluster (owner discussion 2026-09-12):** its item 2 — standardize cascade UX and write the canonical pattern into `.claude/rules/` — is what three other entries wait on. With the pattern written, `doc-26`'s sidecar prompts, `doc-75`'s guild tier and the off-vs-inherit semantics each reduce to field-additions instead of design projects. Picking any of those FIRST re-derives this one.
-- **User-Requested Features** (`doc-26`) — multi-personality channels, sidecar prompts, allowlists, emoji actions. **⬆ sidecar prompts depend on `doc-15` item 2** (owner ruling 2026-09-12: sidecar is a tiered cascade field, so the cascade pattern comes first; `TASK-110` shrinks to the still-gated channel layer once it does) **and are argued to want `doc-72` alongside** — every member of this cluster ADDS settings surface, and doc-72 is what keeps that surface navigable, so building it afterwards ships the mess first.
-- **Model Configuration Overhaul** (`doc-9`) — first-class vision config + LLM config profiles bundling paid/free/vision
-- **z.ai Catalog + 402 Error-Shape Verification** (`doc-29`) — capture real provider error shapes, then narrow the deliberately-broad defensive branches _(gated on a real probe or production incident producing the error-shape data)_
-- **`/voice` + `/inspect` UX Polish (mini-epic)** (`doc-28`) — fix UX rough edges on `/voice` and `/inspect` surfaces
-- **Self-Hosted TTS + BYOK Re-Evaluation** (`doc-20`) — re-evaluate TTS engines after NeuTTS Air abandoned; BYOK quality-shopping
-- **Adjacent CPD Follow-Up Campaigns** (`doc-1`) — four deferred DRY-extraction campaigns from the 2026-05-16 close-out
-- **Multimodal Input — file (PDF/doc) + video forwarding** (`doc-10`) — capture/forward video + file modalities to capable models, surface in `/models`
-- **Production Observability — perf metrics + distributed tracing** (`doc-16`) — time-series metrics + tracing for load-correlated prod issues (the deeper layer under doc-12)
-- **Export/Import/Template/Clone Field Completeness** (`doc-5`) — derive serialize field sets from Zod schema, not hard-coded lists
-- **Quota, Billing & Key Identity** (`doc-18`) — make "whose key is this, and whose budget does it spend?" one answered question; its Phase 1 is a single wrong-identity bug filed five separate times
-- **Synchronous Work & Timeout Budgets** (`doc-21`) — operations whose duration scales with data belong on a queue, not an HTTP request; `db-sync` has already consumed three timeout raises and the manifest caps the fourth
+- **Platform decoupling** (`doc-79`) — precondition: end-user auth before any browser exposure.
+- **Audit system-prompt effectiveness from reasoning traces** (`doc-85`)
+- **First-use onboarding DM + data-training disclosure** (`doc-6`)
+- **System model + intent linkage** (`doc-22`)
+- **User-facing docs + discoverability** (`doc-25`)
+- **Preset Cascade Standardization** (`doc-15`) — spine for the settings cluster (`doc-26`, `doc-75`).
+- **User-Requested Features** (`doc-26`) — sidecar prompts wait on `doc-15` item 2.
+- **Model Configuration Overhaul** (`doc-9`)
+- **z.ai Catalog + 402 Error-Shape Verification** (`doc-29`)
+- **`/voice` + `/inspect` UX Polish** (`doc-28`)
+- **Self-Hosted TTS + BYOK Re-Evaluation** (`doc-20`)
+- **Adjacent CPD Follow-Up Campaigns** (`doc-1`)
+- **Multimodal Input — file + video forwarding** (`doc-10`)
+- **Production Observability — perf metrics + tracing** (`doc-16`)
+- **Export/Import/Template/Clone Field Completeness** (`doc-5`)
+- **Quota, Billing & Key Identity** (`doc-18`)
+- **Synchronous Work & Timeout Budgets** (`doc-21`)

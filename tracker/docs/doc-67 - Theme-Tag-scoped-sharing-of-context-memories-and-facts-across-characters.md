@@ -31,3 +31,7 @@ The owner explicitly left this open: "I don't know if this is part of the taggin
 - doc-60 — the tag substrate + first consumers; sequence dependency.
 - doc-8 (Memory System Overhaul, PARKED) — memory-plane sharing semantics should be designed compatibly with that epic's retrieval model if it un-parks.
 - Existing mechanisms to generalize (grounding at design time): cross-channel history sharing setting (same-character, off by default), the all-characters LTM sharing toggle, fact retrieval scoping.
+
+## Moved from cold/queue.md (2026-10-05 backlog cleanup)
+
+- **Tag-Scoped Sharing (context + memories + facts)** (`doc-67`) — unify cross-channel history sharing, the all-characters LTM toggle, and fact scoping into ONE per-user mechanism, consuming doc-60's character tags. Sequenced after doc-60's tag substrate; council pass before plan-mode. _(Owner-initiated 2026-08-09.)_

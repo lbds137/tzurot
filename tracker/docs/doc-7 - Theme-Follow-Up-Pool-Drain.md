@@ -169,3 +169,7 @@ Tasks live in `tracker/tasks/` as the authoritative text (the table this theme
 originally measured was imported 1:1 in #1822); this file is the scope index.
 Mark tasks Done as each phase ships, per `06-backlog.md`'s session-end removal
 gate.
+
+## Moved from cold/queue.md (2026-10-05 backlog cleanup)
+
+- **Follow-Up Pool Drain** (`doc-7`) — **ACTIVE EPIC.** The outflow half of the #1787 admission bar: the small-item pool (now `tracker/`) grew 3.1× in five weeks (+48/week) and a full read found ~0 rows removable, so the pile is honest. Carries the measurement (123 opportunistic vs 103 event-gated triggers; 72 distinct named targets with zero repeats; ~73 rows clustering into 13 domain batches, ~55 scattered singletons). Phase 2 is where the ruled-out exit stops being theoretical, and it gates the rationale-check tooling filed as tracker `doc-47`.

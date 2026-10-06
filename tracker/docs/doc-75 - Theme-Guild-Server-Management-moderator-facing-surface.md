@@ -79,3 +79,7 @@ require the surface to stop misrepresenting itself.
 - A user asked for all of this unprompted, which makes it real demand rather
   than a speculative capability area — but only one user has asked, so size the
   phases accordingly.
+
+## Moved from cold/queue.md (2026-10-05 backlog cleanup)
+
+- **Guild / Server Management** (`doc-75`) — Phase 1 is a live correctness defect (a channel-tier setting is silently outranked by both user tiers, so mods set defaults believing they set ceilings) plus the legibility fix — eligible to ride EARLIER as a fix train. Later phases (channel-wide reset, allowlist/denylist from `doc-26`) follow the UX standard. The cross-cutting owner decision — when a server's authority outranks an individual's — has a defensible "never", but the current state answers it by accident.

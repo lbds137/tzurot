@@ -102,3 +102,7 @@ Five tracker rows whose content this file **already carries by content**; they a
 - **TASK-180** → Phase 2, keep the prod voice-engine warm — the bullet also **records the prior owner ruling** (a keep-warm toggle was previously overruled on hosting spend), which is why this is not an open owner question
 - **TASK-168** → Phase 3, the fetch-detecting `externalCallBudgetMs` guard; the doc names it as the phase's whole content and the structural fix that stops Phase 1 recurring
 - **TASK-252** → Phase 4, the main-pool idle-in-tx GUC re-check — **condition rewritten in this same pass** to "external I/O awaited inside a `$transaction` block"; see that bullet for why the literal `$transaction` grep is stale at 32 DB-only call sites
+
+## Moved from cold/queue.md (2026-10-05 backlog cleanup)
+
+- **Synchronous Work & Timeout Budgets** (`doc-21`) — operations whose duration scales with data belong on a queue, not an HTTP request; `db-sync` has already consumed three timeout raises and the manifest caps the fourth

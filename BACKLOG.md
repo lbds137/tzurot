@@ -19,7 +19,6 @@ Keeping the pool and the cold files out of the session-start load is the whole p
 | `BACKLOG.md` (this file)                           | Load manifest + filing decision-tree                                                                          |
 | [`backlog/now.md`](backlog/now.md)                 | 🚨 Production Issues · 🚢 Next Release · 🎯 Current Focus (≤3) · ⚡ Quick Wins (≤5) · 📥 Untriaged (≤10)      |
 | [`backlog/active-epic.md`](backlog/active-epic.md) | Current epic roadmap + current phase                                                                          |
-| [`backlog/references.md`](backlog/references.md)   | Cross-links to research docs / post-mortems                                                                   |
 | `pnpm ops backlog:digest`                          | Generated tracker briefing: per-area counts · owner queue · oldest 20 (aging surface) · newest 10 (~60 lines) |
 
 ## The tracker store (query on demand)
@@ -42,10 +41,9 @@ Full conventions (labels, finishing, integrity gating): [`.claude/rules/06-backl
 
 ## Grep-on-demand (COLD — never auto-loaded)
 
-| File                                                   | What                                                               |
-| ------------------------------------------------------ | ------------------------------------------------------------------ |
-| [`backlog/cold/queue.md`](backlog/cold/queue.md)       | Ordered index of future themes → references tracker docs (`doc-N`) |
-| [`backlog/cold/epic-log.md`](backlog/cold/epic-log.md) | Detailed per-PR log for the Active Epic                            |
+| File                                             | What                                                               |
+| ------------------------------------------------ | ------------------------------------------------------------------ |
+| [`backlog/cold/queue.md`](backlog/cold/queue.md) | Ordered index of future themes → references tracker docs (`doc-N`) |
 
 Theme and idea content lives in the tracker doc store (`tracker/docs/` — `Theme:`/`Idea:`-titled docs, shared search index with tasks): `pnpm tracker doc search <query>` · `pnpm tracker doc view <id>` · `pnpm tracker doc create 'Idea: Title'`.
 
@@ -61,7 +59,7 @@ Then file by **size/granularity**:
 2. **Working on it this week?** → `now.md` › 🎯 Current Focus (max 3)
 3. **Small (<~2hr), independent, and you'll actually do it soon?** → `now.md` › ⚡ Quick Wins (max 5) — it's simply next in line
 4. **Small, one sentence — everything else?** → `tracker/` task (`pnpm tracker task create`) — unless it is low-priority residue of process work, which goes in that PR body's `## Residue` section (the inversion above)
-5. **Part of the active epic?** → update `active-epic.md` (slice detail → `cold/epic-log.md`)
+5. **Part of the active epic?** → update `active-epic.md` (per-PR slice detail → the epic's tracker doc)
 6. **A single feature that needs scoping (a paragraph)?** → tracker idea doc (`pnpm tracker doc create 'Idea: …'`)
 7. **A multi-phase initiative (its own epic)?** → tracker theme doc (`'Theme: …'`) + a bullet in `cold/queue.md`
 8. **Just arrived mid-session, no time to triage?** → `now.md` › 📥 Untriaged (max 10); route it later

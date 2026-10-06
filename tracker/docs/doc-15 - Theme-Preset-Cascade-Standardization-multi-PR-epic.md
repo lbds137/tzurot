@@ -46,3 +46,7 @@ each tier's command and title should say WHICH tier it is in the same words
 (e.g. defaults / character / channel / server), and each dashboard should
 name its neighbours (TASK-527 is the "whose conversations" half of the same
 gap). Cross-ref doc-25 (discoverability) and doc-72 (the hub page).
+
+## Moved from cold/queue.md (2026-10-05 backlog cleanup)
+
+- **Preset Cascade Standardization (multi-PR epic)** (`doc-15`) — character-tier preset editing + cross-tier cascade UX parity. **⬅ SPINE for the settings cluster (owner discussion 2026-09-12):** its item 2 — standardize cascade UX and write the canonical pattern into `.claude/rules/` — is what three other entries wait on. With the pattern written, `doc-26`'s sidecar prompts, `doc-75`'s guild tier and the off-vs-inherit semantics each reduce to field-additions instead of design projects. Picking any of those FIRST re-derives this one.

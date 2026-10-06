@@ -1,7 +1,7 @@
 ---
 name: tzurot-docs
 description: 'Session workflow procedures. Invoke with /tzurot-docs for session start/end, CURRENT.md and backlog management.'
-lastUpdated: '2026-09-25'
+lastUpdated: '2026-10-05'
 ---
 
 # Documentation & Session Workflow
@@ -80,7 +80,7 @@ When the Active Epic completes:
 0. **Re-touch the system map**: walk [`docs/reference/architecture/system-model.md`](../../../docs/reference/architecture/system-model.md) asking "what did this epic change?" and apply the edits — or record "no map impact" in the epic close-out. (Mid-epic, file a drift note when a PR changes something the map describes — never auto-append; its ~150-line budget forces eviction, not growth.)
 1. Remove the finished epic from `active-epic.md`, folding any still-relevant follow-on into `cold/` or tracker tasks. **If the outgoing epic is NOT finished — a pivot or a park — it gets a row in `cold/queue.md` § Half-finished** (remainder, bin: gated / owner / pivoted, and the trigger); a `pivoted` row with no trigger is the signal to convert the remainder into drain tasks rather than carry an epic that reads as in-progress — a remainder with no row is neither done nor honestly parked.
 2. Pick the next theme from `cold/queue.md` by dependency + value — a substantial pick gets a council pass before plan-mode.
-3. Move that theme doc's content (`pnpm tracker doc view <id>`) into `active-epic.md` (slim roadmap in the hot file; dense per-PR detail to `cold/epic-log.md`) and remove its `cold/queue.md` bullet.
+3. Move that theme doc's content (`pnpm tracker doc view <id>`) into `active-epic.md` (slim roadmap in the hot file; dense per-PR detail stays in the theme's tracker doc) and remove its `cold/queue.md` bullet.
 
 ## Theme/Epic Structure
 
