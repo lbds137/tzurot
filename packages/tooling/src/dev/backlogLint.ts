@@ -236,7 +236,7 @@ function collectMarkdownFiles(dir: string, relDir: string): { abs: string; rel: 
 /**
  * Relative markdown links in the scanned directories that don't resolve to a
  * file on disk. Each target resolves against the directory of the file that
- * contains it, not the scan root — `backlog/cold/epic-log.md` and
+ * contains it, not the scan root — `backlog/cold/queue.md` and
  * `backlog/now.md` sit at different depths and their `../` means different
  * things.
  *

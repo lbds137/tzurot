@@ -51,3 +51,7 @@ Surfaced 2026-04-24 by PR #886 review. `JobTracker` wraps both the interval-loop
 #### Sub-item: Respect `retryAfterSeconds` in the typing-indicator backoff
 
 Surfaced 2026-04-24 by PR #886 review. When Discord rate-limits `sendTyping` with a 429, the classifier warns and returns but the interval keeps firing at its normal 8s cadence. If `retryAfterSeconds > TYPING_INDICATOR_INTERVAL_MS / 1000` (1.5s at current settings but the typing refresh is 8s — meaning retryAfter > 8s in practice), every subsequent tick inside the backoff window also gets rate-limited, generating a warn log every 8s until the window clears. Under sustained rate-limiting this produces a noisy burst of warn entries in Railway logs and wastes API calls we know will fail. **Fix shape**: when `handleTypingError` returns `rate-limit` with a `retryAfterSeconds`, pause the interval for at least that duration — either `clearInterval` + `setTimeout` to re-arm, or track a `pausedUntil: number` timestamp in the tracker and have each interval tick check it before calling sendTyping. **Not urgent**: current classifier is already a substantial improvement; the noisy-log case requires a real sustained-429 event to surface.
+
+## Moved from cold/queue.md (2026-10-05 backlog cleanup)
+
+- **Typing Indicator Reliability** (`doc-24`) — diagnose and fix intermittent typing-indicator dropouts during long responses _(partial — the typing-send helper shipped; the investigation + 2 sub-items remain)_

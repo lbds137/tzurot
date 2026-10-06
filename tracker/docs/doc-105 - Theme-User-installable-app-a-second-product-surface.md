@@ -33,3 +33,7 @@ _Focus: let a user install Tzurot on their account so its commands work in their
 - [ ] "Ask my character about this message"; "Remember this" if allowed; in-character ghostwriting with an ephemeral preview. Lives naturally beside `docs/proposals/backlog/message-actions.md`.
 
 **Related**: `doc-104` (persisted channel names — a group-DM `/chat` is another consumer); `doc-86` (character-initiated messages — explicitly impossible on this surface, which is worth knowing when that theme is designed).
+
+## Moved from cold/queue.md (2026-10-05 backlog cleanup)
+
+- **User-installable app — a second product surface** (`doc-105`) — commands in DMs with other people, group DMs, and servers Tzurot is not in; interactions only, embeds for character identity, five follow-ups per interaction. **Research COMPLETE 2026-09-17** (`docs/proposals/backlog/user-installable-app.md`); Phase 0 is a manual probe plus four owner rulings (spend policy, DM storage, third-party content, per-context persona). Owner: "worth investigating … may want to follow up at some point."

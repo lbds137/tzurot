@@ -50,3 +50,7 @@ Owner constraint (2026-08-09): permissive only — reuse into Capital One work w
 - **After the economy pass** (PR #2028 et seq.) — extract the trimmed essence, not the bloat.
 - Substantial pick → council pass before plan-mode (per queue convention).
 - Interacts with: doc-62 (memory promoter — promoted content should land in the portable layer when general), doc-63 (ratchet bidirectionality — its cadence design should assume the ratchets may move to the shared package).
+
+## Moved from cold/queue.md (2026-10-05 backlog cleanup)
+
+Owner re-raised 2026-08-31 ("the tooling stuff essentially — stuff that is reusable / potentially useful beyond the Tzurot context"). MOVED 2026-09-25 to the Deck management role; the plugin (now `~/Projects/seyag`) already ships the shared rules, guard hooks, `usage-audit` and `session-mining`. What remains on the Tzurot side is TASK-1106 (retire the 11 twin hooks). No council pass pending here. The "Private brain repo" idea was REALIZED 2026-09-23: the shared auto-memory dir is the private repo `lbds137/claude-memory` (`~/Documents/claude-memory`, via `autoMemoryDirectory`, hourly backup timer); brain-management mechanisms still ship in the plugin.

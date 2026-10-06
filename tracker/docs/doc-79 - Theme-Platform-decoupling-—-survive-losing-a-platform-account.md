@@ -86,3 +86,7 @@ it, and each is a decision rather than an implementation detail:
 
 Deliberately parked until beta.205 ships. Nothing here is urgent enough to
 interrupt a partially-finished theme.
+
+## Moved from cold/queue.md (2026-10-05 backlog cleanup)
+
+- **Platform decoupling — survive losing a platform account** (`doc-79`) — reaching your own personas must not depend on one platform's account standing. Phase 0 is an END-USER AUTH layer (precondition: api-gateway trusts an `X-User-Id` header outright, so exposing it to a browser before that lands is a total-compromise bug). Then a solo web chat fallback, then platform-neutral keys. Brief verified against develop 2026-08-19; its "25 common-types files import discord.js" is really 3 production files. Unscrubbed brief in gitignored `docs/local/`.

@@ -40,3 +40,7 @@ _Focus: some system settings are feature flags in practice — rollout switches 
 - [ ] The two personality lists: **owner ruling 2026-09-18: DELETE once every character is flipped** — the feature becomes unconditional, the setting, its dashboard row, and the slug filter in the sweep/render go away (an exclusion list would be a new flag by another name; the per-character flip is a rollout, not a policy). The archive list flips per character by design (D3, memory-archive format doc) — the deletion waits on the last gate.
 
 **Related**: TASK-725 (real-messages triple render); `doc-97` (the digest list is its rollout); `docs/proposals/backlog/memory-archive-format.md` (the split-render list's per-character flip). Not a fourth flag mechanism: this reuses the existing registry, tracker, and digest.
+
+## Moved from cold/queue.md (2026-10-05 backlog cleanup)
+
+- **Feature-flag lifecycle for system settings** (`doc-106`) — 13 of 34 settings are rollout switches or per-character lists in practice, zero ever retired; a `lifecycle` registry field + a retire-task gate + the first retirements (`realMessagesEnabled` first). Owner intake 2026-09-18: "we probably need a more formalized / codified approach."

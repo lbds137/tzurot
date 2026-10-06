@@ -49,3 +49,7 @@ _Focus: send every user a one-time onboarding DM on first bot use — orienting 
 - [ ] Orientation copy + the data-training/BYOK disclosure
 - [ ] **BYOK-extraction-billing consent disclosure (owner 2026-07-10)**: when the BYOK-first extraction billing ships (`doc-43` — Idea: BYOK-first extraction billing), users whose own keys will be billed for background memory extraction learn it HERE — owner picked onboarding as the consent surface over a per-user toggle-only approach.
 - [ ] Quick-start slant: owner flags the command surface as overwhelming for new users ("a fuck ton of slash commands") — the onboarding DM is the first-touch slice of the broader discoverability theme (`doc-25`); keep the DM short and point INTO whatever quick-start surface that theme builds.
+
+## Moved from cold/queue.md (2026-10-05 backlog cleanup)
+
+- **First-use onboarding DM + data-training disclosure** (`doc-6`) — one-time system DM on first use; discloses the no-training-by-default policy + BYOK; shares the system-DM primitive with the release-notes theme

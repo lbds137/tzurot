@@ -67,7 +67,8 @@
    30-day grace → purge → audit ledger) for inactive accounts. In production a daily job runs the
    notify and purge steps unattended behind the server-side circuit breaker and a
    run lease shared with the operator CLIs, and posts a run report;
-   `RETENTION_AUTORUN_ENABLED=false` drops it to a report-only nag.
+   `RETENTION_AUTORUN_ENABLED=false` drops it to a report-only nag. Design record:
+   [`inactivity-retention-purge.md`](../../proposals/backlog/inactivity-retention-purge.md).
 7. **Release comms.** GitHub release webhook → broadcast queue → bot-client DM worker →
    per-recipient delivery ledger; an hourly reconcile sweep catches missed releases.
 8. **Shapes.inc migration.** BYOK auth, then two one-way doors: IMPORT ingests a

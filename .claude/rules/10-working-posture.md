@@ -56,7 +56,7 @@ threshold, a default — search for a prior DECISION about it, not just the
 code that reads it. The tracker first (`pnpm tracker doc search <term>` AND
 `pnpm tracker task list --search <term> --plain`), then the narrative
 surfaces the tracker does not index: `docs/incidents/`,
-`docs/reference/architecture/`, `backlog/references.md`, and `docs/local/`
+`docs/reference/architecture/`, and `docs/local/`
 (gitignored — owner risk-accepts and policy decisions live there, and only a
 local read can find them). A clean tracker search alone is a negative
 existence claim (harness `core.md` § Negative existence and the grep rule governs those). A prior close is not a veto;
