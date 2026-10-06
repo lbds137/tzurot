@@ -50,3 +50,7 @@ Unified text/image→video API (Seedance 2.0, Veo 3.1, Wan 2.7, Sora 2 Pro...), 
 #### Aventura (prior art, 2026-07-05 ingest)
 
 Desktop/Android AI roleplay client (active, v0.7.6): autonomous lorebook/world-state agent + auto chapter summarization for long-narrative coherence — one working reference for the memory design's lore-book and consolidation phases. Study, don't adopt.
+
+## Moved from cold/queue.md (2026-10-05 backlog cleanup)
+
+- **Next-Gen AI Capabilities** (`doc-11`) — agentic scaffolding (**DESIGN ACCEPTED 2026-07-05**, boulder #4: hand-rolled loop on @langchain/core vocabulary, final-turn protocol, wall-clock budget, v1 tools = recall_memories → web_search → generate_image), web search/fetch, deep research agent, advanced prompt features. **Gate: doc-12 shipped + the artifact's own Phase-0 contract suite.** The Lorebooks line migrates to doc-88.

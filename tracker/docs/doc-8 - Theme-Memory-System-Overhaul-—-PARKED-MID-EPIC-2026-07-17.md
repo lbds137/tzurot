@@ -78,7 +78,7 @@ Privacy call RESOLVED 2026-07-12 (owner, on real-sample evidence): the mined cor
 
 - **Cross-channel history — smarter retrieval with limits**: limit messages per channel, prioritize channels with active conversations (automatic retrieval path at generation time; distinct from user-driven `/history range` import).
 
-_The epic's per-PR slice log lives in git history of `cold/epic-log.md` (reset at the 2026-07-17 park)._
+_The epic's per-PR slice log lives in the git history of `backlog/cold/epic-log.md` (file folded into `doc-14` on 2026-10-05) (reset at the 2026-07-17 park)._
 
 ### Absorbed follow-ups (relocated out of `cold/follow-ups.md`, 2026-07-25)
 
