@@ -92,7 +92,7 @@ _Owner directive: UX rows belong to the epic that will sweep them, not to a flat
 
 _The epic-log file was folded into this doc; per-PR slice detail for this epic is appended here from now on._
 
-## Platform-Portable UX Layer (Active Epic)
+### Platform-Portable UX Layer (Active Epic)
 
 _Governing artifacts: `docs/proposals/backlog/ux-design-system-spec.md` + `platform-portable-ux-design.md`. Roadmap in `active-epic.md`._
 
