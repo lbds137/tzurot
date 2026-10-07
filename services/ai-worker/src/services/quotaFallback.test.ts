@@ -4,7 +4,7 @@ import {
   resetSystemSettingsRegistration,
   type SystemSettingsService,
 } from '@tzurot/common-types/services/SystemSettingsService';
-import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { AIProvider, stripZaiPrefix } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { ApiError } from '../utils/apiErrorParser.js';
@@ -15,8 +15,10 @@ import {
   classifyBillingQuotaFailure,
   classifyQuotaFailure,
   isCausePrecedenceFailure,
+  isRouteAttempted,
   selectFloorTarget,
   selectQuotaFallbackTarget,
+  type AttemptedRoute,
   type QuotaFallbackCaches,
 } from './quotaFallback.js';
 
@@ -737,5 +739,124 @@ describe('selectFloorTarget (the D12 second hop)', () => {
       caches: { ...caches(), catalogPresence: vi.fn().mockResolvedValue(null) },
     });
     expect(target?.config.model).toBe('divergent/paid-floor');
+  });
+
+  it('returns null when the floor is an OpenRouter route this job already attempted', async () => {
+    registerFloors('z-ai/glm-5.3-flash', 'divergent/free:free');
+    const target = await selectFloorTarget({
+      isGuestMode: false,
+      excludeModels: [],
+      excludeRoutes: [
+        { provider: 'openrouter', model: 'z-ai/glm-5.3-flash' },
+      ] satisfies AttemptedRoute[],
+      cacheKeyId: 'user:1',
+      caches: caches(),
+    });
+    expect(target).toBeNull();
+  });
+
+  it('still returns the floor when only a different provider ran the same model', async () => {
+    registerFloors('z-ai/glm-5.3-flash', 'divergent/free:free');
+    const target = await selectFloorTarget({
+      isGuestMode: false,
+      excludeModels: [],
+      excludeRoutes: [
+        { provider: 'zai-coding', model: 'glm-5.3-flash' },
+      ] satisfies AttemptedRoute[],
+      cacheKeyId: 'user:1',
+      caches: caches(),
+    });
+    expect(target?.config.model).toBe('z-ai/glm-5.3-flash');
+  });
+});
+
+describe('isRouteAttempted', () => {
+  it('matches an exact provider + model entry', () => {
+    expect(
+      isRouteAttempted({ provider: 'openrouter', model: 'z-ai/glm-5.3-flash' }, [
+        { provider: 'openrouter', model: 'z-ai/glm-5.3-flash' },
+      ])
+    ).toBe(true);
+  });
+
+  it('tolerates case and the z-ai/ prefix on the model', () => {
+    expect(stripZaiPrefix('Z-AI/GLM-5.3-Flash')).toBe('glm-5.3-flash');
+    expect(
+      isRouteAttempted({ provider: 'openrouter', model: 'Z-AI/GLM-5.3-Flash' }, [
+        { provider: 'openrouter', model: 'z-ai/glm-5.3-flash' },
+      ])
+    ).toBe(true);
+  });
+
+  it('treats the same canonical model on a different provider as a different route', () => {
+    expect(
+      isRouteAttempted({ provider: 'zai-coding', model: 'glm-5.3-flash' }, [
+        { provider: 'openrouter', model: 'z-ai/glm-5.3-flash' },
+      ])
+    ).toBe(false);
+  });
+
+  it('is false when no routes were attempted', () => {
+    expect(isRouteAttempted({ provider: 'openrouter', model: 'a/b' }, undefined)).toBe(false);
+  });
+});
+
+describe('selectQuotaFallbackTarget — routes already attempted this job', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.restoreAllMocks());
+
+  const base = {
+    category: ApiErrorCategory.TIMEOUT as const,
+    isGuestMode: false,
+    failingModel: 'glm-5.3-flash',
+    cacheKeyId: 'user:123',
+  };
+  const zaiRoute = { provider: 'zai-coding', model: 'glm-5.3-flash' };
+  const openRouterTwin = { provider: 'openrouter', model: 'z-ai/glm-5.3-flash' };
+
+  it('returns null when the global default is the OpenRouter twin the job already ran', async () => {
+    const target = await selectQuotaFallbackTarget({
+      ...base,
+      configResolver: buildResolver({ global: { model: 'z-ai/glm-5.3-flash' } }) as never,
+      caches: buildCaches(),
+      excludeRoutes: [zaiRoute, openRouterTwin] satisfies AttemptedRoute[],
+    });
+    expect(target).toBeNull();
+  });
+
+  it('matches the attempted route case-insensitively and across the z-ai/ prefix', async () => {
+    const target = await selectQuotaFallbackTarget({
+      ...base,
+      configResolver: buildResolver({ global: { model: 'Z-AI/GLM-5.3-Flash' } }) as never,
+      caches: buildCaches(),
+      excludeRoutes: [openRouterTwin] satisfies AttemptedRoute[],
+    });
+    expect(target).toBeNull();
+  });
+
+  it('does not over-reach: a z.ai-direct attempt alone leaves the OpenRouter twin selectable', async () => {
+    const target = await selectQuotaFallbackTarget({
+      ...base,
+      configResolver: buildResolver({ global: { model: 'z-ai/glm-5.3-flash' } }) as never,
+      caches: buildCaches(),
+      excludeRoutes: [zaiRoute] satisfies AttemptedRoute[],
+    });
+    expect(target?.config.model).toBe('z-ai/glm-5.3-flash');
+  });
+
+  it('honours an explicit provider on the target config (a zai-coding default is excluded by a zai-coding attempt)', async () => {
+    const target = await selectQuotaFallbackTarget({
+      ...base,
+      failingModel: 'other/model',
+      configResolver: {
+        getFreeDefaultConfig: vi.fn().mockResolvedValue(null),
+        getGlobalDefaultConfig: vi
+          .fn()
+          .mockResolvedValue({ model: 'glm-5.3-flash', provider: 'zai-coding' }),
+      } as never,
+      caches: buildCaches(),
+      excludeRoutes: [zaiRoute] satisfies AttemptedRoute[],
+    });
+    expect(target).toBeNull();
   });
 });

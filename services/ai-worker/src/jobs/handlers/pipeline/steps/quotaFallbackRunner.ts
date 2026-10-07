@@ -9,7 +9,8 @@
  * The retry deliberately does NOT re-enter the auto-promotion wrapper: its
  * pre-computed fallback route belongs to the PRIMARY model and could swap the
  * retargeted request back onto a stale route. The retry is a plain attempt on
- * the retargeted personality.
+ * the retargeted personality. Hops never re-select a route the primary already
+ * ran (`attemptedRoutes`).
  *
  * Both-fail propagates the PRISTINE original error (classification runs on
  * message regexes — appending text could flip the category) with the second
@@ -17,8 +18,6 @@
  */
 
 import { AIProvider } from '@tzurot/common-types/constants/ai';
-import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
-import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import type { LlmConfigResolver } from '@tzurot/config-resolver';
@@ -29,12 +28,11 @@ import {
   logQuotaFallbackAudit,
   selectFloorTarget,
   selectQuotaFallbackTarget,
+  type AttemptedRoute,
   type QuotaFallbackCaches,
   type QuotaFallbackInfo,
-  type QuotaFallbackTarget,
 } from '../../../../services/quotaFallback.js';
-import { getFreeTextFloor } from '../../../../services/freeFloors.js';
-import { deriveCacheKeyId, SYSTEM_CACHE_KEY_ID } from '../../../../services/RateLimitCache.js';
+import { deriveCacheKeyId } from '../../../../services/RateLimitCache.js';
 import { RetryError } from '../../../../utils/retry.js';
 import {
   attachFallbackFailure,
@@ -43,6 +41,7 @@ import {
   type GenerateAttemptOpts,
   type GenerateAttemptResult,
 } from './autoPromotionFallback.js';
+import { selectHopOneFloorTarget } from './hopOneFloorTarget.js';
 
 const logger = createLogger('QuotaFallbackRunner');
 
@@ -105,9 +104,17 @@ export async function runWithQuotaFallback(options: {
    * original error even when the degrade then succeeds.
    */
   onZaiFreeTierFailure?: (error: unknown) => Promise<void>;
+  /**
+   * The routes the primary already ran: the failing route plus, when the
+   * auto-promotion wrapper swapped, its OpenRouter fallback route. No reactive
+   * hop selects one of them. Omitted = nothing excluded beyond the existing
+   * same-model check.
+   */
+  attemptedRoutes?: readonly AttemptedRoute[];
 }): Promise<QuotaFallbackRunResult> {
   const { primary, retry, opts, userId, deps, freeTierQuota, requestId, onZaiFreeTierFailure } =
     options;
+  const { attemptedRoutes } = options;
 
   if (deps === undefined) {
     return primary();
@@ -153,6 +160,7 @@ export async function runWithQuotaFallback(options: {
       cacheKeyId,
       configResolver: deps.configResolver,
       caches: deps.caches,
+      excludeRoutes: attemptedRoutes,
     });
     // No tier-aware retarget exists when the failing model IS the tier's own
     // default — the proactively-substituted guest turn, and the user whose
@@ -166,6 +174,7 @@ export async function runWithQuotaFallback(options: {
         opts,
         cacheKeyId,
         caches: deps.caches,
+        excludeRoutes: attemptedRoutes,
       }));
     if (target === null) {
       throw originalError;
@@ -230,101 +239,9 @@ export async function runWithQuotaFallback(options: {
       // Past the gate above, a null live classification means the category came
       // from `inheritedQuotaCategory` — the `?? null` arm would have rethrown.
       categoryInherited: liveCategory === null,
+      attemptedRoutes,
     });
   }
-}
-
-/**
- * The floor promoted to HOP 1, for the turns that have no tier-aware retarget
- * at all: a guest already running the free default, or a user whose global
- * default is the failing model. Invariant — such a turn can never produce a
- * hop-1 target, so without this the floor is unreachable and the turn is
- * terminal. The returned target flows through the SAME downstream path a
- * normal hop-1 target takes (credential resolution, metering, the audit line,
- * the retry); `attemptFloorHop` then self-excludes because hop 2's
- * `excludeModels` already carries this model as `info.toModel`. Pinned by
- * `quotaFallbackRunner.test.ts` › "hop-1 floor promotion".
- *
- * Category-agnostic on purpose: ANY retargetable category that dead-ends on
- * a same-model tiered selection gets the floor (a dead end is a dead end,
- * whatever produced it) — with one carve-out.
- *
- * Deliberately NOT extended to CREDIT_EXHAUSTION, whose terminal selection is
- * a policy, not an oversight: for a guest the system key itself is broke and
- * no different billing entity exists, and a BYOK user's floor would run on
- * that same broke account. Whether OpenRouter still serves `:free` routes on
- * a credit-exhausted key is an unverified external claim, so this arm stays
- * exactly as terminal as it is today.
- *
- * Viability identity mirrors `selectQuotaFallbackTarget`: guest semantics
- * execute on the system key, so they are checked under the system bucket;
- * everyone else under their own. Never throws — a floor-selection failure
- * degrades to null and the pristine original propagates.
- */
-async function selectHopOneFloorTarget(params: {
-  category: NonNullable<ReturnType<typeof classifyQuotaFailure>>;
-  opts: GenerateAttemptOpts;
-  cacheKeyId: string;
-  caches: QuotaFallbackCaches;
-}): Promise<QuotaFallbackTarget | null> {
-  const { category, opts, cacheKeyId, caches } = params;
-  const failingModel = opts.personality.model;
-  if (category === ApiErrorCategory.CREDIT_EXHAUSTION) {
-    logger.debug(
-      { jobId: opts.jobId, failingModel, isGuestMode: opts.isGuestMode, category },
-      'No hop-1 retarget and the floor is not attempted: credit exhaustion leaves no solvent billing entity'
-    );
-    return null;
-  }
-  const floorTarget = await selectFloorTarget({
-    isGuestMode: opts.isGuestMode,
-    excludeModels: [failingModel],
-    cacheKeyId: opts.isGuestMode ? SYSTEM_CACHE_KEY_ID : cacheKeyId,
-    caches,
-  }).catch((err: unknown) => {
-    // A selection failure is not a veto — log it as itself so it can't hide
-    // under the "unavailable" message below.
-    logger.warn(
-      { err, jobId: opts.jobId, failingModel, isGuestMode: opts.isGuestMode },
-      'Floor selection threw — treating the floor as unavailable'
-    );
-    return null;
-  });
-  if (floorTarget === null) {
-    // Which of the three unavailability causes applies is diagnosable from the
-    // floor id itself: empty = unconfigured, equal to the failing model =
-    // excluded, anything else = the doom caches vetoed a configured floor.
-    const floor = opts.isGuestMode ? getFreeTextFloor() : getSystemSetting('fallbackTextModel');
-    const cause =
-      floor.length === 0
-        ? 'no floor model is configured'
-        : floor === failingModel
-          ? 'the floor IS the failing model'
-          : 'the doom caches veto it';
-    logger.debug(
-      {
-        jobId: opts.jobId,
-        failingModel,
-        floorModel: floor,
-        isGuestMode: opts.isGuestMode,
-        category,
-        cause,
-      },
-      'No hop-1 retarget and the floor is unavailable — terminal'
-    );
-    return null;
-  }
-  logger.info(
-    {
-      jobId: opts.jobId,
-      failingModel,
-      floorModel: floorTarget.config.model,
-      isGuestMode: opts.isGuestMode,
-      category,
-    },
-    'No hop-1 retarget available — promoting the floor to the hop-1 target'
-  );
-  return floorTarget;
 }
 
 /**
@@ -491,8 +408,19 @@ async function executeRetarget(options: {
   cacheKeyId: string;
   /** True when this turn's category came from a proactive demotion, not a live error. */
   categoryInherited: boolean;
+  /** Routes the primary already ran; the hop-2 floor never re-selects one. */
+  attemptedRoutes?: readonly AttemptedRoute[];
 }): Promise<QuotaFallbackRunResult> {
-  const { retry, opts, info, originalError, caches, cacheKeyId, categoryInherited } = options;
+  const {
+    retry,
+    opts,
+    info,
+    originalError,
+    caches,
+    cacheKeyId,
+    categoryInherited,
+    attemptedRoutes,
+  } = options;
   try {
     const result = await retry(opts);
     // OpenRouter actually served this request; report it so the footer's
@@ -515,6 +443,7 @@ async function executeRetarget(options: {
       caches,
       cacheKeyId,
       categoryInherited,
+      attemptedRoutes,
     });
     if (floorOutcome.kind === 'success') {
       return floorOutcome.result;
@@ -562,14 +491,18 @@ async function attemptFloorHop(params: {
   cacheKeyId: string;
   /** True when this turn's category came from a proactive demotion, not a live error. */
   categoryInherited: boolean;
+  /** Routes the primary already ran; the floor is not selected when it is one of them. */
+  attemptedRoutes?: readonly AttemptedRoute[];
 }): Promise<FloorHopOutcome> {
-  const { retry, opts, info, retryError, caches, cacheKeyId, categoryInherited } = params;
+  const { retry, opts, info, retryError, caches, cacheKeyId, categoryInherited, attemptedRoutes } =
+    params;
   if (classifyQuotaFailure(retryError) === null && !categoryInherited) {
     return { kind: 'not-attempted' };
   }
   const floorTarget = await selectFloorTarget({
     isGuestMode: opts.isGuestMode,
     excludeModels: [info.fromModel, info.toModel],
+    excludeRoutes: attemptedRoutes,
     cacheKeyId,
     caches,
   }).catch(() => null);

@@ -28,6 +28,7 @@ import { RetryError } from '../../../../utils/retry.js';
 import {
   classifyBillingQuotaFailure,
   logQuotaFallbackAudit,
+  type AttemptedRoute,
   type QuotaFallbackCategory,
   type QuotaFallbackInfo,
 } from '../../../../services/quotaFallback.js';
@@ -113,6 +114,45 @@ export interface GenerateAttemptResult {
 
 type GenerateAttempt = (opts: GenerateAttemptOpts) => Promise<GenerateAttemptResult>;
 
+type AutoPromotionFallbackRoute = NonNullable<GenerationContext['auth']>['fallback'];
+
+/**
+ * Whether `runWithAutoPromotionFallback` will run the fallback route when the
+ * primary fails: a fallback exists and it is not a guest-mode route on the
+ * system key. Single source of that guard, shared with `routesAttemptedByPrimary`.
+ */
+export function willAttemptAutoPromotionFallback(
+  fallback: AutoPromotionFallbackRoute
+): fallback is NonNullable<AutoPromotionFallbackRoute> {
+  return fallback !== undefined && !fallback.isGuestMode;
+}
+
+/**
+ * The routes `runWithAutoPromotionFallback` runs for this primary, in the order
+ * it runs them: the primary route, then the fallback route when the wrapper
+ * will attempt it. Shares the wrapper's guard so the two cannot drift. The
+ * reactive quota fallback excludes these so it never re-runs a route that
+ * already failed this job.
+ */
+export function routesAttemptedByPrimary(
+  opts: GenerateAttemptOpts,
+  fallback: AutoPromotionFallbackRoute
+): AttemptedRoute[] {
+  // Widened: the schema defaults `provider`, but a personality built outside
+  // the loader (fixtures, older cached shapes) may omit it; absent means OpenRouter.
+  const personalityProvider: string | undefined = opts.personality.provider;
+  const routes: AttemptedRoute[] = [
+    {
+      provider: opts.effectiveProvider ?? personalityProvider ?? AIProvider.OpenRouter,
+      model: opts.personality.model,
+    },
+  ];
+  if (willAttemptAutoPromotionFallback(fallback)) {
+    routes.push({ provider: fallback.provider, model: fallback.model });
+  }
+  return routes;
+}
+
 /**
  * Run an attempt; if it fails AND `fallback` is set, swap personality + apiKey
  * to the fallback route and retry once. The fallback contains the original
@@ -139,9 +179,9 @@ type GenerateAttempt = (opts: GenerateAttemptOpts) => Promise<GenerateAttemptRes
 export async function runWithAutoPromotionFallback(
   attempt: GenerateAttempt,
   opts: GenerateAttemptOpts,
-  fallback: NonNullable<GenerationContext['auth']>['fallback']
+  fallback: AutoPromotionFallbackRoute
 ): Promise<GenerateAttemptResult> {
-  if (fallback === undefined || fallback.isGuestMode) {
+  if (!willAttemptAutoPromotionFallback(fallback)) {
     // No fallback, or a guest-mode fallback that resolved onto the SYSTEM
     // OpenRouter key — rescuing would run the PAID z-ai/<model> on the
     // owner's key (owner-cost boundary). Let the failure propagate; the
