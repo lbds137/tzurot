@@ -188,6 +188,7 @@ export async function runWithQuotaFallback(options: {
       category,
       cacheKeyId,
       originalError,
+      attemptedRoutes,
     });
 
     // Meter the credit-exhausted-BYOK → shared-system-key transition. Over-share
@@ -261,11 +262,13 @@ async function resolveTargetAndCredentials(params: {
   category: NonNullable<ReturnType<typeof classifyQuotaFailure>>;
   cacheKeyId: string;
   originalError: unknown;
+  attemptedRoutes?: readonly AttemptedRoute[];
 }): Promise<{
   effectiveTarget: NonNullable<Awaited<ReturnType<typeof selectQuotaFallbackTarget>>>;
   credentials: { apiKey: string | undefined; isGuestMode: boolean };
 }> {
-  const { target, opts, deps, userId, category, cacheKeyId, originalError } = params;
+  const { target, opts, deps, userId, category, cacheKeyId, originalError, attemptedRoutes } =
+    params;
   const credentials = await resolveRetryCredentials(target, opts, deps, userId);
   if (credentials !== null) {
     return { effectiveTarget: target, credentials };
@@ -279,6 +282,7 @@ async function resolveTargetAndCredentials(params: {
       cacheKeyId,
       configResolver: deps.configResolver,
       caches: deps.caches,
+      excludeRoutes: attemptedRoutes,
     });
     const systemKey = await deps.resolveSystemKey();
     if (guestTarget === null || systemKey === undefined) {
