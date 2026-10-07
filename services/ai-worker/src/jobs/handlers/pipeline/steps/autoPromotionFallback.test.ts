@@ -16,7 +16,10 @@ import {
   runWithAutoPromotionFallback,
   getFallbackFailureSummary,
   getAttemptedFallbackProvider,
+  routesAttemptedByPrimary,
+  willAttemptAutoPromotionFallback,
 } from './autoPromotionFallback.js';
+import type { AttemptedRoute } from '../../../../services/quotaFallback.js';
 import type { GenerateAttemptOpts, GenerateAttemptResult } from './autoPromotionFallback.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -390,5 +393,59 @@ describe('runWithAutoPromotionFallback', () => {
     ).rejects.toThrow('z.ai err');
 
     expect(attempt).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('willAttemptAutoPromotionFallback', () => {
+  const route = {
+    apiKey: 'sk-or',
+    provider: 'openrouter',
+    model: 'z-ai/glm-5.1',
+  };
+
+  it('is false without a fallback', () => {
+    expect(willAttemptAutoPromotionFallback(undefined)).toBe(false);
+  });
+
+  it('is false for a guest-mode fallback (owner-cost boundary)', () => {
+    expect(willAttemptAutoPromotionFallback({ ...route, isGuestMode: true })).toBe(false);
+  });
+
+  it('is true for a non-guest fallback', () => {
+    expect(willAttemptAutoPromotionFallback({ ...route, isGuestMode: false })).toBe(true);
+  });
+});
+
+describe('routesAttemptedByPrimary', () => {
+  const primaryRoute = { provider: 'zai-coding', model: 'glm-5.1' };
+  const fallbackRoute = {
+    apiKey: 'sk-or',
+    provider: 'openrouter',
+    model: 'z-ai/glm-5.1',
+  };
+
+  it('is the primary route alone when there is no fallback', () => {
+    expect(routesAttemptedByPrimary(baseOpts, undefined)).toEqual([
+      primaryRoute,
+    ] satisfies AttemptedRoute[]);
+  });
+
+  it('is the primary route alone when the fallback is guest-mode (never run)', () => {
+    expect(routesAttemptedByPrimary(baseOpts, { ...fallbackRoute, isGuestMode: true })).toEqual([
+      primaryRoute,
+    ] satisfies AttemptedRoute[]);
+  });
+
+  it('adds the fallback route, after the primary, when the wrapper will run it', () => {
+    expect(routesAttemptedByPrimary(baseOpts, { ...fallbackRoute, isGuestMode: false })).toEqual([
+      primaryRoute,
+      { provider: 'openrouter', model: 'z-ai/glm-5.1' },
+    ] satisfies AttemptedRoute[]);
+  });
+
+  it('takes the primary provider from effectiveProvider over the personality field', () => {
+    expect(
+      routesAttemptedByPrimary({ ...baseOpts, effectiveProvider: AIProvider.OpenRouter }, undefined)
+    ).toEqual([{ provider: 'openrouter', model: 'glm-5.1' }] satisfies AttemptedRoute[]);
   });
 });

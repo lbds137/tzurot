@@ -19,7 +19,7 @@ import { createDiagnosticCollectorForRequest } from '../../../../services/diagno
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 import { type EmbeddingServiceInterface } from '../../../../utils/duplicateDetection.js';
-import { runWithAutoPromotionFallback } from './autoPromotionFallback.js';
+import { routesAttemptedByPrimary, runWithAutoPromotionFallback } from './autoPromotionFallback.js';
 import {
   composeQuotaFallbackInfo,
   runWithQuotaFallback,
@@ -178,6 +178,7 @@ export class GenerationStep implements IPipelineStep {
         // that does not classify as quota — the staggered-model-release 400.
         inheritedQuotaCategory: auth.inheritedQuotaCategory,
       };
+      const autoPromotionRoute = auth.wasAutoPromoted === true ? auth.fallback : undefined;
       const {
         response,
         duplicateRetries,
@@ -193,10 +194,12 @@ export class GenerationStep implements IPipelineStep {
           runWithAutoPromotionFallback(
             opts => generateWithDuplicateRetry(this.ragService, this.embeddingService, opts),
             attemptOpts,
-            auth.wasAutoPromoted === true ? auth.fallback : undefined
+            autoPromotionRoute
           ),
         retry: opts => generateWithDuplicateRetry(this.ragService, this.embeddingService, opts),
         opts: attemptOpts,
+        // The reactive retarget must not re-run a route the primary already tried.
+        attemptedRoutes: routesAttemptedByPrimary(attemptOpts, autoPromotionRoute),
         userId: jobContext.userId,
         deps: this.quotaFallbackDeps,
         freeTierQuota: this.freeTierQuota,

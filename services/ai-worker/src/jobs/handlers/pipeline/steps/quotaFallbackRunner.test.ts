@@ -8,7 +8,7 @@ import {
   runWithQuotaFallback,
   type QuotaFallbackDeps,
 } from './quotaFallbackRunner.js';
-import { type QuotaFallbackInfo } from '../../../../services/quotaFallback.js';
+import { type AttemptedRoute, type QuotaFallbackInfo } from '../../../../services/quotaFallback.js';
 import {
   registerSystemSettings,
   resetSystemSettingsRegistration,
@@ -1591,6 +1591,124 @@ describe('hop-1 floor promotion (no tier-aware retarget exists)', () => {
     expect(deps.caches.rateLimit.isRateLimited).toHaveBeenCalledWith({
       cacheKeyId: 'user:123',
       model: 'openrouter/auto',
+    });
+  });
+});
+
+describe('routes the primary already attempted (auto-promotion twin)', () => {
+  // The paid floor is unregistered here (static `openrouter/auto`) except in
+  // the hop-2 block, which registers the twin's model as the floor.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    resetSystemSettingsRegistration();
+  });
+  afterEach(() => {
+    resetSystemSettingsRegistration();
+    vi.restoreAllMocks();
+  });
+
+  const zaiRoute = { provider: 'zai-coding', model: 'glm-5.3-flash' };
+  const openRouterTwin = { provider: 'openrouter', model: 'z-ai/glm-5.3-flash' };
+
+  /** A personality auto-promoted to z.ai-direct, as the primary attempt carries it. */
+  function promotedOpts(): GenerateAttemptOpts {
+    return buildOpts({
+      effectiveProvider: AIProvider.ZaiCoding,
+      personality: {
+        id: 'p1',
+        name: 'Testy',
+        model: 'glm-5.3-flash',
+        provider: 'zai-coding',
+        temperature: 0.9,
+      } as unknown as GenerateAttemptOpts['personality'],
+    });
+  }
+
+  function retriedModels(retry: ReturnType<typeof vi.fn>): string[] {
+    return retry.mock.calls.map(call => (call[0] as GenerateAttemptOpts).personality.model);
+  }
+
+  it('never retargets onto the OpenRouter twin the wrapper already ran; the floor rescues instead', async () => {
+    const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.TIMEOUT));
+    const retry = vi.fn().mockResolvedValue(okResult);
+
+    const result = await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: promotedOpts(),
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({ global: { model: 'z-ai/glm-5.3-flash' } }),
+      attemptedRoutes: [zaiRoute, openRouterTwin] satisfies AttemptedRoute[],
+    });
+
+    expect(retriedModels(retry)).not.toContain('z-ai/glm-5.3-flash');
+    expect(retriedModels(retry)).toEqual(['openrouter/auto']);
+    expect(result.quotaFallback?.toModel).toBe('openrouter/auto');
+  });
+
+  it('does not over-reach: with only the z.ai-direct route attempted, the twin is still selected', async () => {
+    const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.TIMEOUT));
+    const retry = vi.fn().mockResolvedValue(okResult);
+
+    await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: promotedOpts(),
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({ global: { model: 'z-ai/glm-5.3-flash' } }),
+      attemptedRoutes: [zaiRoute] satisfies AttemptedRoute[],
+    });
+
+    expect(retriedModels(retry)).toEqual(['z-ai/glm-5.3-flash']);
+  });
+
+  describe('hop-2 floor', () => {
+    beforeEach(() => {
+      registerSystemSettings({
+        get: (key: string) => (key === 'fallbackTextModel' ? 'z-ai/glm-5.3-flash' : undefined),
+      } as unknown as SystemSettingsService);
+    });
+
+    it('is not attempted when it is the OpenRouter twin the job already ran; the original is rethrown', async () => {
+      const original = quotaError(ApiErrorCategory.TIMEOUT);
+      const primary = vi.fn().mockRejectedValue(original);
+      const retry = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.TIMEOUT));
+
+      await expect(
+        runWithQuotaFallback({
+          primary,
+          retry,
+          opts: promotedOpts(),
+          userId: '123',
+          requestId: 'req-1',
+          deps: buildDeps({ global: { model: 'other/model' } }),
+          attemptedRoutes: [zaiRoute, openRouterTwin] satisfies AttemptedRoute[],
+        })
+      ).rejects.toBe(original);
+
+      expect(retriedModels(retry)).toEqual(['other/model']);
+    });
+
+    it('control: runs when the twin was not attempted', async () => {
+      const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.TIMEOUT));
+      const retry = vi
+        .fn()
+        .mockRejectedValueOnce(quotaError(ApiErrorCategory.TIMEOUT))
+        .mockResolvedValueOnce(okResult);
+
+      await runWithQuotaFallback({
+        primary,
+        retry,
+        opts: promotedOpts(),
+        userId: '123',
+        requestId: 'req-1',
+        deps: buildDeps({ global: { model: 'other/model' } }),
+        attemptedRoutes: [zaiRoute] satisfies AttemptedRoute[],
+      });
+
+      expect(retriedModels(retry)).toEqual(['other/model', 'z-ai/glm-5.3-flash']);
     });
   });
 });

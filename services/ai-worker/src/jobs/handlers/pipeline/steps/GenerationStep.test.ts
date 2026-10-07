@@ -19,6 +19,7 @@ import type { GenerationContext, ResolvedConfig, ResolvedAuth, PreparedContext }
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
 import type { RAGResponse } from '../../../../services/ConversationalRAGTypes.js';
 import { type FreeTierRequestQuota } from '../../../../services/FreeTierRequestQuota.js';
+import { type AttemptedRoute } from '../../../../services/quotaFallback.js';
 import { RetryError } from '../../../../utils/retry.js';
 
 /** Mock free-tier quota; `allowed` drives whether the guest request proceeds. */
@@ -39,13 +40,16 @@ function mockQuota(allowed = true): FreeTierRequestQuota {
 // wrapper, so the auth -> attemptOpts hop can be asserted. Delegates to the
 // REAL implementation, so no other test in this file changes behaviour — the
 // spy observes, it does not stub.
-const { quotaFallbackOptsSpy, quotaFallbackResultTransform } = vi.hoisted(() => ({
-  quotaFallbackOptsSpy: vi.fn(),
-  // Per-test hook to reshape the runner's RESULT (e.g. simulate a mid-turn
-  // credential swap by injecting effectiveIsGuestMode) without stubbing the
-  // runner itself — set `.fn`, reset in afterEach.
-  quotaFallbackResultTransform: { fn: null as null | ((result: unknown) => unknown) },
-}));
+const { quotaFallbackOptsSpy, quotaFallbackAttemptedRoutesSpy, quotaFallbackResultTransform } =
+  vi.hoisted(() => ({
+    quotaFallbackOptsSpy: vi.fn(),
+    // Captures the routes the primary already ran, as handed to the reactive tier.
+    quotaFallbackAttemptedRoutesSpy: vi.fn(),
+    // Per-test hook to reshape the runner's RESULT (e.g. simulate a mid-turn
+    // credential swap by injecting effectiveIsGuestMode) without stubbing the
+    // runner itself — set `.fn`, reset in afterEach.
+    quotaFallbackResultTransform: { fn: null as null | ((result: unknown) => unknown) },
+  }));
 
 vi.mock('./quotaFallbackRunner.js', async () => {
   const actual = await vi.importActual<typeof import('./quotaFallbackRunner.js')>(
@@ -55,6 +59,7 @@ vi.mock('./quotaFallbackRunner.js', async () => {
     ...actual,
     runWithQuotaFallback: async (options: Parameters<typeof actual.runWithQuotaFallback>[0]) => {
       quotaFallbackOptsSpy(options.opts);
+      quotaFallbackAttemptedRoutesSpy(options.attemptedRoutes);
       const result = await actual.runWithQuotaFallback(options);
       return quotaFallbackResultTransform.fn === null
         ? result
@@ -2288,6 +2293,63 @@ describe('GenerationStep', () => {
         expect(result.result?.metadata?.fallbackProviderAttempted).toBeUndefined();
         // Only ONE call — no retry was attempted because wasAutoPromoted is falsy
         expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(1);
+      });
+
+      it('hands the reactive tier the primary AND the swap-fallback route when auto-promoted', async () => {
+        quotaFallbackAttemptedRoutesSpy.mockClear();
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValueOnce({
+          content: 'ok',
+          retrievedMemories: 0,
+          tokensIn: 1,
+          tokensOut: 1,
+          modelUsed: 'glm-5.1',
+        } as RAGResponse);
+
+        await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: promotedConfig,
+          auth: promotedAuth,
+          preparedContext: basePreparedContext,
+        });
+
+        expect(quotaFallbackAttemptedRoutesSpy).toHaveBeenCalledWith([
+          { provider: AIProvider.ZaiCoding, model: 'glm-5.1' },
+          { provider: 'openrouter', model: 'z-ai/glm-5.1' },
+        ] satisfies AttemptedRoute[]);
+      });
+
+      it('hands the reactive tier only the primary route when the request was not auto-promoted', async () => {
+        quotaFallbackAttemptedRoutesSpy.mockClear();
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValueOnce({
+          content: 'ok',
+          retrievedMemories: 0,
+          tokensIn: 1,
+          tokensOut: 1,
+          modelUsed: 'x',
+        } as RAGResponse);
+
+        await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          // A fallback present on auth must not count when nothing was promoted.
+          auth: {
+            apiKey: 'sk-or-key',
+            provider: AIProvider.OpenRouter,
+            isGuestMode: false,
+            audioProviderKeys: new Map(),
+            fallback: promotedAuth.fallback,
+          },
+          preparedContext: basePreparedContext,
+        });
+
+        expect(quotaFallbackAttemptedRoutesSpy).toHaveBeenCalledWith([
+          {
+            provider: AIProvider.OpenRouter,
+            model: baseConfig.effectivePersonality.model,
+          },
+        ] satisfies AttemptedRoute[]);
       });
 
       it('the served fallback provider reaches the success-path diagnostic row (GenerationStep → persistSuccessDiagnostic, in order)', async () => {
