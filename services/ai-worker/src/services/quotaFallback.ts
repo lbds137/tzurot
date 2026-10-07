@@ -25,7 +25,7 @@
  * model and must not leak onto the fallback.
  */
 
-import { AIProvider, isFreeModel } from '@tzurot/common-types/constants/ai';
+import { AIProvider, isFreeModel, stripZaiPrefix } from '@tzurot/common-types/constants/ai';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { getFreeTextFloor } from './freeFloors.js';
 import { ApiErrorCategory, GUEST_MODE_CATEGORY } from '@tzurot/common-types/constants/error';
@@ -105,6 +105,36 @@ export interface QuotaFallbackTarget {
    * across all models).
    */
   forceSystemKey: boolean;
+}
+
+/** A route a job has already run: the provider that served it and the model id it ran. */
+export interface AttemptedRoute {
+  /** Provider the attempt was routed to (exact string, e.g. `openrouter`, `zai-coding`). */
+  provider: string;
+  /** Model id as the attempt carried it (OpenRouter `z-ai/` form or z.ai-direct bare form). */
+  model: string;
+}
+
+/**
+ * Whether `route` is among the routes a job already attempted.
+ *
+ * The model is compared through `stripZaiPrefix` (lowercased, leading `z-ai/`
+ * removed), so `Z-AI/GLM-5.3-Flash` and `glm-5.3-flash` name the same model.
+ * The provider is compared EXACTLY: z.ai-direct and OpenRouter serving the
+ * same model are different routes (different endpoint, key and failure
+ * domain), so a failure on one says nothing about the other.
+ */
+export function isRouteAttempted(
+  route: AttemptedRoute,
+  attempted: readonly AttemptedRoute[] | undefined
+): boolean {
+  if (attempted === undefined) {
+    return false;
+  }
+  const model = stripZaiPrefix(route.model);
+  return attempted.some(
+    entry => entry.provider === route.provider && stripZaiPrefix(entry.model) === model
+  );
 }
 
 const RETARGETABLE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
@@ -287,18 +317,24 @@ async function isVetoedAsUnlistedTarget(options: {
  * key; seeded `openrouter/auto` — the floor's job is to always answer).
  * Null when the floor is already among the models that failed this turn
  * (nothing new to try), the doom caches veto it, or the catalog confirms it
- * is not a listed OpenRouter model id.
+ * is not a listed OpenRouter model id, or the floor's (OpenRouter) route is one
+ * this job already attempted.
  */
 export async function selectFloorTarget(options: {
   isGuestMode: boolean;
   /** Models already attempted this turn (original + hop-1 target). */
   excludeModels: readonly string[];
+  /** Routes this job already attempted; a floor on one of them is never selected. */
+  excludeRoutes?: readonly AttemptedRoute[];
   cacheKeyId: string;
   caches: QuotaFallbackCaches;
 }): Promise<QuotaFallbackTarget | null> {
-  const { isGuestMode, excludeModels, cacheKeyId, caches } = options;
+  const { isGuestMode, excludeModels, excludeRoutes, cacheKeyId, caches } = options;
   const floor = isGuestMode ? getFreeTextFloor() : getSystemSetting('fallbackTextModel');
   if (floor.length === 0 || excludeModels.includes(floor)) {
+    return null;
+  }
+  if (isRouteAttempted({ provider: AIProvider.OpenRouter, model: floor }, excludeRoutes)) {
     return null;
   }
   const viability = await checkModelViability({ model: floor, cacheKeyId, caches });
@@ -346,8 +382,9 @@ async function resolveGuestSafeFreeDefault(
 /**
  * Pick the tier-aware retarget for a quota-class failure, or null when the
  * turn should fail exactly as it does today (no target, same model, target
- * also doomed, no different billing entity exists, or — for an
- * OpenRouter-bound target — the catalog confirms the model id isn't listed).
+ * also doomed, no different billing entity exists, the target is a route this
+ * job already attempted, or — for an OpenRouter-bound target — the catalog
+ * confirms the model id isn't listed).
  */
 export async function selectQuotaFallbackTarget(options: {
   category: QuotaFallbackCategory;
@@ -362,8 +399,11 @@ export async function selectQuotaFallbackTarget(options: {
   cacheKeyId: string;
   configResolver: LlmConfigResolver;
   caches: QuotaFallbackCaches;
+  /** Routes this job already attempted; a target on one of them is never selected. */
+  excludeRoutes?: readonly AttemptedRoute[];
 }): Promise<QuotaFallbackTarget | null> {
-  const { category, isGuestMode, failingModel, cacheKeyId, configResolver, caches } = options;
+  const { category, isGuestMode, failingModel, cacheKeyId, configResolver, caches, excludeRoutes } =
+    options;
 
   let config: ResolvedLlmConfig | null;
   let forceSystemKey = false;
@@ -382,6 +422,14 @@ export async function selectQuotaFallbackTarget(options: {
   }
 
   if (config === null || config.model === failingModel) {
+    return null;
+  }
+  const candidateProvider: string = config.provider ?? AIProvider.OpenRouter;
+  if (isRouteAttempted({ provider: candidateProvider, model: config.model }, excludeRoutes)) {
+    logger.debug(
+      { targetModel: config.model, targetProvider: candidateProvider },
+      'Retarget skipped: the target route was already attempted this job'
+    );
     return null;
   }
 
