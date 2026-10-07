@@ -164,7 +164,8 @@ export async function runWithQuotaFallback(options: {
     });
     // No tier-aware retarget exists when the failing model IS the tier's own
     // default — the proactively-substituted guest turn, and the user whose
-    // global default is the failing model. The floor is then the only rescue,
+    // global default is the failing model — or when that default is a route
+    // this job already attempted. The floor is then the only rescue,
     // and it has to be reachable as hop 1 because hop 2 only runs after a
     // hop-1 attempt.
     const target =
