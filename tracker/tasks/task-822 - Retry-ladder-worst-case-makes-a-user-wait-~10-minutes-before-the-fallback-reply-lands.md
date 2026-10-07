@@ -6,12 +6,13 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-29 17:43'
+updated_date: '2026-10-07 17:52'
 labels:
   - 'area:ai-worker'
   - 'size:M'
-  - 'state:observable'
+  - 'state:ready'
 dependencies: []
-priority: medium
+priority: high
 ordinal: 822000
 ---
 
@@ -22,7 +23,7 @@ Why: observed in prod 2026-08-29, first sighting of the enriched ops-alert embed
 
 610942ms is 10.2 MINUTES of user-visible wait before the reply arrived. The arithmetic is consistent with the design rather than a defect: TIMEOUTS.LLM_PER_ATTEMPT is 180000ms (packages/common-types/src/constants/timing.ts:37), so three attempts timing out at 3 min each is ~9 min, plus the successful fallback attempt lands near 610s. Nothing malfunctioned — the ladder did what it is configured to do, and the turn DID succeed.
 
-The question is product taste, which is why this is filed rather than fixed: how long should a user wait on a stalling provider before we stop retrying it and move on? Three full 180s attempts against a provider that is timing out (as opposed to erroring fast) buys little — a provider that has not answered in 180s is unlikely to answer on attempt 2 or 3 for the same reason — while costing the user the entire window.
+The question is product taste, which is why this is filed rather than fixed: how long should a user wait on a stalling provider before we stop retrying it and move on? The filing assumed that three full 180s attempts against a timing-out provider buy little. The 2026-10-07 measurement below falsified that: about 45% of timeout retries succeed, mostly just under the 180s limit.
 
 MITIGATION ALREADY IN PLACE — owner correction 2026-08-29, verified in code: the wait is NOT silent. `JobTracker` posts a "taking longer" notification once a tracked job passes `TAKING_LONGER_NOTIFY_MS` (`services/bot-client/src/services/JobTracker.ts:83`, 5 minutes), guarded by `notificationSent` so it fires once, and `completeJob` deletes the notification when the real reply lands (JobTracker.ts:284-285). So the observed 10.2-minute case showed the user a wait notice at the ~5-minute mark. This LOWERS the severity materially: the open question is a wait-budget tuning call, not a silent-hang defect, and (d) accept-as-is is a genuinely reasonable answer. Recorded because the original filing overstated the user impact by omitting it.
 
@@ -34,10 +35,23 @@ Acceptance: a deliberate owner decision on the timeout-path wait budget, and if 
 
 Provenance: owner-approved filing 2026-08-29 ("we can file it").
 
-Owner question: On the TIMEOUT path specifically, do we (a) cut the attempt count, (b) shorten the per-attempt timeout, (c) advance to the fallback after the first timeout, or (d) accept the current worst case as the cost of maximum success rate?
-Recommendation: (a) fewer attempts for the TIMEOUT category only — the task's own reasoning is that a provider silent for 180s is unlikely to answer on attempt 2 or 3 for the same reason, so those attempts buy little while costing the user the whole window, and leaving other categories at the current count keeps the change narrow.
+Answered 2026-10-07: retries stay; the per-attempt limit goes to 300s and a per-job budget is added (see the Decision 2026-10-07 paragraph below). The earlier pick, cutting timeout retries, was falsified by the measurement: about 45% of timeout retries succeed.
 
 Decision 2026-09-02 (owner): measure first. The retry helper logs one line per attempt (retry.ts: `[Retry] <op> succeeded on attempt N` at info with durationMs; a warn per retryable failure with errorContext + attempt), but nothing aggregates them and the ops-alert embed fires only on rescued/failed turns, so attempt-2 successes are invisible there. Next step: query a window of prod logs for attempt-2/3 successes that followed a TIMEOUT-category failure, put the rate on this task; the cut-attempts change waits for that number. Trigger: the measured rate.
 
-Datapoint 2026-10-07 (prod, requestId a80834be, job llm-c9a2244d, Lilith, glm-5.3-flash Reasoning: high): NOT rescued, 18 min to a user-visible timeout error. The layers stack, each with a fresh budget: z.ai-direct 1 x 180s, then the auto-promotion OpenRouter fallback 3 x 180s (totalTimeMs=543008, already past the 480s LLM_INVOCATION budget that timing.ts describes as "all retry attempts combined"), then a reactive quota retarget to the same model (TASK-1188) 3 more x 180s. bot-client MultiTagCoordinator flushed a synthetic timeout at 1080s while the worker was still mid-attempt. 6 of 6 timeout retries in this job also timed out (0 rescues); every attempt got HTTP 200 in ~1s and then the body read hit TimeoutError near 177s, so the model was generating, not unreachable. Same model/route finished in 94s and 115s at 14:52 and 14:55Z, so this request was near the 180s edge rather than the provider being down (inferred cause: 10 attachments plus a ciphered message under reasoning high; not verified). The current 5000-line ai-worker window (03:12-15:41Z) holds no other timeout. A per-job total budget across all three layers belongs in this task scope.
+Datapoint 2026-10-07 (prod, requestId a80834be, job llm-c9a2244d, Lilith, glm-5.3-flash Reasoning: high): NOT rescued, 18 min to a user-visible timeout error. The layers stack, each with a fresh budget: z.ai-direct 1 x 180s, then the auto-promotion OpenRouter fallback 3 x 180s (totalTimeMs=543008, already past the 480s LLM_INVOCATION budget that timing.ts describes as "all retry attempts combined"), then a reactive quota retarget to the same model (TASK-1188) 3 more x 180s. bot-client MultiTagCoordinator flushed a synthetic timeout at 1080s, but the worker kept going: the retarget's third attempt ended 15:43:33Z, then the hop-2 floor (openrouter/auto) ran 3 x 180s to 15:52:34Z. That is 10 attempts and 30 minutes in all, 12 of them after the user already had the error. Every retry in this job timed out (0 rescues), including on a different model (openrouter/auto); every attempt got HTTP 200 in ~1s and then the body read hit TimeoutError near 177s, so the model was generating, not unreachable. Same model/route finished in 94s and 115s at 14:52 and 14:55Z, so this request was near the 180s edge rather than the provider being down (inferred cause: 10 attachments plus a ciphered message under reasoning high; not verified). The current 5000-line ai-worker window (03:12-15:41Z) holds no other timeout. A per-job total budget across all three layers belongs in this task scope.
+
+Measured 2026-10-07 (the measurement the 2026-09-02 decision asked for). Source: every retained prod ai-worker deployment, `railway logs <id> --filter "Retry" --lines 5000` (each under 5000 lines, so complete), 2026-09-07 to 2026-10-07; deployments before 2026-09-07 return no lines even unfiltered. Over the `[Retry] LLM invocation` lines:
+- 313 timeout failures, every one at the 180s cap. 276 (88%) were glm-5.3-flash. 164 invocations timed out on a first attempt, against 2576 first-attempt successes.
+- **101 retries after a timeout succeeded**, against 122 that timed out again: a **~45% rescue rate**. The rescue was matched by host plus operation sequence, so concurrent jobs could mis-attribute a few.
+- The rescuing attempts mostly took 95-178s.
+- First-try and retry success durations fall smoothly to the cap: 224 successes landed in the 150-180s bucket. Inferred, not measured: a real share of generations need a little over 180s, and the retry wins on variance.
+
+Conclusion: the original recommendation (a), cut timeout retries, is falsified; it would lose about 100 rescued turns a month. A longer per-attempt limit plus a per-job total budget fits the data.
+
+Decision 2026-10-07 (owner, after the measurement): keep the retry counts and raise the LLM per-attempt limit from 180s to 300s (`TIMEOUTS.LLM_PER_ATTEMPT`). Add one time budget per job that spans every fallback layer (primary, auto-promotion swap, reactive retarget, both floor hops) and ends before bot-client's 18-minute MultiTagCoordinator flush. The worker stops when that budget is spent.
+
+Build notes: the dependent timeouts need re-deriving, not just the constant. That covers `LLM_INVOCATION`, `calculateJobTimeout`/`MAX_JOB_RUNTIME`, the gateway `JOB_WAIT`, the bot-client flush and the typing-timeout and taking-longer notices. Read each before choosing the budget value.
+
+Acceptance: no single attempt is aborted before 300s; the summed LLM time of one job never exceeds the budget (a test drives a chain of layer timeouts and asserts it stops); and the user-visible error lands no later than the budget plus overhead.
 <!-- SECTION:DESCRIPTION:END -->
