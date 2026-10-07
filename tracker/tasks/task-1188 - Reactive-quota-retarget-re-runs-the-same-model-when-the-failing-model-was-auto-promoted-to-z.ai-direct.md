@@ -3,9 +3,10 @@ id: TASK-1188
 title: >-
   Reactive quota retarget re-runs the same model when the failing model was
   auto-promoted to z.ai-direct
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-07 15:45'
+updated_date: '2026-10-07 16:52'
 labels:
   - 'area:ai-worker'
   - 'size:S'
