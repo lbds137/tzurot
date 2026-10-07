@@ -1664,6 +1664,57 @@ describe('routes the primary already attempted (auto-promotion twin)', () => {
     expect(retriedModels(retry)).toEqual(['z-ai/glm-5.3-flash']);
   });
 
+  describe('guest downgrade when the tiered target has no credentials', () => {
+    // The user has no OpenRouter key, so the tiered target's credentials fail
+    // to resolve and the runner downgrades to the guest-safe free default.
+    const freeRoute = { provider: 'openrouter', model: 'vendor/some-model:free' };
+
+    it('never downgrades onto a free default route the job already attempted; the original is rethrown', async () => {
+      const original = quotaError(ApiErrorCategory.TIMEOUT);
+      const primary = vi.fn().mockRejectedValue(original);
+      const retry = vi.fn().mockResolvedValue(okResult);
+
+      await expect(
+        runWithQuotaFallback({
+          primary,
+          retry,
+          opts: promotedOpts(),
+          userId: '123',
+          requestId: 'req-1',
+          deps: buildDeps({
+            global: { model: 'paid/default' },
+            free: { model: 'vendor/some-model:free' },
+            userOpenRouterKey: undefined,
+          }),
+          attemptedRoutes: [zaiRoute, freeRoute] satisfies AttemptedRoute[],
+        })
+      ).rejects.toBe(original);
+
+      expect(retry).not.toHaveBeenCalled();
+    });
+
+    it('control: downgrades onto the free default when that route was not attempted', async () => {
+      const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.TIMEOUT));
+      const retry = vi.fn().mockResolvedValue(okResult);
+
+      await runWithQuotaFallback({
+        primary,
+        retry,
+        opts: promotedOpts(),
+        userId: '123',
+        requestId: 'req-1',
+        deps: buildDeps({
+          global: { model: 'paid/default' },
+          free: { model: 'vendor/some-model:free' },
+          userOpenRouterKey: undefined,
+        }),
+        attemptedRoutes: [zaiRoute] satisfies AttemptedRoute[],
+      });
+
+      expect(retriedModels(retry)).toEqual(['vendor/some-model:free']);
+    });
+  });
+
   describe('hop-2 floor', () => {
     beforeEach(() => {
       registerSystemSettings({

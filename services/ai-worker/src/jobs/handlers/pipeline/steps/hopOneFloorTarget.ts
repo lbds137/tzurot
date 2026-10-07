@@ -87,7 +87,8 @@ export async function selectHopOneFloorTarget(params: {
     // Which unavailability cause applies is diagnosable from the floor id
     // itself: empty = unconfigured, equal to the failing model = excluded,
     // already attempted = the primary ran that route, anything else = the doom
-    // caches vetoed a configured floor.
+    // caches or the catalog vetoed a configured floor (the label names only
+    // the doom caches).
     const floor = opts.isGuestMode ? getFreeTextFloor() : getSystemSetting('fallbackTextModel');
     let cause: string;
     if (floor.length === 0) {
