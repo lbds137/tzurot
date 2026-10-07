@@ -25,7 +25,8 @@ const logger = createLogger('QuotaFallbackRunner');
 /**
  * The floor promoted to HOP 1, for the turns that have no tier-aware retarget
  * at all: a guest already running the free default, or a user whose global
- * default is the failing model. Invariant — such a turn can never produce a
+ * default is the failing model or a route this job already attempted (the
+ * tiered selection excludes those). Invariant — such a turn can never produce a
  * hop-1 target, so without this the floor is unreachable and the turn is
  * terminal. The returned target flows through the SAME downstream path a
  * normal hop-1 target takes (credential resolution, metering, the audit line,
