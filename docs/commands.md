@@ -34,15 +34,15 @@ TTS + STT provider selection and cloned-voice library lifecycle. Per-character T
 
 ## Presets & Channels
 
-| Command    | Subcommands                                 | Purpose                                                            |
-| ---------- | ------------------------------------------- | ------------------------------------------------------------------ |
-| `/preset`  | `create` `edit` `browse`                    | Custom LLM presets (model + parameters)                            |
-|            | `default` (`set` `clear`)                   | Your default preset — used for every character without an override |
-|            | `override` (`browse` `set` `clear`)         | Per-character preset overrides                                     |
-|            | `export` `import` `template`                | Preset portability (JSON)                                          |
-|            | `global` (`default` `free-default`)         | System-wide defaults (owner only)                                  |
-| `/models`  | `browse` `view`                             | Browse and inspect available AI models (by capability)             |
-| `/channel` | `activate` `deactivate` `browse` `settings` | Channel auto-response management                                   |
+| Command    | Subcommands                                 | Purpose                                                                                                               |
+| ---------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `/preset`  | `create` `edit` `browse`                    | Custom LLM presets (model + parameters)                                                                               |
+|            | `default` (`set` `clear`)                   | Your default preset — used for every character without an override; `slot: Both` targets text + vision in one command |
+|            | `override` (`browse` `set` `clear`)         | Per-character preset overrides                                                                                        |
+|            | `export` `import` `template`                | Preset portability (JSON)                                                                                             |
+|            | `global` (`default` `free-default`)         | System-wide defaults (owner only); `slot: Both` targets text + vision                                                 |
+| `/models`  | `browse` `view`                             | Browse and inspect available AI models (by capability)                                                                |
+| `/channel` | `activate` `deactivate` `browse` `settings` | Channel auto-response management                                                                                      |
 
 ## Memory & History
 

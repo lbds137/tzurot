@@ -109,6 +109,24 @@ describe('Preset Global Set Default Handler', () => {
       expect(embedData.description).toContain('system default Vision preset');
     });
 
+    it("passes slot:'both' through and names both slots in the confirmation", async () => {
+      const context = createMockContext('both-config', 'both');
+      stub.setGlobalLlmConfigDefault.mockResolvedValue(
+        makeOk({ success: true, configName: 'GPT-4o' })
+      );
+
+      await handleGlobalSetDefault(context);
+
+      // The both alias must reach the promote call intact — the gateway
+      // vision-gates it and writes both pointers in one request.
+      expect(stub.setGlobalLlmConfigDefault).toHaveBeenCalledWith('both-config', {
+        slot: 'both',
+      });
+      const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
+      const embedData = embedCall.embeds[0].toJSON();
+      expect(embedData.description).toContain('system default for both Chat and Vision');
+    });
+
     it('names the Chat label when slot:text is chosen explicitly', async () => {
       const context = createMockContext('text-config', 'text');
       stub.setGlobalLlmConfigDefault.mockResolvedValue(

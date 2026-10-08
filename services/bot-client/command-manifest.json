@@ -2062,6 +2062,10 @@
                       {
                         "name": "Vision",
                         "value": "vision"
+                      },
+                      {
+                        "name": "Both",
+                        "value": "both"
                       }
                     ],
                     "name": "slot",
@@ -2085,6 +2089,10 @@
                       {
                         "name": "Vision",
                         "value": "vision"
+                      },
+                      {
+                        "name": "Both",
+                        "value": "both"
                       }
                     ],
                     "name": "slot",
@@ -2122,6 +2130,10 @@
                       {
                         "name": "Vision",
                         "value": "vision"
+                      },
+                      {
+                        "name": "Both",
+                        "value": "both"
                       }
                     ],
                     "name": "slot",
@@ -2152,6 +2164,10 @@
                       {
                         "name": "Vision",
                         "value": "vision"
+                      },
+                      {
+                        "name": "Both",
+                        "value": "both"
                       }
                     ],
                     "name": "slot",

@@ -320,9 +320,10 @@ export const adminRoutes = {
     path: '/llm-config/:id/set-default',
     id: 'setGlobalLlmConfigDefault',
     params: { id: z.string() },
-    // Which default slot the config is promoted into; the gateway
-    // capability-gates the vision slot.
-    query: { slot: z.enum(MODEL_SLOTS).optional() },
+    // Which default slot the config is promoted into (text|vision), or `both`
+    // to write both pointers in one request; the gateway capability-gates the
+    // vision slot (and thus the both alias) BEFORE any write.
+    query: { slot: z.enum([...MODEL_SLOTS, 'both']).optional() },
     output: SetDefaultLlmConfigResponseSchema,
     meta: { idempotent: true },
   },
@@ -334,9 +335,10 @@ export const adminRoutes = {
     path: '/llm-config/:id/set-free-default',
     id: 'setGlobalLlmConfigFreeDefault',
     params: { id: z.string() },
-    // Which free-default slot the config is promoted into; the gateway
-    // capability-gates the vision slot.
-    query: { slot: z.enum(MODEL_SLOTS).optional() },
+    // Which free-default slot the config is promoted into (text|vision), or
+    // `both` to write both pointers in one request; the gateway capability-
+    // gates the vision slot (and thus the both alias) BEFORE any write.
+    query: { slot: z.enum([...MODEL_SLOTS, 'both']).optional() },
     output: SetDefaultLlmConfigResponseSchema,
     meta: { idempotent: true },
   },

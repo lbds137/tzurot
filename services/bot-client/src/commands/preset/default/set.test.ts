@@ -118,6 +118,29 @@ describe('handleDefaultSet', () => {
     });
   });
 
+  it("passes slot:'both' through and names both slots in the confirmation", async () => {
+    mockNonGuestUserApis('00000000-0000-4000-8000-0000000000a3', 'GPT-4o Both');
+
+    await handleDefaultSet(createMockContext('00000000-0000-4000-8000-0000000000a3', 'both'));
+
+    // The both alias must reach the gateway intact (toModelSlot would floor it
+    // to text); the gateway vision-gates it before writing both slots.
+    expect(stub.setDefaultModelConfig).toHaveBeenCalledWith(
+      { configId: '00000000-0000-4000-8000-0000000000a3' },
+      { slot: 'both' }
+    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({
+            // The confirmation names BOTH slots, not just the chat default.
+            description: expect.stringContaining('Your default Chat and Vision presets are now'),
+          }),
+        }),
+      ],
+    });
+  });
+
   it('names the Chat label when slot:text is chosen explicitly', async () => {
     mockNonGuestUserApis('00000000-0000-4000-8000-0000000000a2', 'Text Explicit');
 

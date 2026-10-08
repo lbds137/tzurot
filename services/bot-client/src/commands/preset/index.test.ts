@@ -172,6 +172,36 @@ describe('Preset Command', () => {
       // renaming it would dead-end components on pre-rename messages.
       expect(presetCommand.componentPrefixes).toEqual(['settings-preset-override']);
     });
+
+    it('offers the Both choice on the four default-group slot options only (not override)', () => {
+      const json = presetCommand.data.toJSON();
+      const groups = (json.options ?? []).filter((opt: { type: number }) => opt.type === 2);
+
+      const slotChoicesOf = (groupName: string, subName: string): string[] => {
+        const group = groups.find((g: { name: string }) => g.name === groupName) as
+          | {
+              options?: {
+                name: string;
+                options?: { name: string; choices?: { value: string }[] }[];
+              }[];
+            }
+          | undefined;
+        const sub = group?.options?.find(s => s.name === subName);
+        const slotOption = sub?.options?.find(o => o.name === 'slot');
+        return (slotOption?.choices ?? []).map(c => c.value);
+      };
+
+      // Default + global groups: the `both` request alias is offered (one
+      // command writes text AND vision; the gateway vision-gates it first).
+      expect(slotChoicesOf('default', 'set')).toEqual(['text', 'vision', 'both']);
+      expect(slotChoicesOf('default', 'clear')).toEqual(['text', 'vision', 'both']);
+      expect(slotChoicesOf('global', 'default')).toEqual(['text', 'vision', 'both']);
+      expect(slotChoicesOf('global', 'free-default')).toEqual(['text', 'vision', 'both']);
+      // Override sites pin ONE slot per character — the Both alias must not
+      // leak there (owner ruling: default + global groups only).
+      expect(slotChoicesOf('override', 'set')).toEqual(['text', 'vision']);
+      expect(slotChoicesOf('override', 'clear')).toEqual(['text', 'vision']);
+    });
   });
 
   describe('user preset routing', () => {

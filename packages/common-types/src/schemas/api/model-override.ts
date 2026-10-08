@@ -88,8 +88,8 @@ export type SetDefaultConfigResponse = z.infer<typeof SetDefaultConfigResponseSc
 // Clears user's global default LLM config
 // ============================================================================
 
-/** A resolved free-default config the user falls back to for one slot. */
-const FreeDefaultRefSchema = z.object({
+/** A resolved default config the user falls back to for one slot. */
+const ResolvedDefaultRefSchema = z.object({
   id: z.string(),
   name: z.string(),
 });
@@ -98,15 +98,17 @@ export const ClearDefaultConfigResponseSchema = z.object({
   deleted: z.literal(true),
   /** Whether a default was actually set before this call (idempotent vs. real clear). */
   wasSet: z.boolean().optional(),
-  /** System free defaults the user falls back to, keyed by the slot(s) THIS call
-   *  cleared. A key is present iff that slot was cleared; its value is the free
-   *  default config for that slot, or `null` when no admin free default exists for
-   *  it (bot-client renders a built-in-fallback notice). An `all` clear populates
-   *  BOTH keys (so the confirmation names both fallbacks, not just chat); a
-   *  single-slot clear populates just the one. */
+  /** The effective default the user falls back to, keyed by the slot(s) THIS call
+   *  cleared. A key is present iff that slot was cleared; its value is the
+   *  default config that will actually serve this caller for that slot — picked
+   *  by their tier (keyed/BYOK → the global default, guest → the free default)
+   *  — or `null` when no such default is configured (bot-client renders a
+   *  built-in-fallback notice). An `all` clear populates BOTH keys (so the
+   *  confirmation names both fallbacks, not just chat); a single-slot clear
+   *  populates just the one. */
   newEffectiveDefaults: z.object({
-    text: FreeDefaultRefSchema.nullable().optional(),
-    vision: FreeDefaultRefSchema.nullable().optional(),
+    text: ResolvedDefaultRefSchema.nullable().optional(),
+    vision: ResolvedDefaultRefSchema.nullable().optional(),
   }),
 });
 

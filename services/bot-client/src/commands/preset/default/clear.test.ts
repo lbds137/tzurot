@@ -65,6 +65,18 @@ describe('handleDefaultClear', () => {
     expect(stub.clearDefaultModelConfig).toHaveBeenCalledWith({ slot: 'all' });
   });
 
+  it("maps the 'both' choice onto the gateway 'all' sentinel and names both slots", async () => {
+    stub.clearDefaultModelConfig.mockResolvedValue(makeOk(mockClearDefaultConfigResponse()));
+
+    await handleDefaultClear(createMockContext('both'));
+
+    // The gateway has no `both` CLEAR value — one choice maps onto `all`.
+    expect(stub.clearDefaultModelConfig).toHaveBeenCalledWith({ slot: 'all' });
+    const description = mockEditReply.mock.calls[0][0].embeds[0].data.description;
+    // Explicit `both` names both slots (the no-slot clear keeps its generic line).
+    expect(description).toContain('Your default presets for Chat and Vision have been removed.');
+  });
+
   it('should clear the vision default when slot=vision', async () => {
     stub.clearDefaultModelConfig.mockResolvedValue(makeOk(mockClearDefaultConfigResponse()));
 
@@ -123,6 +135,9 @@ describe('handleDefaultClear', () => {
 
     await handleDefaultClear(createMockContext());
 
+    // The forwarded name AND the tier-agnostic framing both land in the embed:
+    // the route already picked global-vs-free by the caller's tier, so the
+    // render words it as the default for characters without their own preset.
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
@@ -132,6 +147,8 @@ describe('handleDefaultClear', () => {
         }),
       ],
     });
+    const description = mockEditReply.mock.calls[0][0].embeds[0].data.description;
+    expect(description).toContain('characters without their own preset will use');
   });
 
   it('should render hardcoded-fallback notice when no system default is configured', async () => {

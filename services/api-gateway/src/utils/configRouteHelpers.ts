@@ -98,6 +98,30 @@ export function parseModelSlotQueryAllowAll(
   return result.data.slot;
 }
 
+/** `?slot=` schema that also accepts the `both` request alias (write both slots). */
+const ModelSlotOrBothQuerySchema = z.object({
+  slot: z.enum([...MODEL_SLOTS, 'both'] as const).default(DEFAULT_MODEL_SLOT),
+});
+
+/**
+ * Parse the optional `?slot=` query, additionally accepting the `'both'`
+ * REQUEST ALIAS meaning "write text AND vision slots in one request" (the
+ * default-setter commands). Distinct from `'all'` (the clear-side sentinel):
+ * `both` writes two pointers, `all` clears them. Defaults to text. On an
+ * invalid value sends a Zod-shaped 400 and returns null.
+ */
+export function parseModelSlotQueryAllowBoth(
+  res: Response,
+  query: unknown
+): ModelSlot | 'both' | null {
+  const result = ModelSlotOrBothQuerySchema.safeParse(query ?? {});
+  if (!result.success) {
+    sendZodError(res, result.error);
+    return null;
+  }
+  return result.data.slot;
+}
+
 /**
  * Fetch a config row by id (caller supplies the typed thunk) and 404 if
  * absent. Unlike findGlobalConfigOrSendError, no isGlobal guard — user-side

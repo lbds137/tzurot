@@ -7,6 +7,7 @@
 
 import type { Response } from 'express';
 import type { ModelOverrideSummary } from '@tzurot/common-types/schemas/api/model-override';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { parseModelSlotQueryAllowAll } from '../../utils/configRouteHelpers.js';
 import type { ModelCapabilityService } from '../../services/ModelCapabilityService.js';
@@ -101,5 +102,67 @@ export function parseClearSlots(res: Response, query: unknown): ClearSlots | nul
     slot,
     clearText: slot === 'text' || slot === 'all',
     clearVision: slot === 'vision' || slot === 'all',
+  };
+}
+
+/** One resolved default config the cleared user falls back to, per slot. */
+export interface ResolvedDefaultRef {
+  id: string;
+  name: string;
+}
+
+/**
+ * Resolve the fallback default(s) a user lands on after clearing their user
+ * default — ONE PER CLEARED SLOT (an `all` clear names both the chat AND
+ * vision fallback) — picking the POINTER FAMILY by the caller's tier:
+ *
+ * - keyed (BYOK — has an active API key): the GLOBAL default pointers. A
+ *   keyed user's resolution cascade bottoms out at the global default
+ *   (PersonalityLoader's S3 tier); the free default never applies to them.
+ * - guest (no active key): the FREE default pointers — the guest-mode /
+ *   quota-fallback ladder is the only path that serves them.
+ *
+ * Reads the AdminSettings POINTER columns, never the `isFreeDefault` boolean —
+ * setAsFreeDefault writes only the pointers, so the boolean is stale (would
+ * show a wrong/missing fallback name after the global free default changes).
+ * Per-personality overrides and personality-level defaults sit ABOVE whatever
+ * this names and are unaffected by the clear.
+ */
+export async function resolveClearFallbackDefaults(
+  prisma: PrismaClient,
+  clearText: boolean,
+  clearVision: boolean,
+  keyed: boolean
+): Promise<{ text?: ResolvedDefaultRef | null; vision?: ResolvedDefaultRef | null }> {
+  const settings = await prisma.adminSettings.findUnique({
+    where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+    select: {
+      globalDefaultLlmConfigId: true,
+      globalDefaultVisionConfigId: true,
+      freeDefaultLlmConfigId: true,
+      freeDefaultVisionConfigId: true,
+    },
+  });
+  const pointerIds = keyed
+    ? {
+        text: settings?.globalDefaultLlmConfigId ?? null,
+        vision: settings?.globalDefaultVisionConfigId ?? null,
+      }
+    : {
+        text: settings?.freeDefaultLlmConfigId ?? null,
+        vision: settings?.freeDefaultVisionConfigId ?? null,
+      };
+  const resolvePointer = async (pointerId: string | null): Promise<ResolvedDefaultRef | null> => {
+    if (pointerId === null) {
+      return null;
+    }
+    return prisma.llmConfig.findUnique({
+      where: { id: pointerId },
+      select: { id: true, name: true },
+    });
+  };
+  return {
+    ...(clearText ? { text: await resolvePointer(pointerIds.text) } : {}),
+    ...(clearVision ? { vision: await resolvePointer(pointerIds.vision) } : {}),
   };
 }
