@@ -4,6 +4,11 @@
 >
 > **Previous**: v3.0.0-beta.233 — "the parity train" (17 PRs / 12 runtime; 2026-10-01, `91ee1f9f0`).
 
+## ⏳ In flight (2026-10-08, GLM-flash lane)
+
+- **PR #2583 (TASK-1171, the beta.235 cut item)**: guest footer note when the z.ai piggyback is denied. Nested-dispatch build (fable orchestrator + worker), all local gates green, monitor armed. On merge: it becomes beta.235's first "In already" — the cut proposal follows (now.md § Cut when). If claude-review quota-walls (Anthropic week ~95%): seyag review-response rule 0 substitute, now optionally a real Claude fresh-context review via `cc-route run anthropic-api` (Console promo, until 10-21).
+- **Queued behind it**: dependabot #2579/#2580 merge on Lila's standing ruling (green CI, no review ask) → #2578's claude-workflow hunks to a MAIN-cut PR (its red lint is `guard:workflow-sync` correctly refusing a develop-based claude-workflow change; closes after finalize) → TASK-822 (300s per attempt + per-job budget).
+
 ---
 
 ## 🙋 Owner queue (the human-only items, consolidated 2026-09-08 — everything below also lives in its long-form bullet under Open items)
@@ -27,10 +32,6 @@ No-owner-action items (CI/observability): #2554 default-off config · #2561 CLIE
 
 **What**: #2544 (TASK-1074: undecodable audio gets a "couldn't read that audio format" reply; voice-engine 415, non-retryable) and #2545 (TASK-1112: a plain re-uploaded voice file, `video/webm` with no voice flag, is byte-sniffed and transcribed when it has no video track; three review rounds, no blockers), plus the getting-started guide fix. One holistic review body, no findings. **Smoke (needs-smoke tier, owner, on prod)**: (1) re-upload a Vencord voice message as a plain file; the character should answer the transcript. Failure signal: no `Plain WebM upload is audio-only; routing to STT` line in ai-worker. **Filed at the cut**: TASK-1116 (quoted/forwarded path), TASK-1120 (A/V fixtures), TASK-1121 and TASK-1123 (owner calls: filenames in logs, privacy wording), TASK-1122 (bulk card import). **Misses**: the published notes went out mangled by a sed whose delimiter appeared in the replacement, fixed within minutes with `gh release edit`; a filtered push and a self-matching pgrep that killed the tool shell (TASK-1115 filed).
 
-## 🚢 2026-09-25 — beta.231 RELEASED (Fable; fix-forward cut, owner ruled and approved same evening)
-
-The Vencord voice path: MediaRecorder's jittered 60 ms Opus timeline survived the stream copy, so #2542 decodes, re-times (`asetpts`) and re-encodes (libopus 64k) to Ogg. Range 8 PRs / 3 runtime / 68 files; no migrations; release PR #2543 rebase-merged normally. The container-ffmpeg confirmation closed via beta.229 item 1 (PASS 2026-09-26); filed at the cut: TASK-1112 (→ beta.232), TASK-1074 (→ beta.232).
-
 ## 🚢 2026-09-25 — beta.230 RELEASED (Fable; owner ruled "cut now" ~10:20 EDT and approved the merge ~11:00 EDT; doc-97 slice 2 moves to beta.231 regardless of the TASK-1039 read)
 
 **Range at the cut**: 29 PRs, 19 runtime, 247 files, 117 commits; no migrations; version bumped on develop. Both backstops had fired; the plan's own criterion was met on the doc-72 half (PR A #2507, PR B #2509 merged) and the slice-2 half is deferred by ruling. Preflight clean: `guard:repo-settings` no deletion-safety findings, `security:advisories` none open, no dependabot PRs. #2534 (TASK-979, non-runtime) did NOT ride: its review carried one low-severity finding (`COMPACT_IDS_SHOWN` did not parameterize the display it names); the round-1 fix is committed as a fixup and lands after a rebase onto the released develop.
@@ -53,10 +54,6 @@ The Vencord voice path: MediaRecorder's jittered 60 ms Opus timeline survived th
   - ~~each service's first boot on the new deps (#2503, #2517) and the voice-engine's first boot on 3.13~~ OBSERVED clean 2026-09-25 15:06–15:08Z (bot-client and voice-engine boot lines read; api-gateway and ai-worker had 0 error lines in the same window);
   - ~~**cut step after the merge**: re-add `hook-posix-parse` to the MAIN ruleset's required checks~~ DONE 2026-09-25 (live PUT, guard clean; snapshot refresh in its own PR);
   - the next nightly db-sync run on the new build (the 07Z slot).
-
-## 🚢 2026-09-24 — beta.229 RELEASED (Opus 5.5; first prod boots on Node 24 clean; the summarized same-channel mode ruled KEEP by the owner, live on prod for Emily and lilith-tzel-shani)
-
-Range 30 PRs / 24 runtime / 402 files; no migrations. Smoke item 1 PASS 2026-09-26 on prod (the container ffmpeg carries `asetpts`/`libopus`; TASK-1069 CLOSED; forwarding untestable via Vencord). Agent-run items done or carried (the `/inspect` masked-link render stays a watch).
 
 ## 📋 Open items (near-term)
 
