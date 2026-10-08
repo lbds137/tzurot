@@ -34,7 +34,7 @@
     "@tzurot/embeddings": "workspace:*",
     "bullmq": "^5.81.5",
     "cac": "^7.0.0",
-    "chalk": "^6.0.0",
+    "chalk": "^6.0.1",
     "github-slugger": "^2.0.0",
     "ioredis": "^5.11.1",
     "semver": "^7.8.5",
