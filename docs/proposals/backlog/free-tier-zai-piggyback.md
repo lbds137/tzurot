@@ -5,8 +5,9 @@ subscription, instead of only the `:free` OpenRouter tier.
 
 **Status**: **SHIPPED (slice 2, 2026-07-11)** — admission-gated guest upgrade
 behind `ZAI_FREE_TIER_ENABLED` (default off). Owner decisions: headroom
-shutoff **75%** of the tighter plan window (`ZAI_FREE_TIER_HEADROOM_PERCENT`,
-revisit with the /admin usage meters); static global budget **1000/day**
+shutoff **90%** of the tighter plan window (`zaiHeadroomPercent`;
+**revised 75% → 90% on 2026-10-06**, see § Headroom reversal at the end);
+static global budget **1000/day**
 (`ZAI_FREE_TIER_GLOBAL_DAILY_BUDGET`); **silent degrade** to `openrouter/free`
 (the free default preset may BE the piggyback model — selectable in
 /preset free-default; guests only ever run it z.ai-direct or get the router).
@@ -192,3 +193,25 @@ mechanics all exist now — extraction is the first consumer and this slice
 reuses them. Extraction's `usage_logs` rows (`provider: 'zai-coding'`,
 `requestType: 'fact_extraction'`) are the first in-system measurement of plan
 consumption — the observability constraint's starting data.
+
+## Headroom reversal: 75% → 90% (2026-10-06, owner ruling via Deck)
+
+The 2026-07 decision above set the guest headroom shutoff at **75%** of the
+tighter plan window, with an explicit "revisit with the /admin usage meters".
+Lila ruled on 2026-10-06 that the shutoff moves to **90%**. It is now the
+runtime system setting `zaiHeadroomPercent` (the `ZAI_FREE_TIER_HEADROOM_PERCENT`
+env var migrated into the AdminSettings bag — see
+[`admin-runtime-settings.md`](./admin-runtime-settings.md); tuning it needs no
+deploy, only the `/admin settings` System page or the settings API).
+
+Mechanism as built (`ZaiFreeTierAdmission`): guests are admitted only while the
+plan's tighter usage window reads **under** `zaiHeadroomPercent`% consumed. The
+live meter reads TOTAL plan consumption — the owner's own coding, fact
+extraction, and backfill — so guests are the first and only traffic shed. A
+null meter reading fails the gate open; the static daily budget still bounds
+volume.
+
+Companion half of the same ruling: dev sessions (Claude Code on the z.ai lane)
+stop starting work at 80% of the 5h window / 75% of the week (dev-docs
+`claude-usage`, commit 5953695), so dev's own consumption stays out of the band
+guests are admitted into.
