@@ -28,10 +28,30 @@ import { deriveCacheKeyId } from '../../../../services/RateLimitCache.js';
 import { tryPromotionDemotion } from './promotionDemotion.js';
 import { resolveRetargetRoute } from './retargetRoute.js';
 import type { ZaiFreeTierAdmission } from '../../../../services/ZaiFreeTierAdmission.js';
-import { applyGuestModeOverrides } from './guestModeOverrides.js';
+import {
+  applyGuestModeOverrides,
+  piggybackFields,
+  type GuestOverrideResult,
+} from './guestModeOverrides.js';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 
 const logger = createLogger('AuthStep');
+
+/** What `resolveLlmAuth` resolves — the shape every downstream hop (quota
+ *  retarget, demotion, process()) spreads or reads. */
+interface ResolvedLlmAuth {
+  resolvedApiKey: string | undefined;
+  resolvedProvider: AIProvider | undefined;
+  isGuestMode: boolean;
+  effectivePersonality: NonNullable<GenerationContext['config']>['effectivePersonality'];
+  wasAutoPromoted?: boolean;
+  fallback?: NonNullable<GenerationContext['auth']>['fallback'];
+  /** Set when guest mode substituted the configured model (footer announce). */
+  quotaFallback?: QuotaFallbackInfo;
+  /** Set when the guest-mode z.ai piggyback admission denied (footer note). */
+  piggybackSkipped?: boolean;
+  piggybackModel?: string;
+}
 
 export class AuthStep implements IPipelineStep {
   readonly name = 'AuthResolution';
@@ -87,6 +107,8 @@ export class AuthStep implements IPipelineStep {
       wasAutoPromoted,
       fallback,
       quotaFallback,
+      piggybackSkipped,
+      piggybackModel,
       inheritedQuotaCategory,
     } = llmAuth;
 
@@ -122,6 +144,7 @@ export class AuthStep implements IPipelineStep {
         ...(wasAutoPromoted === true ? { wasAutoPromoted: true } : {}),
         ...(fallback !== undefined ? { fallback } : {}),
         ...(quotaFallback !== undefined ? { quotaFallback } : {}),
+        ...(piggybackSkipped !== undefined ? { piggybackSkipped, piggybackModel } : {}),
         // Carries the demotion's OWN classification forward so the reactive
         // retarget stays reachable once the demotion has already consumed the
         // quota error. Dropping it here is invisible to the compiler — the
@@ -429,16 +452,7 @@ export class AuthStep implements IPipelineStep {
     initialPersonality: NonNullable<GenerationContext['config']>['effectivePersonality'],
     userId: string,
     requestId: string
-  ): Promise<{
-    resolvedApiKey: string | undefined;
-    resolvedProvider: AIProvider | undefined;
-    isGuestMode: boolean;
-    effectivePersonality: NonNullable<GenerationContext['config']>['effectivePersonality'];
-    wasAutoPromoted?: boolean;
-    fallback?: NonNullable<GenerationContext['auth']>['fallback'];
-    /** Set when guest mode substituted the configured model (footer announce). */
-    quotaFallback?: QuotaFallbackInfo;
-  }> {
+  ): Promise<ResolvedLlmAuth> {
     let effectivePersonality = initialPersonality;
 
     if (!this.apiKeyResolver || !this.providerRouter) {
@@ -492,17 +506,16 @@ export class AuthStep implements IPipelineStep {
       // Carries the guest substitution's footer announce past the block, so
       // BOTH guest exits (z.ai upgrade and plain free-model override) report
       // it — the swap is never silent on either arm.
-      let guestQuotaFallback: QuotaFallbackInfo | undefined;
+      let guest: GuestOverrideResult | undefined;
 
       if (route.isGuestMode) {
-        const guest = await applyGuestModeOverrides(
+        guest = await applyGuestModeOverrides(
           { configResolver: this.configResolver, zaiFreeTierAdmission: this.zaiFreeTierAdmission },
           effectivePersonality,
           userId,
           requestId
         );
         effectivePersonality = guest.personality;
-        guestQuotaFallback = guest.quotaFallback;
         if (guest.zaiSystemKey !== undefined) {
           return {
             resolvedApiKey: guest.zaiSystemKey,
@@ -511,7 +524,8 @@ export class AuthStep implements IPipelineStep {
             effectivePersonality,
             wasAutoPromoted: route.wasAutoPromoted,
             fallback: route.fallback,
-            ...(guestQuotaFallback !== undefined ? { quotaFallback: guestQuotaFallback } : {}),
+            ...(guest.quotaFallback !== undefined ? { quotaFallback: guest.quotaFallback } : {}),
+            ...piggybackFields(guest),
           };
         }
       }
@@ -523,26 +537,40 @@ export class AuthStep implements IPipelineStep {
         effectivePersonality,
         wasAutoPromoted: route.wasAutoPromoted,
         fallback: route.fallback,
-        ...(guestQuotaFallback !== undefined ? { quotaFallback: guestQuotaFallback } : {}),
+        ...(guest?.quotaFallback !== undefined ? { quotaFallback: guest.quotaFallback } : {}),
+        ...piggybackFields(guest),
       };
     } catch (error) {
       // Resolution failure is unexpected (normal guest mode is signaled via
       // isGuestMode=true, not by throwing). Recover by falling back to guest.
       logger.error({ err: error, userId }, 'Failed to resolve API key, falling back to guest mode');
-      const guest = await applyGuestModeOverrides(
-        { configResolver: this.configResolver, zaiFreeTierAdmission: this.zaiFreeTierAdmission },
-        effectivePersonality,
-        userId,
-        requestId
-      );
-      effectivePersonality = guest.personality;
-      return {
-        resolvedApiKey: guest.zaiSystemKey,
-        resolvedProvider: guest.zaiSystemKey !== undefined ? AIProvider.ZaiCoding : undefined,
-        isGuestMode: true,
-        effectivePersonality,
-        ...(guest.quotaFallback !== undefined ? { quotaFallback: guest.quotaFallback } : {}),
-      };
+      return this.guestModeFallback(effectivePersonality, userId, requestId);
     }
+  }
+
+  /**
+   * Resolution-failure recovery: degrade to the guest ladder on the pre-route
+   * personality. Extracted from `resolveLlmAuth`'s catch arm to keep that
+   * function within the per-function line cap.
+   */
+  private async guestModeFallback(
+    effectivePersonality: NonNullable<GenerationContext['config']>['effectivePersonality'],
+    userId: string,
+    requestId: string
+  ): Promise<ResolvedLlmAuth> {
+    const guest = await applyGuestModeOverrides(
+      { configResolver: this.configResolver, zaiFreeTierAdmission: this.zaiFreeTierAdmission },
+      effectivePersonality,
+      userId,
+      requestId
+    );
+    return {
+      resolvedApiKey: guest.zaiSystemKey,
+      resolvedProvider: guest.zaiSystemKey !== undefined ? AIProvider.ZaiCoding : undefined,
+      isGuestMode: true,
+      effectivePersonality: guest.personality,
+      ...(guest.quotaFallback !== undefined ? { quotaFallback: guest.quotaFallback } : {}),
+      ...piggybackFields(guest),
+    };
   }
 }

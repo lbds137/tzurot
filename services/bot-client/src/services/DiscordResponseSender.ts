@@ -17,6 +17,7 @@ import {
   DISCORD_LIMITS,
   BOT_FOOTER_TEXT,
   buildModelFooterText,
+  buildPiggybackNoteLine,
 } from '@tzurot/common-types/constants/discord';
 import { type QuotaFallbackCategoryValue } from '@tzurot/common-types/constants/error';
 import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
@@ -97,6 +98,14 @@ interface SendResponseOptions {
     fromModel: string;
     category: QuotaFallbackCategoryValue;
   };
+  /**
+   * Set when the z.ai free-tier piggyback admission denied this guest request
+   * (worker metadata passthrough) — renders one footer subtext line naming the
+   * skipped piggyback model; the deny reason itself never reaches the client.
+   */
+  piggybackSkipped?: boolean;
+  /** The denied piggyback model id, meaningful only alongside `piggybackSkipped`. */
+  piggybackModel?: string;
   /**
    * The model id the provider reported serving. Populated on essentially
    * every response, not only routed ones — it differs from the requested
@@ -327,6 +336,8 @@ export class DiscordResponseSender {
       fallbackProviderAttempted,
       fallbackFromProvider,
       quotaFallback,
+      piggybackSkipped,
+      piggybackModel,
       routedModel,
       isGuestMode,
       isAutoResponse,
@@ -351,6 +362,11 @@ export class DiscordResponseSender {
       })}`;
     } else if (isAutoResponse === true) {
       footer += `\n-# ${BOT_FOOTER_TEXT.AUTO_RESPONSE}`;
+    }
+    // Outside the model-footer gate, like the guest notices: a guest who hid
+    // the model line still needs to know why a fallback model answered.
+    if (piggybackSkipped === true && typeof piggybackModel === 'string') {
+      footer += buildPiggybackNoteLine(piggybackModel);
     }
     if (isGuestMode === true) {
       footer += `\n-# ${GUEST_MODE.FOOTER_MESSAGE}`;

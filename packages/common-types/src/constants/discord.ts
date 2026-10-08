@@ -570,6 +570,21 @@ function buildProviderAttribution(args: {
 }
 
 /**
+ * The piggyback-unavailable note as its own `-#` subtext line (leading newline
+ * included), or `''` when the sanitized model id is empty. Exported so a
+ * caller can render the note independently of the model footer line.
+ */
+export function buildPiggybackNoteLine(piggybackModel: string): string {
+  // Same sanitization as every rendered model id (modal free-text, length-only
+  // validation), then a code span: stripping alone leaves a bare URL that
+  // Discord auto-links. The post-strip value can be empty — skip then.
+  const sanitizedPiggyback = stripMarkdownDelimiters(piggybackModel);
+  return sanitizedPiggyback.length > 0
+    ? `\n-# ${toInertCodeSpan(sanitizedPiggyback)} is temporarily unavailable, so a fallback free model answered.`
+    : '';
+}
+
+/**
  * Build a model footer line for Discord messages.
  *
  * @param modelUsed - Model name to display
@@ -738,4 +753,15 @@ export const BOT_FOOTER_PATTERNS = {
    * `[..]` / `<..>` captures absorb the dynamic provider name and link.
    */
   TRANSCRIBED: /(?:^|\n)-# Transcribed by \[[^\]]+\]\(<[^>]+>\)/g,
+  /**
+   * Piggyback unavailability note from {@link buildPiggybackNoteLine}. The model segment is a post-`stripMarkdownDelimiters`
+   * id rendered through `toInertCodeSpan` (a code span, so no live link is
+   * possible), and holds no `[ ] ( ) < >` — the charset bound that keeps the
+   * match from swallowing a markdown link. Backticks are admitted by that
+   * charset. ACCEPTED WIDENING, same class as MODEL: a
+   * user-authored small-text line ending with the exact fixed suffix also
+   * strips, bounded to the author's own quoted text.
+   */
+  PIGGYBACK_NOTE:
+    /(?:^|\n)-# [^\n[\]()<>]* is temporarily unavailable, so a fallback free model answered\./g,
 } as const;

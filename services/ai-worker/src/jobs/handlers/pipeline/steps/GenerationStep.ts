@@ -28,6 +28,7 @@ import {
 import { composeGenerationFailureResult } from './generationFailureResult.js';
 import { validatePrerequisites, enforceGuestFreeTierQuota } from './generationStepValidation.js';
 import { generateWithDuplicateRetry } from './duplicateRetry.js';
+import { piggybackFields } from './guestModeOverrides.js';
 import { logDuplicateDetectionSetup } from './duplicateDetectionDiagnostics.js';
 import { getRecentAssistantMessages } from '../../../../utils/conversationHistoryUtils.js';
 import { storeDiagnosticLog } from './diagnosticStorage.js';
@@ -320,6 +321,7 @@ export class GenerationStep implements IPipelineStep {
               // produced only empty responses — the swap still happened and
               // must still be announced (never silent).
               quotaFallback: quotaFallbackInfo,
+              ...piggybackFields(auth),
             },
           },
         };
@@ -360,6 +362,7 @@ export class GenerationStep implements IPipelineStep {
             // Tier-aware quota retarget (proactive from AuthStep or reactive
             // from the wrapper above) — the footer announces it, never silent.
             quotaFallback: quotaFallbackInfo,
+            ...piggybackFields(auth),
           },
         },
       };
@@ -381,6 +384,7 @@ export class GenerationStep implements IPipelineStep {
         // (no reply came from its target); its story rides the
         // fallback-failure summary the composer already folds in.
         quotaFallback: auth.quotaFallback,
+        ...piggybackFields(auth),
       });
     }
   }

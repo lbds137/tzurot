@@ -272,12 +272,33 @@ describe('AuthStep', () => {
         mode: 'proactive',
       };
 
+      /** The piggyback model in its `z-ai/`-prefixed form — derived so the id never drifts. */
+      const PREFIXED_ZAI = `z-ai/${ZAI_FREE_TIER_MODEL}`;
+
       function guestContext(): GenerationContext {
         return {
           job: createMockJob(),
           startTime: Date.now(),
           config: { effectivePersonality: TEST_PERSONALITY, configSource: 'personality' },
         };
+      }
+
+      function piggybackContext(): GenerationContext {
+        return {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: {
+            effectivePersonality: { ...TEST_PERSONALITY, model: PREFIXED_ZAI },
+            configSource: 'personality',
+          },
+        };
+      }
+
+      function denyingAdmission(): ZaiFreeTierAdmission {
+        return {
+          admit: vi.fn().mockResolvedValue({ admitted: false, reason: 'quota' }),
+          systemKey: vi.fn().mockReturnValue(undefined),
+        } as unknown as ZaiFreeTierAdmission;
       }
 
       it('threads the announce carrier through the NORMAL guest arm', async () => {
@@ -326,6 +347,44 @@ describe('AuthStep', () => {
         });
 
         expect(result.auth?.quotaFallback).toBeUndefined();
+      });
+
+      it('threads the piggyback denial pair through the NORMAL guest arm', async () => {
+        // No z.ai-coding key: the prefixed piggyback must NOT auto-promote —
+        // a bare vi.fn() returns undefined, which the router's `!== null`
+        // check reads as a key.
+        vi.mocked(mockApiKeyResolver.tryResolveUserKey).mockResolvedValue(null);
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue({
+          apiKey: 'system-key',
+          provider: AIProvider.OpenRouter,
+          source: 'system',
+          isGuestMode: true,
+        });
+        vi.mocked(mockConfigResolver.getFreeDefaultConfig).mockResolvedValue(null);
+
+        step = new AuthStep(mockApiKeyResolver, mockConfigResolver, undefined, undefined, {
+          zaiFreeTierAdmission: denyingAdmission(),
+        });
+        const result = await step.process(piggybackContext());
+
+        expect(result.auth?.piggybackSkipped).toBe(true);
+        expect(result.auth?.piggybackModel).toBe(PREFIXED_ZAI);
+      });
+
+      it('threads the piggyback denial pair through the ERROR-RECOVERY guest arm', async () => {
+        vi.mocked(mockApiKeyResolver.tryResolveUserKey).mockResolvedValue(null);
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockRejectedValue(
+          new Error('Database connection failed')
+        );
+        vi.mocked(mockConfigResolver.getFreeDefaultConfig).mockResolvedValue(null);
+
+        step = new AuthStep(mockApiKeyResolver, mockConfigResolver, undefined, undefined, {
+          zaiFreeTierAdmission: denyingAdmission(),
+        });
+        const result = await step.process(piggybackContext());
+
+        expect(result.auth?.piggybackSkipped).toBe(true);
+        expect(result.auth?.piggybackModel).toBe(PREFIXED_ZAI);
       });
     });
 

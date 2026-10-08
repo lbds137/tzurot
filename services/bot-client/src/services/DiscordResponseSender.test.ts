@@ -4,6 +4,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DiscordResponseSender } from './DiscordResponseSender.js';
+import { GUEST_MODE } from '@tzurot/common-types/constants/ai';
 import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { Message } from 'discord.js';
@@ -262,6 +263,88 @@ describe('DiscordResponseSender', () => {
       expect(calledContent).toContain('Response content');
       expect(calledContent).toContain('Model: [x-ai/grok-4.1-fast:free]');
       expect(calledContent).toContain('🆓 Using free model (no API key required)');
+    });
+
+    it('should render the piggyback-skipped note when the flag and model arrive', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        ...senderTargetFrom(mockMessage),
+        modelUsed: 'openrouter/free',
+        piggybackSkipped: true,
+        piggybackModel: 'z-ai/glm-5.3-flash',
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).toContain('Response content');
+      expect(calledContent).toContain(
+        '\n-# `z-ai/glm-5.3-flash` is temporarily unavailable, so a fallback free model answered.'
+      );
+    });
+
+    it('should render no piggyback note without the flag', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        ...senderTargetFrom(mockMessage),
+        modelUsed: 'openrouter/free',
+        piggybackModel: 'z-ai/glm-5.3-flash',
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).toContain('Model: [openrouter/free]');
+      expect(calledContent).not.toContain('temporarily unavailable');
+    });
+
+    it('should render the piggyback note but not the model line when showModelFooter is false', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        ...senderTargetFrom(mockMessage),
+        modelUsed: 'openrouter/free',
+        piggybackSkipped: true,
+        piggybackModel: 'z-ai/glm-5.3-flash',
+        showModelFooter: false,
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).not.toContain('Model:');
+      expect(calledContent).toContain(
+        '\n-# `z-ai/glm-5.3-flash` is temporarily unavailable, so a fallback free model answered.'
+      );
+    });
+
+    it('should compose the model line, piggyback note, and guest footer in order', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        ...senderTargetFrom(mockMessage),
+        modelUsed: 'openrouter/free',
+        isGuestMode: true,
+        piggybackSkipped: true,
+        piggybackModel: 'z-ai/glm-5.3-flash',
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      const modelIdx = calledContent.indexOf('Model: [openrouter/free]');
+      const noteIdx = calledContent.indexOf(
+        '-# `z-ai/glm-5.3-flash` is temporarily unavailable, so a fallback free model answered.'
+      );
+      const guestIdx = calledContent.indexOf(GUEST_MODE.FOOTER_MESSAGE);
+      expect(modelIdx).toBeGreaterThanOrEqual(0);
+      expect(noteIdx).toBeGreaterThan(modelIdx);
+      expect(guestIdx).toBeGreaterThan(noteIdx);
     });
 
     it('should not add guest mode footer when isGuestMode is false', async () => {

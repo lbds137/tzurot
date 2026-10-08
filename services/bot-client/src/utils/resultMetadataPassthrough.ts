@@ -28,6 +28,10 @@ export interface ResultMetadataPassthrough {
     fromModel: string;
     category: QuotaFallbackCategoryValue;
   };
+  /** z.ai piggyback admission denied (footer's temporary-unavailability note). */
+  piggybackSkipped?: boolean;
+  /** The denied piggyback model id, meaningful only alongside `piggybackSkipped`. */
+  piggybackModel?: string;
   isGuestMode?: boolean;
   freshModeEnabled?: boolean;
   incognitoModeActive?: boolean;
@@ -47,6 +51,8 @@ export function buildResultMetadataPassthrough(
     fallbackProviderAttempted: result.metadata?.fallbackProviderAttempted,
     fallbackFromProvider: result.metadata?.fallbackFromProvider,
     quotaFallback: result.metadata?.quotaFallback,
+    piggybackSkipped: result.metadata?.piggybackSkipped,
+    piggybackModel: result.metadata?.piggybackModel,
     isGuestMode: result.metadata?.isGuestMode,
     freshModeEnabled: result.metadata?.freshModeEnabled,
     incognitoModeActive: result.metadata?.incognitoModeActive,
