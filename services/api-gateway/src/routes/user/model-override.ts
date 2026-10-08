@@ -13,7 +13,7 @@
 
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
+import { hasActiveChatCapableKey } from '@tzurot/common-types/constants/ai';
 import {
   type ModelOverrideSummary,
   type UserDefaultConfig,
@@ -27,6 +27,7 @@ import { withManifestInput } from '../../utils/manifestInput.js';
 import {
   parseModelSlotQuery,
   parseModelSlotQueryAllowAll,
+  parseModelSlotQueryAllowBoth,
 } from '../../utils/configRouteHelpers.js';
 import { ensureVisionCapableModel } from '../../utils/llmConfigValidation.js';
 import { ModelCapabilityService } from '../../services/ModelCapabilityService.js';
@@ -42,6 +43,7 @@ import {
   OVERRIDE_SUMMARY_SELECT,
   buildOverrideSummary,
   parseClearSlots,
+  resolveClearFallbackDefaults,
   verifyConfigAccess,
 } from './modelOverrideShared.js';
 import type { ProvisionedRequest } from '../../types.js';
@@ -250,9 +252,10 @@ export const handleSetDefaultModelConfig = (deps: RouteDeps): RequestHandler => 
     async (req: ProvisionedRequest, res: Response, { query }) => {
       const discordUserId = req.userId;
 
-      // The slot (chat vs vision) is the request's choice, not a config property;
-      // `?slot=` defaults to text. The vision slot is capability-gated below.
-      const slot = parseModelSlotQuery(res, query);
+      // The slot (chat vs vision, or the `both` request alias writing both
+      // defaults in one call) is the request's choice, not a config property;
+      // `?slot=` defaults to text. The vision side is capability-gated below.
+      const slot = parseModelSlotQueryAllowBoth(res, query);
       if (slot === null) {
         return;
       }
@@ -275,14 +278,24 @@ export const handleSetDefaultModelConfig = (deps: RouteDeps): RequestHandler => 
       // independently. The vision slot is capability-gated: its model must be
       // confirmed vision-capable (unknown/unresolvable capability → 400, fail
       // closed). With no model cache wired (local dev) an OpenRouter-only model
-      // can't be resolved and 400s here; prod always has the cache.
+      // can't be resolved and 400s here; prod always has the cache. The `both`
+      // alias runs the SAME gate FIRST and writes both defaults in one update —
+      // a text-only preset refuses the whole request, never half-applies.
       const isVision = slot === 'vision';
-      if (isVision && !(await ensureVisionCapableModel(res, modelCache, llmConfig.model))) {
+      const isBoth = slot === 'both';
+      if (
+        (isVision || isBoth) &&
+        !(await ensureVisionCapableModel(res, modelCache, llmConfig.model))
+      ) {
         return;
       }
       await prisma.user.update({
         where: { id: userId },
-        data: isVision ? { defaultVisionConfigId: configId } : { defaultLlmConfigId: configId },
+        data: isBoth
+          ? { defaultLlmConfigId: configId, defaultVisionConfigId: configId }
+          : isVision
+            ? { defaultVisionConfigId: configId }
+            : { defaultLlmConfigId: configId },
       });
 
       const result: UserDefaultConfig = {
@@ -295,7 +308,7 @@ export const handleSetDefaultModelConfig = (deps: RouteDeps): RequestHandler => 
           discordUserId,
           configId,
           configName: llmConfig.name,
-          slot: isVision ? 'vision' : 'text',
+          slot,
         },
         'Set default config'
       );
@@ -330,7 +343,21 @@ export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler =
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { defaultLlmConfigId: true, defaultVisionConfigId: true },
+        select: {
+          defaultLlmConfigId: true,
+          defaultVisionConfigId: true,
+          // Tier signal for the fallback naming below: keyed = a wallet with
+          // an ACTIVE chat-capable key (OpenRouter or ZaiCoding — the
+          // hasActiveChatCapableKey predicate), whose post-clear cascade
+          // bottoms out at the GLOBAL default pointers. An ElevenLabs/
+          // Mistral-only wallet is a chat-guest: it falls to the free-default
+          // floors at generation time (ApiKeyResolver), so the reply must name
+          // the free default for them too.
+          apiKeys: {
+            where: { isActive: true },
+            select: { id: true, provider: true, isActive: true },
+          },
+        },
       });
 
       if (user === null) {
@@ -340,36 +367,18 @@ export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler =
       const hadVision = clearVision && user.defaultVisionConfigId !== null;
       const wasSet = hadText || hadVision;
 
-      // Look up the system free default(s) the user will fall back to — ONE PER
-      // CLEARED SLOT, so an `all` clear names both the chat AND vision fallback
-      // (clearing both slots but reporting only chat under-informs the user).
-      // Read the AdminSettings free-default POINTERS, not the `isFreeDefault` boolean
-      // — setAsFreeDefault writes only the pointers, so the boolean is stale (would
-      // show a wrong/missing fallback name after the global free default is changed).
-      // Per-personality overrides and personality-level defaults are unaffected.
-      const settings = await prisma.adminSettings.findUnique({
-        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
-        select: { freeDefaultLlmConfigId: true, freeDefaultVisionConfigId: true },
-      });
-      const resolveFreeDefault = async (
-        pointerId: string | null
-      ): Promise<{ id: string; name: string } | null> => {
-        if (pointerId === null) {
-          return null;
-        }
-        return prisma.llmConfig.findUnique({
-          where: { id: pointerId },
-          select: { id: true, name: true },
-        });
-      };
-      const newEffectiveDefaults = {
-        ...(clearText
-          ? { text: await resolveFreeDefault(settings?.freeDefaultLlmConfigId ?? null) }
-          : {}),
-        ...(clearVision
-          ? { vision: await resolveFreeDefault(settings?.freeDefaultVisionConfigId ?? null) }
-          : {}),
-      };
+      // Look up the default(s) the user will fall back to — ONE PER CLEARED
+      // SLOT (an `all` clear names both), with the POINTER FAMILY picked by
+      // the caller's tier: keyed → global defaults, guest → free defaults.
+      // Per-personality overrides and personality-level defaults sit above
+      // whatever this names and are unaffected by the clear.
+      const keyed = hasActiveChatCapableKey(user.apiKeys ?? []);
+      const newEffectiveDefaults = await resolveClearFallbackDefaults(
+        prisma,
+        clearText,
+        clearVision,
+        keyed
+      );
 
       if (!wasSet) {
         logger.info(

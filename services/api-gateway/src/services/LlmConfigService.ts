@@ -405,13 +405,17 @@ export class LlmConfigService {
    * tier, and the vision-free read was already deferred.)
    *
    * @param configId - ID of config to point the slot at
-   * @param slot - which default slot to set ('text' = chat, or 'vision')
+   * @param slot - which default slot to set ('text' = chat, 'vision', or
+   *   'both' — the request alias that points BOTH pointers at the config in
+   *   one upsert; not a ModelSlot)
    */
-  async setAsDefault(configId: string, slot: ModelSlot): Promise<void> {
+  async setAsDefault(configId: string, slot: ModelSlot | 'both'): Promise<void> {
     const data =
       slot === 'vision'
         ? { globalDefaultVisionConfigId: configId }
-        : { globalDefaultLlmConfigId: configId };
+        : slot === 'text'
+          ? { globalDefaultLlmConfigId: configId }
+          : { globalDefaultLlmConfigId: configId, globalDefaultVisionConfigId: configId };
     await this.prisma.adminSettings.upsert({
       where: { id: ADMIN_SETTINGS_SINGLETON_ID },
       create: { id: ADMIN_SETTINGS_SINGLETON_ID, ...data },
@@ -431,13 +435,17 @@ export class LlmConfigService {
    * at the route layer before this is called.
    *
    * @param configId - ID of config to point the slot at
-   * @param slot - which free-default slot to set ('text' = chat, or 'vision')
+   * @param slot - which free-default slot to set ('text' = chat, 'vision', or
+   *   'both' — the request alias that points BOTH free pointers at the config
+   *   in one upsert; not a ModelSlot)
    */
-  async setAsFreeDefault(configId: string, slot: ModelSlot): Promise<void> {
+  async setAsFreeDefault(configId: string, slot: ModelSlot | 'both'): Promise<void> {
     const data =
       slot === 'vision'
         ? { freeDefaultVisionConfigId: configId }
-        : { freeDefaultLlmConfigId: configId };
+        : slot === 'text'
+          ? { freeDefaultLlmConfigId: configId }
+          : { freeDefaultLlmConfigId: configId, freeDefaultVisionConfigId: configId };
     await this.prisma.adminSettings.upsert({
       where: { id: ADMIN_SETTINGS_SINGLETON_ID },
       create: { id: ADMIN_SETTINGS_SINGLETON_ID, ...data },

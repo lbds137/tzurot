@@ -29,6 +29,7 @@ import {
 import { SELECTOR_DESCRIPTION } from '@tzurot/common-types/constants/uxVocabulary';
 import {
   CONFIG_SLOT_OPTION_CHOICES,
+  CONFIG_SLOT_OPTION_CHOICES_WITH_BOTH,
   CONFIG_SLOT_OPTION_DESCRIPTION,
 } from '@tzurot/common-types/constants/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -360,7 +361,7 @@ export default defineCommand({
                 .setName('slot')
                 .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices(...CONFIG_SLOT_OPTION_CHOICES)
+                .addChoices(...CONFIG_SLOT_OPTION_CHOICES_WITH_BOTH)
             )
         )
         .addSubcommand(subcommand =>
@@ -372,7 +373,7 @@ export default defineCommand({
                 .setName('slot')
                 .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices(...CONFIG_SLOT_OPTION_CHOICES)
+                .addChoices(...CONFIG_SLOT_OPTION_CHOICES_WITH_BOTH)
             )
         )
     )
@@ -396,7 +397,7 @@ export default defineCommand({
                 .setName('slot')
                 .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices(...CONFIG_SLOT_OPTION_CHOICES)
+                .addChoices(...CONFIG_SLOT_OPTION_CHOICES_WITH_BOTH)
             )
         )
         .addSubcommand(subcommand =>
@@ -415,7 +416,7 @@ export default defineCommand({
                 .setName('slot')
                 .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices(...CONFIG_SLOT_OPTION_CHOICES)
+                .addChoices(...CONFIG_SLOT_OPTION_CHOICES_WITH_BOTH)
             )
         )
     )

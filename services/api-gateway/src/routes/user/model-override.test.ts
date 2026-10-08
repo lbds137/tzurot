@@ -765,6 +765,25 @@ describe('/user/model-override routes', () => {
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
+    it('should reject an invalid ?slot= value with 400 (nothing written)', async () => {
+      const handler = buildHandler(handleSetDefaultModelConfig, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      // Valid body — the 400 must come from the slot parse, not the body schema.
+      const { req, res } = createMockReqRes(
+        { configId: '22222222-2222-4222-a222-222222222222' },
+        {},
+        { slot: 'bogus' }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.llmConfig.findFirst).not.toHaveBeenCalled();
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
     it('should return 404 when config not found or not accessible', async () => {
       mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
 
@@ -918,6 +937,84 @@ describe('/user/model-override routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           message: expect.stringContaining("Couldn't confirm"),
+        })
+      );
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('writes BOTH default slots in one update when ?slot=both and the model is vision-capable', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'GPT-4o',
+        model: 'openai/gpt-4o',
+      });
+
+      const modelCache = {
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
+        getModelById: vi.fn(async (id: string) =>
+          id === 'openai/gpt-4o' ? { supportsVision: true } : null
+        ),
+      } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
+
+      const handler = buildHandler(handleSetDefaultModelConfig, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+        modelCache,
+      });
+      const { req, res } = createMockReqRes(
+        { configId: '22222222-2222-4222-a222-222222222222' },
+        {},
+        { slot: 'both' }
+      );
+
+      await handler(req, res);
+
+      // One update carrying BOTH FK columns — the both alias is a single
+      // request writing text AND vision, not two sequential writes.
+      expect(mockPrisma.user.update).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-uuid-123' },
+        data: {
+          defaultLlmConfigId: '22222222-2222-4222-a222-222222222222',
+          defaultVisionConfigId: '22222222-2222-4222-a222-222222222222',
+        },
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('refuses ?slot=both with a text-only model and writes NOTHING (no half-apply)', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'GLM',
+        model: 'z-ai/glm-4.7',
+      });
+
+      const modelCache = {
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
+        getModelById: vi.fn(async (id: string) =>
+          id === 'z-ai/glm-4.7' ? { supportsVision: false } : null
+        ),
+      } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
+
+      const handler = buildHandler(handleSetDefaultModelConfig, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+        modelCache,
+      });
+      const { req, res } = createMockReqRes(
+        { configId: '22222222-2222-4222-a222-222222222222' },
+        {},
+        { slot: 'both' }
+      );
+
+      await handler(req, res);
+
+      // The vision gate runs BEFORE the write: a text-only preset gets one
+      // clear refusal and neither slot is touched.
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('vision'),
         })
       );
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
@@ -1091,13 +1188,17 @@ describe('/user/model-override routes', () => {
       );
     });
 
-    it('should include the system free default in newEffectiveDefaults when one is configured', async () => {
+    it('names the system FREE default for a GUEST (no active key) when one is configured', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: 'config-123',
+        // No active API key → guest tier: the free default is what serves them.
+        apiKeys: [],
       });
       // The fallback name comes from the AdminSettings free-default POINTER, not
       // the stale `isFreeDefault` boolean (setAsFreeDefault writes only the pointer).
       mockPrisma.adminSettings.findUnique.mockResolvedValueOnce({
+        globalDefaultLlmConfigId: 'global-id',
+        globalDefaultVisionConfigId: null,
         freeDefaultLlmConfigId: 'free-id',
         freeDefaultVisionConfigId: null,
       });
@@ -1114,12 +1215,117 @@ describe('/user/model-override routes', () => {
 
       await handler(req, res);
 
+      // The tier pick reads ALL four pointers in one fixed-shape query.
       expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledWith({
         where: { id: ADMIN_SETTINGS_SINGLETON_ID },
-        select: { freeDefaultLlmConfigId: true, freeDefaultVisionConfigId: true },
+        select: {
+          globalDefaultLlmConfigId: true,
+          globalDefaultVisionConfigId: true,
+          freeDefaultLlmConfigId: true,
+          freeDefaultVisionConfigId: true,
+        },
       });
+      // The GUEST branch resolves the FREE pointer — never the global one.
       expect(mockPrisma.llmConfig.findUnique).toHaveBeenCalledWith({
         where: { id: 'free-id' },
+        select: { id: true, name: true },
+      });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deleted: true,
+          newEffectiveDefaults: { text: { id: 'free-id', name: 'gpt-4-free' } },
+        })
+      );
+    });
+
+    it('names the GLOBAL default for a KEYED (BYOK) user — not the free default', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        defaultLlmConfigId: 'config-123',
+        // ACTIVE chat-capable (OpenRouter) key → keyed/BYOK tier: the
+        // post-clear cascade bottoms out at the AdminSettings GLOBAL default
+        // pointer, and the free default (guest mode / quota fallback only)
+        // never applies to them.
+        apiKeys: [{ id: 'key-1', provider: 'openrouter', isActive: true }],
+      });
+      mockPrisma.adminSettings.findUnique.mockResolvedValueOnce({
+        globalDefaultLlmConfigId: 'global-id',
+        globalDefaultVisionConfigId: 'global-vision-id',
+        freeDefaultLlmConfigId: 'free-id',
+        freeDefaultVisionConfigId: 'free-vision-id',
+      });
+      mockPrisma.llmConfig.findUnique.mockResolvedValueOnce({
+        id: 'global-id',
+        name: 'GLM 5.3 Flash',
+      });
+
+      const handler = buildHandler(handleClearDefaultModelConfig, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      // The tier signal itself is part of the contract: only ACTIVE,
+      // chat-capable keys count (hasActiveChatCapableKey reads provider too).
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          select: expect.objectContaining({
+            apiKeys: {
+              where: { isActive: true },
+              select: { id: true, provider: true, isActive: true },
+            },
+          }),
+        })
+      );
+      // The KEYED branch resolves the GLOBAL pointer — even though free
+      // defaults are also configured (the pre-fix behavior named the free one).
+      expect(mockPrisma.llmConfig.findUnique).toHaveBeenCalledWith({
+        where: { id: 'global-id' },
+        select: { id: true, name: true },
+      });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deleted: true,
+          newEffectiveDefaults: { text: { id: 'global-id', name: 'GLM 5.3 Flash' } },
+        })
+      );
+    });
+
+    it('treats an ACTIVE ElevenLabs-only wallet as a GUEST — hasActiveChatCapableKey is the tier signal', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        defaultLlmConfigId: 'config-123',
+        // ACTIVE key, but voice-only: ElevenLabs grants no chat capability, so
+        // hasActiveChatCapableKey says guest — the free default is what serves
+        // them, and the reply must name it.
+        apiKeys: [{ id: 'key-voice', provider: 'elevenlabs', isActive: true }],
+      });
+      mockPrisma.adminSettings.findUnique.mockResolvedValueOnce({
+        globalDefaultLlmConfigId: 'global-id',
+        globalDefaultVisionConfigId: null,
+        freeDefaultLlmConfigId: 'free-id',
+        freeDefaultVisionConfigId: null,
+      });
+      mockPrisma.llmConfig.findUnique.mockResolvedValueOnce({
+        id: 'free-id',
+        name: 'gpt-4-free',
+      });
+
+      const handler = buildHandler(handleClearDefaultModelConfig, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      // The voice-only wallet resolves the FREE pointer — never the global one.
+      expect(mockPrisma.llmConfig.findUnique).toHaveBeenCalledWith({
+        where: { id: 'free-id' },
+        select: { id: true, name: true },
+      });
+      expect(mockPrisma.llmConfig.findUnique).not.toHaveBeenCalledWith({
+        where: { id: 'global-id' },
         select: { id: true, name: true },
       });
       expect(res.json).toHaveBeenCalledWith(

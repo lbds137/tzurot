@@ -345,6 +345,20 @@ export function toModelSlot(value: string): ModelSlot {
 }
 
 /**
+ * Narrow a slot option value that may also carry the `'both'` REQUEST ALIAS.
+ * `'both'` is not a slot (it is not in {@link MODEL_SLOTS}) — it asks the
+ * gateway to write text AND vision in one request, so this helper preserves
+ * it instead of letting {@link toModelSlot} floor it to text. Any other
+ * unrecognized value still floors to the text default.
+ */
+export function toModelSlotOrBoth(value: string | null | undefined): ModelSlot | 'both' {
+  if (value === 'both') {
+    return 'both';
+  }
+  return toModelSlot(value ?? DEFAULT_MODEL_SLOT);
+}
+
+/**
  * Single user-facing display vocabulary for a model slot, shared across every
  * Discord surface that names a slot in a confirmation or status message. Call
  * sites apply their own markdown emphasis (`**${MODEL_SLOT_LABELS[slot]}**`,
@@ -386,6 +400,19 @@ export const CONFIG_SLOT_OPTION_CHOICES = [
   { name: MODEL_SLOT_LABELS.text, value: 'text' },
   { name: MODEL_SLOT_LABELS.vision, value: 'vision' },
 ] as const satisfies readonly { name: string; value: ModelSlot }[];
+
+/**
+ * {@link CONFIG_SLOT_OPTION_CHOICES} plus a `Both` choice — for the default
+ * SETTERS only (user default set/clear, global default, global free-default),
+ * where one command may target text AND vision. The override sites keep the
+ * base list: an override pins one slot per character. `both` is a request
+ * alias ({@link toModelSlotOrBoth}), never a {@link ModelSlot} — the gateway
+ * expands it into two writes with the vision gate running FIRST.
+ */
+export const CONFIG_SLOT_OPTION_CHOICES_WITH_BOTH = [
+  ...CONFIG_SLOT_OPTION_CHOICES,
+  { name: 'Both', value: 'both' },
+] as const satisfies readonly { name: string; value: ModelSlot | 'both' }[];
 
 /**
  * Voice naming prefix for Tzurot-managed clones across all TTS providers.

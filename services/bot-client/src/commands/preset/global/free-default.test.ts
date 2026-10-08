@@ -112,6 +112,24 @@ describe('Preset Global Set Free Default Handler', () => {
       expect(embedData.description).toContain('free tier default Vision preset');
     });
 
+    it("passes slot:'both' through and names both slots in the confirmation", async () => {
+      const context = createMockContext('both-config', 'both');
+      stub.setGlobalLlmConfigFreeDefault.mockResolvedValue(
+        makeOk({ success: true, configName: 'Qwen VL Free' })
+      );
+
+      await handleGlobalSetFreeDefault(context);
+
+      // The both alias must reach the promote call intact — the gateway
+      // vision-gates it and writes both free pointers in one request.
+      expect(stub.setGlobalLlmConfigFreeDefault).toHaveBeenCalledWith('both-config', {
+        slot: 'both',
+      });
+      const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
+      const embedData = embedCall.embeds[0].toJSON();
+      expect(embedData.description).toContain('free tier default for both Chat and Vision');
+    });
+
     it('names the Chat label when slot:text is chosen explicitly', async () => {
       const context = createMockContext('text-config', 'text');
       stub.setGlobalLlmConfigFreeDefault.mockResolvedValue(
