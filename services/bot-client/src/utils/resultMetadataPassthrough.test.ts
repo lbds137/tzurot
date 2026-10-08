@@ -23,6 +23,8 @@ describe('buildResultMetadataPassthrough', () => {
           category: 'credit_exhaustion',
           mode: 'reactive',
         },
+        piggybackSkipped: true,
+        piggybackModel: 'z-ai/glm-5.3-flash',
         isGuestMode: true,
         freshModeEnabled: false,
         incognitoModeActive: false,
@@ -43,6 +45,8 @@ describe('buildResultMetadataPassthrough', () => {
     expect(passthrough.fallbackFromProvider).toBe('zai-coding');
     expect(passthrough.quotaFallback?.fromModel).toBe('expensive/primary');
     expect(passthrough.quotaFallback?.category).toBe('credit_exhaustion');
+    expect(passthrough.piggybackSkipped).toBe(true);
+    expect(passthrough.piggybackModel).toBe('z-ai/glm-5.3-flash');
     expect(passthrough.ttsNotices).toEqual(['notice']);
     // thinkingContent is deliberately not delivery metadata — persistence
     // reads it from result.metadata directly, so the builder must not forward it.
@@ -64,7 +68,7 @@ describe('buildResultMetadataPassthrough', () => {
 });
 
 describe('buildErrorResultMetadataPassthrough', () => {
-  it('forwards the nine error-delivery metadata fields and inherits the narrowing', () => {
+  it('forwards the eleven error-delivery metadata fields and inherits the narrowing', () => {
     const result = {
       requestId: 'r1',
       success: false,
@@ -81,6 +85,8 @@ describe('buildErrorResultMetadataPassthrough', () => {
           category: 'credit_exhaustion',
           mode: 'reactive',
         },
+        piggybackSkipped: true,
+        piggybackModel: 'z-ai/glm-5.3-flash',
         isGuestMode: true,
         freshModeEnabled: false,
         incognitoModeActive: false,
@@ -100,6 +106,8 @@ describe('buildErrorResultMetadataPassthrough', () => {
     expect(passthrough.fallbackFromProvider).toBe('zai-coding');
     expect(passthrough.quotaFallback?.fromModel).toBe('expensive/primary');
     expect(passthrough.quotaFallback?.category).toBe('credit_exhaustion');
+    expect(passthrough.piggybackSkipped).toBe(true);
+    expect(passthrough.piggybackModel).toBe('z-ai/glm-5.3-flash');
     expect(passthrough.isGuestMode).toBe(true);
     expect(passthrough.freshModeEnabled).toBe(false);
     expect(passthrough.incognitoModeActive).toBe(false);
@@ -132,6 +140,8 @@ describe('buildErrorResultMetadataPassthrough', () => {
           category: 'credit_exhaustion',
           mode: 'reactive',
         },
+        piggybackSkipped: true,
+        piggybackModel: 'z-ai/glm-5.3-flash',
         isGuestMode: true,
         freshModeEnabled: false,
         incognitoModeActive: false,

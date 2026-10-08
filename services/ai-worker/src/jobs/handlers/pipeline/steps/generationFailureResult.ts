@@ -51,6 +51,10 @@ export interface GenerationFailureOptions {
    * its story rides the fallback-failure text summary instead.
    */
   quotaFallback?: ReadyAuth['quotaFallback'];
+  /** A z.ai piggyback admission denial that preceded the failure — the footer
+   *  note still explains why the serving model is not the one requested. */
+  piggybackSkipped?: ReadyAuth['piggybackSkipped'];
+  piggybackModel?: ReadyAuth['piggybackModel'];
 }
 
 /**
@@ -73,6 +77,8 @@ export function composeGenerationFailureResult(
     provider,
     isGuestMode,
     quotaFallback,
+    piggybackSkipped,
+    piggybackModel,
   } = options;
   const { job, startTime } = context;
   const { requestId, personality } = job.data;
@@ -141,6 +147,7 @@ export function composeGenerationFailureResult(
         // A proactive quota swap that took effect before the failure — the
         // footer must explain why modelUsed is the fallback (never silent).
         quotaFallback,
+        ...(piggybackSkipped !== undefined ? { piggybackSkipped, piggybackModel } : {}),
         configSource,
         isGuestMode,
         showModelFooter: context.configOverrides?.showModelFooter,

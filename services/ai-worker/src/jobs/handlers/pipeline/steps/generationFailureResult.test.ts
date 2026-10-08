@@ -95,6 +95,14 @@ describe('composeGenerationFailureResult', () => {
     expect(result.result?.metadata?.fallbackProviderAttempted).toBeUndefined();
   });
 
+  it('forwards the piggyback pair into the failure metadata', () => {
+    const base = buildOptions(new Error('boom'));
+    const options = { ...base, piggybackSkipped: true, piggybackModel: 'x' };
+    const result = composeGenerationFailureResult(options);
+    expect(result.result?.metadata?.piggybackSkipped).toBe(true);
+    expect(result.result?.metadata?.piggybackModel).toBe('x');
+  });
+
   it('mints one referenceId per failure — the record, its rawError, and the composed errorInfo agree', () => {
     // A plain Error re-classifies to a NEW id on every resolveApiErrorInfo
     // call, so three separate classifications would produce three different

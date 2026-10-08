@@ -140,6 +140,12 @@ export interface ResolvedAuth {
    * announces the swap — retargeting is never silent.
    */
   quotaFallback?: QuotaFallbackInfo;
+  /** Set by the guest-mode z.ai piggyback denial — the boolean only, never
+   *  the deny reason; threaded to result metadata for the footer note. */
+  piggybackSkipped?: boolean;
+  /** The denied piggyback model id, as the request carried it; set by the
+   *  guest-mode piggyback denial alongside `piggybackSkipped`. */
+  piggybackModel?: string;
   /**
    * Set ONLY when AuthStep's DEMOTION tier fired — a known-doomed promoted
    * route moved to its OpenRouter passthrough, same model, different pool.

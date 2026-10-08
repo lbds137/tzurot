@@ -374,4 +374,124 @@ describe('applyGuestModeOverrides', () => {
       expect(result.quotaFallback).toBeUndefined();
     });
   });
+
+  describe('piggyback denial flags (footer note)', () => {
+    it('arm 1 denial: flags with the PRE-substitution personal selection', async () => {
+      const result = await applyGuestModeOverrides(
+        {
+          configResolver: resolverWith('gemma/other-model:free'),
+          zaiFreeTierAdmission: admission(false),
+        },
+        { ...PAID_PERSONALITY, model: PREFIXED_ZAI } as EffectivePersonality,
+        'u1',
+        'r1'
+      );
+
+      expect(result.piggybackSkipped).toBe(true);
+      expect(result.piggybackModel).toBe(PREFIXED_ZAI);
+    });
+
+    it('arm 2 denial: flags the DENIED PIGGYBACK, not the paid personal selection', async () => {
+      // personality.model is the guest's paid selection here and stays
+      // unmutated through the arm — the note names the piggyback that was
+      // denied, so the model id must come from the free-default candidate.
+      const result = await applyGuestModeOverrides(
+        {
+          configResolver: resolverWith(PREFIXED_ZAI),
+          zaiFreeTierAdmission: admission(false),
+        },
+        PAID_PERSONALITY,
+        'u1',
+        'r1'
+      );
+
+      expect(result.piggybackSkipped).toBe(true);
+      expect(result.piggybackModel).toBe(PREFIXED_ZAI);
+      expect(result.piggybackModel).not.toBe('anthropic/claude-sonnet-4');
+    });
+
+    it('admitted (either arm): neither flag field is set', async () => {
+      const arm1 = await applyGuestModeOverrides(
+        { zaiFreeTierAdmission: admission(true) },
+        { ...PAID_PERSONALITY, model: PREFIXED_ZAI } as EffectivePersonality,
+        'u1',
+        'r1'
+      );
+      const arm2 = await applyGuestModeOverrides(
+        { configResolver: resolverWith(PREFIXED_ZAI), zaiFreeTierAdmission: admission(true) },
+        PAID_PERSONALITY,
+        'u1',
+        'r1'
+      );
+
+      expect(arm1.piggybackSkipped).toBeUndefined();
+      expect(arm1.piggybackModel).toBeUndefined();
+      expect(arm2.piggybackSkipped).toBeUndefined();
+      expect(arm2.piggybackModel).toBeUndefined();
+    });
+
+    it('plain floor substitutions (no piggyback involved): neither flag field', async () => {
+      const paidFloor = await applyGuestModeOverrides(
+        { configResolver: resolverWith('anthropic/claude-opus-4') },
+        PAID_PERSONALITY,
+        'u1',
+        'r1'
+      );
+      const alreadyFree = await applyGuestModeOverrides(
+        {},
+        { ...PAID_PERSONALITY, model: 'meta/model:free' },
+        'u1',
+        'r1'
+      );
+
+      expect(paidFloor.piggybackSkipped).toBeUndefined();
+      expect(paidFloor.piggybackModel).toBeUndefined();
+      expect(alreadyFree.piggybackSkipped).toBeUndefined();
+      expect(alreadyFree.piggybackModel).toBeUndefined();
+    });
+
+    it('no gate wired (ships dark): neither flag field — nothing was denied', async () => {
+      const result = await applyGuestModeOverrides(
+        { configResolver: resolverWith('gemma/other-model:free') },
+        { ...PAID_PERSONALITY, model: PREFIXED_ZAI } as EffectivePersonality,
+        'u1',
+        'r1'
+      );
+
+      expect(result.piggybackSkipped).toBeUndefined();
+      expect(result.piggybackModel).toBeUndefined();
+    });
+
+    it('admitted but key vanished (race): neither flag field — nothing was denied', async () => {
+      const gate = {
+        admit: vi.fn().mockResolvedValue({ admitted: true, reason: 'ok' }),
+        systemKey: vi.fn().mockReturnValue(undefined),
+      } as unknown as ZaiFreeTierAdmission;
+      const result = await applyGuestModeOverrides(
+        { configResolver: resolverWith('gemma/other-model:free'), zaiFreeTierAdmission: gate },
+        { ...PAID_PERSONALITY, model: PREFIXED_ZAI } as EffectivePersonality,
+        'u1',
+        'r1'
+      );
+
+      expect(result.piggybackSkipped).toBeUndefined();
+      expect(result.piggybackModel).toBeUndefined();
+    });
+
+    it('arm-1 denial with the free default ALSO the piggyback: one admit, one flag, arm-1 model', async () => {
+      // The zaiUnavailable latch must keep arm 2 from a second admit(), and
+      // the flag must carry the ARM-1 candidate.
+      const gate = admission(false);
+      const result = await applyGuestModeOverrides(
+        { configResolver: resolverWith(PREFIXED_ZAI), zaiFreeTierAdmission: gate },
+        { ...PAID_PERSONALITY, model: PREFIXED_ZAI } as EffectivePersonality,
+        'u1',
+        'r1'
+      );
+
+      expect(vi.mocked(gate.admit)).toHaveBeenCalledTimes(1);
+      expect(result.piggybackSkipped).toBe(true);
+      expect(result.piggybackModel).toBe(PREFIXED_ZAI);
+    });
+  });
 });

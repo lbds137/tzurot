@@ -10,12 +10,17 @@ import {
   BOT_FOOTER_TEXT,
   BOT_FOOTER_PATTERNS,
   buildModelFooterText,
+  buildPiggybackNoteLine,
   stripMarkdownDelimiters,
   toInertCodeSpan,
   DISCORD_PROVIDER_CHOICES,
 } from './discord.js';
-import { AIProvider } from './ai.js';
+import { AIProvider, ZAI_FREE_TIER_MODEL } from './ai.js';
 import { GUEST_MODE_CATEGORY } from './error.js';
+import { stripBotFooters } from '../utils/discord.js';
+
+/** The piggyback model in its `z-ai/`-prefixed form — derived so the id never drifts. */
+const PREFIXED_ZAI = `z-ai/${ZAI_FREE_TIER_MODEL}`;
 
 describe('Discord ID Validation', () => {
   describe('DISCORD_SNOWFLAKE constants', () => {
@@ -343,6 +348,85 @@ describe('Bot Footer Text Constants', () => {
       );
       expect(result).not.toContain('→');
       expect(result).not.toContain('guest mode');
+    });
+
+    describe('piggyback-skipped note', () => {
+      it('renders the note as its own subtext line for a non-empty model id', () => {
+        const result = buildPiggybackNoteLine(PREFIXED_ZAI);
+        expect(result).toBe(
+          `\n-# \`${PREFIXED_ZAI}\` is temporarily unavailable, so a fallback free model answered.`
+        );
+      });
+
+      it('renders no note when the model id is an empty string', () => {
+        expect(buildPiggybackNoteLine('')).toBe('');
+      });
+
+      it('renders no note when the model id strips to nothing', () => {
+        // An all-delimiter id passes upstream length-only validation and strips
+        // to '' — emitting an empty `-# ` tail would render garbage.
+        expect(buildPiggybackNoteLine('()')).toBe('');
+      });
+
+      it('sanitizes a markdown-hostile model id in the note', () => {
+        const result = buildPiggybackNoteLine('[Free Nitro](http://evil.example)');
+        expect(result).toContain('-# `Free Nitrohttp://evil.example` is temporarily unavailable');
+        expect(result).not.toContain('](http://evil.example)');
+      });
+
+      it('carries the deny reason nowhere: an input fixture naming it cannot reach the text', () => {
+        // The admission verdict's reason stays worker-side; the builder's sole
+        // input is the model id, so the reason cannot reach the text. The
+        // fixture carries one the caller deliberately does NOT forward.
+        const denial = { admitted: false, reason: 'headroom', model: PREFIXED_ZAI };
+        const result = buildPiggybackNoteLine(denial.model);
+        expect(result).toContain('temporarily unavailable');
+        expect(result).not.toContain('headroom');
+      });
+
+      it('composes the note with the guest-mode bare model line (production guest shape)', () => {
+        // The real guest turn: the guest_mode quotaFallback renders bare (the
+        // carve-out is intact) AND the piggyback note renders as a second line.
+        // DiscordResponseSender.buildFooter concatenates the model line and the
+        // note line separately (the note renders outside the model-footer gate),
+        // so the test composes the two the same way.
+        const result =
+          buildModelFooterText('openrouter/free', 'https://example.com/m', {
+            quotaFallback: {
+              fromModel: 'anthropic/claude-sonnet-4',
+              category: GUEST_MODE_CATEGORY,
+            },
+          }) + buildPiggybackNoteLine(PREFIXED_ZAI);
+        expect(result.startsWith('Model: [openrouter/free](<https://example.com/m>)\n')).toBe(true);
+        expect(result).not.toContain('→');
+        expect(result).not.toContain('guest mode');
+        expect(result).toBe(
+          'Model: [openrouter/free](<https://example.com/m>)\n' +
+            `-# \`${PREFIXED_ZAI}\` is temporarily unavailable, so a fallback free model answered.`
+        );
+      });
+
+      it('round-trips through stripBotFooters: model line AND note line both strip', () => {
+        // The full production footer shape: the model line wrapped in `\n-# `,
+        // then the note line (already `\n-# `-prefixed) appended, exactly as
+        // DiscordResponseSender.buildFooter composes them.
+        // A note line without a strip pattern would silently leak into the
+        // history fed back to the model and into duplicate-detection text.
+        const content =
+          'Hello world!' +
+          `\n-# ${buildModelFooterText('openrouter/free', 'https://example.com/m')}` +
+          buildPiggybackNoteLine(PREFIXED_ZAI);
+        expect(stripBotFooters(content)).toBe('Hello world!');
+      });
+
+      it('control: user text naming the topic but not the exact suffix survives stripping', () => {
+        // The accepted-widening boundary: the words alone never strip — only a
+        // `-#` line ending with the exact fixed suffix does.
+        const content =
+          'Service notice: we are temporarily unavailable, so a fallback free model was NOT used.\n' +
+          '-# sorry for the downtime';
+        expect(stripBotFooters(content)).toBe(content);
+      });
     });
 
     it('leaves a non-guest category rendering the swap chain, unchanged (regression pin)', () => {
