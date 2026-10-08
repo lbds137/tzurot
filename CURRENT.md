@@ -6,8 +6,9 @@
 
 ## ⏳ In flight (2026-10-08, GLM-flash lane)
 
-- **PR #2583 (TASK-1171, the beta.235 cut item)**: guest footer note when the z.ai piggyback is denied. Nested-dispatch build (fable orchestrator + worker), all local gates green, monitor armed. On merge: it becomes beta.235's first "In already" — the cut proposal follows (now.md § Cut when). If claude-review quota-walls (Anthropic week ~95%): seyag review-response rule 0 substitute, now optionally a real Claude fresh-context review via `cc-route run anthropic-api` (Console promo, until 10-21).
-- **Queued behind it**: dependabot #2579/#2580 merge on Lila's standing ruling (green CI, no review ask) → #2578's claude-workflow hunks to a MAIN-cut PR (its red lint is `guard:workflow-sync` correctly refusing a develop-based claude-workflow change; closes after finalize) → TASK-822 (300s per attempt + per-job budget).
+- **PR #2583 (TASK-1171) MERGED 18:13Z** (`d8dbc6a87`) after 4 clean review rounds; round-4 residue dispositioned in the PR body (2 declined, TASK-1193 filed for the retarget pin). beta.235's cut criterion ("TASK-1171 merges") has FIRED — cut proposal presented to the owner 2026-10-08: hold for the preset trio (TASK-1166/1185/1182, owner-promoted to this train, grounding done) vs. cut thin now. Awaiting her call.
+- **Dependabot**: #2584 (prod group, 12 updates) merged 18:15Z; #2585 (dev group, 15 updates) lockfile-conflicted after → `@dependabot rebase` posted 18:17Z, merges on green per standing ruling. #2578 (claude-code-action): claude-workflow hunks go to a MAIN-cut PR — **sequence it after the beta.235 release** (a mid-train main-merge + finalize would move SHAs under the release PR) → then TASK-822 (300s per attempt + per-job budget).
+- **TASK-1166/1185/1182 grounding done** (Explore report, 2026-10-08): slot choices are ONE shared constant `CONFIG_SLOT_OPTION_CHOICES` (`common-types/constants/ai.ts:385`), six option sites spread it, `toModelSlot` floors unknown values to text; clear's fallback-name reply lives in `default/clear.ts:50-61` reading `newEffectiveDefaults`; owner-alert utility is `postOwnerChannelEmbed` (`bot-client/utils/ownerChannel.ts`), catalog lookup is `OpenRouterModelCache.lookupModelById` with `ModelCatalogRefresher` keep-warm.
 
 ---
 
