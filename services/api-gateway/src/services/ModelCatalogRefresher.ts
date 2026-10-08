@@ -27,6 +27,7 @@ import {
   type IntervalScheduler,
 } from '@tzurot/common-types/utils/intervalScheduler';
 import type { OpenRouterModelCache } from './OpenRouterModelCache.js';
+import type { CatalogDriftChecker } from './CatalogDriftChecker.js';
 
 const logger = createLogger('ModelCatalogRefresher');
 
@@ -56,7 +57,8 @@ export const CATALOG_REFRESH_INTERVAL_MS = (INTERVALS.OPENROUTER_MODELS_TTL * 10
 const STARTUP_DELAY_MS = 10_000;
 
 export function createModelCatalogRefresher(
-  modelCache: Pick<OpenRouterModelCache, 'refreshFromSource'>
+  modelCache: Pick<OpenRouterModelCache, 'refreshFromSource'>,
+  driftChecker: Pick<CatalogDriftChecker, 'check'>
 ): IntervalScheduler<[]> {
   return createIntervalScheduler({
     intervalMs: CATALOG_REFRESH_INTERVAL_MS,
@@ -71,10 +73,21 @@ export function createModelCatalogRefresher(
         // no second one here for the same event.
         await modelCache.refreshFromSource();
       } catch (err) {
+        // Outage immunity for the drift check: a failed (or partial) fetch
+        // must never produce 'absent' verdicts against a stale catalog, so
+        // the check does not run this cycle.
         logger.error(
           { err },
           'Model catalog refresh failed — serving the previous entry until the next tick'
         );
+        return;
+      }
+      try {
+        await driftChecker.check();
+      } catch (err) {
+        // A broken checker must not kill the refresh loop — the catalog write
+        // above already succeeded, and the next tick retries the check.
+        logger.error({ err }, 'Catalog drift check failed — retried on the next refresh tick');
       }
     },
   });

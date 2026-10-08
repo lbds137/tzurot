@@ -44,6 +44,20 @@
       ]
     },
     {
+      "id": "api-gateway:bot-client:catalog-drift-alert",
+      "kind": "bullmq-job",
+      "producer": "api-gateway",
+      "consumer": "bot-client",
+      "schemaRef": "catalogDriftAlertJobDataSchema",
+      "mechanism": "bullmq-contract",
+      "requiredTiers": [
+        "contract"
+      ],
+      "actualTiers": [
+        "contract"
+      ]
+    },
+    {
       "id": "api-gateway:bot-client:release-broadcast-dm",
       "kind": "bullmq-job",
       "producer": "api-gateway",

@@ -228,6 +228,33 @@ describe('LlmConfigService', () => {
     });
   });
 
+  describe('getDefaultPointerIds', () => {
+    it('returns the AdminSettings four-pointer row as two membership sets', async () => {
+      prisma.adminSettings.findUnique.mockResolvedValue({
+        globalDefaultLlmConfigId: 'the-default',
+        globalDefaultVisionConfigId: 'the-vision-default',
+        freeDefaultLlmConfigId: 'the-free',
+        freeDefaultVisionConfigId: null,
+      });
+
+      const result = await service.getDefaultPointerIds();
+
+      // Chat and vision pointers share a set ("any-default" semantics); a
+      // null pointer is dropped, not stringified.
+      expect(result.globalDefaultIds).toEqual(new Set(['the-default', 'the-vision-default']));
+      expect(result.freeDefaultIds).toEqual(new Set(['the-free']));
+      expect(prisma.adminSettings.findUnique).toHaveBeenCalledWith({
+        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+        select: {
+          globalDefaultLlmConfigId: true,
+          globalDefaultVisionConfigId: true,
+          freeDefaultLlmConfigId: true,
+          freeDefaultVisionConfigId: true,
+        },
+      });
+    });
+  });
+
   describe('create', () => {
     it('should create a global config for GLOBAL scope', async () => {
       prisma.llmConfig.create.mockResolvedValue(sampleConfigDetail);

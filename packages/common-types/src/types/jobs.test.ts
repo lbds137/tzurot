@@ -27,6 +27,7 @@ import {
   type FactExtractionJobData,
   releaseBroadcastDmJobDataSchema,
   retentionNotifyDmJobDataSchema,
+  catalogDriftAlertJobDataSchema,
   archiveSummaryJobDataSchema,
   type ArchiveSummaryJobData,
   buildArchiveSummaryJobData,
@@ -1435,6 +1436,58 @@ describe('BullMQ Job Contract Tests', () => {
     });
   });
 
+  describe('Catalog Drift Alert Job Contract', () => {
+    const validPayload = {
+      requestId: 'catalog-drift-2026-01-01T00-00-00.000Z',
+      jobType: JobType.CatalogDriftAlert,
+      responseDestination: { type: 'api' },
+      drifts: [
+        {
+          configId: '123e4567-e89b-42d3-a456-426614174000',
+          configName: 'Free Guest Default',
+          modelId: 'qwen/qwen3.8-27b:free',
+          kind: 'free-default' as const,
+        },
+        {
+          configId: '223e4567-e89b-42d3-a456-426614174000',
+          configName: 'Shared Vision Preset',
+          modelId: 'openrouter/vision-old',
+          kind: 'global' as const,
+        },
+      ],
+    };
+
+    it('should validate a well-formed batched drift list', () => {
+      expect(catalogDriftAlertJobDataSchema.safeParse(validPayload).success).toBe(true);
+    });
+
+    it('should reject an empty drifts array (a cycle with no drift enqueues nothing)', () => {
+      expect(
+        catalogDriftAlertJobDataSchema.safeParse({ ...validPayload, drifts: [] }).success
+      ).toBe(false);
+    });
+
+    it('should reject an unknown kind', () => {
+      expect(
+        catalogDriftAlertJobDataSchema.safeParse({
+          ...validPayload,
+          drifts: [{ ...validPayload.drifts[0], kind: 'tts' }],
+        }).success
+      ).toBe(false);
+    });
+
+    it('should cap a batch at the checker candidate ceiling (4 pointers + isGlobal take-100)', () => {
+      const oversized = Array.from({ length: 105 }, () => validPayload.drifts[0]);
+      expect(
+        catalogDriftAlertJobDataSchema.safeParse({ ...validPayload, drifts: oversized }).success
+      ).toBe(false);
+    });
+
+    it('should participate in the discriminated union', () => {
+      expect(anyJobDataSchema.safeParse(validPayload).success).toBe(true);
+    });
+  });
+
   describe('Release Broadcast DM Job Contract', () => {
     const validPayload = {
       requestId: 'req-1',
@@ -1510,6 +1563,7 @@ describe('BullMQ Job Contract Tests', () => {
       [JobType.FactExtraction]: factExtractionJobDataSchema,
       [JobType.ReleaseBroadcastDm]: releaseBroadcastDmJobDataSchema,
       [JobType.RetentionNotifyDm]: retentionNotifyDmJobDataSchema,
+      [JobType.CatalogDriftAlert]: catalogDriftAlertJobDataSchema,
       [JobType.ArchiveSummary]: archiveSummaryJobDataSchema,
     };
 
