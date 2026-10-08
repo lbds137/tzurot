@@ -237,8 +237,9 @@ function createSetDefaultHandler(
   ) => {
     const configId = params.id;
 
-    // The slot the config fills (chat vs vision) is the request's choice — any
-    // global config can fill any slot. The vision slot is capability-gated below.
+    // The slot the config fills (chat vs vision, or the `both` alias writing
+    // both pointers) is the request's choice — any global config can fill any
+    // slot. The vision side is capability-gated below.
     const slot = query.slot ?? DEFAULT_MODEL_SLOT;
 
     const config = await findGlobalConfigOrSendError(
@@ -258,8 +259,13 @@ function createSetDefaultHandler(
       return;
     }
 
-    // Vision slot: the model must be confirmed vision-capable (unknown → 400, fail closed).
-    if (slot === 'vision' && !(await ensureVisionCapableModel(res, modelCache, config.model))) {
+    // Vision side (the vision slot, or `both` which includes a vision write):
+    // the model must be confirmed vision-capable (unknown → 400, fail closed)
+    // BEFORE any write, so a text-only preset refuses whole — no half-apply.
+    if (
+      (slot === 'vision' || slot === 'both') &&
+      !(await ensureVisionCapableModel(res, modelCache, config.model))
+    ) {
       return;
     }
 
@@ -282,7 +288,8 @@ function createSetFreeDefaultHandler(
   ) => {
     const configId = params.id;
 
-    // Slot = request's choice (chat vs vision). Vision is capability-gated below.
+    // Slot = request's choice (chat, vision, or the `both` alias writing both
+    // free pointers). Vision is capability-gated below.
     const slot = query.slot ?? DEFAULT_MODEL_SLOT;
 
     const config = await findGlobalConfigOrSendError(
@@ -314,8 +321,13 @@ function createSetFreeDefaultHandler(
       );
     }
 
-    // Vision slot: the model must be confirmed vision-capable (unknown → 400, fail closed).
-    if (slot === 'vision' && !(await ensureVisionCapableModel(res, modelCache, config.model))) {
+    // Vision side (the vision slot, or `both` which includes a vision write):
+    // the model must be confirmed vision-capable (unknown → 400, fail closed)
+    // BEFORE any write, so a text-only preset refuses whole — no half-apply.
+    if (
+      (slot === 'vision' || slot === 'both') &&
+      !(await ensureVisionCapableModel(res, modelCache, config.model))
+    ) {
       return;
     }
 

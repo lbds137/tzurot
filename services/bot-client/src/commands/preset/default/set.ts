@@ -5,11 +5,7 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import {
-  DEFAULT_MODEL_SLOT,
-  toModelSlot,
-  MODEL_SLOT_LABELS,
-} from '@tzurot/common-types/constants/ai';
+import { toModelSlotOrBoth, MODEL_SLOT_LABELS } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { presetDefaultSetOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -31,10 +27,11 @@ export async function handleDefaultSet(context: DeferredCommandContext): Promise
   const userId = context.user.id;
   const options = presetDefaultSetOptions(context.interaction);
   const configId = options.preset();
-  // The slot (text = chat default, or vision) decides which default FK the value
-  // writes; the gateway capability-gates the vision slot. Without sending it a
-  // vision default silently lands in the text slot — mirror `default clear`.
-  const slot = toModelSlot(options.slot() ?? DEFAULT_MODEL_SLOT);
+  // The slot (text = chat default, vision, or the `both` alias writing both
+  // defaults in one request) decides which default FK(s) the value writes; the
+  // gateway capability-gates the vision side BEFORE writing. Without sending it
+  // a vision default silently lands in the text slot — mirror `default clear`.
+  const slot = toModelSlotOrBoth(options.slot());
 
   if (await handleUnlockModelsUpsell(context, configId, userId)) {
     return;
@@ -66,7 +63,10 @@ export async function handleDefaultSet(context: DeferredCommandContext): Promise
       .setTitle('✅ Default Preset Set')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
-        `Your default ${MODEL_SLOT_LABELS[slot]} preset is now **${data.default.configName}**.\n\n` +
+        (slot === 'both'
+          ? // `both` names both slots — the gateway wrote text AND vision in one call.
+            `Your default ${MODEL_SLOT_LABELS.text} and ${MODEL_SLOT_LABELS.vision} presets are now **${data.default.configName}**.\n\n`
+          : `Your default ${MODEL_SLOT_LABELS[slot]} preset is now **${data.default.configName}**.\n\n`) +
           'This will be used for all characters unless you have a specific override.'
       )
       .setFooter({ text: 'Use /preset default clear to remove this setting' })

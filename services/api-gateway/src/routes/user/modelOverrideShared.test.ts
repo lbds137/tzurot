@@ -1,9 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Response } from 'express';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { ModelCapabilityService } from '../../services/ModelCapabilityService.js';
 import {
   parseClearSlots,
   buildOverrideSummary,
+  resolveClearFallbackDefaults,
   OVERRIDE_SUMMARY_SELECT,
   type OverrideSummaryRow,
 } from './modelOverrideShared.js';
@@ -99,5 +102,98 @@ describe('buildOverrideSummary', () => {
     expect(summary.configId).toBeNull();
     expect(summary.configName).toBeNull();
     expect(capabilities.supportsVision).toHaveBeenCalledWith('');
+  });
+});
+
+describe('resolveClearFallbackDefaults', () => {
+  /** All four pointer columns the tier pick reads, in the fixed-shape select. */
+  const POINTER_SELECT = {
+    globalDefaultLlmConfigId: true,
+    globalDefaultVisionConfigId: true,
+    freeDefaultLlmConfigId: true,
+    freeDefaultVisionConfigId: true,
+  };
+
+  /**
+   * Build a mock Prisma with the adminSettings row (or null) preloaded and
+   * per-call llmConfig rows queued via mockResolvedValueOnce by the caller.
+   */
+  function buildPrisma(settingsRow: Record<string, string | null> | null) {
+    const adminSettings = { findUnique: vi.fn().mockResolvedValue(settingsRow) };
+    const llmConfig = { findUnique: vi.fn().mockResolvedValue(null) };
+    const prisma = { adminSettings, llmConfig } as unknown as PrismaClient;
+    return { prisma, adminSettings, llmConfig };
+  }
+
+  it('keyed:true with a settings row resolves the GLOBAL pointers (both slots)', async () => {
+    const { prisma, adminSettings, llmConfig } = buildPrisma({
+      globalDefaultLlmConfigId: 'global-text',
+      globalDefaultVisionConfigId: 'global-vision',
+      freeDefaultLlmConfigId: 'free-text',
+      freeDefaultVisionConfigId: 'free-vision',
+    });
+    llmConfig.findUnique
+      .mockResolvedValueOnce({ id: 'global-text', name: 'Global Text' })
+      .mockResolvedValueOnce({ id: 'global-vision', name: 'Global Vision' });
+
+    const result = await resolveClearFallbackDefaults(prisma, true, true, true);
+
+    // Reads ALL four pointers in one fixed-shape singleton query (the tier
+    // pick happens in TS, never in a second DB round-trip).
+    expect(adminSettings.findUnique).toHaveBeenCalledWith({
+      where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+      select: POINTER_SELECT,
+    });
+    // The KEYED branch resolves the GLOBAL pointers — the free ids never reach
+    // a lookup, even though they are configured.
+    expect(llmConfig.findUnique).toHaveBeenCalledWith({
+      where: { id: 'global-text' },
+      select: { id: true, name: true },
+    });
+    expect(llmConfig.findUnique).toHaveBeenCalledWith({
+      where: { id: 'global-vision' },
+      select: { id: true, name: true },
+    });
+    expect(result).toEqual({
+      text: { id: 'global-text', name: 'Global Text' },
+      vision: { id: 'global-vision', name: 'Global Vision' },
+    });
+  });
+
+  it('keyed:false resolves the FREE pointers instead', async () => {
+    const { prisma, llmConfig } = buildPrisma({
+      globalDefaultLlmConfigId: 'global-text',
+      globalDefaultVisionConfigId: 'global-vision',
+      freeDefaultLlmConfigId: 'free-text',
+      freeDefaultVisionConfigId: 'free-vision',
+    });
+    llmConfig.findUnique
+      .mockResolvedValueOnce({ id: 'free-text', name: 'Free Text' })
+      .mockResolvedValueOnce({ id: 'free-vision', name: 'Free Vision' });
+
+    const result = await resolveClearFallbackDefaults(prisma, true, true, false);
+
+    expect(llmConfig.findUnique).toHaveBeenCalledWith({
+      where: { id: 'free-text' },
+      select: { id: true, name: true },
+    });
+    expect(llmConfig.findUnique).toHaveBeenCalledWith({
+      where: { id: 'free-vision' },
+      select: { id: true, name: true },
+    });
+    expect(result).toEqual({
+      text: { id: 'free-text', name: 'Free Text' },
+      vision: { id: 'free-vision', name: 'Free Vision' },
+    });
+  });
+
+  it('a null settings row (keyed:true) yields null for both slots without a lookup — no crash', async () => {
+    const { prisma, llmConfig } = buildPrisma(null);
+
+    const result = await resolveClearFallbackDefaults(prisma, true, true, true);
+
+    // bot-client renders null as the built-in-fallback notice; nothing throws.
+    expect(result).toEqual({ text: null, vision: null });
+    expect(llmConfig.findUnique).not.toHaveBeenCalled();
   });
 });

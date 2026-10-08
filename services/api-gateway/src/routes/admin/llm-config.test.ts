@@ -931,6 +931,51 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.message).toMatch(/couldn't confirm/i);
       expect(prisma.adminSettings.upsert).not.toHaveBeenCalled();
     });
+
+    it('writes BOTH global default pointers when ?slot=both and the model is vision-capable', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'both-default',
+        name: 'GPT-4o',
+        isGlobal: true,
+        model: 'openai/gpt-4o',
+      });
+
+      const response = await request(buildAppWithVisionCache()).put(
+        '/admin/llm-config/both-default/set-default?slot=both'
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      // One upsert carrying BOTH pointers — the both alias is a single request.
+      expect(prisma.adminSettings.upsert).toHaveBeenCalledTimes(1);
+      expect(prisma.adminSettings.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: {
+            globalDefaultLlmConfigId: 'both-default',
+            globalDefaultVisionConfigId: 'both-default',
+          },
+        })
+      );
+    });
+
+    it('rejects ?slot=both with a text-only model and writes NOTHING (no half-apply)', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'text-only',
+        name: 'Text Only',
+        isGlobal: true,
+        model: 'z-ai/glm-4.7',
+      });
+
+      const response = await request(buildAppWithVisionCache()).put(
+        '/admin/llm-config/text-only/set-default?slot=both'
+      );
+
+      // The vision gate runs BEFORE any write: a text-only preset gets one
+      // clear refusal and neither pointer moves.
+      expect(response.status).toBe(400);
+      expect(response.body.message).toMatch(/vision/i);
+      expect(prisma.adminSettings.upsert).not.toHaveBeenCalled();
+    });
   });
 
   describe('PUT /api/admin/llm-config/:id/set-free-default', () => {
@@ -983,6 +1028,48 @@ describe('Admin LLM Config Routes', () => {
 
       const response = await request(buildAppWithVisionCache()).put(
         '/admin/llm-config/glm-free/set-free-default?slot=vision'
+      );
+
+      expect(response.status).toBe(400);
+      expect(prisma.adminSettings.upsert).not.toHaveBeenCalled();
+    });
+
+    it('writes BOTH free default pointers when ?slot=both and the model is a free vision model', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'vision-free-both',
+        name: 'Vision Free Both',
+        isGlobal: true,
+        model: 'qwen/qwen3-vl-30b-a3b-instruct:free',
+        provider: 'openrouter',
+      });
+
+      const response = await request(buildAppWithVisionCache()).put(
+        '/admin/llm-config/vision-free-both/set-free-default?slot=both'
+      );
+
+      expect(response.status).toBe(200);
+      expect(prisma.adminSettings.upsert).toHaveBeenCalledTimes(1);
+      expect(prisma.adminSettings.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: {
+            freeDefaultLlmConfigId: 'vision-free-both',
+            freeDefaultVisionConfigId: 'vision-free-both',
+          },
+        })
+      );
+    });
+
+    it('rejects ?slot=both with a free text-only model and writes NOTHING (no half-apply)', async () => {
+      // Passes the :free check; fails only the vision half of the both alias.
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'glm-free-both',
+        name: 'GLM Free Both',
+        isGlobal: true,
+        model: 'z-ai/glm-4.7:free',
+      });
+
+      const response = await request(buildAppWithVisionCache()).put(
+        '/admin/llm-config/glm-free-both/set-free-default?slot=both'
       );
 
       expect(response.status).toBe(400);

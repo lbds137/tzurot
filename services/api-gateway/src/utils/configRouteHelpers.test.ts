@@ -32,6 +32,7 @@ import {
   parseBodyOrSendError,
   parseModelSlotQuery,
   parseModelSlotQueryAllowAll,
+  parseModelSlotQueryAllowBoth,
   findConfigOrSendNotFound,
   findGlobalConfigOrSendError,
   findAdminUserOrSendError,
@@ -94,6 +95,37 @@ describe('parseModelSlotQueryAllowAll', () => {
 
   it('sends a Zod error and returns null for an invalid slot', () => {
     expect(parseModelSlotQueryAllowAll(mockRes, { slot: 'audio' })).toBeNull();
+    expect(mockSendZodError).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects the SET-side both alias — clear has no both, only the all sentinel', () => {
+    expect(parseModelSlotQueryAllowAll(mockRes, { slot: 'both' })).toBeNull();
+    expect(mockSendZodError).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('parseModelSlotQueryAllowBoth', () => {
+  it('returns the parsed slot for a valid ?slot=vision', () => {
+    expect(parseModelSlotQueryAllowBoth(mockRes, { slot: 'vision' })).toBe('vision');
+    expect(mockSendZodError).not.toHaveBeenCalled();
+  });
+
+  it('returns text for a valid ?slot=text', () => {
+    expect(parseModelSlotQueryAllowBoth(mockRes, { slot: 'text' })).toBe('text');
+  });
+
+  it('accepts the write-both-slots alias ?slot=both', () => {
+    expect(parseModelSlotQueryAllowBoth(mockRes, { slot: 'both' })).toBe('both');
+    expect(mockSendZodError).not.toHaveBeenCalled();
+  });
+
+  it('defaults to text when the param is absent', () => {
+    expect(parseModelSlotQueryAllowBoth(mockRes, {})).toBe('text');
+    expect(mockSendZodError).not.toHaveBeenCalled();
+  });
+
+  it('sends a Zod error and returns null for an invalid slot', () => {
+    expect(parseModelSlotQueryAllowBoth(mockRes, { slot: 'bogus' })).toBeNull();
     expect(mockSendZodError).toHaveBeenCalledTimes(1);
   });
 });

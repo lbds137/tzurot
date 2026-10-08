@@ -472,9 +472,10 @@ export const userConfigRoutes = {
     path: MODEL_OVERRIDE_DEFAULT_PATH,
     id: 'setDefaultModelConfig',
     input: SetDefaultConfigSchema,
-    // The slot the default occupies (text|vision); defaults text. The gateway
-    // capability-gates the vision slot (its model must support image input).
-    query: { slot: z.enum(MODEL_SLOTS).optional() },
+    // The slot the default occupies (text|vision), or `both` to write text AND
+    // vision in one request; defaults text. The gateway capability-gates the
+    // vision slot (and thus the both alias) BEFORE any write.
+    query: { slot: z.enum([...MODEL_SLOTS, 'both']).optional() },
     output: SetDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },

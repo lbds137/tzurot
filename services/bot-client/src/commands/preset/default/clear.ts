@@ -23,9 +23,11 @@ export async function handleDefaultClear(context: DeferredCommandContext): Promi
   const userId = context.user.id;
   // No slot → clear BOTH defaults (`all`); an explicit slot clears just that one.
   // The vision default is a separate FK from the text default, so a no-slot clear
-  // has to target both or it silently leaves the other in place.
+  // has to target both or it silently leaves the other in place. The `both`
+  // choice is the same operation made explicit — the gateway has no `both` clear
+  // value, so it maps onto the existing `all` sentinel.
   const slotOption = presetDefaultClearOptions(context.interaction).slot();
-  const slot = slotOption !== null ? toModelSlot(slotOption) : 'all';
+  const slot = slotOption === null || slotOption === 'both' ? 'all' : toModelSlot(slotOption);
 
   try {
     const { userClient } = clientsFor(context.interaction);
@@ -41,12 +43,14 @@ export async function handleDefaultClear(context: DeferredCommandContext): Promi
       return;
     }
 
-    // Tell the user explicitly what they'll fall back to next, one line per
-    // cleared slot (an `all` clear reverts BOTH chat and vision — naming only
-    // one would leave the user unaware the other moved too). A slot is in
-    // newEffectiveDefaults iff it was cleared; its value is null when no system
-    // free default exists for it. Per-character overrides are unaffected and
-    // surface in the closing sentence.
+    // Tell the user explicitly what will serve them next, one line per cleared
+    // slot (an `all` clear reverts BOTH chat and vision — naming only one would
+    // leave the user unaware the other moved too). The gateway already picked
+    // the fallback by the caller's tier (keyed → global default, guest → free
+    // default), so this render names whichever it sent. A slot is in
+    // newEffectiveDefaults iff it was cleared; its value is null when no
+    // fallback default is configured. Character-level defaults and overrides
+    // sit ABOVE this fallback and surface in the closing sentence.
     const fallbackLines = (['text', 'vision'] as const).flatMap(slotKey => {
       const fallback = result.data.newEffectiveDefaults[slotKey];
       // Slot absent from the map → it wasn't cleared, so emit no line for it.
@@ -55,8 +59,8 @@ export async function handleDefaultClear(context: DeferredCommandContext): Promi
       }
       return [
         fallback !== null
-          ? `**${MODEL_SLOT_LABELS[slotKey]}** → falling back to system default: \`${fallback.name}\`.`
-          : `**${MODEL_SLOT_LABELS[slotKey]}** → no system default is configured; the bot will use its built-in fallback.`,
+          ? `**${MODEL_SLOT_LABELS[slotKey]}** → characters without their own preset will use \`${fallback.name}\`.`
+          : `**${MODEL_SLOT_LABELS[slotKey]}** → no fallback default is configured; the bot will use its built-in fallback.`,
       ];
     });
 
@@ -67,9 +71,12 @@ export async function handleDefaultClear(context: DeferredCommandContext): Promi
     const fallbackSection = fallbackLines.length > 0 ? `${fallbackLines.join('\n')}\n\n` : '';
 
     const clearedDescription =
-      slot === 'all'
-        ? 'Your default preset has been removed.'
-        : `Your default ${MODEL_SLOT_LABELS[slot]} preset has been removed.`;
+      slotOption === 'both'
+        ? // Explicit `both` names both slots (the no-slot clear keeps its generic line).
+          `Your default presets for ${MODEL_SLOT_LABELS.text} and ${MODEL_SLOT_LABELS.vision} have been removed.`
+        : slot === 'all'
+          ? 'Your default preset has been removed.'
+          : `Your default ${MODEL_SLOT_LABELS[slot]} preset has been removed.`;
 
     const embed = new EmbedBuilder()
       .setTitle('✅ Default Preset Cleared')
