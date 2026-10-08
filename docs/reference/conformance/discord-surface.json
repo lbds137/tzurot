@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 2903,
-    "sites": 6758
+    "entries": 2913,
+    "sites": 6772
   },
   "entries": [
     {
@@ -7377,6 +7377,42 @@
       "file": "services/bot-client/src/services/VoiceTranscriptionService.ts",
       "symbol": "user",
       "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts",
+      "symbol": "addFields",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts",
+      "symbol": "escapeMarkdown",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts",
+      "symbol": "setColor",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts",
+      "symbol": "setDescription",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts",
+      "symbol": "setTimestamp",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts",
+      "symbol": "setTitle",
+      "count": 1
     },
     {
       "category": "client-methods",
@@ -15519,6 +15555,30 @@
       "file": "services/bot-client/src/services/SecretRotationNagScheduler.ts",
       "symbol": "text",
       "count": 1
+    },
+    {
+      "category": "message-builders",
+      "file": "services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts",
+      "symbol": "EmbedBuilder",
+      "count": 1
+    },
+    {
+      "category": "message-builders",
+      "file": "services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts",
+      "symbol": "inline",
+      "count": 2
+    },
+    {
+      "category": "message-builders",
+      "file": "services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts",
+      "symbol": "name",
+      "count": 2
+    },
+    {
+      "category": "message-builders",
+      "file": "services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts",
+      "symbol": "value",
+      "count": 2
     },
     {
       "category": "message-builders",

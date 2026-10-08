@@ -23,6 +23,7 @@ import type { JobTracker } from './services/JobTracker.js';
 import { JobFailureListener } from './services/JobFailureListener.js';
 import { setupReleaseDmWorker } from './services/releaseDm/setupReleaseDmWorker.js';
 import { setupRetentionNotifyWorker } from './services/retentionNotice/setupRetentionNotifyWorker.js';
+import { setupCatalogDriftAlertWorker } from './services/catalogAlert/setupCatalogDriftAlertWorker.js';
 import { startWorkersOnClientReady } from './services/dmWorkerReadyGate.js';
 import { ResponseOrderingService } from './services/ResponseOrderingService.js';
 import { DiscordResponseSender } from './services/DiscordResponseSender.js';
@@ -98,6 +99,8 @@ export interface Services {
   releaseDmWorker: Worker;
   /** Retention-notice DM worker, closed in the same early shutdown step. */
   retentionNotifyWorker: Worker;
+  /** Catalog-drift owner-alert worker, closed in the same early shutdown step. */
+  catalogDriftAlertWorker: Worker;
 }
 
 /**
@@ -131,20 +134,27 @@ function createDenylistServices(cacheRedis: Redis): {
 }
 
 /**
- * The two gateway-fed DM workers (release broadcast + retention notice) —
- * constructed eagerly, together, so shutdown ownership is explicit, but NOT
- * running: `createServices` runs before `client.login`, and a job processed
- * before the client is ready fails every DM. Both start on Discord
- * ClientReady via `startWorkersOnClientReady`.
+ * The gateway-fed workers (release broadcast + retention notice DM delivery,
+ * plus the catalog-drift owner alert) — constructed eagerly, together, so
+ * shutdown ownership is explicit, but NOT running: `createServices` runs
+ * before `client.login`, and a job processed before the client is ready
+ * fails every send. All start on Discord ClientReady via
+ * `startWorkersOnClientReady`.
  */
 function createDmWorkers(client: Client): {
   releaseDmWorker: Worker;
   retentionNotifyWorker: Worker;
+  catalogDriftAlertWorker: Worker;
 } {
   const releaseDmWorker = setupReleaseDmWorker({ client });
   const retentionNotifyWorker = setupRetentionNotifyWorker({ client });
-  startWorkersOnClientReady(client, [releaseDmWorker, retentionNotifyWorker]);
-  return { releaseDmWorker, retentionNotifyWorker };
+  const catalogDriftAlertWorker = setupCatalogDriftAlertWorker({ client });
+  startWorkersOnClientReady(client, [
+    releaseDmWorker,
+    retentionNotifyWorker,
+    catalogDriftAlertWorker,
+  ]);
+  return { releaseDmWorker, retentionNotifyWorker, catalogDriftAlertWorker };
 }
 
 /**
@@ -312,7 +322,7 @@ export function createServices(client: Client): Services {
 
   const multiTagStateQueue = buildStateQueue();
 
-  const { releaseDmWorker, retentionNotifyWorker } = createDmWorkers(client);
+  const dmWorkers = createDmWorkers(client);
 
   // Multi-tag stack: coordinator + Redis persistence + recovery service.
   // Persistence is shared with DMSessionProcessor (backfill sentinel).
@@ -390,8 +400,7 @@ export function createServices(client: Client): Services {
     multiTagRecovery,
     singleJobRecovery,
     multiTagStateQueue,
-    releaseDmWorker,
-    retentionNotifyWorker,
+    ...dmWorkers,
     dmCacheWarmer,
   };
 }

@@ -238,6 +238,19 @@ export class LlmConfigService {
     return derivePointerSets(settings);
   }
 
+  /**
+   * Public read of the default-pointer membership sets for consumers outside
+   * list-shaping (the catalog-drift checker resolves each pointer target's
+   * model against the OpenRouter catalog). Same "any-default" semantics as
+   * `list`'s derived flags: chat and vision pointers share a set.
+   */
+  async getDefaultPointerIds(): Promise<{
+    globalDefaultIds: Set<string>;
+    freeDefaultIds: Set<string>;
+  }> {
+    return this.getDefaultPointerSets();
+  }
+
   // --------------------------------------------------------------------------
   // Write Operations
   // --------------------------------------------------------------------------

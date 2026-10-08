@@ -1243,6 +1243,12 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/services/VoiceTranscriptionService.ts | id | 11 |
 | services/bot-client/src/services/VoiceTranscriptionService.ts | send | 1 |
 | services/bot-client/src/services/VoiceTranscriptionService.ts | user | 2 |
+| services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts | addFields | 2 |
+| services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts | escapeMarkdown | 1 |
+| services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts | setColor | 1 |
+| services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts | setDescription | 1 |
+| services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts | setTimestamp | 1 |
+| services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts | setTitle | 1 |
 | services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts | cache | 1 |
 | services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts | displayHexColor | 2 |
 | services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts | guild | 1 |
@@ -2635,6 +2641,10 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/services/ReleaseFlagNagScheduler.ts | EmbedBuilder | 1 |
 | services/bot-client/src/services/SecretRotationNagScheduler.ts | EmbedBuilder | 1 |
 | services/bot-client/src/services/SecretRotationNagScheduler.ts | text | 1 |
+| services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts | EmbedBuilder | 1 |
+| services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts | inline | 2 |
+| services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts | name | 2 |
+| services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts | value | 2 |
 | services/bot-client/src/services/releaseDm/setupReleaseDmWorker.ts | EmbedBuilder | 1 |
 | services/bot-client/src/services/retentionNotice/setupRetentionNotifyWorker.ts | EmbedBuilder | 1 |
 | services/bot-client/src/services/retentionRun/retentionNag.ts | EmbedBuilder | 1 |
@@ -2973,4 +2983,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 2903 entries across 6758 sites.
+Total: 2913 entries across 6772 sites.

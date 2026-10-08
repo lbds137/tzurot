@@ -640,6 +640,37 @@ export const retentionNotifyDmJobDataSchema = baseJobDataSchema.extend({
 
 export type RetentionNotifyRecipient = z.infer<typeof retentionNotifyRecipientSchema>;
 
+/** Which configured role a drifted model id serves. */
+const catalogDriftKindSchema = z.enum(['default', 'free-default', 'global']);
+export type CatalogDriftKind = z.infer<typeof catalogDriftKindSchema>;
+
+/** One drifted config-model pair discovered by a catalog drift check. */
+const catalogDriftEntrySchema = z.object({
+  /** LlmConfig row id — names the config to re-point. */
+  configId: z.string().uuid(),
+  /** Config display name (owner-facing alert field). */
+  configName: z.string().min(1),
+  /** The model id that no longer resolves against the OpenRouter catalog. */
+  modelId: z.string().min(1),
+  /** The configured role the model serves. */
+  kind: catalogDriftKindSchema,
+});
+
+/**
+ * Job data for one catalog-drift owner-alert batch: every drift newly
+ * detected in a single catalog-refresh cycle rides ONE job (api-gateway's
+ * CatalogDriftChecker produces it; bot-client's owner-alert worker renders it
+ * as a single embed). Redis sentinels, not the payload, carry the
+ * alerts-once-per-delisting dedup — so the job id is unique per cycle.
+ */
+export const catalogDriftAlertJobDataSchema = baseJobDataSchema.extend({
+  jobType: z.literal(JobType.CatalogDriftAlert),
+  /** All newly-detected drifts this cycle. Cap = the checker's candidate ceiling: four default pointers + the isGlobal take-100. */
+  drifts: z.array(catalogDriftEntrySchema).min(1).max(104),
+});
+
+export type CatalogDriftEntry = z.infer<typeof catalogDriftEntrySchema>;
+
 /**
  * Union schema for all job data types
  * Used for generic job validation
@@ -651,5 +682,6 @@ export const anyJobDataSchema = z.discriminatedUnion('jobType', [
   factExtractionJobDataSchema,
   releaseBroadcastDmJobDataSchema,
   retentionNotifyDmJobDataSchema,
+  catalogDriftAlertJobDataSchema,
   archiveSummaryJobDataSchema,
 ]);
