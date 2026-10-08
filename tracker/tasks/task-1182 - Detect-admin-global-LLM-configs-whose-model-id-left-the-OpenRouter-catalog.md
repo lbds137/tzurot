@@ -4,8 +4,9 @@ title: Detect admin/global LLM configs whose model id left the OpenRouter catalo
 status: To Do
 assignee: []
 created_date: '2026-10-05 19:27'
+updated_date: '2026-10-08 19:45'
 labels:
-  - 'area:ai-worker'
+  - 'area:api-gateway'
   - 'size:M'
   - 'state:ready'
 dependencies: []
