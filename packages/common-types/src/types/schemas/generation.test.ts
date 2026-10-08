@@ -179,6 +179,53 @@ describe('llmGenerationResultSchema.metadata', () => {
     });
   });
 
+  describe('piggybackSkipped / piggybackModel', () => {
+    it('parses a metadata object carrying both fields and BOTH survive the parse', () => {
+      // The pair crosses this schema on its way to bot-client's footer; a
+      // field it does not declare is stripped before the renderer ever sees
+      // it, so the survive-the-parse assertions are the load-bearing ones.
+      const parsed = llmGenerationResultSchema.safeParse({
+        ...baseValid,
+        metadata: {
+          quotaFallback: {
+            fromModel: 'z-ai/glm-5.3-flash',
+            toModel: 'openrouter/free',
+            category: 'guest_mode',
+            mode: 'proactive',
+          },
+          piggybackSkipped: true,
+          piggybackModel: 'z-ai/glm-5.3-flash',
+        },
+      });
+      expect(parsed.success).toBe(true);
+      if (parsed.success) {
+        expect(parsed.data.metadata?.piggybackSkipped).toBe(true);
+        expect(parsed.data.metadata?.piggybackModel).toBe('z-ai/glm-5.3-flash');
+      }
+    });
+
+    it('is optional (absent on a turn with no piggyback denial)', () => {
+      const parsed = llmGenerationResultSchema.safeParse({ ...baseValid, metadata: {} });
+      expect(parsed.success).toBe(true);
+    });
+
+    it('rejects a non-boolean flag', () => {
+      const parsed = llmGenerationResultSchema.safeParse({
+        ...baseValid,
+        metadata: { piggybackSkipped: 'yes', piggybackModel: 'z-ai/glm-5.3-flash' },
+      });
+      expect(parsed.success).toBe(false);
+    });
+
+    it('rejects a non-string model id', () => {
+      const parsed = llmGenerationResultSchema.safeParse({
+        ...baseValid,
+        metadata: { piggybackSkipped: true, piggybackModel: 42 },
+      });
+      expect(parsed.success).toBe(false);
+    });
+  });
+
   describe('routedModel', () => {
     it('survives the parse and keeps the exact value declared on the metadata object', () => {
       const parsed = llmGenerationResultSchema.safeParse({

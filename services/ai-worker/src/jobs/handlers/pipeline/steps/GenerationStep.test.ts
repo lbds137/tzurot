@@ -1089,6 +1089,44 @@ describe('GenerationStep', () => {
       });
     });
 
+    describe('piggyback pair forwarding on the failure branches', () => {
+      const denied = { ...baseAuth, piggybackSkipped: true, piggybackModel: 'z-ai/glm-5.3-flash' };
+      const run = (auth: typeof baseAuth) =>
+        step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth,
+          preparedContext: basePreparedContext,
+        });
+
+      it('empty-after-retries failure carries the pair', async () => {
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue({
+          content: '',
+        } as RAGResponse);
+        const result = await run(denied);
+        expect(result.result?.errorInfo?.category).toBe('empty_response');
+        expect(result.result?.metadata?.piggybackSkipped).toBe(true);
+        expect(result.result?.metadata?.piggybackModel).toBe('z-ai/glm-5.3-flash');
+      });
+
+      it('catch-path failure carries the pair', async () => {
+        vi.mocked(mockRAGService.generateResponse).mockRejectedValue(new Error('boom'));
+        const result = await run(denied);
+        expect(result.result?.success).toBe(false);
+        expect(result.result?.metadata?.piggybackSkipped).toBe(true);
+        expect(result.result?.metadata?.piggybackModel).toBe('z-ai/glm-5.3-flash');
+      });
+
+      it('catch-path failure without a denial leaves both absent', async () => {
+        vi.mocked(mockRAGService.generateResponse).mockRejectedValue(new Error('boom'));
+        const result = await run(baseAuth);
+        expect(result.result?.success).toBe(false);
+        expect(result.result?.metadata?.piggybackSkipped).toBeUndefined();
+        expect(result.result?.metadata?.piggybackModel).toBeUndefined();
+      });
+    });
+
     describe('RetryError unwrapping', () => {
       it('should unwrap RetryError to classify underlying API error', async () => {
         // Create an underlying authentication error

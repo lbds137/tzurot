@@ -9,6 +9,8 @@
  * free-default. When admission fails, the model leaves the pool for the
  * whole request and resolution continues down the normal guest ladder:
  * personal selection → global free-default → FREE_ROUTER_MODEL last resort.
+ * A REAL admission denial also raises a boolean flag (never the deny reason)
+ * that renders as a footer note for the guest.
  * A misconfigured paid free-default gets the same router substitution — the
  * paid-model-on-system-key class is unrepresentable through this path.
  */
@@ -51,6 +53,38 @@ export interface GuestOverrideResult {
    * carries nothing — there is no substitution to announce.
    */
   quotaFallback?: QuotaFallbackInfo;
+  /** Set when z.ai piggyback admission denied this request — the boolean
+   *  only, never the deny reason (guest-visible text must not carry it). */
+  piggybackSkipped?: boolean;
+  /** The denied piggyback model id, as the request spelled it. Meaningful
+   *  only alongside `piggybackSkipped === true`. */
+  piggybackModel?: string;
+}
+
+/**
+ * One z.ai piggyback upgrade attempt. 'denied' is a REAL admission denial
+ * (footer-flag worthy); 'unavailable' covers no-gate-wired (ships dark) and
+ * the admitted-but-key-vanished race — the model still leaves the pool, but
+ * nothing was denied to the guest.
+ */
+type ZaiUpgradeOutcome =
+  { kind: 'admitted'; result: GuestOverrideResult } | { kind: 'denied' } | { kind: 'unavailable' };
+
+/** The footer-flag pair a result may carry; AuthStep spreads it onto the auth object. */
+export type GuestPiggybackPair = Pick<GuestOverrideResult, 'piggybackSkipped' | 'piggybackModel'>;
+
+/**
+ * Spreadable piggyback-denial pair from a guest-override result — empty unless
+ * a REAL admission denial set it, so absence survives as absence on the auth
+ * object exactly like the optional quotaFallback beside it. Relies on the
+ * denial arm in applyGuestModeOverrides — the sole producer of this pair —
+ * only ever setting `piggybackSkipped: true`, never `false`, so
+ * `!== undefined` equals `=== true` today.
+ */
+export function piggybackFields(guest?: GuestPiggybackPair): GuestPiggybackPair {
+  return guest?.piggybackSkipped !== undefined
+    ? { piggybackSkipped: guest.piggybackSkipped, piggybackModel: guest.piggybackModel }
+    : {};
 }
 
 /**
@@ -89,6 +123,32 @@ function guestVisionModel(personality: EffectivePersonality): string | undefined
     : undefined;
 }
 
+/**
+ * One piggyback-upgrade step for a ladder arm. `stop` carries an admitted
+ * upgrade (the caller returns its result verbatim); a REAL denial carries the
+ * denied candidate model for the footer flag, and any other outcome carries
+ * nothing — the model still leaves the pool, but nothing was denied.
+ */
+type ZaiLadderStep =
+  { stop: true; result: GuestOverrideResult } | { stop: false; denial?: { skippedModel: string } };
+
+/** Run the z.ai piggyback upgrade for one ladder arm's candidate model. */
+async function stepZaiUpgrade(
+  deps: GuestOverrideDeps,
+  personality: EffectivePersonality,
+  userId: string,
+  requestId: string,
+  candidate: string
+): Promise<ZaiLadderStep> {
+  const outcome = await tryZaiFreeTierUpgrade(deps, personality, userId, requestId);
+  if (outcome.kind === 'admitted') {
+    return { stop: true, result: outcome.result };
+  }
+  return outcome.kind === 'denied'
+    ? { stop: false, denial: { skippedModel: candidate } }
+    : { stop: false };
+}
+
 /** Apply guest mode model overrides (see module doc). */
 export async function applyGuestModeOverrides(
   deps: GuestOverrideDeps,
@@ -108,16 +168,18 @@ export async function applyGuestModeOverrides(
   // REST of this request's resolution — and admit() must not run twice
   // (admission consumes the guest's quota share when it admits).
   let zaiUnavailable = false;
+  let deniedPiggybackModel: string | undefined;
 
   // A personally-selected piggyback model is conditionally free: admitted →
   // serve it; denied → it leaves the pool and resolution falls through to
   // the global free-default like any other unavailable model.
   if (isZaiFreeTierModel(currentModel)) {
-    const upgrade = await tryZaiFreeTierUpgrade(deps, personality, userId, requestId);
-    if (upgrade !== null) {
-      return upgrade;
+    const step = await stepZaiUpgrade(deps, personality, userId, requestId, currentModel);
+    if (step.stop) {
+      return step.result;
     }
     zaiUnavailable = true;
+    deniedPiggybackModel = step.denial?.skippedModel;
     logger.info(
       { userId, originalModel: currentModel },
       'Guest-selected piggyback model unavailable — continuing down the free-model ladder'
@@ -132,10 +194,11 @@ export async function applyGuestModeOverrides(
   // denial this request) removes it from the pool → last-resort router.
   if (isZaiFreeTierModel(guestModel)) {
     if (!zaiUnavailable) {
-      const upgrade = await tryZaiFreeTierUpgrade(deps, personality, userId, requestId);
-      if (upgrade !== null) {
-        return upgrade;
+      const step = await stepZaiUpgrade(deps, personality, userId, requestId, guestModel);
+      if (step.stop) {
+        return step.result;
       }
+      deniedPiggybackModel = step.denial?.skippedModel;
     }
     guestModel = getFreeTextFloor();
   } else if (!isFreeModel(guestModel)) {
@@ -164,6 +227,9 @@ export async function applyGuestModeOverrides(
       visionModel: guestVisionModel(personality),
     },
     ...(quotaFallback !== undefined ? { quotaFallback } : {}),
+    ...(deniedPiggybackModel !== undefined
+      ? { piggybackSkipped: true, piggybackModel: deniedPiggybackModel }
+      : {}),
   };
 }
 
@@ -189,17 +255,19 @@ async function fetchFreeDefaultModel(configResolver?: LlmConfigResolver): Promis
 /**
  * The z.ai free-tier upgrade: admitted guests get the bare piggyback model on
  * the coding-plan key with `provider: zai-coding` so ModelFactory routes
- * z.ai-direct. Null on any denial — the model leaves the pool and the caller
- * continues down the free-model ladder.
+ * z.ai-direct. Any non-admitted outcome leaves the model out of the pool and
+ * the caller continues down the free-model ladder; the outcome's `kind` tells
+ * the caller whether a REAL admission denial happened ('denied' — the
+ * footer-flag-worthy case) or the gate was simply unavailable.
  */
 async function tryZaiFreeTierUpgrade(
   deps: GuestOverrideDeps,
   personality: EffectivePersonality,
   userId: string,
   requestId: string
-): Promise<GuestOverrideResult | null> {
+): Promise<ZaiUpgradeOutcome> {
   if (deps.zaiFreeTierAdmission === undefined) {
-    return null;
+    return { kind: 'unavailable' };
   }
   const verdict = await deps.zaiFreeTierAdmission.admit(userId, requestId);
   if (!verdict.admitted) {
@@ -209,7 +277,7 @@ async function tryZaiFreeTierUpgrade(
       { userId, reason: verdict.reason },
       'z.ai free-tier denied — piggyback model leaves the pool for this request'
     );
-    return null;
+    return { kind: 'denied' };
   }
   const zaiSystemKey = deps.zaiFreeTierAdmission.systemKey();
   if (zaiSystemKey === undefined) {
@@ -219,7 +287,7 @@ async function tryZaiFreeTierUpgrade(
       { userId },
       'z.ai admitted but the system key vanished — falling through with quota consumed'
     );
-    return null;
+    return { kind: 'unavailable' };
   }
   logger.info(
     { userId, model: ZAI_FREE_TIER_MODEL },
@@ -234,17 +302,20 @@ async function tryZaiFreeTierUpgrade(
     requestId
   );
   return {
-    personality: {
-      ...personality,
-      model: ZAI_FREE_TIER_MODEL,
-      provider: AIProvider.ZaiCoding,
-      // This step rewrites the TEXT model only; the vision slot still follows the
-      // guest rules here (free OpenRouter models only). The vision-side piggyback
-      // is a separate, independently-admitted tier inside the vision fallback
-      // chain, so a denial on one slot never decides the other.
-      visionModel: guestVisionModel(personality),
+    kind: 'admitted',
+    result: {
+      personality: {
+        ...personality,
+        model: ZAI_FREE_TIER_MODEL,
+        provider: AIProvider.ZaiCoding,
+        // This step rewrites the TEXT model only; the vision slot still follows the
+        // guest rules here (free OpenRouter models only). The vision-side piggyback
+        // is a separate, independently-admitted tier inside the vision fallback
+        // chain, so a denial on one slot never decides the other.
+        visionModel: guestVisionModel(personality),
+      },
+      zaiSystemKey,
+      ...(quotaFallback !== undefined ? { quotaFallback } : {}),
     },
-    zaiSystemKey,
-    ...(quotaFallback !== undefined ? { quotaFallback } : {}),
   };
 }

@@ -194,6 +194,15 @@ const generationPayloadSchema = z.object({
           mode: z.enum(['proactive', 'reactive']),
         })
         .optional(),
+      /** Set when the z.ai free-tier piggyback admission DENIED this request:
+       *  the piggyback model left the guest pool and a normal free model served.
+       *  Carries the boolean only — the deny reason stays in worker logs and
+       *  never reaches guest-visible text. */
+      piggybackSkipped: z.boolean().optional(),
+      /** The denied piggyback model id, spelled as the request carried it.
+       *  Meaningful only alongside `piggybackSkipped === true`; rendered in the
+       *  footer's temporary-unavailability note. */
+      piggybackModel: z.string().optional(),
     })
     .optional(),
 });
