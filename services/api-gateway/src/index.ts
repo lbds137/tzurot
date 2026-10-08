@@ -85,6 +85,8 @@ import {
 import { DatabaseNotificationListener } from './services/DatabaseNotificationListener.js';
 import { OpenRouterModelCache } from './services/OpenRouterModelCache.js';
 import { createModelCatalogRefresher } from './services/ModelCatalogRefresher.js';
+import { CatalogDriftChecker } from './services/CatalogDriftChecker.js';
+import { LlmConfigService } from './services/LlmConfigService.js';
 import type { IntervalScheduler } from '@tzurot/common-types/utils/intervalScheduler';
 import { requireServiceAuth } from './services/AuthMiddleware.js';
 import {
@@ -114,6 +116,7 @@ import {
   aiQueue,
   releaseBroadcastQueue,
   retentionNotifyQueue,
+  catalogDriftAlertQueue,
   queueEvents,
   closeQueue,
 } from './queue.js';
@@ -282,7 +285,16 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
   // the key is written only as a side effect of model-config requests, so a
   // quiet day expires it and ai-worker's capability checks silently fall back
   // to pattern matching for good (see ModelCatalogRefresher's module doc).
-  const modelCatalogRefresher = createModelCatalogRefresher(modelCache);
+  // Each successful refresh also drift-checks the configured default/global
+  // model ids against the fresh catalog and alerts the owner on a delisting.
+  const catalogDriftChecker = new CatalogDriftChecker({
+    prisma,
+    llmConfigService: new LlmConfigService(prisma),
+    modelCache,
+    redis: cacheRedis,
+    queue: catalogDriftAlertQueue,
+  });
+  const modelCatalogRefresher = createModelCatalogRefresher(modelCache, catalogDriftChecker);
   modelCatalogRefresher.start();
 
   // Initialize local embedding service for memory search

@@ -1,0 +1,21 @@
+{
+  "name": "catalog-drift-alert",
+  "data": {
+    "requestId": "catalog-drift-2026-01-01T00-00-00.000Z",
+    "jobType": "catalog-drift-alert",
+    "responseDestination": {
+      "type": "api"
+    },
+    "drifts": [
+      {
+        "configId": "33333333-3333-4333-8333-333333333333",
+        "configName": "Shared Preset",
+        "modelId": "vendor/global-preset-model",
+        "kind": "global"
+      }
+    ]
+  },
+  "opts": {
+    "jobId": "catalog-drift-2026-01-01T00-00-00.000Z"
+  }
+}

@@ -33,7 +33,7 @@ describe('generateCoverageTopology', () => {
     expect(routeSurfaces.every(s => s.consumer === 'api-gateway')).toBe(true);
   });
 
-  it('enumerates the five payload-bearing BullMQ jobs (bullmq-contract)', () => {
+  it('enumerates the six payload-bearing BullMQ jobs (bullmq-contract)', () => {
     const jobSurfaces = topology.surfaces.filter(s => s.kind === 'bullmq-job');
     // Build expected ids from the enum so a JobType value rename is caught.
     const expected = [
@@ -42,6 +42,7 @@ describe('generateCoverageTopology', () => {
       `api-gateway:ai-worker:${JobType.LLMGeneration}`,
       `api-gateway:bot-client:${JobType.ReleaseBroadcastDm}`,
       `api-gateway:bot-client:${JobType.RetentionNotifyDm}`,
+      `api-gateway:bot-client:${JobType.CatalogDriftAlert}`,
     ].sort();
     expect(jobSurfaces.map(s => s.id).sort()).toEqual(expected);
     expect(jobSurfaces.every(s => s.mechanism === 'bullmq-contract')).toBe(true);
@@ -111,7 +112,8 @@ describe('generateCoverageTopology', () => {
           'imageDescriptionJobDataSchema.safeParse(x);\n' +
           'llmGenerationJobDataSchema.parse(x);\n' +
           'releaseBroadcastDmJobDataSchema.safeParse(x);\n' +
-          'retentionNotifyDmJobDataSchema.safeParse(x);\n'
+          'retentionNotifyDmJobDataSchema.safeParse(x);\n' +
+          'catalogDriftAlertJobDataSchema.safeParse(x);\n'
       );
       mkdirSync(dirname(producerPath), { recursive: true });
       // The broadcast surface keys off ITS OWN producer test — keep it REAL in
@@ -135,6 +137,15 @@ describe('generateCoverageTopology', () => {
         retentionProducerPath,
         "import { RetentionNotifyService } from './RetentionNotifyService.js';\n" +
           'new RetentionNotifyService();\n'
+      );
+      const driftProducerPath = join(
+        tmpRoot,
+        'services/api-gateway/src/services/CatalogDriftContract.producer.test.ts'
+      );
+      mkdirSync(dirname(driftProducerPath), { recursive: true });
+      writeFileSync(
+        driftProducerPath,
+        "import { CatalogDriftChecker } from './CatalogDriftChecker.js';\nnew CatalogDriftChecker();\n"
       );
 
       // Circular: the producer hand-rolls a payload, importing the SCHEMA but never

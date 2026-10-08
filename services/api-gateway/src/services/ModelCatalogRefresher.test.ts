@@ -27,10 +27,12 @@ const sampleModel = {
 
 describe('ModelCatalogRefresher', () => {
   let refreshFromSource: ReturnType<typeof vi.fn>;
+  let driftCheck: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.useFakeTimers();
     refreshFromSource = vi.fn().mockResolvedValue(42);
+    driftCheck = vi.fn().mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -53,7 +55,10 @@ describe('ModelCatalogRefresher', () => {
   });
 
   it('warms the catalog shortly after startup', async () => {
-    const refresher = createModelCatalogRefresher({ refreshFromSource } as never);
+    const refresher = createModelCatalogRefresher(
+      { refreshFromSource } as never,
+      { check: driftCheck } as never
+    );
     refresher.start();
 
     expect(refreshFromSource).not.toHaveBeenCalled();
@@ -67,7 +72,10 @@ describe('ModelCatalogRefresher', () => {
   });
 
   it('keeps refreshing on the interval', async () => {
-    const refresher = createModelCatalogRefresher({ refreshFromSource } as never);
+    const refresher = createModelCatalogRefresher(
+      { refreshFromSource } as never,
+      { check: driftCheck } as never
+    );
     refresher.start();
 
     await vi.advanceTimersByTimeAsync(15_000);
@@ -86,13 +94,76 @@ describe('ModelCatalogRefresher', () => {
       .mockRejectedValueOnce(new Error('OpenRouter unreachable'))
       .mockResolvedValueOnce(42);
 
-    const refresher = createModelCatalogRefresher({ refreshFromSource } as never);
+    const refresher = createModelCatalogRefresher(
+      { refreshFromSource } as never,
+      { check: driftCheck } as never
+    );
     refresher.start();
 
     await vi.advanceTimersByTimeAsync(15_000);
     await vi.advanceTimersByTimeAsync(CATALOG_REFRESH_INTERVAL_MS);
 
     expect(refreshFromSource).toHaveBeenCalledTimes(2);
+    refresher.stop();
+  });
+
+  it('runs the catalog drift check after a successful refresh', async () => {
+    const refresher = createModelCatalogRefresher(
+      { refreshFromSource } as never,
+      { check: driftCheck } as never
+    );
+    refresher.start();
+
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(refreshFromSource).toHaveBeenCalledOnce();
+    expect(driftCheck).toHaveBeenCalledOnce();
+    refresher.stop();
+  });
+
+  it('does NOT drift-check when the refresh fails — an outage must not read as a delisting', async () => {
+    // Outage immunity: a failed (or partial) fetch leaves the catalog stale,
+    // so 'absent' verdicts from that cycle would be false delistings. The
+    // check only rides a refresh that actually resolved.
+    refreshFromSource
+      .mockRejectedValueOnce(new Error('OpenRouter unreachable'))
+      .mockResolvedValueOnce(42);
+
+    const refresher = createModelCatalogRefresher(
+      { refreshFromSource } as never,
+      { check: driftCheck } as never
+    );
+    refresher.start();
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(refreshFromSource).toHaveBeenCalledOnce();
+    expect(driftCheck).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(CATALOG_REFRESH_INTERVAL_MS);
+    expect(refreshFromSource).toHaveBeenCalledTimes(2);
+    expect(driftCheck).toHaveBeenCalledOnce();
+    refresher.stop();
+  });
+
+  it('survives a throwing drift check and retries it on the next tick', async () => {
+    // The scheduler fires the cycle unawaited — an escaping rejection from
+    // the checker would be an unhandled rejection, same contract as a failing
+    // refresh. A broken checker must not kill the refresh loop.
+    driftCheck
+      .mockRejectedValueOnce(new Error('drift checker exploded'))
+      .mockResolvedValueOnce(undefined);
+
+    const refresher = createModelCatalogRefresher(
+      { refreshFromSource } as never,
+      { check: driftCheck } as never
+    );
+    refresher.start();
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    await vi.advanceTimersByTimeAsync(CATALOG_REFRESH_INTERVAL_MS);
+
+    expect(refreshFromSource).toHaveBeenCalledTimes(2);
+    expect(driftCheck).toHaveBeenCalledTimes(2);
     refresher.stop();
   });
 
@@ -117,7 +188,7 @@ describe('ModelCatalogRefresher', () => {
       })
     );
 
-    const refresher = createModelCatalogRefresher(cache);
+    const refresher = createModelCatalogRefresher(cache, { check: driftCheck } as never);
     refresher.start();
     await vi.advanceTimersByTimeAsync(15_000);
 
@@ -136,7 +207,10 @@ describe('ModelCatalogRefresher', () => {
   });
 
   it('stops refreshing once stopped', async () => {
-    const refresher = createModelCatalogRefresher({ refreshFromSource } as never);
+    const refresher = createModelCatalogRefresher(
+      { refreshFromSource } as never,
+      { check: driftCheck } as never
+    );
     refresher.start();
     await vi.advanceTimersByTimeAsync(15_000);
     refresher.stop();

@@ -239,6 +239,7 @@ async function disposeBotClient(): Promise<void> {
   try {
     await services.releaseDmWorker.close();
     await services.retentionNotifyWorker.close();
+    await services.catalogDriftAlertWorker.close();
     await services.resultsListener.stop();
     await services.jobFailureListener.stop();
     await services.multiTagCoordinator.beginShutdown();

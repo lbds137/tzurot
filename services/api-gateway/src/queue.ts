@@ -10,6 +10,7 @@ import {
   QUEUE_CONFIG,
   RELEASE_BROADCAST_QUEUE_NAME,
   RETENTION_NOTIFY_QUEUE_NAME,
+  CATALOG_DRIFT_ALERT_QUEUE_NAME,
 } from '@tzurot/common-types/constants/queue';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -98,6 +99,25 @@ export const retentionNotifyQueue = new Queue(RETENTION_NOTIFY_QUEUE_NAME, {
   },
 });
 
+// Catalog-drift owner-alert queue — produced here (CatalogDriftChecker, one
+// batched job per catalog-refresh cycle with newly-detected drift), consumed
+// by bot-client's owner-alert worker. Same defaultJobOptions as the sibling
+// gateway-fed queues: options are per-Queue-instance, so this block repeats
+// rather than inherits.
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: BullMQ Queue must be shared across all producers; multiple instances against one queue name would fragment job bookkeeping.
+export const catalogDriftAlertQueue = new Queue(CATALOG_DRIFT_ALERT_QUEUE_NAME, {
+  connection: redisConfig,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: TIMEOUTS.QUEUE_RETRY_DELAY,
+    },
+    removeOnComplete: { count: QUEUE_CONFIG.COMPLETED_HISTORY_LIMIT },
+    removeOnFail: { count: QUEUE_CONFIG.FAILED_HISTORY_LIMIT },
+  },
+});
+
 // Create flow producer for job dependencies
 // FlowProducer allows creating parent-child job relationships where parent waits for children
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: FlowProducer must be shared to maintain job dependency relationships. Multiple instances would break parent-child job tracking.
@@ -131,6 +151,7 @@ export async function closeQueue(): Promise<void> {
   await flowProducer.close();
   await releaseBroadcastQueue.close();
   await retentionNotifyQueue.close();
+  await catalogDriftAlertQueue.close();
   await aiQueue.close();
   logger.info('Queue connections closed');
 }

@@ -43,6 +43,7 @@ const S = vi.hoisted(() => ({
   multiTagStateQueue: { __sentinel: 'multiTagStateQueue' } as any,
   releaseDmWorker: { __sentinel: 'releaseDmWorker' } as any,
   retentionNotifyWorker: { __sentinel: 'retentionNotifyWorker' } as any,
+  catalogDriftAlertWorker: { __sentinel: 'catalogDriftAlertWorker' } as any,
   multiTagCoordinator: { __sentinel: 'multiTagCoordinator' } as any,
   multiTagPersistence: { __sentinel: 'multiTagPersistence' } as any,
   multiTagRecovery: { __sentinel: 'multiTagRecovery' } as any,
@@ -153,6 +154,9 @@ vi.mock('./services/releaseDm/setupReleaseDmWorker.js', () => ({
 vi.mock('./services/retentionNotice/setupRetentionNotifyWorker.js', () => ({
   setupRetentionNotifyWorker: vi.fn(() => S.retentionNotifyWorker),
 }));
+vi.mock('./services/catalogAlert/setupCatalogDriftAlertWorker.js', () => ({
+  setupCatalogDriftAlertWorker: vi.fn(() => S.catalogDriftAlertWorker),
+}));
 
 vi.mock('./services/dmWorkerReadyGate.js', () => ({
   startWorkersOnClientReady: vi.fn(),
@@ -244,6 +248,7 @@ import { WebhookManager } from './utils/WebhookManager.js';
 import { JobFailureListener } from './services/JobFailureListener.js';
 import { setupReleaseDmWorker } from './services/releaseDm/setupReleaseDmWorker.js';
 import { setupRetentionNotifyWorker } from './services/retentionNotice/setupRetentionNotifyWorker.js';
+import { setupCatalogDriftAlertWorker } from './services/catalogAlert/setupCatalogDriftAlertWorker.js';
 import { startWorkersOnClientReady } from './services/dmWorkerReadyGate.js';
 import { registerServices } from './services/serviceRegistry.js';
 import {
@@ -301,9 +306,11 @@ describe('createServices', () => {
     expect(vi.mocked(WebhookManager)).toHaveBeenCalledWith(S.client);
     expect(vi.mocked(setupReleaseDmWorker)).toHaveBeenCalledWith({ client: S.client });
     expect(vi.mocked(setupRetentionNotifyWorker)).toHaveBeenCalledWith({ client: S.client });
+    expect(vi.mocked(setupCatalogDriftAlertWorker)).toHaveBeenCalledWith({ client: S.client });
     expect(vi.mocked(startWorkersOnClientReady)).toHaveBeenCalledWith(S.client, [
       S.releaseDmWorker,
       S.retentionNotifyWorker,
+      S.catalogDriftAlertWorker,
     ]);
     expect(vi.mocked(buildJobTrackingStack).mock.calls[0][0].discordClient).toBe(S.client);
     expect(vi.mocked(buildMultiTagStack).mock.calls[0][0].discordClient).toBe(S.client);
@@ -366,6 +373,7 @@ describe('createServices', () => {
     expect(services.multiTagStateQueue).toBe(S.multiTagStateQueue);
     expect(services.releaseDmWorker).toBe(S.releaseDmWorker);
     expect(services.retentionNotifyWorker).toBe(S.retentionNotifyWorker);
+    expect(services.catalogDriftAlertWorker).toBe(S.catalogDriftAlertWorker);
   });
 
   it('threads the composition-built stateQueue, multi-tag coordinator, and maintenanceFlag into their consumers', () => {

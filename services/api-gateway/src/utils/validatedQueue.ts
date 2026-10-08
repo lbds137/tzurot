@@ -24,6 +24,7 @@ import {
   factExtractionJobDataSchema,
   releaseBroadcastDmJobDataSchema,
   retentionNotifyDmJobDataSchema,
+  catalogDriftAlertJobDataSchema,
   archiveSummaryJobDataSchema,
 } from '@tzurot/common-types/types/jobs';
 import {
@@ -50,6 +51,7 @@ const SCHEMA_MAP: Record<JobType, ZodSchema> = {
   [JobType.FactExtraction]: factExtractionJobDataSchema,
   [JobType.ReleaseBroadcastDm]: releaseBroadcastDmJobDataSchema,
   [JobType.RetentionNotifyDm]: retentionNotifyDmJobDataSchema,
+  [JobType.CatalogDriftAlert]: catalogDriftAlertJobDataSchema,
   // ai-worker enqueues archive-summary jobs directly (ArchiveSummaryTrigger),
   // not through this api-gateway helper — registered here anyway because the
   // map is typed Record<JobType, ZodSchema>, so every job type needs an entry.

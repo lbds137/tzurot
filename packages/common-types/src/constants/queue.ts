@@ -64,6 +64,14 @@ export const RELEASE_BROADCAST_QUEUE_NAME = 'release-broadcast';
 export const RETENTION_NOTIFY_QUEUE_NAME = 'retention-notify';
 
 /**
+ * Queue for catalog-drift owner alerts. Produced by api-gateway's
+ * CatalogDriftChecker (one batched job per catalog-refresh cycle that newly
+ * detects drift); consumed by bot-client's owner-alert worker. Separate from
+ * the other gateway-fed queues so alerting never competes with DM delivery.
+ */
+export const CATALOG_DRIFT_ALERT_QUEUE_NAME = 'catalog-drift-alert';
+
+/**
  * Job ID prefixes for different job types
  */
 export const JOB_PREFIXES = {
@@ -204,6 +212,15 @@ export const REDIS_KEY_PREFIXES = {
    * Consumer: `api-gateway/routes/user/feedback`.
    */
   FEEDBACK_DAILY: 'feedback:daily:',
+  /**
+   * Per-(configId, modelId) "already alerted this delisting" sentinel.
+   * Key: `catalog:drift-alerted:{configId}:{modelId}`. Value: '1'. No TTL —
+   * the alert fires once per delisting, and only a later cycle where the id
+   * resolves again (recovery, or a re-add to the catalog) deletes the key, so
+   * a future delisting of the same pair alerts again. Consumer:
+   * api-gateway's CatalogDriftChecker.
+   */
+  CATALOG_DRIFT_SENTINEL: 'catalog:drift-alerted:',
 } as const;
 
 /**
@@ -273,6 +290,8 @@ export enum JobType {
   ReleaseBroadcastDm = 'release-broadcast-dm',
   /** Retention warning-DM delivery batch (Phase 3; consumed by bot-client) */
   RetentionNotifyDm = 'retention-notify-dm',
+  /** Catalog-drift owner alert batch — delisted configured models (consumed by bot-client) */
+  CatalogDriftAlert = 'catalog-drift-alert',
   /** Asynchronous memory-archive summarization of one stored episode. */
   ArchiveSummary = 'archive-summary',
 }

@@ -139,6 +139,12 @@ const JOB_SCHEMA_BY_TYPE: Record<JobType, { schemaRef: string; consumer: string 
     schemaRef: 'retentionNotifyDmJobDataSchema',
     consumer: BOT_CLIENT,
   },
+  // Same cross-service shape again: api-gateway's CatalogDriftChecker produces
+  // the batched owner alert, bot-client's catalog-alert worker consumes it.
+  [JobType.CatalogDriftAlert]: {
+    schemaRef: 'catalogDriftAlertJobDataSchema',
+    consumer: BOT_CLIENT,
+  },
 };
 
 /** The payload-bearing subset (non-null entries) — one BullMQ-contract surface each. */
@@ -171,6 +177,8 @@ const BROADCAST_PRODUCER_TEST =
   'services/api-gateway/src/services/ReleaseBroadcastContract.producer.test.ts';
 const RETENTION_NOTIFY_PRODUCER_TEST =
   'services/api-gateway/src/services/retention/RetentionNotifyContract.producer.test.ts';
+const CATALOG_DRIFT_PRODUCER_TEST =
+  'services/api-gateway/src/services/CatalogDriftContract.producer.test.ts';
 const BULLMQ_CONTRACT_DIR = 'tests/e2e/contracts';
 const VOICE_ENGINE_CONSUMER_TEST =
   'services/ai-worker/src/services/voice/VoiceEngineContract.consumer.contract.test.ts';
@@ -245,6 +253,12 @@ const REAL_IMPORTS = {
     symbol: 'RetentionNotifyService',
     from: '/RetentionNotifyService.',
   },
+  /** Same shape again: the drift checker is its own producer seam. */
+  catalogDriftProducer: {
+    file: CATALOG_DRIFT_PRODUCER_TEST,
+    symbol: 'CatalogDriftChecker',
+    from: '/CatalogDriftChecker.',
+  },
   /**
    * The voice-engine JSON contract is cross-LANGUAGE: the PRODUCER is the Python
    * service, enforced by the `voice-engine-tests` CI job (a pytest asserts each real
@@ -270,6 +284,8 @@ interface MechanismPresence {
   broadcastProducerImportsReal: boolean;
   /** The retention-notify producer test imports the real `RetentionNotifyService`. */
   retentionNotifyProducerImportsReal: boolean;
+  /** The catalog-drift producer test imports the real `CatalogDriftChecker`. */
+  catalogDriftProducerImportsReal: boolean;
   /** The voice-engine consumer test imports the real response Zod schemas (TS half; Python half is CI-enforced). */
   voiceEngineImportsReal: boolean;
   /** Job schema names referenced by a `.safeParse(`/`.parse(` call in a BullMQ contract test. */
@@ -304,6 +320,7 @@ function buildMechanismPresence(projectRoot: string): MechanismPresence {
     bullmqProducerImportsReal: imports(REAL_IMPORTS.bullmqProducer),
     broadcastProducerImportsReal: imports(REAL_IMPORTS.broadcastProducer),
     retentionNotifyProducerImportsReal: imports(REAL_IMPORTS.retentionNotifyProducer),
+    catalogDriftProducerImportsReal: imports(REAL_IMPORTS.catalogDriftProducer),
     voiceEngineImportsReal: imports(REAL_IMPORTS.voiceEngineConsumer),
     bullmqSchemas,
   };
@@ -329,7 +346,9 @@ const MECHANISM_PRESENT: Record<
       ? presence.broadcastProducerImportsReal
       : seed.schemaRef === 'retentionNotifyDmJobDataSchema'
         ? presence.retentionNotifyProducerImportsReal
-        : presence.bullmqProducerImportsReal),
+        : seed.schemaRef === 'catalogDriftAlertJobDataSchema'
+          ? presence.catalogDriftProducerImportsReal
+          : presence.bullmqProducerImportsReal),
   'voice-engine-contract': (_seed, presence) => presence.voiceEngineImportsReal,
 };
 
