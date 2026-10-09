@@ -167,6 +167,14 @@ describe('invokeModelAndClean', () => {
     expect(call.expectsRawResponse).toBe(false);
   });
 
+  it('forwards llmDeadline from opts to invokeWithRetry', async () => {
+    await invokeModelAndClean(deps, { ...baseOpts, llmDeadline: 1_234_567 });
+
+    expect(mockInvokeWithRetry).toHaveBeenCalledWith(
+      expect.objectContaining({ llmDeadline: 1_234_567 })
+    );
+  });
+
   it('returns the post-processor cleaned content and model metadata', async () => {
     const result = await invokeModelAndClean(deps, baseOpts);
 

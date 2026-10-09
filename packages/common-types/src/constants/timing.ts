@@ -31,10 +31,19 @@ export const TIMEOUTS = {
   VOICE_ENGINE_API: 480000,
   /** Audio file download timeout (30 seconds - Discord CDN is fast) */
   AUDIO_FETCH: 30000,
-  /** LLM invocation timeout for all retry attempts combined (8 minutes) */
-  LLM_INVOCATION: 480000,
-  /** LLM API call timeout per single attempt (3 minutes) */
-  LLM_PER_ATTEMPT: 180000,
+  /** LLM invocation timeout for all retry attempts combined — the PER-HOP ceiling.
+   * A full default ladder (3 attempts × 300s + 1s + 2s backoff = 903s) must fit inside it. */
+  LLM_INVOCATION: 910000,
+  /** LLM API call timeout per single attempt (5 minutes) */
+  LLM_PER_ATTEMPT: 300000,
+  /** Total LLM time budget per generation job across ALL fallback layers (12 minutes).
+   * Covers the LLM phase from GenerationStep entry: earlier pipeline time (context
+   * prep, memory retrieval) is not counted, and a BullMQ job-level retry re-stamps
+   * a fresh budget. Worst case = budget + one in-flight 300s attempt (the cooperative check fires between
+   * attempts) = 1020s, which stays under bot-client's MULTI_TAG.COORDINATOR_TIMEOUT_MS
+   * 1080s flush (~60s delivery margin — covering LLM time only; post-LLM work (memory
+   * write, diagnostics, delivery) is not counted by this budget). */
+  LLM_JOB_BUDGET: 720000,
 
   /** System overhead for memory, DB, queue, network operations (15 seconds) */
   SYSTEM_OVERHEAD: 15000,

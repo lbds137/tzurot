@@ -33,6 +33,7 @@ import {
   type QuotaFallbackInfo,
 } from '../../../../services/quotaFallback.js';
 import { deriveCacheKeyId } from '../../../../services/RateLimitCache.js';
+import { hasBudgetForAttempt } from './llmBudget.js';
 
 const logger = createLogger('AutoPromotionFallback');
 
@@ -57,6 +58,9 @@ export interface GenerateAttemptOpts {
   effectiveProvider?: AIProvider;
   /** LLM transient-retry budget override; set to 1 on the fail-fast primary attempt. */
   maxLlmAttempts?: number;
+  /** Job-wide LLM budget deadline (threaded from GenerationStep). Gates hops
+   * and clamps the invoke retry budget — see llmBudget.ts. */
+  llmDeadline?: number;
   /**
    * The quota category this attempt inherited from a proactive DEMOTION.
    *
@@ -207,6 +211,16 @@ export async function runWithAutoPromotionFallback(
       },
       'Auto-promoted z.ai request failed; retrying via OpenRouter fallback (catalog drift defense)'
     );
+
+    // Job-wide budget: a spent deadline must not start another 300s attempt —
+    // propagate the pristine original error untouched.
+    if (!hasBudgetForAttempt(opts.llmDeadline)) {
+      logger.warn(
+        { jobId: opts.jobId },
+        'LLM job budget exhausted before auto-promotion fallback hop — propagating original error'
+      );
+      throw originalError;
+    }
 
     const fallbackPersonality = {
       ...opts.personality,

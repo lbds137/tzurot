@@ -76,6 +76,7 @@ export async function invokeModelAndClean(
     isGuestMode,
     retryConfig,
     maxLlmAttempts,
+    llmDeadline,
     diagnosticCollector: diagnosticCollectorRef,
   } = opts;
   // Cast from opaque DiagnosticCollectorRef to concrete type (safe — callers always pass DiagnosticCollector)
@@ -135,6 +136,7 @@ export async function invokeModelAndClean(
     imageCount,
     audioCount,
     maxAttempts: maxLlmAttempts,
+    llmDeadline,
     expectsRawResponse,
   });
 

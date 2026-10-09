@@ -243,6 +243,12 @@ export interface GenerationContext {
   /** Processing start time */
   startTime: number;
 
+  /** Absolute epoch-ms deadline for the job's whole LLM phase, stamped once at
+   * GenerationStep entry (`Date.now() + TIMEOUTS.LLM_JOB_BUDGET`). Every fallback
+   * layer READS it (pre-hop checks) and threads it into attempts. Undefined only
+   * before GenerationStep runs (tests/legacy). */
+  llmDeadline?: number;
+
   /** Preprocessing results from dependency jobs (set by DependencyStep) */
   preprocessing?: PreprocessingResults;
 

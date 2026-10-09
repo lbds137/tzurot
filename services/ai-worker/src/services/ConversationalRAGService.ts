@@ -305,6 +305,7 @@ export class ConversationalRAGService {
           isGuestMode,
           retryConfig,
           maxLlmAttempts: options.maxLlmAttempts,
+          llmDeadline: options.llmDeadline,
           diagnosticCollector,
         }
       );

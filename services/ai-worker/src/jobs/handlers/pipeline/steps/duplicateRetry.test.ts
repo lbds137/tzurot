@@ -4,13 +4,15 @@
  * attempt counting, retry triggers, and what crosses into the RAG seam.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
 import type {
   RAGResponse,
   ConversationContext,
 } from '../../../../services/ConversationalRAGTypes.js';
 import type { MessageContent } from '@tzurot/common-types/types/ai';
+import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import { stampLlmDeadline } from './llmBudget.js';
 import { generateWithDuplicateRetry } from './duplicateRetry.js';
 
 vi.mock('@tzurot/common-types/utils/logger', () => ({
@@ -122,5 +124,86 @@ describe('generateWithDuplicateRetry', () => {
       expect(call[0]).toMatchObject({ id: 'p1', model: 'some/model' });
       expect(call[3]).toMatchObject({ userApiKey: 'sk-key' });
     }
+  });
+
+  describe('job LLM budget gate', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('chain: first attempt burns most of the budget and duplicates — the second outer iteration never starts, best prior response returned', async () => {
+      vi.useFakeTimers();
+      const start = Date.now();
+      vi.setSystemTime(start);
+      const deadline = stampLlmDeadline();
+      // Leaves 250s — under one full attempt, so the between-iterations gate
+      // must fire.
+      const spend = TIMEOUTS.LLM_JOB_BUDGET - TIMEOUTS.LLM_PER_ATTEMPT + 50_000;
+      // The dup must clear the 30-char similarity floor so the loop wants a
+      // retry after attempt 1.
+      const dup = 'this response is stuck on repeat saying the very same thing every attempt';
+      const generateResponse = vi.fn().mockImplementation(async () => {
+        vi.advanceTimersByTime(spend);
+        return ragResponse(dup);
+      });
+      const ragService = { generateResponse } as unknown as ConversationalRAGService;
+
+      const result = await generateWithDuplicateRetry(ragService, undefined, {
+        ...baseOpts([dup]),
+        llmDeadline: deadline,
+      });
+
+      // Attempt 1 ran; the gate stopped the loop before attempt 2.
+      expect(generateResponse).toHaveBeenCalledTimes(1);
+      // The loop's existing "cannot run another attempt" contract: the best
+      // prior (fallback) response with its retry counters — not a throw.
+      expect(result.response.content).toBe(dup);
+      expect(result.duplicateRetries).toBe(1);
+      expect(Date.now() - start).toBeLessThanOrEqual(
+        TIMEOUTS.LLM_JOB_BUDGET + TIMEOUTS.LLM_PER_ATTEMPT
+      );
+    });
+
+    it('empty first attempt that spends the budget: the gate returns that empty response (return-not-throw, like the catch path)', async () => {
+      vi.useFakeTimers();
+      const start = Date.now();
+      vi.setSystemTime(start);
+      const deadline = stampLlmDeadline();
+      // Leaves 250s — under one full attempt, so the between-iterations gate
+      // must fire after the empty rejection.
+      const spend = TIMEOUTS.LLM_JOB_BUDGET - TIMEOUTS.LLM_PER_ATTEMPT + 50_000;
+      const generateResponse = vi.fn().mockImplementation(async () => {
+        vi.advanceTimersByTime(spend);
+        return ragResponse('');
+      });
+      const ragService = { generateResponse } as unknown as ConversationalRAGService;
+
+      const result = await generateWithDuplicateRetry(ragService, undefined, {
+        ...baseOpts(),
+        llmDeadline: deadline,
+      });
+
+      // Attempt 1 ran and was rejected as empty (stored as the loop's
+      // fallback); the gate stopped the loop before attempt 2 and returned
+      // that empty fallback — returning-not-throwing on exhaustion is the
+      // contract for the empty path too.
+      expect(generateResponse).toHaveBeenCalledTimes(1);
+      expect(result.response.content).toBe('');
+      expect(result.emptyRetries).toBe(1);
+    });
+
+    it('an unstamped deadline keeps the ungated retry behavior (backward-compat)', async () => {
+      const dup = 'this response is stuck on repeat saying the very same thing every attempt';
+      const ragService = ragServiceReturning(
+        ragResponse(dup),
+        ragResponse('a fresh and totally different reply')
+      );
+
+      const result = await generateWithDuplicateRetry(ragService, undefined, baseOpts([dup]));
+
+      expect(vi.mocked(ragService.generateResponse)).toHaveBeenCalledTimes(2);
+      expect(result.response.content).toContain('totally different');
+      expect(result.duplicateRetries).toBe(1);
+    });
   });
 });

@@ -8,14 +8,29 @@
 
 import { describe, it, expect } from 'vitest';
 import { calculateJobTimeout } from './timeout.js';
-import { TIMEOUTS } from '../constants/index.js';
+import { RETRY_CONFIG, TIMEOUTS } from '../constants/index.js';
+
+// Default retry ladder backoff: MAX_ATTEMPTS-1 delays, each
+// INITIAL_DELAY_MS × BACKOFF_MULTIPLIER^(retry-1) capped at MAX_DELAY_MS —
+// the same arithmetic the retry helper applies between attempts. Derived from
+// RETRY_CONFIG so a config change moves this guard instead of leaving it stale.
+const LADDER_DELAYS_MS = Array.from({ length: RETRY_CONFIG.MAX_ATTEMPTS - 1 }, (_, i) =>
+  Math.min(
+    RETRY_CONFIG.INITIAL_DELAY_MS * RETRY_CONFIG.BACKOFF_MULTIPLIER ** i,
+    RETRY_CONFIG.MAX_DELAY_MS
+  )
+).reduce((sum, delay) => sum + delay, 0);
+const IMAGE_RETRY_BUDGET = TIMEOUTS.VISION_MODEL * 3 + LADDER_DELAYS_MS; // 273s
+// Images-only job: overhead + image retries + the independent LLM budget.
+const IMAGES_ONLY_TOTAL = TIMEOUTS.SYSTEM_OVERHEAD + IMAGE_RETRY_BUDGET + TIMEOUTS.LLM_INVOCATION; // 1198s
+const LLM_ALONE = TIMEOUTS.SYSTEM_OVERHEAD + TIMEOUTS.LLM_INVOCATION; // 925s
 
 describe('calculateJobTimeout - Independent Component Budgets with Retries', () => {
   describe('No attachments', () => {
     it('should return overhead + LLM budget for 0 images and 0 audio', () => {
-      // SYSTEM_OVERHEAD (15s) + LLM_INVOCATION (480s) = 495s
+      // SYSTEM_OVERHEAD (15s) + LLM_INVOCATION (910s) = 925s
       const timeout = calculateJobTimeout(0, 0);
-      expect(timeout).toBe(TIMEOUTS.SYSTEM_OVERHEAD + TIMEOUTS.LLM_INVOCATION); // 495s
+      expect(timeout).toBe(TIMEOUTS.SYSTEM_OVERHEAD + TIMEOUTS.LLM_INVOCATION); // 925s
     });
   });
 
@@ -23,10 +38,9 @@ describe('calculateJobTimeout - Independent Component Budgets with Retries', () 
     it('should calculate timeout for 1 image with retries + independent LLM budget', () => {
       // SYSTEM_OVERHEAD: 15s
       // VISION_MODEL with retries: 90s × 3 attempts + 3s delays = 273s
-      // LLM_INVOCATION: 480s
-      // Total: 15s + 273s + 480s = 768s
+      // LLM_INVOCATION: 910s
       const timeout = calculateJobTimeout(1, 0);
-      expect(timeout).toBe(768000); // 768s
+      expect(timeout).toBe(IMAGES_ONLY_TOTAL); // 1198s
     });
 
     it('should NOT scale linearly with image count (parallel processing)', () => {
@@ -35,13 +49,13 @@ describe('calculateJobTimeout - Independent Component Budgets with Retries', () 
       const oneImage = calculateJobTimeout(1, 0);
       const fiveImages = calculateJobTimeout(5, 0);
 
-      expect(oneImage).toBe(fiveImages); // Both 768s
+      expect(oneImage).toBe(fiveImages); // Both 1198s
     });
 
     it('should handle large image count (still one parallel batch)', () => {
       // Even 100 images: same timeout (parallel processing)
       const timeout = calculateJobTimeout(100, 0);
-      expect(timeout).toBe(768000); // 15s + 273s + 480s
+      expect(timeout).toBe(IMAGES_ONLY_TOTAL); // 15s + 273s + 910s
     });
   });
 
@@ -49,7 +63,7 @@ describe('calculateJobTimeout - Independent Component Budgets with Retries', () 
     it('caps the audio job at MAX_JOB_RUNTIME (retry budget exceeds the cap)', () => {
       // SYSTEM_OVERHEAD: 15s
       // AUDIO_FETCH + VOICE_ENGINE_API with retries: 510s × 3 attempts + 3s delays = 1533s
-      // LLM_INVOCATION: 480s → 15 + 1533 + 480 = 2028s, clamped to the 20-min runtime cap.
+      // LLM_INVOCATION: 910s → 15 + 1533 + 910 = 2458s, clamped to the 20-min runtime cap.
       const timeout = calculateJobTimeout(0, 1);
       expect(timeout).toBe(TIMEOUTS.MAX_JOB_RUNTIME); // 1200s (capped)
     });
@@ -71,9 +85,9 @@ describe('calculateJobTimeout - Independent Component Budgets with Retries', () 
     });
 
     it('should handle images only (under cap)', () => {
-      // Images only: 15s + 273s + 480s = 768s
+      // Images only: 15s + 273s + 910s = 1198s
       const timeout = calculateJobTimeout(10, 0);
-      expect(timeout).toBe(768000);
+      expect(timeout).toBe(IMAGES_ONLY_TOTAL);
     });
   });
 
@@ -81,13 +95,13 @@ describe('calculateJobTimeout - Independent Component Budgets with Retries', () 
     it('should handle typical single image request', () => {
       // User sends 1 image
       const timeout = calculateJobTimeout(1, 0);
-      expect(timeout).toBe(768000); // 768s (12.8 minutes)
+      expect(timeout).toBe(IMAGES_ONLY_TOTAL); // 1198s (~20 minutes)
     });
 
     it('should handle moderate multi-image request', () => {
       // User sends 5 images (parallel processing)
       const timeout = calculateJobTimeout(5, 0);
-      expect(timeout).toBe(768000); // Same as single image
+      expect(timeout).toBe(IMAGES_ONLY_TOTAL); // Same as single image
     });
 
     it('should handle voice message request', () => {
@@ -105,17 +119,26 @@ describe('calculateJobTimeout - Independent Component Budgets with Retries', () 
 
   describe('Max job runtime enforcement', () => {
     it('should cap at MAX_JOB_RUNTIME (20 min safety net)', () => {
-      // Audio's retry budget (1533s) + LLM (480s) + overhead exceeds the cap, so any
+      // Audio's retry budget (1533s) + LLM (910s) + overhead exceeds the cap, so any
       // request with audio clamps to MAX_JOB_RUNTIME.
       const timeout = calculateJobTimeout(10, 10);
       expect(timeout).toBe(TIMEOUTS.MAX_JOB_RUNTIME); // Capped
     });
 
     it('does NOT cap an images-only request (stays under the cap)', () => {
-      // Images alone (273s + 480s + 15s = 768s) stay well under the cap.
+      // Images alone (273s + 910s + 15s = 1198s) stay under the cap.
       const timeout = calculateJobTimeout(10, 0);
-      expect(timeout).toBe(768000);
+      expect(timeout).toBe(IMAGES_ONLY_TOTAL);
       expect(timeout).toBeLessThan(TIMEOUTS.MAX_JOB_RUNTIME);
+    });
+
+    it('pins the 2s margin: images-only stays strictly under MAX_JOB_RUNTIME', () => {
+      // Images-only = 1198s against the 1200s cap. The margin is load-bearing:
+      // a future bump to any component constant that crosses the cap must
+      // NOTICE (this strict inequality goes red) instead of silently clamping.
+      // Computed through the constants, never a hardcoded 1198s.
+      expect(calculateJobTimeout(5, 0)).toBe(IMAGES_ONLY_TOTAL);
+      expect(IMAGES_ONLY_TOTAL).toBeLessThan(TIMEOUTS.MAX_JOB_RUNTIME);
     });
 
     it('clamps to MAX_JOB_RUNTIME, never the (shorter, auto-renewed) worker lock', () => {
@@ -134,8 +157,8 @@ describe('calculateJobTimeout - Independent Component Budgets with Retries', () 
       const withAudio = calculateJobTimeout(0, 1);
 
       // No-attachment and image jobs preserve the full independent LLM budget.
-      expect(noAttachments).toBe(495000); // 15s + 480s
-      expect(withImages).toBe(768000); // 15s + 273s + 480s (LLM still gets 480s!)
+      expect(noAttachments).toBe(LLM_ALONE); // 15s + 910s
+      expect(withImages).toBe(IMAGES_ONLY_TOTAL); // 15s + 273s + 910s (LLM keeps its full budget)
       // Audio's retry budget alone exceeds the runtime cap, so the audio job clamps to
       // the cap — the per-component independent-budget property gives way to the safety
       // net here (the actual STT call self-limits to one ~480s attempt).
@@ -146,18 +169,20 @@ describe('calculateJobTimeout - Independent Component Budgets with Retries', () 
       // With retries:
       // - Images: 273s (3 attempts + delays) vs old 90s (1 attempt) — under the cap
       // - Audio: 1533s (3 attempts + delays) — exceeds the cap on its own
-      // - LLM: still gets its full 480s for the image case (audio clamps to the cap)
+      // - LLM: still gets its full 910s for the image case (audio clamps to the cap)
 
       const imageTimeout = calculateJobTimeout(1, 0);
       const audioTimeout = calculateJobTimeout(0, 1);
 
       // Verify preprocessing gets retry budget
-      expect(imageTimeout).toBeGreaterThan(495000 + 90000); // More than single attempt
-      expect(audioTimeout).toBeGreaterThan(495000 + 210000); // More than single attempt
+      expect(imageTimeout).toBeGreaterThan(LLM_ALONE + TIMEOUTS.VISION_MODEL); // More than single attempt
+      expect(audioTimeout).toBeGreaterThan(LLM_ALONE + 210_000); // More than single attempt
 
-      // Image job still grants LLM its full independent 480s (verified by subtraction).
-      expect(imageTimeout - TIMEOUTS.SYSTEM_OVERHEAD - 273000).toBe(TIMEOUTS.LLM_INVOCATION);
-      // Audio job is clamped to MAX_JOB_RUNTIME — its uncapped budget (2028s) would have
+      // Image job still grants LLM its full independent budget (verified by subtraction).
+      expect(imageTimeout - TIMEOUTS.SYSTEM_OVERHEAD - IMAGE_RETRY_BUDGET).toBe(
+        TIMEOUTS.LLM_INVOCATION
+      );
+      // Audio job is clamped to MAX_JOB_RUNTIME — its uncapped budget (2458s) would have
       // exceeded it, so the cap is what holds.
       expect(audioTimeout).toBe(TIMEOUTS.MAX_JOB_RUNTIME);
     });

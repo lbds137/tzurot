@@ -42,8 +42,40 @@ import {
   type GenerateAttemptResult,
 } from './autoPromotionFallback.js';
 import { selectHopOneFloorTarget } from './hopOneFloorTarget.js';
+import { hasBudgetForAttempt } from './llmBudget.js';
 
 const logger = createLogger('QuotaFallbackRunner');
+
+/** Job-wide LLM budget gate for the retarget hop: a spent deadline must not
+ * start another full attempt — propagate the pristine original error untouched
+ * (classification runs on message regexes; never wrap or append to it). */
+function assertBudgetForRetarget(opts: GenerateAttemptOpts, originalError: unknown): void {
+  if (!hasBudgetForAttempt(opts.llmDeadline)) {
+    logger.warn(
+      { jobId: opts.jobId },
+      'LLM job budget exhausted before quota retarget hop — propagating original error'
+    );
+    throw originalError;
+  }
+}
+
+/** Fire the fail-soft free-tier reactor for a z.ai guest failure BEFORE any
+ * retarget — the window-exhausted/kill-switch reactions must see the original
+ * error even when the degrade then succeeds. Fail-soft by contract; never
+ * lets the reaction mask the real error. */
+async function reactToZaiFreeTierFailure(
+  opts: GenerateAttemptOpts,
+  onZaiFreeTierFailure: ((error: unknown) => Promise<void>) | undefined,
+  originalError: unknown
+): Promise<void> {
+  if (
+    opts.isGuestMode &&
+    opts.effectiveProvider === AIProvider.ZaiCoding &&
+    onZaiFreeTierFailure !== undefined
+  ) {
+    await onZaiFreeTierFailure(originalError).catch(() => undefined);
+  }
+}
 
 /** Worker-level dependencies, wired once by LLMGenerationHandler. */
 export interface QuotaFallbackDeps {
@@ -123,14 +155,7 @@ export async function runWithQuotaFallback(options: {
   try {
     return await primary();
   } catch (originalError) {
-    if (
-      opts.isGuestMode &&
-      opts.effectiveProvider === AIProvider.ZaiCoding &&
-      onZaiFreeTierFailure !== undefined
-    ) {
-      // Reaction is fail-soft by contract; never let it mask the real error.
-      await onZaiFreeTierFailure(originalError).catch(() => undefined);
-    }
+    await reactToZaiFreeTierFailure(opts, onZaiFreeTierFailure, originalError);
     // Classification first; the inherited category is a fallback, never an
     // override — a live quota error still describes itself best.
     //
@@ -147,6 +172,10 @@ export async function runWithQuotaFallback(options: {
     if (category === null) {
       throw originalError;
     }
+    // The budget gate sits AFTER the retargetability checks: classification is a
+    // pure predicate, so this order starts no attempt — but the spent-budget log
+    // now fires only for hops the runner was actually going to attempt.
+    assertBudgetForRetarget(opts, originalError);
 
     // A guest attempt runs on a SYSTEM key handed over as a plain string, so
     // identity must follow the route's provenance (isGuestMode), not the
@@ -471,6 +500,12 @@ type FloorHopOutcome =
   | { kind: 'failed'; floorError: unknown; floorModel: string }
   | { kind: 'not-attempted' };
 
+/** Shared not-attempted outcome (every skip path returns the same shape).
+ *  Declared via `as const` WITHOUT the `FloorHopOutcome` annotation — an
+ *  annotation would re-widen the literal and undo the readonly type the shared
+ *  module-level object needs against mutation through a returned reference. */
+const FLOOR_HOP_NOT_ATTEMPTED = { kind: 'not-attempted' } as const;
+
 /**
  * The bounded second hop (D12). Not attempted when the retry's failure is not
  * retargetable AND this turn's category was not inherited, when the floor is
@@ -502,7 +537,19 @@ async function attemptFloorHop(params: {
   const { retry, opts, info, retryError, caches, cacheKeyId, categoryInherited, attemptedRoutes } =
     params;
   if (classifyQuotaFailure(retryError) === null && !categoryInherited) {
-    return { kind: 'not-attempted' };
+    return FLOOR_HOP_NOT_ATTEMPTED;
+  }
+  // Job-wide budget spent — never start the floor attempt. Not-attempted, not
+  // thrown: attemptFloorHop's contract is outcome-shaped, never throwing. It
+  // sits after the retargetability check (classification is a pure predicate —
+  // this order starts no attempt) so the budget log fires only for a hop the
+  // floor descent was actually going to run.
+  if (!hasBudgetForAttempt(opts.llmDeadline)) {
+    logger.info(
+      { jobId: opts.jobId, hop1Model: info.toModel },
+      'LLM job budget exhausted before floor descent — not attempting hop 2'
+    );
+    return FLOOR_HOP_NOT_ATTEMPTED;
   }
   const floorTarget = await selectFloorTarget({
     isGuestMode: opts.isGuestMode,
@@ -512,7 +559,7 @@ async function attemptFloorHop(params: {
     caches,
   }).catch(() => null);
   if (floorTarget === null) {
-    return { kind: 'not-attempted' };
+    return FLOOR_HOP_NOT_ATTEMPTED;
   }
   // The footer traces back to the ORIGINAL configured model with the ORIGINAL
   // failure category (the story's start); the hop chain lives in the audit log.
