@@ -28,9 +28,12 @@ import {
   type Verdict,
 } from './classify.js';
 import { parseListFlag, loadAndValidateCards, type CharactersImportOptions } from './load-cards.js';
+import { DEFAULT_AVATAR_STATE_PATH, prepareAvatarRun, type AvatarRun } from './avatars.js';
 
 interface ImportDeps {
   getUserClient?: typeof getUserClientForEnv;
+  /** Where `--avatars` records applied image hashes (tests override). */
+  avatarStatePath?: string;
 }
 
 /** Mirrors `fetchUserPersonalities`'s `take: 100` cap on the user's PRIVATE
@@ -125,11 +128,13 @@ function printReport(cards: CardInput[], verdicts: Verdict[]): Tally {
 }
 
 /** Write every new/changed card in report order, stopping at the first
- *  failure. Returns the written summary, or null if a write failed. */
+ *  failure. `onWritten` fires for each card whose write succeeded. Returns
+ *  the written summary, or null if a write failed. */
 async function writeCards(
   client: UserClient,
   cards: CardInput[],
-  verdicts: Verdict[]
+  verdicts: Verdict[],
+  onWritten: (card: CardInput) => void
 ): Promise<{ created: number; updated: number } | null> {
   let created = 0;
   let updated = 0;
@@ -147,6 +152,7 @@ async function writeCards(
         return null;
       }
       created++;
+      onWritten(card);
       written.push(`created ${card.slug}`);
     } else if (verdict.kind === 'changed') {
       const result = await client.updatePersonality(verdict.targetSlug, card.payload);
@@ -158,6 +164,7 @@ async function writeCards(
         return null;
       }
       updated++;
+      onWritten(card);
       written.push(`updated ${verdict.targetSlug}`);
     }
   }
@@ -236,6 +243,20 @@ async function connectAndFetch(
   };
 }
 
+/** Fold the avatar run (when `--avatars` is on) into the classified batch:
+ *  refusals replace verdicts, and recreated rows get their image re-sent. */
+function applyAvatarVerdicts(
+  avatarRun: AvatarRun | null,
+  cards: CardInput[],
+  classified: Verdict[]
+): { verdicts: Verdict[]; cards: CardInput[] } {
+  if (avatarRun === null) {
+    return { verdicts: classified, cards };
+  }
+  const verdicts = avatarRun.applyRefusals(classified);
+  return { verdicts, cards: avatarRun.resendForNewRows(verdicts) };
+}
+
 export async function charactersImport(
   opts: CharactersImportOptions,
   deps?: ImportDeps
@@ -254,7 +275,23 @@ export async function charactersImport(
     process.exitCode = 1;
     return;
   }
-  const { cards, renameMap } = loaded;
+  const { renameMap } = loaded;
+
+  let cards = loaded.cards;
+  let avatarRun: AvatarRun | null = null;
+  if (opts.avatars !== undefined) {
+    avatarRun = prepareAvatarRun(
+      opts.avatars,
+      opts.env,
+      cards,
+      deps?.avatarStatePath ?? DEFAULT_AVATAR_STATE_PATH
+    );
+    if (avatarRun === null) {
+      process.exitCode = 1;
+      return;
+    }
+    cards = avatarRun.cards;
+  }
 
   const getUserClient = deps?.getUserClient ?? getUserClientForEnv;
   const state = await connectAndFetch(opts, cards, renameMap, getUserClient);
@@ -273,8 +310,12 @@ export async function charactersImport(
     isBotOwner: state.isBotOwner,
     forbiddenSlugs: state.forbiddenSlugs,
   };
-  const verdicts = classifyBatch(cards, ctx);
+  const classified = classifyBatch(cards, ctx);
+  const finalized = applyAvatarVerdicts(avatarRun, cards, classified);
+  const verdicts = finalized.verdicts;
+  cards = finalized.cards;
   const tally = printReport(cards, verdicts);
+  avatarRun?.printSummary(verdicts);
 
   if (opts.apply !== true) {
     console.log(chalk.dim('Dry run — nothing written. Re-run with --apply to write.'));
@@ -291,7 +332,10 @@ export async function charactersImport(
     await requireProductionConfirmation('write character cards to production');
   }
 
-  const writeResult = await writeCards(state.client, cards, verdicts);
+  const writeResult = await writeCards(state.client, cards, verdicts, card =>
+    avatarRun?.onWritten(card)
+  );
+  avatarRun?.persist();
   if (writeResult === null) {
     process.exitCode = 1;
     return;
