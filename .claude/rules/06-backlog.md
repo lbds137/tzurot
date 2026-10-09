@@ -34,6 +34,7 @@ multi-paragraph description** (`pnpm ops backlog` cannot see a mangled body).
 - **This same file or diff** ("next time we touch this") → **do it now**, in the work that surfaced it; filing it converts a five-minute edit into pool weight.
 - **A named batch across files** ("next tooling-DRY pass"), or simply too big for this diff → **file the batch, not the item**; a theme-doc phase or idea doc owns the pass, and this item is one of its members.
 - Anything else small → **file it as a task.** No trigger needed — with one scoped inversion, low-priority process residue, below.
+  - **The batch case's two-command search applies at filing time too** (`task list --search` + `doc search`) — the self-discovery case, where novelty feels proven, is exactly when a duplicate lands. Decision point: the moment before `pnpm tracker task create` runs.
 
 **Which one, for a batch**: if the whole pass is one PR's worth of sweeping, it's an idea doc. If it needs its own phased rollout, it's a theme doc. **Search before creating the batch** — `pnpm tracker task list --search <term> --plain` AND `pnpm tracker doc search <term>` by the pass's name and the module it sweeps; if an entry already owns the pass, add the item as a member instead of fragmenting.
 
