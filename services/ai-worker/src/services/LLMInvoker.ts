@@ -46,6 +46,11 @@ import { type RateLimitCache, assertValidCacheKeyId } from './RateLimitCache.js'
 import type { CreditExhaustionCache } from './CreditExhaustionCache.js';
 import { rateLimitCache, creditExhaustionCache } from '../redis.js';
 import { isReasoningModel } from '../utils/reasoningModelUtils.js';
+import {
+  hasBudgetForAttempt,
+  hopRetryBudgetMs,
+} from '../jobs/handlers/pipeline/steps/llmBudget.js';
+import { TimeoutError } from '@tzurot/common-types/utils/errors';
 
 const logger = createLogger('LLMInvoker');
 
@@ -120,6 +125,12 @@ interface InvokeWithRetryOptions {
    */
   maxAttempts?: number;
   /**
+   * Absolute epoch-ms deadline for the calling job's whole LLM phase.
+   * `globalTimeoutMs` clamps to the remaining budget (`deadline - now`,
+   * floored at 1ms); undefined = unclamped. See llmBudget.ts.
+   */
+  llmDeadline?: number;
+  /**
    * Whether the model this invocation targets was built with
    * `__includeRawResponse` set (see `ChatModelResult.expectsRawResponse`).
    * Gates the OpenRouter raw-response regression warning in
@@ -178,6 +189,7 @@ export class LLMInvoker {
       audioCount = 0,
       maxAttempts = RETRY_CONFIG.MAX_ATTEMPTS,
       expectsRawResponse = true,
+      llmDeadline,
     } = options;
 
     if (cacheKeyId.length === 0) {
@@ -214,10 +226,33 @@ export class LLMInvoker {
       await this.shortCircuitOnCachedRateLimit(rateLimitCache, cacheKeyId, modelName);
     }
 
+    // Entry gate for attempt 1: a hop STARTS only with a full attempt of
+    // budget left — the same threshold the pre-hop fallback gates apply, so
+    // "when does a hop run" has one definition. `undefined` stays ungated
+    // (backward-compat). The thrown shape mirrors the between-attempts
+    // global-timeout exhaustion — a RetryError whose `lastError` is a
+    // TimeoutError — so parseApiError classifies TIMEOUT and every upstream
+    // handler treats this exactly like a spent-budget mid-ladder stop.
+    // In-ladder retries are the clamp's job: a retry attempt starts whenever
+    // budget remains (>0) and the ladder stops between attempts, so one
+    // attempt already in flight can overshoot the budget by up to its own cap.
+    if (llmDeadline !== undefined && !hasBudgetForAttempt(llmDeadline)) {
+      const operationName = `LLM invocation (${modelName})`;
+      const timeoutError = new TimeoutError(TIMEOUTS.LLM_PER_ATTEMPT, operationName);
+      logger.warn(
+        { modelName, remainingMs: llmDeadline - Date.now() },
+        'Job LLM budget below one full attempt — skipping invocation at the entry gate'
+      );
+      throw new RetryError(`${operationName} exceeded the job LLM budget`, 0, timeoutError);
+    }
+
     // Calculate job timeout for logging (attachments processed in separate jobs)
     const jobTimeout = calculateJobTimeout(imageCount, audioCount);
-    // LLM always gets full independent timeout budget (480s = 8 minutes)
-    const globalTimeoutMs = TIMEOUTS.LLM_INVOCATION;
+    // Full per-hop budget, clamped to the job deadline's remaining budget when
+    // stamped — arithmetic single-sourced in llmBudget.ts (hopRetryBudgetMs).
+    // The 1ms floor: checkGlobalTimeout skips a <=0 value, and a spent budget
+    // must still stop the ladder at the next between-attempts check.
+    const globalTimeoutMs = hopRetryBudgetMs(llmDeadline);
 
     logger.info(
       {
@@ -490,7 +525,7 @@ export class LLMInvoker {
       timeout: TIMEOUTS.LLM_PER_ATTEMPT,
     };
 
-    // Invoke with per-attempt timeout (3 minutes per attempt)
+    // Invoke with per-attempt timeout (5 minutes per attempt)
     const response = await invokeModelGuarded(model, messages, invokeOptions);
 
     // Extract OpenRouter reasoning from additional_kwargs.__raw_response and

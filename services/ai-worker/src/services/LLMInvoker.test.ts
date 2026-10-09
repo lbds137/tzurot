@@ -17,6 +17,7 @@ import {
   ERROR_MESSAGES,
 } from '@tzurot/common-types/constants/error';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import { TimeoutError } from '@tzurot/common-types/utils/errors';
 import { generateFromInvokeMock } from '@tzurot/test-utils/invokeMockChatModel';
 
 /** Build a mock chat model whose PRODUCTION seam is `generate` (what
@@ -2186,5 +2187,130 @@ describe('defaultRateLimitResetMs', () => {
   it('returns null for categories that do not qualify for default caching', () => {
     expect(defaultRateLimitResetMs(ApiErrorCategory.AUTHENTICATION)).toBeNull();
     expect(defaultRateLimitResetMs(ApiErrorCategory.CREDIT_EXHAUSTION)).toBeNull();
+  });
+});
+
+describe('invokeWithRetry — job deadline clamp', () => {
+  let invoker: LLMInvoker;
+
+  beforeEach(() => {
+    invoker = new LLMInvoker();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+  it('each attempt carries the per-attempt timeout through the model seam (through the constant)', async () => {
+    const mockInvoke = vi.fn().mockResolvedValue({ content: 'ok' });
+    const mockModel = mockChatModel(mockInvoke);
+
+    await invoker.invokeWithRetry({
+      model: mockModel,
+      messages,
+      modelName: 'test-model',
+    });
+
+    expect(mockInvoke).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ timeout: TIMEOUTS.LLM_PER_ATTEMPT })
+    );
+  });
+
+  it('entry gate: a deadline under one attempt of budget throws a TIMEOUT-classified RetryError before any attempt', async () => {
+    vi.useFakeTimers();
+    const mockModel = mockChatModel(vi.fn().mockResolvedValue({ content: 'ok' }));
+
+    const promise = invoker.invokeWithRetry({
+      model: mockModel,
+      messages,
+      modelName: 'test-model',
+      // 150s remaining is below one full attempt (TIMEOUTS.LLM_PER_ATTEMPT).
+      llmDeadline: Date.now() + 150_000,
+    });
+    const assertion = expect(promise).rejects.toThrow(RetryError);
+    await assertion;
+
+    // The gate fires BEFORE the retry ladder and before any model call.
+    expect(mockWithRetry).not.toHaveBeenCalled();
+    expect(mockModel.invoke).not.toHaveBeenCalled();
+
+    // Same shape as the between-attempts global-timeout exhaustion: a
+    // RetryError whose lastError classifies as TIMEOUT.
+    const thrown = (await promise.catch((e: unknown) => e)) as RetryError;
+    expect(parseApiError(thrown.lastError).category).toBe(ApiErrorCategory.TIMEOUT);
+  });
+
+  it('a RetryError-wrapped TimeoutError classifies as TIMEOUT after unwrapping (the entry-gate error shape, in isolation)', async () => {
+    const timeout = new TimeoutError(TIMEOUTS.LLM_PER_ATTEMPT, 'llm call');
+    const wrapped = new RetryError('LLM invocation failed', 3, timeout);
+    expect(parseApiError(wrapped.lastError).category).toBe(ApiErrorCategory.TIMEOUT);
+  });
+
+  it('clamps withRetry globalTimeoutMs to the remaining budget when the entry is legal', async () => {
+    vi.useFakeTimers();
+    const mockModel = mockChatModel(vi.fn().mockResolvedValue({ content: 'ok' }));
+
+    await invoker.invokeWithRetry({
+      model: mockModel,
+      messages,
+      modelName: 'test-model',
+      // One full attempt + 100ms: passes the entry gate, clamps under the
+      // LLM_INVOCATION ceiling.
+      llmDeadline: Date.now() + TIMEOUTS.LLM_PER_ATTEMPT + 100_000,
+    });
+
+    expect(mockWithRetry).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ globalTimeoutMs: TIMEOUTS.LLM_PER_ATTEMPT + 100_000 })
+    );
+  });
+
+  it('a first attempt outliving the clamp stops the ladder — one attempt, RetryError', async () => {
+    vi.useFakeTimers();
+    const mockModel = mockChatModel(
+      vi.fn().mockImplementation(async () => {
+        vi.advanceTimersByTime(TIMEOUTS.LLM_PER_ATTEMPT);
+        throw new Error('transient network blip');
+      })
+    );
+
+    const promise = invoker.invokeWithRetry({
+      model: mockModel,
+      messages,
+      modelName: 'test-model',
+      // Enters legally (one attempt + 100ms); the attempt then burns all but
+      // ~100ms of it, so the between-attempts clamp stops the ladder.
+      llmDeadline: Date.now() + TIMEOUTS.LLM_PER_ATTEMPT + 100,
+    });
+    const assertion = expect(promise).rejects.toThrow(RetryError);
+    await vi.runAllTimersAsync();
+    await assertion;
+
+    // The ladder never reached attempt 2: the between-attempts budget check
+    // fired on the clamped global timeout.
+    expect(mockModel.invoke).toHaveBeenCalledTimes(1);
+    const thrown = (await promise.catch((e: unknown) => e)) as RetryError;
+    expect(thrown.attempts).toBe(1);
+  });
+
+  it('an unstamped deadline keeps the unclamped budget (existing behavior)', async () => {
+    vi.useFakeTimers();
+    const mockModel = mockChatModel(vi.fn().mockResolvedValue({ content: 'ok' }));
+
+    await invoker.invokeWithRetry({
+      model: mockModel,
+      messages,
+      modelName: 'test-model',
+    });
+
+    expect(mockWithRetry).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ globalTimeoutMs: TIMEOUTS.LLM_INVOCATION })
+    );
   });
 });

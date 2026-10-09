@@ -52,16 +52,18 @@ function calculateTimeoutWithRetries(
  * preprocessing jobs retry up to 3 times with exponential backoff.
  *
  * Component breakdown (all independent, WITH RETRIES):
- * - Audio processing: (30s fetch + 180s STT) × 3 attempts + delays = 633s
+ * - Audio processing: (30s fetch + 480s STT) × 3 attempts + delays = 1533s
  * - Image processing: 90s × 3 attempts + delays = 273s
- * - LLM invocation: 480s total (already includes retry budget)
+ * - LLM invocation: 910s hop ceiling (attempt ≤300s; clamped to the job's
+ *   720s LLM budget when a deadline is stamped)
  * - System overhead: 15s for DB, queue, network operations
  *
  * Total = max(attachment processing with retries) + LLM invocation + overhead
  *
  * Benefits:
  * - Preprocessing jobs can retry without gateway timeout
- * - LLM always gets 480s (8 min) regardless of preprocessing retries
+ * - The LLM hop gets its full ceiling when unstamped; a stamped job budget
+ *   clamps it (attempt ≤300s, hop ≤910s, job ≤720s + one in-flight attempt)
  * - Attachments don't steal LLM time
  * - Supports proper retry budgets for all components
  *
@@ -71,16 +73,16 @@ function calculateTimeoutWithRetries(
  *
  * @example
  * // No attachments: overhead + LLM
- * calculateJobTimeout(0, 0) // 15s + 480s = 495s
+ * calculateJobTimeout(0, 0) // 15s + 910s = 925s
  *
  * @example
  * // 5 images (parallel): image with retries + LLM + overhead
- * calculateJobTimeout(5, 0) // 273s + 480s + 15s = 768s
+ * calculateJobTimeout(5, 0) // 273s + 910s + 15s = 1198s
  *
  * @example
  * // 1 audio: audio with retries + LLM + overhead exceeds the runtime cap.
- * // Audio component = (30s fetch + 480s STT) × 3 attempts + 3s = 1533s; + 480s LLM
- * // + 15s = 2028s, clamped to MAX_JOB_RUNTIME.
+ * // Audio component = (30s fetch + 480s STT) × 3 attempts + 3s = 1533s; + 910s LLM
+ * // + 15s = 2458s, clamped to MAX_JOB_RUNTIME.
  * calculateJobTimeout(0, 1) // capped at 1200s (20 min)
  */
 export function calculateJobTimeout(imageCount: number, audioCount = 0): number {
@@ -103,7 +105,9 @@ export function calculateJobTimeout(imageCount: number, audioCount = 0): number 
   const attachmentTime = Math.max(imageProcessingTime, audioProcessingTime);
 
   // Add LLM invocation time (INDEPENDENT of attachment processing)
-  // LLM_INVOCATION already includes retry budget (480s total)
+  // LLM_INVOCATION already includes retry budget (910s hop ceiling). The computed
+  // value is a LOG FIELD that overestimates stamped jobs (their real LLM bound is
+  // the 720s LLM_JOB_BUDGET) and, images-only, sits ~2s under the MAX_JOB_RUNTIME clamp.
   timeout += attachmentTime + TIMEOUTS.LLM_INVOCATION;
 
   // Cap at MAX_JOB_RUNTIME (20 min) — the in-process ceiling for a LIVE job.

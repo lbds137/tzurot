@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
+import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import { TimeoutError } from '@tzurot/common-types/utils/errors';
 import { ApiError } from '../../../../utils/apiErrorParser.js';
+import { stampLlmDeadline } from './llmBudget.js';
 import { getFallbackFailureSummary, type GenerateAttemptOpts } from './autoPromotionFallback.js';
 import {
   composeQuotaFallbackInfo,
@@ -1147,6 +1150,94 @@ describe('D12 availability-class entry + two-hop floor descent', () => {
     expect(summary).toBe(
       'synthetic timeout; quota-fallback retry (divergent/paid-floor) also failed: synthetic network'
     );
+  });
+});
+
+describe('job LLM budget gate', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.restoreAllMocks());
+
+  it('chain: budget spent after hop 1 — the floor retry NEVER runs a second time and the pristine original propagates', async () => {
+    const start = Date.now();
+    vi.setSystemTime(start);
+    const deadline = stampLlmDeadline();
+    const original = quotaError(ApiErrorCategory.SERVER_ERROR);
+    // Primary burns one full attempt, then fails quota-class — the retarget
+    // hop still has a full attempt of budget, so it runs.
+    const primary = vi.fn().mockImplementation(async () => {
+      vi.advanceTimersByTime(TIMEOUTS.LLM_PER_ATTEMPT);
+      throw original;
+    });
+    // Hop-1 retry burns its attempt and times out — less than one attempt of
+    // budget now remains, so the floor descent must not start.
+    const hop1Timeout = new TimeoutError(TIMEOUTS.LLM_PER_ATTEMPT, 'llm call');
+    const retry = vi.fn().mockImplementation(async () => {
+      vi.advanceTimersByTime(TIMEOUTS.LLM_PER_ATTEMPT);
+      throw hop1Timeout;
+    });
+
+    await expect(
+      runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts({ llmDeadline: deadline }),
+        userId: '123',
+        requestId: 'req-1',
+        deps: buildDeps({ global: { model: 'paid/default' } }),
+      })
+    ).rejects.toBe(original);
+
+    // Exactly ONE retry — the hop-2/floor `retry` never ran (pre-hop gate).
+    expect(retry).toHaveBeenCalledTimes(1);
+    // Message untouched (classification safety).
+    expect(original.message).toBe('synthetic server_error');
+    // The whole chain stays inside the job budget plus one in-flight attempt.
+    expect(Date.now() - start).toBeLessThanOrEqual(
+      TIMEOUTS.LLM_JOB_BUDGET + TIMEOUTS.LLM_PER_ATTEMPT
+    );
+  });
+
+  it('chain: budget spent before the retarget hop — hop 1 never starts, original propagates', async () => {
+    const deadline = stampLlmDeadline();
+    const original = quotaError(ApiErrorCategory.SERVER_ERROR);
+    const spend = TIMEOUTS.LLM_JOB_BUDGET - TIMEOUTS.LLM_PER_ATTEMPT + 50_000;
+    const primary = vi.fn().mockImplementation(async () => {
+      vi.advanceTimersByTime(spend);
+      throw original;
+    });
+    const retry = vi.fn();
+
+    await expect(
+      runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts({ llmDeadline: deadline }),
+        userId: '123',
+        requestId: 'req-1',
+        deps: buildDeps({ global: { model: 'paid/default' } }),
+      })
+    ).rejects.toBe(original);
+
+    expect(retry).not.toHaveBeenCalled();
+  });
+
+  it('an unstamped deadline keeps the ungated behavior (backward-compat)', async () => {
+    const original = quotaError(ApiErrorCategory.SERVER_ERROR);
+    const primary = vi.fn().mockRejectedValue(original);
+    const retry = vi.fn().mockRejectedValue(new Error('fallback also broke'));
+
+    await expect(
+      runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts(),
+        userId: '123',
+        requestId: 'req-1',
+        deps: buildDeps({ global: { model: 'paid/default' } }),
+      })
+    ).rejects.toBe(original);
+
+    expect(retry).toHaveBeenCalledTimes(1);
   });
 });
 

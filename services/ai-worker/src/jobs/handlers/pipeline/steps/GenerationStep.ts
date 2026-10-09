@@ -33,6 +33,7 @@ import { logDuplicateDetectionSetup } from './duplicateDetectionDiagnostics.js';
 import { getRecentAssistantMessages } from '../../../../utils/conversationHistoryUtils.js';
 import { storeDiagnosticLog } from './diagnosticStorage.js';
 import { buildConversationContext } from './conversationContextBuilder.js';
+import { stampLlmDeadline } from './llmBudget.js';
 
 const logger = createLogger('GenerationStep');
 
@@ -93,6 +94,10 @@ export class GenerationStep implements IPipelineStep {
     const { config, auth, preparedContext } = context;
     const { effectivePersonality, configSource } = config;
     const { apiKey, provider, isGuestMode } = auth;
+
+    // One job-wide LLM budget, spanning every fallback hop (primary, swap,
+    // retarget, floor). Ends before bot-client's coordinator flush.
+    context.llmDeadline = stampLlmDeadline();
 
     logger.info(
       {
@@ -178,6 +183,9 @@ export class GenerationStep implements IPipelineStep {
         // reactive retarget reachable when the demoted route fails for a reason
         // that does not classify as quota — the staggered-model-release 400.
         inheritedQuotaCategory: auth.inheritedQuotaCategory,
+        // Job-wide LLM budget deadline — pre-hop checks and the invoke retry
+        // clamp read it.
+        llmDeadline: context.llmDeadline,
       };
       const autoPromotionRoute = auth.wasAutoPromoted === true ? auth.fallback : undefined;
       const {

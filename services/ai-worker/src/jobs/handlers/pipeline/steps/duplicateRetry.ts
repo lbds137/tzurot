@@ -27,6 +27,7 @@ import {
 } from './RetryDecisionHelper.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { cloneContextForRetry } from './contextCloner.js';
+import { hasBudgetForAttempt } from './llmBudget.js';
 
 const logger = createLogger('duplicateRetry');
 
@@ -40,7 +41,7 @@ const logger = createLogger('duplicateRetry');
  * - Content that merely echoes the user's own message back
  * - Duplicate responses matching recent assistant messages (up to 5)
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity, max-lines-per-function, max-statements -- single cohesive retry loop; extracting sub-steps would scatter the state machine across files
+// eslint-disable-next-line sonarjs/cognitive-complexity, complexity, max-lines-per-function, max-statements -- single cohesive retry loop; extracting sub-steps would scatter the state machine across files
 export async function generateWithDuplicateRetry(
   ragService: ConversationalRAGService,
   embeddingService: EmbeddingServiceInterface | undefined,
@@ -82,6 +83,36 @@ export async function generateWithDuplicateRetry(
   const userMessageText = typeof message === 'string' ? message : message.content;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    // Job-wide budget: a spent deadline must not start another duplicate-retry
+    // generation. Gated AFTER the first attempt — the initial attempt always
+    // runs (the caller-side pre-hop gates own the entry decision); each outer
+    // iteration's first attempt would otherwise run ungated past the budget
+    // (the invoker clamp only fires between attempts).
+    if (attempt > 1 && !hasBudgetForAttempt(opts.llmDeadline)) {
+      logger.warn(
+        { jobId, attempt },
+        'LLM job budget exhausted before duplicate-retry attempt — returning best prior response'
+      );
+      // Every `continue` site above assigns `fallback` before looping (verified
+      // by read; not pinned by a test). This guard keeps the
+      // no-fallback case the loop's own throw shape rather than a silent
+      // undefined return. Returning the prior response is the loop's existing
+      // contract for "cannot run another attempt" (same shape as the catch path
+      // below), so upstream classification is unchanged.
+      const prior = fallback;
+      if (prior === undefined) {
+        throw new Error('[GenerationStep] Unexpected: no response generated');
+      }
+      restoreThinking(prior.response, preservedThinking);
+      return {
+        response: prior.response,
+        duplicateRetries,
+        emptyRetries,
+        echoRetries,
+        leakedThinkingRetries,
+      };
+    }
+
     // Reset diagnostic timing to prevent stale end timestamps from a prior
     // attempt producing negative llmInvocationMs values
     diagnosticCollector?.resetLlmTimingForRetry();
@@ -115,6 +146,8 @@ export async function generateWithDuplicateRetry(
         // 1 for the auto-promotion primary attempt (fail fast → OpenRouter
         // fallback on a z.ai transient/429); undefined elsewhere (default budget).
         maxLlmAttempts: opts.maxLlmAttempts,
+        // Job-wide LLM budget deadline — clamps the invoke retry budget.
+        llmDeadline: opts.llmDeadline,
       });
     } catch (error) {
       // LLM invocation failed entirely. If we have a fallback from a prior

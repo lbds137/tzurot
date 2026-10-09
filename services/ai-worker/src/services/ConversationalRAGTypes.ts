@@ -586,6 +586,12 @@ export interface ModelInvocationOptions {
    * full ~3×retry budget. The fallback attempt keeps the default.
    */
   maxLlmAttempts?: number;
+  /**
+   * Absolute epoch-ms deadline for the job's whole LLM phase. Forwarded to
+   * `invokeWithRetry`; clamps the per-hop retry budget to the job deadline's
+   * remaining time.
+   */
+  llmDeadline?: number;
 }
 
 /**
@@ -654,4 +660,10 @@ export interface GenerateResponseOptions {
    * failure falls through to the OpenRouter fallback fast.
    */
   maxLlmAttempts?: number;
+  /**
+   * Absolute epoch-ms deadline for the job's whole LLM phase. Forwarded to
+   * `invokeWithRetry`; clamps the per-hop retry budget to the job deadline's
+   * remaining time.
+   */
+  llmDeadline?: number;
 }
