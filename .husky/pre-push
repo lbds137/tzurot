@@ -266,6 +266,25 @@ if ! pnpm knip:dead; then
     exit 1
 fi
 
+# 10b. Discord-surface snapshot freshness (BLOCKING)
+# CI runs `pnpm ops surface:inventory --check` in the lint job; mirroring it
+# here catches a stale snapshot before push instead of one CI round-trip
+# later (TASK-1194). Runs unconditionally on the code path (~9s, measured):
+# the analyzer's input set is bot-client's whole type-checked program —
+# bot-client sources plus whatever their imports pull in — not a glob-able
+# file list, so no shell glob can predict which changes stale the snapshot.
+# Refresh with `pnpm ops surface:inventory --write` and fold the snapshot
+# pair into the same commit.
+echo "Running discord-surface snapshot check..."
+if ! pnpm ops surface:inventory --check; then
+    echo "${RED}Discord-surface snapshot is stale!${NC}"
+    echo "Refresh it with: pnpm ops surface:inventory --write"
+    echo "and fold the refreshed snapshot pair (discord-surface.{json,md}) into"
+    echo "the same commit/push. If the output above is an analyzer error rather"
+    echo "than a diff, fix that first - never --write over a broken run."
+    exit 1
+fi
+
 # 11. Run dependency boundary checks (BLOCKING)
 # depcruise runs uncached by design (TASK-902): a content-strategy result
 # cache was observed serving a stale verdict over a real circular import, so

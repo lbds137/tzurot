@@ -442,6 +442,7 @@ describe('findContentRefs (against real repo)', () => {
       'session:clear',
       'session:load',
       'session:save',
+      'surface:inventory',
       'test:audit',
       'test:audit-contracts',
       'test:audit-services',
