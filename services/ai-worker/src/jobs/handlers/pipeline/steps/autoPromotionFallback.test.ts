@@ -7,11 +7,14 @@
  * the orchestrator's contract in isolation.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import { TimeoutError } from '@tzurot/common-types/utils/errors';
 import { RetryError } from '../../../../utils/retry.js';
 import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
 import { ApiError } from '../../../../utils/apiErrorParser.js';
+import { stampLlmDeadline } from './llmBudget.js';
 import {
   runWithAutoPromotionFallback,
   getFallbackFailureSummary,
@@ -393,6 +396,107 @@ describe('runWithAutoPromotionFallback', () => {
     ).rejects.toThrow('z.ai err');
 
     expect(attempt).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('runWithAutoPromotionFallback — job LLM budget gate', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const swapRoute = {
+    apiKey: 'sk-or-fallback',
+    provider: 'openrouter',
+    model: 'z-ai/glm-5.1',
+    isGuestMode: false,
+  } as const;
+
+  it('runs the fallback hop when the primary timeout leaves a full attempt of budget', async () => {
+    vi.useFakeTimers();
+    const start = Date.now();
+    vi.setSystemTime(start);
+    const deadline = stampLlmDeadline();
+    const primaryTimeout = new TimeoutError(TIMEOUTS.LLM_PER_ATTEMPT, 'llm call');
+    const attempt = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        vi.advanceTimersByTime(TIMEOUTS.LLM_PER_ATTEMPT);
+        throw primaryTimeout;
+      })
+      .mockResolvedValueOnce(successResult);
+
+    const result = await runWithAutoPromotionFallback(
+      attempt,
+      { ...baseOpts, llmDeadline: deadline },
+      swapRoute
+    );
+
+    // Fallback hop ran and rescued.
+    expect(attempt).toHaveBeenCalledTimes(2);
+    expect(result.response.content).toBe('ok');
+    // Elapsed stays inside the job budget: stamp + budget, plus the one
+    // in-flight attempt the cooperative check cannot preempt.
+    expect(Date.now() - start).toBeLessThanOrEqual(
+      TIMEOUTS.LLM_JOB_BUDGET + TIMEOUTS.LLM_PER_ATTEMPT
+    );
+  });
+
+  it('skips the fallback hop and propagates the ORIGINAL error when the budget is spent', async () => {
+    vi.useFakeTimers();
+    const start = Date.now();
+    vi.setSystemTime(start);
+    const deadline = stampLlmDeadline();
+    // Burn most of the budget (more than one attempt), then time out — less
+    // than one full attempt of budget remains, so the hop must not start.
+    const spend = TIMEOUTS.LLM_JOB_BUDGET - TIMEOUTS.LLM_PER_ATTEMPT + 50_000;
+    const primaryTimeout = new TimeoutError(TIMEOUTS.LLM_PER_ATTEMPT, 'llm call');
+    const attempt = vi.fn().mockImplementation(async () => {
+      vi.advanceTimersByTime(spend);
+      throw primaryTimeout;
+    });
+
+    await expect(
+      runWithAutoPromotionFallback(attempt, { ...baseOpts, llmDeadline: deadline }, swapRoute)
+    ).rejects.toBe(primaryTimeout);
+
+    expect(attempt).toHaveBeenCalledTimes(1);
+    expect(Date.now() - start).toBeLessThanOrEqual(
+      TIMEOUTS.LLM_JOB_BUDGET + TIMEOUTS.LLM_PER_ATTEMPT
+    );
+  });
+
+  it('skips the hop when the deadline is already in the past', async () => {
+    vi.useFakeTimers();
+    const spentDeadline = Date.now() - 1;
+    const originalError = new Error('z.ai 429');
+    const attempt = vi.fn().mockRejectedValueOnce(originalError);
+
+    await expect(
+      runWithAutoPromotionFallback(attempt, { ...baseOpts, llmDeadline: spentDeadline }, swapRoute)
+    ).rejects.toBe(originalError);
+
+    expect(attempt).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats an UNSTAMPED deadline as ungated (backward-compat)', async () => {
+    const fallbackResult: GenerateAttemptResult = {
+      ...successResult,
+      response: { ...successResult.response, content: 'from fallback' },
+    };
+    const attempt = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('z.ai 429'))
+      .mockResolvedValueOnce(fallbackResult);
+
+    const result = await runWithAutoPromotionFallback(
+      attempt,
+      // No llmDeadline — legacy callers/tests keep today's behavior.
+      baseOpts,
+      swapRoute
+    );
+
+    expect(attempt).toHaveBeenCalledTimes(2);
+    expect(result.response.content).toBe('from fallback');
   });
 });
 

@@ -2,12 +2,13 @@
  * GenerationStep Unit Tests
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Job } from 'bullmq';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { AttachmentType } from '@tzurot/common-types/constants/media';
 import { MessageRole } from '@tzurot/common-types/constants/message';
+import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { JobType } from '@tzurot/common-types/constants/queue';
 import { type ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
@@ -282,6 +283,46 @@ describe('GenerationStep', () => {
       });
       const unrouted = await step.process(context);
       expect(unrouted.result?.metadata?.routedModel).toBeUndefined();
+    });
+
+    // The llmDeadline test fakes timers inside its body; this restores them even
+    // when one of its assertions fails, so fake timers never leak into siblings.
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('stamps llmDeadline once at entry and threads it through the generation opts', async () => {
+      // Fake clock freezes Date.now, so the entry stamp is exactly
+      // now + LLM_JOB_BUDGET (asserted through the constant, never a literal).
+      vi.useFakeTimers();
+      const now = new Date('2026-01-01T00:00:00Z').getTime();
+      vi.setSystemTime(now);
+
+      const ragResponse: RAGResponse = {
+        content: 'ok',
+        retrievedMemories: 0,
+        tokensIn: 1,
+        tokensOut: 1,
+        modelUsed: 'anthropic/claude-sonnet-4',
+      };
+      vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
+
+      const context: GenerationContext = {
+        job: createMockJob(),
+        startTime: now,
+        config: baseConfig,
+        auth: baseAuth,
+        preparedContext: basePreparedContext,
+      };
+
+      await step.process(context);
+
+      // Stamped on the context itself for every fallback layer to read…
+      expect(context.llmDeadline).toBe(now + TIMEOUTS.LLM_JOB_BUDGET);
+      // …and threaded into the opts the generation chain receives.
+      const firstCallOpts = vi.mocked(mockRAGService.generateResponse).mock.calls[0]?.[3] as
+        { llmDeadline?: number } | undefined;
+      expect(firstCallOpts?.llmDeadline).toBe(now + TIMEOUTS.LLM_JOB_BUDGET);
     });
 
     describe('free-tier quota (guest pre-flight, site 1)', () => {
