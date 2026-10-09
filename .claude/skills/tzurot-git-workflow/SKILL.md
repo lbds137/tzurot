@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-10-01'
+lastUpdated: '2026-10-09'
 ---
 
 # Git Workflow Procedures
@@ -158,6 +158,8 @@ entry, then `/tzurot-review-response`. Do not stop after the CI check: only
 **`--delete-branch` fails silently when the head branch is checked out anywhere** — git refuses to delete a checked-out branch, `gh` reports the LOCAL failure, and the merge itself still succeeds. The PR closes as merged and nothing says a branch is still there; it surfaces later as a repo-state-sweep finding, or when someone notices the pile.
 
 "Anywhere" is the whole rule, and the easy-to-forget instance is the checkout you are not looking at: a **worktree** (the orchestration skill mandates one for every file-mutating worker, so every delegated unit lands in this state) or the **main checkout** still sitting on the branch after a local review.
+
+**Ordering vs the CI monitor** (§ Arm CI monitor): arm the monitor from the branch, wait for its CI_COMPLETE, THEN move the checkout to develop here. The hazard window is the gap between arming and execution start: a hop there makes the `$(git rev-parse HEAD)` substitution resolve to develop's HEAD at execution time. The gate normally refuses the mismatched SHA (a re-arm, not a mis-watch); that check is fail-open only when GitHub cannot be read.
 
 Before the merge:
 
