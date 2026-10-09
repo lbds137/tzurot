@@ -3,9 +3,10 @@ id: TASK-1185
 title: >-
   preset default clear names the free default as the fallback even for BYOK
   users
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-05 19:57'
+updated_date: '2026-10-09 02:03'
 labels:
   - 'area:bot-client'
   - 'size:S'
