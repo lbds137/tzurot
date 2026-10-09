@@ -3,10 +3,10 @@ id: TASK-1171
 title: >-
   Tell guests when the z.ai piggyback is closed instead of silently swapping
   models
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-04 22:04'
-updated_date: '2026-10-04 22:53'
+updated_date: '2026-10-09 02:03'
 labels:
   - 'area:bot-client'
   - 'size:M'
