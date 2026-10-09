@@ -1,9 +1,10 @@
 ---
 id: TASK-666
 title: Monitor arming and the pre-merge branch hop collide in the git-workflow skill
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-19 00:24'
+updated_date: '2026-10-09 22:52'
 labels:
   - 'area:skills'
   - 'size:S'

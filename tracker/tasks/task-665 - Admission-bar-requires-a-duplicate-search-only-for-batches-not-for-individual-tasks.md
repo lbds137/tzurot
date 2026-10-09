@@ -3,9 +3,10 @@ id: TASK-665
 title: >-
   Admission bar requires a duplicate search only for batches, not for individual
   tasks
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-18 21:32'
+updated_date: '2026-10-09 22:51'
 labels:
   - 'area:rules'
   - 'size:S'
