@@ -48,7 +48,8 @@ const DRIFT_IGNORE_FIXTURE = JSON.stringify({
       recreateSQL:
         'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id") WHERE "chunk_group_id" IS NOT NULL;',
       dropPattern: 'DROP\\s+INDEX.*memories_chunk_group_id_idx',
-      createPattern: 'CREATE\\s+INDEX.*memories_chunk_group_id_idx',
+      createPattern:
+        'CREATE\\s+INDEX.*memories_chunk_group_id_idx.*WHERE\\s+"?chunk_group_id"?\\s+IS\\s+NOT\\s+NULL',
     },
     {
       name: 'idx_memory_facts_embedding',
@@ -169,6 +170,109 @@ describe('checkMigrationSafety', () => {
     const output = consoleLogSpy.mock.calls.flat().join(' ');
     expect(output).toContain('DANGEROUS MIGRATIONS DETECTED');
     expect(output).toContain('memories_chunk_group_id_idx');
+  });
+
+  describe('statement-level matching', () => {
+    it('rejects a drop of the partial index recreated WITHOUT its WHERE clause', async () => {
+      vol.fromJSON({
+        '/migrations/20240107_nonpartial/migration.sql': [
+          'DROP INDEX "memories_chunk_group_id_idx";',
+          'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id");',
+        ].join('\n'),
+      });
+
+      const { checkMigrationSafety } = await import('./check-migration-safety.js');
+      await checkMigrationSafety({ migrationsPath: '/migrations' });
+
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('memories_chunk_group_id_idx');
+    });
+
+    it('detects a DROP INDEX statement spanning two lines', async () => {
+      vol.fromJSON({
+        '/migrations/20240108_split_drop/migration.sql': [
+          'DROP INDEX',
+          '  "memories_chunk_group_id_idx";',
+        ].join('\n'),
+      });
+
+      const { checkMigrationSafety } = await import('./check-migration-safety.js');
+      await checkMigrationSafety({ migrationsPath: '/migrations' });
+
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('memories_chunk_group_id_idx');
+    });
+
+    it('accepts a recreate whose CREATE INDEX and WHERE sit on separate lines', async () => {
+      vol.fromJSON({
+        '/migrations/20240109_split_create/migration.sql': [
+          'DROP INDEX "memories_chunk_group_id_idx";',
+          'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id")',
+          'WHERE "chunk_group_id" IS NOT NULL;',
+        ].join('\n'),
+      });
+
+      const { checkMigrationSafety } = await import('./check-migration-safety.js');
+      await checkMigrationSafety({ migrationsPath: '/migrations' });
+
+      expect(processExitSpy).not.toHaveBeenCalled();
+    });
+
+    it('rejects a recreate partial on a different predicate than the protected one', async () => {
+      vol.fromJSON({
+        '/migrations/20240111_wrong_predicate/migration.sql': [
+          'DROP INDEX "memories_chunk_group_id_idx";',
+          'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id") WHERE "other_col" IS NOT NULL;',
+        ].join('\n'),
+      });
+
+      const { checkMigrationSafety } = await import('./check-migration-safety.js');
+      await checkMigrationSafety({ migrationsPath: '/migrations' });
+
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('does not let a WHERE in a LATER statement complete a non-partial recreate', async () => {
+      vol.fromJSON({
+        '/migrations/20240110_cross_statement/migration.sql': [
+          'DROP INDEX "memories_chunk_group_id_idx";',
+          'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id");',
+          'DELETE FROM "memories" WHERE "chunk_group_id" IS NULL;',
+        ].join('\n'),
+      });
+
+      const { checkMigrationSafety } = await import('./check-migration-safety.js');
+      await checkMigrationSafety({ migrationsPath: '/migrations' });
+
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
+  it('pins the committed drift-ignore.json chunk-group createPattern to its recreateSQL', async () => {
+    // memfs shadows node:fs in this file; the real registry file needs the real fs.
+    const realFs = await vi.importActual<typeof import('node:fs')>('node:fs');
+    const registry = JSON.parse(realFs.readFileSync(DRIFT_IGNORE_PATH, 'utf8')) as {
+      protectedIndexes: { name: string; recreateSQL: string; createPattern: string }[];
+    };
+    const entry = registry.protectedIndexes.find(e => e.name === 'memories_chunk_group_id_idx');
+    expect(entry).toBeDefined();
+
+    const createPattern = new RegExp(entry?.createPattern ?? '', 'i');
+    const normalize = (sql: string): string => sql.replace(/;\s*$/, '').replace(/\s+/g, ' ').trim();
+
+    expect(createPattern.test(normalize(entry?.recreateSQL ?? ''))).toBe(true);
+    expect(
+      createPattern.test(
+        'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id")'
+      )
+    ).toBe(false);
+    expect(
+      createPattern.test(
+        'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id") WHERE "other_col" IS NOT NULL'
+      )
+    ).toBe(false);
   });
 
   it('should pass when index is dropped and recreated in same file', async () => {

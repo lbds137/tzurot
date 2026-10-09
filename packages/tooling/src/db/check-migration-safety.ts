@@ -75,6 +75,23 @@ function findSqlFiles(dir: string): string[] {
 }
 
 /**
+ * Split comment-stripped SQL into statements on `;`, collapsing each
+ * statement's whitespace (newlines included) to single spaces. Patterns are
+ * tested per statement, so a DROP or CREATE spanning several lines matches the
+ * same as a one-line one. A recreate of the same index anywhere in the file
+ * still satisfies the create check; what per-statement matching buys is that
+ * a recreate's own WHERE must sit inside the recreate's statement - a WHERE
+ * in an unrelated statement cannot complete a non-partial recreate. The
+ * normalized text is for matching only.
+ */
+function splitStatements(sql: string): string[] {
+  return sql
+    .split(';')
+    .map(statement => statement.replace(/\s+/g, ' ').trim())
+    .filter(statement => statement.length > 0);
+}
+
+/**
  * Check a single migration file for dangerous patterns
  */
 function checkMigrationFile(filePath: string): CheckResult {
@@ -85,11 +102,12 @@ function checkMigrationFile(filePath: string): CheckResult {
     .split('\n')
     .filter(line => !line.trimStart().startsWith('--'))
     .join('\n');
+  const statements = splitStatements(content);
   const violations: string[] = [];
 
   for (const index of PROTECTED_INDEXES) {
-    const hasDropIndex = index.dropPattern.test(content);
-    const hasCreateIndex = index.createPattern.test(content);
+    const hasDropIndex = statements.some(statement => index.dropPattern.test(statement));
+    const hasCreateIndex = statements.some(statement => index.createPattern.test(statement));
 
     if (hasDropIndex && !hasCreateIndex) {
       violations.push(`Drops ${index.name} without recreating (${index.description})`);
