@@ -1,14 +1,20 @@
 # Current
 
-> **Version**: v3.0.0-beta.234 — "the refusal fallback" (9 PRs / 5 runtime / 118 files, 61 commits; no migrations; release PR #2574 rebase-merged 2026-10-05 ~09:30Z after the Codecov certificate outage held it ~9h; widened by owner ruling with #2575/#2576/#2577; `main` = `develop` = `c3540c7e7`; tagged `latest`, beta.233 demoted). Holistic review's one finding (notes missing the widened PRs) was already fixed in the body when it posted. Smoke: observability — #2572's retarget log line on prod; #2577's check is the owner's Lilith recall retest (ask about Haida and Inui). Post-merge: Dependabot alert 176 (http-cache-semantics, high, no patch yet) → TASK-1179.
+> **Version**: v3.0.0-beta.235 — "Both slots, tier-true defaults, and the catalog watch" — RELEASE PR #2588 OPEN (2026-10-08, cut approved by owner 23:00Z; awaiting CI + her final yes on the PR). 7 PRs / 6 runtime / 148 files / 45 commits; no migrations; premigrate clean. Smoke checklist below.
 >
-> **Previous**: v3.0.0-beta.233 — "the parity train" (17 PRs / 12 runtime; 2026-10-01, `91ee1f9f0`).
+> **Previous**: v3.0.0-beta.234 — "the refusal fallback" (9 PRs / 5 runtime / 118 files, 61 commits; 2026-10-05, `c3540c7e7`; tagged `latest`).
+
+## 🧪 beta.235 smoke (owner, after the release deploys — tiers per /tzurot-testing)
+
+1. **(needs-smoke)** `/preset default set <vision-capable preset> slot:Both` on dev — one command sets BOTH lanes; then a text-only preset + Both → ONE refusal, nothing half-applied. Covers #2586's Both choice + #2583-class reply paths.
+2. **(needs-smoke)** #2583's guest footer: flip the z.ai piggyback kill-switch on dev → a guest (alt account) turn shows the "temporarily unavailable, so a fallback free model answered" footer; a keyed user's turn does not. Unflip after.
+3. **(observability, no action)** #2587's drift alert arrives organically if a configured model leaves the catalog — silence means all configured ids are catalog-healthy. #2582's retarget log line appears on the next real retarget.
+4. **(carried)** The beta.234 items: #2572's retarget log line on prod; #2577's check is the owner's Lilith recall retest (ask about Haida and Inui).
 
 ## ⏳ In flight (2026-10-08, GLM-flash lane)
 
-- **PR #2583 (TASK-1171) MERGED 18:13Z** (`d8dbc6a87`) after 4 clean review rounds; round-4 residue dispositioned in the PR body (2 declined, TASK-1193 filed for the retarget pin). beta.235's cut criterion ("TASK-1171 merges") has FIRED — cut proposal presented to the owner 2026-10-08: hold for the preset trio (TASK-1166/1185/1182, owner-promoted to this train, grounding done) vs. cut thin now. Awaiting her call.
-- **Dependabot**: #2584 (prod group, 12 updates) merged 18:15Z; #2585 (dev group, 15 updates) lockfile-conflicted after → `@dependabot rebase` posted 18:17Z, merges on green per standing ruling. #2578 (claude-code-action): claude-workflow hunks go to a MAIN-cut PR — **sequence it after the beta.235 release** (a mid-train main-merge + finalize would move SHAs under the release PR) → then TASK-822 (300s per attempt + per-job budget).
-- **TASK-1166/1185/1182 grounding done** (Explore report, 2026-10-08): slot choices are ONE shared constant `CONFIG_SLOT_OPTION_CHOICES` (`common-types/constants/ai.ts:385`), six option sites spread it, `toModelSlot` floors unknown values to text; clear's fallback-name reply lives in `default/clear.ts:50-61` reading `newEffectiveDefaults`; owner-alert utility is `postOwnerChannelEmbed` (`bot-client/utils/ownerChannel.ts`), catalog lookup is `OpenRouterModelCache.lookupModelById` with `ModelCatalogRefresher` keep-warm.
+- **Release v3.0.0-beta.235**: PR #2588 (develop→main) open, gate armed. After merge: `release:publish 3.0.0-beta.235` → `release:finalize` → CURRENT.md unreleased-reset → flip TASK-1171/1166/1185/1182 Done → next release plan. Then #2578's claude-workflow hunks to a MAIN-cut PR (+finalize) → TASK-822 → TASK-1194 (pre-push surface check) + TASK-1196 (topology Record refactor) ride the next tooling PR.
+- **Done today**: #2583 (TASK-1171) · #2584/#2585 (dep groups) · #2586 (TASK-1166+1185, 3 rounds) · #2587 (TASK-1182, 5 rounds) · TASK-1193/1194/1196 filed.
 
 ---
 
