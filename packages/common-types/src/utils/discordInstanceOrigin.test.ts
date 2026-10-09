@@ -8,7 +8,7 @@ import {
   instanceMessageLinkPattern,
 } from './discordInstanceOrigin.js';
 
-const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+const ORIGIN = 'https://deck.tailnet.example:8443';
 const IPV6_ORIGIN_ROOT = 'https://[::1]:8443';
 const buildIpv6MessageLinkRegex = () => new RegExp(instanceMessageLinkPattern(IPV6_ORIGIN_ROOT));
 
@@ -27,11 +27,11 @@ describe('normalizeDiscordInstanceOrigin', () => {
     expect(normalizeDiscordInstanceOrigin(`${IPV6_ORIGIN_ROOT}/`)).toBe(IPV6_ORIGIN_ROOT));
 
   it('normalizes an uppercase host to lowercase', () => {
-    expect(normalizeDiscordInstanceOrigin('https://DECK.TAIL00338F.TS.NET:8443')).toBe(ORIGIN);
+    expect(normalizeDiscordInstanceOrigin('https://DECK.TAILNET.EXAMPLE:8443')).toBe(ORIGIN);
   });
 
   it('throws for a non-https scheme', () => {
-    expect(() => normalizeDiscordInstanceOrigin('http://deck.tail00338f.ts.net:8443')).toThrow();
+    expect(() => normalizeDiscordInstanceOrigin('http://deck.tailnet.example:8443')).toThrow();
   });
 
   it('throws for a path beyond root', () => {
@@ -81,37 +81,37 @@ describe('matchesInstanceOrigin', () => {
   });
 
   it('is false for the same host on a different port', () => {
-    expect(matchesInstanceOrigin(new URL('https://deck.tail00338f.ts.net:9443/x'), ORIGIN)).toBe(
+    expect(matchesInstanceOrigin(new URL('https://deck.tailnet.example:9443/x'), ORIGIN)).toBe(
       false
     );
   });
 
   it('is false for the same host with no port', () => {
-    expect(matchesInstanceOrigin(new URL('https://deck.tail00338f.ts.net/x'), ORIGIN)).toBe(false);
+    expect(matchesInstanceOrigin(new URL('https://deck.tailnet.example/x'), ORIGIN)).toBe(false);
   });
 
   it('is false for http on the same host and port', () => {
-    expect(matchesInstanceOrigin(new URL('http://deck.tail00338f.ts.net:8443/x'), ORIGIN)).toBe(
+    expect(matchesInstanceOrigin(new URL('http://deck.tailnet.example:8443/x'), ORIGIN)).toBe(
       false
     );
   });
 
   it('is false for a look-alike host with the origin as a prefix', () => {
     expect(
-      matchesInstanceOrigin(new URL('https://deck.tail00338f.ts.net.evil.io:8443/x'), ORIGIN)
+      matchesInstanceOrigin(new URL('https://deck.tailnet.example.evil.io:8443/x'), ORIGIN)
     ).toBe(false);
   });
 
   it('is false for a look-alike host with the origin as a suffix', () => {
-    expect(matchesInstanceOrigin(new URL('https://xdeck.tail00338f.ts.net:8443/x'), ORIGIN)).toBe(
+    expect(matchesInstanceOrigin(new URL('https://xdeck.tailnet.example:8443/x'), ORIGIN)).toBe(
       false
     );
   });
 
   it('is false when the candidate URL carries credentials', () => {
-    expect(
-      matchesInstanceOrigin(new URL('https://u:p@deck.tail00338f.ts.net:8443/x'), ORIGIN)
-    ).toBe(false);
+    expect(matchesInstanceOrigin(new URL('https://u:p@deck.tailnet.example:8443/x'), ORIGIN)).toBe(
+      false
+    );
   });
 
   it('matches an origin on the default port only without an explicit port', () => {
@@ -187,12 +187,12 @@ describe('instanceMessageLinkPattern', () => {
 
   it('does not match the same path on a different port', () => {
     const regex = new RegExp(instanceMessageLinkPattern(ORIGIN));
-    expect(regex.test('https://deck.tail00338f.ts.net:9443/channels/1/2/3')).toBe(false);
+    expect(regex.test('https://deck.tailnet.example:9443/channels/1/2/3')).toBe(false);
   });
 
   it('does not match a look-alike host', () => {
     const regex = new RegExp(instanceMessageLinkPattern(ORIGIN));
-    expect(regex.test('https://deck.tail00338f.ts.net.evil.io:8443/channels/1/2/3')).toBe(false);
+    expect(regex.test('https://deck.tailnet.example.evil.io:8443/channels/1/2/3')).toBe(false);
   });
   it('matches a message link under an IPv6-literal origin', () =>
     expect(buildIpv6MessageLinkRegex().exec(`${IPV6_ORIGIN_ROOT}/channels/1/2/3`)?.[3]).toBe('3'));

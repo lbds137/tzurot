@@ -164,7 +164,7 @@ describe('assertDiscordCdnUrlNotExpired', () => {
 });
 
 describe('instance origin', () => {
-  const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+  const ORIGIN = 'https://deck.tailnet.example:8443';
 
   function instanceUrlWithExMs(exMs: number): string {
     return `${ORIGIN}/attachments/1/2/x.png?ex=${exMs.toString(16)}&is=abc&hm=def`;
@@ -183,14 +183,14 @@ describe('instance origin', () => {
   });
 
   it('is false for the same host on a different port', () => {
-    expect(
-      isDiscordCdnUrl('https://deck.tail00338f.ts.net:9443/attachments/1/2/x.png', ORIGIN)
-    ).toBe(false);
+    expect(isDiscordCdnUrl('https://deck.tailnet.example:9443/attachments/1/2/x.png', ORIGIN)).toBe(
+      false
+    );
   });
 
   it('is false for a look-alike host', () => {
     expect(
-      isDiscordCdnUrl('https://deck.tail00338f.ts.net.evil.io:8443/attachments/1/2/x.png', ORIGIN)
+      isDiscordCdnUrl('https://deck.tailnet.example.evil.io:8443/attachments/1/2/x.png', ORIGIN)
     ).toBe(false);
   });
 
@@ -205,7 +205,7 @@ describe('instance origin', () => {
 });
 
 describe('instance origin via getConfig (seam tests, no explicit param)', () => {
-  const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+  const ORIGIN = 'https://deck.tailnet.example:8443';
   it('isDiscordCdnUrl treats an instance-origin URL as CDN via getConfig', () => {
     mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: ORIGIN });
     expect(isDiscordCdnUrl(`${ORIGIN}/attachments/1/2/x.png?ex=1`)).toBe(true);

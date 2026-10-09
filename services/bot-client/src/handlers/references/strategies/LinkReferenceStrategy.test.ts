@@ -131,7 +131,7 @@ describe('LinkReferenceStrategy', () => {
   });
 
   it('resolves a link under the configured origin (seam test)', async () => {
-    const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+    const ORIGIN = 'https://deck.tailnet.example:8443';
     mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: ORIGIN });
     const message = createMockMessage({
       content: `Check this ${ORIGIN}/channels/123/456/789`,

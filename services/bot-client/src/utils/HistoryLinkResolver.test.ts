@@ -588,7 +588,7 @@ describe('HistoryLinkResolver', () => {
       expect(result.resolvedCount).toBe(1);
     });
     it('finds an instance-origin link via getConfig when scanning for links (seam test)', async () => {
-      const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+      const ORIGIN = 'https://deck.tailnet.example:8443';
       mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: ORIGIN });
       const linkedMessage = createMockMessage({ id: LINKED_MSG_ID, content: 'Linked content' });
       const link = `${ORIGIN}/channels/${DEFAULT_GUILD_ID}/${DEFAULT_CHANNEL_ID}/${LINKED_MSG_ID}`;
@@ -598,7 +598,7 @@ describe('HistoryLinkResolver', () => {
       expect(result.resolvedCount).toBe(1);
     });
     it('strips an instance-origin link from content during injection (seam test)', async () => {
-      const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+      const ORIGIN = 'https://deck.tailnet.example:8443';
       mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: ORIGIN });
       const link = `${ORIGIN}/channels/${DEFAULT_GUILD_ID}/${DEFAULT_CHANNEL_ID}/${LINKED_MSG_ID}`;
       const linkedMessage = createMockMessage({ id: LINKED_MSG_ID, content: 'Linked content' });

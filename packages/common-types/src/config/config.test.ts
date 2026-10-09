@@ -366,9 +366,9 @@ describe('config', () => {
         envSchema.parse({ DISCORD_INSTANCE_ORIGIN: '' }).DISCORD_INSTANCE_ORIGIN
       ).toBeUndefined();
       expect(
-        envSchema.parse({ DISCORD_INSTANCE_ORIGIN: 'https://deck.tail00338f.ts.net:8443/' })
+        envSchema.parse({ DISCORD_INSTANCE_ORIGIN: 'https://deck.tailnet.example:8443/' })
           .DISCORD_INSTANCE_ORIGIN
-      ).toBe('https://deck.tail00338f.ts.net:8443');
+      ).toBe('https://deck.tailnet.example:8443');
       expect(() => envSchema.parse({ DISCORD_INSTANCE_ORIGIN: 'http://x.example' })).toThrow();
       expect(() => envSchema.parse({ DISCORD_INSTANCE_ORIGIN: 'https://x.example/api' })).toThrow();
     });

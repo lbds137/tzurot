@@ -114,7 +114,7 @@ describe('deployCommands', () => {
   });
 
   describe('instance-origin REST options', () => {
-    const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+    const ORIGIN = 'https://deck.tailnet.example:8443';
 
     it('constructs REST with an empty options object when no origin is configured', async () => {
       await deployCommands(false);
