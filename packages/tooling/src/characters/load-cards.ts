@@ -22,6 +22,7 @@ export interface CharactersImportOptions {
   dir: string;
   apply?: boolean;
   renameMap?: string;
+  avatars?: string;
   createNew?: string;
   allowForeign?: string;
   only?: string;
@@ -58,7 +59,7 @@ export function parseListFlag(value: string | undefined): Set<string> {
 
 /** `SLUG_PATTERN` alone doesn't bound length — the update route's slug
  *  schema also enforces `SLUG_MIN_LENGTH`..`DISCORD_LIMITS.SLUG_MAX_LENGTH`. */
-function isValidSlugLength(slug: string): boolean {
+export function isValidSlugLength(slug: string): boolean {
   return slug.length >= SLUG_MIN_LENGTH && slug.length <= DISCORD_LIMITS.SLUG_MAX_LENGTH;
 }
 

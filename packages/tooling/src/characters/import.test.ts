@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { buildImportPayload } from '@tzurot/common-types/utils/characterImportPayload';
@@ -696,5 +697,380 @@ describe('charactersImport', () => {
 
     expect(mockRequireProductionConfirmation).not.toHaveBeenCalled();
     expect(client.createPersonality).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('charactersImport --avatars', () => {
+  const IMAGE_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0x10, 0x20]);
+  const IMAGE_BASE64 = IMAGE_BYTES.toString('base64');
+  const BRIA_CARD = {
+    name: 'Bria',
+    slug: 'bria',
+    characterInfo: 'bria text',
+    personalityTraits: 'Bold',
+  };
+  let assets: string;
+  let manifestPath: string;
+  let statePath: string;
+
+  beforeEach(() => {
+    // Outside `dir`: the card scan reads every .json under --dir.
+    assets = mkdtempSync(join(tmpdir(), 'characters-avatars-test-'));
+    manifestPath = join(assets, 'AVATARS.json');
+    statePath = join(assets, 'state', 'avatar-state.json');
+  });
+
+  afterEach(() => {
+    rmSync(assets, { recursive: true, force: true });
+  });
+
+  function writeManifest(entries: Record<string, string>): void {
+    writeFileSync(manifestPath, JSON.stringify(entries), 'utf-8');
+  }
+
+  function writeImage(relPath: string, bytes: Buffer = IMAGE_BYTES): void {
+    const full = join(assets, relPath);
+    mkdirSync(join(full, '..'), { recursive: true });
+    writeFileSync(full, bytes);
+  }
+
+  function readState(): Record<string, Record<string, string>> {
+    return JSON.parse(readFileSync(statePath, 'utf-8')) as Record<string, Record<string, string>>;
+  }
+
+  function fakeDeps(client: FakeClient) {
+    return {
+      getUserClient: vi.fn().mockReturnValue({ client, actingDiscordId: ACTOR, isBotOwner: true }),
+      avatarStatePath: statePath,
+    };
+  }
+
+  function avatarOpts(overrides: Partial<CharactersImportOptions> = {}): CharactersImportOptions {
+    return baseOpts({ avatars: manifestPath, apply: true, ...overrides });
+  }
+
+  it('CANARY-C0: a re-run after a successful apply sends no avatarData and reports unchanged', async () => {
+    writeCard('aria.json', VALID_CARD);
+    writeManifest({ aria: 'OC/aria pic.png' });
+    writeImage('OC/aria pic.png');
+    const client = makeFakeClient([summary()]);
+    withRows(client, { aria: row() });
+    const deps = fakeDeps(client);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await charactersImport(avatarOpts(), deps);
+
+    expect(client.updatePersonality).toHaveBeenCalledTimes(1);
+    expect(client.updatePersonality).toHaveBeenCalledWith(
+      'aria',
+      expect.objectContaining({ avatarData: IMAGE_BASE64 })
+    );
+
+    client.updatePersonality.mockClear();
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    await charactersImport(avatarOpts(), deps);
+
+    expect(client.updatePersonality).not.toHaveBeenCalled();
+    const output = logSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('unchanged');
+    expect(output).toContain('1 unchanged');
+  });
+
+  it('a renamed card takes its avatar from the NEW slug and records state under it', async () => {
+    writeCard('aria.json', { ...VALID_CARD, slug: 'aria-new' });
+    writeManifest({ 'aria-new': 'aria.png' });
+    writeImage('aria.png');
+    const renameMapPath = join(assets, 'rename-map.json');
+    writeFileSync(renameMapPath, JSON.stringify({ 'aria-old': 'aria-new' }), 'utf-8');
+    const client = makeFakeClient([summary({ slug: 'aria-old' })]);
+    withRows(client, { 'aria-old': row({ slug: 'aria-old' }) });
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await charactersImport(avatarOpts({ renameMap: renameMapPath }), fakeDeps(client));
+
+    expect(client.updatePersonality).toHaveBeenCalledWith(
+      'aria-old',
+      expect.objectContaining({ slug: 'aria-new', avatarData: IMAGE_BASE64 })
+    );
+    expect(Object.keys(readState().dev)).toEqual(['aria-new']);
+  });
+
+  it('a second run that updates the card for another reason still carries no avatarData', async () => {
+    writeCard('aria.json', VALID_CARD);
+    writeManifest({ aria: 'aria.png' });
+    writeImage('aria.png');
+    const client = makeFakeClient([summary()]);
+    withRows(client, { aria: row() });
+    const deps = fakeDeps(client);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    await charactersImport(avatarOpts(), deps);
+
+    withRows(client, { aria: row({ characterInfo: 'something older' }) });
+    client.updatePersonality.mockClear();
+    await charactersImport(avatarOpts(), deps);
+
+    expect(client.updatePersonality).toHaveBeenCalledTimes(1);
+    const payload = client.updatePersonality.mock.calls[0][1] as Record<string, unknown>;
+    expect(payload.avatarData).toBeUndefined();
+    expect(payload.characterInfo).toBe(DISTINCTIVE_INFO);
+  });
+
+  it('a changed image after an apply is re-sent exactly once', async () => {
+    writeCard('aria.json', VALID_CARD);
+    writeManifest({ aria: 'aria.png' });
+    writeImage('aria.png');
+    const client = makeFakeClient([summary()]);
+    withRows(client, { aria: row() });
+    const deps = fakeDeps(client);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    await charactersImport(avatarOpts(), deps);
+
+    const newBytes = Buffer.from([1, 2, 3, 4, 5]);
+    writeImage('aria.png', newBytes);
+    client.updatePersonality.mockClear();
+    await charactersImport(avatarOpts(), deps);
+
+    expect(client.updatePersonality).toHaveBeenCalledWith(
+      'aria',
+      expect.objectContaining({ avatarData: newBytes.toString('base64') })
+    );
+    const updatePayload = client.updatePersonality.mock.calls[0][1] as Record<string, unknown>;
+    expect(updatePayload).not.toHaveProperty('clearAvatar');
+    client.updatePersonality.mockClear();
+    await charactersImport(avatarOpts(), deps);
+    expect(client.updatePersonality).not.toHaveBeenCalled();
+  });
+
+  it('a new card gets the avatar in createPersonality as bare base64, never a data URI', async () => {
+    writeCard('aria.json', VALID_CARD);
+    writeManifest({ aria: 'aria.png' });
+    writeImage('aria.png');
+    const client = makeFakeClient([]);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await charactersImport(avatarOpts(), fakeDeps(client));
+
+    const payload = client.createPersonality.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.avatarData).toBe(IMAGE_BASE64);
+    expect(String(payload.avatarData).startsWith('data:')).toBe(false);
+    expect(payload).not.toHaveProperty('clearAvatar');
+  });
+
+  it('CANARY-C1: an unresolvable image path refuses THAT slug only; the batch continues', async () => {
+    writeCard('aria.json', VALID_CARD);
+    writeCard('bria.json', BRIA_CARD);
+    writeManifest({ aria: 'OC/gone/aria.jpeg', bria: 'bria.png' });
+    writeImage('bria.png');
+    const client = makeFakeClient([]);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await charactersImport(avatarOpts({ apply: false }), fakeDeps(client));
+
+    const output = logSpy.mock.calls.flat().join('\n');
+    expect(output).toMatch(
+      /refused\s+aria\s+aria\.json: avatar image not found: OC\/gone\/aria\.jpeg/
+    );
+    expect(output).toMatch(/new\s+bria/);
+    expect(output).toContain('2 cards: 1 new, 0 changed, 0 unchanged, 1 refused');
+    expect(output).toContain('(1 apply, 0 unchanged, 1 refused)');
+  });
+
+  it('a refused avatar blocks --apply: exit 1, zero writes, no state', async () => {
+    writeCard('aria.json', VALID_CARD);
+    writeCard('bria.json', BRIA_CARD);
+    writeManifest({ aria: 'missing.png', bria: 'bria.png' });
+    writeImage('bria.png');
+    const client = makeFakeClient([]);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await charactersImport(avatarOpts(), fakeDeps(client));
+
+    expect(process.exitCode).toBe(1);
+    expect(client.createPersonality).not.toHaveBeenCalled();
+    expect(existsSync(statePath)).toBe(false);
+  });
+
+  it('a path that escapes the manifest directory is refused', async () => {
+    writeCard('aria.json', VALID_CARD);
+    const nestedManifest = join(assets, 'sub', 'AVATARS.json');
+    mkdirSync(join(assets, 'sub'), { recursive: true });
+    writeFileSync(nestedManifest, JSON.stringify({ aria: '../outside.png' }), 'utf-8');
+    writeImage('outside.png');
+    const client = makeFakeClient([]);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await charactersImport(avatarOpts({ apply: false, avatars: nestedManifest }), fakeDeps(client));
+
+    expect(logSpy.mock.calls.flat().join('\n')).toContain(
+      'avatar image path leaves the manifest directory: ../outside.png'
+    );
+  });
+
+  it('CANARY-C2: a slug absent from the manifest leaves its payload untouched', async () => {
+    writeCard('aria.json', VALID_CARD);
+    writeCard('bria.json', BRIA_CARD);
+    writeManifest({ bria: 'bria.png' });
+    writeImage('bria.png');
+    const client = makeFakeClient([]);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await charactersImport(avatarOpts(), fakeDeps(client));
+
+    expect(client.createPersonality).toHaveBeenCalledWith(
+      buildImportPayload(VALID_CARD, 'aria', undefined, undefined)
+    );
+    expect(client.createPersonality).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: 'bria', avatarData: IMAGE_BASE64 })
+    );
+  });
+
+  it('CANARY-C3: state records only successful avatar writes; a mid-batch failure keeps the earlier ones', async () => {
+    writeCard('aria.json', VALID_CARD);
+    writeCard('bria.json', BRIA_CARD);
+    writeManifest({ aria: 'aria.png', bria: 'bria.png' });
+    writeImage('aria.png');
+    writeImage('bria.png', Buffer.from([9, 9, 9]));
+    const client = makeFakeClient([]);
+    client.createPersonality
+      .mockResolvedValueOnce({ ok: true, data: { success: true } })
+      .mockResolvedValueOnce({ ok: false, kind: 'http', status: 500, error: 'boom' });
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await charactersImport(avatarOpts(), fakeDeps(client));
+
+    expect(process.exitCode).toBe(1);
+    expect(Object.keys(readState().dev)).toEqual(['aria']);
+  });
+
+  it('CANARY-C3: a dry run never writes state', async () => {
+    writeCard('aria.json', VALID_CARD);
+    writeManifest({ aria: 'aria.png' });
+    writeImage('aria.png');
+    const client = makeFakeClient([]);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await charactersImport(avatarOpts({ apply: false }), fakeDeps(client));
+
+    expect(client.createPersonality).not.toHaveBeenCalled();
+    expect(existsSync(statePath)).toBe(false);
+  });
+
+  it('CANARY-C0: a row deleted and recreated gets its unchanged-hash avatar re-sent and recorded', async () => {
+    writeCard('aria.json', VALID_CARD);
+    writeManifest({ aria: 'aria.png' });
+    writeImage('aria.png');
+    const client = makeFakeClient([]);
+    const hash = createHash('sha256').update(IMAGE_BYTES).digest('hex');
+    mkdirSync(join(statePath, '..'), { recursive: true });
+    writeFileSync(statePath, JSON.stringify({ dev: { aria: hash } }), 'utf-8');
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await charactersImport(avatarOpts(), fakeDeps(client));
+
+    expect(client.createPersonality).toHaveBeenCalledTimes(1);
+    expect(client.createPersonality).toHaveBeenCalledWith(
+      expect.objectContaining({ avatarData: IMAGE_BASE64 })
+    );
+    expect(readState().dev.aria).toBe(hash);
+    const output = logSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('1 apply, 0 unchanged');
+  });
+
+  it('an existing row with an unchanged-hash avatar is updated without avatarData', async () => {
+    writeCard('aria.json', VALID_CARD);
+    writeManifest({ aria: 'aria.png' });
+    writeImage('aria.png');
+    const client = makeFakeClient([summary()]);
+    withRows(client, { aria: row() });
+    const hash = createHash('sha256').update(IMAGE_BYTES).digest('hex');
+    mkdirSync(join(statePath, '..'), { recursive: true });
+    writeFileSync(statePath, JSON.stringify({ dev: { aria: hash } }), 'utf-8');
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await charactersImport(avatarOpts(), fakeDeps(client));
+
+    expect(client.createPersonality).not.toHaveBeenCalled();
+    for (const call of client.updatePersonality.mock.calls) {
+      expect(call[1]).not.toHaveProperty('avatarData');
+    }
+  });
+
+  it('state is per environment: a dev apply does not suppress the prod apply', async () => {
+    writeCard('aria.json', VALID_CARD);
+    writeManifest({ aria: 'aria.png' });
+    writeImage('aria.png');
+    const client = makeFakeClient([]);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    await charactersImport(avatarOpts(), fakeDeps(client));
+
+    client.createPersonality.mockClear();
+    await charactersImport(avatarOpts({ env: 'prod', force: true }), fakeDeps(client));
+
+    expect(client.createPersonality).toHaveBeenCalledWith(
+      expect.objectContaining({ avatarData: IMAGE_BASE64 })
+    );
+    expect(Object.keys(readState()).sort()).toEqual(['dev', 'prod']);
+  });
+
+  it('a state-file write failure warns but does not fail the run', async () => {
+    writeCard('aria.json', VALID_CARD);
+    writeManifest({ aria: 'aria.png' });
+    writeImage('aria.png');
+    // The state path's parent is a regular file, so mkdir/write must fail.
+    const blocker = join(assets, 'blocker');
+    writeFileSync(blocker, 'x');
+    const client = makeFakeClient([]);
+    const deps = { ...fakeDeps(client), avatarStatePath: join(blocker, 'state.json') };
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await charactersImport(avatarOpts(), deps);
+
+    expect(client.createPersonality).toHaveBeenCalledTimes(1);
+    expect(process.exitCode).toBeUndefined();
+    expect(errorSpy.mock.calls.flat().join('\n')).toContain('will re-apply these 1 avatars');
+  });
+
+  it('an invalid manifest aborts with zero gateway calls', async () => {
+    writeCard('aria.json', VALID_CARD);
+    writeFileSync(manifestPath, '["not", "an", "object"]', 'utf-8');
+    const client = makeFakeClient([]);
+    const deps = fakeDeps(client);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await charactersImport(avatarOpts(), deps);
+
+    expect(process.exitCode).toBe(1);
+    expect(deps.getUserClient).not.toHaveBeenCalled();
+    expect(client.createPersonality).not.toHaveBeenCalled();
+  });
+
+  it('never prints image bytes or base64', async () => {
+    writeCard('aria.json', VALID_CARD);
+    writeManifest({ aria: 'aria.png' });
+    writeImage('aria.png');
+    const client = makeFakeClient([]);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await charactersImport(avatarOpts(), fakeDeps(client));
+
+    const output = [...logSpy.mock.calls, ...errorSpy.mock.calls].flat().join('\n');
+    expect(output).not.toContain(IMAGE_BASE64);
+    expect(output).toContain('Avatars: 1 manifest entries among selected cards');
+  });
+
+  it('without --avatars the payload never carries avatarData and no state is written', async () => {
+    writeCard('aria.json', VALID_CARD);
+    const client = makeFakeClient([]);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await charactersImport(baseOpts({ apply: true }), fakeDeps(client));
+
+    const payload = client.createPersonality.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.avatarData).toBeUndefined();
+    expect(existsSync(statePath)).toBe(false);
   });
 });

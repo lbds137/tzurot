@@ -95,6 +95,28 @@ describe('registerCharactersCommands', () => {
     expect(mockCharactersImport).toHaveBeenCalledWith(expect.objectContaining({ asUser }));
   });
 
+  it('--avatars reaches charactersImport as the manifest path', async () => {
+    const argv = [
+      'node',
+      'test',
+      'characters:import',
+      '--env',
+      'dev',
+      '--dir',
+      './cards',
+      '--avatars',
+      './images/AVATARS.json',
+    ];
+    process.argv = argv;
+
+    cli.parse(argv, { run: false });
+    await cli.runMatchedCommand();
+
+    expect(mockCharactersImport).toHaveBeenCalledWith(
+      expect.objectContaining({ avatars: './images/AVATARS.json' })
+    );
+  });
+
   it('--force reaches charactersImport as force: true', async () => {
     process.argv = [
       'node',
