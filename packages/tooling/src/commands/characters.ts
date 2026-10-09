@@ -14,6 +14,7 @@ interface CharactersImportRawOptions {
   dir?: string;
   apply?: boolean;
   renameMap?: string;
+  avatars?: string;
   createNew?: string;
   allowForeign?: string;
   only?: string;
@@ -30,6 +31,10 @@ export function registerCharactersCommands(cli: CAC): void {
     .option('--dir <dir>', 'Directory of character card JSON files to import (scanned recursively)')
     .option('--apply', 'Write the changes (default is a dry run report)')
     .option('--rename-map <file>', 'JSON file of { oldSlug: newSlug } renames to apply')
+    .option(
+      '--avatars <file>',
+      'JSON manifest of { slug: image path } (relative to the manifest); applies an image only when its content changed since the last apply; changes made outside this importer are not detected; delete the slug entry in docs/local/avatar-import-state.json to force a re-send (that state path resolves against the current working directory; see the printed Avatar state: line)'
+    )
     .option(
       '--create-new <slugs>',
       'Comma-separated card slugs allowed to create despite an owned-name match'
@@ -62,6 +67,7 @@ export function registerCharactersCommands(cli: CAC): void {
         dir: options.dir,
         apply: options.apply,
         renameMap: options.renameMap,
+        avatars: options.avatars,
         createNew: options.createNew,
         allowForeign: options.allowForeign,
         only: options.only,
