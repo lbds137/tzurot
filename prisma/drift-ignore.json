@@ -18,7 +18,7 @@
       "description": "Partial index for chunk retrieval (WHERE chunk_group_id IS NOT NULL). Prisma generates a non-partial version, causing conflicts.",
       "recreateSQL": "CREATE INDEX \"memories_chunk_group_id_idx\" ON \"memories\"(\"chunk_group_id\") WHERE \"chunk_group_id\" IS NOT NULL;",
       "dropPattern": "DROP\\s+INDEX.*memories_chunk_group_id_idx",
-      "createPattern": "CREATE\\s+INDEX.*memories_chunk_group_id_idx"
+      "createPattern": "CREATE\\s+INDEX.*memories_chunk_group_id_idx.*WHERE\\s+\"?chunk_group_id\"?\\s+IS\\s+NOT\\s+NULL"
     },
     {
       "name": "idx_memory_facts_embedding",
