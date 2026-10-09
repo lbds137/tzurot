@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit; and the cloud dispatch mode (one cloud unit beside one local unit). Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-10-05'
+lastUpdated: '2026-10-09'
 ---
 
 # Orchestrator Mode
@@ -310,7 +310,7 @@ a gap the worker will fill by guessing.
    **Default the gate list to the touched packages' WHOLE-package commands**
    (`pnpm --filter <pkg> test`) plus every repo-level gate CI runs for them.
 
-   Two repo-level gates no per-package command can see, so name them explicitly: `pnpm depcruise` (circular imports, boundaries) for any unit that creates a module or adds an import edge between existing modules, and `pnpm cpd && pnpm ops cpd:check` (duplication ratchet) for any unit that adds a route file, a PUT/DELETE pair, or two sibling handlers with a shared preamble. Both run only inside `pnpm quality`, which a worktree can't run whole. Extracting a new leaf module or a module-private helper (no re-export file) to break a cycle or a clone is a pre-authorized routine decision.
+   Two repo-level gates no per-package command can see, so name them explicitly: `pnpm depcruise` (circular imports, boundaries) for any unit that creates a module or adds an import edge between existing modules, and `pnpm cpd && pnpm ops cpd:check` (duplication ratchet) for any unit that adds a route file, a PUT/DELETE pair, or two sibling handlers with a shared preamble. Both run only inside `pnpm quality`, which a worktree can't run whole. Extracting a new leaf module or a module-private helper (no re-export file) to break a cycle or a clone is a pre-authorized routine decision. A third for units touching bot-client rendering or the Discord surface: `pnpm ops surface:inventory --check` (~9s, measured) — the pre-push hook mirrors it unconditionally on code pushes, so a worktree unit that stales the snapshot fails at push; refresh with `pnpm ops surface:inventory --write` and fold the snapshot pair into the unit's commit.
 
    A file-scoped test list is systematically narrower than CI. Name individual files only IN ADDITION, as a canary.
    **The canary set opens with the unit's PURPOSE** — one sentence under its own `## Purpose` heading, placed as the first entry of this item, saying what the unit exists to make true — and the canary that falsifies THAT sentence is named and run FIRST. Read its failure COUNT, not just that it is non-zero: a claim-derived canary reddens its own test by construction, but a purpose canary reddens however much of the suite genuinely depends on the purpose, so a count low against the code paths the purpose spans is a coverage gap to close before proceeding. A spec with no purpose canary is a spec defect; the orchestrator says so rather than proceeding. Canaries here follow the same rule as the nested-dispatch contract, whichever driver dispatches: derived from the claims the PR body will make, one falsifying mutation per claim, each scoped to the case it runs, and cut strictly inside the fixture rather than on the boundary under test (§ Nested dispatch).
