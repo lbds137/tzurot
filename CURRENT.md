@@ -1,6 +1,6 @@
 # Current
 
-> **Version**: v3.0.0-beta.235 — "Both slots, tier-true defaults, and the catalog watch" — RELEASE PR #2588 OPEN (2026-10-08, cut approved by owner 23:00Z; awaiting CI + her final yes on the PR). 7 PRs / 6 runtime / 148 files / 45 commits; no migrations; premigrate clean. Smoke checklist below.
+> **Version**: v3.0.0-beta.235 — "Both slots, tier-true defaults, and the catalog watch" — SHIPPED 2026-10-09 02:01Z (release PR #2588 rebase-merged after her final yes; 7 PRs / 6 runtime / 148 files / 45 commits; no migrations; `main` = `develop` = `07dd1bbf1` post-finalize; tagged `latest`, beta.234 demoted). Holistic review: no blocking findings. Smoke checklist below — items 1-2 need her.
 >
 > **Previous**: v3.0.0-beta.234 — "the refusal fallback" (9 PRs / 5 runtime / 118 files, 61 commits; 2026-10-05, `c3540c7e7`; tagged `latest`).
 
@@ -11,10 +11,10 @@
 3. **(observability, no action)** #2587's drift alert arrives organically if a configured model leaves the catalog — silence means all configured ids are catalog-healthy. #2582's retarget log line appears on the next real retarget.
 4. **(carried)** The beta.234 items: #2572's retarget log line on prod; #2577's check is the owner's Lilith recall retest (ask about Haida and Inui).
 
-## ⏳ In flight (2026-10-08, GLM-flash lane)
+## ⏳ In flight (2026-10-09, GLM-flash lane)
 
-- **Release v3.0.0-beta.235**: PR #2588 (develop→main) open, gate armed. After merge: `release:publish 3.0.0-beta.235` → `release:finalize` → CURRENT.md unreleased-reset → flip TASK-1171/1166/1185/1182 Done → next release plan. Then #2578's claude-workflow hunks to a MAIN-cut PR (+finalize) → TASK-822 → TASK-1194 (pre-push surface check) + TASK-1196 (topology Record refactor) ride the next tooling PR.
-- **Done today**: #2583 (TASK-1171) · #2584/#2585 (dep groups) · #2586 (TASK-1166+1185, 3 rounds) · #2587 (TASK-1182, 5 rounds) · TASK-1193/1194/1196 filed.
+- **beta.235 SHIPPED.** Post-release queue: #2578's claude-workflow hunks to a MAIN-cut PR (+ `release:finalize` immediately — a main-merge resyncs develop) → TASK-822 (300s per attempt + per-job budget; grounded) → TASK-1194 (pre-push surface check) + TASK-1196 (topology Record refactor) ride the next tooling PR → TASK-1175 (characters:import AVATARS.json) → Deck's ruled tailnet scrub → doc-7 drain.
+- **Done 2026-10-08→09**: #2583 (TASK-1171) · #2584/#2585 (dep groups) · #2586 (TASK-1166+1185) · #2587 (TASK-1182) — all merged after 3-5 review rounds each; TASK-1171/1166/1185/1182 flipped Done at ship; TASK-1193/1194/1196 filed as riders.
 
 ---
 

@@ -1,10 +1,10 @@
 ---
 id: TASK-1182
 title: Detect admin/global LLM configs whose model id left the OpenRouter catalog
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-05 19:27'
-updated_date: '2026-10-08 19:45'
+updated_date: '2026-10-09 02:03'
 labels:
   - 'area:api-gateway'
   - 'size:M'

@@ -3,10 +3,10 @@ id: TASK-1166
 title: >-
   /preset default and global defaults: add a both option to set text and vision
   in one command
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-04 16:46'
-updated_date: '2026-10-05 19:51'
+updated_date: '2026-10-09 02:03'
 labels:
   - 'area:bot-client'
   - 'size:S'
