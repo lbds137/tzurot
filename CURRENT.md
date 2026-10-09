@@ -13,7 +13,7 @@
 
 ## ⏳ In flight (2026-10-09, GLM-flash lane)
 
-- **beta.235 SHIPPED.** Post-release queue: #2578's claude-workflow hunks to a MAIN-cut PR (+ `release:finalize` immediately — a main-merge resyncs develop) → TASK-822 (300s per attempt + per-job budget; grounded) → TASK-1194 (pre-push surface check) + TASK-1196 (topology Record refactor) ride the next tooling PR → TASK-1175 (characters:import AVATARS.json) → Deck's ruled tailnet scrub → doc-7 drain.
+- **beta.235 SHIPPED.** 2026-10-09: #2589 (the #2578 claude-workflow bump) merged to MAIN + `release:finalize` ran (develop `9e9c6b507`, SHA-aligned); `@dependabot rebase` posted on #2578 (collapse pending). Queue: security-overrides PR (proxy-addr + shell-quote CRITICAL, sharp HIGH — `pnpm.overrides`) → TASK-822 dispatch (300s per attempt + per-job budget; constants grounded) → TASK-1194 + TASK-1196 ride the next tooling PR → TASK-1175 (characters:import AVATARS.json) → Deck's ruled tailnet scrub → doc-7 drain.
 - **Done 2026-10-08→09**: #2583 (TASK-1171) · #2584/#2585 (dep groups) · #2586 (TASK-1166+1185) · #2587 (TASK-1182) — all merged after 3-5 review rounds each; TASK-1171/1166/1185/1182 flipped Done at ship; TASK-1193/1194/1196 filed as riders.
 
 ---
