@@ -184,7 +184,7 @@ describe('parseIdentifier', () => {
   });
 
   describe('with a configured instance origin', () => {
-    const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+    const ORIGIN = 'https://deck.tailnet.example:8443';
 
     it('falls through to requestId for an instance link when no origin is configured', () => {
       const result = parseIdentifier(`${ORIGIN}/channels/123/456/789`, undefined);
@@ -198,7 +198,7 @@ describe('parseIdentifier', () => {
 
     it('does not detect a link on a different port than the configured origin', () => {
       const result = parseIdentifier(
-        'https://deck.tail00338f.ts.net:9443/channels/123/456/789',
+        'https://deck.tailnet.example:9443/channels/123/456/789',
         ORIGIN
       );
       expect(result.type).toBe('requestId');

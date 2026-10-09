@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { GatewayIntentBits, Partials } from 'discord.js';
 import { buildDiscordClientOptions } from './discordClientOptions.js';
 
-const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+const ORIGIN = 'https://deck.tailnet.example:8443';
 
 describe('buildDiscordClientOptions', () => {
   it('builds the exact base options with no rest key when origin is unset', () => {

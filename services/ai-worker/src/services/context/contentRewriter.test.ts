@@ -176,7 +176,7 @@ describe('rewriteRawContent', () => {
     expect(result.messageContent).toBe('[Reference 1] @Vee #general @Mods');
   });
   it('rewrites an instance-origin link via getConfig (seam test)', async () => {
-    const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+    const ORIGIN = 'https://deck.tailnet.example:8443';
     const url = `${ORIGIN}/channels/111111111111111111/222222222222222222/333333333333333333`;
     mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: ORIGIN });
     const result = await rewriteRawContent({
