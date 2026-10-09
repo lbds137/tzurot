@@ -145,7 +145,7 @@ describe('MessageLinkParser', () => {
   });
 
   describe('buildMessageLinkRegex / instance origin', () => {
-    const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+    const ORIGIN = 'https://deck.tailnet.example:8443';
     const IPV6_ORIGIN = 'https://[::1]:8443';
     const IPV6_LINK_URL = `${IPV6_ORIGIN}/channels/1/2/3`;
     const IPV6_LINK_PARSED = [
@@ -189,7 +189,7 @@ describe('MessageLinkParser', () => {
 
     it('does not parse a link on a different port than the configured origin', () => {
       const links = MessageLinkParser.parseMessageLinks(
-        'https://deck.tail00338f.ts.net:9443/channels/1/2/3',
+        'https://deck.tailnet.example:9443/channels/1/2/3',
         ORIGIN
       );
       expect(links).toHaveLength(0);
@@ -197,7 +197,7 @@ describe('MessageLinkParser', () => {
 
     it('does not parse a link on a look-alike host', () => {
       const links = MessageLinkParser.parseMessageLinks(
-        'https://deck.tail00338f.ts.net.evil.io:8443/channels/1/2/3',
+        'https://deck.tailnet.example.evil.io:8443/channels/1/2/3',
         ORIGIN
       );
       expect(links).toHaveLength(0);

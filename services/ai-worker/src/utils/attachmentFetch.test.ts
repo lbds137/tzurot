@@ -101,7 +101,7 @@ describe('validateAttachmentUrl', () => {
 });
 
 describe('validateAttachmentUrl with a configured instance origin', () => {
-  const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+  const ORIGIN = 'https://deck.tailnet.example:8443';
 
   it('rejects a URL under the instance origin when no origin is configured', () => {
     expect(() => validateAttachmentUrl(`${ORIGIN}/attachments/a.png`, undefined)).toThrow();
@@ -116,13 +116,13 @@ describe('validateAttachmentUrl with a configured instance origin', () => {
   });
 
   it('rejects the same host on a different port than the configured origin', () => {
-    expect(() =>
-      validateAttachmentUrl('https://deck.tail00338f.ts.net:9443/x.png', ORIGIN)
-    ).toThrow(/non-standard port/);
+    expect(() => validateAttachmentUrl('https://deck.tailnet.example:9443/x.png', ORIGIN)).toThrow(
+      /non-standard port/
+    );
   });
 
   it('rejects http even on the configured host and port', () => {
-    expect(() => validateAttachmentUrl('http://deck.tail00338f.ts.net:8443/x.png', ORIGIN)).toThrow(
+    expect(() => validateAttachmentUrl('http://deck.tailnet.example:8443/x.png', ORIGIN)).toThrow(
       /protocol must be https/
     );
   });
@@ -132,13 +132,13 @@ describe('validateAttachmentUrl with a configured instance origin', () => {
     // through to the ordinary rules below — at this non-default port that's
     // the port check, before the allowlist is ever consulted.
     expect(() =>
-      validateAttachmentUrl('https://deck.tail00338f.ts.net.evil.io:8443/x.png', ORIGIN)
+      validateAttachmentUrl('https://deck.tailnet.example.evil.io:8443/x.png', ORIGIN)
     ).toThrow(/non-standard port/);
   });
 
   it('rejects a look-alike host on the default port via the Discord CDN allowlist', () => {
     expect(() =>
-      validateAttachmentUrl('https://deck.tail00338f.ts.net.evil.io/x.png', ORIGIN)
+      validateAttachmentUrl('https://deck.tailnet.example.evil.io/x.png', ORIGIN)
     ).toThrow(/must be from Discord CDN/);
   });
 
@@ -149,7 +149,7 @@ describe('validateAttachmentUrl with a configured instance origin', () => {
     // before credentials are ever inspected.
     const creds = ['u', 's', 'e', 'r'].join('') + ':' + ['p', 'a', 's', 's'].join('');
     expect(() =>
-      validateAttachmentUrl(`https://${creds}@deck.tail00338f.ts.net:8443/x.png`, ORIGIN)
+      validateAttachmentUrl(`https://${creds}@deck.tailnet.example:8443/x.png`, ORIGIN)
     ).toThrow(/non-standard port/);
   });
 

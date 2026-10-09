@@ -69,7 +69,7 @@ describe('validateDiscordCdnUrl', () => {
 });
 
 describe('validateDiscordCdnUrl with a configured instance origin', () => {
-  const ORIGIN = 'https://deck.tail00338f.ts.net:8443';
+  const ORIGIN = 'https://deck.tailnet.example:8443';
 
   it('rejects an instance-origin URL when no origin is configured', () => {
     const result = validateDiscordCdnUrl(`${ORIGIN}/attachments/a.png`, undefined, undefined);
@@ -81,12 +81,12 @@ describe('validateDiscordCdnUrl with a configured instance origin', () => {
 
   it('accepts a URL under the configured instance origin', () => {
     const result = validateDiscordCdnUrl(`${ORIGIN}/attachments/a.png`, undefined, ORIGIN);
-    expect(result).toEqual({ ok: true, hostname: 'deck.tail00338f.ts.net' });
+    expect(result).toEqual({ ok: true, hostname: 'deck.tailnet.example' });
   });
 
   it('rejects the same host on a different port', () => {
     const result = validateDiscordCdnUrl(
-      'https://deck.tail00338f.ts.net:9443/attachments/a.png',
+      'https://deck.tailnet.example:9443/attachments/a.png',
       undefined,
       ORIGIN
     );
@@ -98,7 +98,7 @@ describe('validateDiscordCdnUrl with a configured instance origin', () => {
 
   it('rejects http even on the configured host and port', () => {
     const result = validateDiscordCdnUrl(
-      'http://deck.tail00338f.ts.net:8443/attachments/a.png',
+      'http://deck.tailnet.example:8443/attachments/a.png',
       undefined,
       ORIGIN
     );
@@ -110,7 +110,7 @@ describe('validateDiscordCdnUrl with a configured instance origin', () => {
 
   it('rejects a look-alike host', () => {
     const result = validateDiscordCdnUrl(
-      'https://deck.tail00338f.ts.net.evil.io:8443/attachments/a.png',
+      'https://deck.tailnet.example.evil.io:8443/attachments/a.png',
       undefined,
       ORIGIN
     );
@@ -135,6 +135,6 @@ describe('validateDiscordCdnUrl with a configured instance origin', () => {
   it('accepts an instance-origin URL via getConfig when no explicit origin param is passed', () => {
     mockGetConfig.mockReturnValue({ DISCORD_INSTANCE_ORIGIN: ORIGIN });
     const result = validateDiscordCdnUrl(`${ORIGIN}/attachments/a.png`);
-    expect(result).toEqual({ ok: true, hostname: 'deck.tail00338f.ts.net' });
+    expect(result).toEqual({ ok: true, hostname: 'deck.tailnet.example' });
   });
 });
