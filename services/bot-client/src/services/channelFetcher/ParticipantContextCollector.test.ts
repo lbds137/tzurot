@@ -5,8 +5,24 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => mockLogger,
+  };
+});
+
 import {
   extractGuildInfo,
+  extractGuildInfoFromMember,
   limitParticipants,
   collectReactorUsers,
 } from './ParticipantContextCollector.js';
@@ -34,6 +50,7 @@ function createMockRoleCache(roles: Role[]): Collection<string, Role> {
     cache.set(role.id, role);
   }
   return {
+    size: cache.size,
     values: () => cache.values(),
     // Make it iterable
     [Symbol.iterator]: () => cache.values(),
@@ -182,6 +199,76 @@ describe('ParticipantContextCollector', () => {
       const result = extractGuildInfo(msg);
 
       expect(result.joinedAt).toBe('2024-06-15T14:30:00.000Z');
+    });
+  });
+
+  describe('extractGuildInfoFromMember ambiguous-roles capture', () => {
+    const JOINED = new Date('2024-06-15T14:30:00Z');
+
+    function memberWith(roles: Role[], joinedAt: Date | null): GuildMember {
+      return {
+        id: 'member-123',
+        roles: { cache: createMockRoleCache(roles) },
+        displayHexColor: '#000000',
+        joinedAt,
+        guild: { id: GUILD_ID },
+      } as unknown as GuildMember;
+    }
+
+    it('logs the raw cache size for an empty cache with a join date', () => {
+      const result = extractGuildInfoFromMember(memberWith([], JOINED));
+
+      expect(mockLogger.info).toHaveBeenCalledTimes(1);
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        {
+          event: 'guildInfoAmbiguousRoles',
+          memberId: 'member-123',
+          guildId: GUILD_ID,
+          rolesCacheSize: 0,
+        },
+        expect.any(String)
+      );
+      expect(result).toEqual({
+        roles: [],
+        displayColor: undefined,
+        joinedAt: '2024-06-15T14:30:00.000Z',
+      });
+    });
+
+    it('does not log when the cache holds only @everyone (genuinely role-less)', () => {
+      const everyone = createMockRole({ id: GUILD_ID, name: '@everyone', position: 0 });
+      const result = extractGuildInfoFromMember(memberWith([everyone], JOINED));
+
+      expect(mockLogger.info).not.toHaveBeenCalled();
+      expect(result.roles).toEqual([]);
+    });
+
+    it('logs rolesCacheSize -1 when the roles manager is absent', () => {
+      const member = { ...memberWith([], JOINED), roles: undefined } as unknown as GuildMember;
+      const result = extractGuildInfoFromMember(member);
+
+      expect(mockLogger.info).toHaveBeenCalledTimes(1);
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'guildInfoAmbiguousRoles', rolesCacheSize: -1 }),
+        expect.any(String)
+      );
+      expect(result.roles).toEqual([]);
+      expect(result.joinedAt).toBe('2024-06-15T14:30:00.000Z');
+    });
+
+    it('does not log when the cache holds a real role', () => {
+      const member = createMockRole({ id: 'role-1', name: 'Member', position: 1 });
+      const result = extractGuildInfoFromMember(memberWith([member], JOINED));
+
+      expect(mockLogger.info).not.toHaveBeenCalled();
+      expect(result.roles).toEqual(['Member']);
+    });
+
+    it('does not log when there is no join date', () => {
+      const result = extractGuildInfoFromMember(memberWith([], null));
+
+      expect(mockLogger.info).not.toHaveBeenCalled();
+      expect(result).toEqual({ roles: [], displayColor: undefined, joinedAt: undefined });
     });
   });
 
