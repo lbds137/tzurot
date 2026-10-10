@@ -365,6 +365,17 @@ jobs:
       - name: Clean build artifacts
         run: find . -name "*.tsbuildinfo" -delete && find ./packages/*/dist -type d -exec rm -rf {} + 2>/dev/null || true
 
+      # tooling's own dist is its product, not a ^build dependency, so the
+      # ^build dependency graph never produces it — and the root
+      # eslint.config.js imports it. Tests that resolve the real config need
+      # it built (the enablement pin in no-message-metadata-rmw.test.ts does).
+      - name: Build tooling dist
+        if: ${{ matrix.cell == 'tooling' }}
+        # turbo, not a bare --filter build: the clean step above wiped every
+        # package's dist, and tooling's build imports common-types/clients
+        # dist — turbo builds the whole ^build graph in dependency order.
+        run: pnpm turbo run build --filter=@tzurot/tooling
+
       - name: Run unit tests with coverage (cell scope)
         # turbo's test:coverage dependsOn ^build, so each cell builds exactly
         # the dependency graph its scope needs — no explicit build step.

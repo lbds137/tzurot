@@ -27,6 +27,7 @@ import {
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { mergeForwardedOrigin } from './forwardedOriginWriter.js';
+import { mergeMessageMetadata } from './messageMetadataMerge.js';
 import { writeTriggerReferences } from './triggerReferenceWriter.js';
 import { fetchHistory } from './test/componentTestHelpers.js';
 
@@ -562,6 +563,40 @@ describe('ConversationHistoryService Component Test', () => {
         .referencedMessages;
       expect(stored).toHaveLength(1);
       expect(stored[0].content).toBe('the fresh one');
+    });
+
+    it.each([
+      ['jsonb null', `'null'::jsonb`],
+      ['a jsonb scalar', `'5'::jsonb`],
+      ['SQL NULL', 'NULL'],
+    ])('merges into a column holding %s, leaving an object', async (_label, storedValue) => {
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Original content',
+        guildId: testGuildId,
+      });
+      const row = await prisma.conversationHistory.findFirstOrThrow({
+        where: { channelId: testChannelId, role: MessageRole.User },
+      });
+      // `storedValue` is a fixed literal from the table above, never input.
+      await prisma.$executeRawUnsafe(
+        `UPDATE conversation_history SET message_metadata = ${storedValue} WHERE id = $1::uuid`,
+        row.id
+      );
+
+      const result = await mergeMessageMetadata(
+        prisma,
+        row.id,
+        { embedsXml: ['<e/>'] },
+        { operation: 'test' }
+      );
+
+      const after = await prisma.conversationHistory.findUniqueOrThrow({ where: { id: row.id } });
+      expect(result).toBe('updated');
+      expect(after.messageMetadata).toEqual({ embedsXml: ['<e/>'] });
     });
   });
 

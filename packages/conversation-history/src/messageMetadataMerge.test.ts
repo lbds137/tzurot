@@ -34,9 +34,14 @@ describe('mergeMessageMetadata', () => {
 
     expect(result).toBe('updated');
     const sql = (executeRaw.mock.calls[0][0] as string[]).join('');
-    // COALESCE, because a row whose metadata is NULL must still accept a
-    // patch — `NULL || '{...}'` is NULL, which would silently write nothing.
-    expect(sql).toContain("COALESCE(message_metadata, '{}'::jsonb) ||");
+    // A stored value that is not a JSON object (SQL NULL, jsonb null, a
+    // scalar) is treated as empty before the `||`: `NULL || '{...}'` is NULL
+    // and would silently write nothing, and `'null'::jsonb || '{...}'` does not
+    // error either: it returns `[null, {...}]`, corrupting the column into an
+    // array (probed on Postgres 15).
+    // The behavioral proof is the component test; this pins the guard's shape.
+    expect(sql).toContain("jsonb_typeof(message_metadata) = 'object'");
+    expect(sql).toMatch(/THEN message_metadata ELSE '\{\}'::jsonb END\s+\|\|/);
     // Raw SQL bypasses Prisma's @updatedAt, and this table is sync-tracked.
     expect(sql).toContain('updated_at = NOW()');
   });
