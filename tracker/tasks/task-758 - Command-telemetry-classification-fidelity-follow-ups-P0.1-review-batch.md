@@ -1,9 +1,10 @@
 ---
 id: TASK-758
 title: Command-telemetry classification fidelity follow-ups (P0.1 review batch)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-24 03:18'
+updated_date: '2026-10-10 19:27'
 labels:
   - 'area:bot-client'
   - 'size:S'
