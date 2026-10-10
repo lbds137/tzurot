@@ -88,8 +88,9 @@ export async function recordGuildMemberInfos(
         // whether a partial member fetch can carry `joinedAt` while its role
         // cache is unresolved — if that shape exists at runtime, `roles`
         // inherits the same quality-vs-state ambiguity fixed for `joinedAt`
-        // below, and this write needs the same treatment (revisit with a
-        // runtime capture, not a code read). `joinedAt`
+        // below, and this write needs the same treatment. A capture exists in
+        // bot-client's ParticipantContextCollector (tag `guildInfoAmbiguousRoles`);
+        // the fix decision waits on its prod evidence. `joinedAt`
         // writes ONLY when the observation carries it: a join date can become
         // unknown only through observation quality (the uncached-member edge
         // the schema comment names), never through a state change — so

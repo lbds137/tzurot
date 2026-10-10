@@ -48,12 +48,34 @@ export function extractGuildInfoFromMember(member: GuildMember): ParticipantGuil
             .map(r => r.name)
         : [];
 
+    const joinedAt = member.joinedAt?.toISOString();
+
+    // Capture for the ambiguous shape: a join date with no roles AND an absent
+    // or empty roles cache. A resolved cache normally holds @everyone (size 1+),
+    // so size 0 suggests an unresolved cache (hypothesis, not runtime-confirmed).
+    // Size 1 (@everyone only) is the expected shape of a genuinely role-less
+    // member and is intentionally NOT logged; its rate is recoverable in prod by
+    // subtracting these lines from the member counts. -1 means "roles manager
+    // absent" (undefined would be dropped by pino, unqueryable as a field).
+    const rolesCacheSize = member.roles !== undefined ? member.roles.cache.size : -1;
+    if (roles.length === 0 && joinedAt !== undefined && rolesCacheSize <= 0) {
+      logger.info(
+        {
+          event: 'guildInfoAmbiguousRoles',
+          memberId: member.id,
+          guildId: member.guild.id,
+          rolesCacheSize,
+        },
+        'Guild info carries a join date but no roles'
+      );
+    }
+
     return {
       roles,
       // Display color from highest colored role (#000000 is treated as transparent)
       displayColor: member.displayHexColor !== '#000000' ? member.displayHexColor : undefined,
       // When user joined the server
-      joinedAt: member.joinedAt?.toISOString(),
+      joinedAt,
     };
   } catch (error) {
     // Discord.js can throw when accessing member properties in edge cases

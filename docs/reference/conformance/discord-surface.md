@@ -1249,15 +1249,15 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts | setDescription | 1 |
 | services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts | setTimestamp | 1 |
 | services/bot-client/src/services/catalogAlert/setupCatalogDriftAlertWorker.ts | setTitle | 1 |
-| services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts | cache | 1 |
+| services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts | cache | 2 |
 | services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts | displayHexColor | 2 |
-| services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts | guild | 1 |
-| services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts | id | 3 |
+| services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts | guild | 2 |
+| services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts | id | 5 |
 | services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts | joinedAt | 1 |
 | services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts | member | 1 |
 | services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts | name | 1 |
 | services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts | position | 2 |
-| services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts | roles | 2 |
+| services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts | roles | 4 |
 | services/bot-client/src/services/channelFetcher/ReactionProcessor.ts | bot | 1 |
 | services/bot-client/src/services/channelFetcher/ReactionProcessor.ts | cache | 2 |
 | services/bot-client/src/services/channelFetcher/ReactionProcessor.ts | displayName | 1 |
@@ -2983,4 +2983,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 2913 entries across 6772 sites.
+Total: 2913 entries across 6778 sites.

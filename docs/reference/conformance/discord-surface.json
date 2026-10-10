@@ -7,7 +7,7 @@
   },
   "totals": {
     "entries": 2913,
-    "sites": 6772
+    "sites": 6778
   },
   "entries": [
     {
@@ -7418,7 +7418,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts",
       "symbol": "cache",
-      "count": 1
+      "count": 2
     },
     {
       "category": "client-methods",
@@ -7430,13 +7430,13 @@
       "category": "client-methods",
       "file": "services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts",
       "symbol": "guild",
-      "count": 1
+      "count": 2
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts",
       "symbol": "id",
-      "count": 3
+      "count": 5
     },
     {
       "category": "client-methods",
@@ -7466,7 +7466,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/services/channelFetcher/ParticipantContextCollector.ts",
       "symbol": "roles",
-      "count": 2
+      "count": 4
     },
     {
       "category": "client-methods",
