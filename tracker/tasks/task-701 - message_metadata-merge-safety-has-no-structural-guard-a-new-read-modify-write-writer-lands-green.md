@@ -3,9 +3,10 @@ id: TASK-701
 title: >-
   message_metadata merge-safety has no structural guard - a new
   read-modify-write writer lands green
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-20 16:17'
+updated_date: '2026-10-10 16:09'
 labels:
   - 'area:conversation-history'
   - 'size:S'
