@@ -13,6 +13,9 @@ function makeInteraction(opts: {
 }
 
 describe('classifyChannelKind', () => {
+  // The guild-channel fixture (`channel` null) is also the uncached-thread
+  // shape BY CONSTRUCTION: with no channel object the function cannot know
+  // the interaction was a thread, so that undercount is accepted here.
   it('classifies a guild channel', () => {
     expect(classifyChannelKind(makeInteraction({ guildId: 'g1' }))).toBe('guild');
   });

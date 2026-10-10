@@ -1627,6 +1627,23 @@ describe('RecordCommandEventRequestSchema', () => {
     expect(RecordCommandEventRequestSchema.safeParse({ ...VALID, context }).success).toBe(false);
   });
 
+  // In-memory zod also rejects non-finite numbers outright. On the wire they
+  // arrive as null (client JSON.stringify), rejected by the union above.
+  it.each([
+    ['NaN', NaN],
+    ['Infinity', Infinity],
+    ['-Infinity', -Infinity],
+  ])('rejects %s as a numeric context value', (_label, value) => {
+    expect(
+      RecordCommandEventRequestSchema.safeParse({ ...VALID, context: { provider: value } }).success
+    ).toBe(false);
+  });
+  it('accepts finite numeric context values', () => {
+    expect(
+      RecordCommandEventRequestSchema.safeParse({ ...VALID, context: { a: 1.5, b: 0 } }).success
+    ).toBe(true);
+  });
+
   it('accepts scalar context values', () => {
     expect(
       RecordCommandEventRequestSchema.safeParse({
