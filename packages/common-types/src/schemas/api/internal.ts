@@ -798,7 +798,11 @@ export const RecordCommandEventRequestSchema = z.object({
    * VALUES are restricted to scalars, and that half IS enforced here — a
    * nested object or array under an allowlisted key would sail past a
    * key-only allowlist carrying arbitrary content, so the shape has to close
-   * at the boundary rather than in the strip.
+   * at the boundary rather than in the strip. Numeric values must also be
+   * finite: on the wire a non-finite number arrives as `null` (the client's
+   * `JSON.stringify` nulls NaN/Infinity before sending), which this union has
+   * no member for, so it is rejected at the boundary rather than nulling the
+   * JSONB column (pinned by the schema test).
    */
   context: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
 });
