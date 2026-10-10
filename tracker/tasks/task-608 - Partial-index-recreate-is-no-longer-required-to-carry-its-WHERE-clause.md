@@ -1,9 +1,10 @@
 ---
 id: TASK-608
 title: Partial-index recreate is no longer required to carry its WHERE clause
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-14 16:01'
+updated_date: '2026-10-10 00:41'
 labels:
   - 'area:db'
   - 'area:tooling'
