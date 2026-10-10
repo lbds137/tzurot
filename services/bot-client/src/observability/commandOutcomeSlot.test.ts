@@ -1,4 +1,17 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const { mockWarn } = vi.hoisted(() => ({ mockWarn: vi.fn() }));
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: mockWarn, error: vi.fn() }),
+  };
+});
+
 import {
   runWithOutcomeSlot,
   noteRenderedOutcome,
@@ -16,6 +29,10 @@ function makeSpec(overrides: Partial<MessageSpec> = {}): MessageSpec {
 }
 
 describe('commandOutcomeSlot', () => {
+  beforeEach(() => {
+    mockWarn.mockClear();
+  });
+
   it('is a silent no-op with no active store', () => {
     expect(() => noteRenderedOutcome(makeSpec())).not.toThrow();
   });
@@ -82,5 +99,58 @@ describe('commandOutcomeSlot', () => {
 
     expect(slotA.outcome).toBe('user_error');
     expect(slotB.outcome).toBeUndefined();
+  });
+
+  describe('second failed/uncertain note on one slot', () => {
+    it('warns once on two failed notes and keeps the sticky write', async () => {
+      const slot: CommandOutcomeSlot = {};
+      await runWithOutcomeSlot(slot, async () => {
+        noteRenderedOutcome(makeSpec({ outcome: 'failed' }));
+        noteRenderedOutcome(makeSpec({ outcome: 'failed' }));
+      });
+      expect(mockWarn).toHaveBeenCalledTimes(1);
+      expect(mockWarn).toHaveBeenCalledWith(
+        expect.objectContaining({ outcome: 'failed', previousOutcome: 'user_error' }),
+        expect.any(String)
+      );
+      expect(slot.outcome).toBe('user_error');
+    });
+
+    it('warns once on a failed note followed by an uncertain note (last-wins)', async () => {
+      const slot: CommandOutcomeSlot = {};
+      await runWithOutcomeSlot(slot, async () => {
+        noteRenderedOutcome(makeSpec({ outcome: 'failed' }));
+        noteRenderedOutcome(makeSpec({ outcome: 'uncertain' }));
+      });
+      expect(mockWarn).toHaveBeenCalledTimes(1);
+      expect(slot.outcome).toBe('system_error');
+      expect(slot.errorCode).toBe('uncertain_write');
+    });
+
+    it('does not warn on a single failed note', async () => {
+      await runWithOutcomeSlot({}, async () => {
+        noteRenderedOutcome(makeSpec({ outcome: 'failed' }));
+      });
+      expect(mockWarn).not.toHaveBeenCalled();
+    });
+
+    it('does not warn for ok or committed-unconfirmed notes after a failed one', async () => {
+      await runWithOutcomeSlot({}, async () => {
+        noteRenderedOutcome(makeSpec({ outcome: 'failed' }));
+        noteRenderedOutcome(makeSpec({ severity: 'success', outcome: 'ok' }));
+        noteRenderedOutcome(makeSpec({ severity: 'success', outcome: 'committed-unconfirmed' }));
+      });
+      expect(mockWarn).not.toHaveBeenCalled();
+    });
+
+    it('does not warn across separate invocations (separate slots)', async () => {
+      await runWithOutcomeSlot({}, async () => {
+        noteRenderedOutcome(makeSpec({ outcome: 'failed' }));
+      });
+      await runWithOutcomeSlot({}, async () => {
+        noteRenderedOutcome(makeSpec({ outcome: 'failed' }));
+      });
+      expect(mockWarn).not.toHaveBeenCalled();
+    });
   });
 });
