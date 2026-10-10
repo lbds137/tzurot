@@ -480,6 +480,13 @@ export default tseslint.config(
       // (packages/common-types/src/utils/logContentPreview.ts).
       '@tzurot/no-raw-log-content': 'error',
 
+      // `message_metadata` is shared by independent writers keying different
+      // fields of one JSON blob; a Prisma update of it replaces the whole value
+      // and silently erases the other writer's key. Existing rows are written
+      // only through `mergeMessageMetadata` (server-side `||` merge); `create()`
+      // is exempt. Syntactic, so it also runs in the test block below.
+      '@tzurot/no-message-metadata-rmw': 'error',
+
       // ============================================================================
       // SONARJS RULES - Additional code quality checks
       // ============================================================================
@@ -658,6 +665,9 @@ export default tseslint.config(
       // in `no-restricted-syntax`. CodeQL scans test files too — the release-PR
       // run that caught this shape was reading one.
       '@tzurot/no-regex-tag-strip': 'error',
+      // Same reasoning: a component seam test that performs a read-modify-write
+      // of `message_metadata` is exactly the green-but-wrong case this guards.
+      '@tzurot/no-message-metadata-rmw': 'error',
       // Turn off every type-aware rule pulled in by the global
       // recommendedTypeChecked/stylisticTypeChecked spreads (they'd error with
       // no project). Keeps the syntactic js.configs.recommended rules on.

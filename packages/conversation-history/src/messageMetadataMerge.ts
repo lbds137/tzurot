@@ -10,12 +10,26 @@
  * which removes the hazard entirely rather than narrowing the window.
  *
  * Every UPDATE of this column must come through here. Row CREATION is the one
- * exception and cannot race: `ConversationHistoryService.addMessage` sets
- * `messageMetadata` in its `create()`, on a row no other writer can hold a
- * reference to yet. What the invariant forbids is a second read-modify-write
- * of an EXISTING row, and the service is structurally incapable of one — it
- * holds a client type without `$executeRaw`, so such a writer cannot appear
- * on it by accident.
+ * exception: `ConversationHistoryService.addMessage` sets `messageMetadata`
+ * in its `create()`. Creation cannot race the FIRST write because the row does
+ * not exist until `create()` returns; the safety of that path rests on
+ * bot-client awaiting the persist before the message id is shared onward (an
+ * assumption this package does not enforce; the row id is publicly
+ * re-derivable, so non-existence is not a secrecy guarantee). What the
+ * invariant forbids is a second read-modify-write of an EXISTING row. The
+ * client type does not prevent one — it exposes the full
+ * `conversationHistory.update()` — so the lint rule
+ * `@tzurot/no-message-metadata-rmw` rejects `messageMetadata` in
+ * update/updateMany/updateManyAndReturn/upsert payloads. "Every UPDATE must
+ * come through here" is enforced only for Prisma-client payloads written
+ * literally in the call; the rule's header lists what it cannot see (variables,
+ * spreads, nested relation writes, aliased receivers, dynamic computed keys,
+ * raw SQL).
+ *
+ * A stored value that is not a JSON object is replaced by `{}` before the
+ * merge, so real array or scalar data in the column would be discarded
+ * silently. That is intentional: the column's application type is an object,
+ * so a non-object value is already corrupt.
  */
 
 import { type MessageMetadata } from '@tzurot/common-types/types/schemas/message';
@@ -64,7 +78,9 @@ export async function mergeMessageMetadata(
 
     const rowsAffected = await prisma.$executeRaw`
       UPDATE conversation_history
-      SET message_metadata = COALESCE(message_metadata, '{}'::jsonb) || ${serialized}::jsonb,
+      SET message_metadata = CASE WHEN jsonb_typeof(message_metadata) = 'object'
+                                  THEN message_metadata ELSE '{}'::jsonb END
+                             || ${serialized}::jsonb,
           updated_at = NOW()
       WHERE id = ${id}::uuid
     `;

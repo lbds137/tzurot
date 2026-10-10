@@ -152,7 +152,9 @@ describe('writeTriggerReferences', () => {
     // The seam that matters: one statement, and the patch carries ONLY this
     // writer's key. Anything it did not send survives because `||` merges.
     const [strings, patch, id] = executeRaw.mock.calls[0] as [string[], string, string];
-    expect(strings.join('')).toContain('message_metadata = COALESCE(message_metadata');
+    expect(strings.join('')).toMatch(
+      /SET message_metadata = CASE WHEN jsonb_typeof\(message_metadata\) = 'object'[\s\S]*END\s+\|\|/
+    );
     expect(JSON.parse(patch)).toEqual({ referencedMessages: [storedRef()] });
     expect(id).toBe('row-1');
     // No read of the column: that read is what created the lost-update race.
