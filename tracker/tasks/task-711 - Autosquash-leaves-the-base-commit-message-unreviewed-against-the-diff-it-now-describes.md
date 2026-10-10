@@ -3,9 +3,10 @@ id: TASK-711
 title: >-
   Autosquash leaves the base commit message unreviewed against the diff it now
   describes
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-21 01:37'
+updated_date: '2026-10-10 17:29'
 labels:
   - 'area:repo'
   - 'size:S'
