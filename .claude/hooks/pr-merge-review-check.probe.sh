@@ -103,9 +103,16 @@ REAL_ACK_BEFORE=$(md5sum "$REAL_ACK" 2>/dev/null | cut -d' ' -f1 || echo "absent
 mkdir -p "$WORK/bin"
 
 # --- the gh shim -----------------------------------------------------------
-# Two calls to serve, both driven by env vars the cases set:
-#   `gh pr view <n> --json baseRefName --jq ...`  -> the base branch
-#   `gh api repos/.../issues/<n>/comments...`     -> the newest claude review
+# The calls to serve, all driven by env vars the cases set:
+#   `gh pr view <n> --json baseRefName,headRefName --jq ...` -> base + head refs
+#   `gh pr view <n> --json author,files --jq ...`            -> author + workflow edit
+#   `gh api repos/.../issues/<n>/comments...`                -> the newest claude review
+#   `gh pr diff ...`                                         -> the claim-scan diff
+# The two `pr view` calls are told apart by their `--json` field list, and each
+# fails independently: SHIM_BASE_EXIT fails any call asking for a ref field,
+# SHIM_AUTHOR_FILES_EXIT any call asking for author or files. Modelling failure
+# per FIELD (not per arm) is what lets the refs-survive-a-files-failure case go
+# red against a hook that folds both lookups into one call.
 # The api call is LOGGED, because its URL carries the extracted PR number and
 # that is the value the extraction cases assert on. Anything unrecognised exits
 # 64 rather than succeeding silently — a shim that answers a call the hook does
@@ -113,14 +120,28 @@ mkdir -p "$WORK/bin"
 cat >"$WORK/bin/gh" <<'SHIM'
 #!/bin/bash
 case "$*" in
-  *"--json baseRefName"*)
-    [ "${SHIM_BASE_EXIT:-0}" = "0" ] || exit "${SHIM_BASE_EXIT}"
-    # Post-`--jq` shape for `(.baseRefName // ""), (.headRefName // ""),
-    # (.author.login // ""), (<files include the review workflow> | tostring)`:
-    # one value per line, base first. A missing value is an EMPTY line, not an
-    # absent one — that is what the hook's `sed -n Np` reads.
-    printf '%s\n%s\n%s\n%s\n' "${SHIM_PR_BASE:-}" "${SHIM_PR_HEAD:-}" \
-      "${SHIM_PR_AUTHOR:-}" "${SHIM_PR_EDITS_WORKFLOW-false}"
+  "pr view "*"--json "*)
+    fields=$(printf '%s\n' "$*" | sed -n 's/.*--json \([^ ]*\).*/\1/p')
+    case ",$fields," in
+      *,author,* | *,files,*)
+        [ "${SHIM_AUTHOR_FILES_EXIT:-0}" = "0" ] || exit "${SHIM_AUTHOR_FILES_EXIT}" ;;
+    esac
+    case ",$fields," in
+      *,baseRefName,* | *,headRefName,*)
+        [ "${SHIM_BASE_EXIT:-0}" = "0" ] || exit "${SHIM_BASE_EXIT}" ;;
+    esac
+    # Post-`--jq` shapes: one value per line. A missing value is an EMPTY line,
+    # not an absent one — that is what the hook's `sed -n Np` reads.
+    case "$fields" in
+      baseRefName,headRefName)
+        printf '%s\n%s\n' "${SHIM_PR_BASE:-}" "${SHIM_PR_HEAD:-}" ;;
+      author,files)
+        # `(.author.login // ""), (<files include the review workflow> | tostring)`
+        printf '%s\n%s\n' "${SHIM_PR_AUTHOR:-}" "${SHIM_PR_EDITS_WORKFLOW-false}" ;;
+      *)
+        echo "gh shim: unexpected --json field list: $fields" >&2
+        exit 64 ;;
+    esac
     ;;
   *"/issues/"*"/comments"*)
     printf '%s\n' "$*" >>"${SHIM_API_LOG:-/dev/null}"
@@ -203,6 +224,7 @@ SHIM_PR_HEAD='feat/example'
 SHIM_PR_AUTHOR='lbds137'
 SHIM_PR_EDITS_WORKFLOW='false'
 SHIM_BASE_EXIT=0
+SHIM_AUTHOR_FILES_EXIT=0
 SHIM_REVIEW_JSON=''
 SHIM_CURRENT_TREE='/repo'
 SHIM_WORKTREES=''
@@ -238,6 +260,7 @@ invoke() {
     SHIM_PR_AUTHOR="$SHIM_PR_AUTHOR" \
     SHIM_PR_EDITS_WORKFLOW="$SHIM_PR_EDITS_WORKFLOW" \
     SHIM_BASE_EXIT="$SHIM_BASE_EXIT" \
+    SHIM_AUTHOR_FILES_EXIT="$SHIM_AUTHOR_FILES_EXIT" \
     SHIM_REVIEW_JSON="$SHIM_REVIEW_JSON" \
     SHIM_CURRENT_TREE="$SHIM_CURRENT_TREE" \
     SHIM_WORKTREES="$SHIM_WORKTREES" \
@@ -264,6 +287,7 @@ invoke_in() {
       SHIM_PR_AUTHOR="$SHIM_PR_AUTHOR" \
       SHIM_PR_EDITS_WORKFLOW="$SHIM_PR_EDITS_WORKFLOW" \
       SHIM_BASE_EXIT="$SHIM_BASE_EXIT" \
+      SHIM_AUTHOR_FILES_EXIT="$SHIM_AUTHOR_FILES_EXIT" \
       SHIM_REVIEW_JSON="$SHIM_REVIEW_JSON" \
       SHIM_CURRENT_TREE="$SHIM_CURRENT_TREE" \
       SHIM_WORKTREES="$SHIM_WORKTREES" \
@@ -950,14 +974,16 @@ assert_silent "…silently — no repeated reminder"
 # SANCTIONED NO-REVIEW CASES. When the release block prints on the no-review
 # path, it names why there is no review if the reason is one the review
 # workflow produces by design, so the agent does not chase a rerun that cannot
-# post anything. Both facts ride resolve_pr_view's one `gh pr view` call.
+# post anything. Both facts come from no_review_reason's OWN `gh pr view
+# --json author,files` call, separate from the refs call the reminder needs.
 new_case; SHIM_PR_BASE='main'; SHIM_REVIEW_JSON=''; SHIM_PR_EDITS_WORKFLOW='true'
 invoke 'gh pr merge 2020 --rebase'
 assert_exit "no review on a PR that edits the review workflow: BLOCKS for the reminder" 2
-assert_stderr_has "…the header names the workflow self-skip" \
-  'the review action skips itself on a PR that edits its own workflow file'
-assert_stderr_has "…tells the agent not to rerun" 'do NOT rerun claude-review'
-assert_stderr_has "…and names the confirming job log line" 'Workflow file differs from main'
+assert_stderr_has "…the header names the likely workflow self-skip" \
+  'the review action most likely skipped itself: this PR edits its own workflow file'
+assert_stderr_has "…names the confirming job log line" 'Workflow file differs from main'
+assert_stderr_has "…and makes the rerun conditional on that line" \
+  'rerun claude-review only if that line is absent'
 assert_stderr_has "…and the reminder is still there" 'RELEASE PR — base is main'
 SHIM_PR_EDITS_WORKFLOW='false'
 
@@ -965,7 +991,7 @@ new_case; SHIM_PR_BASE='main'; SHIM_REVIEW_JSON=''; SHIM_PR_AUTHOR='app/dependab
 invoke 'gh pr merge 2021 --rebase'
 assert_exit "no review on a dependabot PR: BLOCKS for the reminder" 2
 assert_stderr_has "…the header names dependabot" 'dependabot PRs are never reviewed'
-assert_stderr_lacks "…and not the workflow self-skip" 'skips itself'
+assert_stderr_lacks "…and not the workflow self-skip" 'skipped itself'
 # The webhook spelling of the same author, as the workflow's own `if:` writes it.
 new_case; SHIM_PR_AUTHOR='dependabot[bot]'
 invoke 'gh pr merge 2022 --rebase'
@@ -975,14 +1001,14 @@ SHIM_PR_AUTHOR='lbds137'
 # Both at once: the workflow self-skip is checked first.
 new_case; SHIM_PR_AUTHOR='app/dependabot'; SHIM_PR_EDITS_WORKFLOW='true'
 invoke 'gh pr merge 2023 --rebase'
-assert_stderr_has "workflow edit + dependabot: the self-skip wins" 'skips itself'
+assert_stderr_has "workflow edit + dependabot: the self-skip wins" 'skipped itself'
 SHIM_PR_AUTHOR='lbds137'; SHIM_PR_EDITS_WORKFLOW='false'
 
 # An ordinary author with no workflow edit keeps today's wording.
 new_case; SHIM_REVIEW_JSON=''
 invoke 'gh pr merge 2024 --rebase'
 assert_stderr_has "ordinary no-review PR keeps the plain reason line" 'no claude-review comment found'
-assert_stderr_lacks "…with no sanctioned-case wording" 'skips itself'
+assert_stderr_lacks "…with no sanctioned-case wording" 'skipped itself'
 assert_stderr_lacks "…and no dependabot wording" 'dependabot'
 
 # An UNREADABLE author and/or files line (empty, as the shim's `printf` writes a
@@ -994,7 +1020,7 @@ invoke 'gh pr merge 2026 --rebase'
 assert_exit "no review, empty author AND files lines: BLOCKS for the reminder" 2
 assert_stderr_has "…plain no-review wording" 'no claude-review comment found'
 assert_stderr_lacks "…no dependabot wording" 'dependabot'
-assert_stderr_lacks "…no workflow self-skip wording" 'skips itself'
+assert_stderr_lacks "…no workflow self-skip wording" 'skipped itself'
 assert_stderr_has "…and the release block still prints" 'RELEASE PR — base is main'
 new_case; SHIM_PR_BASE='main'; SHIM_REVIEW_JSON=''; SHIM_PR_AUTHOR=''; SHIM_PR_EDITS_WORKFLOW='false'
 invoke 'gh pr merge 2027 --rebase'
@@ -1003,6 +1029,22 @@ assert_stderr_has "…plain no-review wording" 'no claude-review comment found'
 assert_stderr_lacks "…no dependabot wording" 'dependabot'
 assert_stderr_has "…and the release block still prints" 'RELEASE PR — base is main'
 SHIM_PR_AUTHOR='lbds137'; SHIM_PR_EDITS_WORKFLOW='false'
+
+# The author/files lookup FAILS while the refs lookup succeeds. The reminder
+# depends only on the base, so it must still print — with the plain wording,
+# since neither sanctioned fact could be read. The fixture would otherwise
+# answer with BOTH sanctioned reasons, so any sanctioned wording here means the
+# failed call's output leaked through. A hook that folds author/files into the
+# refs call loses the base with them and goes silent (exit 0) on this row.
+new_case; SHIM_PR_BASE='main'; SHIM_REVIEW_JSON=''; SHIM_AUTHOR_FILES_EXIT=1
+SHIM_PR_AUTHOR='app/dependabot'; SHIM_PR_EDITS_WORKFLOW='true'
+invoke 'gh pr merge 2028 --rebase'
+assert_exit "author/files lookup fails, refs succeed: BLOCKS for the reminder" 2
+assert_stderr_has "…the release block still prints" 'RELEASE PR — base is main'
+assert_stderr_has "…with the plain no-review wording" 'no claude-review comment found'
+assert_stderr_lacks "…no workflow self-skip wording" 'skipped itself'
+assert_stderr_lacks "…no dependabot wording" 'dependabot'
+SHIM_AUTHOR_FILES_EXIT=0; SHIM_PR_AUTHOR='lbds137'; SHIM_PR_EDITS_WORKFLOW='false'
 
 # A NON-main PR stays silent on the no-review path even when the reason is a
 # sanctioned one — nothing printed there before, and nothing does now.

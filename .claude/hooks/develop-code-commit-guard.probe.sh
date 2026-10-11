@@ -1116,6 +1116,33 @@ run 2 "cross-repo: git -C <sibling worktree on develop> commit blocks" \
   "git -C $WT commit -m x"
 TARGET_WT=""
 rm -f "$WT/services/probe-sibling.ts"
+# The override token through the same re-point: from a FEATURE worktree with a
+# clean index, `TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git -C <develop worktree>
+# commit` must judge THAT worktree's index exactly as the same commit run
+# inside it would — a staged gated file blocks, a staged doc passes even with
+# unstaged code beside it (the override ignores the dirty tree). Judged in the
+# feature worktree instead, the first row would exit 0 on the branch check;
+# judged by the working-tree gate instead of the override, the second would
+# block on the unstaged code.
+override_sibling() { # <expected> <label> <staged relpath> [unstaged relpath]
+  local expected="$1" label="$2" staged="$3" dirty="${4:-}" f
+  for f in $staged $dirty; do
+    mkdir -p "$WT/$(dirname "$f")"
+    printf 'probe\n' > "$WT/$f"
+  done
+  git -C "$WT" add -- $staged
+  TARGET_WT="$FEATURE_WT"
+  run "$expected" "$label" "TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git -C $WT commit -m 'docs: x'"
+  TARGET_WT=""
+  git -C "$WT" reset -q --hard HEAD
+  for f in $staged $dirty; do
+    rm -f "$WT/$f"
+  done
+}
+override_sibling 2 "cross-repo: override token, -C <sibling on develop>, staged code blocks" \
+  'services/probe-ovr.ts'
+override_sibling 0 "cross-repo: override token, -C <sibling on develop>, staged doc passes beside unstaged code" \
+  'tracker/probe-ovr.md' 'services/probe-ovr-dirty.ts'
 run 2 "cross-repo: cd <this checkout> && git commit still blocks" \
   "cd $WT && git commit -m x" 'services/probe.ts'
 run 2 "cross-repo: a second commit in this checkout still blocks" \
