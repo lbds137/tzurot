@@ -631,28 +631,45 @@ export interface GateRunDeps {
   reviewRounds: (prNumber: number, log: (message: string) => void) => void;
 }
 
-export async function runCiGate(
+/**
+ * `--sha` omitted: watch the PR's current head. Mirrors the harness
+ * `pr-ci-wait` `resolve_sha`. An unreadable head and a head with no local
+ * commit are both usage errors rather than a silent fall back to something
+ * else, because the caller asked for "the head" and cannot be handed a guess.
+ */
+export function resolveOmittedSha(
   prNumber: number,
-  options: { sha?: string },
-  overrides: Partial<GateRunDeps> = {}
+  fetch: (prNumber: number) => string | undefined,
+  commitExists: (sha: string) => boolean
+): GateArgs {
+  let head: string | undefined;
+  try {
+    head = fetch(prNumber);
+  } catch {
+    head = undefined;
+  }
+  if (head === undefined) {
+    throw new UsageError(
+      `--sha omitted and could not read the head of PR #${prNumber}. ` +
+        'Pass `--sha $(git rev-parse HEAD)` instead.'
+    );
+  }
+  if (!commitExists(head)) {
+    throw new UsageError(
+      `The head of PR #${prNumber} (${head}) does not name a local commit. ` +
+        'Fetch first, or run from the checkout that holds the branch.'
+    );
+  }
+  return { prNumber, sha: head };
+}
+
+async function verifyExplicitSha(
+  args: GateArgs,
+  prHead: (prNumber: number) => string | undefined,
+  settle: (ms: number) => Promise<void>,
+  log: (message: string) => void
 ): Promise<void> {
-  const log = overrides.log ?? ((message: string) => console.log(message));
-  const checks = overrides.checks ?? ((pr: number, watch: boolean) => runChecks(pr, watch, log));
-  const settle = overrides.settle ?? sleep;
-  const args = validateGateArgs(prNumber, options.sha, overrides.commitExists);
-
-  // This line comes BEFORE the head check on purpose. The check is a synchronous
-  // network call, and a hang in it would otherwise produce zero output until the
-  // Monitor's external kill — the exact "a broken gate looks like a slow one"
-  // shape this command exists to remove.
-  log(`⏱️  Waiting for CI on PR #${args.prNumber} @ ${args.sha.slice(0, 8)}…`);
-
-  const headVerdict = await confirmHeadSha(
-    args.sha,
-    args.prNumber,
-    overrides.prHead ?? fetchPrHeadSha,
-    settle
-  );
+  const headVerdict = await confirmHeadSha(args.sha, args.prNumber, prHead, settle);
   if (headVerdict.kind === 'mismatch') {
     throw new UsageError(describeHeadMismatch(args.prNumber, args.sha, headVerdict.prHead));
   }
@@ -661,6 +678,36 @@ export async function runCiGate(
     // "could not check" are different states, and only one of them means the
     // drift protection was actually active for this arm.
     log('⚠️  Could not read the PR head; arming without the drift check.');
+  }
+}
+
+export async function runCiGate(
+  prNumber: number,
+  options: { sha?: string },
+  overrides: Partial<GateRunDeps> = {}
+): Promise<void> {
+  const log = overrides.log ?? ((message: string) => console.log(message));
+  const checks = overrides.checks ?? ((pr: number, watch: boolean) => runChecks(pr, watch, log));
+  const settle = overrides.settle ?? sleep;
+  const prHead = overrides.prHead ?? fetchPrHeadSha;
+  const commitExists = overrides.commitExists ?? gitHasCommit;
+  const shaOmitted = options.sha === undefined || options.sha === '';
+
+  // The "Waiting" line comes BEFORE any synchronous network call (the head read
+  // on the omitted path, the head check on the explicit one) on purpose. A hang
+  // in either would otherwise produce zero output until the Monitor's external
+  // kill — the exact "a broken gate looks like a slow one" shape this command
+  // exists to remove.
+  let args: GateArgs;
+  if (shaOmitted) {
+    log(`⏱️  Waiting for CI on PR #${prNumber} (resolving head)…`);
+    args = resolveOmittedSha(prNumber, prHead, commitExists);
+    log(`--sha omitted; using PR #${prNumber}'s head ${args.sha.slice(0, 8)}…`);
+  } else {
+    args = validateGateArgs(prNumber, options.sha, commitExists);
+    log(`⏱️  Waiting for CI on PR #${args.prNumber} @ ${args.sha.slice(0, 8)}…`);
+    // The omitted path skips this: its SHA IS the head, so there is nothing to compare.
+    await verifyExplicitSha(args, prHead, settle, log);
   }
 
   const outcome = await waitForCi(

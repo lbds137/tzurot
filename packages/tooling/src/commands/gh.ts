@@ -190,7 +190,11 @@ function registerCiGateCommand(cli: CAC): void {
       'gh:ci-gate <number>',
       'Wait for CI on a pushed SHA, then report the check state (arm this in a Monitor)'
     )
-    .option('--sha <sha>', 'The FULL 40-character SHA just pushed (git rev-parse HEAD)')
+    .option(
+      '--sha <sha>',
+      'Optional; defaults to the PR head. The FULL 40-character SHA just pushed (git rev-parse HEAD)'
+    )
+    .example('ops gh:ci-gate 1991')
     .example('ops gh:ci-gate 1991 --sha $(git rev-parse HEAD)')
     .action(async (number: string) => {
       const { runCiGate } = await import('../gh/ci-gate.js');
