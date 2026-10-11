@@ -1,42 +1,18 @@
 ---
 name: tzurot-usage-audit
 description: 'Measure weekly Claude Code plan usage — weighted token totals per model, delegation ratio, implied capacity, and a machine-local drift ledger. Invoke with /tzurot-usage-audit near the weekly reset, after an unusually heavy day, or whenever the owner asks how much of the plan has been spent.'
-lastUpdated: '2026-09-15'
+lastUpdated: '2026-10-11'
 ---
 
 # Weekly Usage Audit
 
-**Invoke with /tzurot-usage-audit** to turn the raw session logs into the four
-numbers that actually govern how this project gets worked: weighted token spend
-per model, the share of that spend that went through the main loop rather than
-a subagent, the implied weekly capacity, and whether that capacity has drifted
-since the last measurement.
+The procedure is the Seyag `usage-audit` skill (`/usage-audit`, `seyag:usage-audit`): what the audit measures and why (`seyag:usage-audit § Usage Audit`), when to run it (its description: near the weekly reset, after an unusually heavy day, on request), and its privacy boundary (`seyag:usage-audit § Privacy boundary`). This file keeps the Tzurot-specific steps. The output feeds a live decision: the delegation posture in `10-working-posture.md` is justified by arithmetic, and arithmetic that is never re-measured quietly becomes folklore.
 
-## Purpose
+If the seyag plugin is not loaded in this session (a cloud unit or the CI review action may lack it), the pointers below do not resolve: say so, and hand the procedure step to the driver or the owner instead of reconstructing it.
 
-Anthropic does not publish the Max plan's weekly limits, and the limits may
-move without an announcement. The only instrument available is the local
-session record plus a `/usage` reading from the owner's client, so this skill
-exists to make that measurement **repeatable** — the same window, the same
-weights, the same aggregation — and to write each result into a ledger so
-drift is visible as a trend rather than re-derived from scratch each time.
+## Privacy boundary: Tzurot ledger
 
-The output feeds a live decision: the delegation posture in
-`10-working-posture.md` is justified by arithmetic, and arithmetic that is
-never re-measured quietly becomes folklore.
-
-## When to run
-
-- **Near the weekly reset** (Sundays 02:00 America/New_York) — the natural
-  window boundary, and the reading most comparable to prior rows.
-- **After any unusually heavy day** — a long orchestration run, a big review
-  cycle, a mining pass.
-- **On request** — "how much have we used", "are we going to run out this
-  week", "what is our delegation ratio".
-
-## Privacy boundary (CRITICAL)
-
-**Every output of this skill is machine-local.** The ledger lives at:
+Everything in `seyag:usage-audit § Privacy boundary` applies; session ids/URLs are secrets per `00-critical.md` § Claude Session URLs Are Secrets, and this repo is public. The Tzurot-only ledger these steps write lives at:
 
 ```
 ~/.claude/projects/-home-deck-Projects-tzurot/usage-ledger.md
@@ -46,17 +22,6 @@ The `-home-deck-Projects-tzurot` slug derives from this machine's checkout
 path. On a different checkout or machine, derive it first with
 `ls ~/.claude/projects/` and substitute throughout — a wrong slug reads as an
 empty week, not as an error.
-
-That file is **never committed, never referenced from a tracked doc, and never
-pasted into a PR body, issue, or commit message.** The session JSONLs this
-skill reads carry session ids, and session ids/URLs are secrets per
-`00-critical.md` § Claude Session URLs Are Secrets — this repo is public. Quote
-aggregate numbers to the owner in chat freely; put none of the underlying
-identifiers anywhere durable and tracked.
-
-If a usage figure genuinely needs to reach a tracked surface, it goes as a bare
-aggregate ("~64M weighted/day sustainable"), with no path, id, or file
-reference attached.
 
 ## Step 1 — establish the window
 
@@ -76,6 +41,8 @@ UTC-5 in EST — check which is in force rather than assuming), and use that as
 explicitly in the report.
 
 ## Step 2 — weighted totals per model
+
+Kept, not pointed at `seyag:usage-audit § Step 2: the sweep`: TASK-1105 replaces this sweep. It sums every line (about 2x the Seyag sweep, see Step 4), so its totals stay in the Tzurot ledger.
 
 Aggregate over the project directory's session JSONLs **and** each session's
 `<uuid>/subagents/agent-*.jsonl` — subagent spend is real spend, and omitting
@@ -126,23 +93,9 @@ wrong project-dir slug than a genuinely quiet week.
 Run the same aggregation twice with the `find` scoped differently: once over
 the top-level session files (main loop), once over the `subagents/` files
 (delegated). The ratio of weighted subagent spend to weighted total is the
-delegation ratio.
+delegation ratio. (Its totals inherit Step 2's line-summing until TASK-1105 lands.)
 
-For attribution _within_ the main loop — which tools are actually spending the
-budget — group output tokens by tool name over the main session file:
-
-```bash
-jq -r 'select(.type=="assistant" and .message.content != null)
-  | .message.usage as $u
-  | (.message.content[]? | select(.type=="tool_use") | .name) as $tool
-  | "\($tool) \($u.output_tokens // 0)"' "$MAIN_SESSION_FILE" \
-| awk '{s[$1]+=$2; n[$1]++} END {for (t in s) printf "%-24s out %9d  calls %5d\n", t, s[t], n[t]}' \
-| sort -k3 -rn
-```
-
-A message issuing several tool calls attributes its output tokens to each of
-them, so read this as a ranking of where the calls are, not as a partition of
-the total.
+Per-tool attribution within the main loop: `seyag:usage-audit § Step 2: the sweep` (its "Per-tool attribution" block).
 
 ## Step 4 — calibrate against a live reading
 
@@ -153,19 +106,7 @@ the **all-models percentage**. Then:
 implied capacity = weighted total ÷ (percentage / 100)
 ```
 
-Compare the implied capacity against the prior rows in the ledger. **Flag drift
-greater than ~15% as "limits may have moved"** and say so plainly; do not
-silently adopt the new number as truth on a single reading, because a
-mis-computed `CUTOFF` produces exactly the same symptom.
-
-**Per-model capacity division is unreliable — use it for the all-models total
-only.** Dividing one model's measured weighted spend by that model's meter
-percentage produced mutually inconsistent answers from two same-day readings
-(2026-08-25: the Fable meter moved 13 points across a stretch where measured
-Fable spend implied ~3× that), so Anthropic's internal per-model weighting
-evidently differs from the table above. The weighted formula remains the right
-instrument for the TOTAL trend and the delegation ratio; for per-model
-decisions (is Fable specifically tight?), read the meter percentages directly.
+Compare against the prior rows in the ledger; the ~15% drift flag, the never-adopt-from-one-reading rule, and why per-model capacity division is unreliable (use the all-models total only; read per-model meter percentages directly): `seyag:usage-audit § Step 3: calibrate and act`. "The ledger" here is this skill's Tzurot ledger (§ Privacy boundary), never Seyag's sweep ledger: Step 2 here sums every JSONL line, which Seyag measures at about 2x its once-per-reply totals, so the two ledgers' numbers do not mix until TASK-1105 and TASK-1213 land.
 
 ## Step 4a — act on the reading
 
@@ -211,14 +152,11 @@ above: `pnpm ops cadence:mark usage-audit`, then commit
 
 ## Anti-patterns
 
-| Don't                                                            | Why it breaks the measurement                                                                                              |
-| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Count output tokens only                                         | Misses the cache bill, which is ~75-80% of the weighted total — the answer comes out roughly 4x low                        |
-| Aggregate over the main session files alone                      | Subagent spend is real spend; skipping `subagents/` understates every delegated unit and inverts the delegation-ratio call |
-| Read a low total from deleted/rotated session files as low usage | An empty or sparse result indicts the query first — check the slug, the `CUTOFF`, and the `find` scope before concluding   |
-| Commit the usage ledger, or reference it from a tracked doc      | It is machine-local by design; the repo is public                                                                          |
-| Quote a session id, path, or URL in any tracked surface          | Session identifiers are secrets per `00-critical.md`                                                                       |
-| Adopt a new implied capacity from one reading                    | A wrong `CUTOFF` looks identical to a moved limit; require a second reading or a re-derived window                         |
+The shared anti-patterns (subagent files, one-folder sweeps, a wrong window start, adopting capacity from one reading, committing the ledger or quoting a session id): `seyag:usage-audit § Anti-patterns`. Tzurot-specific:
+
+| Don't                    | Why it breaks the measurement                                                                       |
+| ------------------------ | --------------------------------------------------------------------------------------------------- |
+| Count output tokens only | Misses the cache bill, which is ~75-80% of the weighted total — the answer comes out roughly 4x low |
 
 ## Related
 
