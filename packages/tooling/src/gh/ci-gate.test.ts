@@ -659,6 +659,28 @@ describe('runCiGate (orchestration)', () => {
     });
   });
 
+  it('explicit --sha logs its Waiting line (with the sha) before the head check and never resolves an omitted head', async () => {
+    const { events, overrides } = orchestrationHarness([DONE('CI'), REVIEW_DONE()]);
+    let waitingLoggedBeforeHeadCheck = false;
+    await captureExitCode(() =>
+      runCiGate(
+        1992,
+        { sha: SHA },
+        {
+          ...overrides,
+          prHead: () => {
+            waitingLoggedBeforeHeadCheck = events.includes(
+              `log:⏱️  Waiting for CI on PR #1992 @ ${SHA.slice(0, 8)}…`
+            );
+            return SHA;
+          },
+        }
+      )
+    );
+    expect(waitingLoggedBeforeHeadCheck).toBe(true);
+    expect(events.some(e => e.includes('--sha omitted'))).toBe(false);
+  });
+
   it('arms anyway when the PR head cannot be determined', async () => {
     const { events, overrides } = orchestrationHarness([DONE('CI'), REVIEW_DONE()]);
     const exitCode = await captureExitCode(() =>
