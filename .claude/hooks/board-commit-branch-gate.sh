@@ -14,7 +14,8 @@
 # Blocks ONLY when BOTH hold:
 #   (a) the branch the commit lands on is not develop / main / release-shaped
 #       — the live branch, or the target of a LEADING `git switch … &&` /
-#       `git checkout -b|-B … &&` (see the BRANCH read below), and
+#       `git checkout -b|-B … &&` in a pure `&&` chain where nothing else
+#       moves the branch or directory (see the BRANCH read below), and
 #   (b) the files this commit would capture are non-empty and ALL inside the
 #       board/doc allowlist (the PATH half of 00-critical.md's table —
 #       its >300-line-docs PR carve-out stays judgment, not hook-enforced)
@@ -476,10 +477,14 @@ ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 # command STARTS on. A leading `git switch <name> &&` (or `-c|-C|--create|
 # --force-create`, or `git checkout -b|-B <name> &&`) moves the commit onto
 # that target before it runs, so the target is judged instead
-# (lib/branch_switch.py, line 1 of its output; probe: the "switch:" rows).
-# Every other shape — a `;` join, plain `git checkout <name>`, a switch that
-# is not the first segment — prints an empty line and the live branch decides.
-# A python failure is the same empty line.
+# (lib/branch_switch.py, line 1 of its output; probe: the "switch:" rows) —
+# ONLY when the whole command is a pure `&&` chain and every later segment is
+# an allowlisted `git add|commit|status|diff|log|show|rm|mv` with no global
+# flag. Every other shape — a `;` anywhere, any other later command (a switch,
+# an alias like `git co`, cd, `git -C`), a substitution, a GIT_DIR-style
+# variable, plain `git checkout <name>`, a switch that is not the first
+# segment — prints an empty line and the live branch decides. A python
+# failure is the same empty line.
 LEADING=$(GUARD_CMD="$COMMAND" PYTHONDONTWRITEBYTECODE=1 \
   python3 "$HOOK_LIB/branch_switch.py" 2>/dev/null) || LEADING=""
 SWITCH_TARGET=""
@@ -566,10 +571,12 @@ NC='\033[0m'
   printf "${YELLOW}  A tracker/board commit here strands: the develop push no-ops as${NC}\n"
   printf "${YELLOW}  \"Everything up-to-date\" and the state is invisible to every query.${NC}\n"
   printf "${YELLOW}  Fix: git stash (or leave staged) → git switch develop → commit there → switch back.${NC}\n"
-  printf "${YELLOW}  Remedy: a LEADING \`git switch develop && …\` is now honoured — the gate${NC}\n"
-  printf "${YELLOW}  judges the commit on the switch target. Other shapes (a \`;\` join, plain${NC}\n"
-  printf "${YELLOW}  \`git checkout <name>\`, a switch that is not the first command) are judged${NC}\n"
-  printf "${YELLOW}  on the branch checked out NOW; for those,${NC}\n"
+  printf "${YELLOW}  Remedy: a LEADING \`git switch develop && …\` is honoured only in a pure${NC}\n"
+  printf "${YELLOW}  \`&&\` chain with nothing else moving the branch or directory: every later${NC}\n"
+  printf "${YELLOW}  command must be a plain \`git add|commit|status|diff|log|show|rm|mv\` (no${NC}\n"
+  printf "${YELLOW}  \`;\`, no global flag, no alias, no cd, no substitution) — the gate then${NC}\n"
+  printf "${YELLOW}  judges the commit on the switch target. Every other shape is${NC}\n"
+  printf "${YELLOW}  judged on the branch checked out NOW; for those,${NC}\n"
   printf "${YELLOW}  issue the branch switch as its OWN Bash call, then commit in the next call.${NC}\n"
   printf "${YELLOW}  A blocked PreToolUse call executes NONE of its chain — an earlier${NC}\n"
   printf "${YELLOW}  \`git add\` in the same chain did not run either.${NC}\n"

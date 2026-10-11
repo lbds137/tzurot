@@ -52,10 +52,16 @@
 #   branch is the one the command STARTS on. A leading `git switch <name> &&`
 #   / `git switch -c|-C|--create|--force-create <name> &&` / `git checkout
 #   -b|-B <name> &&` changes it before the commit runs, so that target is
-#   judged instead (lib/branch_switch.py; probe: the "switch:" rows). Every
-#   other shape — a `;` join (the commit runs even when the switch fails),
-#   plain `git checkout <name>` (branch-or-path ambiguity), a switch that is
-#   not the first segment — is judged on the live branch.
+#   judged instead (lib/branch_switch.py; probe: the "switch:" rows) — ONLY
+#   when the whole command is a pure `&&` chain and every later segment is
+#   an allowlisted `git add|commit|status|diff|log|show|rm|mv` with no
+#   global flag, so nothing can move the branch or the directory again.
+#   Every other shape — a `;` anywhere (the commit runs even when the switch
+#   fails), any other later command (a switch, an alias like `git co`, cd,
+#   `git -C`, make), a substitution, a GIT_DIR-style variable, plain `git
+#   checkout <name>` (branch-or-path ambiguity), a switch that is not the
+#   first segment — is judged on the live branch. A read commit directory
+#   (below) also drops the target.
 # - Cross-repo commits: when EVERY commit in the command provably runs in one
 #   absolute directory (`git -C <abs dir> commit`, or a leading
 #   `cd <abs dir> &&`) whose toplevel resolves and differs from this
@@ -66,6 +72,7 @@
 #   develop still blocks (probe: the "cross-repo:" rows). Known limitation: a
 #   relative, `~`-prefixed or expanded directory, a commit inside a
 #   substitution or a `bash -c`/`eval` wrapper, `--git-dir`/`--work-tree`, and
+#   a GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE / GIT_COMMON_DIR mention, and
 #   a directory that does not resolve to a repository are all judged against
 #   this checkout, as before — over-blocking, never a bypass.
 #
@@ -797,6 +804,14 @@ LEADING=$(GUARD_CMD="$COMMAND" PYTHONDONTWRITEBYTECODE=1 \
   read -r SWITCH_TARGET
   read -r COMMIT_DIR
 } <<< "$LEADING"
+# The switch target is the branch of THIS checkout; a commit placed in another
+# directory says nothing about it. The helper already refuses a target when a
+# later `-C`/`cd` appears, so this is belt and braces: whenever a commit
+# directory was read, the target is dropped and that directory's live branch
+# is judged (probe: "switch: a later git -C <develop checkout> commit …").
+if [ -n "$COMMIT_DIR" ]; then
+  SWITCH_TARGET=""
+fi
 
 # Cross-checkout: every commit in the command lands in another checkout (a
 # `git -C <abs dir> commit`, or a leading `cd <abs dir> &&`). Only a directory
@@ -827,10 +842,13 @@ if [ -n "$COMMIT_DIR" ]; then
 fi
 
 # A leading `git switch … &&` (or `checkout -b|-B … &&`) runs before the
-# commit, so the commit lands on the switch target, not on the live branch.
-# A switch to develop/main therefore still blocks below; a new feature branch
-# passes. Every other shape (a `;` join, plain checkout, a switch that is not
-# the first segment) leaves SWITCH_TARGET empty and the live branch decides.
+# commit, so the commit lands on the switch target, not on the live branch —
+# but only in a pure `&&` chain whose later segments are all allowlisted
+# `git add|commit|status|diff|log|show|rm|mv` with no global flag. A switch to
+# develop/main therefore still blocks below; a new feature branch passes.
+# Every other shape (a `;` anywhere, any other later command, a substitution,
+# plain checkout, a switch that is not the first segment) leaves
+# SWITCH_TARGET empty and the live branch decides.
 if [ -n "$SWITCH_TARGET" ]; then
   BRANCH="$SWITCH_TARGET"
 else
@@ -1013,9 +1031,11 @@ cat >&2 <<'FOOTER'
 Fix: git checkout -b <type>/<name> first, then commit there.
 
 Remedy: a LEADING `git switch -c <branch> && …` (or `git checkout -b
-<branch> && …`) is now honoured — the gate judges the commit on that
-branch. Other shapes (a `;` join, plain `git checkout <name>`, a switch
-that is not the first command) are judged on the branch checked out NOW:
+<branch> && …`) is honoured only in a pure `&&` chain with nothing else
+moving the branch or directory: every later command must be a plain
+`git add|commit|status|diff|log|show|rm|mv` (no `;`, no global flag, no
+alias, no cd, no substitution) — the gate then judges the commit on that
+branch. Every other shape is judged on the branch checked out NOW:
 for those, issue the branch switch as its OWN Bash call, then commit in the
 next call. A blocked PreToolUse call executes NONE of its chain — an
 earlier `git add` in the same chain did not run either.
