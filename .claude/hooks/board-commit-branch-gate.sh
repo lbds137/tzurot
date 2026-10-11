@@ -488,8 +488,8 @@ ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 # in its body before the commit runs; a heredoc must use a quoted delimiter,
 # `<<'EOF'`), a GIT_DIR-style variable, plain `git checkout <name>`, a switch
 # that is not the first segment — prints an empty line and the live branch
-# decides. A python
-# failure is the same empty line.
+# decides. A helper
+# failure is the same empty line (probe: the "helper failure:" row).
 LEADING=$(GUARD_CMD="$COMMAND" PYTHONDONTWRITEBYTECODE=1 \
   python3 "$HOOK_LIB/branch_switch.py" 2>/dev/null) || LEADING=""
 SWITCH_TARGET=""

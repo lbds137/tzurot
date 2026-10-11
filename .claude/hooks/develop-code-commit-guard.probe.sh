@@ -947,7 +947,7 @@ TARGET_WT=""
 # --- a leading `git switch … &&` decides the branch -------------------------
 # The hook runs BEFORE the command, so the live branch is the one the command
 # STARTS on; a leading `&&`-joined switch moves the commit before it runs
-# (lib/branch_switch.py). Measured before the change: the first row exited 2.
+# (lib/branch_switch.py).
 run 0 "switch: leading git switch -c feature && commit passes" \
   'git switch -c feat/x && git add a.ts && git commit -m y' 'services/probe.ts'
 run 0 "switch: leading git checkout -b feature && commit passes" \
@@ -1100,10 +1100,10 @@ run 2 "cross-repo: a GIT_DIR export voids the -C directory" \
   "export GIT_DIR=$WT/.git GIT_WORK_TREE=$WT; git -C $OTHER_REPO commit -m y" 'services/probe.ts'
 
 # --- cross-repo commits ------------------------------------------------------
-# Measured before the change: both of the first two rows exited 2 — the
-# commit lands in another repository, but the develop checkout's branch and
-# dirty tree were judged. A directory whose toplevel resolves and differs is
-# now silent; everything the helper cannot place keeps the live evaluation.
+# The first two rows commit in another repository, so the develop checkout's
+# branch and dirty tree must not be judged. A directory whose toplevel resolves
+# and differs is silent; everything the helper cannot place keeps the live
+# evaluation.
 run 0 "cross-repo: git -C <other repo> commit" \
   "git -C $OTHER_REPO commit -m x" 'services/probe.ts'
 run 0 "cross-repo: cd <other repo> && git commit" \
@@ -1122,6 +1122,22 @@ run 2 "cross-repo: a switch of the sibling worktree before its commit is not tru
 run 2 "cross-repo: a non-inert other segment judges a feature sibling as develop" \
   "make && git -C $FEATURE_WT commit -m x"
 rm -f "$FEATURE_WT/services/probe-sibling.ts"
+# A failing helper (lib/branch_switch.py raising) leaves the switch target and
+# commit directory empty, so the live evaluation decides. The same two commands
+# pass above with a working helper ("switch: leading git switch -c feature &&
+# commit passes", "cross-repo: git -C <other repo> commit"); here they block.
+BROKEN_HOOK_DIR="$TMP_BASE/broken-helper-hooks"
+mkdir -p "$BROKEN_HOOK_DIR"
+cp -R "$SCRIPT_DIR/lib" "$BROKEN_HOOK_DIR/lib"
+cp "$HOOK" "$BROKEN_HOOK_DIR/develop-code-commit-guard.sh"
+printf 'raise RuntimeError("probe: simulated helper failure")\n' > "$BROKEN_HOOK_DIR/lib/branch_switch.py"
+REAL_HOOK="$HOOK"
+HOOK="$BROKEN_HOOK_DIR/develop-code-commit-guard.sh"
+run 2 "helper failure: a leading switch is not read, the live develop branch blocks" \
+  'git switch -c feat/x && git add a.ts && git commit -m y' 'services/probe.ts'
+run 2 "helper failure: a -C to another repo is not read, this checkout is judged" \
+  "git -C $OTHER_REPO commit -m x" 'services/probe.ts'
+HOOK="$REAL_HOOK"
 # A sibling WORKTREE of this same repository is still this repo's commit: the
 # gate re-points at that checkout, so a commit into a worktree ON develop with
 # dirty code blocks even though the checkout the hook runs in is a feature

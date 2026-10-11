@@ -1313,6 +1313,20 @@ assert_staged 0 feat/x 'git commit -m snapshot' \
   docs/reference/conformance/routes.json tracker/tasks/t.md
 assert_staged 2 feat/x 'git commit -m board' \
   "conformance: a tracker-only commit still blocks" tracker/tasks/t.md
+
+# A failing helper (lib/branch_switch.py raising) reads no switch target, so the
+# live branch decides: the leading `git switch develop &&` row that passes above
+# ("switch: leading git switch develop && board commit passes") blocks here.
+BROKEN_HOOK_DIR="$WORK/broken-helper-hooks"
+mkdir -p "$BROKEN_HOOK_DIR"
+cp -R "$SCRIPT_DIR/lib" "$BROKEN_HOOK_DIR/lib"
+cp "$HOOK" "$BROKEN_HOOK_DIR/board-commit-branch-gate.sh"
+printf 'raise RuntimeError("probe: simulated helper failure")\n' > "$BROKEN_HOOK_DIR/lib/branch_switch.py"
+REAL_HOOK="$HOOK"
+HOOK="$BROKEN_HOOK_DIR/board-commit-branch-gate.sh"
+assert_staged 2 feat/x 'git switch develop && git commit -m board' \
+  "helper failure: a leading switch is not read, the live feature branch blocks" tracker/tasks/t.md
+HOOK="$REAL_HOOK"
 assert_staged 2 feat/x 'git commit -m board' \
   "conformance: other docs/reference paths stay board files" \
   docs/reference/conformance-notes.md
