@@ -87,7 +87,9 @@
 #   substitution or a `bash -c`/`eval` wrapper, `--git-dir`/`--work-tree`, and
 #   a GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE / GIT_COMMON_DIR mention, and
 #   a directory that does not resolve to a repository are all judged against
-#   this checkout, as before — over-blocking, never a bypass. Also any
+#   this checkout, as before: over-blocking when this checkout is on
+#   develop/main, but a pass when it is a feature branch and the commit
+#   really lands in a develop worktree (TASK-1209). Also any
 #   segment containing the word `commit` that is not a plain `git [globals]
 #   commit` keeps the live evaluation.
 #
