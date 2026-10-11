@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-25 17:52'
-updated_date: '2026-10-04 23:08'
+updated_date: '2026-10-11 17:34'
 labels:
   - 'area:hooks'
   - 'size:M'
@@ -30,4 +30,6 @@ Acceptance: no .claude/hooks file has a same-named plugin twin without a recorde
 
 <!-- SECTION:NOTES:BEGIN -->
 Owner decision 2026-10-04 (AskUserQuestion, chose the recommendation): retire the strict-superset twins first in one PR; list the rest with their Tzurot-only delta to upstream before they go.
+
+Classification 2026-10-11 (groups A+B): retire bare-token-binding-reminder, blocking-question-channel-check, context-size-reminder, queued-message-receipt, turn-end-shape-gate, promise-ledger-check, grep-escaped-dollar-guard, dispatch-posture-gate (needs SYG_DISPATCH_SRC_RE in project settings env). KEEP with delta: claim-shape-guard (husky pre-commit wiring, not a twin in effect); self-matching-pattern-guard (plugin lacks the bracketed-literal-recurs check, upstream to Seyag first); python-heredoc-edit-guard (plugin deliberately looser: blocks only same-file read-modify-write). Group C (cwd-drift, lossy-pipe, pr-monitor-reminder, session-start) pending.
 <!-- SECTION:NOTES:END -->
