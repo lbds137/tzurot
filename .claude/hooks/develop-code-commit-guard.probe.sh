@@ -147,6 +147,15 @@ add_named_worktree "$MAIN_WT" main || {
   echo "FATAL: could not create main worktree (git error above)" >&2
   exit 1
 }
+# A separate, unrelated repository: the target of the cross-repo rows below
+# (a `git -C <dir> commit` or `cd <dir> && git commit` lands THERE, not in the
+# develop checkout this hook guards). Lives under TMP_BASE, so the EXIT trap
+# removes it.
+OTHER_REPO="$TMP_BASE/probe-other-repo"
+git init -q "$OTHER_REPO" || {
+  echo "FATAL: could not create the other-repo fixture (git error above)" >&2
+  exit 1
+}
 
 FAILURES=0
 
@@ -927,6 +936,77 @@ TARGET_WT=""
 TARGET_WT="$MAIN_WT"
 run 2 "main branch, dirty ts blocks"              'git add -A && git commit -m "x"'                        'services/probe.ts'
 TARGET_WT=""
+
+# --- a leading `git switch … &&` decides the branch -------------------------
+# The hook runs BEFORE the command, so the live branch is the one the command
+# STARTS on; a leading `&&`-joined switch moves the commit before it runs
+# (lib/branch_switch.py). Measured before the change: the first row exited 2.
+run 0 "switch: leading git switch -c feature && commit passes" \
+  'git switch -c feat/x && git add a.ts && git commit -m y' 'services/probe.ts'
+run 0 "switch: leading git checkout -b feature && commit passes" \
+  'git checkout -b feat/x origin/develop && git commit -m y' 'services/probe.ts'
+run 0 "switch: leading git switch --create feature && commit passes" \
+  'git switch --create feat/x && git commit -m y' 'services/probe.ts'
+# A switch TO a long-lived branch still blocks — from develop, and from a
+# feature checkout, where the live branch alone would have passed.
+run 2 "switch: leading git switch -C develop && commit blocks" \
+  'git switch -C develop && git commit -m y' 'services/probe.ts'
+run 2 "switch: leading git checkout -b main && commit blocks" \
+  'git checkout -b main && git commit -m y' 'services/probe.ts'
+TARGET_WT="$FEATURE_WT"
+run 2 "switch: from a feature branch, git switch develop && commit blocks" \
+  'git switch develop && git commit -m y' 'services/probe.ts'
+TARGET_WT=""
+# Shapes that are NOT read keep the live branch (develop here, so they block):
+# a `;` join runs the commit even when the switch fails; plain checkout is
+# branch-or-path ambiguous; a switch that is not the first segment; a global
+# flag before the subcommand switches another checkout.
+run 2 "switch: a ; join keeps the live branch" \
+  'git switch -c feat/x; git commit -m y' 'services/probe.ts'
+run 2 "switch: a newline join keeps the live branch" \
+  "$(printf 'git switch -c feat/x\ngit commit -m y')" 'services/probe.ts'
+run 2 "switch: plain git checkout <name> is not read" \
+  'git checkout feat/x && git commit -m y' 'services/probe.ts'
+run 2 "switch: a switch that is not the first segment is not read" \
+  'git status && git switch -c feat/x && git commit -m y' 'services/probe.ts'
+run 2 "switch: a global flag before switch is not read" \
+  'git -C /some/path switch -c feat/x && git commit -m y' 'services/probe.ts'
+run 2 "switch: an expanded branch name is not read" \
+  'git switch -c $BRANCH && git commit -m y' 'services/probe.ts'
+
+# --- cross-repo commits ------------------------------------------------------
+# Measured before the change: both of the first two rows exited 2 — the
+# commit lands in another repository, but the develop checkout's branch and
+# dirty tree were judged. A directory whose toplevel resolves and differs is
+# now silent; everything the helper cannot place keeps the live evaluation.
+run 0 "cross-repo: git -C <other repo> commit" \
+  "git -C $OTHER_REPO commit -m x" 'services/probe.ts'
+run 0 "cross-repo: cd <other repo> && git commit" \
+  "cd $OTHER_REPO && git commit -m x" 'services/probe.ts'
+run 0 "cross-repo: git -C <other worktree> commit" \
+  "git -C $FEATURE_WT commit -m x" 'services/probe.ts'
+# A sibling WORKTREE of this same repository is still this repo's commit: the
+# gate re-points at that checkout, so a commit into a worktree ON develop with
+# dirty code blocks even though the checkout the hook runs in is a feature
+# branch with a clean tree. The dirty file lives in the develop worktree only.
+printf 'probe\n' > "$WT/services/probe-sibling.ts"
+TARGET_WT="$FEATURE_WT"
+run 2 "cross-repo: git -C <sibling worktree on develop> commit blocks" \
+  "git -C $WT commit -m x"
+TARGET_WT=""
+rm -f "$WT/services/probe-sibling.ts"
+run 2 "cross-repo: cd <this checkout> && git commit still blocks" \
+  "cd $WT && git commit -m x" 'services/probe.ts'
+run 2 "cross-repo: a second commit in this checkout still blocks" \
+  "git -C $OTHER_REPO commit -m x && git commit -m y" 'services/probe.ts'
+run 2 "cross-repo: a ; join after cd keeps the live checkout" \
+  "cd $OTHER_REPO; git commit -m x" 'services/probe.ts'
+run 2 "cross-repo: a relative -C directory is not resolved" \
+  'git -C ../elsewhere commit -m x' 'services/probe.ts'
+run 2 "cross-repo: a commit inside a substitution still blocks" \
+  "git -C $OTHER_REPO commit -m \"\$(git commit -m y)\"" 'services/probe.ts'
+run 2 "cross-repo: a commit inside a bash -c wrapper still blocks" \
+  "git -C $OTHER_REPO commit -m x && bash -c 'git commit -m y'" 'services/probe.ts'
 
 # Rename decomposition: a staged gated→non-gated rename must still block.
 # Without --no-renames it renders as one `R old.ts -> new.md` line whose
