@@ -1110,6 +1110,18 @@ run 0 "cross-repo: cd <other repo> && git commit" \
   "cd $OTHER_REPO && git commit -m x" 'services/probe.ts'
 run 0 "cross-repo: git -C <other worktree> commit" \
   "git -C $FEATURE_WT commit -m x" 'services/probe.ts'
+# A sibling worktree's branch is read at hook time, but a non-inert other
+# segment can move that worktree before the commit runs: here the leading
+# switch puts the feature worktree on develop, so the commit lands on develop.
+# With any non-inert other segment the sibling is judged as if on develop
+# (fail closed) — its dirty tree still decides. The second row is the accepted
+# over-block: `make` cannot switch the worktree, but it is not inert either.
+printf 'probe\n' > "$FEATURE_WT/services/probe-sibling.ts"
+run 2 "cross-repo: a switch of the sibling worktree before its commit is not trusted" \
+  "git -C $FEATURE_WT switch -q develop && git -C $FEATURE_WT commit -am x" 'services/probe.ts'
+run 2 "cross-repo: a non-inert other segment judges a feature sibling as develop" \
+  "make && git -C $FEATURE_WT commit -m x"
+rm -f "$FEATURE_WT/services/probe-sibling.ts"
 # A sibling WORKTREE of this same repository is still this repo's commit: the
 # gate re-points at that checkout, so a commit into a worktree ON develop with
 # dirty code blocks even though the checkout the hook runs in is a feature
