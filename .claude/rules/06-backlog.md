@@ -74,7 +74,7 @@ The ruled-out exit is deliberately narrow — merit-vs-cost and the owner-call b
 
 ## Out-of-Scope Items Must Be Tracked
 
-Harness `core.md` § Fix what you touch, file what you find / § Everything not done gets a disposition when you decide governs. Tzurot destination: a tracker task or `backlog/**/*.md`; the one exception is process residue in the PR body's `## Residue`. **The promise ledger — file at the moment of utterance**: the reply that files it names the id ("filed as TASK-N"); `promise-ledger-check.sh` (Stop hook) blocks a turn-end that promises deferred work with no same-turn backlog write.
+Harness `core.md` § Fix what you touch, file what you find / § Everything not done gets a disposition when you decide governs. Tzurot destination: a tracker task or `backlog/**/*.md`; the one exception is process residue in the PR body's `## Residue`. **The promise ledger — file at the moment of utterance**: the reply that files it names the id ("filed as TASK-N"); Seyag's `promise-ledger-check` (Stop hook) blocks a turn-end that promises deferred work with no same-turn backlog write.
 
 ### Plan-level requirement
 

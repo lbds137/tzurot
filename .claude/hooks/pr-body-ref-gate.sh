@@ -544,9 +544,8 @@ run_claim_scan() {
   # Block once per body TEXT PER UTC DAY (not per PR, not forever) — an
   # unchanged retry proceeds within the same day; a body edited to fix the
   # flagged lines is a new key and is scanned again; the day boundary bounds
-  # how long a stale ack can silently suppress a re-scan. Same date-scoped-key
-  # shape as dispatch-posture-gate.sh's ACK_KEY, and the same
-  # write-key-then-exit mechanism (fail-open on an unwritable ack file, since
+  # how long a stale ack can silently suppress a re-scan. The key is written
+  # before the blocking exit (fail-open on an unwritable ack file, since
   # blocking on retry would infinite-loop).
   # No sha256sum means no ack key to scope the block to THIS body text; a
   # shared empty key would ack every body for the rest of the UTC day, so
