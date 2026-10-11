@@ -335,7 +335,7 @@ Q2 in the original open-questions list is obsolete.)
    is the exerciser on the client side. TASK-1137 closes on the boot (both sessions agree).
    **Instance B up 2026-09-30**: `http://127.0.0.1:3002`, own postgres (container
    `spacebar-boot-postgres` :5434, db `spacebar`) — production `:3001` untouched. HTTPS origin
-   `https://deck.tail00338f.ts.net:8444` pending a Tailscale Serve route (asked of Deck
+   `https://deck.tailnet.example:8444` pending a Tailscale Serve route (asked of Deck
    management); fallback = the fork's self-signed proxy + `NODE_EXTRA_CA_CERTS` on the bot
    process. Credentials (TzurotBot + TzurotProbeB, tokens verified 200 on `/gateway/bot`) live
    in the fork repo at `docs/local/boot-b/secrets.env` (mode 600, git-excluded) — read
@@ -379,7 +379,7 @@ Q2 in the original open-questions list is obsolete.)
   missing single thread-member GET route (generic catch-all 404, not a Discord-shaped 10007);
   fix G3 queued behind allowed_mentions, with a runtime red probe on instance B for
   before/after. Q8 and TR-3.6/7.2 rows updated.
-- **2026-09-30 ~03:50** Origin LIVE (`https://deck.tail00338f.ts.net:8444`, consumer-verified
+- **2026-09-30 ~03:50** Origin LIVE (`https://deck.tailnet.example:8444`, consumer-verified
   from both sides; real tailnet cert via `/etc/hosts` → Caddy twin, no `NODE_EXTRA_CA_CERTS`).
   Boot attempt 1 hit a **Tzurot-side** blocker: api-gateway is un-bootable on a non-root host —
   avatar storage is hard-coded to the Railway volume path `/data/avatars`
