@@ -372,9 +372,9 @@ function callKeys(call: CallExpression, typeChecker: TypeChecker, visiting: Set<
  * `satisfies` and `!` around the argument are transparent, so every rule below
  * sees the wrapped expression.
  *  1. an object literal contributes its own keys plus the keys of spread local
- *     variables initialized with an object literal, `cond && { … }` and readable
- *     ternaries of readable branches; a spread whose keys cannot
- *     be read statically adds {@link UNKNOWN_PAYLOAD_KEY} beside them (read
+ *     variables initialized with an object literal, of `cond && { … }`, and of
+ *     ternaries whose branches are readable; a spread whose keys cannot be
+ *     read statically adds {@link UNKNOWN_PAYLOAD_KEY} beside them (read
  *     exactly like a returned literal — see {@link returnedLiteralKeys});
  *  2. an identifier bound to a variable initialized with an object literal
  *     contributes the initializer's keys plus the `variable.key = …`
