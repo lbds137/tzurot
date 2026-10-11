@@ -130,4 +130,46 @@ describe('gh command PR-number validation', () => {
     expect(runCiGate).toHaveBeenCalledWith(1992, { sha });
     vi.doUnmock('../gh/ci-gate.js');
   });
+
+  it('rejects a valueless --sha before runCiGate runs', async () => {
+    // A bare --sha must never reach runCiGate as "omitted" (which would watch
+    // the PR head instead of the pushed commit). cac rejects it first.
+    vi.doMock('../gh/ci-gate.js', () => ({ runCiGate: vi.fn() }));
+    const { runCiGate } = await import('../gh/ci-gate.js');
+    const priorArgv = process.argv;
+    process.argv = ['node', 'test', 'gh:ci-gate', '2602', '--sha'];
+    try {
+      await expect(
+        (async () => {
+          cli.parse(process.argv, { run: false });
+          await (cli.runMatchedCommand() as Promise<void>);
+        })()
+      ).rejects.toThrow(/value is missing/);
+    } finally {
+      process.argv = priorArgv;
+    }
+
+    expect(runCiGate).not.toHaveBeenCalled();
+    vi.doUnmock('../gh/ci-gate.js');
+  });
+
+  it('does not let a following flag stand in for a missing --sha value', async () => {
+    vi.doMock('../gh/ci-gate.js', () => ({ runCiGate: vi.fn() }));
+    const { runCiGate } = await import('../gh/ci-gate.js');
+    const priorArgv = process.argv;
+    process.argv = ['node', 'test', 'gh:ci-gate', '2602', '--sha', '--other-flag'];
+    try {
+      await expect(
+        (async () => {
+          cli.parse(process.argv, { run: false });
+          await (cli.runMatchedCommand() as Promise<void>);
+        })()
+      ).rejects.toThrow(/Unknown option `--otherFlag`/);
+    } finally {
+      process.argv = priorArgv;
+    }
+
+    expect(runCiGate).not.toHaveBeenCalled();
+    vi.doUnmock('../gh/ci-gate.js');
+  });
 });
