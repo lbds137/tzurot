@@ -523,6 +523,127 @@ describe('runCiGate (orchestration)', () => {
     ).rejects.toThrow(/is not the head of PR #1992/);
   });
 
+  describe('with --sha omitted', () => {
+    it('omitted --sha resolves the head and waits on it', async () => {
+      const head = 'c'.repeat(40);
+      const waitedOn: string[] = [];
+      const { events, overrides } = orchestrationHarness([DONE('CI'), REVIEW_DONE()]);
+      const exitCode = await captureExitCode(() =>
+        runCiGate(
+          1992,
+          {},
+          {
+            ...overrides,
+            prHead: () => head,
+            wait: {
+              ...overrides.wait,
+              fetch: (sha: string) => {
+                waitedOn.push(sha);
+                return [DONE('CI'), REVIEW_DONE()];
+              },
+            },
+          }
+        )
+      );
+      expect(waitedOn.length).toBeGreaterThan(0);
+      expect(new Set(waitedOn)).toEqual(new Set([head]));
+      expect(events).toContain(`log:--sha omitted; using PR #1992's head ${head.slice(0, 8)}…`);
+      expect(events).toContain('checks:1992:report');
+      expect(exitCode).toBeUndefined();
+    });
+
+    it('treats an empty --sha like an omitted one', async () => {
+      const head = 'c'.repeat(40);
+      const { events, overrides } = orchestrationHarness([DONE('CI'), REVIEW_DONE()]);
+      await captureExitCode(() =>
+        runCiGate(1992, { sha: '' }, { ...overrides, prHead: () => head })
+      );
+      expect(events).toContain(`log:--sha omitted; using PR #1992's head ${head.slice(0, 8)}…`);
+    });
+
+    it('reads the head only once: the head IS the sha, so there is no drift re-check', async () => {
+      const { overrides } = orchestrationHarness([DONE('CI'), REVIEW_DONE()]);
+      let reads = 0;
+      await captureExitCode(() =>
+        runCiGate(
+          1992,
+          {},
+          {
+            ...overrides,
+            prHead: () => {
+              reads += 1;
+              return 'c'.repeat(40);
+            },
+          }
+        )
+      );
+      expect(reads).toBe(1);
+    });
+
+    it('is a usage error when the head cannot be read', async () => {
+      const { overrides } = orchestrationHarness([DONE('CI')]);
+      await expect(runCiGate(1992, {}, { ...overrides, prHead: () => undefined })).rejects.toThrow(
+        /could not read the head of PR #1992.*git rev-parse HEAD/s
+      );
+    });
+
+    it('is a usage error when the fetcher throws', async () => {
+      const { overrides } = orchestrationHarness([DONE('CI')]);
+      await expect(
+        runCiGate(
+          1992,
+          {},
+          {
+            ...overrides,
+            prHead: () => {
+              throw new Error('gh exploded');
+            },
+          }
+        )
+      ).rejects.toThrow(/could not read the head of PR #1992/);
+    });
+
+    it('is a usage error when the head is not a local commit, asking to fetch first', async () => {
+      const head = 'c'.repeat(40);
+      const checked: string[] = [];
+      const { overrides } = orchestrationHarness([DONE('CI')]);
+      await expect(
+        runCiGate(
+          1992,
+          {},
+          {
+            ...overrides,
+            prHead: () => head,
+            commitExists: (sha: string) => {
+              checked.push(sha);
+              return false;
+            },
+          }
+        )
+      ).rejects.toThrow(/does not name a local commit\. Fetch first/);
+      expect(checked).toEqual([head]);
+    });
+
+    it('logs the Waiting line BEFORE the network call to read the head', async () => {
+      const { events, overrides } = orchestrationHarness([DONE('CI'), REVIEW_DONE()]);
+      let waitingLoggedBeforeFetch = false;
+      await captureExitCode(() =>
+        runCiGate(
+          1992,
+          {},
+          {
+            ...overrides,
+            prHead: () => {
+              waitingLoggedBeforeFetch = events.some(e => e.startsWith('log:⏱️  Waiting for CI'));
+              return 'c'.repeat(40);
+            },
+          }
+        )
+      );
+      expect(waitingLoggedBeforeFetch).toBe(true);
+    });
+  });
+
   it('arms anyway when the PR head cannot be determined', async () => {
     const { events, overrides } = orchestrationHarness([DONE('CI'), REVIEW_DONE()]);
     const exitCode = await captureExitCode(() =>
