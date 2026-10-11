@@ -3,9 +3,10 @@ id: TASK-1203
 title: >-
   Commit guards evaluate the pre-switch branch on a git switch && git commit
   chain
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-11 11:06'
+updated_date: '2026-10-11 17:29'
 labels:
   - 'area:hooks'
   - 'size:M'
@@ -24,3 +25,9 @@ What: a shared Tzurot helper (separate file under .claude/hooks/lib, not the ven
 
 Acceptance: probe rows for each shape in both guards; the && / ; distinction pinned; guard:hook-probes green.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped in #2603.
+<!-- SECTION:NOTES:END -->

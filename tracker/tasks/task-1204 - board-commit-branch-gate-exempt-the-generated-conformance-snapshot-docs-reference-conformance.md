@@ -3,9 +3,10 @@ id: TASK-1204
 title: >-
   board-commit-branch-gate: exempt the generated conformance snapshot
   (docs/reference/conformance/)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-11 11:07'
+updated_date: '2026-10-11 17:29'
 labels:
   - 'area:hooks'
   - 'size:S'
@@ -24,3 +25,9 @@ What: treat docs/reference/conformance/ as feature-branch content in the gate al
 
 Acceptance: probe row (conformance-only commit on a feature branch passes; conformance plus a tracker file passes as any mixed commit does; tracker-only still blocks); no remaining doc prescribes the bypass for the snapshot.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped in #2603.
+<!-- SECTION:NOTES:END -->

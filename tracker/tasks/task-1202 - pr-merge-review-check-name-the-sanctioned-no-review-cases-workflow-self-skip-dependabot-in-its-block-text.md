@@ -3,9 +3,10 @@ id: TASK-1202
 title: >-
   pr-merge-review-check: name the sanctioned no-review cases (workflow
   self-skip, dependabot) in its block text
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-11 11:06'
+updated_date: '2026-10-11 17:29'
 labels:
   - 'area:hooks'
   - 'size:S'
@@ -24,3 +25,9 @@ What: in pr-merge-review-check.sh, when no claude[bot] comment exists, check whe
 
 Acceptance: probe rows green; the release reminder still fires on the self-skip path.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped in #2603.
+<!-- SECTION:NOTES:END -->
