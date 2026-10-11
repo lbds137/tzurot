@@ -1,9 +1,10 @@
 ---
 id: TASK-1211
 title: 'branch_switch.py: a table test pinning its three-line output contract'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-11 16:41'
+updated_date: '2026-10-11 21:25'
 labels:
   - 'area:hooks'
   - 'size:S'
@@ -22,3 +23,9 @@ What: a colocated python unittest table (input command -> (switch_target, commit
 
 Acceptance: the table runs in CI; removing any single rule from the helper reddens at least one table row.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-11 shipped in #2607: branch_switch_test.py (112 rows, 22 bad-ref names, __main__ contract) run by board-commit-branch-gate.probe.sh; canaries 3/7/1 rows. Known gap pinned as observed: TASK-1214.
+<!-- SECTION:NOTES:END -->
