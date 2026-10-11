@@ -45,6 +45,8 @@ export interface WebhookMessageCreateOptions {
   threadId?: string;
   allowedMentions?: { parse: string[] };
   files?: unknown[];
+  flags?: number;
+  poll?: unknown;
   toJSON(): unknown;
 }
 export declare class Webhook {
@@ -94,7 +96,7 @@ export async function exercise(
   content: string
 ): Promise<void> {
   const embeds = [] as unknown[];
-  const rest = { content: 'spread keys are not key sites' };
+  const rest = { allowedMentions: { parse: [] } };
   await interaction.reply({ content, embeds, ...rest });
   interaction.showModal(modal);
   interaction.respond([]);
@@ -444,13 +446,53 @@ const GLOBAL_TYPES = `
 declare function fetch(input: string): Promise<unknown>;
 `;
 
+// Anonymous payload types carrying a method and lib-declared members (the
+// spread of an Error copies `name` / `message` / `stack` / `cause`, declared in
+// TypeScript's lib files).
+const FIXTURE_ANONYMOUS_MEMBERS = `
+import { Webhook } from 'discord.js';
+
+export function sendAnonymous(
+  webhook: Webhook,
+  payload: { content: string; toJSON(): unknown },
+  err: Error
+): void {
+  void webhook.send(payload);
+  void webhook.send(({ username: 'u', ...err }));
+}
+`;
+
+// Direct-argument payloads: the options reach the call as the argument itself,
+// bare, wrapped, or carrying a spread. Each claim owns a key no other claim uses.
+const FIXTURE_DIRECT_ARGUMENTS = `
+import { Webhook, WebhookMessageCreateOptions } from 'discord.js';
+
+export async function direct(
+  webhook: Webhook,
+  extra: WebhookMessageCreateOptions
+): Promise<void> {
+  const base = { threadId: 't' };
+  await webhook.sendRaw({ ...base });
+  await webhook.sendRaw({ username: 'u', ...extra });
+  const parenthesized: WebhookMessageCreateOptions = { flags: 1 };
+  await webhook.sendRaw((parenthesized));
+  await webhook.sendRaw({ files: [] } as WebhookMessageCreateOptions);
+  const checked: WebhookMessageCreateOptions = { poll: 1 };
+  await webhook.sendRaw(checked satisfies WebhookMessageCreateOptions);
+  const maybe: WebhookMessageCreateOptions | undefined = { content: 'nn' };
+  await webhook.sendRaw(maybe!);
+}
+`;
+
 function buildFixtureProject(): Project {
   const project = new Project({
     useInMemoryFileSystem: true,
     compilerOptions: {
       strict: true,
       target: ScriptTarget.ES2022,
-      lib: ['es2022'],
+      // ts-morph's in-memory host resolves lib entries by FILE name, so a bare
+      // 'es2022' loads no lib file at all.
+      lib: ['lib.es2022.d.ts'],
       module: ModuleKind.CommonJS,
       moduleResolution: ModuleResolutionKind.Node10,
     },
@@ -510,49 +552,13 @@ function buildFixtureProject(): Project {
     FIXTURE_MOCK_DIR
   );
   project.createSourceFile('/proj/services/bot-client/src/widget.mock.ts', FIXTURE_MOCK_SUFFIX);
-  return project;
-}
-
-// Anonymous payload types carrying a method and lib-declared members (the
-// spread of an Error copies `name` / `message` / `stack` / `cause`, declared in
-// TypeScript's lib files).
-const FIXTURE_ANONYMOUS_MEMBERS = `
-import { Webhook } from 'discord.js';
-
-export function sendAnonymous(
-  webhook: Webhook,
-  payload: { content: string; toJSON(): unknown },
-  err: Error
-): void {
-  void webhook.send(payload);
-  void webhook.send(({ username: 'u', ...err }));
-}
-`;
-
-/**
- * A separate project whose global lib actually loads: ts-morph's in-memory
- * host resolves `lib` entries by FILE name, so the main fixture's
- * `lib: ['es2022']` loads no lib file and `Error` would not resolve there.
- */
-function buildLibFixtureProject(): Project {
-  const project = new Project({
-    useInMemoryFileSystem: true,
-    compilerOptions: {
-      strict: true,
-      target: ScriptTarget.ES2022,
-      lib: ['lib.es2022.d.ts'],
-      module: ModuleKind.CommonJS,
-      moduleResolution: ModuleResolutionKind.Node10,
-    },
-  });
-  project.createSourceFile(
-    '/node_modules/discord.js/package.json',
-    JSON.stringify({ name: 'discord.js', version: '0.0.0', types: 'index.d.ts' })
-  );
-  project.createSourceFile('/node_modules/discord.js/index.d.ts', DISCORD_TYPES);
   project.createSourceFile(
     '/proj/services/bot-client/src/anonymousMembers.ts',
     FIXTURE_ANONYMOUS_MEMBERS
+  );
+  project.createSourceFile(
+    '/proj/services/bot-client/src/directArguments.ts',
+    FIXTURE_DIRECT_ARGUMENTS
   );
   return project;
 }
@@ -681,8 +687,9 @@ describe('analyzeProject', () => {
     const project = buildFixtureProject();
     const entries = analyzeProject(project, '/proj');
 
-    // The reply literal is `{ content, embeds, ...rest }` — every key in it
-    // is shorthand (the spread adds none). The receiver BaseInteraction has
+    // The reply literal is `{ content, embeds, ...rest }` — its own keys are
+    // shorthand; the spread of a literal-initialized local adds that local's
+    // keys (asserted below). The receiver BaseInteraction has
     // no builder table, so both keys route through the MESSAGE_OPTION_KEYS
     // vocabulary into `message-options`.
     expect(
@@ -701,8 +708,65 @@ describe('analyzeProject', () => {
       entries.some(entry => entry.category === 'unclassified' && entry.symbol === 'title')
     ).toBe(false);
 
-    // A spread element is not a key site: `...rest` contributes no entry.
+    // A direct-argument spread of a literal-initialized local records that
+    // local's keys, not the local's name, and a resolved spread adds no marker.
+    const fixtureFile = 'services/bot-client/src/fixture.ts';
+    const spreadKey = entries.filter(
+      entry => entry.file === fixtureFile && entry.symbol === 'allowedMentions'
+    );
+    expect(spreadKey).toHaveLength(1);
+    expect(spreadKey[0]?.count).toBe(1);
     expect(entries.some(entry => entry.symbol === 'rest')).toBe(false);
+    expect(
+      entries.some(entry => entry.file === fixtureFile && entry.symbol === UNKNOWN_PAYLOAD_KEY)
+    ).toBe(false);
+  });
+
+  it('records the keys of a literal-initialized local spread into a direct argument', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/directArguments.ts';
+    expect(findEntry(entries, 'webhook-options', 'threadId', file)?.count).toBe(1);
+  });
+
+  it('records the marker beside the own keys for an unresolvable direct-argument spread', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/directArguments.ts';
+    expect(findEntry(entries, 'webhook-options', 'username', file)?.count).toBe(1);
+    expect(findEntry(entries, 'webhook-options', UNKNOWN_PAYLOAD_KEY, file)?.count).toBe(1);
+  });
+
+  it('reads a parenthesized direct argument like the bare identifier', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/directArguments.ts';
+    expect(findEntry(entries, 'webhook-options', 'flags', file)?.count).toBe(1);
+  });
+
+  it('reads an `as` direct argument like the bare literal', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/directArguments.ts';
+    expect(findEntry(entries, 'webhook-options', 'files', file)?.count).toBe(1);
+  });
+
+  it('reads a `satisfies` direct argument like the bare identifier', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/directArguments.ts';
+    expect(findEntry(entries, 'webhook-options', 'poll', file)?.count).toBe(1);
+  });
+
+  it('reads a non-null direct argument like the bare identifier', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/directArguments.ts';
+    expect(findEntry(entries, 'webhook-options', 'content', file)?.count).toBe(1);
+  });
+
+  it('loads the real global lib in the shared fixture (no missing global types)', () => {
+    const messages = buildFixtureProject()
+      .getPreEmitDiagnostics()
+      .map(d => {
+        const m = d.getMessageText();
+        return typeof m === 'string' ? m : m.getMessageText();
+      });
+    expect(messages.filter(m => /Cannot find global type/.test(m))).toEqual([]);
   });
 
   it('excludes every test-file site from the inventory (mock-poison exclusion)', () => {
@@ -884,7 +948,7 @@ describe('analyzeProject', () => {
   });
 
   it('excludes methods and lib-declared members of an anonymous payload type', () => {
-    const entries = analyzeProject(buildLibFixtureProject(), '/proj');
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
     const file = 'services/bot-client/src/anonymousMembers.ts';
     for (const key of ['content', 'username']) {
       expect(findEntry(entries, 'webhook-options', key, file)?.count, key).toBe(1);
