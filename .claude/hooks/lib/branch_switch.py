@@ -61,9 +61,11 @@ CONSUMERS
     .claude/hooks/develop-code-commit-guard.sh   (both functions)
     .claude/hooks/board-commit-branch-gate.sh    (switch_target only)
 
-Run as a script it reads the command from GUARD_CMD and prints two lines: the
-switch target, then the commit directory, each empty when None. Pinned by the
-"switch:" and "cross-repo:" rows in both guards' .probe.sh files.
+Run as a script it reads the command from GUARD_CMD and prints three lines:
+the switch target, the commit directory, and "1" when every non-commit segment
+of the commit-directory read is inert (see `_commit_target`), each empty when
+None or False. The board gate reads line 1 only. Pinned by the "switch:" and
+"cross-repo:" rows in both guards' .probe.sh files.
 
 The quote scanning is the shared single-scan `strip_quoted_indexed` in
 shell_quotes.py, imported rather than copied (that module's docstring has the
@@ -109,14 +111,19 @@ _FD_REDIRECT = re.compile(r"\d*>&\d+")
 # The only segments a trusted chain may carry after the leading switch:
 # `git <subcommand> …` with the subcommand as the SECOND word (no global flag,
 # no assignment prefix, no wrapper such as `command`/`env`) and one of these
-# subcommands, none of which can move HEAD or the directory (assuming trusted
-# repository config and hooks: diff.external, textconv, core.fsmonitor and
-# commit hooks can run commands and are not modelled; not verified). Anything else —
-# a git alias (`git co`), `cd`, `make`, `pnpm`, a function, `$CMD` — voids the
-# target, because what it runs cannot be known from the text. `mv` and `rm`
-# are absent: they write paths of the caller's choosing, and `git mv -f h.txt
-# .git/HEAD` rewrites HEAD (git 2.50.1 exits 0 despite "invalid path").
-# `push` is absent: `--receive-pack`/`--exec` run an arbitrary command over a local transport (measured, git 2.50.1).
+# subcommands, none of which can move HEAD or the directory (under the
+# trusted-config assumption below). Anything else — a git alias (`git co`),
+# `cd`, `make`, `pnpm`, a function, `$CMD` — voids the target, because what it
+# runs cannot be known from the text. `mv` and `rm` are absent: they write
+# paths of the caller's choosing, and `git mv -f h.txt .git/HEAD` rewrites HEAD
+# (git 2.50.1 exits 0 despite "invalid path"). `push` is absent:
+# `--receive-pack`/`--exec` run an arbitrary command over a local transport
+# (measured, git 2.50.1).
+#
+# The trusted-config assumption, the one canonical statement of it for this
+# module and both guards that consume it: every read here assumes trusted
+# repository config and hooks. diff.external, textconv, core.fsmonitor and
+# commit hooks can run commands and are not modelled; not verified.
 _INERT_GIT_SUBCOMMANDS = frozenset(("add", "commit", "status", "diff", "log", "show"))
 
 # What separates the path steps of a resolved word for the `.git` component
@@ -218,10 +225,9 @@ def _names_git_dir(word):
 
 def _rest_moves(view, values, start):
     """True unless `view[start:]` is provably unable to move the branch or the
-    directory (assuming trusted repository config and hooks: diff.external,
-    textconv, core.fsmonitor and commit hooks can run commands and are not
-    modelled; not verified): the whole remainder is `&&`-joined (a numeric fd redirect such
-    as `2>&1` is not a join), every segment is `git <subcommand> …` with the
+    directory (trusted-config assumption: see `_INERT_GIT_SUBCOMMANDS`): the
+    whole remainder is `&&`-joined (a numeric fd redirect such as `2>&1` is
+    not a join), every segment is `git <subcommand> …` with the
     subcommand (the second word, so no global flag) in
     `_INERT_GIT_SUBCOMMANDS`, no word of any segment has a `.git` path
     component (`.git/HEAD`, `./.git/x`, `x/.GIT/y`), and no `log`/`diff`/
@@ -237,21 +243,31 @@ def _rest_moves(view, values, start):
     pos = start
     for segment in rest.split("&&"):
         seg_start, pos = pos, pos + len(segment) + 2
-        words = segment.split()
-        if len(words) < 2 or words[0] != "git" or words[1] not in _INERT_GIT_SUBCOMMANDS:
-            return True
-        resolved = _words(view, values, seg_start, seg_start + len(segment))
-        if any(_names_git_dir(w) for w in resolved):
-            return True
-        if words[1] in _OUTPUT_SUBCOMMANDS and any(_WRITING_OPTION.match(w) for w in resolved):
+        if _segment_moves(view, values, seg_start, seg_start + len(segment)):
             return True
     return False
+
+
+def _segment_moves(view, values, start, end):
+    """True unless `view[start:end]` is one inert segment: `git <subcommand>
+    …` with the subcommand (the second word, so no global flag and no prefix
+    assignment) in `_INERT_GIT_SUBCOMMANDS`, no word with a `.git` path
+    component, and no `--output` on a `log`/`diff`/`show`. The subcommand is
+    read UNRESOLVED (a quoted `"git"` is a placeholder, not `git`); the `.git`
+    and `--output` checks read the RESOLVED words."""
+    words = view[start:end].split()
+    if len(words) < 2 or words[0] != "git" or words[1] not in _INERT_GIT_SUBCOMMANDS:
+        return True
+    resolved = _words(view, values, start, end)
+    if any(_names_git_dir(w) for w in resolved):
+        return True
+    return words[1] in _OUTPUT_SUBCOMMANDS and any(_WRITING_OPTION.match(w) for w in resolved)
 
 
 def switch_target(text):
     """The branch a leading `git switch …` / `git checkout -b|-B …` moves to,
     when nothing else in the command can move the branch or the checkout
-    (same trusted-config assumption as `_rest_moves`); else None.
+    (trusted-config assumption: see `_INERT_GIT_SUBCOMMANDS`); else None.
 
     Read: `git switch <name>`, `git switch -c|-C|--create|--force-create
     <name> [start]`, `git checkout -b|-B <name> [start]`. Not read (None): a
@@ -326,10 +342,11 @@ def switch_target(text):
 
 
 # Global options `git` accepts before the subcommand that a commit-dir read can
-# step over: `-c` consumes the next word, the rest take none. `--git-dir` and
-# `--work-tree` are deliberately absent — they relocate the repository in ways
-# a toplevel comparison does not model — so meeting one returns None.
-_GIT_SKIP_VALUE = ("-c",)
+# step over; none takes a value. `--git-dir` and `--work-tree` are deliberately
+# absent — they relocate the repository in ways a toplevel comparison does not
+# model — and so is `-c`: a `-c <key>=<value>` can relocate the work tree
+# (`core.worktree`) or run a command, and no list of dangerous keys is
+# attempted. Meeting any flag outside this list returns None.
 _GIT_SKIP_FLAG = (
     "--no-pager",
     "-P",
@@ -394,8 +411,6 @@ def _commit_dir(words, base):
             if here is None:
                 return None
             i += 2
-        elif flag in _GIT_SKIP_VALUE:
-            i += 2
         elif flag in _GIT_SKIP_FLAG:
             i += 1
         else:
@@ -412,7 +427,9 @@ def commit_target_dir(text):
     The directory comes from a leading `cd <abs dir> &&` and/or a `git -C
     <dir>` global flag on each commit. None whenever any commit could run
     anywhere else, or could not be located at all: a `commit` word in a
-    segment that is not a plain `git [globals] commit`, a commit inside a
+    segment that is not a plain `git [globals] commit`, a commit segment
+    carrying any `-c <key>=<value>` global flag (`core.worktree` relocates the
+    work tree; no list of safe keys is attempted), a commit inside a
     command substitution or a `bash -c`/`eval` wrapper, any `cd`/`pushd`/
     `popd` other than the leading one, two commits in different directories,
     a relative or unexpandable directory, a directory (the leading `cd` one,
@@ -427,18 +444,30 @@ def commit_target_dir(text):
     not refused; a GIT_* one still voids the read through the mention rule
     above. (`switch_target` is unchanged: a leading assignment voids it.)
     """
+    return _commit_target(text)[0]
+
+
+def _commit_target(text):
+    """`(directory, others_inert)`: the `commit_target_dir` reading, plus
+    whether every segment other than the commit segment(s) and the leading
+    `cd <abs dir>` is inert (`_segment_moves`, the per-segment rule
+    `switch_target` applies). A non-inert one (`ln -sfn`, `mv`, a git alias)
+    can re-point the read directory after the hook resolved it, so a False
+    must not earn the different-repository silence; the directory is still
+    returned, because re-pointing at a sibling worktree only adds a block.
+    `(None, False)` whenever no directory is read."""
     if _relocating_env(text):
-        return None
+        return None, False
     if substitution_spans_matching(text, lambda s: _COMMIT_WORD.search(s) is not None):
-        return None
+        return None, False
     if wrapped_command_strings(text):
-        return None
+        return None, False
     scanned = _view(strip_heredoc_bodies(text))
     if scanned is None:
-        return None
+        return None, False
     view, values = scanned
     if re.search(r"[`{}]", view):
-        return None
+        return None, False
 
     base = None
     rest_start = 0
@@ -448,38 +477,50 @@ def commit_target_dir(text):
         if len(first) == 2 and first[0] == "cd":
             base = _absolute_dir(first[1])
             if base is None:
-                return None
+                return None, False
             rest_start = bounds[1] + 2
 
     found = set()
+    inert = True
     pos = rest_start
     for sep in [*_SEGMENT_SPLIT.finditer(view, rest_start), None]:
+        seg_start = pos
         end = sep.start() if sep is not None else len(view)
         words = _words(view, values, pos, end)
         pos = sep.end() if sep is not None else len(view)
         if not words:
             continue
         if words[0] in ("cd", "pushd", "popd"):
-            return None
+            return None, False
         if not any(w.lower() == "commit" for w in words):
+            if _segment_moves(view, values, seg_start, end):
+                inert = False
             continue
         where = _commit_dir(words, base)
         if where is None:
-            return None
+            return None, False
         found.add(os.path.normpath(where))
     if len(found) != 1:
-        return None
-    return found.pop()
+        return None, False
+    return found.pop(), inert
 
 
 if __name__ == "__main__":
     command = os.environ.get("GUARD_CMD", "")
-    for fn in (switch_target, commit_target_dir):
-        try:
-            value = fn(command)
-        except Exception:
-            # Fail toward the live-state evaluation, the guards' pre-existing
-            # behaviour, rather than toward any reading of the command.
-            value = None
-        print(value or "")
+    # Line 1: the switch target; line 2: the commit directory; line 3: "1"
+    # when every non-commit segment is inert. Each line is empty for None or
+    # False.
+    try:
+        target = switch_target(command)
+    except Exception:
+        # Fail toward the live-state evaluation, the guards' pre-existing
+        # behaviour, rather than toward any reading of the command.
+        target = None
+    try:
+        commit_dir, others_inert = _commit_target(command)
+    except Exception:
+        commit_dir, others_inert = None, False
+    print(target or "")
+    print(commit_dir or "")
+    print("1" if others_inert else "")
     sys.exit(0)

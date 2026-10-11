@@ -979,6 +979,10 @@ run 2 "switch: a ; join keeps the live branch" \
   'git switch -c feat/x; git commit -m y' 'services/probe.ts'
 run 2 "switch: a newline join keeps the live branch" \
   "$(printf 'git switch -c feat/x\ngit commit -m y')" 'services/probe.ts'
+# `&&&` is `&&` followed by a background `&`: the stray `&` is a non-`&&`
+# join, so the switch is not read and the live branch decides (fails closed).
+run 2 "switch: a &&& join keeps the live branch" \
+  'git switch -c x &&& git commit -m y' 'services/probe.ts'
 run 2 "switch: plain git checkout <name> is not read" \
   'git checkout feat/x && git commit -m y' 'services/probe.ts'
 run 2 "switch: a switch that is not the first segment is not read" \
@@ -1163,6 +1167,19 @@ run 2 "cross-repo: a commit inside a substitution still blocks" \
   "git -C $OTHER_REPO commit -m \"\$(git commit -m y)\"" 'services/probe.ts'
 run 2 "cross-repo: a commit inside a bash -c wrapper still blocks" \
   "git -C $OTHER_REPO commit -m x && bash -c 'git commit -m y'" 'services/probe.ts'
+# A `-c <key>=<value>` global flag can relocate the work tree (core.worktree)
+# or run commands, so any `-c` voids the directory read and the live checkout
+# is judged.
+run 2 "cross-repo: a -c global flag voids the -C directory" \
+  "git -c core.worktree=$WT -C $OTHER_REPO commit -m x" 'services/probe.ts'
+# A non-inert earlier segment can re-point the directory after the hook has
+# resolved it: here $LNK resolves to the other repo at hook time, and the `ln`
+# re-targets it at the develop checkout before the commit runs. Such a command
+# never earns the different-repository silence; the live checkout is judged.
+LNK="$TMP_BASE/probe-lnk"
+ln -sfn "$OTHER_REPO" "$LNK"
+run 2 "cross-repo: a non-inert earlier segment voids the different-repo silence" \
+  "ln -sfn $WT $LNK && git -C $LNK commit -m x" 'services/probe.ts'
 
 # Rename decomposition: a staged gated→non-gated rename must still block.
 # Without --no-renames it renders as one `R old.ts -> new.md` line whose

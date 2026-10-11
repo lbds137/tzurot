@@ -56,10 +56,9 @@
 #   when the whole command is a pure `&&` chain and every later segment is
 #   an allowlisted `git add|commit|status|diff|log|show` with no global
 #   flag and no word with a `.git` path component, so nothing can move the
-#   branch or the directory again, assuming trusted repository config and
-#   hooks (diff.external, textconv, core.fsmonitor and commit hooks can run
-#   commands and are not modelled; not verified) (a `2>&1`/`>&2` redirect
-#   is not a join).
+#   branch or the directory again (trusted-config assumption: see
+#   `_INERT_GIT_SUBCOMMANDS` in lib/branch_switch.py) (a `2>&1`/`>&2`
+#   redirect is not a join).
 #   Every other shape — a `;` or pipe anywhere (the commit runs even when the
 #   switch fails), any other later command (a switch, an alias like `git co`,
 #   cd, `git -C`, `git mv`/`git rm`, make), a `.git/…` path such as
@@ -74,7 +73,9 @@
 #   absolute directory (`git -C <abs dir> commit`, or a leading
 #   `cd <abs dir> &&`) whose toplevel resolves and differs from this
 #   checkout's: a DIFFERENT repository (its git-common-dir differs) makes the
-#   guard stay silent; another WORKTREE of this repository (same
+#   guard stay silent, provided every other segment is an inert `git
+#   add|commit|status|diff|log|show` (anything else could re-point the
+#   directory after the hook read it); another WORKTREE of this repository (same
 #   git-common-dir) is judged as itself — its branch (or the leading switch
 #   target) and its dirty tree, so a commit into a sibling worktree on
 #   develop still blocks (probe: the "cross-repo:" rows). A SUBMODULE counts
@@ -84,7 +85,8 @@
 #   relative, `~`-prefixed or expanded directory, a directory with a `..`
 #   step (git and the shell resolve it physically through a symlink, the
 #   text only lexically), a commit inside a
-#   substitution or a `bash -c`/`eval` wrapper, `--git-dir`/`--work-tree`, and
+#   substitution or a `bash -c`/`eval` wrapper, `--git-dir`/`--work-tree`, any
+#   `-c <key>=<value>` global flag (`core.worktree` relocates the work tree), and
 #   a GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE / GIT_COMMON_DIR mention, and
 #   a directory that does not resolve to a repository are all judged against
 #   this checkout, as before: over-blocking when this checkout is on
@@ -810,16 +812,21 @@ cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null || exit 0
 # What the command's leading segment changes before its commit runs
 # (lib/branch_switch.py): line 1 = the branch a leading `git switch … &&`
 # moves to, line 2 = the one absolute directory every commit in the command
-# runs in. Each is empty when it cannot be read with certainty, and empty
-# means "judge the live state" — the behaviour before this read existed. A
-# python failure leaves both empty, the same direction.
+# runs in, line 3 = "1" when every other segment of the command (bar a
+# leading `cd <abs dir>`) is inert, so nothing can re-point that directory
+# after it is resolved here. Each is empty when it cannot be read with
+# certainty, and empty means "judge the live state" — the behaviour before
+# this read existed. A python failure leaves all three empty, the same
+# direction.
 SWITCH_TARGET=""
 COMMIT_DIR=""
+COMMIT_OTHERS_INERT=""
 LEADING=$(GUARD_CMD="$COMMAND" PYTHONDONTWRITEBYTECODE=1 \
   python3 "$HOOK_LIB/branch_switch.py" 2>/dev/null) || LEADING=""
 {
   read -r SWITCH_TARGET
   read -r COMMIT_DIR
+  read -r COMMIT_OTHERS_INERT
 } <<< "$LEADING"
 # The switch target is the branch of THIS checkout; a commit placed in another
 # directory says nothing about it. The helper already refuses a target when a
@@ -835,11 +842,17 @@ fi
 # whose toplevel RESOLVES and differs from this one's is acted on; an
 # unresolvable one (missing, not a repo) keeps the live-state evaluation.
 # - A DIFFERENT repository (its git-common-dir differs): this repo's policy
-#   does not govern that commit, so stay silent.
+#   does not govern that commit, so stay silent — but only when every other
+#   segment is inert (COMMIT_OTHERS_INERT). A non-inert one (`ln -sfn`, `mv`,
+#   an alias) can re-point the directory at this repository after the read
+#   here, so it keeps the live-state evaluation (probe: "cross-repo: a
+#   non-inert earlier segment …").
 # - Another WORKTREE of this repository (same git-common-dir): the commit is
 #   still a Tzurot commit, so the gate re-points at THAT checkout — the branch
 #   read and the dirty-tree classification below both run there. If the cd
-#   fails, the live-state evaluation here is kept.
+#   fails, the live-state evaluation here is kept. The inert bit is not
+#   required here: judging the sibling only adds a block, never a pass (probe:
+#   "switch: a later git -C <develop checkout> commit …").
 if [ -n "$COMMIT_DIR" ]; then
   TARGET_TOP=$(git -C "$COMMIT_DIR" rev-parse --show-toplevel 2>/dev/null || echo "")
   HERE_TOP=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
@@ -851,7 +864,7 @@ if [ -n "$COMMIT_DIR" ]; then
     if [ -n "$TARGET_COMMON" ] && [ -n "$HERE_COMMON" ]; then
       if [ "$TARGET_COMMON" = "$HERE_COMMON" ]; then
         cd "$TARGET_TOP" 2>/dev/null || true
-      else
+      elif [ "$COMMIT_OTHERS_INERT" = "1" ]; then
         exit 0
       fi
     fi
