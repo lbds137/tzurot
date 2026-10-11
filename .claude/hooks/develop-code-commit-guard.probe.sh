@@ -1115,7 +1115,7 @@ run 0 "cross-repo: git -C <other worktree> commit" \
 # switch puts the feature worktree on develop, so the commit lands on develop.
 # With any non-inert other segment the sibling is judged as if on develop
 # (fail closed) — its dirty tree still decides. The second row is the accepted
-# over-block: `make` cannot switch the worktree, but it is not inert either.
+# over-block: the hook cannot see what `make` runs, so it is not inert.
 printf 'probe\n' > "$FEATURE_WT/services/probe-sibling.ts"
 run 2 "cross-repo: a switch of the sibling worktree before its commit is not trusted" \
   "git -C $FEATURE_WT switch -q develop && git -C $FEATURE_WT commit -am x" 'services/probe.ts'
