@@ -89,7 +89,8 @@ function findings(code: string): (string | undefined)[] {
 
 const PRELUDE_LINES = PRELUDE.split('\n').length - 1;
 
-// Builds the cached type program once (8s on a loaded machine) here, not in the first test.
+// The project service keeps its program for the process, so the first typed lint pays the
+// build (8s on a loaded machine; later tests ran in ms) — paid here, not in the first test.
 beforeAll(() => void findings('export {};'), 30_000);
 
 describe('rule metadata', () => {

@@ -15,8 +15,8 @@
  *     referenced by an entry. Bidirectional, like guard:audit-tool-docs: a new
  *     hook added without a probe is a visible decision, and a probe whose hook
  *     was deleted stops being silently green.
- *  2. **Execution** — every registered probe runs. Total runtime (measured at
- *     PROBE_TIMEOUT_MS) is small beside the lint job's knip/cpd/
+ *  2. **Execution** — every registered probe runs. Total runtime (measured in
+ *     PROBE_TIMEOUT_MS's doc) is small beside the lint job's knip/cpd/
  *     depcruise steps, so this runs unconditionally rather than keying off a
  *     hooks-dir diff. An unconditional gate cannot drift out of sync with its
  *     own trigger condition.
