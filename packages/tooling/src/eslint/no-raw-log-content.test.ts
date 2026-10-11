@@ -89,8 +89,8 @@ function findings(code: string): (string | undefined)[] {
 
 const PRELUDE_LINES = PRELUDE.split('\n').length - 1;
 
-// The project service keeps its program for the process, so the first typed lint pays the
-// build (8s on a loaded machine; later tests ran in ms) — paid here, not in the first test.
+// Warm-up through the same FIXTURE path every test lints. Not verified as a guarantee: timings
+// (first typed lint 8s on a loaded machine, later ones ms) suggest the program is reused.
 beforeAll(() => void findings('export {};'), 30_000);
 
 describe('rule metadata', () => {
