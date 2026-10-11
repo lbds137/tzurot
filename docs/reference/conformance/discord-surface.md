@@ -2529,6 +2529,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/history/stats.ts | inline | 5 |
 | services/bot-client/src/commands/history/stats.ts | name | 5 |
 | services/bot-client/src/commands/history/stats.ts | value | 5 |
+| services/bot-client/src/commands/inspect/embed.ts | * | 1 |
 | services/bot-client/src/commands/inspect/embed.ts | EmbedBuilder | 1 |
 | services/bot-client/src/commands/inspect/embed.ts | inline | 8 |
 | services/bot-client/src/commands/inspect/embed.ts | name | 7 |
@@ -2947,6 +2948,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/processors/DMSessionProcessor.ts | limit | 1 |
 | services/bot-client/src/services/DiscordChannelFetcher.ts | before | 1 |
 | services/bot-client/src/services/DiscordChannelFetcher.ts | limit | 1 |
+| services/bot-client/src/services/DiscordResponseSender.ts | * | 1 |
 | services/bot-client/src/services/GatewayWatchdog.ts | limit | 1 |
 | services/bot-client/src/services/GatewayWatchdog.ts | query | 1 |
 | services/bot-client/src/services/GatewayWatchdog.ts | time | 1 |
@@ -2969,6 +2971,8 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/modal/toolkit.ts | FileUploadBuilder | 1 |
 | services/bot-client/src/utils/modal/toolkit.ts | RadioGroupBuilder | 1 |
 | services/bot-client/src/utils/modal/toolkit.ts | RadioGroupOptionBuilder | 1 |
+| services/bot-client/src/utils/overrideBrowse.ts | * | 2 |
+| services/bot-client/src/utils/ownerChannel.ts | * | 1 |
 
 ## webhook-options
 
@@ -2983,4 +2987,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 2913 entries across 6778 sites.
+Total: 2917 entries across 6783 sites.
