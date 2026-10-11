@@ -1,96 +1,38 @@
 ---
 name: tzurot-bug-remediation
 description: 'The recurring-bug remediation protocol: runtime evidence → root cause → exhaustive class sweep → seam-tier regression test → structural guard. Invoke with /tzurot-bug-remediation when a bug recurs, a "fixed" class regresses, the owner says a failure "keeps biting", OR at the FIRST fix of a path-specific UI/flow bug (create/edit/browse/view/delete) — to sweep sibling flows before declaring it fixed.'
-lastUpdated: '2026-09-25'
+lastUpdated: '2026-10-11'
 ---
 
 # Bug Remediation Protocol
 
-**Invoke with /tzurot-bug-remediation** when fixing a bug that has recurred, when a
-previously-"fixed" class regresses, or when the owner signals class-level pain
-("keeps biting me", "this happens a lot", "why didn't tests catch it"). The
-protocol exists because under-remediation recurs in a fixed shape: a symptom
-patch on the one visible instance, a mocked unit test, and the class returns.
+The protocol is the Seyag `bug-remediation` skill (`/bug-remediation`, `seyag:bug-remediation`); load it and follow it, including its first-fix sibling sweep and its closing checklist (`seyag:bug-remediation § Closing checklist`). This file holds only the Tzurot bindings. The "code-read-only" label on a first-fix claim stays until the owner's runtime smoke confirms it.
 
-**Also fires at the FIRST fix of any path-specific UI/flow bug** — a bug on one of a component family's parallel flows (create / edit / browse / view / delete). Before declaring it fixed: sweep every sibling flow of the same family for the same class, and label the claim **code-read-only** until the owner's runtime smoke confirms it. This class was lost repeatedly by waiting for recurrence: a `canEdit`/delete-button bug fixed on the edit path returned on the _create_ path one smoke round later; an avatar-seam bug "fixed" pre-merge was still broken at runtime. The recurrence trigger below is the backstop; this first-fix sweep is the cheaper catch.
-
-The five steps run IN ORDER. Skipping one is how the bug comes back.
+If the seyag plugin is not loaded in this session (a cloud unit or the CI review action may lack it), the pointers below do not resolve: say so, and hand the procedure step to the driver or the owner instead of reconstructing it.
 
 ## 1. Runtime evidence FIRST
 
-- Reproduce, or capture the failing runtime observation (log line, prod trace,
-  failing test). **Never fix on a code-read mechanism** — "code-reading suggests
-  X" is a hypothesis until a tool confirms it (harness `core.md` § Don't present
-  speculation as fact — code-reading is not runtime verification).
-- If the observation isn't capturable today, **ship the one diagnostic that
-  produces it** as its own commit (the `debug` type exists for this) and stop —
-  the fix waits for the observation.
-- Self-serve the evidence: Railway CLI (incl. ended-deploy logs), dev probes,
-  `/inspect` output the owner already posted. Exhaust the query space before
-  claiming data doesn't exist (see `/tzurot-deployment` § log forensics).
+Procedure: `seyag:bug-remediation § 1. Runtime evidence first`. Tzurot bindings:
+
+- The diagnostic commit uses the `debug` type (`05-tooling.md` § The `debug` type).
+- Self-serve the evidence: Railway CLI (incl. ended-deploy logs), dev probes, `/inspect` output the owner already posted. Exhaust the query space before claiming data doesn't exist (see `/tzurot-deployment` § log forensics).
 
 ## 2. Root cause, not band-aid
 
-- Reject as final answers: symptom patches, instrumentation-only "fixes",
-  "graceful degradation" that hides the failure, retry-until-it-works.
-  These may ship as stopgaps but the item stays open until the mechanism is
-  named and closed.
-- The tell you're band-aiding: the fix's explanation describes the _symptom_
-  path, not why the state arose.
+Procedure: `seyag:bug-remediation § 2. Root cause, not band-aid`.
 
 ## 3. Exhaustive class sweep (the step that keeps failing)
 
-- Define the CLASS the bug belongs to ("every route that builds this by hand",
-  "every copy of this predicate", "every consumer of this field") and enumerate
-  members **deterministically**: `pnpm ops xray --format md | grep`, depcruise,
-  AST greps, schema introspection — NOT a sampled manual grep. Sampled greps
-  miss the last route, the drifted copy, the extra consumer.
-- Fix EVERY instance in the same change, or file each unfixed member as its own
-  tracked item before closing. List the enumeration method + full member list
-  in the PR body so review can check the sweep, not just the diff.
-- If the class exists because logic is duplicated, consolidation is part of the
-  remediation — see `/tzurot-reuse-scout`.
-- **Sweep the class's TESTS, not only its code sites.** An existing regression
-  test for a member is not coverage until it is shown to fail on the pre-fix
-  code — apply step 4's own bar to every test you did NOT write. A fixture can
-  be well-formed and still never reach the bug: its inputs sit on the wrong
-  side of the trigger, one size below the threshold, or in a shape the buggy
-  branch never sees. It then passes identically before and after and reads as
-  protection while providing none. The tell is that reverting the fix leaves it
-  green. Enumerate the tests from the member list the code sweep already
-  produced — for each member, name the test that covers it (grep the symbol,
-  the fixture constant, the file's colocated `.test.*`/`.probe.*`). A member
-  with no test is a step-4 obligation, not a tracked item: an untested member
-  of a class you have just proven buggy is the one thing least safe to defer.
-  The canary is cheap: back the fix out — once when the class was fixed in one
-  change, else once per fix commit — run the whole set, and every test that
-  stays green is a test that was measuring nothing. A sweep that lists members but never asks which fixture exercises
-  each one has checked half the class.
+Procedure (including sweeping the class's tests): `seyag:bug-remediation § 3. Exhaustive class sweep`. Tzurot bindings:
+
+- Enumerate members deterministically with `pnpm ops xray --format md | grep`, depcruise, AST greps, schema introspection.
+- Consolidation of duplicated logic: `/tzurot-reuse-scout`.
+- To name the test that covers each member, grep the symbol, the fixture constant, and the file's colocated `.test.*`/`.probe.*`.
 
 ## 4. Regression test at the correct tier
 
-- The test must fail on the pre-fix code. State which tier and why: a seam bug
-  needs a seam/contract test (assert what crosses the mocked boundary), not a
-  unit test that mocks the seam it's meant to verify (`02-code-standards.md`
-  § Assert what crosses a mocked seam).
-- If the bug survived because coverage was green-but-blind, say so and fix the
-  blind spot — don't just add one more green test beside it.
+Procedure: `seyag:bug-remediation § 4. Regression test at the right tier`. Tzurot binding: a seam bug needs a seam/contract test that asserts what crosses the mocked boundary (`02-code-standards.md` § Assert what crosses a mocked seam).
 
 ## 5. Structural guard
 
-- Ask the three questions from `00-critical.md` § Fix Recurring Failures
-  Structurally: rule? skill step? hook/CI guard? For code classes, prefer a
-  contract-level invariant the build enforces (a manifest test, a budget
-  constant, a `guard:*` check, a schema-parity test) over documentation.
-- A remediation with no recurrence-blocker is incomplete — if genuinely nothing
-  structural fits, record why in the PR body.
-
-## Closing checklist
-
-- [ ] Runtime observation captured (or diagnostic shipped + item parked)
-- [ ] Mechanism named; fix explains the cause, not the symptom
-- [ ] Class enumerated deterministically; every member fixed or tracked
-- [ ] Every EXISTING test for the class canaried (revert the fix — anything
-      still green was measuring nothing)
-- [ ] Regression test fails pre-fix, at the right tier
-- [ ] Structural guard shipped, or its absence justified in the PR
+Procedure: `seyag:bug-remediation § 5. Structural guard`. Tzurot bindings: the three questions are in `00-critical.md` § Fix Recurring Failures Structurally; the build-enforced invariant is e.g. a manifest test, a budget constant, a `guard:*` check, or a schema-parity test. Seyag's hook-replay bullet maps here to the hook's `.claude/hooks/<name>.probe.sh` and `pnpm ops guard:hook-probes` (`05-tooling.md` § Guards).
