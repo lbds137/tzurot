@@ -735,17 +735,29 @@ RELEASE_KEY="RELEASE:${PR_NUM}"
 # The resolved-flag is separate from the values: either field can legitimately
 # come back empty (a `gh` failure, a null field), and keying the cache on
 # emptiness would re-issue the call on every subsequent use.
+#
+# The same call also carries the PR's author and whether its changed files
+# include the review workflow itself — the two sanctioned reasons a PR has no
+# claude-review at all (see no_review_reason below). Riding the existing round
+# trip rather than adding one; both fail open to "" like the refs.
 PR_BASE=""
 PR_HEAD=""
+PR_AUTHOR=""
+PR_EDITS_REVIEW_WORKFLOW=""
 PR_VIEW_RESOLVED=0
+REVIEW_WORKFLOW_PATH=".github/workflows/claude-code-review.yml"
 resolve_pr_view() {
     [ "$PR_VIEW_RESOLVED" = 1 ] && return 0
     PR_VIEW_RESOLVED=1
     local view
-    view=$(gh pr view "$PR_NUM" --json baseRefName,headRefName \
-        --jq '(.baseRefName // ""), (.headRefName // "")' 2>/dev/null || echo "")
+    view=$(gh pr view "$PR_NUM" --json baseRefName,headRefName,author,files \
+        --jq '(.baseRefName // ""), (.headRefName // ""), (.author.login // ""),
+              ([.files[]?.path] | any(. == "'"$REVIEW_WORKFLOW_PATH"'") | tostring)' \
+        2>/dev/null || echo "")
     PR_BASE=$(printf '%s\n' "$view" | sed -n '1p')
     PR_HEAD=$(printf '%s\n' "$view" | sed -n '2p')
+    PR_AUTHOR=$(printf '%s\n' "$view" | sed -n '3p')
+    PR_EDITS_REVIEW_WORKFLOW=$(printf '%s\n' "$view" | sed -n '4p')
     return 0
 }
 
@@ -1024,8 +1036,45 @@ fi
 # No claude-review on this PR (yet, or ever). Allow the merge — the gate is
 # only meaningful when there's actually content to surface. The user-facing
 # rule still applies: agent should be reading whatever review IS available.
+#
+# When the release block is about to print, it names WHY there is no review if
+# the reason is a sanctioned one, so the agent does not chase a rerun that
+# cannot produce one:
+#   - the PR edits the review workflow file: the review action validates that
+#     file against main's copy and skips itself on a mismatch
+#     (.github/workflows/claude-code-review.yml, step "Verify a review was
+#     posted", which logs "Workflow file differs from main");
+#   - the PR is dependabot's: the review job's `if:` skips it by author.
+# Both facts come from resolve_pr_view's one call (`gh` reports the dependabot
+# author as `app/dependabot`; the webhook spelling `dependabot[bot]` is matched
+# too). Anything unreadable falls back to the plain wording. A PR whose base is
+# not main still exits 0 silently — release_block_then_exit prints nothing there.
+no_review_reason() {
+    NO_REVIEW_HEADER="no claude-review comment found"
+    NO_REVIEW_DETAIL=""
+    release_reminder_due || return 0
+    if [ "$PR_EDITS_REVIEW_WORKFLOW" = "true" ]; then
+        NO_REVIEW_HEADER="no claude-review comment (the review action skips itself on a PR that edits its own workflow file)"
+        NO_REVIEW_DETAIL="This PR changes $REVIEW_WORKFLOW_PATH. The review action skips
+itself, posting nothing, whenever that file differs from main's copy — the
+sanctioned main-cut case, so do NOT rerun claude-review: a rerun skips the
+same way. The job log line \"Workflow file differs from main\" (step \"Verify
+a review was posted\") confirms the skip."
+    elif [ "$PR_AUTHOR" = "app/dependabot" ] || [ "$PR_AUTHOR" = "dependabot[bot]" ]; then
+        NO_REVIEW_HEADER="no claude-review comment (dependabot PRs are never reviewed)"
+        NO_REVIEW_DETAIL="This PR is dependabot's, and the claude-review job skips dependabot-authored
+PRs by design (its job-level if: on the PR author), so there is no review to
+wait for or rerun."
+    fi
+    return 0
+}
+
 if [ -z "$REVIEW_JSON" ] || [ "$REVIEW_JSON" = "null" ]; then
-    release_block_then_exit "no claude-review comment found"
+    no_review_reason
+    if [ -n "$NO_REVIEW_DETAIL" ]; then
+        release_block_then_exit "$NO_REVIEW_HEADER" "$NO_REVIEW_DETAIL"
+    fi
+    release_block_then_exit "$NO_REVIEW_HEADER"
 fi
 
 REVIEW_ID=$(jq -r '.id // empty' <<<"$REVIEW_JSON")
