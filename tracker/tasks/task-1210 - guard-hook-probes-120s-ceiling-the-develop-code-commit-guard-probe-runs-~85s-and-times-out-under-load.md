@@ -3,9 +3,10 @@ id: TASK-1210
 title: >-
   guard:hook-probes 120s ceiling: the develop-code-commit-guard probe runs ~85s
   and times out under load
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-11 14:54'
+updated_date: '2026-10-11 20:54'
 labels:
   - 'area:hooks'
   - 'size:S'
@@ -24,3 +25,9 @@ What: measure per-probe wall time on CI (job log) and locally; then either raise
 
 Acceptance: the slowest probe sits under half the ceiling on CI and locally, with the measurement cited at the constant.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-11 shipped in #2606: PROBE_TIMEOUT_MS 240s (slowest probe 66s@load14, 84s@13, 87s@25; CI whole set 49s); also cold-start eslint test timeouts that failed pre-push under load.
+<!-- SECTION:NOTES:END -->
