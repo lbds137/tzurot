@@ -16764,6 +16764,12 @@
     },
     {
       "category": "message-options",
+      "file": "services/bot-client/src/services/DiscordResponseSender.ts",
+      "symbol": "files",
+      "count": 1
+    },
+    {
+      "category": "message-options",
       "file": "services/bot-client/src/services/VoiceTranscriptionService.ts",
       "symbol": "allowedMentions",
       "count": 5
@@ -17178,6 +17184,12 @@
     },
     {
       "category": "message-options",
+      "file": "services/bot-client/src/utils/ownerChannel.ts",
+      "symbol": "files",
+      "count": 1
+    },
+    {
+      "category": "message-options",
       "file": "services/bot-client/src/utils/permissions.ts",
       "symbol": "content",
       "count": 4
@@ -17312,12 +17324,6 @@
       "category": "unclassified",
       "file": "services/bot-client/src/services/DiscordChannelFetcher.ts",
       "symbol": "limit",
-      "count": 1
-    },
-    {
-      "category": "unclassified",
-      "file": "services/bot-client/src/services/DiscordResponseSender.ts",
-      "symbol": "*",
       "count": 1
     },
     {
@@ -17457,12 +17463,6 @@
       "file": "services/bot-client/src/utils/overrideBrowse.ts",
       "symbol": "*",
       "count": 2
-    },
-    {
-      "category": "unclassified",
-      "file": "services/bot-client/src/utils/ownerChannel.ts",
-      "symbol": "*",
-      "count": 1
     },
     {
       "category": "webhook-options",

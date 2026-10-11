@@ -25,7 +25,6 @@ import {
   type FunctionExpression,
   type MethodDeclaration,
   type NewExpression,
-  type ObjectLiteralExpression,
   type Node as TsMorphNode,
   type PropertyAccessExpression,
   type SourceFile,
@@ -34,7 +33,8 @@ import {
   type TypeChecker,
 } from 'ts-morph';
 
-import { initializedVariableKeys, literalKeys, UNKNOWN_PAYLOAD_KEY } from './payloadKeys.js';
+import { returnedLiteralKeys, unwrapTransparent } from './literalSpreads.js';
+import { initializedVariableKeys, UNKNOWN_PAYLOAD_KEY } from './payloadKeys.js';
 import { classify, compareSurfaceEntries, type ClassifiableHit } from './categories.js';
 import type { SurfaceCategory, SurfaceEntry, SurfaceInventory } from './types.js';
 
@@ -253,40 +253,6 @@ function payloadPropertyNames(type: TsMorphType): string[] {
 }
 
 /**
- * Keys of an object literal as returned from a function: its own keys plus
- * the keys of spread local object variables (`{ ...options, rest }`). A
- * spread whose keys cannot be read statically (a call, a member access, a
- * parameter or any variable without an object-literal initializer) adds
- * {@link UNKNOWN_PAYLOAD_KEY} beside the resolved keys — never silent.
- */
-function returnedLiteralKeys(literal: ObjectLiteralExpression, typeChecker: TypeChecker): string[] {
-  const keys = new Set(literalKeys(literal));
-  for (const property of literal.getProperties()) {
-    if (!Node.isSpreadAssignment(property)) continue;
-    const spread = property.getExpression();
-    const spreadKeys = Node.isIdentifier(spread)
-      ? initializedVariableKeys(spread, typeChecker)
-      : undefined;
-    for (const key of spreadKeys ?? [UNKNOWN_PAYLOAD_KEY]) keys.add(key);
-  }
-  return [...keys];
-}
-
-/** Strip parentheses, `as`, `satisfies` and `!` — wrappers that change no runtime value. */
-function unwrapTransparent(expression: Node): Node {
-  let current = expression;
-  while (
-    Node.isParenthesizedExpression(current) ||
-    Node.isAsExpression(current) ||
-    Node.isSatisfiesExpression(current) ||
-    Node.isNonNullExpression(current)
-  ) {
-    current = current.getExpression();
-  }
-  return current;
-}
-
-/**
  * Keys of one returned expression: a literal (conditional branches included),
  * a variable initialized with a literal, or a delegated call (read like a
  * call argument — see {@link callKeys}). Parentheses, `as`, `satisfies` and
@@ -406,7 +372,8 @@ function callKeys(call: CallExpression, typeChecker: TypeChecker, visiting: Set<
  * `satisfies` and `!` around the argument are transparent, so every rule below
  * sees the wrapped expression.
  *  1. an object literal contributes its own keys plus the keys of spread local
- *     variables initialized with an object literal; a spread whose keys cannot
+ *     variables initialized with an object literal, `cond && { … }` and readable
+ *     ternaries of readable branches; a spread whose keys cannot
  *     be read statically adds {@link UNKNOWN_PAYLOAD_KEY} beside them (read
  *     exactly like a returned literal — see {@link returnedLiteralKeys});
  *  2. an identifier bound to a variable initialized with an object literal

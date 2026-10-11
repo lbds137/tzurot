@@ -2847,6 +2847,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/processors/PersonalityTriggerProcessor.ts | allowedMentions | 1 |
 | services/bot-client/src/processors/PersonalityTriggerProcessor.ts | content | 1 |
 | services/bot-client/src/services/DiscordResponseSender.ts | content | 1 |
+| services/bot-client/src/services/DiscordResponseSender.ts | files | 1 |
 | services/bot-client/src/services/VoiceTranscriptionService.ts | allowedMentions | 5 |
 | services/bot-client/src/services/VoiceTranscriptionService.ts | content | 5 |
 | services/bot-client/src/services/releaseDm/setupReleaseDmWorker.ts | allowedMentions | 1 |
@@ -2916,6 +2917,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/overrideBrowse.ts | embeds | 6 |
 | services/bot-client/src/utils/ownerChannel.ts | allowedMentions | 1 |
 | services/bot-client/src/utils/ownerChannel.ts | embeds | 1 |
+| services/bot-client/src/utils/ownerChannel.ts | files | 1 |
 | services/bot-client/src/utils/permissions.ts | content | 4 |
 | services/bot-client/src/utils/permissions.ts | flags | 2 |
 | services/bot-client/src/utils/subcommandRouter.ts | content | 2 |
@@ -2948,7 +2950,6 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/processors/DMSessionProcessor.ts | limit | 1 |
 | services/bot-client/src/services/DiscordChannelFetcher.ts | before | 1 |
 | services/bot-client/src/services/DiscordChannelFetcher.ts | limit | 1 |
-| services/bot-client/src/services/DiscordResponseSender.ts | * | 1 |
 | services/bot-client/src/services/GatewayWatchdog.ts | limit | 1 |
 | services/bot-client/src/services/GatewayWatchdog.ts | query | 1 |
 | services/bot-client/src/services/GatewayWatchdog.ts | time | 1 |
@@ -2972,7 +2973,6 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/modal/toolkit.ts | RadioGroupBuilder | 1 |
 | services/bot-client/src/utils/modal/toolkit.ts | RadioGroupOptionBuilder | 1 |
 | services/bot-client/src/utils/overrideBrowse.ts | * | 2 |
-| services/bot-client/src/utils/ownerChannel.ts | * | 1 |
 
 ## webhook-options
 
