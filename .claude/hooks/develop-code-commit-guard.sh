@@ -58,9 +58,12 @@
 #   global flag, so nothing can move the branch or the directory again.
 #   Every other shape — a `;` anywhere (the commit runs even when the switch
 #   fails), any other later command (a switch, an alias like `git co`, cd,
-#   `git -C`, make), a substitution, a GIT_DIR-style variable, plain `git
-#   checkout <name>` (branch-or-path ambiguity), a switch that is not the
-#   first segment — is judged on the live branch. A read commit directory
+#   `git -C`, make), a `log|diff|show --output`, a substitution, a heredoc
+#   with an UNQUOTED delimiter (`<<EOF` expands `$(…)` in its body before the
+#   commit runs; a heredoc must use a quoted delimiter, `<<'EOF'`), a
+#   GIT_DIR-style variable, plain `git checkout <name>` (branch-or-path
+#   ambiguity), a switch that is not the first segment — is judged on the
+#   live branch. A read commit directory
 #   (below) also drops the target.
 # - Cross-repo commits: when EVERY commit in the command provably runs in one
 #   absolute directory (`git -C <abs dir> commit`, or a leading
@@ -846,7 +849,8 @@ fi
 # but only in a pure `&&` chain whose later segments are all allowlisted
 # `git add|commit|status|diff|log|show|rm|mv` with no global flag. A switch to
 # develop/main therefore still blocks below; a new feature branch passes.
-# Every other shape (a `;` anywhere, any other later command, a substitution,
+# Every other shape (a `;` anywhere, any other later command, a
+# `log|diff|show --output`, a substitution, an unquoted-delimiter heredoc,
 # plain checkout, a switch that is not the first segment) leaves
 # SWITCH_TARGET empty and the live branch decides.
 if [ -n "$SWITCH_TARGET" ]; then
@@ -1034,7 +1038,8 @@ Remedy: a LEADING `git switch -c <branch> && …` (or `git checkout -b
 <branch> && …`) is honoured only in a pure `&&` chain with nothing else
 moving the branch or directory: every later command must be a plain
 `git add|commit|status|diff|log|show|rm|mv` (no `;`, no global flag, no
-alias, no cd, no substitution) — the gate then judges the commit on that
+alias, no cd, no `--output`, no substitution; a heredoc must use a quoted
+delimiter, `<<'EOF'`) — the gate then judges the commit on that
 branch. Every other shape is judged on the branch checked out NOW:
 for those, issue the branch switch as its OWN Bash call, then commit in the
 next call. A blocked PreToolUse call executes NONE of its chain — an

@@ -36,10 +36,14 @@ git alias such as `git co develop`, a shell function, `make`), so the rest of
 the chain is read against an ALLOWLIST instead: every segment after the
 leading switch must be `git <subcommand>` with no global flag at all and a
 subcommand in `_INERT_GIT_SUBCOMMANDS` (add, commit, status, diff, log, show,
-rm, mv). On top of that, no substitution other than the canonical
-`"$(cat <<'EOF' … EOF)"` message, no `bash -c`/`eval` wrapper, and no
-GIT_DIR-style environment variable. Everything else keeps the live-branch
-evaluation.
+rm, mv), and no `log`/`diff`/`show` segment may carry `--output` (it writes
+a file of the caller's choosing). On top of that, no substitution other than
+the canonical `"$(cat <<'EOF' … EOF)"` message, no heredoc with an UNQUOTED
+delimiter (`<<EOF`, `<<-EOF`: bash expands `$(…)` and backticks in its body
+before the commit runs, and the body is stripped before the other checks
+see it — a heredoc must use a quoted delimiter, `<<'EOF'` or `<<"EOF"`), no
+`bash -c`/`eval` wrapper, and no GIT_DIR-style environment variable.
+Everything else keeps the live-branch evaluation.
 
 WHY PLAIN `git checkout <name>` IS NOT READ
 -------------------------------------------
@@ -109,6 +113,25 @@ _GIT_ENV = re.compile(r"GIT_DIR|GIT_WORK_TREE|GIT_INDEX_FILE|GIT_COMMON_DIR")
 # stripping is a bare `cat <<MARKER`.
 _CANONICAL_CAT = re.compile(r"\s*cat\s+<<-?\s*\w+\s*\Z")
 
+# A heredoc opener (`<<WORD` / `<<-WORD`, not a here-string `<<<`) and the
+# first character of its delimiter word. Bash expands `$(…)`, backticks and
+# parameters in the body unless that word is quoted, and the body is stripped
+# before every other check here, so an UNQUOTED delimiter hides a substitution
+# that runs before the commit. A delimiter opening with `'`, `"` or `\` is
+# quoted; anything else (including a partly-quoted `E"OF"`, which bash would
+# also treat as quoted) counts as unquoted, the direction that keeps the live
+# branch. Read on the RAW text: the canonical message's heredoc sits inside a
+# double-quoted `$(…)`, invisible in the quote-stripped view.
+_HEREDOC_DELIMITER = re.compile(r"(?<!<)<<(?!<)-?[ \t]*(\S)")
+_QUOTED_DELIMITER_START = ("'", '"', "\\")
+
+# Options of the allowlisted read-only subcommands that write a file of the
+# caller's choosing (a ref, the HEAD file), which makes the segment not inert.
+# git accepts no abbreviation of `--output` for log/diff/show (probed: git
+# 2.50.1 rejects `--outp=`/`--out=` as an unrecognized argument).
+_WRITING_OPTION = re.compile(r"--output(?:=|\Z)")
+_OUTPUT_SUBCOMMANDS = frozenset(("log", "diff", "show"))
+
 _SWITCH_CREATE = ("-c", "-C", "--create", "--force-create")
 _CHECKOUT_CREATE = ("-b", "-B")
 
@@ -158,18 +181,33 @@ def _relocating_env(text):
     return _GIT_ENV.search(text) is not None
 
 
-def _rest_moves(view, start):
+def _unquoted_heredoc(text):
+    """True when the raw command opens any heredoc whose delimiter is not
+    quoted, so bash expands substitutions in its body."""
+    return any(m.group(1) not in _QUOTED_DELIMITER_START for m in _HEREDOC_DELIMITER.finditer(text))
+
+
+def _rest_moves(view, values, start):
     """True unless `view[start:]` is provably unable to move the branch or the
     directory: the whole remainder is `&&`-joined, and every segment is
     `git <subcommand> …` with the subcommand (the second word, so no global
-    flag) in `_INERT_GIT_SUBCOMMANDS`. Words are read UNRESOLVED from the
-    quote-stripped view, so a quoted `"git"` is a placeholder, not `git`."""
+    flag) in `_INERT_GIT_SUBCOMMANDS`, and no `log`/`diff`/`show` segment
+    carries `--output` (it writes an arbitrary file). The subcommand is read
+    UNRESOLVED from the quote-stripped view, so a quoted `"git"` is a
+    placeholder, not `git`; the `--output` check reads the RESOLVED words, so
+    a quoted `"--output=…"` is still seen."""
     rest = view[start:]
     if _NON_AND_SEPARATOR.search(rest.replace("&&", " ")):
         return True
+    pos = start
     for segment in rest.split("&&"):
+        seg_start, pos = pos, pos + len(segment) + 2
         words = segment.split()
         if len(words) < 2 or words[0] != "git" or words[1] not in _INERT_GIT_SUBCOMMANDS:
+            return True
+        if words[1] in _OUTPUT_SUBCOMMANDS and any(
+            _WRITING_OPTION.match(w) for w in _words(view, values, seg_start, seg_start + len(segment))
+        ):
             return True
     return False
 
@@ -190,12 +228,17 @@ def switch_target(text):
     of these returns None): any separator other than `&&` anywhere (`;`,
     `||`, `|`, `&`, a newline, a subshell or group, a backtick or `$(`); a
     command substitution other than the canonical `cat <<MARKER` message, or
-    a `bash -c`/`eval` wrapper, anywhere, quoted or not; any later segment
-    that is not `git <subcommand>` with no global flag and a subcommand in
-    the allowlist `_INERT_GIT_SUBCOMMANDS` (add, commit, status, diff, log,
-    show, rm, mv) — so a git alias, `cd`, `make`, `env`, `command`, a
-    function or `$CMD` all void the target; and a GIT_DIR / GIT_WORK_TREE /
-    GIT_INDEX_FILE / GIT_COMMON_DIR mention anywhere in the raw text.
+    a `bash -c`/`eval` wrapper, anywhere, quoted or not; any heredoc whose
+    delimiter is unquoted (`<<EOF`, `<<-EOF`), whatever its body, because
+    bash expands substitutions in that body before the commit runs (a
+    delimiter opening with `'`, `"` or `\\` is quoted; a here-string `<<<` is
+    not a heredoc); any later segment that is not `git <subcommand>` with no
+    global flag and a subcommand in the allowlist `_INERT_GIT_SUBCOMMANDS`
+    (add, commit, status, diff, log, show, rm, mv) — so a git alias, `cd`,
+    `make`, `env`, `command`, a function or `$CMD` all void the target; a
+    `log`/`diff`/`show` segment carrying `--output` or `--output=`; and a
+    GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE / GIT_COMMON_DIR mention
+    anywhere in the raw text.
     """
     if _relocating_env(text):
         return None
@@ -208,6 +251,12 @@ def switch_target(text):
         return None
     if wrapped_command_strings(text):
         return None
+    # The heredoc strip below removes every body before any check sees it, and
+    # the substitution scan above runs on the stripped text too, so a
+    # substitution in an UNQUOTED-delimiter body (which bash expands before
+    # the commit runs) is otherwise invisible. Refuse any such heredoc.
+    if _unquoted_heredoc(text):
+        return None
     scanned = _view(strip_heredoc_bodies(text))
     if scanned is None:
         return None
@@ -218,7 +267,7 @@ def switch_target(text):
     bounds = _first_segment(view)
     if bounds is None:
         return None
-    if _rest_moves(view, bounds[1] + 2):
+    if _rest_moves(view, values, bounds[1] + 2):
         return None
     words = _words(view, values, *bounds)
     if len(words) < 3 or words[0] != "git":

@@ -1005,6 +1005,45 @@ run 2 "switch: a later git alias (not allowlisted) is not trusted" \
   'git switch -c x && git co develop && git commit -m y' 'services/probe.ts'
 run 2 "switch: a later git branch -M is not trusted" \
   'git switch -c x && git branch -M develop && git commit -m y' 'services/probe.ts'
+# An UNQUOTED heredoc delimiter makes bash expand `$(…)` and backticks in the
+# body before the commit runs, so a body can move the branch: each of these
+# commits on develop at runtime. A QUOTED delimiter (`<<'EOF'`, `<<"EOF"`)
+# suppresses that expansion, so the same body is data and the target holds.
+run 2 "switch: an unquoted heredoc body substitution is not trusted" \
+  "$(printf '%s\n' 'git switch -c x && git commit -F - <<EOF' 'fix: m $(git switch -q develop)' 'EOF')" \
+  'services/probe.ts'
+run 2 "switch: an unquoted heredoc inside the canonical cat message is not trusted" \
+  "$(printf '%s\n' 'git switch -c x && git commit -m "$(cat <<EOF' 'fix: m $(git switch -q develop)' 'EOF' ')"')" \
+  'services/probe.ts'
+run 2 "switch: an unquoted heredoc body backtick is not trusted" \
+  "$(printf '%s\n' 'git switch -c x && git commit -F - <<EOF' 'fix: m `git switch -q develop`' 'EOF')" \
+  'services/probe.ts'
+run 2 "switch: an unquoted <<- heredoc body substitution is not trusted" \
+  "$(printf '%s\n' 'git switch -c x && git commit -F - <<-EOF' 'fix: m $(git switch -q develop)' 'EOF')" \
+  'services/probe.ts'
+run 0 "switch: a single-quoted heredoc delimiter keeps the body inert" \
+  "$(printf '%s\n' "git switch -c x && git commit -F - <<'EOF'" 'fix: m $(git switch -q develop)' 'EOF')" \
+  'services/probe.ts'
+run 0 "switch: a double-quoted heredoc delimiter keeps the body inert" \
+  "$(printf '%s\n' 'git switch -c x && git commit -F - <<"EOF"' 'fix: m $(git switch -q develop)' 'EOF')" \
+  'services/probe.ts'
+run 0 "switch: the canonical quoted cat message keeps a substitution body inert" \
+  "$(printf '%s\n' "git switch -c x && git commit -m \"\$(cat <<'EOF'" 'fix: m $(git switch -q develop)' 'EOF' ')"')" \
+  'services/probe.ts'
+# A here-string `<<<` is not a heredoc: plain text there is trusted, and a
+# substitution in it is caught by the raw substitution check.
+run 0 "switch: a here-string message is not read as a heredoc" \
+  'git switch -c x && git commit -F - <<< "fix: m"' 'services/probe.ts'
+run 2 "switch: a substitution in a here-string is not trusted" \
+  'git switch -c x && git commit -F - <<< "$(git switch -q develop)"' 'services/probe.ts'
+# `--output` on a later log/diff/show writes an arbitrary file (a ref, the
+# HEAD file), so it is not inert.
+run 2 "switch: a later log --output=<file> is not trusted" \
+  'git switch -c x && git log -1 --output=.git/HEAD && git commit -m y' 'services/probe.ts'
+run 2 "switch: a later diff --output <file> is not trusted" \
+  'git switch -c x && git diff --output .git/HEAD && git commit -m y' 'services/probe.ts'
+run 2 "switch: a later show with a quoted --output= is not trusted" \
+  'git switch -c x && git show "--output=.git/HEAD" && git commit -m y' 'services/probe.ts'
 # The switch target is the branch of THIS checkout: a later -C sends the
 # commit to another checkout, so the target says nothing about it. From a
 # feature worktree, this commits into the develop worktree.
