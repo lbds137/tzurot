@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { beforeAll, describe, it, expect } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { Linter } from 'eslint';
@@ -88,6 +88,9 @@ function findings(code: string): (string | undefined)[] {
 }
 
 const PRELUDE_LINES = PRELUDE.split('\n').length - 1;
+
+// Builds the cached type program once (8s on a loaded machine) here, not in the first test.
+beforeAll(() => void findings('export {};'), 30_000);
 
 describe('rule metadata', () => {
   it('is a problem rule with all six message ids', () => {
