@@ -33,16 +33,21 @@ async function resolvedRuleSetting(relativePath: string): Promise<unknown> {
 
 // The rule only protects the column if the root config turns it on; the
 // test-file block overrides the production rule set, so both paths are checked.
-describe('repo enablement — resolved severity from the real root config', () => {
-  it('is an error for a production source file', async () => {
-    expect(await resolvedRuleSetting('services/bot-client/src/index.ts')).toEqual([2]);
-  });
+// Loading the real root config took 7-8s on a loaded machine, past the 5s default.
+describe(
+  'repo enablement — resolved severity from the real root config',
+  { timeout: 30_000 },
+  () => {
+    it('is an error for a production source file', async () => {
+      expect(await resolvedRuleSetting('services/bot-client/src/index.ts')).toEqual([2]);
+    });
 
-  it('is an error for a test file', async () => {
-    const testPath = 'packages/tooling/src/eslint/no-message-metadata-rmw.test.ts';
-    expect(await resolvedRuleSetting(testPath)).toEqual([2]);
-  });
-});
+    it('is an error for a test file', async () => {
+      const testPath = 'packages/tooling/src/eslint/no-message-metadata-rmw.test.ts';
+      expect(await resolvedRuleSetting(testPath)).toEqual([2]);
+    });
+  }
+);
 
 describe('rule metadata', () => {
   it('is a problem rule with the messageMetadataRmw message', () => {
