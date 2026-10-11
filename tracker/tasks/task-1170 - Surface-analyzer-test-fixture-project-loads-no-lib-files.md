@@ -1,9 +1,10 @@
 ---
 id: TASK-1170
 title: Surface analyzer test fixture project loads no lib files
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-04 21:07'
+updated_date: '2026-10-11 22:38'
 labels:
   - 'area:tooling'
   - 'size:S'
