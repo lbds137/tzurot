@@ -1147,6 +1147,25 @@ TARGET_WT="$FEATURE_WT"
 run 2 "cross-repo: git -C <sibling worktree on develop> commit blocks" \
   "git -C $WT commit -m x"
 TARGET_WT=""
+# The same sibling reached by a cd/pushd/env -C that is not the chain's first
+# segment, run from the FEATURE worktree (whose own state passes, so each exit 2
+# below is the sibling being judged, not this checkout). A relative cd from the
+# starting checkout stays in this tree and is judged live (exit 0); a directory
+# change the hook cannot resolve blocks outright with its remedy.
+TARGET_WT="$FEATURE_WT"
+run 2 "cross-repo: a later cd into the develop sibling worktree blocks" \
+  "git status && cd $WT && git commit -m y"
+run 2 "cross-repo: pushd into the develop sibling worktree blocks" \
+  "git status && pushd $WT && git commit -m y"
+run 2 "cross-repo: env -C <develop sibling worktree> git commit blocks" \
+  "env -C $WT git commit -m y"
+run 0 "cross-repo: a relative cd into a subdir of this feature checkout passes" \
+  'git status && cd services && git commit -m y'
+run 2 "cross-repo: a bare commit and a commit after cd into the develop sibling block" \
+  "git commit -m a && cd $WT && git commit -m b"
+run_msg 2 "cross-repo: an unreadable directory change before the commit blocks" \
+  'cd - && git commit -m y' 'git -C <absolute dir> commit'
+TARGET_WT=""
 rm -f "$WT/services/probe-sibling.ts"
 # The override token through the same re-point: from a FEATURE worktree with a
 # clean index, `TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git -C <develop worktree>
@@ -1187,7 +1206,7 @@ run 2 "cross-repo: a relative -C directory is not resolved" \
 # it leaves the directory the text names), so no path with one is read.
 run 2 "cross-repo: a -C path with a .. step through a symlink is not read" \
   "git -C $OTHER_REPO/l/.. commit -am x" 'services/probe.ts'
-run 2 "cross-repo: a leading cd with a .. step is not read" \
+run 2 "cross-repo: a cd with a .. step blocks as unreadable" \
   "cd $OTHER_REPO/l/.. && git commit -am x" 'services/probe.ts'
 run 2 "cross-repo: a relative -C join with a .. step is not read" \
   "git -C $OTHER_REPO -C l/.. commit -am x" 'services/probe.ts'

@@ -120,14 +120,87 @@ ROWS = [
     # Observed, fail-closed: the commit-dir segment split reads the `&` of a
     # numeric fd redirect as a separator, so `1` becomes a non-inert segment.
     ("commit-dir read: a 2>&1 redirect clears inert", "git -C /other commit -m y 2>&1", (None, "/other", False)),
-    # Known gap, pinned as observed (TASK-1214): the commit-dir read requires
-    # `&&` only after the leading cd, unlike the docstring's every-join rule.
+    # --- a directory followed through cd, pushd and env -C -------------------
     (
-        "commit-dir read: a ; after cd && <inert> still reads the dir",
-        "cd /other && git add a; git commit -m y",
+        "a later absolute cd moves the dir read",
+        "git status && cd /other && git commit -m y",
         (None, "/other", True),
     ),
+    (
+        "a later absolute cd after a non-inert segment reads the dir, inert cleared",
+        "make && cd /other && git commit -m y",
+        (None, "/other", False),
+    ),
+    (
+        "a relative cd joins onto a known absolute dir",
+        "cd /other && cd sub && git commit -m y",
+        (None, "/other/sub", True),
+    ),
+    (
+        "a relative cd from the starting checkout reads nothing",
+        "git status && cd sub && git commit -m y",
+        (None, None, False),
+    ),
+    ("pushd sets the dir like cd", "git status && pushd /other && git commit -m y", (None, "/other", True)),
+    ("env -C reads the dir like git -C", "env -C /other git commit -m y", (None, "/other", True)),
+    (
+        "a relative env -C joins onto a known absolute dir",
+        "cd /other && env -C sub git commit -m y",
+        (None, "/other/sub", True),
+    ),
+    ("env --chdir=<dir> reads the dir", "env --chdir=/other git commit -m y", (None, "/other", True)),
+    ("env without a dir option reads nothing", "env -i git commit -m y", (None, None, False)),
+    (
+        "an absolute -C rescues an unreadable cd",
+        "cd - && git -C /other commit -m y",
+        (None, "/other", True),
+    ),
+    (
+        "an absolute cd after an unreadable one resets the dir",
+        "cd - && cd /other && git commit -m y",
+        (None, "/other", True),
+    ),
+    (
+        "an unreadable dir change after the commit does not block",
+        "git -C /other commit -m y && popd",
+        (None, "/other", True),
+    ),
+    # An unresolvable directory change before a commit is the sentinel, which
+    # the develop guard blocks on.
+    (
+        "popd before a commit blocks",
+        "cd /other && popd && git commit -m y",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    ("cd - before a commit blocks", "cd - && git commit -m y", (None, branch_switch.UNREADABLE_DIR, False)),
+    ("a bare cd before a commit blocks", "cd && git commit -m y", (None, branch_switch.UNREADABLE_DIR, False)),
+    ("a cd to ~ before a commit blocks", "cd ~/x && git commit -m y", (None, branch_switch.UNREADABLE_DIR, False)),
+    (
+        "a cd to an expansion before a commit blocks",
+        "cd /other && cd $D && git commit -m y",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "a later cd with a .. step blocks",
+        "cd /other && cd ../x && git commit -m y",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    ("a flag on cd before a commit blocks", "cd -P /x && git commit -m y", (None, branch_switch.UNREADABLE_DIR, False)),
+    (
+        "an unreadable cd keeps a relative -C unreadable",
+        "cd - && git -C rel commit -m y",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
     # --- WHY ONLY A PURE && CHAIN ------------------------------------------
+    (
+        "a ; after cd && <inert> voids the dir read",
+        "cd /other && git add a; git commit -m y",
+        (None, None, False),
+    ),
+    ("a ; before a cd voids the dir read", "git status; cd /other && git commit -m y", (None, None, False)),
+    ("a ; after the commit voids the dir read", "cd /other && git commit -m y; true", (None, None, False)),
+    ("a ; after an unreadable cd voids the dir read", "cd - ; git commit -m y", (None, None, False)),
+    ("a || after the commit voids the dir read", "cd /other && git commit -m y || true", (None, None, False)),
     ("a ; join after the switch is not trusted", "git switch -c feat/x; git commit -m y", (None, None, False)),
     (
         "a ; after the commit is not trusted",
@@ -340,18 +413,44 @@ ROWS = [
     # --- -C and cd commit directories --------------------------------------
     ("a relative -C is not read", "git -C relative commit -m y", (None, None, False)),
     ("a -C path with a .. step is not read", "git -C /other/l/.. commit -m y", (None, None, False)),
-    ("a leading cd with a .. step is not read", "cd /other/.. && git commit -m y", (None, None, False)),
+    (
+        "a cd with a .. step blocks",
+        "cd /other/.. && git commit -m y",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
     ("a relative -C join with a .. step is not read", "cd /other && git -C ../x commit -m y", (None, None, False)),
     ("a relative leading cd is not read", "cd relative && git commit -m y", (None, None, False)),
     (
-        "two commits in different directories are not read",
+        "commits in two directories block",
         "git -C /other commit -m y && git -C /else commit -m z",
-        (None, None, False),
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "a bare commit and a commit after a cd block",
+        "git commit -m a && cd /other && git commit -m b",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "a bare commit and a -C commit block",
+        "git commit -m a && git -C /other commit -m b",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    ("two bare commits read nothing", "git commit -m a && git commit -m b", (None, None, False)),
+    (
+        "source before a commit blocks",
+        "source x.sh && git commit -m y",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    ("a dot-source before a commit blocks", ". x.sh && git commit -m y", (None, branch_switch.UNREADABLE_DIR, False)),
+    (
+        "a source after the commit does not block, but clears inert",
+        "git -C /other commit -m y && source x.sh",
+        (None, "/other", False),
     ),
     ("a -c global flag voids the dir read", "git -c core.worktree=/x -C /other commit -m y", (None, None, False)),
     ("a --git-dir global flag voids the dir read", "git --git-dir=/x -C /other commit -m y", (None, None, False)),
-    ("a second cd voids the dir read", "cd /other && cd /else && git commit -m y", (None, None, False)),
-    ("a later pushd voids the dir read", "cd /other && git commit -m y && pushd /x", (None, None, False)),
+    ("a second absolute cd moves the dir read", "cd /other && cd /else && git commit -m y", (None, "/else", True)),
+    ("a pushd after the commit does not move it", "cd /other && git commit -m y && pushd /x", (None, "/other", True)),
     (
         "a commit inside a substitution voids the dir read",
         'git -C /other commit -m "$(git commit -m z)"',
@@ -466,6 +565,11 @@ class MainContract(unittest.TestCase):
         rc, out = self._run_main("git -C /other/repo commit -m x")
         self.assertEqual(rc, 0)
         self.assertEqual(out.split("\n"), ["", "/other/repo", "1", ""])
+
+    def test_unreadable_dir_line(self):
+        rc, out = self._run_main("cd - && git commit -m x")
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.split("\n"), ["", "?", "", ""])
 
     def test_none_case(self):
         rc, out = self._run_main("git commit -m x")
