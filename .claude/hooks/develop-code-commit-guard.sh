@@ -77,7 +77,10 @@
 #   guard stay silent; another WORKTREE of this repository (same
 #   git-common-dir) is judged as itself — its branch (or the leading switch
 #   target) and its dirty tree, so a commit into a sibling worktree on
-#   develop still blocks (probe: the "cross-repo:" rows). Known limitation: a
+#   develop still blocks (probe: the "cross-repo:" rows). A SUBMODULE counts
+#   as a different repository — its git-common-dir is its own (under the
+#   superproject's `modules/`), not this checkout's — so `git -C <submodule>
+#   commit` exits 0 even from develop with dirty code here. Known limitation: a
 #   relative, `~`-prefixed or expanded directory, a directory with a `..`
 #   step (git and the shell resolve it physically through a symlink, the
 #   text only lexically), a commit inside a

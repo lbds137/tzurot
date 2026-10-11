@@ -116,6 +116,7 @@ _FD_REDIRECT = re.compile(r"\d*>&\d+")
 # target, because what it runs cannot be known from the text. `mv` and `rm`
 # are absent: they write paths of the caller's choosing, and `git mv -f h.txt
 # .git/HEAD` rewrites HEAD (git 2.50.1 exits 0 despite "invalid path").
+# `push` is absent: `--receive-pack`/`--exec` run an arbitrary command over a local transport (measured, git 2.50.1).
 _INERT_GIT_SUBCOMMANDS = frozenset(("add", "commit", "status", "diff", "log", "show"))
 
 # What separates the path steps of a resolved word for the `.git` component
@@ -341,6 +342,8 @@ _GIT_SKIP_FLAG = (
 
 _SEGMENT_SPLIT = re.compile(r"&&|\|\||[;&|\n()]")
 _COMMIT_WORD = re.compile(r"(?i)(?<![\w-])commit(?![\w-])")
+# A shell prefix assignment word, `NAME=value` (value possibly empty).
+_PREFIX_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 
 
 def _has_parent_step(path):
@@ -364,7 +367,14 @@ def _absolute_dir(word):
 
 
 def _commit_dir(words, base):
-    """The directory a `git [globals] commit …` segment runs in, or None."""
+    """The directory a `git [globals] commit …` segment runs in, or None.
+
+    Leading `NAME=value` prefix assignments (the override token's position)
+    are skipped: they set the commit's environment, not its directory. A
+    GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE / GIT_COMMON_DIR one never gets
+    here — `_relocating_env` has already voided the whole read."""
+    while words and _PREFIX_ASSIGNMENT.match(words[0]):
+        words = words[1:]
     if not words or words[0] != "git":
         return None
     here = base
@@ -411,6 +421,11 @@ def commit_target_dir(text):
     lexically — and a GIT_DIR / GIT_WORK_TREE /
     GIT_INDEX_FILE / GIT_COMMON_DIR mention anywhere in the raw text (an
     exported one relocates the commit whatever `-C` says).
+
+    Leading `NAME=value` prefix assignments on a commit segment (such as
+    `TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git -C <dir> commit`) are skipped,
+    not refused; a GIT_* one still voids the read through the mention rule
+    above. (`switch_target` is unchanged: a leading assignment voids it.)
     """
     if _relocating_env(text):
         return None

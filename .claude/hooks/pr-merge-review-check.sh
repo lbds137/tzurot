@@ -736,28 +736,22 @@ RELEASE_KEY="RELEASE:${PR_NUM}"
 # come back empty (a `gh` failure, a null field), and keying the cache on
 # emptiness would re-issue the call on every subsequent use.
 #
-# The same call also carries the PR's author and whether its changed files
-# include the review workflow itself — the two sanctioned reasons a PR has no
-# claude-review at all (see no_review_reason below). Riding the existing round
-# trip rather than adding one; both fail open to "" like the refs.
+# The PR's author and changed files are deliberately NOT fetched here: the
+# release reminder depends on this call, and folding a heavier lookup into it
+# would let that lookup's failure take the base (and so the reminder) down with
+# it. no_review_reason makes its own call for them.
 PR_BASE=""
 PR_HEAD=""
-PR_AUTHOR=""
-PR_EDITS_REVIEW_WORKFLOW=""
 PR_VIEW_RESOLVED=0
-REVIEW_WORKFLOW_PATH=".github/workflows/claude-code-review.yml"
 resolve_pr_view() {
     [ "$PR_VIEW_RESOLVED" = 1 ] && return 0
     PR_VIEW_RESOLVED=1
     local view
-    view=$(gh pr view "$PR_NUM" --json baseRefName,headRefName,author,files \
-        --jq '(.baseRefName // ""), (.headRefName // ""), (.author.login // ""),
-              ([.files[]?.path] | any(. == "'"$REVIEW_WORKFLOW_PATH"'") | tostring)' \
+    view=$(gh pr view "$PR_NUM" --json baseRefName,headRefName \
+        --jq '(.baseRefName // ""), (.headRefName // "")' \
         2>/dev/null || echo "")
     PR_BASE=$(printf '%s\n' "$view" | sed -n '1p')
     PR_HEAD=$(printf '%s\n' "$view" | sed -n '2p')
-    PR_AUTHOR=$(printf '%s\n' "$view" | sed -n '3p')
-    PR_EDITS_REVIEW_WORKFLOW=$(printf '%s\n' "$view" | sed -n '4p')
     return 0
 }
 
@@ -1040,27 +1034,46 @@ fi
 # When the release block is about to print, it names WHY there is no review if
 # the reason is a sanctioned one, so the agent does not chase a rerun that
 # cannot produce one:
-#   - the PR edits the review workflow file: the review action validates that
-#     file against main's copy and skips itself on a mismatch
+#   - the PR edits the review workflow file: per the workflow's own comment
 #     (.github/workflows/claude-code-review.yml, step "Verify a review was
-#     posted", which logs "Workflow file differs from main");
+#     posted"), the review action validates that file against main's copy and
+#     skips itself on a mismatch. This hook cannot observe the action, so the
+#     wording says "most likely" and names the job log line ("Workflow file
+#     differs from main", which that step prints whenever the file differs)
+#     that confirms it;
 #   - the PR is dependabot's: the review job's `if:` skips it by author.
-# Both facts come from resolve_pr_view's one call (`gh` reports the dependabot
-# author as `app/dependabot`; the webhook spelling `dependabot[bot]` is matched
-# too). Anything unreadable falls back to the plain wording. A PR whose base is
-# not main still exits 0 silently — release_block_then_exit prints nothing there.
+#
+# Both facts come from their OWN `gh pr view` call, made only here — on the
+# no-review path, after release_reminder_due has passed — never from
+# resolve_pr_view, so a failure of this lookup cannot cost the release reminder
+# its base. It is bounded by `timeout` and any failure (non-zero exit, timeout,
+# unreadable output) leaves both facts empty, which keeps the plain wording.
+#
+# `gh` reports the dependabot author as `app/dependabot` — probed with
+# `gh pr list --author app/dependabot --state all --limit 1 --json number,author`
+# (gh 2.101.0), which returns `"author":{"is_bot":true,"login":"app/dependabot"}`.
+# The webhook spelling `dependabot[bot]`, which the workflow's `if:` uses, is
+# matched too. A PR whose base is not main still exits 0 silently —
+# release_block_then_exit prints nothing there.
+REVIEW_WORKFLOW_PATH=".github/workflows/claude-code-review.yml"
 no_review_reason() {
     NO_REVIEW_HEADER="no claude-review comment found"
     NO_REVIEW_DETAIL=""
     release_reminder_due || return 0
-    if [ "$PR_EDITS_REVIEW_WORKFLOW" = "true" ]; then
-        NO_REVIEW_HEADER="no claude-review comment (the review action skips itself on a PR that edits its own workflow file)"
-        NO_REVIEW_DETAIL="This PR changes $REVIEW_WORKFLOW_PATH. The review action skips
-itself, posting nothing, whenever that file differs from main's copy — the
-sanctioned main-cut case, so do NOT rerun claude-review: a rerun skips the
-same way. The job log line \"Workflow file differs from main\" (step \"Verify
-a review was posted\") confirms the skip."
-    elif [ "$PR_AUTHOR" = "app/dependabot" ] || [ "$PR_AUTHOR" = "dependabot[bot]" ]; then
+    local facts pr_author pr_edits_review_workflow
+    facts=$(timeout 10 gh pr view "$PR_NUM" --json author,files \
+        --jq '(.author.login // ""),
+              ([.files[]?.path] | any(. == "'"$REVIEW_WORKFLOW_PATH"'") | tostring)' \
+        2>/dev/null) || facts=""
+    pr_author=$(printf '%s\n' "$facts" | sed -n '1p')
+    pr_edits_review_workflow=$(printf '%s\n' "$facts" | sed -n '2p')
+    if [ "$pr_edits_review_workflow" = "true" ]; then
+        NO_REVIEW_HEADER="no claude-review comment (the review action most likely skipped itself: this PR edits its own workflow file)"
+        NO_REVIEW_DETAIL="This PR changes $REVIEW_WORKFLOW_PATH. The review action most likely
+skipped itself (this PR edits its own workflow file); confirm with the job log
+line \"Workflow file differs from main\" (step \"Verify a review was posted\")
+and rerun claude-review only if that line is absent."
+    elif [ "$pr_author" = "app/dependabot" ] || [ "$pr_author" = "dependabot[bot]" ]; then
         NO_REVIEW_HEADER="no claude-review comment (dependabot PRs are never reviewed)"
         NO_REVIEW_DETAIL="This PR is dependabot's, and the claude-review job skips dependabot-authored
 PRs by design (its job-level if: on the PR author), so there is no review to
