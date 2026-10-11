@@ -1331,6 +1331,21 @@ assert_staged 2 feat/x 'git commit -m board' \
   "conformance: other docs/reference paths stay board files" \
   docs/reference/conformance-notes.md
 
+# --- lib/branch_switch.py rule table -----------------------------------------
+# The rows above pin the hook's final exit code; the unittest table pins which
+# rule of the helper decides each command, so removing one rule reddens a row.
+# Run here because guard:hook-probes runs this probe in CI.
+UNITTEST_LOG="$WORK/branch_switch_test.log"
+(cd "$SCRIPT_DIR/lib" && PYTHONDONTWRITEBYTECODE=1 python3 -m unittest branch_switch_test) >"$UNITTEST_LOG" 2>&1
+actual=$?
+if [ "$actual" -eq 0 ]; then
+  printf 'PASS  (exit %d)  %s\n' "$actual" "lib: branch_switch_test unittest table passes"
+else
+  printf 'FAIL  (exit %d, expected 0)  %s\n' "$actual" "lib: branch_switch_test unittest table passes"
+  sed 's/^/      /' "$UNITTEST_LOG"
+  FAILURES=$((FAILURES + 1))
+fi
+
 echo
 if [ "$FAILURES" -gt 0 ]; then
   echo "board-commit-branch-gate probe: $FAILURES FAILURE(S)"
