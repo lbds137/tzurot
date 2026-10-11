@@ -78,7 +78,9 @@
 #   directory after the hook read it); another WORKTREE of this repository (same
 #   git-common-dir) is judged as itself — its branch (or the leading switch
 #   target) and its dirty tree, so a commit into a sibling worktree on
-#   develop still blocks (probe: the "cross-repo:" rows). A SUBMODULE counts
+#   develop still blocks, and with any non-inert other segment the sibling is
+#   judged as if on develop, since that segment could move it there (probe:
+#   the "cross-repo:" rows). A SUBMODULE counts
 #   as a different repository — its git-common-dir is its own (under the
 #   superproject's `modules/`), not this checkout's — so `git -C <submodule>
 #   commit` exits 0 even from develop with dirty code here. Known limitation: a
@@ -849,10 +851,16 @@ fi
 #   non-inert earlier segment …").
 # - Another WORKTREE of this repository (same git-common-dir): the commit is
 #   still a Tzurot commit, so the gate re-points at THAT checkout — the branch
-#   read and the dirty-tree classification below both run there. If the cd
-#   fails, the live-state evaluation here is kept. The inert bit is not
-#   required here: judging the sibling only adds a block, never a pass (probe:
-#   "switch: a later git -C <develop checkout> commit …").
+#   read and the dirty-tree classification below both run there, so the
+#   commit is judged where it lands (probe: "switch: a later git -C <develop
+#   checkout> commit …"). If the cd fails, the live-state evaluation here is
+#   kept. The sibling's branch is trusted only when every other segment is
+#   inert: a non-inert one (a `git -C <sibling> switch develop`, an alias, a
+#   script) can move that worktree onto develop/main after the read here, so
+#   the sibling is judged as if on develop — fail closed, its dirty tree still
+#   decides (probe: "cross-repo: a switch of the sibling worktree before its
+#   commit is not trusted").
+SIBLING_BRANCH_UNTRUSTED=""
 if [ -n "$COMMIT_DIR" ]; then
   TARGET_TOP=$(git -C "$COMMIT_DIR" rev-parse --show-toplevel 2>/dev/null || echo "")
   HERE_TOP=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
@@ -863,7 +871,9 @@ if [ -n "$COMMIT_DIR" ]; then
     # exit nor the cd runs, and the live state here is judged.
     if [ -n "$TARGET_COMMON" ] && [ -n "$HERE_COMMON" ]; then
       if [ "$TARGET_COMMON" = "$HERE_COMMON" ]; then
-        cd "$TARGET_TOP" 2>/dev/null || true
+        if cd "$TARGET_TOP" 2>/dev/null && [ "$COMMIT_OTHERS_INERT" != "1" ]; then
+          SIBLING_BRANCH_UNTRUSTED=1
+        fi
       elif [ "$COMMIT_OTHERS_INERT" = "1" ]; then
         exit 0
       fi
@@ -885,6 +895,9 @@ if [ -n "$SWITCH_TARGET" ]; then
   BRANCH="$SWITCH_TARGET"
 else
   BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+fi
+if [ -n "$SIBLING_BRANCH_UNTRUSTED" ]; then
+  BRANCH=develop
 fi
 if [ "$BRANCH" != "develop" ] && [ "$BRANCH" != "main" ]; then
   exit 0
