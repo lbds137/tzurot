@@ -45,24 +45,12 @@ export interface HookProbeEntry {
  */
 export const HOOK_PROBES: HookProbeEntry[] = [
   {
-    hook: '.claude/hooks/bare-token-binding-reminder.sh',
-    probe: '.claude/hooks/bare-token-binding-reminder.probe.sh',
-  },
-  {
-    hook: '.claude/hooks/blocking-question-channel-check.sh',
-    probe: '.claude/hooks/blocking-question-channel-check.probe.sh',
-  },
-  {
     hook: '.claude/hooks/board-commit-branch-gate.sh',
     probe: '.claude/hooks/board-commit-branch-gate.probe.sh',
   },
   {
     hook: '.claude/hooks/claim-shape-guard.sh',
     probe: '.claude/hooks/claim-shape-guard.probe.sh',
-  },
-  {
-    hook: '.claude/hooks/context-size-reminder.sh',
-    probe: '.claude/hooks/context-size-reminder.probe.sh',
   },
   {
     hook: '.claude/hooks/cwd-drift-guard.sh',
@@ -73,16 +61,8 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     probe: '.claude/hooks/develop-code-commit-guard.probe.sh',
   },
   {
-    hook: '.claude/hooks/dispatch-posture-gate.sh',
-    probe: '.claude/hooks/dispatch-posture-gate.probe.sh',
-  },
-  {
     hook: '.claude/hooks/dispatch-spec-ledger-gate.sh',
     probe: '.claude/hooks/dispatch-spec-ledger-gate.probe.sh',
-  },
-  {
-    hook: '.claude/hooks/grep-escaped-dollar-guard.sh',
-    probe: '.claude/hooks/grep-escaped-dollar-guard.probe.sh',
   },
   {
     hook: '.claude/hooks/lossy-pipe-guard.sh',
@@ -106,16 +86,8 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     probe: '.claude/hooks/pr-monitor-reminder.probe.sh',
   },
   {
-    hook: '.claude/hooks/promise-ledger-check.sh',
-    probe: '.claude/hooks/promise-ledger-check.probe.sh',
-  },
-  {
     hook: '.claude/hooks/python-heredoc-edit-guard.sh',
     probe: '.claude/hooks/python-heredoc-edit-guard.probe.sh',
-  },
-  {
-    hook: '.claude/hooks/queued-message-receipt.sh',
-    probe: '.claude/hooks/queued-message-receipt.probe.sh',
   },
   {
     hook: '.claude/hooks/self-matching-pattern-guard.sh',
@@ -127,10 +99,6 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     // own unprobedReason.
     hook: '.claude/hooks/tracker-dirty-push-gate.sh',
     probe: '.claude/hooks/tracker-dirty-push-gate.probe.sh',
-  },
-  {
-    hook: '.claude/hooks/turn-end-shape-gate.sh',
-    probe: '.claude/hooks/turn-end-shape-gate.probe.sh',
   },
   {
     hook: '.claude/hooks/session-start.sh',

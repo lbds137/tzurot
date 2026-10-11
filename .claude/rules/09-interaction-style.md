@@ -47,7 +47,7 @@ Corollary — **bare-token answers get their binding restated**: when the user a
 
 ## Blocking Questions — and Completions the User Must See — Go Through a Formal Channel
 
-A turn that ends blocked on user input MUST surface the ask through `AskUserQuestion` (structured choices) or `PushNotification` (open-ended asks that don't fit the option format). Remote control surfaces only formal tool decision points, so a prose-only question is invisible to the phone and silently stalls the session until the user happens to look. Backstopped by `.claude/hooks/blocking-question-channel-check.sh`.
+A turn that ends blocked on user input MUST surface the ask through `AskUserQuestion` (structured choices) or `PushNotification` (open-ended asks that don't fit the option format). Remote control surfaces only formal tool decision points, so a prose-only question is invisible to the phone and silently stalls the session until the user happens to look. Backstopped by Seyag's `blocking-question-channel-check` hook.
 
 **The same channel rule covers completions the user must SEE, not just questions**: a release cut landing, a prod-affecting finding (CI red, CodeQL alert, a prod bug confirmed), and the completion of work the user explicitly asked for each get a `PushNotification` alongside the prose report — plain replies do not reliably notify.
 

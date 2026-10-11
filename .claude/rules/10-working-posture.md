@@ -28,7 +28,7 @@ full Opus statement), and review-round fixes are dispatch work under ANY
 driver — the missing fresh reader, not the budget, is the reason
 (`/tzurot-review-response` § 3a). Inline is a narrow exception: a ≤5-line
 mechanical edit in a file already in context, or work where the spec would
-genuinely cost more than the edit. `dispatch-posture-gate.sh` MEASURES that
+genuinely cost more than the edit. Seyag's `dispatch-posture-gate` MEASURES that
 five (touched lines of the edit's own old/new text) and hard-blocks a larger
 inline src edit; a comment-only edit above five lines is dispatched or split
 like any other. The five is the OUTER gate: above it dispatch is the only
@@ -39,7 +39,9 @@ re-reads the full context, so inline legwork bills the scarcest budget at the
 highest rate. Same arithmetic, two corollaries: **batch independent
 bookkeeping commands into one Bash call**, and **treat compaction at clean
 unit boundaries as a cost lever, naming boundaries proactively**. Enforced by
-`dispatch-posture-gate.sh` and `python-heredoc-edit-guard.sh`; measured by
+Seyag's `dispatch-posture-gate` and `python-heredoc-edit-guard.sh` (a Seyag
+hook runs only where the seyag plugin is enabled, the Deck; `.claude/hooks/`
+copies run in every checkout); measured by
 `/tzurot-usage-audit` (whose § Step 4a names the over-trajectory response).
 
 ## Boards are snapshots; git and code are the truth
@@ -243,7 +245,7 @@ never ENDS on a tool call: when bookkeeping writes follow the report, the last
 thing in the turn is text saying they landed. Nor does it end on a STATED
 INTENTION to act ("running the close-out now") — do it, or report what blocks
 it — nor on a `PushNotification`, which is not the report
-(`turn-end-shape-gate.sh` blocks the stop once when the turn's last content
+(Seyag's `turn-end-shape-gate` blocks the stop once when the turn's last content
 block is a tool call).
 
 A compaction offer is not a release from the ledger: when the owner asks
