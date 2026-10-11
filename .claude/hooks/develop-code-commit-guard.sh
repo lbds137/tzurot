@@ -70,8 +70,10 @@
 #   live branch. A read commit directory
 #   (below) also drops the target.
 # - Cross-repo commits: when EVERY commit in the command provably runs in one
-#   absolute directory (`git -C <abs dir> commit`, or a leading
-#   `cd <abs dir> &&`) whose toplevel resolves and differs from this
+#   absolute directory (`git -C <abs dir> commit`, `env -C <abs dir> git
+#   commit`, or a `cd`/`pushd <abs dir> &&` earlier in the same pure `&&` chain;
+#   a plain relative cd joins onto a known absolute directory) whose
+#   toplevel resolves and differs from this
 #   checkout's: a DIFFERENT repository (its git-common-dir differs) makes the
 #   guard stay silent, provided every other segment is an inert `git
 #   add|commit|status|diff|log|show` (anything else could re-point the
@@ -83,10 +85,19 @@
 #   the "cross-repo:" rows). A SUBMODULE counts
 #   as a different repository — its git-common-dir is its own (under the
 #   superproject's `modules/`), not this checkout's — so `git -C <submodule>
-#   commit` exits 0 even from develop with dirty code here. Known limitation: a
-#   relative, `~`-prefixed or expanded directory, a directory with a `..`
-#   step (git and the shell resolve it physically through a symlink, the
-#   text only lexically), a commit inside a
+#   commit` exits 0 even from develop with dirty code here. A directory change
+#   before a commit that cannot be resolved (popd, `cd -`, a bare `cd`, a `~`
+#   or expanded dir, a `..` step: git and the shell resolve it physically
+#   through a symlink, the text only lexically; `source`/`.`, which runs
+#   arbitrary code in the shell) BLOCKS on any branch, with the remedy "run
+#   the cd/source as its own command first, or use `git -C <absolute dir>
+#   commit`" (probe: "cross-repo: an unreadable directory change …"). So do
+#   commits in more than one location (two directories, or this checkout and
+#   another), whose remedy is to split them into separate commands. Known
+#   limitation: a relative cd from the starting checkout (it stays in this
+#   checkout's tree, so the live state is judged), a relative, `~`-prefixed or
+#   expanded `-C` directory, a `-C` directory with a `..`
+#   step, a commit inside a
 #   substitution or a `bash -c`/`eval` wrapper, `--git-dir`/`--work-tree`, any
 #   `-c <key>=<value>` global flag (`core.worktree` relocates the work tree), and
 #   a GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE / GIT_COMMON_DIR mention, and
@@ -811,14 +822,16 @@ esac
 
 cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null || exit 0
 
-# What the command's leading segment changes before its commit runs
-# (lib/branch_switch.py): line 1 = the branch a leading `git switch … &&`
-# moves to, line 2 = the one absolute directory every commit in the command
-# runs in, line 3 = "1" when every other segment of the command (bar a
-# leading `cd <abs dir>`) is inert, so nothing can re-point that directory
-# after it is resolved here. Each is empty when it cannot be read with
-# certainty, and empty means "judge the live state". A helper failure leaves
-# all three empty, the same direction (probe: the "helper failure:" rows).
+# What the command changes before its commit runs (lib/branch_switch.py):
+# line 1 = the branch a leading `git switch … &&` moves to, line 2 = the one
+# absolute directory every commit in the command runs in, line 3 = "1" when
+# every other segment of the command (every cd/pushd is how the directory is
+# set, and does not count against inertness; `source`/`.` does) is inert, so nothing can
+# re-point that directory after it is resolved here. Each is empty when it
+# cannot be read with certainty, and empty means "judge the live state". Line
+# 2 is the one exception: "?" means a directory change before a commit cannot
+# be resolved, which blocks below. A helper failure leaves all three empty,
+# the live-state direction (probe: the "helper failure:" rows).
 SWITCH_TARGET=""
 COMMIT_DIR=""
 COMMIT_OTHERS_INERT=""
@@ -829,6 +842,28 @@ LEADING=$(GUARD_CMD="$COMMAND" PYTHONDONTWRITEBYTECODE=1 \
   read -r COMMIT_DIR
   read -r COMMIT_OTHERS_INERT
 } <<< "$LEADING"
+# "?" = the commits cannot be placed in one checkout: a directory change before
+# a commit that the hook cannot resolve (popd, `cd -`, a bare `cd`, `~`, a `..`
+# step, an expansion, `source`/`.`), or commits in more than one location (two
+# directories, or this checkout and another). No single live state is where
+# they run, so no verdict on it is trustworthy on any branch.
+if [ "$COMMIT_DIR" = "?" ]; then
+  cat >&2 <<UNREADABLEBANNER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COMMIT DIRECTORY UNREADABLE — commit blocked
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The hook cannot tell which checkout this command's commit(s) land in:
+either it changes directory before a commit in a way the hook cannot
+resolve (popd, \`cd -\`, a bare \`cd\`, a \`~\` path, a \`..\` step, an
+expansion, \`source\`/\`.\`), or the commits run in more than one checkout.
+
+Fix: run the cd/source as its own command first, or use
+\`git -C <absolute dir> commit\`. Commits in several locations: split
+them into separate commands.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+UNREADABLEBANNER
+  exit 2
+fi
 # The switch target is the branch of THIS checkout; a commit placed in another
 # directory says nothing about it. The helper already refuses a target when a
 # later `-C`/`cd` appears, so this is belt and braces: whenever a commit
@@ -839,7 +874,8 @@ if [ -n "$COMMIT_DIR" ]; then
 fi
 
 # Cross-checkout: every commit in the command lands in another checkout (a
-# `git -C <abs dir> commit`, or a leading `cd <abs dir> &&`). Only a directory
+# `git -C <abs dir> commit`, `env -C <abs dir> git commit`, or a `cd`/`pushd`
+# earlier in the same `&&` chain). Only a directory
 # whose toplevel RESOLVES and differs from this one's is acted on; an
 # unresolvable one (missing, not a repo) keeps the live-state evaluation.
 # - A DIFFERENT repository (its git-common-dir differs): this repo's policy
