@@ -479,9 +479,11 @@ ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 # that target before it runs, so the target is judged instead
 # (lib/branch_switch.py, line 1 of its output; probe: the "switch:" rows) —
 # ONLY when the whole command is a pure `&&` chain and every later segment is
-# an allowlisted `git add|commit|status|diff|log|show|rm|mv` with no global
-# flag. Every other shape — a `;` anywhere, any other later command (a switch,
-# an alias like `git co`, cd, `git -C`), a `log|diff|show --output`, a
+# an allowlisted `git add|commit|status|diff|log|show` with no global flag
+# and no word with a `.git` path component (a `2>&1`/`>&2` redirect is not a
+# join). Every other shape — a `;` or pipe anywhere, any other later command
+# (a switch, an alias like `git co`, cd, `git -C`, `git mv`/`git rm`), a
+# `.git/…` path such as `git mv -f h.txt .git/HEAD`, a `log|diff|show --output`, a
 # substitution, a heredoc with an UNQUOTED delimiter (`<<EOF` expands `$(…)`
 # in its body before the commit runs; a heredoc must use a quoted delimiter,
 # `<<'EOF'`), a GIT_DIR-style variable, plain `git checkout <name>`, a switch
@@ -576,8 +578,9 @@ NC='\033[0m'
   printf "${YELLOW}  Fix: git stash (or leave staged) → git switch develop → commit there → switch back.${NC}\n"
   printf "${YELLOW}  Remedy: a LEADING \`git switch develop && …\` is honoured only in a pure${NC}\n"
   printf "${YELLOW}  \`&&\` chain with nothing else moving the branch or directory: every later${NC}\n"
-  printf "${YELLOW}  command must be a plain \`git add|commit|status|diff|log|show|rm|mv\` (no${NC}\n"
-  printf "${YELLOW}  \`;\`, no global flag, no alias, no cd, no \`--output\`, no substitution; a${NC}\n"
+  printf "${YELLOW}  command must be a plain \`git add|commit|status|diff|log|show\` (no${NC}\n"
+  printf "${YELLOW}  \`;\`, no pipe, no global flag, no alias, no cd, no \`--output\`, no${NC}\n"
+  printf "${YELLOW}  \`.git/…\` path, no substitution; a trailing \`2>&1\` is fine; a${NC}\n"
   printf "${YELLOW}  heredoc must use a quoted delimiter, \`<<'EOF'\`) — the gate then${NC}\n"
   printf "${YELLOW}  judges the commit on the switch target. Every other shape is${NC}\n"
   printf "${YELLOW}  judged on the branch checked out NOW; for those,${NC}\n"

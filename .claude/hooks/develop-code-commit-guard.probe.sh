@@ -156,6 +156,13 @@ git init -q "$OTHER_REPO" || {
   echo "FATAL: could not create the other-repo fixture (git error above)" >&2
   exit 1
 }
+# A symlink from the other repo back into the develop checkout: `-C
+# $OTHER_REPO/l/..` normalises LEXICALLY to $OTHER_REPO, but git chdirs
+# PHYSICALLY through the link, so the commit lands in the develop checkout.
+ln -s "$WT/services" "$OTHER_REPO/l" || {
+  echo "FATAL: could not create the other-repo symlink fixture" >&2
+  exit 1
+}
 
 FAILURES=0
 
@@ -1044,6 +1051,36 @@ run 2 "switch: a later diff --output <file> is not trusted" \
   'git switch -c x && git diff --output .git/HEAD && git commit -m y' 'services/probe.ts'
 run 2 "switch: a later show with a quoted --output= is not trusted" \
   'git switch -c x && git show "--output=.git/HEAD" && git commit -m y' 'services/probe.ts'
+# `git mv` onto `.git/HEAD` rewrites HEAD (git exits 0 despite "invalid
+# path"), so the commit lands on develop: `mv` and `rm` are not inert, and any
+# later word naming a `.git` path component voids the target whatever its verb.
+run 2 "switch: a later git mv onto .git/HEAD is not trusted" \
+  'git switch -c feat/q && git add h.txt && git mv -f h.txt .git/HEAD && git commit -am x' 'services/probe.ts'
+run 2 "switch: a later git rm is not trusted" \
+  'git switch -c x && git rm -q a.ts && git commit -m y' 'services/probe.ts'
+run 2 "switch: a later word with a ./.git/ component is not trusted" \
+  'git switch -c x && git add ./.git/HEAD && git commit -m y' 'services/probe.ts'
+run 2 "switch: a later word with an upper-case .GIT component is not trusted" \
+  'git switch -c x && git add x/.GIT/y && git commit -m y' 'services/probe.ts'
+run 2 "switch: a later redirect target with a .git component is not trusted" \
+  'git switch -c x && git log -1 >.git/config && git commit -m y' 'services/probe.ts'
+run 0 "switch: a .gitignore path is not a .git component" \
+  'git switch -c x && git add .gitignore && git commit -m y' 'services/probe.ts'
+# A numeric fd redirect (`2>&1`, `>&2`) is not a background `&`; a pipe stays
+# a non-`&&` join.
+run 0 "switch: a trailing 2>&1 redirect is not a separator" \
+  "git switch -c feat/n && git add src/a.ts && git commit -m 'feat: x' 2>&1" 'services/probe.ts'
+run 0 "switch: a >&2 redirect is not a separator" \
+  'git switch -c feat/n && git status >&2 && git commit -m y' 'services/probe.ts'
+run 2 "switch: a pipe after a 2>&1 redirect is not trusted" \
+  'git switch -c feat/n && git commit -m y 2>&1 | tail -5' 'services/probe.ts'
+run 2 "switch: a background & after a 2>&1 redirect is not trusted" \
+  'git switch -c feat/n && git commit -m y 2>&1 &' 'services/probe.ts'
+# `git push --receive-pack=<cmd>` to a local path runs <cmd>, which can switch
+# this checkout's branch (measured: git 2.50.1 moved HEAD to develop, exit 0).
+run 2 "switch: a later git push --receive-pack is not trusted" \
+  "git switch -c x && git push --receive-pack='git switch -q develop; git-receive-pack' . HEAD:refs/heads/y && git commit -m y" \
+  'services/probe.ts'
 # The switch target is the branch of THIS checkout: a later -C sends the
 # commit to another checkout, so the target says nothing about it. From a
 # feature worktree, this commits into the develop worktree.
@@ -1087,6 +1124,14 @@ run 2 "cross-repo: a ; join after cd keeps the live checkout" \
   "cd $OTHER_REPO; git commit -m x" 'services/probe.ts'
 run 2 "cross-repo: a relative -C directory is not resolved" \
   'git -C ../elsewhere commit -m x' 'services/probe.ts'
+# A `..` step is resolved physically by git and the shell (through a symlink
+# it leaves the directory the text names), so no path with one is read.
+run 2 "cross-repo: a -C path with a .. step through a symlink is not read" \
+  "git -C $OTHER_REPO/l/.. commit -am x" 'services/probe.ts'
+run 2 "cross-repo: a leading cd with a .. step is not read" \
+  "cd $OTHER_REPO/l/.. && git commit -am x" 'services/probe.ts'
+run 2 "cross-repo: a relative -C join with a .. step is not read" \
+  "git -C $OTHER_REPO -C l/.. commit -am x" 'services/probe.ts'
 run 2 "cross-repo: a commit inside a substitution still blocks" \
   "git -C $OTHER_REPO commit -m \"\$(git commit -m y)\"" 'services/probe.ts'
 run 2 "cross-repo: a commit inside a bash -c wrapper still blocks" \
