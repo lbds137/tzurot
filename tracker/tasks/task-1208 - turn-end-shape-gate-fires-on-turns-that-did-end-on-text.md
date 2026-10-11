@@ -4,6 +4,7 @@ title: turn-end-shape-gate fires on turns that did end on text
 status: To Do
 assignee: []
 created_date: '2026-10-11 13:06'
+updated_date: '2026-10-11 18:17'
 labels:
   - 'area:hooks'
   - 'size:S'
@@ -22,3 +23,9 @@ What: reproduce with the probe (.claude/hooks/turn-end-shape-gate.probe.sh) usin
 
 Acceptance: a probe row with tool_use followed by a text block passes; the existing ends-on-tool row still blocks.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-11: #2604 retires the Tzurot copy; the Seyag plugin copy reads the Stop payload last_assistant_message first, which may fix this. Keep open until the plugin copy is observed live not misfiring on a turn that ended on text; the probe path in the description (.claude/hooks/turn-end-shape-gate.probe.sh) is gone, use seyag plugins/seyag/hooks/turn-end-shape-gate.probe.sh.
+<!-- SECTION:NOTES:END -->
