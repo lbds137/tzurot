@@ -980,7 +980,9 @@ new_case; SHIM_PR_BASE='main'; SHIM_REVIEW_JSON=''; SHIM_PR_EDITS_WORKFLOW='true
 invoke 'gh pr merge 2020 --rebase'
 assert_exit "no review on a PR that edits the review workflow: BLOCKS for the reminder" 2
 assert_stderr_has "…the header names the likely workflow self-skip" \
-  'the review action most likely skipped itself: this PR edits its own workflow file'
+  'no claude-review comment (most likely skipped itself)'
+assert_stderr_has "…the detail names the edited workflow file" \
+  'skipped itself (this PR edits its own workflow file)'
 assert_stderr_has "…names the confirming job log line" 'Workflow file differs from main'
 assert_stderr_has "…and makes the rerun conditional on that line" \
   'rerun claude-review only if that line is absent'

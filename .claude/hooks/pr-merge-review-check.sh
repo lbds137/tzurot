@@ -1038,9 +1038,10 @@ fi
 #     (.github/workflows/claude-code-review.yml, step "Verify a review was
 #     posted"), the review action validates that file against main's copy and
 #     skips itself on a mismatch. This hook cannot observe the action, so the
-#     wording says "most likely" and names the job log line ("Workflow file
-#     differs from main", which that step prints whenever the file differs)
-#     that confirms it;
+#     wording says "most likely" and names the job log line that confirms it
+#     ("Workflow file differs from main": what the "Verify a review was
+#     posted" step of .github/workflows/claude-code-review.yml currently
+#     echoes on a mismatch — read from that file, not verified by this hook);
 #   - the PR is dependabot's: the review job's `if:` skips it by author.
 #
 # Both facts come from their OWN `gh pr view` call, made only here — on the
@@ -1068,7 +1069,7 @@ no_review_reason() {
     pr_author=$(printf '%s\n' "$facts" | sed -n '1p')
     pr_edits_review_workflow=$(printf '%s\n' "$facts" | sed -n '2p')
     if [ "$pr_edits_review_workflow" = "true" ]; then
-        NO_REVIEW_HEADER="no claude-review comment (the review action most likely skipped itself: this PR edits its own workflow file)"
+        NO_REVIEW_HEADER="no claude-review comment (most likely skipped itself)"
         NO_REVIEW_DETAIL="This PR changes $REVIEW_WORKFLOW_PATH. The review action most likely
 skipped itself (this PR edits its own workflow file); confirm with the job log
 line \"Workflow file differs from main\" (step \"Verify a review was posted\")
