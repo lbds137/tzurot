@@ -11,20 +11,35 @@ runs, and a guard that ignores them blocks a commit that lands somewhere else:
     cd /other/repo && git commit -m x
         commit in another checkout entirely
 
-`switch_target` names the branch a leading switch moves to; `commit_target_dir`
+`switch_target` names the branch a leading switch moves to, when nothing else
+in the command can move the branch or the checkout; `commit_target_dir`
 names the directory every commit in the command runs in, when that is provably
 one absolute directory. Both return None for anything they cannot read with
 certainty, and None means "judge the live state", which is the behaviour the
 guards had before this module existed. So a parse gap can only keep a block,
 never open one.
 
-WHY ONLY `&&`
--------------
+WHY ONLY A PURE `&&` CHAIN
+--------------------------
 `a && b` runs b only when a succeeded, so after `git switch X && …` the rest of
 the chain runs on X or not at all. `a; b` runs b even when a FAILED (a dirty
 tree that conflicts, a name that already exists for `-c`), so the commit can
 land on the original branch; `||`, `|` and `&` give no ordering guarantee
-either. Those joins keep today's live-branch evaluation.
+either. So EVERY join in the command must be `&&` — a `;` anywhere, even
+after the commit, lets a second commit run elsewhere.
+
+And the switch only holds until something moves the branch or the directory
+again: `git switch -c x && git switch develop && git commit` commits on
+develop, and `git switch -c x && git -C /other commit` commits in a checkout
+the switch never touched. A blocklist of moving verbs cannot be complete (a
+git alias such as `git co develop`, a shell function, `make`), so the rest of
+the chain is read against an ALLOWLIST instead: every segment after the
+leading switch must be `git <subcommand>` with no global flag at all and a
+subcommand in `_INERT_GIT_SUBCOMMANDS` (add, commit, status, diff, log, show,
+rm, mv). On top of that, no substitution other than the canonical
+`"$(cat <<'EOF' … EOF)"` message, no `bash -c`/`eval` wrapper, and no
+GIT_DIR-style environment variable. Everything else keeps the live-branch
+evaluation.
 
 WHY PLAIN `git checkout <name>` IS NOT READ
 -------------------------------------------
@@ -70,6 +85,30 @@ _FIRST_SEGMENT_END = re.compile(r"[;&|\n()<>]")
 # `#` a comment that may swallow the `&&` itself.
 _UNREADABLE = re.compile(r"[$`{}#]")
 
+# After every `&&` is blanked out, any of these left in the REST of the
+# quote-stripped view means a join with no success ordering (`;`, `||`, `|`,
+# `&`, a newline), a subshell or group, or a substitution — and the switch
+# target is not trusted.
+_NON_AND_SEPARATOR = re.compile(r"[;&|\n\r()`{}]")
+
+# The only segments a trusted chain may carry after the leading switch:
+# `git <subcommand> …` with the subcommand as the SECOND word (no global flag,
+# no assignment prefix, no wrapper such as `command`/`env`) and one of these
+# subcommands, none of which can move HEAD or the directory. Anything else —
+# a git alias (`git co`), `cd`, `make`, `pnpm`, a function, `$CMD` — voids the
+# target, because what it runs cannot be known from the text.
+_INERT_GIT_SUBCOMMANDS = frozenset(("add", "commit", "status", "diff", "log", "show", "rm", "mv"))
+
+# Git environment variables that relocate the repository, work tree or index
+# for every git call that follows. A mention ANYWHERE in the raw text (an
+# `export`, a prefix assignment, even a quoted one) voids both reads.
+_GIT_ENV = re.compile(r"GIT_DIR|GIT_WORK_TREE|GIT_INDEX_FILE|GIT_COMMON_DIR")
+
+# The one command substitution a trusted chain may carry: the canonical
+# message body `"$(cat <<'EOF' … EOF)"`, which after heredoc and quote
+# stripping is a bare `cat <<MARKER`.
+_CANONICAL_CAT = re.compile(r"\s*cat\s+<<-?\s*\w+\s*\Z")
+
 _SWITCH_CREATE = ("-c", "-C", "--create", "--force-create")
 _CHECKOUT_CREATE = ("-b", "-B")
 
@@ -113,22 +152,73 @@ def _first_segment(view):
     return start, stop.start()
 
 
+def _relocating_env(text):
+    """True when the raw command names a git environment variable that moves
+    the repository, work tree or index for every later git call."""
+    return _GIT_ENV.search(text) is not None
+
+
+def _rest_moves(view, start):
+    """True unless `view[start:]` is provably unable to move the branch or the
+    directory: the whole remainder is `&&`-joined, and every segment is
+    `git <subcommand> …` with the subcommand (the second word, so no global
+    flag) in `_INERT_GIT_SUBCOMMANDS`. Words are read UNRESOLVED from the
+    quote-stripped view, so a quoted `"git"` is a placeholder, not `git`."""
+    rest = view[start:]
+    if _NON_AND_SEPARATOR.search(rest.replace("&&", " ")):
+        return True
+    for segment in rest.split("&&"):
+        words = segment.split()
+        if len(words) < 2 or words[0] != "git" or words[1] not in _INERT_GIT_SUBCOMMANDS:
+            return True
+    return False
+
+
 def switch_target(text):
     """The branch a leading `git switch …` / `git checkout -b|-B …` moves to,
-    when that segment is joined to the rest by `&&`; else None.
+    when nothing else in the command can move the branch or the checkout;
+    else None.
 
     Read: `git switch <name>`, `git switch -c|-C|--create|--force-create
     <name> [start]`, `git checkout -b|-B <name> [start]`. Not read (None): a
     global flag before the subcommand (`git -C dir switch …` switches ANOTHER
     checkout), any other flag, plain `git checkout <name>`, a leading
-    assignment, and every join other than `&&`.
+    assignment, and every command that is not a pure `&&` chain.
+
+    The target is only true for the WHOLE command when nothing after the
+    switch undoes it, so the rest of the chain must be provably inert (each
+    of these returns None): any separator other than `&&` anywhere (`;`,
+    `||`, `|`, `&`, a newline, a subshell or group, a backtick or `$(`); a
+    command substitution other than the canonical `cat <<MARKER` message, or
+    a `bash -c`/`eval` wrapper, anywhere, quoted or not; any later segment
+    that is not `git <subcommand>` with no global flag and a subcommand in
+    the allowlist `_INERT_GIT_SUBCOMMANDS` (add, commit, status, diff, log,
+    show, rm, mv) — so a git alias, `cd`, `make`, `env`, `command`, a
+    function or `$CMD` all void the target; and a GIT_DIR / GIT_WORK_TREE /
+    GIT_INDEX_FILE / GIT_COMMON_DIR mention anywhere in the raw text.
     """
-    scanned = _view(text)
+    if _relocating_env(text):
+        return None
+    # Any substitution can run arbitrary commands BEFORE the commit (it is
+    # expanded while the commit's arguments are built), and a quoted one is
+    # invisible in the stripped view, so it is checked on the raw text. The
+    # one exception is the repo's canonical message shape,
+    # `-m "$(cat <<'EOF' … EOF)"`, whose span is a bare `cat <<MARKER`.
+    if substitution_spans_matching(text, lambda s: _CANONICAL_CAT.match(s) is None):
+        return None
+    if wrapped_command_strings(text):
+        return None
+    scanned = _view(strip_heredoc_bodies(text))
     if scanned is None:
         return None
     view, values = scanned
+    # A heredoc strip keeps the newline that ends the opener's line; a
+    # trailing one separates nothing.
+    view = view.rstrip()
     bounds = _first_segment(view)
     if bounds is None:
+        return None
+    if _rest_moves(view, bounds[1] + 2):
         return None
     words = _words(view, values, *bounds)
     if len(words) < 3 or words[0] != "git":
@@ -218,8 +308,12 @@ def commit_target_dir(text):
     segment that is not a plain `git [globals] commit`, a commit inside a
     command substitution or a `bash -c`/`eval` wrapper, any `cd`/`pushd`/
     `popd` other than the leading one, two commits in different directories,
-    and a relative or unexpandable directory.
+    a relative or unexpandable directory, and a GIT_DIR / GIT_WORK_TREE /
+    GIT_INDEX_FILE / GIT_COMMON_DIR mention anywhere in the raw text (an
+    exported one relocates the commit whatever `-C` says).
     """
+    if _relocating_env(text):
+        return None
     if substitution_spans_matching(text, lambda s: _COMMIT_WORD.search(s) is not None):
         return None
     if wrapped_command_strings(text):

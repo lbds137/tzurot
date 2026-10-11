@@ -947,6 +947,13 @@ run 0 "switch: leading git checkout -b feature && commit passes" \
   'git checkout -b feat/x origin/develop && git commit -m y' 'services/probe.ts'
 run 0 "switch: leading git switch --create feature && commit passes" \
   'git switch --create feat/x && git commit -m y' 'services/probe.ts'
+# The canonical heredoc message is the one substitution a trusted chain may
+# carry (a bare `cat <<MARKER`), including a body that mentions a moving verb.
+run 0 "switch: a chain of allowlisted git subcommands passes" \
+  'git switch -c x && git add a.ts && git status && git commit -m y' 'services/probe.ts'
+run 0 "switch: leading switch && canonical heredoc commit passes" \
+  "$(printf '%s\n' 'git switch -c feat/x && git add a.ts && git commit -m "$(cat <<'"'"'EOF'"'"'' \
+    'fix: x' '' 'it'"'"'s safe to git switch develop; then cd away' 'EOF' ')"')" 'services/probe.ts'
 # A switch TO a long-lived branch still blocks — from develop, and from a
 # feature checkout, where the live branch alone would have passed.
 run 2 "switch: leading git switch -C develop && commit blocks" \
@@ -973,6 +980,44 @@ run 2 "switch: a global flag before switch is not read" \
   'git -C /some/path switch -c feat/x && git commit -m y' 'services/probe.ts'
 run 2 "switch: an expanded branch name is not read" \
   'git switch -c $BRANCH && git commit -m y' 'services/probe.ts'
+# The leading switch is honoured only when NOTHING later in the command can
+# move the branch or the checkout: each of these commits on develop at
+# runtime, so each keeps the live branch (develop) and blocks.
+run 2 "switch: a later git switch back to develop is not trusted" \
+  'git switch -c x && git switch develop && git commit -m y' 'services/probe.ts'
+run 2 "switch: a later git checkout develop is not trusted" \
+  'git switch -c x && git checkout develop && git commit -m y' 'services/probe.ts'
+run 2 "switch: a ; anywhere in the command is not trusted" \
+  'git switch -c x && git commit -m y; git switch develop; git commit -am z' 'services/probe.ts'
+# No second switch needed: when `switch -c x` fails (x exists), the `&&` chain
+# is skipped but the commit after the `;` still runs on develop.
+run 2 "switch: a ; after the chain is not trusted even with no later switch" \
+  'git switch -c x && git commit -m y; git commit -am z' 'services/probe.ts'
+run 2 "switch: a subshell later in the chain is not trusted" \
+  'git switch -c x && (git switch develop) && git commit -m y' 'services/probe.ts'
+run 2 "switch: a later switch inside a quoted substitution is not trusted" \
+  'git switch -c x && git commit -m "$(git switch develop)"' 'services/probe.ts'
+run 2 "switch: a later prefixed command that moves the branch is not trusted" \
+  'git switch -c x && command git checkout develop && git commit -m y' 'services/probe.ts'
+run 2 "switch: a later bash -c wrapper is not trusted" \
+  "git switch -c x && bash -c 'git switch develop' && git commit -m y" 'services/probe.ts'
+run 2 "switch: a later git alias (not allowlisted) is not trusted" \
+  'git switch -c x && git co develop && git commit -m y' 'services/probe.ts'
+run 2 "switch: a later git branch -M is not trusted" \
+  'git switch -c x && git branch -M develop && git commit -m y' 'services/probe.ts'
+# The switch target is the branch of THIS checkout: a later -C sends the
+# commit to another checkout, so the target says nothing about it. From a
+# feature worktree, this commits into the develop worktree.
+printf 'probe\n' > "$WT/services/probe-sibling.ts"
+TARGET_WT="$FEATURE_WT"
+run 2 "switch: a later git -C <develop checkout> commit is not trusted" \
+  "git switch -c x && git -C $WT commit -m y"
+TARGET_WT=""
+rm -f "$WT/services/probe-sibling.ts"
+# A GIT_DIR / GIT_WORK_TREE environment relocates every later git call, so
+# neither the switch target nor the -C directory can be trusted.
+run 2 "cross-repo: a GIT_DIR export voids the -C directory" \
+  "export GIT_DIR=$WT/.git GIT_WORK_TREE=$WT; git -C $OTHER_REPO commit -m y" 'services/probe.ts'
 
 # --- cross-repo commits ------------------------------------------------------
 # Measured before the change: both of the first two rows exited 2 — the
