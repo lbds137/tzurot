@@ -481,9 +481,12 @@ ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 # ONLY when the whole command is a pure `&&` chain and every later segment is
 # an allowlisted `git add|commit|status|diff|log|show|rm|mv` with no global
 # flag. Every other shape — a `;` anywhere, any other later command (a switch,
-# an alias like `git co`, cd, `git -C`), a substitution, a GIT_DIR-style
-# variable, plain `git checkout <name>`, a switch that is not the first
-# segment — prints an empty line and the live branch decides. A python
+# an alias like `git co`, cd, `git -C`), a `log|diff|show --output`, a
+# substitution, a heredoc with an UNQUOTED delimiter (`<<EOF` expands `$(…)`
+# in its body before the commit runs; a heredoc must use a quoted delimiter,
+# `<<'EOF'`), a GIT_DIR-style variable, plain `git checkout <name>`, a switch
+# that is not the first segment — prints an empty line and the live branch
+# decides. A python
 # failure is the same empty line.
 LEADING=$(GUARD_CMD="$COMMAND" PYTHONDONTWRITEBYTECODE=1 \
   python3 "$HOOK_LIB/branch_switch.py" 2>/dev/null) || LEADING=""
@@ -574,7 +577,8 @@ NC='\033[0m'
   printf "${YELLOW}  Remedy: a LEADING \`git switch develop && …\` is honoured only in a pure${NC}\n"
   printf "${YELLOW}  \`&&\` chain with nothing else moving the branch or directory: every later${NC}\n"
   printf "${YELLOW}  command must be a plain \`git add|commit|status|diff|log|show|rm|mv\` (no${NC}\n"
-  printf "${YELLOW}  \`;\`, no global flag, no alias, no cd, no substitution) — the gate then${NC}\n"
+  printf "${YELLOW}  \`;\`, no global flag, no alias, no cd, no \`--output\`, no substitution; a${NC}\n"
+  printf "${YELLOW}  heredoc must use a quoted delimiter, \`<<'EOF'\`) — the gate then${NC}\n"
   printf "${YELLOW}  judges the commit on the switch target. Every other shape is${NC}\n"
   printf "${YELLOW}  judged on the branch checked out NOW; for those,${NC}\n"
   printf "${YELLOW}  issue the branch switch as its OWN Bash call, then commit in the next call.${NC}\n"
