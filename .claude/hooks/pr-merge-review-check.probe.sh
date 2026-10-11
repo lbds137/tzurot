@@ -120,7 +120,7 @@ case "$*" in
     # one value per line, base first. A missing value is an EMPTY line, not an
     # absent one — that is what the hook's `sed -n Np` reads.
     printf '%s\n%s\n%s\n%s\n' "${SHIM_PR_BASE:-}" "${SHIM_PR_HEAD:-}" \
-      "${SHIM_PR_AUTHOR:-}" "${SHIM_PR_EDITS_WORKFLOW:-false}"
+      "${SHIM_PR_AUTHOR:-}" "${SHIM_PR_EDITS_WORKFLOW-false}"
     ;;
   *"/issues/"*"/comments"*)
     printf '%s\n' "$*" >>"${SHIM_API_LOG:-/dev/null}"
@@ -984,6 +984,25 @@ invoke 'gh pr merge 2024 --rebase'
 assert_stderr_has "ordinary no-review PR keeps the plain reason line" 'no claude-review comment found'
 assert_stderr_lacks "…with no sanctioned-case wording" 'skips itself'
 assert_stderr_lacks "…and no dependabot wording" 'dependabot'
+
+# An UNREADABLE author and/or files line (empty, as the shim's `printf` writes a
+# missing value; the shim's files default applies only to an UNSET variable, so
+# an empty one reaches the hook as an empty line) is neither sanctioned case:
+# the plain wording and the release block both still print.
+new_case; SHIM_PR_BASE='main'; SHIM_REVIEW_JSON=''; SHIM_PR_AUTHOR=''; SHIM_PR_EDITS_WORKFLOW=''
+invoke 'gh pr merge 2026 --rebase'
+assert_exit "no review, empty author AND files lines: BLOCKS for the reminder" 2
+assert_stderr_has "…plain no-review wording" 'no claude-review comment found'
+assert_stderr_lacks "…no dependabot wording" 'dependabot'
+assert_stderr_lacks "…no workflow self-skip wording" 'skips itself'
+assert_stderr_has "…and the release block still prints" 'RELEASE PR — base is main'
+new_case; SHIM_PR_BASE='main'; SHIM_REVIEW_JSON=''; SHIM_PR_AUTHOR=''; SHIM_PR_EDITS_WORKFLOW='false'
+invoke 'gh pr merge 2027 --rebase'
+assert_exit "no review, empty author + non-workflow files line: BLOCKS for the reminder" 2
+assert_stderr_has "…plain no-review wording" 'no claude-review comment found'
+assert_stderr_lacks "…no dependabot wording" 'dependabot'
+assert_stderr_has "…and the release block still prints" 'RELEASE PR — base is main'
+SHIM_PR_AUTHOR='lbds137'; SHIM_PR_EDITS_WORKFLOW='false'
 
 # A NON-main PR stays silent on the no-review path even when the reason is a
 # sanctioned one — nothing printed there before, and nothing does now.

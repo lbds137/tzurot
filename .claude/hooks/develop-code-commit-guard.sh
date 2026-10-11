@@ -56,7 +56,10 @@
 #   when the whole command is a pure `&&` chain and every later segment is
 #   an allowlisted `git add|commit|status|diff|log|show` with no global
 #   flag and no word with a `.git` path component, so nothing can move the
-#   branch or the directory again (a `2>&1`/`>&2` redirect is not a join).
+#   branch or the directory again, assuming trusted repository config and
+#   hooks (diff.external, textconv, core.fsmonitor and commit hooks can run
+#   commands and are not modelled; not verified) (a `2>&1`/`>&2` redirect
+#   is not a join).
 #   Every other shape — a `;` or pipe anywhere (the commit runs even when the
 #   switch fails), any other later command (a switch, an alias like `git co`,
 #   cd, `git -C`, `git mv`/`git rm`, make), a `.git/…` path such as
@@ -81,7 +84,9 @@
 #   substitution or a `bash -c`/`eval` wrapper, `--git-dir`/`--work-tree`, and
 #   a GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE / GIT_COMMON_DIR mention, and
 #   a directory that does not resolve to a repository are all judged against
-#   this checkout, as before — over-blocking, never a bypass.
+#   this checkout, as before — over-blocking, never a bypass. Also any
+#   segment containing the word `commit` that is not a plain `git [globals]
+#   commit` keeps the live evaluation.
 #
 # Posture note (decided at the guard-triple review): the extension match is
 # a deliberate BLOCKLIST, not a default-deny allowlist. This is a
@@ -1050,6 +1055,8 @@ branch. Every other shape is judged on the branch checked out NOW:
 for those, issue the branch switch as its OWN Bash call, then commit in the
 next call. A blocked PreToolUse call executes NONE of its chain — an
 earlier `git add` in the same chain did not run either.
+A `.git` path anywhere in a later word, including inside a quoted commit
+message, also voids the switch (fails closed): issue it as its own call.
 
 Doc-only commit with an incidentally dirty tree? Stage ONLY the doc
 files in one Bash call, then run the commit ALONE in the next, prefixed
