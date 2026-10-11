@@ -228,6 +228,7 @@ export function validateGateArgs(
   const sha = shaInput?.toLowerCase();
   // The messages below name the command substitution rather than describing the
   // value: every bad SHA so far came from transcribing one by hand.
+  // runCiGate resolves an omitted --sha before calling this, so the branch below only guards direct callers.
   if (sha === undefined || sha === '') {
     throw new UsageError('--sha is required — pass `$(git rev-parse HEAD)` right after pushing');
   }
