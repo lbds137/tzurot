@@ -228,7 +228,10 @@ export function validateGateArgs(
   const sha = shaInput?.toLowerCase();
   // The messages below name the command substitution rather than describing the
   // value: every bad SHA so far came from transcribing one by hand.
-  // runCiGate resolves an omitted --sha before calling this, so the branch below only guards direct callers.
+  // runCiGate handles an absent --sha before calling this, so the branch below
+  // rejects a present-but-empty one: an empty value means the caller's
+  // substitution misfired, and defaulting it to the head would hide that. The
+  // test "rejects a present-but-empty --sha" pins it.
   if (sha === undefined || sha === '') {
     throw new UsageError('--sha is required — pass `$(git rev-parse HEAD)` right after pushing');
   }
@@ -638,14 +641,14 @@ export interface GateRunDeps {
  * commit are both usage errors rather than a silent fall back to something
  * else, because the caller asked for "the head" and cannot be handed a guess.
  */
-export function resolveOmittedSha(
+function resolveOmittedSha(
   prNumber: number,
-  fetch: (prNumber: number) => string | undefined,
+  readHead: (prNumber: number) => string | undefined,
   commitExists: (sha: string) => boolean
 ): GateArgs {
   let head: string | undefined;
   try {
-    head = fetch(prNumber);
+    head = readHead(prNumber);
   } catch {
     head = undefined;
   }
@@ -692,7 +695,7 @@ export async function runCiGate(
   const settle = overrides.settle ?? sleep;
   const prHead = overrides.prHead ?? fetchPrHeadSha;
   const commitExists = overrides.commitExists ?? gitHasCommit;
-  const shaOmitted = options.sha === undefined || options.sha === '';
+  const shaOmitted = options.sha === undefined;
 
   // The "Waiting" line comes BEFORE any synchronous network call (the head read
   // on the omitted path, the head check on the explicit one) on purpose. A hang
