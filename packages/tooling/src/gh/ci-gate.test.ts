@@ -527,6 +527,7 @@ describe('runCiGate (orchestration)', () => {
     it('omitted --sha resolves the head and waits on it', async () => {
       const head = 'c'.repeat(40);
       const waitedOn: string[] = [];
+      const headReadsFor: number[] = [];
       const { events, overrides } = orchestrationHarness([DONE('CI'), REVIEW_DONE()]);
       const exitCode = await captureExitCode(() =>
         runCiGate(
@@ -534,7 +535,10 @@ describe('runCiGate (orchestration)', () => {
           {},
           {
             ...overrides,
-            prHead: () => head,
+            prHead: (prNumber: number) => {
+              headReadsFor.push(prNumber);
+              return head;
+            },
             wait: {
               ...overrides.wait,
               fetch: (sha: string) => {
@@ -547,6 +551,7 @@ describe('runCiGate (orchestration)', () => {
       );
       expect(waitedOn.length).toBeGreaterThan(0);
       expect(new Set(waitedOn)).toEqual(new Set([head]));
+      expect(headReadsFor).toEqual([1992]);
       expect(events).toContain(`log:--sha omitted; using PR #1992's head ${head.slice(0, 8)}…`);
       expect(events).toContain('checks:1992:report');
       expect(exitCode).toBeUndefined();
