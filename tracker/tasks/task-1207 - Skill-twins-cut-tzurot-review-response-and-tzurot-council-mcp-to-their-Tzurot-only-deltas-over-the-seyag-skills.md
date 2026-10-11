@@ -3,9 +3,10 @@ id: TASK-1207
 title: >-
   Skill twins: cut tzurot-review-response and tzurot-council-mcp to their
   Tzurot-only deltas over the seyag skills
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-11 11:08'
+updated_date: '2026-10-11 19:26'
 labels:
   - 'area:repo'
   - 'size:M'
@@ -24,3 +25,9 @@ What: the TASK-1111 pattern. For each of the two skills, keep only Tzurot-specif
 
 Acceptance: no procedure text appears in both copies; every pointer names a heading that exists in the seyag skill (grep it, or TASK-1110 guard once built); lines:check green with the skills baseline lowered.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+SHIPPED 2026-10-11 in #2605: six skill twins cut to Tzurot deltas over the Seyag skills (35 `seyag:<skill> § <heading>` pointers, all resolving at merge); skills baseline 3959 -> 3283 lines. Generic Tzurot-only text sent upstream via Deck (Seyag PR-4c). Remaining mechanism divergences: TASK-1213.
+<!-- SECTION:NOTES:END -->

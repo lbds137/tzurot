@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-25 21:58'
+updated_date: '2026-10-11 19:26'
 labels:
   - 'area:tooling'
   - 'size:S'
@@ -26,3 +27,9 @@ Second pointer form (added by #2547, claude-review round 3): `harness:doc-audit 
 
 Acceptance: the guard lists every pointer with its resolution; a fixture with one bad heading reddens it; the doc-audit skill names it as a step.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-11 (#2605): a second pointer family now exists, `seyag:<skill> § <exact heading>` in .claude/skills (35 at merge, checked by exact-heading grep against the seyag plugin skill files). Fold it into this drift check rather than a separate guard. Positive control worth keeping: `seyag:session-mining § Session Mining: extracting learnings` (a title-shaped heading, least obviously stable). The guard needs the seyag checkout present; skip with a notice where it is absent (CI).
+<!-- SECTION:NOTES:END -->
