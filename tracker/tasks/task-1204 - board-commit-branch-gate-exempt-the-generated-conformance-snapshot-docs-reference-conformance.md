@@ -22,5 +22,5 @@ Why: pnpm ops surface:inventory --write regenerates docs/reference/conformance/d
 
 What: treat docs/reference/conformance/ as feature-branch content in the gate allowlist (it is generated from code, not board state); sweep any other generated artifacts written under docs/ by ops commands and decide each; update the prose that prescribes the bypass for the conformance pair.
 
-Acceptance: probe row (conformance-only commit on a feature branch passes; a tracker file beside it still blocks); no remaining doc prescribes the bypass for the snapshot.
+Acceptance: probe row (conformance-only commit on a feature branch passes; conformance plus a tracker file passes as any mixed commit does; tracker-only still blocks); no remaining doc prescribes the bypass for the snapshot.
 <!-- SECTION:DESCRIPTION:END -->
