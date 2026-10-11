@@ -54,11 +54,13 @@
 #   -b|-B <name> &&` changes it before the commit runs, so that target is
 #   judged instead (lib/branch_switch.py; probe: the "switch:" rows) — ONLY
 #   when the whole command is a pure `&&` chain and every later segment is
-#   an allowlisted `git add|commit|status|diff|log|show|rm|mv` with no
-#   global flag, so nothing can move the branch or the directory again.
-#   Every other shape — a `;` anywhere (the commit runs even when the switch
-#   fails), any other later command (a switch, an alias like `git co`, cd,
-#   `git -C`, make), a `log|diff|show --output`, a substitution, a heredoc
+#   an allowlisted `git add|commit|status|diff|log|show` with no global
+#   flag and no word with a `.git` path component, so nothing can move the
+#   branch or the directory again (a `2>&1`/`>&2` redirect is not a join).
+#   Every other shape — a `;` or pipe anywhere (the commit runs even when the
+#   switch fails), any other later command (a switch, an alias like `git co`,
+#   cd, `git -C`, `git mv`/`git rm`, make), a `.git/…` path such as
+#   `git mv -f h.txt .git/HEAD`, a `log|diff|show --output`, a substitution, a heredoc
 #   with an UNQUOTED delimiter (`<<EOF` expands `$(…)` in its body before the
 #   commit runs; a heredoc must use a quoted delimiter, `<<'EOF'`), a
 #   GIT_DIR-style variable, plain `git checkout <name>` (branch-or-path
@@ -73,7 +75,9 @@
 #   git-common-dir) is judged as itself — its branch (or the leading switch
 #   target) and its dirty tree, so a commit into a sibling worktree on
 #   develop still blocks (probe: the "cross-repo:" rows). Known limitation: a
-#   relative, `~`-prefixed or expanded directory, a commit inside a
+#   relative, `~`-prefixed or expanded directory, a directory with a `..`
+#   step (git and the shell resolve it physically through a symlink, the
+#   text only lexically), a commit inside a
 #   substitution or a `bash -c`/`eval` wrapper, `--git-dir`/`--work-tree`, and
 #   a GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE / GIT_COMMON_DIR mention, and
 #   a directory that does not resolve to a repository are all judged against
@@ -847,9 +851,10 @@ fi
 # A leading `git switch … &&` (or `checkout -b|-B … &&`) runs before the
 # commit, so the commit lands on the switch target, not on the live branch —
 # but only in a pure `&&` chain whose later segments are all allowlisted
-# `git add|commit|status|diff|log|show|rm|mv` with no global flag. A switch to
-# develop/main therefore still blocks below; a new feature branch passes.
-# Every other shape (a `;` anywhere, any other later command, a
+# `git add|commit|status|diff|log|show` with no global flag and no `.git`
+# path component. A switch to develop/main therefore still blocks below; a
+# new feature branch passes. Every other shape (a `;` or pipe anywhere, any
+# other later command including `git mv`/`git rm`, a `.git/…` path, a
 # `log|diff|show --output`, a substitution, an unquoted-delimiter heredoc,
 # plain checkout, a switch that is not the first segment) leaves
 # SWITCH_TARGET empty and the live branch decides.
@@ -1037,9 +1042,10 @@ Fix: git checkout -b <type>/<name> first, then commit there.
 Remedy: a LEADING `git switch -c <branch> && …` (or `git checkout -b
 <branch> && …`) is honoured only in a pure `&&` chain with nothing else
 moving the branch or directory: every later command must be a plain
-`git add|commit|status|diff|log|show|rm|mv` (no `;`, no global flag, no
-alias, no cd, no `--output`, no substitution; a heredoc must use a quoted
-delimiter, `<<'EOF'`) — the gate then judges the commit on that
+`git add|commit|status|diff|log|show` (no `;`, no pipe, no global flag,
+no alias, no cd, no `--output`, no `.git/…` path, no substitution; a
+trailing `2>&1` is fine; a heredoc must use a quoted delimiter,
+`<<'EOF'`) — the gate then judges the commit on that
 branch. Every other shape is judged on the branch checked out NOW:
 for those, issue the branch switch as its OWN Bash call, then commit in the
 next call. A blocked PreToolUse call executes NONE of its chain — an
