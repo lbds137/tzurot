@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit; and the cloud dispatch mode (one cloud unit beside one local unit). Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-10-09'
+lastUpdated: '2026-10-11'
 ---
 
 # Orchestrator Mode
@@ -221,9 +221,9 @@ develop` stays explicit). The main tree is not on the pushed branch, so the
 driver arms the standard CI monitor with the SHA substitution pointed at the
 fetched remote branch instead of `HEAD`: `git fetch origin <branch>`, then
 `--sha $(git rev-parse origin/<branch>)`. The
-cloud orchestrator is its session's own main loop, so `dispatch-posture-gate.sh`
-applies to it, and the spec tells it to hand all src edits above five lines to
-ONE Sonnet worker. Observed behavior: units have ignored that and split their
+cloud orchestrator is its session's own main loop; Seyag's `dispatch-posture-gate`
+reaches it only if the VM loads the seyag plugin (unverified), so the spec
+itself tells it to hand all src edits above five lines to ONE Sonnet worker. Observed behavior: units have ignored that and split their
 edits into five-line pieces instead, which is correct but slow. The VM never loads harness `core.md`, so every cloud spec pastes that file's § Safety section verbatim under a `## Harness safety rules` heading (source on the driver's machine: `/home/deck/Projects/seyag/plugins/seyag/rules/core.md`), refreshed at each launch; without it a cloud unit has no written ask-first list at all.
 
 **Reading the result.** RemoteTrigger `get_run_log` with the session id,

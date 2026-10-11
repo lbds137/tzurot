@@ -2,6 +2,9 @@
   "worktree": {
     "baseRef": "head"
   },
+  "env": {
+    "SYG_DISPATCH_SRC_RE": "^(services|packages)/.+\\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|py)$"
+  },
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -9,18 +12,6 @@
           {
             "type": "command",
             "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/skill-eval.sh"
-          },
-          {
-            "type": "command",
-            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/bare-token-binding-reminder.sh"
-          },
-          {
-            "type": "command",
-            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/queued-message-receipt.sh"
-          },
-          {
-            "type": "command",
-            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/context-size-reminder.sh"
           }
         ]
       }
@@ -59,20 +50,7 @@
           },
           {
             "type": "command",
-            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/grep-escaped-dollar-guard.sh"
-          },
-          {
-            "type": "command",
             "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/pr-body-ref-gate.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/dispatch-posture-gate.sh"
           }
         ]
       },
@@ -82,24 +60,6 @@
           {
             "type": "command",
             "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/dispatch-spec-ledger-gate.sh"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/promise-ledger-check.sh"
-          },
-          {
-            "type": "command",
-            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/blocking-question-channel-check.sh"
-          },
-          {
-            "type": "command",
-            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/turn-end-shape-gate.sh"
           }
         ]
       }
