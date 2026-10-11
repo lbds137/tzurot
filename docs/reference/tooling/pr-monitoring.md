@@ -37,7 +37,9 @@ arms anyway and prints that the drift check did not run — which is why arming
 promptly still matters. Omitting `--sha` watches the PR's current head instead,
 so no drift check is needed (the SHA is the head); the canonical command above
 is unchanged. An EMPTY `--sha` is refused rather than defaulted: it means the
-caller's substitution misfired.
+caller's substitution misfired. Omitting it right after a push gives up the
+"the commit I just pushed" guarantee: GitHub may not have indexed the push yet,
+so the gate can watch the previous head. Use the explicit form right after a push.
 
 ## Waiting
 

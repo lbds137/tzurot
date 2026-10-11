@@ -3,9 +3,10 @@ id: TASK-1205
 title: >-
   gh:ci-gate: default --sha to the PR head when omitted, matching the harness
   pr-ci-wait
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-11 11:07'
+updated_date: '2026-10-11 15:19'
 labels:
   - 'area:tooling'
   - 'size:S'
@@ -24,3 +25,9 @@ What: make --sha optional; when omitted, read pulls/N head.sha (fetchPrHeadSha),
 
 Acceptance: unit tests for omitted/explicit/unreadable-head; OPS_CLI_REFERENCE row updated; guard:ops-doc and guard:monitor-command green.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped in #2602.
+<!-- SECTION:NOTES:END -->
