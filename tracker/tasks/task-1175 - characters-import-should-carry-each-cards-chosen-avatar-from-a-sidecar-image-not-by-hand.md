@@ -3,10 +3,10 @@ id: TASK-1175
 title: >-
   characters:import should carry each card's chosen avatar from the AVATARS.json
   manifest
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-05 00:40'
-updated_date: '2026-10-05 00:41'
+updated_date: '2026-10-11 12:40'
 labels:
   - 'area:tooling'
   - 'size:M'
@@ -28,4 +28,6 @@ Acceptance: a dry run lists an avatar change only for a new or changed image; ap
 
 <!-- SECTION:NOTES:BEGIN -->
 Convention agreed with the Characters session 2026-10-04: a manifest, images/AVATARS.json in tzurot-characters (main d8ecd13), a flat JSON object slug -> path of the chosen image relative to images/ (e.g. {"literal-cat": "OC/literal animals/literal-cat-v3.jpeg"}). Rules: a slug appears only once its avatar is decided; paths may contain spaces; any extension (do not assume .jpeg); a path that does not resolve refuses THAT slug, never aborts the batch; a slug absent from the manifest means leave the bot avatar alone (never clear). Chosen over a per-slug sidecar because every variant already exists as <slug>-vN.jpeg, so a sidecar would duplicate multi-MB binaries in git per pick.
+
+Shipped in #2594 (7026610a7). First production use 2026-10-11: ten spirit-card avatars set on dev with --avatars --only, 10 updated, re-dry-run 10 unchanged.
 <!-- SECTION:NOTES:END -->
