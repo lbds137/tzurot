@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 2913,
-    "sites": 6778
+    "entries": 2917,
+    "sites": 6783
   },
   "entries": [
     {
@@ -14887,6 +14887,12 @@
     {
       "category": "message-builders",
       "file": "services/bot-client/src/commands/inspect/embed.ts",
+      "symbol": "*",
+      "count": 1
+    },
+    {
+      "category": "message-builders",
+      "file": "services/bot-client/src/commands/inspect/embed.ts",
       "symbol": "EmbedBuilder",
       "count": 1
     },
@@ -17310,6 +17316,12 @@
     },
     {
       "category": "unclassified",
+      "file": "services/bot-client/src/services/DiscordResponseSender.ts",
+      "symbol": "*",
+      "count": 1
+    },
+    {
+      "category": "unclassified",
       "file": "services/bot-client/src/services/GatewayWatchdog.ts",
       "symbol": "limit",
       "count": 1
@@ -17438,6 +17450,18 @@
       "category": "unclassified",
       "file": "services/bot-client/src/utils/modal/toolkit.ts",
       "symbol": "RadioGroupOptionBuilder",
+      "count": 1
+    },
+    {
+      "category": "unclassified",
+      "file": "services/bot-client/src/utils/overrideBrowse.ts",
+      "symbol": "*",
+      "count": 2
+    },
+    {
+      "category": "unclassified",
+      "file": "services/bot-client/src/utils/ownerChannel.ts",
+      "symbol": "*",
       "count": 1
     },
     {

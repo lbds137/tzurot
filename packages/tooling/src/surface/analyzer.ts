@@ -272,6 +272,20 @@ function returnedLiteralKeys(literal: ObjectLiteralExpression, typeChecker: Type
   return [...keys];
 }
 
+/** Strip parentheses, `as`, `satisfies` and `!` — wrappers that change no runtime value. */
+function unwrapTransparent(expression: Node): Node {
+  let current = expression;
+  while (
+    Node.isParenthesizedExpression(current) ||
+    Node.isAsExpression(current) ||
+    Node.isSatisfiesExpression(current) ||
+    Node.isNonNullExpression(current)
+  ) {
+    current = current.getExpression();
+  }
+  return current;
+}
+
 /**
  * Keys of one returned expression: a literal (conditional branches included),
  * a variable initialized with a literal, or a delegated call (read like a
@@ -284,10 +298,11 @@ function returnedLiteralKeys(literal: ObjectLiteralExpression, typeChecker: Type
  * `visiting` carries the callers already on the stack (see {@link callReturnKeys}).
  */
 function collectReturnedKeys(
-  expression: Node,
+  rawExpression: Node,
   typeChecker: TypeChecker,
   visiting: Set<Node>
 ): string[] {
+  const expression = unwrapTransparent(rawExpression);
   if (Node.isObjectLiteralExpression(expression)) {
     return returnedLiteralKeys(expression, typeChecker);
   }
@@ -302,14 +317,6 @@ function collectReturnedKeys(
       ...collectReturnedKeys(expression.getWhenTrue(), typeChecker, visiting),
       ...collectReturnedKeys(expression.getWhenFalse(), typeChecker, visiting),
     ];
-  }
-  if (
-    Node.isParenthesizedExpression(expression) ||
-    Node.isAsExpression(expression) ||
-    Node.isSatisfiesExpression(expression) ||
-    Node.isNonNullExpression(expression)
-  ) {
-    return collectReturnedKeys(expression.getExpression(), typeChecker, visiting);
   }
   if (Node.isCallExpression(expression)) {
     return callKeys(expression, typeChecker, visiting);
@@ -395,8 +402,13 @@ function callKeys(call: CallExpression, typeChecker: TypeChecker, visiting: Set<
 
 /**
  * Option keys contributed by one call / new argument — the keys the code
- * actually sends, never a whole declared member list:
- *  1. an object literal contributes its own keys;
+ * actually sends, never a whole declared member list. Parentheses, `as`,
+ * `satisfies` and `!` around the argument are transparent, so every rule below
+ * sees the wrapped expression.
+ *  1. an object literal contributes its own keys plus the keys of spread local
+ *     variables initialized with an object literal; a spread whose keys cannot
+ *     be read statically adds {@link UNKNOWN_PAYLOAD_KEY} beside them (read
+ *     exactly like a returned literal — see {@link returnedLiteralKeys});
  *  2. an identifier bound to a variable initialized with an object literal
  *     contributes the initializer's keys plus the `variable.key = …`
  *     assignments and whole `variable = …` reassignments in the same function
@@ -411,8 +423,9 @@ function callKeys(call: CallExpression, typeChecker: TypeChecker, visiting: Set<
  *     alias over a union, contributes the single {@link UNKNOWN_PAYLOAD_KEY}
  *     marker.
  */
-function collectOptionKeys(argument: Node, typeChecker: TypeChecker): string[] {
-  if (Node.isObjectLiteralExpression(argument)) return literalKeys(argument);
+function collectOptionKeys(rawArgument: Node, typeChecker: TypeChecker): string[] {
+  const argument = unwrapTransparent(rawArgument);
+  if (Node.isObjectLiteralExpression(argument)) return returnedLiteralKeys(argument, typeChecker);
   if (Node.isIdentifier(argument)) {
     const keys = initializedVariableKeys(argument, typeChecker);
     if (keys !== undefined) return keys;
