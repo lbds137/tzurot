@@ -109,7 +109,9 @@ _FD_REDIRECT = re.compile(r"\d*>&\d+")
 # The only segments a trusted chain may carry after the leading switch:
 # `git <subcommand> …` with the subcommand as the SECOND word (no global flag,
 # no assignment prefix, no wrapper such as `command`/`env`) and one of these
-# subcommands, none of which can move HEAD or the directory. Anything else —
+# subcommands, none of which can move HEAD or the directory (assuming trusted
+# repository config and hooks: diff.external, textconv, core.fsmonitor and
+# commit hooks can run commands and are not modelled; not verified). Anything else —
 # a git alias (`git co`), `cd`, `make`, `pnpm`, a function, `$CMD` — voids the
 # target, because what it runs cannot be known from the text. `mv` and `rm`
 # are absent: they write paths of the caller's choosing, and `git mv -f h.txt
@@ -215,7 +217,9 @@ def _names_git_dir(word):
 
 def _rest_moves(view, values, start):
     """True unless `view[start:]` is provably unable to move the branch or the
-    directory: the whole remainder is `&&`-joined (a numeric fd redirect such
+    directory (assuming trusted repository config and hooks: diff.external,
+    textconv, core.fsmonitor and commit hooks can run commands and are not
+    modelled; not verified): the whole remainder is `&&`-joined (a numeric fd redirect such
     as `2>&1` is not a join), every segment is `git <subcommand> …` with the
     subcommand (the second word, so no global flag) in
     `_INERT_GIT_SUBCOMMANDS`, no word of any segment has a `.git` path
@@ -245,8 +249,8 @@ def _rest_moves(view, values, start):
 
 def switch_target(text):
     """The branch a leading `git switch …` / `git checkout -b|-B …` moves to,
-    when nothing else in the command can move the branch or the checkout;
-    else None.
+    when nothing else in the command can move the branch or the checkout
+    (same trusted-config assumption as `_rest_moves`); else None.
 
     Read: `git switch <name>`, `git switch -c|-C|--create|--force-create
     <name> [start]`, `git checkout -b|-B <name> [start]`. Not read (None): a

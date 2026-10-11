@@ -587,6 +587,8 @@ NC='\033[0m'
   printf "${YELLOW}  issue the branch switch as its OWN Bash call, then commit in the next call.${NC}\n"
   printf "${YELLOW}  A blocked PreToolUse call executes NONE of its chain — an earlier${NC}\n"
   printf "${YELLOW}  \`git add\` in the same chain did not run either.${NC}\n"
+  printf "${YELLOW}  A \`.git\` path anywhere in a later word, even inside a quoted commit${NC}\n"
+  printf "${YELLOW}  message, also voids the switch (fails closed): issue it as its own call.${NC}\n"
   printf "${YELLOW}  If this doc genuinely belongs WITH this PR, bypass once:${NC}\n"
   printf "${YELLOW}    TZUROT_ALLOW_BOARD_ON_FEATURE=1 git commit ...${NC}\n"
 } >&2
