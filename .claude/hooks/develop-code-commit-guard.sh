@@ -91,9 +91,9 @@
 #   `-c <key>=<value>` global flag (`core.worktree` relocates the work tree), and
 #   a GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE / GIT_COMMON_DIR mention, and
 #   a directory that does not resolve to a repository are all judged against
-#   this checkout, as before: over-blocking when this checkout is on
+#   this checkout: over-blocking when this checkout is on
 #   develop/main, but a pass when it is a feature branch and the commit
-#   really lands in a develop worktree (TASK-1209). Also any
+#   really lands in a develop worktree. Also any
 #   segment containing the word `commit` that is not a plain `git [globals]
 #   commit` keeps the live evaluation.
 #
@@ -817,9 +817,8 @@ cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null || exit 0
 # runs in, line 3 = "1" when every other segment of the command (bar a
 # leading `cd <abs dir>`) is inert, so nothing can re-point that directory
 # after it is resolved here. Each is empty when it cannot be read with
-# certainty, and empty means "judge the live state" — the behaviour before
-# this read existed. A python failure leaves all three empty, the same
-# direction.
+# certainty, and empty means "judge the live state". A helper failure leaves
+# all three empty, the same direction (probe: the "helper failure:" rows).
 SWITCH_TARGET=""
 COMMIT_DIR=""
 COMMIT_OTHERS_INERT=""

@@ -992,12 +992,12 @@ SHIM_PR_EDITS_WORKFLOW='false'
 new_case; SHIM_PR_BASE='main'; SHIM_REVIEW_JSON=''; SHIM_PR_AUTHOR='app/dependabot'
 invoke 'gh pr merge 2021 --rebase'
 assert_exit "no review on a dependabot PR: BLOCKS for the reminder" 2
-assert_stderr_has "…the header names dependabot" 'dependabot PRs are never reviewed'
+assert_stderr_has "…the header names dependabot" 'dependabot PRs are skipped by the review workflow'
 assert_stderr_lacks "…and not the workflow self-skip" 'skipped itself'
 # The webhook spelling of the same author, as the workflow's own `if:` writes it.
 new_case; SHIM_PR_AUTHOR='dependabot[bot]'
 invoke 'gh pr merge 2022 --rebase'
-assert_stderr_has "dependabot[bot] spelling is recognised too" 'dependabot PRs are never reviewed'
+assert_stderr_has "dependabot[bot] spelling is recognised too" 'dependabot PRs are skipped by the review workflow'
 SHIM_PR_AUTHOR='lbds137'
 
 # Both at once: the workflow self-skip is checked first.
@@ -1006,7 +1006,7 @@ invoke 'gh pr merge 2023 --rebase'
 assert_stderr_has "workflow edit + dependabot: the self-skip wins" 'skipped itself'
 SHIM_PR_AUTHOR='lbds137'; SHIM_PR_EDITS_WORKFLOW='false'
 
-# An ordinary author with no workflow edit keeps today's wording.
+# An ordinary author with no workflow edit keeps the plain wording.
 new_case; SHIM_REVIEW_JSON=''
 invoke 'gh pr merge 2024 --rebase'
 assert_stderr_has "ordinary no-review PR keeps the plain reason line" 'no claude-review comment found'
@@ -1049,7 +1049,7 @@ assert_stderr_lacks "…no dependabot wording" 'dependabot'
 SHIM_AUTHOR_FILES_EXIT=0; SHIM_PR_AUTHOR='lbds137'; SHIM_PR_EDITS_WORKFLOW='false'
 
 # A NON-main PR stays silent on the no-review path even when the reason is a
-# sanctioned one — nothing printed there before, and nothing does now.
+# sanctioned one — the release block prints nothing for a non-main base.
 new_case; SHIM_PR_BASE='develop'; SHIM_REVIEW_JSON=''; SHIM_PR_EDITS_WORKFLOW='true'
 invoke 'gh pr merge 2025 --rebase'
 assert_exit "non-main PR editing the review workflow, no review: allowed" 0

@@ -15,8 +15,8 @@ runs, and a guard that ignores them blocks a commit that lands somewhere else:
 in the command can move the branch or the checkout; `commit_target_dir`
 names the directory every commit in the command runs in, when that is provably
 one absolute directory. Both return None for anything they cannot read with
-certainty, and None means "judge the live state", which is the behaviour the
-guards had before this module existed. So a parse gap can only keep a block,
+certainty, and None means "judge the live state", the guards' baseline
+evaluation. So a parse gap can only keep a block,
 never open one.
 
 WHY ONLY A PURE `&&` CHAIN
