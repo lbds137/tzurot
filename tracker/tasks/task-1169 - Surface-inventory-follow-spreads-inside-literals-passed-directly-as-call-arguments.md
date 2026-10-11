@@ -3,10 +3,10 @@ id: TASK-1169
 title: >-
   Surface inventory: direct call arguments - follow literal spreads and unwrap
   as/satisfies/parens/non-null
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-04 20:47'
-updated_date: '2026-10-04 21:33'
+updated_date: '2026-10-11 22:38'
 labels:
   - 'area:tooling'
   - 'size:S'
