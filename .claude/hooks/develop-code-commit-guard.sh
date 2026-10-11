@@ -48,9 +48,26 @@
 #   covers the doc-only gate only: a token found in ANY segment routes the
 #   command to the override path, which refuses every shape but the
 #   standalone token commit and then classifies the index.
-# - Known limitation: the branch check runs in CLAUDE_PROJECT_DIR; a command
-#   that cd's into a DIFFERENT checkout/worktree is checked against the main
-#   checkout's branch. Accepted — the failure pattern this guards is in-repo.
+# - The branch read: a PreToolUse hook runs BEFORE the command, so the live
+#   branch is the one the command STARTS on. A leading `git switch <name> &&`
+#   / `git switch -c|-C|--create|--force-create <name> &&` / `git checkout
+#   -b|-B <name> &&` changes it before the commit runs, so that target is
+#   judged instead (lib/branch_switch.py; probe: the "switch:" rows). Every
+#   other shape — a `;` join (the commit runs even when the switch fails),
+#   plain `git checkout <name>` (branch-or-path ambiguity), a switch that is
+#   not the first segment — is judged on the live branch.
+# - Cross-repo commits: when EVERY commit in the command provably runs in one
+#   absolute directory (`git -C <abs dir> commit`, or a leading
+#   `cd <abs dir> &&`) whose toplevel resolves and differs from this
+#   checkout's: a DIFFERENT repository (its git-common-dir differs) makes the
+#   guard stay silent; another WORKTREE of this repository (same
+#   git-common-dir) is judged as itself — its branch (or the leading switch
+#   target) and its dirty tree, so a commit into a sibling worktree on
+#   develop still blocks (probe: the "cross-repo:" rows). Known limitation: a
+#   relative, `~`-prefixed or expanded directory, a commit inside a
+#   substitution or a `bash -c`/`eval` wrapper, `--git-dir`/`--work-tree`, and
+#   a directory that does not resolve to a repository are all judged against
+#   this checkout, as before — over-blocking, never a bypass.
 #
 # Posture note (decided at the guard-triple review): the extension match is
 # a deliberate BLOCKLIST, not a default-deny allowlist. This is a
@@ -766,7 +783,59 @@ esac
 
 cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null || exit 0
 
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+# What the command's leading segment changes before its commit runs
+# (lib/branch_switch.py): line 1 = the branch a leading `git switch … &&`
+# moves to, line 2 = the one absolute directory every commit in the command
+# runs in. Each is empty when it cannot be read with certainty, and empty
+# means "judge the live state" — the behaviour before this read existed. A
+# python failure leaves both empty, the same direction.
+SWITCH_TARGET=""
+COMMIT_DIR=""
+LEADING=$(GUARD_CMD="$COMMAND" PYTHONDONTWRITEBYTECODE=1 \
+  python3 "$HOOK_LIB/branch_switch.py" 2>/dev/null) || LEADING=""
+{
+  read -r SWITCH_TARGET
+  read -r COMMIT_DIR
+} <<< "$LEADING"
+
+# Cross-checkout: every commit in the command lands in another checkout (a
+# `git -C <abs dir> commit`, or a leading `cd <abs dir> &&`). Only a directory
+# whose toplevel RESOLVES and differs from this one's is acted on; an
+# unresolvable one (missing, not a repo) keeps the live-state evaluation.
+# - A DIFFERENT repository (its git-common-dir differs): this repo's policy
+#   does not govern that commit, so stay silent.
+# - Another WORKTREE of this repository (same git-common-dir): the commit is
+#   still a Tzurot commit, so the gate re-points at THAT checkout — the branch
+#   read and the dirty-tree classification below both run there. If the cd
+#   fails, the live-state evaluation here is kept.
+if [ -n "$COMMIT_DIR" ]; then
+  TARGET_TOP=$(git -C "$COMMIT_DIR" rev-parse --show-toplevel 2>/dev/null || echo "")
+  HERE_TOP=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+  if [ -n "$TARGET_TOP" ] && [ -n "$HERE_TOP" ] && [ "$TARGET_TOP" != "$HERE_TOP" ]; then
+    TARGET_COMMON=$(git -C "$TARGET_TOP" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "")
+    HERE_COMMON=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "")
+    # An unreadable common dir on either side decides nothing: neither the
+    # exit nor the cd runs, and the live state here is judged.
+    if [ -n "$TARGET_COMMON" ] && [ -n "$HERE_COMMON" ]; then
+      if [ "$TARGET_COMMON" = "$HERE_COMMON" ]; then
+        cd "$TARGET_TOP" 2>/dev/null || true
+      else
+        exit 0
+      fi
+    fi
+  fi
+fi
+
+# A leading `git switch … &&` (or `checkout -b|-B … &&`) runs before the
+# commit, so the commit lands on the switch target, not on the live branch.
+# A switch to develop/main therefore still blocks below; a new feature branch
+# passes. Every other shape (a `;` join, plain checkout, a switch that is not
+# the first segment) leaves SWITCH_TARGET empty and the live branch decides.
+if [ -n "$SWITCH_TARGET" ]; then
+  BRANCH="$SWITCH_TARGET"
+else
+  BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+fi
 if [ "$BRANCH" != "develop" ] && [ "$BRANCH" != "main" ]; then
   exit 0
 fi
@@ -943,10 +1012,13 @@ cat >&2 <<'FOOTER'
 
 Fix: git checkout -b <type>/<name> first, then commit there.
 
-Remedy: issue the branch switch as its OWN Bash call, then commit in the
-next call. This gate evaluates the branch BEFORE your && chain runs, and a
-blocked PreToolUse call executes NONE of its chain — an earlier `git add`
-in the same chain did not run either.
+Remedy: a LEADING `git switch -c <branch> && …` (or `git checkout -b
+<branch> && …`) is now honoured — the gate judges the commit on that
+branch. Other shapes (a `;` join, plain `git checkout <name>`, a switch
+that is not the first command) are judged on the branch checked out NOW:
+for those, issue the branch switch as its OWN Bash call, then commit in the
+next call. A blocked PreToolUse call executes NONE of its chain — an
+earlier `git add` in the same chain did not run either.
 
 Doc-only commit with an incidentally dirty tree? Stage ONLY the doc
 files in one Bash call, then run the commit ALONE in the next, prefixed

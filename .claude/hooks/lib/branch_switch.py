@@ -1,0 +1,276 @@
+"""What a command's LEADING segment changes before its `git commit` runs.
+
+A PreToolUse hook runs before the command, so a guard that reads the live
+branch or the live checkout judges the state the command STARTS in. Two
+leading shapes change that state before a later commit in the same `&&` chain
+runs, and a guard that ignores them blocks a commit that lands somewhere else:
+
+    git switch -c feat/x && git add a.ts && git commit -m y
+        commits on feat/x, not on the branch checked out now
+    git -C /other/repo commit -m x
+    cd /other/repo && git commit -m x
+        commit in another checkout entirely
+
+`switch_target` names the branch a leading switch moves to; `commit_target_dir`
+names the directory every commit in the command runs in, when that is provably
+one absolute directory. Both return None for anything they cannot read with
+certainty, and None means "judge the live state", which is the behaviour the
+guards had before this module existed. So a parse gap can only keep a block,
+never open one.
+
+WHY ONLY `&&`
+-------------
+`a && b` runs b only when a succeeded, so after `git switch X && …` the rest of
+the chain runs on X or not at all. `a; b` runs b even when a FAILED (a dirty
+tree that conflicts, a name that already exists for `-c`), so the commit can
+land on the original branch; `||`, `|` and `&` give no ordering guarantee
+either. Those joins keep today's live-branch evaluation.
+
+WHY PLAIN `git checkout <name>` IS NOT READ
+-------------------------------------------
+`git checkout <word>` switches branches when <word> is a branch and restores
+files when it is a path, and the hook cannot tell which without the very ref
+lookup it would have to trust. `git switch` and `checkout -b|-B` are
+unambiguous.
+
+CONSUMERS
+---------
+    .claude/hooks/develop-code-commit-guard.sh   (both functions)
+    .claude/hooks/board-commit-branch-gate.sh    (switch_target only)
+
+Run as a script it reads the command from GUARD_CMD and prints two lines: the
+switch target, then the commit directory, each empty when None. Pinned by the
+"switch:" and "cross-repo:" rows in both guards' .probe.sh files.
+
+The quote scanning is the shared single-scan `strip_quoted_indexed` in
+shell_quotes.py, imported rather than copied (that module's docstring has the
+measured reason two copies of quote logic are a bypass).
+"""
+
+import os
+import re
+import sys
+
+from shell_quotes import (
+    QUOTED_SPAN,
+    resolve_placeholders,
+    strip_heredoc_bodies,
+    strip_quoted_indexed,
+    substitution_spans_matching,
+    wrapped_command_strings,
+)
+
+# Characters that end the first command in the quote-stripped view. `&` covers
+# both `&&` (checked for explicitly below) and a background `&`; `(`/`)` a
+# subshell or grouping; `<`/`>` a redirect.
+_FIRST_SEGMENT_END = re.compile(r"[;&|\n()<>]")
+
+# A first segment carrying any of these is not read: `$` and a backtick are
+# expansions whose value is unknown here, `{`/`}` brace expansion or grouping,
+# `#` a comment that may swallow the `&&` itself.
+_UNREADABLE = re.compile(r"[$`{}#]")
+
+_SWITCH_CREATE = ("-c", "-C", "--create", "--force-create")
+_CHECKOUT_CREATE = ("-b", "-B")
+
+# The subset of git's ref-name rules (git-check-ref-format) a typed branch name
+# can break, plus `$` and a backtick, whose presence after quote removal means
+# a literal the guard would rather not trust. A rejected name returns None,
+# i.e. the live branch is judged, so this list only has to be conservative.
+_BAD_REF = re.compile(r"[\x00-\x20\x7f~^:?*\[\\$`]|\.\.|@\{|//|^[-/.]|[/.]$|\.lock$|^@$")
+
+
+def _view(text):
+    """`(view, values)` from the shared indexed strip, or None."""
+    return strip_quoted_indexed(text)
+
+
+def _words(view, values, start, end):
+    """The resolved bash words of `view[start:end]`."""
+    out = []
+    for tok in re.finditer(r"\S+", view[start:end]):
+        pos = start + tok.start()
+        resolved, _ = resolve_placeholders(tok.group(), values, view.count(QUOTED_SPAN, 0, pos))
+        out.append(resolved)
+    return out
+
+
+def _branch_name(word):
+    if not word or QUOTED_SPAN in word or _BAD_REF.search(word):
+        return None
+    return word
+
+
+def _first_segment(view):
+    """`(start, end)` of the first command when it is joined to the next one by
+    `&&`, else None."""
+    start = len(view) - len(view.lstrip())
+    stop = _FIRST_SEGMENT_END.search(view, start)
+    if stop is None or view[stop.start() : stop.start() + 2] != "&&":
+        return None
+    if _UNREADABLE.search(view, start, stop.start()):
+        return None
+    return start, stop.start()
+
+
+def switch_target(text):
+    """The branch a leading `git switch …` / `git checkout -b|-B …` moves to,
+    when that segment is joined to the rest by `&&`; else None.
+
+    Read: `git switch <name>`, `git switch -c|-C|--create|--force-create
+    <name> [start]`, `git checkout -b|-B <name> [start]`. Not read (None): a
+    global flag before the subcommand (`git -C dir switch …` switches ANOTHER
+    checkout), any other flag, plain `git checkout <name>`, a leading
+    assignment, and every join other than `&&`.
+    """
+    scanned = _view(text)
+    if scanned is None:
+        return None
+    view, values = scanned
+    bounds = _first_segment(view)
+    if bounds is None:
+        return None
+    words = _words(view, values, *bounds)
+    if len(words) < 3 or words[0] != "git":
+        return None
+    verb, rest = words[1], words[2:]
+    creates = (verb == "switch" and rest[0] in _SWITCH_CREATE) or (verb == "checkout" and rest[0] in _CHECKOUT_CREATE)
+    if creates:
+        if len(rest) not in (2, 3):
+            return None
+        if len(rest) == 3 and (not rest[2] or rest[2].startswith("-")):
+            return None
+        return _branch_name(rest[1])
+    if verb == "switch" and len(rest) == 1:
+        return _branch_name(rest[0])
+    return None
+
+
+# Global options `git` accepts before the subcommand that a commit-dir read can
+# step over: `-c` consumes the next word, the rest take none. `--git-dir` and
+# `--work-tree` are deliberately absent — they relocate the repository in ways
+# a toplevel comparison does not model — so meeting one returns None.
+_GIT_SKIP_VALUE = ("-c",)
+_GIT_SKIP_FLAG = (
+    "--no-pager",
+    "-P",
+    "--paginate",
+    "-p",
+    "--no-optional-locks",
+    "--literal-pathspecs",
+    "--no-replace-objects",
+)
+
+_SEGMENT_SPLIT = re.compile(r"&&|\|\||[;&|\n()]")
+_COMMIT_WORD = re.compile(r"(?i)(?<![\w-])commit(?![\w-])")
+
+
+def _absolute_dir(word):
+    # Absolute only: a relative dir resolves against the SHELL's cwd, which the
+    # hook does not reliably know. `~`, expansions and globs are refused by the
+    # same rule (none of them start with `/`, or they carry `$`/`*`).
+    if not word.startswith("/") or QUOTED_SPAN in word:
+        return None
+    if re.search(r"[\x00-\x1f$`*?\[]", word):
+        return None
+    return word
+
+
+def _commit_dir(words, base):
+    """The directory a `git [globals] commit …` segment runs in, or None."""
+    if not words or words[0] != "git":
+        return None
+    here = base
+    i = 1
+    while i < len(words) and words[i].startswith("-"):
+        flag = words[i]
+        if flag == "-C":
+            if i + 1 >= len(words):
+                return None
+            step = words[i + 1]
+            if step.startswith("/"):
+                here = _absolute_dir(step)
+            elif here is not None and not re.search(r"[\x00-\x1f$`*?\[~]", step):
+                here = os.path.join(here, step)
+            else:
+                return None
+            if here is None:
+                return None
+            i += 2
+        elif flag in _GIT_SKIP_VALUE:
+            i += 2
+        elif flag in _GIT_SKIP_FLAG:
+            i += 1
+        else:
+            return None
+    if i >= len(words) or words[i] != "commit":
+        return None
+    return here
+
+
+def commit_target_dir(text):
+    """The one absolute directory every `git commit` in `text` runs in, else
+    None.
+
+    The directory comes from a leading `cd <abs dir> &&` and/or a `git -C
+    <dir>` global flag on each commit. None whenever any commit could run
+    anywhere else, or could not be located at all: a `commit` word in a
+    segment that is not a plain `git [globals] commit`, a commit inside a
+    command substitution or a `bash -c`/`eval` wrapper, any `cd`/`pushd`/
+    `popd` other than the leading one, two commits in different directories,
+    and a relative or unexpandable directory.
+    """
+    if substitution_spans_matching(text, lambda s: _COMMIT_WORD.search(s) is not None):
+        return None
+    if wrapped_command_strings(text):
+        return None
+    scanned = _view(strip_heredoc_bodies(text))
+    if scanned is None:
+        return None
+    view, values = scanned
+    if re.search(r"[`{}]", view):
+        return None
+
+    base = None
+    rest_start = 0
+    bounds = _first_segment(view)
+    if bounds is not None:
+        first = _words(view, values, *bounds)
+        if len(first) == 2 and first[0] == "cd":
+            base = _absolute_dir(first[1])
+            if base is None:
+                return None
+            rest_start = bounds[1] + 2
+
+    found = set()
+    pos = rest_start
+    for sep in [*_SEGMENT_SPLIT.finditer(view, rest_start), None]:
+        end = sep.start() if sep is not None else len(view)
+        words = _words(view, values, pos, end)
+        pos = sep.end() if sep is not None else len(view)
+        if not words:
+            continue
+        if words[0] in ("cd", "pushd", "popd"):
+            return None
+        if not any(w.lower() == "commit" for w in words):
+            continue
+        where = _commit_dir(words, base)
+        if where is None:
+            return None
+        found.add(os.path.normpath(where))
+    if len(found) != 1:
+        return None
+    return found.pop()
+
+
+if __name__ == "__main__":
+    command = os.environ.get("GUARD_CMD", "")
+    for fn in (switch_target, commit_target_dir):
+        try:
+            value = fn(command)
+        except Exception:
+            # Fail toward the live-state evaluation, the guards' pre-existing
+            # behaviour, rather than toward any reading of the command.
+            value = None
+        print(value or "")
+    sys.exit(0)
