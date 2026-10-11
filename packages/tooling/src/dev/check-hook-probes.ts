@@ -15,8 +15,8 @@
  *     referenced by an entry. Bidirectional, like guard:audit-tool-docs: a new
  *     hook added without a probe is a visible decision, and a probe whose hook
  *     was deleted stops being silently green.
- *  2. **Execution** — every registered probe runs. Total runtime is ~49s on
- *     CI (see PROBE_TIMEOUT_MS), which is small beside the lint job's knip/cpd/
+ *  2. **Execution** — every registered probe runs. Total runtime (measured at
+ *     PROBE_TIMEOUT_MS) is small beside the lint job's knip/cpd/
  *     depcruise steps, so this runs unconditionally rather than keying off a
  *     hooks-dir diff. An unconditional gate cannot drift out of sync with its
  *     own trigger condition.
@@ -229,7 +229,7 @@ export function runProbe(
     // Reports the SIGNAL, and names the timeout as the likely cause rather than
     // asserting it. All that is actually observable here is that bash was
     // SIGTERM'd; a cancelled CI job delivers the identical signal, and a message
-    // reading "hung after 240000ms" on a job someone cancelled at 20s sends the
+    // reading "hung after <ceiling>ms" on a job someone cancelled at 20s sends the
     // reader after a hang that never happened.
     const killed =
       shaped.signal === 'SIGTERM'
@@ -283,10 +283,10 @@ export function checkHookProbes(options: CheckHookProbesOptions = {}): void {
 
   // Registry problems short-circuit BEFORE any probe runs, deliberately: a
   // broken registry means the guard does not yet know what it is checking, so
-  // spending ~49s to also report probe results would be answering a question
-  // nobody asked. The cost is that a change breaking both needs two cycles to
-  // see both — accepted, since the registry error has to be fixed before the
-  // probe results mean anything anyway.
+  // spending a full probe run to also report probe results would be answering
+  // a question nobody asked. The cost is that a change breaking both needs two
+  // cycles to see both — accepted, since the registry error has to be fixed
+  // before the probe results mean anything anyway.
   const problems = findRegistryProblems(entries, hooksOnDisk, probesOnDisk, existingPaths);
   if (hasRegistryProblems(problems)) {
     reportRegistryProblems(problems);
