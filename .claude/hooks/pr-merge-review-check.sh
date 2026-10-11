@@ -1042,7 +1042,8 @@ fi
 #     ("Workflow file differs from main": what the "Verify a review was
 #     posted" step of .github/workflows/claude-code-review.yml currently
 #     echoes on a mismatch — read from that file, not verified by this hook);
-#   - the PR is dependabot's: the review job's `if:` skips it by author.
+#   - the PR is dependabot's: the review job's `if:` skips it by author (read
+#     from that workflow file, not verified by this hook).
 #
 # Both facts come from their OWN `gh pr view` call, made only here — on the
 # no-review path, after release_reminder_due has passed — never from
@@ -1075,10 +1076,10 @@ skipped itself (this PR edits its own workflow file); confirm with the job log
 line \"Workflow file differs from main\" (step \"Verify a review was posted\")
 and rerun claude-review only if that line is absent."
     elif [ "$pr_author" = "app/dependabot" ] || [ "$pr_author" = "dependabot[bot]" ]; then
-        NO_REVIEW_HEADER="no claude-review comment (dependabot PRs are never reviewed)"
-        NO_REVIEW_DETAIL="This PR is dependabot's, and the claude-review job skips dependabot-authored
-PRs by design (its job-level if: on the PR author), so there is no review to
-wait for or rerun."
+        NO_REVIEW_HEADER="no claude-review comment (dependabot PRs are skipped by the review workflow's author filter)"
+        NO_REVIEW_DETAIL="This PR is dependabot's, and the claude-review job's job-level if: on the PR
+author skips dependabot-authored PRs (read from the workflow file, not verified
+by this hook), so there is most likely no review to wait for or rerun."
     fi
     return 0
 }
