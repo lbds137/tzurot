@@ -36,7 +36,8 @@ mis-watch. That head read is fail-open — when GitHub cannot be read the gate
 arms anyway and prints that the drift check did not run — which is why arming
 promptly still matters. Omitting `--sha` watches the PR's current head instead,
 so no drift check is needed (the SHA is the head); the canonical command above
-is unchanged.
+is unchanged. An EMPTY `--sha` is refused rather than defaulted: it means the
+caller's substitution misfired.
 
 ## Waiting
 

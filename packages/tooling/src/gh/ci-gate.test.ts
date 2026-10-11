@@ -557,13 +557,23 @@ describe('runCiGate (orchestration)', () => {
       expect(exitCode).toBeUndefined();
     });
 
-    it('treats an empty --sha like an omitted one', async () => {
-      const head = 'c'.repeat(40);
-      const { events, overrides } = orchestrationHarness([DONE('CI'), REVIEW_DONE()]);
-      await captureExitCode(() =>
-        runCiGate(1992, { sha: '' }, { ...overrides, prHead: () => head })
-      );
-      expect(events).toContain(`log:--sha omitted; using PR #1992's head ${head.slice(0, 8)}…`);
+    it('rejects a present-but-empty --sha', async () => {
+      const { overrides } = orchestrationHarness([DONE('CI'), REVIEW_DONE()]);
+      let headReads = 0;
+      await expect(
+        runCiGate(
+          1992,
+          { sha: '' },
+          {
+            ...overrides,
+            prHead: () => {
+              headReads += 1;
+              return 'c'.repeat(40);
+            },
+          }
+        )
+      ).rejects.toThrow(/--sha is required/);
+      expect(headReads).toBe(0);
     });
 
     it('reads the head only once: the head IS the sha, so there is no drift re-check', async () => {
