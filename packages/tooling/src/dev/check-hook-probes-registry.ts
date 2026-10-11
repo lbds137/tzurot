@@ -14,14 +14,16 @@ export const HOOKS_DIR = '.claude/hooks';
 export const HUSKY_DIR = '.husky';
 
 /**
- * Per-probe ceiling. The margin over the ~18s the whole current set takes is
- * deliberately wide, because the realistic non-hang cause of a slow probe is a
- * loaded machine rather than the probe itself. What it buys: a probe that
+ * Per-probe ceiling. Measured: the whole set takes ~49s on CI; locally at load
+ * ~14 the slowest probe (develop-code-commit-guard) took 66-84s. The ceiling
+ * keeps that slowest local time under half of it, deliberately, because the
+ * realistic non-hang cause of a slow probe is a loaded machine rather than the
+ * probe itself. What it buys: a probe that
  * blocks on a stale git lock or an accidental network call fails fast and names
  * itself, instead of stalling the job until the step-level timeout with nothing
  * attributable.
  */
-export const PROBE_TIMEOUT_MS = 120_000;
+export const PROBE_TIMEOUT_MS = 240_000;
 
 export interface HookProbeEntry {
   /** Repo-relative path of the hook script under test. */
