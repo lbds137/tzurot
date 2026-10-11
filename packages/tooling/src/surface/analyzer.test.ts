@@ -47,6 +47,13 @@ export interface WebhookMessageCreateOptions {
   files?: unknown[];
   flags?: number;
   poll?: unknown;
+  tts?: boolean;
+  nonce?: string;
+  threadName?: string;
+  embeds?: unknown[];
+  components?: unknown[];
+  appliedTags?: string[];
+  enforceNonce?: boolean;
   toJSON(): unknown;
 }
 export declare class Webhook {
@@ -484,6 +491,46 @@ export async function direct(
 }
 `;
 
+// Conditional spreads, one file per claim so per-file marker counts are unambiguous.
+const FIXTURE_COND_AND = `
+import { Webhook } from 'discord.js';
+
+export async function condAnd(webhook: Webhook, flag: boolean): Promise<void> {
+  const inner = { nonce: 'n' };
+  await webhook.sendRaw({ username: 'u', ...(flag && { tts: true }) });
+  await webhook.sendRaw({ username: 'u', ...(flag && { ...inner }) });
+}
+`;
+
+const FIXTURE_COND_TERNARY = `
+import { Webhook } from 'discord.js';
+
+export async function condTernary(webhook: Webhook, flag: boolean): Promise<void> {
+  const local = { threadName: 't' };
+  await webhook.sendRaw({ username: 'u', ...(flag ? { embeds: [] } : local) });
+  await webhook.sendRaw({ username: 'u', ...(flag ? { enforceNonce: true } : undefined) });
+  await webhook.sendRaw({ username: 'u', ...(flag ? null : {}) });
+}
+`;
+
+const FIXTURE_COND_TERNARY_UNREADABLE = `
+import { Webhook, WebhookMessageCreateOptions } from 'discord.js';
+
+declare function make(): WebhookMessageCreateOptions;
+
+export async function condTernaryUnreadable(webhook: Webhook, flag: boolean): Promise<void> {
+  await webhook.sendRaw({ username: 'u', ...(flag ? { components: [] } : make()) });
+}
+`;
+
+const FIXTURE_COND_OR = `
+import { Webhook } from 'discord.js';
+
+export async function condOr(webhook: Webhook, flag: boolean): Promise<void> {
+  await webhook.sendRaw({ username: 'u', ...(flag || { appliedTags: [] }) });
+}
+`;
+
 function buildFixtureProject(): Project {
   const project = new Project({
     useInMemoryFileSystem: true,
@@ -560,6 +607,13 @@ function buildFixtureProject(): Project {
     '/proj/services/bot-client/src/directArguments.ts',
     FIXTURE_DIRECT_ARGUMENTS
   );
+  project.createSourceFile('/proj/services/bot-client/src/condAnd.ts', FIXTURE_COND_AND);
+  project.createSourceFile('/proj/services/bot-client/src/condTernary.ts', FIXTURE_COND_TERNARY);
+  project.createSourceFile(
+    '/proj/services/bot-client/src/condTernaryUnreadable.ts',
+    FIXTURE_COND_TERNARY_UNREADABLE
+  );
+  project.createSourceFile('/proj/services/bot-client/src/condOr.ts', FIXTURE_COND_OR);
   return project;
 }
 
@@ -890,6 +944,37 @@ describe('analyzeProject', () => {
     const file = 'services/bot-client/src/spreadGaps.ts';
     expect(findEntry(entries, 'webhook-options', 'content', file)?.count).toBe(1);
     expect(findEntry(entries, 'webhook-options', 'files', file)?.count).toBe(1);
+  });
+
+  it('reads a `cond && { … }` spread, nested spreads included, without a marker', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/condAnd.ts';
+    expect(findEntry(entries, 'webhook-options', 'tts', file)?.count).toBe(1);
+    expect(findEntry(entries, 'webhook-options', 'nonce', file)?.count).toBe(1);
+    expect(findEntry(entries, 'webhook-options', UNKNOWN_PAYLOAD_KEY, file)).toBeUndefined();
+  });
+
+  it('reads a ternary spread of literal / literal-initialized variable / null / undefined branches', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/condTernary.ts';
+    for (const key of ['embeds', 'threadName', 'enforceNonce']) {
+      expect(findEntry(entries, 'webhook-options', key, file)?.count, key).toBe(1);
+    }
+    expect(findEntry(entries, 'webhook-options', UNKNOWN_PAYLOAD_KEY, file)).toBeUndefined();
+  });
+
+  it('records the marker, and none of the readable branch keys, for a ternary with an unreadable branch', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/condTernaryUnreadable.ts';
+    expect(findEntry(entries, 'webhook-options', UNKNOWN_PAYLOAD_KEY, file)?.count).toBe(1);
+    expect(findEntry(entries, 'webhook-options', 'components', file)).toBeUndefined();
+  });
+
+  it('records the marker for a non-`&&` binary spread operand', () => {
+    const entries = analyzeProject(buildFixtureProject(), '/proj');
+    const file = 'services/bot-client/src/condOr.ts';
+    expect(findEntry(entries, 'webhook-options', UNKNOWN_PAYLOAD_KEY, file)?.count).toBe(1);
+    expect(findEntry(entries, 'webhook-options', 'appliedTags', file)).toBeUndefined();
   });
 
   it('counts the top-level key of a nested member write and ignores other variables', () => {
