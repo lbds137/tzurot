@@ -907,8 +907,10 @@ fi
 #   commit is not trusted").
 SIBLING_BRANCH_UNTRUSTED=""
 if [ -n "$COMMIT_DIR" ]; then
-  # A relative directory is relative to this checkout (the guard's cwd, set to
-  # the project dir above); the helper refuses a `..` step in one (rule rows:
+  # A relative directory is resolved against the project dir (the guard's cwd,
+  # set above), ASSUMING the Bash shell's cwd is the project dir too — a shell
+  # that persisted a cd elsewhere is not modelled (unverified for that case,
+  # as for bare commits); the helper refuses a `..` step in one (rule rows:
   # "a relative leading cd with a .. step blocks", "a relative -C with a .. step
   # is not read").
   case "$COMMIT_DIR" in
