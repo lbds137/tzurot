@@ -14,8 +14,8 @@
 # Blocks ONLY when BOTH hold:
 #   (a) the branch the commit lands on is not develop / main / release-shaped
 #       — the live branch of the checkout the commit runs in (the shell's
-#       persisted cwd from the payload's `.cwd`, or the one directory a
-#       `git -C <dir>` / `cd <dir> &&` names; another worktree of this repo
+#       persisted cwd from the payload's `.cwd`, or the one checkout every
+#       `git -C <dir>` / `cd <dir>` location resolves to; another worktree of this repo
 #       is judged as itself, an untrusted one as a feature branch, another
 #       repository is not this gate's), or the target of a LEADING
 #       `git switch … &&` / `git checkout -b|-B … &&` in a pure `&&` chain
