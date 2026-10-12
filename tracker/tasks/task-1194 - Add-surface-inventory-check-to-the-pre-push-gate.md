@@ -1,9 +1,10 @@
 ---
 id: TASK-1194
 title: 'Add surface:inventory --check to the pre-push gate'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-08 21:55'
+updated_date: '2026-10-12 04:43'
 labels:
   - 'area:ci'
   - 'size:S'

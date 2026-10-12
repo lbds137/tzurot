@@ -1,10 +1,15 @@
 # Current
 
-> **Version**: v3.0.0-beta.235 — "Both slots, tier-true defaults, and the catalog watch" — SHIPPED 2026-10-09 02:01Z (release PR #2588 rebase-merged after her final yes; 7 PRs / 6 runtime / 148 files / 45 commits; no migrations; `main` = `develop` = `07dd1bbf1` post-finalize; tagged `latest`, beta.234 demoted). Holistic review: no blocking findings. Smoke checklist below — items 1-2 need her.
+> **Version**: v3.0.0-beta.236 — "the job time budget and the security overrides" — SHIPPED 2026-10-12 04:43Z (release PR #2613 rebase-merged after her yes; 22 PRs / 7 runtime / 165 files / 92 commits; no migrations; `main` = `develop` = `4d7de05b1` post-finalize; tagged `latest`, beta.235 demoted). Holistic review: no blocking findings. Closes the proxy-addr + shell-quote CRITICAL and sharp HIGH advisories on prod; http-cache-semantics HIGH stays open (no upstream fix, TASK-1179).
 >
-> **Previous**: v3.0.0-beta.234 — "the refusal fallback" (9 PRs / 5 runtime / 118 files, 61 commits; 2026-10-05, `c3540c7e7`; tagged `latest`).
+> **Previous**: v3.0.0-beta.235 — "Both slots, tier-true defaults, and the catalog watch" (7 PRs / 6 runtime / 148 files / 45 commits; 2026-10-09, `07dd1bbf1`).
 
-## 🧪 beta.235 smoke (owner, after the release deploys — tiers per /tzurot-testing)
+## 🧪 beta.236 watch (observability only — no needs-smoke items)
+
+- **#2592 job time budget:** the first real trigger logs `LLM job budget exhausted before …` in ai-worker (quota retarget, floor descent, duplicate retry or auto-promotion hop). Silence = no job reached the 720s budget.
+- **#2601 debug capture:** grep prod bot-client logs for `guildInfoAmbiguousRoles`; that evidence unblocks TASK-705 phase 2 and the `debug:` cleanup PR.
+
+## 🧪 beta.235 smoke (owner, carried — tiers per /tzurot-testing)
 
 1. **(needs-smoke)** `/preset default set <vision-capable preset> slot:Both` on dev — one command sets BOTH lanes; then a text-only preset + Both → ONE refusal, nothing half-applied. Covers #2586's Both choice + #2583-class reply paths.
 2. **(needs-smoke)** #2583's guest footer: flip the z.ai piggyback kill-switch on dev → a guest (alt account) turn shows the "temporarily unavailable, so a fallback free model answered" footer; a keyed user's turn does not. Unflip after.
@@ -13,6 +18,7 @@
 
 ## ⏳ In flight (2026-10-09, GLM-flash lane)
 
+- **beta.236 SHIPPED 2026-10-12** (above); TASK-822 and TASK-1194 flipped Done at ship. The bullets below are the pre-cut record.
 - **beta.235 SHIPPED; 2026-10-09 GLM-lane session merged five PRs.** #2589 + #2591 (the #2578 claude-workflow bumps 1.0.240→244) to MAIN with two Lila-approved `release:finalize` runs; **#2578 closed itself satisfied** · #2590 (deps security overrides: proxy-addr + shell-quote CRITICAL, sharp HIGH) to develop · #2593 (TASK-1194: pre-push §10b mirrors `surface:inventory --check` + the orchestration-skill gate line; 3 rounds, no blocking) to develop · **#2592 (TASK-822: job-wide LLM budget — `LLM_PER_ATTEMPT` 300s, `LLM_INVOCATION` 910s, `LLM_JOB_BUDGET` 720s, gates at every attempt-starting layer) to develop: 6 review rounds, NO blocking findings in any; round 1 fixed a real spec gap (the duplicate-retry loop was a fourth attempt-starting layer the original enforcement list omitted); deferred dispositions in the PR body; TASK-1197 filed for the backoff-formula derivation.** TASK-822 flips Done at beta.236 ship. TASK-1196 stays `state:dependent`. Watch: Machloket W2 deploy (invalidWhereValues ignore→throw) — new 500s against :8443/:8444 go to Machloket Server. Queue: TASK-1175 (characters:import AVATARS.json) → Deck's ruled tailnet scrub → doc-7 drain. A leftover stash entry `current-md-update` (a superseded CURRENT.md draft) is safe to `git stash drop` — owner's yes.
 - **Done 2026-10-08→09**: #2583 (TASK-1171) · #2584/#2585 (dep groups) · #2586 (TASK-1166+1185) · #2587 (TASK-1182) — all merged after 3-5 review rounds each; TASK-1171/1166/1185/1182 flipped Done at ship; TASK-1193/1194/1196 filed as riders.
 
