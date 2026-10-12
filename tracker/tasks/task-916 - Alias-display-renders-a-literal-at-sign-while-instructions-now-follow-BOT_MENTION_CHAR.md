@@ -23,8 +23,7 @@ Why: the character alias command and the alias browse render alias names as a ba
 
 What: this is display of a name, not an instruction to type something, so following the configured sigil is a product choice rather than a defect. Two shapes: interpolate BOT_MENTION_CHAR at those five sites (mechanical, one PR), or leave the rendered label as a name with the at-sign as decoration.
 
-Owner question: should alias labels render with the configured mention character instead of a literal at-sign?
-Recommendation: yes, interpolate it — the label is read as how to invoke the alias, and on dev it currently shows a sigil that does not work; one PR, five sites.
+Owner ruled 2026-09-11: interpolate BOT_MENTION_CHAR at every alias label site (five sites, one PR). Build as ruled.
 
 Acceptance: either the five sites read the configured character with a test on the non-default value, or the decision to keep the literal sigil is recorded here.
 <!-- SECTION:DESCRIPTION:END -->

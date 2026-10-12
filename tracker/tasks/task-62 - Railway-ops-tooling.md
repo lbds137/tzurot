@@ -1,10 +1,10 @@
 ---
 id: TASK-62
 title: 'Railway ops tooling: sanctioned token + GraphQL ops the CLI lacks'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-17 00:00'
-updated_date: '2026-09-04 19:40'
+updated_date: '2026-10-12 22:45'
 labels:
   - 'area:tooling'
   - 'size:M'
@@ -25,6 +25,10 @@ Railway ops tooling — sanctioned token access + GraphQL ops the CLI lacks
 **DECIDED 2026-08-14 (owner, TASK-599 digest): PROJECT-SCOPED token - owner provisions RAILWAY_API_TOKEN once (narrowest blast radius); wrap variableDelete first, then other CLI-missing ops.**
 
 CURRENT STATE, superseding every earlier variable name on this task: the tokens are `TZUROT_RAILWAY_API_TOKEN_DEV` and `TZUROT_RAILWAY_API_TOKEN_PROD`, two project-scoped tokens selected by the `--env` flag, and they authenticate via the `Project-Access-Token` header rather than `Authorization: Bearer`. The singular `TZUROT_RAILWAY_API_TOKEN` named in the 2026-09-05 close-out comment below, and the bare `RAILWAY_API_TOKEN` in the original 2026-06-17 fix shape above, are both dead names -- setting either does nothing. Shipped in PR 2421, which also retired the round-6 carry-over (the response check is a Zod schema plus a value check, written against the live-observed bare boolean). What remains open on this task is the rest of the CLI-missing GraphQL surface: `variableUpsert` arrives with TASK-963, and redeploy/status queries are unclaimed.
+
+## Closed 2026-10-12
+
+Covered. Shipped: `pnpm ops deploy:var-delete` (packages/tooling/src/deployment/var-delete.ts, with railway-api.ts and the env-suffixed project tokens, PR 2421). Remaining redeploy/status/variable-upsert operations are covered by the Seyag railway-ops CLI (the seyag plugin's `bin/railway-ops`: vars list|set|delete, redeploy, rotate-secret, logs). No further Tzurot-side work. Note: TASK-314 was blocked on this task; its blocker is now moot.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Comments

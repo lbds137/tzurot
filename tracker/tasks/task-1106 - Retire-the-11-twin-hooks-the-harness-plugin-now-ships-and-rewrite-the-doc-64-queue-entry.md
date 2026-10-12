@@ -24,6 +24,10 @@ Why: claude-harness docs/adoption-tzurot.md (commit f9435f6) lists 11 hooks unde
 Fix shape: follow the retire-a-twin procedure in adoption-tzurot.md for each of the 11 hooks (delete the project copy plus its probe registry entry, keep any Tzurot-only behaviour by upstreaming it first), one PR for the hooks and one direct doc commit for the queue.md entry pointing at the Deck management role.
 
 Acceptance: no .claude/hooks file has a same-named plugin twin without a recorded reason; guard:hook-probes green; the queue.md doc-64 entry names the Deck management role as the owner.
+
+## Merged from TASK-1119 (2026-10-12)
+
+TASK-1119 (priority medium): retire Tzurot's `gh:ci-gate` monitor hook copies once the harness pr-ci-wait port ships. Harness 0.3.12 merged 2026-09-27 (claude-harness main d760527) with bin/pr-ci-wait and the PostToolUse pr-monitor-reminder; Deck management installs it, and it is startable once a Tzurot session runs on 0.3.12. This is the pr-monitor-reminder member of group C above (cwd-drift, lossy-pipe, pr-monitor-reminder, session-start): follow the retirement steps in the harness repo `docs/adoption-tzurot.md` from that PR, including the `guard:monitor-command` three-copy pin (05-tooling.md, the hook heredoc, /tzurot-git-workflow) and the hook-probe registry entry; via PR (hooks and rules are review-gated). Acceptance: one pr-monitor reminder fires per PR push, not two; `pnpm ops guard:monitor-command` and `guard:hook-probes` pass; the three prose copies point at the harness mechanism.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Implementation Notes

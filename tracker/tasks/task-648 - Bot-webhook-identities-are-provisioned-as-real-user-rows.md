@@ -30,4 +30,14 @@ Also note the detection limit: the two rows were found by grepping usernames for
 Fix shape: (1) trace the actual creation path for a webhook-authored extended-context participant and fix the isBot derivation at its source; (2) fix the reactor hardcode at ParticipantContextCollector.ts:103 regardless; (3) consider making absence FAIL CLOSED at the ContextAssembler seam (treat missing isBot as unknown-and-skip rather than human) so a future omission cannot silently provision again; (4) clean up the existing phantom rows once no path can recreate them.
 
 Acceptance: a webhook-authored extended-context message and a bot reactor both leave the users table unchanged, pinned by tests; a prod scan finds no user row whose username matches the bot webhook naming shape.
+
+## Merged from TASK-771 (2026-10-12)
+
+Earlier evidence for the same phantom row (Dionysus | suffix, Discord id 1452360456152027196, snowflake minted ~2025-12-21): the 2026-08-25 retention report listed it as a purge-eligible USER (no characters, no usage_logs, last_active 2026-02-18). Code-read mechanism (not runtime-confirmed): getOrCreateUser has skipped isBot===true callers since c88ae5b7c (2025-12-20), but the guard fails open when a caller passes isBot undefined, and the extended-context path mishandled our-authored webhook messages until 317777144 (2026-06-16, the Bug A/B normalization); the row activity window (through 2026-02-18) falls inside that vulnerable span. The entry path is closed today; the residue and the fail-open guard remain.
+
+Additional fix-shape members from TASK-771:
+- One-off prod sweep for the class: `SELECT discord_id, username FROM users WHERE username LIKE <the webhook-suffix shapes>`, covering both the legacy pipe separator and the current middle-dot separator; expect ~1 row from that query alone (this task found 2 by the suffix grep).
+- Decide disposal: the retention purge erases it naturally (no person, no notice owed), or delete it as junk directly.
+- Harden getOrCreateUser: treat isBot undefined as refuse-or-verify rather than fail-open, OR add a username-shape refusal for our own webhook suffix, with a seam test (a webhook-authored identity with isBot undefined cannot be provisioned).
+- Acceptance addition: the sweep is run and every webhook-shaped row dispositioned.
 <!-- SECTION:DESCRIPTION:END -->

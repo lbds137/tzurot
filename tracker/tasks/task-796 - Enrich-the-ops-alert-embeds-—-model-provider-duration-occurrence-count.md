@@ -1,9 +1,10 @@
 ---
 id: TASK-796
 title: 'Enrich the ops-alert embeds — model, provider, duration, occurrence count'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-28 19:05'
+updated_date: '2026-10-12 22:45'
 labels:
   - 'area:bot-client'
   - 'size:M'
@@ -21,4 +22,8 @@ Why: owner side-note 2026-08-28 on the Tzurot Log channel. The timeout (rescued)
 What: add to the alert embed — which personality, which model, which provider, how long the turn ran before the fallback caught it, and an occurrence count for the stack hash (at minimum "Nth occurrence", ideally within a window).
 
 Acceptance: a rescued-timeout card answers "is this new or is this the same thing again" and "what was it talking to" without opening Railway logs.
+
+## Closed 2026-10-12
+
+Shipped in commit 4d0be6723 (feat(bot-client): enrich ops-alert embeds with diagnostic context): ErrorChannelReporter.ts now carries Model, Provider, Duration and an occurrence count for the stack hash.
 <!-- SECTION:DESCRIPTION:END -->

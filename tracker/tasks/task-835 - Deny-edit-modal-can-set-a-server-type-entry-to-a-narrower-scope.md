@@ -26,8 +26,7 @@ Fix shape (after the intent call): if server denials should be bot-wide only, va
 
 Acceptance: the intended semantics for a GUILD-type entry at non-BOT scope is written down; the edit modal either enforces it or is documented as deliberately permissive; a colocated test pins whichever was chosen.
 
-Owner question: Is a GUILD-type denial at CHANNEL or PERSONALITY scope a legitimate capability, or incoherent state the edit modal should reject?
-Recommendation: Legitimate — document the modal as deliberately permissive and pin it with a test, because DenylistCache already keys on type plus scope plus scopeId so such a row matches narrowly and reads as "this server is denied in this one channel", and the task warns that a guard written on the assumption it is nonsense could remove a capability someone wants.
+Owner ruled 2026-09-02: a GUILD-type denial at CHANNEL or PERSONALITY scope is a legitimate capability; document the edit modal as deliberately permissive and pin it with a test, no rejecting guard. Build as ruled.
 
 Decision 2026-09-02 (owner): legitimate capability. Document the edit modal as deliberately permissive for GUILD-type denials at CHANNEL/PERSONALITY scope and pin it with a test; no rejecting guard.
 <!-- SECTION:DESCRIPTION:END -->
