@@ -1,9 +1,10 @@
 ---
 id: TASK-1214
 title: branch_switch commit-dir read accepts a ; after cd && <inert>
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-11 21:09'
+updated_date: '2026-10-12 00:42'
 labels:
   - 'area:hooks'
   - 'size:S'
