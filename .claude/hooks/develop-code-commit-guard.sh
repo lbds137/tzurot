@@ -861,7 +861,7 @@ else
   SHELL_CWD=""
 fi
 # shellcheck source=lib/commit_location.sh
-source "$HOOK_LIB/commit_location.sh"
+source "$HOOK_LIB/commit_location.sh" || { echo "develop-code-commit-guard: cannot load lib/commit_location.sh" >&2; exit 2; }
 # START_FOREIGN = another repository, or not a repository at all.
 commit_location_start "$PROJECT_COMMON" "$PROJECT_PWD" "$SHELL_CWD" ""
 START_FOREIGN="$CL_START_FOREIGN"

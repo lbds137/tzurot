@@ -492,7 +492,7 @@ if [ -z "$SHELL_CWD" ] || [ ! -d "$SHELL_CWD" ]; then
   SHELL_CWD=""
 fi
 # shellcheck source=lib/commit_location.sh
-source "$HOOK_LIB/commit_location.sh"
+source "$HOOK_LIB/commit_location.sh" || { echo "board-commit-branch-gate: cannot load lib/commit_location.sh" >&2; exit 2; }
 # The board gate also counts a start directory with no toplevel as foreign
 # (the last argument); the develop guard does not.
 commit_location_start "$PROJECT_COMMON" "$PWD" "$SHELL_CWD" 1
