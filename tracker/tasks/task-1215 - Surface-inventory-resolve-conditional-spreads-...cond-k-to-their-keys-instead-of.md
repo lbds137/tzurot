@@ -3,9 +3,10 @@ id: TASK-1215
 title: >-
   Surface inventory: resolve conditional spreads (...(cond && { k })) to their
   keys instead of *
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-11 22:23'
+updated_date: '2026-10-12 00:11'
 labels:
   - 'area:tooling'
   - 'size:S'
