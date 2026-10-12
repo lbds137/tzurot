@@ -1189,6 +1189,33 @@ run 2 "cross-repo: a relative -C into a develop worktree nested in this checkout
 rm -f "$NESTED_WT/services/probe-nested.ts"
 run 2 "cross-repo: a bare commit and a commit after cd into the develop sibling block" \
   "git commit -m a && cd $WT && git commit -m b"
+# A `;` (or newline, or `||`) after a cd leaves open that the cd did not run:
+# the commit lands in this feature checkout OR the develop sibling, so the
+# locations span two checkouts and the command blocks (the live feature state
+# alone, which would pass, is not where the commit is certain to land).
+run_msg 2 "cross-repo: commits in more than one checkout block" \
+  "git status; cd $WT; git commit -m y" 'more than one checkout'
+run 2 "cross-repo: a newline-joined cd into the develop sibling blocks" \
+  "git status
+cd $WT
+git commit -m y"
+run 2 "cross-repo: a || after a cd into the develop sibling blocks" \
+  "cd $WT || true; git commit -m y"
+# One command, one checkout: a `;` AFTER the cd'd commit or BEFORE the cd (with
+# `&&` between the cd and the commit) leaves the sibling as the only location,
+# which is judged as itself (dirty code on develop).
+run 2 "cross-repo: a ; after the commit still judges the develop sibling" \
+  "cd $WT && git commit -m y; git status"
+run 2 "cross-repo: a ; before the cd still judges the develop sibling" \
+  "git status; cd $WT && git commit -m y"
+# Two locations, one toplevel: a cd back into this very checkout beside the
+# start is ONE checkout (dedupe), so the clean feature state decides.
+run 0 "cross-repo: a ; cd into this checkout's root dedupes to one checkout" \
+  "git status; cd $FEATURE_WT; git commit -m y"
+# The same through a subdirectory: `<start>` and `services` differ as text and
+# match only once each resolves to its toplevel.
+run 0 "cross-repo: a ; cd into a subdir of this checkout dedupes by toplevel" \
+  "git status; cd services; git commit -m y"
 run_msg 2 "cross-repo: an unreadable directory change before the commit blocks" \
   'cd - && git commit -m y' 'git -C <absolute dir> commit'
 TARGET_WT=""
