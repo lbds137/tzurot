@@ -487,19 +487,20 @@ fi
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 PROJECT_COMMON=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "")
 ROOT="$PROJECT_ROOT"
-START_DIR="$PWD"
-START_TOP="$PROJECT_ROOT"
-START_FOREIGN=""
 SHELL_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || echo "")
-if [ -n "$SHELL_CWD" ] && [ -d "$SHELL_CWD" ]; then
-  START_DIR="$SHELL_CWD"
-  START_TOP=$(git -C "$SHELL_CWD" rev-parse --show-toplevel 2>/dev/null || echo "")
-  START_COMMON=$(git -C "$SHELL_CWD" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "")
-  if [ -n "$PROJECT_COMMON" ] && [ "$START_COMMON" = "$PROJECT_COMMON" ] && [ -n "$START_TOP" ]; then
-    ROOT="$START_TOP"
-  elif [ -n "$PROJECT_COMMON" ]; then
-    START_FOREIGN=1
-  fi
+if [ -z "$SHELL_CWD" ] || [ ! -d "$SHELL_CWD" ]; then
+  SHELL_CWD=""
+fi
+# shellcheck source=lib/commit_location.sh
+source "$HOOK_LIB/commit_location.sh"
+# The board gate also counts a start directory with no toplevel as foreign
+# (the last argument); the develop guard does not.
+commit_location_start "$PROJECT_COMMON" "$PWD" "$SHELL_CWD" 1
+START_DIR="$CL_START_DIR"
+START_TOP="$CL_START_TOP"
+START_FOREIGN="$CL_START_FOREIGN"
+if [ -n "$SHELL_CWD" ] && [ -n "$PROJECT_COMMON" ] && [ -z "$START_FOREIGN" ] && [ -n "$START_TOP" ]; then
+  ROOT="$START_TOP"
 fi
 # A PreToolUse hook runs BEFORE the command, so the live branch is the one the
 # command STARTS on. A leading `git switch <name> &&` (or `-c|-C|--create|
@@ -530,16 +531,18 @@ COMMIT_OTHERS_INERT=""
   read -r COMMIT_DIR
   read -r COMMIT_OTHERS_INERT
 } <<< "$LEADING"
-# Lines 2 and 3 of the helper: the one directory every commit in the command
-# runs in (absolute, or plain relative to the start directory; "?" = a
-# directory change the helper cannot resolve, or commits in several places),
-# and "1" when every other segment is inert. They place the commit in a
-# checkout, as the develop guard does (develop-code-commit-guard.sh, same
-# helper):
-# - "?": the develop guard already blocks this command with its remedy (its
-#   probe row "cross-repo: an unreadable directory change before the commit
-#   blocks"), so this gate does not duplicate the block and keeps the live
-#   evaluation of ROOT as set above.
+# Lines 2 and 3 of the helper: every location a commit in the command can run
+# in, TAB-separated (`<start>` = the start checkout; absolute, or plain
+# relative to the start directory; a `;`, newline or `||` join after a cd
+# leaves both the cd target and the earlier location possible; "?" = a
+# directory change the helper cannot resolve), and "1" when every other
+# segment is inert. They place the commit in a checkout, as the develop guard
+# does (develop-code-commit-guard.sh, same helper, same lib/commit_location.sh):
+# - "?", or several locations that resolve to more than one checkout: the
+#   develop guard already blocks this command with its remedy (its probe rows
+#   "cross-repo: an unreadable directory change before the commit blocks" and
+#   "cross-repo: commits in more than one checkout block"), so this gate does
+#   not duplicate the block and keeps the live evaluation of ROOT as set above.
 # - a directory whose toplevel resolves and differs from the start checkout's
 #   (or any directory when the start is foreign): ANOTHER worktree of this
 #   repository (same git-common-dir) is judged as itself, its branch and its
@@ -559,25 +562,22 @@ if [ -n "$COMMIT_DIR" ] && [ "$COMMIT_DIR" != "?" ]; then
   # non-inert segment for the dir read"; the cd/pushd case is not pinned by a
   # test).
   SWITCH_TARGET=""
-  case "$COMMIT_DIR" in
-    /*) COMMIT_DIR_ABS="$COMMIT_DIR" ;;
-    *) COMMIT_DIR_ABS="$START_DIR/$COMMIT_DIR" ;;
+  # Resolution (lib/commit_location.sh): every location to its toplevel,
+  # deduped. Several checkouts (CL_MULTI) keep the live evaluation of ROOT
+  # like "?": the develop guard owns that block (its probe rows "cross-repo:
+  # commits in more than one checkout block"). One checkout: the
+  # representative directory's sibling / silent handling below.
+  commit_location_resolve "$COMMIT_DIR" "$COMMIT_OTHERS_INERT"
+  case "$CL_ACTION" in
+    sibling)
+      ROOT="$CL_SIBLING_TOP"
+      START_FOREIGN=""
+      # An untrusted sibling is judged as a feature branch below: the mirror
+      # of the develop guard judging it as develop.
+      SIBLING_BRANCH_UNTRUSTED="$CL_UNTRUSTED"
+      ;;
+    silent) exit 0 ;;
   esac
-  TARGET_TOP=$(git -C "$COMMIT_DIR_ABS" rev-parse --show-toplevel 2>/dev/null || echo "")
-  if [ -n "$TARGET_TOP" ] && { [ "$TARGET_TOP" != "$START_TOP" ] || [ -n "$START_FOREIGN" ]; }; then
-    TARGET_COMMON=$(git -C "$TARGET_TOP" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "")
-    if [ -n "$TARGET_COMMON" ] && [ -n "$PROJECT_COMMON" ]; then
-      if [ "$TARGET_COMMON" = "$PROJECT_COMMON" ]; then
-        ROOT="$TARGET_TOP"
-        START_FOREIGN=""
-        if [ "$COMMIT_OTHERS_INERT" != "1" ]; then
-          SIBLING_BRANCH_UNTRUSTED=1
-        fi
-      elif [ "$COMMIT_OTHERS_INERT" = "1" ]; then
-        exit 0
-      fi
-    fi
-  fi
 fi
 # A bare commit (no directory change) from a shell sitting in another
 # repository is not this repo's commit.

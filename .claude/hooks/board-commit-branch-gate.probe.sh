@@ -1386,6 +1386,14 @@ D=$(make_repo develop); FS=$(make_sibling "$D" feat); stage_board "$FS"
 run_in 2 "cross-checkout: -C into a feature sibling is judged there (blocks)" "$D" "git -C $FS commit -m b"
 # 3. the same through a leading cd.
 run_in 2 "cross-checkout: cd into a feature sibling is judged there (blocks)" "$D" "cd $FS && git commit -m b"
+# 3b. `;`/newline/`||` joins are read as possible locations (lib/branch_switch.py,
+# lib/commit_location.sh). Several checkouts keep the LIVE evaluation of the hook's
+# own checkout (the develop guard owns that block): here develop takes the board
+# commit, so it passes, where judging the feature sibling would block. A `;`
+# after the cd'd commit leaves ONE location, which is judged as itself.
+run_in 0 "cross-checkout: commits in more than one checkout keep the live evaluation" "$D" "git status; cd $FS; git commit -m b"
+run_in 2 "cross-checkout: a ; after the commit still judges the feature sibling" "$D" "cd $FS && git commit -m b; git status"
+run_in 2 "cross-checkout: a ; before the cd still judges the feature sibling" "$D" "git status; cd $FS && git commit -m b"
 # 4. a non-inert segment could move the sibling off its branch: judged as a feature branch.
 F=$(make_repo feat/x); DS=$(make_sibling "$F" develop); stage_board "$DS"
 run_in 2 "cross-checkout: an untrusted develop sibling is judged as a feature branch" "$F" "make && git -C $DS commit -m b"
