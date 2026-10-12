@@ -3,9 +3,10 @@ id: TASK-1209
 title: >-
   develop-code-commit-guard judges a commit after a non-leading cd against the
   starting checkout
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-11 13:07'
+updated_date: '2026-10-12 00:42'
 labels:
   - 'area:hooks'
   - 'size:M'
