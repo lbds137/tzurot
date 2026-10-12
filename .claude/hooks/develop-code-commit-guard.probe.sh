@@ -1201,6 +1201,8 @@ cd $WT
 git commit -m y"
 run 2 "cross-repo: a || after a cd into the develop sibling blocks" \
   "cd $WT || true; git commit -m y"
+run 2 "cross-repo: a || true && chain after a cd into the develop sibling blocks" \
+  "cd $WT || true && git commit -m y"
 # One command, one checkout: a `;` AFTER the cd'd commit or BEFORE the cd (with
 # `&&` between the cd and the commit) leaves the sibling as the only location,
 # which is judged as itself (dirty code on develop).
