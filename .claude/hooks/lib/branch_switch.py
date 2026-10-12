@@ -19,8 +19,10 @@ one directory: an absolute one, or a plain relative one reached from the
 starting checkout (the caller resolves it against its own working directory).
 Both return None for anything they cannot read with
 certainty, and None means "judge the live state", the guards' baseline
-evaluation. So a parse gap can only keep a block,
-never open one. The one exception is the commit-directory read's sentinel
+evaluation. A parse gap falls back to that evaluation — which keeps a block
+on develop, but on a feature checkout can pass a commit that lands elsewhere
+(a `;`-joined cd: rule row "a ; before a cd voids the dir read"). The one
+exception is the commit-directory read's sentinel
 `UNREADABLE_DIR`: a directory change before a commit that cannot be resolved
 (see `commit_target_dir`) or commits in more than one location, which the
 develop guard turns into a block with a remedy rather than a live-state
