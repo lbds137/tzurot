@@ -508,9 +508,10 @@ fi
 # (lib/branch_switch.py, line 1 of its output; probe: the "switch:" rows; lines
 # 2 and 3 place the commit in a checkout, read just below; probes: the
 # "cross-checkout:" and "cwd:" rows) — ONLY when the whole command is a pure
-# `&&` chain and every later segment is an allowlisted `git add|commit|status|diff|log|show` with no global flag
-# and no word with a `.git` path component (a `2>&1`/`>&2` redirect is not a
-# join). Every other shape — a `;` or pipe anywhere, any other later command
+# `&&` chain and every later segment is an allowlisted
+# `git add|commit|status|diff|log|show` with no global flag and no word with a
+# `.git` path component (a `2>&1`/`>&2` redirect is not a join). Every other
+# shape — a `;` or pipe anywhere, any other later command
 # (a switch, an alias like `git co`, cd, `git -C`, `git mv`/`git rm`), a
 # `.git/…` path such as `git mv -f h.txt .git/HEAD`, a `log|diff|show --output`, a
 # substitution, a heredoc with an UNQUOTED delimiter (`<<EOF` expands `$(…)`
@@ -552,7 +553,11 @@ COMMIT_OTHERS_INERT=""
 SIBLING_BRANCH_UNTRUSTED=""
 if [ -n "$COMMIT_DIR" ] && [ "$COMMIT_DIR" != "?" ]; then
   # The switch target is the branch of the start checkout; a commit placed in
-  # another directory says nothing about it.
+  # another directory says nothing about it. This clear is a backstop: the
+  # helper already refuses a switch target when a later segment carries `-C`
+  # (pinned by the lib/branch_switch_test.py row "a leading switch is a
+  # non-inert segment for the dir read"; the cd/pushd case is not pinned by a
+  # test).
   SWITCH_TARGET=""
   case "$COMMIT_DIR" in
     /*) COMMIT_DIR_ABS="$COMMIT_DIR" ;;
