@@ -27,9 +27,16 @@ export DEVELOP_COMMIT_HEADER_ACK_FILE="$TMP_BASE/commit-header-ack"
 WT="$TMP_BASE/probe-wt"
 FEATURE_WT="$TMP_BASE/probe-feature-wt"
 MAIN_WT="$TMP_BASE/probe-main-wt"
+# A develop worktree NESTED inside the feature worktree, under `.claude/worktrees/`
+# (gitignored there, so it does not dirty the feature tree): the target of the
+# relative-cd row, reachable from FEATURE_WT with no `..` step.
+NESTED_REL=".claude/worktrees/probe-nested-dev"
+NESTED_WT="$FEATURE_WT/$NESTED_REL"
 CREATED_BRANCHES=""
 cleanup() {
   git -C "$REPO_ROOT" worktree remove "$WT" --force 2>/dev/null
+  # The nested one lives inside FEATURE_WT, so it goes first.
+  git -C "$REPO_ROOT" worktree remove "$NESTED_WT" --force 2>/dev/null
   git -C "$REPO_ROOT" worktree remove "$FEATURE_WT" --force 2>/dev/null
   git -C "$REPO_ROOT" worktree remove "$MAIN_WT" --force 2>/dev/null
   git -C "$REPO_ROOT" branch -D probe/feature-fixture 2>/dev/null
@@ -145,6 +152,11 @@ git -C "$REPO_ROOT" worktree add --force -b probe/feature-fixture "$FEATURE_WT" 
 # check (main is guarded exactly like develop).
 add_named_worktree "$MAIN_WT" main || {
   echo "FATAL: could not create main worktree (git error above)" >&2
+  exit 1
+}
+# Fourth worktree ON develop, nested under the feature worktree.
+add_named_worktree "$NESTED_WT" develop || {
+  echo "FATAL: could not create nested develop worktree (git error above)" >&2
   exit 1
 }
 # A separate, unrelated repository: the target of the cross-repo rows below
@@ -1150,7 +1162,8 @@ TARGET_WT=""
 # The same sibling reached by a cd/pushd/env -C that is not the chain's first
 # segment, run from the FEATURE worktree (whose own state passes, so each exit 2
 # below is the sibling being judged, not this checkout). A relative cd from the
-# starting checkout stays in this tree and is judged live (exit 0); a directory
+# starting checkout is resolved against it: a subdirectory of this tree has this
+# toplevel and is judged live (exit 0), a nested worktree is judged as itself; a directory
 # change the hook cannot resolve blocks outright with its remedy.
 TARGET_WT="$FEATURE_WT"
 run 2 "cross-repo: a later cd into the develop sibling worktree blocks" \
@@ -1161,6 +1174,14 @@ run 2 "cross-repo: env -C <develop sibling worktree> git commit blocks" \
   "env -C $WT git commit -m y"
 run 0 "cross-repo: a relative cd into a subdir of this feature checkout passes" \
   'git status && cd services && git commit -m y'
+# A plain relative cd (or -C) from the feature checkout that reaches a develop
+# worktree nested under it is judged in THAT worktree: its dirty code blocks.
+printf 'probe\n' > "$NESTED_WT/services/probe-nested.ts"
+run 2 "cross-repo: a relative cd into a develop worktree nested in this checkout blocks" \
+  "cd $NESTED_REL && git commit -m y"
+run 2 "cross-repo: a relative -C into a develop worktree nested in this checkout blocks" \
+  "git -C $NESTED_REL commit -m y"
+rm -f "$NESTED_WT/services/probe-nested.ts"
 run 2 "cross-repo: a bare commit and a commit after cd into the develop sibling block" \
   "git commit -m a && cd $WT && git commit -m b"
 run_msg 2 "cross-repo: an unreadable directory change before the commit blocks" \

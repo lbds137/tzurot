@@ -17,6 +17,7 @@ import os
 import subprocess
 import sys
 import unittest
+from unittest import mock
 
 LIB_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, LIB_DIR)
@@ -137,9 +138,29 @@ ROWS = [
         (None, "/other/sub", True),
     ),
     (
-        "a relative cd from the starting checkout reads nothing",
+        "a relative cd from the starting checkout reads the relative path",
         "git status && cd sub && git commit -m y",
-        (None, None, False),
+        (None, "sub", True),
+    ),
+    (
+        "two relative cds from the starting checkout join",
+        "cd a && cd b && git commit -m y",
+        (None, "a/b", True),
+    ),
+    (
+        "a relative -C from the starting checkout reads the relative path",
+        "git -C rel commit -m y",
+        (None, "rel", True),
+    ),
+    (
+        "a relative env -C from the starting checkout reads the relative path",
+        "env -C rel git commit -m y",
+        (None, "rel", True),
+    ),
+    (
+        "a bare commit and a relative cd commit block",
+        "git commit -m a && cd sub && git commit -m b",
+        (None, branch_switch.UNREADABLE_DIR, False),
     ),
     ("pushd sets the dir like cd", "git status && pushd /other && git commit -m y", (None, "/other", True)),
     ("env -C reads the dir like git -C", "env -C /other git commit -m y", (None, "/other", True)),
@@ -185,7 +206,25 @@ ROWS = [
         "cd /other && cd ../x && git commit -m y",
         (None, branch_switch.UNREADABLE_DIR, False),
     ),
-    ("a flag on cd before a commit blocks", "cd -P /x && git commit -m y", (None, branch_switch.UNREADABLE_DIR, False)),
+    ("a -P flag on cd is skipped", "cd -P /x && git commit -m y", (None, "/x", True)),
+    ("a -- on cd is skipped", "cd -- /x && git commit -m y", (None, "/x", True)),
+    ("-L and -P in any order are skipped", "cd -L -P -- /x && git commit -m y", (None, "/x", True)),
+    ("a pushd -P is skipped like cd", "pushd -P /x && git commit -m y", (None, "/x", True)),
+    (
+        "cd with an unsupported flag is unreadable",
+        "cd -e /x && git commit -m y",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "cd with only a flag is unreadable",
+        "cd -L && git commit -m y",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "a pushd stack index is unreadable",
+        "pushd +1 && git commit -m y",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
     (
         "an unreadable cd keeps a relative -C unreadable",
         "cd - && git -C rel commit -m y",
@@ -411,7 +450,8 @@ ROWS = [
         (None, None, False),
     ),
     # --- -C and cd commit directories --------------------------------------
-    ("a relative -C is not read", "git -C relative commit -m y", (None, None, False)),
+    ("a plain relative -C reads the relative path", "git -C relative commit -m y", (None, "relative", True)),
+    ("a relative -C with a .. step is not read", "git -C ../x commit -m y", (None, None, False)),
     ("a -C path with a .. step is not read", "git -C /other/l/.. commit -m y", (None, None, False)),
     (
         "a cd with a .. step blocks",
@@ -419,7 +459,12 @@ ROWS = [
         (None, branch_switch.UNREADABLE_DIR, False),
     ),
     ("a relative -C join with a .. step is not read", "cd /other && git -C ../x commit -m y", (None, None, False)),
-    ("a relative leading cd is not read", "cd relative && git commit -m y", (None, None, False)),
+    ("a relative leading cd reads the relative path", "cd relative && git commit -m y", (None, "relative", True)),
+    (
+        "a relative leading cd with a .. step blocks",
+        "cd ../x && git commit -m y",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
     (
         "commits in two directories block",
         "git -C /other commit -m y && git -C /else commit -m z",
@@ -522,11 +567,41 @@ BAD_REF_NAMES = [
 
 class RuleTable(unittest.TestCase):
     def test_rows(self):
-        for label, cmd, (switch, directory, inert) in ROWS:
-            with self.subTest(label):
-                self.assertEqual(branch_switch.switch_target(cmd), switch)
-                self.assertEqual(branch_switch._commit_target(cmd), (directory, inert))
-                self.assertEqual(branch_switch.commit_target_dir(cmd), directory)
+        # CDPATH is part of the rows' environment: clear it so a developer's
+        # own setting cannot change a relative cd's reading.
+        with mock.patch.dict(os.environ):
+            os.environ.pop("CDPATH", None)
+            for label, cmd, (switch, directory, inert) in ROWS:
+                with self.subTest(label):
+                    self.assertEqual(branch_switch.switch_target(cmd), switch)
+                    self.assertEqual(branch_switch._commit_target(cmd), (directory, inert))
+                    self.assertEqual(branch_switch.commit_target_dir(cmd), directory)
+
+    def test_cdpath_set_makes_a_relative_cd_unreadable(self):
+        # The shell may search CDPATH for a relative cd/pushd argument.
+        label = "a relative cd is unreadable while CDPATH is set"
+        unreadable = (branch_switch.UNREADABLE_DIR, False)
+        cmds = (
+            "cd sub && git commit -m y",
+            "pushd sub && git commit -m y",
+            "cd /other && cd sub && git commit -m y",
+        )
+        for cmd in cmds:
+            with self.subTest(label, cmd=cmd), mock.patch.dict(os.environ, {"CDPATH": "/somewhere"}):
+                self.assertEqual(branch_switch._commit_target(cmd), unreadable)
+
+    def test_cdpath_set_leaves_other_reads_alone(self):
+        # A relative -C is not a shell cd; an absolute cd is not searched.
+        with mock.patch.dict(os.environ, {"CDPATH": "/somewhere"}):
+            self.assertEqual(branch_switch._commit_target("git -C rel commit -m y"), ("rel", True))
+            self.assertEqual(branch_switch._commit_target("cd /x && git commit -m y"), ("/x", True))
+
+    def test_cdpath_unset_or_empty_reads_a_relative_cd(self):
+        with mock.patch.dict(os.environ):
+            os.environ.pop("CDPATH", None)
+            self.assertEqual(branch_switch._commit_target("cd sub && git commit -m y"), ("sub", True))
+        with mock.patch.dict(os.environ, {"CDPATH": ""}):
+            self.assertEqual(branch_switch._commit_target("cd sub && git commit -m y"), ("sub", True))
 
     def test_bad_ref_names(self):
         for name in BAD_REF_NAMES:
