@@ -39,10 +39,11 @@ either. So `switch_target` requires EVERY join in the command to be `&&` — a
 `;` anywhere, even after the commit, lets a second commit run elsewhere. The
 commit-directory read is different: a directory read from `cd`/`pushd`/`-C`
 holds for the next segment only after an `&&`, so it walks a SET of possible
-locations. After a `;`, a newline or a `||` the next segment may run with the
+locations. After a `;` or a newline the next segment may run with the
 previous cd failed or skipped, so it sees every location reached since the
-start (`cd x && make; git commit` commits in `x` or the starting checkout),
-and a commit records every location in the set. A pipe, `&`, subshell or
+start (`cd x && make; git commit` commits in `x` or the starting checkout);
+after a `||` it runs only where the previous segment failed. A commit records
+every location in the set, capped at `MAX_LOCATIONS`. A pipe, `&`, subshell or
 group is not walked (known gap, TASK-1219).
 
 And the switch only holds until something moves the branch or the directory
@@ -400,6 +401,14 @@ _GROUP_BRACE = re.compile(r"(?:^|(?<=[\s;&|()]))[{}](?=$|[\s;&|()])")
 # CDPATH mentioned anywhere in the raw text (an assignment, an `export`, even
 # a quoted one): a relative cd/pushd may then search it.
 _CDPATH_MENTION = re.compile(r"CDPATH")
+# HOME mentioned anywhere in the raw text (`HOME=/x cd ~/y`, `export HOME=…`,
+# even a quoted one): a tilde argument may then expand to a different home
+# than the hook process's own.
+_HOME_MENTION = re.compile(r"HOME")
+# The most locations the commit-dir walk keeps. Each location costs the caller
+# one `git rev-parse` in commit_location.sh, and plain `;`-joined relative cds
+# double the set per segment, so past this the walk gives up (fail-closed).
+MAX_LOCATIONS = 32
 # Separates the distinct locations on line 2 of the script output. A tab can
 # never appear in a read path: `_absolute_dir` and `_plain_relative` refuse
 # every control character (rows: "a tab in a cd path is unreadable").
@@ -413,6 +422,12 @@ def _mentions_cdpath(text):
     """True when the raw command mentions `CDPATH` anywhere, the same
     mention rule as `_relocating_env` for the GIT_* variables."""
     return _CDPATH_MENTION.search(text) is not None
+
+
+def _mentions_home(text):
+    """True when the raw command mentions `HOME` anywhere, the same mention
+    rule as `_mentions_cdpath`."""
+    return _HOME_MENTION.search(text) is not None
 
 
 def _has_parent_step(path):
@@ -492,12 +507,16 @@ def _step_dir(step, base):
     return os.path.join(base, step)
 
 
-def _home_dir(arg, tilde_quoted):
+def _home_dir(arg, tilde_quoted, home_mentioned=False):
     """The absolute path a leading-tilde `cd` argument names: bare `~` is the
-    hook's own `HOME`, `~/rest` is `HOME` + `/rest`; None when `HOME` is unset,
-    empty or not absolute, the tilde was quoted (bash does not expand it, and
-    the resolved word cannot tell), or the form is `~user` / `~+` / `~-`."""
-    if tilde_quoted or not (arg == "~" or arg.startswith("~/")):
+    hook process's own `HOME`, `~/rest` is `HOME` + `/rest`. This ASSUMES the
+    shell running the command has the same `HOME`; that is not verified, so a
+    command that mentions `HOME` anywhere (`HOME=… cd ~/x`, `export HOME=…`)
+    makes the argument unreadable instead (row: "a HOME mention makes a tilde
+    cd unreadable"). None also when `HOME` is unset, empty or not absolute, the
+    tilde was quoted (bash does not expand it, and the resolved word cannot
+    tell), or the form is `~user` / `~+` / `~-`."""
+    if home_mentioned or tilde_quoted or not (arg == "~" or arg.startswith("~/")):
         return None
     home = os.environ.get("HOME", "")
     if not home.startswith("/"):
@@ -505,7 +524,7 @@ def _home_dir(arg, tilde_quoted):
     return home + arg[1:]
 
 
-def _changed_dir(words, here, cdpath=False, tilde_quoted=False):
+def _changed_dir(words, here, cdpath=False, tilde_quoted=False, home_mentioned=False):
     """The directory state after a `cd`/`pushd`/`popd` segment, from `here`.
 
     Leading `--`, `-L` and `-P` words (any number, any order) are skipped; what
@@ -521,7 +540,8 @@ def _changed_dir(words, here, cdpath=False, tilde_quoted=False):
     unreadable. A bare `~` or `~/rest` is read through the hook's own `HOME`
     and then like any absolute argument (rows: "a cd to ~/x reads HOME/x", "a
     bare cd ~ reads HOME", "a cd to ~user/x is unreadable", "a cd to ~/x with
-    HOME unset is unreadable", "a quoted tilde is unreadable"). A plain
+    HOME unset is unreadable", "a quoted tilde is unreadable", "a HOME mention
+    makes a tilde cd unreadable"). A plain
     relative argument joins onto the current location; from the starting
     checkout it becomes the relative location itself (row: "a relative cd from
     the starting checkout reads the relative path"), and on an unreadable
@@ -540,7 +560,7 @@ def _changed_dir(words, here, cdpath=False, tilde_quoted=False):
         return UNREADABLE_DIR
     arg = args[0]
     if arg.startswith("~"):
-        arg = _home_dir(arg, tilde_quoted) or arg
+        arg = _home_dir(arg, tilde_quoted, home_mentioned) or arg
     if arg.startswith("/"):
         return _absolute_dir(arg) or UNREADABLE_DIR
     if not _plain_relative(arg) or cdpath or os.environ.get("CDPATH"):
@@ -630,16 +650,23 @@ def commit_target_dir(text):
     location; from the starting checkout the relative path itself is the
     location, so `cd sub && git commit` reads `sub`; a bare `~` or `~/rest`
     through the hook's `HOME`), and each commit may add `git -C <dir>` or
-    `env -C <dir>` (`--chdir`) steps resolved the same way. After an `&&` the
-    next segment sees the moved set. After a `;`, a newline or a `||` it sees
-    every location reached so far, because the previous cd may have failed or
-    been skipped (rows: "a ; before a cd reads both locations", "a newline
-    before a cd reads both locations", "a || before a cd reads both
-    locations", "a ; after && reads the union reached since the start"). A
-    segment that follows a `||` may also be skipped, so the state after it
-    includes the previous segment's own result (rows: "a || before a cd keeps
-    the location where the cd is skipped", "a || before a non-cd segment
-    changes nothing"). A
+    `env -C <dir>` (`--chdir`) steps resolved the same way. The walk keeps two
+    exact sets of states: those where the last status is zero (`ok`) and those
+    where it is non-zero (`fail`); a cd that fails leaves a state where it was.
+    After an `&&` the next segment sees the states where the previous one
+    succeeded, and the states that failed skip it and carry forward. After a
+    `||` it sees the states where the previous one failed, and the succeeded
+    ones carry forward. After a `;` or a newline it sees both (rows: "a ;
+    before a cd reads both locations", "a newline before a cd reads both
+    locations", "a || before a cd reads both locations", "a ; after && reads
+    the union reached since the start", "a || before a cd keeps the location
+    where the cd is skipped", "a || cd starts where the previous cd failed",
+    "a || cd then ; reads both cds and the start, never the joined path", "a
+    || before a non-cd segment changes nothing"). The set is capped at
+    `MAX_LOCATIONS`: past it the walk fails closed to `UNREADABLE_DIR` (row:
+    "about 20 ;-joined relative cds hit the location cap"; boundary rows: "5
+    ;-joined relative cds read 32 locations", "6 ;-joined relative cds hit the
+    location cap"). A
     change AFTER the last commit is not read (row: "a pushd after the commit
     does not move it"). A numeric fd redirect such as `2>&1` is not a join.
 
@@ -722,48 +749,58 @@ def _commit_target(text):
         return None, False
 
     cdpath = _mentions_cdpath(text)
-    here = {_START}
-    reached = {_START}
+    home = _mentions_home(text)
+    # Two exact sets of possible locations: `ok` holds the states in which the
+    # last status is zero, `fail` those in which it is non-zero. A cd that
+    # succeeds moves a state; one that fails leaves it where it was.
+    ok, fail = {_START}, set()
     results = set()
     inert = True
     pos = 0
-    prev_after = here
     prev_sep = None
     for sep in [*_SEGMENT_SPLIT.finditer(view), None]:
         seg_start = pos
         end = sep.start() if sep is not None else len(view)
         words = _words(view, values, pos, end)
         pos = sep.end() if sep is not None else len(view)
-        after = here
+        # The join BEFORE this segment picks its input: after `&&` it runs only
+        # from the states where the previous one succeeded, after `||` only
+        # from those where it failed; after `;` or a newline from both. The
+        # states that skip it carry forward unchanged.
+        join = prev_sep.group() if prev_sep is not None else None
+        if join == "&&":
+            run, skipped = ok, fail
+        elif join == "||":
+            run, skipped = fail, ok
+        else:
+            run, skipped = ok | fail, set()
+        seg_ok = seg_fail = set(run)
         if words:
             mover = _dir_change_words(words)
             if mover is not None:
-                after = {_changed_dir(mover, h, cdpath, _tilde_quoted(view, seg_start, end)) for h in here}
+                seg_ok = {_changed_dir(mover, h, cdpath, _tilde_quoted(view, seg_start, end), home) for h in run}
             elif _is_source(words):
-                after = {UNREADABLE_DIR}
+                seg_ok = seg_fail = {UNREADABLE_DIR}
                 inert = False
             elif not any(w.lower() == "commit" for w in words):
                 if _segment_moves(view, values, seg_start, end):
                     inert = False
             else:
-                results.update(_commit_dir(words, h) for h in here)
-        # The join BEFORE this segment: after `||` the segment may be skipped
-        # (the previous one succeeded), so the state after it also holds the
-        # previous segment's own `after` set. Not `here | moved`: `here` holds
-        # the start location, which a skipped-or-run `cd` after `||` does not add.
-        if prev_sep is not None and prev_sep.group() == "||":
-            after = after | prev_after
-        reached |= after
-        # The join AFTER this segment decides what the next one can see: after
-        # `&&` it runs only if this one succeeded (the moved set); after `;`,
-        # a newline or `||` it may run with this segment failed or skipped, so
-        # every location reached so far is possible.
-        here = after if sep is not None and sep.group() == "&&" else set(reached)
-        prev_after = after
+                results.update(_commit_dir(words, h) for h in run)
+        if join == "&&":
+            ok, fail = seg_ok, seg_fail | skipped
+        elif join == "||":
+            ok, fail = seg_ok | skipped, seg_fail
+        else:
+            ok, fail = seg_ok, seg_fail
+        if len(ok | fail) > MAX_LOCATIONS:
+            ok = fail = {UNREADABLE_DIR}
         prev_sep = sep
     if not results:
         return None, False
     if UNREADABLE_DIR in results:
+        return UNREADABLE_DIR, False
+    if len(results) > MAX_LOCATIONS:
         return UNREADABLE_DIR, False
     if None in results:
         return None, False

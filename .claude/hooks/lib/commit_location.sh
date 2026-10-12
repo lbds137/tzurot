@@ -96,6 +96,10 @@ commit_location_resolve() {
         *) abs="$CL_START_DIR/$loc" ;;
       esac
       top=$(git -C "$abs" rev-parse --show-toplevel 2>/dev/null || echo "")
+      # A location that does not resolve to a toplevel counts as the starting
+      # checkout: a nonexistent directory means the cd failed and the commit
+      # runs at the start, and an existing non-git directory has no branch to
+      # judge.
       key="${top:-$start_key}"
     fi
     case $'\n'"$keys"$'\n' in

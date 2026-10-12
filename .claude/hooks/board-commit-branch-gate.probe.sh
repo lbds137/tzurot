@@ -1394,6 +1394,10 @@ run_in 2 "cross-checkout: cd into a feature sibling is judged there (blocks)" "$
 run_in 0 "cross-checkout: commits in more than one checkout keep the live evaluation" "$D" "git status; cd $FS; git commit -m b"
 run_in 2 "cross-checkout: a ; after the commit still judges the feature sibling" "$D" "cd $FS && git commit -m b; git status"
 run_in 2 "cross-checkout: a ; before the cd still judges the feature sibling" "$D" "git status; cd $FS && git commit -m b"
+# Several checkouts keep the live evaluation of the hook's own checkout; develop
+# takes board commits, and the develop guard owns the cross-checkout block.
+D=$(make_repo develop); stage_board "$D"; FS=$(make_sibling "$D" feat); stage_board "$FS"
+run_in 0 "cross-checkout: several checkouts on develop with a board change staged pass" "$D" "git status; cd $FS; git commit -m b"
 # 4. a non-inert segment could move the sibling off its branch: judged as a feature branch.
 F=$(make_repo feat/x); DS=$(make_sibling "$F" develop); stage_board "$DS"
 run_in 2 "cross-checkout: an untrusted develop sibling is judged as a feature branch" "$F" "make && git -C $DS commit -m b"
