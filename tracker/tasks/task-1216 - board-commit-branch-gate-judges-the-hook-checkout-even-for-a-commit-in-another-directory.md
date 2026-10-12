@@ -3,9 +3,10 @@ id: TASK-1216
 title: >-
   board-commit-branch-gate judges the hook checkout even for a commit in another
   directory
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-11 22:52'
+updated_date: '2026-10-12 01:37'
 labels:
   - 'area:hooks'
   - 'size:M'

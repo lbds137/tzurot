@@ -1,9 +1,10 @@
 ---
 id: TASK-1217
 title: 'Commit guards judge the project dir, not the Bash shell''s persisted cwd'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-12 00:20'
+updated_date: '2026-10-12 01:37'
 labels:
   - 'area:hooks'
   - 'size:M'
