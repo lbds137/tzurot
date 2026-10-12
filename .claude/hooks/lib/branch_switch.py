@@ -649,7 +649,7 @@ def commit_target_dir(text):
     (an absolute one outright, a plain relative one joined onto the current
     location; from the starting checkout the relative path itself is the
     location, so `cd sub && git commit` reads `sub`; a bare `~` or `~/rest`
-    through the hook's `HOME`), and each commit may add `git -C <dir>` or
+    through the hook's `HOME` unless the command mentions `HOME`), and each commit may add `git -C <dir>` or
     `env -C <dir>` (`--chdir`) steps resolved the same way. The walk keeps two
     exact sets of states: those where the last status is zero (`ok`) and those
     where it is non-zero (`fail`); a cd that fails leaves a state where it was.
