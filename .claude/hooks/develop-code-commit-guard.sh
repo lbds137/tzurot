@@ -69,9 +69,9 @@
 #   ambiguity), a switch that is not the first segment — is judged on the
 #   live branch. A read commit directory
 #   (below) also drops the target.
-# - Cross-repo commits: when EVERY commit in the command provably runs in one
-#   directory (`git -C <dir> commit`, `env -C <dir> git
-#   commit`, or a `cd`/`pushd <dir> &&` earlier in the same `&&` chain;
+# - Cross-repo commits: when every location a commit in the command can run in
+#   resolves to one checkout (`git -C <dir> commit`, `env -C <dir> git
+#   commit`, or an earlier `cd`/`pushd <dir>`, read across joins as below;
 #   <dir> is absolute, or plain relative: it is resolved against the shell's
 #   start directory (below), so `cd .claude/worktrees/x && git commit` from
 #   this checkout is judged in that nested worktree, and a plain relative cd
@@ -91,8 +91,8 @@
 #   commit` exits 0 even from develop with dirty code here. A directory change
 #   before a commit that cannot be resolved (popd, `cd -`, a bare `cd`, an
 #   expansion, glob or `~user` dir, even inside quotes (`cd "$D"`); a bare `~`
-#   or `~/…` is read through HOME; a `..` step: git and the shell may resolve
-#   it physically through a symlink where the text is edited lexically (not
+#   or `~/…` is read through HOME unless the command mentions HOME; a `..`
+#   step: git and the shell may resolve it physically through a symlink where the text is edited lexically (not
 #   verified here); a relative cd when CDPATH is set or mentioned in the
 #   command; `source`/`.`, which runs
 #   arbitrary code in the shell) BLOCKS on any branch, with the remedy "use
@@ -936,9 +936,9 @@ if [ -n "$COMMIT_DIR" ]; then
   SWITCH_TARGET=""
 fi
 
-# Cross-checkout: every commit in the command lands in another checkout (a
-# `git -C <dir> commit`, `env -C <dir> git commit`, or a `cd`/`pushd`
-# earlier in the same `&&` chain; <dir> absolute, or plain relative to this
+# Cross-checkout: every location a commit in the command can run in resolves
+# to another checkout (a `git -C <dir> commit`, `env -C <dir> git commit`, or
+# an earlier `cd`/`pushd`, read across joins; <dir> absolute, or plain relative to this
 # checkout). Only a directory
 # whose toplevel RESOLVES and differs from this one's is acted on (a relative
 # one inside this tree, such as `services`, resolves to this toplevel and keeps
