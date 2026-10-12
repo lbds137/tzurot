@@ -1406,6 +1406,18 @@ run_in 2 "cwd: a bare commit from a shell in a feature sibling is judged there" 
 run_in 0 "cwd: a bare commit from a shell in another repository is silent" "$F" 'git commit -m b' "$OTHER"
 run_in 2 "cwd: a nonexistent payload cwd falls back to the hook checkout" "$F" 'git commit -m b' "$WORK/no-such-dir"
 run_in 2 "cwd: -C into a feature sibling from a foreign shell is still judged" "$D" "git -C $FS commit -m b" "$OTHER"
+# A shell in a subdirectory of this checkout is judged as this checkout.
+F=$(make_repo feat/x); stage_board "$F"; mkdir -p "$F/services"
+run_in 2 "cwd: a shell in a subdirectory of this checkout is judged as this checkout" "$F" 'git commit -m b' "$F/services"
+# A foreign shell plus a non-inert segment: the develop sibling is untrusted, so
+# it is judged as a feature branch even though it sits on develop.
+F=$(make_repo feat/x); DS=$(make_sibling "$F" develop); stage_board "$DS"; OTHER=$(make_repo develop)
+run_in 2 "cwd: an untrusted develop sibling is judged as a feature branch from a foreign shell" "$F" \
+  "make && git -C $DS commit -m b" "$OTHER"
+# The unreadable `cd -` on develop with a board-only change: the live evaluation
+# passes it (develop takes board commits), unlike the feature-branch row above.
+D=$(make_repo develop); stage_board "$D"
+run_in 0 "cross-checkout: an unreadable directory change on develop keeps the live evaluation (passes)" "$D" 'cd - && git commit -m b'
 
 # --- lib/branch_switch.py rule table -----------------------------------------
 # The rows above pin the hook's final exit code; the unittest table pins which

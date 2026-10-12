@@ -77,9 +77,10 @@
 #   this checkout is judged in that nested worktree, and a plain relative cd
 #   joins onto a known directory) whose toplevel resolves and differs from
 #   the start checkout's: a DIFFERENT repository (its git-common-dir
-#   differs from the project's) makes the guard stay silent, provided every other segment is an inert `git
-#   add|commit|status|diff|log|show` (anything else could re-point the
-#   directory after the hook read it); another WORKTREE of this repository (same
+#   differs from the project's) makes the guard stay silent, provided every
+#   other segment is an inert `git add|commit|status|diff|log|show` (anything
+#   else could re-point the directory after the hook read it); another
+#   WORKTREE of this repository (same
 #   git-common-dir) is judged as itself — its branch (or the leading switch
 #   target) and its dirty tree, so a commit into a sibling worktree on
 #   develop still blocks, and with any non-inert other segment the sibling is
