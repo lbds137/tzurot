@@ -308,9 +308,9 @@ ROWS = [
         (None, "/x\t<start>", False),
     ),
     (
-        "a || joining the commit reads both locations",
+        "a || joining the commit runs only where the cd failed",
         "cd /x || git commit -m y",
-        (None, "/x\t<start>", True),
+        (None, None, False),
     ),
     (
         "a ; after && reads the union reached since the start",
@@ -336,6 +336,42 @@ ROWS = [
         "a ; cd to the same dir as -C dedupes the locations",
         "cd /x; git -C /x commit -m y",
         (None, "/x", True),
+    ),
+    (
+        "a || cd starts where the previous cd failed",
+        "cd a || cd b && git commit -m z",
+        (None, "a\tb", True),
+    ),
+    (
+        "a || cd then ; reads both cds and the start, never the joined path",
+        "cd a || cd b; git commit -m z",
+        (None, "<start>\ta\tb", True),
+    ),
+    (
+        "about 20 ;-joined relative cds hit the location cap",
+        "".join(f"cd d{i}; " for i in range(1, 21)) + "git commit -m z",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "a HOME mention makes a tilde cd unreadable",
+        "HOME=/tmp cd ~/x && git commit -m z",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "an exported HOME mention makes a tilde cd unreadable",
+        "export HOME=/tmp; cd ~/x && git commit -m z",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "6 ;-joined relative cds hit the location cap",
+        "".join(f"cd d{i}; " for i in range(1, 7)) + "git commit -m z",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        # The commit itself sees only 32 states; the walk state crossed the cap.
+        "the walk state crossing the cap blocks even when the commit sees fewer",
+        "".join(f"cd d{i}; " for i in range(1, 6)) + "cd d6 && git commit -m z",
+        (None, branch_switch.UNREADABLE_DIR, False),
     ),
     (
         "a backslash-newline continuation joins like a space",
@@ -829,6 +865,20 @@ class RuleTable(unittest.TestCase):
                     self.assertEqual(branch_switch._commit_target(cmd), unreadable)
         with mock.patch.dict(os.environ, {"HOME": "/home/u/"}):
             self.assertEqual(branch_switch._commit_target("cd ~/x && git commit -m y"), ("/home/u/x", True))
+
+    def test_five_semicolon_cds_read_32_locations(self):
+        # Row: "5 ;-joined relative cds read 32 locations". Each relative cd
+        # doubles the set (run from every state, or skipped), so 5 give 2**5
+        # distinct locations, exactly the cap; a 6th crosses it (the
+        # "6 ;-joined relative cds hit the location cap" row).
+        cmd = "".join(f"cd d{i}; " for i in range(1, 6)) + "git commit -m z"
+        directory, inert = branch_switch._commit_target(cmd)
+        locations = directory.split(branch_switch.LOCATION_SEPARATOR)
+        self.assertEqual(len(locations), 32)
+        self.assertEqual(len(set(locations)), 32)
+        self.assertNotIn(branch_switch.UNREADABLE_DIR, locations)
+        self.assertEqual(branch_switch.MAX_LOCATIONS, 32)
+        self.assertTrue(inert)
 
     def test_bad_ref_names(self):
         for name in BAD_REF_NAMES:

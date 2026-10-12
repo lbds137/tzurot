@@ -1218,6 +1218,10 @@ run 0 "cross-repo: a ; cd into this checkout's root dedupes to one checkout" \
 # match only once each resolves to its toplevel.
 run 0 "cross-repo: a ; cd into a subdir of this checkout dedupes by toplevel" \
   "git status; cd services; git commit -m y"
+# A location that does not resolve to a toplevel counts as the starting
+# checkout, so this reads like a bare commit here.
+run 0 "cross-repo: a ; cd into a nonexistent dir counts as this checkout" \
+  "git status; cd /nonexistent-dir-xyz; git commit -m y"
 run_msg 2 "cross-repo: an unreadable directory change before the commit blocks" \
   'cd - && git commit -m y' 'git -C <absolute dir> commit'
 TARGET_WT=""
