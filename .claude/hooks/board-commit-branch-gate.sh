@@ -13,9 +13,14 @@
 #
 # Blocks ONLY when BOTH hold:
 #   (a) the branch the commit lands on is not develop / main / release-shaped
-#       — the live branch, or the target of a LEADING `git switch … &&` /
-#       `git checkout -b|-B … &&` in a pure `&&` chain where nothing else
-#       moves the branch or directory (see the BRANCH read below), and
+#       — the live branch of the checkout the commit runs in (the shell's
+#       persisted cwd from the payload's `.cwd`, or the one directory a
+#       `git -C <dir>` / `cd <dir> &&` names; another worktree of this repo
+#       is judged as itself, an untrusted one as a feature branch, another
+#       repository is not this gate's), or the target of a LEADING
+#       `git switch … &&` / `git checkout -b|-B … &&` in a pure `&&` chain
+#       where nothing else moves the branch or directory (see the BRANCH
+#       read below), and
 #   (b) the files this commit would capture are non-empty and ALL inside the
 #       board/doc allowlist (the PATH half of 00-critical.md's table —
 #       its >300-line-docs PR carve-out stays judgment, not hook-enforced)
@@ -472,14 +477,38 @@ if [ "$QUOTE_SCAN" = SCAN_OK ] \
 fi
 [ -n "${TZUROT_ALLOW_BOARD_ON_FEATURE:-}" ] && exit 0
 
-ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+# The PROJECT checkout is the one this hook runs in (its own cwd; unlike the
+# develop guard this gate does not consult CLAUDE_PROJECT_DIR). The commit,
+# though, runs in the Bash shell's PERSISTED cwd, which the payload carries as
+# `.cwd`: when that is a checkout of this same repository (same git-common-dir)
+# it is the start checkout and ROOT; when it is another repository (or none) the
+# start is foreign (START_FOREIGN) and a bare commit there is not this repo's.
+# No usable payload cwd means the project checkout.
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+PROJECT_COMMON=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "")
+ROOT="$PROJECT_ROOT"
+START_DIR="$PWD"
+START_TOP="$PROJECT_ROOT"
+START_FOREIGN=""
+SHELL_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || echo "")
+if [ -n "$SHELL_CWD" ] && [ -d "$SHELL_CWD" ]; then
+  START_DIR="$SHELL_CWD"
+  START_TOP=$(git -C "$SHELL_CWD" rev-parse --show-toplevel 2>/dev/null || echo "")
+  START_COMMON=$(git -C "$SHELL_CWD" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "")
+  if [ -n "$PROJECT_COMMON" ] && [ "$START_COMMON" = "$PROJECT_COMMON" ] && [ -n "$START_TOP" ]; then
+    ROOT="$START_TOP"
+  elif [ -n "$PROJECT_COMMON" ]; then
+    START_FOREIGN=1
+  fi
+fi
 # A PreToolUse hook runs BEFORE the command, so the live branch is the one the
 # command STARTS on. A leading `git switch <name> &&` (or `-c|-C|--create|
 # --force-create`, or `git checkout -b|-B <name> &&`) moves the commit onto
 # that target before it runs, so the target is judged instead
-# (lib/branch_switch.py, line 1 of its output; probe: the "switch:" rows) —
-# ONLY when the whole command is a pure `&&` chain and every later segment is
-# an allowlisted `git add|commit|status|diff|log|show` with no global flag
+# (lib/branch_switch.py, line 1 of its output; probe: the "switch:" rows; lines
+# 2 and 3 place the commit in a checkout, read just below; probes: the
+# "cross-checkout:" and "cwd:" rows) — ONLY when the whole command is a pure
+# `&&` chain and every later segment is an allowlisted `git add|commit|status|diff|log|show` with no global flag
 # and no word with a `.git` path component (a `2>&1`/`>&2` redirect is not a
 # join). Every other shape — a `;` or pipe anywhere, any other later command
 # (a switch, an alias like `git co`, cd, `git -C`, `git mv`/`git rm`), a
@@ -493,18 +522,91 @@ ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 LEADING=$(GUARD_CMD="$COMMAND" PYTHONDONTWRITEBYTECODE=1 \
   python3 "$HOOK_LIB/branch_switch.py" 2>/dev/null) || LEADING=""
 SWITCH_TARGET=""
-read -r SWITCH_TARGET <<< "$LEADING"
+COMMIT_DIR=""
+COMMIT_OTHERS_INERT=""
+{
+  read -r SWITCH_TARGET
+  read -r COMMIT_DIR
+  read -r COMMIT_OTHERS_INERT
+} <<< "$LEADING"
+# Lines 2 and 3 of the helper: the one directory every commit in the command
+# runs in (absolute, or plain relative to the start directory; "?" = a
+# directory change the helper cannot resolve, or commits in several places),
+# and "1" when every other segment is inert. They place the commit in a
+# checkout, as the develop guard does (develop-code-commit-guard.sh, same
+# helper):
+# - "?": the develop guard already blocks this command with its remedy (its
+#   probe row "cross-repo: an unreadable directory change before the commit
+#   blocks"), so this gate does not duplicate the block and keeps the live
+#   evaluation of ROOT as set above.
+# - a directory whose toplevel resolves and differs from the start checkout's
+#   (or any directory when the start is foreign): ANOTHER worktree of this
+#   repository (same git-common-dir) is judged as itself, its branch and its
+#   staged set; its branch is trusted only when every other segment is inert,
+#   since a non-inert one could move that worktree off its branch after the
+#   read here (SIBLING_BRANCH_UNTRUSTED: judged as a FEATURE branch, failing
+#   closed for this gate, the mirror of the develop guard judging it as
+#   develop). A DIFFERENT repository's commit is not this repo's: exit 0, but
+#   only with every other segment inert, else the live evaluation is kept.
+#   Unresolvable keeps the live evaluation.
+SIBLING_BRANCH_UNTRUSTED=""
+if [ -n "$COMMIT_DIR" ] && [ "$COMMIT_DIR" != "?" ]; then
+  # The switch target is the branch of the start checkout; a commit placed in
+  # another directory says nothing about it.
+  SWITCH_TARGET=""
+  case "$COMMIT_DIR" in
+    /*) COMMIT_DIR_ABS="$COMMIT_DIR" ;;
+    *) COMMIT_DIR_ABS="$START_DIR/$COMMIT_DIR" ;;
+  esac
+  TARGET_TOP=$(git -C "$COMMIT_DIR_ABS" rev-parse --show-toplevel 2>/dev/null || echo "")
+  if [ -n "$TARGET_TOP" ] && { [ "$TARGET_TOP" != "$START_TOP" ] || [ -n "$START_FOREIGN" ]; }; then
+    TARGET_COMMON=$(git -C "$TARGET_TOP" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "")
+    if [ -n "$TARGET_COMMON" ] && [ -n "$PROJECT_COMMON" ]; then
+      if [ "$TARGET_COMMON" = "$PROJECT_COMMON" ]; then
+        ROOT="$TARGET_TOP"
+        START_FOREIGN=""
+        if [ "$COMMIT_OTHERS_INERT" != "1" ]; then
+          SIBLING_BRANCH_UNTRUSTED=1
+        fi
+      elif [ "$COMMIT_OTHERS_INERT" = "1" ]; then
+        exit 0
+      fi
+    fi
+  fi
+fi
+# A bare commit (no directory change) from a shell sitting in another
+# repository is not this repo's commit.
+if [ -z "$COMMIT_DIR" ] && [ -n "$START_FOREIGN" ]; then
+  exit 0
+fi
+# Still foreign after a directory was read (unresolvable, or another repository
+# with a non-inert segment): ROOT is still the project checkout, whose live
+# state is evaluated.
+if [ -n "$START_FOREIGN" ]; then
+  ROOT="$PROJECT_ROOT"
+fi
 if [ -n "$SWITCH_TARGET" ]; then
   BRANCH="$SWITCH_TARGET"
 else
   BRANCH=$(git -C "$ROOT" branch --show-current 2>/dev/null) || exit 0
 fi
+# An untrusted sibling is judged as a feature branch (skips the exemption
+# below): the board commit it would capture may really land on a feature
+# branch once the non-inert segment has run, and the banner's branch name is
+# unverified in that case.
+if [ -n "$SIBLING_BRANCH_UNTRUSTED" ]; then
+  BRANCH_UNVERIFIED=" (unverified: a non-inert segment could move it)"
+else
+  BRANCH_UNVERIFIED=""
+fi
 
 # Long-lived and release-shaped branches are exactly where board/doc commits
 # belong (release-notes edits ride release branches) — never block there.
-case "$BRANCH" in
-  develop | main | '' | release/* | chore/release-*) exit 0 ;;
-esac
+if [ -z "$SIBLING_BRANCH_UNTRUSTED" ]; then
+  case "$BRANCH" in
+    develop | main | '' | release/* | chore/release-*) exit 0 ;;
+  esac
+fi
 
 # The file set this commit would capture, from three sources:
 #   (1) the currently-staged set;
@@ -571,7 +673,7 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 {
-  printf "${RED}✖ Board/doc-only commit on feature branch '%s' — these files belong on develop:${NC}\n" "$BRANCH"
+  printf "${RED}✖ Board/doc-only commit on feature branch '%s'%s — these files belong on develop:${NC}\n" "$BRANCH" "$BRANCH_UNVERIFIED"
   printf '%s\n' "$FILES"
   printf "${YELLOW}  A tracker/board commit here strands: the develop push no-ops as${NC}\n"
   printf "${YELLOW}  \"Everything up-to-date\" and the state is invisible to every query.${NC}\n"
