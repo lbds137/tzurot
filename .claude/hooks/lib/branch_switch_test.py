@@ -298,6 +298,16 @@ ROWS = [
         (None, "/x\t<start>", False),
     ),
     (
+        "a || before a cd keeps the location where the cd is skipped",
+        "cd /x || cd /y && git commit -m z",
+        (None, "/x\t/y", True),
+    ),
+    (
+        "a || before a non-cd segment changes nothing",
+        "cd /x || true && git commit -m z",
+        (None, "/x\t<start>", False),
+    ),
+    (
         "a || joining the commit reads both locations",
         "cd /x || git commit -m y",
         (None, "/x\t<start>", True),
@@ -351,6 +361,31 @@ ROWS = [
         "a pipe, background or subshell shape keeps the empty reading (group)",
         "{ cd /x; git commit -m y; }",
         (None, None, False),
+    ),
+    (
+        "a brace group keeps the empty reading",
+        "{ cd /x && git commit -m z; }",
+        (None, None, False),
+    ),
+    (
+        "a ${VAR} cd argument is an unreadable expansion",
+        "cd ${D} && git commit -m z",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "a brace-expansion cd argument is unreadable",
+        "cd /{a,b} && git commit -m z",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "a brace-expansion relative cd argument is unreadable",
+        "cd {a,b} && git commit -m z",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "a tilde word with a quoted part is unreadable",
+        'cd ~/"x y" && git commit -m z',
+        (None, branch_switch.UNREADABLE_DIR, False),
     ),
     # --- CDPATH mention ------------------------------------------------------
     (

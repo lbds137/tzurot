@@ -390,8 +390,13 @@ _GIT_SKIP_FLAG = (
 
 _SEGMENT_SPLIT = re.compile(r"&&|\|\||[;&|\n()]")
 # What the commit-dir walk does not read, in the view with fd redirects, `&&`
-# and `||` blanked: a pipe, a background `&`, a subshell or group, a CR.
-_UNWALKED_SHAPE = re.compile(r"[|&(){}\r]")
+# and `||` blanked: a pipe, a background `&`, a subshell, a CR. A brace group
+# is caught separately by `_GROUP_BRACE`; a brace inside a word (`${D}`,
+# `/{a,b}`) is an expansion that `_changed_dir` reads as unreadable.
+_UNWALKED_SHAPE = re.compile(r"[|&()\r]")
+# A `{` or `}` standing as its own word (whitespace, a join char or an end of
+# the string on both sides): a brace group, which keeps the empty reading.
+_GROUP_BRACE = re.compile(r"(?:^|(?<=[\s;&|()]))[{}](?=$|[\s;&|()])")
 # CDPATH mentioned anywhere in the raw text (an assignment, an `export`, even
 # a quoted one): a relative cd/pushd may then search it.
 _CDPATH_MENTION = re.compile(r"CDPATH")
@@ -422,10 +427,12 @@ def _has_parent_step(path):
 def _absolute_dir(word):
     # Absolute only: a relative dir resolves against the SHELL's cwd, which the
     # hook does not reliably know. `~`, expansions and globs are refused by the
-    # same rule (none of them start with `/`, or they carry `$`/`*`).
+    # same rule (none of them start with `/`, or they carry `$`/`*`), and so is
+    # a brace in the word (`/{a,b}` is a brace expansion; row: "a
+    # brace-expansion cd argument is unreadable").
     if not word.startswith("/") or QUOTED_SPAN in word or _has_parent_step(word):
         return None
-    if re.search(r"[\x00-\x1f$`*?\[]", word):
+    if re.search(r"[\x00-\x1f$`*?\[{}]", word):
         return None
     return word
 
@@ -454,14 +461,15 @@ _START = "<start>"
 def _plain_relative(step):
     """True when a relative directory word can be joined onto a known base:
     non-empty, no `..` step, no unresolved quoted span, no control character,
-    `$`, backtick, glob character, `~`, `<` or `>` (the last two so a quoted
-    relative `"<start>"` cannot collide with the `_START` marker; row: "a
-    quoted relative cd named like the start marker is unreadable")."""
+    `$`, backtick, glob character, brace (a brace expansion), `~`, `<` or `>`
+    (the last two so a quoted relative `"<start>"` cannot collide with the
+    `_START` marker; row: "a quoted relative cd named like the start marker is
+    unreadable")."""
     return (
         bool(step)
         and QUOTED_SPAN not in step
         and not _has_parent_step(step)
-        and not re.search(r"[\x00-\x1f$`*?\[~<>]", step)
+        and not re.search(r"[\x00-\x1f$`*?\[{}~<>]", step)
     )
 
 
@@ -628,6 +636,10 @@ def commit_target_dir(text):
     been skipped (rows: "a ; before a cd reads both locations", "a newline
     before a cd reads both locations", "a || before a cd reads both
     locations", "a ; after && reads the union reached since the start"). A
+    segment that follows a `||` may also be skipped, so the state after it
+    includes the previous segment's own result (rows: "a || before a cd keeps
+    the location where the cd is skipped", "a || before a non-cd segment
+    changes nothing"). A
     change AFTER the last commit is not read (row: "a pushd after the commit
     does not move it"). A numeric fd redirect such as `2>&1` is not a join.
 
@@ -645,8 +657,12 @@ def commit_target_dir(text):
     resolves them to checkouts and judges whether they span more than one.
 
     None for any commit the hook cannot place, so the live state is judged:
-    a pipe, a background `&`, a subshell or a group (row: "a pipe, background
-    or subshell shape keeps the empty reading"; TASK-1219),
+    a pipe, a background `&`, a subshell or a group (a `{` or `}` standing as
+    its own word; rows: "a pipe, background or subshell shape keeps the empty
+    reading", "a brace group keeps the empty reading"; TASK-1219). A brace
+    inside a word is an expansion, not a group, and reads as unreadable (rows:
+    "a ${VAR} cd argument is an unreadable expansion", "a brace-expansion cd
+    argument is unreadable"),
     a `commit` word in a segment that is not a plain
     `[env -C <dir>] git [globals] commit` (row: "a commit word outside a git
     commit segment voids the dir read"), a commit segment carrying any
@@ -694,7 +710,7 @@ def _commit_target(text):
     if scanned is None:
         return None, False
     view, values = scanned
-    if re.search(r"[`{}]", view):
+    if "`" in view or _GROUP_BRACE.search(view):
         return None, False
     # A heredoc strip keeps the newline that ends the opener's line; a
     # trailing one separates nothing.
@@ -711,6 +727,8 @@ def _commit_target(text):
     results = set()
     inert = True
     pos = 0
+    prev_after = here
+    prev_sep = None
     for sep in [*_SEGMENT_SPLIT.finditer(view), None]:
         seg_start = pos
         end = sep.start() if sep is not None else len(view)
@@ -729,12 +747,20 @@ def _commit_target(text):
                     inert = False
             else:
                 results.update(_commit_dir(words, h) for h in here)
+        # The join BEFORE this segment: after `||` the segment may be skipped
+        # (the previous one succeeded), so the state after it also holds the
+        # previous segment's own `after` set. Not `here | moved`: `here` holds
+        # the start location, which a skipped-or-run `cd` after `||` does not add.
+        if prev_sep is not None and prev_sep.group() == "||":
+            after = after | prev_after
         reached |= after
         # The join AFTER this segment decides what the next one can see: after
         # `&&` it runs only if this one succeeded (the moved set); after `;`,
         # a newline or `||` it may run with this segment failed or skipped, so
         # every location reached so far is possible.
         here = after if sep is not None and sep.group() == "&&" else set(reached)
+        prev_after = after
+        prev_sep = sep
     if not results:
         return None, False
     if UNREADABLE_DIR in results:
@@ -750,7 +776,9 @@ def _commit_target(text):
 def _tilde_quoted(view, start, end):
     """True when the last word of `view[start:end]` (the `cd` argument) holds
     a quoted span, so a leading `~` in its resolved form was not an unquoted
-    tilde bash would expand."""
+    tilde bash would expand. A word mixing an unquoted leading tilde with a
+    quoted part (`~/"x y"`) is deliberately read as unreadable too: that is
+    conservative, and bash's tilde handling next to quotes is not modelled."""
     tokens = view[start:end].split()
     return bool(tokens) and QUOTED_SPAN in tokens[-1]
 

@@ -88,6 +88,8 @@ commit_location_resolve() {
     if [ "$loc" = "<start>" ]; then
       key="$start_key"
     else
+      # Non-start locations that reach the single-checkout path below share one
+      # toplevel (CL_MULTI handles more than one), so any one represents them.
       [ -z "$CL_REP" ] && CL_REP="$loc"
       case "$loc" in
         /*) abs="$loc" ;;
