@@ -16,6 +16,8 @@ ordinal: 653000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+Status 2026-10-12 (backlog review Batch A): NOT shipped; trimmed to the remainder. Re-read .claude/hooks/pr-merge-review-check.sh (~line 1238): the "RE-DERIVE THE NUMBERS" block there is still the unconditional fixed-text banner the PARTIAL LANDED note below describes, and the only claim scan in the hook (CLAIM_HITS) covers added code comments, not the PR body or head commit message. The remainder is exactly the REMAINING WORK paragraph below: extract numeric claims from the PR body and head commit message, print them as a checklist, and emit nothing when there are none.
+
 Why: three stale self-reported numbers landed in one day, each caught by a reviewer rather than the author -- beta.204 release PR body said 72 files when the diff was 91; PR 2134 commit message said the interval was half the cache TTL after the code moved to a third; PR 2135 body said 12 colocated tests when there were 38. Each was correct when written and became false when the underlying thing moved. Nothing in the workflow prompts a re-read, so care alone does not fix it.
 
 Why a hook and not a rule: .claude/rules is at 154272 of 154502 bytes, roughly 230 bytes of headroom, so a rule addition would blow the always-loaded budget. The trigger is also deterministic and the correction mechanical, which is the hook criterion in 00-critical Fix Recurring Failures Structurally.

@@ -4,11 +4,11 @@ title: No guard catches two scheduled jobs sharing a cron minute mark
 status: To Do
 assignee: []
 created_date: '2026-08-19 14:00'
-updated_date: '2026-09-25 18:45'
+updated_date: '2026-10-12 22:50'
 labels:
-  - 'area:tooling'
   - 'state:ready'
   - 'size:M'
+  - 'area:jobs'
 dependencies: []
 priority: medium
 ordinal: 681000

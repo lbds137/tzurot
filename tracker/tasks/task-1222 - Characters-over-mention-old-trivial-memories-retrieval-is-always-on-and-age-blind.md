@@ -24,7 +24,7 @@ Mechanism (code-read, not runtime-confirmed): every turn injects up to 20 episod
 
 Prior decision to respect: doc-8 1b composite scoring (recency/salience terms) was REFUTED on recall@10 goldens in July. That eval measures whether the right memories are FOUND, not whether surfaced trivia gets over-mentioned. This complaint is a different metric (unprompted-mention rate), so the July verdict does not settle it; a fix needs its own measurement.
 
-What: (1) build a small judged bench: replies where retrieved memories are unrelated to the turn, scored for unprompted mention; (2) compare arms: age/importance down-weighting, a lower default limit, a stricter render instruction, and on-demand retrieval (memory as a tool the character calls only when needed). (3) Keep the user dials working until a replacement ships: TASK-217 (inside doc-8) proposes retiring memoryScoreThreshold, and it is currently the main user-facing remedy for this report.
+What: (1) build a small judged bench: replies where retrieved memories are unrelated to the turn, scored for unprompted mention; (2) compare arms: age/importance down-weighting, a lower default limit, a stricter render instruction, and on-demand retrieval (memory as a tool the character calls only when needed). (3) Keep the user dials working until a replacement ships: TASK-217 (archived; its content lives in doc-8 § Members) proposes retiring memoryScoreThreshold, and it is currently the main user-facing remedy for this report.
 
 Acceptance: the bench exists, the chosen arm lowers unprompted-mention rate without regressing recall@10, and the user-facing remedy remains documented.
 

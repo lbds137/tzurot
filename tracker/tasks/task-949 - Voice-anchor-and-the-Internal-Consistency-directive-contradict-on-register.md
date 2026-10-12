@@ -16,6 +16,8 @@ ordinal: 946000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+Status 2026-10-12 (backlog review Batch A): part 2 (the reply-length clause) appears SHIPPED: services/ai-worker/src/services/prompt/VoiceAnchorFormatter.ts has no length or reply clause (grep for "length|reply" matches only `fields.length`), and commit 48a8b06fc "fix(ai-worker): drop the length clause and pet names from the voice anchor drift note" touched it. Part 1 was applied to the Default system prompt row on dev 2026-09-13 (see the comment below). Remaining: the PROD row write (owner-run command, classifier-blocked for agents) and a fresh debug payload from a conversation with an established metaphor system to verify the acceptance.
+
 Why: a debug payload from a long-running conversation shows the model re-litigating one rule five separate times in a single reasoning trace, and losing on the axis that matters. The trace names both rules against each other explicitly, quoting the drift instruction and then overriding it by citing the internal consistency directive.
 
 The conflict: the voice anchor (injected into the final user turn) says that pet names, running metaphors, sign-offs and habitual structure appearing in history but not in the anchor fields are drift and must not be carried forward. Protocol directive 17 (Internal Consistency, in system_prompts.content) says to track details established within a conversation and not contradict them without narrative justification. A running metaphor built up over a day satisfies both descriptions, and nothing arbitrates.

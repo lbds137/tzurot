@@ -4,12 +4,12 @@ title: Website Railway watch patterns must cover Dockerfile-COPY content dirs
 status: To Do
 assignee: []
 created_date: '2026-07-22 00:00'
-updated_date: '2026-08-14 22:47'
+updated_date: '2026-10-12 22:45'
 labels:
   - 'area:website'
   - 'area:docs'
   - 'size:S'
-  - 'state:dependent'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 314000

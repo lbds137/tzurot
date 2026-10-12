@@ -32,4 +32,13 @@ What the eval must measure (Chats notes, not owner rulings):
 What: an eval harness over a fixed set of short Discord-style clips (incl. edgy content and proper nouns), reporting WER/omissions, latency, cost per clip and refusal/blank rate per engine; then a fallback/second-provider design if one wins.
 
 Acceptance: eval results recorded in a tracker doc; owner decides whether to add an engine. TTS is out of scope (separate backlog items; OpenRouter has no voice-cloning TTS).
+
+## Merged from TASK-784 (2026-10-12)
+
+Gemini 3.5 Transcribe as an STT option (flagged by the owner for later evaluation 2026-08-27). Facts: 85+ languages with auto-detection, WER 4.0% streaming / 2.6% non-streaming (Artificial Analysis), diarization up to 3 speakers with timestamps, filler-word removal and auto-formatting, custom vocabulary, 70% faster time-to-final. Public preview models: gemini-3.5-transcribe (Interactions API, pre-recorded) and gemini-3.5-transcribe-live (Live API, realtime). Pricing and audio-length limits were not stated in the announcement. Source: https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-3-5-transcribe/. Compare against the current STT path (user STT override cascade falling back to the self-hosted voice-engine) on persona-chat voice-note accuracy, pricing once published, and whether the ai-worker already holds a Gemini key that covers it.
+OWNER RULING (C13, 2026-09-04 digest pass): run the evaluation; priority medium. The deliverable is the written recommendation (pricing plus a quality spot-check), no code. Add alongside existing providers, never replace.
+
+## Merged from TASK-1167 (2026-10-12)
+
+Cactus "Whistle" STT, a 16.9 MB CPU speech-to-text model (owner intake 2026-10-04, from a @cactuscompute tweet): said to beat Whisper base while 9x smaller and 6x faster; languages EN, DE, FR, ES, IT, NL, PL. Figures are vendor claims, NOT verified; find the model card, license and benchmark source before relying on any of it. Include in this eval as a CPU candidate: check license, whether it runs in the Python voice-engine (services/voice-engine) on CPU, language coverage (7 languages is narrow versus the current ASR), accuracy on a few real persona-chat voice notes versus the current self-hosted path, and latency/RAM. Original priority was low. Voice-engine ASR follow-ups live in doc-94 (TASK-181).
 <!-- SECTION:DESCRIPTION:END -->

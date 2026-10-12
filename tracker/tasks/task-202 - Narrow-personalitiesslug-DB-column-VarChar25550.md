@@ -4,9 +4,8 @@ title: Narrow personalities.slug DB column VarChar(255)→(50)
 status: To Do
 assignee: []
 created_date: '2026-07-24 00:00'
-updated_date: '2026-09-04 19:39'
+updated_date: '2026-10-12 22:50'
 labels:
-  - 'area:tooling'
   - 'area:db'
   - 'area:docs'
   - 'size:S'
