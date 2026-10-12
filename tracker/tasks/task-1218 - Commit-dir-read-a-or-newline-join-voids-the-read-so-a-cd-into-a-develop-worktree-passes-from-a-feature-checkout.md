@@ -3,10 +3,10 @@ id: TASK-1218
 title: >-
   Commit-dir read: a ; or newline join voids the read, so a cd into a develop
   worktree passes from a feature checkout
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-12 00:29'
-updated_date: '2026-10-12 01:37'
+updated_date: '2026-10-12 03:56'
 labels:
   - 'area:hooks'
   - 'size:M'
