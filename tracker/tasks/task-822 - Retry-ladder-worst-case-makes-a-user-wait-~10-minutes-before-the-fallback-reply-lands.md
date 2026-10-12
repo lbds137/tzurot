@@ -3,10 +3,10 @@ id: TASK-822
 title: >-
   Retry ladder worst case makes a user wait ~10 minutes before the fallback
   reply lands
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-29 17:43'
-updated_date: '2026-10-07 17:52'
+updated_date: '2026-10-12 04:43'
 labels:
   - 'area:ai-worker'
   - 'size:M'
