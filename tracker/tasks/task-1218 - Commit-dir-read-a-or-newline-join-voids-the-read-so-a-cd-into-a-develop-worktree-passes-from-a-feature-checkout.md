@@ -6,11 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-12 00:29'
-updated_date: '2026-10-12 00:29'
+updated_date: '2026-10-12 01:37'
 labels:
   - 'area:hooks'
   - 'size:M'
-  - 'state:dependent'
+  - 'state:ready'
 dependencies: []
 priority: high
 ordinal: 1207000
@@ -27,5 +27,7 @@ Also in this pass (same review, low): CDPATH is read from the hook env, and a `C
 
 Acceptance: probe rows for `git status; cd <develop wt>; git commit` (blocks), `cd <project dir>; git commit` (unchanged), and a newline-joined variant; the docstring sentence corrected; replaying the 55-command corpus newly blocks at most a handful, each named.
 
-Depends on TASK-1217 (start location from payload cwd).
+TASK-1217 shipped in #2611: both guards now start from the payload cwd, so the start location is known.
+
+Also in this pass (#2611 round-2 review): the start-directory / foreign / untrusted-sibling resolution is now near-identical in develop-code-commit-guard.sh and board-commit-branch-gate.sh (about 40 lines each). Since this task rewrites that resolution in both, extract it into a shared .claude/hooks/lib/ helper in the same diff so the copies cannot drift.
 <!-- SECTION:DESCRIPTION:END -->
