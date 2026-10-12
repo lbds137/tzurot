@@ -29,5 +29,5 @@ Acceptance: the owner's ruling is recorded in `00-critical.md` § Logging; if th
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Shipped in PR #2552 (bc870d0a8, 2026-09-27) after 3 review rounds; round-3 nits + a docblock overclaim filed as TASK-1142.
+Shipped in PR #2552 (bc870d0a8, 2026-09-27) after 3 review rounds; round-3 nits + a docblock overclaim filed as TASK-933 (merged from TASK-1142).
 <!-- SECTION:NOTES:END -->

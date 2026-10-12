@@ -4,12 +4,12 @@ title: BYOK key rotation false-positive rate-limit block (up to 24h)
 status: To Do
 assignee: []
 created_date: '2026-04-29 00:00'
-updated_date: '2026-07-28 10:47'
+updated_date: '2026-10-12 22:50'
 labels:
-  - 'area:tooling'
   - 'area:redis'
   - 'size:M'
   - 'state:observable'
+  - 'area:ai-worker'
 dependencies: []
 priority: medium
 ordinal: 79000

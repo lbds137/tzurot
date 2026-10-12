@@ -22,6 +22,10 @@ ordinal: 296000
 Surfaced 2026-07-18 (#1710 r1, the stale-page race) — the three direct pagination handlers (`memory/browse.ts` `handleBrowsePagination`, `factsBrowse.ts` `handleFactsPagination`, `search.ts` `handleSearchPagination`) fetch the requested offset raw; only the refresh-after-delete paths route through `fetchPageWithEmptyFallback`'s step-back. The builder now degrades a stale empty page to the empty state (shipped same PR), but the SOURCE fix is routing those three through the same fallback so a stale click lands on the last real page instead of an empty-state screen. **Promote when**: next memory-browse handler touch, or a user report of the empty-state-on-stale-click annoyance.
 
 **Why:** The builder fix makes the race benign; the fallback routing would make it invisible.
+
+## Merged from TASK-247 (2026-10-12)
+
+TASK-247 (priority low, same cluster, "work with TASK-296") covered the same browse/detail router pattern across episodes AND facts, which share the shapes byte-for-byte (facts copied them forward from memory/browse.ts deliberately). Part (a), the stale-pagination render, is this task. Part (b) is the addition: **silent no-op on expired session** in `refreshBrowseList` / `refreshSearchList` / `refreshFactsList` (the back / confirm-delete / confirm-forget paths) - no "expired" followUp, unlike the pagination handlers. Fix shape for (b): add the expired followUp to the refresh helpers. Also from 247: remove (or comment) the dead `xHelpers.isBrowseSelect` OR-branches in `handleSelectMenu` - both episode and fact select menus route via the detail `::select` id, so the browse-select checks never match (PR #1568 round-2 observation; digest pass 2026-09-04 confirmed `isBrowseSelect` is still wired the same way). For (a) the fix is re-fetch at `safePage` when it differs from the requested page. Fix all copies together (reuse-scout consolidation rule). Surfaced 2026-07-09 (PR #1568 review). Promote when: next touch of the browse/detail router pattern, or a user reports the phantom-empty-page.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Comments

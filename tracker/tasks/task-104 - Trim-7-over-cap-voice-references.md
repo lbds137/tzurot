@@ -4,11 +4,11 @@ title: Trim 7 over-cap voice references
 status: To Do
 assignee: []
 created_date: '2026-05-13 00:00'
-updated_date: '2026-09-04 19:35'
+updated_date: '2026-10-12 22:50'
 labels:
-  - 'area:tooling'
   - 'size:S'
   - 'state:owner'
+  - 'area:voice'
 dependencies: []
 priority: low
 ordinal: 104000

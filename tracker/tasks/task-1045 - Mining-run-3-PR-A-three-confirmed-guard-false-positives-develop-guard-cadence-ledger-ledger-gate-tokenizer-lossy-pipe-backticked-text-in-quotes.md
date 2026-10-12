@@ -27,5 +27,5 @@ Acceptance: pnpm ops guard:hook-probes green with the new cases; each of the thr
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Shipped as #2477 (merged 2026-09-22). R4 rebuilt fail-closed after an adversarial pass broke version one five ways; the owed second independent pass is TASK-1049. Pre-existing develop-guard holes filed as TASK-1048.
+Shipped as #2477 (merged 2026-09-22). R4 rebuilt fail-closed after an adversarial pass broke version one five ways; the owed second independent pass is TASK-1048 (merged from TASK-1049). Pre-existing develop-guard holes filed as TASK-1048.
 <!-- SECTION:NOTES:END -->

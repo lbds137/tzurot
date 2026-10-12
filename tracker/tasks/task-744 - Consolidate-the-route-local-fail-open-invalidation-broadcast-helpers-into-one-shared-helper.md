@@ -1,12 +1,12 @@
 ---
 id: TASK-744
 title: >-
-  Consolidate the route-local fail-open invalidation broadcast helpers into one
-  shared helper
+  Convert the remaining per-file cache-invalidation copies onto
+  tryInvalidateCache
 status: To Do
 assignee: []
 created_date: '2026-08-23 12:28'
-updated_date: '2026-09-04 19:38'
+updated_date: '2026-10-12 22:51'
 labels:
   - 'area:api-gateway'
   - 'size:S'
@@ -32,6 +32,12 @@ time is ~10 sites across persona/{crud,override,default}.ts,
 channel/{activate,deactivate}.ts, admin/dbSync.ts, and the older inline
 stt/tts/model-override + AccountEraserService copies. Re-derive the count by
 grep before claiming it.
+
+
+Status 2026-10-12 (backlog review Batch A): retitled, size S (the label was already size:S). `tryInvalidateCache(fn, context?)` already exists in services/api-gateway/src/utils/configOverrideHelpers.ts (colocated test pins fail-open both ways) and is wired across channel/configOverrides.ts, config-overrides.ts, model-override.ts, personality-config-overrides.ts, personality/default-config.ts, stt-override.ts, tts-override.ts and services/archivePromotion.ts. No new helper is needed. Verified with `git grep` on 2026-10-12, the remaining sites to convert are:
+- named per-file copies: routes/user/channel/activate.ts:33 and routes/user/channel/deactivate.ts:29 (`broadcastChannelActivationInvalidation`); routes/user/persona/crud.ts:40 and routes/user/persona/override.ts:44 (`broadcastPersonaInvalidation`);
+- inline fail-open broadcasts still using the raw shape: routes/user/persona/default.ts (~lines 62-83, user + persona-channel blocks), routes/admin/dbSync.ts (~lines 186 and 212, the `invalidateAll` users + personas broadcasts), services/AccountEraserService.ts (~lines 112-117 and 184-187).
+Re-derive the list by grep at build time before claiming the sweep complete.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Implementation Notes

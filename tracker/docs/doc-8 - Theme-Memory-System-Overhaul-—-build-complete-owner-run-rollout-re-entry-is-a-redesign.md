@@ -1,11 +1,11 @@
 ---
 id: doc-8
-title: 'Theme: Memory System Overhaul — PARKED MID-EPIC (2026-07-17)'
+title: 'Theme: Memory System Overhaul — build complete, owner-run rollout; re-entry is a redesign'
 type: other
 created_date: '2026-07-28 11:11'
 ---
 
-### Theme: Memory System Overhaul — PARKED MID-EPIC (2026-07-17)
+### Theme: Memory System Overhaul — build complete, owner-run rollout; re-entry is a redesign
 
 > **Status 2026-09-24 (half-finished sweep):** The build is COMPLETE (slices P, A, B1, B2, C1, C2 + the commitment fact type, #2349–#2358, 2026-09-06/07, via `doc-97`); the memory-archive rollout is owner-run per character. The epic slot was released 2026-09-24 to `doc-14`. Phases 3–6 of the original table below are superseded by `docs/proposals/backlog/memory-archive-format.md`; the close-out map re-touch is TASK-1086.
 
