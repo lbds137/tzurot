@@ -23,4 +23,8 @@ What: in both guards, take the starting checkout from the payload .cwd when pres
 Acceptance: probe rows with a payload cwd in a develop sibling (bare commit blocks), in a feature sibling from a develop project dir (passes), in another repository (silent), and with no cwd (unchanged); the board gate mirrors them.
 
 Batch with TASK-1216 (same guards, same mechanism).
+
+Premise verified at runtime (2026-10-11 20:20 EDT): after one Bash call ran `cd packages/tooling`, the next call was blocked by cwd-drift-guard naming 'packages/tooling', which it reads from the payload .cwd. So .cwd is the persisted shell cwd.
+
+Also (#2609 round-3 review, finding 2): the develop guard's unreadable banner advises "run the cd as its own command first", which leaves a bare commit in a persisted cwd the guard does not model today. In this change, list `git -C <absolute dir> commit` first; keep the separate-cd advice only once the guard judges the payload cwd.
 <!-- SECTION:DESCRIPTION:END -->
