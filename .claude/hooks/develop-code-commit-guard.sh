@@ -72,13 +72,12 @@
 # - Cross-repo commits: when EVERY commit in the command provably runs in one
 #   directory (`git -C <dir> commit`, `env -C <dir> git
 #   commit`, or a `cd`/`pushd <dir> &&` earlier in the same pure `&&` chain;
-#   <dir> is absolute, or plain relative: from this checkout it is resolved
-#   against the project dir, so `cd .claude/worktrees/x && git commit` is
-#   judged in that nested worktree, and a plain relative cd joins onto a known
-#   directory) whose
-#   toplevel resolves and differs from this
-#   checkout's: a DIFFERENT repository (its git-common-dir differs) makes the
-#   guard stay silent, provided every other segment is an inert `git
+#   <dir> is absolute, or plain relative: it is resolved against the shell's
+#   start directory (below), so `cd .claude/worktrees/x && git commit` from
+#   this checkout is judged in that nested worktree, and a plain relative cd
+#   joins onto a known directory) whose toplevel resolves and differs from
+#   the start checkout's: a DIFFERENT repository (its git-common-dir
+#   differs from the project's) makes the guard stay silent, provided every other segment is an inert `git
 #   add|commit|status|diff|log|show` (anything else could re-point the
 #   directory after the hook read it); another WORKTREE of this repository (same
 #   git-common-dir) is judged as itself — its branch (or the leading switch
@@ -93,12 +92,13 @@
 #   or expanded dir, a `..` step: git and the shell may resolve it physically
 #   through a symlink where the text is edited lexically (not verified here);
 #   a relative cd while CDPATH is set; `source`/`.`, which runs
-#   arbitrary code in the shell) BLOCKS on any branch, with the remedy "run
-#   the cd/source as its own command first, or use `git -C <absolute dir>
-#   commit`" (probe: "cross-repo: an unreadable directory change …"); that
-#   block is not overridable by TZUROT_ALLOW_DEVELOP_CODE_COMMIT. So do
-#   commits in more than one location (two directories, or this checkout and
-#   another), whose remedy is to split them into separate commands. Known
+#   arbitrary code in the shell) BLOCKS on any branch, with the remedy "use
+#   `git -C <absolute dir> commit`, or run the cd/source as its own command
+#   first (the next call is judged in the directory the shell is left in)"
+#   (probe: "cross-repo: an unreadable directory change …"); that
+#   block is not overridable by TZUROT_ALLOW_DEVELOP_CODE_COMMIT. Commits in
+#   more than one location (two directories, or this checkout and another)
+#   block the same way; split them into separate commands. Known
 #   limitation: a `~`-prefixed or
 #   expanded `-C` directory, a `-C` directory with a `..`
 #   step, a commit inside a
@@ -111,6 +111,13 @@
 #   really lands in a develop worktree. Also any
 #   segment containing the word `commit` that is not a plain `git [globals]
 #   commit` keeps the live evaluation.
+# - Start directory: the Bash tool keeps its cwd between calls, and the hook
+#   payload carries it as `.cwd`. The guard starts there, not in the project
+#   dir: a bare commit from a shell sitting in a sibling worktree is judged as
+#   that worktree. A shell sitting in ANOTHER repository (or none) makes a
+#   bare commit silent; a `-C <dir>` into this repository from there is still
+#   judged, and any other shape falls back to judging the project dir. No
+#   usable payload cwd means the project dir (probe: the "cwd:" rows).
 #
 # Posture note (decided at the guard-triple review): the extension match is
 # a deliberate BLOCKLIST, not a default-deny allowlist. This is a
@@ -825,11 +832,31 @@ case "$GATE_VERDICT" in
 esac
 
 cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null || exit 0
+# The PROJECT checkout is the one this hook is installed in. The commit,
+# though, runs in the Bash shell's PERSISTED cwd, which the payload carries as
+# `.cwd`, so the guard starts there: a bare commit from a shell sitting in a
+# sibling worktree is judged as that worktree, not as the project dir. When the
+# payload has no usable cwd (absent, not a directory, cd fails) the guard stays
+# in the project dir. A shell that sits in ANOTHER repository (or in no
+# repository: its git-common-dir differs from the project's, or is unreadable)
+# is START_FOREIGN: a bare commit there is not this repo's, so the guard is
+# silent, and any command that cannot be placed falls back to judging the
+# project dir (the conservative direction).
+PROJECT_TOP=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+PROJECT_COMMON=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "")
+SHELL_CWD=$(jq -r '.cwd // empty' <<<"$INPUT" 2>/dev/null || echo "")
+START_FOREIGN=""
+if [ -n "$SHELL_CWD" ] && [ -d "$SHELL_CWD" ] && cd "$SHELL_CWD" 2>/dev/null; then
+  START_COMMON=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "")
+  if [ -n "$PROJECT_COMMON" ] && [ "$START_COMMON" != "$PROJECT_COMMON" ]; then
+    START_FOREIGN=1 # another repository, or not a repository at all
+  fi
+fi
 
 # What the command changes before its commit runs (lib/branch_switch.py):
 # line 1 = the branch a leading `git switch … &&` moves to, line 2 = the one
 # directory every commit in the command runs in (absolute, or a plain relative
-# path from this checkout, resolved against the cwd set above), line 3 = "1" when
+# path, resolved against the start directory set above), line 3 = "1" when
 # every other segment of the command (every cd/pushd is how the directory is
 # set, and does not count against inertness; `source`/`.` does) is inert, so nothing can
 # re-point that directory after it is resolved here. Each is empty when it
@@ -863,10 +890,13 @@ resolve (popd, \`cd -\`, a bare \`cd\`, a \`~\` path, a \`..\` step, an
 expansion, a relative \`cd\` while CDPATH is set, \`source\`/\`.\`), or the
 commits run in more than one checkout.
 
-Fix: run the cd/source as its own command first, or use
-\`git -C <absolute dir> commit\`. Commits in several locations: split
-them into separate commands.
-The TZUROT_ALLOW_DEVELOP_CODE_COMMIT override does not apply here: the hook cannot tell which checkout to judge.
+Fix: use \`git -C <absolute dir> commit\`. Or run the cd/source as its
+own command first: the next call is judged in the directory the shell
+is left in. Commits in several locations: split them into separate
+commands.
+The TZUROT_ALLOW_DEVELOP_CODE_COMMIT override does not apply here: it
+waves through one judged commit, and with no single checkout whose
+index and branch the hook could judge, there is nothing for it to vouch for.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 UNREADABLEBANNER
   exit 2
@@ -906,34 +936,61 @@ fi
 #   decides (probe: "cross-repo: a switch of the sibling worktree before its
 #   commit is not trusted").
 SIBLING_BRANCH_UNTRUSTED=""
+# A commit with no directory change, from a shell sitting in another
+# repository (or in no repository): not this repo's commit, so stay silent.
+# (The unreadable-directory block above has already run, whatever the cwd.)
+if [ -z "$COMMIT_DIR" ] && [ -n "$START_FOREIGN" ]; then
+  exit 0
+fi
 if [ -n "$COMMIT_DIR" ]; then
-  # A relative directory is resolved against the project dir (the guard's cwd,
-  # set above), ASSUMING the Bash shell's cwd is the project dir too — a shell
-  # that persisted a cd elsewhere is not modelled (unverified for that case,
-  # as for bare commits); the helper refuses a `..` step in one (rule rows:
-  # "a relative leading cd with a .. step blocks", "a relative -C with a .. step
-  # is not read").
+  # A relative directory is resolved against the shell's start directory (the
+  # payload cwd when usable, else the project dir: the guard's cwd, set
+  # above); the helper refuses a `..` step in one (rule rows: "a relative
+  # leading cd with a .. step blocks", "a relative -C with a .. step is not
+  # read"). Acts when the target's toplevel differs from the start checkout's,
+  # or when the start is foreign (a start outside this repository has no
+  # toplevel of ours to compare, and a `-C` into a Tzurot checkout from
+  # there is still judged). The common-dir comparison is against the PROJECT's,
+  # not the start checkout's, for the same reason.
   case "$COMMIT_DIR" in
     /*) COMMIT_DIR_ABS="$COMMIT_DIR" ;;
     *) COMMIT_DIR_ABS="$PWD/$COMMIT_DIR" ;;
   esac
   TARGET_TOP=$(git -C "$COMMIT_DIR_ABS" rev-parse --show-toplevel 2>/dev/null || echo "")
   HERE_TOP=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-  if [ -n "$TARGET_TOP" ] && [ -n "$HERE_TOP" ] && [ "$TARGET_TOP" != "$HERE_TOP" ]; then
+  if [ -n "$TARGET_TOP" ] && { [ "$TARGET_TOP" != "$HERE_TOP" ] || [ -n "$START_FOREIGN" ]; }; then
     TARGET_COMMON=$(git -C "$TARGET_TOP" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "")
-    HERE_COMMON=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "")
     # An unreadable common dir on either side decides nothing: neither the
     # exit nor the cd runs, and the live state here is judged.
-    if [ -n "$TARGET_COMMON" ] && [ -n "$HERE_COMMON" ]; then
-      if [ "$TARGET_COMMON" = "$HERE_COMMON" ]; then
-        if cd "$TARGET_TOP" 2>/dev/null && [ "$COMMIT_OTHERS_INERT" != "1" ]; then
-          SIBLING_BRANCH_UNTRUSTED=1
+    if [ -n "$TARGET_COMMON" ] && [ -n "$PROJECT_COMMON" ]; then
+      if [ "$TARGET_COMMON" = "$PROJECT_COMMON" ]; then
+        if cd "$TARGET_TOP" 2>/dev/null; then
+          START_FOREIGN=""
+          if [ "$COMMIT_OTHERS_INERT" != "1" ]; then
+            SIBLING_BRANCH_UNTRUSTED=1
+          fi
         fi
       elif [ "$COMMIT_OTHERS_INERT" = "1" ]; then
         exit 0
       fi
     fi
   fi
+fi
+# Still foreign here: the target could not be placed in this repository (it did
+# not resolve), or it is another repository with a non-inert segment that could
+# re-point the directory. Judge the project dir, the conservative direction.
+if [ -n "$START_FOREIGN" ]; then
+  if [ -n "$PROJECT_TOP" ]; then
+    cd "$PROJECT_TOP" 2>/dev/null || exit 0
+  else
+    exit 0
+  fi
+fi
+# The later reads pass toplevel-relative paths (`git diff -- <file>`), so they
+# run from the checkout's top even when the shell sat in a subdirectory of it.
+JUDGED_TOP=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+if [ -n "$JUDGED_TOP" ]; then
+  cd "$JUDGED_TOP" 2>/dev/null || exit 0
 fi
 
 # A leading `git switch … &&` (or `checkout -b|-B … &&`) runs before the

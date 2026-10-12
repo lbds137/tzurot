@@ -1331,6 +1331,82 @@ assert_staged 2 feat/x 'git commit -m board' \
   "conformance: other docs/reference paths stay board files" \
   docs/reference/conformance-notes.md
 
+# --- the checkout the commit runs in -----------------------------------------
+# The gate judges the checkout the commit lands in, not only the hook's own:
+# a `git -C <dir>` / `cd <dir> &&` names it (lib/branch_switch.py lines 2-3),
+# and the Bash shell's persisted cwd rides in the payload as `.cwd`. Sibling
+# worktrees and unrelated repositories are built inside scratch repos, so no
+# local develop/main of the real repo is needed; WORK's cleanup removes them.
+
+# stage_board <dir> — create and stage a tracker file in <dir>.
+stage_board() {
+  mkdir -p "$1/tracker/tasks"
+  echo t > "$1/tracker/tasks/t.md"
+  git -C "$1" add tracker/
+}
+
+# make_sibling <repo> <develop|feat> [path] — a second worktree of <repo>, on
+# develop (the repo is on a feature branch) or on a new feature branch (the
+# repo is on develop); prints its path.
+make_sibling() {
+  local repo="$1" kind="$2" path="${3:-}"
+  [ -z "$path" ] && path=$(mktemp -u "$WORK/sib.XXXXXX")
+  if [ "$kind" = develop ]; then
+    git -C "$repo" worktree add -q "$path" develop >/dev/null
+  else
+    git -C "$repo" worktree add -q -b feat/y "$path" >/dev/null
+  fi
+  echo "$path"
+}
+
+# run_in <expected-exit> <label> <hook-dir> <command> [payload-cwd] — the hook
+# runs from <hook-dir>; <payload-cwd>, when given, rides as `.cwd`.
+run_in() {
+  local expected="$1" label="$2" dir="$3" cmd="$4" pcwd="${5:-}" actual
+  (
+    cd "$dir" || exit 99
+    jq -n --arg c "$cmd" --arg d "$pcwd" \
+      '{tool_name:"Bash",tool_input:{command:$c}} + (if $d == "" then {} else {cwd:$d} end)' \
+      | "$HOOK" >/dev/null 2>&1
+  )
+  actual=$?
+  if [ "$actual" -eq "$expected" ]; then
+    printf 'PASS  (exit %d)  %s\n' "$actual" "$label"
+  else
+    printf 'FAIL  (exit %d, expected %d)  %s\n' "$actual" "$expected" "$label"
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+
+# 1. hook on a feature branch (board staged there), commit -C into a develop sibling.
+F=$(make_repo feat/x); stage_board "$F"; DS=$(make_sibling "$F" develop); stage_board "$DS"
+run_in 0 "cross-checkout: -C into a develop sibling is judged there (passes)" "$F" "git -C $DS commit -m b"
+# 2. hook on develop, commit -C into a feature sibling holding the board change.
+D=$(make_repo develop); FS=$(make_sibling "$D" feat); stage_board "$FS"
+run_in 2 "cross-checkout: -C into a feature sibling is judged there (blocks)" "$D" "git -C $FS commit -m b"
+# 3. the same through a leading cd.
+run_in 2 "cross-checkout: cd into a feature sibling is judged there (blocks)" "$D" "cd $FS && git commit -m b"
+# 4. a non-inert segment could move the sibling off its branch: judged as a feature branch.
+F=$(make_repo feat/x); DS=$(make_sibling "$F" develop); stage_board "$DS"
+run_in 2 "cross-checkout: an untrusted develop sibling is judged as a feature branch" "$F" "make && git -C $DS commit -m b"
+# 5-7. another repository.
+F=$(make_repo feat/x); stage_board "$F"; OTHER=$(make_repo develop)
+run_in 0 "cross-checkout: -C into another repository is not this gate's" "$F" "git -C $OTHER commit -m b"
+run_in 2 "cross-checkout: a non-inert segment keeps the live evaluation (other repo)" "$F" "make && git -C $OTHER commit -m b"
+run_in 2 "cross-checkout: an unreadable directory change keeps the live evaluation" "$F" 'cd - && git commit -m b'
+# 8. a relative directory joins onto the start directory.
+D=$(make_repo develop); NEST=$(make_sibling "$D" feat "$D/.claude/worktrees/n"); stage_board "$NEST"
+run_in 2 "cross-checkout: a relative -C joins onto the start directory (nested feature worktree)" "$D" \
+  "git -C .claude/worktrees/n commit -m b"
+# 9-13. the payload cwd.
+F=$(make_repo feat/x); stage_board "$F"; DS=$(make_sibling "$F" develop); stage_board "$DS"; OTHER=$(make_repo develop)
+run_in 0 "cwd: a bare commit from a shell in a develop sibling is judged there" "$F" 'git commit -m b' "$DS"
+D=$(make_repo develop); FS=$(make_sibling "$D" feat); stage_board "$FS"
+run_in 2 "cwd: a bare commit from a shell in a feature sibling is judged there" "$D" 'git commit -m b' "$FS"
+run_in 0 "cwd: a bare commit from a shell in another repository is silent" "$F" 'git commit -m b' "$OTHER"
+run_in 2 "cwd: a nonexistent payload cwd falls back to the hook checkout" "$F" 'git commit -m b' "$WORK/no-such-dir"
+run_in 2 "cwd: -C into a feature sibling from a foreign shell is still judged" "$D" "git -C $FS commit -m b" "$OTHER"
+
 # --- lib/branch_switch.py rule table -----------------------------------------
 # The rows above pin the hook's final exit code; the unittest table pins which
 # rule of the helper decides each command, so removing one rule reddens a row.

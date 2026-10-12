@@ -181,13 +181,17 @@ FAILURES=0
 # run <expected-exit> <label> <command> [space-separated dirty relpaths]
 # TARGET_WT selects the worktree (defaults to the develop one).
 TARGET_WT=""
+# PAYLOAD_CWD, when non-empty, rides in the payload as `.cwd` (the Bash shell's
+# persisted cwd); unset, the payload is the bare tool_name/tool_input pair.
+PAYLOAD_CWD=""
 run() {
   local expected="$1" label="$2" cmd="$3" dirty="${4:-}" wt="${TARGET_WT:-$WT}" f
   for f in $dirty; do
     mkdir -p "$wt/$(dirname "$f")"
     printf 'probe\n' > "$wt/$f"
   done
-  jq -n --arg c "$cmd" '{tool_name:"Bash",tool_input:{command:$c}}' \
+  jq -n --arg c "$cmd" --arg d "${PAYLOAD_CWD:-}" \
+    '{tool_name:"Bash",tool_input:{command:$c}} + (if $d == "" then {} else {cwd:$d} end)' \
     | CLAUDE_PROJECT_DIR="$wt" "$HOOK" >/dev/null 2>&1
   local actual=$?
   for f in $dirty; do
@@ -212,7 +216,8 @@ run_msg() {
     mkdir -p "$wt/$(dirname "$f")"
     printf 'probe\n' > "$wt/$f"
   done
-  out=$(jq -n --arg c "$cmd" '{tool_name:"Bash",tool_input:{command:$c}}' \
+  out=$(jq -n --arg c "$cmd" --arg d "${PAYLOAD_CWD:-}" \
+    '{tool_name:"Bash",tool_input:{command:$c}} + (if $d == "" then {} else {cwd:$d} end)' \
     | CLAUDE_PROJECT_DIR="$wt" "$HOOK" 2>&1)
   actual=$?
   for f in $dirty; do
@@ -1248,6 +1253,53 @@ LNK="$TMP_BASE/probe-lnk"
 ln -sfn "$OTHER_REPO" "$LNK"
 run 2 "cross-repo: a non-inert earlier segment voids the different-repo silence" \
   "ln -sfn $WT $LNK && git -C $LNK commit -m x" 'services/probe.ts'
+
+# --- payload cwd (the Bash shell's persisted cwd) ----------------------------
+# The Bash tool keeps its cwd between calls and the payload carries it as
+# `.cwd`; the guard starts there, falling back to the project dir. Each row's
+# project dir (CLAUDE_PROJECT_DIR) and shell cwd differ on purpose.
+# Project = develop checkout (dirty code), shell sits in a feature worktree:
+# the bare commit lands on the feature branch.
+PAYLOAD_CWD="$FEATURE_WT"
+run 0 "cwd: a bare commit from a shell in a feature worktree is judged there" \
+  'git commit -m x' 'services/probe.ts'
+# A relative cd resolves against the shell's cwd, not the project dir: only the
+# nested develop worktree (under the shell's feature worktree) holds the code.
+printf 'probe\n' > "$NESTED_WT/services/probe-nested.ts"
+run 2 "cwd: a relative cd is resolved against the shell cwd" \
+  "cd $NESTED_REL && git commit -m y"
+rm -f "$NESTED_WT/services/probe-nested.ts"
+# Shell sits in an unrelated repository: a bare commit there is not this repo's.
+PAYLOAD_CWD="$OTHER_REPO"
+run 0 "cwd: a bare commit from a shell in another repository is silent" \
+  'git commit -m x' 'services/probe.ts'
+# A non-inert segment could re-point the directory: fall back to the project dir.
+run 2 "cwd: a non-inert segment from a foreign shell falls back to the project dir" \
+  "make && git -C $OTHER_REPO commit -m x" 'services/probe.ts'
+# The unreadable-directory block fires whatever the shell's cwd.
+run 2 "cwd: an unreadable directory change still blocks from a foreign shell" \
+  'cd - && git commit -m y'
+# Same repository, subdirectory: judged as the checkout it is in.
+PAYLOAD_CWD="$WT/services"
+run 2 "cwd: a shell in a subdirectory of this checkout is judged as this checkout" \
+  'git commit -m x' 'services/probe.ts'
+# A cwd that cannot be entered falls back to the project dir.
+PAYLOAD_CWD="$TMP_BASE/no-such-dir"
+run 2 "cwd: a nonexistent payload cwd falls back to the project dir" \
+  'git commit -m x' 'services/probe.ts'
+# Project = feature worktree (clean), shell sits in the develop worktree.
+PAYLOAD_CWD="$WT"
+printf 'probe\n' > "$WT/services/probe-cwd.ts"
+TARGET_WT="$FEATURE_WT"
+run 2 "cwd: a bare commit from a shell in the develop worktree blocks" \
+  'git commit -m x'
+# A -C into a Tzurot checkout from a foreign shell is still judged.
+PAYLOAD_CWD="$OTHER_REPO"
+run 2 "cwd: git -C <develop checkout> from a foreign shell is still judged" \
+  "git -C $WT commit -m x"
+TARGET_WT=""
+PAYLOAD_CWD=""
+rm -f "$WT/services/probe-cwd.ts"
 
 # Rename decomposition: a staged gated→non-gated rename must still block.
 # Without --no-renames it renders as one `R old.ts -> new.md` line whose
