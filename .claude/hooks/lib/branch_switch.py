@@ -15,7 +15,9 @@ runs, and a guard that ignores them blocks a commit that lands somewhere else:
 `switch_target` names the branch a leading switch moves to, when nothing else
 in the command can move the branch or the checkout; `commit_target_dir`
 names the directory every commit in the command runs in, when that is provably
-one absolute directory. Both return None for anything they cannot read with
+one directory: an absolute one, or a plain relative one reached from the
+starting checkout (the caller resolves it against its own working directory).
+Both return None for anything they cannot read with
 certainty, and None means "judge the live state", the guards' baseline
 evaluation. So a parse gap can only keep a block,
 never open one. The one exception is the commit-directory read's sentinel
@@ -417,8 +419,11 @@ _SOURCE_WORDS = ("source", ".")
 
 # The walk state for the checkout the command STARTS in, whose directory the
 # hook does not know (a commit there is judged on the live state). Distinct
-# from None, which means "void", and from `UNREADABLE_DIR`; never an absolute
-# path, and never returned from `_commit_target`.
+# from None, which means "void", and from `UNREADABLE_DIR`; not an absolute
+# path, and not returned from `_commit_target` (row: "two bare commits read
+# nothing"). A walk state that is none of `_START`, `UNREADABLE_DIR` or an
+# absolute path is a RELATIVE location reached from the starting checkout by
+# plain relative steps. Compare states with `==`, never `is`.
 _START = "<start>"
 
 
@@ -436,41 +441,57 @@ def _plain_relative(step):
 
 def _step_dir(step, base):
     """The directory after one `-C <step>` (git or env) from `base` (`_START`,
-    an absolute path, or `UNREADABLE_DIR`), or None when it cannot be read. An
-    absolute step stands alone; a relative one stays unreadable on an
-    unreadable base, joins onto a known absolute base, and is void from the
-    starting checkout."""
+    an absolute path, a relative location or `UNREADABLE_DIR`), or None when it
+    cannot be read. An absolute step stands alone; a relative one stays
+    unreadable on an unreadable base (row: "an unreadable cd keeps a relative -C
+    unreadable") and joins onto a known base, which from the starting checkout
+    makes the step itself the relative location (row: "a relative -C from the
+    starting checkout reads the relative path"). A non-plain one is void."""
     if step.startswith("/"):
         return _absolute_dir(step)
     if base == UNREADABLE_DIR:
         return base
-    if base != _START and _plain_relative(step):
-        return os.path.join(base, step)
-    return None
+    if not _plain_relative(step):
+        return None
+    if base == _START:
+        return step
+    return os.path.join(base, step)
 
 
 def _changed_dir(words, here):
     """The directory state after a `cd`/`pushd`/`popd` segment, from `here`.
 
-    `popd` and any `cd`/`pushd` that is not exactly one non-flag argument (bare,
-    `cd -`, `cd -P /x`, `pushd +1`) give `UNREADABLE_DIR`. An absolute argument
-    sets the directory whatever came before it; one the hook cannot read (a
-    `..` step, an expansion, a glob) is unreadable. A relative argument that is
-    plain joins onto a known absolute directory, and leaves the starting
-    checkout (`_START`) or an unreadable state as it was; an invalid one is
-    unreadable."""
+    Leading `--`, `-L` and `-P` words (any number, any order) are skipped; what
+    remains must be exactly one argument that is not another flag or a `+N`
+    stack index, else `UNREADABLE_DIR` (rows: "a bare cd before a commit
+    blocks", "cd - before a commit blocks", "cd with an unsupported flag is
+    unreadable", "cd with only a flag is unreadable"). `popd` is
+    `UNREADABLE_DIR` (row: "popd before a commit blocks"). An absolute argument
+    sets the directory whatever came before it (row: "a second absolute cd moves
+    the dir read"); one the hook cannot read (a `..` step, an expansion, a
+    glob) is unreadable. A plain relative argument joins onto the current
+    location; from the starting checkout it becomes the relative location
+    itself (row: "a relative cd from the starting checkout reads the relative
+    path"), and on an unreadable state it leaves it as it was. When `CDPATH` is
+    set and non-empty the shell may search it for a relative argument, so every
+    relative `cd`/`pushd` argument is `UNREADABLE_DIR` (row: "a relative cd is
+    unreadable while CDPATH is set")."""
     if words[0] == "popd":
         return UNREADABLE_DIR
     args = words[1:]
-    if len(args) != 1 or args[0].startswith("-"):
+    while args and args[0] in ("--", "-L", "-P"):
+        args = args[1:]
+    if len(args) != 1 or args[0].startswith(("-", "+")):
         return UNREADABLE_DIR
     arg = args[0]
     if arg.startswith("/"):
         return _absolute_dir(arg) or UNREADABLE_DIR
-    if not _plain_relative(arg):
+    if not _plain_relative(arg) or os.environ.get("CDPATH"):
         return UNREADABLE_DIR
-    if here in (_START, UNREADABLE_DIR):
+    if here == UNREADABLE_DIR:
         return here
+    if here == _START:
+        return arg
     return os.path.join(here, arg)
 
 
@@ -538,39 +559,47 @@ def _commit_dir(words, base):
 
 
 def commit_target_dir(text):
-    """The one absolute directory every `git commit` in `text` runs in, else
-    None; `UNREADABLE_DIR` when a directory change before a commit cannot be
-    read.
+    """The one directory every `git commit` in `text` runs in, else None;
+    `UNREADABLE_DIR` when a directory change before a commit cannot be read.
+    The directory is absolute, or a normalised plain RELATIVE path reached from
+    the starting checkout (no `..` step); the caller resolves a relative one
+    against its own working directory, which is the starting checkout.
 
     The command must be a pure `&&` chain (every join `&&`; a numeric fd
     redirect such as `2>&1` is not a join). The directory is followed through
     the chain in order: every `cd <dir>` / `pushd <dir>` sets it (an absolute
-    one outright, a plain relative one joined onto a known absolute directory;
-    a relative one from the starting checkout reads nothing, so the commit
-    stays None), and each commit may add `git -C <dir>` or `env -C <dir>`
-    (`--chdir`) steps resolved the same way. A change AFTER the last commit
-    cannot affect it and is not read.
+    one outright, a plain relative one joined onto the current location; from
+    the starting checkout the relative path itself is the location, so
+    `cd sub && git commit` reads `sub`), and each commit may add `git -C <dir>`
+    or `env -C <dir>` (`--chdir`) steps resolved the same way. A change AFTER
+    the last commit is not read (row: "a pushd after the commit does not move
+    it").
 
     `UNREADABLE_DIR` (a block, not a live-state evaluation) when the commits
     cannot be placed in one checkout: a change before a commit that cannot be
-    resolved (`popd`, `cd -`, a bare `cd`, a flag or a second argument on
-    `cd`/`pushd`, `~`, an expansion, a glob, a `..` step — `cd` and `git -C`
-    resolve it physically through a symlink, `normpath` only lexically — or a
-    `source x` / `. x` segment, which runs arbitrary code in the shell),
-    unless a later absolute `cd`/`-C` resets the directory; or commits in more
-    than one location (two directories, or the starting checkout and
-    another). In a `-C` step the unresolvable inputs are not read (None)
+    resolved (`popd`, `cd -`, a bare `cd`, a flag other than `--`/`-L`/`-P` or a
+    second argument on `cd`/`pushd`, `~`, an expansion, a glob, a `..` step,
+    or a relative argument while `CDPATH` is set, or a `source x` / `. x`
+    segment, which runs arbitrary code in the shell), unless a later absolute
+    `cd`/`-C` resets the directory; or commits in more than one location (two
+    directories, or the starting checkout and another; row: "a bare commit and
+    a commit after a cd block"). A `..` step is refused because `cd` and
+    `git -C` may follow a symlink where `normpath` only edits the text (not
+    verified here). In a `-C` step the unresolvable inputs are not read (None)
     instead. Commits that all run in the starting checkout read nothing.
 
-    None whenever any commit could run anywhere else, or could not be located
-    at all: any join other than `&&`, a `commit` word in a segment that is not
-    a plain `[env -C <dir>] git [globals] commit`, a commit segment carrying
-    any `-c <key>=<value>` global flag (`core.worktree` relocates the work
-    tree; no list of safe keys is attempted), a commit inside a command
-    substitution or a `bash -c`/`eval` wrapper, a relative or unexpandable
-    `-C` directory, and a GIT_DIR /
-    GIT_WORK_TREE / GIT_INDEX_FILE / GIT_COMMON_DIR mention anywhere in the
-    raw text (an exported one relocates the commit whatever `-C` says).
+    None for any commit the hook cannot place, so the live state is judged:
+    any join other than `&&` (row: "a ; after the commit voids the dir read"),
+    a `commit` word in a segment that is not a plain
+    `[env -C <dir>] git [globals] commit` (row: "a commit word outside a git
+    commit segment voids the dir read"), a commit segment carrying any
+    `-c <key>=<value>` global flag (`core.worktree` relocates the work tree; no
+    list of safe keys is attempted; row: "a -c global flag voids the dir
+    read"), a commit inside a command substitution or a `bash -c`/`eval`
+    wrapper, an unexpandable `-C` directory, and a GIT_DIR / GIT_WORK_TREE /
+    GIT_INDEX_FILE / GIT_COMMON_DIR mention anywhere in the raw text (an
+    exported one relocates the commit whatever `-C` says; row: "a quoted
+    GIT_COMMON_DIR mention voids the dir read").
 
     Leading `NAME=value` prefix assignments on a commit segment (such as
     `TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git -C <dir> commit`) are skipped,
@@ -589,13 +618,15 @@ def _commit_target(text):
     False must not earn the different-repository silence; the directory is
     still returned, because re-pointing at a sibling worktree only adds a
     block. A directory change does not clear it: it is how the directory is
-    set, followed in order, never a side effect the read misses; the one
-    exception is `source`/`.`, which runs arbitrary code and clears it like
-    `make`. `(None, False)` whenever no directory is read;
+    set, followed in order (row: "a relative cd joins onto a known absolute
+    dir"); the one exception is `source`/`.`, which runs arbitrary code and
+    clears it like `make` (row: "a source after the commit does not block, but
+    clears inert"). `(None, False)` whenever no directory is read;
     `(UNREADABLE_DIR, False)` when any commit follows a directory change that
     cannot be resolved, or the commits run in more than one location. The
-    internal `_START` marker (the starting checkout) never leaves this
-    function."""
+    internal `_START` marker (the starting checkout) is meant to stay inside
+    this function (row: "two bare commits read nothing"); a relative location
+    is returned as a normalised relative path."""
     if _relocating_env(text):
         return None, False
     if substitution_spans_matching(text, lambda s: _COMMIT_WORD.search(s) is not None):
@@ -644,7 +675,7 @@ def _commit_target(text):
         return UNREADABLE_DIR, False
     if None in results:
         return None, False
-    found = {r if r is _START else os.path.normpath(r) for r in results}
+    found = {r if r == _START else os.path.normpath(r) for r in results}
     if found == {_START}:
         return None, False
     if len(found) != 1:
