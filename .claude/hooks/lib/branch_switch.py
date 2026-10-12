@@ -14,19 +14,20 @@ runs, and a guard that ignores them blocks a commit that lands somewhere else:
 
 `switch_target` names the branch a leading switch moves to, when nothing else
 in the command can move the branch or the checkout; `commit_target_dir`
-names the directory every commit in the command runs in, when that is provably
-one directory: an absolute one, or a plain relative one reached from the
-starting checkout (the caller resolves it against its own working directory).
-Both return None for anything they cannot read with
-certainty, and None means "judge the live state", the guards' baseline
-evaluation. A parse gap falls back to that evaluation — which keeps a block
-on develop, but on a feature checkout can pass a commit that lands elsewhere
-(a `;`-joined cd: rule row "a ; before a cd voids the dir read"). The one
-exception is the commit-directory read's sentinel
-`UNREADABLE_DIR`: a directory change before a commit that cannot be resolved
-(see `commit_target_dir`) or commits in more than one location, which the
-develop guard turns into a block with a remedy rather than a live-state
-evaluation, because the live state is not the one place the commits run.
+names every directory a commit in the command can run in: absolute ones, and
+plain relative ones reached from the starting checkout (the caller resolves a
+relative one against its own working directory). Both return None for
+anything they cannot read with certainty, and None means "judge the live
+state", the guards' baseline evaluation. A parse gap falls back to that
+evaluation — which keeps a block on develop, but on a feature checkout can
+pass a commit that lands elsewhere. The commit-directory read has one such
+gap left: a pipe, a background `&`, a subshell or a group keeps the empty
+reading (rule row "a pipe, background or subshell shape keeps the empty
+reading"; tracked as TASK-1219). The one exception is the commit-directory
+read's sentinel `UNREADABLE_DIR`: a directory change before a commit that
+cannot be resolved (see `commit_target_dir`), which the develop guard turns
+into a block with a remedy rather than a live-state evaluation, because the
+live state is not the place the commits run.
 
 WHY ONLY A PURE `&&` CHAIN
 --------------------------
@@ -34,10 +35,15 @@ WHY ONLY A PURE `&&` CHAIN
 the chain runs on X or not at all. `a; b` runs b even when a FAILED (a dirty
 tree that conflicts, a name that already exists for `-c`), so the commit can
 land on the original branch; `||`, `|` and `&` give no ordering guarantee
-either. So EVERY join in the command must be `&&` — a `;` anywhere, even
-after the commit, lets a second commit run elsewhere. The commit-directory
-read follows the same rule: a directory read from `cd`/`pushd`/`-C` holds only
-when the commit runs after the change, which only an `&&` guarantees.
+either. So `switch_target` requires EVERY join in the command to be `&&` — a
+`;` anywhere, even after the commit, lets a second commit run elsewhere. The
+commit-directory read is different: a directory read from `cd`/`pushd`/`-C`
+holds for the next segment only after an `&&`, so it walks a SET of possible
+locations. After a `;`, a newline or a `||` the next segment may run with the
+previous cd failed or skipped, so it sees every location reached since the
+start (`cd x && make; git commit` commits in `x` or the starting checkout),
+and a commit records every location in the set. A pipe, `&`, subshell or
+group is not walked (known gap, TASK-1219).
 
 And the switch only holds until something moves the branch or the directory
 again: `git switch -c x && git switch develop && git commit` commits on
@@ -70,16 +76,16 @@ unambiguous.
 CONSUMERS
 ---------
     .claude/hooks/develop-code-commit-guard.sh   (both functions)
-    .claude/hooks/board-commit-branch-gate.sh    (switch_target only)
+    .claude/hooks/board-commit-branch-gate.sh    (both functions)
 
 Run as a script it reads the command from GUARD_CMD and prints three lines:
-the switch target; the commit directory, or `UNREADABLE_DIR` ("?") when a
-directory change before a commit cannot be read or the commits run in more
-than one location (the develop guard blocks on it); and "1" when every
-non-commit segment of the commit-directory read is inert (see
-`_commit_target`). Each is empty when None or False. The board gate reads
-line 1 only. Pinned by the "switch:" and "cross-repo:" rows in both guards'
-.probe.sh files.
+the switch target; the distinct commit locations, TAB-separated (`<start>` is
+the starting checkout, an absolute path or a relative path is another one), or
+`UNREADABLE_DIR` ("?") alone when a directory change before a commit cannot
+be read (the develop guard blocks on it); and "1" when every non-commit
+segment of the commit-directory read is inert (see `_commit_target`). Each is
+empty when None or False. Both guards read all three lines. Pinned by the
+"switch:" and "cross-repo:" rows in both guards' .probe.sh files.
 
 The quote scanning is the shared single-scan `strip_quoted_indexed` in
 shell_quotes.py, imported rather than copied (that module's docstring has the
@@ -383,9 +389,25 @@ _GIT_SKIP_FLAG = (
 )
 
 _SEGMENT_SPLIT = re.compile(r"&&|\|\||[;&|\n()]")
+# What the commit-dir walk does not read, in the view with fd redirects, `&&`
+# and `||` blanked: a pipe, a background `&`, a subshell or group, a CR.
+_UNWALKED_SHAPE = re.compile(r"[|&(){}\r]")
+# CDPATH mentioned anywhere in the raw text (an assignment, an `export`, even
+# a quoted one): a relative cd/pushd may then search it.
+_CDPATH_MENTION = re.compile(r"CDPATH")
+# Separates the distinct locations on line 2 of the script output. A tab can
+# never appear in a read path: `_absolute_dir` and `_plain_relative` refuse
+# every control character (rows: "a tab in a cd path is unreadable").
+LOCATION_SEPARATOR = "\t"
 _COMMIT_WORD = re.compile(r"(?i)(?<![\w-])commit(?![\w-])")
 # A shell prefix assignment word, `NAME=value` (value possibly empty).
 _PREFIX_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def _mentions_cdpath(text):
+    """True when the raw command mentions `CDPATH` anywhere, the same
+    mention rule as `_relocating_env` for the GIT_* variables."""
+    return _CDPATH_MENTION.search(text) is not None
 
 
 def _has_parent_step(path):
@@ -432,12 +454,14 @@ _START = "<start>"
 def _plain_relative(step):
     """True when a relative directory word can be joined onto a known base:
     non-empty, no `..` step, no unresolved quoted span, no control character,
-    `$`, backtick, glob character or `~`."""
+    `$`, backtick, glob character, `~`, `<` or `>` (the last two so a quoted
+    relative `"<start>"` cannot collide with the `_START` marker; row: "a
+    quoted relative cd named like the start marker is unreadable")."""
     return (
         bool(step)
         and QUOTED_SPAN not in step
         and not _has_parent_step(step)
-        and not re.search(r"[\x00-\x1f$`*?\[~]", step)
+        and not re.search(r"[\x00-\x1f$`*?\[~<>]", step)
     )
 
 
@@ -460,24 +484,45 @@ def _step_dir(step, base):
     return os.path.join(base, step)
 
 
-def _changed_dir(words, here):
+def _home_dir(arg, tilde_quoted):
+    """The absolute path a leading-tilde `cd` argument names: bare `~` is the
+    hook's own `HOME`, `~/rest` is `HOME` + `/rest`; None when `HOME` is unset,
+    empty or not absolute, the tilde was quoted (bash does not expand it, and
+    the resolved word cannot tell), or the form is `~user` / `~+` / `~-`."""
+    if tilde_quoted or not (arg == "~" or arg.startswith("~/")):
+        return None
+    home = os.environ.get("HOME", "")
+    if not home.startswith("/"):
+        return None
+    return home + arg[1:]
+
+
+def _changed_dir(words, here, cdpath=False, tilde_quoted=False):
     """The directory state after a `cd`/`pushd`/`popd` segment, from `here`.
 
     Leading `--`, `-L` and `-P` words (any number, any order) are skipped; what
     remains must be exactly one argument that is not another flag or a `+N`
     stack index, else `UNREADABLE_DIR` (rows: "a bare cd before a commit
     blocks", "cd - before a commit blocks", "cd with an unsupported flag is
-    unreadable", "cd with only a flag is unreadable"). `popd` is
-    `UNREADABLE_DIR` (row: "popd before a commit blocks"). An absolute argument
-    sets the directory whatever came before it (row: "a second absolute cd moves
-    the dir read"); one the hook cannot read (a `..` step, an expansion, a
-    glob) is unreadable. A plain relative argument joins onto the current
-    location; from the starting checkout it becomes the relative location
-    itself (row: "a relative cd from the starting checkout reads the relative
-    path"), and on an unreadable state it leaves it as it was. When `CDPATH` is
-    set and non-empty the shell may search it for a relative argument, so every
-    relative `cd`/`pushd` argument is `UNREADABLE_DIR` (row: "a relative cd is
-    unreadable while CDPATH is set")."""
+    unreadable", "cd with only a flag is unreadable"). `pushd -n` is covered by
+    the flag rule: it manipulates the stack without changing directory, so it
+    is treated as unreadable (fail-closed). `popd` is `UNREADABLE_DIR` (row:
+    "popd before a commit blocks"). An absolute argument sets the directory
+    whatever came before it (row: "a second absolute cd moves the dir read");
+    one the hook cannot read (a `..` step, an expansion, a glob) is
+    unreadable. A bare `~` or `~/rest` is read through the hook's own `HOME`
+    and then like any absolute argument (rows: "a cd to ~/x reads HOME/x", "a
+    bare cd ~ reads HOME", "a cd to ~user/x is unreadable", "a cd to ~/x with
+    HOME unset is unreadable", "a quoted tilde is unreadable"). A plain
+    relative argument joins onto the current location; from the starting
+    checkout it becomes the relative location itself (row: "a relative cd from
+    the starting checkout reads the relative path"), and on an unreadable
+    state it leaves it as it was. When `CDPATH` is set and non-empty in the
+    hook's environment, or `cdpath` says the raw command mentions it, the shell
+    may search it for a relative argument, so every relative `cd`/`pushd`
+    argument is `UNREADABLE_DIR` (rows: "a relative cd is unreadable while
+    CDPATH is set", "an exported CDPATH mention makes a relative cd
+    unreadable", "a CDPATH prefix assignment makes a relative cd unreadable")."""
     if words[0] == "popd":
         return UNREADABLE_DIR
     args = words[1:]
@@ -486,9 +531,11 @@ def _changed_dir(words, here):
     if len(args) != 1 or args[0].startswith(("-", "+")):
         return UNREADABLE_DIR
     arg = args[0]
+    if arg.startswith("~"):
+        arg = _home_dir(arg, tilde_quoted) or arg
     if arg.startswith("/"):
         return _absolute_dir(arg) or UNREADABLE_DIR
-    if not _plain_relative(arg) or os.environ.get("CDPATH"):
+    if not _plain_relative(arg) or cdpath or os.environ.get("CDPATH"):
         return UNREADABLE_DIR
     if here == UNREADABLE_DIR:
         return here
@@ -561,37 +608,45 @@ def _commit_dir(words, base):
 
 
 def commit_target_dir(text):
-    """The one directory every `git commit` in `text` runs in, else None;
-    `UNREADABLE_DIR` when a directory change before a commit cannot be read.
-    The directory is absolute, or a normalised plain RELATIVE path reached from
-    the starting checkout (no `..` step); the caller resolves a relative one
-    against its own working directory, which is the starting checkout.
+    """Every directory a `git commit` in `text` can run in, TAB-separated
+    (`LOCATION_SEPARATOR`), else None; `UNREADABLE_DIR` alone when a directory
+    change before a commit cannot be read. Each location is absolute, a
+    normalised plain RELATIVE path reached from the starting checkout (no `..`
+    step; the caller resolves it against its own working directory, which is
+    the starting checkout), or the marker `<start>` for the starting checkout
+    itself when it is one of several (a lone `<start>` reads None).
 
-    The command must be a pure `&&` chain (every join `&&`; a numeric fd
-    redirect such as `2>&1` is not a join). The directory is followed through
-    the chain in order: every `cd <dir>` / `pushd <dir>` sets it (an absolute
-    one outright, a plain relative one joined onto the current location; from
-    the starting checkout the relative path itself is the location, so
-    `cd sub && git commit` reads `sub`), and each commit may add `git -C <dir>`
-    or `env -C <dir>` (`--chdir`) steps resolved the same way. A change AFTER
-    the last commit is not read (row: "a pushd after the commit does not move
-    it").
+    The directory is followed through the command in order as a SET of
+    possible locations: every `cd <dir>` / `pushd <dir>` moves each element
+    (an absolute one outright, a plain relative one joined onto the current
+    location; from the starting checkout the relative path itself is the
+    location, so `cd sub && git commit` reads `sub`; a bare `~` or `~/rest`
+    through the hook's `HOME`), and each commit may add `git -C <dir>` or
+    `env -C <dir>` (`--chdir`) steps resolved the same way. After an `&&` the
+    next segment sees the moved set. After a `;`, a newline or a `||` it sees
+    every location reached so far, because the previous cd may have failed or
+    been skipped (rows: "a ; before a cd reads both locations", "a newline
+    before a cd reads both locations", "a || before a cd reads both
+    locations", "a ; after && reads the union reached since the start"). A
+    change AFTER the last commit is not read (row: "a pushd after the commit
+    does not move it"). A numeric fd redirect such as `2>&1` is not a join.
 
-    `UNREADABLE_DIR` (a block, not a live-state evaluation) when the commits
-    cannot be placed in one checkout: a change before a commit that cannot be
-    resolved (`popd`, `cd -`, a bare `cd`, a flag other than `--`/`-L`/`-P` or a
-    second argument on `cd`/`pushd`, `~`, an expansion, a glob, a `..` step,
-    or a relative argument while `CDPATH` is set, or a `source x` / `. x`
-    segment, which runs arbitrary code in the shell), unless a later absolute
-    `cd`/`-C` resets the directory; or commits in more than one location (two
-    directories, or the starting checkout and another; row: "a bare commit and
-    a commit after a cd block"). A `..` step is refused because `cd` and
-    `git -C` may follow a symlink where `normpath` only edits the text (not
-    verified here). In a `-C` step the unresolvable inputs are not read (None)
-    instead. Commits that all run in the starting checkout read nothing.
+    `UNREADABLE_DIR` (a block, not a live-state evaluation) when a commit
+    follows a change that cannot be resolved (`popd`, `cd -`, a bare `cd`, a
+    flag other than `--`/`-L`/`-P` or a second argument on `cd`/`pushd`,
+    `~user`, an expansion, a glob, a `..` step, or a relative argument while
+    `CDPATH` is set or mentioned, or a `source x` / `. x` segment, which runs
+    arbitrary code in the shell) in ANY possible location, unless a later
+    absolute `cd`/`-C` resets the directory. A `..` step is refused because
+    `cd` and `git -C` may follow a symlink where `normpath` only edits the
+    text (not verified here). In a `-C` step the unresolvable inputs are not
+    read (None) instead. Commits that all run in the starting checkout read
+    nothing; commits in several locations are NOT collapsed here — the caller
+    resolves them to checkouts and judges whether they span more than one.
 
     None for any commit the hook cannot place, so the live state is judged:
-    any join other than `&&` (row: "a ; after the commit voids the dir read"),
+    a pipe, a background `&`, a subshell or a group (row: "a pipe, background
+    or subshell shape keeps the empty reading"; TASK-1219),
     a `commit` word in a segment that is not a plain
     `[env -C <dir>] git [globals] commit` (row: "a commit word outside a git
     commit segment voids the dir read"), a commit segment carrying any
@@ -625,10 +680,10 @@ def _commit_target(text):
     clears it like `make` (row: "a source after the commit does not block, but
     clears inert"). `(None, False)` whenever no directory is read;
     `(UNREADABLE_DIR, False)` when any commit follows a directory change that
-    cannot be resolved, or the commits run in more than one location. The
-    internal `_START` marker (the starting checkout) is meant to stay inside
-    this function (row: "two bare commits read nothing"); a relative location
-    is returned as a normalised relative path."""
+    cannot be resolved in any possible location. Otherwise the TAB-joined,
+    sorted distinct locations: the `_START` marker (the starting checkout)
+    appears only beside other locations (row: "two bare commits read
+    nothing"), and a relative location is a normalised relative path."""
     if _relocating_env(text):
         return None, False
     if substitution_spans_matching(text, lambda s: _COMMIT_WORD.search(s) is not None):
@@ -644,11 +699,16 @@ def _commit_target(text):
     # A heredoc strip keeps the newline that ends the opener's line; a
     # trailing one separates nothing.
     view = view.rstrip()
-    if _has_non_and_join(_blank_fd_redirects(view)):
+    # `&&`, `||`, `;` and a newline are walked below as possible-location
+    # sets; a pipe, a background `&`, a subshell or a group keep the empty
+    # reading (known gap: TASK-1219).
+    if _UNWALKED_SHAPE.search(_blank_fd_redirects(view).replace("&&", "  ").replace("||", "  ")):
         return None, False
 
-    here = _START
-    results = []
+    cdpath = _mentions_cdpath(text)
+    here = {_START}
+    reached = {_START}
+    results = set()
     inert = True
     pos = 0
     for sep in [*_SEGMENT_SPLIT.finditer(view), None]:
@@ -656,21 +716,25 @@ def _commit_target(text):
         end = sep.start() if sep is not None else len(view)
         words = _words(view, values, pos, end)
         pos = sep.end() if sep is not None else len(view)
-        if not words:
-            continue
-        mover = _dir_change_words(words)
-        if mover is not None:
-            here = _changed_dir(mover, here)
-            continue
-        if _is_source(words):
-            here = UNREADABLE_DIR
-            inert = False
-            continue
-        if not any(w.lower() == "commit" for w in words):
-            if _segment_moves(view, values, seg_start, end):
+        after = here
+        if words:
+            mover = _dir_change_words(words)
+            if mover is not None:
+                after = {_changed_dir(mover, h, cdpath, _tilde_quoted(view, seg_start, end)) for h in here}
+            elif _is_source(words):
+                after = {UNREADABLE_DIR}
                 inert = False
-            continue
-        results.append(_commit_dir(words, here))
+            elif not any(w.lower() == "commit" for w in words):
+                if _segment_moves(view, values, seg_start, end):
+                    inert = False
+            else:
+                results.update(_commit_dir(words, h) for h in here)
+        reached |= after
+        # The join AFTER this segment decides what the next one can see: after
+        # `&&` it runs only if this one succeeded (the moved set); after `;`,
+        # a newline or `||` it may run with this segment failed or skipped, so
+        # every location reached so far is possible.
+        here = after if sep is not None and sep.group() == "&&" else set(reached)
     if not results:
         return None, False
     if UNREADABLE_DIR in results:
@@ -680,11 +744,15 @@ def _commit_target(text):
     found = {r if r == _START else os.path.normpath(r) for r in results}
     if found == {_START}:
         return None, False
-    if len(found) != 1:
-        # Commits in more than one location (two directories, or the starting
-        # checkout and another): no single checkout to judge.
-        return UNREADABLE_DIR, False
-    return found.pop(), inert
+    return LOCATION_SEPARATOR.join(sorted(found)), inert
+
+
+def _tilde_quoted(view, start, end):
+    """True when the last word of `view[start:end]` (the `cd` argument) holds
+    a quoted span, so a leading `~` in its resolved form was not an unquoted
+    tilde bash would expand."""
+    tokens = view[start:end].split()
+    return bool(tokens) and QUOTED_SPAN in tokens[-1]
 
 
 def _command_words(words):
@@ -713,11 +781,11 @@ def _is_source(words):
 
 if __name__ == "__main__":
     command = os.environ.get("GUARD_CMD", "")
-    # Line 1: the switch target; line 2: the commit directory, or the
-    # sentinel "?" when a directory change before a commit cannot be read, or
-    # the commits run in more than one location (the develop guard blocks on
-    # it); line 3: "1" when every non-commit,
-    # non-cd segment is inert. Each line is empty for None or False.
+    # Line 1: the switch target; line 2: the distinct commit locations,
+    # TAB-separated (`<start>` = the starting checkout), or the sentinel "?"
+    # alone when a directory change before a commit cannot be read (the develop
+    # guard blocks on it); line 3: "1" when every non-commit, non-cd segment is
+    # inert. Each line is empty for None or False.
     try:
         target = switch_target(command)
     except Exception:

@@ -158,9 +158,9 @@ ROWS = [
         (None, "rel", True),
     ),
     (
-        "a bare commit and a relative cd commit block",
+        "a bare commit and a relative cd commit read both locations",
         "git commit -m a && cd sub && git commit -m b",
-        (None, branch_switch.UNREADABLE_DIR, False),
+        (None, "<start>\tsub", True),
     ),
     ("pushd sets the dir like cd", "git status && pushd /other && git commit -m y", (None, "/other", True)),
     ("env -C reads the dir like git -C", "env -C /other git commit -m y", (None, "/other", True)),
@@ -195,7 +195,35 @@ ROWS = [
     ),
     ("cd - before a commit blocks", "cd - && git commit -m y", (None, branch_switch.UNREADABLE_DIR, False)),
     ("a bare cd before a commit blocks", "cd && git commit -m y", (None, branch_switch.UNREADABLE_DIR, False)),
-    ("a cd to ~ before a commit blocks", "cd ~/x && git commit -m y", (None, branch_switch.UNREADABLE_DIR, False)),
+    # HOME is patched to /home/u for every row (see RuleTable.test_rows).
+    ("a cd to ~/x reads HOME/x", "cd ~/x && git commit -m y", (None, "/home/u/x", True)),
+    ("a bare cd ~ reads HOME", "cd ~ && git commit -m y", (None, "/home/u", True)),
+    ("a pushd to ~/x reads HOME/x", "pushd ~/x && git commit -m y", (None, "/home/u/x", True)),
+    ("a cd to ~/x/.. blocks", "cd ~/x/.. && git commit -m y", (None, branch_switch.UNREADABLE_DIR, False)),
+    ("a cd to ~user/x is unreadable", "cd ~root/x && git commit -m y", (None, branch_switch.UNREADABLE_DIR, False)),
+    ("a bare cd ~user is unreadable", "cd ~root && git commit -m y", (None, branch_switch.UNREADABLE_DIR, False)),
+    ("a quoted tilde is unreadable", 'cd "~/x" && git commit -m y', (None, branch_switch.UNREADABLE_DIR, False)),
+    ("a ~ then expansion is unreadable", "cd ~/$D && git commit -m y", (None, branch_switch.UNREADABLE_DIR, False)),
+    (
+        "a tab in a cd path is unreadable",
+        'cd "/x\ty" && git commit -m y',
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "a tab in a relative cd path is unreadable",
+        'cd "a\tb" && git commit -m y',
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "a quoted relative cd named like the start marker is unreadable",
+        'cd "<start>" && git commit -m y',
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "a quoted relative cd with a > is unreadable",
+        'cd "a>b" && git commit -m y',
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
     (
         "a cd to an expansion before a commit blocks",
         "cd /other && cd $D && git commit -m y",
@@ -231,15 +259,161 @@ ROWS = [
         (None, branch_switch.UNREADABLE_DIR, False),
     ),
     # --- WHY ONLY A PURE && CHAIN ------------------------------------------
+    # `switch_target` still needs a pure `&&` chain; the commit-dir read walks
+    # `;`, newline and `||` as possible-location sets (module docstring).
     (
-        "a ; after cd && <inert> voids the dir read",
+        "a ; after cd && <inert> reads both locations",
         "cd /other && git add a; git commit -m y",
+        (None, "/other\t<start>", True),
+    ),
+    (
+        "a ; before a cd && commit reads the cd",
+        "git status; cd /other && git commit -m y",
+        (None, "/other", True),
+    ),
+    (
+        "a ; after the commit reads the commit's directory",
+        "cd /other && git commit -m y; true",
+        (None, "/other", False),
+    ),
+    ("a ; after an unreadable cd blocks", "cd - ; git commit -m y", (None, branch_switch.UNREADABLE_DIR, False)),
+    (
+        "a || after the commit reads the commit's directory",
+        "cd /other && git commit -m y || true",
+        (None, "/other", False),
+    ),
+    (
+        "a ; before a cd reads both locations",
+        "git status; cd /x; git commit -m y",
+        (None, "/x\t<start>", True),
+    ),
+    (
+        "a newline before a cd reads both locations",
+        "git status\ncd /x\ngit commit -m y",
+        (None, "/x\t<start>", True),
+    ),
+    (
+        "a || before a cd reads both locations",
+        "cd /x || true; git commit -m y",
+        (None, "/x\t<start>", False),
+    ),
+    (
+        "a || joining the commit reads both locations",
+        "cd /x || git commit -m y",
+        (None, "/x\t<start>", True),
+    ),
+    (
+        "a ; after && reads the union reached since the start",
+        "cd x && make; git commit -m y",
+        (None, "<start>\tx", False),
+    ),
+    (
+        "a second ; cd keeps every location reached",
+        "cd /a; cd /b; git commit -m y",
+        (None, "/a\t/b\t<start>", True),
+    ),
+    (
+        "a change after the last ; commit is not read",
+        "cd /a && git commit -m y; cd /b",
+        (None, "/a", True),
+    ),
+    (
+        "a ; cd to a relative dir reads it beside the start",
+        "git status; cd sub; git commit -m y",
+        (None, "<start>\tsub", True),
+    ),
+    (
+        "a ; cd to the same dir as -C dedupes the locations",
+        "cd /x; git -C /x commit -m y",
+        (None, "/x", True),
+    ),
+    (
+        "a backslash-newline continuation joins like a space",
+        "cd /x \\\n&& git commit -m y",
+        (None, "/x", True),
+    ),
+    (
+        "a pipe, background or subshell shape keeps the empty reading",
+        "cd /x && git commit -m y | cat",
         (None, None, False),
     ),
-    ("a ; before a cd voids the dir read", "git status; cd /other && git commit -m y", (None, None, False)),
-    ("a ; after the commit voids the dir read", "cd /other && git commit -m y; true", (None, None, False)),
-    ("a ; after an unreadable cd voids the dir read", "cd - ; git commit -m y", (None, None, False)),
-    ("a || after the commit voids the dir read", "cd /other && git commit -m y || true", (None, None, False)),
+    (
+        "a pipe, background or subshell shape keeps the empty reading (background)",
+        "cd /x && git commit -m y &",
+        (None, None, False),
+    ),
+    (
+        "a pipe, background or subshell shape keeps the empty reading (subshell)",
+        "(cd /x && git commit -m y)",
+        (None, None, False),
+    ),
+    (
+        "a pipe, background or subshell shape keeps the empty reading (group)",
+        "{ cd /x; git commit -m y; }",
+        (None, None, False),
+    ),
+    # --- CDPATH mention ------------------------------------------------------
+    (
+        "an exported CDPATH mention makes a relative cd unreadable",
+        "export CDPATH=x; cd rel && git commit -m y",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "a CDPATH prefix assignment makes a relative cd unreadable",
+        "CDPATH=x cd rel && git commit -m y",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "a CDPATH assignment statement makes a relative pushd unreadable",
+        "CDPATH=x; pushd rel && git commit -m y",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "a CDPATH mention leaves an absolute cd readable",
+        "CDPATH=x; cd /abs && git commit -m y",
+        (None, "/abs", False),
+    ),
+    (
+        "a CDPATH mention leaves a relative -C readable",
+        "export CDPATH=x; git -C rel commit -m y",
+        (None, "rel", False),
+    ),
+    # --- replay shapes (sanitized) -------------------------------------------
+    (
+        "replay: a variable assigned then cd'd into is unreadable",
+        "W=/other; cd $W && git add a && git commit -m y",
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "replay: cd ~/proj, a heredoc script, then a ; commit reads both",
+        "cd ~/proj && python3 - <<'EOF'\nprint(1)\nEOF\ngit add a; git commit -m y",
+        (None, "/home/u/proj\t<start>", False),
+    ),
+    (
+        "replay: a ; read then cd ~/proj && commit reads HOME/proj",
+        "wc -c ~/f; cd ~/proj && git add a && git commit -m y",
+        (None, "/home/u/proj", False),
+    ),
+    (
+        "replay: a ; command then cd <abs> && commit reads the cd",
+        "date; cd /other && git add a && git commit -m y",
+        (None, "/other", False),
+    ),
+    (
+        "replay: cd into a quoted expansion path is unreadable",
+        'cd "$VAR/tmp" && git add a && git commit -m y',
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "replay: mkdir and cd into a variable dir is unreadable",
+        'D="$X/y"; mkdir "$D" && cd "$D" && git init && git add a && git commit -m y',
+        (None, branch_switch.UNREADABLE_DIR, False),
+    ),
+    (
+        "replay: cd /home/u/proj, add, commit, then ; push reads the cd",
+        "cd /home/u/proj && git add a && git commit -m y; git push",
+        (None, "/home/u/proj", False),
+    ),
     ("a ; join after the switch is not trusted", "git switch -c feat/x; git commit -m y", (None, None, False)),
     (
         "a ; after the commit is not trusted",
@@ -252,7 +426,11 @@ ROWS = [
     ("a newline join is not trusted", "git switch -c feat/x\ngit commit -m y", (None, None, False)),
     ("a subshell is not trusted", "git switch -c feat/x && (git commit -m y)", (None, None, False)),
     ("a &&& join is not trusted", "git switch -c feat/x &&& git commit -m y", (None, None, False)),
-    ("a leading cd joined by ; is not read", "cd /other; git commit -m y", (None, None, False)),
+    (
+        "a leading cd joined by ; reads both locations",
+        "cd /other; git commit -m y",
+        (None, "/other\t<start>", True),
+    ),
     ("a switch with no && chain is not read", "git switch -c feat/x", (None, None, False)),
     (
         "a redirect on the switch segment is not read",
@@ -466,19 +644,19 @@ ROWS = [
         (None, branch_switch.UNREADABLE_DIR, False),
     ),
     (
-        "commits in two directories block",
+        "commits in two directories read both locations",
         "git -C /other commit -m y && git -C /else commit -m z",
-        (None, branch_switch.UNREADABLE_DIR, False),
+        (None, "/else\t/other", True),
     ),
     (
-        "a bare commit and a commit after a cd block",
+        "a bare commit and a commit after a cd read both locations",
         "git commit -m a && cd /other && git commit -m b",
-        (None, branch_switch.UNREADABLE_DIR, False),
+        (None, "/other\t<start>", True),
     ),
     (
-        "a bare commit and a -C commit block",
+        "a bare commit and a -C commit read both locations",
         "git commit -m a && git -C /other commit -m b",
-        (None, branch_switch.UNREADABLE_DIR, False),
+        (None, "/other\t<start>", True),
     ),
     ("two bare commits read nothing", "git commit -m a && git commit -m b", (None, None, False)),
     (
@@ -567,9 +745,10 @@ BAD_REF_NAMES = [
 
 class RuleTable(unittest.TestCase):
     def test_rows(self):
-        # CDPATH is part of the rows' environment: clear it so a developer's
-        # own setting cannot change a relative cd's reading.
-        with mock.patch.dict(os.environ):
+        # CDPATH and HOME are part of the rows' environment: clear the first
+        # and fix the second so a developer's own settings cannot change a cd's
+        # reading.
+        with mock.patch.dict(os.environ, {"HOME": "/home/u"}):
             os.environ.pop("CDPATH", None)
             for label, cmd, (switch, directory, inert) in ROWS:
                 with self.subTest(label):
@@ -602,6 +781,19 @@ class RuleTable(unittest.TestCase):
             self.assertEqual(branch_switch._commit_target("cd sub && git commit -m y"), ("sub", True))
         with mock.patch.dict(os.environ, {"CDPATH": ""}):
             self.assertEqual(branch_switch._commit_target("cd sub && git commit -m y"), ("sub", True))
+
+    def test_tilde_needs_an_absolute_home(self):
+        label = "a cd to ~/x with HOME unset is unreadable"
+        unreadable = (branch_switch.UNREADABLE_DIR, False)
+        for cmd in ("cd ~/x && git commit -m y", "cd ~ && git commit -m y"):
+            with self.subTest(label, cmd=cmd, home="unset"), mock.patch.dict(os.environ):
+                os.environ.pop("HOME", None)
+                self.assertEqual(branch_switch._commit_target(cmd), unreadable)
+            for home in ("", "rel/home"):
+                with self.subTest(label, cmd=cmd, home=home), mock.patch.dict(os.environ, {"HOME": home}):
+                    self.assertEqual(branch_switch._commit_target(cmd), unreadable)
+        with mock.patch.dict(os.environ, {"HOME": "/home/u/"}):
+            self.assertEqual(branch_switch._commit_target("cd ~/x && git commit -m y"), ("/home/u/x", True))
 
     def test_bad_ref_names(self):
         for name in BAD_REF_NAMES:
@@ -640,6 +832,11 @@ class MainContract(unittest.TestCase):
         rc, out = self._run_main("git -C /other/repo commit -m x")
         self.assertEqual(rc, 0)
         self.assertEqual(out.split("\n"), ["", "/other/repo", "1", ""])
+
+    def test_several_locations_are_tab_separated(self):
+        rc, out = self._run_main("git status; cd /x; git commit -m y")
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.split("\n"), ["", "/x\t<start>", "1", ""])
 
     def test_unreadable_dir_line(self):
         rc, out = self._run_main("cd - && git commit -m x")
