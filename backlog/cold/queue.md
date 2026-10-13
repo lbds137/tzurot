@@ -20,9 +20,9 @@ _One row per epic whose theme doc has a done step and a not-done step and which 
 
 | Epic | Remainder | Bin | Trigger / disposition |
 | --- | --- | --- | --- |
-| `doc-27` v2 Parity | parity BUILDS after the Phase 0 matrix | gated | `doc-14` waves 4–6 finish (active since 2026-09-24) |
+| `doc-27` v2 Parity | parity BUILDS after the Phase 0 matrix | gated | `doc-14` waves 4–6 finish (demoted 2026-10-12; not active) |
 | `doc-2` Character Portability | Phase 5 sidecar prompt injection | gated | `doc-15` item 2 (the cascade pattern) |
-| `doc-11` Agentic scaffolding | everything after the accepted design | gated | gate `doc-12` MET 2026-08-26; waits for the train after `doc-14` (owner 2026-09-24) |
+| `doc-11` Agentic scaffolding | everything after the accepted design | gated | gate `doc-12` MET 2026-08-26; no longer queued behind `doc-14` (demoted 2026-10-12), so it is a candidate for the next theme |
 | `doc-17` Prompt caching | the prod cache reading, then the Phase 3 decision | gated | the reading (agent watch in `now.md`) |
 | `doc-107` archive/digest consolidation | all | gated | the digest shape settles on prod |
 | `doc-86` Character-initiated messages | Phase 0 product decisions | owner | research done 2026-09-02; also gated on `doc-75` |
@@ -34,7 +34,7 @@ _One row per epic whose theme doc has a done step and a not-done step and which 
 
 ### Phase A — Rock Solid
 
-- **Follow-Up Pool Drain** (`doc-7`) — the standing background unit (not the Active Epic since 2026-09-24; `doc-14` is).
+- **Follow-Up Pool Drain** (`doc-7`) — the standing background unit (not the Active Epic; that slot is open since `doc-14` was demoted 2026-10-12).
 - **v2 Parity + Legacy Retirement** (`doc-27`) — Phase 0 matrix runs now; parity BUILDS gated on `doc-14`.
 - **Observability & Telemetry** (`doc-12`) — closes Phase A; gate for Phase C MET 2026-08-26.
 - _Phase-A quality pool (pull as train themes by capacity)_: **Ratchet Bidirectionality** (`doc-63`) · **Type-Assertion Audit + Deterministic Ratchet** (`doc-23`) · **PGLite Fidelity + Real-Postgres Integration Tier** (`doc-13`) · **Database Performance Audit** (`doc-3`) · **Security Audit Pass** (`doc-19`).
@@ -42,14 +42,14 @@ _One row per epic whose theme doc has a done step and a not-done step and which 
 ### Phase B — Finish the half-done
 
 - **Provider Prompt Caching** (`doc-17`) — Phase 2 shipped; the cache reading, then the Phase 3 decision.
-- **Platform-Portable UX Layer waves 4–6** (`doc-14`) — Active Epic since 2026-09-24 (`active-epic.md`).
+- **Platform-Portable UX Layer waves 4–6** (`doc-14`) — demoted 2026-10-12 (owner) after stalling as the Active Epic; plan intact in `active-epic.md`.
 - **Guild / Server Management** (`doc-75`) — Phase 1 is a correctness defect; may ride earlier as a fix.
 - **Typing Indicator Reliability** (`doc-24`) — partial; remainder is TASK-1087.
 - **Character Portability** (`doc-2`) — partial; PNG card import + sidecar prompts remain.
 
 ### Phase C — Gated features
 
-- **Next-Gen AI Capabilities** (`doc-11`) — design accepted; gate `doc-12` MET, waits for the train after `doc-14`.
+- **Next-Gen AI Capabilities** (`doc-11`) — design accepted; gate `doc-12` MET; no longer queued behind `doc-14` (demoted 2026-10-12).
 - **User-installable app** (`doc-105`) — research complete; Phase 0 probe + four owner rulings.
 - **Feature-flag lifecycle for system settings** (`doc-106`) — owner intake 2026-09-18.
 - **Knowledge Store (pgvector substrate)** (`doc-88`) — consumes memory-epic retrieval learnings.
