@@ -18,6 +18,7 @@ import {
   SetFactLockResponseSchema,
 } from '@tzurot/common-types/schemas/api/fact';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { FACT_QUERY_MAX_LENGTH } from '@tzurot/common-types/constants/memory';
 import type { RouteDef } from '../types.js';
 
 /** `/fact/:id` is reused by GET / PATCH / DELETE — extracted to satisfy
@@ -35,6 +36,7 @@ export const userFactRoutes = {
       limit: z.string().optional(),
       offset: z.string().optional(),
       tag: z.string().trim().max(DISCORD_LIMITS.AUTOCOMPLETE_CHOICE_MAX_LENGTH).optional(),
+      query: z.string().trim().max(FACT_QUERY_MAX_LENGTH).optional(),
     },
     output: FactListResponseSchema,
     requiresProvisionedUser: true,

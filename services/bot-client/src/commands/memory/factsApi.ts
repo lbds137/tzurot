@@ -33,24 +33,31 @@ function warnNonMiss(
   }
 }
 
+export interface FactFilter {
+  tag?: string;
+  query?: string;
+}
+
 /**
  * Fetch a page of active facts for a personality, optionally filtered to
- * facts carrying `tag`. `null` = fetch failed (list is a read; the browse
- * view degrades to a transient-error message rather than classifying,
- * matching the episode browse contract).
+ * facts carrying `tag` and/or matching statement `query`. `null` = fetch
+ * failed (list is a read; the browse view degrades to a transient-error
+ * message rather than classifying, matching the episode browse contract).
  */
 export async function fetchFacts(
   userClient: UserClient,
   personalityId: string,
   offset: number,
   limit: number,
-  tag?: string
+  filter: FactFilter = {}
 ): Promise<FactListResponse | null> {
+  const { tag, query } = filter;
   const result = await userClient.listFacts({
     personalityId,
     limit: limit.toString(),
     offset: offset.toString(),
     ...(tag !== undefined && tag.length > 0 ? { tag } : {}),
+    ...(query !== undefined && query.length > 0 ? { query } : {}),
   });
   if (!result.ok) {
     return null;

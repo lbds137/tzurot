@@ -7,7 +7,7 @@
   },
   "totals": {
     "entries": 2917,
-    "sites": 6783
+    "sites": 6789
   },
   "entries": [
     {
@@ -2750,7 +2750,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/factsBrowse.ts",
       "symbol": "escapeMarkdown",
-      "count": 1
+      "count": 2
     },
     {
       "category": "client-methods",
@@ -2924,13 +2924,13 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/index.ts",
       "symbol": "setDescription",
-      "count": 36
+      "count": 37
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/index.ts",
       "symbol": "setMaxLength",
-      "count": 1
+      "count": 2
     },
     {
       "category": "client-methods",
@@ -2948,13 +2948,13 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/index.ts",
       "symbol": "setName",
-      "count": 36
+      "count": 37
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/index.ts",
       "symbol": "setRequired",
-      "count": 20
+      "count": 21
     },
     {
       "category": "client-methods",
@@ -11396,7 +11396,7 @@
       "category": "command-options",
       "file": "services/bot-client/src/commands/memory/index.ts",
       "symbol": "addStringOption",
-      "count": 19
+      "count": 20
     },
     {
       "category": "command-options",

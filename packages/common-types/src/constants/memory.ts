@@ -37,3 +37,9 @@ export function deterministicMemoryUuid(
   const key = `${personaId}:${personalityId}:${hashContent(content)}`;
   return uuidv5(key, MEMORY_NAMESPACE);
 }
+
+/**
+ * Max length of the `/memory facts` query option and of the gateway's `query`
+ * filter (one value so the slash option and the route schema cannot disagree).
+ */
+export const FACT_QUERY_MAX_LENGTH = 100;
