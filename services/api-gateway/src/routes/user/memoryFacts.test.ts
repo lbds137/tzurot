@@ -238,6 +238,107 @@ describe('memoryFacts handlers', () => {
       expect(mockPrisma.memoryFact.count).not.toHaveBeenCalled();
     });
 
+    it('adds a statement filter when query is present', async () => {
+      const { req, res } = reqRes({}, {}, { personalityId: PERSONALITY, query: 'monster' });
+      await handleListFacts(deps())(req, res, () => undefined);
+
+      const expectedWhere = {
+        ...TAGLESS_WHERE,
+        statement: { contains: 'monster', mode: 'insensitive' },
+      };
+      expect(mockPrisma.memoryFact.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere })
+      );
+      expect(mockPrisma.memoryFact.count).toHaveBeenCalledWith({ where: expectedWhere });
+    });
+
+    it('combines query and tag filters when both are present', async () => {
+      const { req, res } = reqRes(
+        {},
+        {},
+        { personalityId: PERSONALITY, tag: 'commitment:promise', query: 'monster' }
+      );
+      await handleListFacts(deps())(req, res, () => undefined);
+
+      const expectedWhere = {
+        ...TAGLESS_WHERE,
+        entityTags: { has: 'commitment:promise' },
+        statement: { contains: 'monster', mode: 'insensitive' },
+      };
+      expect(mockPrisma.memoryFact.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere })
+      );
+      expect(mockPrisma.memoryFact.count).toHaveBeenCalledWith({ where: expectedWhere });
+    });
+
+    it('adds no statement key when query is absent', async () => {
+      const { req, res } = reqRes({}, {}, { personalityId: PERSONALITY });
+      await handleListFacts(deps())(req, res, () => undefined);
+
+      expect(mockPrisma.memoryFact.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: TAGLESS_WHERE })
+      );
+      expect(mockPrisma.memoryFact.count).toHaveBeenCalledWith({ where: TAGLESS_WHERE });
+    });
+
+    it('treats an empty query as absent', async () => {
+      const { req, res } = reqRes({}, {}, { personalityId: PERSONALITY, query: '' });
+      await handleListFacts(deps())(req, res, () => undefined);
+
+      expect(mockPrisma.memoryFact.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: TAGLESS_WHERE })
+      );
+      expect(mockPrisma.memoryFact.count).toHaveBeenCalledWith({ where: TAGLESS_WHERE });
+    });
+
+    it('treats a whitespace-only query as absent', async () => {
+      const { req, res } = reqRes({}, {}, { personalityId: PERSONALITY, query: '   ' });
+      await handleListFacts(deps())(req, res, () => undefined);
+
+      expect(mockPrisma.memoryFact.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: TAGLESS_WHERE })
+      );
+      expect(mockPrisma.memoryFact.count).toHaveBeenCalledWith({ where: TAGLESS_WHERE });
+    });
+
+    it('trims a query with surrounding whitespace before filtering', async () => {
+      const { req, res } = reqRes({}, {}, { personalityId: PERSONALITY, query: '  monster  ' });
+      await handleListFacts(deps())(req, res, () => undefined);
+
+      const expectedWhere = {
+        ...TAGLESS_WHERE,
+        statement: { contains: 'monster', mode: 'insensitive' },
+      };
+      expect(mockPrisma.memoryFact.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere })
+      );
+      expect(mockPrisma.memoryFact.count).toHaveBeenCalledWith({ where: expectedWhere });
+    });
+
+    it('escapes LIKE wildcards in query so %, _, and \\ match literally', async () => {
+      const { req, res } = reqRes({}, {}, { personalityId: PERSONALITY, query: '100%_done\\here' });
+      await handleListFacts(deps())(req, res, () => undefined);
+
+      const expectedWhere = {
+        ...TAGLESS_WHERE,
+        statement: { contains: '100\\%\\_done\\\\here', mode: 'insensitive' },
+      };
+      expect(mockPrisma.memoryFact.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere })
+      );
+      expect(mockPrisma.memoryFact.count).toHaveBeenCalledWith({ where: expectedWhere });
+    });
+
+    it('rejects a query longer than max length', async () => {
+      const longQuery = 'a'.repeat(101);
+      const { req, res } = reqRes({}, {}, { personalityId: PERSONALITY, query: longQuery });
+      await handleListFacts(deps())(req, res, () => undefined);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.memoryFact.findMany).not.toHaveBeenCalled();
+      expect(mockPrisma.memoryFact.count).not.toHaveBeenCalled();
+    });
+
     it('accepts a tag at exactly the autocomplete-choice max length', async () => {
       const maxTag = 'a'.repeat(100);
       const { req, res } = reqRes({}, {}, { personalityId: PERSONALITY, tag: maxTag });

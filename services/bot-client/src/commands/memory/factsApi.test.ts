@@ -97,7 +97,9 @@ describe('Memory Facts API', () => {
       const response = { facts: [], total: 0, limit: 10, offset: 0, hasMore: false };
       stub.listFacts.mockResolvedValue(makeOk(response));
 
-      await fetchFacts(asUserClient(stub), 'personality-456', 20, 10, 'commitment:promise');
+      await fetchFacts(asUserClient(stub), 'personality-456', 20, 10, {
+        tag: 'commitment:promise',
+      });
 
       expect(stub.listFacts).toHaveBeenCalledWith({
         personalityId: 'personality-456',
@@ -111,12 +113,57 @@ describe('Memory Facts API', () => {
       const response = { facts: [], total: 0, limit: 10, offset: 0, hasMore: false };
       stub.listFacts.mockResolvedValue(makeOk(response));
 
-      await fetchFacts(asUserClient(stub), 'personality-456', 20, 10, '');
+      await fetchFacts(asUserClient(stub), 'personality-456', 20, 10, { tag: '' });
 
       expect(stub.listFacts).toHaveBeenCalledWith({
         personalityId: 'personality-456',
         limit: '10',
         offset: '20',
+      });
+    });
+
+    it('forwards a non-empty query to the client', async () => {
+      const response = { facts: [], total: 0, limit: 10, offset: 0, hasMore: false };
+      stub.listFacts.mockResolvedValue(makeOk(response));
+
+      await fetchFacts(asUserClient(stub), 'personality-456', 20, 10, { query: 'monster' });
+
+      expect(stub.listFacts).toHaveBeenCalledWith({
+        personalityId: 'personality-456',
+        limit: '10',
+        offset: '20',
+        query: 'monster',
+      });
+    });
+
+    it('omits the query key when query is empty', async () => {
+      const response = { facts: [], total: 0, limit: 10, offset: 0, hasMore: false };
+      stub.listFacts.mockResolvedValue(makeOk(response));
+
+      await fetchFacts(asUserClient(stub), 'personality-456', 20, 10, { query: '' });
+
+      expect(stub.listFacts).toHaveBeenCalledWith({
+        personalityId: 'personality-456',
+        limit: '10',
+        offset: '20',
+      });
+    });
+
+    it('forwards both tag and query when both are provided', async () => {
+      const response = { facts: [], total: 0, limit: 10, offset: 0, hasMore: false };
+      stub.listFacts.mockResolvedValue(makeOk(response));
+
+      await fetchFacts(asUserClient(stub), 'personality-456', 20, 10, {
+        tag: 'commitment:promise',
+        query: 'monster',
+      });
+
+      expect(stub.listFacts).toHaveBeenCalledWith({
+        personalityId: 'personality-456',
+        limit: '10',
+        offset: '20',
+        tag: 'commitment:promise',
+        query: 'monster',
       });
     });
   });
