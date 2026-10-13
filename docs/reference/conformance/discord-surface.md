@@ -471,7 +471,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/detailModals.ts | user | 8 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | channelId | 1 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | customId | 1 |
-| services/bot-client/src/commands/memory/factsBrowse.ts | escapeMarkdown | 2 |
+| services/bot-client/src/commands/memory/factsBrowse.ts | escapeMarkdown | 1 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | id | 7 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | message | 2 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | user | 2 |
@@ -2987,4 +2987,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 2917 entries across 6789 sites.
+Total: 2917 entries across 6788 sites.

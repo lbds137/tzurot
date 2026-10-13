@@ -194,7 +194,7 @@ describe('handleFacts', () => {
     );
   });
 
-  it('escapes markdown in query text rendered in the footer', async () => {
+  it('renders raw unescaped query text in the footer', async () => {
     stub.listFacts.mockResolvedValue(listResponse([createMockFact()]));
     const queryContext = {
       user: { id: 'user-1' },
@@ -211,7 +211,7 @@ describe('handleFacts', () => {
         embeds: { data: { footer: { text: string } } }[];
       }
     ).embeds[0].data;
-    expect(embedData.footer.text).toContain('query: "\\*bold\\* \\_italic\\_"');
+    expect(embedData.footer.text).toContain('query: "*bold* _italic_"');
   });
 
   it('renders both tag and query in footer and session when both filters are active', async () => {
