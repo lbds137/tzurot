@@ -7,7 +7,7 @@
   },
   "totals": {
     "entries": 2917,
-    "sites": 6789
+    "sites": 6788
   },
   "entries": [
     {
@@ -2750,7 +2750,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/factsBrowse.ts",
       "symbol": "escapeMarkdown",
-      "count": 2
+      "count": 1
     },
     {
       "category": "client-methods",

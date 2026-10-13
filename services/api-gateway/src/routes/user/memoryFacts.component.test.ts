@@ -121,6 +121,7 @@ describe('memoryFacts handlers (component, PGLite)', () => {
     statement: string;
     isLocked?: boolean;
     salience?: number;
+    entityTags?: string[];
   }): Promise<string> {
     const id = generateMemoryFactUuid(PERSONALITY, PERSONA, opts.statement);
     const vecLiteral = `[${FIXED_VECTOR.join(',')}]`;
@@ -129,13 +130,14 @@ describe('memoryFacts handlers (component, PGLite)', () => {
          (id, personality_id, persona_id, statement, embedding, salience, tier, is_locked,
           entity_tags, source_memory_ids, valid_from, created_at, updated_at)
        VALUES ($1::uuid, $2::uuid, $3::uuid, $4, '${vecLiteral}'::vector, $5, 'observed', $6,
-          ARRAY['user']::text[], ARRAY['mem-1']::text[], NOW(), NOW(), NOW())`,
+          $7::text[], ARRAY['mem-1']::text[], NOW(), NOW(), NOW())`,
       id,
       PERSONALITY,
       PERSONA,
       opts.statement,
       opts.salience ?? 0.7,
-      opts.isLocked ?? false
+      opts.isLocked ?? false,
+      opts.entityTags ?? ['user']
     );
     return id;
   }
@@ -333,7 +335,10 @@ describe('memoryFacts handlers (component, PGLite)', () => {
   });
 
   it('list: filters active facts by statement query with literal wildcards', async () => {
-    await seedFact({ statement: 'Drinks Monster energy drinks' });
+    await seedFact({
+      statement: 'Drinks Monster energy drinks',
+      entityTags: ['user', 'preference:drink'],
+    });
     await seedFact({ statement: 'quit MONSTER for good' });
     await seedFact({ statement: 'Lives in Rockville' });
     await seedFact({ statement: 'Got 100% on the test' });
@@ -351,6 +356,20 @@ describe('memoryFacts handlers (component, PGLite)', () => {
       'Drinks Monster energy drinks',
       'quit MONSTER for good',
     ]);
+
+    // query + tag together: returns exactly that one fact with total 1
+    const tagReq = reqRes(
+      {},
+      {},
+      { personalityId: PERSONALITY, query: 'monster', tag: 'preference:drink' }
+    );
+    await handleListFacts(deps())(tagReq.req, tagReq.res, () => undefined);
+    const tagPayload = tagReq.json.mock.calls[0]?.[0] as {
+      facts: { statement: string }[];
+      total: number;
+    };
+    expect(tagPayload.total).toBe(1);
+    expect(tagPayload.facts.map(f => f.statement)).toEqual(['Drinks Monster energy drinks']);
 
     // query '100%' returns only "Got 100% on the test" (proves % is literal; without escaping it would also match "1000")
     const percentReq = reqRes({}, {}, { personalityId: PERSONALITY, query: '100%' });
