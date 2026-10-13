@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-13 01:26'
-updated_date: '2026-10-13 01:42'
+updated_date: '2026-10-13 01:55'
 labels:
   - 'area:ai-worker'
   - 'size:M'
@@ -31,4 +31,6 @@ Recommendation: yes, start with (a) since it is mechanical, then (b) with wordin
 
 <!-- SECTION:NOTES:BEGIN -->
 Owner ruling 2026-10-12 (AskUserQuestion, backlog review Batch B owner calls): YES: (a) computed relative ages now; (b) the behaviour-rule wording is shown to the owner before it ships.
+
+Premise check 2026-10-12: memory notes ALREADY carry a relative age (formatPromptTimestamp emits 'YYYY-MM-DD (Day) HH:MM • 2 weeks ago' in the historical_note t= attribute, dateFormatting.ts:354). chat_log history uses formatAbsoluteTimestamp on purpose (frozen, cache-stable). So (a) is not 'add ages' for memories; scope it to whether the recent chat turns need a volatile relative-age hint, and whether the coarse relative wording ('2 weeks ago') is what the model mis-subtracts. Measure on the eval data before building.
 <!-- SECTION:NOTES:END -->
