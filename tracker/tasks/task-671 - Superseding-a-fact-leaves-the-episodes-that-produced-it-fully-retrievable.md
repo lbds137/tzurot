@@ -42,7 +42,7 @@ Acceptance: a fact superseded by a correction demonstrably stops its source epis
 
 ## STEP 0 — TRY THIS FIRST, IT MAY BE MOST OF THE FIX (owner insight, 2026-08-19)
 
-**Status 2026-10-12: wording owner-approved, queued as the agy-tier Pilot 2 unit.** Append exactly this sentence to BOTH `MEMORY_ARCHIVE_INSTRUCTION` and `MEMORY_ARCHIVE_SPLIT_INSTRUCTION` (MemoryFormatter.ts), updating their pinning tests and any wrapper-overhead expectations: "Each note carries the date it comes from; an older note may describe a situation that has since changed, so where notes disagree, the most recent one reflects how things stand now." Owner chose date-only (AskUserQuestion, 2026-10-12): the relevance sentence for TASK-1222 stays out so step 0 is measurable on its own.
+**Status 2026-10-12: step 0 APPLIED in #2614 (merged to develop; reaches prod with the next release).** Next: observe after the release before deciding the later steps. Applied: this sentence appended to BOTH `MEMORY_ARCHIVE_INSTRUCTION` and `MEMORY_ARCHIVE_SPLIT_INSTRUCTION` (MemoryFormatter.ts), with pinning tests, snapshot and the budget fixture updated: "Each note carries the date it comes from; an older note may describe a situation that has since changed, so where notes disagree, the most recent one reflects how things stand now." Owner chose date-only (AskUserQuestion, 2026-10-12): the relevance sentence for TASK-1222 stays out so step 0 is measurable on its own.
 
 Owner: "unless the model is directed to pay attention to dates of memories, it
 may not think to perform that extra step." Checked, and it is exactly right.
