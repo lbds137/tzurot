@@ -6,6 +6,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AIMessage, SystemMessage, HumanMessage } from '@langchain/core/messages';
 import { ContentBudgetManager, activeSpeakerPronouns } from './ContentBudgetManager.js';
 import { ContextWindowManager as RealContextWindowManager } from './context/ContextWindowManager.js';
+import { formatSingleMemory, getMemoryWrapperOverheadText } from './prompt/MemoryFormatter.js';
+import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ContextWindowManager } from './context/ContextWindowManager.js';
 import type {
@@ -935,11 +937,30 @@ describe('ContentBudgetManager', () => {
     it('preselect with a REAL ContextWindowManager exposes the exact shipped boundary and ids', () => {
       // Four entries, newest-first selection under a budget that fits only
       // the newest two — E1/E2 drop, E3/E4 ship.
-      // Sized so the REAL budget math (window 1450 − base 100 − msg 100 −
-      // real memory reserve) fits exactly TWO entries: E1/E2 drop, E3/E4 ship.
       // The size has to come from actual content — selection measures the
       // rendered entry, so a declared tokenCount would size nothing.
-      const bulk = 'lorem ipsum dolor sit amet consectetur adipiscing elit '.repeat(50);
+      //
+      // Sizing (window 4100, base 100 + msg 100 via the countTokens mock;
+      // history far exceeds the shared space, so the memory reserve is the
+      // contention floor — MemoryBudgetManager.calculateMemoryBudget):
+      //   safety margin  = floor(4100 × 0.05)               = 205
+      //   shared space   = 4100 − 100 − 100 − 205           = 3695
+      //   memory reserve = floor(3695 × 0.10)               = 369
+      //   history budget = 4100 − 100 − 100 − 369           = 3531
+      // Each entry is ≥ 150 × 8 = 1200 tokens (8 space-led words per repeat,
+      // each ≥ 1 cl100k token), so three entries (≥ 3600) never fit 3531,
+      // while two (≈ 2.3–2.8k incl. envelope) always do.
+      //
+      // Why this large: the reserve must hold the REAL memory_archive wrapper
+      // (sized from MEMORY_ARCHIVE_INSTRUCTION, ~120 tokens today) plus mem-e1
+      // (~30), or mem-e1 would drop for BUDGET, and the dedup assertion would
+      // fail for a budget reason that reads as a dedup regression. The reserve
+      // is only ~10% of the shared space, so a reserve with real headroom
+      // forces a large window, which forces large entries to keep the cut at two.
+      // 369 leaves ~220 tokens of headroom, so instruction edits do not silently
+      // turn this into a budget drop (the old 1450 window gave a 117 reserve
+      // and broke on a ~40-token sentence).
+      const bulk = 'lorem ipsum dolor sit amet consectetur adipiscing elit '.repeat(150);
       const entry = (n: number): Record<string, unknown> => ({
         id: `uuid-${n}`,
         discordMessageId: [`snowflake-${n}`],
@@ -961,9 +982,9 @@ describe('ContentBudgetManager', () => {
         userMessage: 'hello',
         processedAttachments: [],
         referencedMessagesDescriptions: undefined,
-        // base(100 via countTokens mock) + msg(100) + reserve leaves a history
-        // budget that fits ~2 entries of 100 tokens + wrapper.
-        effectiveContextWindowTokens: 100 + 100 + 1000 + 250,
+        // See the sizing block above: reserve 369, history budget 3531 —
+        // exactly two ~1.2–1.4k-token entries fit, and mem-e1 fits by budget.
+        effectiveContextWindowTokens: 4100,
       } as unknown as BudgetAllocationOptions;
       vi.mocked(mockPromptBuilder.countTokens).mockReturnValue(100);
 
@@ -985,6 +1006,13 @@ describe('ContentBudgetManager', () => {
           channelId: 'channel-123',
         },
       };
+      // BUDGET precondition: the reserve must hold the real wrapper + mem-e1, so
+      // a budget shortfall fails here, named, instead of reading as a dedup
+      // regression below.
+      expect(preselected.memoryReserve).toBeGreaterThanOrEqual(
+        countTextTokens(getMemoryWrapperOverheadText()) +
+          countTextTokens(formatSingleMemory(droppedMemory))
+      );
       // …while a memory of SHIPPED E4 is dropped.
       const shippedMemory: MemoryDocument = {
         pageContent: 'memory of E4',

@@ -1,0 +1,8 @@
+gate pnpm --filter <pkg> test --run --maxWorkers=2
+gate pnpm --filter <pkg> lint
+gate pnpm --filter <pkg> typecheck
+gate pnpm --filter <pkg> typecheck:spec
+gate pnpm --filter <pkg> build
+env LOW_RESOURCE_MODE=1
+env NODE_OPTIONS=--max-old-space-size=2048
+cwd .claude/worktrees/*
