@@ -166,6 +166,151 @@ describe('handleFacts', () => {
     );
   });
 
+  it('renders the query in the footer and persists it in the session when a query filter is active', async () => {
+    stub.listFacts.mockResolvedValue(listResponse([createMockFact()]));
+    const queryContext = {
+      user: { id: 'user-1' },
+      interaction: {
+        options: { getString: makeGetString({ character: 'lilith', query: 'monster' }) },
+      },
+      editReply: vi.fn().mockResolvedValue({ id: 'message-1', channelId: 'channel-1' }),
+    } as unknown as DeferredCommandContext;
+
+    await handleFacts(queryContext);
+
+    expect(stub.listFacts).toHaveBeenCalledWith(expect.objectContaining({ query: 'monster' }));
+
+    const embedData = (
+      vi.mocked(queryContext.editReply).mock.calls[0][0] as {
+        embeds: { data: { footer: { text: string } } }[];
+      }
+    ).embeds[0].data;
+    expect(embedData.footer.text).toContain('query: "monster"');
+
+    expect(sessionManagerMock.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { personalityId: 'personality-456', currentPage: 0, query: 'monster' },
+      })
+    );
+  });
+
+  it('escapes markdown in query text rendered in the footer', async () => {
+    stub.listFacts.mockResolvedValue(listResponse([createMockFact()]));
+    const queryContext = {
+      user: { id: 'user-1' },
+      interaction: {
+        options: { getString: makeGetString({ character: 'lilith', query: '*bold* _italic_' }) },
+      },
+      editReply: vi.fn().mockResolvedValue({ id: 'message-1', channelId: 'channel-1' }),
+    } as unknown as DeferredCommandContext;
+
+    await handleFacts(queryContext);
+
+    const embedData = (
+      vi.mocked(queryContext.editReply).mock.calls[0][0] as {
+        embeds: { data: { footer: { text: string } } }[];
+      }
+    ).embeds[0].data;
+    expect(embedData.footer.text).toContain('query: "\\*bold\\* \\_italic\\_"');
+  });
+
+  it('renders both tag and query in footer and session when both filters are active', async () => {
+    stub.listFacts.mockResolvedValue(listResponse([createMockFact()]));
+    const filterContext = {
+      user: { id: 'user-1' },
+      interaction: {
+        options: {
+          getString: makeGetString({
+            character: 'lilith',
+            tag: 'commitment:promise',
+            query: 'monster',
+          }),
+        },
+      },
+      editReply: vi.fn().mockResolvedValue({ id: 'message-1', channelId: 'channel-1' }),
+    } as unknown as DeferredCommandContext;
+
+    await handleFacts(filterContext);
+
+    expect(stub.listFacts).toHaveBeenCalledWith(
+      expect.objectContaining({ tag: 'commitment:promise', query: 'monster' })
+    );
+
+    const embedData = (
+      vi.mocked(filterContext.editReply).mock.calls[0][0] as {
+        embeds: { data: { footer: { text: string } } }[];
+      }
+    ).embeds[0].data;
+    expect(embedData.footer.text).toContain('tag: commitment:promise');
+    expect(embedData.footer.text).toContain('query: "monster"');
+
+    expect(sessionManagerMock.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          personalityId: 'personality-456',
+          currentPage: 0,
+          tag: 'commitment:promise',
+          query: 'monster',
+        },
+      })
+    );
+  });
+
+  it('shows the query-specific empty message when a query filter returns zero facts', async () => {
+    stub.listFacts.mockResolvedValue(listResponse([], 0));
+    const queryContext = {
+      user: { id: 'user-1' },
+      interaction: {
+        options: { getString: makeGetString({ character: 'lilith', query: 'monster' }) },
+      },
+      editReply: vi.fn().mockResolvedValue({ id: 'message-1', channelId: 'channel-1' }),
+    } as unknown as DeferredCommandContext;
+
+    await handleFacts(queryContext);
+
+    const embedData = (
+      vi.mocked(queryContext.editReply).mock.calls[0][0] as {
+        embeds: { data: { description: string; footer: { text: string } } }[];
+      }
+    ).embeds[0].data;
+    expect(embedData.description).toBe(
+      'No facts match that query — try browsing without a filter.'
+    );
+    expect(embedData.footer.text).toContain('0 facts');
+    expect(embedData.footer.text).toContain('query: "monster"');
+  });
+
+  it('shows the combined empty message when both tag and query return zero facts', async () => {
+    stub.listFacts.mockResolvedValue(listResponse([], 0));
+    const filterContext = {
+      user: { id: 'user-1' },
+      interaction: {
+        options: {
+          getString: makeGetString({
+            character: 'lilith',
+            tag: 'commitment:advice',
+            query: 'monster',
+          }),
+        },
+      },
+      editReply: vi.fn().mockResolvedValue({ id: 'message-1', channelId: 'channel-1' }),
+    } as unknown as DeferredCommandContext;
+
+    await handleFacts(filterContext);
+
+    const embedData = (
+      vi.mocked(filterContext.editReply).mock.calls[0][0] as {
+        embeds: { data: { description: string; footer: { text: string } } }[];
+      }
+    ).embeds[0].data;
+    expect(embedData.description).toBe(
+      'No facts match that query and carry that tag — try browsing without a filter.'
+    );
+    expect(embedData.footer.text).toContain('0 facts');
+    expect(embedData.footer.text).toContain('tag: commitment:advice');
+    expect(embedData.footer.text).toContain('query: "monster"');
+  });
+
   it('renders both badges as a joined glyph run when a fact is locked AND corrected', async () => {
     stub.listFacts.mockResolvedValue(
       listResponse([createMockFact({ isLocked: true, tier: 'corrected' })])
@@ -300,6 +445,23 @@ describe('handleFactsPagination', () => {
     expect(stub.listFacts).toHaveBeenCalledWith(
       expect.objectContaining({ tag: 'commitment:promise' })
     );
+  });
+
+  it('forwards the session query to the page fetch', async () => {
+    sessionManagerMock.findByMessageId.mockResolvedValue({
+      data: { personalityId: 'personality-456', currentPage: 0, query: 'monster' },
+    });
+    sessionManagerMock.get.mockResolvedValue({
+      data: { personalityId: 'personality-456', currentPage: 0, query: 'monster' },
+    });
+    stub.listFacts.mockResolvedValue(listResponse([createMockFact()], 25));
+    const interaction = createPaginationInteraction(
+      factBrowseHelpers.build(1, 'all', 'date', null)
+    );
+
+    await handleFactsPagination(interaction);
+
+    expect(stub.listFacts).toHaveBeenCalledWith(expect.objectContaining({ query: 'monster' }));
   });
 
   it('reports expiry when the session is gone', async () => {

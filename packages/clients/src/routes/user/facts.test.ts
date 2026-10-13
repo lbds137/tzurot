@@ -88,4 +88,38 @@ describe('user fact routes', () => {
     const result = schema.safeParse({ personalityId: 'p', tag: ['a', 'b'] });
     expect(result.success).toBe(false);
   });
+
+  it('listFacts query schema accepts a query and survives parsing', () => {
+    const schema = z.object(userFactRoutes.listFacts.query);
+    const result = schema.safeParse({ personalityId: 'p', query: 'monster' });
+    expect(result.success).toBe(true);
+    expect(result.data?.query).toBe('monster');
+  });
+
+  it('listFacts query schema trims a query with surrounding whitespace', () => {
+    const schema = z.object(userFactRoutes.listFacts.query);
+    const result = schema.safeParse({ personalityId: 'p', query: '  monster  ' });
+    expect(result.success).toBe(true);
+    expect(result.data?.query).toBe('monster');
+  });
+
+  it('listFacts query schema rejects a query over the max length', () => {
+    const schema = z.object(userFactRoutes.listFacts.query);
+    const result = schema.safeParse({ personalityId: 'p', query: 'a'.repeat(101) });
+    expect(result.success).toBe(false);
+  });
+
+  it('listFacts query schema accepts a query at exactly the max length', () => {
+    const maxQuery = 'a'.repeat(100);
+    const schema = z.object(userFactRoutes.listFacts.query);
+    const result = schema.safeParse({ personalityId: 'p', query: maxQuery });
+    expect(result.success).toBe(true);
+    expect(result.data?.query).toBe(maxQuery);
+  });
+
+  it('listFacts query schema rejects a repeated query query param (array)', () => {
+    const schema = z.object(userFactRoutes.listFacts.query);
+    const result = schema.safeParse({ personalityId: 'p', query: ['a', 'b'] });
+    expect(result.success).toBe(false);
+  });
 });
