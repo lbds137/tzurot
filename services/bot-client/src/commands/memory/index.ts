@@ -19,6 +19,7 @@
 
 import { SlashCommandBuilder, type AutocompleteInteraction } from 'discord.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { FACT_QUERY_MAX_LENGTH } from '@tzurot/common-types/constants/memory';
 import { SELECTOR_DESCRIPTION } from '@tzurot/common-types/constants/uxVocabulary';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { defineCommand } from '../../utils/defineCommand.js';
@@ -189,6 +190,13 @@ export default defineCommand({
             .setRequired(false)
             .setMaxLength(DISCORD_LIMITS.AUTOCOMPLETE_CHOICE_MAX_LENGTH)
             .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+          option
+            .setName('query')
+            .setDescription('Only facts whose text contains this')
+            .setRequired(false)
+            .setMaxLength(FACT_QUERY_MAX_LENGTH)
         )
     )
     .addSubcommand(subcommand =>

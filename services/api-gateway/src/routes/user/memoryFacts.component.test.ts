@@ -331,4 +331,45 @@ describe('memoryFacts handlers (component, PGLite)', () => {
     expect(x?.tier).toBe('corrected');
     expect(res.status).toHaveBeenCalledWith(200);
   });
+
+  it('list: filters active facts by statement query with literal wildcards', async () => {
+    await seedFact({ statement: 'Drinks Monster energy drinks' });
+    await seedFact({ statement: 'quit MONSTER for good' });
+    await seedFact({ statement: 'Lives in Rockville' });
+    await seedFact({ statement: 'Got 100% on the test' });
+    await seedFact({ statement: 'Got 1000 on the test' });
+
+    // query 'monster' returns exactly the two Monster facts (case-insensitive), total = 2
+    const monsterReq = reqRes({}, {}, { personalityId: PERSONALITY, query: 'monster' });
+    await handleListFacts(deps())(monsterReq.req, monsterReq.res, () => undefined);
+    const monsterPayload = monsterReq.json.mock.calls[0]?.[0] as {
+      facts: { statement: string }[];
+      total: number;
+    };
+    expect(monsterPayload.total).toBe(2);
+    expect(monsterPayload.facts.map(f => f.statement).sort()).toEqual([
+      'Drinks Monster energy drinks',
+      'quit MONSTER for good',
+    ]);
+
+    // query '100%' returns only "Got 100% on the test" (proves % is literal; without escaping it would also match "1000")
+    const percentReq = reqRes({}, {}, { personalityId: PERSONALITY, query: '100%' });
+    await handleListFacts(deps())(percentReq.req, percentReq.res, () => undefined);
+    const percentPayload = percentReq.json.mock.calls[0]?.[0] as {
+      facts: { statement: string }[];
+      total: number;
+    };
+    expect(percentPayload.total).toBe(1);
+    expect(percentPayload.facts.map(f => f.statement)).toEqual(['Got 100% on the test']);
+
+    // query '_' style check: query 'o_' returns zero facts (no statement contains a literal "o_"; unescaped _ would match many)
+    const underscoreReq = reqRes({}, {}, { personalityId: PERSONALITY, query: 'o_' });
+    await handleListFacts(deps())(underscoreReq.req, underscoreReq.res, () => undefined);
+    const underscorePayload = underscoreReq.json.mock.calls[0]?.[0] as {
+      facts: { statement: string }[];
+      total: number;
+    };
+    expect(underscorePayload.total).toBe(0);
+    expect(underscorePayload.facts).toEqual([]);
+  });
 });

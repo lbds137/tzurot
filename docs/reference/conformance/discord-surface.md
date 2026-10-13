@@ -471,7 +471,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/detailModals.ts | user | 8 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | channelId | 1 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | customId | 1 |
-| services/bot-client/src/commands/memory/factsBrowse.ts | escapeMarkdown | 1 |
+| services/bot-client/src/commands/memory/factsBrowse.ts | escapeMarkdown | 2 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | id | 7 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | message | 2 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | user | 2 |
@@ -500,12 +500,12 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/index.ts | getFocused | 1 |
 | services/bot-client/src/commands/memory/index.ts | name | 2 |
 | services/bot-client/src/commands/memory/index.ts | options | 1 |
-| services/bot-client/src/commands/memory/index.ts | setDescription | 36 |
-| services/bot-client/src/commands/memory/index.ts | setMaxLength | 1 |
+| services/bot-client/src/commands/memory/index.ts | setDescription | 37 |
+| services/bot-client/src/commands/memory/index.ts | setMaxLength | 2 |
 | services/bot-client/src/commands/memory/index.ts | setMaxValue | 1 |
 | services/bot-client/src/commands/memory/index.ts | setMinValue | 1 |
-| services/bot-client/src/commands/memory/index.ts | setName | 36 |
-| services/bot-client/src/commands/memory/index.ts | setRequired | 20 |
+| services/bot-client/src/commands/memory/index.ts | setName | 37 |
+| services/bot-client/src/commands/memory/index.ts | setRequired | 21 |
 | services/bot-client/src/commands/memory/interactionHandlers.ts | customId | 8 |
 | services/bot-client/src/commands/memory/interactionHandlers.ts | id | 1 |
 | services/bot-client/src/commands/memory/interactionHandlers.ts | message | 1 |
@@ -1917,7 +1917,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/inspectMessage.ts | ContextMenuCommandBuilder | 1 |
 | services/bot-client/src/commands/memory/index.ts | SlashCommandBuilder | 1 |
 | services/bot-client/src/commands/memory/index.ts | addIntegerOption | 1 |
-| services/bot-client/src/commands/memory/index.ts | addStringOption | 19 |
+| services/bot-client/src/commands/memory/index.ts | addStringOption | 20 |
 | services/bot-client/src/commands/memory/index.ts | addSubcommand | 13 |
 | services/bot-client/src/commands/memory/index.ts | addSubcommandGroup | 2 |
 | services/bot-client/src/commands/memory/index.ts | name | 6 |
@@ -2987,4 +2987,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 2917 entries across 6783 sites.
+Total: 2917 entries across 6789 sites.

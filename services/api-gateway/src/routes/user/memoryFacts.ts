@@ -128,7 +128,7 @@ async function findOwnedActiveFact(context: OwnershipContext): Promise<FactRow |
   return fact;
 }
 
-/** GET /user/fact/list?personalityId&limit&offset&tag — paginated active facts. */
+/** GET /user/fact/list?personalityId&limit&offset&tag&query — paginated active facts. */
 export const handleListFacts = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
   return withManifestInput(
@@ -149,11 +149,21 @@ export const handleListFacts = (deps: RouteDeps): RequestHandler => {
       const offset = Math.max(0, Number.parseInt(query.offset ?? '0', 10) || 0);
       const tagFilter =
         query.tag !== undefined && query.tag.length > 0 ? { entityTags: { has: query.tag } } : {};
+      const queryFilter =
+        query.query !== undefined && query.query.length > 0
+          ? {
+              statement: {
+                contains: escapeLikeWildcards(query.query),
+                mode: 'insensitive' as const,
+              },
+            }
+          : {};
       const where = {
         personalityId: query.personalityId,
         personaId,
         ...ACTIVE_FACT_WHERE,
         ...tagFilter,
+        ...queryFilter,
       };
 
       const [facts, total] = await Promise.all([
@@ -187,6 +197,13 @@ function clampLimit(raw: string | undefined): number {
     return DEFAULT_LIST_LIMIT;
   }
   return Math.min(parsed, MAX_LIST_LIMIT);
+}
+
+/**
+ * Escape LIKE / ILIKE wildcards (`\`, `%`, `_`) so a user query matches those characters literally.
+ */
+function escapeLikeWildcards(value: string): string {
+  return value.replace(/[\\%_]/g, '\\$&');
 }
 
 /** GET /user/fact/:id — single fact for the detail view. */
