@@ -18,9 +18,11 @@ ordinal: 15000
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
 
-Surfaced 2026-07-12 — `release:finalize` prerelease-sweep follow-ups from #1598 review: (a) doc sync — finalize.ts module JSDoc, `/tzurot-git-workflow` SKILL.md step-6 description, and OPS_CLI_REFERENCE.md one-liner all still describe only the rebase sequence, none mention the sweep (SKILL.md is review-gated → needs a small PR); (b) per-tag failure attribution — a mid-loop `gh release edit` failure warns generically without naming which tag failed / how many succeeded (+ test). **Promote when**: next tooling/docs PR, or next release cut (whichever first).
+Surfaced 2026-07-12 — `release:finalize` prerelease-sweep follow-ups from #1598 review: (a) doc sync — finalize.ts module JSDoc, `/tzurot-git-workflow` SKILL.md step-6 description, and OPS_CLI_REFERENCE.md one-liner all still describe only the rebase sequence, none mention the sweep (SKILL.md is review-gated → needs a small PR). Still live 2026-10-12: the finalize.ts JSDoc (lines 1-6) describes only the step-6 rebase though the sweep exists at :295/:365. **Promote when**: next tooling/docs PR, or next release cut (whichever first).
 
-**Why:** Skill/docs understating an automated step invites redundant manual work; attribution nit is diagnosability-only (self-heals next run).
+**Why:** Skill/docs understating an automated step invites redundant manual work.
+
+Former half (b), per-tag failure attribution, ruled out 2026-10-12 (owner-approved Batch B): diagnosability-only in an operator command, and the failure self-heals on the next run.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Comments
