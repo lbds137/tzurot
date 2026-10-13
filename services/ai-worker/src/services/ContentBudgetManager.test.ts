@@ -949,12 +949,13 @@ describe('ContentBudgetManager', () => {
       //   history budget = 4100 − 100 − 100 − 369           = 3531
       // Each entry is ≥ 150 × 8 = 1200 tokens (8 space-led words per repeat,
       // each ≥ 1 cl100k token), so three entries (≥ 3600) never fit 3531,
-      // while two (≈ 2.3–2.8k incl. envelope) always do.
+      // while two (≈ 2.3–2.8k incl. envelope) fit: the shipped-ids assertion
+      // below pins the two-entry cut.
       //
       // Why this large: the reserve must hold the REAL memory_archive wrapper
       // (sized from MEMORY_ARCHIVE_INSTRUCTION) plus mem-e1, or mem-e1 would
-      // drop for BUDGET, and the dedup assertion would
-      // fail for a budget reason that reads as a dedup regression. The reserve
+      // drop for BUDGET, and the dedup assertion would fail for a budget
+      // reason that reads as a dedup regression. The reserve
       // is only ~10% of the shared space, so a reserve with real headroom
       // forces a large window, which forces large entries to keep the cut at two.
       // The reserve leaves room for instruction edits to grow; the BUDGET

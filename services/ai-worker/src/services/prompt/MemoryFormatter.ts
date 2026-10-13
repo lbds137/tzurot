@@ -234,6 +234,8 @@ function renderSingleMemory(
       : `<historical_note${attrs}>${inner}</historical_note>`;
   };
 
+  // Defensive only: stored rows carry a NOT NULL created_at. The archive
+  // instructions tell the model every note is dated, so a dateless note is a bug.
   if (doc.metadata?.createdAt === undefined || doc.metadata.createdAt === null) {
     return { xml: wrap(safeContent), stats: splitResult };
   }
