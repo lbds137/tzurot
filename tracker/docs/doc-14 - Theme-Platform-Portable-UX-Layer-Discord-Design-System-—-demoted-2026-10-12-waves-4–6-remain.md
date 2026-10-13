@@ -1,14 +1,16 @@
 ---
 id: doc-14
 title: >-
-  Theme: Platform-Portable UX Layer (Discord Design System) — Active Epic since
-  2026-09-24
+  Theme: Platform-Portable UX Layer (Discord Design System) — demoted
+  2026-10-12, waves 4–6 remain
 type: other
 created_date: '2026-07-28 11:11'
-updated_date: '2026-10-06 03:15'
+updated_date: '2026-10-13 00:52'
 ---
-### Theme: Platform-Portable UX Layer (Discord Design System) — ACTIVE EPIC (Phase 3 waves 4–6)
+### Theme: Platform-Portable UX Layer (Discord Design System) — DEMOTED 2026-10-12 (Phase 3 waves 4–6 remain)
 
+> **Status 2026-10-12: DEMOTED (owner ruling)** — out of the Active Epic slot after stalling; waves 4–6 plan unchanged, `doc-27` parity builds still gated on it (`backlog/active-epic.md`). Earlier status follows.
+>
 > **Status 2026-09-24:** ACTIVE EPIC from 2026-09-24 (owner ruling; `backlog/active-epic.md`). Waves 4–6 remain; built on the cloud lane by shape (`doc-108`). The 2026-07-23 park note below is historical. (The file name still carries the old PARKED title; `doc-14` is the stable reference.)
 
 > **Machloket (Spacebar fork, `doc-83`) — assessed 2026-09-28:** Spacebar reimplements Discord's API, so the existing discord.js renderer serves it and **Phase 4 is NOT triggered** by it. Owner hard line (2026-09-28): Machloket implements at minimum everything Tzurot needs. Rule for every UX PR: if it introduces a discord.js primitive bot-client did not use before (a new interaction response type, component type, or REST route), flag it to the Spacebar fork session and add it to the conformance surface (TASK-1145). Revisit Phase 4 only if the Machloket client cannot render a component the render layer depends on.
