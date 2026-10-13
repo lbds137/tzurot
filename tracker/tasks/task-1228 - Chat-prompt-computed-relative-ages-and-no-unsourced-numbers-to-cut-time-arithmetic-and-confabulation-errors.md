@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-13 01:26'
+updated_date: '2026-10-13 01:42'
 labels:
   - 'area:ai-worker'
   - 'size:M'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 1217000
@@ -25,3 +26,9 @@ What: (a) render a computed relative age (3 days ago, this morning) next to each
 Owner question: approve adding these behaviour rules to the character prompt (wording is prompt-taste)?
 Recommendation: yes, start with (a) since it is mechanical, then (b) with wording shown first, measured by rerunning the eval after TASK-1225.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner ruling 2026-10-12 (AskUserQuestion, backlog review Batch B owner calls): YES: (a) computed relative ages now; (b) the behaviour-rule wording is shown to the owner before it ships.
+<!-- SECTION:NOTES:END -->

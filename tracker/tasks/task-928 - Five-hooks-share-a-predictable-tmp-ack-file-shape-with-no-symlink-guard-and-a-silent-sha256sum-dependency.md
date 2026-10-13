@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-09 22:15'
+updated_date: '2026-10-13 01:41'
 labels:
   - 'area:hooks'
   - 'size:M'
@@ -30,3 +31,9 @@ Fix shape: one sourced helper in .claude/hooks/ owning ack-key derivation and th
 
 Acceptance: all five hooks derive their ack path and digest through the one helper; no ack path lives under a world-writable directory, or the write refuses a symlinked target; with both digest binaries masked from PATH each hook prints one stderr line and still fails open; every affected hook probe passes and guard:hook-probes stays green.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner ruling 2026-10-12 (AskUserQuestion, backlog review Batch B owner calls): FIX IT, small: move the block-once ack files to a private per-user runtime dir (XDG_RUNTIME_DIR or a 0700 dir, no fixed /tmp name) and warn on stderr when sha256sum is missing instead of silently skipping. For hooks moving to Seyag (TASK-1106 twins) land the fix upstream.
+<!-- SECTION:NOTES:END -->
