@@ -4,7 +4,9 @@ _Kickoff Lila via Deck management 2026-09-30; deputy driver `dev-docs-66` while 
 
 ---
 
-## 🏗 Active Epic: Platform-Portable UX Layer, Phase 3 waves 4–6 (`doc-14`) — PROMOTED 2026-09-24
+## ⏸ DEMOTED 2026-10-12: Platform-Portable UX Layer, Phase 3 waves 4–6 (`doc-14`) — Active Epic slot now OPEN
+
+_**Owner ruling 2026-10-12 (AskUserQuestion, after the backlog review):** demoted out of the Active Epic slot because it had stalled since its 2026-09-24 promotion. It returns to `cold/queue.md` Phase B with its plan intact, and resuming it starts from the "Remaining" list below. The next theme is the owner's pick. `doc-27` parity builds stay gated on these waves; `doc-11` no longer queues behind it. History follows._
 
 _Owner call 2026-09-24 (Fable planning pass, AskUserQuestion): the slot opened because `doc-8` is in owner-run rollout and both roadmap blockers ahead of this item turned out shipped — `doc-12` P0–P1 landed 2026-08-25/26 (#2222–#2224; only the on-demand P2 counters remain, so the Phase C gate is MET) and caching Phase 2 is live on prod (`6c133831c`). Focus: the UX surface stops moving — the beta-exit gate (owner 2026-07-17), deprioritized 2026-07-25 but never cancelled. Finishing it un-pauses v2 parity builds (`doc-27`) and gives `doc-86` its surface standard._
 
