@@ -1,17 +1,18 @@
 ---
 id: TASK-1229
 title: >-
-  /memory facts has no search: 146 pages of facts can only be paged or
-  tag-filtered
+  /memory facts: contradicts view (facts on the same entity tag side by side);
+  text search shipped
 status: To Do
 assignee: []
 created_date: '2026-10-13 01:48'
+updated_date: '2026-10-13 03:41'
 labels:
   - 'area:bot-client'
   - 'size:M'
   - 'state:ready'
 dependencies: []
-priority: high
+priority: medium
 ordinal: 1218000
 ---
 
@@ -25,4 +26,6 @@ What: (1) a query option on /memory facts (statement text match in the gateway, 
 Acceptance: /memory facts <character> query:monster returns the Monster facts on one page; a test pins the gateway filter.
 
 Split 2026-10-12 (driver): this PR ships (1) only, as a case-insensitive statement text match carried exactly like the tag filter (route contract, gateway where-clause, session data, embed filter line). Grounding: the tag filter already rides the Redis session, not the customId (factsBrowse.ts FactsSession), so the query needs no customId budget. (2) jump-to-page did not ship anywhere (git grep jump/goto page over services and packages: no hits) and doc-72 owns generic dashboard index navigation; with search in place, the 146-page case no longer depends on it, so it stays with doc-72. (3) contradicts view stays open here as the remaining item after the search PR merges. Semantic (embedding) match is not in this PR: text match meets the acceptance; revisit only if text match misses real lookups.
+
+SHIPPED (1) 2026-10-12: PR 2615 merged to develop (ada587304 + 2cdcff53a); reaches users with the next release (beta.237). The acceptance is met. Remaining on this task: (3) the contradicts view only, now medium priority (search already lets a user find both sides of a contradiction by keyword). Built on the agy tier (Gemini 3.8 Flash): two worker rounds plus driver gates; the worker wrongly skipped the PGLite component test as needing containers, and missed the command-options snapshot, which CI caught.
 <!-- SECTION:DESCRIPTION:END -->
