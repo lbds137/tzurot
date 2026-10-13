@@ -3,10 +3,10 @@ id: TASK-810
 title: >-
   Watch: claim-scan false-positive rate — vocabulary overlaps the recommended
   phrasing for VERIFIED comments
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-29 01:43'
-updated_date: '2026-09-04 19:38'
+updated_date: '2026-10-13 01:42'
 labels:
   - 'area:hooks'
   - 'size:S'
@@ -33,6 +33,12 @@ Fix shape if tuning happens: add the external-actor verbs as a limb. CARE, and t
 
 Acceptance: a disposition recorded (earning its keep as-is / tuned with the co-render probe case added / escalated to owner), covering BOTH directions — the FP rate and whether the external-actor-behaviour limb is worth its FP cost.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner ruling 2026-10-12 (AskUserQuestion, backlog review Batch B owner calls): CLOSE AS DONE: the claim scan earns its keep; PR 2249 (worst case, prose-heavy) showed no noise. Reopen if the banner starts getting skimmed.
+<!-- SECTION:NOTES:END -->
 
 ## Comments
 
