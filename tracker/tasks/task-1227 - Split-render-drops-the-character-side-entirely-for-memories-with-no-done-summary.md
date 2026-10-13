@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-13 01:26'
+updated_date: '2026-10-13 01:56'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -24,3 +25,9 @@ What: (1) confirm with one real render of a dead memory; (2) render a capped ver
 
 Acceptance: a split-mode note with no summary shows a bounded excerpt of the character turn, with a test pinning it; dead-row cause recorded.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner ruling 2026-10-12 (AskUserQuestion): YES, capped verbatim excerpt of the character turn when no summary exists. The doc-8 'null never renders verbatim once switched on' ruling was about summarized rows; write this exception and its reason into memory-archive-format.md in the same PR.
+<!-- SECTION:NOTES:END -->
