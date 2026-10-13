@@ -952,14 +952,14 @@ describe('ContentBudgetManager', () => {
       // while two (≈ 2.3–2.8k incl. envelope) always do.
       //
       // Why this large: the reserve must hold the REAL memory_archive wrapper
-      // (sized from MEMORY_ARCHIVE_INSTRUCTION, ~120 tokens today) plus mem-e1
-      // (~30), or mem-e1 would drop for BUDGET, and the dedup assertion would
+      // (sized from MEMORY_ARCHIVE_INSTRUCTION) plus mem-e1, or mem-e1 would
+      // drop for BUDGET, and the dedup assertion would
       // fail for a budget reason that reads as a dedup regression. The reserve
       // is only ~10% of the shared space, so a reserve with real headroom
       // forces a large window, which forces large entries to keep the cut at two.
-      // 369 leaves ~220 tokens of headroom, so instruction edits do not silently
-      // turn this into a budget drop (the old 1450 window gave a 117 reserve
-      // and broke on a ~40-token sentence).
+      // The reserve leaves room for instruction edits to grow; the BUDGET
+      // precondition below measures the live wrapper and fails first, named,
+      // once an edit outgrows it.
       const bulk = 'lorem ipsum dolor sit amet consectetur adipiscing elit '.repeat(150);
       const entry = (n: number): Record<string, unknown> => ({
         id: `uuid-${n}`,
