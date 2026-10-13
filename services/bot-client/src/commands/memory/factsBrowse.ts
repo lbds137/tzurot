@@ -134,7 +134,7 @@ function buildFactsEmbed(options: {
     footerSegments: [
       pluralize(total, { singular: 'fact', plural: 'facts' }),
       tagActive ? `tag: ${tag}` : false,
-      queryActive ? `query: "${escapeMarkdown(query)}"` : false,
+      queryActive ? `query: "${query}"` : false,
     ],
     badgeLegend: buildBadgeLegend(['LOCKED', 'CORRECTED']),
     footerOnEmpty: filterActive ? true : undefined,

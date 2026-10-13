@@ -117,6 +117,21 @@ describe('user fact routes', () => {
     expect(result.data?.query).toBe(maxQuery);
   });
 
+  it('listFacts query schema accepts a query of 100 emoji', () => {
+    const emojiQuery = '😀'.repeat(100);
+    const schema = z.object(userFactRoutes.listFacts.query);
+    const result = schema.safeParse({ personalityId: 'p', query: emojiQuery });
+    expect(result.success).toBe(true);
+    expect(result.data?.query).toBe(emojiQuery);
+  });
+
+  it('listFacts query schema rejects a query of 101 emoji', () => {
+    const emojiQuery = '😀'.repeat(101);
+    const schema = z.object(userFactRoutes.listFacts.query);
+    const result = schema.safeParse({ personalityId: 'p', query: emojiQuery });
+    expect(result.success).toBe(false);
+  });
+
   it('listFacts query schema rejects a repeated query query param (array)', () => {
     const schema = z.object(userFactRoutes.listFacts.query);
     const result = schema.safeParse({ personalityId: 'p', query: ['a', 'b'] });
