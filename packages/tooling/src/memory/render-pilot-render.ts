@@ -1,6 +1,6 @@
 /**
- * The three memory-archive renders under evaluation (D0): V (today's
- * production render, verbatim + referenced block), F (linked facts only), and
+ * The three memory-archive renders under evaluation (D0): V (production's
+ * render as of the pilot, verbatim + referenced block), F (linked facts only), and
  * S (LLM summary only). Pure and tested — no I/O, no model calls.
  */
 
@@ -20,7 +20,7 @@ export function formatRenderTimestamp(createdAt: Date): string {
   return createdAt.toISOString().slice(0, 16).replace('T', ' ');
 }
 
-/** Mirror of production's `MEMORY_ARCHIVE_INSTRUCTION` (MemoryFormatter.ts) — pinned by test. */
+/** Production's `MEMORY_ARCHIVE_INSTRUCTION` (MemoryFormatter.ts) as the render pilot ran it; frozen for reproducibility, so it omits the date sentence production added later. */
 export const V_INSTRUCTION =
   'These are your own recalled memories — summarized notes from past interactions surfacing ' +
   'from your memory. No participant said them just now, and they are not part of the current ' +
@@ -45,7 +45,7 @@ export interface RenderInput {
   summary: string | null;
 }
 
-/** Render V: today's production render — whole content, referenced block included. */
+/** Render V: production's render as of the pilot — whole content, referenced block included. */
 export function renderNoteV(input: RenderInput): string {
   const t = formatRenderTimestamp(input.createdAt);
   const lines = [
