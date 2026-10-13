@@ -30,8 +30,8 @@ A terminal client for talking to characters, invocable by the owner directly and
 - **Agent-driven smoke tests and prompt evals**: Claude Code could run the `needs-smoke` checklists and voice-drift checks (`doc-97`) instead of the owner on an alt account.
 - **Transport-independence proof** for `doc-79`, with no browser and no frontend.
 
-## Open questions (owner calls)
+## Owner rulings (2026-10-13)
 
-1. **Dev only, or prod too?** Prod means real spend and real memory writes from CLI turns.
-2. **Do CLI conversations write long-term memory and facts?** Agent-driven test chats would pollute a character's memory unless they are flagged or isolated.
-3. **Lane hygiene**: character content entering a Claude Code session is fine on Anthropic lanes. On a z.ai-lane session it would send character chats to a Chinese-hosted model, which the owner's no-Chinese-models rule for character content forbids. The MCP/Bash wrapper should refuse or warn on those lanes.
+1. **Dev vs prod is not a distinguishing axis**: both environments spend money and write memory. Environment is a normal per-invocation choice, not a scope limit.
+2. **The agent gets its own special user, not the owner's.** Its memories land in its own space, so suppression is not required by default. Where wanted, suppression is per user, and the existing Incognito mode already does it: a session with `personalityId: 'all'` and `duration: 'forever'` disables memory writing for that user (`packages/common-types/src/types/memory-modes.ts`). Build implication: `User.discordId` is a required `VarChar(20)`, so the special user needs a synthetic snowflake until `doc-79` Phase 2 lands platform-neutral identity.
+3. **No lane restriction.** Tzurot characters already run on z.ai models in production, so a z.ai-lane Claude Code session seeing character chat adds no new exposure. (The shared-memory no-Chinese-models rule covers non-code Claude Code sessions in other projects, not Tzurot's own model routing.)
