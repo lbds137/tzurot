@@ -52,6 +52,9 @@ export interface MemoryDocument {
     messageIds?: string[] | null;
     /** Channel the memory was formed in — scopes the dedup rescue. */
     channelId?: string | null;
+    /** Chunk group UUID linking all chunks from same source memory (null for non-chunks).
+     *  Stamped by `mapQueryResultToDocument`. */
+    chunkGroupId?: string | null;
     /** The personality this row was originally authored under, stamped by `mapQueryResultToDocument`
      *  from the query's `personality_id` column. Compared against the responding personality's id to
      *  detect a foreign note under shared-LTM retrieval (`shareLtmAcrossPersonalities`); never compared
@@ -62,6 +65,11 @@ export interface MemoryDocument {
      *  do not match the template — absence is meaningful (it selects the verbatim fallback render),
      *  so never write a default here. Pinned by MEM-ARCH-006's test. */
     userTurn?: string;
+    /** The assistant half of the stored `{user}: … \n{assistant}: …` template, placeholder-resolved,
+     *  referenced block excluded — mirrors {@link userTurn}'s treatment. Stamped beside `userTurn`
+     *  by `mapQueryResultToDocument`; ABSENT for legacy rows that do not match the template
+     *  (absence means no excerpt arm; never write a default here). */
+    assistantTurn?: string;
     /** The speaker name for `userTurn` — this row's own persona, so a remembered turn keeps its own
      *  speaker in a multi-user channel. Stamped beside `userTurn`. */
     subjectName?: string;
