@@ -1,7 +1,7 @@
 ---
 id: TASK-1239
 title: Delete-obsolete-beta.209-smoke-checklist-docs-local-owner-yes-pending
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-16 21:10'
 labels:
@@ -20,4 +20,6 @@ Deck fleet audit 2026-10-16 asked for a disposition of docs/local/beta.209-smoke
 
 Owner question: delete docs/local/beta.209-smoke-checklist.md (obsolete beta.209 smoke list, verified stale) or keep it as a record under a dated archive name?
 Recommendation: delete — the gate items ran and are recorded on their tracker tasks; keeping it can only send a reader running tests for a release seven weeks shipped.
+
+CLOSED 2026-10-16: owner approved the deletion ("if it's not needed you can delete it"); file deleted same session; archived Done.
 <!-- SECTION:DESCRIPTION:END -->
