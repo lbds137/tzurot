@@ -11,8 +11,8 @@ import { describe, it, expect } from 'vitest';
 import { ARCHIVE_SUMMARY_PROMPT_VERSION, ARCHIVE_SUMMARY_JOB_OPTIONS } from './memoryArchive.js';
 
 describe('ARCHIVE_SUMMARY_PROMPT_VERSION', () => {
-  it('is pinned at 1 — bumping it is deliberate: it re-admits every done and dead row at retrieval and in the sweep', () => {
-    expect(ARCHIVE_SUMMARY_PROMPT_VERSION).toBe(1);
+  it('is pinned at 2 — bumping it is deliberate: it re-admits every done and dead row at retrieval and in the sweep', () => {
+    expect(ARCHIVE_SUMMARY_PROMPT_VERSION).toBe(2);
   });
 });
 

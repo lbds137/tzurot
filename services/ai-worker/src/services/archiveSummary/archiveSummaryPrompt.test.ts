@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import {
   buildSummarizerPrompt,
   buildRegeneratePrompt,
@@ -26,6 +27,20 @@ describe('buildSummarizerPrompt', () => {
     expect(prompt).toContain(BASE_INPUT.subjectName);
     expect(prompt).toContain(BASE_INPUT.userText);
     expect(prompt).toContain(BASE_INPUT.assistantText);
+    expect(prompt).toContain('Hedges and conditionals survive');
+    expect(prompt).toContain('a third person');
+    expect(prompt).toContain('has unknown content');
+    expect(prompt).toContain('if the weather held');
+    expect(prompt).toContain('untranscribed');
+    expect(prompt).toContain('undescribed');
+    expect(prompt).toContain('expired');
+    expect(prompt).toContain('unprocessed');
+    expect(prompt).toContain('not supported');
+    expect(prompt).toContain('content not analyzed');
+    expect(prompt).toContain('never infer it from the other speaker');
+    expect(prompt).toContain('Nova guessed');
+    expect(prompt).toContain('corrected from X');
+    expect(prompt).toContain('When the cap forces a choice');
   });
 
   it('includes the referenced-content block when non-null', () => {
@@ -58,7 +73,9 @@ describe('buildRegeneratePrompt', () => {
     expect(prompt).toContain('contains a first-person pronoun');
     expect(prompt).toContain('names: the plan, the vet');
     expect(prompt).toContain('Tighter');
-    expect(prompt).toContain('keep every commitment and every name');
+    expect(prompt).toContain('keep every commitment, every name, every number');
+    expect(prompt).toContain('every hedge and condition');
+    expect(prompt).toContain('every safety qualifier');
     expect(prompt).toContain('third person');
   });
 });
@@ -67,6 +84,7 @@ describe('buildReferentCheckPrompt', () => {
   it('carries the referent-check rules and the exchange plus summary', () => {
     const prompt = buildReferentCheckPrompt(BASE_INPUT, 'Jules asked Nova about the vet call.');
     expect(prompt).toContain(REFERENT_CHECK_SYSTEM_PROMPT);
+    expect(prompt).toContain('NOT dangling');
     expect(prompt).toContain(BASE_INPUT.userText);
     expect(prompt).toContain('Jules asked Nova about the vet call.');
   });
@@ -90,4 +108,22 @@ describe('referentCheckResponseSchema', () => {
   it('rejects a non-array dangling field', () => {
     expect(referentCheckResponseSchema.safeParse({ dangling: 'nope' }).success).toBe(false);
   });
+});
+
+describe('prompt overhead', () => {
+  it(
+    'pins the measured empty-exchange overhead — re-measure and update ' +
+      'SUMMARIZER_PROMPT_OVERHEAD_TOKENS in packages/tooling/src/memory/summarize-sweep-report.ts when this fails, ' +
+      'and bump ARCHIVE_SUMMARY_PROMPT_VERSION if the prompt text changed',
+    () => {
+      const empty = buildSummarizerPrompt({
+        displayName: '',
+        subjectName: '',
+        userText: '',
+        assistantText: '',
+        referenced: null,
+      });
+      expect(countTextTokens(empty)).toBe(1383);
+    }
+  );
 });
