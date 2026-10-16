@@ -78,7 +78,7 @@ Rule: **embed color encodes surface kind, not entity state.** Informational surf
 
 ### 2.5 Empty values, timestamps, typography
 
-- **Empty value sentinel**: `_Not set_` — everywhere (`_Not configured_`, `—`, `_none_`, `N/A` retired). Temporal never-happened may use `Never` (e.g., "Last used: Never").
+- **Empty value sentinel**: `_Not set_` — everywhere (`_Not configured_`, `—`, `_none_`, `N/A` retired). Temporal never-happened may use `Never` (e.g., "Last validated Never" in a browse metadata row).
 - **Timestamps**: Discord dynamic timestamps only — `<t:unix:R>` for recency/activity ("3 days ago"), `<t:unix:D>` for creation/long dates. The only timezone-correct, self-updating form; currently used in just 3 of ~20 date sites. Static `YYYY-MM-DD` allowed only inside file exports (attachments render no markup).
 - **Typography**: bold = names/labels; backticks = ids, slugs, commands, literal input; italics = meta/hints/empty-sentinels; `·` = the inline separator.
 

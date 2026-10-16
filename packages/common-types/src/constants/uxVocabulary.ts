@@ -96,7 +96,7 @@ export const SELECTOR_DESCRIPTION = {
 export const UX_SENTINELS = {
   /** Empty/unset field value — italic meta text. */
   NOT_SET: '_Not set_',
-  /** Temporal never-happened (e.g. "Last used: Never"). */
+  /** Temporal never-happened (e.g. "Last validated Never" in a browse row). */
   NEVER: 'Never',
 } as const;
 
