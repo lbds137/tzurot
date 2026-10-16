@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { ARCHIVE_SUMMARY_PROMPT_VERSION } from '@tzurot/common-types/constants/memoryArchive';
 import { JobType } from '@tzurot/common-types/constants/queue';
 import type { ArchiveSummaryJobData } from '@tzurot/common-types/types/jobs';
 import {
@@ -167,7 +168,7 @@ describe('ArchiveSummaryProcessor', () => {
       makeRow({
         content,
         source_content_hash: hash,
-        summary_prompt_version: 1,
+        summary_prompt_version: ARCHIVE_SUMMARY_PROMPT_VERSION,
         summary_status: 'done',
       })
     );

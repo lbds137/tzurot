@@ -13,12 +13,14 @@ import {
 /**
  * Measured from `buildSummarizerPrompt` with an entirely empty exchange
  * (`displayName`, `subjectName`, `userText`, `assistantText` all `''`,
- * `referenced: null`), counted with common-types' `countTextTokens` — 705
- * tokens. This moves whenever the summarizer prompt text changes; it is an
+ * `referenced: null`), counted with common-types' `countTextTokens` — 1383
+ * tokens (re-measured after the summarizer prompt v2 rewrite). ai-worker's
+ * archiveSummaryPrompt.test.ts measures the same quantity and goes red
+ * when the prompt text moves — update both numbers together. It is an
  * estimate for an operator's pre-sweep spend check, not a billing figure.
  * Duplicated knowledge: tooling cannot import from a service.
  */
-export const SUMMARIZER_PROMPT_OVERHEAD_TOKENS = 705;
+export const SUMMARIZER_PROMPT_OVERHEAD_TOKENS = 1383;
 
 /** Rough inflation from raw content chars to prompt tokens once the content
  *  is embedded in the summarizer's template (quoting, XML-ish wrapping). */

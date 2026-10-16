@@ -19,6 +19,7 @@ import {
   type SystemSettingsService,
 } from '@tzurot/common-types/services/SystemSettingsService';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { ARCHIVE_SUMMARY_PROMPT_VERSION } from '@tzurot/common-types/constants/memoryArchive';
 import { JobType } from '@tzurot/common-types/constants/queue';
 import type { ArchiveSummaryJobData } from '@tzurot/common-types/types/jobs';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
@@ -178,7 +179,7 @@ describe('ArchiveSummaryProcessor (PGLite)', () => {
     expect(after.assistant_summary).not.toBeNull();
     expect(after.summary_status).toBe('done');
     expect(after.summary_model).toBe('z-ai/glm-5.2');
-    expect(after.summary_prompt_version).toBe(1);
+    expect(after.summary_prompt_version).toBe(ARCHIVE_SUMMARY_PROMPT_VERSION);
     expect(after.source_content_hash).not.toBeNull();
     expect(after.summary_completed_at).not.toBeNull();
     expect(after.summary_attempts).toBe(0);
@@ -332,7 +333,7 @@ describe('ArchiveSummaryProcessor (PGLite)', () => {
     }
     const dead = await readMemory(9);
     expect(dead.summary_status).toBe('dead');
-    expect(dead.summary_prompt_version).toBe(1);
+    expect(dead.summary_prompt_version).toBe(ARCHIVE_SUMMARY_PROMPT_VERSION);
 
     const invokeModel = failingInvoker();
     const freshBudget = makeBudget();
@@ -355,7 +356,7 @@ describe('ArchiveSummaryProcessor (PGLite)', () => {
     const firstResult = await first.process(makeJobHandle(), undefined, makeJobData(10));
     expect(firstResult).toEqual({ outcome: 'dead' });
     const dead = await readMemory(10);
-    expect(dead.summary_prompt_version).toBe(1);
+    expect(dead.summary_prompt_version).toBe(ARCHIVE_SUMMARY_PROMPT_VERSION);
 
     const invokeModel = failingInvoker();
     const freshBudget = makeBudget();
