@@ -1,10 +1,10 @@
 ---
 id: TASK-68
 title: Relabel the BYOK key timestamp from last used to last validated
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-01-26 00:00'
-updated_date: '2026-10-13 01:42'
+updated_date: '2026-10-16 04:11'
 labels:
   - 'area:db'
   - 'area:api-gateway'
