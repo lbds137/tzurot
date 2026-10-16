@@ -8,6 +8,7 @@
 
 - **#2592 job time budget:** the first real trigger logs `LLM job budget exhausted before …` in ai-worker (quota retarget, floor descent, duplicate retry or auto-promotion hop). Silence = no job reached the 720s budget.
 - **#2601 debug capture:** grep prod bot-client logs for `guildInfoAmbiguousRoles`; that evidence unblocks TASK-705 phase 2 and the `debug:` cleanup PR.
+- **#2626 prompt v2 (unreleased — carries into its release's watch):** after the ARCHIVE_SUMMARY_PROMPT_VERSION=2 bump deploys, watch ai-worker `overflow`/`dead` and `lengthState`/`regenerated` rates (safety keep-list vs the length caps — overflow/dead is the path that loses the summary), and expect auto-promotion to report every candidate `notReady` until the v2 sweep re-covers (expected, no demotion; PR body deploy notes).
 
 ## 🧪 beta.235 smoke (owner, carried — tiers per /tzurot-testing)
 
