@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-13 01:26'
-updated_date: '2026-10-13 01:56'
+updated_date: '2026-10-16 06:24'
 labels:
   - 'area:ai-worker'
   - 'size:S'
@@ -19,11 +19,7 @@ ordinal: 1216000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Why: code read (MemoryNoteSplitRender.ts renderSplitNoteBody, ~L100-161): in split mode a memory without a stored assistantSummary renders the user turn plus linked facts only, so the character reply vanishes; with no linked facts nothing replaces it. TASK-1224 measured 191 of 1,511 recalled Emily/owner memories in that state (36 failed, 51 dead, 16 pending, 88 never summarized). Would read as the character forgetting what she herself said or promised. Not runtime-confirmed.
-
-What: (1) confirm with one real render of a dead memory; (2) render a capped verbatim slice of the assistant turn when no summary exists (doc-8 ruled that null never renders verbatim once switched on; this reverses that for the no-summary case, so record the reason in memory-archive-format.md); (3) find out why all 51 dead rows are still recalled, and backfill the 88 recalled never-summarized rows.
-
-Acceptance: a split-mode note with no summary shows a bounded excerpt of the character turn, with a test pinning it; dead-row cause recorded.
+Split render drops the character side for memories with no done summary. RENDER HALF SHIPPED 2026-10-16: PR #2622 merged after 6 review rounds (capped 700-char assistantTurn excerpt, own notes only, foreign+chunk exclusions, wiring-tested seam, instruction + spec rows MEM-ARCH-002/038 amended, D2 reversal recorded in memory-archive-format.md). Remaining: part 3 - (a) confirm with one real render of a dead memory (prod/dev probe with the merged code); (b) record why all 51 dead rows are still recalled (cause + error classes from prod); (c) backfill the 88 recalled never-summarized rows via memory:summarize AFTER TASK-1226's ARCHIVE_SUMMARY_PROMPT_VERSION bump (pre-bump = double spend; the bump re-admits dead rows per MEM-ARCH-022). Review residue filed: TASK-1235 (unlabeled-excerpt speaker ambiguity), TASK-1236 (test precision batch + code-units wording); beta.237 watch: excerptNotes share vs the ~13% no-summary share.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Implementation Notes
