@@ -81,6 +81,9 @@ export const handleSetWalletKey = (deps: WalletSetDeps): RequestHandler => {
 
     // Encrypt and store the API key
     const encrypted = encryptApiKey(apiKey);
+    const now = new Date();
+    // Stamped: this key was just validated against the provider, so "Last
+    // validated" stays true from the moment of set.
     await prisma.userApiKey.upsert({
       where: { userId_provider: { userId, provider } },
       update: {
@@ -88,7 +91,7 @@ export const handleSetWalletKey = (deps: WalletSetDeps): RequestHandler => {
         content: encrypted.content,
         tag: encrypted.tag,
         isActive: true,
-        updatedAt: new Date(),
+        lastUsedAt: now,
       },
       create: {
         id: generateUserApiKeyUuid(userId, provider),
@@ -98,6 +101,7 @@ export const handleSetWalletKey = (deps: WalletSetDeps): RequestHandler => {
         content: encrypted.content,
         tag: encrypted.tag,
         isActive: true,
+        lastUsedAt: now,
       },
     });
 

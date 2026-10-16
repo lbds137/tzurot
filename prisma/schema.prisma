@@ -288,10 +288,12 @@ model UserApiKey {
   isActive   Boolean   @default(true) @map("is_active")
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
-  /// As of writing, stamped only by the key-validation path
-  /// (services/api-gateway/src/routes/wallet/testKey.ts) — not verified by a
-  /// test; a future ai-worker write would silently falsify this. The UI
-  /// labels it "Last validated" for that reason.
+  /// Stamped by both validation paths: wallet/setKey (validated at set) and
+  /// wallet/testKey (validated at test).
+  /// Null = no validation recorded (rows set before setKey stamped, and never tested since); they show "Never" until a test or re-set.
+  /// The UI labels it "Last validated".
+  /// Not pinned by a test for future writers: a new ai-worker write path
+  /// would silently falsify this.
   lastUsedAt DateTime? @map("last_used_at")
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 

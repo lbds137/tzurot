@@ -226,6 +226,7 @@ describe('POST /api/user/wallet/set', () => {
           error: 'UNAUTHORIZED',
         })
       );
+      expect(mockPrisma.userApiKey.upsert).not.toHaveBeenCalled();
     });
 
     it('should return 402 for quota exceeded', async () => {
@@ -314,9 +315,36 @@ describe('POST /api/user/wallet/set', () => {
             iv: expect.any(String),
             content: expect.any(String),
             tag: expect.any(String),
+            lastUsedAt: expect.any(Date),
           }),
         })
       );
+    });
+
+    it('stamps lastUsedAt on both upsert branches (the key was just validated)', async () => {
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenRouter,
+        apiKey: 'sk-valid-key',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(mockPrisma.userApiKey.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: expect.objectContaining({
+            lastUsedAt: expect.any(Date),
+          }),
+          create: expect.objectContaining({
+            lastUsedAt: expect.any(Date),
+          }),
+        })
+      );
+
+      const upsertCall = mockPrisma.userApiKey.upsert.mock.calls[0][0] as {
+        create: { lastUsedAt: Date };
+        update: { lastUsedAt: Date };
+      };
+      expect(upsertCall.update.lastUsedAt).toBe(upsertCall.create.lastUsedAt);
     });
 
     it('stamps notifyOptedInAt after storing the key (BYOK = deliberate use)', async () => {
