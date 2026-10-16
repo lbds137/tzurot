@@ -968,7 +968,8 @@ model Memory {
   // environment summarizes its own rows (03-database.md § Sync-Tracked Tables).
   /// Deferred-set: null until the archive summarizer has processed this row.
   /// While the character's split render switch is on, a null row renders as
-  /// user turn + linked facts — never the verbatim assistant side.
+  /// user turn + capped assistant excerpt (own notes, MEM-ARCH-038) + linked
+  /// facts — never the full verbatim assistant side.
   assistantSummary     String?                @map("assistant_summary")
   /// State machine: null = never requested; 'pending' = enqueued; 'done' =
   /// assistant_summary is current for source_content_hash + prompt version;

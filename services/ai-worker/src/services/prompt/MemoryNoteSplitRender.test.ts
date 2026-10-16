@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   ARCHIVE_USER_TURN_CAP_CHARS,
   capUserTurn,
+  capAssistantExcerpt,
   renderSplitNoteBody,
 } from './MemoryNoteSplitRender.js';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
@@ -81,6 +82,7 @@ describe('renderSplitNoteBody', () => {
       quoteLinesStripped: 0,
       usedFallback: true,
       usedSummary: false,
+      usedExcerpt: false,
     });
   });
 
@@ -280,6 +282,188 @@ describe('renderSplitNoteBody', () => {
       const result = renderSplitNoteBody(doc);
       expect(result.body).toBe('Alice: hi there\nRecorded about this exchange:\n- a fact');
       expect(result.usedSummary).toBe(false);
+    });
+  });
+
+  describe('MEM-ARCH-038: assistant excerpt render for no-summary own notes', () => {
+    it('MEM-ARCH-038: a no-summary own note renders the user turn then a capped assistant excerpt', () => {
+      const doc = splitDoc({
+        userTurn: 'How are you?',
+        personalityName: 'Nova',
+        assistantTurn: 'I am doing well, thank you!',
+        archiveRender: {
+          mode: 'split',
+          linkedFacts: [{ id: 'f-1', statement: 'Nova likes coffee', salience: 0.8 }],
+        },
+      });
+      const result = renderSplitNoteBody(doc);
+      expect(result.body).toBe(
+        'Alice: How are you?\nNova: I am doing well, thank you!\nRecorded about this exchange:\n- Nova likes coffee'
+      );
+      expect(result.usedExcerpt).toBe(true);
+      expect(result.usedSummary).toBe(false);
+    });
+
+    // Pinned to the LITERAL boundary (700/701), not the exported constant —
+    // a canary that mutates ARCHIVE_ASSISTANT_EXCERPT_CAP_CHARS itself must still
+    // redden this pair, which a test expressed purely in terms of the constant
+    // cannot do.
+    it('MEM-ARCH-038: the excerpt is capped at 700 chars with the marker', () => {
+      const at700 = 'a'.repeat(700);
+      const at701 = 'a'.repeat(701);
+      expect(capAssistantExcerpt(at700)).toEqual({ text: at700, capped: false });
+      expect(capAssistantExcerpt(at701).capped).toBe(true);
+      expect(capAssistantExcerpt(at701).text).toBe('a'.repeat(700) + ' […]');
+
+      const doc700 = splitDoc({
+        personalityName: 'Nova',
+        assistantTurn: at700,
+      });
+      const result700 = renderSplitNoteBody(doc700);
+      expect(result700.body).toBe(`Alice: hi there\nNova: ${at700}`);
+      expect(result700.usedExcerpt).toBe(true);
+      expect(result700.capped).toBe(false);
+
+      const doc701 = splitDoc({
+        personalityName: 'Nova',
+        assistantTurn: at701,
+      });
+      const result701 = renderSplitNoteBody(doc701);
+      expect(result701.body).toBe(`Alice: hi there\nNova: ${'a'.repeat(700)} […]`);
+      expect(result701.usedExcerpt).toBe(true);
+      // capped stays user-turn-only by design (MEM-ARCH-004's crowding signal) — an excerpt cap must not trip it.
+      expect(result701.capped).toBe(false);
+    });
+
+    it('MEM-ARCH-038: a foreign note with no summary renders without the excerpt', () => {
+      const doc = splitDoc({
+        userTurn: 'How are you?',
+        personalityName: 'Nova',
+        assistantTurn: 'I am doing well, thank you!',
+        archiveRender: {
+          mode: 'split',
+          foreign: true,
+          linkedFacts: [],
+        },
+      });
+      const result = renderSplitNoteBody(doc);
+      expect(result.body).toBe('Alice: How are you?');
+      expect(result.usedExcerpt).toBe(false);
+      expect(result.usedSummary).toBe(false);
+    });
+
+    it('MEM-ARCH-038: a chunk row renders without an excerpt', () => {
+      const doc = splitDoc({
+        chunkGroupId: 'cg-1',
+        assistantTurn: 'I am doing well, thank you!',
+      });
+      const result = renderSplitNoteBody(doc);
+      expect(result.body).toBe('Alice: hi there');
+      expect(result.usedExcerpt).toBe(false);
+    });
+
+    it('MEM-ARCH-038: an empty assistant half renders no excerpt line', () => {
+      const doc = splitDoc({
+        userTurn: 'How are you?',
+        assistantTurn: '',
+      });
+      const result = renderSplitNoteBody(doc);
+      expect(result.body).toBe('Alice: How are you?');
+      expect(result.usedExcerpt).toBe(false);
+    });
+
+    it('MEM-ARCH-038: a legacy row with no stamped assistantTurn renders without an excerpt', () => {
+      const doc = splitDoc({
+        userTurn: 'How are you?',
+      });
+      const result = renderSplitNoteBody(doc);
+      expect(result.body).toBe('Alice: How are you?');
+      expect(result.usedExcerpt).toBe(false);
+    });
+
+    it('MEM-ARCH-038: the excerpt cut is surrogate-safe', () => {
+      // 699 ASCII chars with no whitespace, followed by an astral emoji (two
+      // UTF-16 code units straddling the 700-char cap) — the hard cut steps back
+      // rather than splitting the surrogate pair.
+      const text = 'a'.repeat(699) + '😀';
+      const result = capAssistantExcerpt(text);
+      expect(result.capped).toBe(true);
+      expect(result.text).toBe('a'.repeat(699) + ' […]');
+      expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(result.text)).toBe(false);
+
+      const doc = splitDoc({
+        assistantTurn: text,
+      });
+      const renderResult = renderSplitNoteBody(doc);
+      expect(renderResult.body).toBe(`Alice: hi there\n${'a'.repeat(699)} […]`);
+      expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(renderResult.body)).toBe(false);
+    });
+
+    it('MEM-ARCH-038: a whitespace-only assistant half renders no excerpt line', () => {
+      const doc = splitDoc({
+        userTurn: 'hi',
+        assistantTurn: '   ',
+      });
+      const result = renderSplitNoteBody(doc);
+      expect(result.body).toBe('Alice: hi');
+      expect(result.usedExcerpt).toBe(false);
+    });
+
+    it('MEM-ARCH-038: trims leading and trailing whitespace from the assistant excerpt', () => {
+      const doc = splitDoc({
+        userTurn: 'hi',
+        assistantTurn: '   hello   ',
+      });
+      const result = renderSplitNoteBody(doc);
+      expect(result.body).toBe('Alice: hi\nhello');
+      expect(result.usedExcerpt).toBe(true);
+    });
+
+    it('MEM-ARCH-038: strips quote lines from the assistant excerpt', () => {
+      const doc = splitDoc({
+        userTurn: 'hi',
+        assistantTurn: '> quoted user words\nReal reply',
+      });
+      const result = renderSplitNoteBody(doc);
+      expect(result.body).toBe('Alice: hi\nReal reply');
+      expect(result.body).not.toContain('quoted user words');
+      expect(result.body).toContain('Real reply');
+      expect(result.usedExcerpt).toBe(true);
+    });
+
+    it('MEM-ARCH-038: quote-only assistant half renders no excerpt line and usedExcerpt: false', () => {
+      const doc = splitDoc({
+        userTurn: 'hi',
+        assistantTurn: '> only a quote',
+      });
+      const result = renderSplitNoteBody(doc);
+      expect(result.body).toBe('Alice: hi');
+      expect(result.usedExcerpt).toBe(false);
+    });
+
+    it('MEM-ARCH-038: prefers cutting at whitespace before the cap for the assistant excerpt', () => {
+      const text = `${'a'.repeat(650)} ${'b'.repeat(200)}`;
+      const result = capAssistantExcerpt(text);
+      expect(result.capped).toBe(true);
+      expect(result.text).toBe(`${'a'.repeat(650)} […]`);
+
+      const doc = splitDoc({
+        userTurn: 'hi',
+        assistantTurn: text,
+      });
+      const renderResult = renderSplitNoteBody(doc);
+      expect(renderResult.body).toBe(`Alice: hi\n${'a'.repeat(650)} […]`);
+      expect(renderResult.usedExcerpt).toBe(true);
+    });
+
+    it('MEM-ARCH-038: a multi-line excerpt renders as a single collapsed line', () => {
+      const doc = splitDoc({
+        assistantTurn: 'first line\n- dash line\nlast line',
+      });
+      const result = renderSplitNoteBody(doc);
+      expect(result.body).toContain('first line - dash line last line');
+      expect(result.body).not.toContain('\n- ');
+      expect(result.usedExcerpt).toBe(true);
     });
   });
 });
