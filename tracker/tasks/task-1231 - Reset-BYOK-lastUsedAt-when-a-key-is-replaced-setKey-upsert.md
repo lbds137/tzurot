@@ -4,7 +4,7 @@ title: Reset BYOK lastUsedAt when a key is replaced (setKey upsert)
 status: To Do
 assignee: []
 created_date: '2026-10-16 03:23'
-updated_date: '2026-10-16 03:58'
+updated_date: '2026-10-16 05:03'
 labels:
   - 'area:api-gateway'
   - 'size:S'
@@ -17,9 +17,9 @@ ordinal: 1220000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Why: PR #2620 review round 2 finding 3. /settings apikey set upserts the key without touching lastUsedAt, so after a swap the browse view shows the OLD key validation time under the new Last validated label - the display asserts the current key was validated when it was not. The old Last used label hid this; the relabel makes it visible. Code-reading, not runtime-confirmed.
+Why: PR #2620 review round 2 finding 3. /settings apikey set upserts the key without touching lastUsedAt, so after a swap the browse view shows the OLD key validation time under the new Last validated label. Code-reading, not runtime-confirmed.
 
-Owner ruling 2026-10-15 (AskUserQuestion): YES - null lastUsedAt on the update branch of setKey (new key shows Never until tested), one line plus a test, own small PR.
+Owner ruling 2026-10-15 (AskUserQuestion): YES to reset (null on update branch).
 
-Original question (answered): null lastUsedAt on the update branch, or document the stale-timestamp display as intentional? Recommendation was reset - taken.
+SUPERSEDED 2026-10-16 (owner chose Stamp at set, new information): reading the code for the fix showed setKey ALREADY validates the new key with the provider (same validateApiKey as /test, returns credits) - nulling would show Never for a key that was just proven working. Fix = stamp lastUsedAt: new Date() on BOTH upsert branches, so the label is true at every moment. Shipped as the fix/byok-setkey-validates-stamp PR.
 <!-- SECTION:DESCRIPTION:END -->
