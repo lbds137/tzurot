@@ -196,8 +196,29 @@ describe('handleBrowse', () => {
 
     const embedData = mockEditReply.mock.calls[0][0].embeds[0].data;
     expect(embedData.description).toContain('**1.** ✅ **OpenRouter** (`openrouter`)');
-    expect(embedData.description).toContain('└ Active · Last used Never');
+    expect(embedData.description).toContain('└ Active · Last validated Never');
     expect(embedData.footer.text).toContain('1 key');
     expect(embedData.footer.text).toContain('Active ✅');
+  });
+
+  it('renders a populated lastUsedAt as a relative Discord timestamp', async () => {
+    stub.listWalletKeys.mockResolvedValue(
+      makeOk(
+        mockListWalletKeysResponse([
+          {
+            provider: AIProvider.OpenRouter,
+            isActive: true,
+            createdAt: '2025-01-01T00:00:00Z',
+            lastUsedAt: '2025-01-15T12:00:00Z',
+          },
+        ])
+      )
+    );
+
+    const context = createMockContext();
+    await handleBrowse(context);
+
+    const embedData = mockEditReply.mock.calls[0][0].embeds[0].data;
+    expect(embedData.description).toMatch(/Last validated <t:\d+:R>/);
   });
 });
