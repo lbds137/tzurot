@@ -83,6 +83,7 @@ export function mapQueryResultToDocument(memory: MemoryQueryResult): PgvectorMem
   // Chunk rows never render a summary: the write side never summarizes them,
   // so excluding them here keeps that invariant local — it stops one chunk of
   // a group from ever rendering as a summary beside its verbatim siblings.
+  // The excerpt arm excludes chunk rows renderer-side (MemoryNoteSplitRender.ts) for the same reason.
   const storedSummary = memory.assistant_summary;
   const hasSummary =
     memory.chunk_group_id === null &&
@@ -131,6 +132,12 @@ export function mapQueryResultToDocument(memory: MemoryQueryResult): PgvectorMem
         ? {
             userTurn: replacePromptPlaceholders(
               split.user,
+              memory.persona_name,
+              memory.personality_name,
+              memory.owner_username
+            ),
+            assistantTurn: replacePromptPlaceholders(
+              split.assistant,
               memory.persona_name,
               memory.personality_name,
               memory.owner_username

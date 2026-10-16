@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   EMBEDDING_DIMENSION,
   isValidId,
@@ -10,12 +10,9 @@ import {
   mergeSiblings,
 } from './memoryUtils.js';
 import type { MemoryMetadata, MemoryQueryResult } from '../services/PgvectorTypes.js';
+import type { MemoryDocument } from '../services/ConversationalRAGTypes.js';
 import { ARCHIVE_SUMMARY_PROMPT_VERSION } from '@tzurot/common-types/constants/memoryArchive';
-
-// Mock promptPlaceholders to avoid complex dependencies
-vi.mock('./promptPlaceholders.js', () => ({
-  replacePromptPlaceholders: (content: string) => content,
-}));
+import { renderSplitNoteBody } from '../services/prompt/MemoryNoteSplitRender.js';
 
 describe('memoryUtils', () => {
   describe('EMBEDDING_DIMENSION', () => {
@@ -579,6 +576,20 @@ describe('memoryUtils', () => {
 
         expect('summaryRefreshEligible' in (result.metadata ?? {})).toBe(false);
       });
+    });
+
+    it('wiring: a raw-template row maps to a doc whose split render includes the assistant excerpt', () => {
+      const doc = mapQueryResultToDocument(
+        makeQueryResult({
+          content: '{user}: hi\n{assistant}: noted, {user} asked about the knee',
+          persona_name: 'Alice',
+          personality_name: 'Emily',
+        })
+      );
+      // Type seam: mapQueryResultToDocument returns the loose-metadata PgvectorMemoryDocument; the cast keeps the compile honest while the assertions below pin the runtime shape.
+      const result = renderSplitNoteBody(doc as unknown as MemoryDocument);
+      expect(result.usedExcerpt).toBe(true);
+      expect(result.body).toContain('Alice asked about the knee');
     });
   });
 
