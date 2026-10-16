@@ -7,7 +7,7 @@
 
 /** Bump when the summarizer's system/user prompt text changes meaningfully —
  *  a re-summarize sweep keys off this to know which stored summaries are stale. */
-export const ARCHIVE_SUMMARY_PROMPT_VERSION = 1;
+export const ARCHIVE_SUMMARY_PROMPT_VERSION = 2;
 
 /**
  * Shared BullMQ job options for the archive-summary queue. Both the live
