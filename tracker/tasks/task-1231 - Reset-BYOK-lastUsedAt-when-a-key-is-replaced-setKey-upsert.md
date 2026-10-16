@@ -1,10 +1,10 @@
 ---
 id: TASK-1231
 title: Reset BYOK lastUsedAt when a key is replaced (setKey upsert)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-16 03:23'
-updated_date: '2026-10-16 05:03'
+updated_date: '2026-10-16 05:54'
 labels:
   - 'area:api-gateway'
   - 'size:S'
