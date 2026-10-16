@@ -3,10 +3,10 @@ id: TASK-1226
 title: >-
   Archive summarizer prompt v2: fix attribution, hedge, number and invention
   defects found in the Emily eval
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-13 01:26'
-updated_date: '2026-10-16 05:24'
+updated_date: '2026-10-16 18:16'
 labels:
   - 'area:ai-worker'
   - 'size:M'
