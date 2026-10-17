@@ -1,14 +1,15 @@
 # Current
 
-> **Version**: v3.0.0-beta.236 — "the job time budget and the security overrides" — SHIPPED 2026-10-12 04:43Z (release PR #2613 rebase-merged after her yes; 22 PRs / 7 runtime / 165 files / 92 commits; no migrations; `main` = `develop` = `4d7de05b1` post-finalize; tagged `latest`, beta.235 demoted). Holistic review: no blocking findings. Closes the proxy-addr + shell-quote CRITICAL and sharp HIGH advisories on prod; http-cache-semantics HIGH stays open (no upstream fix, TASK-1179).
+> **Version**: v3.0.0-beta.237 — "memory accuracy: summarizer v2, the render fallback" — SHIPPED 2026-10-17 04:47Z (release PR #2627 rebase-merged after her yes; 7 PRs / 7 runtime / 190 files; no migrations; `main` = `develop` = `9b81d0bc0` post-finalize; tagged `latest`, beta.236 demoted). Holistic review: no blocking findings; the cross-PR seam (version bump × excerpt arm) verified non-interacting. http-cache-semantics HIGH stays open (no upstream fix, TASK-1179); #2624 dependabot held (zod union-error shape).
 >
-> **Previous**: v3.0.0-beta.235 — "Both slots, tier-true defaults, and the catalog watch" (7 PRs / 6 runtime / 148 files / 45 commits; 2026-10-09, `07dd1bbf1`).
+> **Previous**: v3.0.0-beta.236 — "the job time budget and the security overrides" (22 PRs / 7 runtime / 165 files / 92 commits; 2026-10-12, `4d7de05b1`).
 
-## 🧪 beta.236 watch (observability only — no needs-smoke items)
+## 🧪 beta.237 watch (observability only — no needs-smoke items)
 
-- **#2592 job time budget:** the first real trigger logs `LLM job budget exhausted before …` in ai-worker (quota retarget, floor descent, duplicate retry or auto-promotion hop). Silence = no job reached the 720s budget.
-- **#2601 debug capture:** grep prod bot-client logs for `guildInfoAmbiguousRoles`; that evidence unblocks TASK-705 phase 2 and the `debug:` cleanup PR.
-- **#2626 prompt v2 (unreleased — carries into its release's watch):** after the ARCHIVE_SUMMARY_PROMPT_VERSION=2 bump deploys, watch ai-worker `overflow`/`dead` and `lengthState`/`regenerated` rates (safety keep-list vs the length caps — overflow/dead is the path that loses the summary), and expect auto-promotion to report every candidate `notReady` until the v2 sweep re-covers (expected, no demotion; PR body deploy notes).
+- **#2626 prompt v2 (NOW LIVE ON PROD):** watch ai-worker `overflow`/`dead` and `lengthState`/`regenerated` rates (safety keep-list vs the length caps — overflow/dead is the path that loses the summary). Dev rehearsal baseline: 206 hot rows → 201 done@v2, 4 overflow strike-1, 1 re-dead `no_template`, 0 overflow deaths. Expect auto-promotion to report every candidate `notReady` until the release-day sweep re-covers (expected, no demotion).
+- **Release-day backfill (TASK-1227 close-out, owner go-ahead first):** `pnpm ops memory:summarize --env prod --personality emily-tzudad-seraph-ditza --window 40` — dry-run first; watch that the 10 first-person + 1 parse-failure dead rows recover or re-strike (v2's carve-out is the plausible fix), and the 41 `no_template` rows stay on the fallback arm. Full record: docs/local/emily-eval/rec2-followup.md.
+- **#2622 render fallback:** `excerptNotes` share in the render telemetry vs the ~13% no-summary share — the character side should now be present on every own-note render.
+- **Carried from beta.236:** #2592's job time budget — the first real trigger logs `LLM job budget exhausted before …` in ai-worker (silence = no job reached the 720s budget); #2601's debug capture — grep prod bot-client logs for `guildInfoAmbiguousRoles`, unblocks TASK-705 phase 2 + the `debug:` cleanup PR.
 
 ## 🧪 beta.235 smoke (owner, carried — tiers per /tzurot-testing)
 
@@ -33,14 +34,6 @@
 - **Leisure (unchanged, do not re-surface)**: the voice-harness blind review · the slice P 30-row spot check · TASK-104 · ~~TASK-133~~ (round trip DONE 2026-09-13 with the smoke pass) · card-level examples for Emily in her own register.
 - **Done 2026-09-13**: the Default `system_prompts` row edited on dev and prod (v1 then v2; long-form under doc-97 Phase 2) · `WEEKLY_AUDIT_GH_TOKEN` set (Dependabot row reads; deletion-safety row fixed by #2413) · `TZUROT_RAILWAY_API_TOKEN_DEV`/`_PROD` in the local `.env` (tooling reads them after the TASK-62 follow-up) · the TASK-798 prod measurement · the stale `.bashrc` OpenRouter key revoked · the Waffles Share-Memories question CLOSED by ruling (deal with it if it recurs) · the privacy-policy z.ai summaries bullet committed.
 - **Agent-run, no owner action**: the doc-17 gap-bucket cache read · the Emily gate and dead-row read · TASK-702 probe · TASK-62 env-suffixed token read · TASK-951 `.env.example` guard · TASK-838 cadence ledger then the doc-61 economy pass (ruled 2026-09-13, Opus lane) · the #2270 link-share watcher · the five `state:observable` watches TASK-952–956.
-
-## 🧪 beta.233 dev smoke — ALL VERIFIED 2026-10-01 (owner, same day as the release)
-
-1. Slash-command round-trip on dev — PASS (covers #2560's filter, #2564's overrides, #2553's DM-worker path).
-2. Quoted voice transcription (link-paste shape; Vencord cannot forward) — VERIFIED on dev AND prod.
-3. TASK-1070 (carried from beta.230) — CLOSED from prod logs: 4 real transcriptions + Pocket TTS load/synthesize at 18:34Z on the 3.13 build; the no-key half passed 2026-09-26 post-3.13.
-
-No-owner-action items (CI/observability): #2554 default-off config · #2561 CLIENT LIST check PASSED 2026-10-01 (45/45 on db=1, TASK-1146 Done) · #2558 avatar-path defaults · #2551/#2562/#2549/#2563 tooling+docs. ~~PROD smokes still open: beta.230 item 2 (settings-dashboard walk) and the beta.232 item (plain voice re-upload on prod)~~ **SKIPPED by owner ruling 2026-10-01**: the dashboard code is identical dev/prod and the dashboards see organic prod use (regressions surface in real use); the plain-re-upload byte-sniff branch was dev-verified in its beta.232 cycle and the shared transcription pipeline is prod-proven (the 18:34Z transcriptions + the owner's quote test) — prod adds no material variance for either.
 
 ## 🚢 2026-09-27 — beta.232 RELEASED (Opus 5.5; owner approved the cut and the merge ~06:50 EDT)
 
