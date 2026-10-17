@@ -62,8 +62,8 @@ Characters remember what matters across conversations, and the memory is
 yours to inspect:
 
 - `/memory browse` and `/memory search` show what a character remembers;
-  `/memory facts` shows the specific facts it has learned about you — and
-  lets you correct them.
+  `/memory facts` shows the specific facts it has learned about you —
+  searchable by text — and lets you correct them.
 - `/memory delete` and `/memory purge` remove memories outright.
 - **Fresh mode** (`/memory fresh`) temporarily stops a character from
   _reading_ its long-term memories of you — they're kept, just not used;
