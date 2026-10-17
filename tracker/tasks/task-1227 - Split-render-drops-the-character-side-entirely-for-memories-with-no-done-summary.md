@@ -3,10 +3,10 @@ id: TASK-1227
 title: >-
   Split render drops the character side entirely for memories with no done
   summary
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-13 01:26'
-updated_date: '2026-10-16 06:24'
+updated_date: '2026-10-17 20:11'
 labels:
   - 'area:ai-worker'
   - 'size:S'
