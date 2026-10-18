@@ -25,4 +25,6 @@ What: nullable memories.thinking_content (null = turn had no reasoning, or preda
 Acceptance: new turns store reasoning in memories; backfill verified read-only on prod; purge leaves reasoning recoverable from memories.
 
 Stopgap until shipped: owner runs /settings data export (includes Reasoning blocks) every ~25 days.
+
+Progress 2026-10-18: PR 2629 merged (schema, write path, export, /memory Reasoning button, privacy line, memory:backfill-thinking, sync keepNonNullColumns). Owner rulings during review: keep the trace when a memory is edited; skip soft-deleted history rows in the backfill; privacy sentence notes the trace may paraphrase other conversation messages. Dev: migrated and backfilled (1,732 written; re-run writes 0; updated_at untouched). Remaining for Done: prod at the beta.238 release (premigrate, then the backfill dry run and write after deploy; 1,734 writable on prod at merge time, shrinking ~1/30 per day).
 <!-- SECTION:DESCRIPTION:END -->
