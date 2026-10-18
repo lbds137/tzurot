@@ -7,7 +7,7 @@
   },
   "totals": {
     "entries": 2917,
-    "sites": 6803
+    "sites": 6807
   },
   "entries": [
     {
@@ -2558,7 +2558,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/detail.ts",
       "symbol": "addComponents",
-      "count": 2
+      "count": 4
     },
     {
       "category": "client-methods",
@@ -11930,7 +11930,7 @@
       "category": "components",
       "file": "services/bot-client/src/commands/memory/detail.ts",
       "symbol": "ActionRowBuilder",
-      "count": 2
+      "count": 4
     },
     {
       "category": "components",

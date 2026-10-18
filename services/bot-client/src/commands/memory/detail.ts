@@ -138,7 +138,7 @@ export function buildDetailEmbed(memory: MemoryItem): {
 export function buildDetailButtons(
   memory: MemoryItem,
   isTruncated = false
-): ActionRowBuilder<ButtonBuilder> {
+): ActionRowBuilder<ButtonBuilder>[] {
   // Use .setEmoji() separately for consistent button sizing
   const lockEmoji = memory.isLocked ? '🔓' : AUTOCOMPLETE_BADGES.LOCKED;
   const lockLabel = memory.isLocked ? 'Unlock' : 'Lock';
@@ -199,7 +199,14 @@ export function buildDetailButtons(
       .setStyle(ButtonStyle.Danger)
   );
 
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(buttons);
+  if (buttons.length <= 5) {
+    return [new ActionRowBuilder<ButtonBuilder>().addComponents(buttons)];
+  }
+
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.slice(0, 4)),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.slice(4)),
+  ];
 }
 
 /**
@@ -250,11 +257,11 @@ export async function handleMemorySelect(interaction: StringSelectMenuInteractio
   }
 
   const { embed, isTruncated } = buildDetailEmbed(memory);
-  const buttons = buildDetailButtons(memory, isTruncated);
+  const rows = buildDetailButtons(memory, isTruncated);
 
   await interaction.editReply({
     embeds: [embed],
-    components: [buttons],
+    components: rows,
   });
 }
 
@@ -292,11 +299,11 @@ export async function handleLockButton(
   }
 
   const { embed, isTruncated } = buildDetailEmbed(updatedMemory);
-  const buttons = buildDetailButtons(updatedMemory, isTruncated);
+  const rows = buildDetailButtons(updatedMemory, isTruncated);
 
   await interaction.editReply({
     embeds: [embed],
-    components: [buttons],
+    components: rows,
   });
 
   const action = updatedMemory.isLocked ? 'locked' : 'unlocked';
@@ -454,7 +461,12 @@ export async function handleReasoningButton(
     return;
   }
 
-  const trace = memory.thinkingContent ?? '';
+  const trace = memory.thinkingContent;
+  if (typeof trace !== 'string' || trace.trim().length === 0) {
+    await replySpec(interaction, CATALOG.info.noReasoningTrace());
+    return;
+  }
+
   const buffer = Buffer.from(trace, 'utf-8');
   const attachment = new AttachmentBuilder(buffer, {
     name: `reasoning-${memoryId.substring(0, 8)}.txt`,

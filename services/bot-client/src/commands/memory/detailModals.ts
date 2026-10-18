@@ -316,12 +316,12 @@ export async function handleEditModalSubmit(
   }
 
   const { embed, isTruncated } = buildDetailEmbed(updatedMemory);
-  const buttons = buildDetailButtons(updatedMemory, isTruncated);
+  const rows = buildDetailButtons(updatedMemory, isTruncated);
 
   try {
     await interaction.editReply({
       embeds: [embed],
-      components: [buttons],
+      components: rows,
     });
   } catch (editError) {
     logger.warn({ err: editError, userId, memoryId }, 'Failed to edit reply after modal submit');

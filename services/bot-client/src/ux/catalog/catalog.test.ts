@@ -50,6 +50,7 @@ function allSpecs(): { path: string; spec: MessageSpec }[] {
       path: 'info.reasoningTrace',
       spec: CATALOG.info.reasoningTrace('Luna', '<t:1700000000:D>'),
     },
+    { path: 'info.noReasoningTrace', spec: CATALOG.info.noReasoningTrace() },
   ];
 }
 
@@ -133,6 +134,11 @@ describe('CATALOG', () => {
       outcome: 'none',
       icon: 'reasoning',
       text: '**Reasoning Trace** (Luna)\nCreated: <t:1700000000:D>',
+    });
+    expect(CATALOG.info.noReasoningTrace()).toEqual({
+      severity: 'info',
+      outcome: 'none',
+      text: 'This memory has no stored reasoning.',
     });
   });
 });

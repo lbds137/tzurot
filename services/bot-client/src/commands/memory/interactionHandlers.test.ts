@@ -212,7 +212,7 @@ describe('handleButton', () => {
   });
 
   it('routes session-independent actions (lock/edit/view-full/reasoning/delete) without session lookup', async () => {
-    for (const action of ['lock', 'reasoning']) {
+    for (const action of ['lock', 'edit', 'view-full', 'reasoning', 'delete']) {
       mockParseMemoryActionId.mockReturnValue({ action, memoryId: 'mem-1' });
       mockHandleBrowseDetailAction.mockResolvedValue(true);
 
