@@ -255,6 +255,16 @@ def _plain_subject(segment):
         val = m.group(4)
     if val is None:
         return None
+    # A double-quoted or bare value is judged only up to its first `$(` or
+    # backtick (command substitution, and arithmetic `$((`) not escaped by an
+    # odd run of backslashes: that text is unknowable before bash expands it,
+    # and commitlint in commit-msg still judges the real message. The banner
+    # and the ack key then use the literal prefix. Parameter expansion (`$VAR`)
+    # is not cut. Single-quoted text (group 3) is literal in bash.
+    if m.group(2) is not None or m.group(4) is not None:
+        sub = re.search(r"(?:^|[^\\])(?:\\\\)*(\$\(|`)", val)
+        if sub:
+            val = val[: sub.start(1)]
     return val.split("\n")[0].strip()
 
 
