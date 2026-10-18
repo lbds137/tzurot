@@ -149,7 +149,8 @@ export interface UpsertRowOptions {
   excludeColumns?: readonly string[];
   /**
    * On conflict, a column listed here keeps its existing value when the
-   * incoming value is NULL.
+   * incoming value is NULL. A listed column can never be cleared by sync;
+   * only list a column that no feature sets back to NULL.
    */
   keepNonNullColumns?: readonly string[];
   // NOTE: `deferredFkColumns` was removed in the Ouroboros Insert refactor.
