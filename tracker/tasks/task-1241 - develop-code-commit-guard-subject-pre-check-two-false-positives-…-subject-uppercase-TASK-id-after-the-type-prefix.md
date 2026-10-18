@@ -3,9 +3,10 @@ id: TASK-1241
 title: >-
   develop-code-commit-guard subject pre-check: two false positives ($(…)
   subject, uppercase TASK id after the type prefix)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-18 12:49'
+updated_date: '2026-10-18 23:32'
 labels:
   - 'area:hooks'
   - 'size:S'
