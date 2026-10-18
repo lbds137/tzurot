@@ -9,6 +9,7 @@ import type { Environment } from '../utils/env-runner.js';
 import { parseIntFlag } from '../utils/cli-args.js';
 import { UsageError } from '../utils/errors.js';
 import type { RawRenderPilotOptions } from '../memory/render-pilot-cli.js';
+import type { BackfillThinkingCliOptions } from '../memory/backfill-thinking.js';
 import { registerImportConversationCommand } from './memory-import.js';
 
 const ENV_OPTION = '--env <env>';
@@ -395,6 +396,24 @@ export function registerMemoryCommands(cli: CAC): void {
         });
       }
     );
+
+  // Backfill memories.thinking_content from conversation_history
+  cli
+    .command('memory:backfill-thinking', 'Backfill thinking_content from conversation_history')
+    .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
+    .option('--dry-run', 'Count candidates and pairs without updating')
+    .option('--batch-size <n>', 'Candidate memories per cursor batch (default 500)')
+    .option('--force', FORCE_OPTION_DESC)
+    .action(async (options: BackfillThinkingCliOptions) => {
+      const batchSize = parsePositiveIntOption(options.batchSize, '--batch-size');
+      const { backfillThinking } = await import('../memory/backfill-thinking.js');
+      await backfillThinking({
+        env: options.env ?? 'dev',
+        dryRun: options.dryRun,
+        batchSize,
+        force: options.force,
+      });
+    });
 
   registerBackfillFactsCommand(cli);
   registerRepairFactTimestampsCommand(cli);
