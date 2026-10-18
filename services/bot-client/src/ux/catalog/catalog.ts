@@ -212,5 +212,12 @@ export const CATALOG = {
       icon: 'reasoning',
       text: `**Reasoning Trace** (${characterName})\nCreated: ${createdAt}`,
     }),
+
+    /** Reply when a memory's reasoning button is clicked but no trace is stored. */
+    noReasoningTrace: (): MessageSpec => ({
+      severity: 'info',
+      outcome: 'none',
+      text: 'This memory has no stored reasoning.',
+    }),
   },
 } as const;

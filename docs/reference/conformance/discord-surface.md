@@ -439,7 +439,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/browse.ts | id | 6 |
 | services/bot-client/src/commands/memory/browse.ts | message | 2 |
 | services/bot-client/src/commands/memory/browse.ts | user | 2 |
-| services/bot-client/src/commands/memory/detail.ts | addComponents | 2 |
+| services/bot-client/src/commands/memory/detail.ts | addComponents | 4 |
 | services/bot-client/src/commands/memory/detail.ts | deferred | 1 |
 | services/bot-client/src/commands/memory/detail.ts | escapeMarkdown | 4 |
 | services/bot-client/src/commands/memory/detail.ts | id | 6 |
@@ -2011,7 +2011,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/inspect/components.ts | value | 11 |
 | services/bot-client/src/commands/inspect/memoryInspectorState.ts | ActionRowBuilder | 1 |
 | services/bot-client/src/commands/inspect/memoryInspectorState.ts | ButtonBuilder | 3 |
-| services/bot-client/src/commands/memory/detail.ts | ActionRowBuilder | 2 |
+| services/bot-client/src/commands/memory/detail.ts | ActionRowBuilder | 4 |
 | services/bot-client/src/commands/memory/detail.ts | ButtonBuilder | 8 |
 | services/bot-client/src/commands/memory/detailModals.ts | ActionRowBuilder | 1 |
 | services/bot-client/src/commands/memory/detailModals.ts | ButtonBuilder | 2 |
@@ -2987,4 +2987,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 2917 entries across 6803 sites.
+Total: 2917 entries across 6807 sites.

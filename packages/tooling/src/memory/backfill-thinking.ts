@@ -76,7 +76,7 @@ export function queryCandidateBatch(
       m.id,
       a.role AS assistant_role,
       a.thinking_content,
-      position(left(a.content, 40) IN m.content) > 0 AS guard_ok
+      (length(a.content) > 0 AND position(left(a.content, 40) IN m.content) > 0) AS guard_ok
     FROM memories m
     LEFT JOIN LATERAL (
       SELECT u.id, u.channel_id, u.personality_id, u.created_at
@@ -125,25 +125,29 @@ export function updateThinkingContent(
   `;
 }
 
-export type RowVerdict = 'no_pair' | 'no_trace' | 'guard' | 'write';
+export type RowVerdict =
+  | { verdict: 'write'; trace: string }
+  | { verdict: 'no_pair' }
+  | { verdict: 'no_trace' }
+  | { verdict: 'guard' };
 
 /**
  * Classify a candidate row into its backfill verdict.
  */
 export function classifyCandidateRow(row: CandidatePairRow): RowVerdict {
   if (row.assistant_role !== 'assistant') {
-    return 'no_pair';
+    return { verdict: 'no_pair' };
   }
 
   if (row.thinking_content === null || row.thinking_content.trim() === '') {
-    return 'no_trace';
+    return { verdict: 'no_trace' };
   }
 
   if (row.guard_ok !== true) {
-    return 'guard';
+    return { verdict: 'guard' };
   }
 
-  return 'write';
+  return { verdict: 'write', trace: row.thinking_content };
 }
 
 async function processCandidateBatch(
@@ -154,26 +158,26 @@ async function processCandidateBatch(
 ): Promise<void> {
   for (const row of batch) {
     stats.candidates++;
-    const verdict = classifyCandidateRow(row);
+    const classified = classifyCandidateRow(row);
 
-    if (verdict === 'no_pair') {
+    if (classified.verdict === 'no_pair') {
       stats.skipped_no_pair++;
       continue;
     }
     stats.paired++;
 
-    if (verdict === 'no_trace') {
+    if (classified.verdict === 'no_trace') {
       stats.skipped_no_trace++;
       continue;
     }
 
-    if (verdict === 'guard') {
+    if (classified.verdict === 'guard') {
       stats.skipped_guard++;
       continue;
     }
 
-    if (!dryRun && row.thinking_content !== null) {
-      const updatedCount = await updateThinkingContent(prisma, row.id, row.thinking_content);
+    if (!dryRun) {
+      const updatedCount = await updateThinkingContent(prisma, row.id, classified.trace);
       stats.updated += updatedCount;
     }
   }

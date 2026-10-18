@@ -94,7 +94,9 @@ describe('backfillThinking', () => {
     const result = await backfillThinking({ env: 'dev' });
 
     const { sql } = unpackTaggedCall(queryRawMock.mock.calls[0]);
-    expect(sql).toContain('position(left(a.content, 40) IN m.content) > 0');
+    expect(sql).toContain(
+      '(length(a.content) > 0 AND position(left(a.content, 40) IN m.content) > 0)'
+    );
     expect(executeRawMock).not.toHaveBeenCalled();
     expect(result).toEqual({
       candidates: 1,
@@ -269,7 +271,7 @@ describe('classifyCandidateRow', () => {
         thinking_content: 'reasoning trace',
         guard_ok: true,
       })
-    ).toBe('no_pair');
+    ).toEqual({ verdict: 'no_pair' });
     expect(
       classifyCandidateRow({
         id: ID_1,
@@ -277,7 +279,7 @@ describe('classifyCandidateRow', () => {
         thinking_content: 'reasoning trace',
         guard_ok: true,
       })
-    ).toBe('no_pair');
+    ).toEqual({ verdict: 'no_pair' });
   });
 
   it('returns no_trace when thinking_content is null or whitespace-only', () => {
@@ -288,7 +290,7 @@ describe('classifyCandidateRow', () => {
         thinking_content: null,
         guard_ok: true,
       })
-    ).toBe('no_trace');
+    ).toEqual({ verdict: 'no_trace' });
     expect(
       classifyCandidateRow({
         id: ID_1,
@@ -296,7 +298,7 @@ describe('classifyCandidateRow', () => {
         thinking_content: '   \t\n  ',
         guard_ok: true,
       })
-    ).toBe('no_trace');
+    ).toEqual({ verdict: 'no_trace' });
   });
 
   it('returns guard when guard_ok is false or null', () => {
@@ -307,7 +309,7 @@ describe('classifyCandidateRow', () => {
         thinking_content: 'reasoning trace',
         guard_ok: false,
       })
-    ).toBe('guard');
+    ).toEqual({ verdict: 'guard' });
     expect(
       classifyCandidateRow({
         id: ID_1,
@@ -315,7 +317,7 @@ describe('classifyCandidateRow', () => {
         thinking_content: 'reasoning trace',
         guard_ok: null,
       })
-    ).toBe('guard');
+    ).toEqual({ verdict: 'guard' });
   });
 
   it('returns write when assistant row has non-empty trace and guard_ok is true', () => {
@@ -326,6 +328,6 @@ describe('classifyCandidateRow', () => {
         thinking_content: 'reasoning trace',
         guard_ok: true,
       })
-    ).toBe('write');
+    ).toEqual({ verdict: 'write', trace: 'reasoning trace' });
   });
 });

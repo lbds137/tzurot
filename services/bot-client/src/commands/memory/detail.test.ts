@@ -241,8 +241,10 @@ describe('Memory Detail', () => {
   describe('buildDetailButtons', () => {
     it('should build action buttons for unlocked memory', () => {
       const memory = createMockMemory();
-      const row = buildDetailButtons(memory);
+      const rows = buildDetailButtons(memory);
 
+      expect(rows).toHaveLength(1);
+      const [row] = rows;
       expect(row.components).toHaveLength(4);
       const labels = row.components.map(b => (b.data as { label?: string }).label);
       // Emojis are set via .setEmoji(), not embedded in labels
@@ -256,16 +258,20 @@ describe('Memory Detail', () => {
 
     it('should show unlock button for locked memory', () => {
       const memory = createMockMemory({ isLocked: true });
-      const row = buildDetailButtons(memory);
+      const rows = buildDetailButtons(memory);
 
+      expect(rows).toHaveLength(1);
+      const [row] = rows;
       const labels = row.components.map(b => (b.data as { label?: string }).label);
       expect(labels).toContain('Unlock'); // Emoji set via .setEmoji()
     });
 
     it('should include View Full button when content is truncated', () => {
       const memory = createMockMemory();
-      const row = buildDetailButtons(memory, true);
+      const rows = buildDetailButtons(memory, true);
 
+      expect(rows).toHaveLength(1);
+      const [row] = rows;
       expect(row.components).toHaveLength(5);
       const labels = row.components.map(b => (b.data as { label?: string }).label);
       expect(labels).toContain('View Full'); // Emoji set via .setEmoji()
@@ -273,8 +279,10 @@ describe('Memory Detail', () => {
 
     it('should not include View Full button when content is not truncated', () => {
       const memory = createMockMemory();
-      const row = buildDetailButtons(memory, false);
+      const rows = buildDetailButtons(memory, false);
 
+      expect(rows).toHaveLength(1);
+      const [row] = rows;
       expect(row.components).toHaveLength(4);
       const labels = row.components.map(b => (b.data as { label?: string }).label);
       expect(labels).not.toContain('View Full');
@@ -282,8 +290,10 @@ describe('Memory Detail', () => {
 
     it('should include Reasoning button before Back to List and Delete when thinkingContent is non-empty', () => {
       const memory = createMockMemory({ thinkingContent: 'Step 1: recall the user preference.' });
-      const row = buildDetailButtons(memory, false);
+      const rows = buildDetailButtons(memory, false);
 
+      expect(rows).toHaveLength(1);
+      const [row] = rows;
       expect(row.components).toHaveLength(5);
       const labels = row.components.map(b => (b.data as { label?: string }).label);
       expect(labels).toEqual(['Edit', 'Lock', 'Reasoning', 'Back to List', 'Delete']);
@@ -303,9 +313,48 @@ describe('Memory Detail', () => {
     it('should not include Reasoning button when thinkingContent is null, undefined, or whitespace-only', () => {
       for (const thinkingContent of [null, undefined, '', '   \n\t  ']) {
         const memory = createMockMemory({ thinkingContent });
-        const row = buildDetailButtons(memory, false);
+        const rows = buildDetailButtons(memory, false);
+        expect(rows).toHaveLength(1);
+        const [row] = rows;
         const labels = row.components.map(b => (b.data as { label?: string }).label);
         expect(labels).not.toContain('Reasoning');
+      }
+    });
+
+    it('splits into two rows when truncated memory also has a reasoning trace', () => {
+      const memory = createMockMemory({ thinkingContent: 'Step 1: recall the user preference.' });
+      const rows = buildDetailButtons(memory, true);
+
+      expect(rows).toHaveLength(2);
+      for (const row of rows) {
+        expect(row.components.length).toBeLessThanOrEqual(5);
+      }
+
+      const row1Labels = rows[0].components.map(b => (b.data as { label?: string }).label);
+      const row2Labels = rows[1].components.map(b => (b.data as { label?: string }).label);
+      expect(row1Labels).toEqual(['Edit', 'Lock', 'View Full', 'Reasoning']);
+      expect(row2Labels).toEqual(['Back to List', 'Delete']);
+      expect([...row1Labels, ...row2Labels]).toEqual([
+        'Edit',
+        'Lock',
+        'View Full',
+        'Reasoning',
+        'Back to List',
+        'Delete',
+      ]);
+    });
+
+    it('keeps every ActionRow at or below the 5-button Discord cap across all truncated × trace combinations', () => {
+      for (const isTruncated of [false, true]) {
+        for (const thinkingContent of [null, 'Step 1: recall the user preference.']) {
+          const memory = createMockMemory({ thinkingContent });
+          const rows = buildDetailButtons(memory, isTruncated);
+
+          expect(rows.length).toBeGreaterThanOrEqual(1);
+          for (const row of rows) {
+            expect(row.components.length).toBeLessThanOrEqual(5);
+          }
+        }
       }
     });
   });
@@ -677,6 +726,35 @@ describe('Memory Detail', () => {
           content: expect.stringContaining('Memory not found'),
         })
       );
+    });
+
+    it('replies with noReasoningTrace spec and sends no file when thinkingContent is null or whitespace-only', async () => {
+      for (const thinkingContent of [null, undefined, '', '   \n\t  ']) {
+        const memory = createMockMemory({ thinkingContent });
+        stub.getMemory.mockResolvedValueOnce(makeOk({ memory }));
+
+        const mockEditReply = vi.fn();
+
+        const interaction: Record<string, unknown> = {
+          user: { id: 'user-123', username: 'testuser' },
+          editReply: mockEditReply,
+          reply: vi.fn(),
+          deferred: false,
+          replied: false,
+        };
+        const mockDeferReply = vi.fn().mockImplementation(() => {
+          interaction.deferred = true;
+          return Promise.resolve(undefined);
+        });
+        interaction.deferReply = mockDeferReply;
+
+        await handleReasoningButton(interaction as unknown as ButtonInteraction, 'memory-123');
+
+        expect(mockDeferReply).toHaveBeenCalled();
+        expect(mockEditReply).toHaveBeenCalledWith({
+          content: expect.stringContaining('This memory has no stored reasoning.'),
+        });
+      }
     });
   });
 });
