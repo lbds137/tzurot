@@ -1408,6 +1408,31 @@ run 2 "heredoc form with an over-length 105-char subject blocks" "$HEREDOC_LONG_
 # is lowercase here ("f" of "feat") — the violation is in the remainder
 # after the conventional-commit prefix is stripped ("Add thing").
 run 2 "subject-case: uppercase after a conventional-commit prefix blocks" 'git commit -m "feat(scope): Add thing"'
+# A substituted message is judged only up to its first unescaped `$(` or
+# backtick (commitlint judges the expanded message in commit-msg): the
+# leading-substitution rows show a leading substitution leaves an empty prefix
+# (scored ok); the mid-string rows show the cut-then-judge path; the fillers
+# keep each unexpanded value over 100 characters so a missing cut would trip
+# the length rule.
+PRINTF_BODY="fix: short subject\\n\\n$(printf 'p%.0s' $(seq 1 100))"
+BACKTICK_BODY="fix: short subject\\n\\n$(printf 'b%.0s' $(seq 1 100))"
+MID_PRINTF_BODY="thing\\n\\n$(printf 'm%.0s' $(seq 1 100))"
+LEADING_WS_BODY="fix: leading ws\\n\\n$(printf 'l%.0s' $(seq 1 100))"
+SINGLE_QUOTED_BODY="$(printf 's%.0s' $(seq 1 100))"
+ESCAPED_SUB_BODY="$(printf 'e%.0s' $(seq 1 100))"
+EVEN_BACKSLASH_SUB_BODY="$(printf 'd%.0s' $(seq 1 100))"
+ARITH_SUB_BODY="$(printf 'a%.0s' $(seq 1 100))"
+MID_BACKTICK_BODY="$(printf 'k%.0s' $(seq 1 100))"
+run 0 "command-substitution subject (printf) is skipped by pre-check"     "git commit -m \"\$(printf '$PRINTF_BODY')\""
+run 0 "backtick command-substitution subject is skipped by pre-check"     "git commit -m \"\`printf '$BACKTICK_BODY'\`\""
+run 0 "mid-string command substitution is cut before pre-check length"    "git commit -m \"fix: thing \$(printf '$MID_PRINTF_BODY')\""
+run 2 "mid-string substitution still judges the literal prefix on case"   "git commit -m \"Fix thing \$(printf 'x')\""
+run 2 "an escaped substitution opener is literal text and still judged (length)" "git commit -m \"fix: \\\$($ESCAPED_SUB_BODY)\""
+run 0 "an even backslash run before a substitution is a real substitution (cut)" "git commit -m \"fix: \\\\\$(printf '$EVEN_BACKSLASH_SUB_BODY')\""
+run 0 "arithmetic expansion is cut like a substitution"                   "git commit -m \"fix: \$((1+1)) $ARITH_SUB_BODY\""
+run 0 "a mid-string backtick substitution is cut"                         "git commit -m \"fix: thing \`printf '$MID_BACKTICK_BODY'\`\""
+run 0 "leading whitespace before command substitution is skipped by pre-check" "git commit -m \" \$(printf '$LEADING_WS_BODY')\""
+run 2 "single-quoted text opening with \$(...) is judged literally (length)" 'git commit -m '"'"'$(printf '"$SINGLE_QUOTED_BODY"')'"'"''
 
 # --- header sub-check naming (the `which:` banner line) ---------------------
 # The ack file is keyed by subject hash, so a subject reused from a case above
