@@ -131,6 +131,7 @@ function memoryRow(content: string): unknown {
     chunkIndex: null,
     totalChunks: null,
     assistantSummary: null,
+    thinkingContent: null,
   };
 }
 

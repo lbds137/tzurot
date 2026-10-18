@@ -291,7 +291,8 @@
         "chunkGroupId": null,
         "chunkIndex": null,
         "totalChunks": null,
-        "assistantSummary": null
+        "assistantSummary": null,
+        "thinkingContent": null
       }
     ],
     "personality-directory.json": [

@@ -156,6 +156,39 @@ describe('PendingMemoryProcessor', () => {
       });
     });
 
+    it('should preserve thinkingContent when re-parsing metadata on retry', async () => {
+      const pendingMemory = {
+        id: 'pending-thinking-1',
+        text: 'Test memory content with trace',
+        metadata: {
+          ...createValidMetadata(),
+          thinkingContent: 'Survived retry trace',
+        },
+        attempts: 1,
+        createdAt: new Date(),
+      };
+
+      mockPrisma.pendingMemory.findMany.mockResolvedValue([pendingMemory]);
+      mockMemoryAdapter.addMemory.mockResolvedValue(undefined);
+      mockPrisma.pendingMemory.delete.mockResolvedValue(pendingMemory);
+
+      const processor = new PendingMemoryProcessor(
+        mockPrisma as unknown as PrismaClient,
+        mockMemoryAdapter as unknown as PgvectorMemoryAdapter
+      );
+
+      await processor.processPendingMemories();
+
+      expect(mockMemoryAdapter.addMemory).toHaveBeenCalledWith({
+        text: 'Test memory content with trace',
+        metadata: expect.objectContaining({
+          personaId: 'persona-123',
+          personalityId: 'personality-123',
+          thinkingContent: 'Survived retry trace',
+        }),
+      });
+    });
+
     it('should skip and mark invalid metadata records', async () => {
       const pendingMemory = {
         id: 'pending-1',

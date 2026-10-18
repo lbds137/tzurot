@@ -26,11 +26,11 @@ export type MessageOutcome = 'failed' | 'uncertain' | 'committed-unconfirmed' | 
 
 /**
  * Semantic icon token for the few intents whose glyph is not derivable from
- * severity (session expiry, in-flight loading). Derived from MessageSeverity
- * so a severity rename can't silently desync the two. Renderer-mapped; the
- * catalog never contains glyphs itself.
+ * severity (session expiry, in-flight loading, attachment headers). Derived
+ * from MessageSeverity so a severity rename can't silently desync the two.
+ * Renderer-mapped; the catalog never contains glyphs itself.
  */
-export type MessageIcon = MessageSeverity | 'session-expiry' | 'loading';
+export type MessageIcon = MessageSeverity | 'session-expiry' | 'loading' | 'document' | 'reasoning';
 
 export interface MessageSpec {
   severity: MessageSeverity;

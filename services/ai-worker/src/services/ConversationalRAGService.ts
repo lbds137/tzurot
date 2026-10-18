@@ -339,13 +339,14 @@ export class ConversationalRAGService {
       } else if (options.skipMemoryStorage === true) {
         // Deferred storage: build data for caller to store later
         deferredMemoryData =
-          (await this.memoryPersistence.buildDeferredMemoryData(
+          (await this.memoryPersistence.buildDeferredMemoryData({
             context,
-            personality.id,
-            budgetResult.contentForStorage,
-            finalContent,
-            inputs.referencedMessagesTextForSearch
-          )) ?? undefined;
+            personalityId: personality.id,
+            contentForStorage: budgetResult.contentForStorage,
+            responseContent: finalContent,
+            referencedMessagesTextForSearch: inputs.referencedMessagesTextForSearch,
+            thinkingContent: modelResult.thinkingContent,
+          })) ?? undefined;
         if (deferredMemoryData !== undefined) {
           logger.debug(
             { userId: context.userId, personalityId: personality.id },
@@ -354,13 +355,14 @@ export class ConversationalRAGService {
         }
       } else {
         // Immediate storage (default behavior)
-        await this.memoryPersistence.storeInteraction(
+        await this.memoryPersistence.storeInteraction({
           personality,
           context,
-          budgetResult.contentForStorage,
-          finalContent,
-          inputs.referencedMessagesTextForSearch
-        );
+          contentForStorage: budgetResult.contentForStorage,
+          responseContent: finalContent,
+          referencedMessagesTextForSearch: inputs.referencedMessagesTextForSearch,
+          thinkingContent: modelResult.thinkingContent,
+        });
       }
 
       // Step 7: Build and return response

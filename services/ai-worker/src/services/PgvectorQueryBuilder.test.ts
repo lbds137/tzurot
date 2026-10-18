@@ -176,6 +176,16 @@ describe('PgvectorQueryBuilder', () => {
       expect(sqlString).toContain('m.summary_prompt_version');
     });
 
+    it('never selects thinking_content so reasoning traces cannot reach a character prompt', () => {
+      const whereConditions = [Prisma.sql`m.persona_id = ${'persona-123'}::uuid`];
+      const embeddingVector = '[0.1,0.2,0.3]';
+
+      const result = buildSimilaritySearchQuery(embeddingVector, whereConditions, 0.15, 10);
+
+      const sqlString = result.strings.join('');
+      expect(sqlString).not.toContain('thinking_content');
+    });
+
     it('joins multiple WHERE conditions with AND', () => {
       const whereConditions = [
         Prisma.sql`m.persona_id = ${'persona-123'}::uuid`,

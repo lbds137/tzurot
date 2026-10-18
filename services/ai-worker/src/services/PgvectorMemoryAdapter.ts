@@ -233,6 +233,7 @@ export class PgvectorMemoryAdapter {
           text: chunkText,
           metadata: {
             ...data.metadata,
+            thinkingContent: i === 0 ? data.metadata.thinkingContent : undefined,
             chunkGroupId,
             chunkIndex: i,
             totalChunks: chunks.length,
@@ -294,7 +295,8 @@ export class PgvectorMemoryAdapter {
           session_id, canon_scope, summary_type, channel_id, guild_id,
           message_ids, senders, is_summarized, created_at,
           legacy_shapes_user_id,
-          chunk_group_id, chunk_index, total_chunks
+          chunk_group_id, chunk_index, total_chunks,
+          thinking_content
         ) VALUES (
           ${memoryId}::uuid,
           ${data.metadata.personaId}::uuid,
@@ -315,7 +317,8 @@ export class PgvectorMemoryAdapter {
           ${data.metadata.legacyShapesUserId ?? null}::uuid,
           ${data.metadata.chunkGroupId ?? null}::uuid,
           ${data.metadata.chunkIndex ?? null},
-          ${data.metadata.totalChunks ?? null}
+          ${data.metadata.totalChunks ?? null},
+          ${data.metadata.thinkingContent ?? null}
         )
         ON CONFLICT (id) DO NOTHING
       `;

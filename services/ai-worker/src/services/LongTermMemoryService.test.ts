@@ -100,26 +100,26 @@ describe('LongTermMemoryService', () => {
     it('should return early when memory manager is undefined', async () => {
       const serviceWithoutManager = new LongTermMemoryService(mockPrismaClient);
 
-      await serviceWithoutManager.storeInteraction(
-        testPersonality,
-        'User message',
-        'AI response',
-        baseContext,
-        'persona-1'
-      );
+      await serviceWithoutManager.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'User message',
+        aiResponse: 'AI response',
+        context: baseContext,
+        personaId: 'persona-1',
+      });
 
       // Should not create pending memory or attempt storage
       expect(mockPendingMemoryCreate).not.toHaveBeenCalled();
     });
 
     it('should successfully store interaction to vector database', async () => {
-      await service.storeInteraction(
-        testPersonality,
-        'Hello',
-        'Hi there!',
-        baseContext,
-        'persona-1'
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Hello',
+        aiResponse: 'Hi there!',
+        context: baseContext,
+        personaId: 'persona-1',
+      });
 
       // Should create pending memory
       expect(mockPendingMemoryCreate).toHaveBeenCalledWith({
@@ -148,13 +148,13 @@ describe('LongTermMemoryService', () => {
     });
 
     it('should use personal canonScope when no sessionId', async () => {
-      await service.storeInteraction(
-        testPersonality,
-        'Message',
-        'Response',
-        baseContext,
-        'persona-1'
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Message',
+        aiResponse: 'Response',
+        context: baseContext,
+        personaId: 'persona-1',
+      });
 
       expect(mockPendingMemoryCreate).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -171,13 +171,13 @@ describe('LongTermMemoryService', () => {
         sessionId: 'session-1',
       };
 
-      await service.storeInteraction(
-        testPersonality,
-        'Message',
-        'Response',
-        contextWithSession,
-        'persona-1'
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Message',
+        aiResponse: 'Response',
+        context: contextWithSession,
+        personaId: 'persona-1',
+      });
 
       expect(mockPendingMemoryCreate).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -194,13 +194,13 @@ describe('LongTermMemoryService', () => {
         userId: 'user-1',
       };
 
-      await service.storeInteraction(
-        testPersonality,
-        'Message',
-        'Response',
-        dmContext,
-        'persona-1'
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Message',
+        aiResponse: 'Response',
+        context: dmContext,
+        personaId: 'persona-1',
+      });
 
       expect(mockPendingMemoryCreate).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -212,13 +212,13 @@ describe('LongTermMemoryService', () => {
     });
 
     it('should use channel contextType when channelId present', async () => {
-      await service.storeInteraction(
-        testPersonality,
-        'Message',
-        'Response',
-        baseContext,
-        'persona-1'
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Message',
+        aiResponse: 'Response',
+        context: baseContext,
+        personaId: 'persona-1',
+      });
 
       expect(mockPendingMemoryCreate).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -231,13 +231,13 @@ describe('LongTermMemoryService', () => {
     });
 
     it('should include serverId and guildId in metadata', async () => {
-      await service.storeInteraction(
-        testPersonality,
-        'Message',
-        'Response',
-        baseContext,
-        'persona-1'
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Message',
+        aiResponse: 'Response',
+        context: baseContext,
+        personaId: 'persona-1',
+      });
 
       expect(mockPendingMemoryCreate).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -250,13 +250,13 @@ describe('LongTermMemoryService', () => {
     });
 
     it('should format interaction text with user/assistant tokens', async () => {
-      await service.storeInteraction(
-        testPersonality,
-        'What is the weather?',
-        'It is sunny today.',
-        baseContext,
-        'persona-1'
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'What is the weather?',
+        aiResponse: 'It is sunny today.',
+        context: baseContext,
+        personaId: 'persona-1',
+      });
 
       expect(mockPendingMemoryCreate).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -269,13 +269,13 @@ describe('LongTermMemoryService', () => {
       const storageError = new Error('Vector storage failed');
       mockMemoryManager.addMemory = vi.fn().mockRejectedValue(storageError);
 
-      await service.storeInteraction(
-        testPersonality,
-        'Message',
-        'Response',
-        baseContext,
-        'persona-1'
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Message',
+        aiResponse: 'Response',
+        context: baseContext,
+        personaId: 'persona-1',
+      });
 
       // Should create pending memory
       expect(mockPendingMemoryCreate).toHaveBeenCalled();
@@ -297,13 +297,13 @@ describe('LongTermMemoryService', () => {
     it('should handle non-Error objects in failure', async () => {
       mockMemoryManager.addMemory = vi.fn().mockRejectedValue('String error');
 
-      await service.storeInteraction(
-        testPersonality,
-        'Message',
-        'Response',
-        baseContext,
-        'persona-1'
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Message',
+        aiResponse: 'Response',
+        context: baseContext,
+        personaId: 'persona-1',
+      });
 
       expect(mockPendingMemoryUpdate).toHaveBeenCalledWith({
         where: { id: 'pending-1' },
@@ -318,7 +318,13 @@ describe('LongTermMemoryService', () => {
 
       // Should not throw
       await expect(
-        service.storeInteraction(testPersonality, 'Message', 'Response', baseContext, 'persona-1')
+        service.storeInteraction({
+          personality: testPersonality,
+          userMessage: 'Message',
+          aiResponse: 'Response',
+          context: baseContext,
+          personaId: 'persona-1',
+        })
       ).resolves.not.toThrow();
     });
 
@@ -328,20 +334,26 @@ describe('LongTermMemoryService', () => {
 
       // Should not throw even when both storage and update fail
       await expect(
-        service.storeInteraction(testPersonality, 'Message', 'Response', baseContext, 'persona-1')
+        service.storeInteraction({
+          personality: testPersonality,
+          userMessage: 'Message',
+          aiResponse: 'Response',
+          context: baseContext,
+          personaId: 'persona-1',
+        })
       ).resolves.not.toThrow();
     });
 
     it('should include timestamp in metadata', async () => {
       const beforeTime = Date.now();
 
-      await service.storeInteraction(
-        testPersonality,
-        'Message',
-        'Response',
-        baseContext,
-        'persona-1'
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Message',
+        aiResponse: 'Response',
+        context: baseContext,
+        personaId: 'persona-1',
+      });
 
       const afterTime = Date.now();
 
@@ -366,13 +378,13 @@ describe('LongTermMemoryService', () => {
         sessionId: '',
       };
 
-      await service.storeInteraction(
-        testPersonality,
-        'Message',
-        'Response',
-        contextWithEmptySession,
-        'persona-1'
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Message',
+        aiResponse: 'Response',
+        context: contextWithEmptySession,
+        personaId: 'persona-1',
+      });
 
       // Empty sessionId should be treated as personal, not session
       expect(mockPendingMemoryCreate).toHaveBeenCalledWith({
@@ -390,13 +402,13 @@ describe('LongTermMemoryService', () => {
         channelId: '',
       };
 
-      await service.storeInteraction(
-        testPersonality,
-        'Message',
-        'Response',
-        contextWithEmptyChannel,
-        'persona-1'
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Message',
+        aiResponse: 'Response',
+        context: contextWithEmptyChannel,
+        personaId: 'persona-1',
+      });
 
       expect(mockPendingMemoryCreate).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -410,13 +422,13 @@ describe('LongTermMemoryService', () => {
 
   describe('source-turn linkage (memory-architecture Phase 0)', () => {
     it('stamps the triggering message id into metadata.messageIds', async () => {
-      await service.storeInteraction(
-        testPersonality,
-        'Hello',
-        'Hi there!',
-        { ...baseContext, triggerMessageId: '810000000000000042' },
-        'persona-1'
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Hello',
+        aiResponse: 'Hi there!',
+        context: { ...baseContext, triggerMessageId: '810000000000000042' },
+        personaId: 'persona-1',
+      });
 
       expect(mockMemoryManager.addMemory).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -426,13 +438,13 @@ describe('LongTermMemoryService', () => {
     });
 
     it('stamps an empty linkage when no trigger id is available', async () => {
-      await service.storeInteraction(
-        testPersonality,
-        'Hello',
-        'Hi there!',
-        baseContext,
-        'persona-1'
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Hello',
+        aiResponse: 'Hi there!',
+        context: baseContext,
+        personaId: 'persona-1',
+      });
 
       expect(mockMemoryManager.addMemory).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -448,13 +460,13 @@ describe('LongTermMemoryService', () => {
       const trigger = { recordEpisode } as unknown as ExtractionTrigger;
       const withTrigger = new LongTermMemoryService(mockPrismaClient, mockMemoryManager, trigger);
 
-      await withTrigger.storeInteraction(
-        testPersonality,
-        'hello',
-        'hi there',
-        baseContext,
-        'persona-1'
-      );
+      await withTrigger.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'hello',
+        aiResponse: 'hi there',
+        context: baseContext,
+        personaId: 'persona-1',
+      });
 
       expect(recordEpisode).toHaveBeenCalledTimes(1);
       expect(recordEpisode).toHaveBeenCalledWith('channel-1', 'personality-1', expect.any(String));
@@ -466,7 +478,13 @@ describe('LongTermMemoryService', () => {
       vi.mocked(mockMemoryManager.addMemory).mockRejectedValue(new Error('pgvector down'));
       const withTrigger = new LongTermMemoryService(mockPrismaClient, mockMemoryManager, trigger);
 
-      await withTrigger.storeInteraction(testPersonality, 'hello', 'hi', baseContext, 'persona-1');
+      await withTrigger.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'hello',
+        aiResponse: 'hi',
+        context: baseContext,
+        personaId: 'persona-1',
+      });
 
       expect(recordEpisode).not.toHaveBeenCalled();
     });
@@ -477,8 +495,48 @@ describe('LongTermMemoryService', () => {
       const withTrigger = new LongTermMemoryService(mockPrismaClient, mockMemoryManager, trigger);
 
       await expect(
-        withTrigger.storeInteraction(testPersonality, 'hello', 'hi', baseContext, 'persona-1')
+        withTrigger.storeInteraction({
+          personality: testPersonality,
+          userMessage: 'hello',
+          aiResponse: 'hi',
+          context: baseContext,
+          personaId: 'persona-1',
+        })
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('thinkingContent metadata handling', () => {
+    it('includes thinkingContent in metadata when non-empty', async () => {
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'User message',
+        aiResponse: 'AI response',
+        context: baseContext,
+        personaId: 'persona-1',
+        thinkingContent: 'Internal reasoning trace',
+      });
+
+      expect(mockMemoryManager.addMemory).toHaveBeenCalledWith({
+        text: '{user}: User message\n{assistant}: AI response',
+        metadata: expect.objectContaining({
+          thinkingContent: 'Internal reasoning trace',
+        }),
+      });
+    });
+
+    it('omits thinkingContent when empty or whitespace-only', async () => {
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'User message',
+        aiResponse: 'AI response',
+        context: baseContext,
+        personaId: 'persona-1',
+        thinkingContent: '   \n\t  ',
+      });
+
+      const callArg = vi.mocked(mockMemoryManager.addMemory).mock.calls[0]?.[0];
+      expect(callArg?.metadata).not.toHaveProperty('thinkingContent');
     });
   });
 });

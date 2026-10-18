@@ -206,6 +206,7 @@ const FULL_MEMORY: ExportMemoryRow = {
   chunkIndex: null,
   totalChunks: null,
   assistantSummary: 'They talked about a coastal trip.',
+  thinkingContent: 'Considered coastal trip details before replying.',
 };
 
 const FULL_FACT: ExportFactRow = {
@@ -551,6 +552,7 @@ const SPARSE_MEMORY: ExportMemoryRow = {
   chunkIndex: null,
   totalChunks: null,
   assistantSummary: null,
+  thinkingContent: null,
 };
 
 const SPARSE_FACT: ExportFactRow = {

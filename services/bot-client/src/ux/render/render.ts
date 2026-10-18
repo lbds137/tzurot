@@ -23,6 +23,8 @@ const ICON_EMOJI: Record<MessageIcon, string> = {
   ...SEVERITY_EMOJI,
   'session-expiry': '⏰',
   loading: '🔄',
+  document: '📄',
+  reasoning: '🧠',
 };
 
 export interface RenderOptions {

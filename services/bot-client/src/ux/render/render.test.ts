@@ -11,9 +11,15 @@ describe('renderSpec', () => {
     expect(renderSpec(CATALOG.error.transient('Server hiccup.'))).toMatch(/^⚠️ /);
   });
 
-  it('icon tokens override the severity default (session-expiry ⏰, loading 🔄)', () => {
+  it('icon tokens override the severity default (session-expiry ⏰, loading 🔄, document 📄, reasoning 🧠)', () => {
     expect(renderSpec(CATALOG.progress.sessionExpired())).toMatch(/^⏰ /);
     expect(renderSpec(CATALOG.progress.working('Importing'))).toMatch(/^🔄 /);
+    expect(renderSpec(CATALOG.info.fullMemoryContent('Luna', '<t:1700000000:D>'))).toBe(
+      '📄 **Full Memory Content** (Luna)\nCreated: <t:1700000000:D>'
+    );
+    expect(renderSpec(CATALOG.info.reasoningTrace('Luna', '<t:1700000000:D>'))).toBe(
+      '🧠 **Reasoning Trace** (Luna)\nCreated: <t:1700000000:D>'
+    );
   });
 
   describe('register selection (voice axis)', () => {

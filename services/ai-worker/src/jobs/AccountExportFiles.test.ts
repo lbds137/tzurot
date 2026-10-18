@@ -153,6 +153,7 @@ describe('buildAccountExportFiles', () => {
             visibility: 'normal',
             type: 'memory',
             isSummarized: false,
+            thinkingContent: null,
           },
           {
             id: 'mem-2',
@@ -163,6 +164,7 @@ describe('buildAccountExportFiles', () => {
             visibility: 'normal',
             type: 'memory',
             isSummarized: false,
+            thinkingContent: null,
           },
         ] as unknown as AccountExportData['memories'],
       })

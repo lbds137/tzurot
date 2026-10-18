@@ -980,12 +980,47 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, 'Remember this', context);
 
       expect(getLongTermMemoryServiceMock().storeInteraction).toHaveBeenCalledWith(
-        personality,
-        'content for storage',
-        'AI response',
-        context,
-        'persona-123'
+        expect.objectContaining({
+          personality,
+          userMessage: 'content for storage',
+          aiResponse: 'AI response',
+          context,
+          personaId: 'persona-123',
+          thinkingContent: undefined,
+        })
       );
+    });
+
+    it('should forward thinkingContent to storeInteraction and deferredMemoryData', async () => {
+      getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        freshModeEnabled: false,
+      });
+      getLLMInvokerMock().invokeWithRetry.mockResolvedValue({
+        content: 'AI response',
+        additional_kwargs: { reasoning: 'Model reasoning trace' },
+      });
+
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      await service.generateResponse(personality, 'Remember this', context);
+
+      expect(getLongTermMemoryServiceMock().storeInteraction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personality,
+          userMessage: 'content for storage',
+          aiResponse: 'AI response',
+          context,
+          personaId: 'persona-123',
+          thinkingContent: 'Model reasoning trace',
+        })
+      );
+
+      const deferredResult = await service.generateResponse(personality, 'Remember this', context, {
+        skipMemoryStorage: true,
+      });
+      expect(deferredResult.deferredMemoryData?.thinkingContent).toBe('Model reasoning trace');
     });
 
     it('should skip LTM storage when no persona found', async () => {
@@ -1011,11 +1046,14 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, 'Test', context);
 
       expect(getLongTermMemoryServiceMock().storeInteraction).toHaveBeenCalledWith(
-        personality,
-        'content for storage',
-        'AI response',
-        context,
-        'persona-456'
+        expect.objectContaining({
+          personality,
+          userMessage: 'content for storage',
+          aiResponse: 'AI response',
+          context,
+          personaId: 'persona-456',
+          thinkingContent: undefined,
+        })
       );
     });
 
@@ -1187,11 +1225,14 @@ describe('ConversationalRAGService', () => {
       await service.storeDeferredMemory(personality, context, deferredData);
 
       expect(getLongTermMemoryServiceMock().storeInteraction).toHaveBeenCalledWith(
-        personality,
-        'user message content',
-        'AI response content',
-        context,
-        'persona-456'
+        expect.objectContaining({
+          personality,
+          userMessage: 'user message content',
+          aiResponse: 'AI response content',
+          context,
+          personaId: 'persona-456',
+          thinkingContent: undefined,
+        })
       );
     });
   });
@@ -1937,11 +1978,14 @@ describe('ConversationalRAGService', () => {
 
       // LTM should receive the resolved content
       expect(getLongTermMemoryServiceMock().storeInteraction).toHaveBeenCalledWith(
-        personality,
-        expect.any(String),
-        'Message for @alice', // resolved content
-        context,
-        'persona-123'
+        expect.objectContaining({
+          personality,
+          userMessage: expect.any(String),
+          aiResponse: 'Message for @alice', // resolved content
+          context,
+          personaId: 'persona-123',
+          thinkingContent: undefined,
+        })
       );
     });
 

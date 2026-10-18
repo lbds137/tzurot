@@ -75,6 +75,7 @@ const SESSION_INDEPENDENT_ACTIONS = new Set([
   'cancel-edit',
   'lock',
   'view-full',
+  'reasoning',
   // 'delete' only shows the confirmation dialog; no list refresh needed.
   // 'confirm-delete' and 'back' DO call onRefresh — those are session-dependent.
   'delete',

@@ -134,13 +134,13 @@ describe('LongTermMemoryService', () => {
       const service = new LongTermMemoryService(prisma, mockMemoryManager);
 
       // Act
-      await service.storeInteraction(
-        testPersonality,
-        'Hello, how are you?',
-        'I am doing well, thank you!',
-        testContext,
-        testPersonaId
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Hello, how are you?',
+        aiResponse: 'I am doing well, thank you!',
+        context: testContext,
+        personaId: testPersonaId,
+      });
 
       // Assert: Memory adapter was called
       expect(mockMemoryManager.addMemory).toHaveBeenCalledTimes(1);
@@ -168,13 +168,13 @@ describe('LongTermMemoryService', () => {
       const service = new LongTermMemoryService(prisma, mockMemoryManager);
 
       // Act
-      await service.storeInteraction(
-        testPersonality,
-        'Hello',
-        'Hi there!',
-        testContext,
-        testPersonaId
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Hello',
+        aiResponse: 'Hi there!',
+        context: testContext,
+        personaId: testPersonaId,
+      });
 
       // Assert: pending_memory still exists with error details
       const pendingMemories = await prisma.pendingMemory.findMany({ take: 100 });
@@ -189,7 +189,13 @@ describe('LongTermMemoryService', () => {
       const service = new LongTermMemoryService(prisma, undefined);
 
       // Act
-      await service.storeInteraction(testPersonality, 'Hello', 'Hi!', testContext, testPersonaId);
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Hello',
+        aiResponse: 'Hi!',
+        context: testContext,
+        personaId: testPersonaId,
+      });
 
       // Assert: No pending_memory created
       const pendingMemories = await prisma.pendingMemory.findMany({ take: 100 });
@@ -209,13 +215,13 @@ describe('LongTermMemoryService', () => {
       };
 
       // Act
-      await service.storeInteraction(
-        testPersonality,
-        'Hello',
-        'Hi!',
-        contextWithSession,
-        testPersonaId
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Hello',
+        aiResponse: 'Hi!',
+        context: contextWithSession,
+        personaId: testPersonaId,
+      });
 
       // Assert: Metadata has session canon scope
       expect(mockMemoryManager.addMemory).toHaveBeenCalledWith(
@@ -242,7 +248,13 @@ describe('LongTermMemoryService', () => {
       };
 
       // Act
-      await service.storeInteraction(testPersonality, 'Hello', 'Hi!', dmContext, testPersonaId);
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Hello',
+        aiResponse: 'Hi!',
+        context: dmContext,
+        personaId: testPersonaId,
+      });
 
       // Assert: Metadata has dm context type
       expect(mockMemoryManager.addMemory).toHaveBeenCalledWith(
@@ -263,22 +275,22 @@ describe('LongTermMemoryService', () => {
       const service = new LongTermMemoryService(prisma, mockMemoryManager);
 
       // Act: Store same interaction twice
-      await service.storeInteraction(
-        testPersonality,
-        'Same message',
-        'Same response',
-        testContext,
-        testPersonaId
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Same message',
+        aiResponse: 'Same response',
+        context: testContext,
+        personaId: testPersonaId,
+      });
 
       // Try to store again - should have same deterministic ID
-      await service.storeInteraction(
-        testPersonality,
-        'Same message',
-        'Same response',
-        testContext,
-        testPersonaId
-      );
+      await service.storeInteraction({
+        personality: testPersonality,
+        userMessage: 'Same message',
+        aiResponse: 'Same response',
+        context: testContext,
+        personaId: testPersonaId,
+      });
 
       // Assert: Only one pending_memory (deterministic ID = upsert behavior via unique constraint)
       // Note: The service uses create(), so this will actually create 2 records with same ID

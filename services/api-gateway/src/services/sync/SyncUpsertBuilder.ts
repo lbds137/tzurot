@@ -53,6 +53,7 @@ export const MEMORIES_SYNC_COLUMNS = [
   'canon_group_id',
   'is_fiction',
   'assistant_summary',
+  'thinking_content',
   'summary_status',
   'summary_attempts',
   'summary_model',

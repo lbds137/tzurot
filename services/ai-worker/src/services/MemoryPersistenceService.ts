@@ -15,6 +15,24 @@ import type { ConversationContext, DeferredMemoryData } from './ConversationalRA
 
 const logger = createLogger('MemoryPersistenceService');
 
+export interface StoreInteractionOptions {
+  personality: LoadedPersonality;
+  context: ConversationContext;
+  contentForStorage: string;
+  responseContent: string;
+  referencedMessagesTextForSearch: string | undefined;
+  thinkingContent?: string;
+}
+
+export interface BuildDeferredMemoryDataOptions {
+  context: ConversationContext;
+  personalityId: string;
+  contentForStorage: string;
+  responseContent: string;
+  referencedMessagesTextForSearch: string | undefined;
+  thinkingContent?: string;
+}
+
 /**
  * Handles persistence of conversation interactions to long-term memory
  */
@@ -45,26 +63,32 @@ export class MemoryPersistenceService {
    * Store interaction to long-term memory.
    * Note: Caller should check incognito mode before calling this method.
    */
-  async storeInteraction(
-    personality: LoadedPersonality,
-    context: ConversationContext,
-    contentForStorage: string,
-    responseContent: string,
-    referencedMessagesTextForSearch: string | undefined
-  ): Promise<void> {
+  async storeInteraction(options: StoreInteractionOptions): Promise<void> {
+    const {
+      personality,
+      context,
+      contentForStorage,
+      responseContent,
+      referencedMessagesTextForSearch,
+      thinkingContent,
+    } = options;
     const personaResult = await this.memoryRetriever.resolvePersonaForMemory(
       context.userId,
       personality.id
     );
 
     if (personaResult !== null) {
-      await this.longTermMemory.storeInteraction(
+      await this.longTermMemory.storeInteraction({
         personality,
-        this.buildContentForEmbedding(contentForStorage, referencedMessagesTextForSearch),
-        responseContent,
+        userMessage: this.buildContentForEmbedding(
+          contentForStorage,
+          referencedMessagesTextForSearch
+        ),
+        aiResponse: responseContent,
         context,
-        personaResult.personaId
-      );
+        personaId: personaResult.personaId,
+        thinkingContent,
+      });
     } else {
       logger.warn({ userId: context.userId }, 'No persona found, skipping LTM storage');
     }
@@ -75,12 +99,16 @@ export class MemoryPersistenceService {
    * Used when memory storage is deferred (e.g., for duplicate detection retries).
    */
   async buildDeferredMemoryData(
-    context: ConversationContext,
-    personalityId: string,
-    contentForStorage: string,
-    responseContent: string,
-    referencedMessagesTextForSearch: string | undefined
+    options: BuildDeferredMemoryDataOptions
   ): Promise<DeferredMemoryData | null> {
+    const {
+      context,
+      personalityId,
+      contentForStorage,
+      responseContent,
+      referencedMessagesTextForSearch,
+      thinkingContent,
+    } = options;
     const personaResult = await this.memoryRetriever.resolvePersonaForMemory(
       context.userId,
       personalityId
@@ -98,6 +126,7 @@ export class MemoryPersistenceService {
       ),
       responseContent,
       personaId: personaResult.personaId,
+      ...(thinkingContent !== undefined ? { thinkingContent } : {}),
     };
   }
 
@@ -113,13 +142,14 @@ export class MemoryPersistenceService {
     context: ConversationContext,
     deferredData: DeferredMemoryData
   ): Promise<void> {
-    await this.longTermMemory.storeInteraction(
+    await this.longTermMemory.storeInteraction({
       personality,
-      deferredData.contentForEmbedding,
-      deferredData.responseContent,
+      userMessage: deferredData.contentForEmbedding,
+      aiResponse: deferredData.responseContent,
       context,
-      deferredData.personaId
-    );
+      personaId: deferredData.personaId,
+      thinkingContent: deferredData.thinkingContent,
+    });
     logger.info(
       { userId: context.userId, personalityId: personality.id, personaId: deferredData.personaId },
       'Stored deferred memory to LTM'
