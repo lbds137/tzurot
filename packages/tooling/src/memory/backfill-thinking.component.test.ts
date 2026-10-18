@@ -23,6 +23,7 @@ const PERSONA_1 = '00000000-0000-4000-8000-000000000102';
 const USER_2 = '00000000-0000-4000-8000-000000000103';
 const PERSONA_2 = '00000000-0000-4000-8000-000000000104';
 const PERSONALITY_ID = '00000000-0000-4000-8000-000000000105';
+const PERSONALITY_2 = '00000000-0000-4000-8000-000000000106';
 
 const MEMORY_1 = '00000000-0000-4000-8000-000000000201';
 const MEMORY_2 = '00000000-0000-4000-8000-000000000202';
@@ -71,6 +72,17 @@ describe('backfill-thinking SQL queries (component, PGLite)', () => {
         ownerId: USER_1,
         characterInfo: 'A test personality',
         personalityTraits: 'Analytical',
+      },
+    });
+
+    await prisma.personality.create({
+      data: {
+        id: PERSONALITY_2,
+        name: 'OtherPersonality',
+        slug: 'other-personality',
+        ownerId: USER_1,
+        characterInfo: 'A second personality',
+        personalityTraits: 'Distinct',
       },
     });
   }, 30000);
@@ -453,5 +465,262 @@ describe('backfill-thinking SQL queries (component, PGLite)', () => {
 
     const remainingCandidates = await queryCandidateBatch(prisma, INITIAL_CURSOR, 10);
     expect(remainingCandidates).toEqual([]);
+  });
+
+  it('pairs an unchunked memory (chunk_index NULL) as a candidate and classifies as write', async () => {
+    const assistantReply = 'Unchunked memory reply text that satisfies the head-40 guard.';
+    const trace = 'Reasoning trace for an unchunked memory row.';
+
+    await prisma.conversationHistory.create({
+      data: {
+        id: HISTORY_1,
+        channelId: CHANNEL_ID,
+        personalityId: PERSONALITY_ID,
+        personaId: PERSONA_1,
+        role: 'user',
+        content: 'Prompt for unchunked memory',
+        discordMessageId: [MSG_ID_1],
+        createdAt: BASE_TIME,
+      },
+    });
+
+    await prisma.conversationHistory.create({
+      data: {
+        id: HISTORY_2,
+        channelId: CHANNEL_ID,
+        personalityId: PERSONALITY_ID,
+        personaId: PERSONA_1,
+        role: 'assistant',
+        content: assistantReply,
+        thinkingContent: trace,
+        createdAt: new Date(BASE_TIME.getTime() + 1000),
+      },
+    });
+
+    await prisma.memory.create({
+      data: {
+        id: MEMORY_1,
+        personaId: PERSONA_1,
+        personalityId: PERSONALITY_ID,
+        content: `Alice: Prompt for unchunked memory\nTestPersonality: ${assistantReply}`,
+        messageIds: [MSG_ID_1],
+        senders: ['Alice'],
+        chunkIndex: null,
+      },
+    });
+
+    const rows = await queryCandidateBatch(prisma, INITIAL_CURSOR, 10);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual({
+      id: MEMORY_1,
+      user_found: true,
+      assistant_role: 'assistant',
+      thinking_content: trace,
+      guard_ok: true,
+    });
+    expect(classifyCandidateRow(rows[0])).toEqual({ verdict: 'write', trace });
+  });
+
+  it("excludes a memory with source_system = 'external-import' from candidates", async () => {
+    await prisma.memory.create({
+      data: {
+        id: MEMORY_1,
+        personaId: PERSONA_1,
+        personalityId: PERSONALITY_ID,
+        content: 'Imported memory content',
+        messageIds: [MSG_ID_1],
+        senders: ['Alice'],
+        sourceSystem: 'external-import',
+        chunkIndex: null,
+      },
+    });
+
+    const rows = await queryCandidateBatch(prisma, INITIAL_CURSOR, 10);
+    expect(rows).toEqual([]);
+  });
+
+  it('does not pair a user row belonging to a different personality (no_history)', async () => {
+    await prisma.conversationHistory.create({
+      data: {
+        id: HISTORY_1,
+        channelId: CHANNEL_ID,
+        personalityId: PERSONALITY_2,
+        personaId: PERSONA_1,
+        role: 'user',
+        content: 'User message addressed to a different personality',
+        discordMessageId: [MSG_ID_1],
+        createdAt: BASE_TIME,
+      },
+    });
+
+    await prisma.memory.create({
+      data: {
+        id: MEMORY_1,
+        personaId: PERSONA_1,
+        personalityId: PERSONALITY_ID,
+        content: 'Alice: User message addressed to a different personality',
+        messageIds: [MSG_ID_1],
+        senders: ['Alice'],
+        chunkIndex: 0,
+      },
+    });
+
+    const rows = await queryCandidateBatch(prisma, INITIAL_CURSOR, 10);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].user_found).toBe(false);
+    expect(rows[0].assistant_role).toBeNull();
+    expect(classifyCandidateRow(rows[0])).toEqual({ verdict: 'no_history' });
+  });
+
+  it('classifies a paired assistant row with a NULL trace as no_trace through the real SQL', async () => {
+    const assistantReply = 'Assistant reply produced by a model without a reasoning trace.';
+
+    await prisma.conversationHistory.create({
+      data: {
+        id: HISTORY_1,
+        channelId: CHANNEL_ID,
+        personalityId: PERSONALITY_ID,
+        personaId: PERSONA_1,
+        role: 'user',
+        content: 'Question with untraced reply',
+        discordMessageId: [MSG_ID_1],
+        createdAt: BASE_TIME,
+      },
+    });
+
+    await prisma.conversationHistory.create({
+      data: {
+        id: HISTORY_2,
+        channelId: CHANNEL_ID,
+        personalityId: PERSONALITY_ID,
+        personaId: PERSONA_1,
+        role: 'assistant',
+        content: assistantReply,
+        thinkingContent: null,
+        createdAt: new Date(BASE_TIME.getTime() + 1000),
+      },
+    });
+
+    await prisma.memory.create({
+      data: {
+        id: MEMORY_1,
+        personaId: PERSONA_1,
+        personalityId: PERSONALITY_ID,
+        content: `Alice: Question with untraced reply\nTestPersonality: ${assistantReply}`,
+        messageIds: [MSG_ID_1],
+        senders: ['Alice'],
+        chunkIndex: 0,
+      },
+    });
+
+    const rows = await queryCandidateBatch(prisma, INITIAL_CURSOR, 10);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual({
+      id: MEMORY_1,
+      user_found: true,
+      assistant_role: 'assistant',
+      thinking_content: null,
+      guard_ok: true,
+    });
+    expect(classifyCandidateRow(rows[0])).toEqual({ verdict: 'no_trace' });
+  });
+
+  it('skips a soft-deleted assistant reply and classifies as no_reply when nothing else follows', async () => {
+    const assistantReply = 'Soft-deleted assistant reply whose reasoning must not be copied.';
+
+    await prisma.conversationHistory.create({
+      data: {
+        id: HISTORY_1,
+        channelId: CHANNEL_ID,
+        personalityId: PERSONALITY_ID,
+        personaId: PERSONA_1,
+        role: 'user',
+        content: 'Question followed by a deleted assistant reply',
+        discordMessageId: [MSG_ID_1],
+        createdAt: BASE_TIME,
+      },
+    });
+
+    await prisma.conversationHistory.create({
+      data: {
+        id: HISTORY_2,
+        channelId: CHANNEL_ID,
+        personalityId: PERSONALITY_ID,
+        personaId: PERSONA_1,
+        role: 'assistant',
+        content: assistantReply,
+        thinkingContent: 'Reasoning from a soft-deleted reply.',
+        deletedAt: new Date(BASE_TIME.getTime() + 2000),
+        createdAt: new Date(BASE_TIME.getTime() + 1000),
+      },
+    });
+
+    await prisma.memory.create({
+      data: {
+        id: MEMORY_1,
+        personaId: PERSONA_1,
+        personalityId: PERSONALITY_ID,
+        content: `Alice: Question followed by a deleted assistant reply\nTestPersonality: ${assistantReply}`,
+        messageIds: [MSG_ID_1],
+        senders: ['Alice'],
+        chunkIndex: 0,
+      },
+    });
+
+    const rows = await queryCandidateBatch(prisma, INITIAL_CURSOR, 10);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].user_found).toBe(true);
+    expect(rows[0].assistant_role).toBeNull();
+    expect(rows[0].thinking_content).toBeNull();
+    expect(classifyCandidateRow(rows[0])).toEqual({ verdict: 'no_reply' });
+  });
+
+  it('skips a soft-deleted user row and classifies as no_history', async () => {
+    const assistantReply = 'Assistant reply after a soft-deleted user message.';
+
+    await prisma.conversationHistory.create({
+      data: {
+        id: HISTORY_1,
+        channelId: CHANNEL_ID,
+        personalityId: PERSONALITY_ID,
+        personaId: PERSONA_1,
+        role: 'user',
+        content: 'Soft-deleted user message',
+        discordMessageId: [MSG_ID_1],
+        deletedAt: new Date(BASE_TIME.getTime() + 500),
+        createdAt: BASE_TIME,
+      },
+    });
+
+    await prisma.conversationHistory.create({
+      data: {
+        id: HISTORY_2,
+        channelId: CHANNEL_ID,
+        personalityId: PERSONALITY_ID,
+        personaId: PERSONA_1,
+        role: 'assistant',
+        content: assistantReply,
+        thinkingContent: 'Reasoning for a turn whose user prompt was soft-deleted.',
+        createdAt: new Date(BASE_TIME.getTime() + 1000),
+      },
+    });
+
+    await prisma.memory.create({
+      data: {
+        id: MEMORY_1,
+        personaId: PERSONA_1,
+        personalityId: PERSONALITY_ID,
+        content: `Alice: Soft-deleted user message\nTestPersonality: ${assistantReply}`,
+        messageIds: [MSG_ID_1],
+        senders: ['Alice'],
+        chunkIndex: 0,
+      },
+    });
+
+    const rows = await queryCandidateBatch(prisma, INITIAL_CURSOR, 10);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].user_found).toBe(false);
+    expect(rows[0].assistant_role).toBeNull();
+    expect(classifyCandidateRow(rows[0])).toEqual({ verdict: 'no_history' });
   });
 });
