@@ -435,7 +435,7 @@ export async function handleViewFullButton(
   await interaction.editReply({
     content: renderSpec(
       CATALOG.info.fullMemoryContent(
-        memory.personalityName,
+        escapeMarkdown(memory.personalityName),
         formatDiscordTimestamp(memory.createdAt, 'D')
       )
     ),
@@ -476,7 +476,7 @@ export async function handleReasoningButton(
   await interaction.editReply({
     content: renderSpec(
       CATALOG.info.reasoningTrace(
-        memory.personalityName,
+        escapeMarkdown(memory.personalityName),
         formatDiscordTimestamp(memory.createdAt, 'D')
       )
     ),

@@ -147,6 +147,11 @@ export interface UpsertRowOptions {
    * These columns are not copied, allowing different values per environment.
    */
   excludeColumns?: readonly string[];
+  /**
+   * On conflict, a column listed here keeps its existing value when the
+   * incoming value is NULL.
+   */
+  keepNonNullColumns?: readonly string[];
   // NOTE: `deferredFkColumns` was removed in the Ouroboros Insert refactor.
   // The previous two-pass approach (insert NULL, backfill in pass 2) is
   // replaced by single-pass insert with SET CONSTRAINTS ALL DEFERRED at
@@ -324,6 +329,7 @@ export async function upsertRow(options: UpsertRowOptions): Promise<void> {
     uuidColumns = [],
     timestampColumns = [],
     excludeColumns = [],
+    keepNonNullColumns = [],
   } = options;
 
   // Defense-in-depth: validate table name before SQL interpolation
@@ -375,8 +381,15 @@ export async function upsertRow(options: UpsertRowOptions): Promise<void> {
   const columnList = columns.map(c => `"${c}"`).join(', ');
 
   // Build UPDATE SET clause for conflict resolution — all columns
-  // participate now that deferred-FK NULL-stripping is gone.
-  const updateSet = columns.map(c => `"${c}" = EXCLUDED."${c}"`).join(', ');
+  // participate now that deferred-FK NULL-stripping is gone. Columns in
+  // keepNonNullColumns preserve their existing value when EXCLUDED is NULL.
+  const updateSet = columns
+    .map(c =>
+      keepNonNullColumns.includes(c)
+        ? `"${c}" = COALESCE(EXCLUDED."${c}", "${tableName}"."${c}")`
+        : `"${c}" = EXCLUDED."${c}"`
+    )
+    .join(', ');
 
   // Determine conflict columns (primary key only)
   const pkColumns = typeof pkField === 'string' ? [pkField] : Array.from(pkField);
