@@ -226,17 +226,20 @@ describe('handleButton', () => {
     }
   });
 
-  it('still routes lock/edit/view-full even when session has expired', async () => {
-    mockParseMemoryActionId.mockReturnValue({ action: 'edit', memoryId: 'mem-1' });
-    mockFindMemoryListSessionByMessage.mockResolvedValue(null);
+  it('still routes lock/edit/view-full/reasoning even when session has expired', async () => {
+    for (const action of ['lock', 'edit', 'view-full', 'reasoning'] as const) {
+      vi.clearAllMocks();
+      mockParseMemoryActionId.mockReturnValue({ action, memoryId: 'mem-1' });
+      mockFindMemoryListSessionByMessage.mockResolvedValue(null);
 
-    const interaction = createButtonInteraction('memory-detail::edit::mem-1');
+      const interaction = createButtonInteraction(`memory-detail::${action}::mem-1`);
 
-    await handleButton(interaction as never);
+      await handleButton(interaction as never);
 
-    // Expired session should NOT block session-independent actions
-    expect(mockHandleBrowseDetailAction).toHaveBeenCalledWith(interaction);
-    expect(interaction.reply).not.toHaveBeenCalled();
+      // Expired session should NOT block session-independent actions
+      expect(mockHandleBrowseDetailAction).toHaveBeenCalledWith(interaction);
+      expect(interaction.reply).not.toHaveBeenCalled();
+    }
   });
 
   it('SESSION_INDEPENDENT_ACTIONS invariant: lock on a search-opened memory never touches the search handler', async () => {
