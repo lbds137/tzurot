@@ -1010,6 +1010,14 @@ model Memory {
   lastRetrievedAt      DateTime?              @map("last_retrieved_at")
   /// How many retrievals have returned this row since the stamp shipped; 0 for rows never retrieved since. Stamped by raw SQL beside last_retrieved_at.
   retrievalCount       Int                    @default(0) @map("retrieval_count")
+  /// Deferred-set: the model's reasoning trace for the reply this memory
+  /// records, kept here so it outlives the conversation_history retention
+  /// sweep. Written at insert on an unchunked memory or chunk 0 only. Null
+  /// when the model produced no trace, on chunks 1..n, on imported rows, or
+  /// when the row predates the column and no live history row was left to
+  /// backfill from. Export and /memory view only — never rendered into a
+  /// character prompt (no retrieval SELECT names it).
+  thinkingContent      String?                @map("thinking_content")
   persona              Persona?               @relation(fields: [personaId], references: [id], onDelete: Cascade)
   personality          Personality            @relation(fields: [personalityId], references: [id], onDelete: Cascade)
 
