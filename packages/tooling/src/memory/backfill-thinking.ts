@@ -3,8 +3,8 @@
  *
  * Pairs candidate v3 memories (first chunk, missing `thinking_content`, with a
  * stored Discord message id) back to their originating user turn and the first
- * subsequent row in the same channel and personality within 30 minutes. When
- * that row is an assistant turn with a non-empty `thinking_content` and its
+ * subsequent row in the same channel, personality, and persona within 30 minutes.
+ * When that row is an assistant turn with a non-empty `thinking_content` and its
  * 40-char prefix appears in the memory text, copies `thinking_content` via raw
  * SQL so `memories.updated_at` is not bumped.
  *
@@ -42,6 +42,7 @@ export interface BackfillThinkingOptions {
 
 export interface CandidatePairRow {
   id: string;
+  user_found: boolean | null;
   assistant_role: string | null;
   thinking_content: string | null;
   guard_ok: boolean | null;
@@ -50,7 +51,8 @@ export interface CandidatePairRow {
 export interface BackfillThinkingResult {
   candidates: number;
   paired: number;
-  skipped_no_pair: number;
+  skipped_no_history: number;
+  skipped_interleaved: number;
   skipped_guard: number;
   skipped_no_trace: number;
   writable: number;
@@ -75,12 +77,13 @@ export function queryCandidateBatch(
   return prisma.$queryRaw<CandidatePairRow[]>`
     SELECT
       m.id,
+      u.id IS NOT NULL AS user_found,
       a.role AS assistant_role,
       a.thinking_content,
       (length(a.content) > 0 AND position(left(a.content, 40) IN m.content) > 0) AS guard_ok
     FROM memories m
     LEFT JOIN LATERAL (
-      SELECT u.id, u.channel_id, u.personality_id, u.created_at
+      SELECT u.id, u.channel_id, u.personality_id, u.persona_id, u.created_at
       FROM conversation_history u
       WHERE u.role = 'user'
         AND m.message_ids[1] = ANY(u.discord_message_id)
@@ -94,6 +97,7 @@ export function queryCandidateBatch(
       FROM conversation_history a
       WHERE a.channel_id = u.channel_id
         AND a.personality_id = u.personality_id
+        AND a.persona_id = u.persona_id
         AND a.created_at > u.created_at
         AND a.created_at < u.created_at + interval '30 minutes'
       ORDER BY a.created_at ASC
@@ -128,7 +132,8 @@ export function updateThinkingContent(
 
 export type RowVerdict =
   | { verdict: 'write'; trace: string }
-  | { verdict: 'no_pair' }
+  | { verdict: 'no_history' }
+  | { verdict: 'interleaved' }
   | { verdict: 'no_trace' }
   | { verdict: 'guard' };
 
@@ -136,8 +141,12 @@ export type RowVerdict =
  * Classify a candidate row into its backfill verdict.
  */
 export function classifyCandidateRow(row: CandidatePairRow): RowVerdict {
+  if (row.user_found !== true) {
+    return { verdict: 'no_history' };
+  }
+
   if (row.assistant_role !== 'assistant') {
-    return { verdict: 'no_pair' };
+    return { verdict: 'interleaved' };
   }
 
   if (row.thinking_content === null || row.thinking_content.trim() === '') {
@@ -161,8 +170,13 @@ async function processCandidateBatch(
     stats.candidates++;
     const classified = classifyCandidateRow(row);
 
-    if (classified.verdict === 'no_pair') {
-      stats.skipped_no_pair++;
+    if (classified.verdict === 'no_history') {
+      stats.skipped_no_history++;
+      continue;
+    }
+
+    if (classified.verdict === 'interleaved') {
+      stats.skipped_interleaved++;
       continue;
     }
     stats.paired++;
@@ -192,7 +206,8 @@ function printSummary(stats: BackfillThinkingResult, dryRun: boolean): void {
   }
   console.log(`   candidates: ${stats.candidates}`);
   console.log(`   paired: ${stats.paired}`);
-  console.log(`   skipped_no_pair: ${stats.skipped_no_pair}`);
+  console.log(`   skipped_no_history: ${stats.skipped_no_history}`);
+  console.log(`   skipped_interleaved: ${stats.skipped_interleaved}`);
   console.log(`   skipped_guard: ${stats.skipped_guard}`);
   console.log(`   skipped_no_trace: ${stats.skipped_no_trace}`);
   console.log(`   writable: ${stats.writable}`);
@@ -220,7 +235,8 @@ export async function backfillThinking(
   const stats: BackfillThinkingResult = {
     candidates: 0,
     paired: 0,
-    skipped_no_pair: 0,
+    skipped_no_history: 0,
+    skipped_interleaved: 0,
     skipped_guard: 0,
     skipped_no_trace: 0,
     writable: 0,

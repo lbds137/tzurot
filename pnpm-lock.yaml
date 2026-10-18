@@ -429,6 +429,9 @@ importers:
       '@types/semver':
         specifier: ^7.8.0
         version: 7.8.0
+      '@tzurot/test-utils':
+        specifier: workspace:*
+        version: link:../test-utils
       '@vitest/coverage-v8':
         specifier: ^4.1.11
         version: 4.1.11(vitest@4.1.11)
