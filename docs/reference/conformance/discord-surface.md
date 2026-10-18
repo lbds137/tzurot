@@ -442,16 +442,16 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/detail.ts | addComponents | 2 |
 | services/bot-client/src/commands/memory/detail.ts | deferred | 1 |
 | services/bot-client/src/commands/memory/detail.ts | escapeMarkdown | 4 |
-| services/bot-client/src/commands/memory/detail.ts | id | 5 |
+| services/bot-client/src/commands/memory/detail.ts | id | 6 |
 | services/bot-client/src/commands/memory/detail.ts | replied | 1 |
 | services/bot-client/src/commands/memory/detail.ts | setColor | 1 |
-| services/bot-client/src/commands/memory/detail.ts | setCustomId | 7 |
+| services/bot-client/src/commands/memory/detail.ts | setCustomId | 8 |
 | services/bot-client/src/commands/memory/detail.ts | setDescription | 1 |
-| services/bot-client/src/commands/memory/detail.ts | setEmoji | 5 |
-| services/bot-client/src/commands/memory/detail.ts | setLabel | 7 |
-| services/bot-client/src/commands/memory/detail.ts | setStyle | 7 |
+| services/bot-client/src/commands/memory/detail.ts | setEmoji | 6 |
+| services/bot-client/src/commands/memory/detail.ts | setLabel | 8 |
+| services/bot-client/src/commands/memory/detail.ts | setStyle | 8 |
 | services/bot-client/src/commands/memory/detail.ts | setTitle | 1 |
-| services/bot-client/src/commands/memory/detail.ts | user | 5 |
+| services/bot-client/src/commands/memory/detail.ts | user | 6 |
 | services/bot-client/src/commands/memory/detail.ts | values | 1 |
 | services/bot-client/src/commands/memory/detailActionRouter.ts | customId | 1 |
 | services/bot-client/src/commands/memory/detailActionRouter.ts | deferred | 1 |
@@ -2012,7 +2012,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/inspect/memoryInspectorState.ts | ActionRowBuilder | 1 |
 | services/bot-client/src/commands/inspect/memoryInspectorState.ts | ButtonBuilder | 3 |
 | services/bot-client/src/commands/memory/detail.ts | ActionRowBuilder | 2 |
-| services/bot-client/src/commands/memory/detail.ts | ButtonBuilder | 7 |
+| services/bot-client/src/commands/memory/detail.ts | ButtonBuilder | 8 |
 | services/bot-client/src/commands/memory/detailModals.ts | ActionRowBuilder | 1 |
 | services/bot-client/src/commands/memory/detailModals.ts | ButtonBuilder | 2 |
 | services/bot-client/src/commands/memory/factsDetail.ts | ActionRowBuilder | 2 |
@@ -2111,7 +2111,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/batchDelete.ts | ComponentType.Button | 1 |
 | services/bot-client/src/commands/memory/detail.ts | ButtonStyle.Danger | 2 |
 | services/bot-client/src/commands/memory/detail.ts | ButtonStyle.Primary | 2 |
-| services/bot-client/src/commands/memory/detail.ts | ButtonStyle.Secondary | 4 |
+| services/bot-client/src/commands/memory/detail.ts | ButtonStyle.Secondary | 5 |
 | services/bot-client/src/commands/memory/detailModals.ts | ButtonStyle.Danger | 1 |
 | services/bot-client/src/commands/memory/detailModals.ts | ButtonStyle.Secondary | 1 |
 | services/bot-client/src/commands/memory/factsDetail.ts | ButtonStyle.Danger | 2 |
@@ -2237,7 +2237,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/inspect/index.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/commands/inspect/views.ts | MessageFlags.Ephemeral | 9 |
 | services/bot-client/src/commands/memory/browse.ts | MessageFlags.Ephemeral | 2 |
-| services/bot-client/src/commands/memory/detail.ts | MessageFlags.Ephemeral | 1 |
+| services/bot-client/src/commands/memory/detail.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/commands/memory/detailModals.ts | MessageFlags.Ephemeral | 4 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/commands/memory/factsDetail.ts | MessageFlags.Ephemeral | 1 |
@@ -2347,8 +2347,8 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/batchDelete.ts | update | 1 |
 | services/bot-client/src/commands/memory/browse.ts | editReply | 2 |
 | services/bot-client/src/commands/memory/browse.ts | followUp | 2 |
-| services/bot-client/src/commands/memory/detail.ts | deferReply | 1 |
-| services/bot-client/src/commands/memory/detail.ts | editReply | 4 |
+| services/bot-client/src/commands/memory/detail.ts | deferReply | 2 |
+| services/bot-client/src/commands/memory/detail.ts | editReply | 5 |
 | services/bot-client/src/commands/memory/detailModals.ts | editReply | 1 |
 | services/bot-client/src/commands/memory/detailModals.ts | followUp | 1 |
 | services/bot-client/src/commands/memory/detailModals.ts | reply | 3 |
@@ -2544,7 +2544,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/inspect/views.ts | inline | 3 |
 | services/bot-client/src/commands/inspect/views.ts | name | 3 |
 | services/bot-client/src/commands/inspect/views.ts | value | 3 |
-| services/bot-client/src/commands/memory/detail.ts | AttachmentBuilder | 1 |
+| services/bot-client/src/commands/memory/detail.ts | AttachmentBuilder | 2 |
 | services/bot-client/src/commands/memory/detail.ts | EmbedBuilder | 1 |
 | services/bot-client/src/commands/memory/detailModals.ts | EmbedBuilder | 1 |
 | services/bot-client/src/commands/memory/detailModals.ts | text | 1 |
@@ -2762,10 +2762,10 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/browse.ts | embeds | 2 |
 | services/bot-client/src/commands/memory/browse.ts | flags | 2 |
 | services/bot-client/src/commands/memory/detail.ts | components | 3 |
-| services/bot-client/src/commands/memory/detail.ts | content | 1 |
+| services/bot-client/src/commands/memory/detail.ts | content | 2 |
 | services/bot-client/src/commands/memory/detail.ts | embeds | 3 |
-| services/bot-client/src/commands/memory/detail.ts | files | 1 |
-| services/bot-client/src/commands/memory/detail.ts | flags | 1 |
+| services/bot-client/src/commands/memory/detail.ts | files | 2 |
+| services/bot-client/src/commands/memory/detail.ts | flags | 2 |
 | services/bot-client/src/commands/memory/detailModals.ts | components | 4 |
 | services/bot-client/src/commands/memory/detailModals.ts | content | 5 |
 | services/bot-client/src/commands/memory/detailModals.ts | embeds | 4 |
@@ -2987,4 +2987,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 2917 entries across 6788 sites.
+Total: 2917 entries across 6803 sites.

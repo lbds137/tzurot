@@ -159,6 +159,8 @@ export const MemoryItemSchema = z.object({
   assistantSummary: z.string().nullable().optional(),
   /** Summarizer state for owner-side debugging via the API; the embed does not render it. */
   summaryStatus: z.string().nullable().optional(),
+  /** The stored reasoning trace for the turn, when the model produced one. */
+  thinkingContent: z.string().nullable().optional(),
 });
 
 export type MemoryItem = z.infer<typeof MemoryItemSchema>;

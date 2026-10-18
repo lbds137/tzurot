@@ -109,6 +109,7 @@ function makePayload(): AccountExportData {
         visibility: 'normal',
         type: 'memory',
         isSummarized: false,
+        thinkingContent: null,
       },
     ] as unknown as AccountExportData['memories'],
     facts: [],

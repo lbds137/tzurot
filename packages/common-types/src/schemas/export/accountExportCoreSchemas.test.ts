@@ -351,6 +351,7 @@ describe('accountExportCoreSchemas', () => {
       chunkIndex: null,
       totalChunks: null,
       assistantSummary: null,
+      thinkingContent: null,
     });
     expect(result.success).toBe(true);
   });
@@ -385,6 +386,7 @@ describe('accountExportCoreSchemas', () => {
       chunkIndex: null,
       totalChunks: null,
       assistantSummary: null,
+      thinkingContent: null,
       embedding: [0.1, 0.2],
     });
     expect(result.success).toBe(false);
@@ -420,12 +422,13 @@ describe('accountExportCoreSchemas', () => {
       chunkIndex: null,
       totalChunks: null,
       assistantSummary: null,
+      thinkingContent: null,
       summaryLastError: null,
     });
     expect(result.success).toBe(false);
   });
 
-  it('parses a memory row carrying a non-null assistantSummary', () => {
+  it('parses a memory row carrying a non-null assistantSummary and thinkingContent', () => {
     const result = ExportMemoryRowSchema.safeParse({
       id: 'mem-1',
       personaId: 'persona-1',
@@ -455,11 +458,12 @@ describe('accountExportCoreSchemas', () => {
       chunkIndex: null,
       totalChunks: null,
       assistantSummary: 'some summary',
+      thinkingContent: 'some reasoning trace',
     });
     expect(result.success).toBe(true);
   });
 
-  it('rejects a memory row missing assistantSummary (drift guard)', () => {
+  it('rejects a memory row missing assistantSummary or thinkingContent (drift guard)', () => {
     const result = ExportMemoryRowSchema.safeParse({
       id: 'mem-1',
       personaId: 'persona-1',

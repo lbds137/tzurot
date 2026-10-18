@@ -14,6 +14,7 @@ import {
   handleDeleteButton,
   handleDeleteConfirm,
   handleViewFullButton,
+  handleReasoningButton,
   MEMORY_DETAIL_PREFIX,
 } from './detail.js';
 import type { MemoryItem } from '@tzurot/common-types/schemas/api/memory';
@@ -223,6 +224,18 @@ describe('Memory Detail', () => {
         expect(json.fields?.find(f => f.name === 'Summary')).toBeUndefined();
       }
     });
+
+    it('never renders thinkingContent into the embed itself', () => {
+      const memory = createMockMemory({
+        thinkingContent: 'Secret reasoning trace that belongs only in attachment',
+      });
+      const { embed } = buildDetailEmbed(memory);
+      const json = embed.toJSON();
+
+      expect(JSON.stringify(json)).not.toContain(
+        'Secret reasoning trace that belongs only in attachment'
+      );
+    });
   });
 
   describe('buildDetailButtons', () => {
@@ -265,6 +278,35 @@ describe('Memory Detail', () => {
       expect(row.components).toHaveLength(4);
       const labels = row.components.map(b => (b.data as { label?: string }).label);
       expect(labels).not.toContain('View Full');
+    });
+
+    it('should include Reasoning button before Back to List and Delete when thinkingContent is non-empty', () => {
+      const memory = createMockMemory({ thinkingContent: 'Step 1: recall the user preference.' });
+      const row = buildDetailButtons(memory, false);
+
+      expect(row.components).toHaveLength(5);
+      const labels = row.components.map(b => (b.data as { label?: string }).label);
+      expect(labels).toEqual(['Edit', 'Lock', 'Reasoning', 'Back to List', 'Delete']);
+
+      const reasoningButton = row.components[2]?.toJSON() as {
+        custom_id?: string;
+        label?: string;
+        emoji?: { name?: string };
+      };
+      expect(reasoningButton.custom_id).toBe(
+        `${MEMORY_DETAIL_PREFIX}${CUSTOM_ID_DELIMITER}reasoning${CUSTOM_ID_DELIMITER}memory-123`
+      );
+      expect(reasoningButton.label).toBe('Reasoning');
+      expect(reasoningButton.emoji?.name).toBe('🧠');
+    });
+
+    it('should not include Reasoning button when thinkingContent is null, undefined, or whitespace-only', () => {
+      for (const thinkingContent of [null, undefined, '', '   \n\t  ']) {
+        const memory = createMockMemory({ thinkingContent });
+        const row = buildDetailButtons(memory, false);
+        const labels = row.components.map(b => (b.data as { label?: string }).label);
+        expect(labels).not.toContain('Reasoning');
+      }
     });
   });
 
@@ -563,6 +605,71 @@ describe('Memory Detail', () => {
       interaction.deferReply = mockDeferReply;
 
       await handleViewFullButton(interaction as unknown as ButtonInteraction, 'memory-123');
+
+      expect(mockDeferReply).toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Memory not found'),
+        })
+      );
+    });
+  });
+
+  describe('handleReasoningButton', () => {
+    it('should send reasoning trace as file attachment', async () => {
+      const trace = 'Weighed user context before answering.';
+      const memory = createMockMemory({
+        id: '12345678-aaaa-bbbb-cccc-1234567890ab',
+        thinkingContent: trace,
+      });
+      stub.getMemory.mockResolvedValue(makeOk({ memory }));
+
+      const mockDeferReply = vi.fn();
+      const mockEditReply = vi.fn();
+
+      const interaction = {
+        user: { id: 'user-123', username: 'testuser' },
+        deferReply: mockDeferReply,
+        editReply: mockEditReply,
+      } as unknown as ButtonInteraction;
+
+      await handleReasoningButton(interaction, '12345678-aaaa-bbbb-cccc-1234567890ab');
+
+      expect(mockDeferReply).toHaveBeenCalledWith(
+        expect.objectContaining({ flags: expect.anything() })
+      );
+      expect(mockEditReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Reasoning Trace'),
+          files: expect.arrayContaining([
+            expect.objectContaining({
+              name: 'reasoning-12345678.txt',
+              attachment: Buffer.from(trace, 'utf-8'),
+            }),
+          ]),
+        })
+      );
+    });
+
+    it('should show error if memory not found', async () => {
+      stub.getMemory.mockResolvedValue(makeErr(404, 'Not found'));
+
+      const mockEditReply = vi.fn();
+
+      const interaction: Record<string, unknown> = {
+        user: { id: 'user-123', username: 'testuser' },
+        editReply: mockEditReply,
+        reply: vi.fn(),
+        deferred: false,
+        replied: false,
+      };
+      const mockDeferReply = vi.fn().mockImplementation(() => {
+        interaction.deferred = true;
+        return Promise.resolve(undefined);
+      });
+      interaction.deferReply = mockDeferReply;
+
+      await handleReasoningButton(interaction as unknown as ButtonInteraction, 'memory-123');
 
       expect(mockDeferReply).toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalledWith(

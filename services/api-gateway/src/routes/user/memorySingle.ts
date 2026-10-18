@@ -90,6 +90,7 @@ interface MemoryResponse {
   isLocked: boolean;
   assistantSummary: string | null;
   summaryStatus: string | null;
+  thinkingContent: string | null;
 }
 
 /**
@@ -104,6 +105,7 @@ function transformMemory(memory: {
   isLocked: boolean;
   assistantSummary: string | null;
   summaryStatus: string | null;
+  thinkingContent: string | null;
   personality: { name: string; displayName: string | null };
 }): MemoryResponse {
   return {
@@ -116,6 +118,7 @@ function transformMemory(memory: {
     isLocked: memory.isLocked,
     assistantSummary: memory.assistantSummary,
     summaryStatus: memory.summaryStatus,
+    thinkingContent: memory.thinkingContent,
   };
 }
 

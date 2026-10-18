@@ -120,6 +120,7 @@ const defaultMemory = {
   isLocked: false,
   assistantSummary: null,
   summaryStatus: null,
+  thinkingContent: null,
   personality: { name: 'test', displayName: 'Test Personality' },
 };
 
@@ -208,6 +209,7 @@ describe('memorySingle handlers', () => {
             personalityId: TEST_PERSONALITY_ID,
             personalityName: 'Test Personality',
             isLocked: false,
+            thinkingContent: null,
           }),
         })
       );
@@ -241,11 +243,12 @@ describe('memorySingle handlers', () => {
       expect(response.memory.updatedAt).toBe('2025-01-01T00:00:00.000Z');
     });
 
-    it('MEM-ARCH-025: GET returns the stored summary and status', async () => {
+    it('MEM-ARCH-025: GET returns the stored summary, status, and thinkingContent', async () => {
       mockPrisma.memory.findFirst.mockResolvedValue({
         ...defaultMemory,
         assistantSummary: 'A neutral third-person summary.',
         summaryStatus: 'done',
+        thinkingContent: 'Considered user mood before replying.',
       });
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
@@ -256,16 +259,18 @@ describe('memorySingle handlers', () => {
           memory: expect.objectContaining({
             assistantSummary: 'A neutral third-person summary.',
             summaryStatus: 'done',
+            thinkingContent: 'Considered user mood before replying.',
           }),
         })
       );
     });
 
-    it('MEM-ARCH-025: GET returns null for both on an unsummarized row', async () => {
+    it('MEM-ARCH-025: GET returns null for summary, status, and thinkingContent when absent', async () => {
       mockPrisma.memory.findFirst.mockResolvedValue({
         ...defaultMemory,
         assistantSummary: null,
         summaryStatus: null,
+        thinkingContent: null,
       });
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
@@ -276,6 +281,7 @@ describe('memorySingle handlers', () => {
           memory: expect.objectContaining({
             assistantSummary: null,
             summaryStatus: null,
+            thinkingContent: null,
           }),
         })
       );

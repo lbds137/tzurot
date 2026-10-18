@@ -7,7 +7,7 @@
   },
   "totals": {
     "entries": 2917,
-    "sites": 6788
+    "sites": 6803
   },
   "entries": [
     {
@@ -2576,7 +2576,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/detail.ts",
       "symbol": "id",
-      "count": 5
+      "count": 6
     },
     {
       "category": "client-methods",
@@ -2594,7 +2594,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/detail.ts",
       "symbol": "setCustomId",
-      "count": 7
+      "count": 8
     },
     {
       "category": "client-methods",
@@ -2606,19 +2606,19 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/detail.ts",
       "symbol": "setEmoji",
-      "count": 5
+      "count": 6
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/detail.ts",
       "symbol": "setLabel",
-      "count": 7
+      "count": 8
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/detail.ts",
       "symbol": "setStyle",
-      "count": 7
+      "count": 8
     },
     {
       "category": "client-methods",
@@ -2630,7 +2630,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/detail.ts",
       "symbol": "user",
-      "count": 5
+      "count": 6
     },
     {
       "category": "client-methods",
@@ -11936,7 +11936,7 @@
       "category": "components",
       "file": "services/bot-client/src/commands/memory/detail.ts",
       "symbol": "ButtonBuilder",
-      "count": 7
+      "count": 8
     },
     {
       "category": "components",
@@ -12500,7 +12500,7 @@
       "category": "discord-enums",
       "file": "services/bot-client/src/commands/memory/detail.ts",
       "symbol": "ButtonStyle.Secondary",
-      "count": 4
+      "count": 5
     },
     {
       "category": "discord-enums",
@@ -13226,7 +13226,7 @@
       "category": "flags",
       "file": "services/bot-client/src/commands/memory/detail.ts",
       "symbol": "MessageFlags.Ephemeral",
-      "count": 1
+      "count": 2
     },
     {
       "category": "flags",
@@ -13826,13 +13826,13 @@
       "category": "interaction-acks",
       "file": "services/bot-client/src/commands/memory/detail.ts",
       "symbol": "deferReply",
-      "count": 1
+      "count": 2
     },
     {
       "category": "interaction-acks",
       "file": "services/bot-client/src/commands/memory/detail.ts",
       "symbol": "editReply",
-      "count": 4
+      "count": 5
     },
     {
       "category": "interaction-acks",
@@ -14978,7 +14978,7 @@
       "category": "message-builders",
       "file": "services/bot-client/src/commands/memory/detail.ts",
       "symbol": "AttachmentBuilder",
-      "count": 1
+      "count": 2
     },
     {
       "category": "message-builders",
@@ -16256,7 +16256,7 @@
       "category": "message-options",
       "file": "services/bot-client/src/commands/memory/detail.ts",
       "symbol": "content",
-      "count": 1
+      "count": 2
     },
     {
       "category": "message-options",
@@ -16268,13 +16268,13 @@
       "category": "message-options",
       "file": "services/bot-client/src/commands/memory/detail.ts",
       "symbol": "files",
-      "count": 1
+      "count": 2
     },
     {
       "category": "message-options",
       "file": "services/bot-client/src/commands/memory/detail.ts",
       "symbol": "flags",
-      "count": 1
+      "count": 2
     },
     {
       "category": "message-options",

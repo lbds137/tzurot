@@ -20,6 +20,16 @@ import type { ConversationContext } from './ConversationalRAGTypes.js';
 
 const logger = createLogger('LongTermMemoryService');
 
+export interface StoreLongTermInteractionOptions {
+  personality: LoadedPersonality;
+  userMessage: string;
+  aiResponse: string;
+  context: ConversationContext;
+  personaId: string;
+  /** The model's reasoning trace for the turn; absent when the model produced none */
+  thinkingContent?: string;
+}
+
 export class LongTermMemoryService {
   private memoryManager?: PgvectorMemoryAdapter;
 
@@ -35,19 +45,10 @@ export class LongTermMemoryService {
   /**
    * Store an interaction to long-term memory (pgvector) only
    *
-   * @param personality The personality that generated the response
-   * @param userMessage User's message content (for LTM storage)
-   * @param aiResponse AI's response content
-   * @param context Conversation context
-   * @param personaId User's persona ID (must be resolved by caller)
+   * @param options Interaction content, conversation context, resolved persona ID, and optional reasoning trace
    */
-  async storeInteraction(
-    personality: LoadedPersonality,
-    userMessage: string,
-    aiResponse: string,
-    context: ConversationContext,
-    personaId: string
-  ): Promise<void> {
+  async storeInteraction(options: StoreLongTermInteractionOptions): Promise<void> {
+    const { personality, userMessage, aiResponse, context, personaId, thinkingContent } = options;
     const { prisma } = this;
     let pendingMemoryId: string | null = null;
 
@@ -59,7 +60,7 @@ export class LongTermMemoryService {
 
       // Use {user} and {assistant} tokens - actual names injected at retrieval time
       const interactionText = `{user}: ${userMessage}\n{assistant}: ${aiResponse}`;
-      const memoryMetadata = buildMemoryMetadata(personality, context, personaId);
+      const memoryMetadata = buildMemoryMetadata(personality, context, personaId, thinkingContent);
 
       // Create pending_memory record (safety net for vector storage)
       // Note: conversationHistoryId is optional (bot-client can backfill if needed)
@@ -136,10 +137,12 @@ export class LongTermMemoryService {
 function buildMemoryMetadata(
   personality: LoadedPersonality,
   context: ConversationContext,
-  personaId: string
+  personaId: string,
+  thinkingContent?: string
 ): MemoryMetadata {
   const canonScope: 'global' | 'personal' | 'session' =
     context.sessionId !== undefined && context.sessionId.length > 0 ? 'session' : 'personal';
+  const hasThinking = thinkingContent !== undefined && thinkingContent.trim().length > 0;
   return {
     personaId,
     // Source-turn linkage (memory-architecture Phase 0, R8): the triggering
@@ -157,5 +160,6 @@ function buildMemoryMetadata(
     channelId: context.channelId,
     guildId: context.serverId,
     serverId: context.serverId,
+    ...(hasThinking ? { thinkingContent } : {}),
   };
 }

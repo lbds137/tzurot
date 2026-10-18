@@ -264,6 +264,7 @@ describe('assembleAccountExport', () => {
       retrievalCount: true,
     });
     expect(call.omit).not.toHaveProperty('assistantSummary');
+    expect(call.omit).not.toHaveProperty('thinkingContent');
   });
 
   it('falls back to unknown-<id8> for directory ids that no longer resolve', async () => {

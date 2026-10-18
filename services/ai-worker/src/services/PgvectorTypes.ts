@@ -121,6 +121,8 @@ export interface MemoryMetadata {
   chunkGroupId?: string; // UUID linking all chunks from same source memory
   chunkIndex?: number; // 0-based position in chunk sequence
   totalChunks?: number; // Total number of chunks in the group
+  /** The model's reasoning trace for the turn; absent when the model produced none */
+  thinkingContent?: string;
 }
 
 /**
@@ -149,6 +151,7 @@ export const MemoryMetadataSchema = z.object({
   chunkGroupId: z.string().uuid().optional(),
   chunkIndex: z.number().int().min(0).optional(),
   totalChunks: z.number().int().min(1).optional(),
+  thinkingContent: z.string().optional(),
 });
 
 /**
