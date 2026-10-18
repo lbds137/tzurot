@@ -49,7 +49,7 @@ const DRIFT_IGNORE_FIXTURE = JSON.stringify({
         'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id") WHERE "chunk_group_id" IS NOT NULL;',
       dropPattern: 'DROP\\s+INDEX.*memories_chunk_group_id_idx',
       createPattern:
-        'CREATE\\s+INDEX.*memories_chunk_group_id_idx.*WHERE\\s+"?chunk_group_id"?\\s+IS\\s+NOT\\s+NULL',
+        'CREATE\\s+INDEX.*memories_chunk_group_id_idx.*WHERE[\\s(]+(?:"?memories"?\\.)?"?chunk_group_id"?\\s*\\)*\\s+IS\\s+NOT\\s+NULL[\\s);]*$',
     },
     {
       name: 'idx_memory_facts_embedding',
@@ -248,6 +248,62 @@ describe('checkMigrationSafety', () => {
 
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
+
+    it('rejects a non-partial recreate whose WHERE is inside a block comment or trailing line comment', async () => {
+      vol.fromJSON({
+        '/migrations/20240112_block_comment_where/migration.sql': [
+          'DROP INDEX "memories_chunk_group_id_idx";',
+          'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id") /* WHERE "chunk_group_id" IS NOT NULL */;',
+          'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id") -- WHERE "chunk_group_id" IS NOT NULL\n;',
+        ].join('\n'),
+      });
+
+      const { checkMigrationSafety } = await import('./check-migration-safety.js');
+      await checkMigrationSafety({ migrationsPath: '/migrations' });
+
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('rejects a recreate whose WHERE predicate has trailing disjuncts (IS NOT NULL OR true)', async () => {
+      vol.fromJSON({
+        '/migrations/20240113_compound_predicate/migration.sql': [
+          'DROP INDEX "memories_chunk_group_id_idx";',
+          'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id") WHERE "chunk_group_id" IS NOT NULL OR true;',
+        ].join('\n'),
+      });
+
+      const { checkMigrationSafety } = await import('./check-migration-safety.js');
+      await checkMigrationSafety({ migrationsPath: '/migrations' });
+
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it.each([
+      [
+        'parenthesized predicate',
+        'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id") WHERE ("chunk_group_id" IS NOT NULL);',
+      ],
+      [
+        'table-qualified quoted predicate',
+        'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id") WHERE "memories"."chunk_group_id" IS NOT NULL;',
+      ],
+      [
+        'parenthesized and table-qualified unquoted predicate',
+        'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id") WHERE (memories.chunk_group_id IS NOT NULL);',
+      ],
+    ])('accepts a recreate with a %s', async (_label, recreateStatement) => {
+      vol.fromJSON({
+        '/migrations/20240114_equivalent_forms/migration.sql': [
+          'DROP INDEX "memories_chunk_group_id_idx";',
+          recreateStatement,
+        ].join('\n'),
+      });
+
+      const { checkMigrationSafety } = await import('./check-migration-safety.js');
+      await checkMigrationSafety({ migrationsPath: '/migrations' });
+
+      expect(processExitSpy).not.toHaveBeenCalled();
+    });
   });
 
   it('pins the committed drift-ignore.json chunk-group createPattern to its recreateSQL', async () => {
@@ -265,12 +321,22 @@ describe('checkMigrationSafety', () => {
     expect(createPattern.test(normalize(entry?.recreateSQL ?? ''))).toBe(true);
     expect(
       createPattern.test(
+        'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id") WHERE ("memories"."chunk_group_id" IS NOT NULL)'
+      )
+    ).toBe(true);
+    expect(
+      createPattern.test(
         'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id")'
       )
     ).toBe(false);
     expect(
       createPattern.test(
         'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id") WHERE "other_col" IS NOT NULL'
+      )
+    ).toBe(false);
+    expect(
+      createPattern.test(
+        'CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id") WHERE "chunk_group_id" IS NOT NULL OR true'
       )
     ).toBe(false);
   });

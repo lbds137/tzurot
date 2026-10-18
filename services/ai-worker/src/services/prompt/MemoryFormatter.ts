@@ -209,7 +209,7 @@ function renderSingleMemory(
 ): { xml: string; stats: SplitNoteBody | null } {
   const isSplit = doc.metadata?.archiveRender?.mode === 'split';
   const splitResult = isSplit ? renderSplitNoteBody(doc, names) : null;
-  // @spec MEM-ARCH-002 — split mode omits the assistant part of every parseable row
+  // @spec MEM-ARCH-002 — split mode: assistant prose omitted except a done summary or a capped own-note excerpt
   const safeContent =
     splitResult !== null
       ? splitResult.body

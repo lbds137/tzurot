@@ -29,7 +29,7 @@ export const SYSTEM_SETTINGS_REGISTRY_OPERATIONS: {
     key: 'archiveSplitRenderPersonalities',
     label: 'Archive Split Render',
     description:
-      'Personality slugs whose memory archive renders split (user turn verbatim + linked facts, assistant prose omitted). Empty = every character renders verbatim.',
+      'Personality slugs whose memory archive renders split (user turn verbatim + linked facts, assistant prose omitted except a done summary or a capped own-note excerpt). Empty = every character renders verbatim.',
     // GROUP_MEMORY_ARCHIVE, not GROUP_OPERATIONS/GROUP_EXTRACTION: the
     // memory-archive group holds this render switch beside the summarizer's
     // own switches — a rendering-shape and a write-path knob that both govern

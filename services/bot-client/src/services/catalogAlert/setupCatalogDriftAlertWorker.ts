@@ -61,10 +61,10 @@ const MAX_EMBED_FIELDS = 25;
  */
 export function buildCatalogDriftEmbed(drifts: readonly CatalogDriftEntry[]): EmbedBuilder {
   const embed = new EmbedBuilder()
-    .setTitle('⚠️ Configured model left the OpenRouter catalog')
+    .setTitle("⚠️ Configured model doesn't resolve on OpenRouter")
     .setColor(DISCORD_COLORS.WARNING)
     .setDescription(
-      `${String(drifts.length)} configured model id(s) no longer resolve against the OpenRouter catalog. ` +
+      `${String(drifts.length)} configured model id(s) don't resolve against the OpenRouter catalog. ` +
         'Turns using them fall to the fallback chain until the config is re-pointed.'
     )
     .setTimestamp();

@@ -33,11 +33,9 @@
  *     by a later success, so a future NON-terminal warning render inside a
  *     command would misclassify the whole invocation. The convention is that
  *     a failed/uncertain render is terminal, i.e. at most one per invocation.
- *     {@link noteRenderedOutcome}'s caller set is small enough that the
- *     convention is checked at runtime — the warning tolerates additional
- *     callers — so a second failed/uncertain note on the same slot logs a
- *     warning (never throws — a misclassified telemetry row must not crash
- *     an interaction). The
+ *     {@link noteRenderedOutcome} has one production caller (render.ts); the
+ *     terminal-render convention is also checked at runtime: a second
+ *     failed/uncertain note on one slot logs a warning and never throws. The
  *     failed/uncertain writes are last-wins between themselves; only a
  *     later success never resets a noted failure.
  *   - No stable error code is available here: `MessageSpec` carries no

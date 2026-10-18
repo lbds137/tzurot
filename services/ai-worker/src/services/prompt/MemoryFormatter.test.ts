@@ -459,7 +459,7 @@ describe('MemoryFormatter', () => {
       );
     });
 
-    // @spec MEM-ARCH-002: split mode omits the assistant part of every parseable row
+    // @spec MEM-ARCH-002: split mode: assistant prose omitted except a done summary or a capped own-note excerpt
     it('MEM-ARCH-002: split mode never renders the assistant half when a summary or foreign exclusion applies', () => {
       const summaryDoc = splitDoc({
         assistantTurn: 'hello there',

@@ -27,7 +27,7 @@ export const SystemSettingsSchema = z.object({
   extractionEnabled: z.boolean(),
   /** Inject extracted facts into the generation prompt. */
   factsInPromptEnabled: z.boolean(),
-  /** Personality slugs whose memory archive renders split (user turn verbatim + linked facts, assistant prose omitted). Empty = every character renders verbatim. */
+  /** Personality slugs whose memory archive renders split (user turn verbatim + linked facts, assistant prose omitted except a done summary or a capped own-note excerpt). Empty = every character renders verbatim. */
   archiveSplitRenderPersonalities: z.array(z.string().regex(/^[a-z0-9-]+$/)),
   /** Job creation switch for the memory-archive summarizer: when off, no memory is enqueued for summarization. */
   archiveSummaryEnqueueEnabled: z.boolean(),

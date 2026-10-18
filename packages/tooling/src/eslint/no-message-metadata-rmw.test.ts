@@ -183,6 +183,18 @@ describe('invalid — messageMetadata in an existing-row write', () => {
     expect(lint(code)).toHaveLength(1);
   });
 
+  it('flags a literal computed receiver', () => {
+    // A computed receiver whose property is a string literal is statically readable.
+    const code = `prisma['conversationHistory'].update({ where: { id }, data: { messageMetadata: m } });`;
+    expect(lint(code)).toHaveLength(1);
+  });
+
+  it('flags a static template-literal computed receiver', () => {
+    const code =
+      'prisma[`conversationHistory`].update({ where: { id }, data: { messageMetadata: m } });';
+    expect(lint(code)).toHaveLength(1);
+  });
+
   it('reports each offending call', () => {
     const messages = lint(`
       prisma.conversationHistory.update({ where: { id }, data: { messageMetadata: a } });
@@ -265,6 +277,19 @@ describe('valid — creation and unrelated writes are never flagged', () => {
     const alias = `const h = prisma.conversationHistory;`;
     const call = `h.update({ where: { id }, data: { messageMetadata: m } });`;
     expect(lint(`${alias} ${call}`)).toHaveLength(0);
+  });
+
+  it('ignores a non-literal computed receiver', () => {
+    // Accepted gap: the receiver property expression is not a string literal.
+    const code = `prisma[model].update({ where: { id }, data: { messageMetadata: m } });`;
+    expect(lint(code)).toHaveLength(0);
+  });
+
+  it('ignores a template-literal computed receiver with expressions', () => {
+    // The leading quasi alone spells the receiver, so only the expressions guard keeps this unflagged.
+    const code =
+      'prisma[`conversationHistory${s}`].update({ where: { id }, data: { messageMetadata: m } });';
+    expect(lint(code)).toHaveLength(0);
   });
 
   it('ignores a nested relation write through another model', () => {

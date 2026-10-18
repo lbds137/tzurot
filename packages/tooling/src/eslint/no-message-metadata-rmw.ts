@@ -31,6 +31,10 @@
  * - a nested relation write
  *   (`persona.update({ data: { conversationHistory: { update: ... } } })`);
  * - an aliased receiver (`const h = prisma.conversationHistory; h.update(...)`);
+ * - a non-literal computed receiver (`prisma[model].update(...)` or a template
+ *   literal with expressions); a string-literal or static template-literal
+ *   computed receiver (`prisma['conversationHistory'].update(...)`,
+ *   ``prisma[`conversationHistory`].update(...)``) is still flagged;
  * - a dynamic computed key (`{ [k]: m }`); a literal computed key
  *   (`{ ['messageMetadata']: m }`) is still flagged;
  * - raw SQL (`$executeRaw` / `$executeRawUnsafe`) setting `message_metadata`
@@ -95,12 +99,20 @@ function guardedMethod(callee: AnyNode): string | undefined {
   if (receiver === undefined) {
     return undefined;
   }
-  const receiverName =
-    receiver.type === 'Identifier'
-      ? receiver.name
-      : receiver.type === 'MemberExpression' && receiver.computed !== true
-        ? ((receiver.property as AnyNode).name as string | undefined)
-        : undefined;
+  // null only for the ESTree type: cooked is null solely in tagged templates, which this never is.
+  let receiverName: string | null | undefined;
+  if (receiver.type === 'Identifier') {
+    receiverName = receiver.name;
+  } else if (receiver.type === 'MemberExpression') {
+    const prop = receiver.property as AnyNode;
+    if (receiver.computed !== true && prop.type === 'Identifier') {
+      receiverName = prop.name;
+    } else if (prop.type === 'Literal' && typeof prop.value === 'string') {
+      receiverName = prop.value;
+    } else if (prop.type === 'TemplateLiteral' && prop.expressions.length === 0) {
+      receiverName = prop.quasis[0].value.cooked;
+    }
+  }
   return receiverName === RECEIVER_NAME ? method.name : undefined;
 }
 

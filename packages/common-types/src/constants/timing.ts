@@ -39,10 +39,12 @@ export const TIMEOUTS = {
   /** Total LLM time budget per generation job across ALL fallback layers (12 minutes).
    * Covers the LLM phase from GenerationStep entry: earlier pipeline time (context
    * prep, memory retrieval) is not counted, and a BullMQ job-level retry re-stamps
-   * a fresh budget. Worst case = budget + one in-flight 300s attempt (the cooperative check fires between
-   * attempts) = 1020s, which stays under bot-client's MULTI_TAG.COORDINATOR_TIMEOUT_MS
-   * 1080s flush (~60s delivery margin — covering LLM time only; post-LLM work (memory
-   * write, diagnostics, delivery) is not counted by this budget). */
+   * a fresh budget. Worst-case LLM time measured from GenerationStep entry = budget +
+   * one in-flight 300s attempt (the cooperative check fires between attempts) = 1020s,
+   * which stays under bot-client's MULTI_TAG.COORDINATOR_TIMEOUT_MS 1080s flush (~60s
+   * margin for LLM time alone; preprocessing before the stamp and post-LLM work such
+   * as memory write, diagnostics, and delivery are outside this budget, so end-to-end
+   * time can exceed the coordinator flush). */
   LLM_JOB_BUDGET: 720000,
 
   /** System overhead for memory, DB, queue, network operations (15 seconds) */

@@ -16,6 +16,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { contractFixtureFile, stableFixtureJson } from '@tzurot/test-utils';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { Redis } from 'ioredis';
 import type { Queue } from 'bullmq';
@@ -57,6 +58,7 @@ const POINTER_ROWS = [
     id: '11111111-1111-4111-8111-111111111111',
     name: 'Global Chat Default',
     model: 'vendor/global-default-model',
+    provider: AIProvider.OpenRouter,
   },
 ];
 const GLOBAL_ROWS = [
@@ -64,6 +66,7 @@ const GLOBAL_ROWS = [
     id: '33333333-3333-4333-8333-333333333333',
     name: 'Shared Preset',
     model: 'vendor/global-preset-model',
+    provider: AIProvider.OpenRouter,
   },
 ];
 

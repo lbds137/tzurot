@@ -92,16 +92,20 @@ function splitStatements(sql: string): string[] {
 }
 
 /**
+ * Strip SQL block (`/* ... *\/`) and line (`-- ...`, whole-line or trailing)
+ * comments before splitting statements: the drift sanitizer leaves
+ * `-- REMOVED: DROP INDEX ...` markers in sanitized migrations, and a comment
+ * could otherwise smuggle a `WHERE` clause into a non-partial recreate.
+ */
+function stripSqlComments(sql: string): string {
+  return sql.replace(/\/\*[\s\S]*?\*\/|--[^\r\n]*/g, ' ');
+}
+
+/**
  * Check a single migration file for dangerous patterns
  */
 function checkMigrationFile(filePath: string): CheckResult {
-  // Strip SQL line comments before matching: the drift sanitizer leaves
-  // "-- REMOVED: DROP INDEX ..." markers in sanitized migrations, and a
-  // comment-blind regex flags every one of them as a live drop.
-  const content = readFileSync(filePath, 'utf-8')
-    .split('\n')
-    .filter(line => !line.trimStart().startsWith('--'))
-    .join('\n');
+  const content = stripSqlComments(readFileSync(filePath, 'utf-8'));
   const statements = splitStatements(content);
   const violations: string[] = [];
 
