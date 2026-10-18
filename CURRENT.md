@@ -1,6 +1,6 @@
 # Current
 
-> **Version**: v3.0.0-beta.237 — "memory accuracy: summarizer v2, the render fallback" — SHIPPED 2026-10-17 04:47Z (release PR #2627 rebase-merged after her yes; 7 PRs / 7 runtime / 190 files; no migrations; `main` = `develop` = `9b81d0bc0` post-finalize; tagged `latest`, beta.236 demoted). Holistic review: no blocking findings; the cross-PR seam (version bump × excerpt arm) verified non-interacting. http-cache-semantics HIGH stays open (no upstream fix, TASK-1179); #2624 dependabot held (zod union-error shape).
+> **Version**: v3.0.0-beta.237 — "memory accuracy: summarizer v2, the render fallback" — SHIPPED 2026-10-17 04:47Z (release PR #2627 rebase-merged after her yes; 7 PRs / 7 runtime / 190 files; no migrations; `main` = `develop` = `9b81d0bc0` post-finalize; tagged `latest`, beta.236 demoted). Holistic review: no blocking findings; the cross-PR seam (version bump × excerpt arm) verified non-interacting. http-cache-semantics HIGH dismissed 2026-10-18 as not used (build-time only; 4.3.0 is not a fix; TASK-1179 Done); #2624 dependabot held (zod union-error shape).
 >
 > **Previous**: v3.0.0-beta.236 — "the job time budget and the security overrides" (22 PRs / 7 runtime / 165 files / 92 commits; 2026-10-12, `4d7de05b1`).
 
