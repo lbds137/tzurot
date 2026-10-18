@@ -17,6 +17,7 @@ const mockHandleLockButton = vi.fn();
 const mockHandleDeleteButton = vi.fn();
 const mockHandleDeleteConfirm = vi.fn();
 const mockHandleViewFullButton = vi.fn();
+const mockHandleReasoningButton = vi.fn();
 
 vi.mock('./detail.js', () => ({
   parseMemoryActionId: (...args: unknown[]) => mockParseMemoryActionId(...args),
@@ -24,6 +25,7 @@ vi.mock('./detail.js', () => ({
   handleDeleteButton: (...args: unknown[]) => mockHandleDeleteButton(...args),
   handleDeleteConfirm: (...args: unknown[]) => mockHandleDeleteConfirm(...args),
   handleViewFullButton: (...args: unknown[]) => mockHandleViewFullButton(...args),
+  handleReasoningButton: (...args: unknown[]) => mockHandleReasoningButton(...args),
 }));
 
 vi.mock('./detailModals.js', () => ({
@@ -160,6 +162,16 @@ describe('handleMemoryDetailAction', () => {
     expect(mockHandleViewFullButton).toHaveBeenCalledWith(interaction, 'mem-1');
   });
 
+  it('should dispatch reasoning action', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'reasoning', memoryId: 'mem-1' });
+    const interaction = createMockButtonInteraction('memory-detail::reasoning::mem-1');
+
+    const result = await handleMemoryDetailAction(interaction, mockOnRefresh);
+
+    expect(result).toBe(true);
+    expect(mockHandleReasoningButton).toHaveBeenCalledWith(interaction, 'mem-1');
+  });
+
   it('should dispatch back action with defer and refresh', async () => {
     mockParseMemoryActionId.mockReturnValue({ action: 'back', memoryId: undefined });
     const interaction = createMockButtonInteraction('memory-detail::back');
@@ -229,6 +241,7 @@ describe('handleMemoryDetailAction', () => {
       { action: 'cancel-edit', memoryId: undefined },
       { action: 'lock', memoryId: 'mem-1', extra: '1' },
       { action: 'view-full', memoryId: 'mem-1' },
+      { action: 'reasoning', memoryId: 'mem-1' },
       { action: 'delete', memoryId: 'mem-1' }, // shows confirmation dialog — no refresh
     ];
 

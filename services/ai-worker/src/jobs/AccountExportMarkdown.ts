@@ -194,8 +194,7 @@ function messageMarkers(row: ExportConversationRow): string {
  * so it can't close the wrapper block early and spill the rest of the
  * transcript out as loose text.
  */
-function reasoningBlock(row: ExportConversationRow): string[] {
-  const trace = row.thinkingContent;
+function reasoningBlock(trace: string | null): string[] {
   if (trace === null || trace.trim() === '') {
     return [];
   }
@@ -243,7 +242,7 @@ export function formatConversationsMd(
       lines.push(
         `**[${formatClock(row.createdAt)}] ${speaker}:**${messageMarkers(row)} ${row.content}`
       );
-      lines.push(...reasoningBlock(row));
+      lines.push(...reasoningBlock(row.thinkingContent));
     }
   }
   lines.push('');
@@ -269,6 +268,7 @@ export function formatMemoriesMd(characterName: string, rows: ExportMemoryRow[])
       lines.push(`_${flags.join(' · ')}_`, '');
     }
     lines.push(memory.content);
+    lines.push(...reasoningBlock(memory.thinkingContent));
   });
   lines.push('');
   return lines.join('\n');

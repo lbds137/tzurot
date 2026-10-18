@@ -13,6 +13,7 @@ import {
   handleDeleteButton,
   handleDeleteConfirm,
   handleViewFullButton,
+  handleReasoningButton,
 } from './detail.js';
 import {
   handleEditButton,
@@ -37,6 +38,17 @@ function parseLockExtra(extra: string | undefined): boolean | null {
   return null;
 }
 
+/** Actions whose only input is the memory id; each returns true once dispatched */
+const MEMORY_ID_ACTIONS: Readonly<
+  Record<string, (interaction: ButtonInteraction, memoryId: string) => Promise<unknown>>
+> = {
+  edit: handleEditButton,
+  'edit-truncated': handleEditTruncatedButton,
+  delete: handleDeleteButton,
+  'view-full': handleViewFullButton,
+  reasoning: handleReasoningButton,
+};
+
 /**
  * Handle memory detail action buttons.
  * Returns true if the button was handled, false if not recognized.
@@ -51,7 +63,7 @@ function parseLockExtra(extra: string | undefined): boolean | null {
  * - `'back'` — always, after deferUpdate
  *
  * All other actions (`edit`, `edit-truncated`, `cancel-edit`, `lock`,
- * `delete` [shows confirmation dialog], `view-full`) do NOT call
+ * `delete` [shows confirmation dialog], `view-full`, `reasoning`) do NOT call
  * `onRefresh`. `interactionHandlers.ts` relies on this invariant to
  * route those actions through `handleBrowseDetailAction` unconditionally
  * (see `SESSION_INDEPENDENT_ACTIONS`) — if you add an `onRefresh` call
@@ -59,7 +71,6 @@ function parseLockExtra(extra: string | undefined): boolean | null {
  * `SESSION_INDEPENDENT_ACTIONS`, otherwise memories opened from a
  * search result will silently skip the list refresh.
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- Switch over 8 memory action types with per-action validation and API calls
 export async function handleMemoryDetailAction(
   buttonInteraction: ButtonInteraction,
   onRefresh: () => Promise<void>
@@ -71,19 +82,18 @@ export async function handleMemoryDetailAction(
 
   const { action, memoryId, extra } = parsed;
 
+  const memoryIdHandler = Object.hasOwn(MEMORY_ID_ACTIONS, action)
+    ? MEMORY_ID_ACTIONS[action]
+    : undefined;
+  if (memoryIdHandler !== undefined) {
+    if (memoryId === undefined) {
+      return false;
+    }
+    await memoryIdHandler(buttonInteraction, memoryId);
+    return true;
+  }
+
   switch (action) {
-    case 'edit':
-      if (memoryId === undefined) {
-        return false;
-      }
-      await handleEditButton(buttonInteraction, memoryId);
-      return true;
-    case 'edit-truncated':
-      if (memoryId === undefined) {
-        return false;
-      }
-      await handleEditTruncatedButton(buttonInteraction, memoryId);
-      return true;
     case 'cancel-edit':
       await handleCancelEditButton(buttonInteraction);
       return true;
@@ -95,12 +105,6 @@ export async function handleMemoryDetailAction(
       await handleLockButton(buttonInteraction, memoryId, desired);
       return true;
     }
-    case 'delete':
-      if (memoryId === undefined) {
-        return false;
-      }
-      await handleDeleteButton(buttonInteraction, memoryId);
-      return true;
     case 'confirm-delete': {
       if (memoryId === undefined) {
         return false;
@@ -111,12 +115,6 @@ export async function handleMemoryDetailAction(
       }
       return true;
     }
-    case 'view-full':
-      if (memoryId === undefined) {
-        return false;
-      }
-      await handleViewFullButton(buttonInteraction, memoryId);
-      return true;
     case 'back':
       // The caller (interactionHandlers.handleButton) already defers
       // interactions on the session-dependent path so the session lookup

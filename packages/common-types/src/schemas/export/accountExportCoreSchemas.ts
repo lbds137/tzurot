@@ -210,6 +210,7 @@ export const ExportMemoryRowSchema = z
     chunkIndex: z.number().int().nullable(),
     totalChunks: z.number().int().nullable(),
     assistantSummary: z.string().nullable(),
+    thinkingContent: z.string().nullable(),
   })
   .strict();
 

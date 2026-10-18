@@ -211,17 +211,19 @@ describe('handleButton', () => {
     expect(mockHandleBrowsePagination).not.toHaveBeenCalled();
   });
 
-  it('routes session-independent actions (lock/edit/view-full/delete) without session lookup', async () => {
-    mockParseMemoryActionId.mockReturnValue({ action: 'lock', memoryId: 'mem-1' });
-    mockHandleBrowseDetailAction.mockResolvedValue(true);
+  it('routes session-independent actions (lock/edit/view-full/reasoning/delete) without session lookup', async () => {
+    for (const action of ['lock', 'reasoning']) {
+      mockParseMemoryActionId.mockReturnValue({ action, memoryId: 'mem-1' });
+      mockHandleBrowseDetailAction.mockResolvedValue(true);
 
-    const interaction = createButtonInteraction('memory-detail::lock::mem-1');
+      const interaction = createButtonInteraction(`memory-detail::${action}::mem-1`);
 
-    await handleButton(interaction as never);
+      await handleButton(interaction as never);
 
-    expect(mockHandleBrowseDetailAction).toHaveBeenCalledWith(interaction);
-    expect(mockFindMemoryListSessionByMessage).not.toHaveBeenCalled();
-    expect(mockHandleSearchDetailAction).not.toHaveBeenCalled();
+      expect(mockHandleBrowseDetailAction).toHaveBeenCalledWith(interaction);
+      expect(mockFindMemoryListSessionByMessage).not.toHaveBeenCalled();
+      expect(mockHandleSearchDetailAction).not.toHaveBeenCalled();
+    }
   });
 
   it('still routes lock/edit/view-full even when session has expired', async () => {

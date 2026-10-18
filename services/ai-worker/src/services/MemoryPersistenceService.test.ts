@@ -94,24 +94,52 @@ describe('MemoryPersistenceService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.storeInteraction(
+      await service.storeInteraction({
         personality,
         context,
-        'User said hello',
-        'Bot response',
-        undefined
-      );
+        contentForStorage: 'User said hello',
+        responseContent: 'Bot response',
+        referencedMessagesTextForSearch: undefined,
+      });
 
       expect(mockMemoryRetriever.resolvePersonaForMemory).toHaveBeenCalledWith(
         'user-123',
         'personality-123'
       );
       expect(mockLongTermMemory.storeInteraction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personality,
+          userMessage: 'User said hello',
+          aiResponse: 'Bot response',
+          context,
+          personaId: 'persona-uuid-123',
+          thinkingContent: undefined,
+        })
+      );
+    });
+
+    it('should forward thinkingContent to longTermMemory.storeInteraction', async () => {
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      await service.storeInteraction({
         personality,
-        'User said hello',
-        'Bot response',
         context,
-        'persona-uuid-123'
+        contentForStorage: 'User said hello',
+        responseContent: 'Bot response',
+        referencedMessagesTextForSearch: undefined,
+        thinkingContent: 'Step 1: consider greeting',
+      });
+
+      expect(mockLongTermMemory.storeInteraction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personality,
+          userMessage: 'User said hello',
+          aiResponse: 'Bot response',
+          context,
+          personaId: 'persona-uuid-123',
+          thinkingContent: 'Step 1: consider greeting',
+        })
       );
     });
 
@@ -119,20 +147,23 @@ describe('MemoryPersistenceService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.storeInteraction(
+      await service.storeInteraction({
         personality,
         context,
-        'User question',
-        'Bot answer',
-        'Referenced: prior message'
-      );
+        contentForStorage: 'User question',
+        responseContent: 'Bot answer',
+        referencedMessagesTextForSearch: 'Referenced: prior message',
+      });
 
       expect(mockLongTermMemory.storeInteraction).toHaveBeenCalledWith(
-        personality,
-        'User question\n\n[Referenced content: Referenced: prior message]',
-        'Bot answer',
-        context,
-        'persona-uuid-123'
+        expect.objectContaining({
+          personality,
+          userMessage: 'User question\n\n[Referenced content: Referenced: prior message]',
+          aiResponse: 'Bot answer',
+          context,
+          personaId: 'persona-uuid-123',
+          thinkingContent: undefined,
+        })
       );
     });
 
@@ -142,7 +173,13 @@ describe('MemoryPersistenceService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.storeInteraction(personality, context, 'User content', 'Response', undefined);
+      await service.storeInteraction({
+        personality,
+        context,
+        contentForStorage: 'User content',
+        responseContent: 'Response',
+        referencedMessagesTextForSearch: undefined,
+      });
 
       expect(mockLongTermMemory.storeInteraction).not.toHaveBeenCalled();
     });
@@ -152,13 +189,13 @@ describe('MemoryPersistenceService', () => {
     it('should build deferred data with persona resolved', async () => {
       const context = createMockContext();
 
-      const result = await service.buildDeferredMemoryData(
+      const result = await service.buildDeferredMemoryData({
         context,
-        'personality-123',
-        'User content',
-        'Response content',
-        undefined
-      );
+        personalityId: 'personality-123',
+        contentForStorage: 'User content',
+        responseContent: 'Response content',
+        referencedMessagesTextForSearch: undefined,
+      });
 
       expect(result).toEqual({
         contentForEmbedding: 'User content',
@@ -167,16 +204,36 @@ describe('MemoryPersistenceService', () => {
       });
     });
 
+    it('should include thinkingContent when provided', async () => {
+      const context = createMockContext();
+
+      const result = await service.buildDeferredMemoryData({
+        context,
+        personalityId: 'personality-123',
+        contentForStorage: 'User content',
+        responseContent: 'Response content',
+        referencedMessagesTextForSearch: undefined,
+        thinkingContent: 'Deferred reasoning trace',
+      });
+
+      expect(result).toEqual({
+        contentForEmbedding: 'User content',
+        responseContent: 'Response content',
+        personaId: 'persona-uuid-123',
+        thinkingContent: 'Deferred reasoning trace',
+      });
+    });
+
     it('should include referenced content in embedding', async () => {
       const context = createMockContext();
 
-      const result = await service.buildDeferredMemoryData(
+      const result = await service.buildDeferredMemoryData({
         context,
-        'personality-123',
-        'Question',
-        'Answer',
-        'Referenced text'
-      );
+        personalityId: 'personality-123',
+        contentForStorage: 'Question',
+        responseContent: 'Answer',
+        referencedMessagesTextForSearch: 'Referenced text',
+      });
 
       expect(result?.contentForEmbedding).toBe('Question\n\n[Referenced content: Referenced text]');
     });
@@ -186,13 +243,13 @@ describe('MemoryPersistenceService', () => {
 
       const context = createMockContext();
 
-      const result = await service.buildDeferredMemoryData(
+      const result = await service.buildDeferredMemoryData({
         context,
-        'personality-123',
-        'Content',
-        'Response',
-        undefined
-      );
+        personalityId: 'personality-123',
+        contentForStorage: 'Content',
+        responseContent: 'Response',
+        referencedMessagesTextForSearch: undefined,
+      });
 
       expect(result).toBeNull();
     });
@@ -200,13 +257,13 @@ describe('MemoryPersistenceService', () => {
     it('should call resolvePersonaForMemory with correct arguments', async () => {
       const context = createMockContext({ userId: 'user-456' });
 
-      await service.buildDeferredMemoryData(
+      await service.buildDeferredMemoryData({
         context,
-        'personality-789',
-        'Content',
-        'Response',
-        undefined
-      );
+        personalityId: 'personality-789',
+        contentForStorage: 'Content',
+        responseContent: 'Response',
+        referencedMessagesTextForSearch: undefined,
+      });
 
       expect(mockMemoryRetriever.resolvePersonaForMemory).toHaveBeenCalledWith(
         'user-456',
@@ -228,11 +285,38 @@ describe('MemoryPersistenceService', () => {
       await service.storeDeferredMemory(personality, context, deferredData);
 
       expect(mockLongTermMemory.storeInteraction).toHaveBeenCalledWith(
-        personality,
-        'Embedded content',
-        'Response',
-        context,
-        'persona-uuid-999'
+        expect.objectContaining({
+          personality,
+          userMessage: 'Embedded content',
+          aiResponse: 'Response',
+          context,
+          personaId: 'persona-uuid-999',
+          thinkingContent: undefined,
+        })
+      );
+    });
+
+    it('should forward thinkingContent from deferred data', async () => {
+      const personality = createMockPersonality();
+      const context = createMockContext();
+      const deferredData = {
+        contentForEmbedding: 'Embedded content',
+        responseContent: 'Response',
+        personaId: 'persona-uuid-999',
+        thinkingContent: 'Deferred trace text',
+      };
+
+      await service.storeDeferredMemory(personality, context, deferredData);
+
+      expect(mockLongTermMemory.storeInteraction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personality,
+          userMessage: 'Embedded content',
+          aiResponse: 'Response',
+          context,
+          personaId: 'persona-uuid-999',
+          thinkingContent: 'Deferred trace text',
+        })
       );
     });
 
@@ -250,11 +334,14 @@ describe('MemoryPersistenceService', () => {
       // Should not call resolvePersonaForMemory since we have the ID
       expect(mockMemoryRetriever.resolvePersonaForMemory).not.toHaveBeenCalled();
       expect(mockLongTermMemory.storeInteraction).toHaveBeenCalledWith(
-        personality,
-        'Content',
-        'Response',
-        context,
-        'already-resolved-persona'
+        expect.objectContaining({
+          personality,
+          userMessage: 'Content',
+          aiResponse: 'Response',
+          context,
+          personaId: 'already-resolved-persona',
+          thinkingContent: undefined,
+        })
       );
     });
 
@@ -273,11 +360,14 @@ describe('MemoryPersistenceService', () => {
       await service.storeDeferredMemory(personality, context, deferredData);
 
       expect(mockLongTermMemory.storeInteraction).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'different-personality' }),
-        'Deferred content',
-        'Deferred response',
-        expect.objectContaining({ userId: 'different-user' }),
-        'deferred-persona'
+        expect.objectContaining({
+          personality: expect.objectContaining({ id: 'different-personality' }),
+          userMessage: 'Deferred content',
+          aiResponse: 'Deferred response',
+          context: expect.objectContaining({ userId: 'different-user' }),
+          personaId: 'deferred-persona',
+          thinkingContent: undefined,
+        })
       );
     });
   });

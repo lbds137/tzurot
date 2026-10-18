@@ -260,6 +260,79 @@ describe('PgvectorMemoryAdapter', () => {
       const uniqueGroupIds = new Set(chunkGroupIds);
       expect(uniqueGroupIds.size).toBe(1); // All have same group ID (deterministic)
     });
+
+    it('writes thinking_content in INSERT for an unchunked memory and keeps deterministic UUID unchanged', async () => {
+      const shortText = 'Short memory with reasoning.';
+      mockSplitTextByTokens.mockReturnValue({
+        chunks: [shortText],
+        originalTokenCount: 20,
+        wasChunked: false,
+      });
+
+      const capturedSql: string[] = [];
+      const capturedValues: unknown[][] = [];
+      const mockPrisma = {
+        $executeRaw: vi
+          .fn()
+          .mockImplementation((strings: TemplateStringsArray, ...values: unknown[]) => {
+            capturedSql.push(strings.join('?'));
+            capturedValues.push(values);
+            return Promise.resolve(undefined);
+          }),
+      };
+
+      const testAdapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService()
+      );
+
+      await testAdapter.addMemory({
+        text: shortText,
+        metadata: { ...baseMetadata, thinkingContent: 'Step-by-step reasoning' },
+      });
+
+      expect(capturedSql[0]).toContain('thinking_content');
+      expect(capturedValues[0]).toHaveLength(20);
+      expect(capturedValues[0]?.[19]).toBe('Step-by-step reasoning');
+      expect(capturedValues[0]?.[0]).toBe(
+        deterministicMemoryUuid(baseMetadata.personaId, baseMetadata.personalityId, shortText)
+      );
+    });
+
+    it('writes thinking_content on chunk 0 only and null on chunks 1..n', async () => {
+      const chunks = ['Chunk 0 text.', 'Chunk 1 text.', 'Chunk 2 text.'];
+      mockSplitTextByTokens.mockReturnValue({
+        chunks,
+        originalTokenCount: 9000,
+        wasChunked: true,
+      });
+
+      const capturedByChunkIndex = new Map<number, unknown>();
+      const mockPrisma = {
+        $executeRaw: vi
+          .fn()
+          .mockImplementation((_strings: TemplateStringsArray, ...values: unknown[]) => {
+            const chunkIndex = values[17] as number;
+            const thinkingValue = values[19];
+            capturedByChunkIndex.set(chunkIndex, thinkingValue);
+            return Promise.resolve(undefined);
+          }),
+      };
+
+      const testAdapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService()
+      );
+
+      await testAdapter.addMemory({
+        text: chunks.join('\n\n'),
+        metadata: { ...baseMetadata, thinkingContent: 'Trace for chunk 0 only' },
+      });
+
+      expect(capturedByChunkIndex.get(0)).toBe('Trace for chunk 0 only');
+      expect(capturedByChunkIndex.get(1)).toBeNull();
+      expect(capturedByChunkIndex.get(2)).toBeNull();
+    });
   });
 
   describe('archive-summary trigger seam', () => {

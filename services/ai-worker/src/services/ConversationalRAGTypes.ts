@@ -273,6 +273,8 @@ export interface DeferredMemoryData {
   responseContent: string;
   /** User's persona ID */
   personaId: string;
+  /** The model's reasoning trace for the turn; absent when the model produced none */
+  thinkingContent?: string;
 }
 
 /** Result of processing input attachments and messages */

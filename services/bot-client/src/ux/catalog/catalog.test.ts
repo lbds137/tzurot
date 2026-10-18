@@ -41,6 +41,15 @@ function allSpecs(): { path: string; spec: MessageSpec }[] {
     { path: 'progress.sessionExpired', spec: CATALOG.progress.sessionExpired() },
     { path: 'progress.sessionExpired+cmd', spec: CATALOG.progress.sessionExpired('/memory') },
     { path: 'info.note', spec: CATALOG.info.note('Only the first 5 respond.') },
+    { path: 'info.warning', spec: CATALOG.info.warning('Alias shadowed.') },
+    {
+      path: 'info.fullMemoryContent',
+      spec: CATALOG.info.fullMemoryContent('Luna', '<t:1700000000:D>'),
+    },
+    {
+      path: 'info.reasoningTrace',
+      spec: CATALOG.info.reasoningTrace('Luna', '<t:1700000000:D>'),
+    },
   ];
 }
 
@@ -63,7 +72,9 @@ describe('CATALOG', () => {
 
   it('no spec text carries a hand-written emoji prefix (renderer owns glyphs)', () => {
     for (const { path, spec } of allSpecs()) {
-      expect(spec.text, `${path} must be pre-emoji`).not.toMatch(/^(?:❌|⚠️|✅|⏳|⏰|🔄|ℹ️)/u);
+      expect(spec.text, `${path} must be pre-emoji`).not.toMatch(
+        /^(?:❌|⚠️|✅|⏳|⏰|🔄|ℹ️|📄|🧠)/u
+      );
     }
   });
 
@@ -108,5 +119,20 @@ describe('CATALOG', () => {
 
   it('success banner keeps the established shape (bold verb · name)', () => {
     expect(CATALOG.success.banner('Deleted preset', 'Fast').text).toBe('**Deleted preset** · Fast');
+  });
+
+  it('memory attachment headers format character name and created date', () => {
+    expect(CATALOG.info.fullMemoryContent('Luna', '<t:1700000000:D>')).toEqual({
+      severity: 'info',
+      outcome: 'none',
+      icon: 'document',
+      text: '**Full Memory Content** (Luna)\nCreated: <t:1700000000:D>',
+    });
+    expect(CATALOG.info.reasoningTrace('Luna', '<t:1700000000:D>')).toEqual({
+      severity: 'info',
+      outcome: 'none',
+      icon: 'reasoning',
+      text: '**Reasoning Trace** (Luna)\nCreated: <t:1700000000:D>',
+    });
   });
 });

@@ -46,6 +46,7 @@ function makeMemoryRow(overrides: Partial<ExportMemoryRow>): ExportMemoryRow {
     visibility: 'normal',
     type: 'memory',
     isSummarized: false,
+    thinkingContent: null,
     ...overrides,
   } as ExportMemoryRow;
 }
@@ -317,6 +318,55 @@ describe('formatMemoriesMd', () => {
     expect(md).toContain('_locked · deleted_');
     // The unflagged memory has no marker line between header and content.
     expect(md).toContain('## Memory #1 — 2026-07-14 10:00 UTC\n\nolder plain memory');
+  });
+
+  it('renders a reasoning trace as a collapsed block under the memory content', () => {
+    const md = formatMemoriesMd('Azura', [
+      makeMemoryRow({
+        content: 'remembered exchange',
+        thinkingContent: 'weighed tone\nchose gentle reply',
+      }),
+    ]);
+
+    expect(md).toContain(
+      'remembered exchange\n' +
+        '<details><summary>Reasoning</summary>\n' +
+        '\n' +
+        'weighed tone\nchose gentle reply\n' +
+        '\n' +
+        '</details>'
+    );
+  });
+
+  it('renders no reasoning block when thinkingContent is null or whitespace-only', () => {
+    const md = formatMemoriesMd('Azura', [
+      makeMemoryRow({ id: 'mem-null', content: 'no trace', thinkingContent: null }),
+      makeMemoryRow({
+        id: 'mem-ws',
+        content: 'whitespace trace',
+        createdAt: new Date('2026-07-14T11:00:00Z'),
+        thinkingContent: '   \n\t  ',
+      }),
+    ]);
+
+    expect(md).toContain('no trace');
+    expect(md).toContain('whitespace trace');
+    expect(md).not.toContain('<details>');
+  });
+
+  it('escapes a literal closing details tag in a memory reasoning trace', () => {
+    const md = formatMemoriesMd('Azura', [
+      makeMemoryRow({
+        content: 'remembered exchange',
+        thinkingContent: 'nested </details> and </DETAILS > inside memory trace',
+      }),
+    ]);
+
+    expect(md.split('&lt;/details&gt;').length - 1).toBe(2);
+    expect(md.split('</details>').length - 1).toBe(1);
+    expect(md).toContain(
+      'nested &lt;/details&gt; and &lt;/details&gt; inside memory trace\n\n</details>'
+    );
   });
 });
 

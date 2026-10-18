@@ -346,7 +346,8 @@
         "chunkGroupId": null,
         "chunkIndex": null,
         "totalChunks": null,
-        "assistantSummary": "They talked about a coastal trip."
+        "assistantSummary": "They talked about a coastal trip.",
+        "thinkingContent": "Considered coastal trip details before replying."
       }
     ],
     "personality-directory.json": [

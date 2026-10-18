@@ -14,7 +14,7 @@ Tzurot is a Discord bot that lets you talk with AI characters. It is operated by
 
 **Server membership details.** For servers where you talk with characters, the bot keeps your last-observed role names, role color, and join date, used to describe conversation participants to the AI consistently between messages. These are deleted with your account.
 
-**Memories and facts.** The bot builds long-term memory for characters: conversation summaries and short factual statements extracted from what is said (for example, "this user's cat is named Miso"), stored with embeddings for retrieval. These are derived from your messages and are about you.
+**Memories and facts.** The bot builds long-term memory for characters: conversation summaries and short factual statements extracted from what is said (for example, "this user's cat is named Miso"), stored with embeddings for retrieval. These are derived from your messages and are about you. Each conversation memory also keeps the character's reasoning text for that reply when the model produced one, so it outlives the 30-day history sweep; it is never shown to the character, and you can read it in `/memory` and in your data export.
 
 **Your creations.** Personas and characters you author, including their descriptions, avatar images, and voice-reference audio clips you upload for voice cloning. Avatar images are served from a public URL without authentication — Discord requires this for the bot to display them — so do not use an avatar image you would not want publicly reachable.
 

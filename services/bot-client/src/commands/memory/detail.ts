@@ -25,6 +25,7 @@ import { buildEntityDetailCard } from '../../utils/detailCard.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { followUpSpec, replySpec, ackUpdate } from '../../ux/render/reply.js';
 
 import { fetchMemory, setMemoryLock, deleteMemory } from './detailApi.js';
@@ -49,7 +50,8 @@ export function buildMemoryActionId(
     | 'delete'
     | 'back'
     | 'confirm-delete'
-    | 'view-full',
+    | 'view-full'
+    | 'reasoning',
   memoryId?: string,
   extra?: string
 ): string {
@@ -164,6 +166,17 @@ export function buildDetailButtons(
         .setCustomId(buildMemoryActionId('view-full', memory.id))
         .setLabel('View Full')
         .setEmoji('📄')
+        .setStyle(ButtonStyle.Secondary)
+    );
+  }
+
+  // Add "Reasoning" button if the memory has a non-empty reasoning trace
+  if (typeof memory.thinkingContent === 'string' && memory.thinkingContent.trim().length > 0) {
+    buttons.push(
+      new ButtonBuilder()
+        .setCustomId(buildMemoryActionId('reasoning', memory.id))
+        .setLabel('Reasoning')
+        .setEmoji('🧠')
         .setStyle(ButtonStyle.Secondary)
     );
   }
@@ -369,6 +382,26 @@ export async function handleDeleteConfirm(
   return true;
 }
 
+async function fetchMemoryForAttachment(
+  memoryId: string,
+  userId: string,
+  interaction: ButtonInteraction
+): Promise<MemoryItem | null> {
+  const { userClient } = clientsFor(interaction);
+  let memory: MemoryItem | null;
+  try {
+    memory = await fetchMemory(userClient, memoryId, userId);
+  } catch (error) {
+    await replySpec(interaction, classifyGatewayFailure(error, 'memory', { operation: 'read' }));
+    return null;
+  }
+  if (memory === null) {
+    await replySpec(interaction, CATALOG.error.notFound('Memory'));
+    return null;
+  }
+  return memory;
+}
+
 /**
  * Handle "View Full" button click - sends full memory content as a text file
  */
@@ -380,16 +413,8 @@ export async function handleViewFullButton(
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const { userClient } = clientsFor(interaction);
-  let memory: MemoryItem | null;
-  try {
-    memory = await fetchMemory(userClient, memoryId, userId);
-  } catch (error) {
-    await replySpec(interaction, classifyGatewayFailure(error, 'memory', { operation: 'read' }));
-    return;
-  }
+  const memory = await fetchMemoryForAttachment(memoryId, userId, interaction);
   if (memory === null) {
-    await replySpec(interaction, CATALOG.error.notFound('Memory'));
     return;
   }
 
@@ -401,9 +426,50 @@ export async function handleViewFullButton(
   });
 
   await interaction.editReply({
-    content: `📄 **Full Memory Content** (${memory.personalityName})\nCreated: ${formatDiscordTimestamp(memory.createdAt, 'D')}`,
+    content: renderSpec(
+      CATALOG.info.fullMemoryContent(
+        memory.personalityName,
+        formatDiscordTimestamp(memory.createdAt, 'D')
+      )
+    ),
     files: [attachment],
   });
 
   logger.info({ userId, memoryId, contentLength: memory.content.length }, 'Full content sent');
+}
+
+/**
+ * Handle "Reasoning" button click - sends the memory's reasoning trace as a text file
+ */
+export async function handleReasoningButton(
+  interaction: ButtonInteraction,
+  memoryId: string
+): Promise<void> {
+  const userId = interaction.user.id;
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const memory = await fetchMemoryForAttachment(memoryId, userId, interaction);
+  if (memory === null) {
+    return;
+  }
+
+  const trace = memory.thinkingContent ?? '';
+  const buffer = Buffer.from(trace, 'utf-8');
+  const attachment = new AttachmentBuilder(buffer, {
+    name: `reasoning-${memoryId.substring(0, 8)}.txt`,
+    description: `Reasoning trace for ${memory.personalityName}`,
+  });
+
+  await interaction.editReply({
+    content: renderSpec(
+      CATALOG.info.reasoningTrace(
+        memory.personalityName,
+        formatDiscordTimestamp(memory.createdAt, 'D')
+      )
+    ),
+    files: [attachment],
+  });
+
+  logger.info({ userId, memoryId, traceLength: trace.length }, 'Reasoning trace sent');
 }

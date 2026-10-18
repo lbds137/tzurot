@@ -297,23 +297,26 @@ describe('Memory API Input Schema Tests', () => {
       expect(MemoryItemSchema.safeParse({ ...sample, isLocked: 'yes' }).success).toBe(false);
     });
 
-    it('MEM-ARCH-025: a payload carrying assistantSummary and summaryStatus survives safeParse with both values intact', () => {
+    it('MEM-ARCH-025: a payload carrying assistantSummary, summaryStatus, and thinkingContent survives safeParse with values intact', () => {
       const withSummary = {
         ...sample,
         assistantSummary: 'A neutral third-person summary.',
         summaryStatus: 'done',
+        thinkingContent: 'Step-by-step reasoning trace.',
       };
       const result = MemoryItemSchema.safeParse(withSummary);
       expect(result.success).toBe(true);
       expect(result.data?.assistantSummary).toBe('A neutral third-person summary.');
       expect(result.data?.summaryStatus).toBe('done');
+      expect(result.data?.thinkingContent).toBe('Step-by-step reasoning trace.');
     });
 
-    it('MEM-ARCH-025: a payload omitting assistantSummary and summaryStatus still parses', () => {
+    it('MEM-ARCH-025: a payload omitting assistantSummary, summaryStatus, and thinkingContent still parses', () => {
       const result = MemoryItemSchema.safeParse(sample);
       expect(result.success).toBe(true);
       expect(result.data?.assistantSummary).toBeUndefined();
       expect(result.data?.summaryStatus).toBeUndefined();
+      expect(result.data?.thinkingContent).toBeUndefined();
     });
   });
 

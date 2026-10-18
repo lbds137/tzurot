@@ -196,5 +196,21 @@ export const CATALOG = {
       outcome: 'none',
       text,
     }),
+
+    /** Header line for the full-memory-content file attachment reply. */
+    fullMemoryContent: (characterName: string, createdAt: string): MessageSpec => ({
+      severity: 'info',
+      outcome: 'none',
+      icon: 'document',
+      text: `**Full Memory Content** (${characterName})\nCreated: ${createdAt}`,
+    }),
+
+    /** Header line for the reasoning-trace file attachment reply. */
+    reasoningTrace: (characterName: string, createdAt: string): MessageSpec => ({
+      severity: 'info',
+      outcome: 'none',
+      icon: 'reasoning',
+      text: `**Reasoning Trace** (${characterName})\nCreated: ${createdAt}`,
+    }),
   },
 } as const;
