@@ -212,7 +212,7 @@ const SYSTEM_SETTINGS_REGISTRY_CORE: {
     group: GROUP_ZAI,
     control: 'integer',
     liveness: 'live',
-    fallback: 75,
+    fallback: 90,
     seedSource: 'ZAI_FREE_TIER_HEADROOM_PERCENT',
     min: 1,
     max: 99,

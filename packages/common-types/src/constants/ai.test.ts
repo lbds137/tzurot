@@ -16,6 +16,7 @@ import {
   isZaiCodingPlanModel,
   stripZaiPrefix,
   toZaiWireModelId,
+  toZaiOpenRouterFallthroughId,
   getZaiCodingPlanContextLength,
   zaiCodingPlanModelCapabilities,
   zaiThinkingOffSupport,
@@ -377,6 +378,16 @@ describe('toZaiWireModelId', () => {
     const mixedCase = 'Z-AI/GLM-5.3-Flash';
     expect(toZaiWireModelId(mixedCase)).toBe('GLM-5.3-Flash');
     expect(stripZaiPrefix(mixedCase)).toBe('glm-5.3-flash');
+  });
+});
+
+describe('toZaiOpenRouterFallthroughId', () => {
+  it('prefixes a bare model id with z-ai/', () => {
+    expect(toZaiOpenRouterFallthroughId('glm-5')).toBe('z-ai/glm-5');
+  });
+
+  it('leaves an already z-ai/-prefixed model id unchanged (double-prefix guard)', () => {
+    expect(toZaiOpenRouterFallthroughId('z-ai/glm-4.7')).toBe('z-ai/glm-4.7');
   });
 });
 

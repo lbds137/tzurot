@@ -655,6 +655,20 @@ export function toZaiWireModelId(model: string): string {
 }
 
 /**
+ * Return the OpenRouter model id a `zai-coding` config falls through to when
+ * the user has no z.ai key (`glm-5` → `z-ai/glm-5`).
+ *
+ * Double-prefix guard: when a preset configures `provider: 'zai-coding'` with
+ * an already-namespaced model like `z-ai/glm-4.7`, concatenating would produce
+ * `z-ai/z-ai/glm-4.7` and fail at the API, so an already-prefixed id is
+ * returned unchanged. The prefix check is case-sensitive (`startsWith`, not
+ * lowercased), matching current routing.
+ */
+export function toZaiOpenRouterFallthroughId(model: string): string {
+  return model.startsWith(ZAI_MODEL_PREFIX) ? model : `${ZAI_MODEL_PREFIX}${model}`;
+}
+
+/**
  * Membership check for the z.ai coding-plan catalog. Case-normalizes the
  * input and strips an optional `z-ai/` prefix — preset configs are user-typed
  * strings that may use any case and either the routable slug (`z-ai/glm-5`)

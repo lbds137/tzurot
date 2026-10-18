@@ -38,6 +38,7 @@ import {
   AIProvider,
   isFreeModel,
   isZaiCodingPlanModel,
+  toZaiOpenRouterFallthroughId,
   ZAI_MODEL_PREFIX,
 } from '@tzurot/common-types/constants/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -199,14 +200,9 @@ export class ProviderRouter {
       });
     }
 
-    // Auto-fallthrough: rewrite model name and resolve via OpenRouter.
-    // Guard against double-prefix when a preset configures `provider: 'zai-coding'`
-    // with an already-namespaced model like `z-ai/glm-4.7` — concatenating would
-    // produce `z-ai/z-ai/glm-4.7` and fail silently at the API. If the model is
-    // already prefixed, use it verbatim.
-    const fallthroughModel = configuredModel.startsWith(ZAI_MODEL_PREFIX)
-      ? configuredModel
-      : `${ZAI_MODEL_PREFIX}${configuredModel}`;
+    // Auto-fallthrough: rewrite model name and resolve via OpenRouter
+    // (toZaiOpenRouterFallthroughId guards against double-prefixing).
+    const fallthroughModel = toZaiOpenRouterFallthroughId(configuredModel);
     const fallthroughResult = await this.apiKeyResolver.resolveApiKey(
       userId,
       AIProvider.OpenRouter

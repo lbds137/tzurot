@@ -12,15 +12,22 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Redis } from 'ioredis';
 import type { Queue } from 'bullmq';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { JobType, REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 
+const mockLogger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -52,15 +59,47 @@ const FREE_CHAT_DEFAULT_ID = '22222222-2222-4222-8222-222222222222';
 const GLOBAL_PRESET_ID = '33333333-3333-4333-8333-333333333333';
 const DUAL_ROLE_ID = '44444444-4444-4444-8444-444444444444';
 
-const POINTER_ROWS = [
-  { id: GLOBAL_CHAT_DEFAULT_ID, name: 'Global Chat Default', model: 'vendor/global-default-model' },
-  { id: FREE_CHAT_DEFAULT_ID, name: 'Free Chat Default', model: 'vendor/free-default-model' },
-  { id: DUAL_ROLE_ID, name: 'Dual Role Config', model: 'vendor/dual-role-model' },
+interface TestConfigRow {
+  id: string;
+  name: string;
+  model: string;
+  provider: string;
+}
+
+const POINTER_ROWS: TestConfigRow[] = [
+  {
+    id: GLOBAL_CHAT_DEFAULT_ID,
+    name: 'Global Chat Default',
+    model: 'vendor/global-default-model',
+    provider: AIProvider.OpenRouter,
+  },
+  {
+    id: FREE_CHAT_DEFAULT_ID,
+    name: 'Free Chat Default',
+    model: 'vendor/free-default-model',
+    provider: AIProvider.OpenRouter,
+  },
+  {
+    id: DUAL_ROLE_ID,
+    name: 'Dual Role Config',
+    model: 'vendor/dual-role-model',
+    provider: AIProvider.OpenRouter,
+  },
 ];
 
-const GLOBAL_ROWS = [
-  { id: GLOBAL_PRESET_ID, name: 'Shared Preset', model: 'vendor/global-preset-model' },
-  { id: DUAL_ROLE_ID, name: 'Dual Role Config', model: 'vendor/dual-role-model' },
+const GLOBAL_ROWS: TestConfigRow[] = [
+  {
+    id: GLOBAL_PRESET_ID,
+    name: 'Shared Preset',
+    model: 'vendor/global-preset-model',
+    provider: AIProvider.OpenRouter,
+  },
+  {
+    id: DUAL_ROLE_ID,
+    name: 'Dual Role Config',
+    model: 'vendor/dual-role-model',
+    provider: AIProvider.OpenRouter,
+  },
 ];
 
 const FIXED_NOW = new Date('2026-01-01T00:00:00.000Z');
@@ -87,12 +126,13 @@ function createFakeRedis(): {
 function buildChecker(overrides?: {
   lookups?: Record<string, 'resolved' | 'absent' | 'unavailable'>;
   redis?: Pick<Redis, 'get' | 'set' | 'del'>;
-  pointerRows?: typeof POINTER_ROWS;
-  globalRows?: typeof GLOBAL_ROWS;
+  pointerRows?: TestConfigRow[];
+  globalRows?: TestConfigRow[];
   pointerIds?: { globalDefaultIds: string[]; freeDefaultIds: string[] };
 }): {
   checker: CatalogDriftChecker;
   add: ReturnType<typeof vi.fn>;
+  findMany: ReturnType<typeof vi.fn>;
   redisStore: Map<string, string>;
 } {
   const lookups = overrides?.lookups ?? {};
@@ -107,13 +147,16 @@ function buildChecker(overrides?: {
       ? { redis: overrides.redis, store: new Map() }
       : createFakeRedis();
 
+  const findMany = vi
+    .fn()
+    .mockImplementation((args: { where?: { isGlobal?: boolean } }) =>
+      Promise.resolve(args.where?.isGlobal === true ? globalRows : pointerRows)
+    );
   const prisma = {
     llmConfig: {
       // The checker issues two findManys per cycle: pointer-row resolution
       // (id in) and the isGlobal enumeration — distinguished by their where.
-      findMany: vi.fn((args: { where?: { isGlobal?: boolean } }) =>
-        Promise.resolve(args.where?.isGlobal === true ? globalRows : pointerRows)
-      ),
+      findMany,
     },
   } as unknown as PrismaClient;
 
@@ -142,7 +185,7 @@ function buildChecker(overrides?: {
     queue,
     now: () => FIXED_NOW,
   });
-  return { checker, add, redisStore: fake.store };
+  return { checker, add, findMany, redisStore: fake.store };
 }
 
 describe('CatalogDriftChecker', () => {
@@ -184,20 +227,53 @@ describe('CatalogDriftChecker', () => {
     expect(add).not.toHaveBeenCalled();
   });
 
-  it('treats an unreachable catalog lookup (unavailable) as drift too', async () => {
-    const { checker, add } = buildChecker({
+  it('leaves the sentinel unset and propagates the error when enqueue rejects, then alerts and sets it on the next cycle', async () => {
+    const sentinelKey = `${REDIS_KEY_PREFIXES.CATALOG_DRIFT_SENTINEL}${FREE_CHAT_DEFAULT_ID}:vendor/free-default-model`;
+    const { checker, add, redisStore } = buildChecker({
+      lookups: { 'vendor/free-default-model': 'absent' },
+    });
+    add.mockRejectedValueOnce(new Error('queue down')).mockResolvedValue({ id: 'job-2' });
+
+    await expect(checker.check()).rejects.toThrow('queue down');
+    expect(redisStore.has(sentinelKey)).toBe(false);
+
+    await checker.check();
+    expect(add).toHaveBeenCalledTimes(2);
+    expect(redisStore.has(sentinelKey)).toBe(true);
+
+    add.mockClear();
+    await checker.check();
+    expect(add).not.toHaveBeenCalled();
+  });
+
+  it('skips an unreachable catalog lookup (unavailable) without alerting, setting, or clearing a sentinel', async () => {
+    const sentinelKey = `${REDIS_KEY_PREFIXES.CATALOG_DRIFT_SENTINEL}${GLOBAL_CHAT_DEFAULT_ID}:vendor/global-default-model`;
+    const { checker, add, redisStore } = buildChecker({
       lookups: { 'vendor/global-default-model': 'unavailable' },
     });
 
     await checker.check();
 
-    expect(add).toHaveBeenCalledTimes(1);
+    expect(add).not.toHaveBeenCalled();
+    expect(redisStore.has(sentinelKey)).toBe(false);
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      { unavailable: 1 },
+      'Catalog lookup unavailable for some pairs — drift check skipped them this cycle'
+    );
+
+    // An existing sentinel for the pair must not be cleared on unavailable either.
+    redisStore.set(sentinelKey, '1');
+    await checker.check();
+
+    expect(add).not.toHaveBeenCalled();
+    expect(redisStore.get(sentinelKey)).toBe('1');
   });
 
   it('checks the four default pointers AND every isGlobal preset row', async () => {
     // One pointer drift (global chat default) + one global-preset drift in the
     // same cycle — both must be named, with their role kinds.
-    const { checker, add } = buildChecker({
+    const { checker, add, findMany } = buildChecker({
       lookups: {
         'vendor/global-default-model': 'absent',
         'vendor/global-preset-model': 'absent',
@@ -206,6 +282,20 @@ describe('CatalogDriftChecker', () => {
 
     await checker.check();
 
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: [GLOBAL_CHAT_DEFAULT_ID, DUAL_ROLE_ID, FREE_CHAT_DEFAULT_ID] } },
+        select: { id: true, name: true, model: true, provider: true },
+        take: 3,
+      })
+    );
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { isGlobal: true },
+        select: { id: true, name: true, model: true, provider: true },
+        take: 100,
+      })
+    );
     expect(add).toHaveBeenCalledTimes(1);
     const payload = add.mock.calls[0][1] as { drifts: { configId: string; kind: string }[] };
     const kindsByConfig = new Map(payload.drifts.map(d => [d.configId, d.kind]));
@@ -221,7 +311,14 @@ describe('CatalogDriftChecker', () => {
       // evaluation — otherwise a deleted model guard could resolve-and-skip
       // the row silently, keeping this test green either way.
       lookups: { '': 'absent' },
-      pointerRows: [{ id: EMPTY_POINTER_ID, name: 'Empty Model', model: '' }],
+      pointerRows: [
+        {
+          id: EMPTY_POINTER_ID,
+          name: 'Empty Model',
+          model: '',
+          provider: AIProvider.OpenRouter,
+        },
+      ],
       // The empty-model row IS a pointer-set member, so only the model guard
       // can drop it; the two default ids dangle (set members with no row) and
       // must contribute nothing.
@@ -229,12 +326,123 @@ describe('CatalogDriftChecker', () => {
         globalDefaultIds: [GLOBAL_CHAT_DEFAULT_ID, EMPTY_POINTER_ID],
         freeDefaultIds: [FREE_CHAT_DEFAULT_ID],
       },
-      globalRows: [{ id: '66666666-6666-4666-8666-666666666666', name: 'Empty Global', model: '' }],
+      globalRows: [
+        {
+          id: '66666666-6666-4666-8666-666666666666',
+          name: 'Empty Global',
+          model: '',
+          provider: AIProvider.OpenRouter,
+        },
+      ],
     });
 
     await checker.check();
 
     expect(add).not.toHaveBeenCalled();
+  });
+
+  it('checks zai-coding rows under their z-ai/ fallthrough id (with double-prefix guard) and skips other providers', async () => {
+    const OTHER_PROVIDER_ID = '77777777-7777-4777-8777-777777777777';
+    const { checker, add, redisStore } = buildChecker({
+      lookups: {
+        'z-ai/glm-5': 'absent',
+        'z-ai/glm-4.7': 'absent',
+        'vendor/other-provider-model': 'absent',
+      },
+      pointerRows: [
+        {
+          id: GLOBAL_CHAT_DEFAULT_ID,
+          name: 'Zai Bare Pointer',
+          model: 'glm-5',
+          provider: AIProvider.ZaiCoding,
+        },
+      ],
+      globalRows: [
+        {
+          id: GLOBAL_PRESET_ID,
+          name: 'Zai Prefixed Global Preset',
+          model: 'z-ai/glm-4.7',
+          provider: AIProvider.ZaiCoding,
+        },
+        {
+          id: OTHER_PROVIDER_ID,
+          name: 'Other Provider Preset',
+          model: 'vendor/other-provider-model',
+          provider: 'some-other-provider',
+        },
+      ],
+    });
+
+    await checker.check();
+
+    expect(add).toHaveBeenCalledTimes(1);
+    const payload = add.mock.calls[0][1] as {
+      drifts: { configId: string; modelId: string; kind: string }[];
+    };
+    expect(payload.drifts).toEqual([
+      expect.objectContaining({
+        configId: GLOBAL_CHAT_DEFAULT_ID,
+        modelId: 'z-ai/glm-5',
+        kind: 'default',
+      }),
+      expect.objectContaining({
+        configId: GLOBAL_PRESET_ID,
+        modelId: 'z-ai/glm-4.7',
+        kind: 'global',
+      }),
+    ]);
+    expect(
+      redisStore.has(
+        `${REDIS_KEY_PREFIXES.CATALOG_DRIFT_SENTINEL}${GLOBAL_CHAT_DEFAULT_ID}:z-ai/glm-5`
+      )
+    ).toBe(true);
+    expect(
+      redisStore.has(`${REDIS_KEY_PREFIXES.CATALOG_DRIFT_SENTINEL}${GLOBAL_PRESET_ID}:z-ai/glm-4.7`)
+    ).toBe(true);
+  });
+
+  it('alerts on absent z-ai/-prefixed models on openrouter rows alongside other absent openrouter models', async () => {
+    const { checker, add } = buildChecker({
+      lookups: {
+        'z-ai/glm-5.3': 'absent',
+        'vendor/absent-openrouter-model': 'absent',
+      },
+      pointerRows: [
+        {
+          id: GLOBAL_CHAT_DEFAULT_ID,
+          name: 'Zai Plan Model On OpenRouter Row',
+          model: 'z-ai/glm-5.3',
+          provider: AIProvider.OpenRouter,
+        },
+      ],
+      globalRows: [
+        {
+          id: GLOBAL_PRESET_ID,
+          name: 'Delisted OpenRouter Preset',
+          model: 'vendor/absent-openrouter-model',
+          provider: AIProvider.OpenRouter,
+        },
+      ],
+    });
+
+    await checker.check();
+
+    expect(add).toHaveBeenCalledTimes(1);
+    const payload = add.mock.calls[0][1] as {
+      drifts: { configId: string; modelId: string; kind: string }[];
+    };
+    expect(payload.drifts).toEqual([
+      expect.objectContaining({
+        configId: GLOBAL_CHAT_DEFAULT_ID,
+        modelId: 'z-ai/glm-5.3',
+        kind: 'default',
+      }),
+      expect.objectContaining({
+        configId: GLOBAL_PRESET_ID,
+        modelId: 'vendor/absent-openrouter-model',
+        kind: 'global',
+      }),
+    ]);
   });
 
   it("batches all of a cycle's drifts into ONE job", async () => {
@@ -308,6 +516,25 @@ describe('CatalogDriftChecker', () => {
 
     await expect(checker.check()).resolves.toBeUndefined();
     expect(add).not.toHaveBeenCalled();
+  });
+
+  it('does not throw when sentinel set rejects after enqueue, then re-alerts and sets the sentinel on the next cycle', async () => {
+    const sentinelKey = `${REDIS_KEY_PREFIXES.CATALOG_DRIFT_SENTINEL}${FREE_CHAT_DEFAULT_ID}:vendor/free-default-model`;
+    const fake = createFakeRedis();
+    const setSpy = vi.spyOn(fake.redis, 'set').mockRejectedValueOnce(new Error('redis write down'));
+    const { checker, add } = buildChecker({
+      lookups: { 'vendor/free-default-model': 'absent' },
+      redis: fake.redis,
+    });
+
+    await expect(checker.check()).resolves.toBeUndefined();
+    expect(add).toHaveBeenCalledTimes(1);
+    expect(fake.store.has(sentinelKey)).toBe(false);
+
+    await checker.check();
+    expect(add).toHaveBeenCalledTimes(2);
+    expect(setSpy).toHaveBeenCalledTimes(2);
+    expect(fake.store.get(sentinelKey)).toBe('1');
   });
 
   it('enqueues nothing when every configured model resolves', async () => {

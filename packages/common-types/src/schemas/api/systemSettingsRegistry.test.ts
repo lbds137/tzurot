@@ -142,6 +142,11 @@ describe('fallbacks (the floor beneath the floor)', () => {
     expect(SYSTEM_SETTINGS_FALLBACKS.recentDaysDigestEnabled).toBe(false);
     expect(SYSTEM_SETTINGS_FALLBACKS.recentDaysDigestPersonalities).toEqual([]);
   });
+
+  it('zaiHeadroomPercent falls back to 90', () => {
+    expect(SYSTEM_SETTINGS_REGISTRY.zaiHeadroomPercent.fallback).toBe(90);
+    expect(SYSTEM_SETTINGS_FALLBACKS.zaiHeadroomPercent).toBe(90);
+  });
 });
 
 describe('buildSystemSettingsSeed', () => {

@@ -112,7 +112,10 @@ describe('createCatalogDriftAlertProcessor', () => {
 
     const embed = postOwnerChannelEmbedMock.mock.calls[0][1] as EmbedLike;
     const json = embed.toJSON();
-    expect(json.title).toContain('OpenRouter catalog');
+    expect(json.title).toBe("⚠️ Configured model doesn't resolve on OpenRouter");
+    expect(json.description).toContain(
+      "2 configured model id(s) don't resolve against the OpenRouter catalog."
+    );
     const fields = json.fields ?? [];
     // Each drift is a field carrying BOTH the config name (role-labelled) and
     // the missing model id — the two facts the owner needs to re-point it.
