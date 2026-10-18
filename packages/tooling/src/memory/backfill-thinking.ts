@@ -53,6 +53,7 @@ export interface BackfillThinkingResult {
   skipped_no_pair: number;
   skipped_guard: number;
   skipped_no_trace: number;
+  writable: number;
   updated: number;
 }
 
@@ -176,6 +177,7 @@ async function processCandidateBatch(
       continue;
     }
 
+    stats.writable++;
     if (!dryRun) {
       const updatedCount = await updateThinkingContent(prisma, row.id, classified.trace);
       stats.updated += updatedCount;
@@ -193,6 +195,7 @@ function printSummary(stats: BackfillThinkingResult, dryRun: boolean): void {
   console.log(`   skipped_no_pair: ${stats.skipped_no_pair}`);
   console.log(`   skipped_guard: ${stats.skipped_guard}`);
   console.log(`   skipped_no_trace: ${stats.skipped_no_trace}`);
+  console.log(`   writable: ${stats.writable}`);
   console.log(`   updated: ${stats.updated}`);
 }
 
@@ -220,6 +223,7 @@ export async function backfillThinking(
     skipped_no_pair: 0,
     skipped_guard: 0,
     skipped_no_trace: 0,
+    writable: 0,
     updated: 0,
   };
 

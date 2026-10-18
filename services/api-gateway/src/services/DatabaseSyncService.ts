@@ -135,6 +135,7 @@ interface PendingWrite {
   uuidColumns: readonly string[];
   timestampColumns: readonly string[];
   excludeColumns: readonly string[];
+  keepNonNullColumns: readonly string[];
 }
 
 export class DatabaseSyncService {
@@ -338,6 +339,7 @@ export class DatabaseSyncService {
             uuidColumns: w.uuidColumns,
             timestampColumns: w.timestampColumns,
             excludeColumns: w.excludeColumns,
+            keepNonNullColumns: w.keepNonNullColumns,
           });
         }
       },
@@ -426,6 +428,7 @@ export class DatabaseSyncService {
       uuidColumns: config.uuidColumns,
       timestampColumns: config.timestampColumns,
       excludeColumns: config.excludeColumns ?? [],
+      keepNonNullColumns: config.keepNonNullColumns ?? [],
     };
 
     const totals = { devToProd: 0, prodToDev: 0, conflicts: 0, deleted: 0 };

@@ -76,6 +76,11 @@ export interface TableSyncConfig {
    * Example: tts_configs.is_default should be different in dev vs prod
    */
   excludeColumns?: string[];
+  /**
+   * On conflict, a column listed here keeps its existing value when the
+   * incoming value is NULL.
+   */
+  keepNonNullColumns?: string[];
   // NOTE: `deferredFkColumns` was removed in the Ouroboros Insert refactor.
   // Circular NOT NULL FKs (users↔personas, users↔llm_configs) are now
   // handled via `SET CONSTRAINTS ALL DEFERRED` at the DatabaseSyncService
@@ -295,6 +300,10 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     // (the schema guard requires every live column to be enumerated
     // somewhere) but never cross the sync.
     excludeColumns: ['last_retrieved_at', 'retrieval_count'],
+    // Backfilled thinking_content is written via raw SQL without bumping
+    // updated_at; preserve the existing trace when a newer edit from the
+    // other environment arrives with thinking_content = NULL.
+    keepNonNullColumns: ['thinking_content'],
   },
   memory_facts: {
     pk: 'id',

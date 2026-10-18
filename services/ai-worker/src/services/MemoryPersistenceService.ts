@@ -119,6 +119,7 @@ export class MemoryPersistenceService {
       return null;
     }
 
+    const hasThinking = thinkingContent !== undefined && thinkingContent.trim().length > 0;
     return {
       contentForEmbedding: this.buildContentForEmbedding(
         contentForStorage,
@@ -126,7 +127,7 @@ export class MemoryPersistenceService {
       ),
       responseContent,
       personaId: personaResult.personaId,
-      ...(thinkingContent !== undefined ? { thinkingContent } : {}),
+      ...(hasThinking ? { thinkingContent } : {}),
     };
   }
 

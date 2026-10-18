@@ -224,6 +224,28 @@ describe('MemoryPersistenceService', () => {
       });
     });
 
+    it('should omit thinkingContent when trace is empty or whitespace-only', async () => {
+      const context = createMockContext();
+
+      for (const thinkingContent of ['', '   \n\t  ']) {
+        const result = await service.buildDeferredMemoryData({
+          context,
+          personalityId: 'personality-123',
+          contentForStorage: 'User content',
+          responseContent: 'Response content',
+          referencedMessagesTextForSearch: undefined,
+          thinkingContent,
+        });
+
+        expect(result).toEqual({
+          contentForEmbedding: 'User content',
+          responseContent: 'Response content',
+          personaId: 'persona-uuid-123',
+        });
+        expect(result).not.toHaveProperty('thinkingContent');
+      }
+    });
+
     it('should include referenced content in embedding', async () => {
       const context = createMockContext();
 
