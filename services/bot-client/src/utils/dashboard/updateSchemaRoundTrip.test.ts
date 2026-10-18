@@ -68,7 +68,7 @@ const characterDetailWithNulls = {
   isPublic: false,
   voiceEnabled: false,
   // An untagged character: the response schema defaults `tags` to [], and the
-  // update schema's union input arm must accept the replayed empty array.
+  // update schema's array input must accept the replayed empty array.
   tags: [] as string[],
   // The gateway response carries `hasAvatar`, not the base64 — `toCharacterData`
   // force-nulls `avatarData` regardless, so `false` here mirrors a real no-avatar
@@ -77,8 +77,8 @@ const characterDetailWithNulls = {
 };
 
 // A tagged character: the fetched `tags` ARRAY is replayed verbatim on every
-// section save, so the update schema's array arm has to accept it — the
-// string arm alone would 400 every save on a tagged character.
+// section save, so the update schema's array input has to accept it — the
+// string input alone would 400 every save on a tagged character.
 const characterDetailWithTags = {
   ...characterDetailWithNulls,
   tags: ['fantasy', 'slice-of-life'],

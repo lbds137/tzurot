@@ -1415,6 +1415,134 @@ describe('PersonalityTagsInputSchema', () => {
       expect(result.success).toBe(false);
       expect(JSON.stringify(result.error?.issues)).toContain('at most');
     });
+
+    it('rejects a number input with the custom type message', () => {
+      const result = PersonalityTagsInputSchema.safeParse(5);
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.issues[0]).toMatchObject({
+        message: 'tags input must be a comma-separated string or an array of strings',
+      });
+    });
+
+    it('reports too_big and the array-cap message on the first issue for an over-cap array', () => {
+      const oversized = Array.from(
+        { length: TAG_INPUT_LIMITS.MAX_RAW_ARRAY_LENGTH + 1 },
+        (_, i) => `tag-${i}`
+      );
+      const result = PersonalityTagsInputSchema.safeParse(oversized);
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.issues[0]).toMatchObject({
+        code: 'too_big',
+        message: `tags input must contain at most ${TAG_INPUT_LIMITS.MAX_RAW_ARRAY_LENGTH} entries`,
+      });
+    });
+
+    it('reports the element-length message for an over-long single array element', () => {
+      const oversized = ['x'.repeat(TAG_INPUT_LIMITS.MAX_RAW_ELEMENT_LENGTH + 1)];
+      const result = PersonalityTagsInputSchema.safeParse(oversized);
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.issues[0]).toMatchObject({
+        code: 'too_big',
+        path: [0],
+        message: `each tag must be ${TAG_INPUT_LIMITS.MAX_RAW_ELEMENT_LENGTH} characters or less`,
+      });
+    });
+
+    it('forwards every inner issue when multiple array elements exceed the element ceiling', () => {
+      const oversized = [
+        'x'.repeat(TAG_INPUT_LIMITS.MAX_RAW_ELEMENT_LENGTH + 1),
+        'y'.repeat(TAG_INPUT_LIMITS.MAX_RAW_ELEMENT_LENGTH + 1),
+      ];
+      const result = PersonalityTagsInputSchema.safeParse(oversized);
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.issues.map(i => i.path)).toEqual([[0], [1]]);
+      expect(result.error.issues[0]).toMatchObject({
+        code: 'too_big',
+        path: [0],
+      });
+      expect(result.error.issues[1]).toMatchObject({
+        code: 'too_big',
+        path: [1],
+      });
+    });
+
+    it('reports invalid_type at path [0] for a non-string array element', () => {
+      const result = PersonalityTagsInputSchema.safeParse([1, 'a']);
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.issues[0]).toMatchObject({
+        code: 'invalid_type',
+        path: [0],
+      });
+    });
+
+    it('preserves the parent field and element index path through PersonalityCreateSchema', () => {
+      const result = PersonalityCreateSchema.safeParse({
+        name: 'Helen',
+        slug: 'helen',
+        characterInfo: 'A detective.',
+        personalityTraits: 'Sharp.',
+        tags: ['ok', 'x'.repeat(TAG_INPUT_LIMITS.MAX_RAW_ELEMENT_LENGTH + 1)],
+      });
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.issues[0]).toMatchObject({
+        code: 'too_big',
+        path: ['tags', 1],
+      });
+    });
+
+    it('reports the string-length message for an over-long raw string', () => {
+      const oversized = 'x'.repeat(TAG_INPUT_LIMITS.MAX_RAW_STRING_LENGTH + 1);
+      const result = PersonalityTagsInputSchema.safeParse(oversized);
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.issues[0]).toMatchObject({
+        code: 'too_big',
+        message: `tags input must be ${TAG_INPUT_LIMITS.MAX_RAW_STRING_LENGTH} characters or less`,
+      });
+    });
+
+    it('rejects a null input with the custom type message', () => {
+      const result = PersonalityTagsInputSchema.safeParse(null);
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.issues[0]).toMatchObject({
+        message: 'tags input must be a comma-separated string or an array of strings',
+      });
+    });
+
+    it('preserves the parent field path for an over-long raw string through PersonalityCreateSchema', () => {
+      const result = PersonalityCreateSchema.safeParse({
+        name: 'Helen',
+        slug: 'helen',
+        characterInfo: 'A detective.',
+        personalityTraits: 'Sharp.',
+        tags: 'x'.repeat(TAG_INPUT_LIMITS.MAX_RAW_STRING_LENGTH + 1),
+      });
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.issues[0]).toMatchObject({
+        code: 'too_big',
+        path: ['tags'],
+      });
+    });
+
+    it('preserves the parent field and element index path through PersonalityUpdateSchema', () => {
+      const result = PersonalityUpdateSchema.safeParse({
+        tags: ['ok', 'x'.repeat(TAG_INPUT_LIMITS.MAX_RAW_ELEMENT_LENGTH + 1)],
+      });
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.issues[0]).toMatchObject({
+        code: 'too_big',
+        path: ['tags', 1],
+      });
+    });
   });
 });
 

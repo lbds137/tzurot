@@ -53,9 +53,9 @@ const RAW_INPUT_SLACK = 8;
  * shape first means Zod rejects at the schema edge and the loop never runs.
  */
 export const TAG_INPUT_LIMITS = {
-  /** Longest accepted comma-separated string (the dashboard modal arm). */
+  /** Longest accepted comma-separated string (the dashboard modal input). */
   MAX_RAW_STRING_LENGTH: MAX_JOINED_TAGS_LENGTH * RAW_INPUT_SLACK,
-  /** Most elements accepted in the array arm before per-element checks. */
+  /** Most elements accepted in an array input before per-element checks. */
   MAX_RAW_ARRAY_LENGTH: TAG_LIMITS.MAX_PER_CHARACTER * RAW_INPUT_SLACK,
   /** Longest accepted single raw array element. */
   MAX_RAW_ELEMENT_LENGTH: TAG_LIMITS.MAX_LENGTH * RAW_INPUT_SLACK,
@@ -113,40 +113,63 @@ function splitTagString(value: string): string[] {
   return value.split(',');
 }
 
-/**
- * Tag input accepted on create/update: either a comma-separated string (the
- * Discord dashboard's modal value, which arrives as one text field) or an
- * array (JSON import / API clients). Both arms normalize, drop empties, and
- * dedupe preserving first-seen order before the per-tag rules and the
- * per-character cap apply. The string arm exists so the dashboard round-trip
- * needs zero client-side parsing.
- *
- * The `.max()` bounds on the union arms run BEFORE the transform, so an
- * oversized body is rejected at the schema edge instead of being tokenized
- * first (see TAG_INPUT_LIMITS).
- */
-export const PersonalityTagsInputSchema = z
-  .union([
+const RAW_TAG_STRING_SCHEMA = z
+  .string()
+  .max(
+    TAG_INPUT_LIMITS.MAX_RAW_STRING_LENGTH,
+    `tags input must be ${TAG_INPUT_LIMITS.MAX_RAW_STRING_LENGTH} characters or less`
+  );
+
+const RAW_TAG_ARRAY_SCHEMA = z
+  .array(
     z
       .string()
       .max(
-        TAG_INPUT_LIMITS.MAX_RAW_STRING_LENGTH,
-        `tags input must be ${TAG_INPUT_LIMITS.MAX_RAW_STRING_LENGTH} characters or less`
-      ),
-    z
-      .array(
-        z
-          .string()
-          .max(
-            TAG_INPUT_LIMITS.MAX_RAW_ELEMENT_LENGTH,
-            `each tag must be ${TAG_INPUT_LIMITS.MAX_RAW_ELEMENT_LENGTH} characters or less`
-          )
+        TAG_INPUT_LIMITS.MAX_RAW_ELEMENT_LENGTH,
+        `each tag must be ${TAG_INPUT_LIMITS.MAX_RAW_ELEMENT_LENGTH} characters or less`
       )
-      .max(
-        TAG_INPUT_LIMITS.MAX_RAW_ARRAY_LENGTH,
-        `tags input must contain at most ${TAG_INPUT_LIMITS.MAX_RAW_ARRAY_LENGTH} entries`
-      ),
-  ])
+  )
+  .max(
+    TAG_INPUT_LIMITS.MAX_RAW_ARRAY_LENGTH,
+    `tags input must contain at most ${TAG_INPUT_LIMITS.MAX_RAW_ARRAY_LENGTH} entries`
+  );
+
+/**
+ * Tag input accepted on create/update: either a comma-separated string (the
+ * Discord dashboard's modal value, which arrives as one text field) or an
+ * array (JSON import / API clients). Both input shapes normalize, drop empties, and
+ * dedupe preserving first-seen order before the per-tag rules and the
+ * per-character cap apply. The string input exists so the dashboard round-trip
+ * needs zero client-side parsing.
+ *
+ * The raw-input `.max()` bounds run BEFORE tokenizing, so an oversized body
+ * is rejected at the schema edge instead of being tokenized first (see
+ * TAG_INPUT_LIMITS). The first stage routes by runtime type instead of
+ * `z.union` because a union can report a failing bounded-array arm as a
+ * generic `invalid_union`, hiding the cap's message. The type guard checks
+ * only string-or-array; element types are checked when the transform re-parses
+ * the value with `RAW_TAG_ARRAY_SCHEMA`.
+ */
+export const PersonalityTagsInputSchema = z
+  .custom<string | string[]>(value => typeof value === 'string' || Array.isArray(value), {
+    message: 'tags input must be a comma-separated string or an array of strings',
+  })
+  .transform((value, ctx) => {
+    const parsed =
+      typeof value === 'string'
+        ? RAW_TAG_STRING_SCHEMA.safeParse(value)
+        : RAW_TAG_ARRAY_SCHEMA.safeParse(value);
+    if (!parsed.success) {
+      for (const issue of parsed.error.issues) {
+        // Copied before forwarding (not verified: assumes addIssue may fill fields on the
+        // object it receives). The inner safeParse is a separate parse, so per-parse
+        // options passed to the outer call are not forwarded to it.
+        ctx.addIssue({ ...issue });
+      }
+      return z.NEVER;
+    }
+    return parsed.data;
+  })
   .transform(value => {
     const rawTokens = typeof value === 'string' ? splitTagString(value) : value;
     const seen = new Set<string>();
