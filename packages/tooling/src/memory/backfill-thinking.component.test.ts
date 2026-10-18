@@ -248,6 +248,39 @@ describe('backfill-thinking SQL queries (component, PGLite)', () => {
     expect(classifyCandidateRow(rows[0])).toEqual({ verdict: 'interleaved' });
   });
 
+  it('classifies as no_reply when the user row has no reply row in the window', async () => {
+    await prisma.conversationHistory.create({
+      data: {
+        id: HISTORY_1,
+        channelId: CHANNEL_ID,
+        personalityId: PERSONALITY_ID,
+        personaId: PERSONA_1,
+        role: 'user',
+        content: 'User message with no assistant reply stored in window',
+        discordMessageId: [MSG_ID_1],
+        createdAt: BASE_TIME,
+      },
+    });
+
+    await prisma.memory.create({
+      data: {
+        id: MEMORY_1,
+        personaId: PERSONA_1,
+        personalityId: PERSONALITY_ID,
+        content: 'Alice: User message with no assistant reply stored in window',
+        messageIds: [MSG_ID_1],
+        senders: ['Alice'],
+        chunkIndex: 0,
+      },
+    });
+
+    const rows = await queryCandidateBatch(prisma, INITIAL_CURSOR, 10);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].user_found).toBe(true);
+    expect(rows[0].assistant_role).toBeNull();
+    expect(classifyCandidateRow(rows[0])).toEqual({ verdict: 'no_reply' });
+  });
+
   it('classifies as guard when the assistant content prefix does not appear in the memory', async () => {
     await prisma.conversationHistory.create({
       data: {
