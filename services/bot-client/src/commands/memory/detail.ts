@@ -130,6 +130,12 @@ export function buildDetailEmbed(memory: MemoryItem): {
   return { embed, isTruncated: descriptionTruncated };
 }
 
+/** Discord allows at most 5 buttons per action row */
+const MAX_BUTTONS_PER_ROW = 5;
+
+/** First-row size when wrapping so Back to List and Delete stay together on the last row */
+const FIRST_ROW_BUTTON_COUNT = 4;
+
 /**
  * Build action buttons for the detail view
  * @param memory - The memory item to build buttons for
@@ -199,13 +205,13 @@ export function buildDetailButtons(
       .setStyle(ButtonStyle.Danger)
   );
 
-  if (buttons.length <= 5) {
+  if (buttons.length <= MAX_BUTTONS_PER_ROW) {
     return [new ActionRowBuilder<ButtonBuilder>().addComponents(buttons)];
   }
 
   return [
-    new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.slice(0, 4)),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.slice(4)),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.slice(0, FIRST_ROW_BUTTON_COUNT)),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.slice(FIRST_ROW_BUTTON_COUNT)),
   ];
 }
 

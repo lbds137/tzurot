@@ -77,6 +77,7 @@ describe('backfillThinking', () => {
       paired: 1,
       skipped_no_history: 1,
       skipped_interleaved: 0,
+      skipped_no_reply: 0,
       skipped_guard: 0,
       skipped_no_trace: 0,
       writable: 1,
@@ -109,7 +110,43 @@ describe('backfillThinking', () => {
       paired: 1,
       skipped_no_history: 0,
       skipped_interleaved: 0,
+      skipped_no_reply: 0,
       skipped_guard: 1,
+      skipped_no_trace: 0,
+      writable: 0,
+      updated: 0,
+    });
+  });
+
+  it('counts skipped_no_reply when assistant_role is null and skipped_interleaved when assistant_role is user', async () => {
+    const rows: CandidatePairRow[] = [
+      {
+        id: ID_1,
+        user_found: true,
+        assistant_role: null,
+        thinking_content: null,
+        guard_ok: null,
+      },
+      {
+        id: ID_2,
+        user_found: true,
+        assistant_role: 'user',
+        thinking_content: null,
+        guard_ok: false,
+      },
+    ];
+    queryRawMock.mockResolvedValueOnce(rows);
+
+    const result = await backfillThinking({ env: 'dev' });
+
+    expect(executeRawMock).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      candidates: 2,
+      paired: 0,
+      skipped_no_history: 0,
+      skipped_interleaved: 1,
+      skipped_no_reply: 1,
+      skipped_guard: 0,
       skipped_no_trace: 0,
       writable: 0,
       updated: 0,
@@ -219,6 +256,7 @@ describe('backfillThinking', () => {
       paired: 4,
       skipped_no_history: 1,
       skipped_interleaved: 1,
+      skipped_no_reply: 0,
       skipped_guard: 1,
       skipped_no_trace: 1,
       writable: 2,
@@ -260,6 +298,7 @@ describe('backfillThinking', () => {
     expect(loggedOutput).toContain('paired: 4');
     expect(loggedOutput).toContain('skipped_no_history: 1');
     expect(loggedOutput).toContain('skipped_interleaved: 1');
+    expect(loggedOutput).toContain('skipped_no_reply: 0');
     expect(loggedOutput).toContain('skipped_guard: 1');
     expect(loggedOutput).toContain('skipped_no_trace: 1\n   writable: 2\n   updated: 2');
     expect(loggedOutput).not.toContain('secret trace');
@@ -318,7 +357,7 @@ describe('classifyCandidateRow', () => {
     ).toEqual({ verdict: 'no_history' });
   });
 
-  it('returns interleaved when user_found is true and assistant_role is not assistant', () => {
+  it('returns no_reply when user_found is true and assistant_role is null', () => {
     expect(
       classifyCandidateRow({
         id: ID_1,
@@ -327,7 +366,10 @@ describe('classifyCandidateRow', () => {
         thinking_content: 'reasoning trace',
         guard_ok: true,
       })
-    ).toEqual({ verdict: 'interleaved' });
+    ).toEqual({ verdict: 'no_reply' });
+  });
+
+  it('returns interleaved when user_found is true and assistant_role is not assistant', () => {
     expect(
       classifyCandidateRow({
         id: ID_1,

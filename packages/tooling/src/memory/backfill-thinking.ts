@@ -6,7 +6,9 @@
  * subsequent row in the same channel, personality, and persona within 30 minutes.
  * When that row is an assistant turn with a non-empty `thinking_content` and its
  * 40-char prefix appears in the memory text, copies `thinking_content` via raw
- * SQL so `memories.updated_at` is not bumped.
+ * SQL so `memories.updated_at` is not bumped. For a chunked memory, the guard
+ * checks chunk 0's text only, so a turn whose user half fills chunk 0 fails the
+ * guard and is knowingly skipped.
  *
  * Privacy: never prints or logs `thinking_content` or message text — only
  * aggregate counts.
@@ -53,6 +55,7 @@ export interface BackfillThinkingResult {
   paired: number;
   skipped_no_history: number;
   skipped_interleaved: number;
+  skipped_no_reply: number;
   skipped_guard: number;
   skipped_no_trace: number;
   writable: number;
@@ -133,6 +136,7 @@ export function updateThinkingContent(
 export type RowVerdict =
   | { verdict: 'write'; trace: string }
   | { verdict: 'no_history' }
+  | { verdict: 'no_reply' }
   | { verdict: 'interleaved' }
   | { verdict: 'no_trace' }
   | { verdict: 'guard' };
@@ -143,6 +147,10 @@ export type RowVerdict =
 export function classifyCandidateRow(row: CandidatePairRow): RowVerdict {
   if (row.user_found !== true) {
     return { verdict: 'no_history' };
+  }
+
+  if (row.assistant_role === null) {
+    return { verdict: 'no_reply' };
   }
 
   if (row.assistant_role !== 'assistant') {
@@ -172,6 +180,11 @@ async function processCandidateBatch(
 
     if (classified.verdict === 'no_history') {
       stats.skipped_no_history++;
+      continue;
+    }
+
+    if (classified.verdict === 'no_reply') {
+      stats.skipped_no_reply++;
       continue;
     }
 
@@ -208,6 +221,7 @@ function printSummary(stats: BackfillThinkingResult, dryRun: boolean): void {
   console.log(`   paired: ${stats.paired}`);
   console.log(`   skipped_no_history: ${stats.skipped_no_history}`);
   console.log(`   skipped_interleaved: ${stats.skipped_interleaved}`);
+  console.log(`   skipped_no_reply: ${stats.skipped_no_reply}`);
   console.log(`   skipped_guard: ${stats.skipped_guard}`);
   console.log(`   skipped_no_trace: ${stats.skipped_no_trace}`);
   console.log(`   writable: ${stats.writable}`);
@@ -237,6 +251,7 @@ export async function backfillThinking(
     paired: 0,
     skipped_no_history: 0,
     skipped_interleaved: 0,
+    skipped_no_reply: 0,
     skipped_guard: 0,
     skipped_no_trace: 0,
     writable: 0,
