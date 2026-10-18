@@ -1,8 +1,12 @@
 # Current
 
-> **Version**: v3.0.0-beta.237 — "memory accuracy: summarizer v2, the render fallback" — SHIPPED 2026-10-17 04:47Z (release PR #2627 rebase-merged after her yes; 7 PRs / 7 runtime / 190 files; no migrations; `main` = `develop` = `9b81d0bc0` post-finalize; tagged `latest`, beta.236 demoted). Holistic review: no blocking findings; the cross-PR seam (version bump × excerpt arm) verified non-interacting. http-cache-semantics HIGH dismissed 2026-10-18 as not used (build-time only; 4.3.0 is not a fix; TASK-1179 Done); #2624 dependabot held (zod union-error shape).
+> **Version**: v3.0.0-beta.238 — "reasoning traces kept on memories" — SHIPPED 2026-10-18 19:04Z (release PR #2630 rebase-merged after her "cut now"; 1 PR / 1 runtime / 92 files / 20 commits; one additive migration premigrated by the owner; `main` = `develop` = `73fa2db45` post-finalize; tagged `latest`, beta.237 demoted). Holistic review: no blocking findings. Cut early on purpose: TASK-1230's backfill window shrinks daily. **Prod backfill done** 2026-10-18 (owner go): 1,734 written, re-run dry-run writable 0; TASK-1230 Done.
 >
-> **Previous**: v3.0.0-beta.236 — "the job time budget and the security overrides" (22 PRs / 7 runtime / 165 files / 92 commits; 2026-10-12, `4d7de05b1`).
+> **Previous**: v3.0.0-beta.237 — "memory accuracy: summarizer v2, the render fallback" (7 PRs / 7 runtime / 190 files; 2026-10-17, `9b81d0bc0`).
+
+## 🧪 beta.238 watch (observability only — no needs-smoke items)
+
+- **#2629 reasoning traces:** the first new prod memory written with a trace shows the 🧠 Reasoning button in `/memory` detail; dev/prod sync must not null a backfilled trace (`keepNonNullColumns`).
 
 ## 🧪 beta.237 watch (observability only — no needs-smoke items)
 

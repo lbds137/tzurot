@@ -1,9 +1,10 @@
 ---
 id: TASK-1230
 title: Keep reasoning text past the 30-day history purge (memories.thinking_content)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-15 15:25'
+updated_date: '2026-10-18 19:08'
 labels:
   - 'area:memory'
   - 'size:M'
