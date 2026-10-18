@@ -226,6 +226,7 @@ describe('MEM-ARCH-028: memories retrieval-signal columns never cross the sync',
       uuidColumns: memoriesConfig.uuidColumns,
       timestampColumns: memoriesConfig.timestampColumns,
       excludeColumns: memoriesConfig.excludeColumns ?? [],
+      keepNonNullColumns: memoriesConfig.keepNonNullColumns ?? [],
     });
 
     expect(queries).toHaveLength(1);
@@ -239,5 +240,75 @@ describe('MEM-ARCH-028: memories retrieval-signal columns never cross the sync',
 
   it('the memories config excludes exactly the retrieval-signal columns', () => {
     expect(SYNC_CONFIG.memories.excludeColumns).toEqual(['last_retrieved_at', 'retrieval_count']);
+  });
+});
+
+describe('keepNonNullColumns — preserve existing non-null value on conflict', () => {
+  const capturingClient = (): { client: SyncExecutor; queries: string[] } => {
+    const queries: string[] = [];
+    const client = {
+      $executeRawUnsafe: vi.fn(async (q: string) => {
+        queries.push(q);
+        return 1;
+      }),
+      $queryRawUnsafe: vi.fn(async () => []),
+    } as unknown as SyncExecutor;
+    return { queries, client };
+  };
+
+  it('uses COALESCE in DO UPDATE SET for listed columns and EXCLUDED for unlisted columns', async () => {
+    const memoriesConfig: TableSyncConfig = SYNC_CONFIG.memories;
+    expect(memoriesConfig.keepNonNullColumns).toEqual(['thinking_content']);
+
+    const { client, queries } = capturingClient();
+    await upsertRow({
+      client,
+      tableName: 'memories',
+      row: {
+        id: 'x',
+        content: 'updated memory text',
+        thinking_content: null,
+      },
+      pkField: memoriesConfig.pk,
+      uuidColumns: memoriesConfig.uuidColumns,
+      timestampColumns: memoriesConfig.timestampColumns,
+      excludeColumns: memoriesConfig.excludeColumns ?? [],
+      keepNonNullColumns: memoriesConfig.keepNonNullColumns ?? [],
+    });
+
+    expect(queries).toHaveLength(1);
+    const [, updateSetSection] = queries[0].split('DO UPDATE SET');
+    expect(updateSetSection).toContain(
+      '"thinking_content" = COALESCE(EXCLUDED."thinking_content", "memories"."thinking_content")'
+    );
+    expect(updateSetSection).toContain('"content" = EXCLUDED."content"');
+    expect(updateSetSection).not.toContain('COALESCE(EXCLUDED."content"');
+    expect(updateSetSection).toContain('"id" = EXCLUDED."id"');
+    expect(updateSetSection).not.toContain('COALESCE(EXCLUDED."id"');
+  });
+
+  it('builds the old SQL unchanged for a table config without keepNonNullColumns', async () => {
+    const personasConfig: TableSyncConfig = SYNC_CONFIG.personas;
+    expect(personasConfig.keepNonNullColumns).toBeUndefined();
+
+    const { client, queries } = capturingClient();
+    await upsertRow({
+      client,
+      tableName: 'personas',
+      row: {
+        id: 'x',
+        name: 'Alice',
+      },
+      pkField: personasConfig.pk,
+      uuidColumns: personasConfig.uuidColumns,
+      timestampColumns: personasConfig.timestampColumns,
+      excludeColumns: personasConfig.excludeColumns ?? [],
+      keepNonNullColumns: personasConfig.keepNonNullColumns ?? [],
+    });
+
+    expect(queries).toHaveLength(1);
+    const [, updateSetSection] = queries[0].split('DO UPDATE SET');
+    expect(updateSetSection?.trim()).toBe('"id" = EXCLUDED."id", "name" = EXCLUDED."name"');
+    expect(queries[0]).not.toContain('COALESCE');
   });
 });

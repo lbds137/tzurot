@@ -49,7 +49,7 @@ describe('backfillThinking', () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
   });
 
-  it('writes nothing and does not call $executeRaw on --dry-run', async () => {
+  it('writes nothing and does not call $executeRaw on --dry-run while counting writable rows', async () => {
     const rows: CandidatePairRow[] = [
       {
         id: ID_1,
@@ -75,6 +75,7 @@ describe('backfillThinking', () => {
       skipped_no_pair: 1,
       skipped_guard: 0,
       skipped_no_trace: 0,
+      writable: 1,
       updated: 0,
     });
     expect(disconnectMock).toHaveBeenCalledOnce();
@@ -104,6 +105,7 @@ describe('backfillThinking', () => {
       skipped_no_pair: 0,
       skipped_guard: 1,
       skipped_no_trace: 0,
+      writable: 0,
       updated: 0,
     });
   });
@@ -128,6 +130,7 @@ describe('backfillThinking', () => {
     queryRawMock.mockResolvedValueOnce([row]);
     const firstRun = await backfillThinking({ env: 'dev' });
 
+    expect(firstRun.writable).toBe(1);
     expect(firstRun.updated).toBe(1);
     expect(executeRawMock).toHaveBeenCalledOnce();
 
@@ -140,6 +143,7 @@ describe('backfillThinking', () => {
 
     queryRawMock.mockResolvedValueOnce([row]);
     const secondRun = await backfillThinking({ env: 'dev' });
+    expect(secondRun.writable).toBe(1);
     expect(secondRun.updated).toBe(0);
   });
 
@@ -196,8 +200,10 @@ describe('backfillThinking', () => {
       skipped_no_pair: 1,
       skipped_guard: 1,
       skipped_no_trace: 1,
+      writable: 2,
       updated: 2,
     });
+    expect(result.updated).toBe(result.writable);
 
     expect(queryRawMock).toHaveBeenCalledTimes(3);
     const call1 = unpackTaggedCall(queryRawMock.mock.calls[0]);
@@ -226,8 +232,7 @@ describe('backfillThinking', () => {
     expect(loggedOutput).toContain('paired: 4');
     expect(loggedOutput).toContain('skipped_no_pair: 1');
     expect(loggedOutput).toContain('skipped_guard: 1');
-    expect(loggedOutput).toContain('skipped_no_trace: 1');
-    expect(loggedOutput).toContain('updated: 2');
+    expect(loggedOutput).toContain('skipped_no_trace: 1\n   writable: 2\n   updated: 2');
     expect(loggedOutput).not.toContain('secret trace');
   });
 

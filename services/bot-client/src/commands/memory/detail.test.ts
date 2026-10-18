@@ -662,6 +662,30 @@ describe('Memory Detail', () => {
         })
       );
     });
+
+    it('escapes markdown characters (* and _) in personalityName in the attachment header', async () => {
+      const memory = createMockMemory({
+        personalityName: 'Luna *Star* _Night_',
+      });
+      stub.getMemory.mockResolvedValue(makeOk({ memory }));
+
+      const mockDeferReply = vi.fn();
+      const mockEditReply = vi.fn();
+
+      const interaction = {
+        user: { id: 'user-123', username: 'testuser' },
+        deferReply: mockDeferReply,
+        editReply: mockEditReply,
+      } as unknown as ButtonInteraction;
+
+      await handleViewFullButton(interaction, 'memory-123');
+
+      expect(mockEditReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('**Full Memory Content** (Luna \\*Star\\* \\_Night\\_)'),
+        })
+      );
+    });
   });
 
   describe('handleReasoningButton', () => {
@@ -700,6 +724,31 @@ describe('Memory Detail', () => {
       );
     });
 
+    it('escapes markdown characters (* and _) in personalityName in the reasoning attachment header', async () => {
+      const memory = createMockMemory({
+        personalityName: 'Luna *Star* _Night_',
+        thinkingContent: 'Weighed user context before answering.',
+      });
+      stub.getMemory.mockResolvedValue(makeOk({ memory }));
+
+      const mockDeferReply = vi.fn();
+      const mockEditReply = vi.fn();
+
+      const interaction = {
+        user: { id: 'user-123', username: 'testuser' },
+        deferReply: mockDeferReply,
+        editReply: mockEditReply,
+      } as unknown as ButtonInteraction;
+
+      await handleReasoningButton(interaction, 'memory-123');
+
+      expect(mockEditReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('**Reasoning Trace** (Luna \\*Star\\* \\_Night\\_)'),
+        })
+      );
+    });
+
     it('should show error if memory not found', async () => {
       stub.getMemory.mockResolvedValue(makeErr(404, 'Not found'));
 
@@ -726,6 +775,34 @@ describe('Memory Detail', () => {
           content: expect.stringContaining('Memory not found'),
         })
       );
+    });
+
+    it('replies through the gateway-failure path and sends no file when the memory fetch rejects', async () => {
+      stub.getMemory.mockRejectedValueOnce(new Error('network boom'));
+
+      const mockEditReply = vi.fn();
+
+      const interaction: Record<string, unknown> = {
+        user: { id: 'user-123', username: 'testuser' },
+        editReply: mockEditReply,
+        reply: vi.fn(),
+        deferred: false,
+        replied: false,
+      };
+      const mockDeferReply = vi.fn().mockImplementation(() => {
+        interaction.deferred = true;
+        return Promise.resolve(undefined);
+      });
+      interaction.deferReply = mockDeferReply;
+
+      await handleReasoningButton(interaction as unknown as ButtonInteraction, 'memory-123');
+
+      expect(mockDeferReply).toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledOnce();
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed to load the memory. Please try again.'),
+      });
+      expect(mockEditReply.mock.calls[0][0]).not.toHaveProperty('files');
     });
 
     it('replies with noReasoningTrace spec and sends no file when thinkingContent is null or whitespace-only', async () => {
