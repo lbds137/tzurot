@@ -27,4 +27,6 @@ What:
 Add a probe case for each in .claude/hooks/develop-code-commit-guard.probe.sh (fixture text fed on stdin, per 05-tooling.md), and run the probe after the edit.
 
 Acceptance: both shapes pass the hook (or item 2 is recorded as matching commitlint), the existing taskopen/length/case probes still fire, guard:hook-probes green.
+
+Item 2 probe (2026-10-18, `printf '%s\n' "$s" | npx commitlint`, exit code per subject): `docs(backlog): TASK-1179 Done` 1 (subject-case: "subject must not be sentence-case"), `docs(backlog): TASK-1179 done` 1, `docs(backlog): task-1179 done` 0, `docs(backlog): mark TASK-1179 done` 0. commitlint rejects a leading uppercase task id too, so item 2 is working as designed; only item 1 remains.
 <!-- SECTION:DESCRIPTION:END -->
