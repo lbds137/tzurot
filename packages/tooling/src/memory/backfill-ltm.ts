@@ -43,6 +43,7 @@ export interface ConversationRow {
   persona_id: string;
   role: string;
   content: string;
+  thinking_content?: string | null;
   discord_message_id: string[];
   created_at: Date;
 }
@@ -60,6 +61,8 @@ export interface MemoryPair {
   guildId: string | null;
   userContent: string;
   assistantContent: string;
+  thinkingContent?: string | null;
+  chunkIndex?: number | null;
   userMessageIds: string[];
   assistantMessageIds: string[];
   createdAt: Date;
@@ -97,7 +100,7 @@ function queryPage(opts: PageQuery): Promise<ConversationRow[]> {
 
   return prisma.$queryRaw<ConversationRow[]>`
     SELECT id, channel_id, guild_id, personality_id, persona_id,
-           role, content, discord_message_id, created_at
+           role, content, thinking_content, discord_message_id, created_at
     FROM conversation_history
     WHERE ${where}
     ORDER BY created_at ASC, id ASC
@@ -184,6 +187,10 @@ export function pairMessages(rows: ConversationRow[]): MemoryPair[] {
       continue;
     }
 
+    const rawThinking = assistantRow.thinking_content;
+    const thinkingContent =
+      typeof rawThinking === 'string' && rawThinking.trim().length > 0 ? rawThinking : null;
+
     pairs.push({
       personaId: userRow.persona_id,
       personalityId: userRow.personality_id,
@@ -191,6 +198,7 @@ export function pairMessages(rows: ConversationRow[]): MemoryPair[] {
       guildId: userRow.guild_id,
       userContent: userRow.content,
       assistantContent: assistantRow.content,
+      thinkingContent,
       userMessageIds: userRow.discord_message_id,
       assistantMessageIds: assistantRow.discord_message_id,
       createdAt: assistantRow.created_at,
@@ -241,6 +249,8 @@ export async function insertMemory(
     messageIds: [...pair.userMessageIds, ...pair.assistantMessageIds],
     createdAt: pair.createdAt,
     sourceSystem: BACKFILL_SOURCE_SYSTEM,
+    thinkingContent: pair.thinkingContent ?? null,
+    chunkIndex: pair.chunkIndex ?? null,
   });
 }
 

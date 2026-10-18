@@ -4,11 +4,12 @@
  * Pairs candidate v3 memories (first chunk, missing `thinking_content`, with a
  * stored Discord message id) back to their originating user turn and the first
  * subsequent row in the same channel, personality, and persona within 30 minutes.
- * When that row is an assistant turn with a non-empty `thinking_content` and its
- * 40-char prefix appears in the memory text, copies `thinking_content` via raw
- * SQL so `memories.updated_at` is not bumped. For a chunked memory, the guard
- * checks chunk 0's text only, so a turn whose user half fills chunk 0 fails the
- * guard and is knowingly skipped.
+ * Soft-deleted history rows (`deleted_at IS NOT NULL`) are skipped so a deleted
+ * reply's reasoning is not copied. When that row is an assistant turn with a
+ * non-empty `thinking_content` and its 40-char prefix appears in the memory text,
+ * copies `thinking_content` via raw SQL so `memories.updated_at` is not bumped.
+ * For a chunked memory, the guard checks chunk 0's text only, so a turn whose
+ * user half fills chunk 0 fails the guard and is knowingly skipped.
  *
  * Privacy: never prints or logs `thinking_content` or message text — only
  * aggregate counts.
@@ -92,6 +93,7 @@ export function queryCandidateBatch(
         AND m.message_ids[1] = ANY(u.discord_message_id)
         AND u.personality_id = m.personality_id
         AND u.persona_id = m.persona_id
+        AND u.deleted_at IS NULL
       ORDER BY u.created_at ASC
       LIMIT 1
     ) u ON TRUE
@@ -103,6 +105,7 @@ export function queryCandidateBatch(
         AND a.persona_id = u.persona_id
         AND a.created_at > u.created_at
         AND a.created_at < u.created_at + interval '30 minutes'
+        AND a.deleted_at IS NULL
       ORDER BY a.created_at ASC
       LIMIT 1
     ) a ON u.id IS NOT NULL

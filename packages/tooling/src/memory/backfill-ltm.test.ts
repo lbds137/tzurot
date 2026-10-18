@@ -436,6 +436,8 @@ describe('backfill-ltm', () => {
 
       expect(result).toHaveLength(1);
       expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
+      const [strings] = mockPrisma.$queryRaw.mock.calls[0] as [readonly string[], ...unknown[]];
+      expect(strings.join('?')).toContain('thinking_content');
     });
   });
 
@@ -491,6 +493,58 @@ describe('backfill-ltm', () => {
 
       // The raw query template is called - just verify it was called
       expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+    });
+
+    it('carries thinking_content through pairMessages into the INSERT for traced and untraced pairs, and writes NULL for chunk 1', async () => {
+      const mockPrisma = {
+        $executeRaw: vi.fn().mockResolvedValue(1),
+      };
+      const rows: ConversationRow[] = [
+        makeRow({ id: 'u1', role: 'user', content: 'Traced question' }),
+        makeRow({
+          id: 'a1',
+          role: 'assistant',
+          content: 'Traced answer',
+          thinking_content: 'private reasoning trace',
+        }),
+        makeRow({ id: 'u2', role: 'user', content: 'Untraced question' }),
+        makeRow({
+          id: 'a2',
+          role: 'assistant',
+          content: 'Untraced answer',
+          thinking_content: null,
+        }),
+        makeRow({ id: 'u3', role: 'user', content: 'Blank-trace question' }),
+        makeRow({
+          id: 'a3',
+          role: 'assistant',
+          content: 'Blank-trace answer',
+          thinking_content: '   \n\t ',
+        }),
+      ];
+
+      const pairs = pairMessages(rows);
+      expect(pairs).toHaveLength(3);
+      expect(pairs[0].thinkingContent).toBe('private reasoning trace');
+      expect(pairs[1].thinkingContent).toBeNull();
+      expect(pairs[2].thinkingContent).toBeNull();
+
+      const embedding = new Float32Array([0.1]);
+      await insertMemory(mockPrisma as never, 'id-1', pairs[0], 'content-1', embedding);
+      await insertMemory(mockPrisma as never, 'id-2', pairs[1], 'content-2', embedding);
+      await insertMemory(mockPrisma as never, 'id-3', pairs[2], 'content-3', embedding);
+      await insertMemory(
+        mockPrisma as never,
+        'id-4',
+        { ...pairs[0], chunkIndex: 1 },
+        'content-4',
+        embedding
+      );
+
+      const boundTraces = mockPrisma.$executeRaw.mock.calls.map(
+        (call: unknown[]) => (call as [readonly string[], ...unknown[]])[12]
+      );
+      expect(boundTraces).toEqual(['private reasoning trace', null, null, null]);
     });
   });
 
