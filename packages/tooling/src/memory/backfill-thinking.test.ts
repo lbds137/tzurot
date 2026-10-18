@@ -274,7 +274,9 @@ describe('backfillThinking', () => {
     expect(call1.sql).toContain(
       'SELECT u.id, u.channel_id, u.personality_id, u.persona_id, u.created_at'
     );
+    expect(call1.sql).toContain('AND u.deleted_at IS NULL');
     expect(call1.sql).toContain('AND a.persona_id = u.persona_id');
+    expect(call1.sql).toContain('AND a.deleted_at IS NULL');
     expect(call1.sql).toContain("m.source_system = 'tzurot-v3'");
     expect(call1.sql).toContain('coalesce(m.chunk_index, 0) = 0');
     expect(call1.sql).toContain('m.thinking_content IS NULL');

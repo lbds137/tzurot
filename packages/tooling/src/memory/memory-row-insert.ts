@@ -2,9 +2,10 @@
  * Shared memory-row insert + local-embedding lifecycle for the memory tooling
  * commands that write `memories` rows directly (LTM backfill, conversation import).
  *
- * Both commands write the same 19-column row; only the per-row values differ
- * (channel/guild/message ids, the `source_system` tag). Keeping the INSERT in
- * one place stops the two column lists from drifting apart.
+ * Both commands write the same 20-column row; only the per-row values differ
+ * (channel/guild/message ids, the `source_system` tag, and optional
+ * `thinking_content`). Keeping the INSERT in one place stops the two column
+ * lists from drifting apart.
  */
 
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
@@ -22,6 +23,8 @@ export interface MemoryRowInsert {
   messageIds: string[];
   createdAt: Date;
   sourceSystem: string;
+  thinkingContent?: string | null;
+  chunkIndex?: number | null;
 }
 
 /**
@@ -46,19 +49,26 @@ export async function insertMemoryRow(
 ): Promise<boolean> {
   const embeddingStr = `[${Array.from(row.embedding).join(',')}]`;
   const now = new Date();
+  const isFirstChunk = (row.chunkIndex ?? 0) === 0;
+  const thinkingContent =
+    isFirstChunk && typeof row.thinkingContent === 'string' && row.thinkingContent.trim().length > 0
+      ? row.thinkingContent
+      : null;
 
   const result = await prisma.$executeRaw`
     INSERT INTO memories (
       id, persona_id, personality_id, content, embedding,
       is_summarized, session_id, canon_scope, summary_type,
       channel_id, guild_id, message_ids, senders,
-      created_at, updated_at, source_system, type, is_locked, visibility
+      created_at, updated_at, source_system, type, is_locked, visibility,
+      thinking_content
     ) VALUES (
       ${row.id}::uuid, ${row.personaId}::uuid, ${row.personalityId}::uuid,
       ${row.content}, ${embeddingStr}::vector,
       false, NULL, 'personal', NULL,
       ${row.channelId}, ${row.guildId}, ${row.messageIds}, ARRAY[]::text[],
-      ${row.createdAt}, ${now}, ${row.sourceSystem}, 'memory', false, 'normal'
+      ${row.createdAt}, ${now}, ${row.sourceSystem}, 'memory', false, 'normal',
+      ${thinkingContent}
     )
     ON CONFLICT (id) DO NOTHING
   `;

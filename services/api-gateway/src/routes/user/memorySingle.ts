@@ -230,7 +230,9 @@ export const handleUpdateMemory = (deps: RouteDeps): RequestHandler => {
           summaryRequestedAt: null,
           summaryCompletedAt: null,
           summaryLastError: null,
-          // thinkingContent is deliberately kept on edit (it records how the model reasoned when it replied; the owner ruled to keep it), and sync's keepNonNullColumns guard depends on nothing clearing it.
+          // Not cleared on edit: the trace records how the model reasoned when
+          // it replied, and sync's keepNonNullColumns relies on no write path
+          // clearing it.
         },
         include: PERSONALITY_INCLUDE,
       }),
