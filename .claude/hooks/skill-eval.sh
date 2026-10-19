@@ -25,7 +25,7 @@ if [ -z "$PROMPT" ] || ! command -v jq &> /dev/null; then
 fi
 
 # Queued task notifications and peer-session messages arrive as prompts too; their keywords are not the owner asking.
-case "$PROMPT" in *'<task-notification>'* | *'<cross-session-message'*) exit 0 ;; esac
+case "$PROMPT" in *'<task-notification'* | *'<cross-session-message'*) exit 0 ;; esac
 
 # Build list of relevant skills based on keywords
 RELEVANT_SKILLS=""
