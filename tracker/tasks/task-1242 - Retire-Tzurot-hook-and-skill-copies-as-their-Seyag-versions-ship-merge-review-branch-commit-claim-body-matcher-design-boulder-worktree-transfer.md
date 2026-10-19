@@ -7,6 +7,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-18 12:57'
+updated_date: '2026-10-19 04:39'
 labels:
   - 'area:hooks'
   - 'state:dependent'
@@ -37,3 +38,9 @@ Open defects that ride upstream with their component (backlog review batch C, ow
 
 TASK-1206 (priority medium): pr-body-ref-gate rule 2 blocks a claim-shaped line with no cite or hedge, and the only way to see its verdict is to attempt gh pr create/edit; session mining 2026-10-11 counted 17 trips in 5 sessions, zero false positives, one session needing 8 attempts. Wanted: a read-only --check <file> mode over the same scanner (one scanner, two callers, no second vocabulary copy) that prints each flagged line with its rule, called from /tzurot-git-workflow § Create PR before gh pr create. Seyag takes this with the claim-shape row above. Acceptance addition: the preflight flags exactly the lines the hook would block (one probe runs both over the same fixture), and the git-workflow step names it once the Seyag version is wired.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Two more rows from TASK-1106 part 2 (2026-10-19 parity read), same retire-when-Seyag-ships rule: self-matching-pattern-guard (Seyag must add the leading-class literal-recurrence check plus mid-word bracket handling, the union; ask sent via Deck); python-heredoc-edit-guard (Seyag must also block write-only generation scripts, Tzurot python-heredoc-edit-guard.sh lines 64-66, or the Tzurot copy stays as a deliberate stricter local rule).
+<!-- SECTION:NOTES:END -->
