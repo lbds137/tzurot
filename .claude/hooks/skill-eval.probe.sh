@@ -297,6 +297,12 @@ assert_hit "control: same phrasing without the decimal still fires" "tzurot-revi
 invoke 'let me address that finding and also update my mailing address'
 assert_miss "known limitation: conjunction-joined clauses are not split" "tzurot-review-response"
 
+# Notification and peer-message wrappers around the db-vector positive above: silent.
+invoke '<task-notification>I need to write a new prisma migration for the users table</task-notification>'
+assert_silent "skip: task notification gets no banner"
+invoke '<cross-session-message from="Deck">I need to write a new prisma migration for the users table</cross-session-message>'
+assert_silent "skip: peer message gets no banner"
+
 invoke 'the addressee reviewed the letter before sending'
 assert_miss "negative: addressee is not an inflection of the verb, so BROAD's suffix anchor rejects it" "tzurot-review-response"
 
