@@ -16,13 +16,11 @@
 # Only triggers for actual skills (`.claude/skills/` directories).
 # Rules (`.claude/rules/`) are always loaded and don't need reminders.
 
+# Exit if jq is not available, then if there is no prompt
+command -v jq &> /dev/null || exit 0
 INPUT=$(cat)
 PROMPT=$(echo "$INPUT" | jq -r '.prompt // empty' 2>/dev/null)
-
-# Exit if no prompt or jq not available
-if [ -z "$PROMPT" ] || ! command -v jq &> /dev/null; then
-    exit 0
-fi
+[ -z "$PROMPT" ] && exit 0
 
 # Queued task notifications and peer-session messages arrive as prompts too; their keywords are not the owner asking.
 case "$PROMPT" in *'<task-notification'* | *'<cross-session-message'*) exit 0 ;; esac
