@@ -3,9 +3,10 @@ id: TASK-1245
 title: >-
   PR 2629 review-cap residue: misleading chunkIndex on the tooling insert, stale
   router docs
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-18 18:12'
+updated_date: '2026-10-19 02:27'
 labels:
   - 'area:memory'
   - 'size:S'
@@ -29,3 +30,9 @@ Declined at review (recorded so it is not re-raised): returning a hasReasoning f
 
 Acceptance: the three edits land with tests green.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped in PR 2635 (merged 2026-10-18): chunkIndex dropped from MemoryRowInsert/MemoryPair and their test arms; router header now describes the table/switch split without a hand-kept action list; MEMORY_ID_ACTIONS comment says the router returns true.
+<!-- SECTION:NOTES:END -->
