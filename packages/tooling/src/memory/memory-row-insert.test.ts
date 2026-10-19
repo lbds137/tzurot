@@ -89,27 +89,17 @@ describe('insertMemoryRow', () => {
     expect(values[11]).toBeNull();
   });
 
-  it('binds thinking_content for an unchunked memory or chunk 0 and NULL for chunk 1 or blank/untraced rows', async () => {
+  it('binds thinking_content for a traced row and NULL for blank or untraced rows', async () => {
     const prisma = makePrisma(1);
 
-    await insertMemoryRow(prisma as never, { ...ROW, thinkingContent: 'unchunked trace' });
-    await insertMemoryRow(prisma as never, {
-      ...ROW,
-      thinkingContent: 'chunk zero trace',
-      chunkIndex: 0,
-    });
-    await insertMemoryRow(prisma as never, {
-      ...ROW,
-      thinkingContent: 'chunk one trace that must be dropped',
-      chunkIndex: 1,
-    });
+    await insertMemoryRow(prisma as never, { ...ROW, thinkingContent: 'row trace' });
     await insertMemoryRow(prisma as never, { ...ROW, thinkingContent: '   \t\n ' });
     await insertMemoryRow(prisma as never, { ...ROW, thinkingContent: null });
 
     const boundTraces = prisma.$executeRaw.mock.calls.map(
       (call: unknown[]) => (call as [string[], ...unknown[]])[12]
     );
-    expect(boundTraces).toEqual(['unchunked trace', 'chunk zero trace', null, null, null]);
+    expect(boundTraces).toEqual(['row trace', null, null]);
   });
 
   it('returns true when a row was written and false when ON CONFLICT skipped it', async () => {

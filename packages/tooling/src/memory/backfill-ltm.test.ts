@@ -533,18 +533,11 @@ describe('backfill-ltm', () => {
       await insertMemory(mockPrisma as never, 'id-1', pairs[0], 'content-1', embedding);
       await insertMemory(mockPrisma as never, 'id-2', pairs[1], 'content-2', embedding);
       await insertMemory(mockPrisma as never, 'id-3', pairs[2], 'content-3', embedding);
-      await insertMemory(
-        mockPrisma as never,
-        'id-4',
-        { ...pairs[0], chunkIndex: 1 },
-        'content-4',
-        embedding
-      );
 
       const boundTraces = mockPrisma.$executeRaw.mock.calls.map(
         (call: unknown[]) => (call as [readonly string[], ...unknown[]])[12]
       );
-      expect(boundTraces).toEqual(['private reasoning trace', null, null, null]);
+      expect(boundTraces).toEqual(['private reasoning trace', null, null]);
     });
   });
 

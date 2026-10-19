@@ -1,9 +1,11 @@
 /**
  * Shared memory detail action router.
  *
- * Routes memory action button presses (edit, lock, delete, view-full, back)
- * to their respective handlers. Used by both browse and search collectors
- * to avoid duplicating the same 8-case switch statement.
+ * Routes the nine memory detail actions (edit, edit-truncated, delete,
+ * view-full, reasoning through the MEMORY_ID_ACTIONS table; cancel-edit, lock,
+ * confirm-delete, back through the switch) to their respective handlers, and
+ * is shared by the browse and search collectors so they don't duplicate the
+ * dispatch.
  */
 
 import type { ButtonInteraction } from 'discord.js';
@@ -38,7 +40,7 @@ function parseLockExtra(extra: string | undefined): boolean | null {
   return null;
 }
 
-/** Actions whose only input is the memory id; each returns true once dispatched */
+/** Actions whose only input is the memory id; the router returns true once one is dispatched */
 const MEMORY_ID_ACTIONS: Readonly<
   Record<string, (interaction: ButtonInteraction, memoryId: string) => Promise<unknown>>
 > = {

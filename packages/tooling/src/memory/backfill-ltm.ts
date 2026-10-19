@@ -62,7 +62,6 @@ export interface MemoryPair {
   userContent: string;
   assistantContent: string;
   thinkingContent?: string | null;
-  chunkIndex?: number | null;
   userMessageIds: string[];
   assistantMessageIds: string[];
   createdAt: Date;
@@ -250,7 +249,6 @@ export async function insertMemory(
     createdAt: pair.createdAt,
     sourceSystem: BACKFILL_SOURCE_SYSTEM,
     thinkingContent: pair.thinkingContent ?? null,
-    chunkIndex: pair.chunkIndex ?? null,
   });
 }
 
