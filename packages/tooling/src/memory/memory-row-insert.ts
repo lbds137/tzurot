@@ -24,7 +24,6 @@ export interface MemoryRowInsert {
   createdAt: Date;
   sourceSystem: string;
   thinkingContent?: string | null;
-  chunkIndex?: number | null;
 }
 
 /**
@@ -49,9 +48,8 @@ export async function insertMemoryRow(
 ): Promise<boolean> {
   const embeddingStr = `[${Array.from(row.embedding).join(',')}]`;
   const now = new Date();
-  const isFirstChunk = (row.chunkIndex ?? 0) === 0;
   const thinkingContent =
-    isFirstChunk && typeof row.thinkingContent === 'string' && row.thinkingContent.trim().length > 0
+    typeof row.thinkingContent === 'string' && row.thinkingContent.trim().length > 0
       ? row.thinkingContent
       : null;
 
