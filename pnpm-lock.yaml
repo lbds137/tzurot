@@ -521,8 +521,8 @@ importers:
         specifier: ^5.11.1
         version: 5.11.1
       langchain:
-        specifier: ^1.5.17
-        version: 1.5.17(@langchain/core@1.2.18(openai@7.28.0(undici@6.29.1)(ws@8.21.1)(zod@4.6.7))(ws@8.21.1))(openai@7.28.0(undici@6.29.1)(ws@8.21.1)(zod@4.6.7))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(ws@8.21.1)
+        specifier: ^1.5.18
+        version: 1.5.18(@langchain/core@1.2.18(openai@7.28.0(undici@6.29.1)(ws@8.21.1)(zod@4.6.7))(ws@8.21.1))(openai@7.28.0(undici@6.29.1)(ws@8.21.1)(zod@4.6.7))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(ws@8.21.1)
       onnxruntime-node:
         specifier: ^1.30.0
         version: 1.30.0
@@ -5138,8 +5138,8 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
-  langchain@1.5.17:
-    resolution: {integrity: sha512-PHV8ACpPHkt3lMrs6sqFsiQG/0bs+W3izQHcUX7E3gHL1X+XERcJoKu0CPzWXaG9wtI5BosyS1O5F5lulthUHg==}
+  langchain@1.5.18:
+    resolution: {integrity: sha512-JSOQrWvMZ4d7AZH9HXB311cVhGa1nbDVkV5bvIa4WWdxwlHTm0Wi15aGEnutJcs0vW2wTEUk4mAS2ukNHKbIBA==}
     engines: {node: '>=20'}
     peerDependencies:
       '@langchain/core': ^1.2.18
@@ -11612,7 +11612,7 @@ snapshots:
       yaml: 2.9.1
       zod: 4.6.7
 
-  langchain@1.5.17(@langchain/core@1.2.18(openai@7.28.0(undici@6.29.1)(ws@8.21.1)(zod@4.6.7))(ws@8.21.1))(openai@7.28.0(undici@6.29.1)(ws@8.21.1)(zod@4.6.7))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(ws@8.21.1):
+  langchain@1.5.18(@langchain/core@1.2.18(openai@7.28.0(undici@6.29.1)(ws@8.21.1)(zod@4.6.7))(ws@8.21.1))(openai@7.28.0(undici@6.29.1)(ws@8.21.1)(zod@4.6.7))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(ws@8.21.1):
     dependencies:
       '@langchain/core': 1.2.18(openai@7.28.0(undici@6.29.1)(ws@8.21.1)(zod@4.6.7))(ws@8.21.1)
       '@langchain/langgraph': 1.5.0(@langchain/core@1.2.18(openai@7.28.0(undici@6.29.1)(ws@8.21.1)(zod@4.6.7))(ws@8.21.1))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(zod@4.6.7)
