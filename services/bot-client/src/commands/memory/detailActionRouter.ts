@@ -4,7 +4,7 @@
  * Routes the nine memory detail actions (edit, edit-truncated, delete,
  * view-full, reasoning through the MEMORY_ID_ACTIONS table; cancel-edit, lock,
  * confirm-delete, back through the switch) to their respective handlers, and
- * is shared by the browse and search collectors so they don't duplicate the
+ * is shared by the browse and search handlers so they don't duplicate the
  * dispatch.
  */
 
