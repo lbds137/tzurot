@@ -32,8 +32,8 @@
 # scanned exactly like a real invocation and blocks. For a blocking guard that
 # costs one retry on the rare case where the text is prose rather than a real
 # command, which is cheaper than teaching this hook to distinguish quoting
-# context — the same trade lossy-pipe-guard.sh and develop-code-commit-guard.sh
-# already accept in their own word/line scans.
+# context — the same trade develop-code-commit-guard.sh already accepts in its
+# own line scans.
 #
 # Tokenization: a substitution form ($(...), a backtick, a subshell paren, or
 # a leading assignment) is recognized as an invocation start, and the word

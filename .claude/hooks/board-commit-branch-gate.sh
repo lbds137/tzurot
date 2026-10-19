@@ -120,7 +120,7 @@
 #     a probe case.
 # The threat model is the habitual mis-commit shape (plain `git add tracker/
 # && git commit`, 3 observed incidents) — exotic spellings are not written by
-# accident, mirroring lossy-pipe-guard's stated boundary.
+# accident.
 
 set -uo pipefail
 # Read-only status/diff here must not write .git/index.lock (git's opportunistic
@@ -171,8 +171,8 @@ from shell_quotes import (
 cmd = os.environ.get("GUARD_CMD", "")
 
 # What counts as a commit invocation, defined ONCE — and spelled identically to
-# the copies in `develop-code-commit-guard.sh` and `lossy-pipe-guard.sh`. All
-# three are held to one shared case table by
+# the copy in `develop-code-commit-guard.sh`. Both are held to one shared case
+# table by
 # packages/tooling/src/dev/gitCommitPatternAgreement.test.ts, which EXTRACTS
 # this exact line out of this file by its `COMMIT_RE = re.compile(r"…")`
 # spelling and hard-fails if it stops matching exactly one line. Keep it on one
@@ -292,8 +292,8 @@ BYPASS_RE = re.compile(
     + ASSIGNMENTS
     # Sliced rather than `.removeprefix("(?i)")` — that method is Python
     # 3.9+, an undocumented floor this file otherwise doesn't take (contrast
-    # develop-code-commit-guard.sh and lossy-pipe-guard.sh, which each name
-    # their own Python-version requirement explicitly). `COMMIT_RE.pattern`
+    # develop-code-commit-guard.sh, which names its own Python-version
+    # requirement explicitly). `COMMIT_RE.pattern`
     # always starts with the literal 4-char `(?i)` this file itself wrote
     # two definitions above, so the fixed-length slice is exact for this
     # input; it is not a general prefix-strip.

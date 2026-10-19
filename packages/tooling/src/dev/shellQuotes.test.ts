@@ -491,11 +491,11 @@ describe('shell_quotes.strip_heredoc_bodies', () => {
 });
 
 /**
- * `HEREDOC_OPENER` is exported so a consumer can compose its own pattern from
- * it — lossy-pipe-guard.sh rebuilds an opener from the match groups rather than
- * re-typing the regex, which silently drops the here-string lookbehind. That
- * makes the GROUP NUMBERING an exported contract, so it gets an assertion of
- * its own rather than resting on the hook probes downstream.
+ * `HEREDOC_OPENER` is exported for parity with the Seyag plugin's copy of the
+ * lib (TASK-1134), whose lossy-pipe-guard rebuilds an opener from the match
+ * groups rather than re-typing the regex (which silently drops the here-string
+ * lookbehind), and `strip_heredoc_bodies` reads the same groups, so the group
+ * numbering gets its own assertion.
  */
 function openerGroups(inputs: readonly string[]): (string[] | null)[] {
   const script = [

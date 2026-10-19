@@ -149,10 +149,11 @@ absent; from `develop`, the branch's own new files read as absent. Name a ref
 other than the checkout you are standing in. Only after those pass does "the
 data isn't there" become a hypothesis — and stating it is governed by
 harness `core.md` § Lossy steps are for known output shapes (its "List why it
-could come back empty before blaming the store" bullet). `lossy-pipe-guard.sh` blocks only two write-side shapes pre-hoc —
-a filtered `git commit`/`push`, and a `gh` read truncated by head/tail/`sed
--n`; for everything else the read-side check above is yours to run (no hook
-can carry it: it needs the command's result).
+could come back empty before blaming the store" bullet). Seyag's
+`lossy-pipe-guard` (where the plugin is enabled) blocks only two write-side
+shapes pre-hoc — a filtered `git commit`/`push`, and a `gh` read truncated by
+head/tail/`sed -n`; for everything else the read-side check above is yours to
+run (no hook can carry it: it needs the command's result).
 
 That tell only fires on a result that LOOKS wrong; the costlier half of this
 class produces a plausible one — a window that hides the deciding section, or

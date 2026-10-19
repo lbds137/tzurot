@@ -3,7 +3,8 @@
     "baseRef": "head"
   },
   "env": {
-    "SYG_DISPATCH_SRC_RE": "^(services|packages)/.+\\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|py)$"
+    "SYG_DISPATCH_SRC_RE": "^(services|packages)/.+\\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|py)$",
+    "SYG_LOSSY_PIPE_GH_WRAPPERS": "gh:pr-all gh:pr-comments gh:pr-conversation gh:pr-info gh:pr-reviews gh:ci-gate"
   },
   "hooks": {
     "UserPromptSubmit": [
@@ -23,10 +24,6 @@
           {
             "type": "command",
             "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/pr-merge-review-check.sh"
-          },
-          {
-            "type": "command",
-            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/lossy-pipe-guard.sh"
           },
           {
             "type": "command",

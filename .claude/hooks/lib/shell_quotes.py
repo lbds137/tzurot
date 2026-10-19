@@ -1,13 +1,13 @@
 """Shell quote stripping, shared by every hook that has to scan a command line.
 
-WHY THIS IS A MODULE AND NOT THREE COPIES
------------------------------------------
-Three hooks need the same thing: replace each quoted span in a command string
+WHY THIS IS A MODULE AND NOT A COPY PER HOOK
+--------------------------------------------
+Several hooks need the same thing: replace each quoted span in a command string
 with a placeholder, so that argument CONTENT (a commit message, a `-m` body, an
 example command quoted in prose) cannot influence a structural scan of the
 command. Each of them had its own copy, and the copies had already diverged —
-lossy-pipe-guard's was fixed while develop-code-commit-guard's and
-cwd-drift-guard's kept the bug for another PR.
+lossy-pipe-guard's (since moved to the Seyag plugin) was fixed while
+develop-code-commit-guard's and cwd-drift-guard's kept the bug for another PR.
 
 The bug is worth stating precisely, because the naive version looks obviously
 correct and is not. Stripping single-quoted spans and double-quoted spans as two
@@ -53,7 +53,6 @@ be scanned including the message body.
 
 CONSUMERS
 ---------
-    .claude/hooks/lossy-pipe-guard.sh
     .claude/hooks/develop-code-commit-guard.sh
     .claude/hooks/board-commit-branch-gate.sh   (strip_quoted_indexed PLUS
                                         wrapped_command_strings — deliberately
@@ -405,9 +404,7 @@ def substitution_spans(text):
 #
 # Deliberately generous: a false match only turns the skip off, which returns
 # the extract-everything behaviour the guards had before the skip existed.
-_SKIP_UNSAFE_TEXT = re.compile(
-    r"(?<!<)<<(?!<)" r"|(?<![\w.-])(?:eval|bash|sh|zsh|dash|ksh)(?![\w.-])"
-)
+_SKIP_UNSAFE_TEXT = re.compile(r"(?<!<)<<(?!<)" r"|(?<![\w.-])(?:eval|bash|sh|zsh|dash|ksh)(?![\w.-])")
 
 # A `case` word inside a span can end it early at a pattern's bare `)`.
 _CASE_WORD = re.compile(r"(?<![\w.-])case(?![\w.-])")
@@ -472,12 +469,7 @@ def _extract_spans(text, skip_single_quoted):
                 if ch == "'":
                     close = text.find("'", i + 1)
                     if close != -1:
-                        if (
-                            i > 0
-                            and text[i - 1] == "$"
-                            and close - 1 > i
-                            and text[close - 1] == "\\"
-                        ):
+                        if i > 0 and text[i - 1] == "$" and close - 1 > i and text[close - 1] == "\\":
                             return None
                         i = close + 1
                         continue
@@ -533,18 +525,18 @@ def _extract_spans(text, skip_single_quoted):
 # hook strips the heredoc forms its own matching cares about (module docstring),
 # so the two need not agree.
 #
-# PUBLIC, unlike the other module-private names: lossy-pipe-guard.sh has to
-# REJOIN an emptied heredoc onto its opener line, and the opener half of that
-# substitution is this same pattern. Spelling it out a second time in the hook
-# is exactly the divergence this module exists to prevent — the copy there was
-# written without the here-string lookbehind above and false-blocked a
-# here-string followed by a piped command, so the hook composes from this name
-# instead. Two consequences for anyone editing the pattern: the group NUMBERING
-# (1 = the `-` indent flag, 2 = the quote character, 3 = the marker) is part of
-# the exported contract, because that hook's replacement template reconstructs
-# an opener from those groups; and both consumers are pinned by the heredoc and
-# here-string cases in lossy-pipe-guard.probe.sh, which is where a group
-# renumbering would surface.
+# PUBLIC, unlike the other module-private names, because the name matches the
+# Seyag plugin's copy of this lib, whose lossy-pipe-guard composes from it to
+# rejoin an emptied heredoc onto its opener line instead of re-typing the regex
+# (a hand-written copy once dropped the here-string lookbehind above and
+# false-blocked a here-string followed by a piped command); that parity is
+# owned by TASK-1134 (the lib dedup).
+#
+# Separately, the group NUMBERING (1 = the `-` indent flag, 2 = the quote
+# character, 3 = the marker) is load-bearing inside this module too, since
+# `strip_heredoc_bodies` reads groups 1 and 3, and it is pinned by
+# packages/tooling/src/dev/shellQuotes.test.ts ("exported group contract"
+# describe block), which is where a group renumbering surfaces.
 HEREDOC_OPENER = re.compile(r"(?<!<)<<(-?)\s*(['\"]?)(\w+)\2")
 
 
@@ -610,9 +602,7 @@ def strip_heredoc_bodies(text):
             return "".join(out)
         out.append(text[match.end() : newline + 1])
         indent = "[ \t]*" if match.group(1) == "-" else ""
-        terminator = re.compile(
-            r"^" + indent + re.escape(match.group(3)) + r"[ \t]*$", re.M
-        )
+        terminator = re.compile(r"^" + indent + re.escape(match.group(3)) + r"[ \t]*$", re.M)
         end = terminator.search(text, newline + 1)
         if end is None:
             # Unterminated: keep everything after the opener line (over-arm)
@@ -647,8 +637,8 @@ def substitution_spans_matching(raw_text, predicate):
        broken quote state over-arms rather than escaping.
 
     Pinned by the substitution-span probe cases in
-    develop-code-commit-guard.probe.sh and lossy-pipe-guard.probe.sh (the
-    heredoc-body, single-quoted-span, and quoted-prose cases).
+    develop-code-commit-guard.probe.sh (the heredoc-body, single-quoted-span,
+    and quoted-prose cases).
     """
     for span in substitution_spans(strip_heredoc_bodies(raw_text)):
         scanned = strip_quoted(span)

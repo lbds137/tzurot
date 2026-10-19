@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-27 19:47'
+updated_date: '2026-10-19 05:10'
 labels:
   - 'area:hooks'
   - 'size:M'
@@ -26,3 +27,9 @@ Acceptance: one shell_quotes implementation (or a vendored copy byte-identical t
 
 2026-10-18 (backlog review batch C): the harness copy now lives at plugins/seyag/hooks/lib/shell_quotes.py in the Seyag repo and still differs from ours (diff -q). TASK-1048 is now dependent on TASK-1242 (its guard moves to Seyag branch-commit), so this dedup matters mainly for the Tzurot-only consumers that stay: lossy-pipe-guard until TASK-1106 retires it, and the develop-code-commit-guard header pre-check.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-19: TASK-1106 part 2 (PR 2637) retired the Tzurot lossy-pipe-guard, so that consumer named above is gone; the remaining Tzurot-only shell_quotes consumers are develop-code-commit-guard, board-commit-branch-gate and cwd-drift-guard. HEREDOC_OPENER stays exported partly because the Seyag plugin's copy of the lib exports the same name (its lossy-pipe-guard composes from it): that name coupling belongs to this dedup.
+<!-- SECTION:NOTES:END -->
