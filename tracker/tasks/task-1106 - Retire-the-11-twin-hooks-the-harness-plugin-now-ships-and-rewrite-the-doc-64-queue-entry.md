@@ -3,10 +3,10 @@ id: TASK-1106
 title: >-
   Retire the 11 twin hooks the harness plugin now ships, and rewrite the doc-64
   queue entry
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-25 17:52'
-updated_date: '2026-10-19 04:12'
+updated_date: '2026-10-19 04:39'
 labels:
   - 'area:hooks'
   - 'size:M'
@@ -44,4 +44,6 @@ Part 1 SHIPPED 2026-10-11 in #2604 (8 twins retired, SYG_DISPATCH_SRC_RE in proj
 2026-10-18 (backlog review batch C, owner-approved): all 7 kept twins exist in both trees (seyag 858f2ec, 0.3.81) and still differ substantially (diff line counts Tzurot vs plugins/seyag/hooks: claim-shape-guard 194, self-matching-pattern-guard 148, python-heredoc-edit-guard 90, cwd-drift-guard 653, lossy-pipe-guard 169, pr-monitor-reminder 571, session-start 189). Next step per twin: a parity read (does the Seyag version cover the recorded Tzurot delta?), then one deletion PR for the twins that pass.
 
 Part 2 parity reads 2026-10-19 (agy gemini, read-only; claims spot-checked by grep). Retire: lossy-pipe-guard (plugin covers all; Tzurot wrappers move to env SYG_LOSSY_PIPE_GH_WRAPPERS) in the part-2 PR. KEEP permanently, Tzurot-specific: claim-shape-guard (runs from .husky/pre-commit:190, not a Claude hook, so no twin in effect); cwd-drift-guard (refuses pnpm tracker writes from a linked worktree, cwd-drift-guard.sh:244-261, plugin has none); session-start (injects CURRENT.md, cadence:status, orphan worktree and gh:ci-gate waiter scan); pr-monitor-reminder (assignee backfill for unassigned human PRs, pnpm ops gh:ci-gate command pinned by guard:monitor-command, /tzurot-review-response pointer). KEEP pending Seyag: self-matching-pattern-guard (plugin has no literal-recurrence check, 0 'recur' matches vs 8); python-heredoc-edit-guard (plugin deliberately looser: does not block write-only generation scripts, Tzurot lines 64-66). Retire either only if Seyag adopts the delta.
+
+Closed by the part-2 PR: lossy-pipe-guard retired; the six other kept twins each carry a recorded reason above (four Tzurot-specific keeps, two moved to TASK-1242 pending Seyag). The merged TASK-1119 clause (retire pr-monitor-reminder) is ruled out on merit: the Tzurot copy carries the assignee backfill and the guard:monitor-command-pinned gh:ci-gate command, which the plugin copy does not.
 <!-- SECTION:NOTES:END -->
