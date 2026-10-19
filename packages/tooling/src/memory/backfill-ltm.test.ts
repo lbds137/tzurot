@@ -495,7 +495,7 @@ describe('backfill-ltm', () => {
       expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
     });
 
-    it('carries thinking_content through pairMessages into the INSERT for traced and untraced pairs, and writes NULL for chunk 1', async () => {
+    it('carries thinking_content through pairMessages into the INSERT for traced pairs, and writes NULL for untraced and blank-trace pairs', async () => {
       const mockPrisma = {
         $executeRaw: vi.fn().mockResolvedValue(1),
       };
