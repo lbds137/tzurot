@@ -194,10 +194,12 @@ invoke '<task-notification>I need to write a new prisma migration for the users 
 assert_silent "skip: task notification gets no banner"
 invoke '<cross-session-message from="Deck">I need to write a new prisma migration for the users table</cross-session-message>'
 assert_silent "skip: peer message gets no banner"
+invoke $'Another Claude session sent a message:\n<cross-session-message from="Deck">I need to write a new prisma migration for the users table</cross-session-message>'
+assert_silent "skip: peer message in its stored shape, tag after a preamble line"
 invoke 'fix the task-notification skip in skill-eval, and the prisma migration'
 assert_hit "skip stays narrow: naming the tag without its < still gets a banner" "tzurot-db-vector"
 invoke ''
-assert_silent "an empty prompt exits before any branch"
+assert_silent "an empty prompt produces no banner and no stderr"
 
 # ===========================================================================
 # 2. Review-response branch — the noun-vs-verb "address" sweep. This is the
