@@ -22,7 +22,8 @@ INPUT=$(cat)
 PROMPT=$(echo "$INPUT" | jq -r '.prompt // empty' 2>/dev/null)
 [ -z "$PROMPT" ] && exit 0
 
-# Queued task notifications and peer-session messages arrive as prompts too; their keywords are not the owner asking.
+# Queued task notifications and peer-session messages arrive as prompts too;
+# their keywords are not the owner asking.
 case "$PROMPT" in *'<task-notification'* | *'<cross-session-message'*) exit 0 ;; esac
 
 # Build list of relevant skills based on keywords
