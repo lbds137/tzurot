@@ -16,10 +16,10 @@
 #      write_text/write_bytes, writeFileSync/appendFileSync)
 #
 # Uses `grep -P` (PCRE) rather than spawning python — the regexes here are
-# self-contained and don't need the shared shell_quotes lib lossy-pipe-guard.sh
-# uses for command-substitution-aware parsing. Fail-open on any internal
-# error (grep -P unavailable, empty input, etc.) — a broken gate must not
-# block real work.
+# self-contained and don't need the shared shell_quotes lib the command-scanning
+# hooks use for command-substitution-aware parsing. Fail-open on any internal
+# error (grep -P unavailable, empty input, etc.) — a broken gate must not block
+# real work.
 #
 # Bypass for deliberate bulk generation:
 #

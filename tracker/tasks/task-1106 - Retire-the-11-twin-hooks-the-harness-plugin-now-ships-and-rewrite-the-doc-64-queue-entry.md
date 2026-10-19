@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-25 17:52'
-updated_date: '2026-10-11 18:35'
+updated_date: '2026-10-19 04:12'
 labels:
   - 'area:hooks'
   - 'size:M'
@@ -42,4 +42,6 @@ Part 1 SHIPPED 2026-10-11 in #2604 (8 twins retired, SYG_DISPATCH_SRC_RE in proj
 2026-10-15 (Seyag session cross-check, its PR-2 mid-word-bracket FP fix): Tzurot's self-matching-pattern-guard copy has NO false positive on mid-word classes (it only recognizes leading one-char classes, so `cc-rou[t]e` derives no literal and never blocks) — but the same leading-only rule is a false NEGATIVE: a mid-word-bracket pattern derives no literal, so the recurrence check misses that evasion vector entirely. The retirement precondition for this twin is the plugin gaining Tzurot's leading-class recurrence check AND the PR-2 mid-word handling — the union, not either alone.
 
 2026-10-18 (backlog review batch C, owner-approved): all 7 kept twins exist in both trees (seyag 858f2ec, 0.3.81) and still differ substantially (diff line counts Tzurot vs plugins/seyag/hooks: claim-shape-guard 194, self-matching-pattern-guard 148, python-heredoc-edit-guard 90, cwd-drift-guard 653, lossy-pipe-guard 169, pr-monitor-reminder 571, session-start 189). Next step per twin: a parity read (does the Seyag version cover the recorded Tzurot delta?), then one deletion PR for the twins that pass.
+
+Part 2 parity reads 2026-10-19 (agy gemini, read-only; claims spot-checked by grep). Retire: lossy-pipe-guard (plugin covers all; Tzurot wrappers move to env SYG_LOSSY_PIPE_GH_WRAPPERS) in the part-2 PR. KEEP permanently, Tzurot-specific: claim-shape-guard (runs from .husky/pre-commit:190, not a Claude hook, so no twin in effect); cwd-drift-guard (refuses pnpm tracker writes from a linked worktree, cwd-drift-guard.sh:244-261, plugin has none); session-start (injects CURRENT.md, cadence:status, orphan worktree and gh:ci-gate waiter scan); pr-monitor-reminder (assignee backfill for unassigned human PRs, pnpm ops gh:ci-gate command pinned by guard:monitor-command, /tzurot-review-response pointer). KEEP pending Seyag: self-matching-pattern-guard (plugin has no literal-recurrence check, 0 'recur' matches vs 8); python-heredoc-edit-guard (plugin deliberately looser: does not block write-only generation scripts, Tzurot lines 64-66). Retire either only if Seyag adopts the delta.
 <!-- SECTION:NOTES:END -->

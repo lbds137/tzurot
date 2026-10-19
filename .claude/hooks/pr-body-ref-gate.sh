@@ -170,13 +170,12 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/claim-shapes.sh" || exit 0
 
 INPUT=$(cat)
 
-# Raw pre-filter #1, before any jq fork — same reasoning as the sibling
-# lossy-pipe-guard.sh: this runs on every Bash call, so the cheapest possible
-# reject dominates. CLI flags have no case variance, so a case-sensitive glob
-# here is not a hole (unlike the nocasematch situation lossy-pipe-guard has
-# to account for with `git commit`/`gh pr` prose). `body=` widens this to the
-# `gh api -F body=@file` / `-f body=<text>` PATCH shape, which never writes
-# literal `--body`.
+# Raw pre-filter #1, before any jq fork: this runs on every Bash call, so the
+# cheapest possible reject dominates. CLI flags have no case variance, so a
+# case-sensitive glob here is not a hole (unlike the nocasematch situation a
+# command-word pre-filter has to account for with `git commit`/`gh pr` prose).
+# `body=` widens this to the `gh api -F body=@file` / `-f body=<text>` PATCH
+# shape, which never writes literal `--body`.
 case "$INPUT" in
   *"--body"* | *"body="*) ;;
   *) exit 0 ;;
@@ -198,11 +197,11 @@ CMD=$(jq -r '.tool_input.command // empty' <<<"$INPUT" 2>/dev/null || echo "")
 [ -z "$CMD" ] && exit 0
 
 # Command-family check on the decoded command, case-insensitively. The `gh …`
-# alternative allows global flags between `gh` and `pr`, mirroring
-# lossy-pipe-guard's reasoning about adjacency-only spellings missing
-# `gh --repo owner/name pr create`. The PATCH alternative is checked as three
-# ANDed greps (gh api / -X|--method PATCH / pulls/N) rather than one regex,
-# so the PATCH and path tokens can appear in either order in the command.
+# alternative allows global flags between `gh` and `pr`, because adjacency-only
+# spellings miss `gh --repo owner/name pr create`. The PATCH alternative is
+# checked as three ANDed greps (gh api / -X|--method PATCH / pulls/N) rather
+# than one regex, so the PATCH and path tokens can appear in either order in
+# the command.
 IS_PATCH_PR_API=0
 if printf '%s' "$CMD" | grep -iE 'gh[[:space:]]+api' >/dev/null &&
   printf '%s' "$CMD" | grep -iE -- '(-X|--method)[[:space:]=]*PATCH' >/dev/null &&

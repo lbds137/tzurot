@@ -207,7 +207,7 @@ import os
 import re
 import sys
 
-# Shared with lossy-pipe-guard.sh and cwd-drift-guard.sh. An import failure
+# Shared with board-commit-branch-gate.sh and cwd-drift-guard.sh. An import failure
 # exits non-zero, which the caller treats as allow (fail-open); the probe,
 # not runtime, is what catches a missing lib.
 sys.path.insert(0, os.environ["HOOK_LIB"])
@@ -437,7 +437,7 @@ scanned = strip_quoted(cmd)
 if scanned is not None:
     cmd = scanned
 
-# Kept in agreement with the other copy (lossy-pipe-guard.sh) by
+# Kept in agreement with the other in-repo copy (board-commit-branch-gate.sh) by
 # packages/tooling/src/dev/gitCommitPatternAgreement.test.ts, which extracts
 # both patterns and runs them over a shared case table. Both copies BLOCK, so a
 # drift between them is a wrongly-blocked or wrongly-allowed commit.
@@ -462,10 +462,10 @@ if scanned is not None:
 #
 # The (?i) is INLINE rather than an re.I argument: the agreement test extracts
 # this pattern out of the source text, so a flag passed outside the string
-# would vanish from the comparison against the sibling copy (and break the
-# extraction outright, which that test treats as a hard failure).
+# would vanish from the comparison against the board-commit-branch-gate.sh copy
+# (and break the extraction outright, which that test treats as a hard failure).
 #
-# Python's \w is Unicode-aware, so this is equivalent to the bash side's
+# Python's \w is Unicode-aware, so the trailing (?![-\w]) behaves like an
 # ASCII-only ([^-a-zA-Z0-9_]|$) for every real git invocation but not for
 # a non-ASCII suffix (`git commit日本語`). Deliberately NOT re.ASCII: that
 # flag narrows \s in the same pattern too, so a non-breaking space between

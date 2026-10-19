@@ -631,8 +631,8 @@ else
 fi
 
 # --- the shared-pattern behaviour changes ----------------------------------
-# Detection is the pattern `develop-code-commit-guard.sh` and `lossy-pipe-guard.sh`
-# carry, spelled identically and held to one case table by
+# Detection is the pattern `develop-code-commit-guard.sh` carries, spelled
+# identically and held to one case table by
 # gitCommitPatternAgreement.test.ts. Adopting it is not behaviour-neutral: each
 # case below is a shape this gate did NOT see before, and every one of them
 # arms the gate rather than disarming it. They share the canonical blocking

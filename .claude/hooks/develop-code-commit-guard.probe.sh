@@ -890,14 +890,14 @@ git -C "$WT" reset -q --hard HEAD
 
 # --- pathological flag runs must not hang the session ---------------------
 # The flag-value group here carried the same ambiguity that was MEASURED
-# backtracking exponentially in the sibling lossy-pipe-guard: with a bare `\S+`
-# value, every token in a run of flags can be read either as the previous flag's
-# value or as a new flag, so a FAILING match explores exponentially many
-# partitions — 26 dummy flags took 231ms there, doubling every two, and ~34
-# would hang for minutes.
+# backtracking exponentially in the lossy-pipe-guard this repo used to carry:
+# with a bare `\S+` value, every token in a run of flags can be read either as
+# the previous flag's value or as a new flag, so a FAILING match explores
+# exponentially many partitions — 26 dummy flags took 231ms there, doubling
+# every two, and ~34 would hang for minutes.
 #
-# This hook is PreToolUse on every Bash call AND it blocks, so a hang here is
-# strictly worse than in the advisory sibling.
+# This hook is PreToolUse on every Bash call AND it blocks, so a hang here
+# blocks every Bash call until the timeout.
 #
 # TWO THINGS THIS CASE GOT WRONG, both fixed together because either alone
 # leaves it useless:
@@ -913,8 +913,8 @@ git -C "$WT" reset -q --hard HEAD
 #    Catastrophic backtracking does not finish, so this case would have wedged
 #    the probe until guard:hook-probes' 120s ceiling killed the whole job, with
 #    no attributable diagnostic. `timeout` turns that into exit 124 and a named
-#    failure. (The sibling probe learned this first; this copy did not get the
-#    lesson until a reviewer noticed the asymmetry.)
+#    failure. (The lossy-pipe-guard probe this repo used to carry learned this
+#    first.)
 #
 # Bounded on wall clock rather than on a verdict, because the verdict was
 # always correct — it just took forever to reach.

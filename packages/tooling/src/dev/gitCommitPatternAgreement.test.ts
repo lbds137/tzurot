@@ -1,40 +1,36 @@
 /**
- * Agreement guard for the three git-commit-detection patterns.
+ * Agreement guard for the two git-commit-detection patterns.
  *
  * The same "does this command string invoke `git commit`" decision is encoded
- * three times, and all three copies BLOCK:
+ * twice in this repo, and both copies BLOCK:
  *
  *   1. `.claude/hooks/develop-code-commit-guard.sh`  — a Python regex
- *   2. `.claude/hooks/lossy-pipe-guard.sh`           — a Python regex
- *   3. `.claude/hooks/board-commit-branch-gate.sh`   — a Python regex, inside
+ *   2. `.claude/hooks/board-commit-branch-gate.sh`   — a Python regex, inside
  *      the python3 heredoc that hook already spawns for quote stripping
  *
- * They cannot be collapsed into one: each needs its own heredoc/quote stripping
- * inside its own blocking hook. So the coupling is real, hand-managed, and
+ * The two copies are kept as separate literals for now, and moving the pattern
+ * into the shared lib (`.claude/hooks/lib/shell_quotes.py`, which both hooks
+ * already import for quote/heredoc stripping) so both hooks import one constant
+ * is tracked as TASK-1257. Until then, the coupling is hand-managed and
  * documented only in a comment ("sync manually if the shape changes") — the
  * unenforced-invariant shape. It has already opened once: the commit-tree false
  * positive was fixed in one copy a PR before the other.
  *
- * A fourth, bash copy (`lib/git-command.sh`) sat here until it was retired. It
- * had no runtime consumer, so its drift could not cause a runtime bug — while
- * still imposing a change-one-change-N obligation and forcing this file to
- * demand GNU grep on PATH. Every copy that remains is one a wrong verdict
- * actually blocks a commit on, and every one of them is a PYTHON regex, which
- * is why the evaluator below needs only a python3 spawn.
+ * Earlier copies (`lib/git-command.sh` in bash, and `.claude/hooks/lossy-pipe-guard.sh`
+ * before that hook moved to the Seyag plugin) sat here until they were retired.
+ * Every copy that remains in-repo is one a wrong verdict actually blocks a
+ * commit on, and both of them are PYTHON regexes, which is why the evaluator
+ * below needs only a python3 spawn.
  *
- * This test asserts the three agree on a shared CASE TABLE, not that they are
- * textually identical — copy 2 deliberately isn't. The patterns are EXTRACTED
- * from the hook sources at run time, so editing one without the others fails
- * here; an extraction that stops matching is a hard failure, never a silent
- * pass.
- *
- * Copy 2 detects `(commit|push)` rather than `commit`. Every case below is
- * free of the token `push` (asserted), which makes that alternation inert and
- * lets all three be compared directly with no rewriting of the extracted text.
+ * In this test, the identity assertion pins the copies to one spelling while
+ * the CASE TABLE pins the expected verdicts. The patterns are EXTRACTED from
+ * the hook sources at run time, so editing one without the other fails the
+ * identity assertion here; an extraction that stops matching is a hard failure,
+ * never a silent pass.
  *
  * EXTERNAL BINARIES: this file shells out to `python3`, because the only honest
  * way to evaluate a hook's pattern is to run it through the same engine the
- * hook does. `python3` was already required to RUN all three hooks and their
+ * hook does. `python3` was already required to RUN both hooks and their
  * .probe.sh scripts; this makes it a prerequisite of the tooling unit-test cell
  * too. It is present on ubuntu-latest, which is where CI runs. If a future
  * minimal image drops it, the failure surfaces here as an ENOENT at collection
@@ -64,11 +60,6 @@ const SOURCES: readonly PatternSource[] = [
     extract: /re\.search\(r"(.+)", cmd\)/,
   },
   {
-    label: 'python lossy-pipe-guard.sh',
-    file: '.claude/hooks/lossy-pipe-guard.sh',
-    extract: /GIT_TARGET = re\.compile\(r"(.+)"\)/,
-  },
-  {
     label: 'python board-commit-branch-gate.sh',
     file: '.claude/hooks/board-commit-branch-gate.sh',
     // Anchored, because that hook's python block also defines an ADD_RE of the
@@ -96,7 +87,7 @@ function extractPattern(source: PatternSource): string {
   return match![1];
 }
 
-/** Cases all three implementations must agree on. */
+/** Cases pinning the expected verdicts for the pattern. */
 const AGREEMENT_CASES: readonly (readonly [expected: boolean, input: string])[] = [
   // --- is a commit ---
   [true, 'git commit'],
@@ -111,8 +102,8 @@ const AGREEMENT_CASES: readonly (readonly [expected: boolean, input: string])[] 
   [true, 'git add . && git commit -m "x" && git status'],
 
   // --- case ---
-  // All three copies carry an inline (?i). Uppercase is not a hypothetical: shells
-  // accept it, and a case-sensitive copy exits silently on it — for three BLOCKING
+  // Both copies carry an inline (?i). Uppercase is not a hypothetical: shells
+  // accept it, and a case-sensitive copy exits silently on it — for two BLOCKING
   // hooks that means a commit that should have been stopped goes through. The
   // flag is inline rather than an re.I argument because these patterns are
   // extracted from source TEXT above; a flag outside the string would be
@@ -139,9 +130,9 @@ const AGREEMENT_CASES: readonly (readonly [expected: boolean, input: string])[] 
 
   // --- Unicode boundary cases ---
   // These two were pinned as bash-vs-Python DIVERGENCES while the retired ASCII-only
-  // bash copy was compared here. All three Python copies agree on them, so with that
-  // copy retired they are ordinary agreement cases — but each still pins a real
-  // property, which is why they survived the migration rather than being dropped.
+  // bash copy was compared here. With that copy retired, they sit alongside the
+  // rest of the case table — each still pins a real property of the Python
+  // pattern, which is why they survived the migration rather than being dropped.
 
   // A non-ASCII suffix is not a word boundary for the purpose of this decision:
   // Python's `(?![-\w])` sees `日` as a word character and rejects the match.
@@ -162,7 +153,7 @@ const AGREEMENT_CASES: readonly (readonly [expected: boolean, input: string])[] 
   [true, 'git\u00A0commit -m "x"'],
 ];
 
-/** One python3 spawn evaluates all three patterns over every case. */
+/** One python3 spawn evaluates both patterns over every case. */
 function pythonVerdicts(patterns: readonly string[], inputs: readonly string[]): boolean[][] {
   const script = [
     'import json, re, sys',
@@ -179,12 +170,10 @@ function pythonVerdicts(patterns: readonly string[], inputs: readonly string[]):
 
 const patterns = SOURCES.map(extractPattern);
 const allInputs = AGREEMENT_CASES.map(([, input]) => input);
-const pythonResults = pythonVerdicts(patterns, allInputs);
-
 /** verdicts[sourceIndex][caseIndex] */
-const verdicts: boolean[][] = pythonResults;
+const verdicts = pythonVerdicts(patterns, allInputs);
 
-describe('git-commit detection patterns agree across all three blocking copies', () => {
+describe('git-commit detection pattern: one spelling, pinned verdicts', () => {
   it('extracts a non-empty pattern from each hook, from its own file', () => {
     for (const [i, pattern] of patterns.entries()) {
       expect(pattern.length, `${SOURCES[i].label} extracted an empty pattern`).toBeGreaterThan(10);
@@ -199,9 +188,9 @@ describe('git-commit detection patterns agree across all three blocking copies',
     // here, and sharing only the extractor is caught by extractPattern's
     // exactly-one-line requirement, which a foreign extractor will not meet.
     //
-    // WHAT IT NO LONGER GUARDS: equal pattern TEXT. Two of these three copies
+    // WHAT IT NO LONGER GUARDS: distinct pattern TEXT. The two remaining copies
     // are deliberately spelled identically — that is the point of unifying
-    // them — so comparing the extracted strings for uniqueness would now fail
+    // them — so comparing the extracted strings for distinctness would fail
     // on the correct state of the tree.
     const files = SOURCES.map(source => source.file);
     expect(new Set(files).size, 'two sources named the same hook file').toBe(files.length);
@@ -209,22 +198,14 @@ describe('git-commit detection patterns agree across all three blocking copies',
     expect(new Set(extractors).size, 'two sources share one extractor regex').toBe(
       extractors.length
     );
-
-    // The table still has to compare at least two DIFFERENT decisions, or the
-    // agreement it reports is vacuous however many sources are listed.
-    expect(
-      new Set(patterns).size,
-      'every source extracted the same pattern text — nothing is being compared'
-    ).toBeGreaterThan(1);
   });
 
-  it('uses only push-free cases, so the (commit|push) alternation is inert', () => {
-    for (const input of allInputs) {
-      expect(
-        input,
-        'a case containing "push" would compare the filter guard against a different decision'
-      ).not.toContain('push');
-    }
+  it('keeps the two copies textually identical', () => {
+    expect(
+      new Set(patterns).size,
+      `${SOURCES.map(s => s.file).join(' and ')} are spelled identically on purpose, ` +
+        'so any edit must land in both'
+    ).toBe(1);
   });
 
   for (const [caseIndex, [expected, input]] of AGREEMENT_CASES.entries()) {
