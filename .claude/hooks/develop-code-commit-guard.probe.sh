@@ -890,7 +890,7 @@ git -C "$WT" reset -q --hard HEAD
 
 # --- pathological flag runs must not hang the session ---------------------
 # The flag-value group here carried the same ambiguity that was MEASURED
-# backtracking exponentially in the lossy-pipe-guard this repo used to carry:
+# backtracking exponentially in a sibling guard's pattern:
 # with a bare `\S+` value, every token in a run of flags can be read either as
 # the previous flag's value or as a new flag, so a FAILING match explores
 # exponentially many partitions — 26 dummy flags took 231ms there, doubling
@@ -913,8 +913,7 @@ git -C "$WT" reset -q --hard HEAD
 #    Catastrophic backtracking does not finish, so this case would have wedged
 #    the probe until guard:hook-probes' 120s ceiling killed the whole job, with
 #    no attributable diagnostic. `timeout` turns that into exit 124 and a named
-#    failure. (The lossy-pipe-guard probe this repo used to carry learned this
-#    first.)
+#    failure.
 #
 # Bounded on wall clock rather than on a verdict, because the verdict was
 # always correct — it just took forever to reach.

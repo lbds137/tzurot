@@ -11,16 +11,12 @@
  * The two copies are kept as separate literals for now, and moving the pattern
  * into the shared lib (`.claude/hooks/lib/shell_quotes.py`, which both hooks
  * already import for quote/heredoc stripping) so both hooks import one constant
- * is tracked as TASK-1257. Until then, the coupling is hand-managed and
- * documented only in a comment ("sync manually if the shape changes") — the
- * unenforced-invariant shape. It has already opened once: the commit-tree false
- * positive was fixed in one copy a PR before the other.
+ * is tracked as TASK-1257. Until then, the coupling is enforced here, because a
+ * hand-managed sync already drifted once (a false-positive fix landed in one
+ * copy before the other).
  *
- * Earlier copies (`lib/git-command.sh` in bash, and `.claude/hooks/lossy-pipe-guard.sh`
- * before that hook moved to the Seyag plugin) sat here until they were retired.
- * Every copy that remains in-repo is one a wrong verdict actually blocks a
- * commit on, and both of them are PYTHON regexes, which is why the evaluator
- * below needs only a python3 spawn.
+ * Every copy is one a wrong verdict actually blocks a commit on, and both are
+ * PYTHON regexes, which is why the evaluator below needs only a python3 spawn.
  *
  * In this test, the identity assertion pins the copies to one spelling while
  * the CASE TABLE pins the expected verdicts. The patterns are EXTRACTED from
