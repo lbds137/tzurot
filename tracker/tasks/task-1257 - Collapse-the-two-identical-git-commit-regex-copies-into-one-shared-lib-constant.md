@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-19 09:21'
+updated_date: '2026-10-19 09:51'
 labels:
   - 'area:hooks'
   - 'size:M'
@@ -24,3 +25,9 @@ What: export one GIT_COMMIT_RE from the shared lib (or a small lib/git_commit.py
 
 Acceptance: one pattern definition; both hook probes and the case table green; no text-extraction test remains for this pattern.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Also from PR 2637 review round 5: until the collapse lands, the test name and comments hardcode two copies, and new Set(patterns).size === 1 passes vacuously with one source; when rewriting, either the shared constant removes this or assert SOURCES.length >= 2.
+<!-- SECTION:NOTES:END -->
