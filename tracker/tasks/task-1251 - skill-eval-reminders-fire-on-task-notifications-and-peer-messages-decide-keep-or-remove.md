@@ -3,9 +3,10 @@ id: TASK-1251
 title: >-
   skill-eval reminders fire on task notifications and peer messages; decide keep
   or remove
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 02:28'
+updated_date: '2026-10-19 02:48'
 labels:
   - 'area:hooks'
   - 'size:S'
@@ -24,5 +25,5 @@ What: make the hook skip prompts containing <task-notification> or <cross-sessio
 
 Acceptance: notification and peer-message prompts get no SKILL CHECK; the keep-or-remove decision is recorded here with its reason.
 
-Decision: KEEP. With notifications skipped, the hook fires only on human prompts, about 222 over 85 transcripts (~2.6 per session, ~6 lines each), so its context cost is now small. The 5% load rate does not show the reminder fails when it is relevant: the 222 mix keyword false positives (bare deploy, mock, PR, migration) with real misses, and TASK-1244 did not separate the two. 11 loads is non-zero value at near-zero cost. Removing it would also mean deleting the hook and probe and rewriting 10-working-posture.md § SKILL CHECK reminders are binding, which is a bigger change than this evidence carries.
+Decision: KEEP. With the two measured wrappers skipped, TASK-1244's count of reminders on human prompts is about 222 over 85 transcripts (~2.6 per session, ~6 lines each), so its context cost is now small. Other non-typed prompt shapes (slash-command expansions, pasted-content blocks) still reach the keyword branches and were not measured. The 5% load rate does not show the reminder fails when it is relevant: the 222 mix keyword false positives (bare deploy, mock, PR, migration) with real misses, and TASK-1244 did not separate the two. 11 loads is non-zero value at near-zero cost. Removing it would also mean deleting the hook and probe and rewriting 10-working-posture.md § SKILL CHECK reminders are binding, which is a bigger change than this evidence carries.
 <!-- SECTION:DESCRIPTION:END -->
