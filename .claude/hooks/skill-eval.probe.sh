@@ -196,6 +196,8 @@ invoke '<cross-session-message from="Deck">I need to write a new prisma migratio
 assert_silent "skip: peer message gets no banner"
 invoke 'fix the task-notification skip in skill-eval, and the prisma migration'
 assert_hit "skip stays narrow: naming the tag without its < still gets a banner" "tzurot-db-vector"
+invoke ''
+assert_silent "an empty prompt exits before any branch"
 
 # ===========================================================================
 # 2. Review-response branch — the noun-vs-verb "address" sweep. This is the
