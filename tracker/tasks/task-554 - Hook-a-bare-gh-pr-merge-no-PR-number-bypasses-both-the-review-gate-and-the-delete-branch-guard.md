@@ -6,11 +6,13 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-12 16:13'
+updated_date: '2026-10-19 03:47'
 labels:
   - 'area:tooling'
   - 'size:M'
-  - 'state:ready'
-dependencies: []
+  - 'state:dependent'
+dependencies:
+  - TASK-1242
 priority: medium
 ordinal: 554000
 ---
@@ -39,4 +41,6 @@ Two directions, not exclusive: (a) reduce exposure: every finding was "false blo
 Landmines: the PR-number walk and the flag walk have deliberately OPPOSITE strictness (the number must not over-collect, the flag must not under-collect), so a rewrite must preserve both directions. The fallback paths (legacy_scan, adjacent_merge_scan, depth cap) deliberately over-arm the review gate and deliberately do NOT arm the guard; that asymmetry is load-bearing and documented in the file. Round 13 addendum: a different sub-class, INVOCATION RECOGNITION: SHELLS and WRAPPERS were exact-string sets, so `bash -lc "gh pr merge N --delete-branch"`, `/bin/bash -c "..."` and `/usr/bin/env bash -lc "..."` ran with NO gate whatsoever while the identical `bash -c` blocked. Fixed in 2078 via a basename `command_name` helper and a clustered `-c` match. It undercuts the "false blocks are recoverable" half of option (a): ackability does nothing when the hook never runs. Any decision here must cover recognition failures separately from boundary failures.
 
 **OPEN OWNER DECISION, preserved (DECIDED 2026-08-14, owner, TASK-599 digest): MEASURE bashlex import cost first; adopt if cheap (~<50ms, since the hook runs on every Bash call) because ackability cannot help the recognition-failure shape; if expensive, accept and document the residual risk, keeping the current fixes.** The measurement has not been done: the decision stays open until it is. Acceptance (555): either the exposure is reduced so a tokenizer gap is recoverable, or the parsing is replaced with something that models bash, or the class is ruled out on merit with the residual risk stated.
+
+Dependent on TASK-1242 (backlog review batch C, owner-approved 2026-10-18): pr-merge-review-check.sh moves to the Seyag merge-review component, so this defect and the bashlex measurement ride upstream with it. When Seyag ships merge-review, check whether it closes the numberless-merge gap; close this task if so, otherwise re-scope it to the gap the Seyag version still has.
 <!-- SECTION:DESCRIPTION:END -->

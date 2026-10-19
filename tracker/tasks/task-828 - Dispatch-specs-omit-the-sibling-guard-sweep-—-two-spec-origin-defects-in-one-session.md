@@ -27,4 +27,6 @@ Fix shape: add one requirement to the spec templates Task section (or a short nu
 This is agent-generated process work, filed as such against the session drain net.
 
 Acceptance: the orchestration spec template requires a sibling-guard enumeration for any branch-adding unit; the requirement names the existing 02-code-standards rule rather than restating its content; and the change lands via a review-gated PR since .claude/skills is load-bearing.
+
+2026-10-18 (backlog review batch C): the spec template is moving to the Seyag delegation skill under TASK-1111, so this item is a Seyag ask: the template needs its own two-way-sweep rule text or a project slot, because the Tzurot pointer targets 02-code-standards § A New Branch Beside an Old One, which Seyag cannot name. Build it with TASK-1111.
 <!-- SECTION:DESCRIPTION:END -->

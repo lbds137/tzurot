@@ -23,4 +23,6 @@ Why: harness 0.3.12 (claude-harness main d760527) reworked its shared lib/shell_
 What: diff the two copies, then either import the harness copy from Tzurot's hooks or re-vendor it, and re-run every hook probe (guard:hook-probes). Close any open guard task the upstream change already fixes, with the probe as evidence.
 
 Acceptance: one shell_quotes implementation (or a vendored copy byte-identical to the harness one with a sync check); guard:hook-probes green.
+
+2026-10-18 (backlog review batch C): the harness copy now lives at plugins/seyag/hooks/lib/shell_quotes.py in the Seyag repo and still differs from ours (diff -q). TASK-1048 is now dependent on TASK-1242 (its guard moves to Seyag branch-commit), so this dedup matters mainly for the Tzurot-only consumers that stay: lossy-pipe-guard until TASK-1106 retires it, and the develop-code-commit-guard header pre-check.
 <!-- SECTION:DESCRIPTION:END -->
