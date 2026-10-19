@@ -1,9 +1,10 @@
 ---
 id: TASK-1250
 title: Boot-b services crash when a main-tree gate rebuilds package dist
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 01:42'
+updated_date: '2026-10-19 03:30'
 labels:
   - 'area:tooling'
   - 'size:M'
@@ -21,4 +22,6 @@ Why: boot-b (TzurotBot on the Machloket instance B) runs tsx watch from the main
 What: run boot-b from a dedicated worktree (or a built copy) that gates never touch, with the relaunch recipe in docs/local/boot-b/README.md updated to match; alternatively a supervisor that relaunches a dead child. Measure first how often the main tree is rebuilt in a day.
 
 Acceptance: a full pnpm quality in the main tree leaves boot-b healthy (bot-client log shows no new ERR_MODULE_NOT_FOUND).
+
+Outcome: Lila picked the dedicated worktree over a supervisor (AskUserQuestion, 2026-10-18 late). The rebuild-frequency measurement was skipped: the three crashes of 10-18 already settle that it happens daily, and the pick does not depend on the rate. B now runs from ~/Projects/tzurot-boot-b, detached at origin/develop, via docs/local/boot-b/launch-from-worktree.sh; the recipe and the refresh steps are in docs/local/boot-b/README.md. Verified with the crash's own trigger rather than a full quality run: `pnpm --filter "./packages/**" build` in the main tree, then all three services were still alive, both healths were OK, and the boot-b logs had 0 ERR_MODULE_NOT_FOUND. The worktree has its own dist, so no main-tree gate can reach it.
 <!-- SECTION:DESCRIPTION:END -->
