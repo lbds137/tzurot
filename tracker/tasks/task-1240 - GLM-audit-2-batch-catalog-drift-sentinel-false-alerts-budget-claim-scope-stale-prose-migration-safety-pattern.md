@@ -3,9 +3,10 @@ id: TASK-1240
 title: >-
   GLM audit 2 batch: catalog drift sentinel + false alerts, budget-claim scope,
   stale prose, migration-safety pattern
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-18 11:54'
+updated_date: '2026-10-19 01:05'
 labels:
   - 'area:api-gateway'
   - 'size:M'

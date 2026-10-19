@@ -3,7 +3,7 @@ id: TASK-1200
 title: >-
   db:check-safety strips only whole-line -- comments - a /* */ block comment can
   smuggle a WHERE clause past the createPattern
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-10 00:40'
 labels:
