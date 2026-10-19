@@ -207,9 +207,9 @@ import os
 import re
 import sys
 
-# Shared with board-commit-branch-gate.sh and cwd-drift-guard.sh. An import failure
-# exits non-zero, which the caller treats as allow (fail-open); the probe,
-# not runtime, is what catches a missing lib.
+# Shared with board-commit-branch-gate.sh and cwd-drift-guard.sh. An import
+# failure exits non-zero, which the caller treats as allow (fail-open); the
+# probe, not runtime, is what catches a missing lib.
 sys.path.insert(0, os.environ["HOOK_LIB"])
 from shell_quotes import strip_quoted, substitution_spans, substitution_spans_matching
 

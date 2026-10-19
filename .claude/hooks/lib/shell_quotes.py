@@ -6,8 +6,7 @@ Several hooks need the same thing: replace each quoted span in a command string
 with a placeholder, so that argument CONTENT (a commit message, a `-m` body, an
 example command quoted in prose) cannot influence a structural scan of the
 command. Each of them had its own copy, and the copies had already diverged —
-lossy-pipe-guard's (since moved to the Seyag plugin) was fixed while
-develop-code-commit-guard's and cwd-drift-guard's kept the bug for another PR.
+one copy was fixed while the others kept the bug for another PR.
 
 The bug is worth stating precisely, because the naive version looks obviously
 correct and is not. Stripping single-quoted spans and double-quoted spans as two

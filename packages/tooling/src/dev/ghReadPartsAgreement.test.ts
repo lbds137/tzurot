@@ -21,7 +21,10 @@
  * than a silent pass — the same posture as `gitCommitPatternAgreement.test.ts`,
  * which this file is modelled on. The extractor rejects any token not of the
  * form `gh:<name>` because the plugin matches full tokens, and that throw at
- * module scope fails the file at collection.
+ * module scope fails the file at collection. The Seyag plugin's
+ * `lossy-pipe-guard` reads `SYG_LOSSY_PIPE_GH_WRAPPERS` as whitespace-separated
+ * whole tokens with the `gh:` prefix included (its header documents the
+ * format), and nothing in this repo goes red if the plugin changes that format.
  */
 
 import { readFileSync } from 'node:fs';
