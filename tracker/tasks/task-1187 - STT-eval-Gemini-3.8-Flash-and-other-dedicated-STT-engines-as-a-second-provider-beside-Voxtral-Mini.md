@@ -25,7 +25,7 @@ Data point (one recording, anecdotal, measured by Chats): a 39-minute 2013 phone
 What the eval must measure (Chats notes, not owner rulings):
 - Discord voice messages are short: per-clip latency and per-clip cost matter more than long-form accuracy.
 - Verbatim fidelity: chat-completions Gemini has no native word timestamps or diarization guarantee and an LLM can paraphrase or clean up; the dedicated Voxtral endpoint cannot.
-- Safety filters: Gemini may block or blank adult or edgy audio that Voxtral transcribes; character chats include such content. Test before trusting.
+- Safety filters: Gemini may block or blank adult or edgy audio; Voxtral also blocks adult content at times (Lila 2026-10-21; seen on TTS, unprobed on STT), so measure refusal rates for both engines on the same clips; character chats include such content. Test before trusting.
 - OpenRouter BYOK gives users a Gemini path without a Google key.
 - Include a quick look at other dedicated STT engines in the same eval (gpt-4o-transcribe, ElevenLabs Scribe, Deepgram, AssemblyAI). No Chinese-hosted routes for user audio.
 

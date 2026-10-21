@@ -31,6 +31,8 @@ Unknown, to be probed: whether the -latest aliases already moved to the v3 model
 
 What: (1) probe /v1/models for the v3 ids and alias targets; (2) STT: run the clips used for TASK-1187 through Mini Transcribe 3 and Small Transcribe 3 and record latency, cost per clip and verbatim fidelity; (3) TTS: render a fixed line set with a provider voice and a cloned voice on 2603 vs v3, check the 30 s reference-audio limit (packages/tooling/src/voice/audit-references.ts) still holds, and compare price per character with the current model; (4) bump the pins only where v3 wins. Standing rule: add engines beside the current ones, never drop a working one.
 
+Guardrail refusals (Lila 2026-10-21: Voxtral also blocks adult content at times): measure the refusal rate on adult and edgy character lines for 2603 vs v3, since a stricter v3 guardrail would lose more replies to the self-hosted fallback. TTS refusals are already detected and surfaced to the user: MistralGuardrailError on a 403 with code 1920 (services/ai-worker/src/services/voice/MistralTtsClient.ts:266, userNotice at :284). The STT path has no guardrail handling (git grep guardrail finds none in MistralSttClient.ts); probe whether the transcription endpoint refuses at all before treating that as a gap.
+
 Related: TASK-1187 (Gemini 3.8 Flash as a second STT provider): run both evals on the same clip set.
 
 Acceptance: a results note listing the model ids, numbers per model and the pin decision, and pins updated (or left alone, with the reason) in the same PR.
