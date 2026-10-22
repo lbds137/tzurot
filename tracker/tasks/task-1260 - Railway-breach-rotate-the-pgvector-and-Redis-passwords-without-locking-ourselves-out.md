@@ -48,6 +48,8 @@ Railway's own guides (published 2026-10-22 01:26Z, read the same night, paraphra
 - Both guides: check whether Public Access (TCP proxy) is on and turn it off if nothing outside the project needs it. Ours: the pgvector public URL is how the local ops tooling reaches the databases, so it stays on unless we change that.
 - Misuse checks to add to step 8: deploy logs for `password authentication failed` (Postgres) and `WRONGPASS`/`NOAUTH` (Redis); after rotation, pg_stat_activity and Redis CLIENT LIST for sessions we do not recognise; `SELECT rolname FROM pg_roles` for unknown roles; unexpected extensions; DBSIZE and INFO keyspace against expectations; the Railway audit log for who viewed or changed variables.
 
+Railway status 2026-10-22 04:02Z: the Redeploy feature is unavailable; the workaround is service → Ctrl/Cmd+K → Deploy Latest Commit (a fresh build of the branch head, so for prod it must be run only while main equals the deployed commit). Before step 6, check whether `railway-ops redeploy` / the MCP `redeploy` work again; if not, use the workaround and allow build time inside the step 3 → 6 window (or do step 3 only once the builds are ready to be triggered).
+
 Acceptance: dev rotated and verified end to end, the procedure corrected from what that run showed, prod rotated, and the now.md entry updated.
 
 Promote when: Railway builds and deploys resume.
