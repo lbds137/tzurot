@@ -344,6 +344,28 @@ function resolveServiceIds(env: SecretsEnv, service: string): Required<RailwayId
   return { projectId, environmentId, serviceId };
 }
 
+function deleteFailureError(
+  env: SecretsEnv,
+  service: string,
+  absentNow: readonly string[],
+  error: unknown
+): Error {
+  if (absentNow.length === 0) {
+    return new Error(
+      `Failed to delete ${PREVIOUS_VAR} on ${service} (${env}). Nothing was changed: it is still set on every service. Re-run stage 3 to retry.`,
+      { cause: error }
+    );
+  }
+  const stillSet = BYOK_SERVICES.filter(s => !absentNow.includes(s));
+  const serviceArg = stillSet.length === 1 ? stillSet[0] : '<name>';
+  return new Error(
+    `Failed to delete ${PREVIOUS_VAR} on ${service} (${env}). ` +
+      `It is now absent on ${absentNow.join(', ')} but still set on ${stillSet.join(', ')}. ` +
+      `Delete it on each of those with \`pnpm ops deploy:var-delete --env ${env} --service ${serviceArg} --name ${PREVIOUS_VAR} --yes\`, then re-run stage 3.`,
+    { cause: error }
+  );
+}
+
 async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
   requireRailwayApiToken(env);
 
@@ -362,12 +384,14 @@ async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
     BYOK_SERVICES.map(service => [service, resolveServiceIds(env, service)])
   ) as Record<(typeof BYOK_SERVICES)[number], Required<RailwayIds>>;
 
-  // Deleted through the API because the CLI rejects an empty value; the delete
-  // does not redeploy by itself, so the explicit redeploy is what closes the
-  // window in the running services.
-  const deletedServices: string[] = [];
+  // Deleted through the API because the CLI rejects an empty value, and the delete
+  // does not redeploy by itself, so the explicit redeploy below is what closes the
+  // window in the running services. Both are observed Railway behaviour, not pinned
+  // by a test.
+  const absentNow: string[] = [];
   for (const service of BYOK_SERVICES) {
     if (readServiceVariable(env, service, PREVIOUS_VAR) === undefined) {
+      absentNow.push(service);
       console.log(chalk.dim(`  ${PREVIOUS_VAR} already absent on ${service} (${env})`));
       continue;
     }
@@ -380,15 +404,10 @@ async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
         name: PREVIOUS_VAR,
         env,
       });
-      deletedServices.push(service);
+      absentNow.push(service);
       console.log(chalk.green(`  deleted ${PREVIOUS_VAR} on ${service} (${env})`));
     } catch (error) {
-      const alreadyDeleted = deletedServices.join(', ') || 'none';
-      throw new Error(
-        `Failed to delete ${PREVIOUS_VAR} on ${service} (${env}) (already deleted: ${alreadyDeleted}). ` +
-          `Repair with \`pnpm ops deploy:var-delete --env ${env} --service ${service} --name ${PREVIOUS_VAR} --yes\`, then re-run stage 3.`,
-        { cause: error }
-      );
+      throw deleteFailureError(env, service, absentNow, error);
     }
   }
 
