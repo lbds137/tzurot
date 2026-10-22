@@ -320,6 +320,9 @@ describe('rotateByokKey', () => {
     expect(mockPrisma.secretRotation.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ where: { name: 'byok-encryption-key' } })
     );
+    const lastDeleteOrder = Math.max(...deleteRailwayVariable.mock.invocationCallOrder);
+    const firstRedeployOrder = Math.min(...redeployRailwayService.mock.invocationCallOrder);
+    expect(lastDeleteOrder).toBeLessThan(firstRedeployOrder);
     const lastRedeployOrder = Math.max(...redeployRailwayService.mock.invocationCallOrder);
     const upsertOrder = mockPrisma.secretRotation.upsert.mock.invocationCallOrder[0];
     expect(upsertOrder).toBeGreaterThan(lastRedeployOrder);
@@ -340,6 +343,23 @@ describe('rotateByokKey', () => {
     );
   });
 
+  it('stage 3 still deletes PREVIOUS when it is present as an empty string on both services', async () => {
+    stubRailwayVars({
+      API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+      API_KEY_ENCRYPTION_KEY_PREVIOUS: '',
+    });
+    mockPrisma.userApiKey.findMany.mockResolvedValue([]);
+    mockPrisma.userCredential.findMany.mockResolvedValue([]);
+    mockPrisma.secretRotation.upsert.mockResolvedValue({});
+
+    await rotateByokKey({ env: 'dev', stage: '3' });
+
+    expect(deleteRailwayVariable).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.secretRotation.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { name: 'byok-encryption-key' } })
+    );
+  });
+
   it('stage 3 does not stamp the ledger when a redeploy fails', async () => {
     stubRailwayVars({
       API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
@@ -351,7 +371,27 @@ describe('rotateByokKey', () => {
       serviceId === 'svc-ai-worker' ? Promise.reject(new Error('redeploy boom')) : Promise.resolve()
     );
 
-    await expect(rotateByokKey({ env: 'dev', stage: '3' })).rejects.toThrow('ai-worker');
+    const promise = rotateByokKey({ env: 'dev', stage: '3' });
+    await expect(promise).rejects.toThrow('ai-worker');
+    await expect(promise).rejects.toThrow('mark-rotated');
+    await expect(promise).rejects.toThrow('re-run stage 3');
+    await expect(promise).rejects.not.toThrow('api-gateway');
+    expect(redeployRailwayService).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
+  });
+
+  it('stage 3 attempts both redeploys and names both services when both redeploys fail', async () => {
+    stubRailwayVars({
+      API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+      API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+    });
+    mockPrisma.userApiKey.findMany.mockResolvedValue([]);
+    mockPrisma.userCredential.findMany.mockResolvedValue([]);
+    redeployRailwayService.mockRejectedValue(new Error('redeploy boom'));
+
+    const promise = rotateByokKey({ env: 'dev', stage: '3' });
+    await expect(promise).rejects.toThrow('api-gateway');
+    await expect(promise).rejects.toThrow('ai-worker');
     expect(redeployRailwayService).toHaveBeenCalledTimes(2);
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
   });
@@ -367,9 +407,29 @@ describe('rotateByokKey', () => {
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error('delete boom'));
 
-    await expect(rotateByokKey({ env: 'dev', stage: '3' })).rejects.toThrow(
-      /deploy:var-delete.*ai-worker|ai-worker.*deploy:var-delete/
-    );
+    const promise = rotateByokKey({ env: 'dev', stage: '3' });
+    await expect(promise).rejects.toThrow('already deleted: api-gateway');
+    await expect(promise).rejects.toThrow('--env dev');
+    await expect(promise).rejects.toThrow('--service ai-worker');
+    await expect(promise).rejects.toThrow('--name API_KEY_ENCRYPTION_KEY_PREVIOUS');
+    await expect(promise).rejects.toThrow('--yes');
+    expect(redeployRailwayService).not.toHaveBeenCalled();
+    expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
+  });
+
+  it('stage 3 reports already deleted: none when the first delete fails', async () => {
+    stubRailwayVars({
+      API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+      API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+    });
+    mockPrisma.userApiKey.findMany.mockResolvedValue([]);
+    mockPrisma.userCredential.findMany.mockResolvedValue([]);
+    deleteRailwayVariable.mockRejectedValueOnce(new Error('delete boom'));
+
+    const promise = rotateByokKey({ env: 'dev', stage: '3' });
+    await expect(promise).rejects.toThrow('already deleted: none');
+    await expect(promise).rejects.toThrow('--service api-gateway');
+    expect(deleteRailwayVariable).toHaveBeenCalledTimes(1);
     expect(redeployRailwayService).not.toHaveBeenCalled();
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
   });
@@ -387,6 +447,7 @@ describe('rotateByokKey', () => {
       'TZUROT_RAILWAY_API_TOKEN_DEV'
     );
     expect(mockPrisma.userApiKey.findMany).not.toHaveBeenCalled();
+    expect(resolveRailwayIds).not.toHaveBeenCalled();
     expect(deleteRailwayVariable).not.toHaveBeenCalled();
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
   });
@@ -403,6 +464,50 @@ describe('rotateByokKey', () => {
     await expect(rotateByokKey({ env: 'dev', stage: '3' })).rejects.toThrow('without a service id');
     expect(deleteRailwayVariable).not.toHaveBeenCalled();
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
+  });
+
+  it('stage 3 resolves ids for both services before deleting or redeploying anything', async () => {
+    stubRailwayVars({
+      API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+      API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+    });
+    mockPrisma.userApiKey.findMany.mockResolvedValue([]);
+    mockPrisma.userCredential.findMany.mockResolvedValue([]);
+    resolveRailwayIds.mockImplementation((_env: string, service: string) => {
+      if (service === 'ai-worker') {
+        throw new Error('unknown service ai-worker');
+      }
+      return {
+        projectId: 'proj',
+        environmentId: 'envid',
+        serviceId: 'svc-' + service,
+      };
+    });
+
+    await expect(rotateByokKey({ env: 'dev', stage: '3' })).rejects.toThrow(
+      'unknown service ai-worker'
+    );
+    expect(deleteRailwayVariable).not.toHaveBeenCalled();
+    expect(redeployRailwayService).not.toHaveBeenCalled();
+    expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
+  });
+
+  it('stage 3 rejects with the var-delete repair hint when PREVIOUS is present on one service only', async () => {
+    stubRailwayVarsPerService({
+      'api-gateway': {
+        API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+        API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+      },
+      'ai-worker': {
+        API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+      },
+    });
+
+    const promise = rotateByokKey({ env: 'dev', stage: '3' });
+    await expect(promise).rejects.toThrow('API_KEY_ENCRYPTION_KEY_PREVIOUS DIFFERS');
+    await expect(promise).rejects.toThrow('deploy:var-delete');
+    expect(deleteRailwayVariable).not.toHaveBeenCalled();
+    expect(redeployRailwayService).not.toHaveBeenCalled();
   });
 });
 

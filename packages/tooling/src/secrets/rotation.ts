@@ -140,7 +140,8 @@ function assertByokServicesConsistent(env: SecretsEnv): void {
     const b = getServiceVariableOrEmpty(env, second, key);
     if (a !== b) {
       throw new Error(
-        `${key} DIFFERS between ${first} and ${second} (${env}) — a previous variable write partially failed. Re-set it on the lagging service (Railway dashboard history has the values), then re-run.`
+        `${key} DIFFERS between ${first} and ${second} (${env}) — a previous variable write partially failed. Re-set it on the lagging service (Railway dashboard history has the values), then re-run.` +
+          ` If stage 3 was interrupted (PREVIOUS deleted on one service only), delete it on the other with \`pnpm ops deploy:var-delete --env ${env} --service <name> --name API_KEY_ENCRYPTION_KEY_PREVIOUS --yes\` instead, then re-run stage 3.`
       );
     }
   }
@@ -357,6 +358,10 @@ async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
     );
   }
 
+  const idsByService = Object.fromEntries(
+    BYOK_SERVICES.map(service => [service, resolveServiceIds(env, service)])
+  ) as Record<(typeof BYOK_SERVICES)[number], Required<RailwayIds>>;
+
   // Deleted through the API because the CLI rejects an empty value; the delete
   // does not redeploy by itself, so the explicit redeploy is what closes the
   // window in the running services.
@@ -366,7 +371,7 @@ async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
       console.log(chalk.dim(`  ${PREVIOUS_VAR} already absent on ${service} (${env})`));
       continue;
     }
-    const { projectId, environmentId, serviceId } = resolveServiceIds(env, service);
+    const { projectId, environmentId, serviceId } = idsByService[service];
     try {
       await deleteRailwayVariable({
         projectId,
@@ -389,7 +394,7 @@ async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
 
   const redeployFailures: { service: string; error: unknown }[] = [];
   for (const service of BYOK_SERVICES) {
-    const { environmentId, serviceId } = resolveServiceIds(env, service);
+    const { environmentId, serviceId } = idsByService[service];
     try {
       await redeployRailwayService({ environmentId, serviceId, env });
       console.log(chalk.green(`  redeployed ${service} (${env})`));
@@ -409,13 +414,18 @@ async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
     const failedServices = redeployFailures.map(f => f.service).join(', ');
     const message =
       `${PREVIOUS_VAR} is deleted from Railway, but ${failedServices} still holds it in memory until it restarts. ` +
-      `Redeploy ${failedServices} from the Railway dashboard, then run \`pnpm ops secrets:mark-rotated byok-encryption-key --env ${env}\`.`;
+      `Simplest repair: re-run stage 3 (it skips the already-done deletes, redeploys both services, and stamps the ledger). ` +
+      `Alternatively, redeploy ${failedServices} from the Railway dashboard, then run \`pnpm ops secrets:mark-rotated byok-encryption-key --env ${env}\`.`;
     console.log(chalk.red(`\n${message}`));
     throw new Error(message);
   }
 
   await markSecretRotated({ env, name: 'byok-encryption-key' });
-  console.log(chalk.green('\nStage 3 complete — rotation window closed, ledger stamped.'));
+  console.log(
+    chalk.green(
+      '\nStage 3 complete — PREVIOUS deleted, redeploys requested, ledger stamped. The window is closed in the running services once both new deployments are live.'
+    )
+  );
 }
 
 /** Staged BYOK key rotation. See module doc for the three stages. */
