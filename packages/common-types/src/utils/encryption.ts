@@ -62,8 +62,8 @@ function getEncryptionKey(): Buffer {
 
 /**
  * Previous encryption key during a rotation window, or null outside one.
- * Empty string counts as unset — the Railway CLI cannot delete variables, so
- * "rotation finished" is expressed by setting the variable to "".
+ * Absent or empty both mean no rotation window: stage 3 deletes the variable,
+ * and an empty value (left by an older finalize or a hand edit) means the same.
  */
 function getPreviousEncryptionKey(): Buffer | null {
   const key = process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;

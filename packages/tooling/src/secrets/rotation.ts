@@ -13,14 +13,16 @@
  *                        api-gateway + ai-worker; wait for redeploys.
  *   stage 2 (reencrypt): re-encrypt every user_api_keys/user_credentials row
  *                        still on the previous key; verify sweep.
- *   stage 3 (finalize):  verify again, clear PREVIOUS (set to "" — the
- *                        Railway CLI cannot delete variables), stamp ledger.
+ *   stage 3 (finalize):  verify again, delete PREVIOUS on both services
+ *                        through the Railway API, redeploy them, and stamp
+ *                        the ledger only when both redeploys were accepted.
  *
  * Secret VALUES never reach stdout; only names, counts, and hashes-free
- * confirmations are printed. Known limitation: `railway variables --set` has
- * no stdin form, so key material transits this process's argv (visible via
- * /proc/<pid>/cmdline to same-privilege processes for the call's duration) —
- * same exposure as every existing setup-railway-variables path.
+ * confirmations are printed. Known limitation (stage 1 only): `railway
+ * variables --set` has no stdin form, so key material transits this process's
+ * argv during stage 1 (visible via /proc/<pid>/cmdline to same-privilege
+ * processes for the call's duration) — same exposure as every existing
+ * setup-railway-variables path.
  */
 
 import crypto from 'node:crypto';
@@ -34,6 +36,12 @@ import {
   parseEncryptionKeyMaterial,
   type EncryptedData,
 } from '@tzurot/common-types/utils/encryption';
+import {
+  deleteRailwayVariable,
+  redeployRailwayService,
+  requireRailwayApiToken,
+} from '../deployment/railway-api.js';
+import { resolveRailwayIds, type RailwayIds } from '../deployment/railway-status.js';
 import { getRailwayDatabaseUrl, getRailwayEnvName } from '../utils/env-runner.js';
 
 /** Default rotation intervals (owner decision: 180d BYOK, 365d the rest). */
@@ -109,9 +117,9 @@ export function getServiceVariable(env: SecretsEnv, service: string, key: string
 
 /**
  * Absent-tolerant read: a variable that has NEVER been created returns '' —
- * the same "unset" the runtime contract uses for a cleared variable (the
- * Railway CLI cannot delete, only set to empty). PREVIOUS reads must use
- * this: before the first rotation ever, the variable does not exist.
+ * an absent variable and an empty one both mean unset at runtime. PREVIOUS
+ * reads must use this: before the first rotation ever (or after stage 3
+ * deletes it), the variable does not exist.
  */
 export function getServiceVariableOrEmpty(env: SecretsEnv, service: string, key: string): string {
   return readServiceVariable(env, service, key) ?? '';
@@ -322,6 +330,94 @@ async function countNonCurrentRows(
   return failures;
 }
 
+/**
+ * A named service always resolves with an id (resolveRailwayIds throws when it
+ * is missing), but the shared return type marks it optional; narrowing here
+ * keeps an undefined id from silently turning a delete into a SHARED-scope one.
+ */
+function resolveServiceIds(env: SecretsEnv, service: string): Required<RailwayIds> {
+  const { projectId, environmentId, serviceId } = resolveRailwayIds(env, service);
+  if (serviceId === undefined) {
+    throw new Error(`Railway service "${service}" resolved without a service id (${env})`);
+  }
+  return { projectId, environmentId, serviceId };
+}
+
+async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
+  requireRailwayApiToken(env);
+
+  const currentKey = parseEncryptionKeyMaterial(
+    getServiceVariable(env, GATEWAY_SERVICE, CURRENT_VAR),
+    CURRENT_VAR
+  );
+  const remaining = await withEnvPrisma(env, prisma => countNonCurrentRows(prisma, currentKey));
+  if (remaining > 0) {
+    throw new Error(
+      `${remaining} row(s) still not on the current key — re-run stage 2 before finalizing.`
+    );
+  }
+
+  // Deleted through the API because the CLI rejects an empty value; the delete
+  // does not redeploy by itself, so the explicit redeploy is what closes the
+  // window in the running services.
+  const deletedServices: string[] = [];
+  for (const service of BYOK_SERVICES) {
+    if (readServiceVariable(env, service, PREVIOUS_VAR) === undefined) {
+      console.log(chalk.dim(`  ${PREVIOUS_VAR} already absent on ${service} (${env})`));
+      continue;
+    }
+    const { projectId, environmentId, serviceId } = resolveServiceIds(env, service);
+    try {
+      await deleteRailwayVariable({
+        projectId,
+        environmentId,
+        serviceId,
+        name: PREVIOUS_VAR,
+        env,
+      });
+      deletedServices.push(service);
+      console.log(chalk.green(`  deleted ${PREVIOUS_VAR} on ${service} (${env})`));
+    } catch (error) {
+      const alreadyDeleted = deletedServices.join(', ') || 'none';
+      throw new Error(
+        `Failed to delete ${PREVIOUS_VAR} on ${service} (${env}) (already deleted: ${alreadyDeleted}). ` +
+          `Repair with \`pnpm ops deploy:var-delete --env ${env} --service ${service} --name ${PREVIOUS_VAR} --yes\`, then re-run stage 3.`,
+        { cause: error }
+      );
+    }
+  }
+
+  const redeployFailures: { service: string; error: unknown }[] = [];
+  for (const service of BYOK_SERVICES) {
+    const { environmentId, serviceId } = resolveServiceIds(env, service);
+    try {
+      await redeployRailwayService({ environmentId, serviceId, env });
+      console.log(chalk.green(`  redeployed ${service} (${env})`));
+    } catch (error) {
+      redeployFailures.push({ service, error });
+    }
+  }
+
+  if (redeployFailures.length > 0) {
+    for (const failure of redeployFailures) {
+      console.log(
+        chalk.red(
+          `  failed to redeploy ${failure.service} (${env}): ${failure.error instanceof Error ? failure.error.message : 'unknown error'}`
+        )
+      );
+    }
+    const failedServices = redeployFailures.map(f => f.service).join(', ');
+    const message =
+      `${PREVIOUS_VAR} is deleted from Railway, but ${failedServices} still holds it in memory until it restarts. ` +
+      `Redeploy ${failedServices} from the Railway dashboard, then run \`pnpm ops secrets:mark-rotated byok-encryption-key --env ${env}\`.`;
+    console.log(chalk.red(`\n${message}`));
+    throw new Error(message);
+  }
+
+  await markSecretRotated({ env, name: 'byok-encryption-key' });
+  console.log(chalk.green('\nStage 3 complete — rotation window closed, ledger stamped.'));
+}
+
 /** Staged BYOK key rotation. See module doc for the three stages. */
 export async function rotateByokKey(options: { env: SecretsEnv; stage: string }): Promise<void> {
   const { env, stage } = options;
@@ -398,21 +494,7 @@ export async function rotateByokKey(options: { env: SecretsEnv; stage: string })
   }
 
   if (stage === '3' || stage === 'finalize') {
-    const currentKey = parseEncryptionKeyMaterial(
-      getServiceVariable(env, GATEWAY_SERVICE, CURRENT_VAR),
-      CURRENT_VAR
-    );
-    const remaining = await withEnvPrisma(env, prisma => countNonCurrentRows(prisma, currentKey));
-    if (remaining > 0) {
-      throw new Error(
-        `${remaining} row(s) still not on the current key — re-run stage 2 before finalizing.`
-      );
-    }
-    for (const service of BYOK_SERVICES) {
-      setServiceVariables(env, service, { [PREVIOUS_VAR]: '' });
-    }
-    await markSecretRotated({ env, name: 'byok-encryption-key' });
-    console.log(chalk.green('\nStage 3 complete — rotation window closed, ledger stamped.'));
+    await finalizeByokWindow(env);
     return;
   }
 

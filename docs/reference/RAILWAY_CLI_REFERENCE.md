@@ -16,7 +16,7 @@
 - ✅ Setting variables
 - ❌ **NO** deleting/unsetting variables
 
-**To delete variables**: Use the Railway web dashboard.
+**To delete variables**: `pnpm ops deploy:var-delete --env <env> --service <name> --name <KEY>` (Railway GraphQL API), or the dashboard. Also note: `railway variables --set KEY=` with an empty value is rejected ("Invalid variable format"), so an empty set is not a substitute.
 
 ### Rate Limiting
 
@@ -1175,7 +1175,7 @@ REDIS_URL=${{Redis.REDIS_URL}}
 1. Consult this reference first
 2. Use exact syntax shown here
 3. If unsure, use `railway <command> --help`
-4. Remember: CLI cannot delete variables!
+4. Remember: CLI cannot delete variables! (use `pnpm ops deploy:var-delete`)
 5. Check for rate limiting after bulk operations
 6. **Use `--json` for parsing output** - all commands support it
 

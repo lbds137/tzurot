@@ -389,9 +389,8 @@ async function runStage3(args: StageArgs): Promise<void> {
     }
   }
 
-  // Deleted, not upserted as ''. The BYOK precedent sets an empty string only
-  // because the Railway CLI cannot delete a variable; this module calls the
-  // API directly and can, so it does.
+  // Deleted, not upserted as '' (the Railway CLI rejects an empty value, and
+  // the API can delete).
   //
   // Unlike the upsert calls above (both pass `skipDeploys: true`), Railway's
   // `VariableDeleteInput` carries no `skipDeploys` field at all — probed by
