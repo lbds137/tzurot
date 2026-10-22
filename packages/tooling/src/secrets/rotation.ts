@@ -41,8 +41,9 @@ import {
   redeployRailwayService,
   requireRailwayApiToken,
 } from '../deployment/railway-api.js';
-import { resolveRailwayIds, type RailwayIds } from '../deployment/railway-status.js';
+import type { RailwayIds } from '../deployment/railway-status.js';
 import { getRailwayDatabaseUrl, getRailwayEnvName } from '../utils/env-runner.js';
+import { deleteFailureError, resolveServiceIds } from './byok-finalize-helpers.js';
 
 /** Default rotation intervals (owner decision: 180d BYOK, 365d the rest). */
 export const DEFAULT_INTERVALS: Record<string, number> = {
@@ -331,41 +332,6 @@ async function countNonCurrentRows(
   return failures;
 }
 
-/**
- * A named service always resolves with an id (resolveRailwayIds throws when it
- * is missing), but the shared return type marks it optional; narrowing here
- * keeps an undefined id from silently turning a delete into a SHARED-scope one.
- */
-function resolveServiceIds(env: SecretsEnv, service: string): Required<RailwayIds> {
-  const { projectId, environmentId, serviceId } = resolveRailwayIds(env, service);
-  if (serviceId === undefined) {
-    throw new Error(`Railway service "${service}" resolved without a service id (${env})`);
-  }
-  return { projectId, environmentId, serviceId };
-}
-
-function deleteFailureError(
-  env: SecretsEnv,
-  service: string,
-  absentNow: readonly string[],
-  error: unknown
-): Error {
-  if (absentNow.length === 0) {
-    return new Error(
-      `Failed to delete ${PREVIOUS_VAR} on ${service} (${env}). Nothing was changed: it is still set on every service. Re-run stage 3 to retry.`,
-      { cause: error }
-    );
-  }
-  const stillSet = BYOK_SERVICES.filter(s => !absentNow.includes(s));
-  const serviceArg = stillSet.length === 1 ? stillSet[0] : '<name>';
-  return new Error(
-    `Failed to delete ${PREVIOUS_VAR} on ${service} (${env}). ` +
-      `It is now absent on ${absentNow.join(', ')} but still set on ${stillSet.join(', ')}. ` +
-      `Delete it on each of those with \`pnpm ops deploy:var-delete --env ${env} --service ${serviceArg} --name ${PREVIOUS_VAR} --yes\`, then re-run stage 3.`,
-    { cause: error }
-  );
-}
-
 async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
   requireRailwayApiToken(env);
 
@@ -407,7 +373,14 @@ async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
       absentNow.push(service);
       console.log(chalk.green(`  deleted ${PREVIOUS_VAR} on ${service} (${env})`));
     } catch (error) {
-      throw deleteFailureError(env, service, absentNow, error);
+      throw deleteFailureError({
+        env,
+        service,
+        services: BYOK_SERVICES,
+        absentNow,
+        varName: PREVIOUS_VAR,
+        error,
+      });
     }
   }
 
