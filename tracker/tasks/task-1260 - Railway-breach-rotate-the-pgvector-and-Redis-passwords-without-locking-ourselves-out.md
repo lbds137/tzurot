@@ -56,6 +56,8 @@ DEV pgvector ROTATED 2026-10-22 (script: ALTER ROLE from a held session, verify 
 
 Redis start command (dev, read via the connector): `redis-server --requirepass $REDIS_PASSWORD ...`, no ACL file. The password is re-read from the variable at every start, so set REDIS_PASSWORD (skipDeploys) → redeploy Redis → redeploy its consumers cannot lock us out; the guide's warning is about the mismatch window only.
 
+DEV Redis ROTATED 2026-10-22: REDIS_PASSWORD was the only literal (REDISPASSWORD, REDIS_URL, REDIS_PUBLIC_URL are references; api-gateway, ai-worker, bot-client consume REDIS_URL by reference, no literal copies). Upsert 17:26:23Z (skipDeploys) → Redis redeploy SUCCESS in 16 s (image service, no build) → new password PONG, a wrong one WRONGPASS → consumers redeployed, all SUCCESS by 17:37Z (597-658 s rebuilds) → their logs show "Redis client ready"/"Connected to Redis", zero WRONGPASS/NOAUTH. Old containers were on the old password from ~17:26:40 to ~17:37 (the plain path's window).
+
 ## Learnings from the dev run, applied to the prod pass (Lila 2026-10-22: minimise prod disruption)
 
 What dev showed:
