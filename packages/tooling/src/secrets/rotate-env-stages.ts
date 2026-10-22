@@ -240,7 +240,6 @@ async function writeStage1ValuesAndRedeploy(args: StageArgs): Promise<void> {
   });
 
   const failures = await redeployServices([verifier], {
-    projectId: context.projectId,
     environmentId: context.environmentId,
     env: options.env,
   });
@@ -307,7 +306,6 @@ async function runStage2(args: StageArgs): Promise<void> {
   }
 
   const failures = await redeployServices(presenters, {
-    projectId: context.projectId,
     environmentId: context.environmentId,
     env: options.env,
   });
@@ -410,7 +408,6 @@ async function runStage3(args: StageArgs): Promise<void> {
   });
 
   const failures = await redeployServices([verifier], {
-    projectId: context.projectId,
     environmentId: context.environmentId,
     env: options.env,
   });

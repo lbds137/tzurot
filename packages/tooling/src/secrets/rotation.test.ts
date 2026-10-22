@@ -3,6 +3,7 @@
  * mocked Railway CLI + Prisma persistence.
  */
 
+import util from 'node:util';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { encryptWithKey, parseEncryptionKeyMaterial } from '@tzurot/common-types/utils/encryption';
 import type { RailwayIds } from '../deployment/railway-status.js';
@@ -277,6 +278,24 @@ describe('rotateByokKey', () => {
         env: 'dev',
       });
 
+      const previousOrders = upsertRailwayVariable.mock.calls
+        .map((call, idx) => ({
+          name: (call[0] as { name: string }).name,
+          order: upsertRailwayVariable.mock.invocationCallOrder[idx],
+        }))
+        .filter(entry => entry.name === 'API_KEY_ENCRYPTION_KEY_PREVIOUS')
+        .map(entry => entry.order);
+      const currentOrders = upsertRailwayVariable.mock.calls
+        .map((call, idx) => ({
+          name: (call[0] as { name: string }).name,
+          order: upsertRailwayVariable.mock.invocationCallOrder[idx],
+        }))
+        .filter(entry => entry.name === 'API_KEY_ENCRYPTION_KEY')
+        .map(entry => entry.order);
+      expect(previousOrders).toHaveLength(2);
+      expect(currentOrders).toHaveLength(2);
+      expect(Math.max(...previousOrders)).toBeLessThan(Math.min(...currentOrders));
+
       const lastUpsertOrder = Math.max(...upsertRailwayVariable.mock.invocationCallOrder);
       const firstRedeployOrder = Math.min(
         ...redeployRailwayServiceReusingImage.mock.invocationCallOrder
@@ -290,7 +309,25 @@ describe('rotateByokKey', () => {
     }
   });
 
-  it('stage 1 stops before any redeploy when an upsert fails, with no key material in the error', async () => {
+  it('stage 1 failure state 1 (1st upsert fails — PREVIOUS on first service): nothing written, re-run stage 1', async () => {
+    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
+    upsertRailwayVariable.mockRejectedValueOnce(new Error('upsert boom'));
+
+    let caught: unknown;
+    try {
+      await rotateByokKey({ env: 'dev', stage: '1' });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = caught instanceof Error ? caught.message : '';
+    expect(message).toContain('Nothing was written. Re-run stage 1.');
+    expect(message.endsWith('No stored row has been touched; stage 2 has not run.')).toBe(true);
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
+  });
+
+  it('stage 1 failure state 2 (2nd upsert fails — PREVIOUS on second service): prints deploy:var-delete for first service', async () => {
     stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
     upsertRailwayVariable
       .mockResolvedValueOnce(undefined)
@@ -305,12 +342,95 @@ describe('rotateByokKey', () => {
 
     expect(caught).toBeInstanceOf(Error);
     const message = caught instanceof Error ? caught.message : '';
-    expect(message).toContain('api-gateway');
-    expect(message).toContain('API_KEY_ENCRYPTION_KEY_PREVIOUS');
-    expect(message).toContain('stage 2');
-    expect(message).not.toContain(KEY_A_HEX);
-    expect(message).not.toMatch(/[0-9a-f]{64}/);
+    expect(message).toContain(
+      'PREVIOUS was written on api-gateway only. Delete it there with `pnpm ops deploy:var-delete --env dev --service api-gateway --name API_KEY_ENCRYPTION_KEY_PREVIOUS --yes`, then re-run stage 1.'
+    );
+    expect(message.endsWith('No stored row has been touched; stage 2 has not run.')).toBe(true);
     expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
+  });
+
+  it('stage 1 failure state 3 (3rd upsert fails — CURRENT on first service): degenerate window, re-run stage 1', async () => {
+    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
+    upsertRailwayVariable
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('upsert boom'));
+
+    let caught: unknown;
+    try {
+      await rotateByokKey({ env: 'dev', stage: '1' });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = caught instanceof Error ? caught.message : '';
+    expect(message).toContain(
+      'Both services hold the old key as PREVIOUS and CURRENT (a degenerate window). Re-run stage 1.'
+    );
+    expect(message.endsWith('No stored row has been touched; stage 2 has not run.')).toBe(true);
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
+  });
+
+  it('stage 1 failure state 4 (4th upsert fails — CURRENT on second service): copy in dashboard, redeploy both, run stage 2', async () => {
+    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
+    upsertRailwayVariable
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('upsert boom'));
+
+    let caught: unknown;
+    try {
+      await rotateByokKey({ env: 'dev', stage: '1' });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = caught instanceof Error ? caught.message : '';
+    expect(message).toContain(
+      'api-gateway now has the new API_KEY_ENCRYPTION_KEY, ai-worker still has the old one; both have the old key as PREVIOUS. In the Railway dashboard, copy API_KEY_ENCRYPTION_KEY from api-gateway to ai-worker, redeploy both services, then run stage 2.'
+    );
+    expect(message.endsWith('No stored row has been touched; stage 2 has not run.')).toBe(true);
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
+  });
+
+  it('stage 1 never leaks old or new key material in util.inspect(caught) or console.log when an upsert rejects with the old key', async () => {
+    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    upsertRailwayVariable
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error(`upsert failed with key ${KEY_A_HEX}`));
+
+    let caught: unknown;
+    try {
+      await rotateByokKey({ env: 'dev', stage: '1' });
+    } catch (error) {
+      caught = error;
+    } finally {
+      const newKeyHex = (upsertRailwayVariable.mock.calls[2][0] as { value: string }).value;
+      expect(newKeyHex).toMatch(/^[0-9a-f]{64}$/);
+      expect(newKeyHex).not.toBe(KEY_A_HEX);
+
+      expect(caught).toBeInstanceOf(Error);
+      const inspected = util.inspect(caught, { depth: null });
+      expect(inspected).not.toContain(KEY_A_HEX);
+      expect(inspected).not.toContain(newKeyHex);
+      expect(inspected).not.toMatch(/[0-9a-f]{64}/);
+
+      for (const call of logSpy.mock.calls) {
+        for (const arg of call) {
+          const rendered = String(arg);
+          expect(rendered).not.toContain(KEY_A_HEX);
+          expect(rendered).not.toContain(newKeyHex);
+          expect(rendered).not.toMatch(/[0-9a-f]{64}/);
+        }
+      }
+      logSpy.mockRestore();
+    }
   });
 
   it('stage 1 attempts both redeploys and throws when one service fails to redeploy', async () => {
@@ -322,10 +442,29 @@ describe('rotateByokKey', () => {
     );
 
     const promise = rotateByokKey({ env: 'dev', stage: '1' });
-    await expect(promise).rejects.toThrow('api-gateway');
-    await expect(promise).rejects.toThrow('Railway dashboard');
-    await expect(promise).rejects.toThrow('stage 2');
+    await expect(promise).rejects.toThrow(
+      "Redeploy api-gateway (Railway dashboard: the service's latest deployment → Redeploy), then run stage 2."
+    );
+    await expect(promise).rejects.toThrow(
+      "(not verified: that a dashboard redeploy carries the just-written variables; check the new deployment's start time is after this run)"
+    );
     expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
+  });
+
+  it('stage 1 proceeds when PREVIOUS equals CURRENT on both services (degenerate window)', async () => {
+    stubRailwayVars({
+      API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+      API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_A_HEX,
+    });
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    try {
+      await expect(rotateByokKey({ env: 'dev', stage: '1' })).resolves.toBeUndefined();
+      expect(upsertRailwayVariable).toHaveBeenCalledTimes(4);
+      expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 
   it('stage 1 refuses while a rotation window is already open (would orphan unmigrated rows)', async () => {
@@ -334,7 +473,9 @@ describe('rotateByokKey', () => {
       API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
     });
 
-    await expect(rotateByokKey({ env: 'dev', stage: '1' })).rejects.toThrow('already open');
+    await expect(rotateByokKey({ env: 'dev', stage: '1' })).rejects.toThrow(
+      'A rotation window is already open (PREVIOUS is set) — run stage 2 then stage 3 to close it before starting a new rotation.'
+    );
     // No variable writes or redeploys may have happened.
     const setCalls = mockExecFileSync.mock.calls.filter(
       call => Array.isArray(call[1]) && (call[1] as string[]).includes('--set')

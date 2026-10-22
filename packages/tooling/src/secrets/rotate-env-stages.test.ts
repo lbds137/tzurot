@@ -248,7 +248,6 @@ describe('runStagedRotation', () => {
 
     expect(mockRedeploy).toHaveBeenCalledTimes(1);
     expect(mockRedeploy).toHaveBeenCalledWith([{ id: 'svc-gateway', name: 'api-gateway' }], {
-      projectId: 'proj-1',
       environmentId: 'env-1',
       env: 'dev',
     });
@@ -302,7 +301,6 @@ describe('runStagedRotation', () => {
         { id: 'svc-ai', name: 'ai-worker' },
       ],
       {
-        projectId: 'proj-1',
         environmentId: 'env-1',
         env: 'dev',
       }
@@ -340,7 +338,6 @@ describe('runStagedRotation', () => {
 
     expect(mockRedeploy).toHaveBeenCalledTimes(1);
     expect(mockRedeploy).toHaveBeenCalledWith([{ id: 'svc-gateway', name: 'api-gateway' }], {
-      projectId: 'proj-1',
       environmentId: 'env-1',
       env: 'dev',
     });

@@ -46,18 +46,25 @@ operations keep working throughout.
 
 ### Stage 1 — stage
 
-Mints a new 32-byte key, upserts `API_KEY_ENCRYPTION_KEY` (new) and
-`API_KEY_ENCRYPTION_KEY_PREVIOUS` (old) on **both** api-gateway and ai-worker via
-the Railway GraphQL API (`skipDeploys: true`), and redeploys both services
-reusing their running image (no rebuild; requires `TZUROT_RAILWAY_API_TOKEN_DEV`
-or `TZUROT_RAILWAY_API_TOKEN_PROD` in the local `.env`).
+Mints a new 32-byte key and upserts it via the Railway GraphQL API
+(`skipDeploys: true`) on **both** api-gateway and ai-worker in a fixed order:
+`API_KEY_ENCRYPTION_KEY_PREVIOUS` (old) on both services first, then
+`API_KEY_ENCRYPTION_KEY` (new) on both. Every intermediate state still decrypts
+every row, so an interrupted stage 1 never strands data; its error names the
+state it stopped in and the exact repair, and no row is touched before stage 2.
+It then redeploys both services reusing their running image: the service's
+latest deployment, which must be `SUCCESS` (no rebuild; requires
+`TZUROT_RAILWAY_API_TOKEN_DEV` or `TZUROT_RAILWAY_API_TOKEN_PROD` in the local
+`.env`).
 
 **Wait for both redeploys to finish before running stage 2.** A service still
 running on the old process doesn't know the new key yet.
 
-Stage 1 refuses to run if `PREVIOUS` is already set — that would demote the
-current key and discard the real previous one, permanently orphaning any row
-still on it. Finish the open window (stages 2 then 3) first.
+Stage 1 refuses to run if `PREVIOUS` is already set to a key different from the
+current one — that would demote the current key and discard the real previous
+one, permanently orphaning any row still on it. Finish the open window (stages 2
+then 3) first. `PREVIOUS` equal to the current key is the degenerate window an
+interrupted stage 1 leaves behind; nothing can be orphaned, so stage 1 re-runs.
 
 ### Stage 2 — reencrypt
 

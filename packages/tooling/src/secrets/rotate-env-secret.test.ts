@@ -146,19 +146,16 @@ describe('runRotateEnvSecret', () => {
 
     expect(mockRedeploy).toHaveBeenCalledTimes(3);
     expect(mockRedeploy).toHaveBeenCalledWith({
-      projectId: 'proj-1',
       environmentId: 'env-1',
       serviceId: 'svc-gateway',
       env: 'dev',
     });
     expect(mockRedeploy).toHaveBeenCalledWith({
-      projectId: 'proj-1',
       environmentId: 'env-1',
       serviceId: 'svc-bot',
       env: 'dev',
     });
     expect(mockRedeploy).toHaveBeenCalledWith({
-      projectId: 'proj-1',
       environmentId: 'env-1',
       serviceId: 'svc-ai',
       env: 'dev',

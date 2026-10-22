@@ -449,41 +449,52 @@ export async function redeployRailwayService(args: RedeployRailwayServiceArgs): 
   }
 }
 
-const LATEST_SUCCESS_DEPLOYMENT_QUERY = `
-  query LatestSuccessDeployment($projectId: String!, $environmentId: String!, $serviceId: String!) {
-    deployments(
-      first: 1
-      input: {
-        projectId: $projectId
-        environmentId: $environmentId
-        serviceId: $serviceId
-        status: { in: [SUCCESS] }
-      }
-    ) {
-      edges {
-        node {
-          id
-        }
-      }
+const SERVICE_INSTANCE_DEPLOYMENT_QUERY = `
+  query ServiceInstanceDeployment($environmentId: String!, $serviceId: String!) {
+    serviceInstance(environmentId: $environmentId, serviceId: $serviceId) {
+      latestDeployment { id status meta }
     }
   }
 `;
 
-const LatestSuccessDeploymentResponseSchema = z
+const ServiceInstanceLatestDeploymentSchema = z
   .object({
-    deployments: z
+    id: z.string(),
+    status: z.string(),
+    meta: z.unknown().optional(),
+  })
+  .passthrough();
+
+const ServiceInstanceDeploymentResponseSchema = z
+  .object({
+    serviceInstance: z
       .object({
-        edges: z.array(
-          z
-            .object({
-              node: z.object({ id: z.string() }).passthrough(),
-            })
-            .passthrough()
-        ),
+        latestDeployment: ServiceInstanceLatestDeploymentSchema.nullable(),
       })
       .passthrough(),
   })
   .passthrough();
+
+const SERVICE_INSTANCE_DEPLOYMENT_SHAPE = 'service-instance-deployment';
+
+async function fetchServiceInstanceLatestDeployment(args: {
+  environmentId: string;
+  serviceId: string;
+  env: RailwayEnv;
+}): Promise<z.infer<typeof ServiceInstanceLatestDeploymentSchema> | null> {
+  const rawData = await railwayGraphql<unknown>(
+    SERVICE_INSTANCE_DEPLOYMENT_QUERY,
+    { environmentId: args.environmentId, serviceId: args.serviceId },
+    args.env
+  );
+
+  const parsed = ServiceInstanceDeploymentResponseSchema.safeParse(rawData);
+  if (!parsed.success) {
+    throw unexpectedShapeError(SERVICE_INSTANCE_DEPLOYMENT_SHAPE);
+  }
+
+  return parsed.data.serviceInstance.latestDeployment;
+}
 
 const DEPLOYMENT_REDEPLOY_MUTATION = `
   mutation DeploymentRedeploy($id: String!, $usePreviousImageTag: Boolean) {
@@ -500,54 +511,48 @@ const DeploymentRedeployResponseSchema = z
   .passthrough();
 
 export interface RedeployRailwayServiceReusingImageArgs {
-  projectId: string;
   environmentId: string;
   serviceId: string;
   env: RailwayEnv;
 }
 
 /**
- * Redeploy a service by reusing the image of its latest `SUCCESS` deployment
+ * Redeploy a service by reusing the image of its `serviceInstance.latestDeployment`
  * (`deploymentRedeploy` with `usePreviousImageTag: true`) instead of building
  * the branch HEAD via `serviceInstanceRedeploy`, and return the new
  * deployment's id.
  *
+ * Selecting `serviceInstance(environmentId, serviceId).latestDeployment` and
+ * requiring its status to be `SUCCESS` (refusing when missing or non-`SUCCESS`,
+ * pinned in `railway-api.test.ts`) selects the live deployment record — the
+ * same record `getLiveDeploymentCommit` and the deployed-code gate inspect —
+ * rather than relying on unpinned list ordering from a `deployments` query.
  * Secret rotation uses this so a variable-only rotation restarts the image and
  * code already running in the environment without running a full image build or
  * deploying unreleased commits from the branch HEAD.
  *
  * Observed against the live Railway API, not verified or pinned by a unit test:
  * `deploymentRedeploy(id, usePreviousImageTag: true)` skips the build stage and
- * snapshots the service's current variable values into the new deployment.
+ * snapshots the service's current variable values fresh into the new deployment.
  */
 export async function redeployRailwayServiceReusingImage(
   args: RedeployRailwayServiceReusingImageArgs
 ): Promise<string> {
-  const rawDeployments = await railwayGraphql<unknown>(
-    LATEST_SUCCESS_DEPLOYMENT_QUERY,
-    {
-      projectId: args.projectId,
-      environmentId: args.environmentId,
-      serviceId: args.serviceId,
-    },
-    args.env
-  );
-
-  const parsedDeployments = LatestSuccessDeploymentResponseSchema.safeParse(rawDeployments);
-  if (!parsedDeployments.success) {
-    throw unexpectedShapeError('deployments');
-  }
-
-  const latestEdge = parsedDeployments.data.deployments.edges[0];
-  if (latestEdge === undefined) {
+  const latestDeployment = await fetchServiceInstanceLatestDeployment(args);
+  if (latestDeployment === null) {
     throw new Error(
-      `Railway service "${args.serviceId}" has no successful deployment whose image can be reused`
+      `Railway service "${args.serviceId}" has no latest deployment; resolve that before rotating`
+    );
+  }
+  if (latestDeployment.status !== 'SUCCESS') {
+    throw new Error(
+      `Cannot redeploy Railway service "${args.serviceId}": its latest deployment is ${latestDeployment.status}, not SUCCESS; resolve that before rotating`
     );
   }
 
   const rawRedeploy = await railwayGraphql<unknown>(
     DEPLOYMENT_REDEPLOY_MUTATION,
-    { id: latestEdge.node.id, usePreviousImageTag: true },
+    { id: latestDeployment.id, usePreviousImageTag: true },
     args.env
   );
 
@@ -558,14 +563,6 @@ export async function redeployRailwayServiceReusingImage(
 
   return parsedRedeploy.data.deploymentRedeploy.id;
 }
-
-const SERVICE_INSTANCE_DEPLOYMENT_QUERY = `
-  query ServiceInstanceDeployment($environmentId: String!, $serviceId: String!) {
-    serviceInstance(environmentId: $environmentId, serviceId: $serviceId) {
-      latestDeployment { id status meta }
-    }
-  }
-`;
 
 /**
  * `meta` is a Railway GraphQL SCALAR (opaque JSON) rather than a selectable
@@ -586,18 +583,6 @@ const DeploymentMetaSchema = z
   .object({ commitHash: z.string().regex(/^[0-9a-f]{7,40}$/) })
   .passthrough();
 
-const ServiceInstanceDeploymentResponseSchema = z
-  .object({
-    serviceInstance: z
-      .object({
-        latestDeployment: z
-          .object({ id: z.string(), status: z.string(), meta: DeploymentMetaSchema })
-          .passthrough(),
-      })
-      .passthrough(),
-  })
-  .passthrough();
-
 export interface GetLiveDeploymentCommitArgs {
   environmentId: string;
   serviceId: string;
@@ -616,20 +601,16 @@ export interface GetLiveDeploymentCommitArgs {
  * the "refuses a non-SUCCESS latestDeployment" case in `railway-api.test.ts`.
  */
 export async function getLiveDeploymentCommit(args: GetLiveDeploymentCommitArgs): Promise<string> {
-  const variables = { environmentId: args.environmentId, serviceId: args.serviceId };
-
-  const rawData = await railwayGraphql<unknown>(
-    SERVICE_INSTANCE_DEPLOYMENT_QUERY,
-    variables,
-    args.env
-  );
-
-  const parsed = ServiceInstanceDeploymentResponseSchema.safeParse(rawData);
-  if (!parsed.success) {
-    throw unexpectedShapeError('service-instance-deployment');
+  const deployment = await fetchServiceInstanceLatestDeployment(args);
+  if (deployment === null) {
+    throw unexpectedShapeError(SERVICE_INSTANCE_DEPLOYMENT_SHAPE);
   }
 
-  const deployment = parsed.data.serviceInstance.latestDeployment;
+  const parsedMeta = DeploymentMetaSchema.safeParse(deployment.meta);
+  if (!parsedMeta.success) {
+    throw unexpectedShapeError(SERVICE_INSTANCE_DEPLOYMENT_SHAPE);
+  }
+
   if (deployment.status !== 'SUCCESS') {
     throw new Error(
       `The latest deployment for service "${args.serviceId}" is ${deployment.status}, not SUCCESS ` +
@@ -637,5 +618,5 @@ export async function getLiveDeploymentCommit(args: GetLiveDeploymentCommitArgs)
     );
   }
 
-  return deployment.meta.commitHash;
+  return parsedMeta.data.commitHash;
 }

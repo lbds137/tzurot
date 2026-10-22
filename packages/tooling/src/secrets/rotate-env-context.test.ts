@@ -112,9 +112,8 @@ describe('rotate-env-context', () => {
   });
 
   describe('redeployServices', () => {
-    it('returns [] when all succeed and passes projectId, environmentId, serviceId, env', async () => {
+    it('returns [] when all succeed and passes environmentId, serviceId, env', async () => {
       const failures = await redeployServices(SERVICES.slice(0, 2), {
-        projectId: 'proj-1',
         environmentId: 'env-1',
         env: 'dev',
       });
@@ -122,13 +121,11 @@ describe('rotate-env-context', () => {
       expect(failures).toEqual([]);
       expect(mockRedeploy).toHaveBeenCalledTimes(2);
       expect(mockRedeploy).toHaveBeenCalledWith({
-        projectId: 'proj-1',
         environmentId: 'env-1',
         serviceId: 'svc-gateway',
         env: 'dev',
       });
       expect(mockRedeploy).toHaveBeenCalledWith({
-        projectId: 'proj-1',
         environmentId: 'env-1',
         serviceId: 'svc-bot',
         env: 'dev',
@@ -144,7 +141,6 @@ describe('rotate-env-context', () => {
       });
 
       const failures = await redeployServices(SERVICES.slice(0, 2), {
-        projectId: 'proj-1',
         environmentId: 'env-1',
         env: 'dev',
       });
