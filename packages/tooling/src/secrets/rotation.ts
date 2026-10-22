@@ -9,20 +9,19 @@
  *
  * BYOK rotation is STAGED because services must hold both keys while rows
  * migrate (dual-key window — see common-types/utils/encryption.ts):
- *   stage 1 (stage):     mint new key; set CURRENT=new, PREVIOUS=old on
- *                        api-gateway + ai-worker; wait for redeploys.
+ *   stage 1 (stage):     mint new key; upsert CURRENT=new, PREVIOUS=old on
+ *                        api-gateway + ai-worker through the Railway API
+ *                        (skipDeploys), then redeploy both reusing their
+ *                        running image; wait for redeploys.
  *   stage 2 (reencrypt): re-encrypt every user_api_keys/user_credentials row
  *                        still on the previous key; verify sweep.
  *   stage 3 (finalize):  verify again, delete PREVIOUS on both services
- *                        through the Railway API, redeploy them, and stamp
- *                        the ledger only when both redeploys were accepted.
+ *                        through the Railway API, redeploy them reusing their
+ *                        running image, and stamp the ledger only when both
+ *                        redeploys were accepted.
  *
  * Secret VALUES never reach stdout; only names, counts, and hashes-free
- * confirmations are printed. Known limitation (stage 1 only): `railway
- * variables --set` has no stdin form, so key material transits this process's
- * argv during stage 1 (visible via /proc/<pid>/cmdline to same-privilege
- * processes for the call's duration) — same exposure as every existing
- * setup-railway-variables path.
+ * confirmations are printed.
  */
 
 import crypto from 'node:crypto';
@@ -38,8 +37,9 @@ import {
 } from '@tzurot/common-types/utils/encryption';
 import {
   deleteRailwayVariable,
-  redeployRailwayService,
+  redeployRailwayServiceReusingImage,
   requireRailwayApiToken,
+  upsertRailwayVariable,
 } from '../deployment/railway-api.js';
 import type { RailwayIds } from '../deployment/railway-status.js';
 import { getRailwayDatabaseUrl, getRailwayEnvName } from '../utils/env-runner.js';
@@ -156,20 +156,6 @@ function readServiceVariable(env: SecretsEnv, service: string, key: string): str
   );
   const parsed = JSON.parse(output) as Record<string, string>;
   return parsed[key];
-}
-
-/** Set variables on a Railway service without echoing values. */
-export function setServiceVariables(
-  env: SecretsEnv,
-  service: string,
-  vars: Record<string, string>
-): void {
-  const args = ['variables', '--environment', getRailwayEnvName(env), '--service', service];
-  for (const [key, value] of Object.entries(vars)) {
-    args.push('--set', `${key}=${value}`);
-  }
-  execFileSync('railway', args, { stdio: ['ignore', 'ignore', 'pipe'] });
-  console.log(chalk.green(`  set ${Object.keys(vars).join(', ')} on ${service} (${env})`));
 }
 
 /** Open a Prisma client against the target environment's database. */
@@ -332,6 +318,93 @@ async function countNonCurrentRows(
   return failures;
 }
 
+type ByokServiceIds = Record<(typeof BYOK_SERVICES)[number], Required<RailwayIds>>;
+
+function resolveByokIds(env: SecretsEnv): ByokServiceIds {
+  return Object.fromEntries(
+    BYOK_SERVICES.map(svc => [svc, resolveServiceIds(env, svc)])
+  ) as ByokServiceIds;
+}
+
+async function redeployByokServices(
+  env: SecretsEnv,
+  ids: ByokServiceIds,
+  buildFailureMessage: (failedServices: string) => string
+): Promise<void> {
+  const failures: { service: string; error: unknown }[] = [];
+  for (const svc of BYOK_SERVICES) {
+    try {
+      await redeployRailwayServiceReusingImage({ ...ids[svc], env });
+      console.log(chalk.green(`  redeployed ${svc} (${env})`));
+    } catch (error) {
+      failures.push({ service: svc, error });
+    }
+  }
+  if (failures.length === 0) {
+    return;
+  }
+  for (const failure of failures) {
+    const detail = failure.error instanceof Error ? failure.error.message : 'unknown error';
+    console.log(chalk.red(`  failed to redeploy ${failure.service} (${env}): ${detail}`));
+  }
+  const message = buildFailureMessage(failures.map(f => f.service).join(', '));
+  console.log(chalk.red(`\n${message}`));
+  throw new Error(message);
+}
+
+async function stageByokWindow(env: SecretsEnv): Promise<void> {
+  requireRailwayApiToken(env);
+
+  // A second stage-1 while a window is open would demote the CURRENT key to
+  // PREVIOUS and DISCARD the original previous key — permanently orphaning
+  // every row still encrypted under it. Refuse; the open window must be
+  // finished (stage 2 then 3) first.
+  if (getServiceVariableOrEmpty(env, GATEWAY_SERVICE, PREVIOUS_VAR) !== '') {
+    throw new Error(
+      'A rotation window is already open (PREVIOUS is set) — run stage 2 then stage 3 to close it before starting a new rotation.'
+    );
+  }
+  const current = getServiceVariable(env, GATEWAY_SERVICE, CURRENT_VAR);
+  parseEncryptionKeyMaterial(current, CURRENT_VAR); // sanity before touching anything
+
+  const ids = resolveByokIds(env);
+  const next = crypto.randomBytes(32).toString('hex');
+
+  for (const svc of BYOK_SERVICES) {
+    for (const [name, value] of [
+      [CURRENT_VAR, next],
+      [PREVIOUS_VAR, current],
+    ] as const) {
+      try {
+        await upsertRailwayVariable({ ...ids[svc], name, value, skipDeploys: true, env });
+      } catch (error) {
+        throw new Error(
+          `Failed to upsert ${name} on ${svc} (${env}). ` +
+            `The two services (${BYOK_SERVICES.join(' and ')}) may now disagree, and re-running stage 1 is refused while ${PREVIOUS_VAR} is set — ` +
+            'make both services match by hand in the Railway dashboard (whose history holds the values) and then continue with stage 2.',
+          { cause: error }
+        );
+      }
+    }
+    console.log(chalk.green(`  set ${CURRENT_VAR}, ${PREVIOUS_VAR} on ${svc} (${env})`));
+  }
+
+  await redeployByokServices(
+    env,
+    ids,
+    failedServices =>
+      `Both services hold both keys in Railway, but ${failedServices} failed to redeploy and still runs its old process until redeployed. ` +
+      `Redeploy ${failedServices} from the Railway dashboard before running stage 2 (reencrypt).`
+  );
+
+  console.log(
+    chalk.cyan(
+      '\nStage 1 complete. Both services now hold current+previous keys and were redeployed (image reused, no rebuild).\n' +
+        'Wait for the redeploys to finish, then run stage 2 (reencrypt).'
+    )
+  );
+}
+
 async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
   requireRailwayApiToken(env);
 
@@ -346,36 +419,27 @@ async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
     );
   }
 
-  const idsByService = Object.fromEntries(
-    BYOK_SERVICES.map(service => [service, resolveServiceIds(env, service)])
-  ) as Record<(typeof BYOK_SERVICES)[number], Required<RailwayIds>>;
+  const ids = resolveByokIds(env);
 
   // Deleted through the API because the CLI rejects an empty value, and the delete
   // does not redeploy by itself, so the explicit redeploy below is what closes the
   // window in the running services. Both are observed Railway behaviour, not pinned
   // by a test.
   const absentNow: string[] = [];
-  for (const service of BYOK_SERVICES) {
-    if (readServiceVariable(env, service, PREVIOUS_VAR) === undefined) {
-      absentNow.push(service);
-      console.log(chalk.dim(`  ${PREVIOUS_VAR} already absent on ${service} (${env})`));
+  for (const svc of BYOK_SERVICES) {
+    if (readServiceVariable(env, svc, PREVIOUS_VAR) === undefined) {
+      absentNow.push(svc);
+      console.log(chalk.dim(`  ${PREVIOUS_VAR} already absent on ${svc} (${env})`));
       continue;
     }
-    const { projectId, environmentId, serviceId } = idsByService[service];
     try {
-      await deleteRailwayVariable({
-        projectId,
-        environmentId,
-        serviceId,
-        name: PREVIOUS_VAR,
-        env,
-      });
-      absentNow.push(service);
-      console.log(chalk.green(`  deleted ${PREVIOUS_VAR} on ${service} (${env})`));
+      await deleteRailwayVariable({ ...ids[svc], name: PREVIOUS_VAR, env });
+      absentNow.push(svc);
+      console.log(chalk.green(`  deleted ${PREVIOUS_VAR} on ${svc} (${env})`));
     } catch (error) {
       throw deleteFailureError({
         env,
-        service,
+        service: svc,
         services: BYOK_SERVICES,
         absentNow,
         varName: PREVIOUS_VAR,
@@ -384,33 +448,14 @@ async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
     }
   }
 
-  const redeployFailures: { service: string; error: unknown }[] = [];
-  for (const service of BYOK_SERVICES) {
-    const { environmentId, serviceId } = idsByService[service];
-    try {
-      await redeployRailwayService({ environmentId, serviceId, env });
-      console.log(chalk.green(`  redeployed ${service} (${env})`));
-    } catch (error) {
-      redeployFailures.push({ service, error });
-    }
-  }
-
-  if (redeployFailures.length > 0) {
-    for (const failure of redeployFailures) {
-      console.log(
-        chalk.red(
-          `  failed to redeploy ${failure.service} (${env}): ${failure.error instanceof Error ? failure.error.message : 'unknown error'}`
-        )
-      );
-    }
-    const failedServices = redeployFailures.map(f => f.service).join(', ');
-    const message =
+  await redeployByokServices(
+    env,
+    ids,
+    failedServices =>
       `${PREVIOUS_VAR} is deleted from Railway, but ${failedServices} still holds it in memory until it restarts. ` +
       `Simplest repair: re-run stage 3 (it skips the already-done deletes, redeploys both services, and stamps the ledger). ` +
-      `Alternatively, redeploy ${failedServices} from the Railway dashboard, then run \`pnpm ops secrets:mark-rotated byok-encryption-key --env ${env}\`.`;
-    console.log(chalk.red(`\n${message}`));
-    throw new Error(message);
-  }
+      `Alternatively, redeploy ${failedServices} from the Railway dashboard, then run \`pnpm ops secrets:mark-rotated byok-encryption-key --env ${env}\`.`
+  );
 
   await markSecretRotated({ env, name: 'byok-encryption-key' });
   console.log(
@@ -435,28 +480,7 @@ export async function rotateByokKey(options: { env: SecretsEnv; stage: string })
   assertByokServicesConsistent(env);
 
   if (stage === '1' || stage === 'stage') {
-    // A second stage-1 while a window is open would demote the CURRENT key to
-    // PREVIOUS and DISCARD the original previous key — permanently orphaning
-    // every row still encrypted under it. Refuse; the open window must be
-    // finished (stage 2 then 3) first.
-    const openPrevious = getServiceVariableOrEmpty(env, GATEWAY_SERVICE, PREVIOUS_VAR);
-    if (openPrevious !== '') {
-      throw new Error(
-        'A rotation window is already open (PREVIOUS is set) — run stage 2 then stage 3 to close it before starting a new rotation.'
-      );
-    }
-    const current = getServiceVariable(env, GATEWAY_SERVICE, CURRENT_VAR);
-    parseEncryptionKeyMaterial(current, CURRENT_VAR); // sanity before touching anything
-    const next = crypto.randomBytes(32).toString('hex');
-    for (const service of BYOK_SERVICES) {
-      setServiceVariables(env, service, { [CURRENT_VAR]: next, [PREVIOUS_VAR]: current });
-    }
-    console.log(
-      chalk.cyan(
-        '\nStage 1 complete. Both services now hold current+previous keys.\n' +
-          'Wait for the redeploys to finish, then run stage 2 (reencrypt).'
-      )
-    );
+    await stageByokWindow(env);
     return;
   }
 

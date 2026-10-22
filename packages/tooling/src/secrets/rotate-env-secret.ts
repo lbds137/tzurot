@@ -17,11 +17,9 @@
  *
  * Value safety: the new value travels in an HTTPS request BODY via
  * `upsertRailwayVariable` — it never reaches argv and never reaches stdout.
- * This is a deliberate improvement over `setServiceVariables` in
- * `./rotation.ts`, whose `railway variables --set K=V` form exposes the
- * value via `/proc/<pid>/cmdline` (readable by same-privilege processes) for
- * the duration of that call. This command deliberately does NOT route
- * through `setServiceVariables` for exactly that reason.
+ * Never write a secret through `railway variables --set K=V`: that form
+ * exposes the value via `/proc/<pid>/cmdline` (readable by same-privilege
+ * processes) for the duration of the call.
  *
  * The mismatch window (single-shot path only): the verifier compares against
  * ONE value loaded at startup. bot-client and ai-worker PRESENT the secret;
@@ -191,7 +189,11 @@ async function runSingleShotRotation(
     env: options.env,
   });
 
-  const failures = await redeployServices(affectedServices, { environmentId, env: options.env });
+  const failures = await redeployServices(affectedServices, {
+    projectId,
+    environmentId,
+    env: options.env,
+  });
 
   const ledgerName = options.name.toLowerCase().replaceAll('_', '-');
   const ledgerStamped = await stampLedger(options.env, ledgerName);

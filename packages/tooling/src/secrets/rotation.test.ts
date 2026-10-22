@@ -27,22 +27,29 @@ vi.mock('../utils/env-runner.js', () => ({
   getRailwayEnvName: (env: string) => (env === 'prod' ? 'production' : 'development'),
 }));
 
-const { requireRailwayApiToken, deleteRailwayVariable, redeployRailwayService, resolveRailwayIds } =
-  vi.hoisted(() => ({
-    requireRailwayApiToken: vi.fn(),
-    deleteRailwayVariable: vi.fn(),
-    redeployRailwayService: vi.fn(),
-    resolveRailwayIds: vi.fn((_env: string, service: string): RailwayIds => ({
-      projectId: 'proj',
-      environmentId: 'envid',
-      serviceId: 'svc-' + service,
-    })),
-  }));
+const {
+  requireRailwayApiToken,
+  upsertRailwayVariable,
+  deleteRailwayVariable,
+  redeployRailwayServiceReusingImage,
+  resolveRailwayIds,
+} = vi.hoisted(() => ({
+  requireRailwayApiToken: vi.fn(),
+  upsertRailwayVariable: vi.fn(),
+  deleteRailwayVariable: vi.fn(),
+  redeployRailwayServiceReusingImage: vi.fn(),
+  resolveRailwayIds: vi.fn((_env: string, service: string): RailwayIds => ({
+    projectId: 'proj',
+    environmentId: 'envid',
+    serviceId: 'svc-' + service,
+  })),
+}));
 
 vi.mock('../deployment/railway-api.js', () => ({
   requireRailwayApiToken,
+  upsertRailwayVariable,
   deleteRailwayVariable,
-  redeployRailwayService,
+  redeployRailwayServiceReusingImage,
 }));
 
 vi.mock('../deployment/railway-status.js', () => ({
@@ -135,8 +142,9 @@ describe('rotateByokKey', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireRailwayApiToken.mockReturnValue('test-token');
+    upsertRailwayVariable.mockResolvedValue(undefined);
     deleteRailwayVariable.mockResolvedValue(undefined);
-    redeployRailwayService.mockResolvedValue(undefined);
+    redeployRailwayServiceReusingImage.mockResolvedValue('dep-new');
     resolveRailwayIds.mockImplementation((_env: string, service: string) => ({
       projectId: 'proj',
       environmentId: 'envid',
@@ -160,6 +168,9 @@ describe('rotateByokKey', () => {
       call => Array.isArray(call[1]) && (call[1] as string[]).includes('--set')
     );
     expect(setCalls).toHaveLength(0);
+    expect(upsertRailwayVariable).not.toHaveBeenCalled();
+    expect(deleteRailwayVariable).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
   });
 
   it('rejects an unknown stage before touching any Railway state', async () => {
@@ -212,26 +223,109 @@ describe('rotateByokKey', () => {
     // throw — the window guard must treat a missing key as "no previous key"
     // rather than dereferencing it.
     stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    await expect(rotateByokKey({ env: 'dev', stage: '1' })).resolves.toBeUndefined();
+    try {
+      await expect(rotateByokKey({ env: 'dev', stage: '1' })).resolves.toBeUndefined();
 
-    const setCalls = mockExecFileSync.mock.calls.filter(
-      call => Array.isArray(call[1]) && (call[1] as string[]).includes('--set')
-    );
-    expect(setCalls).toHaveLength(2); // api-gateway + ai-worker
-    for (const call of setCalls) {
-      const args = call[1] as string[];
-      // Old CURRENT is demoted to PREVIOUS on both services.
-      expect(args.some(arg => arg === `API_KEY_ENCRYPTION_KEY_PREVIOUS=${KEY_A_HEX}`)).toBe(true);
-      // A fresh CURRENT is minted (present, and not the old key).
-      expect(
-        args.some(
-          arg =>
-            arg.startsWith('API_KEY_ENCRYPTION_KEY=') &&
-            arg !== `API_KEY_ENCRYPTION_KEY=${KEY_A_HEX}`
-        )
-      ).toBe(true);
+      const setCalls = mockExecFileSync.mock.calls.filter(
+        call => Array.isArray(call[1]) && (call[1] as string[]).includes('--set')
+      );
+      expect(setCalls).toHaveLength(0);
+
+      expect(upsertRailwayVariable).toHaveBeenCalledTimes(4);
+      for (const serviceId of ['svc-api-gateway', 'svc-ai-worker']) {
+        expect(upsertRailwayVariable).toHaveBeenCalledWith({
+          projectId: 'proj',
+          environmentId: 'envid',
+          serviceId,
+          name: 'API_KEY_ENCRYPTION_KEY_PREVIOUS',
+          value: KEY_A_HEX,
+          skipDeploys: true,
+          env: 'dev',
+        });
+        expect(upsertRailwayVariable).toHaveBeenCalledWith({
+          projectId: 'proj',
+          environmentId: 'envid',
+          serviceId,
+          name: 'API_KEY_ENCRYPTION_KEY',
+          value: expect.stringMatching(/^[0-9a-f]{64}$/),
+          skipDeploys: true,
+          env: 'dev',
+        });
+      }
+
+      const currentCalls = upsertRailwayVariable.mock.calls
+        .map(call => call[0] as { name: string; value: string })
+        .filter(arg => arg.name === 'API_KEY_ENCRYPTION_KEY');
+      expect(currentCalls).toHaveLength(2);
+      expect(currentCalls[0].value).toMatch(/^[0-9a-f]{64}$/);
+      expect(currentCalls[0].value).not.toBe(KEY_A_HEX);
+      expect(currentCalls[1].value).toBe(currentCalls[0].value);
+
+      expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
+      expect(redeployRailwayServiceReusingImage).toHaveBeenCalledWith({
+        projectId: 'proj',
+        environmentId: 'envid',
+        serviceId: 'svc-api-gateway',
+        env: 'dev',
+      });
+      expect(redeployRailwayServiceReusingImage).toHaveBeenCalledWith({
+        projectId: 'proj',
+        environmentId: 'envid',
+        serviceId: 'svc-ai-worker',
+        env: 'dev',
+      });
+
+      const lastUpsertOrder = Math.max(...upsertRailwayVariable.mock.invocationCallOrder);
+      const firstRedeployOrder = Math.min(
+        ...redeployRailwayServiceReusingImage.mock.invocationCallOrder
+      );
+      expect(lastUpsertOrder).toBeLessThan(firstRedeployOrder);
+
+      const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
+      expect(allOutput).not.toMatch(/[0-9a-f]{64}/);
+    } finally {
+      logSpy.mockRestore();
     }
+  });
+
+  it('stage 1 stops before any redeploy when an upsert fails, with no key material in the error', async () => {
+    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
+    upsertRailwayVariable
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('upsert boom'));
+
+    let caught: unknown;
+    try {
+      await rotateByokKey({ env: 'dev', stage: '1' });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = caught instanceof Error ? caught.message : '';
+    expect(message).toContain('api-gateway');
+    expect(message).toContain('API_KEY_ENCRYPTION_KEY_PREVIOUS');
+    expect(message).toContain('stage 2');
+    expect(message).not.toContain(KEY_A_HEX);
+    expect(message).not.toMatch(/[0-9a-f]{64}/);
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
+  });
+
+  it('stage 1 attempts both redeploys and throws when one service fails to redeploy', async () => {
+    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
+    redeployRailwayServiceReusingImage.mockImplementation(({ serviceId }: { serviceId: string }) =>
+      serviceId === 'svc-api-gateway'
+        ? Promise.reject(new Error('redeploy boom'))
+        : Promise.resolve('dep-new')
+    );
+
+    const promise = rotateByokKey({ env: 'dev', stage: '1' });
+    await expect(promise).rejects.toThrow('api-gateway');
+    await expect(promise).rejects.toThrow('Railway dashboard');
+    await expect(promise).rejects.toThrow('stage 2');
+    expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
   });
 
   it('stage 1 refuses while a rotation window is already open (would orphan unmigrated rows)', async () => {
@@ -241,11 +335,13 @@ describe('rotateByokKey', () => {
     });
 
     await expect(rotateByokKey({ env: 'dev', stage: '1' })).rejects.toThrow('already open');
-    // No variable writes may have happened.
+    // No variable writes or redeploys may have happened.
     const setCalls = mockExecFileSync.mock.calls.filter(
       call => Array.isArray(call[1]) && (call[1] as string[]).includes('--set')
     );
     expect(setCalls).toHaveLength(0);
+    expect(upsertRailwayVariable).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
   });
 
   it('stage 2 skips (never overwrites) a row that changed between snapshot and write', async () => {
@@ -272,7 +368,7 @@ describe('rotateByokKey', () => {
     await expect(rotateByokKey({ env: 'dev', stage: '3' })).rejects.toThrow('re-run stage 2');
     // The window must NOT have been closed nor the ledger stamped.
     expect(deleteRailwayVariable).not.toHaveBeenCalled();
-    expect(redeployRailwayService).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
   });
 
@@ -302,13 +398,15 @@ describe('rotateByokKey', () => {
       name: 'API_KEY_ENCRYPTION_KEY_PREVIOUS',
       env: 'dev',
     });
-    expect(redeployRailwayService).toHaveBeenCalledTimes(2);
-    expect(redeployRailwayService).toHaveBeenCalledWith({
+    expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
+    expect(redeployRailwayServiceReusingImage).toHaveBeenCalledWith({
+      projectId: 'proj',
       environmentId: 'envid',
       serviceId: 'svc-api-gateway',
       env: 'dev',
     });
-    expect(redeployRailwayService).toHaveBeenCalledWith({
+    expect(redeployRailwayServiceReusingImage).toHaveBeenCalledWith({
+      projectId: 'proj',
       environmentId: 'envid',
       serviceId: 'svc-ai-worker',
       env: 'dev',
@@ -321,9 +419,13 @@ describe('rotateByokKey', () => {
       expect.objectContaining({ where: { name: 'byok-encryption-key' } })
     );
     const lastDeleteOrder = Math.max(...deleteRailwayVariable.mock.invocationCallOrder);
-    const firstRedeployOrder = Math.min(...redeployRailwayService.mock.invocationCallOrder);
+    const firstRedeployOrder = Math.min(
+      ...redeployRailwayServiceReusingImage.mock.invocationCallOrder
+    );
     expect(lastDeleteOrder).toBeLessThan(firstRedeployOrder);
-    const lastRedeployOrder = Math.max(...redeployRailwayService.mock.invocationCallOrder);
+    const lastRedeployOrder = Math.max(
+      ...redeployRailwayServiceReusingImage.mock.invocationCallOrder
+    );
     const upsertOrder = mockPrisma.secretRotation.upsert.mock.invocationCallOrder[0];
     expect(upsertOrder).toBeGreaterThan(lastRedeployOrder);
   });
@@ -337,7 +439,7 @@ describe('rotateByokKey', () => {
     await rotateByokKey({ env: 'dev', stage: '3' });
 
     expect(deleteRailwayVariable).not.toHaveBeenCalled();
-    expect(redeployRailwayService).toHaveBeenCalledTimes(2);
+    expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
     expect(mockPrisma.secretRotation.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ where: { name: 'byok-encryption-key' } })
     );
@@ -367,8 +469,10 @@ describe('rotateByokKey', () => {
     });
     mockPrisma.userApiKey.findMany.mockResolvedValue([]);
     mockPrisma.userCredential.findMany.mockResolvedValue([]);
-    redeployRailwayService.mockImplementation(({ serviceId }: { serviceId: string }) =>
-      serviceId === 'svc-ai-worker' ? Promise.reject(new Error('redeploy boom')) : Promise.resolve()
+    redeployRailwayServiceReusingImage.mockImplementation(({ serviceId }: { serviceId: string }) =>
+      serviceId === 'svc-ai-worker'
+        ? Promise.reject(new Error('redeploy boom'))
+        : Promise.resolve('dep-new')
     );
 
     const promise = rotateByokKey({ env: 'dev', stage: '3' });
@@ -376,7 +480,7 @@ describe('rotateByokKey', () => {
     await expect(promise).rejects.toThrow('mark-rotated');
     await expect(promise).rejects.toThrow('re-run stage 3');
     await expect(promise).rejects.not.toThrow('api-gateway');
-    expect(redeployRailwayService).toHaveBeenCalledTimes(2);
+    expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
   });
 
@@ -387,12 +491,12 @@ describe('rotateByokKey', () => {
     });
     mockPrisma.userApiKey.findMany.mockResolvedValue([]);
     mockPrisma.userCredential.findMany.mockResolvedValue([]);
-    redeployRailwayService.mockRejectedValue(new Error('redeploy boom'));
+    redeployRailwayServiceReusingImage.mockRejectedValue(new Error('redeploy boom'));
 
     const promise = rotateByokKey({ env: 'dev', stage: '3' });
     await expect(promise).rejects.toThrow('api-gateway');
     await expect(promise).rejects.toThrow('ai-worker');
-    expect(redeployRailwayService).toHaveBeenCalledTimes(2);
+    expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
   });
 
@@ -409,11 +513,11 @@ describe('rotateByokKey', () => {
 
     const promise = rotateByokKey({ env: 'dev', stage: '3' });
     await expect(promise).rejects.toThrow('absent on api-gateway');
-    await expect(promise).rejects.toThrow('still set on ai-worker');
+    await expect(promise).rejects.toThrow('may still be set on ai-worker');
     await expect(promise).rejects.toThrow(
       'pnpm ops deploy:var-delete --env dev --service ai-worker --name API_KEY_ENCRYPTION_KEY_PREVIOUS --yes'
     );
-    expect(redeployRailwayService).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
   });
 
@@ -431,7 +535,7 @@ describe('rotateByokKey', () => {
     await expect(promise).rejects.toThrow('Re-run stage 3');
     await expect(promise).rejects.not.toThrow('--service api-gateway');
     expect(deleteRailwayVariable).toHaveBeenCalledTimes(1);
-    expect(redeployRailwayService).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
   });
 
@@ -446,7 +550,7 @@ describe('rotateByokKey', () => {
 
     const promise = rotateByokKey({ env: 'dev', stage: '3' });
     await expect(promise).rejects.toThrow('absent on api-gateway');
-    await expect(promise).rejects.toThrow('still set on ai-worker');
+    await expect(promise).rejects.toThrow('may still be set on ai-worker');
     await expect(promise).rejects.toThrow(
       'pnpm ops deploy:var-delete --env dev --service ai-worker --name API_KEY_ENCRYPTION_KEY_PREVIOUS --yes'
     );
@@ -454,7 +558,7 @@ describe('rotateByokKey', () => {
     expect(deleteRailwayVariable).toHaveBeenCalledWith(
       expect.objectContaining({ serviceId: 'svc-ai-worker' })
     );
-    expect(redeployRailwayService).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
   });
 
@@ -512,7 +616,7 @@ describe('rotateByokKey', () => {
       'unknown service ai-worker'
     );
     expect(deleteRailwayVariable).not.toHaveBeenCalled();
-    expect(redeployRailwayService).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
   });
 
@@ -531,7 +635,7 @@ describe('rotateByokKey', () => {
     await expect(promise).rejects.toThrow('API_KEY_ENCRYPTION_KEY_PREVIOUS DIFFERS');
     await expect(promise).rejects.toThrow('deploy:var-delete');
     expect(deleteRailwayVariable).not.toHaveBeenCalled();
-    expect(redeployRailwayService).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
   });
 });
 

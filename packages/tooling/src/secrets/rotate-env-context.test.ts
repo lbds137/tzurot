@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../deployment/railway-api.js', () => ({
   requireRailwayApiToken: vi.fn(),
-  redeployRailwayService: vi.fn(),
+  redeployRailwayServiceReusingImage: vi.fn(),
   listRailwayVariableNames: vi.fn(),
 }));
 
@@ -18,7 +18,7 @@ vi.mock('./rotation.js', () => ({
 
 import {
   requireRailwayApiToken,
-  redeployRailwayService,
+  redeployRailwayServiceReusingImage,
   listRailwayVariableNames,
 } from '../deployment/railway-api.js';
 import { listRailwayServices } from '../deployment/railway-status.js';
@@ -33,7 +33,7 @@ import {
 } from './rotate-env-context.js';
 
 const mockRequireToken = vi.mocked(requireRailwayApiToken);
-const mockRedeploy = vi.mocked(redeployRailwayService);
+const mockRedeploy = vi.mocked(redeployRailwayServiceReusingImage);
 const mockListNames = vi.mocked(listRailwayVariableNames);
 const mockListServices = vi.mocked(listRailwayServices);
 const mockMarkRotated = vi.mocked(markSecretRotated);
@@ -62,7 +62,7 @@ describe('rotate-env-context', () => {
       }
       return INHERITING_IDS.has(args.serviceId) ? [VAR_NAME] : ['REDIS_URL'];
     });
-    mockRedeploy.mockReset().mockResolvedValue(undefined);
+    mockRedeploy.mockReset().mockResolvedValue('dep-new');
     mockMarkRotated.mockReset().mockResolvedValue(undefined);
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
@@ -112,13 +112,27 @@ describe('rotate-env-context', () => {
   });
 
   describe('redeployServices', () => {
-    it('returns [] when all succeed', async () => {
+    it('returns [] when all succeed and passes projectId, environmentId, serviceId, env', async () => {
       const failures = await redeployServices(SERVICES.slice(0, 2), {
+        projectId: 'proj-1',
         environmentId: 'env-1',
         env: 'dev',
       });
 
       expect(failures).toEqual([]);
+      expect(mockRedeploy).toHaveBeenCalledTimes(2);
+      expect(mockRedeploy).toHaveBeenCalledWith({
+        projectId: 'proj-1',
+        environmentId: 'env-1',
+        serviceId: 'svc-gateway',
+        env: 'dev',
+      });
+      expect(mockRedeploy).toHaveBeenCalledWith({
+        projectId: 'proj-1',
+        environmentId: 'env-1',
+        serviceId: 'svc-bot',
+        env: 'dev',
+      });
     });
 
     it('collects the failing service name when one rejects', async () => {
@@ -126,9 +140,11 @@ describe('rotate-env-context', () => {
         if (args.serviceId === 'svc-bot') {
           throw new Error('redeploy boom');
         }
+        return 'dep-new';
       });
 
       const failures = await redeployServices(SERVICES.slice(0, 2), {
+        projectId: 'proj-1',
         environmentId: 'env-1',
         env: 'dev',
       });

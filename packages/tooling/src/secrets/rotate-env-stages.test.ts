@@ -15,16 +15,11 @@ vi.mock('./deployed-code-gate.js', () => ({
   checkDeployedCodeAcceptsPrevious: vi.fn(),
 }));
 
-vi.mock('./rotate-env-context.js', async () => {
-  const actual =
-    await vi.importActual<typeof import('./rotate-env-context.js')>('./rotate-env-context.js');
-  return {
-    ...actual,
-    redeployServices: vi.fn(),
-    reportRedeployFailures: vi.fn(),
-    stampLedger: vi.fn(),
-  };
-});
+vi.mock('./rotate-env-context.js', () => ({
+  redeployServices: vi.fn(),
+  reportRedeployFailures: vi.fn(),
+  stampLedger: vi.fn(),
+}));
 
 import {
   upsertRailwayVariable,
@@ -252,8 +247,11 @@ describe('runStagedRotation', () => {
     await runStagedRotation(makeOptions({ stage: '1' }), context);
 
     expect(mockRedeploy).toHaveBeenCalledTimes(1);
-    const [services] = mockRedeploy.mock.calls[0];
-    expect(services).toEqual([{ id: 'svc-gateway', name: 'api-gateway' }]);
+    expect(mockRedeploy).toHaveBeenCalledWith([{ id: 'svc-gateway', name: 'api-gateway' }], {
+      projectId: 'proj-1',
+      environmentId: 'env-1',
+      env: 'dev',
+    });
   });
 
   // `reportRedeployFailures` prints an unconditional "⚠️ N service(s) failed to
@@ -298,11 +296,17 @@ describe('runStagedRotation', () => {
     await runStagedRotation(makeOptions({ stage: '2' }), context);
 
     expect(mockRedeploy).toHaveBeenCalledTimes(1);
-    const [services] = mockRedeploy.mock.calls[0];
-    expect(services).toEqual([
-      { id: 'svc-bot', name: 'bot-client' },
-      { id: 'svc-ai', name: 'ai-worker' },
-    ]);
+    expect(mockRedeploy).toHaveBeenCalledWith(
+      [
+        { id: 'svc-bot', name: 'bot-client' },
+        { id: 'svc-ai', name: 'ai-worker' },
+      ],
+      {
+        projectId: 'proj-1',
+        environmentId: 'env-1',
+        env: 'dev',
+      }
+    );
     expect(mockUpsert).not.toHaveBeenCalled();
     expect(mockDelete).not.toHaveBeenCalled();
   });
@@ -335,8 +339,11 @@ describe('runStagedRotation', () => {
     await runStagedRotation(makeOptions({ stage: '3' }), context);
 
     expect(mockRedeploy).toHaveBeenCalledTimes(1);
-    const [services] = mockRedeploy.mock.calls[0];
-    expect(services).toEqual([{ id: 'svc-gateway', name: 'api-gateway' }]);
+    expect(mockRedeploy).toHaveBeenCalledWith([{ id: 'svc-gateway', name: 'api-gateway' }], {
+      projectId: 'proj-1',
+      environmentId: 'env-1',
+      env: 'dev',
+    });
     expect(mockMarkRotated).toHaveBeenCalledWith('dev', 'internal-service-secret');
   });
 

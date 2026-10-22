@@ -46,8 +46,11 @@ operations keep working throughout.
 
 ### Stage 1 — stage
 
-Mints a new 32-byte key, then sets `API_KEY_ENCRYPTION_KEY` (new) and
-`API_KEY_ENCRYPTION_KEY_PREVIOUS` (old) on **both** api-gateway and ai-worker.
+Mints a new 32-byte key, upserts `API_KEY_ENCRYPTION_KEY` (new) and
+`API_KEY_ENCRYPTION_KEY_PREVIOUS` (old) on **both** api-gateway and ai-worker via
+the Railway GraphQL API (`skipDeploys: true`), and redeploys both services
+reusing their running image (no rebuild; requires `TZUROT_RAILWAY_API_TOKEN_DEV`
+or `TZUROT_RAILWAY_API_TOKEN_PROD` in the local `.env`).
 
 **Wait for both redeploys to finish before running stage 2.** A service still
 running on the old process doesn't know the new key yet.
@@ -75,11 +78,12 @@ current key.
 ### Stage 3 — finalize
 
 Re-verifies, then deletes `API_KEY_ENCRYPTION_KEY_PREVIOUS` on both services via
-the Railway GraphQL API, redeploys both services, and stamps the ledger only if
-both redeploys were accepted (requires `TZUROT_RAILWAY_API_TOKEN_DEV` or
-`TZUROT_RAILWAY_API_TOKEN_PROD` in the local `.env`). It **refuses to finalize**
-while any row still fails to decrypt with the current key, and equally if a read
-hit the 50,000-row cap, since a capped sweep cannot prove completeness.
+the Railway GraphQL API, redeploys both services reusing their running image,
+and stamps the ledger only if both redeploys were accepted (requires
+`TZUROT_RAILWAY_API_TOKEN_DEV` or `TZUROT_RAILWAY_API_TOKEN_PROD` in the local
+`.env`, same as stage 1). It **refuses to finalize** while any row still fails
+to decrypt with the current key, and equally if a read hit the 50,000-row cap,
+since a capped sweep cannot prove completeness.
 
 ## Safety properties worth knowing
 
@@ -89,10 +93,9 @@ hit the 50,000-row cap, since a capped sweep cannot prove completeness.
   dashboard history holds the values) and re-run the stage.
 - **Optimistic concurrency**: the re-encrypt write matches the full snapshot
   ciphertext, not just the row id, so a concurrent user write is never clobbered.
-- **Secret values never reach stdout** — only names, counts, and confirmations.
-  Known limitation (stage 1 only): `railway variables --set` has no stdin form,
-  so key material transits the process's argv for the duration of the stage-1
-  call.
+- **Secret values never reach stdout or argv** — writes travel in the Railway
+  GraphQL API request body, and only names, counts, and confirmations are
+  printed.
 
 ## If the key is compromised
 
