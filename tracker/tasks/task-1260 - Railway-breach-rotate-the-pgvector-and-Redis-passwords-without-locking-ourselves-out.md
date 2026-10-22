@@ -42,6 +42,12 @@ Redis: set REDIS_PASSWORD, redeploy Redis, then redeploy every service that refe
 
 Break-glass to check BEFORE prod: shell access to the pgvector container (railway ssh) for a local-socket psql. A railway ssh probe on dev hung for 90 s on 2026-10-21 (deploys paused at the time); pg_hba local rules unread.
 
+Railway's own guides (published 2026-10-22 01:26Z, read the same night, paraphrased by the fetch tool):
+- Postgres (blog.railway.com/p/security-disclosure-recommendation-rotate-postgresql-database-credentials): the supported path is the database service's Database tab, Config, Connection section, Regenerate next to the password. Railway changes the password inside Postgres, updates POSTGRES_PASSWORD and the variables built from it, and restarts the database, which drops every open session (so session A in the plan above does not survive it). Dependent services fail to reconnect until redeployed. The guide warns NOT to edit POSTGRES_PASSWORD/PGPASSWORD by hand or run ALTER USER yourself, because either one alone leaves the variable and the database out of sync. Our manual plan does both sides on purpose, so it is the fallback if the Regenerate button is missing for the pgvector image. Unchecked: whether pgvector's Database tab shows Regenerate (Lila checks in the dashboard).
+- Redis (…-rotate-redis-database-credentials): the same Regenerate button; do not edit the password variable or run CONFIG SET requirepass by hand. So the Redis line above is replaced by Regenerate, then redeploy every consumer.
+- Both guides: check whether Public Access (TCP proxy) is on and turn it off if nothing outside the project needs it. Ours: the pgvector public URL is how the local ops tooling reaches the databases, so it stays on unless we change that.
+- Misuse checks to add to step 8: deploy logs for `password authentication failed` (Postgres) and `WRONGPASS`/`NOAUTH` (Redis); after rotation, pg_stat_activity and Redis CLIENT LIST for sessions we do not recognise; `SELECT rolname FROM pg_roles` for unknown roles; unexpected extensions; DBSIZE and INFO keyspace against expectations; the Railway audit log for who viewed or changed variables.
+
 Acceptance: dev rotated and verified end to end, the procedure corrected from what that run showed, prod rotated, and the now.md entry updated.
 
 Promote when: Railway builds and deploys resume.
