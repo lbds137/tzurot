@@ -417,7 +417,7 @@ describe('rotateByokKey', () => {
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
   });
 
-  it('stage 3 says nothing changed and to re-run when the first delete fails', async () => {
+  it('stage 3 instructs to re-run when the first delete fails', async () => {
     stubRailwayVars({
       API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
       API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
@@ -427,10 +427,33 @@ describe('rotateByokKey', () => {
     deleteRailwayVariable.mockRejectedValueOnce(new Error('delete boom'));
 
     const promise = rotateByokKey({ env: 'dev', stage: '3' });
-    await expect(promise).rejects.toThrow('Nothing was changed');
+    await expect(promise).rejects.toThrow('Re-run stage 3 to retry');
     await expect(promise).rejects.toThrow('Re-run stage 3');
-    await expect(promise).rejects.not.toThrow('deploy:var-delete');
+    await expect(promise).rejects.not.toThrow('--service api-gateway');
     expect(deleteRailwayVariable).toHaveBeenCalledTimes(1);
+    expect(redeployRailwayService).not.toHaveBeenCalled();
+    expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
+  });
+
+  it('stage 3 records an already-absent service in absentNow when a later delete fails', async () => {
+    stubRailwayVarsPerService({
+      'api-gateway': { API_KEY_ENCRYPTION_KEY: KEY_A_HEX },
+      'ai-worker': { API_KEY_ENCRYPTION_KEY: KEY_A_HEX, API_KEY_ENCRYPTION_KEY_PREVIOUS: '' },
+    });
+    mockPrisma.userApiKey.findMany.mockResolvedValue([]);
+    mockPrisma.userCredential.findMany.mockResolvedValue([]);
+    deleteRailwayVariable.mockRejectedValueOnce(new Error('delete boom'));
+
+    const promise = rotateByokKey({ env: 'dev', stage: '3' });
+    await expect(promise).rejects.toThrow('absent on api-gateway');
+    await expect(promise).rejects.toThrow('still set on ai-worker');
+    await expect(promise).rejects.toThrow(
+      'pnpm ops deploy:var-delete --env dev --service ai-worker --name API_KEY_ENCRYPTION_KEY_PREVIOUS --yes'
+    );
+    expect(deleteRailwayVariable).toHaveBeenCalledTimes(1);
+    expect(deleteRailwayVariable).toHaveBeenCalledWith(
+      expect.objectContaining({ serviceId: 'svc-ai-worker' })
+    );
     expect(redeployRailwayService).not.toHaveBeenCalled();
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
   });
