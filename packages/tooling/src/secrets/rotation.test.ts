@@ -408,16 +408,16 @@ describe('rotateByokKey', () => {
       .mockRejectedValueOnce(new Error('delete boom'));
 
     const promise = rotateByokKey({ env: 'dev', stage: '3' });
-    await expect(promise).rejects.toThrow('already deleted: api-gateway');
-    await expect(promise).rejects.toThrow('--env dev');
-    await expect(promise).rejects.toThrow('--service ai-worker');
-    await expect(promise).rejects.toThrow('--name API_KEY_ENCRYPTION_KEY_PREVIOUS');
-    await expect(promise).rejects.toThrow('--yes');
+    await expect(promise).rejects.toThrow('absent on api-gateway');
+    await expect(promise).rejects.toThrow('still set on ai-worker');
+    await expect(promise).rejects.toThrow(
+      'pnpm ops deploy:var-delete --env dev --service ai-worker --name API_KEY_ENCRYPTION_KEY_PREVIOUS --yes'
+    );
     expect(redeployRailwayService).not.toHaveBeenCalled();
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
   });
 
-  it('stage 3 reports already deleted: none when the first delete fails', async () => {
+  it('stage 3 says nothing changed and to re-run when the first delete fails', async () => {
     stubRailwayVars({
       API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
       API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
@@ -427,8 +427,9 @@ describe('rotateByokKey', () => {
     deleteRailwayVariable.mockRejectedValueOnce(new Error('delete boom'));
 
     const promise = rotateByokKey({ env: 'dev', stage: '3' });
-    await expect(promise).rejects.toThrow('already deleted: none');
-    await expect(promise).rejects.toThrow('--service api-gateway');
+    await expect(promise).rejects.toThrow('Nothing was changed');
+    await expect(promise).rejects.toThrow('Re-run stage 3');
+    await expect(promise).rejects.not.toThrow('deploy:var-delete');
     expect(deleteRailwayVariable).toHaveBeenCalledTimes(1);
     expect(redeployRailwayService).not.toHaveBeenCalled();
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
