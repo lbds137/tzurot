@@ -74,7 +74,7 @@ describe('deleteFailureError', () => {
     });
 
     expect(err.message).toContain('absent on a');
-    expect(err.message).toContain('still set on b, c');
+    expect(err.message).toContain('may still be set on b, c');
     expect(err.message).toContain(
       '`pnpm ops deploy:var-delete --env dev --service b --name X --yes`; `pnpm ops deploy:var-delete --env dev --service c --name X --yes`'
     );

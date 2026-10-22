@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('../deployment/railway-api.js', () => ({
   requireRailwayApiToken: vi.fn(),
   upsertRailwayVariable: vi.fn(),
-  redeployRailwayService: vi.fn(),
+  redeployRailwayServiceReusingImage: vi.fn(),
   listRailwayVariableNames: vi.fn(),
   readRailwayVariableValue: vi.fn(),
   deleteRailwayVariable: vi.fn(),
@@ -48,7 +48,7 @@ vi.mock('./rotate-env-stages.js', () => ({
 import {
   requireRailwayApiToken,
   upsertRailwayVariable,
-  redeployRailwayService,
+  redeployRailwayServiceReusingImage,
   listRailwayVariableNames,
 } from '../deployment/railway-api.js';
 import { listRailwayServices } from '../deployment/railway-status.js';
@@ -60,7 +60,7 @@ import { runRotateEnvSecret, type RotateEnvSecretOptions } from './rotate-env-se
 
 const mockRequireToken = vi.mocked(requireRailwayApiToken);
 const mockUpsert = vi.mocked(upsertRailwayVariable);
-const mockRedeploy = vi.mocked(redeployRailwayService);
+const mockRedeploy = vi.mocked(redeployRailwayServiceReusingImage);
 const mockListNames = vi.mocked(listRailwayVariableNames);
 const mockListServices = vi.mocked(listRailwayServices);
 const mockMarkRotated = vi.mocked(markSecretRotated);
@@ -128,7 +128,7 @@ describe('runRotateEnvSecret', () => {
       return INHERITING_IDS.has(args.serviceId) ? [VAR_NAME] : ['REDIS_URL'];
     });
     mockUpsert.mockResolvedValue(undefined);
-    mockRedeploy.mockResolvedValue(undefined);
+    mockRedeploy.mockResolvedValue('dep-new');
     mockMarkRotated.mockResolvedValue(undefined);
     mockConfirm.mockResolvedValue(true);
 
@@ -146,16 +146,19 @@ describe('runRotateEnvSecret', () => {
 
     expect(mockRedeploy).toHaveBeenCalledTimes(3);
     expect(mockRedeploy).toHaveBeenCalledWith({
+      projectId: 'proj-1',
       environmentId: 'env-1',
       serviceId: 'svc-gateway',
       env: 'dev',
     });
     expect(mockRedeploy).toHaveBeenCalledWith({
+      projectId: 'proj-1',
       environmentId: 'env-1',
       serviceId: 'svc-bot',
       env: 'dev',
     });
     expect(mockRedeploy).toHaveBeenCalledWith({
+      projectId: 'proj-1',
       environmentId: 'env-1',
       serviceId: 'svc-ai',
       env: 'dev',
@@ -180,6 +183,7 @@ describe('runRotateEnvSecret', () => {
       if (args.serviceId === 'svc-gateway') {
         throw new Error('redeploy boom');
       }
+      return 'dep-new';
     });
 
     await expect(runRotateEnvSecret(BASE_OPTIONS)).rejects.toThrow('api-gateway');
@@ -203,6 +207,7 @@ describe('runRotateEnvSecret', () => {
       if (args.serviceId === 'svc-ai') {
         throw new Error('ai boom');
       }
+      return 'dep-new';
     });
 
     await expect(runRotateEnvSecret(BASE_OPTIONS)).rejects.toThrow(
@@ -242,6 +247,7 @@ describe('runRotateEnvSecret', () => {
       if (args.serviceId === 'svc-gateway') {
         throw new Error('redeploy boom');
       }
+      return 'dep-new';
     });
 
     await expect(runRotateEnvSecret(BASE_OPTIONS)).rejects.toThrow('api-gateway');

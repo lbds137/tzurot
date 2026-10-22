@@ -39,7 +39,7 @@ export function deleteFailureError(args: {
     .join('; ');
   return new Error(
     `Failed to delete ${varName} on ${service} (${env}). ` +
-      `It is now absent on ${absentNow.join(', ')} but still set on ${stillSet.join(', ')}. ` +
+      `It is now absent on ${absentNow.join(', ')} but may still be set on ${stillSet.join(', ')}. ` +
       `Delete it with: ${commands}, then re-run stage 3.`,
     { cause: error }
   );

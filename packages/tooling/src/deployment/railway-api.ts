@@ -2,7 +2,7 @@
  * Minimal Railway public-API GraphQL client, for the operations the Railway
  * CLI does not expose: variable deletion, variable listing (names only —
  * values are secrets and are never returned), variable upsert, and
- * service-instance redeploy.
+ * service-instance / image-reusing deployment redeploy.
  *
  * The seam is deliberately one generic `railwayGraphql` call plus one typed
  * wrapper per operation, so the next CLI-missing operation plugs in beside
@@ -447,6 +447,116 @@ export async function redeployRailwayService(args: RedeployRailwayServiceArgs): 
   if (parsed.data.serviceInstanceRedeploy === false) {
     throw new Error(`Railway rejected the redeploy for service "${args.serviceId}"`);
   }
+}
+
+const LATEST_SUCCESS_DEPLOYMENT_QUERY = `
+  query LatestSuccessDeployment($projectId: String!, $environmentId: String!, $serviceId: String!) {
+    deployments(
+      first: 1
+      input: {
+        projectId: $projectId
+        environmentId: $environmentId
+        serviceId: $serviceId
+        status: { in: [SUCCESS] }
+      }
+    ) {
+      edges {
+        node {
+          id
+        }
+      }
+    }
+  }
+`;
+
+const LatestSuccessDeploymentResponseSchema = z
+  .object({
+    deployments: z
+      .object({
+        edges: z.array(
+          z
+            .object({
+              node: z.object({ id: z.string() }).passthrough(),
+            })
+            .passthrough()
+        ),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+const DEPLOYMENT_REDEPLOY_MUTATION = `
+  mutation DeploymentRedeploy($id: String!, $usePreviousImageTag: Boolean) {
+    deploymentRedeploy(id: $id, usePreviousImageTag: $usePreviousImageTag) {
+      id
+    }
+  }
+`;
+
+const DeploymentRedeployResponseSchema = z
+  .object({
+    deploymentRedeploy: z.object({ id: z.string() }).passthrough(),
+  })
+  .passthrough();
+
+export interface RedeployRailwayServiceReusingImageArgs {
+  projectId: string;
+  environmentId: string;
+  serviceId: string;
+  env: RailwayEnv;
+}
+
+/**
+ * Redeploy a service by reusing the image of its latest `SUCCESS` deployment
+ * (`deploymentRedeploy` with `usePreviousImageTag: true`) instead of building
+ * the branch HEAD via `serviceInstanceRedeploy`, and return the new
+ * deployment's id.
+ *
+ * Secret rotation uses this so a variable-only rotation restarts the image and
+ * code already running in the environment without running a full image build or
+ * deploying unreleased commits from the branch HEAD.
+ *
+ * Observed against the live Railway API, not verified or pinned by a unit test:
+ * `deploymentRedeploy(id, usePreviousImageTag: true)` skips the build stage and
+ * snapshots the service's current variable values into the new deployment.
+ */
+export async function redeployRailwayServiceReusingImage(
+  args: RedeployRailwayServiceReusingImageArgs
+): Promise<string> {
+  const rawDeployments = await railwayGraphql<unknown>(
+    LATEST_SUCCESS_DEPLOYMENT_QUERY,
+    {
+      projectId: args.projectId,
+      environmentId: args.environmentId,
+      serviceId: args.serviceId,
+    },
+    args.env
+  );
+
+  const parsedDeployments = LatestSuccessDeploymentResponseSchema.safeParse(rawDeployments);
+  if (!parsedDeployments.success) {
+    throw unexpectedShapeError('deployments');
+  }
+
+  const latestEdge = parsedDeployments.data.deployments.edges[0];
+  if (latestEdge === undefined) {
+    throw new Error(
+      `Railway service "${args.serviceId}" has no successful deployment whose image can be reused`
+    );
+  }
+
+  const rawRedeploy = await railwayGraphql<unknown>(
+    DEPLOYMENT_REDEPLOY_MUTATION,
+    { id: latestEdge.node.id, usePreviousImageTag: true },
+    args.env
+  );
+
+  const parsedRedeploy = DeploymentRedeployResponseSchema.safeParse(rawRedeploy);
+  if (!parsedRedeploy.success) {
+    throw unexpectedShapeError('deployment-redeploy');
+  }
+
+  return parsedRedeploy.data.deploymentRedeploy.id;
 }
 
 const SERVICE_INSTANCE_DEPLOYMENT_QUERY = `
