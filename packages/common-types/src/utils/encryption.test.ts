@@ -130,7 +130,7 @@ describe('Encryption Utilities', () => {
       expect(() => decryptApiKey(encrypted)).toThrow();
     });
 
-    it('treats an EMPTY previous-key variable as unset (Railway cannot delete vars)', () => {
+    it('treats an EMPTY previous-key variable as unset (same as absent)', () => {
       vi.stubEnv('API_KEY_ENCRYPTION_KEY', OLD_KEY);
       const encrypted = encryptApiKey(TEST_API_KEY);
       vi.stubEnv('API_KEY_ENCRYPTION_KEY', VALID_MASTER_KEY);
