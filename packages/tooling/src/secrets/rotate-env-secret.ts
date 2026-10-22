@@ -190,7 +190,6 @@ async function runSingleShotRotation(
   });
 
   const failures = await redeployServices(affectedServices, {
-    projectId,
     environmentId,
     env: options.env,
   });

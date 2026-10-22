@@ -163,13 +163,12 @@ export async function resolveRotationContext(options: {
  */
 export async function redeployServices(
   services: { id: string; name: string }[],
-  context: { projectId: string; environmentId: string; env: 'dev' | 'prod' }
+  context: { environmentId: string; env: 'dev' | 'prod' }
 ): Promise<RedeployFailure[]> {
   const failures: RedeployFailure[] = [];
   for (const svc of services) {
     try {
       await redeployRailwayServiceReusingImage({
-        projectId: context.projectId,
         environmentId: context.environmentId,
         serviceId: svc.id,
         env: context.env,

@@ -9,10 +9,10 @@
  *
  * BYOK rotation is STAGED because services must hold both keys while rows
  * migrate (dual-key window — see common-types/utils/encryption.ts):
- *   stage 1 (stage):     mint new key; upsert CURRENT=new, PREVIOUS=old on
- *                        api-gateway + ai-worker through the Railway API
- *                        (skipDeploys), then redeploy both reusing their
- *                        running image; wait for redeploys.
+ *   stage 1 (stage):     mint new key; upsert PREVIOUS=old on both services,
+ *                        then CURRENT=new on both (api-gateway + ai-worker)
+ *                        through the Railway API (skipDeploys), then redeploy
+ *                        both reusing their running image; wait for redeploys.
  *   stage 2 (reencrypt): re-encrypt every user_api_keys/user_credentials row
  *                        still on the previous key; verify sweep.
  *   stage 3 (finalize):  verify again, delete PREVIOUS on both services
@@ -24,7 +24,6 @@
  * confirmations are printed.
  */
 
-import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import chalk from 'chalk';
 import { createPrismaClient } from '@tzurot/common-types/services/prisma';
@@ -41,9 +40,16 @@ import {
   requireRailwayApiToken,
   upsertRailwayVariable,
 } from '../deployment/railway-api.js';
-import type { RailwayIds } from '../deployment/railway-status.js';
 import { getRailwayDatabaseUrl, getRailwayEnvName } from '../utils/env-runner.js';
 import { deleteFailureError, resolveServiceIds } from './byok-finalize-helpers.js';
+import {
+  BYOK_SERVICES,
+  CURRENT_VAR,
+  GATEWAY_SERVICE,
+  PREVIOUS_VAR,
+  stageByokWindow,
+  type ByokServiceIds,
+} from './byok-stage-helpers.js';
 
 /** Default rotation intervals (owner decision: 180d BYOK, 365d the rest). */
 export const DEFAULT_INTERVALS: Record<string, number> = {
@@ -51,10 +57,6 @@ export const DEFAULT_INTERVALS: Record<string, number> = {
 };
 export const DEFAULT_INTERVAL_DAYS = 365;
 
-const GATEWAY_SERVICE = 'api-gateway';
-const BYOK_SERVICES = [GATEWAY_SERVICE, 'ai-worker'] as const;
-const CURRENT_VAR = 'API_KEY_ENCRYPTION_KEY';
-const PREVIOUS_VAR = 'API_KEY_ENCRYPTION_KEY_PREVIOUS';
 /** Bounded reads; both tables are one row per (user, provider/service). */
 const ROW_CAP = 50_000;
 
@@ -318,8 +320,6 @@ async function countNonCurrentRows(
   return failures;
 }
 
-type ByokServiceIds = Record<(typeof BYOK_SERVICES)[number], Required<RailwayIds>>;
-
 function resolveByokIds(env: SecretsEnv): ByokServiceIds {
   return Object.fromEntries(
     BYOK_SERVICES.map(svc => [svc, resolveServiceIds(env, svc)])
@@ -350,59 +350,6 @@ async function redeployByokServices(
   const message = buildFailureMessage(failures.map(f => f.service).join(', '));
   console.log(chalk.red(`\n${message}`));
   throw new Error(message);
-}
-
-async function stageByokWindow(env: SecretsEnv): Promise<void> {
-  requireRailwayApiToken(env);
-
-  // A second stage-1 while a window is open would demote the CURRENT key to
-  // PREVIOUS and DISCARD the original previous key — permanently orphaning
-  // every row still encrypted under it. Refuse; the open window must be
-  // finished (stage 2 then 3) first.
-  if (getServiceVariableOrEmpty(env, GATEWAY_SERVICE, PREVIOUS_VAR) !== '') {
-    throw new Error(
-      'A rotation window is already open (PREVIOUS is set) — run stage 2 then stage 3 to close it before starting a new rotation.'
-    );
-  }
-  const current = getServiceVariable(env, GATEWAY_SERVICE, CURRENT_VAR);
-  parseEncryptionKeyMaterial(current, CURRENT_VAR); // sanity before touching anything
-
-  const ids = resolveByokIds(env);
-  const next = crypto.randomBytes(32).toString('hex');
-
-  for (const svc of BYOK_SERVICES) {
-    for (const [name, value] of [
-      [CURRENT_VAR, next],
-      [PREVIOUS_VAR, current],
-    ] as const) {
-      try {
-        await upsertRailwayVariable({ ...ids[svc], name, value, skipDeploys: true, env });
-      } catch (error) {
-        throw new Error(
-          `Failed to upsert ${name} on ${svc} (${env}). ` +
-            `The two services (${BYOK_SERVICES.join(' and ')}) may now disagree, and re-running stage 1 is refused while ${PREVIOUS_VAR} is set — ` +
-            'make both services match by hand in the Railway dashboard (whose history holds the values) and then continue with stage 2.',
-          { cause: error }
-        );
-      }
-    }
-    console.log(chalk.green(`  set ${CURRENT_VAR}, ${PREVIOUS_VAR} on ${svc} (${env})`));
-  }
-
-  await redeployByokServices(
-    env,
-    ids,
-    failedServices =>
-      `Both services hold both keys in Railway, but ${failedServices} failed to redeploy and still runs its old process until redeployed. ` +
-      `Redeploy ${failedServices} from the Railway dashboard before running stage 2 (reencrypt).`
-  );
-
-  console.log(
-    chalk.cyan(
-      '\nStage 1 complete. Both services now hold current+previous keys and were redeployed (image reused, no rebuild).\n' +
-        'Wait for the redeploys to finish, then run stage 2 (reencrypt).'
-    )
-  );
 }
 
 async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
@@ -480,7 +427,14 @@ export async function rotateByokKey(options: { env: SecretsEnv; stage: string })
   assertByokServicesConsistent(env);
 
   if (stage === '1' || stage === 'stage') {
-    await stageByokWindow(env);
+    await stageByokWindow({
+      env,
+      getServiceVariable,
+      getServiceVariableOrEmpty,
+      resolveByokIds,
+      upsertVariable: upsertRailwayVariable,
+      redeployServices: redeployByokServices,
+    });
     return;
   }
 

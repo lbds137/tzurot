@@ -682,12 +682,16 @@ describe('railway-api', () => {
   });
 
   describe('redeployRailwayServiceReusingImage', () => {
-    it('queries the latest SUCCESS deployment with the passed ids, redeploys it with usePreviousImageTag: true, and returns the new id', async () => {
+    it('queries serviceInstance.latestDeployment with the passed environment and service ids, redeploys it with usePreviousImageTag: true, and returns the new id', async () => {
       process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch
         .mockResolvedValueOnce(
           jsonResponse(200, {
-            data: { deployments: { edges: [{ node: { id: 'dep-prev' } }] } },
+            data: {
+              serviceInstance: {
+                latestDeployment: { id: 'dep-prev', status: 'SUCCESS' },
+              },
+            },
           })
         )
         .mockResolvedValueOnce(
@@ -697,7 +701,6 @@ describe('railway-api', () => {
         );
 
       const newId = await redeployRailwayServiceReusingImage({
-        projectId: 'proj-1',
         environmentId: 'env-1',
         serviceId: 'svc-1',
         env: 'dev',
@@ -711,10 +714,9 @@ describe('railway-api', () => {
         query: string;
         variables: Record<string, unknown>;
       };
-      expect(queryBody.query).toContain('deployments');
-      expect(queryBody.query).toContain('SUCCESS');
+      expect(queryBody.query).toContain('serviceInstance');
+      expect(queryBody.query).toContain('latestDeployment');
       expect(queryBody.variables).toEqual({
-        projectId: 'proj-1',
         environmentId: 'env-1',
         serviceId: 'svc-1',
       });
@@ -731,34 +733,74 @@ describe('railway-api', () => {
       });
     });
 
-    it('throws the no-successful-deployment error and skips deploymentRedeploy when edges is empty', async () => {
+    it('refuses a non-SUCCESS latestDeployment with the status in the message and makes no second call', async () => {
       process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
-      mockFetch.mockResolvedValueOnce(jsonResponse(200, { data: { deployments: { edges: [] } } }));
-
-      await expect(
-        redeployRailwayServiceReusingImage({
-          projectId: 'proj-1',
-          environmentId: 'env-1',
-          serviceId: 'svc-1',
-          env: 'dev',
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            serviceInstance: {
+              latestDeployment: { id: 'dep-building', status: 'BUILDING' },
+            },
+          },
         })
-      ).rejects.toThrow(
-        'Railway service "svc-1" has no successful deployment whose image can be reused'
-      );
-      expect(mockFetch).toHaveBeenCalledTimes(1);
-    });
-
-    it('throws a shape error without echoing the raw body when the deployments response is malformed', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
-      const sentinelPayload = 'SENTINEL-RAW-DEPLOYMENTS-PAYLOAD';
-      mockFetch.mockResolvedValue(
-        jsonResponse(200, { data: { deployments: { unexpected: sentinelPayload } } })
       );
 
       let caught: unknown;
       try {
         await redeployRailwayServiceReusingImage({
-          projectId: 'proj-1',
+          environmentId: 'env-1',
+          serviceId: 'svc-1',
+          env: 'dev',
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(Error);
+      const message = caught instanceof Error ? caught.message : '';
+      expect(message).toContain('svc-1');
+      expect(message).toContain(
+        'its latest deployment is BUILDING, not SUCCESS; resolve that before rotating'
+      );
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('refuses a missing latestDeployment and makes no second call', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: { serviceInstance: { latestDeployment: null } },
+        })
+      );
+
+      let caught: unknown;
+      try {
+        await redeployRailwayServiceReusingImage({
+          environmentId: 'env-1',
+          serviceId: 'svc-1',
+          env: 'dev',
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(Error);
+      const message = caught instanceof Error ? caught.message : '';
+      expect(message).toContain('svc-1');
+      expect(message).toContain('has no latest deployment; resolve that before rotating');
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws a shape error without echoing the raw body when the serviceInstance response is malformed', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      const sentinelPayload = 'SENTINEL-RAW-DEPLOYMENTS-PAYLOAD';
+      mockFetch.mockResolvedValue(
+        jsonResponse(200, { data: { serviceInstance: { unexpected: sentinelPayload } } })
+      );
+
+      let caught: unknown;
+      try {
+        await redeployRailwayServiceReusingImage({
           environmentId: 'env-1',
           serviceId: 'svc-1',
           env: 'dev',
@@ -780,7 +822,11 @@ describe('railway-api', () => {
       mockFetch
         .mockResolvedValueOnce(
           jsonResponse(200, {
-            data: { deployments: { edges: [{ node: { id: 'dep-prev' } }] } },
+            data: {
+              serviceInstance: {
+                latestDeployment: { id: 'dep-prev', status: 'SUCCESS' },
+              },
+            },
           })
         )
         .mockResolvedValueOnce(
@@ -792,7 +838,6 @@ describe('railway-api', () => {
       let caught: unknown;
       try {
         await redeployRailwayServiceReusingImage({
-          projectId: 'proj-1',
           environmentId: 'env-1',
           serviceId: 'svc-1',
           env: 'dev',
