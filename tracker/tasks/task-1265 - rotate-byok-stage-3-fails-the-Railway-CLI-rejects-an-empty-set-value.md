@@ -1,9 +1,10 @@
 ---
 id: TASK-1265
 title: 'rotate-byok stage 3 fails: the Railway CLI rejects an empty --set value'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-22 19:28'
+updated_date: '2026-10-22 20:50'
 labels:
   - 'area:tooling'
   - 'size:S'
