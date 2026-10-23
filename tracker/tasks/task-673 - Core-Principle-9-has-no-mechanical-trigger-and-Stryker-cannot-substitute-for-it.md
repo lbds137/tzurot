@@ -3,9 +3,10 @@ id: TASK-673
 title: >-
   Core Principle 9 has no mechanical trigger, and Stryker cannot substitute for
   it
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-19 02:44'
+updated_date: '2026-10-23 23:42'
 labels:
   - 'area:tooling'
   - 'size:M'

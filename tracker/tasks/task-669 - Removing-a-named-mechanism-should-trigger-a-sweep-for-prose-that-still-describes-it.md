@@ -3,9 +3,10 @@ id: TASK-669
 title: >-
   Removing a named mechanism should trigger a sweep for prose that still
   describes it
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-19 01:46'
+updated_date: '2026-10-23 23:42'
 labels:
   - 'area:hooks'
   - 'size:M'
