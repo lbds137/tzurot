@@ -226,7 +226,8 @@ describe('rotate-env-context', () => {
 
       reportRedeployFailures(
         [{ name: 'bot-client', error: new Error('boom') }],
-        'Nothing was written — stage 2 only redeploys presenters.'
+        'Nothing was written — stage 2 only redeploys presenters.',
+        'dev'
       );
 
       const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
