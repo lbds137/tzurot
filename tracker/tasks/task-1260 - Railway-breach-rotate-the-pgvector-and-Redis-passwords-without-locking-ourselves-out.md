@@ -3,9 +3,10 @@ id: TASK-1260
 title: >-
   Railway breach: rotate the pgvector and Redis passwords without locking
   ourselves out
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-21 23:49'
+updated_date: '2026-10-23 15:32'
 labels:
   - 'area:db'
   - 'size:M'
@@ -89,3 +90,9 @@ Acceptance: dev rotated and verified end to end, the procedure corrected from wh
 
 Promote when: Railway builds and deploys resume.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Done 2026-10-23: prod Postgres+Redis rotated 14:49-14:50Z via rotate_db_redis.mjs (1 min, image reuse), both cross-env literals updated 15:09Z, digests match. Image-reuse redeploys measured 15-75 s on dev; prod reuse redeploys sat in BUILDING for ~10 min once (14:27-14:37Z).
+<!-- SECTION:NOTES:END -->
