@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../deployment/railway-api.js', () => ({
   requireRailwayApiToken: vi.fn(),
+  assertRailwayServiceDeploymentReady: vi.fn(),
   upsertRailwayVariable: vi.fn(),
   redeployRailwayServiceReusingImage: vi.fn(),
   listRailwayVariableNames: vi.fn(),
@@ -47,6 +48,7 @@ vi.mock('./rotate-env-stages.js', () => ({
 
 import {
   requireRailwayApiToken,
+  assertRailwayServiceDeploymentReady,
   upsertRailwayVariable,
   redeployRailwayServiceReusingImage,
   listRailwayVariableNames,
@@ -59,6 +61,7 @@ import { getDualAcceptance, runStagedRotation, resolveStageAlias } from './rotat
 import { runRotateEnvSecret, type RotateEnvSecretOptions } from './rotate-env-secret.js';
 
 const mockRequireToken = vi.mocked(requireRailwayApiToken);
+const mockAssertReady = vi.mocked(assertRailwayServiceDeploymentReady);
 const mockUpsert = vi.mocked(upsertRailwayVariable);
 const mockRedeploy = vi.mocked(redeployRailwayServiceReusingImage);
 const mockListNames = vi.mocked(listRailwayVariableNames);
@@ -97,6 +100,7 @@ describe('runRotateEnvSecret', () => {
 
   beforeEach(() => {
     mockRequireToken.mockReset();
+    mockAssertReady.mockReset();
     mockUpsert.mockReset();
     mockRedeploy.mockReset();
     mockListNames.mockReset();
@@ -129,6 +133,7 @@ describe('runRotateEnvSecret', () => {
     });
     mockUpsert.mockResolvedValue(undefined);
     mockRedeploy.mockResolvedValue('dep-new');
+    mockAssertReady.mockResolvedValue(undefined);
     mockMarkRotated.mockResolvedValue(undefined);
     mockConfirm.mockResolvedValue(true);
 
@@ -148,16 +153,19 @@ describe('runRotateEnvSecret', () => {
     expect(mockRedeploy).toHaveBeenCalledWith({
       environmentId: 'env-1',
       serviceId: 'svc-gateway',
+      serviceName: 'api-gateway',
       env: 'dev',
     });
     expect(mockRedeploy).toHaveBeenCalledWith({
       environmentId: 'env-1',
       serviceId: 'svc-bot',
+      serviceName: 'bot-client',
       env: 'dev',
     });
     expect(mockRedeploy).toHaveBeenCalledWith({
       environmentId: 'env-1',
       serviceId: 'svc-ai',
+      serviceName: 'ai-worker',
       env: 'dev',
     });
     for (const call of mockRedeploy.mock.calls) {
@@ -173,6 +181,63 @@ describe('runRotateEnvSecret', () => {
     expect(Object.hasOwn(args, 'serviceId')).toBe(false);
     expect(args.skipDeploys).toBe(true);
     expect(args.name).toBe(VAR_NAME);
+  });
+
+  it('preflights deployment readiness for exactly the affected services, before the upsert', async () => {
+    const order: string[] = [];
+    mockAssertReady.mockImplementation(async () => {
+      order.push('ready');
+    });
+    mockUpsert.mockImplementation(async () => {
+      order.push('upsert');
+    });
+
+    await runRotateEnvSecret(BASE_OPTIONS);
+
+    expect(mockAssertReady).toHaveBeenCalledTimes(3);
+    expect(mockAssertReady).toHaveBeenCalledWith({
+      environmentId: 'env-1',
+      serviceId: 'svc-gateway',
+      serviceName: 'api-gateway',
+      env: 'dev',
+    });
+    expect(mockAssertReady).toHaveBeenCalledWith({
+      environmentId: 'env-1',
+      serviceId: 'svc-bot',
+      serviceName: 'bot-client',
+      env: 'dev',
+    });
+    expect(mockAssertReady).toHaveBeenCalledWith({
+      environmentId: 'env-1',
+      serviceId: 'svc-ai',
+      serviceName: 'ai-worker',
+      env: 'dev',
+    });
+    // Preflight runs after the confirmation and before the shared-tier write.
+    expect(order).toEqual(['ready', 'ready', 'ready', 'upsert']);
+  });
+
+  it('a rejecting readiness check makes NO upsert and NO redeploy, and names the service', async () => {
+    mockAssertReady.mockImplementation(async ({ serviceName }: { serviceName: string }) => {
+      if (serviceName === 'bot-client') {
+        throw new Error(
+          "bot-client's latest deployment is BUILDING, not SUCCESS — wait for it to settle (or fix it), then re-run. Nothing was changed."
+        );
+      }
+    });
+
+    await expect(runRotateEnvSecret(BASE_OPTIONS)).rejects.toThrow('bot-client');
+    expect(mockUpsert).not.toHaveBeenCalled();
+    expect(mockRedeploy).not.toHaveBeenCalled();
+    expect(mockMarkRotated).not.toHaveBeenCalled();
+  });
+
+  it('a dry run never calls the readiness check', async () => {
+    await runRotateEnvSecret({ ...BASE_OPTIONS, dryRun: true });
+
+    expect(mockAssertReady).not.toHaveBeenCalled();
+    expect(mockUpsert).not.toHaveBeenCalled();
+    expect(mockRedeploy).not.toHaveBeenCalled();
   });
 
   it('continues past a failing redeploy and reports it', async () => {

@@ -45,6 +45,7 @@ import { confirmPrompt } from '../utils/confirm.js';
 import { UsageError } from '../utils/errors.js';
 import { getDualAcceptance, resolveStageAlias, runStagedRotation } from './rotate-env-stages.js';
 import {
+  assertServicesDeploymentReady,
   resolveRotationContext,
   redeployServices,
   reportRedeployFailures,
@@ -178,6 +179,11 @@ async function runSingleShotRotation(
       return;
     }
   }
+
+  // Preflight BEFORE the write: without it, a non-SUCCESS service would get the
+  // new shared value written and then a refused redeploy — the write cannot be
+  // undone, so the refusal has to happen while nothing has changed.
+  await assertServicesDeploymentReady(affectedServices, { environmentId, env: options.env });
 
   const value = crypto.randomBytes(32).toString('hex');
 

@@ -18,6 +18,14 @@ vi.mock('../deployment/var-delete.js', () => ({
   runVarDelete: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../deployment/redeploy-service.js', () => ({
+  runRedeployService: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../deployment/setup-railway-variables.js', () => ({
+  setupRailwayVariables: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('maintenance --drain-timeout validation', () => {
   let cli: ReturnType<typeof cac>;
 
@@ -158,5 +166,53 @@ describe('deploy:var-delete validation', () => {
     await runVarDeleteCli(['--env', 'dev', '--name', 'SOME_KEY', '--service', 'bot-client']);
 
     expect(runVarDelete).toHaveBeenCalledWith(expect.objectContaining({ service: 'bot-client' }));
+  });
+});
+
+describe('Railway-writing commands require an explicit --env', () => {
+  let cli: ReturnType<typeof cac>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cli = cac('test');
+    registerDeployCommands(cli);
+  });
+
+  async function runCli(args: string[]): Promise<void> {
+    cli.parse(['node', 'test', ...args], { run: false });
+    await (cli.runMatchedCommand() as Promise<void>);
+  }
+
+  // The three commands write to Railway, so none may fall back to dev when
+  // the flag is omitted; cac leaves an option without a default `undefined`.
+  it('deploy:redeploy without --env throws the required-env error and calls nothing', async () => {
+    const { runRedeployService } = await import('../deployment/redeploy-service.js');
+
+    await expect(runCli(['deploy:redeploy', '--service', 'api-gateway'])).rejects.toThrow(
+      '--env <dev|prod> is required'
+    );
+    expect(runRedeployService).not.toHaveBeenCalled();
+  });
+
+  it('deploy:var-delete without --env throws the required-env error and calls nothing', async () => {
+    const { runVarDelete } = await import('../deployment/var-delete.js');
+
+    await expect(runCli(['deploy:var-delete', '--shared', '--name', 'SOME_KEY'])).rejects.toThrow(
+      '--env <dev|prod> is required'
+    );
+    expect(runVarDelete).not.toHaveBeenCalled();
+  });
+
+  it('deploy:setup-vars without --env throws the required-env error and calls nothing', async () => {
+    const { setupRailwayVariables } = await import('../deployment/setup-railway-variables.js');
+
+    await expect(runCli(['deploy:setup-vars'])).rejects.toThrow('--env <dev|prod> is required');
+    expect(setupRailwayVariables).not.toHaveBeenCalled();
+  });
+
+  it('a present-but-invalid --env still reports the dev/prod value error, not the missing-flag error', async () => {
+    await expect(
+      runCli(['deploy:redeploy', '--env', 'staging', '--service', 'api-gateway'])
+    ).rejects.toThrow('--env must be "dev" or "prod"');
   });
 });

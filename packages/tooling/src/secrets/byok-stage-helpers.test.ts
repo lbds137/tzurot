@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  assertByokServicesDeploymentReady,
   stageUpsertFailureError,
   stageRedeployFailureMessage,
   stageByokWindow,
@@ -52,7 +53,6 @@ describe('stageUpsertFailureError', () => {
       env: 'dev',
       phase: 'previous',
       failedService: 'ai-worker',
-      okService: 'api-gateway',
     });
 
     expect(err.message).toBe(
@@ -79,7 +79,6 @@ describe('stageUpsertFailureError', () => {
       env: 'prod',
       phase: 'current',
       failedService: 'ai-worker',
-      okService: 'api-gateway',
     });
 
     expect(err.message).toBe(
@@ -102,6 +101,37 @@ describe('stageRedeployFailureMessage', () => {
     expect(bothMsg).toContain('`pnpm ops deploy:redeploy --env prod --service api-gateway --yes`');
     expect(bothMsg).toContain('`pnpm ops deploy:redeploy --env prod --service ai-worker --yes`');
     expect(bothMsg).toContain('then run stage 2.');
+  });
+});
+
+describe('assertByokServicesDeploymentReady', () => {
+  it('calls the passed assert fn once per BYOK service with ids, service name, and env', async () => {
+    const assertFn = vi.fn().mockResolvedValue(undefined);
+
+    await assertByokServicesDeploymentReady('dev', MOCK_IDS, assertFn);
+
+    expect(assertFn).toHaveBeenCalledTimes(2);
+    expect(assertFn).toHaveBeenNthCalledWith(1, {
+      environmentId: 'envid',
+      serviceId: 'svc-api-gateway',
+      serviceName: 'api-gateway',
+      env: 'dev',
+    });
+    expect(assertFn).toHaveBeenNthCalledWith(2, {
+      environmentId: 'envid',
+      serviceId: 'svc-ai-worker',
+      serviceName: 'ai-worker',
+      env: 'dev',
+    });
+  });
+
+  it('stops at the first rejection — the second service is not checked', async () => {
+    const assertFn = vi.fn().mockRejectedValue(new Error('api-gateway not ready'));
+
+    await expect(assertByokServicesDeploymentReady('prod', MOCK_IDS, assertFn)).rejects.toThrow(
+      'api-gateway not ready'
+    );
+    expect(assertFn).toHaveBeenCalledTimes(1);
   });
 });
 

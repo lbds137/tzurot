@@ -26,7 +26,6 @@ export function stageUpsertFailureError(args: {
   env: 'dev' | 'prod';
   phase: StageUpsertPhase;
   failedService: string;
-  okService?: string;
 }): Error {
   const { env, phase, failedService } = args;
   const suffix = ' No stored row has been touched; stage 2 has not run.';
@@ -54,6 +53,27 @@ export function stageRedeployFailureMessage(failedServices: string, env: 'dev' |
     `Both services hold both keys in Railway, but ${failedServices} failed to redeploy and still runs its old process until redeployed. ` +
     `Redeploy ${failedServices} with ${commands}, then run stage 2.`
   );
+}
+
+/**
+ * The shared BYOK readiness preflight: assert every BYOK service's latest
+ * deployment is SUCCESS, in order, stopping at the first rejection. One loop,
+ * three callers: stage 1 passes its injected `assertServiceDeploymentReady`;
+ * stages 2 and 3 pass `assertRailwayServiceDeploymentReady` directly.
+ */
+export async function assertByokServicesDeploymentReady(
+  env: 'dev' | 'prod',
+  ids: ByokServiceIds,
+  assertFn: typeof assertRailwayServiceDeploymentReady
+): Promise<void> {
+  for (const svc of BYOK_SERVICES) {
+    await assertFn({
+      environmentId: ids[svc].environmentId,
+      serviceId: ids[svc].serviceId,
+      serviceName: svc,
+      env,
+    });
+  }
 }
 
 export interface StageByokWindowDeps {
@@ -100,14 +120,7 @@ export async function stageByokWindow(deps: StageByokWindowDeps): Promise<void> 
   parseEncryptionKeyMaterial(current, CURRENT_VAR); // sanity before touching anything
 
   const ids = resolveByokIds(env);
-  for (const svc of BYOK_SERVICES) {
-    await assertServiceDeploymentReady({
-      environmentId: ids[svc].environmentId,
-      serviceId: ids[svc].serviceId,
-      serviceName: svc,
-      env,
-    });
-  }
+  await assertByokServicesDeploymentReady(env, ids, assertServiceDeploymentReady);
   const next = crypto.randomBytes(32).toString('hex');
 
   // Write PREVIOUS = current on both services before writing CURRENT = next on
@@ -117,7 +130,6 @@ export async function stageByokWindow(deps: StageByokWindowDeps): Promise<void> 
     { phase: 'previous' as const, name: PREVIOUS_VAR, value: current },
     { phase: 'current' as const, name: CURRENT_VAR, value: next },
   ]) {
-    let okService: string | undefined;
     for (const svc of BYOK_SERVICES) {
       try {
         await upsertVariable({
@@ -127,13 +139,11 @@ export async function stageByokWindow(deps: StageByokWindowDeps): Promise<void> 
           skipDeploys: true,
           env,
         });
-        okService = svc;
       } catch {
         throw stageUpsertFailureError({
           env,
           phase,
           failedService: svc,
-          okService,
         });
       }
       console.log(chalk.green(`  set ${name} on ${svc} (${env})`));
@@ -146,8 +156,8 @@ export async function stageByokWindow(deps: StageByokWindowDeps): Promise<void> 
 
   console.log(
     chalk.cyan(
-      '\nStage 1 complete. Both services now hold current+previous keys and were redeployed (image reused, no rebuild).\n' +
-        'Wait for the redeploys to finish, then run stage 2 (reencrypt).'
+      '\nStage 1 complete. Both services now hold current+previous keys; redeploys requested (image reused, no rebuild).\n' +
+        'Wait for both redeploys to reach SUCCESS, then run stage 2 (reencrypt).'
     )
   );
 }

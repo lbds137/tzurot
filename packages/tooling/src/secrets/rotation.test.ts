@@ -273,12 +273,14 @@ describe('rotateByokKey', () => {
         projectId: 'proj',
         environmentId: 'envid',
         serviceId: 'svc-api-gateway',
+        serviceName: 'api-gateway',
         env: 'dev',
       });
       expect(redeployRailwayServiceReusingImage).toHaveBeenCalledWith({
         projectId: 'proj',
         environmentId: 'envid',
         serviceId: 'svc-ai-worker',
+        serviceName: 'ai-worker',
         env: 'dev',
       });
 
@@ -552,12 +554,14 @@ describe('rotateByokKey', () => {
       projectId: 'proj',
       environmentId: 'envid',
       serviceId: 'svc-api-gateway',
+      serviceName: 'api-gateway',
       env: 'dev',
     });
     expect(redeployRailwayServiceReusingImage).toHaveBeenCalledWith({
       projectId: 'proj',
       environmentId: 'envid',
       serviceId: 'svc-ai-worker',
+      serviceName: 'ai-worker',
       env: 'dev',
     });
     const setCalls = mockExecFileSync.mock.calls.filter(
@@ -611,7 +615,7 @@ describe('rotateByokKey', () => {
     );
   });
 
-  it('stage 3 does not stamp the ledger when a redeploy fails', async () => {
+  it('stage 3 does not stamp the ledger when a redeploy fails, and its repair names the redeploy + mark-rotated commands', async () => {
     stubRailwayVars({
       API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
       API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
@@ -626,11 +630,31 @@ describe('rotateByokKey', () => {
 
     const promise = rotateByokKey({ env: 'dev', stage: '3' });
     await expect(promise).rejects.toThrow('ai-worker');
-    await expect(promise).rejects.toThrow('mark-rotated');
-    await expect(promise).rejects.toThrow('re-run stage 3');
+    await expect(promise).rejects.toThrow(
+      '`pnpm ops deploy:redeploy --env dev --service ai-worker --yes`'
+    );
+    await expect(promise).rejects.toThrow(
+      '`pnpm ops secrets:mark-rotated byok-encryption-key --env dev`'
+    );
+    // A re-run would hit the stage-3 readiness preflight while a redeploy is
+    // still settling — the message must not send the operator back to stage 3.
+    await expect(promise).rejects.not.toThrow('re-run stage 3');
     await expect(promise).rejects.not.toThrow('api-gateway');
     expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
+  });
+
+  it('the CURRENT-differs guard error ends at its own repair and carries no stage-3 var-delete hint', async () => {
+    stubRailwayVarsPerService({
+      'api-gateway': { API_KEY_ENCRYPTION_KEY: KEY_A_HEX },
+      'ai-worker': { API_KEY_ENCRYPTION_KEY: KEY_B_HEX },
+    });
+
+    const promise = rotateByokKey({ env: 'dev', stage: '3' });
+    await expect(promise).rejects.toThrow('API_KEY_ENCRYPTION_KEY DIFFERS');
+    await expect(promise).rejects.not.toThrow('deploy:var-delete');
+    expect(deleteRailwayVariable).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
   });
 
   it('stage 3 attempts both redeploys and names both services when both redeploys fail', async () => {

@@ -499,6 +499,8 @@ const DeploymentRedeployResponseSchema = z
 export interface RedeployRailwayServiceReusingImageArgs {
   environmentId: string;
   serviceId: string;
+  /** Operator-facing service name, for the refusal messages. */
+  serviceName: string;
   env: RailwayEnv;
 }
 
@@ -527,12 +529,12 @@ export async function redeployRailwayServiceReusingImage(
   const latestDeployment = await fetchServiceInstanceLatestDeployment(args);
   if (latestDeployment === null) {
     throw new Error(
-      `Railway service "${args.serviceId}" has no latest deployment; resolve that before rotating`
+      `Railway service "${args.serviceName}" (${args.env}) has no latest deployment; resolve that before rotating`
     );
   }
   if (latestDeployment.status !== 'SUCCESS') {
     throw new Error(
-      `Cannot redeploy Railway service "${args.serviceId}": its latest deployment is ${latestDeployment.status}, not SUCCESS; resolve that before rotating`
+      `Cannot redeploy Railway service "${args.serviceName}" (${args.env}): its latest deployment is ${latestDeployment.status}, not SUCCESS; resolve that before rotating`
     );
   }
 
@@ -572,6 +574,8 @@ const DeploymentMetaSchema = z
 export interface GetLiveDeploymentCommitArgs {
   environmentId: string;
   serviceId: string;
+  /** Operator-facing service name, for the refusal message. */
+  serviceName: string;
   env: RailwayEnv;
 }
 
@@ -599,7 +603,7 @@ export async function getLiveDeploymentCommit(args: GetLiveDeploymentCommitArgs)
 
   if (deployment.status !== 'SUCCESS') {
     throw new Error(
-      `The latest deployment for service "${args.serviceId}" is ${deployment.status}, not SUCCESS ` +
+      `The latest deployment for service "${args.serviceName}" (${args.env}) is ${deployment.status}, not SUCCESS ` +
         '— its commit is not what the environment is running. Wait for the deploy to settle, then retry.'
     );
   }
