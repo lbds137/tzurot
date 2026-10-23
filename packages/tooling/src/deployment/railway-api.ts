@@ -496,6 +496,36 @@ async function fetchServiceInstanceLatestDeployment(args: {
   return parsed.data.serviceInstance.latestDeployment;
 }
 
+export interface AssertRailwayServiceDeploymentReadyArgs {
+  environmentId: string;
+  serviceId: string;
+  serviceName: string;
+  env: RailwayEnv;
+}
+
+/**
+ * Preflight check before a stage mutates Railway variables or DB rows:
+ * verifies `serviceInstance.latestDeployment` exists and has status `SUCCESS`,
+ * throwing an `Error` naming `serviceName` and the non-ready status otherwise
+ * (pinned in `railway-api.test.ts`).
+ */
+export async function assertRailwayServiceDeploymentReady(
+  args: AssertRailwayServiceDeploymentReadyArgs
+): Promise<void> {
+  const latestDeployment = await fetchServiceInstanceLatestDeployment({
+    environmentId: args.environmentId,
+    serviceId: args.serviceId,
+    env: args.env,
+  });
+  if (latestDeployment?.status === 'SUCCESS') {
+    return;
+  }
+  const status = latestDeployment?.status ?? 'missing';
+  throw new Error(
+    `${args.serviceName}'s latest deployment is ${status}, not SUCCESS — wait for it to settle (or fix it), then re-run. Nothing was changed.`
+  );
+}
+
 const DEPLOYMENT_REDEPLOY_MUTATION = `
   mutation DeploymentRedeploy($id: String!, $usePreviousImageTag: Boolean) {
     deploymentRedeploy(id: $id, usePreviousImageTag: $usePreviousImageTag) {

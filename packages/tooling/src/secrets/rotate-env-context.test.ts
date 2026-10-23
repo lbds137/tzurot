@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../deployment/railway-api.js', () => ({
+  assertRailwayServiceDeploymentReady: vi.fn(),
   requireRailwayApiToken: vi.fn(),
   redeployRailwayServiceReusingImage: vi.fn(),
   listRailwayVariableNames: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock('./rotation.js', () => ({
 }));
 
 import {
+  assertRailwayServiceDeploymentReady,
   requireRailwayApiToken,
   redeployRailwayServiceReusingImage,
   listRailwayVariableNames,
@@ -27,11 +29,13 @@ import { UsageError } from '../utils/errors.js';
 import {
   resolveRotationContext,
   computeAffectedServices,
+  assertServicesDeploymentReady,
   redeployServices,
   reportRedeployFailures,
   stampLedger,
 } from './rotate-env-context.js';
 
+const mockAssertReady = vi.mocked(assertRailwayServiceDeploymentReady);
 const mockRequireToken = vi.mocked(requireRailwayApiToken);
 const mockRedeploy = vi.mocked(redeployRailwayServiceReusingImage);
 const mockListNames = vi.mocked(listRailwayVariableNames);
@@ -150,6 +154,42 @@ describe('rotate-env-context', () => {
     });
   });
 
+  describe('assertServicesDeploymentReady', () => {
+    it('checks each service with exactly environmentId, serviceId, serviceName, env, in order', async () => {
+      await assertServicesDeploymentReady(SERVICES.slice(0, 2), {
+        environmentId: 'env-1',
+        env: 'dev',
+      });
+
+      expect(mockAssertReady).toHaveBeenCalledTimes(2);
+      expect(mockAssertReady).toHaveBeenNthCalledWith(1, {
+        environmentId: 'env-1',
+        serviceId: 'svc-gateway',
+        serviceName: 'api-gateway',
+        env: 'dev',
+      });
+      expect(mockAssertReady).toHaveBeenNthCalledWith(2, {
+        environmentId: 'env-1',
+        serviceId: 'svc-bot',
+        serviceName: 'bot-client',
+        env: 'dev',
+      });
+    });
+
+    it('stops at the first rejection — the second service is not checked', async () => {
+      mockAssertReady.mockReset().mockRejectedValueOnce(new Error('not ready'));
+
+      await expect(
+        assertServicesDeploymentReady(SERVICES.slice(0, 2), {
+          environmentId: 'env-1',
+          env: 'dev',
+        })
+      ).rejects.toThrow('not ready');
+
+      expect(mockAssertReady).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('stampLedger', () => {
     it('returns false and prints the manual-command hint when markSecretRotated rejects', async () => {
       mockMarkRotated.mockRejectedValue(new Error('db unreachable'));
@@ -166,16 +206,19 @@ describe('rotate-env-context', () => {
   });
 
   describe('reportRedeployFailures', () => {
-    it('names each failed service', () => {
+    it('names each failed service and prints the deploy:redeploy repair command', () => {
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       reportRedeployFailures(
         [{ name: 'bot-client', error: new Error('boom') }],
-        'Nothing was written.'
+        'Nothing was written.',
+        'prod'
       );
 
       const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
       expect(allOutput).toContain('bot-client');
+      expect(allOutput).toContain('pnpm ops deploy:redeploy --env prod --service bot-client --yes');
+      expect(allOutput).not.toContain('railway redeploy');
     });
 
     it('prints the caller-supplied consequence sentence', () => {

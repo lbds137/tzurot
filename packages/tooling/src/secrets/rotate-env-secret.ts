@@ -31,8 +31,9 @@
  * (killed, crashed, network drop), the result is the same hazard as a
  * partial redeploy failure below, just silent: the new value is already live
  * while some or all services still run the old one. The repair is the same —
- * redeploy the affected services by hand (Railway dashboard or `railway
- * redeploy --service <name>`) — and the same "do NOT re-run this command"
+ * redeploy the affected services by hand (Railway dashboard or
+ * `pnpm ops deploy:redeploy --env <env> --service <name> --yes`) — and the
+ * same "do NOT re-run this command"
  * guidance applies, since re-running mints a THIRD value and widens the split.
  */
 
@@ -209,13 +210,16 @@ async function runSingleShotRotation(
   if (failures.length > 0) {
     reportRedeployFailures(
       failures,
-      'The variable was rotated successfully; re-running would mint a THIRD value and widen the split.'
+      'The variable was rotated successfully; re-running would mint a THIRD value and widen the split.',
+      options.env
     );
+    const commands = failures
+      .map(f => `\`pnpm ops deploy:redeploy --env ${options.env} --service ${f.name} --yes\``)
+      .join('; ');
     throw new Error(
       `secrets:rotate-env: the variable was rotated successfully, but ${failures.length} ` +
         `service(s) failed to redeploy: ${failures.map(f => f.name).join(', ')}. Do NOT re-run ` +
-        'this command — redeploy the lagging service(s) by hand (Railway dashboard or ' +
-        '`railway redeploy --service <name>`).'
+        `this command — redeploy the lagging service(s) by hand (Railway dashboard or ${commands}).`
     );
   }
 }

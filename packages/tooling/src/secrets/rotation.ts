@@ -35,6 +35,7 @@ import {
   type EncryptedData,
 } from '@tzurot/common-types/utils/encryption';
 import {
+  assertRailwayServiceDeploymentReady,
   deleteRailwayVariable,
   redeployRailwayServiceReusingImage,
   requireRailwayApiToken,
@@ -133,20 +134,32 @@ export function getServiceVariableOrEmpty(env: SecretsEnv, service: string, key:
  * the partial-failure detector for the stage-1/stage-3 write loop (e.g. the
  * api-gateway set succeeded but the ai-worker set threw). Without this, a
  * split-brain window is silent until ai-worker BYOK decrypts start failing.
- * Repair: re-set the variable on the lagging service (Railway's dashboard
- * history holds the values), then re-run the stage.
+ *
+ * A service's `PREVIOUS` equal to its own `CURRENT` decrypts nothing `CURRENT`
+ * does not, so it is normalised to `''` before comparing (pinned in
+ * `rotation.test.ts`). That lets a stage 1 interrupted mid-`PREVIOUS` phase
+ * re-run without being blocked as a split-brain state.
  */
 function assertByokServicesConsistent(env: SecretsEnv): void {
   const [first, second] = BYOK_SERVICES;
-  for (const key of [CURRENT_VAR, PREVIOUS_VAR]) {
-    const a = getServiceVariableOrEmpty(env, first, key);
-    const b = getServiceVariableOrEmpty(env, second, key);
-    if (a !== b) {
-      throw new Error(
-        `${key} DIFFERS between ${first} and ${second} (${env}) — a previous variable write partially failed. Re-set it on the lagging service (Railway dashboard history has the values), then re-run.` +
-          ` If stage 3 was interrupted (PREVIOUS deleted on one service only), delete it on the other with \`pnpm ops deploy:var-delete --env ${env} --service <name> --name API_KEY_ENCRYPTION_KEY_PREVIOUS --yes\` instead, then re-run stage 3.`
-      );
-    }
+  const firstCurrent = getServiceVariableOrEmpty(env, first, CURRENT_VAR);
+  const secondCurrent = getServiceVariableOrEmpty(env, second, CURRENT_VAR);
+  if (firstCurrent !== secondCurrent) {
+    throw new Error(
+      `${CURRENT_VAR} DIFFERS between ${first} and ${second} (${env}) — a previous variable write partially failed. Re-set it on the lagging service (Railway dashboard history has the values), then re-run.` +
+        ` If stage 3 was interrupted (PREVIOUS deleted on one service only), delete it on the other with \`pnpm ops deploy:var-delete --env ${env} --service <name> --name API_KEY_ENCRYPTION_KEY_PREVIOUS --yes\` instead, then re-run stage 3.`
+    );
+  }
+
+  const firstPreviousRaw = getServiceVariableOrEmpty(env, first, PREVIOUS_VAR);
+  const secondPreviousRaw = getServiceVariableOrEmpty(env, second, PREVIOUS_VAR);
+  const firstPrevious = firstPreviousRaw === firstCurrent ? '' : firstPreviousRaw;
+  const secondPrevious = secondPreviousRaw === secondCurrent ? '' : secondPreviousRaw;
+  if (firstPrevious !== secondPrevious) {
+    throw new Error(
+      `${PREVIOUS_VAR} DIFFERS between ${first} and ${second} (${env}) — a previous variable write partially failed. Re-set it on the lagging service (Railway dashboard history has the values), then re-run.` +
+        ` If stage 3 was interrupted (PREVIOUS deleted on one service only), delete it on the other with \`pnpm ops deploy:var-delete --env ${env} --service <name> --name API_KEY_ENCRYPTION_KEY_PREVIOUS --yes\` instead, then re-run stage 3.`
+    );
   }
 }
 
@@ -326,6 +339,20 @@ function resolveByokIds(env: SecretsEnv): ByokServiceIds {
   ) as ByokServiceIds;
 }
 
+async function assertByokServicesDeploymentReady(
+  env: SecretsEnv,
+  ids: ByokServiceIds
+): Promise<void> {
+  for (const svc of BYOK_SERVICES) {
+    await assertRailwayServiceDeploymentReady({
+      environmentId: ids[svc].environmentId,
+      serviceId: ids[svc].serviceId,
+      serviceName: svc,
+      env,
+    });
+  }
+}
+
 async function redeployByokServices(
   env: SecretsEnv,
   ids: ByokServiceIds,
@@ -367,6 +394,7 @@ async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
   }
 
   const ids = resolveByokIds(env);
+  await assertByokServicesDeploymentReady(env, ids);
 
   // Deleted through the API because the CLI rejects an empty value, and the delete
   // does not redeploy by itself, so the explicit redeploy below is what closes the
@@ -432,6 +460,7 @@ export async function rotateByokKey(options: { env: SecretsEnv; stage: string })
       getServiceVariable,
       getServiceVariableOrEmpty,
       resolveByokIds,
+      assertServiceDeploymentReady: assertRailwayServiceDeploymentReady,
       upsertVariable: upsertRailwayVariable,
       redeployServices: redeployByokServices,
     });
@@ -439,15 +468,18 @@ export async function rotateByokKey(options: { env: SecretsEnv; stage: string })
   }
 
   if (stage === '2' || stage === 'reencrypt') {
-    const currentKey = parseEncryptionKeyMaterial(
-      getServiceVariable(env, GATEWAY_SERVICE, CURRENT_VAR),
-      CURRENT_VAR
-    );
+    const currentRaw = getServiceVariable(env, GATEWAY_SERVICE, CURRENT_VAR);
+    const currentKey = parseEncryptionKeyMaterial(currentRaw, CURRENT_VAR);
     const previousRaw = getServiceVariableOrEmpty(env, GATEWAY_SERVICE, PREVIOUS_VAR);
     if (previousRaw === '') {
       throw new Error('No rotation window is open (PREVIOUS is empty) — run stage 1 first.');
     }
+    if (previousRaw === currentRaw) {
+      throw new Error('PREVIOUS equals CURRENT (an interrupted stage 1). Re-run stage 1.');
+    }
     const previousKey = parseEncryptionKeyMaterial(previousRaw, PREVIOUS_VAR);
+
+    await assertByokServicesDeploymentReady(env, resolveByokIds(env));
 
     await withEnvPrisma(env, async prisma => {
       for (const table of ['userApiKey', 'userCredential'] as const) {

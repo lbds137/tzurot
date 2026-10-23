@@ -34,6 +34,7 @@ import { confirmPrompt } from '../utils/confirm.js';
 import { UsageError } from '../utils/errors.js';
 import { checkDeployedCodeAcceptsPrevious } from './deployed-code-gate.js';
 import {
+  assertServicesDeploymentReady,
   redeployServices,
   reportRedeployFailures,
   stampLedger,
@@ -196,6 +197,11 @@ async function runStage1(args: StageArgs): Promise<void> {
 async function writeStage1ValuesAndRedeploy(args: StageArgs): Promise<void> {
   const { options, context, verifier, previousName } = args;
 
+  await assertServicesDeploymentReady([verifier], {
+    environmentId: context.environmentId,
+    env: options.env,
+  });
+
   const currentValue = await readRailwayVariableValue({
     projectId: context.projectId,
     environmentId: context.environmentId,
@@ -268,7 +274,8 @@ async function writeStage1ValuesAndRedeploy(args: StageArgs): Promise<void> {
     reportRedeployFailures(
       failures,
       `The new primary is live and "${previousName}" holds the old value; re-running stage 1 ` +
-        'would refuse, because the window is now open.'
+        'would refuse, because the window is now open.',
+      options.env
     );
     throw new Error(
       `secrets:rotate-env stage 1: the values were written successfully, but the verifier failed ` +
@@ -305,6 +312,11 @@ async function runStage2(args: StageArgs): Promise<void> {
     }
   }
 
+  await assertServicesDeploymentReady([verifier, ...presenters], {
+    environmentId: context.environmentId,
+    env: options.env,
+  });
+
   const failures = await redeployServices(presenters, {
     environmentId: context.environmentId,
     env: options.env,
@@ -325,7 +337,11 @@ async function runStage2(args: StageArgs): Promise<void> {
   );
 
   if (failures.length > 0) {
-    reportRedeployFailures(failures, 'Nothing was written — stage 2 only redeploys presenters.');
+    reportRedeployFailures(
+      failures,
+      'Nothing was written — stage 2 only redeploys presenters.',
+      options.env
+    );
     throw new Error(
       `secrets:rotate-env stage 2: ${failures.length} service(s) failed to redeploy. Do NOT ` +
         're-run this command — redeploy the lagging service(s) by hand.'
@@ -389,6 +405,11 @@ async function runStage3(args: StageArgs): Promise<void> {
     }
   }
 
+  await assertServicesDeploymentReady([verifier], {
+    environmentId: context.environmentId,
+    env: options.env,
+  });
+
   // Deleted, not upserted as '' (the Railway CLI rejects an empty value, and
   // the API can delete).
   //
@@ -423,7 +444,8 @@ async function runStage3(args: StageArgs): Promise<void> {
     reportRedeployFailures(
       failures,
       `"${previousName}" was deleted, so the retired value is gone from Railway's store, but the ` +
-        'un-redeployed verifier may still accept it in memory.'
+        'un-redeployed verifier may still accept it in memory.',
+      options.env
     );
     throw new Error(
       `secrets:rotate-env stage 3: "${previousName}" was deleted from Railway, but "${verifier.name}" ` +

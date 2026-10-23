@@ -34,19 +34,20 @@ const MOCK_IDS: ByokServiceIds = {
 };
 
 describe('stageUpsertFailureError', () => {
-  it('instructs to re-run stage 1 when the first PREVIOUS write fails', () => {
+  it('instructs to re-run stage 1 with honest may-or-may-not-have-applied wording when the first PREVIOUS write fails', () => {
     const err = stageUpsertFailureError({
       env: 'dev',
       phase: 'previous',
       failedService: 'api-gateway',
     });
 
-    expect(err.message).toContain('Nothing was written. Re-run stage 1.');
-    expect(err.message.endsWith('No stored row has been touched; stage 2 has not run.')).toBe(true);
+    expect(err.message).toBe(
+      'Failed to upsert API_KEY_ENCRYPTION_KEY_PREVIOUS on api-gateway (dev); it may or may not have applied. Re-run stage 1. No stored row has been touched; stage 2 has not run.'
+    );
     expect(err.cause).toBeUndefined();
   });
 
-  it('prints the var-delete command for the first service when the second PREVIOUS write fails', () => {
+  it('instructs to re-run stage 1 with honest may-or-may-not-have-applied wording when the second PREVIOUS write fails', () => {
     const err = stageUpsertFailureError({
       env: 'dev',
       phase: 'previous',
@@ -54,53 +55,53 @@ describe('stageUpsertFailureError', () => {
       okService: 'api-gateway',
     });
 
-    expect(err.message).toContain(
-      'PREVIOUS was written on api-gateway only. Delete it there with `pnpm ops deploy:var-delete --env dev --service api-gateway --name API_KEY_ENCRYPTION_KEY_PREVIOUS --yes`, then re-run stage 1.'
+    expect(err.message).toBe(
+      'Failed to upsert API_KEY_ENCRYPTION_KEY_PREVIOUS on ai-worker (dev); it may or may not have applied. Re-run stage 1. No stored row has been touched; stage 2 has not run.'
     );
-    expect(err.message.endsWith('No stored row has been touched; stage 2 has not run.')).toBe(true);
     expect(err.cause).toBeUndefined();
   });
 
-  it('describes the degenerate window and instructs to re-run stage 1 when the first CURRENT write fails', () => {
+  it('instructs to re-run stage 1 and follow what it reports when the first CURRENT write fails', () => {
     const err = stageUpsertFailureError({
       env: 'dev',
       phase: 'current',
       failedService: 'api-gateway',
     });
 
-    expect(err.message).toContain(
-      'Both services hold the old key as PREVIOUS and CURRENT (a degenerate window). Re-run stage 1.'
+    expect(err.message).toBe(
+      'Failed to upsert API_KEY_ENCRYPTION_KEY on api-gateway (dev); it may or may not have applied. Re-run stage 1, then follow what it reports: if it completes, nothing more to do; if it reports API_KEY_ENCRYPTION_KEY DIFFERS, copy API_KEY_ENCRYPTION_KEY from api-gateway to ai-worker in the Railway dashboard, then run `pnpm ops deploy:redeploy --env dev --service api-gateway --yes` and the same for ai-worker, wait for both, then run stage 2; if it reports a rotation window is already open, every write landed: redeploy both services the same way, wait for both, then run stage 2. No stored row has been touched; stage 2 has not run.'
     );
-    expect(err.message.endsWith('No stored row has been touched; stage 2 has not run.')).toBe(true);
     expect(err.cause).toBeUndefined();
   });
 
-  it('instructs to copy API_KEY_ENCRYPTION_KEY in the dashboard when the second CURRENT write fails', () => {
+  it('instructs to re-run stage 1 and follow what it reports when the second CURRENT write fails', () => {
     const err = stageUpsertFailureError({
-      env: 'dev',
+      env: 'prod',
       phase: 'current',
       failedService: 'ai-worker',
       okService: 'api-gateway',
     });
 
-    expect(err.message).toContain(
-      'api-gateway now has the new API_KEY_ENCRYPTION_KEY, ai-worker still has the old one; both have the old key as PREVIOUS. In the Railway dashboard, copy API_KEY_ENCRYPTION_KEY from api-gateway to ai-worker, redeploy both services, then run stage 2.'
+    expect(err.message).toBe(
+      'Failed to upsert API_KEY_ENCRYPTION_KEY on ai-worker (prod); it may or may not have applied. Re-run stage 1, then follow what it reports: if it completes, nothing more to do; if it reports API_KEY_ENCRYPTION_KEY DIFFERS, copy API_KEY_ENCRYPTION_KEY from api-gateway to ai-worker in the Railway dashboard, then run `pnpm ops deploy:redeploy --env prod --service api-gateway --yes` and the same for ai-worker, wait for both, then run stage 2; if it reports a rotation window is already open, every write landed: redeploy both services the same way, wait for both, then run stage 2. No stored row has been touched; stage 2 has not run.'
     );
-    expect(err.message.endsWith('No stored row has been touched; stage 2 has not run.')).toBe(true);
     expect(err.cause).toBeUndefined();
   });
 });
 
 describe('stageRedeployFailureMessage', () => {
-  it('names the failed service, dashboard redeploy path, and unverified variable-snapshot caveat', () => {
-    const msg = stageRedeployFailureMessage('api-gateway');
+  it('names the deploy:redeploy command per failed service, drops the dashboard hedge, and keeps "then run stage 2"', () => {
+    const singleMsg = stageRedeployFailureMessage('api-gateway', 'dev');
 
-    expect(msg).toContain(
-      "Redeploy api-gateway (Railway dashboard: the service's latest deployment → Redeploy), then run stage 2."
-    );
-    expect(msg).toContain(
-      "(not verified: that a dashboard redeploy carries the just-written variables; check the new deployment's start time is after this run)"
-    );
+    expect(singleMsg).toContain('`pnpm ops deploy:redeploy --env dev --service api-gateway --yes`');
+    expect(singleMsg).toContain('then run stage 2.');
+    expect(singleMsg).not.toContain('not verified:');
+    expect(singleMsg).not.toContain('Railway dashboard');
+
+    const bothMsg = stageRedeployFailureMessage('api-gateway, ai-worker', 'prod');
+    expect(bothMsg).toContain('`pnpm ops deploy:redeploy --env prod --service api-gateway --yes`');
+    expect(bothMsg).toContain('`pnpm ops deploy:redeploy --env prod --service ai-worker --yes`');
+    expect(bothMsg).toContain('then run stage 2.');
   });
 });
 
@@ -110,7 +111,8 @@ describe('stageByokWindow', () => {
     requireRailwayApiToken.mockReturnValue('tok');
   });
 
-  it('writes PREVIOUS on both services before CURRENT on both services, then redeploys', async () => {
+  it('checks readiness for both services, writes PREVIOUS on both before CURRENT on both, prints one line per write, then redeploys', async () => {
+    const assertServiceDeploymentReady = vi.fn().mockResolvedValue(undefined);
     const upsertVariable = vi.fn().mockResolvedValue(undefined);
     const redeployServices = vi.fn().mockResolvedValue(undefined);
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -121,8 +123,23 @@ describe('stageByokWindow', () => {
         getServiceVariable: () => KEY_A_HEX,
         getServiceVariableOrEmpty: () => '',
         resolveByokIds: () => MOCK_IDS,
+        assertServiceDeploymentReady,
         upsertVariable,
         redeployServices,
+      });
+
+      expect(assertServiceDeploymentReady).toHaveBeenCalledTimes(2);
+      expect(assertServiceDeploymentReady).toHaveBeenNthCalledWith(1, {
+        environmentId: 'envid',
+        serviceId: 'svc-api-gateway',
+        serviceName: 'api-gateway',
+        env: 'dev',
+      });
+      expect(assertServiceDeploymentReady).toHaveBeenNthCalledWith(2, {
+        environmentId: 'envid',
+        serviceId: 'svc-ai-worker',
+        serviceName: 'ai-worker',
+        env: 'dev',
       });
 
       expect(upsertVariable).toHaveBeenCalledTimes(4);
@@ -144,9 +161,45 @@ describe('stageByokWindow', () => {
         serviceId: 'svc-ai-worker',
         name: 'API_KEY_ENCRYPTION_KEY',
       });
-      expect(redeployServices).toHaveBeenCalledWith('dev', MOCK_IDS, stageRedeployFailureMessage);
+      expect(redeployServices).toHaveBeenCalledWith('dev', MOCK_IDS, expect.any(Function));
+
+      const setLines = logSpy.mock.calls
+        .map(call => String(call[0]))
+        .filter(line => line.includes('  set '));
+      expect(setLines).toHaveLength(4);
+      expect(setLines[0]).toContain('  set API_KEY_ENCRYPTION_KEY_PREVIOUS on api-gateway (dev)');
+      expect(setLines[1]).toContain('  set API_KEY_ENCRYPTION_KEY_PREVIOUS on ai-worker (dev)');
+      expect(setLines[2]).toContain('  set API_KEY_ENCRYPTION_KEY on api-gateway (dev)');
+      expect(setLines[3]).toContain('  set API_KEY_ENCRYPTION_KEY on ai-worker (dev)');
     } finally {
       logSpy.mockRestore();
     }
+  });
+
+  it('refuses before any upsert when a service is not ready', async () => {
+    const assertServiceDeploymentReady = vi.fn().mockImplementation(async ({ serviceName }) => {
+      if (serviceName === 'ai-worker') {
+        throw new Error(
+          "ai-worker's latest deployment is INITIALIZING, not SUCCESS — wait for it to settle (or fix it), then re-run. Nothing was changed."
+        );
+      }
+    });
+    const upsertVariable = vi.fn().mockResolvedValue(undefined);
+    const redeployServices = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      stageByokWindow({
+        env: 'dev',
+        getServiceVariable: () => KEY_A_HEX,
+        getServiceVariableOrEmpty: () => '',
+        resolveByokIds: () => MOCK_IDS,
+        assertServiceDeploymentReady,
+        upsertVariable,
+        redeployServices,
+      })
+    ).rejects.toThrow("ai-worker's latest deployment is INITIALIZING, not SUCCESS");
+
+    expect(upsertVariable).not.toHaveBeenCalled();
+    expect(redeployServices).not.toHaveBeenCalled();
   });
 });

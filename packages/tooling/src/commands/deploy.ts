@@ -12,6 +12,12 @@ const ENV_OPTION = '--env <env>';
 /** Shared message for the repeated dev/prod `--env` check below. */
 const ENV_DEV_PROD_ERROR = '--env must be "dev" or "prod"';
 
+/** `--env` description for the dev/prod-only commands (maintenance and logs differ). */
+const ENV_DEV_PROD_DESCRIPTION = 'Target environment (dev or prod)';
+
+/** `--service <service>` flag shared by the var-delete, redeploy, and logs options. */
+const SERVICE_OPTION = '--service <service>';
+
 /** Throws `UsageError` unless `env` is one of the two Railway-backed environments. */
 function assertDevProdEnv(env: string): asserts env is 'dev' | 'prod' {
   if (env !== 'dev' && env !== 'prod') {
@@ -70,8 +76,8 @@ function registerMaintenanceCommand(cli: CAC): void {
 function registerVarDeleteCommand(cli: CAC): void {
   cli
     .command('deploy:var-delete', 'Delete a Railway environment variable (the CLI cannot)')
-    .option(ENV_OPTION, 'Target environment (dev or prod)', { default: 'dev' })
-    .option('--service <service>', 'Service name whose variable to delete (or --shared, not both)')
+    .option(ENV_OPTION, ENV_DEV_PROD_DESCRIPTION, { default: 'dev' })
+    .option(SERVICE_OPTION, 'Service name whose variable to delete (or --shared, not both)')
     .option('--shared', 'Delete a shared (project-level) variable instead of a service variable', {
       default: false,
     })
@@ -116,6 +122,39 @@ function registerVarDeleteCommand(cli: CAC): void {
     );
 }
 
+function registerRedeployCommand(cli: CAC): void {
+  cli
+    .command(
+      'deploy:redeploy',
+      'Redeploy one Railway service by reusing its current image (env-targeted)'
+    )
+    .option(ENV_OPTION, ENV_DEV_PROD_DESCRIPTION, { default: 'dev' })
+    .option(SERVICE_OPTION, 'Service name to redeploy')
+    .option(
+      '--dry-run',
+      'Show what would be redeployed without calling the API (still reads railway status)',
+      { default: false }
+    )
+    .option('--yes, -y', 'Skip the confirmation prompt', { default: false })
+    .example('pnpm ops deploy:redeploy --env dev --service api-gateway --dry-run')
+    .example('pnpm ops deploy:redeploy --env prod --service api-gateway --yes')
+    .action(async (options: { env: string; service?: string; dryRun: boolean; yes: boolean }) => {
+      assertDevProdEnv(options.env);
+      const service = options.service === undefined ? '' : String(options.service).trim();
+      if (service.length === 0) {
+        throw new UsageError('--service <name> is required');
+      }
+
+      const { runRedeployService } = await import('../deployment/redeploy-service.js');
+      await runRedeployService({
+        env: options.env,
+        service,
+        dryRun: options.dryRun,
+        yes: options.yes,
+      });
+    });
+}
+
 export function registerDeployCommands(cli: CAC): void {
   cli.command('deploy:dev', 'Deploy to Railway development environment').action(async () => {
     const { deployDev } = await import('../deployment/deploy-dev.js');
@@ -134,7 +173,7 @@ export function registerDeployCommands(cli: CAC): void {
 
   cli
     .command('deploy:setup-vars', 'Set up Railway environment variables from .env')
-    .option(ENV_OPTION, 'Target environment (dev or prod)', { default: 'dev' })
+    .option(ENV_OPTION, ENV_DEV_PROD_DESCRIPTION, { default: 'dev' })
     .option('--dry-run', 'Show what would be set without making changes', { default: false })
     .option('--yes, -y', 'Skip confirmation prompts', { default: false })
     .action(async (options: { env: string; dryRun: boolean; yes: boolean }) => {
@@ -150,12 +189,14 @@ export function registerDeployCommands(cli: CAC): void {
 
   registerVarDeleteCommand(cli);
 
+  registerRedeployCommand(cli);
+
   registerMaintenanceCommand(cli);
 
   cli
     .command('logs', 'Fetch logs from Railway services')
     .option(ENV_OPTION, 'Environment (dev or prod)', { default: 'dev' })
-    .option('--service <service>', 'Service name (bot-client, api-gateway, ai-worker)')
+    .option(SERVICE_OPTION, 'Service name (bot-client, api-gateway, ai-worker)')
     .option('--lines <n>', 'Number of lines to fetch (capped at ~5000 by the Railway CLI)')
     .option('--filter <text>', 'Server-side Railway query DSL (@level:error, "a AND b")')
     .option('--request-id <id>', 'Incident dig: local-match a request ID across app services')
