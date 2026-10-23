@@ -2,7 +2,7 @@
  * Minimal Railway public-API GraphQL client, for the operations the Railway
  * CLI does not expose: variable deletion, variable listing (names only —
  * values are secrets and are never returned), variable upsert, and
- * service-instance / image-reusing deployment redeploy.
+ * image-reusing deployment redeploy.
  *
  * The seam is deliberately one generic `railwayGraphql` call plus one typed
  * wrapper per operation, so the next CLI-missing operation plugs in beside
@@ -402,50 +402,6 @@ export async function upsertRailwayVariable(args: UpsertRailwayVariableArgs): Pr
 
   if (parsed.data.variableUpsert === false) {
     throw new Error(`Railway rejected the upsert for variable "${args.name}"`);
-  }
-}
-
-const SERVICE_INSTANCE_REDEPLOY_MUTATION = `
-  mutation ServiceInstanceRedeploy($environmentId: String!, $serviceId: String!) {
-    serviceInstanceRedeploy(environmentId: $environmentId, serviceId: $serviceId)
-  }
-`;
-
-/**
- * Only the field this module reads, required and boolean-typed — same shape
- * discipline as the other response schemas in this file.
- */
-const ServiceInstanceRedeployResponseSchema = z
-  .object({ serviceInstanceRedeploy: z.boolean() })
-  .passthrough();
-
-export interface RedeployRailwayServiceArgs {
-  environmentId: string;
-  serviceId: string;
-  env: RailwayEnv;
-}
-
-/**
- * Redeploy one service instance via the public GraphQL API. This mutation
- * takes the environment and service ids at the top level — no input object,
- * and no deployment id — verified by live read-only schema introspection.
- */
-export async function redeployRailwayService(args: RedeployRailwayServiceArgs): Promise<void> {
-  const variables = { environmentId: args.environmentId, serviceId: args.serviceId };
-
-  const rawData = await railwayGraphql<unknown>(
-    SERVICE_INSTANCE_REDEPLOY_MUTATION,
-    variables,
-    args.env
-  );
-
-  const parsed = ServiceInstanceRedeployResponseSchema.safeParse(rawData);
-  if (!parsed.success) {
-    throw unexpectedShapeError('service-redeploy');
-  }
-
-  if (parsed.data.serviceInstanceRedeploy === false) {
-    throw new Error(`Railway rejected the redeploy for service "${args.serviceId}"`);
   }
 }
 

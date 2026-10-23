@@ -9,7 +9,6 @@ import {
   listRailwayVariableNames,
   readRailwayVariableValue,
   upsertRailwayVariable,
-  redeployRailwayService,
   assertRailwayServiceDeploymentReady,
   redeployRailwayServiceReusingImage,
   getLiveDeploymentCommit,
@@ -657,28 +656,6 @@ describe('railway-api', () => {
           }
         }
       }
-    });
-  });
-
-  describe('redeployRailwayService', () => {
-    it('sends both ids in the request', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
-      mockFetch.mockResolvedValue(jsonResponse(200, { data: { serviceInstanceRedeploy: true } }));
-
-      await redeployRailwayService({ environmentId: 'env-1', serviceId: 'svc-1', env: 'dev' });
-
-      const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-      const parsedBody = JSON.parse(init.body as string) as { variables: Record<string, unknown> };
-      expect(parsedBody.variables).toEqual({ environmentId: 'env-1', serviceId: 'svc-1' });
-    });
-
-    it('throws on a false response', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
-      mockFetch.mockResolvedValue(jsonResponse(200, { data: { serviceInstanceRedeploy: false } }));
-
-      await expect(
-        redeployRailwayService({ environmentId: 'env-1', serviceId: 'svc-1', env: 'dev' })
-      ).rejects.toThrow('svc-1');
     });
   });
 
