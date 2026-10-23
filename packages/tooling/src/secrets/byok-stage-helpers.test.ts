@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   assertByokServicesDeploymentReady,
+  redeployCommands,
   stageUpsertFailureError,
   stageRedeployFailureMessage,
   stageByokWindow,
@@ -88,12 +89,27 @@ describe('stageUpsertFailureError', () => {
   });
 });
 
+describe('redeployCommands', () => {
+  it('builds one deploy:redeploy command per service, joined by "; "', () => {
+    expect(redeployCommands('api-gateway, ai-worker', 'prod')).toBe(
+      '`pnpm ops deploy:redeploy --env prod --service api-gateway --yes`; `pnpm ops deploy:redeploy --env prod --service ai-worker --yes`'
+    );
+  });
+
+  it('builds a single command for a single service with no joiner', () => {
+    expect(redeployCommands('api-gateway', 'dev')).toBe(
+      '`pnpm ops deploy:redeploy --env dev --service api-gateway --yes`'
+    );
+  });
+});
+
 describe('stageRedeployFailureMessage', () => {
   it('names the deploy:redeploy command per failed service, drops the dashboard hedge, and keeps "then run stage 2"', () => {
     const singleMsg = stageRedeployFailureMessage('api-gateway', 'dev');
 
     expect(singleMsg).toContain('`pnpm ops deploy:redeploy --env dev --service api-gateway --yes`');
     expect(singleMsg).toContain('then run stage 2.');
+    expect(singleMsg).toContain('wait for each redeploy to reach SUCCESS, then run stage 2.');
     expect(singleMsg).not.toContain('not verified:');
     expect(singleMsg).not.toContain('Railway dashboard');
 

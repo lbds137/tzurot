@@ -49,6 +49,7 @@ import {
   CURRENT_VAR,
   GATEWAY_SERVICE,
   PREVIOUS_VAR,
+  redeployCommands,
   stageByokWindow,
   type ByokServiceIds,
 } from './byok-stage-helpers.js';
@@ -409,19 +410,14 @@ async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
     }
   }
 
-  await redeployByokServices(env, ids, failedServices => {
-    const commands = failedServices
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean)
-      .map(s => `\`pnpm ops deploy:redeploy --env ${env} --service ${s} --yes\``)
-      .join('; ');
-    return (
+  await redeployByokServices(
+    env,
+    ids,
+    failedServices =>
       `${PREVIOUS_VAR} is deleted from Railway, but ${failedServices} still holds it in memory until it restarts. ` +
-      `Redeploy ${failedServices} with ${commands}, wait for each redeploy to reach SUCCESS, ` +
+      `Redeploy ${failedServices} with ${redeployCommands(failedServices, env)}, wait for each redeploy to reach SUCCESS, ` +
       `then stamp the ledger: \`pnpm ops secrets:mark-rotated byok-encryption-key --env ${env}\`.`
-    );
-  });
+  );
 
   await markSecretRotated({ env, name: 'byok-encryption-key' });
   console.log(

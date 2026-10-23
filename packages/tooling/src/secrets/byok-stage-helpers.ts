@@ -41,17 +41,19 @@ export function stageUpsertFailureError(args: {
   );
 }
 
-export function stageRedeployFailureMessage(failedServices: string, env: 'dev' | 'prod'): string {
-  const services = failedServices
+export function redeployCommands(failedServices: string, env: 'dev' | 'prod'): string {
+  return failedServices
     .split(',')
     .map(s => s.trim())
-    .filter(Boolean);
-  const commands = services
+    .filter(Boolean)
     .map(s => `\`pnpm ops deploy:redeploy --env ${env} --service ${s} --yes\``)
     .join('; ');
+}
+
+export function stageRedeployFailureMessage(failedServices: string, env: 'dev' | 'prod'): string {
   return (
     `Both services hold both keys in Railway, but ${failedServices} failed to redeploy and still runs its old process until redeployed. ` +
-    `Redeploy ${failedServices} with ${commands}, then run stage 2.`
+    `Redeploy ${failedServices} with ${redeployCommands(failedServices, env)}, wait for each redeploy to reach SUCCESS, then run stage 2.`
   );
 }
 
