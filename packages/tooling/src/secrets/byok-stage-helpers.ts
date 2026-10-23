@@ -7,7 +7,11 @@
 import crypto from 'node:crypto';
 import chalk from 'chalk';
 import { parseEncryptionKeyMaterial } from '@tzurot/common-types/utils/encryption';
-import { requireRailwayApiToken, type upsertRailwayVariable } from '../deployment/railway-api.js';
+import {
+  requireRailwayApiToken,
+  type assertRailwayServiceDeploymentReady,
+  type upsertRailwayVariable,
+} from '../deployment/railway-api.js';
 import type { RailwayIds } from '../deployment/railway-status.js';
 
 export const GATEWAY_SERVICE = 'api-gateway';
@@ -24,35 +28,31 @@ export function stageUpsertFailureError(args: {
   failedService: string;
   okService?: string;
 }): Error {
-  const { env, phase, failedService, okService } = args;
-  const varName = phase === 'previous' ? PREVIOUS_VAR : CURRENT_VAR;
-  const prefix = `Failed to upsert ${varName} on ${failedService} (${env}). `;
+  const { env, phase, failedService } = args;
   const suffix = ' No stored row has been touched; stage 2 has not run.';
 
   if (phase === 'previous') {
-    if (okService === undefined) {
-      return new Error(`${prefix}Nothing was written. Re-run stage 1.${suffix}`);
-    }
     return new Error(
-      `${prefix}PREVIOUS was written on ${okService} only. Delete it there with \`pnpm ops deploy:var-delete --env ${env} --service ${okService} --name ${PREVIOUS_VAR} --yes\`, then re-run stage 1.${suffix}`
+      `Failed to upsert ${PREVIOUS_VAR} on ${failedService} (${env}); it may or may not have applied. Re-run stage 1.${suffix}`
     );
   }
 
-  if (okService === undefined) {
-    return new Error(
-      `${prefix}Both services hold the old key as PREVIOUS and CURRENT (a degenerate window). Re-run stage 1.${suffix}`
-    );
-  }
   return new Error(
-    `${prefix}${okService} now has the new ${CURRENT_VAR}, ${failedService} still has the old one; both have the old key as PREVIOUS. In the Railway dashboard, copy ${CURRENT_VAR} from ${okService} to ${failedService}, redeploy both services, then run stage 2.${suffix}`
+    `Failed to upsert ${CURRENT_VAR} on ${failedService} (${env}); it may or may not have applied. Re-run stage 1, then follow what it reports: if it completes, nothing more to do; if it reports ${CURRENT_VAR} DIFFERS, copy ${CURRENT_VAR} from api-gateway to ai-worker in the Railway dashboard, then run \`pnpm ops deploy:redeploy --env ${env} --service api-gateway --yes\` and the same for ai-worker, wait for both, then run stage 2; if it reports a rotation window is already open, every write landed: redeploy both services the same way, wait for both, then run stage 2.${suffix}`
   );
 }
 
-export function stageRedeployFailureMessage(failedServices: string): string {
+export function stageRedeployFailureMessage(failedServices: string, env: 'dev' | 'prod'): string {
+  const services = failedServices
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  const commands = services
+    .map(s => `\`pnpm ops deploy:redeploy --env ${env} --service ${s} --yes\``)
+    .join('; ');
   return (
     `Both services hold both keys in Railway, but ${failedServices} failed to redeploy and still runs its old process until redeployed. ` +
-    `Redeploy ${failedServices} (Railway dashboard: the service's latest deployment → Redeploy), then run stage 2. ` +
-    "(not verified: that a dashboard redeploy carries the just-written variables; check the new deployment's start time is after this run)"
+    `Redeploy ${failedServices} with ${commands}, then run stage 2.`
   );
 }
 
@@ -61,6 +61,7 @@ export interface StageByokWindowDeps {
   getServiceVariable: (env: 'dev' | 'prod', service: string, key: string) => string;
   getServiceVariableOrEmpty: (env: 'dev' | 'prod', service: string, key: string) => string;
   resolveByokIds: (env: 'dev' | 'prod') => ByokServiceIds;
+  assertServiceDeploymentReady: typeof assertRailwayServiceDeploymentReady;
   upsertVariable: typeof upsertRailwayVariable;
   redeployServices: (
     env: 'dev' | 'prod',
@@ -75,6 +76,7 @@ export async function stageByokWindow(deps: StageByokWindowDeps): Promise<void> 
     getServiceVariable,
     getServiceVariableOrEmpty,
     resolveByokIds,
+    assertServiceDeploymentReady,
     upsertVariable,
     redeployServices,
   } = deps;
@@ -91,12 +93,21 @@ export async function stageByokWindow(deps: StageByokWindowDeps): Promise<void> 
   const previous = getServiceVariableOrEmpty(env, GATEWAY_SERVICE, PREVIOUS_VAR);
   if (previous !== '' && previous !== current) {
     throw new Error(
-      'A rotation window is already open (PREVIOUS is set) — run stage 2 then stage 3 to close it before starting a new rotation.'
+      'A rotation window is already open (PREVIOUS is set) — run stage 2 then stage 3 to close it before starting a new rotation.' +
+        ` If stage 1 itself was interrupted after its writes, redeploy both services first (\`pnpm ops deploy:redeploy --env ${env} --service <name> --yes\`) and wait for them before stage 2.`
     );
   }
   parseEncryptionKeyMaterial(current, CURRENT_VAR); // sanity before touching anything
 
   const ids = resolveByokIds(env);
+  for (const svc of BYOK_SERVICES) {
+    await assertServiceDeploymentReady({
+      environmentId: ids[svc].environmentId,
+      serviceId: ids[svc].serviceId,
+      serviceName: svc,
+      env,
+    });
+  }
   const next = crypto.randomBytes(32).toString('hex');
 
   // Write PREVIOUS = current on both services before writing CURRENT = next on
@@ -125,13 +136,13 @@ export async function stageByokWindow(deps: StageByokWindowDeps): Promise<void> 
           okService,
         });
       }
-      if (phase === 'current') {
-        console.log(chalk.green(`  set ${PREVIOUS_VAR}, ${CURRENT_VAR} on ${svc} (${env})`));
-      }
+      console.log(chalk.green(`  set ${name} on ${svc} (${env})`));
     }
   }
 
-  await redeployServices(env, ids, stageRedeployFailureMessage);
+  await redeployServices(env, ids, failedServices =>
+    stageRedeployFailureMessage(failedServices, env)
+  );
 
   console.log(
     chalk.cyan(

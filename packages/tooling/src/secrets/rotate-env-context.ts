@@ -1,13 +1,15 @@
 /**
  * Shared Railway/rotation-context plumbing used by both the single-shot and
  * the staged `secrets:rotate-env` paths: resolving project/environment ids,
- * deriving which services actually inherit a shared variable, redeploying a
- * set of services and collecting failures, and stamping the rotation ledger.
+ * deriving which services actually inherit a shared variable, preflighting
+ * deployment readiness, redeploying a set of services and collecting
+ * failures, and stamping the rotation ledger.
  */
 
 import chalk from 'chalk';
 
 import {
+  assertRailwayServiceDeploymentReady,
   requireRailwayApiToken,
   redeployRailwayServiceReusingImage,
   listRailwayVariableNames,
@@ -71,7 +73,11 @@ export interface RedeployFailure {
  * caller's redeploy failure follows a completed rotation. A default here
  * would silently reproduce that single-shot wording at a staged call site.
  */
-export function reportRedeployFailures(failures: RedeployFailure[], consequence: string): void {
+export function reportRedeployFailures(
+  failures: RedeployFailure[],
+  consequence: string,
+  env: 'dev' | 'prod'
+): void {
   console.log(chalk.red(`\n⚠️  ${failures.length} service(s) failed to redeploy:`));
   for (const failure of failures) {
     console.log(
@@ -80,10 +86,13 @@ export function reportRedeployFailures(failures: RedeployFailure[], consequence:
       )
     );
   }
+  const commands = failures
+    .map(f => `\`pnpm ops deploy:redeploy --env ${env} --service ${f.name} --yes\``)
+    .join('; ');
   console.log(
     chalk.red(
       `\n${consequence} Repair the lagging service(s) from the Railway dashboard or ` +
-        '`railway redeploy --service <name>` — do NOT re-run this command.'
+        `${commands} — do NOT re-run this command.`
     )
   );
 }
@@ -154,6 +163,25 @@ export async function resolveRotationContext(options: {
   const railwayEnvName = getRailwayEnvName(options.env);
 
   return { projectId, environmentId, railwayEnvName, sharedNames, services, affectedServices };
+}
+
+/**
+ * Await `assertRailwayServiceDeploymentReady` for each service IN ORDER,
+ * stopping at the first throw — a preflight, unlike the collect-and-continue
+ * `redeployServices` below (order-and-stop pinned in rotate-env-context.test.ts).
+ */
+export async function assertServicesDeploymentReady(
+  services: { id: string; name: string }[],
+  context: { environmentId: string; env: 'dev' | 'prod' }
+): Promise<void> {
+  for (const svc of services) {
+    await assertRailwayServiceDeploymentReady({
+      environmentId: context.environmentId,
+      serviceId: svc.id,
+      serviceName: svc.name,
+      env: context.env,
+    });
+  }
 }
 
 /**

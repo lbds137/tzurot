@@ -194,6 +194,8 @@ describe('runRotateEnvSecret', () => {
       .join('\n');
     expect(allOutput).toContain('api-gateway');
     expect(allOutput).toContain('do NOT re-run');
+    expect(allOutput).toContain('pnpm ops deploy:redeploy --env dev --service api-gateway --yes');
+    expect(allOutput).not.toContain('railway redeploy');
   });
 
   it('collects and names ALL failures when multiple redeploys fail', async () => {

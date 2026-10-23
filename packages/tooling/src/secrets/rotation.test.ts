@@ -29,12 +29,14 @@ vi.mock('../utils/env-runner.js', () => ({
 }));
 
 const {
+  assertRailwayServiceDeploymentReady,
   requireRailwayApiToken,
   upsertRailwayVariable,
   deleteRailwayVariable,
   redeployRailwayServiceReusingImage,
   resolveRailwayIds,
 } = vi.hoisted(() => ({
+  assertRailwayServiceDeploymentReady: vi.fn(),
   requireRailwayApiToken: vi.fn(),
   upsertRailwayVariable: vi.fn(),
   deleteRailwayVariable: vi.fn(),
@@ -47,6 +49,7 @@ const {
 }));
 
 vi.mock('../deployment/railway-api.js', () => ({
+  assertRailwayServiceDeploymentReady,
   requireRailwayApiToken,
   upsertRailwayVariable,
   deleteRailwayVariable,
@@ -142,6 +145,7 @@ describe('getServiceVariable', () => {
 describe('rotateByokKey', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    assertRailwayServiceDeploymentReady.mockResolvedValue(undefined);
     requireRailwayApiToken.mockReturnValue('test-token');
     upsertRailwayVariable.mockResolvedValue(undefined);
     deleteRailwayVariable.mockResolvedValue(undefined);
@@ -304,12 +308,16 @@ describe('rotateByokKey', () => {
 
       const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
       expect(allOutput).not.toMatch(/[0-9a-f]{64}/);
+      expect(allOutput).toContain('  set API_KEY_ENCRYPTION_KEY_PREVIOUS on api-gateway (dev)');
+      expect(allOutput).toContain('  set API_KEY_ENCRYPTION_KEY_PREVIOUS on ai-worker (dev)');
+      expect(allOutput).toContain('  set API_KEY_ENCRYPTION_KEY on api-gateway (dev)');
+      expect(allOutput).toContain('  set API_KEY_ENCRYPTION_KEY on ai-worker (dev)');
     } finally {
       logSpy.mockRestore();
     }
   });
 
-  it('stage 1 failure state 1 (1st upsert fails — PREVIOUS on first service): nothing written, re-run stage 1', async () => {
+  it('stage 1 failure state 1 (1st upsert fails — PREVIOUS on first service): honest may-or-may-not-have-applied message, re-run stage 1', async () => {
     stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
     upsertRailwayVariable.mockRejectedValueOnce(new Error('upsert boom'));
 
@@ -322,12 +330,13 @@ describe('rotateByokKey', () => {
 
     expect(caught).toBeInstanceOf(Error);
     const message = caught instanceof Error ? caught.message : '';
-    expect(message).toContain('Nothing was written. Re-run stage 1.');
-    expect(message.endsWith('No stored row has been touched; stage 2 has not run.')).toBe(true);
+    expect(message).toBe(
+      'Failed to upsert API_KEY_ENCRYPTION_KEY_PREVIOUS on api-gateway (dev); it may or may not have applied. Re-run stage 1. No stored row has been touched; stage 2 has not run.'
+    );
     expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
   });
 
-  it('stage 1 failure state 2 (2nd upsert fails — PREVIOUS on second service): prints deploy:var-delete for first service', async () => {
+  it('stage 1 failure state 2 (2nd upsert fails — PREVIOUS on second service): honest may-or-may-not-have-applied message, re-run stage 1', async () => {
     stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
     upsertRailwayVariable
       .mockResolvedValueOnce(undefined)
@@ -342,14 +351,13 @@ describe('rotateByokKey', () => {
 
     expect(caught).toBeInstanceOf(Error);
     const message = caught instanceof Error ? caught.message : '';
-    expect(message).toContain(
-      'PREVIOUS was written on api-gateway only. Delete it there with `pnpm ops deploy:var-delete --env dev --service api-gateway --name API_KEY_ENCRYPTION_KEY_PREVIOUS --yes`, then re-run stage 1.'
+    expect(message).toBe(
+      'Failed to upsert API_KEY_ENCRYPTION_KEY_PREVIOUS on ai-worker (dev); it may or may not have applied. Re-run stage 1. No stored row has been touched; stage 2 has not run.'
     );
-    expect(message.endsWith('No stored row has been touched; stage 2 has not run.')).toBe(true);
     expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
   });
 
-  it('stage 1 failure state 3 (3rd upsert fails — CURRENT on first service): degenerate window, re-run stage 1', async () => {
+  it('stage 1 failure state 3 (3rd upsert fails — CURRENT on first service): re-run stage 1 and follow what it reports, with deploy:redeploy commands', async () => {
     stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
     upsertRailwayVariable
       .mockResolvedValueOnce(undefined)
@@ -365,14 +373,13 @@ describe('rotateByokKey', () => {
 
     expect(caught).toBeInstanceOf(Error);
     const message = caught instanceof Error ? caught.message : '';
-    expect(message).toContain(
-      'Both services hold the old key as PREVIOUS and CURRENT (a degenerate window). Re-run stage 1.'
+    expect(message).toBe(
+      'Failed to upsert API_KEY_ENCRYPTION_KEY on api-gateway (dev); it may or may not have applied. Re-run stage 1, then follow what it reports: if it completes, nothing more to do; if it reports API_KEY_ENCRYPTION_KEY DIFFERS, copy API_KEY_ENCRYPTION_KEY from api-gateway to ai-worker in the Railway dashboard, then run `pnpm ops deploy:redeploy --env dev --service api-gateway --yes` and the same for ai-worker, wait for both, then run stage 2; if it reports a rotation window is already open, every write landed: redeploy both services the same way, wait for both, then run stage 2. No stored row has been touched; stage 2 has not run.'
     );
-    expect(message.endsWith('No stored row has been touched; stage 2 has not run.')).toBe(true);
     expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
   });
 
-  it('stage 1 failure state 4 (4th upsert fails — CURRENT on second service): copy in dashboard, redeploy both, run stage 2', async () => {
+  it('stage 1 failure state 4 (4th upsert fails — CURRENT on second service): re-run stage 1 and follow what it reports, with deploy:redeploy commands', async () => {
     stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
     upsertRailwayVariable
       .mockResolvedValueOnce(undefined)
@@ -389,10 +396,9 @@ describe('rotateByokKey', () => {
 
     expect(caught).toBeInstanceOf(Error);
     const message = caught instanceof Error ? caught.message : '';
-    expect(message).toContain(
-      'api-gateway now has the new API_KEY_ENCRYPTION_KEY, ai-worker still has the old one; both have the old key as PREVIOUS. In the Railway dashboard, copy API_KEY_ENCRYPTION_KEY from api-gateway to ai-worker, redeploy both services, then run stage 2.'
+    expect(message).toBe(
+      'Failed to upsert API_KEY_ENCRYPTION_KEY on ai-worker (dev); it may or may not have applied. Re-run stage 1, then follow what it reports: if it completes, nothing more to do; if it reports API_KEY_ENCRYPTION_KEY DIFFERS, copy API_KEY_ENCRYPTION_KEY from api-gateway to ai-worker in the Railway dashboard, then run `pnpm ops deploy:redeploy --env dev --service api-gateway --yes` and the same for ai-worker, wait for both, then run stage 2; if it reports a rotation window is already open, every write landed: redeploy both services the same way, wait for both, then run stage 2. No stored row has been touched; stage 2 has not run.'
     );
-    expect(message.endsWith('No stored row has been touched; stage 2 has not run.')).toBe(true);
     expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
   });
 
@@ -443,11 +449,9 @@ describe('rotateByokKey', () => {
 
     const promise = rotateByokKey({ env: 'dev', stage: '1' });
     await expect(promise).rejects.toThrow(
-      "Redeploy api-gateway (Railway dashboard: the service's latest deployment → Redeploy), then run stage 2."
+      'Redeploy api-gateway with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`, then run stage 2.'
     );
-    await expect(promise).rejects.toThrow(
-      "(not verified: that a dashboard redeploy carries the just-written variables; check the new deployment's start time is after this run)"
-    );
+    await expect(promise).rejects.not.toThrow('not verified:');
     expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
   });
 
@@ -473,8 +477,12 @@ describe('rotateByokKey', () => {
       API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
     });
 
-    await expect(rotateByokKey({ env: 'dev', stage: '1' })).rejects.toThrow(
+    const promise = rotateByokKey({ env: 'dev', stage: '1' });
+    await expect(promise).rejects.toThrow(
       'A rotation window is already open (PREVIOUS is set) — run stage 2 then stage 3 to close it before starting a new rotation.'
+    );
+    await expect(promise).rejects.toThrow(
+      'If stage 1 itself was interrupted after its writes, redeploy both services first (`pnpm ops deploy:redeploy --env dev --service <name> --yes`) and wait for them before stage 2.'
     );
     // No variable writes or redeploys may have happened.
     const setCalls = mockExecFileSync.mock.calls.filter(
@@ -777,6 +785,105 @@ describe('rotateByokKey', () => {
     await expect(promise).rejects.toThrow('deploy:var-delete');
     expect(deleteRailwayVariable).not.toHaveBeenCalled();
     expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
+  });
+
+  it('consistency guard accepts gateway PREVIOUS equal to its CURRENT while worker PREVIOUS is absent', async () => {
+    stubRailwayVarsPerService({
+      'api-gateway': {
+        API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+        API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_A_HEX,
+      },
+      'ai-worker': {
+        API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+      },
+    });
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    try {
+      await expect(rotateByokKey({ env: 'dev', stage: '1' })).resolves.toBeUndefined();
+      expect(upsertRailwayVariable).toHaveBeenCalledTimes(4);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('stage 2 refuses when PREVIOUS equals CURRENT (interrupted stage 1)', async () => {
+    stubRailwayVars({
+      API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+      API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_A_HEX,
+    });
+
+    await expect(rotateByokKey({ env: 'dev', stage: '2' })).rejects.toThrow(
+      'PREVIOUS equals CURRENT (an interrupted stage 1). Re-run stage 1.'
+    );
+    expect(mockPrisma.userApiKey.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.userApiKey.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('stage 1 refuses before any upsert when a service deployment is not ready', async () => {
+    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
+    assertRailwayServiceDeploymentReady.mockImplementation(
+      async ({ serviceName }: { serviceName: string }) => {
+        if (serviceName === 'ai-worker') {
+          throw new Error(
+            "ai-worker's latest deployment is INITIALIZING, not SUCCESS — wait for it to settle (or fix it), then re-run. Nothing was changed."
+          );
+        }
+      }
+    );
+
+    await expect(rotateByokKey({ env: 'dev', stage: '1' })).rejects.toThrow(
+      "ai-worker's latest deployment is INITIALIZING, not SUCCESS"
+    );
+    expect(upsertRailwayVariable).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
+  });
+
+  it('stage 2 refuses before reencrypting when a service deployment is not ready', async () => {
+    stubRailwayVars({
+      API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+      API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+    });
+    assertRailwayServiceDeploymentReady.mockImplementation(
+      async ({ serviceName }: { serviceName: string }) => {
+        if (serviceName === 'api-gateway') {
+          throw new Error(
+            "api-gateway's latest deployment is BUILDING, not SUCCESS — wait for it to settle (or fix it), then re-run. Nothing was changed."
+          );
+        }
+      }
+    );
+
+    await expect(rotateByokKey({ env: 'dev', stage: '2' })).rejects.toThrow(
+      "api-gateway's latest deployment is BUILDING, not SUCCESS"
+    );
+    expect(mockPrisma.userApiKey.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.userApiKey.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('stage 3 refuses before deleting PREVIOUS when a service deployment is not ready', async () => {
+    stubRailwayVars({
+      API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+      API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+    });
+    mockPrisma.userApiKey.findMany.mockResolvedValue([]);
+    mockPrisma.userCredential.findMany.mockResolvedValue([]);
+    assertRailwayServiceDeploymentReady.mockImplementation(
+      async ({ serviceName }: { serviceName: string }) => {
+        if (serviceName === 'ai-worker') {
+          throw new Error(
+            "ai-worker's latest deployment is INITIALIZING, not SUCCESS — wait for it to settle (or fix it), then re-run. Nothing was changed."
+          );
+        }
+      }
+    );
+
+    await expect(rotateByokKey({ env: 'dev', stage: '3' })).rejects.toThrow(
+      "ai-worker's latest deployment is INITIALIZING, not SUCCESS"
+    );
+    expect(deleteRailwayVariable).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
+    expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
   });
 });
 

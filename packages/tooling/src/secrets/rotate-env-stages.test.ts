@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../deployment/railway-api.js', () => ({
+  assertRailwayServiceDeploymentReady: vi.fn(),
   upsertRailwayVariable: vi.fn(),
   deleteRailwayVariable: vi.fn(),
   readRailwayVariableValue: vi.fn(),
@@ -15,13 +16,35 @@ vi.mock('./deployed-code-gate.js', () => ({
   checkDeployedCodeAcceptsPrevious: vi.fn(),
 }));
 
+// The readiness helper is a pass-through mirroring the real helper's loop: the
+// seam these tests pin — assertRailwayServiceDeploymentReady's args and
+// ordering — stays at the (mocked) railway-api layer, so the preflight-refusal
+// tests keep their teeth. importOriginal would drag the real module's
+// rotation.js (Prisma) into this file's graph.
 vi.mock('./rotate-env-context.js', () => ({
   redeployServices: vi.fn(),
   reportRedeployFailures: vi.fn(),
   stampLedger: vi.fn(),
+  assertServicesDeploymentReady: vi.fn(
+    async (
+      services: { id: string; name: string }[],
+      context: { environmentId: string; env: 'dev' | 'prod' }
+    ) => {
+      const { assertRailwayServiceDeploymentReady } = await import('../deployment/railway-api.js');
+      for (const svc of services) {
+        await assertRailwayServiceDeploymentReady({
+          environmentId: context.environmentId,
+          serviceId: svc.id,
+          serviceName: svc.name,
+          env: context.env,
+        });
+      }
+    }
+  ),
 }));
 
 import {
+  assertRailwayServiceDeploymentReady,
   upsertRailwayVariable,
   deleteRailwayVariable,
   readRailwayVariableValue,
@@ -38,6 +61,7 @@ import {
 import { runStagedRotation, type StagedRotationOptions } from './rotate-env-stages.js';
 import { UsageError } from '../utils/errors.js';
 
+const mockAssertReady = vi.mocked(assertRailwayServiceDeploymentReady);
 const mockUpsert = vi.mocked(upsertRailwayVariable);
 const mockDelete = vi.mocked(deleteRailwayVariable);
 const mockReadValue = vi.mocked(readRailwayVariableValue);
@@ -98,6 +122,7 @@ describe('runStagedRotation', () => {
 
   beforeEach(() => {
     verifierNames = new Set([VAR_NAME]);
+    mockAssertReady.mockReset().mockResolvedValue(undefined);
     mockUpsert.mockReset().mockImplementation(async args => {
       if (args.serviceId !== undefined) {
         verifierNames.add(args.name);
@@ -501,5 +526,117 @@ describe('runStagedRotation', () => {
     expect(listArg.serviceId).toBe('svc-gateway');
     // Stage 1 proceeded rather than refusing "a window is already open".
     expect(mockUpsert).toHaveBeenCalledTimes(2);
+  });
+
+  it('stage 1 refuses before any upsert or redeploy when the verifier deployment is not ready', async () => {
+    mockAssertReady.mockRejectedValueOnce(
+      new Error(
+        "api-gateway's latest deployment is INITIALIZING, not SUCCESS — wait for it to settle (or fix it), then re-run. Nothing was changed."
+      )
+    );
+
+    await expect(runStagedRotation(makeOptions({ stage: '1' }), makeContext())).rejects.toThrow(
+      'api-gateway'
+    );
+
+    expect(mockAssertReady).toHaveBeenCalledWith({
+      environmentId: 'env-1',
+      serviceId: 'svc-gateway',
+      serviceName: 'api-gateway',
+      env: 'dev',
+    });
+    expect(mockUpsert).not.toHaveBeenCalled();
+    expect(mockDelete).not.toHaveBeenCalled();
+    expect(mockRedeploy).not.toHaveBeenCalled();
+  });
+
+  it('stage 2 checks the verifier and every presenter, and refuses before redeploying if the verifier is not ready', async () => {
+    verifierNames.add(PREVIOUS_NAME);
+    mockAssertReady.mockImplementation(async args => {
+      if (args.serviceName === 'api-gateway') {
+        throw new Error(
+          "api-gateway's latest deployment is INITIALIZING, not SUCCESS — wait for it to settle (or fix it), then re-run. Nothing was changed."
+        );
+      }
+    });
+
+    await expect(runStagedRotation(makeOptions({ stage: '2' }), makeContext())).rejects.toThrow(
+      'api-gateway'
+    );
+
+    expect(mockAssertReady).toHaveBeenCalledWith({
+      environmentId: 'env-1',
+      serviceId: 'svc-gateway',
+      serviceName: 'api-gateway',
+      env: 'dev',
+    });
+    expect(mockUpsert).not.toHaveBeenCalled();
+    expect(mockDelete).not.toHaveBeenCalled();
+    expect(mockRedeploy).not.toHaveBeenCalled();
+  });
+
+  it('stage 2 refuses before redeploying any presenter when a presenter deployment is not ready', async () => {
+    verifierNames.add(PREVIOUS_NAME);
+    mockAssertReady.mockImplementation(async args => {
+      if (args.serviceName === 'ai-worker') {
+        throw new Error(
+          "ai-worker's latest deployment is BUILDING, not SUCCESS — wait for it to settle (or fix it), then re-run. Nothing was changed."
+        );
+      }
+    });
+
+    await expect(runStagedRotation(makeOptions({ stage: '2' }), makeContext())).rejects.toThrow(
+      'ai-worker'
+    );
+
+    expect(mockAssertReady).toHaveBeenCalledWith(
+      expect.objectContaining({ serviceName: 'api-gateway' })
+    );
+    expect(mockAssertReady).toHaveBeenCalledWith(
+      expect.objectContaining({ serviceName: 'bot-client' })
+    );
+    expect(mockAssertReady).toHaveBeenCalledWith(
+      expect.objectContaining({ serviceName: 'ai-worker' })
+    );
+    expect(mockUpsert).not.toHaveBeenCalled();
+    expect(mockDelete).not.toHaveBeenCalled();
+    expect(mockRedeploy).not.toHaveBeenCalled();
+  });
+
+  it('stage 3 refuses before deleting _PREVIOUS or redeploying when the verifier deployment is not ready', async () => {
+    verifierNames.add(PREVIOUS_NAME);
+    mockAssertReady.mockRejectedValueOnce(
+      new Error(
+        "api-gateway's latest deployment is INITIALIZING, not SUCCESS — wait for it to settle (or fix it), then re-run. Nothing was changed."
+      )
+    );
+
+    await expect(runStagedRotation(makeOptions({ stage: '3' }), makeContext())).rejects.toThrow(
+      'api-gateway'
+    );
+
+    expect(mockAssertReady).toHaveBeenCalledWith({
+      environmentId: 'env-1',
+      serviceId: 'svc-gateway',
+      serviceName: 'api-gateway',
+      env: 'dev',
+    });
+    expect(mockUpsert).not.toHaveBeenCalled();
+    expect(mockDelete).not.toHaveBeenCalled();
+    expect(mockRedeploy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { stage: '1', openWindow: false },
+    { stage: '2', openWindow: true },
+    { stage: '3', openWindow: true },
+  ])('dry run of stage $stage never calls the deployment readiness check', async fixture => {
+    if (fixture.openWindow) {
+      verifierNames.add(PREVIOUS_NAME);
+    }
+
+    await runStagedRotation(makeOptions({ stage: fixture.stage, dryRun: true }), makeContext());
+
+    expect(mockAssertReady).not.toHaveBeenCalled();
   });
 });

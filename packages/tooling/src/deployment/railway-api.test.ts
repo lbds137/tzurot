@@ -10,6 +10,7 @@ import {
   readRailwayVariableValue,
   upsertRailwayVariable,
   redeployRailwayService,
+  assertRailwayServiceDeploymentReady,
   redeployRailwayServiceReusingImage,
   getLiveDeploymentCommit,
 } from './railway-api.js';
@@ -678,6 +679,91 @@ describe('railway-api', () => {
       await expect(
         redeployRailwayService({ environmentId: 'env-1', serviceId: 'svc-1', env: 'dev' })
       ).rejects.toThrow('svc-1');
+    });
+  });
+
+  describe('assertRailwayServiceDeploymentReady', () => {
+    it('resolves when latestDeployment status is SUCCESS and sends environmentId and serviceId', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            serviceInstance: {
+              latestDeployment: { id: 'dep-ok', status: 'SUCCESS' },
+            },
+          },
+        })
+      );
+
+      await expect(
+        assertRailwayServiceDeploymentReady({
+          environmentId: 'env-1',
+          serviceId: 'svc-1',
+          serviceName: 'api-gateway',
+          env: 'dev',
+        })
+      ).resolves.toBeUndefined();
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const parsedBody = JSON.parse(init.body as string) as {
+        query: string;
+        variables: Record<string, unknown>;
+      };
+      expect(parsedBody.query).toContain('serviceInstance');
+      expect(parsedBody.query).toContain('latestDeployment');
+      expect(parsedBody.variables).toEqual({
+        environmentId: 'env-1',
+        serviceId: 'svc-1',
+      });
+    });
+
+    it('throws naming the service name and status when latestDeployment is not SUCCESS', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            serviceInstance: {
+              latestDeployment: { id: 'dep-init', status: 'INITIALIZING' },
+            },
+          },
+        })
+      );
+
+      await expect(
+        assertRailwayServiceDeploymentReady({
+          environmentId: 'env-1',
+          serviceId: 'svc-1',
+          serviceName: 'api-gateway',
+          env: 'dev',
+        })
+      ).rejects.toThrow(
+        "api-gateway's latest deployment is INITIALIZING, not SUCCESS — wait for it to settle (or fix it), then re-run. Nothing was changed."
+      );
+    });
+
+    it('throws naming the service name and status when latestDeployment is null', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            serviceInstance: {
+              latestDeployment: null,
+            },
+          },
+        })
+      );
+
+      await expect(
+        assertRailwayServiceDeploymentReady({
+          environmentId: 'env-1',
+          serviceId: 'svc-1',
+          serviceName: 'api-gateway',
+          env: 'dev',
+        })
+      ).rejects.toThrow(
+        "api-gateway's latest deployment is missing, not SUCCESS — wait for it to settle (or fix it), then re-run. Nothing was changed."
+      );
     });
   });
 
