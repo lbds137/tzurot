@@ -88,6 +88,10 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     probe: '.claude/hooks/python-heredoc-edit-guard.probe.sh',
   },
   {
+    hook: '.claude/hooks/removed-identifier-sweep.sh',
+    probe: '.claude/hooks/removed-identifier-sweep.probe.sh',
+  },
+  {
     hook: '.claude/hooks/self-matching-pattern-guard.sh',
     probe: '.claude/hooks/self-matching-pattern-guard.probe.sh',
   },

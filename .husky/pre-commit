@@ -189,6 +189,9 @@ fi
 # `|| true` keeps a missing/failed script harmless.
 .claude/hooks/claim-shape-guard.sh || true
 
+# Advisory: prose sweep for identifiers the staged diff REMOVES (10-working-posture § A changed premise sweeps its prose); never blocks.
+.claude/hooks/removed-identifier-sweep.sh || true
+
 # Surface deferred-backlog entries that reference staged files (informational).
 # Many tracker tasks are gated on "opportunistic when next
 # touching <file>" — a trigger that only fires if the committer remembers the
