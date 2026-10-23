@@ -77,8 +77,10 @@ nothing can be orphaned, so stage 1 re-runs.
 ### Stage 2 — reencrypt
 
 Refuses if `PREVIOUS` is empty or still equals `CURRENT` (an interrupted stage
-1), and preflights that both services' latest deployments are `SUCCESS` (so
-stage 1's redeploys have settled) before touching any row. Sweeps both tables,
+1), and preflights that both services' latest deployments are `SUCCESS` before
+touching any row. That preflight proves only that nothing is mid-deploy — it
+does not prove the deployments started after stage 1's writes — so after an
+interrupted stage 1, follow stage 1's repair text. Sweeps both tables,
 re-encrypting every row that still decrypts under the
 previous key, then verifies. Per-table tally:
 

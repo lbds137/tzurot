@@ -199,6 +199,7 @@ export async function redeployServices(
       await redeployRailwayServiceReusingImage({
         environmentId: context.environmentId,
         serviceId: svc.id,
+        serviceName: svc.name,
         env: context.env,
       });
     } catch (error) {

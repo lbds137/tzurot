@@ -127,11 +127,13 @@ describe('rotate-env-context', () => {
       expect(mockRedeploy).toHaveBeenCalledWith({
         environmentId: 'env-1',
         serviceId: 'svc-gateway',
+        serviceName: 'api-gateway',
         env: 'dev',
       });
       expect(mockRedeploy).toHaveBeenCalledWith({
         environmentId: 'env-1',
         serviceId: 'svc-bot',
+        serviceName: 'bot-client',
         env: 'dev',
       });
     });

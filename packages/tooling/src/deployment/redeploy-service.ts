@@ -69,6 +69,7 @@ export async function runRedeployService(options: RedeployServiceOptions): Promi
   const deploymentId = await redeployRailwayServiceReusingImage({
     environmentId,
     serviceId,
+    serviceName: options.service,
     env: options.env,
   });
 

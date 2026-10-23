@@ -766,6 +766,7 @@ describe('railway-api', () => {
       const newId = await redeployRailwayServiceReusingImage({
         environmentId: 'env-1',
         serviceId: 'svc-1',
+        serviceName: 'api-gateway',
         env: 'dev',
       });
 
@@ -813,6 +814,7 @@ describe('railway-api', () => {
         await redeployRailwayServiceReusingImage({
           environmentId: 'env-1',
           serviceId: 'svc-1',
+          serviceName: 'api-gateway',
           env: 'dev',
         });
       } catch (error) {
@@ -821,10 +823,12 @@ describe('railway-api', () => {
 
       expect(caught).toBeInstanceOf(Error);
       const message = caught instanceof Error ? caught.message : '';
-      expect(message).toContain('svc-1');
+      expect(message).toContain('api-gateway');
+      expect(message).not.toContain('svc-1');
       expect(message).toContain(
         'its latest deployment is BUILDING, not SUCCESS; resolve that before rotating'
       );
+      expect(message).toContain('(dev)');
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
@@ -841,6 +845,7 @@ describe('railway-api', () => {
         await redeployRailwayServiceReusingImage({
           environmentId: 'env-1',
           serviceId: 'svc-1',
+          serviceName: 'api-gateway',
           env: 'dev',
         });
       } catch (error) {
@@ -849,7 +854,8 @@ describe('railway-api', () => {
 
       expect(caught).toBeInstanceOf(Error);
       const message = caught instanceof Error ? caught.message : '';
-      expect(message).toContain('svc-1');
+      expect(message).toContain('api-gateway');
+      expect(message).not.toContain('svc-1');
       expect(message).toContain('has no latest deployment; resolve that before rotating');
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
@@ -866,6 +872,7 @@ describe('railway-api', () => {
         await redeployRailwayServiceReusingImage({
           environmentId: 'env-1',
           serviceId: 'svc-1',
+          serviceName: 'api-gateway',
           env: 'dev',
         });
       } catch (error) {
@@ -903,6 +910,7 @@ describe('railway-api', () => {
         await redeployRailwayServiceReusingImage({
           environmentId: 'env-1',
           serviceId: 'svc-1',
+          serviceName: 'api-gateway',
           env: 'dev',
         });
       } catch (error) {
@@ -1039,13 +1047,14 @@ describe('railway-api', () => {
       const commit = await getLiveDeploymentCommit({
         environmentId: 'env-1',
         serviceId: 'svc-1',
+        serviceName: 'api-gateway',
         env: 'dev',
       });
 
       expect(commit).toBe('db783ced15f2efe99cbf1e13bf89d51e03e52203');
     });
 
-    it('refuses a non-SUCCESS latestDeployment', async () => {
+    it('refuses a non-SUCCESS latestDeployment, naming the service name and env but not the id', async () => {
       process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch.mockResolvedValue(
         jsonResponse(200, {
@@ -1062,11 +1071,37 @@ describe('railway-api', () => {
       );
 
       await expect(
-        getLiveDeploymentCommit({ environmentId: 'env-1', serviceId: 'svc-1', env: 'dev' })
+        getLiveDeploymentCommit({
+          environmentId: 'env-1',
+          serviceId: 'svc-1',
+          serviceName: 'api-gateway',
+          env: 'dev',
+        })
       ).rejects.toThrow(/BUILDING/);
       await expect(
-        getLiveDeploymentCommit({ environmentId: 'env-1', serviceId: 'svc-1', env: 'dev' })
+        getLiveDeploymentCommit({
+          environmentId: 'env-1',
+          serviceId: 'svc-1',
+          serviceName: 'api-gateway',
+          env: 'dev',
+        })
       ).rejects.toThrow(/not SUCCESS/);
+      await expect(
+        getLiveDeploymentCommit({
+          environmentId: 'env-1',
+          serviceId: 'svc-1',
+          serviceName: 'api-gateway',
+          env: 'dev',
+        })
+      ).rejects.toThrow(/"api-gateway" \(dev\)/);
+      await expect(
+        getLiveDeploymentCommit({
+          environmentId: 'env-1',
+          serviceId: 'svc-1',
+          serviceName: 'api-gateway',
+          env: 'dev',
+        })
+      ).rejects.not.toThrow(/svc-1/);
     });
 
     it('throws a shape error when commitHash is missing', async () => {
@@ -1086,7 +1121,12 @@ describe('railway-api', () => {
       );
 
       await expect(
-        getLiveDeploymentCommit({ environmentId: 'env-1', serviceId: 'svc-1', env: 'dev' })
+        getLiveDeploymentCommit({
+          environmentId: 'env-1',
+          serviceId: 'svc-1',
+          serviceName: 'api-gateway',
+          env: 'dev',
+        })
       ).rejects.toThrow(/unexpected shape/i);
     });
 
@@ -1107,7 +1147,12 @@ describe('railway-api', () => {
       );
 
       await expect(
-        getLiveDeploymentCommit({ environmentId: 'env-1', serviceId: 'svc-1', env: 'dev' })
+        getLiveDeploymentCommit({
+          environmentId: 'env-1',
+          serviceId: 'svc-1',
+          serviceName: 'api-gateway',
+          env: 'dev',
+        })
       ).rejects.toThrow(/unexpected shape/i);
     });
 
@@ -1128,7 +1173,12 @@ describe('railway-api', () => {
       );
 
       await expect(
-        getLiveDeploymentCommit({ environmentId: 'env-1', serviceId: 'svc-1', env: 'dev' })
+        getLiveDeploymentCommit({
+          environmentId: 'env-1',
+          serviceId: 'svc-1',
+          serviceName: 'api-gateway',
+          env: 'dev',
+        })
       ).rejects.toThrow(/unexpected shape/i);
     });
   });

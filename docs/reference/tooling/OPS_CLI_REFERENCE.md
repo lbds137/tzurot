@@ -53,17 +53,17 @@ pnpm ops run --env <env> <command> [args...]
 
 Railway deployment helpers (full procedure: `/tzurot-deployment`):
 
-| Command                                                                     | Description                                                   |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `pnpm ops deploy:verify`                                                    | Verify the build before deploying                             |
-| `pnpm ops deploy:dev`                                                       | Deploy to the Railway development environment                 |
-| `pnpm ops deploy:update-gateway`                                            | Update the gateway URL in Railway                             |
-| `pnpm ops deploy:setup-vars --env dev`                                      | Set up Railway environment variables from `.env`              |
-| `pnpm ops deploy:setup-vars --env dev --dry-run`                            | Preview the variable set without writing to Railway           |
-| `pnpm ops deploy:var-delete --env dev --service bot-client --name SOME_KEY` | Delete a Railway variable via the public API (the CLI cannot) |
-| `pnpm ops deploy:var-delete --env prod --shared --name SOME_KEY --dry-run`  | Preview a shared (project-level) variable deletion            |
-| `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`            | Redeploy one Railway service by reusing its current image     |
-| `pnpm ops deploy:redeploy --env prod --service api-gateway --dry-run`       | Preview a single-service redeploy without calling the API     |
+| Command                                                                     | Description                                                                                        |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `pnpm ops deploy:verify`                                                    | Verify the build before deploying                                                                  |
+| `pnpm ops deploy:dev`                                                       | Deploy to the Railway development environment                                                      |
+| `pnpm ops deploy:update-gateway`                                            | Update the gateway URL in Railway                                                                  |
+| `pnpm ops deploy:setup-vars --env dev`                                      | Set up Railway environment variables from `.env`                                                   |
+| `pnpm ops deploy:setup-vars --env dev --dry-run`                            | Preview the variable set without writing to Railway                                                |
+| `pnpm ops deploy:var-delete --env dev --service bot-client --name SOME_KEY` | Delete a Railway variable via the public API (the CLI cannot)                                      |
+| `pnpm ops deploy:var-delete --env prod --shared --name SOME_KEY --dry-run`  | Preview a shared (project-level) variable deletion                                                 |
+| `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`            | Redeploy one Railway service by reusing its current image                                          |
+| `pnpm ops deploy:redeploy --env prod --service api-gateway --dry-run`       | Preview a single-service redeploy (checks the API token is set; reads railway status; no API call) |
 
 ## Dev Workflow Commands
 

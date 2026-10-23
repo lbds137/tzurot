@@ -84,6 +84,7 @@ describe('runRedeployService', () => {
     expect(redeployArg).toEqual({
       environmentId: 'env-1',
       serviceId: 'svc-1',
+      serviceName: 'api-gateway',
       env: 'dev',
     });
     expect(Object.hasOwn(redeployArg as object, 'projectId')).toBe(false);
@@ -121,6 +122,7 @@ describe('runRedeployService', () => {
     expect(mockRedeploy).toHaveBeenCalledWith({
       environmentId: 'env-1',
       serviceId: 'svc-1',
+      serviceName: 'api-gateway',
       env: 'prod',
     });
   });

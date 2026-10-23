@@ -90,6 +90,7 @@ export async function checkDeployedCodeAcceptsPrevious(
     commit = await getLiveDeploymentCommit({
       environmentId: args.environmentId,
       serviceId: args.serviceId,
+      serviceName: args.serviceName,
       env: args.env,
     });
   } catch (error) {

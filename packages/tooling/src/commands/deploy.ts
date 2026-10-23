@@ -26,6 +26,25 @@ function assertDevProdEnv(env: string): asserts env is 'dev' | 'prod' {
 }
 
 /**
+ * The three Railway-writing commands (var-delete, redeploy, setup-vars)
+ * declare no `--env` default: a Railway write must never silently target dev
+ * because the operator forgot the flag.
+ */
+const ENV_REQUIRED_ERROR = '--env <dev|prod> is required';
+
+/**
+ * Cac leaves an option declared without a `default` as `undefined` when the
+ * flag is absent, so the missing-flag case is its own error, checked before
+ * the dev/prod value check.
+ */
+function requireDevProdEnv(env: string | undefined): asserts env is 'dev' | 'prod' {
+  if (env === undefined) {
+    throw new UsageError(ENV_REQUIRED_ERROR);
+  }
+  assertDevProdEnv(env);
+}
+
+/**
  * Default `maintenance --drain-timeout`, in seconds. Named so the cac option
  * default and the post-parse fallback cannot drift apart.
  */
@@ -76,7 +95,7 @@ function registerMaintenanceCommand(cli: CAC): void {
 function registerVarDeleteCommand(cli: CAC): void {
   cli
     .command('deploy:var-delete', 'Delete a Railway environment variable (the CLI cannot)')
-    .option(ENV_OPTION, ENV_DEV_PROD_DESCRIPTION, { default: 'dev' })
+    .option(ENV_OPTION, ENV_DEV_PROD_DESCRIPTION)
     .option(SERVICE_OPTION, 'Service name whose variable to delete (or --shared, not both)')
     .option('--shared', 'Delete a shared (project-level) variable instead of a service variable', {
       default: false,
@@ -92,14 +111,14 @@ function registerVarDeleteCommand(cli: CAC): void {
     .example('pnpm ops deploy:var-delete --env prod --shared --name SOME_KEY')
     .action(
       async (options: {
-        env: string;
+        env: string | undefined;
         service?: string;
         shared: boolean;
         name?: string;
         dryRun: boolean;
         yes: boolean;
       }) => {
-        assertDevProdEnv(options.env);
+        requireDevProdEnv(options.env);
         const name = options.name === undefined ? '' : String(options.name);
         if (name.length === 0) {
           throw new UsageError('--name <KEY> is required');
@@ -128,31 +147,38 @@ function registerRedeployCommand(cli: CAC): void {
       'deploy:redeploy',
       'Redeploy one Railway service by reusing its current image (env-targeted)'
     )
-    .option(ENV_OPTION, ENV_DEV_PROD_DESCRIPTION, { default: 'dev' })
+    .option(ENV_OPTION, ENV_DEV_PROD_DESCRIPTION)
     .option(SERVICE_OPTION, 'Service name to redeploy')
     .option(
       '--dry-run',
-      'Show what would be redeployed without calling the API (still reads railway status)',
+      'Show what would be redeployed without making changes (checks the Railway API token is set and reads railway status to resolve ids; makes no API call)',
       { default: false }
     )
     .option('--yes, -y', 'Skip the confirmation prompt', { default: false })
     .example('pnpm ops deploy:redeploy --env dev --service api-gateway --dry-run')
     .example('pnpm ops deploy:redeploy --env prod --service api-gateway --yes')
-    .action(async (options: { env: string; service?: string; dryRun: boolean; yes: boolean }) => {
-      assertDevProdEnv(options.env);
-      const service = options.service === undefined ? '' : String(options.service).trim();
-      if (service.length === 0) {
-        throw new UsageError('--service <name> is required');
-      }
+    .action(
+      async (options: {
+        env: string | undefined;
+        service?: string;
+        dryRun: boolean;
+        yes: boolean;
+      }) => {
+        requireDevProdEnv(options.env);
+        const service = options.service === undefined ? '' : String(options.service).trim();
+        if (service.length === 0) {
+          throw new UsageError('--service <name> is required');
+        }
 
-      const { runRedeployService } = await import('../deployment/redeploy-service.js');
-      await runRedeployService({
-        env: options.env,
-        service,
-        dryRun: options.dryRun,
-        yes: options.yes,
-      });
-    });
+        const { runRedeployService } = await import('../deployment/redeploy-service.js');
+        await runRedeployService({
+          env: options.env,
+          service,
+          dryRun: options.dryRun,
+          yes: options.yes,
+        });
+      }
+    );
 }
 
 export function registerDeployCommands(cli: CAC): void {
@@ -173,11 +199,11 @@ export function registerDeployCommands(cli: CAC): void {
 
   cli
     .command('deploy:setup-vars', 'Set up Railway environment variables from .env')
-    .option(ENV_OPTION, ENV_DEV_PROD_DESCRIPTION, { default: 'dev' })
+    .option(ENV_OPTION, ENV_DEV_PROD_DESCRIPTION)
     .option('--dry-run', 'Show what would be set without making changes', { default: false })
     .option('--yes, -y', 'Skip confirmation prompts', { default: false })
-    .action(async (options: { env: string; dryRun: boolean; yes: boolean }) => {
-      assertDevProdEnv(options.env);
+    .action(async (options: { env: string | undefined; dryRun: boolean; yes: boolean }) => {
+      requireDevProdEnv(options.env);
 
       const { setupRailwayVariables } = await import('../deployment/setup-railway-variables.js');
       await setupRailwayVariables({

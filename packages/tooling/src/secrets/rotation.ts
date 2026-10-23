@@ -44,6 +44,7 @@ import {
 import { getRailwayDatabaseUrl, getRailwayEnvName } from '../utils/env-runner.js';
 import { deleteFailureError, resolveServiceIds } from './byok-finalize-helpers.js';
 import {
+  assertByokServicesDeploymentReady,
   BYOK_SERVICES,
   CURRENT_VAR,
   GATEWAY_SERVICE,
@@ -146,8 +147,7 @@ function assertByokServicesConsistent(env: SecretsEnv): void {
   const secondCurrent = getServiceVariableOrEmpty(env, second, CURRENT_VAR);
   if (firstCurrent !== secondCurrent) {
     throw new Error(
-      `${CURRENT_VAR} DIFFERS between ${first} and ${second} (${env}) — a previous variable write partially failed. Re-set it on the lagging service (Railway dashboard history has the values), then re-run.` +
-        ` If stage 3 was interrupted (PREVIOUS deleted on one service only), delete it on the other with \`pnpm ops deploy:var-delete --env ${env} --service <name> --name API_KEY_ENCRYPTION_KEY_PREVIOUS --yes\` instead, then re-run stage 3.`
+      `${CURRENT_VAR} DIFFERS between ${first} and ${second} (${env}) — a previous variable write partially failed. Re-set it on the lagging service (Railway dashboard history has the values), then re-run.`
     );
   }
 
@@ -339,20 +339,6 @@ function resolveByokIds(env: SecretsEnv): ByokServiceIds {
   ) as ByokServiceIds;
 }
 
-async function assertByokServicesDeploymentReady(
-  env: SecretsEnv,
-  ids: ByokServiceIds
-): Promise<void> {
-  for (const svc of BYOK_SERVICES) {
-    await assertRailwayServiceDeploymentReady({
-      environmentId: ids[svc].environmentId,
-      serviceId: ids[svc].serviceId,
-      serviceName: svc,
-      env,
-    });
-  }
-}
-
 async function redeployByokServices(
   env: SecretsEnv,
   ids: ByokServiceIds,
@@ -361,7 +347,7 @@ async function redeployByokServices(
   const failures: { service: string; error: unknown }[] = [];
   for (const svc of BYOK_SERVICES) {
     try {
-      await redeployRailwayServiceReusingImage({ ...ids[svc], env });
+      await redeployRailwayServiceReusingImage({ ...ids[svc], serviceName: svc, env });
       console.log(chalk.green(`  redeployed ${svc} (${env})`));
     } catch (error) {
       failures.push({ service: svc, error });
@@ -394,7 +380,7 @@ async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
   }
 
   const ids = resolveByokIds(env);
-  await assertByokServicesDeploymentReady(env, ids);
+  await assertByokServicesDeploymentReady(env, ids, assertRailwayServiceDeploymentReady);
 
   // Deleted through the API because the CLI rejects an empty value, and the delete
   // does not redeploy by itself, so the explicit redeploy below is what closes the
@@ -423,14 +409,19 @@ async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
     }
   }
 
-  await redeployByokServices(
-    env,
-    ids,
-    failedServices =>
+  await redeployByokServices(env, ids, failedServices => {
+    const commands = failedServices
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(s => `\`pnpm ops deploy:redeploy --env ${env} --service ${s} --yes\``)
+      .join('; ');
+    return (
       `${PREVIOUS_VAR} is deleted from Railway, but ${failedServices} still holds it in memory until it restarts. ` +
-      `Simplest repair: re-run stage 3 (it skips the already-done deletes, redeploys both services, and stamps the ledger). ` +
-      `Alternatively, redeploy ${failedServices} from the Railway dashboard, then run \`pnpm ops secrets:mark-rotated byok-encryption-key --env ${env}\`.`
-  );
+      `Redeploy ${failedServices} with ${commands}, wait for each redeploy to reach SUCCESS, ` +
+      `then stamp the ledger: \`pnpm ops secrets:mark-rotated byok-encryption-key --env ${env}\`.`
+    );
+  });
 
   await markSecretRotated({ env, name: 'byok-encryption-key' });
   console.log(
@@ -479,7 +470,11 @@ export async function rotateByokKey(options: { env: SecretsEnv; stage: string })
     }
     const previousKey = parseEncryptionKeyMaterial(previousRaw, PREVIOUS_VAR);
 
-    await assertByokServicesDeploymentReady(env, resolveByokIds(env));
+    await assertByokServicesDeploymentReady(
+      env,
+      resolveByokIds(env),
+      assertRailwayServiceDeploymentReady
+    );
 
     await withEnvPrisma(env, async prisma => {
       for (const table of ['userApiKey', 'userCredential'] as const) {
