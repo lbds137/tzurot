@@ -35,4 +35,5 @@ Acceptance: each item fixed or dispositioned in one PR; dev exercise for any ord
 
 <!-- SECTION:NOTES:BEGIN -->
 8. secrets:rotate-byok (and check secrets:rotate-env) still declares --env with default dev; same hazard PR 2643 closed for the deploy:* writers. Make --env required.
+9. The readiness check refuses a SLEEPING latest deployment (`assertRailwayServiceDeploymentReady` and `redeployRailwayServiceReusingImage`, `packages/tooling/src/deployment/railway-api.ts`). Observed 10-23 on serverless dev voice-engine: `deploy:redeploy` refused, so a new variable could not be applied. SLEEPING is healthy for a serverless service; accept it (redeploy it like SUCCESS) or name the wake step in the refusal.
 <!-- SECTION:NOTES:END -->
