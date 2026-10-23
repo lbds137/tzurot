@@ -491,14 +491,18 @@ See `tzurot-testing` skill for chip-away workflow details and [`docs/reference/a
 
 Stryker ratchet over the tracked packages (`MUTATED_PACKAGES` in `packages/tooling/src/test/mutation-check.ts`):
 
-| Command                             | Description                                                                           |
-| ----------------------------------- | ------------------------------------------------------------------------------------- |
-| `pnpm ops mutation:check`           | CI gate: per-package score must stay ≥ baseline − `graceMargin`                       |
-| `pnpm ops mutation:check --summary` | Emit the JSONL audit-summary line                                                     |
-| `pnpm ops mutation:gate`            | CI skip gate: `run=false` when the diff can't move any tracked score (fail-open)      |
-| `pnpm ops mutation:update-baseline` | Write current scores to the baseline (needs a fresh LOCAL report per tracked package) |
+| Command                                   | Description                                                                                          |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `pnpm ops mutation:check`                 | CI gate: per-package score must stay ≥ baseline − `graceMargin`                                      |
+| `pnpm ops mutation:check --summary`       | Emit the JSONL audit-summary line                                                                    |
+| `pnpm ops mutation:gate`                  | CI skip gate: `run=false` when the diff can't move any tracked score (fail-open)                     |
+| `pnpm ops mutation:update-baseline`       | Write current scores to the baseline (needs a fresh LOCAL report per tracked package)                |
+| `pnpm ops test:mutation-scoped`           | Assertion-gap finder: Stryker over the diff's added/changed lines (NoCoverage gates like a survivor) |
+| `pnpm ops test:mutation-scoped --dry-run` | Print the planned per-package Stryker invocations without running them                               |
 
 Reports come from `pnpm --filter @tzurot/<pkg> test:mutation`. When `mutation:check` fails on a genuine drop, close the test gaps it names — never hand-edit the baseline.
+
+`test:mutation-scoped` is the local per-hunk companion (not wired into CI): it runs one Stryker invocation per affected Stryker-tracked package over exactly the lines `--base` (default `origin/develop`) sees added or changed, and exits 1 on any scoped survivor or not-covered mutant — the mechanical form of "prove a new assertion can fail".
 
 ## Secrets Commands
 

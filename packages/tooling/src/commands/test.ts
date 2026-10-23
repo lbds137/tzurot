@@ -7,6 +7,9 @@
 
 import type { CAC } from 'cac';
 
+import { DEFAULT_BASE } from '../mutation/mutation-scoped-shared.js';
+import { rawOptionValue } from '../utils/cli-args.js';
+
 const UPDATE_OPTION_DESC = 'Update baseline with current gaps';
 const STRICT_OPTION_DESC = 'Fail if ANY gap exists (not just new ones)';
 
@@ -51,6 +54,29 @@ function registerMutationCommands(cli: CAC): void {
     .action(async (options: { baseline: string; dryRun?: boolean }) => {
       const { runMutationUpdateBaseline } = await import('../test/mutation-check.js');
       runMutationUpdateBaseline(options);
+    });
+
+  cli
+    .command(
+      'test:mutation-scoped',
+      'Run Stryker scoped to the lines this branch adds or changes (local assertion-gap finder)'
+    )
+    .option('--base <ref>', 'Git ref to diff against (merge-base semantics)', {
+      default: DEFAULT_BASE,
+    })
+    .option('--dry-run', 'Print the planned Stryker invocations without running them')
+    .example('pnpm ops test:mutation-scoped')
+    .example('pnpm ops test:mutation-scoped --base origin/main --dry-run')
+    .action(async (options: { base: string; dryRun?: boolean }) => {
+      const { runMutationScoped } = await import('../mutation/mutation-scoped.js');
+      // Read --base from raw argv, not cac's parsed options: mri coerces a
+      // digit-only ref (a SHA-like branch name) to a Number the same way it
+      // mangles snowflakes, and the scoped diff would silently run against a
+      // corrupted ref. Same reason gh:ci-gate reads --sha this way.
+      const base = rawOptionValue(process.argv, '--base') ?? options.base;
+      if (!runMutationScoped({ base, dryRun: options.dryRun })) {
+        process.exitCode = 1;
+      }
     });
 }
 
