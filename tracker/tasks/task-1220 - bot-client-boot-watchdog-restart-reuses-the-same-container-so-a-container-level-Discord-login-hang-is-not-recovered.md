@@ -24,3 +24,9 @@ What: (1) log discord.js debug events during boot until ready, so the stuck sub-
 
 Acceptance: a forced login hang in a test shows the debug phase in logs; the chosen recovery or alert is exercised on dev end to end.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Recurred 2026-10-23 (prod bot-client redeploys at 14:27Z and 14:41Z for the Discord token rotation): two fresh containers (hostnames 99c85adc897f, 7cafb1362625) both hung after 'Gateway is healthy'; the boot watchdog fired at 14:46:24 and the in-container restart hung again. Root-cause evidence, observed: `railway ssh` into the hung container, an unauthenticated `fetch('https://discord.com/api/v10/gateway')` returned HTTP 429 in 96 ms with `retry-after: 32260` and a Cloudflare HTML error page, while the same request from the Deck succeeded and the token was valid (users/@me 200, 1000/1000 session starts). So the container's egress IP is Cloudflare-banned by Discord and discord.js waits out the retry-after silently. Inference, not verified: the ban comes from other tenants on Railway's shared egress IPs, not from our own traffic. A fix candidate beyond the watchdog: Railway static outbound IPs (cost), or detect a REST 429 with a long retry-after at boot and fail loudly / alert.
+<!-- SECTION:NOTES:END -->
