@@ -326,6 +326,76 @@ describe('command handlers', () => {
         );
       });
     });
+
+    // test:mutation-scoped reads --base from process.argv (not cac's parsed
+    // options) because mri coerces a digit-only ref to a Number — the same
+    // seam gh:ci-gate's --sha crosses. Both tests mock ONLY the runner, so
+    // the shared constants module's real DEFAULT_BASE stays load-bearing in
+    // the assertions.
+    async function importMutationScopedWithMockedRunner(): Promise<{
+      runMutationScoped: ReturnType<typeof vi.fn>;
+      DEFAULT_BASE: string;
+    }> {
+      vi.doMock('../mutation/mutation-scoped.js', async () => {
+        const actual = await vi.importActual<typeof import('../mutation/mutation-scoped.js')>(
+          '../mutation/mutation-scoped.js'
+        );
+        return { ...actual, runMutationScoped: vi.fn().mockReturnValue(true) };
+      });
+      const mod = await import('../mutation/mutation-scoped.js');
+      const shared = await import('../mutation/mutation-scoped-shared.js');
+      return {
+        runMutationScoped: vi.mocked(mod.runMutationScoped) as unknown as ReturnType<typeof vi.fn>,
+        DEFAULT_BASE: shared.DEFAULT_BASE,
+      };
+    }
+
+    function withArgv(argv: string[], run: () => Promise<void>): Promise<void> {
+      const priorArgv = process.argv;
+      process.argv = argv;
+      return run().finally(() => {
+        process.argv = priorArgv;
+      });
+    }
+
+    // vi.doMock registers per test; the unmock must also run when an expect
+    // throws, or the runner mock leaks into later tests in this file.
+    afterEach(() => {
+      vi.doUnmock('../mutation/mutation-scoped.js');
+    });
+
+    it('reads test:mutation-scoped --base from raw argv so an all-digit ref survives coercion', async () => {
+      const { registerTestCommands } = await import('./test.js');
+      const { runMutationScoped } = await importMutationScopedWithMockedRunner();
+      const cli = cac('test');
+      registerTestCommands(cli);
+
+      const digitRef = '12345678901234567890123';
+      await withArgv(['node', 'test', 'test:mutation-scoped', '--base', digitRef], async () => {
+        cli.parse(process.argv, { run: false });
+        await (cli.runMatchedCommand() as Promise<void>);
+      });
+
+      // A regression reading cac's parsed options would pass 1.2345678901234568e+22 here.
+      expect(runMutationScoped).toHaveBeenCalledWith({ base: digitRef });
+    });
+
+    it('defaults test:mutation-scoped --base to the module DEFAULT_BASE (single-sourced)', async () => {
+      const { registerTestCommands } = await import('./test.js');
+      const { runMutationScoped, DEFAULT_BASE } = await importMutationScopedWithMockedRunner();
+      expect(DEFAULT_BASE).toBe('origin/develop');
+      const cli = cac('test');
+      registerTestCommands(cli);
+
+      await withArgv(['node', 'test', 'test:mutation-scoped'], async () => {
+        cli.parse(process.argv, { run: false });
+        await (cli.runMatchedCommand() as Promise<void>);
+      });
+
+      // Asserting against the IMPORTED constant (not a literal): if the command
+      // regains its own hardcoded default that drifts from the module's, this reddens.
+      expect(runMutationScoped).toHaveBeenCalledWith({ base: DEFAULT_BASE });
+    });
   });
 
   describe('voice commands', () => {
