@@ -451,7 +451,7 @@ describe('rotateByokKey', () => {
 
     const promise = rotateByokKey({ env: 'dev', stage: '1' });
     await expect(promise).rejects.toThrow(
-      'Redeploy api-gateway with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`, then run stage 2.'
+      'Redeploy api-gateway with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`, wait for each redeploy to reach SUCCESS, then run stage 2.'
     );
     await expect(promise).rejects.not.toThrow('not verified:');
     expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
