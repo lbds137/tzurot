@@ -4,6 +4,7 @@ title: Rotation tooling follow-ups from PR 2643 final review
 status: To Do
 assignee: []
 created_date: '2026-10-23 02:31'
+updated_date: '2026-10-23 02:38'
 labels:
   - 'area:tooling'
   - 'size:M'
@@ -29,3 +30,9 @@ What:
 
 Acceptance: each item fixed or dispositioned in one PR; dev exercise for any ordering change.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+8. secrets:rotate-byok (and check secrets:rotate-env) still declares --env with default dev; same hazard PR 2643 closed for the deploy:* writers. Make --env required.
+<!-- SECTION:NOTES:END -->
