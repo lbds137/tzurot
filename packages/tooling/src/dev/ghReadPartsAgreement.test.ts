@@ -18,10 +18,8 @@
  *
  * Both lists are EXTRACTED from their sources at run time. An extraction that
  * stops matching (a missing env key or an empty list) is a hard failure rather
- * than a silent pass — the same posture as `gitCommitPattern.test.ts`'s
- * extraction-based predecessor, which this file is modelled on. The extractor
- * rejects any token not of the
- * form `gh:<name>` because the plugin matches full tokens, and that throw at
+ * than a silent pass. The extractor rejects any token not of the form
+ * `gh:<name>` because the plugin matches full tokens, and that throw at
  * module scope fails the file at collection. The Seyag plugin's
  * `lossy-pipe-guard` reads `SYG_LOSSY_PIPE_GH_WRAPPERS` as whitespace-separated
  * whole tokens with the `gh:` prefix included (its header documents the
