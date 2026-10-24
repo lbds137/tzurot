@@ -40,7 +40,9 @@ import {
   pluralize,
   formatSortVerbatim,
   type BrowseActionRow,
+  type BrowseSelectOption,
 } from '../../utils/browse/index.js';
+import { buildSelectSeveralToggleRow } from '../../utils/browse/multiSelectBatch.js';
 import { resolveOptionalPersonality } from './resolveHelpers.js';
 import { buildMemoryActionId, handleMemorySelect } from './detail.js';
 import { handleMemoryDetailAction } from './detailActionRouter.js';
@@ -60,7 +62,7 @@ import { ackUpdate } from '../../ux/render/reply.js';
 const logger = createLogger('memory-browse');
 
 /** Items per page */
-const MEMORIES_PER_PAGE = 10;
+export const MEMORIES_PER_PAGE = 10;
 
 /** Browse customId helpers — filter is always 'all' since personality lives in session */
 export const browseHelpers = createBrowseCustomIdHelpers<'all'>({
@@ -100,7 +102,7 @@ interface BuildBrowseViewOptions {
 /**
  * Build the memory list embed
  */
-function buildBrowseEmbed(options: BuildBrowseViewOptions): EmbedBuilder {
+export function buildBrowseEmbed(options: BuildBrowseViewOptions): EmbedBuilder {
   const { memories, total, page, personalityId } = options;
 
   // Server-paginated: `memories` is the fetched page; `total` drives math.
@@ -145,6 +147,20 @@ function buildBrowseEmbed(options: BuildBrowseViewOptions): EmbedBuilder {
 }
 
 /**
+ * Option fields for one memory in the select menu — shared by the one-pick
+ * select, the batch multi-select, and the search results list so all present
+ * identical rows.
+ */
+export function formatMemorySelectOption(memory: MemoryItem): BrowseSelectOption {
+  return {
+    label: `${memory.isLocked ? `${AUTOCOMPLETE_BADGES.LOCKED} ` : ''}${memory.content}`,
+    value: memory.id,
+    // Select descriptions render no markdown — the date stays static text.
+    description: `${memory.personalityName} · ${formatDateShort(memory.createdAt)}`,
+  };
+}
+
+/**
  * Build pagination buttons + select menu components for a page of memories.
  * Returns an empty array if there are no memories (empty state).
  */
@@ -160,12 +176,7 @@ function buildBrowseComponents(
     customId: buildMemoryActionId('select'),
     placeholder: 'Select a memory to manage...',
     startIndex: page * MEMORIES_PER_PAGE,
-    formatItem: memory => ({
-      label: `${memory.isLocked ? `${AUTOCOMPLETE_BADGES.LOCKED} ` : ''}${memory.content}`,
-      value: memory.id,
-      // Select descriptions render no markdown — the date stays static text.
-      description: `${memory.personalityName} · ${formatDateShort(memory.createdAt)}`,
-    }),
+    formatItem: formatMemorySelectOption,
   });
   if (selectRow === null) {
     return [];
@@ -173,6 +184,8 @@ function buildBrowseComponents(
 
   return [
     selectRow,
+    // "Select several" opens the batch flow (memoriesBatch.ts) for this page.
+    buildSelectSeveralToggleRow(buildMemoryActionId('batch-select')),
     buildSharedBrowseButtons({
       currentPage: page,
       totalPages,
@@ -188,7 +201,7 @@ function buildBrowseComponents(
 /**
  * Fetch memories from API
  */
-async function fetchMemories(
+export async function fetchMemories(
   userClient: UserClient,
   personalityId: string | undefined,
   offset: number,
@@ -368,18 +381,20 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
 }
 
 /**
- * Refresh the browse list view — called from the detail action router when
- * the user clicks "back" or after a successful delete. Re-fetches memories
- * using the session's stored state and updates the message.
+ * Build the refreshed list view (embed + components) for the message an
+ * interaction came from, stepping back a page when the current one emptied.
+ * Null when the session is gone, is not a browse session, or the fetch
+ * failed — the caller keeps the message untouched in that case.
  */
-export async function refreshBrowseList(interaction: ButtonInteraction): Promise<void> {
+export async function buildRefreshedBrowseView(
+  interaction: ButtonInteraction
+): Promise<{ embed: EmbedBuilder; components: BrowseActionRow[] } | null> {
   const messageId = interaction.message.id;
   const session = await findMemoryListSessionByMessage(messageId);
   if (session?.data.kind !== 'browse') {
-    return;
+    return null;
   }
 
-  const userId = interaction.user.id;
   const { userClient } = clientsFor(interaction);
   const { personalityId } = session.data;
 
@@ -390,12 +405,12 @@ export async function refreshBrowseList(interaction: ButtonInteraction): Promise
     isEmpty: d => d.memories.length === 0,
   });
   if (result === null) {
-    return;
+    return null;
   }
 
   if (result.steppedBack) {
     await updateMemoryListSessionPage({
-      userId,
+      userId: interaction.user.id,
       messageId,
       kind: 'browse',
       newPage: result.page,
@@ -407,15 +422,28 @@ export async function refreshBrowseList(interaction: ButtonInteraction): Promise
     MEMORIES_PER_PAGE,
     result.page
   );
-  const embed = buildBrowseEmbed({
-    memories: result.data.memories,
-    total: result.data.total,
-    page: result.page,
-    personalityId,
-  });
-  const components = buildBrowseComponents(result.data.memories, result.page, totalPages);
+  return {
+    embed: buildBrowseEmbed({
+      memories: result.data.memories,
+      total: result.data.total,
+      page: result.page,
+      personalityId,
+    }),
+    components: buildBrowseComponents(result.data.memories, result.page, totalPages),
+  };
+}
 
-  await interaction.editReply({ embeds: [embed], components });
+/**
+ * Refresh the browse list view — called from the detail action router when
+ * the user clicks "back" or after a successful delete. Re-fetches memories
+ * using the session's stored state and updates the message.
+ */
+export async function refreshBrowseList(interaction: ButtonInteraction): Promise<void> {
+  const view = await buildRefreshedBrowseView(interaction);
+  if (view === null) {
+    return;
+  }
+  await interaction.editReply({ embeds: [view.embed], components: view.components });
 }
 
 /**

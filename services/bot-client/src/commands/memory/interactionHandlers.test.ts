@@ -41,6 +41,11 @@ const {
   mockHandleBatchSelectEntry,
   mockHandleBatchPick,
   mockHandleBatchConfirm,
+  mockHandleMemoryBatchSelectEntry,
+  mockHandleMemoryBatchPick,
+  mockHandleMemoryBatchConfirm,
+  mockBuildRefreshedBrowseView,
+  mockBuildRefreshedSearchView,
 } = vi.hoisted(() => ({
   mockHandleBrowsePagination: vi.fn(),
   mockHandleBrowseSelect: vi.fn(),
@@ -74,6 +79,11 @@ const {
   mockHandleBatchSelectEntry: vi.fn(),
   mockHandleBatchPick: vi.fn(),
   mockHandleBatchConfirm: vi.fn(),
+  mockHandleMemoryBatchSelectEntry: vi.fn(),
+  mockHandleMemoryBatchPick: vi.fn(),
+  mockHandleMemoryBatchConfirm: vi.fn(),
+  mockBuildRefreshedBrowseView: vi.fn(),
+  mockBuildRefreshedSearchView: vi.fn(),
 }));
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -106,6 +116,7 @@ vi.mock('./browse.js', () => ({
   handleBrowseSelect: (...args: unknown[]) => mockHandleBrowseSelect(...args),
   handleBrowseDetailAction: (...args: unknown[]) => mockHandleBrowseDetailAction(...args),
   isMemoryBrowsePagination: (...args: unknown[]) => mockIsMemoryBrowsePagination(...args),
+  buildRefreshedBrowseView: (...args: unknown[]) => mockBuildRefreshedBrowseView(...args),
 }));
 
 vi.mock('./search.js', () => ({
@@ -114,6 +125,7 @@ vi.mock('./search.js', () => ({
   handleSearchSelect: (...args: unknown[]) => mockHandleSearchSelect(...args),
   handleSearchDetailAction: (...args: unknown[]) => mockHandleSearchDetailAction(...args),
   isMemorySearchPagination: (...args: unknown[]) => mockIsMemorySearchPagination(...args),
+  buildRefreshedSearchView: (...args: unknown[]) => mockBuildRefreshedSearchView(...args),
 }));
 
 vi.mock('./factsBrowse.js', () => ({
@@ -139,7 +151,17 @@ vi.mock('./factsBatch.js', () => ({
   handleBatchConfirm: (...args: unknown[]) => mockHandleBatchConfirm(...args),
 }));
 
+vi.mock('./memoriesBatch.js', () => ({
+  handleMemoryBatchSelectEntry: (...args: unknown[]) => mockHandleMemoryBatchSelectEntry(...args),
+  handleMemoryBatchPick: (...args: unknown[]) => mockHandleMemoryBatchPick(...args),
+}));
+
+vi.mock('./memoriesBatchConfirm.js', () => ({
+  handleMemoryBatchConfirm: (...args: unknown[]) => mockHandleMemoryBatchConfirm(...args),
+}));
+
 import { handleButton, handleModal, handleSelectMenu } from './interactionHandlers.js';
+import { PAGE_FETCH_FAILED_COPY } from '../../utils/browse/multiSelectBatch.js';
 
 const TEST_MESSAGE_ID = 'msg-123';
 
@@ -149,6 +171,7 @@ interface MockButtonInteraction {
   reply: ReturnType<typeof vi.fn>;
   deferUpdate: ReturnType<typeof vi.fn>;
   followUp: ReturnType<typeof vi.fn>;
+  editReply: ReturnType<typeof vi.fn>;
   replied: boolean;
   deferred: boolean;
 }
@@ -166,6 +189,7 @@ function createButtonInteraction(customId: string): MockButtonInteraction {
     reply: vi.fn().mockResolvedValue(undefined),
     deferUpdate: vi.fn().mockResolvedValue(undefined),
     followUp: vi.fn().mockResolvedValue(undefined),
+    editReply: vi.fn().mockResolvedValue(undefined),
     replied: false,
     deferred: false,
   };
@@ -650,5 +674,147 @@ describe('fact routing (correction slice)', () => {
     const detailSelect = createSelectInteraction('memory-fact::select');
     await handleSelectMenu(detailSelect as never);
     expect(mockHandleFactSelect).toHaveBeenCalledWith(detailSelect);
+  });
+});
+
+describe('memory batch routing (memoriesBatch)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockIsMemoryBrowsePagination.mockReturnValue(false);
+    mockIsMemorySearchPagination.mockReturnValue(false);
+    mockParseMemoryActionId.mockReturnValue(null);
+    mockParseFactActionId.mockReturnValue(null);
+    mockIsFactBrowsePagination.mockReturnValue(false);
+    mockFactBrowseHelpers.isBrowseSelect.mockReturnValue(false);
+    mockBrowseHelpers.isBrowseSelect.mockReturnValue(false);
+    mockSearchHelpers.isBrowseSelect.mockReturnValue(false);
+  });
+
+  it('routes the batch-select toggle button and the multi-select by interaction kind', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'batch-select' });
+
+    const toggle = createButtonInteraction('memory-detail::batch-select');
+    await handleButton(toggle as never);
+    expect(mockHandleMemoryBatchSelectEntry).toHaveBeenCalledWith(toggle);
+    expect(mockHandleMemoryBatchPick).not.toHaveBeenCalled();
+
+    const pick = createSelectInteraction('memory-detail::batch-select');
+    await handleSelectMenu(pick as never);
+    expect(mockHandleMemoryBatchPick).toHaveBeenCalledWith(pick);
+    expect(mockHandleMemoryBatchSelectEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes batch-cancel with a kind-dispatched refresh: browse session edits the refreshed browse view', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'batch-cancel' });
+    mockFindMemoryListSessionByMessage.mockResolvedValue({ data: { kind: 'browse' } });
+    const view = { embed: { kind: 'browse-embed' }, components: [] };
+    mockBuildRefreshedBrowseView.mockResolvedValue(view);
+    const interaction = createButtonInteraction('memory-detail::batch-cancel');
+
+    await handleButton(interaction as never);
+
+    expect(interaction.deferUpdate).toHaveBeenCalled();
+    expect(mockBuildRefreshedBrowseView).toHaveBeenCalledWith(interaction);
+    expect(mockBuildRefreshedSearchView).not.toHaveBeenCalled();
+    expect(interaction.editReply).toHaveBeenCalledWith({
+      embeds: [view.embed],
+      components: view.components,
+    });
+    expect(interaction.followUp).not.toHaveBeenCalled();
+  });
+
+  it('routes batch-cancel with a kind-dispatched refresh: search session edits the refreshed search view', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'batch-cancel' });
+    mockFindMemoryListSessionByMessage.mockResolvedValue({ data: { kind: 'search' } });
+    const view = { embed: { kind: 'search-embed' }, components: [] };
+    mockBuildRefreshedSearchView.mockResolvedValue(view);
+    const interaction = createButtonInteraction('memory-detail::batch-cancel');
+
+    await handleButton(interaction as never);
+
+    expect(mockBuildRefreshedSearchView).toHaveBeenCalledWith(interaction);
+    expect(mockBuildRefreshedBrowseView).not.toHaveBeenCalled();
+    expect(interaction.editReply).toHaveBeenCalledWith({
+      embeds: [view.embed],
+      components: view.components,
+    });
+  });
+
+  it('sends the transient followUp when a live batch-cancel session fails its refresh', async () => {
+    // Null view on a LIVE session = the refresh fetch failed — not a silent
+    // no-op (the old refreshBrowseList shape): the user gets the transient copy.
+    mockParseMemoryActionId.mockReturnValue({ action: 'batch-cancel' });
+    mockFindMemoryListSessionByMessage.mockResolvedValue({ data: { kind: 'browse' } });
+    mockBuildRefreshedBrowseView.mockResolvedValue(null);
+    const interaction = createButtonInteraction('memory-detail::batch-cancel');
+
+    await handleButton(interaction as never);
+
+    expect(interaction.deferUpdate).toHaveBeenCalled();
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining(PAGE_FETCH_FAILED_COPY) })
+    );
+  });
+
+  it('shows the expired message via followUp when batch-cancel has no session', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'batch-cancel' });
+    mockFindMemoryListSessionByMessage.mockResolvedValue(null);
+    const interaction = createButtonInteraction('memory-detail::batch-cancel');
+
+    await handleButton(interaction as never);
+
+    expect(interaction.deferUpdate).toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('expired') })
+    );
+    expect(mockBuildRefreshedBrowseView).not.toHaveBeenCalled();
+    expect(mockBuildRefreshedSearchView).not.toHaveBeenCalled();
+  });
+
+  it('routes batch-confirm with the decoded verb and the resolved session', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'batch-confirm', memoryId: 'delete' });
+    const session = { data: { kind: 'browse' } };
+    mockFindMemoryListSessionByMessage.mockResolvedValue(session);
+    const del = createButtonInteraction('memory-detail::batch-confirm::delete');
+
+    await handleButton(del as never);
+
+    expect(mockHandleMemoryBatchConfirm).toHaveBeenCalledWith(del, 'delete', session);
+
+    mockParseMemoryActionId.mockReturnValue({ action: 'batch-confirm', memoryId: 'lock' });
+    const lock = createButtonInteraction('memory-detail::batch-confirm::lock');
+
+    await handleButton(lock as never);
+
+    expect(mockHandleMemoryBatchConfirm).toHaveBeenCalledWith(lock, 'lock', session);
+  });
+
+  it('never routes an unknown batch-confirm verb to the batch handler', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'batch-confirm', memoryId: 'mystery' });
+    mockFindMemoryListSessionByMessage.mockResolvedValue({ data: { kind: 'browse' } });
+    mockHandleBrowseDetailAction.mockResolvedValue(false);
+    const interaction = createButtonInteraction('memory-detail::batch-confirm::mystery');
+
+    await handleButton(interaction as never);
+
+    expect(mockHandleMemoryBatchConfirm).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Unknown action') })
+    );
+  });
+
+  it('batch-confirm is NOT session-independent: a gone session is refused before the handler', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'batch-confirm', memoryId: 'delete' });
+    mockFindMemoryListSessionByMessage.mockResolvedValue(null);
+    const interaction = createButtonInteraction('memory-detail::batch-confirm::delete');
+
+    await handleButton(interaction as never);
+
+    expect(mockFindMemoryListSessionByMessage).toHaveBeenCalled();
+    expect(mockHandleMemoryBatchConfirm).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('expired') })
+    );
   });
 });

@@ -2,18 +2,127 @@
  * Tests for the shared multi-select batch helpers.
  */
 
-import { describe, it, expect } from 'vitest';
-import { ButtonStyle } from 'discord.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ButtonStyle, EmbedBuilder, type ButtonInteraction, type Message } from 'discord.js';
 
 import {
   buildBatchConfirmView,
   buildSelectSeveralToggle,
+  buildBatchResultEmbed,
+  clampBatchConfirmDescription,
+  deliverBatchReport,
   encodeBatchFooterIds,
-  parseBatchFooterIds,
-  runBatchSequentially,
   formatBatchItemLines,
+  formatFallbackIdLabel,
+  parseBatchFooterIds,
+  readSelectOptionLabels,
+  runBatchSequentially,
   type BatchConfirmView,
 } from './multiSelectBatch.js';
+import { PAGE_FETCH_FAILED_COPY } from './multiSelectBatch.js';
+
+const followUpSpecMock = vi.hoisted(() => vi.fn());
+vi.mock('../../ux/render/reply.js', () => ({ followUpSpec: followUpSpecMock }));
+
+// Real CATALOG everywhere (the module graph reads it at load time) except
+// info.note, overridden to identity so the ladder test can assert the
+// countsLine reached followUpSpec verbatim.
+vi.mock('../../ux/catalog/catalog.js', async () => {
+  const actual = await vi.importActual<typeof import('../../ux/catalog/catalog.js')>(
+    '../../ux/catalog/catalog.js'
+  );
+  return {
+    ...actual,
+    CATALOG: {
+      ...actual.CATALOG,
+      info: { ...actual.CATALOG.info, note: (text: string) => text },
+    },
+  };
+});
+
+describe('PAGE_FETCH_FAILED_COPY', () => {
+  it('names the page, not the session — a failed fetch is not an expiry', () => {
+    expect(PAGE_FETCH_FAILED_COPY).toContain("Couldn't load that page");
+    expect(PAGE_FETCH_FAILED_COPY.toLowerCase()).not.toContain('expired');
+  });
+});
+
+describe('deliverBatchReport (the shared survival ladder)', () => {
+  function createInteraction(): ButtonInteraction {
+    return {
+      editReply: vi.fn().mockResolvedValue(undefined),
+      followUp: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ButtonInteraction;
+  }
+
+  function resultEmbed(): EmbedBuilder {
+    return buildBatchResultEmbed({ title: 'Results', color: 0x00ff00, lines: ['x'] });
+  }
+
+  const view = { embed: new EmbedBuilder().setTitle('list'), components: [] };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('stacks the result embed over the refreshed view in one editReply', async () => {
+    const interaction = createInteraction();
+
+    await deliverBatchReport(interaction, {
+      resultEmbed: resultEmbed(),
+      viewPromise: Promise.resolve(view),
+      countsLine: 'Batch finished: 1 succeeded.',
+      verb: 'delete',
+    });
+
+    expect(interaction.editReply).toHaveBeenCalledTimes(1);
+    const payload = vi.mocked(interaction.editReply).mock.calls[0]?.[0] as {
+      embeds: unknown[];
+      components: unknown[];
+    };
+    expect(payload.embeds).toHaveLength(2);
+    expect(followUpSpecMock).not.toHaveBeenCalled();
+  });
+
+  it('delivers the result embed alone when the view degraded to null', async () => {
+    const interaction = createInteraction();
+
+    await deliverBatchReport(interaction, {
+      resultEmbed: resultEmbed(),
+      viewPromise: Promise.resolve(null),
+      countsLine: 'Batch finished: 1 succeeded.',
+      verb: 'lock',
+    });
+
+    const payload = vi.mocked(interaction.editReply).mock.calls[0]?.[0] as {
+      embeds: unknown[];
+      components: unknown[];
+    };
+    expect(payload.embeds).toHaveLength(1);
+    expect(payload.components).toEqual([]);
+    expect(followUpSpecMock).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the counts followUp when BOTH reply attempts reject', async () => {
+    const interaction = createInteraction();
+    vi.mocked(interaction.editReply)
+      .mockRejectedValueOnce(new Error('Invalid Form Body'))
+      .mockRejectedValueOnce(new Error('Unknown Message'));
+
+    await deliverBatchReport(interaction, {
+      resultEmbed: resultEmbed(),
+      viewPromise: Promise.resolve(view),
+      countsLine: 'Batch finished: 2 succeeded, 1 already gone, 0 already locked, 0 failed.',
+      verb: 'delete',
+    });
+
+    expect(interaction.editReply).toHaveBeenCalledTimes(2);
+    expect(followUpSpecMock).toHaveBeenCalledWith(
+      interaction,
+      'Batch finished: 2 succeeded, 1 already gone, 0 already locked, 0 failed.'
+    );
+  });
+});
 
 describe('buildSelectSeveralToggle', () => {
   type ToggleData = { custom_id: string; label: string; style: number };
@@ -148,6 +257,77 @@ describe('buildBatchConfirmView', () => {
       ButtonStyle.Danger,
     ]);
     expect(buttons[1].custom_id).toBe('x::remove');
+  });
+});
+
+describe('readSelectOptionLabels (the shared option-label walker)', () => {
+  /** A message-like stub: discord.js rehydrates rows as builders, so the walker reads toJSON(). */
+  const messageWithRows = (rows: unknown[]): Message =>
+    ({ components: rows.map(row => ({ toJSON: () => row })) }) as unknown as Message;
+
+  it('maps option value → label across a multi-select row', () => {
+    const labels = readSelectOptionLabels(
+      messageWithRows([
+        {
+          type: 1,
+          components: [
+            {
+              type: 3,
+              options: [
+                { value: 'mem-1', label: '1. 🔐 first memory' },
+                { value: 'mem-2', label: '2. second memory' },
+              ],
+            },
+          ],
+        },
+      ])
+    );
+    expect(labels.get('mem-1')).toBe('1. 🔐 first memory');
+    expect(labels.get('mem-2')).toBe('2. second memory');
+    expect(labels.size).toBe(2);
+  });
+
+  it('walks nested component trees and degrades a non-string label to the value', () => {
+    const labels = readSelectOptionLabels(
+      messageWithRows([
+        {
+          type: 1,
+          components: [
+            {
+              type: 1,
+              components: [{ type: 3, options: [{ value: 'deep-id', label: 42 }] }],
+            },
+          ],
+        },
+      ])
+    );
+    expect(labels.get('deep-id')).toBe('deep-id');
+  });
+});
+
+describe('formatFallbackIdLabel', () => {
+  it('shortens the id under the caller noun with an ellipsis', () => {
+    expect(formatFallbackIdLabel('3f9c2e7a-8b4d-4c1a-9d6e-000000000001', 'Memory')).toBe(
+      'Memory ID: 3f9c2e7a…'
+    );
+    expect(formatFallbackIdLabel('fact-1', 'Fact')).toBe('Fact ID: fact-1…');
+  });
+});
+
+describe('clampBatchConfirmDescription (clamp the listing, not the warning)', () => {
+  const warning = '**This affects 2 memories immediately.** Delete is permanent.';
+
+  it('keeps a short listing and the warning whole', () => {
+    const description = clampBatchConfirmDescription('• first\n• second', warning);
+    expect(description).toBe(`• first\n• second\n\n${warning}`);
+  });
+
+  it('cuts a listing that would overflow the budget but always appends the warning whole', () => {
+    const longListing = Array.from({ length: 100 }, (_, i) => `• item ${i.toString()}`).join('\n');
+    const description = clampBatchConfirmDescription(longListing, warning);
+    expect(description.endsWith(warning)).toBe(true);
+    expect(description.length).toBeLessThanOrEqual(3800);
+    expect(description.startsWith('• item 0')).toBe(true);
   });
 });
 

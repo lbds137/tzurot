@@ -27,12 +27,15 @@ import {
   buildBrowseButtons,
   buildBrowseListEmbed,
   buildBrowseSelectMenu,
-  buildSelectSeveralToggleRow,
   calculatePaginationState,
   pluralize,
   type BrowseActionRow,
   type BrowseSelectOption,
 } from '../../utils/browse/index.js';
+import {
+  PAGE_FETCH_FAILED_COPY,
+  buildSelectSeveralToggleRow,
+} from '../../utils/browse/multiSelectBatch.js';
 import { resolveRequiredPersonality } from './resolveHelpers.js';
 import { truncateContent } from './formatters.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
@@ -40,7 +43,7 @@ import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { fetchPageWithEmptyFallback } from './browseSession.js';
 import { buildFactActionId } from './factsDetail.js';
-import { fetchFacts, type FactItem } from './factsApi.js';
+import { fetchFacts, type FactItem, type FactListResponse } from './factsApi.js';
 import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('memory-facts-browse');
@@ -86,6 +89,45 @@ export async function findFactBrowseSession(
   messageId: string
 ): Promise<DashboardSession<FactBrowseSession> | null> {
   return getSessionManager().findByMessageId<FactBrowseSession>(messageId);
+}
+
+/** Why {@link fetchCurrentFactsPage} could not produce a page. */
+export type FactsPageRefusal = 'session-gone' | 'fetch-failed';
+
+/** Result of {@link fetchCurrentFactsPage}: the session + page, or why not. */
+export type CurrentFactsPage =
+  | { ok: true; session: DashboardSession<FactBrowseSession>; data: FactListResponse }
+  | { ok: false; reason: FactsPageRefusal };
+
+/**
+ * The find-session → destructure → page-fetch sequence shared by the batch
+ * entry handler, the confirm handler's label resolution, and pagination:
+ * one shape for the sibling batch flows to copy. `page` defaults to the
+ * session's current page; pagination passes the button's target page. The
+ * refusal reason is preserved so callers can quote the honest copy — a gone
+ * session is an expiry message, a failed fetch is the transient one.
+ */
+export async function fetchCurrentFactsPage(
+  interaction: ButtonInteraction,
+  page?: number
+): Promise<CurrentFactsPage> {
+  const session = await findFactBrowseSession(interaction.message.id);
+  if (session === null) {
+    return { ok: false, reason: 'session-gone' };
+  }
+  const { personalityId, tag, query } = session.data;
+  const { userClient } = clientsFor(interaction);
+  const data = await fetchFacts(
+    userClient,
+    personalityId,
+    (page ?? session.data.currentPage) * FACTS_PER_PAGE,
+    FACTS_PER_PAGE,
+    { tag, query }
+  );
+  if (data === null) {
+    return { ok: false, reason: 'fetch-failed' };
+  }
+  return { ok: true, session, data };
 }
 
 /** Build the browse list embed for a page of facts. */
@@ -260,31 +302,22 @@ export async function handleFactsPagination(interaction: ButtonInteraction): Pro
   await ackUpdate(interaction);
 
   const messageId = interaction.message.id;
-  const session = await findFactBrowseSession(messageId);
-  if (session === null) {
+  const result = await fetchCurrentFactsPage(interaction, parsed.page);
+  if (!result.ok) {
+    // A gone session is an expiry; a live session with a failed fetch is the
+    // transient copy — never the expiry message.
     await interaction.followUp({
-      content: FACTS_SESSION_EXPIRED,
+      content:
+        result.reason === 'session-gone'
+          ? FACTS_SESSION_EXPIRED
+          : renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
       flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
-  const { personalityId, tag, query } = session.data;
-  const { userClient } = clientsFor(interaction);
-  const data = await fetchFacts(
-    userClient,
-    personalityId,
-    parsed.page * FACTS_PER_PAGE,
-    FACTS_PER_PAGE,
-    { tag, query }
-  );
-  if (data === null) {
-    await interaction.followUp({
-      content: renderSpec(CATALOG.error.transient("Couldn't load that page right now.")),
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+  const { tag, query } = result.session.data;
+  const data = result.data;
 
   const { totalPages, safePage } = calculatePaginationState(
     data.total,
