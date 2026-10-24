@@ -105,19 +105,22 @@ updates:
       # develop-based bump PR fails CI on every run and never merges. The
       # main-targeting entry below owns this dependency instead. TASK-1233.
       #
-      # actions/checkout is deliberately NOT routed: it is pinned in both
-      # guarded workflows AND across ci.yml, so routing it to main would
-      # strand ci.yml's ref behind develop. A checkout bump still trips the
-      # guard on develop; each occurrence uses the manual cherry-pick path in
-      # tzurot-git-workflow. TASK-1275.
+      # actions/checkout is deliberately NOT routed: most of its hunks live
+      # in unguarded workflows (ci.yml, weekly-audit.yml), so routing it to
+      # main would put every checkout bump behind an explicit main-merge
+      # approval plus a finalize-and-rebase cycle for changes develop could
+      # carry directly, and a main-side bump could conflict with develop's
+      # own ci.yml edits before finalize. A checkout bump still trips the
+      # guard on develop (both guarded workflows pin it); each occurrence
+      # uses the manual cherry-pick path in tzurot-git-workflow. TASK-1275.
       - dependency-name: 'anthropics/claude-code-action'
 
   # claude-code-action only, against MAIN: main-cut is where the guard allows
   # those two workflow files to change, so the bump lands where it can actually
   # merge (the guard self-skips on a main-cut branch). Dependabot reads this
   # file from the DEFAULT branch, so this whole split is inert until the next
-  # release cut; the develop-based bump PR open at that moment is closed by
-  # then (by dependabot or by hand).
+  # release cut; close the develop-based bump PR open at that moment (by
+  # dependabot or by hand — see the beta.239 deploy notes in backlog/now.md).
   #
   # Merge follow-up: merging one of these PRs puts main ahead of develop on
   # the two guarded files, and guard:workflow-sync diffs origin/main against

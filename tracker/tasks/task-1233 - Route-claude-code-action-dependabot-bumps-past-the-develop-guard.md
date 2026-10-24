@@ -20,5 +20,5 @@ Why: filed by Deck 2026-10-15 (Lila merged #2621 via main-cut). The github-actio
 
 Fix shape: split the dependabot config - either exclude claude-code-action from the develop-targeting github-actions ecosystem entry, or add a second ecosystem entry targeting main for claude-code-action only (dependabot.yml supports per-ecosystem target-branch). Then dependabot opens its bumps where the guard allows them.
 
-Closes when the first main-targeted claude-code-action bump PR opens after the release cut that lands the config on main (checklist: backlog/now.md Deploy notes).
+Closes when the first main-targeted claude-code-action bump PR has opened AND its CI is green (after the race rerun if needed) after the release cut that lands the config on main - opening alone proves only the routing; a green run also exercises the rerun path, at which point the unexercised-rerun hedges in dependabot.yml and tzurot-git-workflow can be confirmed or removed (checklist: backlog/now.md Deploy notes).
 <!-- SECTION:DESCRIPTION:END -->
