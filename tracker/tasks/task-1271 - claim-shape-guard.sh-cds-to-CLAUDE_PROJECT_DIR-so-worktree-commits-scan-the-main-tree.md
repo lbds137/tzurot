@@ -3,9 +3,10 @@ id: TASK-1271
 title: >-
   claim-shape-guard.sh cds to CLAUDE_PROJECT_DIR, so worktree commits scan the
   main tree
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-23 19:23'
+updated_date: '2026-10-24 09:28'
 labels:
   - 'area:hooks'
   - 'size:S'
