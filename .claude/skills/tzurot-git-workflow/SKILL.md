@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-10-11'
+lastUpdated: '2026-10-24'
 ---
 
 # Git Workflow Procedures
@@ -251,7 +251,7 @@ GitHub Actions that validate against the **default branch (`main`)** — notably
 
 **Rule**: For any change to `claude-code-review.yml` or `claude.yml`, open a PR **cut from `main` and targeting `main`** — never branch from `develop` for this (a develop-based branch targeting `main` drags all of develop's unmerged commits into the diff). The moment it merges, run `pnpm ops release:finalize` to resync `develop` onto `main` — do this before other work piles onto `develop`, since every commit added there (and every open feature branch) then needs rebasing onto the resynced `develop`. Do NOT let a claude-workflow change reach `main` via the routine `develop→main` release merge.
 
-**This bites most often with dependabot** bumps that touch the claude workflow files (e.g. an `actions/checkout` major bump usually edits every workflow, claude ones included) — dependabot opens them against `develop`. When a dependabot PR (or any PR) touches `claude-code-review.yml`/`claude.yml`, **cherry-pick just those workflow hunks into a fresh `main`-cut PR** and merge that first, rather than letting the change reach `develop`; the ci.yml hunk of the same bump can ride develop normally. (There's no `@dependabot retarget` command; re-pointing a develop-based PR's base at `main` via the GitHub UI would drag all of develop's unmerged commits into the diff, so cherry-picking the hunk is the clean path.)
+**This bites most often with dependabot** bumps that touch the claude workflow files (e.g. an `actions/checkout` major bump usually edits every workflow, claude ones included) — dependabot opens them against `develop`. When a dependabot PR (or any PR) touches `claude-code-review.yml`/`claude.yml`, **cherry-pick just those workflow hunks into a fresh `main`-cut PR** and merge that first, rather than letting the change reach `develop`; the ci.yml hunk of the same bump can ride develop normally. (There's no `@dependabot retarget` command; re-pointing a develop-based PR's base at `main` via the GitHub UI would drag all of develop's unmerged commits into the diff, so cherry-picking the hunk is the clean path.) One dep is automated past this: `anthropics/claude-code-action` — a second `github-actions` dependabot entry opens its bumps against `main` directly (TASK-1233's routing), so they need no dance, but run `pnpm ops release:finalize` promptly after such a merge (every develop-based PR fails the guard until develop carries the change). `actions/checkout` bumps still follow the manual cherry-pick path above (TASK-1275).
 
 **Recovery — a claude-workflow change already landed on `develop`** (the disruptive case; infrequent but real):
 
