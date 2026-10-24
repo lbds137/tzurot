@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 2917,
-    "sites": 6809
+    "entries": 2928,
+    "sites": 6824
   },
   "entries": [
     {
@@ -6133,6 +6133,12 @@
     {
       "category": "client-methods",
       "file": "services/bot-client/src/index.ts",
+      "symbol": "global",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/index.ts",
       "symbol": "guilds",
       "count": 1
     },
@@ -6151,7 +6157,19 @@
     {
       "category": "client-methods",
       "file": "services/bot-client/src/index.ts",
+      "symbol": "limit",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/index.ts",
       "symbol": "login",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/index.ts",
+      "symbol": "method",
       "count": 1
     },
     {
@@ -6163,8 +6181,14 @@
     {
       "category": "client-methods",
       "file": "services/bot-client/src/index.ts",
+      "symbol": "off",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/index.ts",
       "symbol": "on",
-      "count": 4
+      "count": 5
     },
     {
       "category": "client-methods",
@@ -6175,7 +6199,37 @@
     {
       "category": "client-methods",
       "file": "services/bot-client/src/index.ts",
+      "symbol": "rest",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/index.ts",
+      "symbol": "retryAfter",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/index.ts",
+      "symbol": "route",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/index.ts",
+      "symbol": "scope",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/index.ts",
       "symbol": "tag",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/index.ts",
+      "symbol": "timeToReset",
       "count": 1
     },
     {
@@ -12606,6 +12660,12 @@
     },
     {
       "category": "discord-enums",
+      "file": "services/bot-client/src/index.ts",
+      "symbol": "RESTEvents.RateLimited",
+      "count": 2
+    },
+    {
+      "category": "discord-enums",
       "file": "services/bot-client/src/services/CrossChannelHistoryFetcher.ts",
       "symbol": "ChannelType.DM",
       "count": 1
@@ -13467,6 +13527,12 @@
       "file": "services/bot-client/src/index.ts",
       "symbol": "Events.ClientReady",
       "count": 1
+    },
+    {
+      "category": "gateway-events",
+      "file": "services/bot-client/src/index.ts",
+      "symbol": "Events.Debug",
+      "count": 2
     },
     {
       "category": "gateway-events",

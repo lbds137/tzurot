@@ -1,4 +1,4 @@
-import { Client, Events } from 'discord.js';
+import { Client, type RateLimitData, Events, RESTEvents } from 'discord.js';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { registerProcessLifecycle } from '@tzurot/common-types/utils/processLifecycle';
@@ -14,6 +14,7 @@ import { closeRedis, redis } from './redis.js';
 import { armBootWatchdog } from './utils/bootWatchdog.js';
 import { deployCommands } from './utils/deployCommands.js';
 import { buildDiscordClientOptions } from './utils/discordClientOptions.js';
+import { runBootEgressProbe } from './utils/discordEgressProbe.js';
 import { shouldAutoRegisterCommands } from './utils/commandRegistrationGate.js';
 import { deliverJobResult, type JobResultDeliveryDeps } from './services/deliverJobResult.js';
 import { registerGuildMemberInfoReporter } from './services/GuildMemberInfoReporter.js';
@@ -422,6 +423,54 @@ async function subscribeToCacheInvalidation(): Promise<void> {
   logger.info('Subscribed to denylist cache invalidation events');
 }
 
+/**
+ * Boot-phase visibility listeners: surface discord.js's own debug stream and
+ * the REST layer's rate-limit events while booting — a boot that hangs in
+ * login otherwise gives the logs nothing between phases. The debug stream
+ * logs at INFO so a default deploy (LOG_LEVEL unset) still sees it; the
+ * info-level volume is bounded because the caller detaches at the disarm
+ * site. The returned detach function off()s exactly the two handlers added
+ * here; the caller invokes it at the bootWatchdog.disarm() site. Not
+ * unit-verified (index.ts has no harness) — the removal is structural, same
+ * handler refs on and off.
+ */
+function attachBootPhaseLogListeners(
+  client: Client,
+  log: ReturnType<typeof createLogger>
+): () => void {
+  const onClientDebug = (message: string): void => {
+    // Conservative token redaction: discord.js's own `_censoredToken` masking
+    // (read at discord.js@14.27.0, src/client/Client.js) leaves the token's
+    // first two dot-segments in cleartext and would emit a non-standard
+    // dot-less token unmasked, so any /token/i debug line is logged as a
+    // placeholder, never its content.
+    log.info(
+      { message: /token/i.test(message) ? '[redacted token-echo debug line]' : message },
+      'discord.js debug'
+    );
+  };
+  const onRestRateLimited = (rateLimitInfo: RateLimitData): void => {
+    log.warn(
+      {
+        method: rateLimitInfo.method,
+        route: rateLimitInfo.route,
+        limit: rateLimitInfo.limit,
+        retryAfterMs: rateLimitInfo.retryAfter,
+        timeToResetMs: rateLimitInfo.timeToReset,
+        global: rateLimitInfo.global,
+        scope: rateLimitInfo.scope,
+      },
+      'discord.js REST rate limited during boot'
+    );
+  };
+  client.on(Events.Debug, onClientDebug);
+  client.rest.on(RESTEvents.RateLimited, onRestRateLimited);
+  return () => {
+    client.off(Events.Debug, onClientDebug);
+    client.rest.off(RESTEvents.RateLimited, onRestRateLimited);
+  };
+}
+
 // Start the bot with explicit return type
 async function start(): Promise<void> {
   try {
@@ -496,10 +545,25 @@ async function start(): Promise<void> {
     logGatewayHealthStatus(isHealthy);
     bootWatchdog.notePhase('gateway-health-checked');
 
+    // Boot-time egress probe: a Cloudflare-banned egress IP gets a multi-hour
+    // 429 retry-after from the unauthenticated gateway endpoint and discord.js
+    // waits it out silently — classify that shape here so the error log names
+    // it while boot proceeds (alerting, not exiting, is the lever). The ERROR
+    // line is the guaranteed owner surface; the webhook alert is best-effort
+    // (see runBootEgressProbe's owner-surface note in discordEgressProbe.ts).
+    await runBootEgressProbe(logger, {
+      alertWebhookUrl: envConfig.WATCHDOG_ALERT_WEBHOOK_URL,
+      environment: envConfig.NODE_ENV,
+    });
+    bootWatchdog.notePhase('egress-probed');
+
     // Login to Discord
     if (config.discordToken === undefined || config.discordToken.length === 0) {
       throw new Error('DISCORD_TOKEN environment variable is required');
     }
+
+    // Boot-phase visibility for the login window — detach at the disarm site.
+    const detachBootLogListeners = attachBootPhaseLogListeners(client, logger);
 
     await client.login(config.discordToken);
     logger.info('Successfully logged in to Discord');
@@ -545,6 +609,7 @@ async function start(): Promise<void> {
 
     // Boot is complete once the results listener is up — cancel the deadline.
     bootWatchdog.disarm();
+    detachBootLogListeners();
   } catch (error) {
     logger.error({ err: error }, 'Failed to start bot');
     process.exit(1);

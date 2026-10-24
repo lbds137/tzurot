@@ -1035,14 +1035,23 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/index.ts | bot | 1 |
 | services/bot-client/src/index.ts | cache | 1 |
 | services/bot-client/src/index.ts | destroy | 1 |
+| services/bot-client/src/index.ts | global | 1 |
 | services/bot-client/src/index.ts | guilds | 1 |
 | services/bot-client/src/index.ts | id | 6 |
 | services/bot-client/src/index.ts | leave | 2 |
+| services/bot-client/src/index.ts | limit | 1 |
 | services/bot-client/src/index.ts | login | 1 |
+| services/bot-client/src/index.ts | method | 1 |
 | services/bot-client/src/index.ts | name | 2 |
-| services/bot-client/src/index.ts | on | 4 |
+| services/bot-client/src/index.ts | off | 1 |
+| services/bot-client/src/index.ts | on | 5 |
 | services/bot-client/src/index.ts | once | 1 |
+| services/bot-client/src/index.ts | rest | 2 |
+| services/bot-client/src/index.ts | retryAfter | 1 |
+| services/bot-client/src/index.ts | route | 1 |
+| services/bot-client/src/index.ts | scope | 1 |
 | services/bot-client/src/index.ts | tag | 1 |
+| services/bot-client/src/index.ts | timeToReset | 1 |
 | services/bot-client/src/index.ts | user | 1 |
 | services/bot-client/src/observability/ErrorChannelReporter.ts | addFields | 10 |
 | services/bot-client/src/observability/ErrorChannelReporter.ts | escapeMarkdown | 1 |
@@ -2129,6 +2138,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/shapes/import.ts | ButtonStyle.Secondary | 1 |
 | services/bot-client/src/commands/viewReasoning.ts | ApplicationCommandType.Message | 1 |
 | services/bot-client/src/handlers/references/strategies/ReplyReferenceStrategy.ts | MessageReferenceType.Default | 1 |
+| services/bot-client/src/index.ts | RESTEvents.RateLimited | 2 |
 | services/bot-client/src/services/CrossChannelHistoryFetcher.ts | ChannelType.DM | 1 |
 | services/bot-client/src/services/CrossChannelHistoryFetcher.ts | ChannelType.GuildAnnouncement | 1 |
 | services/bot-client/src/services/CrossChannelHistoryFetcher.ts | ChannelType.GuildCategory | 2 |
@@ -2283,6 +2293,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | file | symbol | count |
 | --- | --- | --- |
 | services/bot-client/src/index.ts | Events.ClientReady | 1 |
+| services/bot-client/src/index.ts | Events.Debug | 2 |
 | services/bot-client/src/index.ts | Events.Error | 1 |
 | services/bot-client/src/index.ts | Events.GuildCreate | 1 |
 | services/bot-client/src/index.ts | Events.InteractionCreate | 1 |
@@ -2987,4 +2998,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 2917 entries across 6809 sites.
+Total: 2928 entries across 6824 sites.

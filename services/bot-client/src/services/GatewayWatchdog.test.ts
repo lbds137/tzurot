@@ -610,7 +610,10 @@ describe('startGatewayWatchdog', () => {
 
       await vi.advanceTimersByTimeAsync(ARM_A_WEDGE_AT_MS);
 
-      expect(logger.warn).toHaveBeenCalledWith({ status: 404 }, expect.stringContaining('non-OK'));
+      expect(logger.warn).toHaveBeenCalledWith(
+        { source: 'gateway-watchdog', status: 404 },
+        expect.stringContaining('non-OK')
+      );
       expect(exit).toHaveBeenCalledWith(1);
     });
 
