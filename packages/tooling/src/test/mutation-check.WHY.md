@@ -48,9 +48,8 @@ killable siblings; name that cost when justifying. Precedent:
 `historyWindow.ts`'s clamp boundary (equivalence proven by arithmetic and
 verified once by a runtime grid diff; pinned by a direct
 boundary-identity test on the extracted `quantizeEviction` helper).
-Anything less —
-"hard to test", "flaky under mutation" — is a test gap, not an equivalent
-mutant: close it or let it survive.
+Anything less — "hard to test", "flaky under mutation" — is a test gap,
+not an equivalent mutant: close it or let it survive.
 
 ## Decay check
 

@@ -131,7 +131,9 @@ export function resolveHistoryWindow(inScopeCount: number, cap: number): History
  * reaches it with `inScopeCount > effectiveCap` and `chunk > 0`; the test
  * also calls it at equality as the equivalence probe. The caller's return
  * spreads this result unchanged — the eviction tail has no logic of its
- * own to drift. @internal test-pinned helper, not a general entry point.
+ * own to drift.
+ *
+ * @internal test-pinned helper, not a general entry point.
  */
 export function quantizeEviction(
   inScopeCount: number,
