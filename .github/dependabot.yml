@@ -123,6 +123,11 @@ updates:
   # the two guarded files, and guard:workflow-sync diffs origin/main against
   # HEAD — so every develop-based PR fails the guard until develop carries
   # the change. Run `pnpm ops release:finalize` right after such a merge.
+  #
+  # Race note: dependabot pushes the branch before it opens the PR, and CI
+  # runs on push — if the lint job reaches the guard before the PR exists,
+  # the guard fails closed and that first run is red. Once the PR exists,
+  # `gh run rerun <run-id> --failed` fixes it; no cherry-pick needed.
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
