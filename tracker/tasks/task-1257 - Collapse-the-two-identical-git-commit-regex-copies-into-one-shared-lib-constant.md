@@ -3,10 +3,10 @@ id: TASK-1257
 title: >-
   Collapse the two identical git-commit regex copies into one shared-lib
   constant
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 09:21'
-updated_date: '2026-10-19 09:51'
+updated_date: '2026-10-24 16:07'
 labels:
   - 'area:hooks'
   - 'size:M'
