@@ -16,7 +16,7 @@
  * EXTERNAL BINARY: this shells out to `python3`, because the only honest way to
  * evaluate the scanner is to run it through the engine the hooks use. python3
  * was already a prerequisite of both those hooks and of
- * gitCommitPatternAgreement.test.ts; a minimal image dropping it surfaces here
+ * gitCommitPattern.test.ts; a minimal image dropping it surfaces here
  * as an ENOENT at collection time.
  */
 

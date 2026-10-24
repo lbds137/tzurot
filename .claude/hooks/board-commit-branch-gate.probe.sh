@@ -631,9 +631,9 @@ else
 fi
 
 # --- the shared-pattern behaviour changes ----------------------------------
-# Detection is the pattern `develop-code-commit-guard.sh` carries, spelled
-# identically and held to one case table by
-# gitCommitPatternAgreement.test.ts. Adopting it is not behaviour-neutral: each
+# Detection is the shared GIT_COMMIT_RE constant (lib/git_commit.py), carried
+# by both hooks and pinned by the case table in
+# gitCommitPattern.test.ts. Adopting it is not behaviour-neutral: each
 # case below is a shape this gate did NOT see before, and every one of them
 # arms the gate rather than disarming it. They share the canonical blocking
 # fixture so the command text is the only variable.
@@ -1058,14 +1058,14 @@ assert_add_cmd 2 'bash -c '"'"'git add "tracker/tasks/task-1 - probe.md" && git 
 # atomic/possessive group, or a port to a non-backtracking engine, cannot
 # silently regress it.
 
-# The hook-level complement to gitCommitPatternAgreement.test.ts's own
+# The hook-level complement to gitCommitPattern.test.ts's own
 # `[true, 'git --no-pager commit -m "x"']` case, which already pins the
 # COMMIT_RE half at the pattern level. This case pins the same reliance at the
 # hook's actual exit-code boundary.
 assert_cmd 2 'git --no-pager commit' \
   'a flag with a value-shaped next token still matches via backtracking (git commit)'
 
-# ADD_RE has no cross-hook sibling and is NOT in the agreement test's table
+# ADD_RE has no cross-hook sibling and no case-table rows anywhere
 # (`grep -c 'no-pager' .claude/hooks/board-commit-branch-gate.probe.sh` was 0
 # before this case), so this is its only coverage anywhere. Same
 # nothing-staged fixture shape as "a global flag on git add no longer hides
@@ -1170,19 +1170,24 @@ assert_add_cmd 0 "$(printf 'echo \xee\x80\x80 && git add "tracker/tasks/task-1 -
 # going fail-open with no indication beyond a mass probe failure.
 GUARD_WORK=$(mktemp -d "$WORK/guardcheck.XXXXXX")
 cp "$HOOK" "$GUARD_WORK/board-commit-branch-gate.sh"
-ln -s "$SCRIPT_DIR/lib" "$GUARD_WORK/lib"
 MUTANT="$GUARD_WORK/board-commit-branch-gate.sh"
-# Mutate ONLY the COMMIT_RE = re.compile( line's `(?i)` to `(?im)`, on the
+# The commit pattern is the shared-lib constant now, so the mutation lands in a
+# TEMP COPY of the lib — a real directory, not the old symlink: HOOK_LIB is
+# derived from the hook copy's own location, so the mutant resolves this copy
+# while every other case keeps the real lib.
+cp -r "$SCRIPT_DIR/lib" "$GUARD_WORK/lib"
+MUTANT_LIB="$GUARD_WORK/lib/git_commit.py"
+# Mutate ONLY the GIT_COMMIT_RE = re.compile( line's `(?i)` to `(?im)`, on the
 # temp copy — never the real file. `(` and `)` are literal in a BRE sed
 # pattern; `?` is literal too, so no escaping is needed for it.
-sed -i '/^COMMIT_RE = re.compile(/s/(?i)/(?im)/' "$MUTANT"
-# Verify the mutation landed on EXACTLY the COMMIT_RE line, and that ADD_RE
-# and BYPASS_RE were not touched: the diff between the unmutated hook and the
-# mutant must be exactly one changed line, and that line must be COMMIT_RE's.
-MUTATION_DIFF=$(diff "$HOOK" "$MUTANT" || true)
+sed -i '/^GIT_COMMIT_RE = re.compile(/s/(?i)/(?im)/' "$MUTANT_LIB"
+# Verify the mutation landed on EXACTLY the GIT_COMMIT_RE line, and that
+# nothing else in the lib copy changed: the diff against the real lib must be
+# exactly one changed line, and that line must be GIT_COMMIT_RE's.
+MUTATION_DIFF=$(diff "$SCRIPT_DIR/lib/git_commit.py" "$MUTANT_LIB" || true)
 MUTATION_CHANGED_LINES=$(printf '%s\n' "$MUTATION_DIFF" | grep -c '^[<>]' || true)
-COMMIT_RE_CHANGED=$(printf '%s\n' "$MUTATION_DIFF" | grep -c '^> COMMIT_RE = re.compile(r"(?im)' || true)
-if [ "$MUTATION_CHANGED_LINES" -ne 2 ] || [ "$COMMIT_RE_CHANGED" -ne 1 ]; then
+GIT_COMMIT_RE_CHANGED=$(printf '%s\n' "$MUTATION_DIFF" | grep -c '^> GIT_COMMIT_RE = re.compile(r"(?im)' || true)
+if [ "$MUTATION_CHANGED_LINES" -ne 2 ] || [ "$GIT_COMMIT_RE_CHANGED" -ne 1 ]; then
   printf 'FAIL  (mutation did not apply as expected)  (?i)-guard mutation setup\n'
   FAILURES=$((FAILURES + 1))
 else
