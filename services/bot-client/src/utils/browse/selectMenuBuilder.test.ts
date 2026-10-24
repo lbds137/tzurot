@@ -134,6 +134,38 @@ describe('buildBrowseSelectMenu', () => {
     });
   });
 
+  describe('maxValues (multi-select)', () => {
+    it('defaults to a single-pick menu (min 1 / max 1) when the option is absent', () => {
+      const row = buildBrowseSelectMenu<TestItem>({
+        items: [sampleItem('a', 'Alpha')],
+        customId: 'test::select',
+        placeholder: 'Pick one...',
+        startIndex: 0,
+        formatItem: formatTestItem,
+      });
+
+      const json = (row?.components[0] as StringSelectMenuBuilder).toJSON();
+      expect(json.min_values).toBe(1);
+      expect(json.max_values).toBe(1);
+    });
+
+    it('raises max_values for a multi-select surface, capped at the item count (min_values stays 1)', () => {
+      const row = buildBrowseSelectMenu<TestItem>({
+        items: [sampleItem('a', 'Alpha'), sampleItem('b', 'Beta')],
+        customId: 'test::batch-select',
+        placeholder: 'Pick several...',
+        startIndex: 0,
+        maxValues: 10,
+        formatItem: formatTestItem,
+      });
+
+      const json = (row?.components[0] as StringSelectMenuBuilder).toJSON();
+      expect(json.min_values).toBe(1);
+      // 2 items on the page — the requested 10 is capped at the option count.
+      expect(json.max_values).toBe(2);
+    });
+  });
+
   describe('caller-bug guards (throw, do not silently drop)', () => {
     it('throws when items.length exceeds 25 (Discord hard limit)', () => {
       const items = Array.from({ length: 26 }, (_, i) =>

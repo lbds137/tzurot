@@ -56,7 +56,19 @@ const TIER_LABELS: Record<string, string> = {
   corrected: `${AUTOCOMPLETE_BADGES.CORRECTED} Corrected by you`,
 };
 
-type FactAction = 'select' | 'correct' | 'lock' | 'back' | 'forget' | 'confirm-forget';
+type FactAction =
+  | 'select'
+  | 'correct'
+  | 'lock'
+  | 'back'
+  | 'forget'
+  | 'confirm-forget'
+  // Batch flow (factsBatch.ts): the toggle button and the multi-select share
+  // the batch-select token (routed by interaction kind); the verb of a
+  // batch-confirm rides the factId slot because the id list rides the footer.
+  | 'batch-select'
+  | 'batch-confirm'
+  | 'batch-cancel';
 
 /** Build a fact-action custom ID: memory-fact::{action}[::factId[::extra]] */
 export function buildFactActionId(action: FactAction, factId?: string, extra?: string): string {

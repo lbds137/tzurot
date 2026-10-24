@@ -54,6 +54,7 @@ import {
   handleForgetButton,
   handleForgetConfirm,
 } from './factsDetail.js';
+import { handleBatchSelectEntry, handleBatchPick, handleBatchConfirm } from './factsBatch.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { ackUpdate } from '../../ux/render/reply.js';
@@ -165,9 +166,14 @@ async function handleFactButton(interaction: ButtonInteraction): Promise<void> {
     await handleForgetButton(interaction, factId);
     return;
   }
-  if (action === 'back') {
+  if (action === 'back' || action === 'batch-cancel') {
     await ackUpdate(interaction);
     await refreshFactsList(interaction);
+    return;
+  }
+  if (action === 'batch-confirm' && (factId === 'forget' || factId === 'lock')) {
+    await ackUpdate(interaction);
+    await handleBatchConfirm(interaction, factId);
     return;
   }
   if (action === 'confirm-forget' && factId !== undefined) {
@@ -232,6 +238,13 @@ const routes: ComponentRoute[] = [
   {
     matches: id => parseFactActionId(id)?.action === 'correct',
     onModal: handleFactCorrectModal,
+  },
+  {
+    // Batch-select: the toggle BUTTON opens multi-select mode; the
+    // multi-select itself (same token) fires onSelect with the picked values.
+    matches: id => parseFactActionId(id)?.action === 'batch-select',
+    onButton: handleBatchSelectEntry,
+    onSelect: handleBatchPick,
   },
   { matches: id => parseFactActionId(id) !== null, onButton: handleFactButton },
   // Memory detail (memory-detail::...). The select id is used by

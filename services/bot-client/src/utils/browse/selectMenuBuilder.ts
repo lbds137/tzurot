@@ -85,6 +85,15 @@ export interface BuildBrowseSelectMenuOptions<T> {
    * so callers don't have to repeat the numbering math.
    */
   formatItem: (item: T, oneBasedNumber: number) => BrowseSelectOption;
+  /**
+   * How many options the user may pick in one interaction (Discord
+   * multi-select). Defaults to 1 — the classic single-pick browse select.
+   * Multi-pick surfaces (batch actions) pass their own cap; the interaction
+   * fires once when the user finishes choosing, with every picked value in
+   * `interaction.values`. The effective cap is also the item count — a
+   * short page can never offer more picks than it has options.
+   */
+  maxValues?: number;
 }
 
 /**
@@ -119,7 +128,7 @@ export interface BuildBrowseSelectMenuOptions<T> {
 export function buildBrowseSelectMenu<T>(
   opts: BuildBrowseSelectMenuOptions<T>
 ): ActionRowBuilder<StringSelectMenuBuilder> | null {
-  const { items, customId, placeholder, startIndex, formatItem } = opts;
+  const { items, customId, placeholder, startIndex, formatItem, maxValues = 1 } = opts;
 
   // Legitimate empty state — caller should render nothing.
   if (items.length === 0) {
@@ -138,7 +147,7 @@ export function buildBrowseSelectMenu<T>(
     .setCustomId(customId)
     .setPlaceholder(placeholder)
     .setMinValues(1)
-    .setMaxValues(1);
+    .setMaxValues(Math.min(maxValues, items.length));
 
   items.forEach((item, index) => {
     const oneBasedNumber = startIndex + index + 1;

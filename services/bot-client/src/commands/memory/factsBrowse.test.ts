@@ -327,6 +327,19 @@ describe('handleFacts', () => {
     expect(embedData.description).toContain('**1.** 🔐📝 The user has a cat named Miso');
   });
 
+  it('renders the Select-several toggle on the browse message', async () => {
+    stub.listFacts.mockResolvedValue(listResponse([createMockFact()]));
+
+    await handleFacts(context);
+
+    const call = vi.mocked(context.editReply).mock.calls[0][0] as unknown as {
+      components: { toJSON(): { components: { custom_id?: string; label?: string }[] } }[];
+    };
+    const buttons = call.components.flatMap(row => row.toJSON().components);
+    const toggle = buttons.find(button => button.custom_id === 'memory-fact::batch-select');
+    expect(toggle?.label).toBe('Select several');
+  });
+
   it('stops when personality resolution already replied (null contract)', async () => {
     resolveRequiredPersonalityMock.mockResolvedValue(null);
 
