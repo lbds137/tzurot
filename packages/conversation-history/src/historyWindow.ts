@@ -118,7 +118,7 @@ export function resolveHistoryWindow(inScopeCount: number, cap: number): History
   }
 
   const q = quantizeEviction(inScopeCount, effectiveCap, chunk);
-  return { evicted: q.evicted, take: q.take, chunk };
+  return { ...q, chunk };
 }
 
 /**
@@ -127,9 +127,11 @@ export function resolveHistoryWindow(inScopeCount: number, cap: number): History
  * justifies the `Stryker disable` inside `resolveHistoryWindow` holds
  * exactly while `quantizeEviction(cap, cap, chunk)` returns the early
  * return's values `{ evicted: 0, take: cap }`, which
- * historyWindow.test.ts asserts directly. Callers pass `inScopeCount >
- * effectiveCap` and `chunk > 0`; below or at the cap the caller takes its
- * early return instead.
+ * historyWindow.test.ts asserts directly. `resolveHistoryWindow` only
+ * reaches it with `inScopeCount > effectiveCap` and `chunk > 0`; the test
+ * also calls it at equality as the equivalence probe. The caller's return
+ * spreads this result unchanged — the eviction tail has no logic of its
+ * own to drift. @internal test-pinned helper, not a general entry point.
  */
 export function quantizeEviction(
   inScopeCount: number,
