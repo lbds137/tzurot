@@ -170,17 +170,14 @@ from shell_quotes import (
 
 cmd = os.environ.get("GUARD_CMD", "")
 
-# What counts as a commit invocation, defined ONCE — and spelled identically to
-# the copy in `develop-code-commit-guard.sh`. Both are held to one shared case
-# table by
-# packages/tooling/src/dev/gitCommitPatternAgreement.test.ts, which EXTRACTS
-# this exact line out of this file by its `COMMIT_RE = re.compile(r"…")`
-# spelling and hard-fails if it stops matching exactly one line. Keep it on one
-# line; do not reformat it across two.
-COMMIT_RE = re.compile(r"(?i)\bgit(?:\s+-+[^-\s]\S*(?:\s+[^-\s]\S*)?)*\s+commit(?![-\w])")
+# What counts as a commit invocation: the one shared constant, imported from
+# the lib (TASK-1257 collapsed this file's former byte-identical literal; its
+# case table: packages/tooling/src/dev/gitCommitPattern.test.ts). The alias
+# keeps the name the rest of this file reasons with.
+from git_commit import GIT_COMMIT_RE as COMMIT_RE
 # The `git add` sibling of the same shape. No other hook detects `git add`, so
-# it has no cross-hook copy and is not in that agreement table; it is written
-# in the same spelling so the two read as one decision.
+# it has no cross-hook copy; it is written in the same spelling as
+# GIT_COMMIT_RE so the two read as one decision.
 ADD_RE = re.compile(r"(?i)\bgit(?:\s+-+[^-\s]\S*(?:\s+[^-\s]\S*)?)*\s+add(?![-\w])")
 # Auto-stage flags, matched only INSIDE a commit invocation's own argument span
 # (`segment_after`). Scanned over the whole command instead, `git branch -a &&
@@ -249,9 +246,9 @@ ASSIGNMENTS = r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*[ \t]+)*"
 # statement as `; TZUROT_ALLOW...=1 git commit`). Narrowing this one would not
 # close a grant; it would only reject a harmless formatting variant.
 #
-# The embedded copy of COMMIT_RE below (required verbatim by
-# gitCommitPatternAgreement.test.ts, so its OWN `\s+` between `git` and
-# `commit` is not touched here) is not a false-GRANT vector: despite also
+# The COMMIT_RE embedding inside BYPASS_RE below (derived from the shared
+# constant's own text, so its OWN `\s+` between `git` and `commit` is not
+# touched here) is not a false-GRANT vector: despite also
 # crossing newlines (bash treats a bare `\n` as a command terminator, so
 # `git` and `commit` split across one are two SEPARATE commands — `git` with
 # no subcommand, then a bare `commit`, never a real executing `git commit`),
@@ -294,9 +291,9 @@ BYPASS_RE = re.compile(
     # 3.9+, an undocumented floor this file otherwise doesn't take (contrast
     # develop-code-commit-guard.sh, which names its own Python-version
     # requirement explicitly). `COMMIT_RE.pattern`
-    # always starts with the literal 4-char `(?i)` this file itself wrote
-    # two definitions above, so the fixed-length slice is exact for this
-    # input; it is not a general prefix-strip.
+    # always starts with the literal 4-char `(?i)` the shared constant is
+    # written with (asserted just above), so the fixed-length slice is exact
+    # for this input; it is not a general prefix-strip.
     + "(?i:" + COMMIT_RE.pattern[len("(?i)"):] + ")",
     re.M,
 )

@@ -212,6 +212,7 @@ import sys
 # probe, not runtime, is what catches a missing lib.
 sys.path.insert(0, os.environ["HOOK_LIB"])
 from shell_quotes import strip_quoted, substitution_spans, substitution_spans_matching
+from git_commit import GIT_COMMIT_RE
 
 cmd = os.environ.get("GUARD_CMD", "")
 if not cmd:
@@ -437,52 +438,15 @@ scanned = strip_quoted(cmd)
 if scanned is not None:
     cmd = scanned
 
-# Kept in agreement with the other in-repo copy (board-commit-branch-gate.sh) by
-# packages/tooling/src/dev/gitCommitPatternAgreement.test.ts, which extracts
-# both patterns and runs them over a shared case table. Both copies BLOCK, so a
-# drift between them is a wrongly-blocked or wrongly-allowed commit.
-#
-# `git commit` with optional global flags (-C <path>, --git-dir=…, etc.).
-# The trailing (?![-\w]) is load-bearing: a plain \b would also match the
-# plumbing subcommands `git commit-tree` / `git commit-graph`, because `-`
-# is a non-word character and so a word boundary exists right before it.
-# Those write no commit and must never be treated as one.
-#
-# The flag run is DETERMINISTIC, deliberately without an atomic group. `-{1,2}`
-# made it re-partitionable — `--flag` parses as `--`+`flag` or `-`+`-flag`, so a
-# failing match explores 2^n splits (measured: 20 double-dash flags 2.7s, 60 no
-# finish in 20s). `-+[^-\s]\S*` forces the dash count by requiring a non-dash
-# after it; 200 flags then take 0.24ms with every verdict unchanged.
-#
-# `(?>...)` would also fix it and is NOT used: atomic groups need Python 3.11,
-# and on anything older re.compile raises, python exits non-zero, and the
-# `|| exit 0` below silently ALLOWS the commit — this guard disabled by
-# interpreter version. Ubuntu 22.04 ships 3.10; CI (3.12) would not have caught
-# it.
-#
-# The (?i) is INLINE rather than an re.I argument: the agreement test extracts
-# this pattern out of the source text, so a flag passed outside the string
-# would vanish from the comparison against the board-commit-branch-gate.sh copy
-# (and break the extraction outright, which that test treats as a hard failure).
-#
-# Python's \w is Unicode-aware, so the trailing (?![-\w]) behaves like an
-# ASCII-only ([^-a-zA-Z0-9_]|$) for every real git invocation but not for
-# a non-ASCII suffix (`git commit日本語`). Deliberately NOT re.ASCII: that
-# flag narrows \s in the same pattern too, so a non-breaking space between
-# `git` and `commit` would stop matching and the guard would MISS a real
-# commit — failing open on a pasteable input to close a hypothetical one.
-#
-# THE PARAMETER IS NAMED `cmd` ON PURPOSE. gitCommitPatternAgreement.test.ts
-# pulls this pattern out of the source TEXT: it looks for a raw-string
-# `re.search` call whose second argument is spelled `cmd`, and it requires
-# EXACTLY ONE such line in the whole file. Wrapping the call in a function is
-# what keeps the pattern written once while two call sites — top level, and
-# each substitution span — share it. Renaming the parameter disarms that
-# guard, and so does a second line of the same shape anywhere in this file,
-# including inside a comment (measured while writing this one).
+# `git commit` detection is the one shared constant (lib/git_commit.py, which
+# carries the pattern's own rationale — plumbing exclusion, backtracking-safe
+# flag run, inline (?i); case table:
+# packages/tooling/src/dev/gitCommitPattern.test.ts). It is wrapped in this
+# function so two call sites — top level, and each substitution span — share
+# one definition.
 def is_commit_invocation(cmd):
     """True when `cmd` contains a `git commit` invocation."""
-    return re.search(r"(?i)\bgit(?:\s+-+[^-\s]\S*(?:\s+[^-\s]\S*)?)*\s+commit(?![-\w])", cmd) is not None
+    return GIT_COMMIT_RE.search(cmd) is not None
 
 
 detected = is_commit_invocation(cmd)
