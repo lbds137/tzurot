@@ -104,6 +104,12 @@ updates:
       # files guard:workflow-sync requires to land via a main-cut branch — so a
       # develop-based bump PR fails CI on every run and never merges. The
       # main-targeting entry below owns this dependency instead. TASK-1233.
+      #
+      # actions/checkout is deliberately NOT routed: it is pinned in both
+      # guarded workflows AND across ci.yml, so routing it to main would
+      # strand ci.yml's ref behind develop. A checkout bump still trips the
+      # guard on develop; each occurrence uses the manual cherry-pick path in
+      # tzurot-git-workflow. TASK-1275.
       - dependency-name: 'anthropics/claude-code-action'
 
   # claude-code-action only, against MAIN: main-cut is where the guard allows
@@ -112,6 +118,11 @@ updates:
   # file from the DEFAULT branch, so this whole split is inert until the next
   # release cut; the develop-based bump PR open at that moment is closed by
   # then (by dependabot or by hand).
+  #
+  # Merge follow-up: merging one of these PRs puts main ahead of develop on
+  # the two guarded files, and guard:workflow-sync diffs origin/main against
+  # HEAD — so every develop-based PR fails the guard until develop carries
+  # the change. Run `pnpm ops release:finalize` right after such a merge.
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
