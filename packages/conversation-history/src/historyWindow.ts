@@ -100,7 +100,19 @@ export function resolveHistoryWindow(inScopeCount: number, cap: number): History
   const effectiveCap = Math.max(0, cap);
   const chunk = resolveEvictionChunk(effectiveCap);
 
-  if (inScopeCount <= effectiveCap || chunk === 0) {
+  // The <= boundary is equivalent under mutation to <, so the mutant is
+  // excluded rather than left surviving: at inScopeCount === effectiveCap
+  // the eviction branch below returns evicted = chunk * Math.ceil(0 /
+  // chunk) === 0 and take = inScopeCount - 0 - exactly what the early
+  // return produces, for every chunk > 0; chunk === 0 reaches the early
+  // return either way. historyWindow.test.ts pins this equivalence over a
+  // grid, so if the eviction arithmetic ever changes enough to make the
+  // boundary observable, that test reddens and this exclusion must be
+  // re-examined.
+  // Stryker disable next-line EqualityOperator
+  const unfull = inScopeCount <= effectiveCap;
+
+  if (unfull || chunk === 0) {
     // Unfull window, or hysteresis off: take everything up to the cap, exactly
     // as the pre-hysteresis fetch did.
     return { evicted: 0, take: Math.min(inScopeCount, effectiveCap), chunk };
