@@ -255,10 +255,10 @@ GitHub Actions that validate against the **default branch (`main`)** — notably
 
 **Automated exception — `anthropics/claude-code-action`:** a second `github-actions` dependabot entry opens its bumps against `main` directly (active once that config reaches `main` at the next release; until then the dance above still applies), so they need no cherry-pick. After such a merge:
 
-- run `pnpm ops release:finalize`, then rebase each open PR onto the resynced develop and push (Recovery step 4) — finalize alone leaves every open PR's HEAD carrying the old workflow bytes, so claude-review keeps skipping on them;
+- run `pnpm ops release:finalize`, then rebase each open PR onto the resynced develop and push (Recovery step 4) — finalize alone leaves every open PR's HEAD carrying the old workflow bytes, so claude-review keeps skipping on them. For open **dependabot** PRs, comment `@dependabot rebase` instead of pushing: a manual push makes dependabot stop managing the branch;
 - if such a PR's first CI run is red on `guard:workflow-sync`: dependabot pushed the branch before the PR existed and the guard failed closed on the missing base — `gh run rerun <run-id> --failed` once the PR is open. That reruns the CI guard, NOT claude-review (Recovery step 4's no-rerun rule is about the review); expected to fix it, not yet exercised on a dependabot-triggered run (rerun context = the restricted dependabot token);
 - claude-review skips dependabot-authored PRs by design — no review body arrives on these PRs;
-- merge approval: a `main`-targeted dependabot PR is not covered by the standing feature/fix authorization (that covers PRs into develop; `00-critical.md` § Merge Approval) — it needs explicit approval like any merge into `main` (Recovery step 2's rule);
+- merge approval: a `main`-targeted dependabot PR is not covered by the standing feature/fix authorization — it needs explicit approval like any merge into `main` (Recovery step 2: `main` always does);
 - `actions/checkout` bumps still follow the manual cherry-pick path above (TASK-1275); dependabot _security_ updates ignore `target-branch` and always open against the default branch, so an advisory on any action opens against `main` regardless of routing.
 
 **Recovery — a claude-workflow change already landed on `develop`** (the disruptive case; infrequent but real):
