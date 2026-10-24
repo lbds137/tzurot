@@ -155,7 +155,8 @@ describe('resolveHistoryWindow', () => {
   it('at exactly the cap, nothing is evicted and the chunk is still reported', () => {
     // The clamp's equality edge, named for the observable outcome: these
     // assertions cannot tell which branch produced the values, and they
-    // need not - the grid-equivalence test below owns the branch claim.
+    // need not — the quantizeEviction boundary-invariant test below owns
+    // the branch claim.
     const w50 = resolveHistoryWindow(50, 50);
     expect(w50.evicted).toBe(0);
     expect(w50.take).toBe(50);
@@ -170,23 +171,21 @@ describe('resolveHistoryWindow', () => {
     // The disable in historyWindow.ts holds exactly while this is true: at
     // inScopeCount === effectiveCap the REAL eviction arithmetic produces
     // the early return's values, so flipping <= to < changes nothing. This
-    // asserts that arithmetic directly - if it reddens, the boundary became
+    // asserts that arithmetic directly — if it reddens, the boundary became
     // observable: remove the disable and kill the mutant with a test
-    // instead.
+    // instead. The whole-object assert matters: the caller spreads this
+    // result into resolveHistoryWindow's return, so a field added to
+    // quantizeEviction would leak through exactly here.
     for (let cap = 0; cap <= 120; cap++) {
       const chunk = resolveEvictionChunk(cap);
       if (chunk === 0) continue; // hysteresis off: the boundary is unreachable
-      const q = quantizeEviction(cap, cap, chunk);
-      expect(q.evicted).toBe(0);
-      expect(q.take).toBe(cap);
+      expect(quantizeEviction(cap, cap, chunk)).toEqual({ evicted: 0, take: cap });
     }
     // The invariant is per-chunk, not per-cap: sweep synthetic chunk values
     // at one cap so a formula change that only bites on unusual chunk sizes
     // cannot hide between real chunk resolutions.
     for (let chunk = 1; chunk <= 60; chunk++) {
-      const q = quantizeEviction(80, 80, chunk);
-      expect(q.evicted).toBe(0);
-      expect(q.take).toBe(80);
+      expect(quantizeEviction(80, 80, chunk)).toEqual({ evicted: 0, take: 80 });
     }
   });
 });

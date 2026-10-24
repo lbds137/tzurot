@@ -103,7 +103,7 @@ export function resolveHistoryWindow(inScopeCount: number, cap: number): History
   // The <= boundary is equivalent under mutation to <, so the mutant is
   // excluded rather than left surviving: at inScopeCount === effectiveCap
   // the eviction branch returns evicted = chunk * Math.ceil(0 / chunk) ===
-  // 0 and take = inScopeCount - 0 - exactly what the early return
+  // 0 and take = inScopeCount - 0 — exactly what the early return
   // produces, for every chunk > 0; chunk === 0 reaches the early return
   // either way. quantizeEviction is extracted so historyWindow.test.ts can
   // pin the REAL arithmetic at the boundary directly; if that pin reddens,

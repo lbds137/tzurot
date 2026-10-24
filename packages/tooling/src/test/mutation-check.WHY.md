@@ -45,9 +45,10 @@ pinning test that reddens if that proof breaks, and the narrowest scope
 (`next-line`, one mutator). Scope is per LINE and per MUTATOR FAMILY, so
 one directive excludes every mutant of that family on the line — including
 killable siblings; name that cost when justifying. Precedent:
-`historyWindow.ts`'s clamp boundary (equivalence proven by arithmetic plus
-a runtime grid diff; pinned by a direct boundary-identity test on the
-extracted `quantizeEviction` helper). Anything less —
+`historyWindow.ts`'s clamp boundary (equivalence proven by arithmetic and
+verified once by a runtime grid diff; pinned by a direct
+boundary-identity test on the extracted `quantizeEviction` helper).
+Anything less —
 "hard to test", "flaky under mutation" — is a test gap, not an equivalent
 mutant: close it or let it survive.
 
