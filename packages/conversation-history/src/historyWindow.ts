@@ -102,15 +102,13 @@ export function resolveHistoryWindow(inScopeCount: number, cap: number): History
 
   // The <= boundary is equivalent under mutation to <, so the mutant is
   // excluded rather than left surviving: at inScopeCount === effectiveCap
-  // the eviction branch below returns evicted = chunk * Math.ceil(0 /
-  // chunk) === 0 and take = inScopeCount - 0 - exactly what the early
-  // return produces, for every chunk > 0; chunk === 0 reaches the early
-  // return either way. historyWindow.test.ts pins this equivalence over a
-  // grid, so if the eviction arithmetic ever changes enough to make the
-  // boundary observable, that test reddens and this exclusion must be
-  // re-examined.
-  // Stryker disable next-line EqualityOperator: equivalent at
-  // inScopeCount === effectiveCap, see the comment above
+  // the eviction branch returns evicted = chunk * Math.ceil(0 / chunk) ===
+  // 0 and take = inScopeCount - 0 - exactly what the early return
+  // produces, for every chunk > 0; chunk === 0 reaches the early return
+  // either way. quantizeEviction is extracted so historyWindow.test.ts can
+  // pin the REAL arithmetic at the boundary directly; if that pin reddens,
+  // the boundary became observable and this exclusion must be re-examined.
+  // Stryker disable next-line EqualityOperator: equivalent at the clamp boundary, see above
   const unfull = inScopeCount <= effectiveCap;
 
   if (unfull || chunk === 0) {
@@ -119,6 +117,25 @@ export function resolveHistoryWindow(inScopeCount: number, cap: number): History
     return { evicted: 0, take: Math.min(inScopeCount, effectiveCap), chunk };
   }
 
+  const q = quantizeEviction(inScopeCount, effectiveCap, chunk);
+  return { evicted: q.evicted, take: q.take, chunk };
+}
+
+/**
+ * The eviction branch of `resolveHistoryWindow`, extracted so the clamp
+ * boundary can be pinned against the real arithmetic: the equivalence that
+ * justifies the `Stryker disable` inside `resolveHistoryWindow` holds
+ * exactly while `quantizeEviction(cap, cap, chunk)` returns the early
+ * return's values `{ evicted: 0, take: cap }`, which
+ * historyWindow.test.ts asserts directly. Callers pass `inScopeCount >
+ * effectiveCap` and `chunk > 0`; below or at the cap the caller takes its
+ * early return instead.
+ */
+export function quantizeEviction(
+  inScopeCount: number,
+  effectiveCap: number,
+  chunk: number
+): { evicted: number; take: number } {
   const evicted = chunk * Math.ceil((inScopeCount - effectiveCap) / chunk);
-  return { evicted, take: inScopeCount - evicted, chunk };
+  return { evicted, take: inScopeCount - evicted };
 }

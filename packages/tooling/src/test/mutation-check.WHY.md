@@ -46,7 +46,8 @@ pinning test that reddens if that proof breaks, and the narrowest scope
 one directive excludes every mutant of that family on the line — including
 killable siblings; name that cost when justifying. Precedent:
 `historyWindow.ts`'s clamp boundary (equivalence proven by arithmetic plus
-a runtime grid diff; pinned by a grid-equivalence test). Anything less —
+a runtime grid diff; pinned by a direct boundary-identity test on the
+extracted `quantizeEviction` helper). Anything less —
 "hard to test", "flaky under mutation" — is a test gap, not an equivalent
 mutant: close it or let it survive.
 

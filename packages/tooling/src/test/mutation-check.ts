@@ -14,9 +14,10 @@
  * The score counts Killed+Timeout as detected and Survived+NoCoverage as
  * undetected — Stryker's own "mutation score" arithmetic. Ignored mutants
  * (the logger-call ignorer, plus proven-equivalent inline `Stryker disable`
- * directives — see mutation-check.WHY.md § Inline directives) and invalid
- * ones (compile/runtime errors) are excluded from the denominator, so the
- * metric measures only the mutants a test could plausibly kill.
+ * directives — see mutation-check.WHY.md § Inline `Stryker disable`
+ * directives) and invalid ones (compile/runtime errors) are excluded from
+ * the denominator, so the metric measures only the mutants a test could
+ * plausibly kill.
  *
  * Baseline philosophy: baseline-and-hold at the MEASURED score, not a
  * round-number floor. The pilot measured the tuned score in the mid-90s; an
