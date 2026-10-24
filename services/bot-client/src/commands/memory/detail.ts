@@ -1,7 +1,7 @@
 /**
  * Memory Detail View
  * Shared component for viewing and managing individual memories
- * Used by both /memory list and /memory search
+ * Used by both /memory browse and /memory search
  */
 
 import {
@@ -37,21 +37,33 @@ const logger = createLogger('memory-detail');
 export const MEMORY_DETAIL_PREFIX = 'memory-detail';
 
 /**
+ * The action tokens of the memory-detail customId family. The batch tokens
+ * (memoriesBatch.ts) share the family because both list surfaces already
+ * share `memory-detail::select`: the toggle BUTTON and the multi-select
+ * share `batch-select` (routed by interaction kind), and a batch-confirm's
+ * verb rides the memoryId slot because the id list rides the footer.
+ */
+export type MemoryAction =
+  | 'select'
+  | 'view'
+  | 'edit'
+  | 'edit-truncated'
+  | 'cancel-edit'
+  | 'lock'
+  | 'delete'
+  | 'back'
+  | 'confirm-delete'
+  | 'view-full'
+  | 'reasoning'
+  | 'batch-select'
+  | 'batch-confirm'
+  | 'batch-cancel';
+
+/**
  * Build custom ID for memory actions
  */
 export function buildMemoryActionId(
-  action:
-    | 'select'
-    | 'view'
-    | 'edit'
-    | 'edit-truncated'
-    | 'cancel-edit'
-    | 'lock'
-    | 'delete'
-    | 'back'
-    | 'confirm-delete'
-    | 'view-full'
-    | 'reasoning',
+  action: MemoryAction,
   memoryId?: string,
   extra?: string
 ): string {

@@ -25,7 +25,7 @@ import { memorySearchOptions } from '@tzurot/common-types/generated/commandOptio
 import { type MemoryItem } from '@tzurot/common-types/schemas/api/memory';
 import { ENTITY_EMOJI, buildBadgeLegend } from '@tzurot/common-types/constants/uxVocabulary';
 import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
-import { formatDateShort, formatDiscordTimestamp } from '@tzurot/common-types/utils/dateFormatting';
+import { formatDiscordTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
@@ -38,8 +38,10 @@ import {
   buildBrowseSelectMenu,
   formatPageIndicator,
 } from '../../utils/browse/index.js';
+import { buildSelectSeveralToggleRow } from '../../utils/browse/multiSelectBatch.js';
 import { resolveOptionalPersonality } from './resolveHelpers.js';
 import { buildMemoryActionId, handleMemorySelect } from './detail.js';
+import { formatMemorySelectOption } from './browse.js';
 
 import { handleMemoryDetailAction } from './detailActionRouter.js';
 import { formatSimilarity, truncateContent } from './formatters.js';
@@ -93,7 +95,7 @@ interface SearchResult extends MemoryItem {
   similarity: number | null; // null for text search results
 }
 
-interface SearchResponse {
+export interface SearchResponse {
   results: SearchResult[];
   count: number;
   hasMore: boolean;
@@ -114,7 +116,7 @@ interface BuildSearchEmbedOptions {
 /**
  * Build the search results embed
  */
-function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
+export function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
   const { results, query, page, pageSize, totalPages, hasMore, searchType, personalityId } =
     options;
   const isTextFallback = searchType === 'text';
@@ -174,7 +176,7 @@ function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
  * "Page 1 of 1" rather than "Page 1 of 0", which would be confusing. The empty
  * state embed handles the "no results" messaging separately.
  */
-function computeTotalPages(page: number, hasMore: boolean, resultCount: number): number {
+export function computeTotalPages(page: number, hasMore: boolean, resultCount: number): number {
   return hasMore ? page + 2 : Math.max(1, page + (resultCount > 0 ? 1 : 0));
 }
 
@@ -212,18 +214,15 @@ function buildSearchView(opts: {
     customId: buildMemoryActionId('select'),
     placeholder: 'Select a memory to manage...',
     startIndex: page * pageSize,
-    formatItem: memory => ({
-      label: `${memory.isLocked ? `${AUTOCOMPLETE_BADGES.LOCKED} ` : ''}${memory.content}`,
-      value: memory.id,
-      // Select descriptions render no markdown — the date stays static text.
-      description: `${memory.personalityName} · ${formatDateShort(memory.createdAt)}`,
-    }),
+    formatItem: formatMemorySelectOption,
   });
 
   const components: SearchActionRow[] =
     selectRow !== null
       ? [
           selectRow,
+          // "Select several" opens the batch flow (memoriesBatch.ts) for this page.
+          buildSelectSeveralToggleRow(buildMemoryActionId('batch-select')),
           buildSharedBrowseButtons({
             currentPage: page,
             totalPages,
@@ -252,7 +251,9 @@ interface FetchSearchOptions {
 /**
  * Fetch search results from API
  */
-async function fetchSearchResults(options: FetchSearchOptions): Promise<SearchResponse | null> {
+export async function fetchSearchResults(
+  options: FetchSearchOptions
+): Promise<SearchResponse | null> {
   const { userClient, query, personalityId, offset, limit, preferTextSearch } = options;
 
   const result = await userClient.search({
@@ -473,14 +474,18 @@ export async function handleSearchSelect(interaction: StringSelectMenuInteractio
 }
 
 /**
- * Refresh the search view — called from the detail action router when the
- * user clicks "back" or after a successful delete.
+ * Build the refreshed search view (embed + components) for the message an
+ * interaction came from, stepping back a page when the current one emptied.
+ * Null when the session is gone, is not a search session, or the fetch
+ * failed — the caller keeps the message untouched in that case.
  */
-export async function refreshSearchList(interaction: ButtonInteraction): Promise<void> {
+export async function buildRefreshedSearchView(
+  interaction: ButtonInteraction
+): Promise<{ embed: EmbedBuilder; components: SearchActionRow[] } | null> {
   const messageId = interaction.message.id;
   const session = await findMemoryListSessionByMessage(messageId);
   if (session?.data.kind !== 'search') {
-    return;
+    return null;
   }
 
   // Discriminated union narrowing: searchQuery is required on the search variant.
@@ -488,7 +493,6 @@ export async function refreshSearchList(interaction: ButtonInteraction): Promise
   // so we don't waste an embedding round-trip if the first page fell back to text.
   const { personalityId, searchQuery, pageSize, searchType } = session.data;
 
-  const userId = interaction.user.id;
   const { userClient } = clientsFor(interaction);
 
   const result = await fetchPageWithEmptyFallback({
@@ -505,12 +509,12 @@ export async function refreshSearchList(interaction: ButtonInteraction): Promise
     isEmpty: d => d.results.length === 0,
   });
   if (result === null) {
-    return;
+    return null;
   }
 
   if (result.steppedBack) {
     await updateMemoryListSessionPage({
-      userId,
+      userId: interaction.user.id,
       messageId,
       kind: 'search',
       newPage: result.page,
@@ -520,7 +524,7 @@ export async function refreshSearchList(interaction: ButtonInteraction): Promise
   const data = result.data;
   const pageToFetch = result.page;
 
-  const { embed, components } = buildSearchView({
+  return buildSearchView({
     data,
     query: searchQuery,
     page: pageToFetch,
@@ -528,8 +532,18 @@ export async function refreshSearchList(interaction: ButtonInteraction): Promise
     personalityId,
     searchType: data.searchType,
   });
+}
 
-  await interaction.editReply({ embeds: [embed], components });
+/**
+ * Refresh the search view — called from the detail action router when the
+ * user clicks "back" or after a successful delete.
+ */
+export async function refreshSearchList(interaction: ButtonInteraction): Promise<void> {
+  const view = await buildRefreshedSearchView(interaction);
+  if (view === null) {
+    return;
+  }
+  await interaction.editReply({ embeds: [view.embed], components: view.components });
 }
 
 /**

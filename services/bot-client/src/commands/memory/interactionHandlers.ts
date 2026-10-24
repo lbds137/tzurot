@@ -6,6 +6,7 @@
  * - Purge destructive confirmation (purge.ts, Tier-B flow)
  * - Fact browse/detail surfaces (factsBrowse.ts / factsDetail.ts)
  * - Memory detail actions (detail.ts via detailActionRouter.ts)
+ * - Memory browse/search batch flow (memoriesBatch.ts)
  *
  * All state lives in dashboard sessions (keyed by messageId) or in the
  * custom IDs themselves — no inline collectors, fully restart-safe.
@@ -30,6 +31,7 @@ import {
   handleBrowseSelect,
   handleBrowseDetailAction,
   isMemoryBrowsePagination,
+  buildRefreshedBrowseView,
 } from './browse.js';
 import {
   searchHelpers,
@@ -37,6 +39,7 @@ import {
   handleSearchSelect,
   handleSearchDetailAction,
   isMemorySearchPagination,
+  buildRefreshedSearchView,
 } from './search.js';
 import { MEMORY_PURGE_OPERATION, handlePurgeButton, handlePurgeModal } from './purge.js';
 import {
@@ -55,9 +58,12 @@ import {
   handleForgetConfirm,
 } from './factsDetail.js';
 import { handleBatchSelectEntry, handleBatchPick, handleBatchConfirm } from './factsBatch.js';
+import { handleMemoryBatchSelectEntry, handleMemoryBatchPick } from './memoriesBatch.js';
+import { handleMemoryBatchConfirm } from './memoriesBatchConfirm.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
-import { ackUpdate } from '../../ux/render/reply.js';
+import { followUpSpec, ackUpdate } from '../../ux/render/reply.js';
+import { PAGE_FETCH_FAILED_COPY } from '../../utils/browse/multiSelectBatch.js';
 
 const logger = createLogger('memory-command');
 
@@ -123,10 +129,39 @@ async function handleDetailButton(interaction: ButtonInteraction): Promise<void>
     return;
   }
 
-  const handled =
-    session.data.kind === 'browse'
-      ? await handleBrowseDetailAction(interaction)
-      : await handleSearchDetailAction(interaction);
+  let handled: boolean;
+  if (parsed.action === 'batch-cancel') {
+    // Batch cancel refreshes the list it came from — the same kind dispatch
+    // the back/confirm-delete branches use below. The view is built directly
+    // (not through refreshBrowseList/refreshSearchList, which return silently
+    // on a null view): a null view is a failed refresh on a LIVE session, so
+    // it gets the transient copy instead of a silent no-op.
+    const view =
+      session.data.kind === 'browse'
+        ? await buildRefreshedBrowseView(interaction)
+        : await buildRefreshedSearchView(interaction);
+    if (view === null) {
+      await followUpSpec(interaction, CATALOG.error.transient(PAGE_FETCH_FAILED_COPY));
+    } else {
+      await interaction.editReply({ embeds: [view.embed], components: view.components });
+    }
+    handled = true;
+  } else if (
+    parsed.action === 'batch-confirm' &&
+    (parsed.memoryId === 'delete' || parsed.memoryId === 'lock')
+  ) {
+    // The verb rides the memoryId slot. handleMemoryBatchConfirm runs the loop and
+    // stacks the result on its own kind-refreshed view; the session lookup
+    // above already refused a gone session, and the resolved session is the
+    // handler's single source.
+    await handleMemoryBatchConfirm(interaction, parsed.memoryId, session);
+    handled = true;
+  } else {
+    handled =
+      session.data.kind === 'browse'
+        ? await handleBrowseDetailAction(interaction)
+        : await handleSearchDetailAction(interaction);
+  }
 
   if (!handled) {
     logger.warn({ customId: interaction.customId }, 'Unhandled detail action');
@@ -258,6 +293,15 @@ const routes: ComponentRoute[] = [
   {
     matches: id => parseMemoryActionId(id)?.action === 'edit',
     onModal: handleMemoryEditModal,
+  },
+  {
+    // Memory batch-select (memoriesBatch.ts): the toggle BUTTON opens
+    // multi-select mode; the multi-select itself (same token) fires onSelect
+    // with the picked values. Must precede the memory-detail catch-all —
+    // that parser is the loosest and stays last.
+    matches: id => parseMemoryActionId(id)?.action === 'batch-select',
+    onButton: handleMemoryBatchSelectEntry,
+    onSelect: handleMemoryBatchPick,
   },
   { matches: id => parseMemoryActionId(id) !== null, onButton: handleDetailButton },
 ];

@@ -143,11 +143,17 @@ export function buildBrowseSelectMenu<T>(
   }
 
   const seenValues = new Set<string>();
+  // The caller's cap is clamped to Discord's legal window [1, 25] here: a
+  // 0 would make the payload invalid with minValues 1, and the 25 ceiling is
+  // the builder's own invariant (not every caller's to remember). The item
+  // count still caps it further — a short page can't offer more picks than
+  // it has options.
+  const clampedMaxValues = Math.min(Math.max(maxValues, 1), DISCORD_SELECT_OPTIONS_LIMIT);
   const selectMenu = new StringSelectMenuBuilder()
     .setCustomId(customId)
     .setPlaceholder(placeholder)
     .setMinValues(1)
-    .setMaxValues(Math.min(maxValues, items.length));
+    .setMaxValues(Math.min(clampedMaxValues, items.length));
 
   items.forEach((item, index) => {
     const oneBasedNumber = startIndex + index + 1;

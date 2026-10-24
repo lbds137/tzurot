@@ -164,6 +164,33 @@ describe('buildBrowseSelectMenu', () => {
       // 2 items on the page — the requested 10 is capped at the option count.
       expect(json.max_values).toBe(2);
     });
+
+    it('clamps an out-of-range maxValues into the legal [1, 25] window', () => {
+      // 0 would make the payload invalid with minValues 1 — floor at 1.
+      const zeroRow = buildBrowseSelectMenu<TestItem>({
+        items: [sampleItem('a', 'Alpha'), sampleItem('b', 'Beta')],
+        customId: 'test::batch-select',
+        placeholder: 'Pick several...',
+        startIndex: 0,
+        maxValues: 0,
+        formatItem: formatTestItem,
+      });
+      expect((zeroRow?.components[0] as StringSelectMenuBuilder).toJSON().max_values).toBe(1);
+
+      // 100 exceeds Discord's 25-option ceiling — the builder owns the cap.
+      const manyItems = Array.from({ length: 25 }, (_, i) =>
+        sampleItem(`id-${i.toString()}`, `Item ${i.toString()}`)
+      );
+      const hundredRow = buildBrowseSelectMenu<TestItem>({
+        items: manyItems,
+        customId: 'test::batch-select',
+        placeholder: 'Pick several...',
+        startIndex: 0,
+        maxValues: 100,
+        formatItem: formatTestItem,
+      });
+      expect((hundredRow?.components[0] as StringSelectMenuBuilder).toJSON().max_values).toBe(25);
+    });
   });
 
   describe('caller-bug guards (throw, do not silently drop)', () => {

@@ -260,6 +260,26 @@ describe('handleBrowse', () => {
     );
   });
 
+  it('renders the Select several toggle between the select and pagination rows', async () => {
+    const context = createDeferredContext();
+
+    await handleBrowse(context as unknown as DeferredCommandContext);
+
+    const payload = vi.mocked(context.editReply).mock.calls[0][0] as {
+      components: { toJSON(): { components: Record<string, unknown>[] } }[];
+    };
+    const rows = payload.components.map(row => row.toJSON().components);
+    expect(rows).toHaveLength(3);
+    expect((rows[0][0] as { custom_id?: string }).custom_id).toBe('memory-detail::select');
+    expect(rows[1]).toHaveLength(1);
+    expect(rows[1][0]).toMatchObject({
+      custom_id: 'memory-detail::batch-select',
+      label: 'Select several',
+    });
+    // The pagination row stays last — batch mode swaps it for a Cancel row.
+    expect(rows[2].length).toBeGreaterThan(0);
+  });
+
   it('aborts early when personality resolution returns null (helper handles the error reply)', async () => {
     // resolveOptionalPersonality is contracted to reply with the error itself
     // when it returns null, so handleBrowse just returns without calling editReply

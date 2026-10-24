@@ -15,7 +15,7 @@ import {
 } from './factsBatch.js';
 import { buildFactActionId } from './factsDetail.js';
 import { FACTS_SESSION_EXPIRED } from './factsBrowse.js';
-import { encodeBatchFooterIds } from '../../utils/browse/index.js';
+import { encodeBatchFooterIds } from '../../utils/browse/multiSelectBatch.js';
 import type { FactItem } from './factsApi.js';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
@@ -540,6 +540,29 @@ describe('handleBatchConfirm — forget', () => {
         flags: MessageFlags.Ephemeral,
       })
     );
+  });
+
+  it('survives a throwing refreshed-view round-trip after the mutations ran (survival ladder)', async () => {
+    // buildRefreshedFactsView does session-manager round-trips that can throw
+    // AFTER the forget ran — the throw must degrade to the result-only reply,
+    // never propagate and lose the report.
+    stub.forgetFact.mockResolvedValue(makeOk({ id: 'fact-1', forgotten: true }));
+    // Call 1 is the pre-loop label resolution's session lookup (resolves);
+    // call 2 is the refreshed view's session round-trip (throws).
+    sessionManagerMock.findByMessageId
+      .mockResolvedValueOnce({ data: { personalityId: 'personality-456', currentPage: 0 } })
+      .mockRejectedValueOnce(new Error('session manager down'));
+    const interaction = createButtonInteraction({
+      messageEmbedFooter: encodeBatchFooterIds(['fact-1']),
+    });
+
+    await expect(handleBatchConfirm(interaction, 'forget')).resolves.toBeUndefined();
+
+    expect(stub.forgetFact).toHaveBeenCalledTimes(1);
+    expect(interaction.editReply).toHaveBeenCalledTimes(2);
+    const resultReply = vi.mocked(interaction.editReply).mock.calls[1]?.[0] as EditReplyPayload;
+    expect(resultReply.embeds).toHaveLength(1);
+    expect(resultReply.components).toEqual([]);
   });
 
   it('keeps the stacked reply within the 6000-char embed budget for long statements', async () => {

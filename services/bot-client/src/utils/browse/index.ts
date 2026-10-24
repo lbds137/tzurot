@@ -44,12 +44,6 @@ export {
 // Select menu builder
 export { buildBrowseSelectMenu, type BrowseSelectOption } from './selectMenuBuilder.js';
 
-// Multi-select batch helpers (Select-several entry toggle, footer id state).
-// Only the consumed surface is re-exported — knip holds the barrel to it; the
-// batch flow itself imports the executor and view builders from the source
-// module.
-export { buildSelectSeveralToggleRow, encodeBatchFooterIds } from './multiSelectBatch.js';
-
 // In-place filter toggle (≤3-value filters; spec §3.1)
 export { buildFilterToggleButton, type FilterToggleDisplay } from './filterRowBuilder.js';
 

@@ -20,7 +20,6 @@ import {
   MessageFlags,
   escapeMarkdown,
   type ButtonInteraction,
-  type Message,
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
@@ -32,14 +31,18 @@ import {
   buildBatchModeRows,
   buildBatchConfirmView,
   buildBatchResultEmbed,
+  clampBatchConfirmDescription,
+  deliverBatchReport,
   encodeBatchFooterIds,
+  formatFallbackIdLabel,
   parseBatchFooterIds,
+  readSelectOptionLabels,
   runBatchSequentially,
   formatBatchItemLines,
+  PAGE_FETCH_FAILED_COPY,
   type BatchResultLine,
 } from '../../utils/browse/multiSelectBatch.js';
 import { truncateForSelect } from '../../utils/browse/truncation.js';
-import { clampEmbedText } from '../../utils/embedLimits.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
@@ -47,13 +50,13 @@ import { followUpSpec, ackUpdate } from '../../ux/render/reply.js';
 import {
   FACTS_PER_PAGE,
   FACTS_SESSION_EXPIRED,
-  findFactBrowseSession,
+  fetchCurrentFactsPage,
   buildFactsEmbed,
   formatFactSelectOption,
   buildRefreshedFactsView,
 } from './factsBrowse.js';
 import { buildFactActionId } from './factsDetail.js';
-import { fetchFacts, forgetFact, setFactLock, type FactItem } from './factsApi.js';
+import { forgetFact, setFactLock, type FactItem } from './factsApi.js';
 
 const logger = createLogger('memory-facts-batch');
 
@@ -65,7 +68,7 @@ type BatchVerbOutcome = 'success' | 'already-gone';
 
 /** Fallback display label when a fact's real label can't be resolved. */
 function fallbackFactLabel(id: string): string {
-  return `Fact ID: ${id.slice(0, 8)}…`;
+  return formatFallbackIdLabel(id, 'Fact');
 }
 
 /** Swap-render components: the multi-select page plus a Cancel affordance. */
@@ -94,82 +97,31 @@ export function buildBatchSelectComponents(
 export async function handleBatchSelectEntry(interaction: ButtonInteraction): Promise<void> {
   await ackUpdate(interaction);
 
-  const session = await findFactBrowseSession(interaction.message.id);
-  if (session === null) {
+  const result = await fetchCurrentFactsPage(interaction);
+  if (!result.ok) {
     await interaction.followUp({
-      content: FACTS_SESSION_EXPIRED,
+      content:
+        result.reason === 'session-gone'
+          ? FACTS_SESSION_EXPIRED
+          : renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
       flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
-  const { personalityId, currentPage, tag, query } = session.data;
-  const { userClient } = clientsFor(interaction);
-  const data = await fetchFacts(
-    userClient,
-    personalityId,
-    currentPage * FACTS_PER_PAGE,
-    FACTS_PER_PAGE,
-    { tag, query }
-  );
-  if (data === null) {
-    await interaction.followUp({
-      content: renderSpec(CATALOG.error.transient("Couldn't load that page right now.")),
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
+  const { currentPage, tag, query } = result.session.data;
   await interaction.editReply({
     embeds: [
-      buildFactsEmbed({ facts: data.facts, total: data.total, page: currentPage, tag, query }),
+      buildFactsEmbed({
+        facts: result.data.facts,
+        total: result.data.total,
+        page: currentPage,
+        tag,
+        query,
+      }),
     ],
-    components: buildBatchSelectComponents(data.facts, currentPage),
+    components: buildBatchSelectComponents(result.data.facts, currentPage),
   });
-}
-
-/**
- * Map option value → label for every select menu on a message. discord.js
- * rehydrates message components as builders, so each row is normalized via
- * toJSON() and walked generically as unknown data.
- */
-function readSelectOptionLabels(message: Message): Map<string, string> {
-  const labels = new Map<string, string>();
-  for (const row of message.components) {
-    collectSelectOptionLabels(row.toJSON(), labels);
-  }
-  return labels;
-}
-
-function collectSelectOptionLabels(source: unknown, labels: Map<string, string>): void {
-  if (typeof source !== 'object' || source === null) {
-    return;
-  }
-  const record = source as Record<string, unknown>;
-  const options = record.options;
-  if (Array.isArray(options)) {
-    collectOptionEntries(options, labels);
-  }
-  const children = record.components;
-  if (Array.isArray(children)) {
-    for (const child of children) {
-      collectSelectOptionLabels(child, labels);
-    }
-  }
-}
-
-function collectOptionEntries(options: unknown[], labels: Map<string, string>): void {
-  for (const option of options) {
-    if (typeof option !== 'object' || option === null) {
-      continue;
-    }
-    const entry = option as Record<string, unknown>;
-    const value = entry.value;
-    const label = entry.label;
-    if (typeof value === 'string') {
-      labels.set(value, typeof label === 'string' ? label : value);
-    }
-  }
 }
 
 /**
@@ -199,7 +151,7 @@ export async function handleBatchPick(interaction: StringSelectMenuInteraction):
 
   const { embed, components } = buildBatchConfirmView({
     title: '⚠️ Manage Several Facts',
-    description: clampEmbedText(`${listing}\n\n${warning}`, 3800),
+    description: clampBatchConfirmDescription(listing, warning),
     footerText: encodeBatchFooterIds(ids),
     // The factory row is Cancel → Forget (Danger), Danger last; the
     // Secondary Lock verb rides its own row ABOVE the confirm row.
@@ -261,23 +213,11 @@ async function resolveBatchLabels(
 > {
   const resolved = new Map<string, ResolvedBatchLabel>();
   const idSet = new Set(ids);
-  const session = await findFactBrowseSession(interaction.message.id);
-  if (session === null) {
-    return { ok: false, reason: 'session-gone' };
+  const result = await fetchCurrentFactsPage(interaction);
+  if (!result.ok) {
+    return { ok: false, reason: result.reason };
   }
-  const { personalityId, currentPage, tag, query } = session.data;
-  const { userClient } = clientsFor(interaction);
-  const data = await fetchFacts(
-    userClient,
-    personalityId,
-    currentPage * FACTS_PER_PAGE,
-    FACTS_PER_PAGE,
-    { tag, query }
-  );
-  if (data === null) {
-    return { ok: false, reason: 'fetch-failed' };
-  }
-  for (const fact of data.facts) {
+  for (const fact of result.data.facts) {
     if (idSet.has(fact.id)) {
       resolved.set(fact.id, {
         label: formatFactSelectOption(fact).label,
@@ -296,7 +236,7 @@ async function replyBatchRefusal(
   if (reason === 'fetch-failed') {
     // A live session with a failed fetch is NOT an expired session —
     // transient copy, not the expiry copy.
-    await followUpSpec(interaction, CATALOG.error.transient("Couldn't load that page right now."));
+    await followUpSpec(interaction, CATALOG.error.transient(PAGE_FETCH_FAILED_COPY));
     return;
   }
   await interaction.followUp({
@@ -314,18 +254,12 @@ interface BatchRunCounts {
 }
 
 /**
- * Deliver the outcome report: a result embed naming every item's outcome,
- * stacked on top of the refreshed list view when one exists.
- *
- * The color ladder: red for a real failure; warning amber when nothing
- * succeeded AND nothing failed (all locked / all already-gone — no work was
- * actually done); green otherwise.
- *
- * Discord caps the SUM of embed text per message at 6000 characters; the
- * mutations have already run, so the report must survive reply failures on
- * EVERY branch: the stacked reply falls back to the result embed alone, and
- * either reply shape falls back to a plain ephemeral followUp carrying just
- * the counts.
+ * Deliver the outcome report: build the result embed (the color ladder is the
+ * flow's own — red for a real failure; warning amber when nothing succeeded
+ * AND nothing failed (all locked / all already-gone — no work was actually
+ * done); green otherwise), wrap the refreshed list view, and hand both to the
+ * shared survival ladder (deliverBatchReport): the mutations have already
+ * run, so the report must survive reply failures on EVERY branch.
  */
 async function deliverBatchResult(
   interaction: ButtonInteraction,
@@ -345,46 +279,20 @@ async function deliverBatchResult(
     lines: formatBatchItemLines(lines),
   });
 
-  // Last resort on either branch — the mutations already ran, so the counts
-  // must reach the user even when the message itself can no longer be edited.
-  const followUpCounts = (): Promise<void> =>
-    followUpSpec(
-      interaction,
-      CATALOG.info.note(
-        verb === 'forget'
-          ? `Batch finished: ${succeeded} succeeded, ${gone} already gone, ${locked} locked (skipped), ${failed} failed.`
-          : `Batch finished: ${succeeded} succeeded, ${gone} already gone, ${locked} already locked, ${failed} failed.`
-      )
-    );
+  const countsLine =
+    verb === 'forget'
+      ? `Batch finished: ${succeeded} succeeded, ${gone} already gone, ${locked} locked (skipped), ${failed} failed.`
+      : `Batch finished: ${succeeded} succeeded, ${gone} already gone, ${locked} already locked, ${failed} failed.`;
 
-  // Result embed alone, still laddered: if even this editReply rejects
-  // (message deleted mid-run), the counts followUp delivers the report.
-  const deliverResultOnly = async (): Promise<void> => {
-    try {
-      await interaction.editReply({ embeds: [resultEmbed], components: [] });
-    } catch (error) {
-      logger.warn(
-        { err: error, verb },
-        'Result-only batch reply failed; falling back to counts followUp'
-      );
-      await followUpCounts();
-    }
-  };
+  // Rider on the survival ladder: the refreshed view does session-manager
+  // round-trips that can throw AFTER the mutations ran — a throw must
+  // degrade to the result-only reply, never lose the report.
+  const viewPromise = buildRefreshedFactsView(interaction).catch((error: unknown): null => {
+    logger.warn({ err: error, verb }, 'Refreshed facts view failed; reporting the result alone');
+    return null;
+  });
 
-  const view = await buildRefreshedFactsView(interaction);
-  if (view === null) {
-    await deliverResultOnly();
-    return;
-  }
-  try {
-    await interaction.editReply({
-      embeds: [resultEmbed, view.embed],
-      components: view.components,
-    });
-  } catch (error) {
-    logger.warn({ err: error, verb }, 'Stacked batch result reply failed; retrying result-only');
-    await deliverResultOnly();
-  }
+  await deliverBatchReport(interaction, { resultEmbed, viewPromise, countsLine, verb });
 }
 
 /**
