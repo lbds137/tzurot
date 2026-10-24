@@ -889,8 +889,9 @@ run_msg 2 "override: a staged version-only edit to a non-manifest gated file blo
 git -C "$WT" reset -q --hard HEAD
 
 # --- pathological flag runs must not hang the session ---------------------
-# The flag-value group here carried the same ambiguity that was MEASURED
-# backtracking exponentially in a sibling guard's pattern:
+# The flag-value group in the shared GIT_COMMIT_RE (lib/git_commit.py) carried
+# the same ambiguity that was MEASURED backtracking exponentially in a sibling
+# guard's pattern:
 # with a bare `\S+` value, every token in a run of flags can be read either as
 # the previous flag's value or as a new flag, so a FAILING match explores
 # exponentially many partitions — 26 dummy flags took 231ms there, doubling

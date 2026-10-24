@@ -31,6 +31,14 @@ Deliberate properties, each with the check that pins it:
   older re.compile raises right here at import time, taking both hooks
   down — whose fail-open paths would then allow every commit. (Unverified
   by any automated check: CI runs 3.12, so nothing pins the 3.11 floor.)
+
+Two consumer contracts sit on this file's exact shape, beyond the pattern's
+meaning: board-commit-branch-gate.sh slices the literal 4-char ``(?i)``
+prefix off ``GIT_COMMIT_RE.pattern`` to embed the body in its ``BYPASS_RE``
+and fails open if the prefix changes, and board-commit-branch-gate.probe.sh's
+sed canary rewrites ``(?i)`` to ``(?im)`` on the ``GIT_COMMIT_RE =`` line
+and greps for the result, so the definition must stay on one line in this
+spelling.
 """
 
 import re

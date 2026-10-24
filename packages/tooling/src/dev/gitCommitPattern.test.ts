@@ -21,7 +21,6 @@
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 
@@ -122,7 +121,7 @@ describe('git_commit.GIT_COMMIT_RE: single definition', () => {
   // matches) and must not carry an inlined commit-pattern copy. The tail
   // fragment is commit-specific on purpose: the board gate's own ADD_RE
   // legitimately contains `\bgit(?:`, so that broader fragment cannot be the
-  // marker here.
+  // marker here. It only catches a verbatim re-inline.
   it('both hooks import the constant; neither inlines its own copy', () => {
     for (const file of HOOK_FILES) {
       const src = readFileSync(`${HOOKS_DIR}/${file}`, 'utf-8');
