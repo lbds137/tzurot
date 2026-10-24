@@ -27,9 +27,11 @@ import {
   buildBrowseButtons,
   buildBrowseListEmbed,
   buildBrowseSelectMenu,
+  buildSelectSeveralToggleRow,
   calculatePaginationState,
   pluralize,
   type BrowseActionRow,
+  type BrowseSelectOption,
 } from '../../utils/browse/index.js';
 import { resolveRequiredPersonality } from './resolveHelpers.js';
 import { truncateContent } from './formatters.js';
@@ -44,7 +46,11 @@ import { ackUpdate } from '../../ux/render/reply.js';
 const logger = createLogger('memory-facts-browse');
 
 /** Items per page */
-const FACTS_PER_PAGE = 10;
+export const FACTS_PER_PAGE = 10;
+
+/** Shared expiry copy for interactions whose dashboard session is gone. */
+export const FACTS_SESSION_EXPIRED =
+  '⏰ This interaction has expired. Please run `/memory facts` again.';
 
 /**
  * One string, two roles: the customId prefix (componentPrefixes registration,
@@ -75,13 +81,15 @@ export function isFactBrowsePagination(customId: string): boolean {
   return factBrowseHelpers.isBrowse(customId);
 }
 
-async function findFactBrowseSession(
+/** Find the browse session behind a facts message (null when expired). */
+export async function findFactBrowseSession(
   messageId: string
 ): Promise<DashboardSession<FactBrowseSession> | null> {
   return getSessionManager().findByMessageId<FactBrowseSession>(messageId);
 }
 
-function buildFactsEmbed(options: {
+/** Build the browse list embed for a page of facts. */
+export function buildFactsEmbed(options: {
   facts: FactItem[];
   total: number;
   page: number;
@@ -143,6 +151,19 @@ function buildFactsEmbed(options: {
   return embed;
 }
 
+/**
+ * Option fields for one fact in the select menu — shared by the one-pick
+ * select and the batch multi-select so both present identical rows.
+ */
+export function formatFactSelectOption(fact: FactItem): BrowseSelectOption {
+  return {
+    label: `${fact.isLocked ? `${AUTOCOMPLETE_BADGES.LOCKED} ` : ''}${fact.statement}`,
+    value: fact.id,
+    // Select descriptions render no markdown — the date stays static text.
+    description: formatDateShort(fact.validFrom),
+  };
+}
+
 function buildFactsComponents(
   facts: FactItem[],
   page: number,
@@ -153,19 +174,17 @@ function buildFactsComponents(
     customId: buildFactActionId('select'),
     placeholder: 'Select a fact to manage...',
     startIndex: page * FACTS_PER_PAGE,
-    formatItem: fact => ({
-      label: `${fact.isLocked ? `${AUTOCOMPLETE_BADGES.LOCKED} ` : ''}${fact.statement}`,
-      value: fact.id,
-      // Select descriptions render no markdown — the date stays static text.
-      description: formatDateShort(fact.validFrom),
-    }),
+    formatItem: formatFactSelectOption,
   });
   if (selectRow === null) {
     return [];
   }
 
+  const toggleRow = buildSelectSeveralToggleRow(buildFactActionId('batch-select'));
+
   return [
     selectRow,
+    toggleRow,
     buildBrowseButtons({
       currentPage: page,
       totalPages,
@@ -244,7 +263,7 @@ export async function handleFactsPagination(interaction: ButtonInteraction): Pro
   const session = await findFactBrowseSession(messageId);
   if (session === null) {
     await interaction.followUp({
-      content: '⏰ This interaction has expired. Please run `/memory facts` again.',
+      content: FACTS_SESSION_EXPIRED,
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -308,14 +327,18 @@ async function updateFactSessionPage(
 }
 
 /**
- * Refresh the list view — called after "back" from detail and after a forget.
- * Steps back a page when a forget empties the current one.
+ * Build the refreshed list view (embed + components) for the message an
+ * interaction came from, stepping back a page when the current one emptied.
+ * Null when the session is gone or the fetch failed — the caller keeps the
+ * message untouched in that case.
  */
-export async function refreshFactsList(interaction: ButtonInteraction): Promise<void> {
+export async function buildRefreshedFactsView(
+  interaction: ButtonInteraction
+): Promise<{ embed: EmbedBuilder; components: BrowseActionRow[] } | null> {
   const messageId = interaction.message.id;
   const session = await findFactBrowseSession(messageId);
   if (session === null) {
-    return;
+    return null;
   }
 
   const { personalityId, tag, query } = session.data;
@@ -328,7 +351,7 @@ export async function refreshFactsList(interaction: ButtonInteraction): Promise<
     isEmpty: d => d.facts.length === 0,
   });
   if (result === null) {
-    return;
+    return null;
   }
 
   if (result.steppedBack) {
@@ -336,15 +359,26 @@ export async function refreshFactsList(interaction: ButtonInteraction): Promise<
   }
 
   const { totalPages } = calculatePaginationState(result.data.total, FACTS_PER_PAGE, result.page);
-  const embed = buildFactsEmbed({
-    facts: result.data.facts,
-    total: result.data.total,
-    page: result.page,
-    tag,
-    query,
-  });
-  await interaction.editReply({
-    embeds: [embed],
+  return {
+    embed: buildFactsEmbed({
+      facts: result.data.facts,
+      total: result.data.total,
+      page: result.page,
+      tag,
+      query,
+    }),
     components: buildFactsComponents(result.data.facts, result.page, totalPages),
-  });
+  };
+}
+
+/**
+ * Refresh the list view — called after "back" from detail and after a forget.
+ * Steps back a page when a forget empties the current one.
+ */
+export async function refreshFactsList(interaction: ButtonInteraction): Promise<void> {
+  const view = await buildRefreshedFactsView(interaction);
+  if (view === null) {
+    return;
+  }
+  await interaction.editReply({ embeds: [view.embed], components: view.components });
 }

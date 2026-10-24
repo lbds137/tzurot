@@ -38,6 +38,9 @@ const {
   mockHandleFactLockButton,
   mockHandleForgetButton,
   mockHandleForgetConfirm,
+  mockHandleBatchSelectEntry,
+  mockHandleBatchPick,
+  mockHandleBatchConfirm,
 } = vi.hoisted(() => ({
   mockHandleBrowsePagination: vi.fn(),
   mockHandleBrowseSelect: vi.fn(),
@@ -68,6 +71,9 @@ const {
   mockHandleFactLockButton: vi.fn(),
   mockHandleForgetButton: vi.fn(),
   mockHandleForgetConfirm: vi.fn(),
+  mockHandleBatchSelectEntry: vi.fn(),
+  mockHandleBatchPick: vi.fn(),
+  mockHandleBatchConfirm: vi.fn(),
 }));
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -125,6 +131,12 @@ vi.mock('./factsDetail.js', () => ({
   handleFactLockButton: (...args: unknown[]) => mockHandleFactLockButton(...args),
   handleForgetButton: (...args: unknown[]) => mockHandleForgetButton(...args),
   handleForgetConfirm: (...args: unknown[]) => mockHandleForgetConfirm(...args),
+}));
+
+vi.mock('./factsBatch.js', () => ({
+  handleBatchSelectEntry: (...args: unknown[]) => mockHandleBatchSelectEntry(...args),
+  handleBatchPick: (...args: unknown[]) => mockHandleBatchPick(...args),
+  handleBatchConfirm: (...args: unknown[]) => mockHandleBatchConfirm(...args),
 }));
 
 import { handleButton, handleModal, handleSelectMenu } from './interactionHandlers.js';
@@ -556,6 +568,53 @@ describe('fact routing (correction slice)', () => {
     mockHandleForgetConfirm.mockResolvedValue(false);
     await handleButton(createButtonInteraction('memory-fact::confirm-forget::fact-1') as never);
     expect(mockRefreshFactsList).not.toHaveBeenCalled();
+  });
+
+  it('routes the batch-select toggle button and the multi-select by interaction kind', async () => {
+    mockParseFactActionId.mockReturnValue({ action: 'batch-select' });
+
+    const toggle = createButtonInteraction('memory-fact::batch-select');
+    await handleButton(toggle as never);
+    expect(mockHandleBatchSelectEntry).toHaveBeenCalledWith(toggle);
+    expect(mockHandleBatchPick).not.toHaveBeenCalled();
+
+    const pick = createSelectInteraction('memory-fact::batch-select');
+    await handleSelectMenu(pick as never);
+    expect(mockHandleBatchPick).toHaveBeenCalledWith(pick);
+    expect(mockHandleBatchSelectEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes batch-cancel like back: defer then refresh the list', async () => {
+    mockParseFactActionId.mockReturnValue({ action: 'batch-cancel' });
+    const interaction = createButtonInteraction('memory-fact::batch-cancel');
+
+    await handleButton(interaction as never);
+
+    expect(interaction.deferUpdate).toHaveBeenCalled();
+    expect(mockRefreshFactsList).toHaveBeenCalledWith(interaction);
+  });
+
+  it('routes batch-confirm with the decoded verb', async () => {
+    mockParseFactActionId.mockReturnValue({ action: 'batch-confirm', factId: 'forget' });
+    const interaction = createButtonInteraction('memory-fact::batch-confirm::forget');
+
+    await handleButton(interaction as never);
+
+    expect(mockHandleBatchConfirm).toHaveBeenCalledWith(interaction, 'forget');
+  });
+
+  it('rejects an unknown batch-confirm verb with the generic validation reply', async () => {
+    // The verb rides the factId slot — a value that is neither forget nor lock
+    // falls through to the unhandled-action reply, never to handleBatchConfirm.
+    mockParseFactActionId.mockReturnValue({ action: 'batch-confirm', factId: 'delete' });
+    const interaction = createButtonInteraction('memory-fact::batch-confirm::delete');
+
+    await handleButton(interaction as never);
+
+    expect(mockHandleBatchConfirm).not.toHaveBeenCalled();
+    expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.any(String) })
+    );
   });
 
   it('rejects an unknown fact action with a validation reply', async () => {

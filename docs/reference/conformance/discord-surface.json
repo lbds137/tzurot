@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 2928,
-    "sites": 6824
+    "entries": 2961,
+    "sites": 6897
   },
   "entries": [
     {
@@ -2733,6 +2733,78 @@
       "file": "services/bot-client/src/commands/memory/detailModals.ts",
       "symbol": "user",
       "count": 8
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "components",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "deferred",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "embeds",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "escapeMarkdown",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "footer",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "id",
+      "count": 3
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "message",
+      "count": 4
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "replied",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "text",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "toJSON",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "user",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "values",
+      "count": 1
     },
     {
       "category": "client-methods",
@@ -8898,6 +8970,60 @@
     },
     {
       "category": "client-methods",
+      "file": "services/bot-client/src/utils/browse/multiSelectBatch.ts",
+      "symbol": "addComponents",
+      "count": 3
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/browse/multiSelectBatch.ts",
+      "symbol": "setColor",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/browse/multiSelectBatch.ts",
+      "symbol": "setCustomId",
+      "count": 3
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/browse/multiSelectBatch.ts",
+      "symbol": "setDescription",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/browse/multiSelectBatch.ts",
+      "symbol": "setEmoji",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/browse/multiSelectBatch.ts",
+      "symbol": "setFooter",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/browse/multiSelectBatch.ts",
+      "symbol": "setLabel",
+      "count": 3
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/browse/multiSelectBatch.ts",
+      "symbol": "setStyle",
+      "count": 3
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/browse/multiSelectBatch.ts",
+      "symbol": "setTitle",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
       "file": "services/bot-client/src/utils/browse/pageLoadFailure.ts",
       "symbol": "customId",
       "count": 1
@@ -12108,6 +12234,18 @@
     },
     {
       "category": "components",
+      "file": "services/bot-client/src/utils/browse/multiSelectBatch.ts",
+      "symbol": "ActionRowBuilder",
+      "count": 3
+    },
+    {
+      "category": "components",
+      "file": "services/bot-client/src/utils/browse/multiSelectBatch.ts",
+      "symbol": "ButtonBuilder",
+      "count": 3
+    },
+    {
+      "category": "components",
       "file": "services/bot-client/src/utils/browse/selectMenuBuilder.ts",
       "symbol": "ActionRowBuilder",
       "count": 1
@@ -12780,6 +12918,12 @@
     },
     {
       "category": "discord-enums",
+      "file": "services/bot-client/src/utils/browse/multiSelectBatch.ts",
+      "symbol": "ButtonStyle.Secondary",
+      "count": 3
+    },
+    {
+      "category": "discord-enums",
       "file": "services/bot-client/src/utils/confirmation/confirmAction.ts",
       "symbol": "ButtonStyle.Danger",
       "count": 1
@@ -13293,6 +13437,12 @@
       "file": "services/bot-client/src/commands/memory/detailModals.ts",
       "symbol": "MessageFlags.Ephemeral",
       "count": 4
+    },
+    {
+      "category": "flags",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "MessageFlags.Ephemeral",
+      "count": 3
     },
     {
       "category": "flags",
@@ -13923,6 +14073,18 @@
       "file": "services/bot-client/src/commands/memory/detailModals.ts",
       "symbol": "update",
       "count": 2
+    },
+    {
+      "category": "interaction-acks",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "editReply",
+      "count": 5
+    },
+    {
+      "category": "interaction-acks",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "followUp",
+      "count": 3
     },
     {
       "category": "interaction-acks",
@@ -15702,6 +15864,18 @@
     },
     {
       "category": "message-builders",
+      "file": "services/bot-client/src/utils/browse/multiSelectBatch.ts",
+      "symbol": "EmbedBuilder",
+      "count": 1
+    },
+    {
+      "category": "message-builders",
+      "file": "services/bot-client/src/utils/browse/multiSelectBatch.ts",
+      "symbol": "text",
+      "count": 1
+    },
+    {
+      "category": "message-builders",
       "file": "services/bot-client/src/utils/chunkedReply.ts",
       "symbol": "AttachmentBuilder",
       "count": 1
@@ -16365,6 +16539,30 @@
       "file": "services/bot-client/src/commands/memory/detailModals.ts",
       "symbol": "flags",
       "count": 4
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "components",
+      "count": 5
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "content",
+      "count": 3
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "embeds",
+      "count": 4
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
+      "symbol": "flags",
+      "count": 3
     },
     {
       "category": "message-options",

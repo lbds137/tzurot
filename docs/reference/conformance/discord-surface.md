@@ -469,6 +469,18 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/detailModals.ts | setStyle | 2 |
 | services/bot-client/src/commands/memory/detailModals.ts | setTitle | 1 |
 | services/bot-client/src/commands/memory/detailModals.ts | user | 8 |
+| services/bot-client/src/commands/memory/factsBatch.ts | components | 1 |
+| services/bot-client/src/commands/memory/factsBatch.ts | deferred | 1 |
+| services/bot-client/src/commands/memory/factsBatch.ts | embeds | 1 |
+| services/bot-client/src/commands/memory/factsBatch.ts | escapeMarkdown | 2 |
+| services/bot-client/src/commands/memory/factsBatch.ts | footer | 1 |
+| services/bot-client/src/commands/memory/factsBatch.ts | id | 3 |
+| services/bot-client/src/commands/memory/factsBatch.ts | message | 4 |
+| services/bot-client/src/commands/memory/factsBatch.ts | replied | 1 |
+| services/bot-client/src/commands/memory/factsBatch.ts | text | 1 |
+| services/bot-client/src/commands/memory/factsBatch.ts | toJSON | 1 |
+| services/bot-client/src/commands/memory/factsBatch.ts | user | 1 |
+| services/bot-client/src/commands/memory/factsBatch.ts | values | 1 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | channelId | 1 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | customId | 1 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | escapeMarkdown | 1 |
@@ -1496,6 +1508,15 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/browse/listEmbedBuilder.ts | setFooter | 1 |
 | services/bot-client/src/utils/browse/listEmbedBuilder.ts | setTimestamp | 1 |
 | services/bot-client/src/utils/browse/listEmbedBuilder.ts | setTitle | 1 |
+| services/bot-client/src/utils/browse/multiSelectBatch.ts | addComponents | 3 |
+| services/bot-client/src/utils/browse/multiSelectBatch.ts | setColor | 1 |
+| services/bot-client/src/utils/browse/multiSelectBatch.ts | setCustomId | 3 |
+| services/bot-client/src/utils/browse/multiSelectBatch.ts | setDescription | 1 |
+| services/bot-client/src/utils/browse/multiSelectBatch.ts | setEmoji | 2 |
+| services/bot-client/src/utils/browse/multiSelectBatch.ts | setFooter | 1 |
+| services/bot-client/src/utils/browse/multiSelectBatch.ts | setLabel | 3 |
+| services/bot-client/src/utils/browse/multiSelectBatch.ts | setStyle | 3 |
+| services/bot-client/src/utils/browse/multiSelectBatch.ts | setTitle | 1 |
 | services/bot-client/src/utils/browse/pageLoadFailure.ts | customId | 1 |
 | services/bot-client/src/utils/browse/selectMenuBuilder.ts | addComponents | 1 |
 | services/bot-client/src/utils/browse/selectMenuBuilder.ts | addOptions | 1 |
@@ -2041,6 +2062,8 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/browse/buttonBuilder.ts | ActionRowBuilder | 1 |
 | services/bot-client/src/utils/browse/buttonBuilder.ts | ButtonBuilder | 4 |
 | services/bot-client/src/utils/browse/filterRowBuilder.ts | ButtonBuilder | 1 |
+| services/bot-client/src/utils/browse/multiSelectBatch.ts | ActionRowBuilder | 3 |
+| services/bot-client/src/utils/browse/multiSelectBatch.ts | ButtonBuilder | 3 |
 | services/bot-client/src/utils/browse/selectMenuBuilder.ts | ActionRowBuilder | 1 |
 | services/bot-client/src/utils/browse/selectMenuBuilder.ts | StringSelectMenuBuilder | 1 |
 | services/bot-client/src/utils/browse/selectMenuBuilder.ts | StringSelectMenuOptionBuilder | 1 |
@@ -2158,6 +2181,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/browse/buttonBuilder.ts | ButtonStyle.Primary | 1 |
 | services/bot-client/src/utils/browse/buttonBuilder.ts | ButtonStyle.Secondary | 3 |
 | services/bot-client/src/utils/browse/filterRowBuilder.ts | ButtonStyle.Primary | 1 |
+| services/bot-client/src/utils/browse/multiSelectBatch.ts | ButtonStyle.Secondary | 3 |
 | services/bot-client/src/utils/confirmation/confirmAction.ts | ButtonStyle.Danger | 1 |
 | services/bot-client/src/utils/confirmation/confirmAction.ts | ButtonStyle.Secondary | 1 |
 | services/bot-client/src/utils/confirmation/confirmDestructive.ts | ButtonStyle.Danger | 1 |
@@ -2249,6 +2273,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/browse.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/commands/memory/detail.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/commands/memory/detailModals.ts | MessageFlags.Ephemeral | 4 |
+| services/bot-client/src/commands/memory/factsBatch.ts | MessageFlags.Ephemeral | 3 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/commands/memory/factsDetail.ts | MessageFlags.Ephemeral | 1 |
 | services/bot-client/src/commands/memory/interactionHandlers.ts | MessageFlags.Ephemeral | 2 |
@@ -2364,6 +2389,8 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/detailModals.ts | followUp | 1 |
 | services/bot-client/src/commands/memory/detailModals.ts | reply | 3 |
 | services/bot-client/src/commands/memory/detailModals.ts | update | 2 |
+| services/bot-client/src/commands/memory/factsBatch.ts | editReply | 5 |
+| services/bot-client/src/commands/memory/factsBatch.ts | followUp | 3 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | editReply | 2 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | followUp | 2 |
 | services/bot-client/src/commands/memory/factsDetail.ts | editReply | 2 |
@@ -2665,6 +2692,8 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/services/retentionRun/retentionRunReport.ts | text | 2 |
 | services/bot-client/src/utils/browse/listEmbedBuilder.ts | EmbedBuilder | 1 |
 | services/bot-client/src/utils/browse/listEmbedBuilder.ts | text | 1 |
+| services/bot-client/src/utils/browse/multiSelectBatch.ts | EmbedBuilder | 1 |
+| services/bot-client/src/utils/browse/multiSelectBatch.ts | text | 1 |
 | services/bot-client/src/utils/chunkedReply.ts | AttachmentBuilder | 1 |
 | services/bot-client/src/utils/commandHelpers.ts | EmbedBuilder | 5 |
 | services/bot-client/src/utils/configValidation.ts | inline | 1 |
@@ -2781,6 +2810,10 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/detailModals.ts | content | 5 |
 | services/bot-client/src/commands/memory/detailModals.ts | embeds | 4 |
 | services/bot-client/src/commands/memory/detailModals.ts | flags | 4 |
+| services/bot-client/src/commands/memory/factsBatch.ts | components | 5 |
+| services/bot-client/src/commands/memory/factsBatch.ts | content | 3 |
+| services/bot-client/src/commands/memory/factsBatch.ts | embeds | 4 |
+| services/bot-client/src/commands/memory/factsBatch.ts | flags | 3 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | components | 2 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | content | 2 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | embeds | 2 |
@@ -2998,4 +3031,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 2928 entries across 6824 sites.
+Total: 2961 entries across 6897 sites.
