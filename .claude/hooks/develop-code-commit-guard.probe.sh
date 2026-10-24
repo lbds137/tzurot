@@ -499,13 +499,16 @@ run 2 "uppercase GIT COMMIT"                      'GIT COMMIT -m "x"'           
 run 2 "mixed-case Git Commit"                     'Git Commit -m "x"'                                      'services/probe.ts'
 run 2 "uppercase behind a global flag"            'GIT -C /some/path COMMIT -m "x"'                        'services/probe.ts'
 
-# The shared lib is a runtime dependency of this hook, and a missing one fails
-# OPEN. Nothing above distinguishes "lib present" from "lib gone" on the ALLOW
-# cases, so this asserts the import path itself rather than trusting it.
-if [ ! -f "$SCRIPT_DIR/lib/shell_quotes.py" ]; then
-  echo "FAIL  shared lib .claude/hooks/lib/shell_quotes.py is missing" >&2
-  FAILURES=$((FAILURES + 1))
-fi
+# The shared libs are runtime dependencies of this hook, and a missing one
+# fails OPEN. Nothing above distinguishes "libs present" from "libs gone" on
+# the ALLOW cases, so this asserts the import paths themselves rather than
+# trusting them.
+for lib in shell_quotes.py git_commit.py; do
+  if [ ! -f "$SCRIPT_DIR/lib/$lib" ]; then
+    echo "FAIL  shared lib .claude/hooks/lib/$lib is missing" >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+done
 # Plumbing subcommands are not `git commit`: `-` is a non-word character, so
 # a bare `commit\b` matched them and blocked a tree-writing plumbing call.
 run 0 "plumbing: git commit-tree stays silent"    'git commit-tree abc1234 -m x'                           'services/probe.ts'

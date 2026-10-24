@@ -167,13 +167,13 @@ from shell_quotes import (
     QUOTED_SPAN,
     MAX_WRAPPER_DEPTH,
 )
-
-cmd = os.environ.get("GUARD_CMD", "")
-
 # What counts as a commit invocation: the shared constant from lib/git_commit.py
 # (case table: packages/tooling/src/dev/gitCommitPattern.test.ts). The alias
 # keeps the name the rest of this file reasons with.
 from git_commit import GIT_COMMIT_RE as COMMIT_RE
+
+cmd = os.environ.get("GUARD_CMD", "")
+
 # The `git add` sibling of the same shape. No other hook detects `git add`, so
 # it has no cross-hook copy; it is written in the same spelling as
 # GIT_COMMIT_RE so the two read as one decision.
@@ -270,15 +270,14 @@ ASSIGNMENTS = r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*[ \t]+)*"
 # which would also let a genuinely unbypassed commit ride through on a
 # phantom's coattails, the wrong direction for an escape hatch.
 # Guards the slice below: if a future edit ever changes COMMIT_RE's inline
-# flags, this raises loudly and immediately, right here — instead of the
-# slice silently mis-embedding a wrong prefix (or re.compile throwing deep
-# inside a `SCAN=$(...) || exit 0` that swallows any python failure, which
-# would degrade to the WHOLE gate going fail-open on every invocation with no
-# indication beyond a mass probe failure). An `if`/`raise` rather than a bare
-# `assert`: an `assert` is compiled out entirely under `-O`/`PYTHONOPTIMIZE`,
-# and a guard against a silent fail-open must not itself be conditionally
-# absent — the one interpreter mode where the check would matter most is
-# exactly the one where `assert` disappears.
+# flags, this stops the scan right here with the reason on stderr — so the
+# slice never silently mis-embeds a wrong prefix. It is a DIAGNOSTIC, not a
+# fail-closed guard: `SCAN=$(...) || exit 0` swallows the non-zero exit, so
+# the gate still fails open on every such invocation — the stderr message
+# plus a mass probe failure are the only indications. An `if`/`raise` rather
+# than a bare `assert`: an `assert` is compiled out entirely under
+# `-O`/`PYTHONOPTIMIZE`, and a diagnostic that must survive hardened modes
+# cannot be conditionally absent.
 if not COMMIT_RE.pattern.startswith("(?i)"):
     raise SystemExit("COMMIT_RE no longer opens with the literal 4-char (?i) the slice below assumes")
 BYPASS_RE = re.compile(
@@ -287,9 +286,8 @@ BYPASS_RE = re.compile(
     + r"TZUROT_ALLOW_BOARD_ON_FEATURE=[^\s;&|]+[ \t]+"
     + ASSIGNMENTS
     # Sliced rather than `.removeprefix("(?i)")` — that method is Python
-    # 3.9+, an undocumented floor this file otherwise doesn't take (the
-    # pattern's own Python-version rationale lives in the lib docstring,
-    # git_commit.py). `COMMIT_RE.pattern`
+    # 3.9+, an undocumented floor this file otherwise doesn't take.
+    # `COMMIT_RE.pattern`
     # always starts with the literal 4-char `(?i)` the shared constant is
     # written with (asserted just above), so the fixed-length slice is exact
     # for this input; it is not a general prefix-strip.
