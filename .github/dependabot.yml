@@ -99,3 +99,35 @@ updates:
     labels:
       - 'dependencies'
       - 'automated'
+    ignore:
+      # claude-code-action bumps claude-code-review.yml + claude.yml — the two
+      # files guard:workflow-sync requires to land via a main-cut branch — so a
+      # develop-based bump PR fails CI on every run and never merges. The
+      # main-targeting entry below owns this dependency instead. TASK-1233.
+      - dependency-name: 'anthropics/claude-code-action'
+
+  # claude-code-action only, against MAIN: main-cut is where the guard allows
+  # those two workflow files to change, so the bump lands where it can actually
+  # merge (the guard self-skips on a main-cut branch). Dependabot reads this
+  # file from the DEFAULT branch, so this whole split is inert until the next
+  # release cut; the develop-based bump PR open at that moment is closed by
+  # then (by dependabot or by hand).
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'America/New_York'
+    target-branch: 'main'
+    open-pull-requests-limit: 2
+    reviewers:
+      - 'lbds137'
+    commit-message:
+      prefix: 'chore(ci)'
+      include: 'scope'
+    labels:
+      - 'dependencies'
+      - 'automated'
+    allow:
+      - dependency-name: 'anthropics/claude-code-action'
