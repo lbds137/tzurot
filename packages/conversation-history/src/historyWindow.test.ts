@@ -147,9 +147,10 @@ describe('resolveHistoryWindow', () => {
     }
   });
 
-  it('treats exactly-at-cap as unfull with hysteresis on', () => {
-    // The clamp's equality edge: inScopeCount === effectiveCap takes the
-    // unfull branch, not eviction; the chunk in force is still reported.
+  it('at exactly the cap, nothing is evicted and the chunk is still reported', () => {
+    // The clamp's equality edge, named for the observable outcome: these
+    // assertions cannot tell which branch produced the values, and they
+    // need not - the grid-equivalence test below owns the branch claim.
     const w50 = resolveHistoryWindow(50, 50);
     expect(w50.evicted).toBe(0);
     expect(w50.take).toBe(50);
@@ -162,23 +163,17 @@ describe('resolveHistoryWindow', () => {
 
   it('the <= at the clamp boundary is equivalent to < (pins the Stryker exclusion)', () => {
     // This test is the mechanical pin behind the Stryker disable in
-    // historyWindow.ts: the inline copy below flips <= to < and must stay
-    // behavior-identical to the real function. If it reddens, the two have
-    // diverged - either the eviction arithmetic changed (update the copy,
-    // then re-derive the equivalence) or the boundary became observable
-    // (remove the disable and kill the mutant with a test instead).
+    // historyWindow.ts: the inline copy below flips <= to < and must agree
+    // with the real function everywhere the branch choice could matter -
+    // the boundary diagonal n === cap plus one step either side. It calls
+    // the REAL resolveEvictionChunk and compares only that diagonal on
+    // purpose: a frozen full copy would turn this into a change-detector
+    // that kills every mutant in the function and reddens on unrelated
+    // arithmetic changes. If it reddens here, the boundary is no longer
+    // equivalent - remove the disable and kill the mutant with a test.
     const mutantResolve = (inScopeCount: number, cap: number) => {
       const effectiveCap = Math.max(0, cap);
-      // Local copy of resolveEvictionChunk.
-      let chunk = 0;
-      if (effectiveCap >= HISTORY_WINDOW.MIN_CAP_FOR_HYSTERESIS) {
-        chunk = Math.min(
-          Math.ceil(HISTORY_WINDOW.EVICTION_CHUNK_RATIO * effectiveCap),
-          effectiveCap - HISTORY_WINDOW.MIN_MESSAGE_FLOOR
-        );
-        chunk = chunk > 0 ? chunk : 0;
-      }
-      // The flip under test: <= became <.
+      const chunk = resolveEvictionChunk(effectiveCap);
       if (inScopeCount < effectiveCap || chunk === 0) {
         return { evicted: 0, take: Math.min(inScopeCount, effectiveCap), chunk };
       }
@@ -186,8 +181,8 @@ describe('resolveHistoryWindow', () => {
       return { evicted, take: inScopeCount - evicted, chunk };
     };
 
-    for (let n = 0; n <= 120; n++) {
-      for (let cap = 0; cap <= 120; cap++) {
+    for (let cap = 0; cap <= 120; cap++) {
+      for (const n of new Set([Math.max(0, cap - 1), cap, cap + 1])) {
         const real = resolveHistoryWindow(n, cap);
         const mutant = mutantResolve(n, cap);
         expect(mutant.evicted).toBe(real.evicted);
