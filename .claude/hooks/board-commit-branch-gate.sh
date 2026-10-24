@@ -170,9 +170,8 @@ from shell_quotes import (
 
 cmd = os.environ.get("GUARD_CMD", "")
 
-# What counts as a commit invocation: the one shared constant, imported from
-# the lib (TASK-1257 collapsed this file's former byte-identical literal; its
-# case table: packages/tooling/src/dev/gitCommitPattern.test.ts). The alias
+# What counts as a commit invocation: the shared constant from lib/git_commit.py
+# (case table: packages/tooling/src/dev/gitCommitPattern.test.ts). The alias
 # keeps the name the rest of this file reasons with.
 from git_commit import GIT_COMMIT_RE as COMMIT_RE
 # The `git add` sibling of the same shape. No other hook detects `git add`, so
@@ -288,9 +287,9 @@ BYPASS_RE = re.compile(
     + r"TZUROT_ALLOW_BOARD_ON_FEATURE=[^\s;&|]+[ \t]+"
     + ASSIGNMENTS
     # Sliced rather than `.removeprefix("(?i)")` — that method is Python
-    # 3.9+, an undocumented floor this file otherwise doesn't take (contrast
-    # develop-code-commit-guard.sh, which names its own Python-version
-    # requirement explicitly). `COMMIT_RE.pattern`
+    # 3.9+, an undocumented floor this file otherwise doesn't take (the
+    # pattern's own Python-version rationale lives in the lib docstring,
+    # git_commit.py). `COMMIT_RE.pattern`
     # always starts with the literal 4-char `(?i)` the shared constant is
     # written with (asserted just above), so the fixed-length slice is exact
     # for this input; it is not a general prefix-strip.

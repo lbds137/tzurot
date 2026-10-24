@@ -20,10 +20,15 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 
 const LIB_DIR = fileURLToPath(new URL('../../../../.claude/hooks/lib', import.meta.url));
+const HOOKS_DIR = fileURLToPath(new URL('../../../../.claude/hooks', import.meta.url));
+/** The two hooks that must import the shared constant rather than inline a copy. */
+const HOOK_FILES = ['board-commit-branch-gate.sh', 'develop-code-commit-guard.sh'];
 
 /** Cases pinning the expected verdicts for the pattern. */
 const CASES: readonly (readonly [expected: boolean, input: string])[] = [
@@ -77,7 +82,8 @@ const CASES: readonly (readonly [expected: boolean, input: string])[] = [
   //
   // Written as an ESCAPE, not a raw byte: a raw U+00A0 is indistinguishable from
   // a plain space on screen — retyping it as one silently turns this row into a
-  // duplicate of the plain `git commit -m "x" ` case above and deletes the `re.ASCII` guard with it.
+  // duplicate of the plain `git commit -m "x"` case above and deletes the
+  // `re.ASCII` guard with it.
   [true, 'git\u00A0commit -m "x"'],
 ];
 
@@ -108,4 +114,24 @@ describe('git_commit.GIT_COMMIT_RE: pinned verdicts', () => {
       expect(verdicts[caseIndex]).toBe(expected);
     });
   }
+});
+
+describe('git_commit.GIT_COMMIT_RE: single definition', () => {
+  // Presence check, not pattern extraction: each hook must import the shared
+  // constant (the board gate aliases it to COMMIT_RE — the substring still
+  // matches) and must not carry an inlined commit-pattern copy. The tail
+  // fragment is commit-specific on purpose: the board gate's own ADD_RE
+  // legitimately contains `\bgit(?:`, so that broader fragment cannot be the
+  // marker here.
+  it('both hooks import the constant; neither inlines its own copy', () => {
+    for (const file of HOOK_FILES) {
+      const src = readFileSync(`${HOOKS_DIR}/${file}`, 'utf-8');
+      expect(src, `${file}: expected the shared-lib import`).toContain(
+        'from git_commit import GIT_COMMIT_RE'
+      );
+      expect(src, `${file}: found an inlined commit-pattern copy`).not.toContain(
+        '\\s+commit(?![-\\w])'
+      );
+    }
+  });
 });
