@@ -7,7 +7,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { HISTORY_WINDOW, resolveEvictionChunk, resolveHistoryWindow } from './historyWindow.js';
+import {
+  HISTORY_WINDOW,
+  quantizeEviction,
+  resolveEvictionChunk,
+  resolveHistoryWindow,
+} from './historyWindow.js';
 
 describe('resolveEvictionChunk', () => {
   it('is 0 below the hysteresis cap threshold', () => {
@@ -161,34 +166,27 @@ describe('resolveHistoryWindow', () => {
     expect(w21.chunk).toBe(1);
   });
 
-  it('the <= at the clamp boundary is equivalent to < (pins the Stryker exclusion)', () => {
-    // This test is the mechanical pin behind the Stryker disable in
-    // historyWindow.ts: the inline copy below flips <= to < and must agree
-    // with the real function everywhere the branch choice could matter -
-    // the boundary diagonal n === cap plus one step either side. It calls
-    // the REAL resolveEvictionChunk and compares only that diagonal on
-    // purpose: a frozen full copy would turn this into a change-detector
-    // that kills every mutant in the function and reddens on unrelated
-    // arithmetic changes. If it reddens here, the boundary is no longer
-    // equivalent - remove the disable and kill the mutant with a test.
-    const mutantResolve = (inScopeCount: number, cap: number) => {
-      const effectiveCap = Math.max(0, cap);
-      const chunk = resolveEvictionChunk(effectiveCap);
-      if (inScopeCount < effectiveCap || chunk === 0) {
-        return { evicted: 0, take: Math.min(inScopeCount, effectiveCap), chunk };
-      }
-      const evicted = chunk * Math.ceil((inScopeCount - effectiveCap) / chunk);
-      return { evicted, take: inScopeCount - evicted, chunk };
-    };
-
+  it('quantizeEviction at the boundary returns the early-return values (the Stryker-exclusion invariant)', () => {
+    // The disable in historyWindow.ts holds exactly while this is true: at
+    // inScopeCount === effectiveCap the REAL eviction arithmetic produces
+    // the early return's values, so flipping <= to < changes nothing. This
+    // asserts that arithmetic directly - if it reddens, the boundary became
+    // observable: remove the disable and kill the mutant with a test
+    // instead.
     for (let cap = 0; cap <= 120; cap++) {
-      for (const n of new Set([Math.max(0, cap - 1), cap, cap + 1])) {
-        const real = resolveHistoryWindow(n, cap);
-        const mutant = mutantResolve(n, cap);
-        expect(mutant.evicted).toBe(real.evicted);
-        expect(mutant.take).toBe(real.take);
-        expect(mutant.chunk).toBe(real.chunk);
-      }
+      const chunk = resolveEvictionChunk(cap);
+      if (chunk === 0) continue; // hysteresis off: the boundary is unreachable
+      const q = quantizeEviction(cap, cap, chunk);
+      expect(q.evicted).toBe(0);
+      expect(q.take).toBe(cap);
+    }
+    // The invariant is per-chunk, not per-cap: sweep synthetic chunk values
+    // at one cap so a formula change that only bites on unusual chunk sizes
+    // cannot hide between real chunk resolutions.
+    for (let chunk = 1; chunk <= 60; chunk++) {
+      const q = quantizeEviction(80, 80, chunk);
+      expect(q.evicted).toBe(0);
+      expect(q.take).toBe(80);
     }
   });
 });
