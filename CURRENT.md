@@ -1,5 +1,7 @@
 # Current
 
+> **Session handoff 2026-10-24**: PRs #2644/#2645/#2646 shipped + merged (TASK-669/673/1220 Done; TASK-1272/1273/1274 filed from review caps). Next: the medium drain — `pnpm tracker task list -s "To Do" -l state:ready --priority medium --plain`; full state in claude-memory `roles/tzurot.md`.
+
 > **Version**: v3.0.0-beta.238 — "reasoning traces kept on memories" — SHIPPED 2026-10-18 19:04Z (release PR #2630 rebase-merged after her "cut now"; 1 PR / 1 runtime / 92 files / 20 commits; one additive migration premigrated by the owner; `main` = `develop` = `73fa2db45` post-finalize; tagged `latest`, beta.237 demoted). Holistic review: no blocking findings. Cut early on purpose: TASK-1230's backfill window shrinks daily. **Prod backfill done** 2026-10-18 (owner go): 1,734 written, re-run dry-run writable 0; TASK-1230 Done.
 >
 > **Previous**: v3.0.0-beta.237 — "memory accuracy: summarizer v2, the render fallback" (7 PRs / 7 runtime / 190 files; 2026-10-17, `9b81d0bc0`).
