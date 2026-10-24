@@ -6,8 +6,10 @@
 # change with no claim shapes stays silent; an empty index stays silent.
 #
 # The hook reads real git state (`git diff --cached`), so the fixtures are
-# staged changes in a THROWAWAY repo under $(mktemp -d) pointed at by
-# CLAUDE_PROJECT_DIR — the probe never touches this repo's index.
+# staged changes in a THROWAWAY repo under $(mktemp -d), and the hook is
+# INVOKED from inside that repo — it follows `git rev-parse --show-toplevel`,
+# and CLAUDE_PROJECT_DIR is only its out-of-repo fallback. The probe never
+# touches this repo's index.
 #
 # The hook runs from .husky/pre-commit and takes NO stdin and NO arguments;
 # the stdin-payload cases the PostToolUse version carried are gone with it.
@@ -59,7 +61,7 @@ stage_fixture() {
 
 check() { # $1=expected_exit  $2=fire|silent  $3=label
     local out got fired
-    out=$(CLAUDE_PROJECT_DIR="$REPO" "$HOOK" 2>/dev/null)
+    out=$(cd "$REPO" && "$HOOK" 2>/dev/null)
     got=$?
     if grep -q 'CLAIM-SHAPE GUARD' <<<"$out"; then
         fired="fire"
@@ -246,6 +248,44 @@ check 0 silent "claim-shaped line present in the worktree but not staged"
 git -C "$REPO" reset -q >/dev/null 2>&1
 rm -f "$REPO/src/unstaged.ts"
 check 0 silent "empty index"
+
+# WORKTREE CASES. A commit inside a LINKED worktree must scan the WORKTREE's
+# index, even when the inherited CLAUDE_PROJECT_DIR still points at the main
+# tree (husky inherits the caller's environment). Under a cd-to-the-env-var
+# hook both cases below fail: the guard jumps to the main tree, finds nothing
+# staged there (or finds the wrong tree's staging), and the vacuous pass is
+# exactly the bug.
+WT=$(mktemp -d)
+git -C "$REPO" worktree add -q --detach "$WT" >/dev/null 2>&1
+
+# Negative first: a claim staged in the MAIN tree must not fire when the hook
+# runs from the worktree — the worktree's own (empty) index is the surface.
+printf '%s\n' 'const v = ctx.value; // guaranteed to exist after step 2' >"$REPO/src/main-staged.ts"
+git -C "$REPO" add -- src/main-staged.ts >/dev/null 2>&1
+mkdir -p "$WT/src"
+out=$(cd "$WT" && CLAUDE_PROJECT_DIR="$REPO" "$HOOK" 2>/dev/null); got=$?
+if [ "$got" = 0 ] && [ -z "${out//[[:space:]]/}" ]; then
+    echo "ok   [exit=0 | silent]: main-tree staging does not bleed into a worktree run"
+else
+    echo "FAIL [exit=$got | unexpected output]: main-tree staging must not bleed into a worktree run"
+    fail=1
+fi
+git -C "$REPO" reset -q >/dev/null 2>&1
+
+# Fire: the same class of claim staged in the WORKTREE fires even with the
+# env var still pointing at the main tree.
+printf '%s\n' 'const id = row.id; // never undefined once the job is queued' >"$WT/src/wt-staged.ts"
+git -C "$WT" add -- src/wt-staged.ts >/dev/null 2>&1
+out=$(cd "$WT" && CLAUDE_PROJECT_DIR="$REPO" "$HOOK" 2>/dev/null); got=$?
+if [ "$got" = 0 ] && grep -q 'CLAIM-SHAPE GUARD' <<<"$out"; then
+    echo "ok   [exit=0 | fire]: worktree staging fires with CLAUDE_PROJECT_DIR on the main tree"
+else
+    echo "FAIL [exit=$got | no banner]: worktree staging must fire with CLAUDE_PROJECT_DIR on the main tree"
+    fail=1
+fi
+
+rm -rf "$WT"
+git -C "$REPO" worktree prune >/dev/null 2>&1
 
 [ "$fail" = 0 ] && echo "ALL PASS" || {
     echo "FAILURES"

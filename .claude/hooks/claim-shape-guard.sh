@@ -81,10 +81,19 @@
 
 set -uo pipefail
 
-# CLAUDE_PROJECT_DIR is honored so the probe harness can point this at a
-# throwaway repo. Under husky it is normally unset and `cd .` is a no-op —
-# git hooks already run from the repo root.
-cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null || exit 0
+# Follow the repo the hook actually runs in: `git rev-parse --show-toplevel`
+# resolves to the root of the worktree the commit is made in — including a
+# LINKED worktree, where the session's CLAUDE_PROJECT_DIR may still point at
+# the MAIN tree (husky inherits the caller's environment, and the wrong tree
+# would be scanned). CLAUDE_PROJECT_DIR survives only as the fallback for runs
+# outside any repo; the probe harness cd's into its throwaway repo first, so
+# it never takes this fallback either.
+REPO=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -n "$REPO" ]; then
+    cd "$REPO" 2>/dev/null || exit 0
+else
+    cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null || exit 0
+fi
 
 # Single `git diff --cached` piped through one awk pass: file-header tracking
 # for the path exclusions, then the claim-shape match over added lines only.
