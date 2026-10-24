@@ -3,9 +3,10 @@ id: TASK-1220
 title: >-
   bot-client boot watchdog restart reuses the same container, so a
   container-level Discord login hang is not recovered
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-12 04:52'
+updated_date: '2026-10-24 04:58'
 labels:
   - 'area:bot-client'
   - 'size:M'
