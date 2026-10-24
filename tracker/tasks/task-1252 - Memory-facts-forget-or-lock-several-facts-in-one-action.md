@@ -1,9 +1,10 @@
 ---
 id: TASK-1252
 title: 'Memory facts: forget or lock several facts in one action'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 03:41'
+updated_date: '2026-10-24 22:07'
 labels:
   - 'area:bot-client'
   - 'size:M'
