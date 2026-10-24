@@ -35,6 +35,21 @@ borderline mutants of slack and nothing more. Raising a floor happens by
 writing better tests and refreshing; lowering one requires the explicit
 `mutation:update-baseline` path, which is visible in review.
 
+## Inline `Stryker disable` directives
+
+Inline disables are the second way a mutant leaves the denominator (the
+first is the `logger-calls` ignorer), and the ratchet cannot tell a good
+one from a silenced gap. Allowed only for a **proven-equivalent** mutant:
+a written proof at the disable site (why no test can observe the flip), a
+pinning test that reddens if that proof breaks, and the narrowest scope
+(`next-line`, one mutator). Scope is per LINE and per MUTATOR FAMILY, so
+one directive excludes every mutant of that family on the line — including
+killable siblings; name that cost when justifying. Precedent:
+`historyWindow.ts`'s clamp boundary (equivalence proven by arithmetic plus
+a runtime grid diff; pinned by a grid-equivalence test). Anything less —
+"hard to test", "flaky under mutation" — is a test gap, not an equivalent
+mutant: close it or let it survive.
+
 ## Decay check
 
 Three failure modes, three detectors. (1) **Tool rot**: the canary fixture

@@ -109,7 +109,8 @@ export function resolveHistoryWindow(inScopeCount: number, cap: number): History
   // grid, so if the eviction arithmetic ever changes enough to make the
   // boundary observable, that test reddens and this exclusion must be
   // re-examined.
-  // Stryker disable next-line EqualityOperator
+  // Stryker disable next-line EqualityOperator: equivalent at
+  // inScopeCount === effectiveCap, see the comment above
   const unfull = inScopeCount <= effectiveCap;
 
   if (unfull || chunk === 0) {
