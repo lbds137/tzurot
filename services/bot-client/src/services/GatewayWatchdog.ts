@@ -18,6 +18,7 @@
  */
 import { type Client, Events, Status } from 'discord.js';
 import type { createLogger } from '@tzurot/common-types/utils/logger';
+import { createWebhookAlertSender } from '../utils/webhookAlertSender.js';
 
 type Logger = ReturnType<typeof createLogger>;
 
@@ -100,14 +101,6 @@ const WATCHDOG_THRESHOLDS = {
    * the exit until the process has had a fair chance to recover on its own.
    */
   MIN_UPTIME_BEFORE_EXIT_MS: 30 * 60 * 1000,
-
-  /**
-   * Ceiling on the owner-alert POST. The alert is best-effort context for a
-   * human, never a precondition for recovery, so it must not meaningfully
-   * delay the self-heal exit — a wedged bot stays wedged for however long
-   * this waits.
-   */
-  ALERT_TIMEOUT_MS: 2500,
 } as const;
 
 export interface GatewayWatchdog {
@@ -220,9 +213,11 @@ function formatAlertText(payload: WedgePayload, action: AlertAction, environment
  * Builds the best-effort owner alert sender. It never throws or rejects, so a
  * failed alert cannot block the self-heal exit it accompanies — pinned by the
  * rejecting-fetch and synchronously-throwing-fetch tests. Slowness is bounded
- * by the ALERT_TIMEOUT_MS abort signal rather than by a test: driving that
- * abort under fake timers is not practical, so the tests inject a fetch that
- * settles immediately and the timeout arm is unverified here.
+ * by the sender's own WEBHOOK_ALERT_TIMEOUT_MS abort signal rather than by a
+ * test: driving that abort under fake timers is not practical, so the tests
+ * inject a fetch that settles immediately and the timeout arm is unverified
+ * here. The sender carries this caller's source label so its failure warns
+ * read apart from the boot probe's in the platform logs.
  */
 function createAlertSender(
   logger: Logger,
@@ -230,30 +225,13 @@ function createAlertSender(
   environment: string | undefined,
   fetchFn: typeof fetch
 ): (payload: WedgePayload, action: AlertAction) => Promise<void> {
+  const sendWebhookAlert = createWebhookAlertSender(logger, alertWebhookUrl, {
+    fetchFn,
+    source: 'gateway-watchdog',
+  });
   const resolvedEnvironment = environment ?? 'unknown';
   return async (payload: WedgePayload, action: AlertAction): Promise<void> => {
-    if (alertWebhookUrl === undefined || alertWebhookUrl.trim() === '') {
-      return;
-    }
-    try {
-      const response = await fetchFn(alertWebhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: formatAlertText(payload, action, resolvedEnvironment) }),
-        signal: AbortSignal.timeout(WATCHDOG_THRESHOLDS.ALERT_TIMEOUT_MS),
-      });
-      if (!response.ok) {
-        // A revoked or misconfigured webhook fails as an HTTP status, not a
-        // rejection — without this branch a permanently dead webhook would be
-        // indistinguishable from a delivered alert.
-        logger.warn(
-          { status: response.status },
-          'Gateway watchdog owner-alert webhook returned a non-OK status'
-        );
-      }
-    } catch (err: unknown) {
-      logger.warn({ err }, 'Gateway watchdog owner-alert webhook POST failed');
-    }
+    await sendWebhookAlert(formatAlertText(payload, action, resolvedEnvironment));
   };
 }
 
@@ -262,7 +240,8 @@ function createAlertSender(
 // alert instead goes out over a plain-HTTPS webhook, independent of the
 // gateway socket. It is gated on WATCHDOG_ALERT_WEBHOOK_URL configuration —
 // with it unset, no send is attempted and the exit path is unchanged (pinned
-// by the unconfigured-webhook test) — and bounded by ALERT_TIMEOUT_MS.
+// by the unconfigured-webhook test) — and bounded by the shared
+// WEBHOOK_ALERT_TIMEOUT_MS.
 async function handleWedge(ctx: TickContext, payload: WedgePayload): Promise<void> {
   const { logger, exit, state, sendAlert } = ctx;
   if (payload.uptimeMs >= WATCHDOG_THRESHOLDS.MIN_UPTIME_BEFORE_EXIT_MS) {

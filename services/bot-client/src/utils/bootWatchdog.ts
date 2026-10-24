@@ -13,8 +13,9 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 const logger = createLogger('BootWatchdog');
 
 // A healthy boot reaches "ready" in seconds; this is a generous ceiling to
-// catch a boot that never completes.
-const BOOT_DEADLINE_MS = 5 * 60 * 1000;
+// catch a boot that never completes. Exported so the egress probe's ban
+// threshold can pin itself to this constant instead of a duplicate literal.
+export const BOOT_DEADLINE_MS = 5 * 60 * 1000;
 
 /**
  * The named boot milestones, as a literal union so a typo at a call site is a
@@ -26,6 +27,7 @@ export type BootPhase =
   | 'commands-loaded'
   | 'services-initialized'
   | 'gateway-health-checked'
+  | 'egress-probed'
   | 'logged-in';
 
 export interface BootWatchdog {
