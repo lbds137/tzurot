@@ -3,9 +3,10 @@ id: TASK-1269
 title: >-
   historyWindow.ts:103 clamp boundary has no killing assertion (surviving
   diff-scoped mutant)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-23 17:07'
+updated_date: '2026-10-24 11:03'
 labels:
   - 'area:conversation-history'
   - 'size:S'
