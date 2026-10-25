@@ -1,10 +1,17 @@
 # Current
 
-> **Session handoff 2026-10-25 ~02:13Z**: **the multi-select batch is 2/5 landed** — TASK-1252 Done (#2652, facts) and **TASK-1253 Done (#2653, memory browse/search**, merged 02:12Z after 4 reviewer rounds; 8065 tests; CPD ratchet green at 1778 after the delivery-ladder extraction into the shared module). **Remaining: TASK-1254 (aliasBrowse) · 1255 (overrideBrowse) · 1256 (deny)** — the spec pattern is proven: copy `docs/local/dispatch/task-1253-r1-spec.md`'s shape, swap the surface, ride TASK-1283's three residue items (counts-wording test, JSDoc narrowing, inline-copy swap) on the FIRST of them. **The gate chunk per transfer includes `pnpm knip` and `ops cpd:check` after a fresh `pnpm cpd`** (both were CI catches; common-types' structure.test.ts governs every source file repo-wide). **Residue ledger on develop**: TASK-1280 (facts silent-cancel, scope widened to the live-session-failed-fetch case) · TASK-1281 (owner call: toggle on 1-item pages — rec keep visible) · TASK-1282 (second-tap guard watch) · TASK-1283 (counts-wording + JSDoc + inline copies, promote-with-1254). **TASK-1279 ARCHIVED** (premise dead: invoker-only ephemeral). **The 04-discord.md Shared Utilities row landed** (the batch flow is a recorded shared surface). **Sweep**: default-branch advisories 6 (TASK-1278 preflight grows). **Cadence**: usage-audit done 10-24; memory-prune overdue. **Boundary note**: the driving session is at ~560k context — the next session should `/clear` into 1254 (everything needed is in this handoff + the specs + the tracker).
+> **Session handoff 2026-10-25 ~20:5xZ (Opus, anthropic-direct)**: **beta.239 SHIPPED** (below). doc-113 batch: 1252/1253/1254 shipped; **TASK-1255 = PR #2657** (override browser batch clear + shared batch-result helpers; rides beta.240, her call); 1256 (deny) unspecced. The GLM-era merges (#2644-#2654) got an Anthropic re-review: zero blocking, residue TASK-1291 + a TASK-1273 addition. Driver eval Mon 10-26 (Opus) / Tue 10-27 (Sonnet + Opus advisor): log in `docs/local/driver-eval-log.md`; this session idles clean before Tue so she can switch models.
 
-> **Version**: v3.0.0-beta.238 — "reasoning traces kept on memories" — SHIPPED 2026-10-18 19:04Z (release PR #2630 rebase-merged after her "cut now"; 1 PR / 1 runtime / 92 files / 20 commits; one additive migration premigrated by the owner; `main` = `develop` = `73fa2db45` post-finalize; tagged `latest`, beta.237 demoted). Holistic review: no blocking findings. Cut early on purpose: TASK-1230's backfill window shrinks daily. **Prod backfill done** 2026-10-18 (owner go): 1,734 written, re-run dry-run writable 0; TASK-1230 Done.
+> **Version**: v3.0.0-beta.239 — "multi-select batch actions" — SHIPPED 2026-10-25 20:43Z (release PR #2655 after her "cut now" + merge approval; rebase-merge refused at 154 commits → documented fast-forward of `main` to `f26f3c750`; finalize no-op; tagged `latest`, beta.238 demoted). 22 PRs / 13 runtime / 239 files; no migrations. Holistic review: no blocking findings (its `zaiHeadroomPercent` 75→90 fallback note went into the notes). Notes: `docs/local/release-notes-beta.239.md`.
 >
-> **Previous**: v3.0.0-beta.237 — "memory accuracy: summarizer v2, the render fallback" (7 PRs / 7 runtime / 190 files; 2026-10-17, `9b81d0bc0`).
+> **Previous**: v3.0.0-beta.238 — "reasoning traces kept on memories" (1 PR / 1 runtime / 92 files; 2026-10-18, `73fa2db45`).
+
+## 🧪 beta.239 watch (observability; one optional needs-smoke)
+
+- **Optional needs-smoke (owner):** one prod batch run, e.g. `/memory facts` → Select several → Lock 2 — confirm view and the result stack render. Status: not run.
+- **#2646 egress probe:** first prod boot logs the probe verdict in bot-client (ok/unavailable expected); an owner webhook alert only on a ≥300 s Retry-After 429.
+- **Advisories:** the 7 vite/@vitest/mocker default-branch alerts should close once GitHub rescans `main` (develop's lockfile resolves vite 8.3.4 / mocker 4.1.12); `pnpm ops security:advisories` still listed them right after the merge — re-check, then TASK-1278 Done.
+- **#2649 live:** dependabot opened #2656 (claude-code-action → main). Merge needs her explicit approval; after it: `release:finalize`, rebase open PRs, TASK-1233 Done once its CI is green.
 
 ## 🧪 beta.238 watch (observability only — no needs-smoke items)
 
@@ -40,33 +47,6 @@
 - **Leisure (unchanged, do not re-surface)**: the voice-harness blind review · the slice P 30-row spot check · TASK-104 · ~~TASK-133~~ (round trip DONE 2026-09-13 with the smoke pass) · card-level examples for Emily in her own register.
 - **Done 2026-09-13**: the Default `system_prompts` row edited on dev and prod (v1 then v2; long-form under doc-97 Phase 2) · `WEEKLY_AUDIT_GH_TOKEN` set (Dependabot row reads; deletion-safety row fixed by #2413) · `TZUROT_RAILWAY_API_TOKEN_DEV`/`_PROD` in the local `.env` (tooling reads them after the TASK-62 follow-up) · the TASK-798 prod measurement · the stale `.bashrc` OpenRouter key revoked · the Waffles Share-Memories question CLOSED by ruling (deal with it if it recurs) · the privacy-policy z.ai summaries bullet committed.
 - **Agent-run, no owner action**: the doc-17 gap-bucket cache read · the Emily gate and dead-row read · TASK-702 probe · TASK-62 env-suffixed token read · TASK-951 `.env.example` guard · TASK-838 cadence ledger then the doc-61 economy pass (ruled 2026-09-13, Opus lane) · the #2270 link-share watcher · the five `state:observable` watches TASK-952–956.
-
-## 🚢 2026-09-27 — beta.232 RELEASED (Opus 5.5; owner approved the cut and the merge ~06:50 EDT)
-
-**What**: #2544 (TASK-1074: undecodable audio gets a "couldn't read that audio format" reply; voice-engine 415, non-retryable) and #2545 (TASK-1112: a plain re-uploaded voice file, `video/webm` with no voice flag, is byte-sniffed and transcribed when it has no video track; three review rounds, no blockers), plus the getting-started guide fix. One holistic review body, no findings. **Smoke (needs-smoke tier, owner, on prod)**: (1) re-upload a Vencord voice message as a plain file; the character should answer the transcript. Failure signal: no `Plain WebM upload is audio-only; routing to STT` line in ai-worker. **Filed at the cut**: TASK-1116 (quoted/forwarded path), TASK-1120 (A/V fixtures), TASK-1121 and TASK-1123 (owner calls: filenames in logs, privacy wording), TASK-1122 (bulk card import). **Misses**: the published notes went out mangled by a sed whose delimiter appeared in the replacement, fixed within minutes with `gh release edit`; a filtered push and a self-matching pgrep that killed the tool shell (TASK-1115 filed).
-
-## 🚢 2026-09-25 — beta.230 RELEASED (Fable; owner ruled "cut now" ~10:20 EDT and approved the merge ~11:00 EDT; doc-97 slice 2 moves to beta.231 regardless of the TASK-1039 read)
-
-**Range at the cut**: 29 PRs, 19 runtime, 247 files, 117 commits; no migrations; version bumped on develop. Both backstops had fired; the plan's own criterion was met on the doc-72 half (PR A #2507, PR B #2509 merged) and the slice-2 half is deferred by ruling. Preflight clean: `guard:repo-settings` no deletion-safety findings, `security:advisories` none open, no dependabot PRs. #2534 (TASK-979, non-runtime) did NOT ride: its review carried one low-severity finding (`COMPACT_IDS_SHOWN` did not parameterize the display it names); the round-1 fix is committed as a fixup and lands after a rebase onto the released develop.
-
-**How it merged**: release PR #2535; the first CI run failed the always-loaded line budget (CURRENT.md at 123 lines / 32.9 KB), fixed by trimming three shipped-history sections (`af26f53d7`); both claude-review bodies (10:33 and 10:45 EDT) had no blocking findings, one non-blocking observation filed as a tracker task (the settings custom-id builder has no structural length guard). `gh pr merge --rebase` refused ("This branch can't be rebased"), so it went through the documented fast-forward; `main` = `develop` = `af26f53d7`, finalize a no-op; tag and GitHub Release published 15:0xZ, beta.229 demoted. **Cut step DONE**: `hook-posix-parse` re-added to the main ruleset live (13 required checks), `guard:repo-settings` clean with no WARNING; the snapshot refresh rides its own PR. **Deploy**: bot-client rebooted clean 15:06:14Z (shard ready, schedulers up, DM pre-warm started); voice-engine's Python 3.13 image finished startup 15:07:35Z; 0 error lines across bot-client, api-gateway and ai-worker in the first 20 minutes, positive-controlled by the boot lines in the same window.
-
-**Risk: medium.** No schema change. Runtime-unverified paths: voice-engine on Python 3.13 (#2505, TASK-1070's dev check still open), the mid-stream failure persistence (#2530, an error path nothing can smoke), cross-channel quote and forward rendering (#2529).
-
-**beta.230 smoke checklist (report pass/fail by number)**:
-
-1. ⏳ _needs-smoke_ (dev, before or after the cut — the owner's choice): the TASK-1070 dev check, one TTS reply and one voice message transcribed with NO STT key (the voice-engine path on Python 3.13).
-   - **Pass:** the audio plays and the transcription lands; the voice-engine logs show no import or codec error on the first request.
-   - **Why limited:** the docker-build-smoke proves the 3.13 image builds and the dev deploy proves boot; neither exercises a real STT/TTS call.
-2. ⏳ _needs-smoke_ (prod, after the deploy): open any settings dashboard, page through the index (the jump select and the concern pages), Reset page on one page, Reset all from the hub (doc-72, #2507 + #2509; the ≤100-char customId ratchet #2508 is exercised by the same walk).
-   - **Pass:** every page renders, the reset buttons ask for confirmation and clear the page or the hub, no `Invalid Form Body` in the bot-client logs.
-
-- **Agent-run (no owner action; observability instead of smoke)**:
-  - the first forwarded message with images and the first cross-channel quoted reply on prod after the deploy (#2528, #2529) — read the prompt block in the logs;
-  - the first mid-stream send failure on prod (#2530) — the persisted row carries the delivered chunks and the owner alert dedups on the partial's cause frames;
-  - ~~each service's first boot on the new deps (#2503, #2517) and the voice-engine's first boot on 3.13~~ OBSERVED clean 2026-09-25 15:06–15:08Z (bot-client and voice-engine boot lines read; api-gateway and ai-worker had 0 error lines in the same window);
-  - ~~**cut step after the merge**: re-add `hook-posix-parse` to the MAIN ruleset's required checks~~ DONE 2026-09-25 (live PUT, guard clean; snapshot refresh in its own PR);
-  - the next nightly db-sync run on the new build (the 07Z slot).
 
 ## 📋 Open items (near-term)
 
