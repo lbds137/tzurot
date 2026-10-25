@@ -8,18 +8,18 @@ Complete reference for every `/` command Tzurot exposes in Discord. For a high-l
 
 ## Characters & Personas
 
-| Command      | Subcommands                                      | Purpose                                                                                             |
-| ------------ | ------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| `/chat`      | _(top-level)_                                    | Chat one-on-one with a character                                                                    |
-| `/random`    | _(top-level)_                                    | Chat with a random character (optionally within a tag) — or have them read the room                 |
-| `/chime-in`  | _(top-level)_                                    | Summon a character — or a random sample of a tag's characters — to react to the recent conversation |
-| `/character` | `create` `edit` `view` `browse`                  | Manage AI characters                                                                                |
-|              | `import` `export` `template`                     | Character portability (JSON)                                                                        |
-|              | `avatar` (`set` `clear`) `voice` (`set` `clear`) | Per-character avatar image and voice cloning enrollment                                             |
-|              | `settings` `overrides`                           | Per-character config and personal overrides                                                         |
-|              | `alias browse` `alias add`                       | @mention aliases — personal (just you) or global tiers                                              |
-| `/persona`   | `view` `edit` `create` `browse` `default`        | User persona management                                                                             |
-|              | `override set` `override clear`                  | Per-character persona overrides                                                                     |
+| Command      | Subcommands                                      | Purpose                                                                                                      |
+| ------------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `/chat`      | _(top-level)_                                    | Chat one-on-one with a character                                                                             |
+| `/random`    | _(top-level)_                                    | Chat with a random character (optionally within a tag) — or have them read the room                          |
+| `/chime-in`  | _(top-level)_                                    | Summon a character — or a random sample of a tag's characters — to react to the recent conversation          |
+| `/character` | `create` `edit` `view` `browse`                  | Manage AI characters                                                                                         |
+|              | `import` `export` `template`                     | Character portability (JSON)                                                                                 |
+|              | `avatar` (`set` `clear`) `voice` (`set` `clear`) | Per-character avatar image and voice cloning enrollment                                                      |
+|              | `settings` `overrides`                           | Per-character config and personal overrides                                                                  |
+|              | `alias browse` `alias add`                       | @mention aliases — personal (just you) or global tiers; **Select several** in browse removes a batch at once |
+| `/persona`   | `view` `edit` `create` `browse` `default`        | User persona management                                                                                      |
+|              | `override set` `override clear`                  | Per-character persona overrides                                                                              |
 
 ## Voice Configuration
 
@@ -46,14 +46,14 @@ TTS + STT provider selection and cloned-voice library lifecycle. Per-character T
 
 ## Memory & History
 
-| Command    | Subcommands                                        | Purpose                                                                                                                                    |
-| ---------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `/memory`  | `browse` `search` `stats`                          | Browse and search long-term memories; a memory's detail view shows 🧠 **Reasoning** when the character's reasoning for that reply was kept |
-|            | `facts` (`tag`, query)                             | Browse/correct facts a character learned about you; `tag:` narrows to one entity tag (e.g. `commitment:promise`), `query` filters by text  |
-|            | `delete` `purge`                                   | Memory management operations                                                                                                               |
-|            | `fresh` (`enable` `disable` `status`)              | Fresh-start mode — replies stop using memories of you (they are kept)                                                                      |
-|            | `incognito` (`enable` `disable` `status` `forget`) | Privacy mode (no LTM writes)                                                                                                               |
-| `/history` | `clear` `stats` `undo` `purge` (`scope`)           | Conversation history management                                                                                                            |
+| Command    | Subcommands                                        | Purpose                                                                                                                                                                                         |
+| ---------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/memory`  | `browse` `search` `stats`                          | Browse and search long-term memories; a memory's detail view shows 🧠 **Reasoning** when the character's reasoning for that reply was kept; **Select several** locks or deletes a batch at once |
+|            | `facts` (`tag`, query)                             | Browse/correct facts a character learned about you; `tag:` narrows to one entity tag (e.g. `commitment:promise`), `query` filters by text; **Select several** locks or forgets a batch at once  |
+|            | `delete` `purge`                                   | Memory management operations                                                                                                                                                                    |
+|            | `fresh` (`enable` `disable` `status`)              | Fresh-start mode — replies stop using memories of you (they are kept)                                                                                                                           |
+|            | `incognito` (`enable` `disable` `status` `forget`) | Privacy mode (no LTM writes)                                                                                                                                                                    |
+| `/history` | `clear` `stats` `undo` `purge` (`scope`)           | Conversation history management                                                                                                                                                                 |
 
 > **`/history purge` scope**: deletes only your own conversation history with the character in that channel by default; `scope: Everyone's` deletes every user's, and needs the **Manage Messages** permission in that channel (or bot owner). Long-term memories derived from the deleted turns are retired too, with pinned memories kept.
 
