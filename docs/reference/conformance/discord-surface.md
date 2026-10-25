@@ -154,15 +154,28 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/character/alias.ts | escapeMarkdown | 2 |
 | services/bot-client/src/commands/character/alias.ts | getString | 4 |
 | services/bot-client/src/commands/character/alias.ts | options | 4 |
-| services/bot-client/src/commands/character/aliasBrowse.ts | addComponents | 1 |
+| services/bot-client/src/commands/character/aliasBatch.ts | customId | 3 |
+| services/bot-client/src/commands/character/aliasBatch.ts | escapeMarkdown | 1 |
+| services/bot-client/src/commands/character/aliasBatch.ts | message | 1 |
+| services/bot-client/src/commands/character/aliasBatch.ts | values | 1 |
+| services/bot-client/src/commands/character/aliasBatchConfirm.ts | customId | 1 |
+| services/bot-client/src/commands/character/aliasBatchConfirm.ts | deferred | 1 |
+| services/bot-client/src/commands/character/aliasBatchConfirm.ts | embeds | 1 |
+| services/bot-client/src/commands/character/aliasBatchConfirm.ts | escapeMarkdown | 1 |
+| services/bot-client/src/commands/character/aliasBatchConfirm.ts | footer | 1 |
+| services/bot-client/src/commands/character/aliasBatchConfirm.ts | message | 1 |
+| services/bot-client/src/commands/character/aliasBatchConfirm.ts | replied | 1 |
+| services/bot-client/src/commands/character/aliasBatchConfirm.ts | text | 1 |
 | services/bot-client/src/commands/character/aliasBrowse.ts | customId | 4 |
 | services/bot-client/src/commands/character/aliasBrowse.ts | embeds | 1 |
-| services/bot-client/src/commands/character/aliasBrowse.ts | escapeMarkdown | 6 |
+| services/bot-client/src/commands/character/aliasBrowse.ts | escapeMarkdown | 4 |
 | services/bot-client/src/commands/character/aliasBrowse.ts | footer | 1 |
 | services/bot-client/src/commands/character/aliasBrowse.ts | message | 1 |
 | services/bot-client/src/commands/character/aliasBrowse.ts | setFooter | 1 |
 | services/bot-client/src/commands/character/aliasBrowse.ts | text | 1 |
 | services/bot-client/src/commands/character/aliasBrowse.ts | values | 1 |
+| services/bot-client/src/commands/character/aliasBrowseView.ts | addComponents | 1 |
+| services/bot-client/src/commands/character/aliasBrowseView.ts | escapeMarkdown | 2 |
 | services/bot-client/src/commands/character/api.ts | displayName | 1 |
 | services/bot-client/src/commands/character/api.ts | escapeMarkdown | 1 |
 | services/bot-client/src/commands/character/api.ts | fetch | 1 |
@@ -2358,6 +2371,8 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/admin/settingsSystemUpdate.ts | followUp | 1 |
 | services/bot-client/src/commands/channel/autocomplete.ts | respond | 1 |
 | services/bot-client/src/commands/channel/browse.ts | editReply | 1 |
+| services/bot-client/src/commands/character/aliasBatch.ts | editReply | 2 |
+| services/bot-client/src/commands/character/aliasBatchConfirm.ts | editReply | 1 |
 | services/bot-client/src/commands/character/aliasBrowse.ts | editReply | 1 |
 | services/bot-client/src/commands/character/aliasBrowse.ts | followUp | 5 |
 | services/bot-client/src/commands/character/autocomplete.ts | respond | 1 |
@@ -2756,6 +2771,10 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/admin/settingsSystemUpdate.ts | flags | 1 |
 | services/bot-client/src/commands/channel/browse.ts | components | 1 |
 | services/bot-client/src/commands/channel/browse.ts | embeds | 1 |
+| services/bot-client/src/commands/character/aliasBatch.ts | components | 2 |
+| services/bot-client/src/commands/character/aliasBatch.ts | content | 1 |
+| services/bot-client/src/commands/character/aliasBatch.ts | embeds | 2 |
+| services/bot-client/src/commands/character/aliasBatchConfirm.ts | components | 1 |
 | services/bot-client/src/commands/character/aliasBrowse.ts | components | 1 |
 | services/bot-client/src/commands/character/aliasBrowse.ts | content | 6 |
 | services/bot-client/src/commands/character/aliasBrowse.ts | embeds | 1 |
@@ -3055,4 +3074,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 2985 entries across 6912 sites.
+Total: 3004 entries across 6935 sites.

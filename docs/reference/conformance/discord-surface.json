@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 2985,
-    "sites": 6912
+    "entries": 3004,
+    "sites": 6935
   },
   "entries": [
     {
@@ -846,8 +846,74 @@
     },
     {
       "category": "client-methods",
-      "file": "services/bot-client/src/commands/character/aliasBrowse.ts",
-      "symbol": "addComponents",
+      "file": "services/bot-client/src/commands/character/aliasBatch.ts",
+      "symbol": "customId",
+      "count": 3
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBatch.ts",
+      "symbol": "escapeMarkdown",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBatch.ts",
+      "symbol": "message",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBatch.ts",
+      "symbol": "values",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBatchConfirm.ts",
+      "symbol": "customId",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBatchConfirm.ts",
+      "symbol": "deferred",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBatchConfirm.ts",
+      "symbol": "embeds",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBatchConfirm.ts",
+      "symbol": "escapeMarkdown",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBatchConfirm.ts",
+      "symbol": "footer",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBatchConfirm.ts",
+      "symbol": "message",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBatchConfirm.ts",
+      "symbol": "replied",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBatchConfirm.ts",
+      "symbol": "text",
       "count": 1
     },
     {
@@ -866,7 +932,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/character/aliasBrowse.ts",
       "symbol": "escapeMarkdown",
-      "count": 6
+      "count": 4
     },
     {
       "category": "client-methods",
@@ -897,6 +963,18 @@
       "file": "services/bot-client/src/commands/character/aliasBrowse.ts",
       "symbol": "values",
       "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBrowseView.ts",
+      "symbol": "addComponents",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBrowseView.ts",
+      "symbol": "escapeMarkdown",
+      "count": 2
     },
     {
       "category": "client-methods",
@@ -13890,6 +13968,18 @@
     },
     {
       "category": "interaction-acks",
+      "file": "services/bot-client/src/commands/character/aliasBatch.ts",
+      "symbol": "editReply",
+      "count": 2
+    },
+    {
+      "category": "interaction-acks",
+      "file": "services/bot-client/src/commands/character/aliasBatchConfirm.ts",
+      "symbol": "editReply",
+      "count": 1
+    },
+    {
+      "category": "interaction-acks",
       "file": "services/bot-client/src/commands/character/aliasBrowse.ts",
       "symbol": "editReply",
       "count": 1
@@ -16214,6 +16304,30 @@
       "category": "message-options",
       "file": "services/bot-client/src/commands/channel/browse.ts",
       "symbol": "embeds",
+      "count": 1
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/commands/character/aliasBatch.ts",
+      "symbol": "components",
+      "count": 2
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/commands/character/aliasBatch.ts",
+      "symbol": "content",
+      "count": 1
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/commands/character/aliasBatch.ts",
+      "symbol": "embeds",
+      "count": 2
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/commands/character/aliasBatchConfirm.ts",
+      "symbol": "components",
       "count": 1
     },
     {

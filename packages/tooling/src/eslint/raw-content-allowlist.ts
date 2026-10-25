@@ -28,7 +28,9 @@ export const RAW_CONTENT_ALLOWLIST: Readonly<Record<string, number>> = {
   'services/bot-client/src/commands/channel/activate.ts': 2,
   'services/bot-client/src/commands/channel/browseHelpers.ts': 1,
   'services/bot-client/src/commands/channel/deactivate.ts': 4,
-  'services/bot-client/src/commands/character/aliasBrowse.ts': 2,
+  // Counts the shared CLEARED_RENDER_CONTENT marker's own empty-string
+  // declaration; its consumers import the binding and cost nothing.
+  'services/bot-client/src/commands/character/aliasBrowse.ts': 1,
   'services/bot-client/src/commands/character/avatar.ts': 2,
   'services/bot-client/src/commands/character/browseHelpers.ts': 1,
   'services/bot-client/src/commands/character/dashboardActions.ts': 10,

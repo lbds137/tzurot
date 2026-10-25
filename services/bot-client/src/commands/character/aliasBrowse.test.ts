@@ -169,6 +169,29 @@ describe('alias browse pilot', () => {
       expect(ids).toContain('character-alias::browse::0::mine::');
     });
 
+    it('renders the Select several toggle button when rows exist and omits it when empty', async () => {
+      const context = makeContext({ character: null });
+
+      await handleAliasBrowse(context);
+
+      const render = lastRender(vi.mocked(context.editReply));
+      expect(componentIds(render)).toContain('character-alias::batch-select::0::all::');
+      const allComponents = (render.components ?? []).flatMap(row => row.toJSON().components);
+      const toggleBtn = allComponents.find(
+        c => c.custom_id === 'character-alias::batch-select::0::all::'
+      );
+      expect(toggleBtn?.label).toBe('Select several');
+
+      mockUserClient.listMyAliases.mockResolvedValueOnce({
+        ok: true,
+        data: { aliases: [], truncated: false },
+      });
+      await handleAliasBrowse(context);
+
+      const emptyRender = lastRender(vi.mocked(context.editReply));
+      expect(componentIds(emptyRender).some(id => id.includes('batch-select'))).toBe(false);
+    });
+
     it('renders the designed empty state with the add CTA', async () => {
       mockUserClient.listMyAliases.mockResolvedValue({
         ok: true,

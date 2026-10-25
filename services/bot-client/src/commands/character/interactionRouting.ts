@@ -42,6 +42,15 @@ import {
   handleButton as handleDashboardButton,
 } from './dashboard.js';
 import { aliasComponentRouter, isCharacterAliasInteraction } from './aliasBrowse.js';
+import {
+  handleAliasBatchCancel,
+  handleAliasBatchPick,
+  handleAliasBatchSelectEntry,
+  isCharacterAliasBatchCancel,
+  isCharacterAliasBatchConfirm,
+  isCharacterAliasBatchSelect,
+} from './aliasBatch.js';
+import { handleAliasBatchConfirm } from './aliasBatchConfirm.js';
 
 const characterComponentRouter = createComponentRouter({
   routes: [
@@ -54,6 +63,20 @@ const characterComponentRouter = createComponentRouter({
     {
       matches: isCharacterBrowseInteraction,
       onButton: interaction => handleBrowsePagination(interaction, getConfig()),
+    },
+    // Alias batch remove routes precede the looser alias-family catch-all gate
+    {
+      matches: isCharacterAliasBatchSelect,
+      onButton: handleAliasBatchSelectEntry,
+      onSelect: handleAliasBatchPick,
+    },
+    {
+      matches: isCharacterAliasBatchConfirm,
+      onButton: handleAliasBatchConfirm,
+    },
+    {
+      matches: isCharacterAliasBatchCancel,
+      onButton: handleAliasBatchCancel,
     },
     // Alias browse surface (its own declarative sub-router)
     {
