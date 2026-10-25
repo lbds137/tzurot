@@ -15,6 +15,11 @@ import {
   handleOverrideBrowseButton,
   createOverrideBrowseCustomIds,
 } from '../../../utils/overrideBrowse.js';
+import {
+  handleOverrideBatchButton,
+  handleOverrideBatchPick,
+  isOverrideBatchButton,
+} from '../../../utils/overrideBrowseBatch.js';
 
 const logger = createLogger('preset-override-browse');
 
@@ -67,12 +72,18 @@ export function handlePresetBrowse(context: DeferredCommandContext): Promise<voi
   return handleOverrideBrowse(presetOverrideConfig, context);
 }
 
-/** Handle preset-override select-menu (select → confirm clear). */
+/** Handle preset-override select-menu (single select → confirm clear; batch-select → batch confirm). */
 export function handlePresetBrowseSelect(interaction: StringSelectMenuInteraction): Promise<void> {
+  if (interaction.customId === presetOverrideIds.batchSelect) {
+    return handleOverrideBatchPick(presetOverrideConfig, interaction);
+  }
   return handleOverrideBrowseSelect(presetOverrideConfig, interaction);
 }
 
-/** Handle preset-override confirm/cancel buttons. */
+/** Handle preset-override buttons (single confirm/cancel + batch toggle/confirm/cancel). */
 export function handlePresetBrowseButton(interaction: ButtonInteraction): Promise<void> {
+  if (isOverrideBatchButton(presetOverrideIds, interaction.customId)) {
+    return handleOverrideBatchButton(presetOverrideConfig, interaction);
+  }
   return handleOverrideBrowseButton(presetOverrideConfig, interaction);
 }

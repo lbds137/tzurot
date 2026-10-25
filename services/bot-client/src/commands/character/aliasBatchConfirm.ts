@@ -8,17 +8,20 @@
  */
 
 import { escapeMarkdown, type ButtonInteraction } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import type { AliasScope } from '@tzurot/common-types/schemas/api/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { truncateForSelect } from '../../utils/browse/truncation.js';
 import {
+  ALREADY_GONE_NOTE,
+  batchResultColor,
   buildBatchResultEmbed,
   deliverBatchReport,
   runBatchSequentially,
+  formatBatchCountsLine,
   formatBatchItemLines,
+  toBatchOutcomeLine,
   PAGE_FETCH_FAILED_COPY,
   type BatchItemResult,
   type BatchResultLine,
@@ -45,7 +48,6 @@ import {
 
 const logger = createLogger('character-alias-batch');
 
-const ALREADY_GONE_NOTE = 'already gone';
 const UNKNOWN_ERROR = 'Unknown';
 
 /** Outcome of one single-alias removal call inside the batch loop. */
@@ -232,18 +234,10 @@ function buildAliasBatchResultLines(
     results.map(result => {
       const item = resolvedMap.get(result.id);
       const label = formatDisplayLabel(item?.label ?? fallbackAliasLabel(result.id));
-      if (!result.ok) {
-        const reason =
-          result.error instanceof Error && result.error.message.length > 0
-            ? result.error.message
-            : aliasFailureSpec(500, UNKNOWN_ERROR).text;
-        return [result.id, { label, status: 'failed', note: reason }];
-      }
-      const line: BatchResultLine =
-        result.value === 'success'
-          ? { label, status: 'success' }
-          : { label, status: 'gone', note: ALREADY_GONE_NOTE };
-      return [result.id, line];
+      return [
+        result.id,
+        toBatchOutcomeLine(result, label, aliasFailureSpec(500, UNKNOWN_ERROR).text),
+      ];
     })
   );
 
@@ -276,16 +270,11 @@ async function deliverAliasBatchResult(
   const { succeeded, gone, failed } = counts;
   const resultEmbed = buildBatchResultEmbed({
     title: '🗑️ Remove Aliases Results',
-    color:
-      failed > 0
-        ? DISCORD_COLORS.ERROR
-        : succeeded === 0
-          ? DISCORD_COLORS.WARNING
-          : DISCORD_COLORS.SUCCESS,
+    color: batchResultColor({ succeeded, failed }),
     lines: formatBatchItemLines(lines),
   });
 
-  const countsLine = `Batch finished: ${succeeded} succeeded, ${gone} already gone, ${failed} failed.`;
+  const countsLine = formatBatchCountsLine({ succeeded, gone, failed });
   const viewPromise = buildRefreshedAliasView(userClient, coords).catch((error: unknown): null => {
     logger.warn({ err: error }, 'Refreshed alias view failed; reporting the batch result alone');
     return null;
@@ -327,8 +316,19 @@ export async function handleAliasBatchConfirm(interaction: ButtonInteraction): P
     return;
   }
 
-  const { userClient } = clientsFor(interaction);
-  await interaction.editReply({ components: [] });
+  let userClient: UserClient;
+  try {
+    ({ userClient } = clientsFor(interaction));
+    await interaction.editReply({ components: [] });
+  } catch (error) {
+    // Nothing has been removed yet on this path, so a plain failure notice is safe.
+    logger.error(
+      { err: error, userId: interaction.user.id },
+      'Error preparing alias batch confirm'
+    );
+    await followUpSpec(interaction, CATALOG.error.transient(PAGE_FETCH_FAILED_COPY));
+    return;
+  }
 
   const fetched = await fetchAliasRows(userClient, coords.query);
   if (!fetched.ok) {

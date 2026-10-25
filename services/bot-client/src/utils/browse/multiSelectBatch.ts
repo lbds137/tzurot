@@ -31,6 +31,7 @@ import {
   type Message,
   type StringSelectMenuBuilder,
 } from 'discord.js';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { buildConfirmAction } from '../confirmation/confirmAction.js';
 import { clampEmbedText } from '../embedLimits.js';
@@ -333,6 +334,52 @@ export function formatBatchItemLines(lines: readonly BatchResultLine[]): string[
       ? `${glyph} ${line.label} — ${line.note}`
       : `${glyph} ${line.label}`;
   });
+}
+
+/** Result-line note for an item that was already absent when its removal ran. */
+export const ALREADY_GONE_NOTE = 'already gone';
+
+/**
+ * Map one item's `'success' | 'already-gone'` batch outcome to its result line:
+ * a thrown op becomes a failed line (the error's message when it is a
+ * non-empty `Error`, else `failureFallback`), a resolved op a success line or
+ * an "already gone" line.
+ */
+export function toBatchOutcomeLine(
+  result: BatchItemResult<'success' | 'already-gone'>,
+  label: string,
+  failureFallback: string
+): BatchResultLine {
+  if (!result.ok) {
+    const reason =
+      result.error instanceof Error && result.error.message.length > 0
+        ? result.error.message
+        : failureFallback;
+    return { label, status: 'failed', note: reason };
+  }
+  return result.value === 'success'
+    ? { label, status: 'success' }
+    : { label, status: 'gone', note: ALREADY_GONE_NOTE };
+}
+
+/**
+ * Result-embed colour for a finished batch: red for any real failure, warning
+ * amber when nothing succeeded, green otherwise.
+ */
+export function batchResultColor(counts: { succeeded: number; failed: number }): number {
+  if (counts.failed > 0) {
+    return DISCORD_COLORS.ERROR;
+  }
+  return counts.succeeded === 0 ? DISCORD_COLORS.WARNING : DISCORD_COLORS.SUCCESS;
+}
+
+/** The counts copy for a batch with no locked term (the last-resort followUp text). */
+export function formatBatchCountsLine(counts: {
+  succeeded: number;
+  gone: number;
+  failed: number;
+}): string {
+  return `Batch finished: ${counts.succeeded} succeeded, ${counts.gone} already gone, ${counts.failed} failed.`;
 }
 
 /** A refreshed list view for the batch report stack (embed + action rows). */

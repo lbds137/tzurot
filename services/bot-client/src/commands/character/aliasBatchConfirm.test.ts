@@ -275,6 +275,23 @@ describe('C1 — handleAliasBatchConfirm (partial failure & already-gone named, 
     );
     expect(mockUserClient.removePersonalityAlias).not.toHaveBeenCalled();
   });
+
+  it('refuses with transient copy and makes no fetch or removal call when stripping the confirm components throws', async () => {
+    const interaction = createButtonInteraction({
+      footerText: encodeAliasBatchFooterIds(['user:mommy']),
+    });
+    vi.mocked(interaction.editReply).mockRejectedValueOnce(new Error('strip failed'));
+
+    await handleAliasBatchConfirm(interaction);
+
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining("Couldn't load that page"),
+      })
+    );
+    expect(mockUserClient.listMyAliases).not.toHaveBeenCalled();
+    expect(mockUserClient.removePersonalityAlias).not.toHaveBeenCalled();
+  });
 });
 
 describe('C5 — no prefix deletes on truncated keys when a row misses post-pick fetch', () => {
