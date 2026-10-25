@@ -1,9 +1,10 @@
 ---
 id: TASK-1253
 title: 'Memory browse/search: delete or lock several hand-picked memories'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 03:41'
+updated_date: '2026-10-25 02:13'
 labels:
   - 'area:bot-client'
   - 'size:M'
