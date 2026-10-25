@@ -18,5 +18,7 @@ ordinal: 1268000
 <!-- SECTION:DESCRIPTION:BEGIN -->
 PR 2652 round-7 finding: refreshFactsList returns without replying when buildRefreshedFactsView is null, so a Cancel tap on the batch multi-select or confirm view does nothing visible and the message stays in batch mode. back already behaves this way; the batch buttons add two more paths through it. Fix: send the FACTS_SESSION_EXPIRED followUp in the null case (covers all three buttons). Size S, facts-family, one file.
 
-Shared-flow hardening siblings (drift-proof labels, second-tap guard, maxValues clamp, warning-first clamp, 6000 JSDoc, transient-copy const) are riders on the TASK-1253 spec, not this task.
+PR 2653 round-3 scope addition: the null case covers BOTH a gone session AND a live session whose refresh fetch failed — the fix should send the expiry copy for the former and the transient copy (PAGE_FETCH_FAILED_COPY) for the latter, matching the memory flow's batch-cancel shape (interactionHandlers.ts batch-cancel branch, landed in #2653).
+
+Shared-flow hardening siblings (drift-proof labels, second-tap guard, maxValues clamp, warning-first clamp, 6000 JSDoc, transient-copy const, confirm-refusal copy unification) are riders on the TASK-1253 spec, not this task.
 <!-- SECTION:DESCRIPTION:END -->
