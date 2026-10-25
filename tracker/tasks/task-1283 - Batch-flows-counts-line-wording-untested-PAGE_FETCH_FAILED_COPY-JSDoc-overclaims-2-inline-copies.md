@@ -3,9 +3,10 @@ id: TASK-1283
 title: >-
   Batch flows: counts-line wording untested + PAGE_FETCH_FAILED_COPY JSDoc
   overclaims + 2 inline copies
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-25 02:11'
+updated_date: '2026-10-25 18:30'
 labels:
   - 'area:bot-client'
   - 'size:S'

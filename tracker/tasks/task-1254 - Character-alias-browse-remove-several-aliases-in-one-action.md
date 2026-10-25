@@ -1,9 +1,10 @@
 ---
 id: TASK-1254
 title: 'Character alias browse: remove several aliases in one action'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 03:41'
+updated_date: '2026-10-25 18:30'
 labels:
   - 'area:bot-client'
   - 'size:M'
