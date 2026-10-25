@@ -1,9 +1,10 @@
 ---
 id: TASK-1255
 title: 'Override browse: clear several preset or TTS overrides in one action'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 03:41'
+updated_date: '2026-10-25 22:38'
 labels:
   - 'area:bot-client'
   - 'size:M'
