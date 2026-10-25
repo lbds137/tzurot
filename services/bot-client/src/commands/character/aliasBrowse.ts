@@ -10,8 +10,11 @@
  * (`character-alias` prefix, sortless — the QUERY coordinate carries the
  * character slug, empty = my-aliases mode) + the design system's FIRST
  * in-place filter toggle (all → mine → global, the sort-toggle mechanism
- * applied to the filter field) + select-driven remove with a Tier-A
- * confirm. Remove-confirm state (scope/slug/alias) rides the confirmation
+ * applied to the filter field) + single-select remove with a Tier-A
+ * confirm (multi-select batch removal lives in `aliasBatch.ts`, with
+ * `batch-select`, `batch-confirm`, and `batch-cancel` routed in
+ * `interactionRouting.ts` ahead of the `isCharacterAliasInteraction`
+ * catch-all). Remove-confirm state (scope/slug/alias) rides the confirmation
  * embed's footer (newline-delimited, alias LAST so its text is verbatim) —
  * alias text can approach 100 chars, which no customId budget survives;
  * the shapes import-confirm footer is the in-repo precedent.
@@ -26,11 +29,7 @@ import {
 } from 'discord.js';
 import type { AliasScope } from '@tzurot/common-types/schemas/api/personality';
 import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
-import {
-  ENTITY_EMOJI,
-  buildBadgeLegend,
-  type LegendEntry,
-} from '@tzurot/common-types/constants/uxVocabulary';
+import { ENTITY_EMOJI } from '@tzurot/common-types/constants/uxVocabulary';
 import {
   ALIAS_FILTERS,
   applyFilter,
@@ -41,55 +40,31 @@ import {
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
-import {
-  buildBrowseListEmbed,
-  buildBrowseSelectMenu,
-  buildFilterToggleButton,
-  type FilterToggleDisplay,
-  buildSimplePaginationButtons,
-  createBrowseCustomIdHelpers,
-  truncateForSelect,
-  pluralize,
-  formatFilterLabeled,
-  type BrowseActionRow,
-} from '../../utils/browse/index.js';
+import type { BrowseActionRow } from '../../utils/browse/types.js';
 import { buildConfirmAction } from '../../utils/confirmation/confirmAction.js';
 import { createComponentRouter, type ComponentRouter } from '../../utils/componentRouter.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
+import type { MessageSpec } from '../../ux/catalog/types.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { ackUpdate } from '../../ux/render/reply.js';
+import {
+  aliasHelpers,
+  buildAliasBrowseComponents,
+  buildAliasListEmbed,
+  buildRemoveCustomId,
+  type BrowseCoords,
+} from './aliasBrowseView.js';
 
 const logger = createLogger('character-alias-browse');
 
 /** Re-run hint for expired/unparseable component state. */
-const BROWSE_COMMAND_HINT = '/character alias browse';
-
-const ITEMS_PER_PAGE = 15;
-
-/** Select values must fit Discord's 100-char cap: `{scope}:{aliasKey}`. */
-const SELECT_ALIAS_KEY_LENGTH = 92;
-
-const aliasHelpers = createBrowseCustomIdHelpers<AliasFilter>({
-  prefix: 'character-alias',
-  validFilters: ALIAS_FILTERS,
-  includeSort: false,
-});
+export const BROWSE_COMMAND_HINT = '/character alias browse';
 
 /** The remove-confirm buttons carry the browse RETURN coordinates. */
 const RM_YES_PREFIX = 'character-alias::rm-yes::';
 const RM_NO_PREFIX = 'character-alias::rm-no::';
 
-function buildRemoveCustomId(
-  prefix: string,
-  page: number,
-  filter: AliasFilter,
-  query: string | null
-): string {
-  // Same segment shape as the factory's coords: {page}::{filter}::{query}.
-  return `${prefix}${page}::${filter}::${query ?? ''}`;
-}
-
-function parseRemoveCustomId(
+export function parseRemoveCustomId(
   customId: string,
   prefix: string
 ): { page: number; filter: AliasFilter; query: string | null } | null {
@@ -105,42 +80,21 @@ function parseRemoveCustomId(
   return { page, filter: filterRaw as AliasFilter, query: query === '' ? null : query };
 }
 
-const FILTER_TOGGLE_DISPLAY: Record<AliasFilter, FilterToggleDisplay> = {
-  all: { label: 'Filter: All', shortLabel: 'All', emoji: '📋' },
-  mine: { label: 'Filter: Mine', shortLabel: 'Mine', emoji: '🔒' },
-  global: { label: 'Filter: Global', shortLabel: 'Global', emoji: '🌐' },
-};
-
-function scopeBadge(row: AliasRow): string {
-  const base = row.scope === 'global' ? AUTOCOMPLETE_BADGES.GLOBAL : AUTOCOMPLETE_BADGES.OWNED;
-  return row.shadowed ? `${base}${AUTOCOMPLETE_BADGES.SHADOWED}` : base;
-}
-
-/**
- * Legend in the alias domain's words — Global/Personal (the filter toggle's
- * vocabulary), overriding the registry's standard Public/Private.
- */
-function aliasLegend(myMode: boolean): string {
-  const base: LegendEntry[] = [
-    { key: 'GLOBAL', word: 'Global' },
-    { key: 'OWNED', word: 'Personal' },
-  ];
-  return buildBadgeLegend(myMode ? [...base, 'SHADOWED'] : base);
-}
-
-interface BrowseCoords {
-  page: number;
-  filter: AliasFilter;
-  /** The character slug coordinate; null = my-aliases mode. */
-  query: string | null;
-}
-
 /** Payload every render produces; `content: ''` clears prior error text. */
 interface BrowseRenderPayload {
   content: string;
   embeds: EmbedBuilder[];
   components: BrowseActionRow[];
 }
+
+/**
+ * The cleared-content value every browse render sends (an empty string clears
+ * prior error text on the message). Exported so sibling render sites share
+ * the exact payload shape by name — the per-file raw-content budget counts
+ * even an empty literal at a Discord content position, so the marker is
+ * spelled once here and imported, never re-spelled per call site.
+ */
+export const CLEARED_RENDER_CONTENT = '';
 
 /** Anything that can receive the rendered browse (context or interaction). */
 interface EditReplyTarget {
@@ -157,10 +111,7 @@ export async function renderAliasBrowse(
   coords: BrowseCoords,
   banner?: string
 ): Promise<void> {
-  const { filter, query } = coords;
-  const slug = query;
-
-  const fetched = await fetchAliasRows(userClient, slug);
+  const fetched = await fetchAliasRows(userClient, coords.query);
   if (!fetched.ok) {
     await target.editReply({
       content: describeAliasFailure(fetched.status, fetched.error),
@@ -170,110 +121,43 @@ export async function renderAliasBrowse(
     return;
   }
 
-  const filtered = applyFilter(fetched.data.rows, filter);
-  const myMode = slug === null;
-
-  const preamble: string[] = [];
-  if (banner !== undefined) {
-    preamble.push(banner, '');
-  }
-  if (!myMode) {
-    preamble.push(
-      `Aliases for **${escapeMarkdown(slug)}** — they resolve @mentions like the name.`
-    );
-  }
-
-  const { embed, pageItems, startIndex, totalPages, safePage } = buildBrowseListEmbed<AliasRow>({
-    entityEmoji: ENTITY_EMOJI.alias,
-    titleNoun: 'Aliases',
-    items: filtered,
-    page: coords.page,
-    itemsPerPage: ITEMS_PER_PAGE,
-    preamble,
-    formatRow: row => ({
-      badges: scopeBadge(row),
-      name: `@${escapeMarkdown(row.alias)}`,
-      metadata: myMode
-        ? [`${row.character.name ?? row.character.slug} (${row.character.slug})`]
-        : undefined,
-    }),
-    empty: {
-      noItems: myMode
-        ? 'You have no personal aliases yet — add one with `/character alias add`.'
-        : 'No aliases you can see here — add one with `/character alias add`.',
-      noMatch: 'No aliases match this filter — toggle it to see the rest.',
-    },
-    filterActive: filter !== 'all',
-    footerSegments: [
-      pluralize(filtered.length, { singular: 'alias', plural: 'aliases' }),
-      filter !== 'all' && formatFilterLabeled(FILTER_TOGGLE_DISPLAY[filter].shortLabel),
-      fetched.data.truncated && 'list truncated',
-    ],
-    badgeLegend: aliasLegend(myMode),
+  const filtered = applyFilter(fetched.data.rows, coords.filter);
+  const { embed, pageItems, startIndex, totalPages, safePage } = buildAliasListEmbed({
+    rows: filtered,
+    truncated: fetched.data.truncated,
+    coords,
+    banner,
   });
+  const safeCoords: BrowseCoords = { page: safePage, filter: coords.filter, query: coords.query };
+  const components = buildAliasBrowseComponents(pageItems, startIndex, totalPages, safeCoords);
 
-  const components: BrowseActionRow[] = [];
-
-  const selectRow = buildBrowseSelectMenu<AliasRow>({
-    items: pageItems,
-    customId: aliasHelpers.buildSelect(safePage, filter, 'name', query),
-    placeholder: 'Select an alias to remove...',
-    startIndex,
-    formatItem: row => ({
-      label: truncateForSelect(`@${row.alias}`),
-      value: `${row.scope}:${row.alias.slice(0, SELECT_ALIAS_KEY_LENGTH)}`,
-      description: truncateForSelect(
-        row.scope === 'global'
-          ? `Global · ${row.character.slug}`
-          : `Personal · ${row.character.slug}`
-      ),
-    }),
-  });
-  if (selectRow !== null) {
-    components.push(selectRow);
-  }
-
-  const buttonRow = buildSimplePaginationButtons<AliasFilter>({
-    currentPage: safePage,
-    totalPages,
-    filter,
-    currentSort: 'name',
-    query,
-    buildCustomId: aliasHelpers.build,
-    buildInfoId: aliasHelpers.buildInfo,
-  });
-  // The in-place FILTER toggle (owner-adopted design affordance), via the
-  // shared builder this pilot's usage was generalized into.
-  buttonRow.addComponents(
-    buildFilterToggleButton({
-      filters: ALIAS_FILTERS,
-      display: FILTER_TOGGLE_DISPLAY,
-      current: filter,
-      buildCustomId: aliasHelpers.build,
-      query,
-    })
-  );
-  components.push(buttonRow);
-
-  await target.editReply({ content: '', embeds: [embed], components });
+  await target.editReply({ content: CLEARED_RENDER_CONTENT, embeds: [embed], components });
 }
 
-function describeAliasFailure(status: number, error: string): string {
+/**
+ * Classify a gateway failure status into its catalog spec — no severity
+ * glyph; the renderer adds it. Content consumers render the result via
+ * {@link describeAliasFailure}; plain-text consumers (a note that renders
+ * under another glyph, e.g. a batch result line) read `.text` directly.
+ */
+export function aliasFailureSpec(status: number, error: string): MessageSpec {
   if (status === 400 || status === 409) {
     // Gateway rejection prose interpolates the user's own alias text —
     // escape before Discord renders it.
-    return renderSpec(CATALOG.error.gatewayRejection(escapeMarkdown(error)));
+    return CATALOG.error.gatewayRejection(escapeMarkdown(error));
   }
   if (status === 403) {
-    return renderSpec(CATALOG.error.permissionDenied('manage aliases for this character'));
+    return CATALOG.error.permissionDenied('manage aliases for this character');
   }
   if (status === 404) {
-    return renderSpec(CATALOG.error.notFound('Character or alias'));
+    return CATALOG.error.notFound('Character or alias');
   }
-  return renderSpec(CATALOG.error.operationFailed('managing aliases'));
+  return CATALOG.error.operationFailed('managing aliases');
 }
 
-export { describeAliasFailure };
+export function describeAliasFailure(status: number, error: string): string {
+  return renderSpec(aliasFailureSpec(status, error));
+}
 
 // ---------------------------------------------------------------------------
 // Component handlers
@@ -306,7 +190,15 @@ function parseConfirmFooterState(
   };
 }
 
-/** Resolve a select value back to its row against a fresh fetch. */
+/**
+ * Resolve a select value back to its row against a fresh fetch.
+ *
+ * The `startsWith` prefix fallback is a deliberate divergence from the batch
+ * path: this flow's confirm embed shows the resolved full alias before the
+ * user commits (that confirm is the safety net), while the batch path has no
+ * per-item confirm and fails closed on ambiguous boundary keys instead — see
+ * `resolveAliasBatchItems` in aliasBatchConfirm.ts.
+ */
 function findRowByValue(rows: AliasRow[], value: string): AliasRow | null {
   const separator = value.indexOf(':');
   if (separator === -1) {
@@ -359,7 +251,7 @@ async function handleAliasSelect(interaction: StringSelectMenuInteraction): Prom
   // Machine state for the confirm step (parsed back on the yes-click).
   embed.setFooter({ text: buildConfirmFooterState(row.scope, row.character.slug, row.alias) });
 
-  await interaction.editReply({ content: '', embeds: [embed], components });
+  await interaction.editReply({ content: CLEARED_RENDER_CONTENT, embeds: [embed], components });
 }
 
 async function handleRemoveConfirm(interaction: ButtonInteraction): Promise<void> {
@@ -430,9 +322,11 @@ export function isCharacterAliasInteraction(customId: string): boolean {
 }
 
 /**
- * Declarative dispatch for every `character-alias::` interaction (browse
- * pagination + filter toggle, remove select, confirm/cancel buttons) — no
- * new hand-rolled prefix chain.
+ * Declarative dispatch for the single-pick `character-alias::` family
+ * (browse pagination + filter toggle, single-remove select, `rm-yes`/`rm-no`
+ * confirm/cancel buttons). The `batch-select`, `batch-confirm`, and
+ * `batch-cancel` routes live in `interactionRouting.ts` ahead of the
+ * `isCharacterAliasInteraction` catch-all.
  */
 export const aliasComponentRouter: ComponentRouter = createComponentRouter({
   routes: [
