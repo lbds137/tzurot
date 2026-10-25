@@ -6,12 +6,12 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-25 03:01'
-updated_date: '2026-10-25 03:44'
+updated_date: '2026-10-25 19:04'
 labels:
   - 'area:bot-client'
   - 'area:ai-worker'
   - 'size:M'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 1272000
@@ -26,8 +26,7 @@ Mapped architecture (code-read, 2026-10-25): ProviderRouter auto-promotes OpenRo
 
 Acceptance: trace which routing paths set which flags for the coding-plan->OpenRouter case (promotion-failure swap, quota-gate upfront route, keyed vs free user); decide per path whether the footer should annotate (a paid downgrade is cost-bearing - the argument for yes is the same one that built the existing two signals); implement the missing flag(s)/footer copy; add the swap-mutation test. If silent-by-design wins for some path, document it in the footer-builder docstring.
 
-Owner question: footer ruling on the path-1 fallthrough - annotate turns with "(no coding plan key)" (via OpenRouter suffix), or close as by-design with a docstring note?
-Recommendation: annotate - the suffix names the user's own credential state (the thing their "why did this bill me" question is about), and the per-turn-noise cost is bounded by the fallthrough population itself (0 turns in the 15h prod window).
+Owner ruling (Lila, 2026-10-25): ANNOTATE. Path-1 fallthrough turns render the via-OpenRouter footer with a "(no coding plan key)" suffix; the fix carries fallthroughTriggered into result metadata so the sender can see it. Why: the suffix names the user's own credential state (the thing their "why did this bill me" question is about), and the per-turn-noise cost is bounded by the fallthrough population itself (0 turns in the 15h prod window).
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Trace findings (2026-10-25, owner-authorized prod-log pull)
