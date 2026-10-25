@@ -1,9 +1,10 @@
 ---
 id: TASK-1233
 title: Route claude-code-action dependabot bumps past the develop guard
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-16 04:11'
+updated_date: '2026-10-25 22:40'
 labels:
   - 'area:ci'
   - 'size:S'
