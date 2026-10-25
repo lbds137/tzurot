@@ -22,12 +22,12 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { GatewayClientError, type UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { buildBrowseSelectMenu } from '../../utils/browse/selectMenuBuilder.js';
 import {
+  batchResultColor,
   buildBatchModeRows,
   buildBatchConfirmView,
   buildBatchResultEmbed,
@@ -270,12 +270,7 @@ async function deliverBatchResult(
   const { succeeded, gone, failed, locked } = counts;
   const resultEmbed = buildBatchResultEmbed({
     title: verb === 'forget' ? '🗑️ Forget Results' : '🔐 Lock Results',
-    color:
-      failed > 0
-        ? DISCORD_COLORS.ERROR
-        : succeeded === 0
-          ? DISCORD_COLORS.WARNING
-          : DISCORD_COLORS.SUCCESS,
+    color: batchResultColor({ succeeded, failed }),
     lines: formatBatchItemLines(lines),
   });
 

@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 3004,
-    "sites": 6935
+    "entries": 3028,
+    "sites": 6990
   },
   "entries": [
     {
@@ -901,6 +901,12 @@
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/character/aliasBatchConfirm.ts",
+      "symbol": "id",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBatchConfirm.ts",
       "symbol": "message",
       "count": 1
     },
@@ -914,6 +920,12 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/character/aliasBatchConfirm.ts",
       "symbol": "text",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBatchConfirm.ts",
+      "symbol": "user",
       "count": 1
     },
     {
@@ -4194,6 +4206,12 @@
     },
     {
       "category": "client-methods",
+      "file": "services/bot-client/src/commands/preset/override/browse.ts",
+      "symbol": "customId",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
       "file": "services/bot-client/src/commands/preset/override/clear.ts",
       "symbol": "id",
       "count": 1
@@ -5421,6 +5439,12 @@
       "file": "services/bot-client/src/commands/voice/tts/autocomplete.ts",
       "symbol": "value",
       "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/voice/tts/browse.ts",
+      "symbol": "customId",
+      "count": 2
     },
     {
       "category": "client-methods",
@@ -11124,6 +11148,78 @@
     },
     {
       "category": "client-methods",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "customId",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "deferred",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "description",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "embeds",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "escapeMarkdown",
+      "count": 3
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "footer",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "id",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "message",
+      "count": 3
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "replied",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "text",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "user",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "values",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
       "file": "services/bot-client/src/utils/ownerChannel.ts",
       "symbol": "channels",
       "count": 1
@@ -13806,6 +13902,12 @@
     },
     {
       "category": "flags",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "MessageFlags.Ephemeral",
+      "count": 1
+    },
+    {
+      "category": "flags",
       "file": "services/bot-client/src/utils/permissions.ts",
       "symbol": "MessageFlags.Ephemeral",
       "count": 2
@@ -14985,6 +15087,18 @@
       "file": "services/bot-client/src/utils/overrideBrowse.ts",
       "symbol": "editReply",
       "count": 8
+    },
+    {
+      "category": "interaction-acks",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "editReply",
+      "count": 7
+    },
+    {
+      "category": "interaction-acks",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "followUp",
+      "count": 1
     },
     {
       "category": "interaction-acks",
@@ -17694,6 +17808,30 @@
     },
     {
       "category": "message-options",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "components",
+      "count": 6
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "content",
+      "count": 7
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "embeds",
+      "count": 5
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "flags",
+      "count": 1
+    },
+    {
+      "category": "message-options",
       "file": "services/bot-client/src/utils/ownerChannel.ts",
       "symbol": "allowedMentions",
       "count": 1
@@ -17985,6 +18123,12 @@
       "file": "services/bot-client/src/utils/overrideBrowse.ts",
       "symbol": "*",
       "count": 2
+    },
+    {
+      "category": "unclassified",
+      "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
+      "symbol": "*",
+      "count": 1
     },
     {
       "category": "webhook-options",

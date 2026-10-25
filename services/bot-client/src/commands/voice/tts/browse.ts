@@ -19,6 +19,11 @@ import {
   handleOverrideBrowseButton,
   createOverrideBrowseCustomIds,
 } from '../../../utils/overrideBrowse.js';
+import {
+  handleOverrideBatchButton,
+  handleOverrideBatchPick,
+  isOverrideBatchButton,
+} from '../../../utils/overrideBrowseBatch.js';
 
 const logger = createLogger('voice-tts-browse');
 
@@ -64,12 +69,18 @@ export function handleTtsBrowse(context: DeferredCommandContext): Promise<void> 
   return handleOverrideBrowse(ttsOverrideConfig, context);
 }
 
-/** Handle TTS-override select-menu (select → confirm clear). */
+/** Handle TTS-override select-menu (single select → confirm clear; batch-select → batch confirm). */
 export function handleTtsBrowseSelect(interaction: StringSelectMenuInteraction): Promise<void> {
+  if (interaction.customId === ttsOverrideIds.batchSelect) {
+    return handleOverrideBatchPick(ttsOverrideConfig, interaction);
+  }
   return handleOverrideBrowseSelect(ttsOverrideConfig, interaction);
 }
 
-/** Handle TTS-override confirm/cancel buttons. */
+/** Handle TTS-override buttons (single confirm/cancel + batch toggle/confirm/cancel). */
 export function handleTtsBrowseButton(interaction: ButtonInteraction): Promise<void> {
+  if (isOverrideBatchButton(ttsOverrideIds, interaction.customId)) {
+    return handleOverrideBatchButton(ttsOverrideConfig, interaction);
+  }
   return handleOverrideBrowseButton(ttsOverrideConfig, interaction);
 }

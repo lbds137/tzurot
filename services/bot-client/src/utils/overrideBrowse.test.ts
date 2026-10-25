@@ -70,9 +70,12 @@ beforeEach(() => {
 describe('createOverrideBrowseCustomIds', () => {
   const ids = createOverrideBrowseCustomIds(PREFIX);
 
-  it('builds select / cancel / clear ids', () => {
+  it('builds select / cancel / clear / batch ids', () => {
     expect(ids.select).toBe('test-override::select');
     expect(ids.cancel).toBe('test-override::cancel');
+    expect(ids.batchSelect).toBe('test-override::batch-select');
+    expect(ids.batchConfirm).toBe('test-override::batch-confirm');
+    expect(ids.batchCancel).toBe('test-override::batch-cancel');
     expect(ids.clear('p1')).toBe('test-override::clear::p1');
   });
 
@@ -83,6 +86,7 @@ describe('createOverrideBrowseCustomIds', () => {
 
   it('isOwn matches only this prefix', () => {
     expect(ids.isOwn('test-override::select')).toBe(true);
+    expect(ids.isOwn('test-override::batch-select')).toBe(true);
     expect(ids.isOwn('other::select')).toBe(false);
     expect(ids.isOwn('test-override-extra::select')).toBe(false);
   });
@@ -90,6 +94,9 @@ describe('createOverrideBrowseCustomIds', () => {
   it('parses each action', () => {
     expect(ids.parse('test-override::select')).toEqual({ action: 'select' });
     expect(ids.parse('test-override::cancel')).toEqual({ action: 'cancel' });
+    expect(ids.parse('test-override::batch-select')).toEqual({ action: 'batch-select' });
+    expect(ids.parse('test-override::batch-confirm')).toEqual({ action: 'batch-confirm' });
+    expect(ids.parse('test-override::batch-cancel')).toEqual({ action: 'batch-cancel' });
     expect(ids.parse('test-override::clear::p1')).toEqual({ action: 'clear', personalityId: 'p1' });
   });
 
@@ -134,7 +141,7 @@ describe('buildOverrideBrowseView', () => {
     expect(data.description).toContain('└ → Fast Claude');
     expect(data.footer?.text).toContain('2 overrides');
 
-    expect(components).toHaveLength(1);
+    expect(components).toHaveLength(2);
     const row = components[0].toJSON() as {
       components: { custom_id: string; options: { label: string; value: string }[] }[];
     };
@@ -143,6 +150,12 @@ describe('buildOverrideBrowseView', () => {
     // No slot → bare personalityId values (slot-less domains unchanged).
     expect(menu.options.map(o => o.value)).toEqual(['p1', 'p2']);
     expect(menu.options[0].label).toContain('Lilith');
+
+    const toggleRow = components[1].toJSON() as {
+      components: { custom_id: string; label: string }[];
+    };
+    expect(toggleRow.components[0].custom_id).toBe('test-override::batch-select');
+    expect(toggleRow.components[0].label).toBe('Select several');
   });
 
   it('badges by model capability (supportsVision) and encodes slot in the select value', () => {
@@ -193,6 +206,27 @@ describe('buildOverrideBrowseView', () => {
     const footer = embeds[0].toJSON().footer?.text ?? '';
     expect(footer).toContain('first 25 shown');
     expect(footer).toContain('/test clear');
+  });
+
+  it('renders no components for zero rows in batch mode, as in single mode', () => {
+    const batch = buildOverrideBrowseView(makeConfig(), [], { mode: 'batch' });
+    expect(batch.components).toEqual([]);
+    expect(batch.embeds).toHaveLength(1);
+
+    const single = buildOverrideBrowseView(makeConfig(), []);
+    expect(single.components).toEqual([]);
+  });
+
+  it('words the batch-mode footer for multi-select and keeps the single-mode footer', () => {
+    const overrides = [override('p1', 'Name1'), override('p2', 'Name2')];
+
+    const batch = buildOverrideBrowseView(makeConfig(), overrides, { mode: 'batch' });
+    const batchFooter = batch.embeds[0].toJSON().footer?.text ?? '';
+    expect(batchFooter).toContain('Select several below, then confirm');
+    expect(batchFooter).not.toContain('clear it');
+
+    const single = buildOverrideBrowseView(makeConfig(), overrides);
+    expect(single.embeds[0].toJSON().footer?.text ?? '').toContain('Select one below to clear it');
   });
 });
 
