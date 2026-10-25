@@ -43,4 +43,6 @@ TASK-1206 (priority medium): pr-body-ref-gate rule 2 blocks a claim-shaped line 
 
 <!-- SECTION:NOTES:BEGIN -->
 Two more rows from TASK-1106 part 2 (2026-10-19 parity read), same retire-when-Seyag-ships rule: self-matching-pattern-guard (Seyag must add the leading-class literal-recurrence check plus mid-word bracket handling, the union; ask sent via Deck); python-heredoc-edit-guard (Seyag must also block write-only generation scripts, Tzurot python-heredoc-edit-guard.sh lines 64-66, or the Tzurot copy stays as a deliberate stricter local rule).
+
+2026-10-25 ship check: merge-review SHIPPED (seyag 367ae14 + rounds, HEAD 59a2518; numberless arm verified by probe run — TASK-554 closed). claim-shape / pr-body-ref-gate SHIPPED (59a2518, `--check <file>` preflight included — TASK-1206's ask; that task was already archived in batch C). branch-commit NOT shipped (verified: no hook in the seyag inventory, no branch-commit commit). design-boulder / worktree-transfer unchecked this pass. Config surface offered by the seyag session for the claim-body row: SYG_PR_BODY_BASE_REF, SYG_PR_BODY_TASK_PATHS, SYG_PR_BODY_DOC_PATHS, SYG_PR_BODY_EXTRA_COMMANDS, SYG_PR_BODY_ACK_FILE, SYG_PR_BODY_RULE_REF, SYG_PR_BODY_CLAIM_SCAN=0.
 <!-- SECTION:NOTES:END -->

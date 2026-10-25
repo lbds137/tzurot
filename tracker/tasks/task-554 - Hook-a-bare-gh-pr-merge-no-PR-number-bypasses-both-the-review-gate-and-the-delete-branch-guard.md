@@ -3,10 +3,10 @@ id: TASK-554
 title: >-
   Hook: a bare gh pr merge (no PR number) bypasses both the review gate and the
   delete-branch guard
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 16:13'
-updated_date: '2026-10-19 03:47'
+updated_date: '2026-10-25 05:12'
 labels:
   - 'area:tooling'
   - 'size:M'
@@ -43,4 +43,6 @@ Landmines: the PR-number walk and the flag walk have deliberately OPPOSITE stric
 **OPEN OWNER DECISION, preserved (DECIDED 2026-08-14, owner, TASK-599 digest): MEASURE bashlex import cost first; adopt if cheap (~<50ms, since the hook runs on every Bash call) because ackability cannot help the recognition-failure shape; if expensive, accept and document the residual risk, keeping the current fixes.** The measurement has not been done: the decision stays open until it is. Acceptance (555): either the exposure is reduced so a tokenizer gap is recoverable, or the parsing is replaced with something that models bash, or the class is ruled out on merit with the residual risk stated.
 
 Dependent on TASK-1242 (backlog review batch C, owner-approved 2026-10-18): pr-merge-review-check.sh moves to the Seyag merge-review component, so this defect and the bashlex measurement ride upstream with it. When Seyag ships merge-review, check whether it closes the numberless-merge gap; close this task if so, otherwise re-scope it to the gap the Seyag version still has.
+
+CLOSED 2026-10-25 per this routing: Seyag shipped merge-review with the numberless arm (seyag 367ae14 port + review rounds b0ab9d0/281474b/7e8343b/1275995, HEAD 59a2518). Runtime evidence: the seyag probe suite passes every numberless row from the seyag checkout — "numberless merge arms the branch's PR", "a flag value is not the PR number — the numberless arm fires", "numberless merge with a failing lookup: allowed" (the fail-open landmine holds), "a cd before a numberless merge: refused", compound/selector rows all PASS. The preserved bashlex import-cost decision rode upstream with the component — it now lives on the Seyag tracker, not here. Tzurot copy retirement is TASK-1242's.
 <!-- SECTION:DESCRIPTION:END -->
