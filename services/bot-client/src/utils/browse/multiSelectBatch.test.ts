@@ -5,18 +5,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ButtonStyle, EmbedBuilder, type ButtonInteraction, type Message } from 'discord.js';
 
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+
 import {
+  batchResultColor,
   buildBatchConfirmView,
   buildSelectSeveralToggle,
   buildBatchResultEmbed,
   clampBatchConfirmDescription,
   deliverBatchReport,
   encodeBatchFooterIds,
+  formatBatchCountsLine,
   formatBatchItemLines,
   formatFallbackIdLabel,
   parseBatchFooterIds,
   readSelectOptionLabels,
   runBatchSequentially,
+  toBatchOutcomeLine,
   type BatchConfirmView,
 } from './multiSelectBatch.js';
 import { PAGE_FETCH_FAILED_COPY } from './multiSelectBatch.js';
@@ -340,5 +345,59 @@ describe('formatBatchItemLines', () => {
         { label: 'fact three', status: 'failed', note: 'server error' },
       ])
     ).toEqual(['✅ fact one', '◻️ fact two — already gone', '❌ fact three — server error']);
+  });
+});
+
+describe('toBatchOutcomeLine', () => {
+  it('maps a success outcome to a note-less success line', () => {
+    expect(
+      toBatchOutcomeLine({ id: 'a', ok: true, value: 'success' }, 'Alpha', 'fallback')
+    ).toEqual({ label: 'Alpha', status: 'success' });
+  });
+
+  it('maps an already-gone outcome to a gone line with the "already gone" note', () => {
+    expect(
+      toBatchOutcomeLine({ id: 'a', ok: true, value: 'already-gone' }, 'Alpha', 'fallback')
+    ).toEqual({ label: 'Alpha', status: 'gone', note: 'already gone' });
+  });
+
+  it('uses the thrown Error message as the failed note', () => {
+    expect(
+      toBatchOutcomeLine({ id: 'a', ok: false, error: new Error('boom') }, 'Alpha', 'fallback')
+    ).toEqual({ label: 'Alpha', status: 'failed', note: 'boom' });
+  });
+
+  it('falls back when the error is empty-message or not an Error', () => {
+    expect(
+      toBatchOutcomeLine({ id: 'a', ok: false, error: new Error('') }, 'Alpha', 'fallback')
+    ).toEqual({ label: 'Alpha', status: 'failed', note: 'fallback' });
+    expect(toBatchOutcomeLine({ id: 'a', ok: false, error: 'str' }, 'Alpha', 'fallback')).toEqual({
+      label: 'Alpha',
+      status: 'failed',
+      note: 'fallback',
+    });
+  });
+});
+
+describe('batchResultColor', () => {
+  it('is red whenever anything failed, even alongside successes', () => {
+    expect(batchResultColor({ succeeded: 3, failed: 1 })).toBe(DISCORD_COLORS.ERROR);
+    expect(batchResultColor({ succeeded: 0, failed: 2 })).toBe(DISCORD_COLORS.ERROR);
+  });
+
+  it('is warning amber when nothing succeeded and nothing failed', () => {
+    expect(batchResultColor({ succeeded: 0, failed: 0 })).toBe(DISCORD_COLORS.WARNING);
+  });
+
+  it('is green when something succeeded and nothing failed', () => {
+    expect(batchResultColor({ succeeded: 2, failed: 0 })).toBe(DISCORD_COLORS.SUCCESS);
+  });
+});
+
+describe('formatBatchCountsLine', () => {
+  it('renders the succeeded / already gone / failed counts copy', () => {
+    expect(formatBatchCountsLine({ succeeded: 2, gone: 1, failed: 3 })).toBe(
+      'Batch finished: 2 succeeded, 1 already gone, 3 failed.'
+    );
   });
 });

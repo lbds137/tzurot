@@ -23,7 +23,6 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ActionRowBuilder,
-  type StringSelectMenuBuilder,
   escapeMarkdown,
   type ButtonInteraction,
   type StringSelectMenuInteraction,
@@ -34,7 +33,14 @@ import { type createLogger } from '@tzurot/common-types/utils/logger';
 import type { GatewayResult, UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from './commandContext/types.js';
 import { clientsFor } from './gatewayClients.js';
-import { buildBrowseListEmbed, buildBrowseSelectMenu, pluralize } from './browse/index.js';
+import {
+  buildBrowseListEmbed,
+  buildBrowseSelectMenu,
+  pluralize,
+  type BrowseActionRow,
+  type BrowseSelectOption,
+} from './browse/index.js';
+import { buildBatchModeRows, buildSelectSeveralToggleRow } from './browse/multiSelectBatch.js';
 import { ackUpdate } from '../ux/render/reply.js';
 
 /** Logger shape produced by {@link createLogger}. */
@@ -124,13 +130,13 @@ export interface OverrideBrowseConfig {
 const CUSTOM_ID_DELIMITER = '::';
 
 /** Max options Discord allows in one select menu. */
-const SELECT_LIMIT = 25;
+export const SELECT_LIMIT = 25;
 
 /** Shown when the overrides list call fails. */
-const FAILED_TO_LOAD_MSG = '❌ Failed to load overrides. Please try again later.';
+export const FAILED_TO_LOAD_MSG = '❌ Failed to load overrides. Please try again later.';
 
 /** Shown when a handler throws unexpectedly (network error, etc.). */
-const GENERIC_ERROR_MSG = '❌ An error occurred. Please try again later.';
+export const GENERIC_ERROR_MSG = '❌ An error occurred. Please try again later.';
 
 /**
  * Error payload for component handlers. Explicitly clears `embeds`/`components`
@@ -138,25 +144,71 @@ const GENERIC_ERROR_MSG = '❌ An error occurred. Please try again later.';
  * of leaving stale — and still clickable — buttons behind. `editReply` merges,
  * so a bare `{ content }` would keep the previous components.
  */
-function errorReply(content: string): { content: string; embeds: []; components: [] } {
+export function errorReply(content: string): { content: string; embeds: []; components: [] } {
   return { content, embeds: [], components: [] };
 }
 
-/** customId builders/parsers for a given override-browse domain. */
-export function createOverrideBrowseCustomIds(prefix: string): {
+/** Encode an override row's unique clear-key (`personalityId` or `personalityId::slot`). */
+export function formatOverrideSelectValue(override: OverrideSummary): string {
+  return override.slot === undefined
+    ? override.personalityId
+    : `${override.personalityId}${CUSTOM_ID_DELIMITER}${override.slot}`;
+}
+
+/** Split a select value back into `{ personalityId, slot }`. */
+export function parseOverrideSelectValue(value: string): {
+  personalityId: string;
+  slot?: ModelSlot;
+} {
+  const [personalityId, slotStr] = value.split(CUSTOM_ID_DELIMITER);
+  return { personalityId, slot: narrowModelSlot(slotStr) };
+}
+
+/** Option fields for one override row in single-select and multi-select menus. */
+export function formatOverrideSelectOption(override: OverrideSummary): BrowseSelectOption {
+  return {
+    // The 👁 badge reads model capability (`supportsVision`); the value encodes
+    // `slot` so `(personalityId, slot)` stays the unique clear-key (a character
+    // can have both a text and a vision override). slot-less domains (TTS) get
+    // no badge and keep the bare id.
+    label:
+      override.supportsVision === true
+        ? `👁️ ${override.personalityName}`
+        : override.personalityName,
+    value: formatOverrideSelectValue(override),
+    description: `→ ${override.configName ?? 'Unknown'}`,
+  };
+}
+
+export type OverrideBrowseAction =
+  'select' | 'clear' | 'cancel' | 'batch-select' | 'batch-confirm' | 'batch-cancel';
+
+export interface OverrideBrowseCustomIds {
   select: string;
   cancel: string;
+  batchSelect: string;
+  batchConfirm: string;
+  batchCancel: string;
   clear: (personalityId: string, slot?: ModelSlot) => string;
   isOwn: (customId: string) => boolean;
   parse: (
     customId: string
-  ) => { action: 'select' | 'clear' | 'cancel'; personalityId?: string; slot?: ModelSlot } | null;
-} {
+  ) => { action: OverrideBrowseAction; personalityId?: string; slot?: ModelSlot } | null;
+}
+
+/** customId builders/parsers for a given override-browse domain. */
+export function createOverrideBrowseCustomIds(prefix: string): OverrideBrowseCustomIds {
   const select = `${prefix}${CUSTOM_ID_DELIMITER}select`;
   const cancel = `${prefix}${CUSTOM_ID_DELIMITER}cancel`;
+  const batchSelect = `${prefix}${CUSTOM_ID_DELIMITER}batch-select`;
+  const batchConfirm = `${prefix}${CUSTOM_ID_DELIMITER}batch-confirm`;
+  const batchCancel = `${prefix}${CUSTOM_ID_DELIMITER}batch-cancel`;
   return {
     select,
     cancel,
+    batchSelect,
+    batchConfirm,
+    batchCancel,
     // slot is appended as a 4th segment only for slot-aware domains; omitted for
     // the rest (TTS) so their customIds are byte-identical to before.
     clear: (personalityId: string, slot?: ModelSlot) =>
@@ -170,7 +222,13 @@ export function createOverrideBrowseCustomIds(prefix: string): {
       }
       const parts = customId.split(CUSTOM_ID_DELIMITER);
       const action = parts[1];
-      if (action === 'select' || action === 'cancel') {
+      if (
+        action === 'select' ||
+        action === 'cancel' ||
+        action === 'batch-select' ||
+        action === 'batch-confirm' ||
+        action === 'batch-cancel'
+      ) {
         return { action };
       }
       if (action === 'clear' && parts[2] !== undefined && parts[2] !== '') {
@@ -181,15 +239,20 @@ export function createOverrideBrowseCustomIds(prefix: string): {
   };
 }
 
-/** Build the browse embed + (optional) select-menu row for a set of overrides. */
+/** Build the browse embed + select-menu/toggle (or batch multi-select + Cancel) rows. */
 export function buildOverrideBrowseView(
   config: OverrideBrowseConfig,
-  overrides: OverrideSummary[]
-): { embeds: EmbedBuilder[]; components: ActionRowBuilder<StringSelectMenuBuilder>[] } {
+  overrides: OverrideSummary[],
+  options?: { mode?: 'single' | 'batch' }
+): { embeds: EmbedBuilder[]; components: BrowseActionRow[] } {
   // The select menu can only hold 25 options; show the first 25 and point at
   // the autocomplete-based `clear` command for the rest (rare in practice).
   const selectable = overrides.slice(0, SELECT_LIMIT);
   const truncated = overrides.length > SELECT_LIMIT;
+  const selectHint =
+    options?.mode === 'batch'
+      ? 'Select several below, then confirm'
+      : 'Select one below to clear it';
 
   // Unpaginated by design (select-capped, not paged) — a single page holds
   // every row so none silently vanish past a page boundary.
@@ -208,36 +271,46 @@ export function buildOverrideBrowseView(
     footerSegments: [
       pluralize(overrides.length, { singular: 'override', plural: 'overrides' }),
       truncated
-        ? `Select one below to clear it (first ${SELECT_LIMIT} shown; use ${config.clearCommandHint} for the rest)`
-        : 'Select one below to clear it',
+        ? `${selectHint} (first ${SELECT_LIMIT} shown; use ${config.clearCommandHint} for the rest)`
+        : selectHint,
     ],
   });
 
+  // Nothing to select in either mode: render the embed alone (no menu, no toggle).
   if (overrides.length === 0) {
     return { embeds: [embed], components: [] };
   }
 
   const ids = createOverrideBrowseCustomIds(config.prefix);
+
+  if (options?.mode === 'batch') {
+    const batchSelectRow = buildBrowseSelectMenu<OverrideSummary>({
+      items: selectable,
+      customId: ids.batchSelect,
+      placeholder: `Select several ${config.titleNoun.toLowerCase()} to clear…`,
+      startIndex: 0,
+      maxValues: SELECT_LIMIT,
+      formatItem: formatOverrideSelectOption,
+    });
+    return {
+      embeds: [embed],
+      components: buildBatchModeRows({
+        selectRow: batchSelectRow,
+        cancelCustomId: ids.batchCancel,
+      }),
+    };
+  }
+
   const selectRow = buildBrowseSelectMenu<OverrideSummary>({
     items: selectable,
     customId: ids.select,
     placeholder: config.selectPlaceholder,
     startIndex: 0,
-    formatItem: o => ({
-      // The 👁 badge reads model capability (`supportsVision`); the value encodes
-      // `slot` so `(personalityId, slot)` stays the unique clear-key (a character
-      // can have both a text and a vision override). slot-less domains (TTS) get
-      // no badge and keep the bare id.
-      label: o.supportsVision === true ? `👁️ ${o.personalityName}` : o.personalityName,
-      value:
-        o.slot === undefined
-          ? o.personalityId
-          : `${o.personalityId}${CUSTOM_ID_DELIMITER}${o.slot}`,
-      description: `→ ${o.configName ?? 'Unknown'}`,
-    }),
+    formatItem: formatOverrideSelectOption,
   });
 
-  const components = selectRow !== null ? [selectRow] : [];
+  const components: BrowseActionRow[] =
+    selectRow !== null ? [selectRow, buildSelectSeveralToggleRow(ids.batchSelect)] : [];
   return { embeds: [embed], components };
 }
 
@@ -275,8 +348,7 @@ export async function handleOverrideBrowseSelect(
   // domains) — split so `(personalityId, slot)` identifies the exact override.
   // Safe because personalityId is always a UUID (never contains `::`), so the
   // split is unambiguous — the first segment is the id, the second (if any) slot.
-  const [personalityId, slotStr] = interaction.values[0].split(CUSTOM_ID_DELIMITER);
-  const slot = narrowModelSlot(slotStr);
+  const { personalityId, slot } = parseOverrideSelectValue(interaction.values[0]);
   const userId = interaction.user.id;
   try {
     const { userClient } = clientsFor(interaction);
@@ -330,9 +402,9 @@ export async function handleOverrideBrowseButton(
 ): Promise<void> {
   const ids = createOverrideBrowseCustomIds(config.prefix);
   const parsed = ids.parse(interaction.customId);
-  if (parsed === null || parsed.action === 'select') {
-    // Unreachable via the router (select customIds dispatch to the select
-    // handler); log if it ever happens so a routing regression is visible.
+  if (parsed === null || (parsed.action !== 'clear' && parsed.action !== 'cancel')) {
+    // Unreachable via the router (select and batch customIds dispatch to their
+    // own handlers); log if it ever happens so a routing regression is visible.
     config.logger.debug({ customId: interaction.customId }, 'Ignoring non-clear/cancel customId');
     return;
   }

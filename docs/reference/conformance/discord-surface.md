@@ -163,9 +163,11 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | embeds | 1 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | escapeMarkdown | 1 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | footer | 1 |
+| services/bot-client/src/commands/character/aliasBatchConfirm.ts | id | 1 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | message | 1 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | replied | 1 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | text | 1 |
+| services/bot-client/src/commands/character/aliasBatchConfirm.ts | user | 1 |
 | services/bot-client/src/commands/character/aliasBrowse.ts | customId | 4 |
 | services/bot-client/src/commands/character/aliasBrowse.ts | embeds | 1 |
 | services/bot-client/src/commands/character/aliasBrowse.ts | escapeMarkdown | 4 |
@@ -712,6 +714,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/preset/override/autocomplete.ts | options | 1 |
 | services/bot-client/src/commands/preset/override/autocomplete.ts | user | 1 |
 | services/bot-client/src/commands/preset/override/autocomplete.ts | value | 1 |
+| services/bot-client/src/commands/preset/override/browse.ts | customId | 2 |
 | services/bot-client/src/commands/preset/override/clear.ts | id | 1 |
 | services/bot-client/src/commands/preset/override/guestModeValidation.ts | setColor | 2 |
 | services/bot-client/src/commands/preset/override/guestModeValidation.ts | setDescription | 2 |
@@ -917,6 +920,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/voice/tts/autocomplete.ts | options | 1 |
 | services/bot-client/src/commands/voice/tts/autocomplete.ts | user | 1 |
 | services/bot-client/src/commands/voice/tts/autocomplete.ts | value | 1 |
+| services/bot-client/src/commands/voice/tts/browse.ts | customId | 2 |
 | services/bot-client/src/commands/voice/tts/clear.ts | id | 1 |
 | services/bot-client/src/commands/voice/tts/default.ts | id | 2 |
 | services/bot-client/src/commands/voice/tts/default.ts | setColor | 2 |
@@ -1867,6 +1871,18 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/overrideBrowse.ts | setTitle | 1 |
 | services/bot-client/src/utils/overrideBrowse.ts | user | 2 |
 | services/bot-client/src/utils/overrideBrowse.ts | values | 1 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | customId | 2 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | deferred | 1 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | description | 1 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | embeds | 2 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | escapeMarkdown | 3 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | footer | 1 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | id | 2 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | message | 3 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | replied | 1 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | text | 1 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | user | 2 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | values | 1 |
 | services/bot-client/src/utils/ownerChannel.ts | channels | 1 |
 | services/bot-client/src/utils/ownerChannel.ts | fetch | 1 |
 | services/bot-client/src/utils/ownerChannel.ts | isTextBased | 1 |
@@ -2334,6 +2350,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/dashboard/truncationGate/entityEditFlow.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/utils/maintenanceResponses.ts | MessageFlags.Ephemeral | 1 |
 | services/bot-client/src/utils/modal/retry.ts | MessageFlags.Ephemeral | 1 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | MessageFlags.Ephemeral | 1 |
 | services/bot-client/src/utils/permissions.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/utils/subcommandRouter.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/utils/voiceAttachment.ts | MessageFlags.IsVoiceMessage | 1 |
@@ -2541,6 +2558,8 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/modelCatalogAutocomplete.ts | respond | 2 |
 | services/bot-client/src/utils/nsfwVerification.ts | reply | 2 |
 | services/bot-client/src/utils/overrideBrowse.ts | editReply | 8 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | editReply | 7 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | followUp | 1 |
 | services/bot-client/src/utils/permissions.ts | editReply | 2 |
 | services/bot-client/src/utils/permissions.ts | reply | 2 |
 | services/bot-client/src/utils/subcommandRouter.ts | reply | 2 |
@@ -3002,6 +3021,10 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/overrideBrowse.ts | components | 6 |
 | services/bot-client/src/utils/overrideBrowse.ts | content | 8 |
 | services/bot-client/src/utils/overrideBrowse.ts | embeds | 6 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | components | 6 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | content | 7 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | embeds | 5 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | flags | 1 |
 | services/bot-client/src/utils/ownerChannel.ts | allowedMentions | 1 |
 | services/bot-client/src/utils/ownerChannel.ts | embeds | 1 |
 | services/bot-client/src/utils/ownerChannel.ts | files | 1 |
@@ -3060,6 +3083,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/modal/toolkit.ts | RadioGroupBuilder | 1 |
 | services/bot-client/src/utils/modal/toolkit.ts | RadioGroupOptionBuilder | 1 |
 | services/bot-client/src/utils/overrideBrowse.ts | * | 2 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | * | 1 |
 
 ## webhook-options
 
@@ -3074,4 +3098,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 3004 entries across 6935 sites.
+Total: 3028 entries across 6990 sites.

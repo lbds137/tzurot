@@ -157,3 +157,104 @@ describe('handlePresetBrowseButton', () => {
     expect(stub.deleteModelOverride).toHaveBeenCalledWith('p1', { slot: 'vision' });
   });
 });
+
+describe('preset override batch clear ("Select several" — C2 & C5)', () => {
+  it('renders the Select several toggle row when overrides exist and omits it when empty', async () => {
+    mockAllOverrides([
+      { personalityId: 'p1', personalityName: 'Lilith', configName: 'Fast', slot: 'text' },
+    ]);
+    const editReply = vi.fn();
+    const context = {
+      user: { id: 'u1' },
+      interaction: {} as never,
+      editReply,
+    } as unknown as Parameters<typeof handlePresetBrowse>[0];
+
+    await handlePresetBrowse(context);
+
+    const rendered = editReply.mock.calls[0][0] as {
+      components: { toJSON: () => { components: { custom_id: string; label?: string }[] } }[];
+    };
+    expect(rendered.components).toHaveLength(2);
+    expect(rendered.components[1].toJSON().components[0]).toMatchObject({
+      custom_id: 'settings-preset-override::batch-select',
+      label: 'Select several',
+    });
+
+    editReply.mockClear();
+    mockAllOverrides([]);
+    await handlePresetBrowse(context);
+    const emptyRendered = editReply.mock.calls[0][0] as { components: unknown[] };
+    expect(emptyRendered.components).toHaveLength(0);
+  });
+
+  it('routes single select to single-confirm and batch-select to batch-confirm, then clears each slot independently on batch-confirm (C2, C5)', async () => {
+    mockAllOverrides([
+      { personalityId: 'p1', personalityName: 'Lilith', configName: 'Fast', slot: 'text' },
+      {
+        personalityId: 'p1',
+        personalityName: 'Lilith',
+        configName: 'Vision',
+        slot: 'vision',
+        supportsVision: true,
+      },
+    ]);
+    stub.deleteModelOverride.mockResolvedValue(makeOk({ deleted: true }));
+
+    // C2: single-pick select routes to single-confirm.
+    const singleEditReply = vi.fn();
+    await handlePresetBrowseSelect({
+      customId: 'settings-preset-override::select',
+      values: ['p1::text'],
+      user: { id: 'u1' },
+      deferUpdate: vi.fn(),
+      editReply: singleEditReply,
+    } as unknown as Parameters<typeof handlePresetBrowseSelect>[0]);
+    const singleArg = singleEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
+    expect(singleArg.embeds[0].toJSON().title).toBe('Clear preset override?');
+
+    // Batch entry swap -> multi-select
+    const entryEditReply = vi.fn();
+    await handlePresetBrowseButton({
+      customId: 'settings-preset-override::batch-select',
+      user: { id: 'u1' },
+      deferUpdate: vi.fn(),
+      editReply: entryEditReply,
+    } as unknown as Parameters<typeof handlePresetBrowseButton>[0]);
+    const entryComponents = (entryEditReply.mock.calls[0][0] as { components: unknown[] })
+      .components;
+
+    // Batch pick -> batch confirm
+    const pickEditReply = vi.fn();
+    await handlePresetBrowseSelect({
+      customId: 'settings-preset-override::batch-select',
+      values: ['p1::text', 'p1::vision'],
+      user: { id: 'u1' },
+      message: { components: entryComponents },
+      deferUpdate: vi.fn(),
+      editReply: pickEditReply,
+    } as unknown as Parameters<typeof handlePresetBrowseSelect>[0]);
+    const confirmEmbed = (
+      pickEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] }
+    ).embeds[0].toJSON();
+    expect(confirmEmbed.title).toBe('⚙️ Clear Preset Overrides?');
+    expect(confirmEmbed.footer?.text).toBe('p1::text\np1::vision');
+
+    // C5: batch confirm clears both slots of the SAME personality via two slot-scoped calls.
+    const confirmEditReply = vi.fn().mockResolvedValue(undefined);
+    await handlePresetBrowseButton({
+      customId: 'settings-preset-override::batch-confirm',
+      user: { id: 'u1' },
+      deferred: false,
+      replied: false,
+      message: { embeds: [confirmEmbed], components: [] },
+      deferUpdate: vi.fn().mockResolvedValue(undefined),
+      editReply: confirmEditReply,
+      followUp: vi.fn().mockResolvedValue(undefined),
+    } as unknown as Parameters<typeof handlePresetBrowseButton>[0]);
+
+    expect(stub.deleteModelOverride).toHaveBeenCalledTimes(2);
+    expect(stub.deleteModelOverride).toHaveBeenNthCalledWith(1, 'p1', { slot: 'text' });
+    expect(stub.deleteModelOverride).toHaveBeenNthCalledWith(2, 'p1', { slot: 'vision' });
+  });
+});
