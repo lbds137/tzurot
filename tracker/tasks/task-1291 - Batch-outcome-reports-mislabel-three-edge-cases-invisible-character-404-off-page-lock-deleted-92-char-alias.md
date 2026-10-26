@@ -3,13 +3,14 @@ id: TASK-1291
 title: >-
   Batch outcome reports mislabel three edge cases: invisible-character 404,
   off-page lock, deleted 92-char alias
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-10-25 18:44'
+created_date: 2026-10-25 18:44
+updated_date: '2026-10-26T22:42:00Z'
 labels:
-  - 'area:bot-client'
-  - 'size:S'
-  - 'state:ready'
+  - area:bot-client
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1277000
@@ -29,4 +30,6 @@ Owner ruling (2026-10-26, slice b grounding): item 4 widens to all five batch br
 Slice b SHIPPED in PR 2666 (merged 2026-10-26, with all of TASK-1289): items 1, 3, 4 (all five browsers), 9, 15 and the alias ack rider. Correction to item 7: its premise was false. The gateway client never rejects; callGateway (packages/clients/src/clients/transport.ts) returns a status-0 envelope on a network failure or timeout, which aliasFailureSpec already mapped to the generic copy, so no raw transport message ever reached a result line. The catch PR 2666 added is kept only as a guard against a client-contract change. Slice c: verify each item's premise against the client and gateway code before speccing it. Residue filed: TASK-1298 (distinct gateway 404 code for alias-missing vs character-invisible, owner ruling), TASK-1299 (round-3 low items). Remaining: slice c = memory/facts items 2, 5, 6, 8 + their ack riders.
 
 Slice c grounding (2026-10-26, driver, from the code): items 2 and 5 verified. Item 2: handleSetFactLock (services/api-gateway/src/routes/user/memoryFacts.ts) returns 200 for an already-locked fact, so the off-page fact reports succeeded. Item 5: the gateway delete only ever sends success true, and DeleteMemoryResponseSchema is the last api response schema typed success: z.boolean(). The fix makes it z.literal(true), so a false body fails as a schema error instead of reading as already gone. Item 6 is a new memoriesBatch.seam.test.ts (real router, session manager over an in-memory Redis, confirm handler and refreshed view; only the gateway client is mocked). The ack riders for memories and facts are RULED OUT on merit. Both routers (handleDetailButton and handleFactButton in commands/memory/interactionHandlers.ts) ack before dispatch, so the confirm handlers' guarded ack never runs in production. Any throw in their prep reaches CommandHandler.handleComponentInteraction's catch (services/bot-client/src/handlers/CommandHandler.ts), which logs it at error level with the customId and replies through replySpecSafe. That reply is ack-aware and swallows a failed send. A handler-level try would duplicate that mechanism.
+
+Slice c SHIPPED in PR 2667 (merged 2026-10-26, develop 0257c53e6): items 2, 5, 6 and 8. Facts now run the per-id read for off-page ids (gone skips the mutation, a failed read on Lock fails the id without mutating); DeleteMemoryResponseSchema is success: z.literal(true); the shared rules live in commands/memory/lockableBatchOutcome.ts; memoriesBatch.seam.test.ts runs router → session (in-memory Redis fake, services/bot-client/src/test/mockRedis.ts) → confirm → refreshed view. Owner ruling at round 3: final round + merge. Residue: TASK-1300 (tooling gate coverage blind spot), TASK-1301 (mirrored run-planning dedup, owner-deferred), TASK-1302 (review rounds 4-5 lows). All slices done.
 <!-- SECTION:DESCRIPTION:END -->
