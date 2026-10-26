@@ -1,6 +1,6 @@
 # Current
 
-> **Session handoff 2026-10-26 ~13:15Z (Opus, anthropic-direct)**: **beta.240 SHIPPED** (below); doc-113 batch family closed. **`release:finalize` NOT run** — the classifier denied the agent's run (force-push to develop); the owner runs `! pnpm ops release:finalize --yes` (trees identical, SHAs diverged after the rebase-merge). Next: TASK-1291, TASK-1295, TASK-1293. Driver eval Mon 10-26 (Opus) / Tue 10-27 (Sonnet + Opus advisor): log in `docs/local/driver-eval-log.md`; this session idles clean before Tue so she can switch models.
+> **Session handoff 2026-10-26 ~13:15Z (Opus, anthropic-direct)**: **beta.240 SHIPPED** (below); doc-113 batch family closed. `release:finalize` classifier-denied to the agent; Lila ran it (develop `637612043`, SHA-aligned). Next: TASK-1291, TASK-1295, TASK-1293. Driver eval Mon 10-26 (Opus) / Tue 10-27 (Sonnet + Opus advisor): log in `docs/local/driver-eval-log.md`; this session idles clean before Tue so she can switch models.
 
 > **Version**: v3.0.0-beta.240 — "batch clear and remove for the override and deny browsers" — SHIPPED 2026-10-26 13:10:50Z (release PR #2663 after her "cut now" + merge approval; plain rebase-merge at 25 commits; tagged `latest`, beta.239 demoted). 6 PRs / 6 runtime / 65 files (+ #2656 via main); no migrations. Holistic review: no blocking findings. Notes: `docs/local/release-notes-beta.240.md`.
 >
@@ -11,7 +11,7 @@
 - **Optional needs-smoke (owner, after deploy):** `/deny browse` → Select several → Remove 2 — confirm the confirm view lists real labels and the result stack renders one line per pick. Covers the largest new UI path (#2661, 5 review rounds). Status: not run.
 - **Watch — LangChain minor bumps (#2658: @langchain/core 1.2→1.3, @langchain/openai 1.6→1.7):** the first prod AI replies after deploy are the check; an error spike in ai-worker logs = roll back. No smoke asked.
 - **Watch — #2662 fallthrough footer:** visible only when a coding-plan call falls through to OpenRouter; first occurrence in prod shows the suffix.
-- **Advisories:** after the cut, the 10 open alerts (undici, fast-uri, launch-editor, body-parser) should close on the `main` rescan — develop's lockfile already resolves undici 6.29.1, fast-uri 3.1.9, launch-editor 2.14.2, body-parser 2.4.0.
+- **Advisories: CLOSED** — `pnpm ops security:advisories` reports none open after the beta.240 merge (2026-10-26).
 
 ## 🧪 beta.239 watch (observability; one optional needs-smoke)
 
