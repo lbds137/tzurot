@@ -40,9 +40,11 @@ import {
   formatBatchCountsLine,
   formatBatchItemLines,
   formatFallbackIdLabel,
+  LISTING_BULLET,
   PAGE_FETCH_FAILED_COPY,
   parseBatchFooterIds,
   readSelectOptionLabels,
+  recoverConfirmListingLabels,
   runBatchSequentially,
   toBatchOutcomeLine,
   type BatchItemResult,
@@ -81,9 +83,6 @@ const MISSING_SELECTION_MSG = renderSpec(
 
 const GENERIC_ERROR_MSG = DASHBOARD_MESSAGES.OPERATION_FAILED('remove denylist entries');
 
-/** Bullet prefix of each listing line in the confirm embed, written at pick and read back at confirm. */
-const LISTING_BULLET = '• ';
-
 /** Outcome of one single-entry delete step inside the batch loop. */
 type DenyBatchOutcome = 'success' | 'already-gone';
 
@@ -100,44 +99,6 @@ export function isDenyBatchButton(customId: string): boolean {
 /** Whether a select-menu customId targets the deny batch multi-select (`batch-select`). */
 export function isDenyBatchSelect(customId: string): boolean {
   return parseDenyBatchCustomId(customId)?.action === DENY_BATCH_ACTION.SELECT;
-}
-
-/**
- * Recover per-id display labels from the confirm embed description's bullet
- * lines (already escaped and bounded by `handleDenyBatchPick`). When
- * `lines.length === entryIds.length` and all start with the bullet, all labels
- * are recovered. When clamped (`lines.length < entryIds.length`), recovers
- * every leading bullet line except the last (which may be cut mid-label) up to
- * the first non-bullet line; remaining ids fall back. When
- * `lines.length > entryIds.length`, returns an empty map.
- */
-function recoverConfirmListingLabels(
-  description: string | null | undefined,
-  entryIds: readonly string[]
-): ReadonlyMap<string, string> {
-  if (description === undefined || description === null || description.length === 0) {
-    return new Map();
-  }
-  const lines = (description.split('\n\n')[0] ?? '').split('\n');
-  if (lines.length > entryIds.length) {
-    return new Map();
-  }
-  if (lines.length === entryIds.length) {
-    return lines.every(line => line.startsWith(LISTING_BULLET))
-      ? new Map(
-          entryIds.map((entryId, idx) => [entryId, (lines[idx] ?? '').slice(LISTING_BULLET.length)])
-        )
-      : new Map();
-  }
-  const prefixLines = lines.slice(0, -1);
-  const firstNonBullet = prefixLines.findIndex(line => !line.startsWith(LISTING_BULLET));
-  const matched = firstNonBullet === -1 ? prefixLines : prefixLines.slice(0, firstNonBullet);
-  return new Map(
-    matched.flatMap((line, idx): [string, string][] => {
-      const entryId = entryIds[idx];
-      return entryId !== undefined ? [[entryId, line.slice(LISTING_BULLET.length)]] : [];
-    })
-  );
 }
 
 /**

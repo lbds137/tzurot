@@ -7,7 +7,7 @@
   },
   "totals": {
     "entries": 3047,
-    "sites": 7063
+    "sites": 7071
   },
   "entries": [
     {
@@ -15176,7 +15176,7 @@
       "category": "interaction-acks",
       "file": "services/bot-client/src/utils/overrideBrowse.ts",
       "symbol": "editReply",
-      "count": 8
+      "count": 10
     },
     {
       "category": "interaction-acks",
@@ -17906,19 +17906,19 @@
       "category": "message-options",
       "file": "services/bot-client/src/utils/overrideBrowse.ts",
       "symbol": "components",
-      "count": 6
-    },
-    {
-      "category": "message-options",
-      "file": "services/bot-client/src/utils/overrideBrowse.ts",
-      "symbol": "content",
       "count": 8
     },
     {
       "category": "message-options",
       "file": "services/bot-client/src/utils/overrideBrowse.ts",
+      "symbol": "content",
+      "count": 10
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/utils/overrideBrowse.ts",
       "symbol": "embeds",
-      "count": 6
+      "count": 8
     },
     {
       "category": "message-options",
