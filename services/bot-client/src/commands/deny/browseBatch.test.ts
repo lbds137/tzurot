@@ -253,8 +253,8 @@ describe('deny browse batch removal flow', () => {
     vi.mocked(isBotOwner).mockReturnValue(true);
   });
 
-  describe('C3 — real multi-select swap render & handleDenyBatchSelectEntry', () => {
-    it('renders a real multi-select with min 1, max = page item count, batch customId carrying page/filter/sort, Cancel button, and NO pagination row (C3)', () => {
+  describe('real multi-select swap render & handleDenyBatchSelectEntry', () => {
+    it('renders a real multi-select with min 1, max = page item count, batch customId carrying page/filter/sort, Cancel button, and NO pagination row', () => {
       const view = buildBrowseResponse(FIVE_DENY_ENTRIES, 0, 'all', 'date', { mode: 'batch' });
 
       expect(view.components).toHaveLength(2);
@@ -387,8 +387,8 @@ describe('deny browse batch removal flow', () => {
     });
   });
 
-  describe('C1 — handleDenyBatchConfirm (5 entries: 1, 3, 5 ok; #2 404; #4 500)', () => {
-    it('reaches all 5 entries when #2 returns 404 and #4 returns 500, naming #2 already gone, #4 failed, and 1, 3, 5 succeeded (C1)', async () => {
+  describe('handleDenyBatchConfirm (5 entries: 1, 3, 5 ok; #2 404; #4 500)', () => {
+    it('reaches all 5 entries when #2 returns 404 and #4 returns 500, naming #2 already gone, #4 failed, and 1, 3, 5 succeeded', async () => {
       stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: FIVE_DENY_ENTRIES }));
       stub.removeDenylistEntry.mockImplementation((_type: string, discordId: string) => {
         if (discordId === FIVE_DENY_ENTRIES[1].discordId) {
@@ -451,8 +451,8 @@ describe('deny browse batch removal flow', () => {
     });
   });
 
-  describe('C4 — resolution by the 4-tuple & absent-id handling', () => {
-    it('resolves each picked id to its entry (type, discordId, scope, scopeId) and reports an absent id as already gone with NO delete call (C4)', async () => {
+  describe('resolution by the 4-tuple & absent-id handling', () => {
+    it('resolves each picked id to its entry (type, discordId, scope, scopeId) and reports an absent id as already gone with NO delete call', async () => {
       const presentEntry = FIVE_DENY_ENTRIES[2];
       const absentId = '99999999-9999-4999-8999-999999999999';
       stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: [presentEntry] }));
@@ -527,8 +527,8 @@ describe('deny browse batch removal flow', () => {
     });
   });
 
-  describe('C5 — refuse before mutation when pre-loop fetchEntries returns null', () => {
-    it('answers with PAGE_FETCH_FAILED_COPY and makes zero delete calls when fetchEntries returns null (C5)', async () => {
+  describe('refuse before mutation when pre-loop fetchEntries returns null', () => {
+    it('answers with PAGE_FETCH_FAILED_COPY and makes zero delete calls when fetchEntries returns null', async () => {
       stub.listDenylistEntries.mockResolvedValue(makeErr(503, 'Gateway unavailable'));
       const confirmInteraction = createButtonInteraction({
         customId: 'deny::batch-confirm::0::all::date',
@@ -552,8 +552,8 @@ describe('deny browse batch removal flow', () => {
     });
   });
 
-  describe('C6 — owner gate on every new handler', () => {
-    it('silently denies non-owners on SelectEntry, Pick, Cancel, Confirm, and Button router before any ack, reply, or client call (C6)', async () => {
+  describe('owner gate on every new handler', () => {
+    it('silently denies non-owners on SelectEntry, Pick, Cancel, Confirm, and Button router before any ack, reply, or client call', async () => {
       vi.mocked(isBotOwner).mockReturnValue(false);
 
       const selectEntryBtn = createButtonInteraction({
@@ -609,8 +609,8 @@ describe('deny browse batch removal flow', () => {
     });
   });
 
-  describe('C7 — throwing delete normalized to FAILED_TO_REMOVE_NOTE and logged with ids only', () => {
-    it('normalizes a thrown removeDenylistEntry error to FAILED_TO_REMOVE_NOTE (never the raw message) and logs warn with { err, userId, entryId } (C7)', async () => {
+  describe('throwing delete normalized to FAILED_TO_REMOVE_NOTE and logged with ids only', () => {
+    it('normalizes a thrown removeDenylistEntry error to FAILED_TO_REMOVE_NOTE (never the raw message) and logs warn with { err, userId, entryId }', async () => {
       const targetEntry = FIVE_DENY_ENTRIES[3];
       stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: [targetEntry] }));
       const rawError = new Error('raw transport socket hang up');
@@ -656,8 +656,8 @@ describe('deny browse batch removal flow', () => {
     });
   });
 
-  describe('C2 — one-pick path unchanged alongside batch predicates', () => {
-    it('keeps handleBrowseSelect routing to showDetailView while batch predicates ignore single-pick and detail customIds (C2)', async () => {
+  describe('one-pick path unchanged alongside batch predicates', () => {
+    it('keeps handleBrowseSelect routing to showDetailView while batch predicates ignore single-pick and detail customIds', async () => {
       stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: FIVE_DENY_ENTRIES }));
 
       expect(isDenyBatchButton('deny::browse::0::all::date::')).toBe(false);
@@ -682,7 +682,7 @@ describe('deny browse batch removal flow', () => {
     });
   });
 
-  describe('Hardening — pre-loop try/catch, label recovery, cancel, and router debug', () => {
+  describe('pre-loop try/catch, label recovery, cancel, and router debug', () => {
     it('strips confirm components BEFORE pre-loop fetchEntries and removeDenylistEntry, and skips ack when already deferred', async () => {
       stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: [FIVE_DENY_ENTRIES[0]] }));
       stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
