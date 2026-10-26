@@ -1,13 +1,14 @@
 ---
 id: TASK-1256
 title: 'Deny browse: remove several denylist entries in one action'
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-10-19 03:41'
+created_date: 2026-10-19 03:41
+updated_date: '2026-10-26T10:22:00Z'
 labels:
-  - 'area:bot-client'
-  - 'size:M'
-  - 'state:ready'
+  - area:bot-client
+  - size:M
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1244000
