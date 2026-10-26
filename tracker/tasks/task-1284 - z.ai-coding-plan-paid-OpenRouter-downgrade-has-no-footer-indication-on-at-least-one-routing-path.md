@@ -3,15 +3,15 @@ id: TASK-1284
 title: >-
   z.ai coding-plan -> paid OpenRouter downgrade has no footer indication on at
   least one routing path
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-10-25 03:01'
-updated_date: '2026-10-25 19:04'
+created_date: 2026-10-25 03:01
+updated_date: '2026-10-26T09:41:00Z'
 labels:
-  - 'area:bot-client'
-  - 'area:ai-worker'
-  - 'size:M'
-  - 'state:ready'
+  - area:bot-client
+  - area:ai-worker
+  - size:M
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1272000
