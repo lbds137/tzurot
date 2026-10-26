@@ -71,8 +71,8 @@ async function runBatchVerb(
  * EVERY selected id resolves through the per-id read (drift-proof by
  * construction — no semantic re-search, no embedding round-trip). A browse id
  * the page fetch misses gets the same per-id read, so its real label and lock
- * state survive the drift (an id-prefix fallback only for reads that 404 —
- * those ids are recorded gone and skip the mutation entirely). The reads run
+ * state survive the drift (an id-prefix fallback for reads that 404, which
+ * are recorded gone and skip the mutation, or that fail). The reads run
  * in parallel: they are independent per id and the results are keyed, so no
  * ordering dependency exists (the mutations after them stay sequential). The
  * only refusal is a failed browse page fetch: the caller must refuse BEFORE

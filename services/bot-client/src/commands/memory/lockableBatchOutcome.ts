@@ -115,9 +115,9 @@ export function toLockableResultLine(
   const { destroying, nouns } = opts;
   if (!result.ok) {
     // On a destroy (forget/delete) run a 403 IS the gateway's locked-item
-    // rejection — and a selected id missing from the fetched page has UNKNOWN
-    // lock state, so the 403 is the only honest locked signal. Render it as
-    // the locked outcome, not a generic failure.
+    // rejection. A lock state known before the run skips the id upfront, so
+    // a 403 here means a per-id read failed or the item was locked after the
+    // read. Render it as the locked outcome, not a generic failure.
     if (destroying && result.error instanceof GatewayClientError && result.error.status === 403) {
       return { label, status: 'locked', note: 'locked — unlock first' };
     }
