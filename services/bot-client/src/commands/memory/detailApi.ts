@@ -79,7 +79,8 @@ export async function setMemoryLock(
 }
 
 /**
- * Delete a memory. `false` = genuine 404 (already gone); infra failures throw.
+ * Delete a memory. `true` = deleted, `false` = genuine 404 (already gone);
+ * every other failure — including a body that breaks the response contract — throws.
  */
 export async function deleteMemory(
   userClient: UserClient,
@@ -88,6 +89,5 @@ export async function deleteMemory(
 ): Promise<boolean> {
   const result = await userClient.deleteMemory(memoryId);
   warnNonMiss(result, { userId, memoryId }, 'Failed to delete memory');
-  const data = nullOn404(result);
-  return data === null ? false : data.success;
+  return nullOn404(result) !== null;
 }

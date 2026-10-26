@@ -254,5 +254,5 @@ export const SingleMemoryResponseSchema = z.object({
 
 /** DELETE /user/memory/:id */
 export const DeleteMemoryResponseSchema = z.object({
-  success: z.boolean(),
+  success: z.literal(true),
 });

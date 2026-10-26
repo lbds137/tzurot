@@ -546,6 +546,10 @@ describe('Memory API Input Schema Tests', () => {
       expect(DeleteMemoryResponseSchema.safeParse({ success: true }).success).toBe(true);
     });
 
+    it('rejects { success: false }', () => {
+      expect(DeleteMemoryResponseSchema.safeParse({ success: false }).success).toBe(false);
+    });
+
     it('rejects { success: "true" }', () => {
       expect(DeleteMemoryResponseSchema.safeParse({ success: 'true' }).success).toBe(false);
     });

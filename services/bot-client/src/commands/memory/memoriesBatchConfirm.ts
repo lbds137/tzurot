@@ -10,7 +10,7 @@
 
 import { escapeMarkdown, type ButtonInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { GatewayClientError, type UserClient } from '@tzurot/clients';
+import { type UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   batchResultColor,
@@ -23,14 +23,25 @@ import {
 } from '../../utils/browse/multiSelectBatch.js';
 import { truncateForSelect } from '../../utils/browse/truncation.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
-import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
-import { renderSpec } from '../../ux/render/render.js';
 import { followUpSpec, ackUpdate } from '../../ux/render/reply.js';
 import { type MemoryListSession } from './browseSession.js';
 import { fetchMemory, setMemoryLock, deleteMemory } from './detailApi.js';
 import { buildRefreshedBrowseView, formatMemorySelectOption } from './browse.js';
 import { buildRefreshedSearchView } from './search.js';
 import { fallbackMemoryLabel, fetchPageForSession, itemsOf } from './memoriesBatch.js';
+import {
+  buildSkippedLockableLine,
+  countLockableBatchLines,
+  formatLockableCountsLine,
+  resolveMissingLockableLabels,
+  toLockableResultLine,
+  type LockableBatchCounts,
+  type LockableBatchNouns,
+  type LockableBatchRunOptions,
+  type LockableGoneIds,
+  type LockableLabelReadErrors,
+  type ResolvedLockableLabel,
+} from './lockableBatchOutcome.js';
 
 const logger = createLogger('memory-memories-batch-confirm');
 
@@ -55,59 +66,6 @@ async function runBatchVerb(
 }
 
 /**
- * Resolved pre-loop state for one selected id. `isLocked` is null when the
- * state could not be determined: the memory is missing from the fetched page
- * and its per-id read 404'd — such ids are also recorded in the gone set and
- * skip the run's mutations entirely (reported already gone).
- */
-interface ResolvedMemoryLabel {
-  label: string;
-  isLocked: boolean | null;
-}
-
-/** Errors from per-id reads that also failed — keyed by the selected id. */
-type LabelReadErrors = Map<string, unknown>;
-
-/** Ids whose per-id read confirmed the memory is already gone (a 404). */
-type GoneIds = Set<string>;
-
-/** The maps a per-id read populates (options object — the function takes 4 params). */
-interface LabelCollectors {
-  resolved: Map<string, ResolvedMemoryLabel>;
-  readErrors: LabelReadErrors;
-  goneIds: GoneIds;
-}
-
-/**
- * Resolve ONE id through its per-id read: the real label + lock state when
- * the memory still exists, a gone record when it 404s (the run then skips the
- * mutation for that id and reports it already gone), and a recorded read
- * error when the read itself fails.
- */
-async function resolvePerIdLabel(
-  userClient: UserClient,
-  id: string,
-  userId: string,
-  collectors: LabelCollectors
-): Promise<void> {
-  const { resolved, readErrors, goneIds } = collectors;
-  try {
-    const memory = await fetchMemory(userClient, id, userId);
-    if (memory === null) {
-      resolved.set(id, { label: fallbackMemoryLabel(id), isLocked: null });
-      goneIds.add(id);
-    } else {
-      resolved.set(id, {
-        label: formatMemorySelectOption(memory).label,
-        isLocked: memory.isLocked,
-      });
-    }
-  } catch (error) {
-    readErrors.set(id, error);
-  }
-}
-
-/**
  * Result-time labels, resolved BEFORE the loop mutates the page: on a browse
  * session one page fetch matches every still-present id; on a search session
  * EVERY selected id resolves through the per-id read (drift-proof by
@@ -129,18 +87,18 @@ async function resolveBatchLabels(
 ): Promise<
   | {
       ok: true;
-      labels: Map<string, ResolvedMemoryLabel>;
-      readErrors: LabelReadErrors;
-      goneIds: GoneIds;
+      labels: Map<string, ResolvedLockableLabel>;
+      readErrors: LockableLabelReadErrors;
+      goneIds: LockableGoneIds;
     }
   | {
       ok: false;
       reason: 'fetch-failed';
     }
 > {
-  const resolved = new Map<string, ResolvedMemoryLabel>();
-  const readErrors: LabelReadErrors = new Map();
-  const goneIds: GoneIds = new Set();
+  const resolved = new Map<string, ResolvedLockableLabel>();
+  const readErrors: LockableLabelReadErrors = new Map();
+  const goneIds: LockableGoneIds = new Set();
   const idSet = new Set(ids);
   if (session.data.kind === 'browse') {
     const data = await fetchPageForSession(userClient, session.data, session.data.currentPage);
@@ -157,21 +115,22 @@ async function resolveBatchLabels(
     }
   }
   const missingIds = ids.filter(id => !resolved.has(id));
-  await Promise.allSettled(
-    missingIds.map(id =>
-      resolvePerIdLabel(userClient, id, userId, { resolved, readErrors, goneIds })
-    )
+  await resolveMissingLockableLabels(
+    missingIds,
+    {
+      read: id => fetchMemory(userClient, id, userId),
+      toLabel: memory => formatMemorySelectOption(memory).label,
+      fallbackLabel: fallbackMemoryLabel,
+    },
+    { resolved, readErrors, goneIds }
   );
   return { ok: true, labels: resolved, readErrors, goneIds };
 }
 
-/** Outcome counts for one finished batch run. */
-interface BatchRunCounts {
-  succeeded: number;
-  gone: number;
-  failed: number;
-  locked: number;
-}
+const MEMORY_BATCH_NOUNS = {
+  noun: 'memory',
+  destroyVerb: 'delete',
+} satisfies LockableBatchNouns;
 
 /**
  * Deliver the outcome report: build the result embed (the color ladder is the
@@ -186,20 +145,17 @@ async function deliverBatchResult(
   interaction: ButtonInteraction,
   session: { data: MemoryListSession },
   verb: BatchVerb,
-  counts: BatchRunCounts,
+  counts: LockableBatchCounts,
   lines: readonly BatchResultLine[]
 ): Promise<void> {
-  const { succeeded, gone, failed, locked } = counts;
+  const { succeeded, failed } = counts;
   const resultEmbed = buildBatchResultEmbed({
     title: verb === 'delete' ? '🗑️ Delete Results' : '🔐 Lock Results',
     color: batchResultColor({ succeeded, failed }),
     lines: formatBatchItemLines(lines),
   });
 
-  const countsLine =
-    verb === 'delete'
-      ? `Batch finished: ${succeeded} succeeded, ${gone} already gone, ${locked} locked (skipped), ${failed} failed.`
-      : `Batch finished: ${succeeded} succeeded, ${gone} already gone, ${locked} already locked, ${failed} failed.`;
+  const countsLine = formatLockableCountsLine(counts, verb === 'delete');
 
   // The refreshed view does session-manager round-trips that can throw AFTER
   // the mutations ran — a throw degrades to the result-only reply, never
@@ -300,62 +256,24 @@ export async function handleMemoryBatchConfirm(
       truncateForSelect(labels.get(id)?.label ?? fallbackMemoryLabel(id), { stripNewlines: true })
     );
 
-  const toResultLine = (result: (typeof results)[number]): BatchResultLine => {
-    const label = labelFor(result.id);
-    if (!result.ok) {
-      // On a delete run a 403 IS the gateway's locked-memory rejection
-      // ("Cannot delete a locked memory") — and a selected id missing from
-      // the fetched page has UNKNOWN lock state, so the 403 is the only
-      // honest locked signal. Render it as the locked outcome, not a failure.
-      if (
-        verb === 'delete' &&
-        result.error instanceof GatewayClientError &&
-        result.error.status === 403
-      ) {
-        return { label, status: 'locked', note: 'locked — unlock first' };
-      }
-      const reason = renderSpec(
-        verb === 'delete'
-          ? classifyGatewayFailure(result.error, 'memory', { failedAction: 'delete the memory' })
-          : classifyGatewayFailure(result.error, 'memory lock')
-      );
-      return { label, status: 'failed', note: reason };
-    }
-    if (result.value === 'success') {
-      return { label, status: 'success' };
-    }
-    return { label, status: 'gone', note: 'already gone' };
-  };
+  const runOptions = {
+    destroying: verb === 'delete',
+    nouns: MEMORY_BATCH_NOUNS,
+  } satisfies LockableBatchRunOptions;
+  const toResultLine = (result: (typeof results)[number]): BatchResultLine =>
+    toLockableResultLine(result, labelFor(result.id), runOptions);
 
-  // Original ids order: loop results where the id ran; the upfront skips for
-  // the ids neither verb attempted (gone → already gone; locked-skip → locked;
-  // every remaining id on a lock run is an unresolvable read — failed with
-  // its classified reason, no mutation).
+  // Original ids order: loop results where the id ran, upfront skips otherwise (see buildSkippedLockableLine).
   const resultLines = new Map<string, BatchResultLine>(
     results.map(result => [result.id, toResultLine(result)])
   );
+  const skips = { goneIds: resolved.goneIds, lockedIds, readErrors: resolved.readErrors };
   const lines = ids.map(
     (id): BatchResultLine =>
-      resultLines.get(id) ?? {
-        label: labelFor(id),
-        status: resolved.goneIds.has(id) ? 'gone' : lockedIds.has(id) ? 'locked' : 'failed',
-        note: resolved.goneIds.has(id)
-          ? 'already gone'
-          : lockedIds.has(id)
-            ? verb === 'delete'
-              ? 'locked — unlock first'
-              : 'already locked'
-            : renderSpec(
-                classifyGatewayFailure(resolved.readErrors.get(id), 'memory', { operation: 'read' })
-              ),
-      }
+      resultLines.get(id) ?? buildSkippedLockableLine(id, labelFor(id), skips, runOptions)
   );
 
-  const succeeded = lines.filter(line => line.status === 'success').length;
-  const gone = lines.filter(line => line.status === 'gone').length;
-  const failed = lines.filter(line => line.status === 'failed').length;
-  const locked = lines.filter(line => line.status === 'locked').length;
-  const counts: BatchRunCounts = { succeeded, gone, failed, locked };
+  const counts = countLockableBatchLines(lines);
   logger.info({ userId, verb, requested: ids.length, ...counts }, 'Batch memory action finished');
 
   await deliverBatchResult(interaction, session, verb, counts, lines);
