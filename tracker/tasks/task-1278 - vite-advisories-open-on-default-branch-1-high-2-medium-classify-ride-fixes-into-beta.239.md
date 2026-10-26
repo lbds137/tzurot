@@ -3,9 +3,10 @@ id: TASK-1278
 title: >-
   vite advisories open on default branch: 1 high + 2 medium - classify, ride
   fixes into beta.239
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-24 16:08'
+updated_date: '2026-10-26 04:27'
 labels:
   - 'area:deps'
   - 'size:S'
