@@ -33,25 +33,10 @@ import {
   piggybackFields,
   type GuestOverrideResult,
 } from './guestModeOverrides.js';
+import { buildPostRouteLlmAuth, toResolvedAuth, type ResolvedLlmAuth } from './postRouteLlmAuth.js';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 
 const logger = createLogger('AuthStep');
-
-/** What `resolveLlmAuth` resolves — the shape every downstream hop (quota
- *  retarget, demotion, process()) spreads or reads. */
-interface ResolvedLlmAuth {
-  resolvedApiKey: string | undefined;
-  resolvedProvider: AIProvider | undefined;
-  isGuestMode: boolean;
-  effectivePersonality: NonNullable<GenerationContext['config']>['effectivePersonality'];
-  wasAutoPromoted?: boolean;
-  fallback?: NonNullable<GenerationContext['auth']>['fallback'];
-  /** Set when guest mode substituted the configured model (footer announce). */
-  quotaFallback?: QuotaFallbackInfo;
-  /** Set when the guest-mode z.ai piggyback admission denied (footer note). */
-  piggybackSkipped?: boolean;
-  piggybackModel?: string;
-}
 
 export class AuthStep implements IPipelineStep {
   readonly name = 'AuthResolution';
@@ -99,18 +84,6 @@ export class AuthStep implements IPipelineStep {
       job.id,
       job.data.requestId
     );
-    const {
-      resolvedApiKey,
-      resolvedProvider,
-      isGuestMode,
-      effectivePersonality,
-      wasAutoPromoted,
-      fallback,
-      quotaFallback,
-      piggybackSkipped,
-      piggybackModel,
-      inheritedQuotaCategory,
-    } = llmAuth;
 
     const audioProviderKeys = await this.resolveAudioProviderKeys(jobContext.userId);
 
@@ -123,36 +96,13 @@ export class AuthStep implements IPipelineStep {
     // Update config with potentially modified personality
     const updatedConfig = {
       ...config,
-      effectivePersonality,
+      effectivePersonality: llmAuth.effectivePersonality,
     };
 
     return {
       ...context,
       config: updatedConfig,
-      auth: {
-        apiKey: resolvedApiKey,
-        provider: resolvedProvider,
-        isGuestMode,
-        audioProviderKeys,
-        sttDispatch,
-        // wasAutoPromoted and fallback are co-invariant by ProviderRouter
-        // construction (always set together or neither). Spread separately
-        // here only because they're both optional on the type. If a future
-        // routing path sets wasAutoPromoted without fallback, the downstream
-        // guard in GenerationStep degrades gracefully (no retry attempted)
-        // rather than crashing — silent no-op is preferable to a runtime fault.
-        ...(wasAutoPromoted === true ? { wasAutoPromoted: true } : {}),
-        ...(fallback !== undefined ? { fallback } : {}),
-        ...(quotaFallback !== undefined ? { quotaFallback } : {}),
-        ...(piggybackSkipped !== undefined ? { piggybackSkipped, piggybackModel } : {}),
-        // Carries the demotion's OWN classification forward so the reactive
-        // retarget stays reachable once the demotion has already consumed the
-        // quota error. Dropping it here is invisible to the compiler — the
-        // field is optional on ResolvedAuth — and silently re-creates the
-        // dead-end this thread exists to close, so the seam is asserted in
-        // AuthStep.test.ts rather than only at the two endpoints.
-        ...(inheritedQuotaCategory !== undefined ? { inheritedQuotaCategory } : {}),
-      },
+      auth: toResolvedAuth(llmAuth, audioProviderKeys, sttDispatch),
     };
   }
 
@@ -167,20 +117,7 @@ export class AuthStep implements IPipelineStep {
     userId: string,
     jobId: string | undefined,
     requestId: string
-  ): Promise<
-    Awaited<ReturnType<AuthStep['resolveLlmAuth']>> & {
-      quotaFallback?: QuotaFallbackInfo;
-      /**
-       * Set ONLY by the demotion tier. A demotion keeps the user's model and
-       * merely changes pool, so the reactive quota retarget is still owed if
-       * the passthrough fails — but after a demotion the original quota error
-       * never surfaces to be classified. This carries the category that was
-       * classified up here. Absent on the retarget path, which already spent
-       * that tier.
-       */
-      inheritedQuotaCategory?: QuotaFallbackCategory;
-    }
-  > {
+  ): Promise<ResolvedLlmAuth> {
     const llmAuth = await this.resolveLlmAuth(initialPersonality, userId, requestId);
 
     // One viability check for the resolved route, shared by the demotion tier
@@ -516,30 +453,9 @@ export class AuthStep implements IPipelineStep {
           requestId
         );
         effectivePersonality = guest.personality;
-        if (guest.zaiSystemKey !== undefined) {
-          return {
-            resolvedApiKey: guest.zaiSystemKey,
-            resolvedProvider: AIProvider.ZaiCoding,
-            isGuestMode: true,
-            effectivePersonality,
-            wasAutoPromoted: route.wasAutoPromoted,
-            fallback: route.fallback,
-            ...(guest.quotaFallback !== undefined ? { quotaFallback: guest.quotaFallback } : {}),
-            ...piggybackFields(guest),
-          };
-        }
       }
 
-      return {
-        resolvedApiKey: route.apiKey,
-        resolvedProvider: route.effectiveProvider,
-        isGuestMode: route.isGuestMode,
-        effectivePersonality,
-        wasAutoPromoted: route.wasAutoPromoted,
-        fallback: route.fallback,
-        ...(guest?.quotaFallback !== undefined ? { quotaFallback: guest.quotaFallback } : {}),
-        ...piggybackFields(guest),
-      };
+      return buildPostRouteLlmAuth(route, effectivePersonality, guest);
     } catch (error) {
       // Resolution failure is unexpected (normal guest mode is signaled via
       // isGuestMode=true, not by throwing). Recover by falling back to guest.

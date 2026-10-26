@@ -120,6 +120,13 @@ const generationPayloadSchema = z.object({
        * alone cannot express.
        */
       fallbackFromProvider: z.string().optional(),
+      /**
+       * `true` when the request was configured for `zai-coding` and
+       * ProviderRouter redirected it to OpenRouter upfront because the user
+       * had no coding-plan key. Lets the model footer annotate `• via
+       * OpenRouter (no coding plan key)` when OpenRouter serves the turn.
+       */
+      fallthroughTriggered: z.boolean().optional(),
       /** Source of LLM config (derived from CONFIG_SOURCE_IDS — single source of truth). */
       configSource: z.enum(CONFIG_SOURCE_IDS).optional(),
       /** Whether response was generated using guest mode (free model, no API key) */

@@ -123,6 +123,13 @@ export interface ResolvedAuth {
    */
   wasAutoPromoted?: boolean;
   /**
+   * Set `true` only when ProviderRouter took the no-coding-plan-key
+   * fallthrough (`zai-coding` → OpenRouter); absent otherwise. Threaded into
+   * result metadata so the footer can annotate `• via OpenRouter (no coding
+   * plan key)` when OpenRouter serves the turn.
+   */
+  fallthroughTriggered?: boolean;
+  /**
    * Pre-computed OpenRouter passthrough route — populated when (and only
    * when) `wasAutoPromoted` is true. Contains everything GenerationStep
    * needs to swap to OpenRouter on a z.ai failure (catalog drift defense

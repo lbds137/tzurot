@@ -24,6 +24,7 @@ export interface ResultMetadataPassthrough {
   providerUsed?: string;
   fallbackProviderAttempted?: string;
   fallbackFromProvider?: string;
+  fallthroughTriggered?: boolean;
   quotaFallback?: {
     fromModel: string;
     category: QuotaFallbackCategoryValue;
@@ -50,6 +51,7 @@ export function buildResultMetadataPassthrough(
     providerUsed: result.metadata?.providerUsed,
     fallbackProviderAttempted: result.metadata?.fallbackProviderAttempted,
     fallbackFromProvider: result.metadata?.fallbackFromProvider,
+    fallthroughTriggered: result.metadata?.fallthroughTriggered,
     quotaFallback: result.metadata?.quotaFallback,
     piggybackSkipped: result.metadata?.piggybackSkipped,
     piggybackModel: result.metadata?.piggybackModel,

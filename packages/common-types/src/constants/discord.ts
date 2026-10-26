@@ -4,7 +4,7 @@
  * Discord API limits, colors, and text truncation limits.
  */
 
-import { isChatCapableProvider, isRouterAliasModel, stripZaiPrefix } from './ai.js';
+import { AIProvider, isChatCapableProvider, isRouterAliasModel, stripZaiPrefix } from './ai.js';
 import { GUEST_MODE_CATEGORY, type QuotaFallbackCategoryValue } from './error.js';
 
 /**
@@ -314,6 +314,12 @@ export const BOT_FOOTER_TEXT = {
   FRESH_MODE: '🌱 Fresh Mode • Memories not being used',
   /** Incognito mode indicator (memories not saved) */
   INCOGNITO_MODE: '👻 Incognito Mode • Memories not being saved',
+  /**
+   * Suffix appended to the OpenRouter provider attribution (`• via OpenRouter`)
+   * when a `zai-coding` preset fell through to OpenRouter upfront because the
+   * user has no coding-plan key.
+   */
+  NO_CODING_PLAN_KEY_SUFFIX: ' (no coding plan key)',
 } as const;
 
 /**
@@ -367,6 +373,16 @@ export interface ModelFooterOptions {
    * never arrive together.
    */
   fallbackFromProvider?: string;
+  /**
+   * `true` when a `zai-coding` preset fell through to OpenRouter upfront
+   * because the user had no coding-plan key. Appends `(no coding plan key)`
+   * to the plain OpenRouter attribution (`• via OpenRouter (no coding plan key)`).
+   * Silent when `provider` is not `'openrouter'` (e.g. a guest turn upgraded
+   * onto the system coding-plan key after the fallthrough) or when a route
+   * chain (`fallbackProviderAttempted` / `fallbackFromProvider`) takes
+   * precedence.
+   */
+  fallthroughTriggered?: boolean;
   /** Include the auto-response badge on the same line. */
   withAutoBadge?: boolean;
   /**
@@ -538,14 +554,29 @@ export function toInertCodeSpan(value: string): string {
  * reason. When it did, the served-swap chain drops its own "(fallback)"
  * suffix — the reason already explains the swap, and "(out of credit)
  * (fallback)" reads as two separate events.
+ *
+ * `fallthroughTriggered` is the third attribution signal (upfront `zai-coding`
+ * → OpenRouter routing when the user has no coding-plan key). It appends
+ * {@link BOT_FOOTER_TEXT.NO_CODING_PLAN_KEY_SUFFIX} only on the plain
+ * OpenRouter arm (`provider === AIProvider.OpenRouter` with no attempted- or
+ * served-fallback chain); it is silent when another provider served the turn
+ * (such as a guest upgrade onto the system coding-plan key) or when a route
+ * chain renders instead.
  */
 function buildProviderAttribution(args: {
   provider?: string;
   fallbackProviderAttempted?: string;
   fallbackFromProvider?: string;
+  fallthroughTriggered?: boolean;
   reasonRendered: boolean;
 }): string {
-  const { provider, fallbackProviderAttempted, fallbackFromProvider, reasonRendered } = args;
+  const {
+    provider,
+    fallbackProviderAttempted,
+    fallbackFromProvider,
+    fallthroughTriggered,
+    reasonRendered,
+  } = args;
   const providerLabel = provider !== undefined ? PROVIDER_FOOTER_LABEL[provider] : undefined;
   if (providerLabel === undefined) {
     return '';
@@ -562,7 +593,11 @@ function buildProviderAttribution(args: {
       ? PROVIDER_FOOTER_LABEL[fallbackFromProvider]
       : undefined;
   if (fromLabel === undefined) {
-    return ` • via ${providerLabel}`;
+    const suffix =
+      fallthroughTriggered === true && provider === (AIProvider.OpenRouter as string)
+        ? BOT_FOOTER_TEXT.NO_CODING_PLAN_KEY_SUFFIX
+        : '';
+    return ` • via ${providerLabel}${suffix}`;
   }
   return reasonRendered
     ? ` • via ${fromLabel} → ${providerLabel}`
@@ -601,6 +636,7 @@ export function buildModelFooterText(
     provider,
     fallbackProviderAttempted,
     fallbackFromProvider,
+    fallthroughTriggered,
     withAutoBadge = false,
     quotaFallback,
     routedModel,
@@ -663,6 +699,7 @@ export function buildModelFooterText(
     provider,
     fallbackProviderAttempted,
     fallbackFromProvider,
+    fallthroughTriggered,
     reasonRendered: quotaReasonRendered,
   });
   if (withAutoBadge) {
