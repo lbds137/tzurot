@@ -25,12 +25,12 @@ Complete reference for every `/` command Tzurot exposes in Discord. For a high-l
 
 TTS + STT provider selection and cloned-voice library lifecycle. Per-character TTS overrides cascade over user defaults; STT is user-scoped (your voice doesn't change per character).
 
-| Command  | Subcommands                    | Purpose                                                  |
-| -------- | ------------------------------ | -------------------------------------------------------- |
-| `/voice` | `view <character>`             | Resolved TTS + STT for a character (with cascade source) |
-|          | `tts browse set clear default` | Per-character + user-default TTS provider config         |
-|          | `stt set clear`                | Transcription provider preference (user-scoped)          |
-|          | `voices browse delete purge`   | Cloned-voice library lifecycle                           |
+| Command  | Subcommands                    | Purpose                                                                                                            |
+| -------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `/voice` | `view <character>`             | Resolved TTS + STT for a character (with cascade source)                                                           |
+|          | `tts browse set clear default` | Per-character + user-default TTS provider config; **Select several** in browse clears a batch of overrides at once |
+|          | `stt set clear`                | Transcription provider preference (user-scoped)                                                                    |
+|          | `voices browse delete purge`   | Cloned-voice library lifecycle                                                                                     |
 
 ## Presets & Channels
 
@@ -38,7 +38,7 @@ TTS + STT provider selection and cloned-voice library lifecycle. Per-character T
 | ---------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `/preset`  | `create` `edit` `browse`                    | Custom LLM presets (model + parameters)                                                                               |
 |            | `default` (`set` `clear`)                   | Your default preset — used for every character without an override; `slot: Both` targets text + vision in one command |
-|            | `override` (`browse` `set` `clear`)         | Per-character preset overrides                                                                                        |
+|            | `override` (`browse` `set` `clear`)         | Per-character preset overrides; **Select several** in browse clears a batch at once                                   |
 |            | `export` `import` `template`                | Preset portability (JSON)                                                                                             |
 |            | `global` (`default` `free-default`)         | System-wide defaults (owner only); `slot: Both` targets text + vision                                                 |
 | `/models`  | `browse` `view`                             | Browse and inspect available AI models (by capability)                                                                |
@@ -75,11 +75,11 @@ TTS + STT provider selection and cloned-voice library lifecycle. Per-character T
 
 ## Administration (owner only)
 
-| Command  | Subcommands                                           | Purpose                          |
-| -------- | ----------------------------------------------------- | -------------------------------- |
-| `/admin` | `ping` `health` `metrics` `servers` `kick` `usage`    | Monitoring and management        |
-|          | `cleanup` `db-sync` `broadcast` `settings` `presence` | Maintenance and configuration    |
-| `/deny`  | `add`/`remove` × `everywhere` `server` `this-server`  | User and guild denial management |
-|          | `channel` `character` · `browse` `view`               | (scope is the subcommand name)   |
+| Command  | Subcommands                                           | Purpose                                                                              |
+| -------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `/admin` | `ping` `health` `metrics` `servers` `kick` `usage`    | Monitoring and management                                                            |
+|          | `cleanup` `db-sync` `broadcast` `settings` `presence` | Maintenance and configuration                                                        |
+| `/deny`  | `add`/`remove` × `everywhere` `server` `this-server`  | User and guild denial management                                                     |
+|          | `channel` `character` · `browse` `view`               | (scope is the subcommand name); **Select several** in browse removes a batch at once |
 
 > **`db-sync` deletion semantics**: hard deletes on synced tables PROPAGATE — deleting a row (preset, character, persona…) in either environment deletes it in the other on the next sync, instead of the old resurrect-from-the-other-side behavior. Corollary for one-off cleanup scripts: an accidental `DELETE` on one side now applies to both on the next sync (clear the matching `sync_tombstones` row to undo before syncing). Re-creating a row after deleting it wins over its tombstone. Syncs also run automatically once a night, scheduled from the PROD bot at an owner-configurable UTC hour (default 07:00 UTC ≈ 3am US Eastern) and silent when nothing changed — so "the next sync" is at most ~24h away even without a manual `/admin db-sync`. Both the hour and the on/off switch live in `/admin settings` → System · Operations.
