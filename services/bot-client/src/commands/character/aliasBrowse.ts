@@ -152,7 +152,7 @@ export function aliasFailureSpec(status: number, error: string): MessageSpec {
   if (status === 404) {
     return CATALOG.error.notFound('Character or alias');
   }
-  return CATALOG.error.operationFailed('managing aliases');
+  return CATALOG.error.operationFailed('manage aliases');
 }
 
 export function describeAliasFailure(status: number, error: string): string {

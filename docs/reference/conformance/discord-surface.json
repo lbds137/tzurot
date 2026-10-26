@@ -7,7 +7,7 @@
   },
   "totals": {
     "entries": 3047,
-    "sites": 7073
+    "sites": 7075
   },
   "entries": [
     {
@@ -878,7 +878,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/character/aliasBatchConfirm.ts",
       "symbol": "deferred",
-      "count": 1
+      "count": 2
     },
     {
       "category": "client-methods",
@@ -914,7 +914,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/character/aliasBatchConfirm.ts",
       "symbol": "replied",
-      "count": 1
+      "count": 2
     },
     {
       "category": "client-methods",

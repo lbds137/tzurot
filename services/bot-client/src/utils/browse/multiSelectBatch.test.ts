@@ -28,6 +28,7 @@ import {
   toBatchOutcomeLine,
   type BatchConfirmView,
 } from './multiSelectBatch.js';
+import { buildBrowseSelectMenu } from './selectMenuBuilder.js';
 
 const followUpSpecMock = vi.hoisted(() => vi.fn());
 vi.mock('../../ux/render/reply.js', () => ({ followUpSpec: followUpSpecMock }));
@@ -290,9 +291,28 @@ describe('readSelectOptionLabels (the shared option-label walker)', () => {
         },
       ])
     );
-    expect(labels.get('mem-1')).toBe('1. 🔐 first memory');
-    expect(labels.get('mem-2')).toBe('2. second memory');
+    expect(labels.get('mem-1')).toBe('🔐 first memory');
+    expect(labels.get('mem-2')).toBe('second memory');
     expect(labels.size).toBe(2);
+  });
+
+  it('strips one leading display number prefix over a buildBrowseSelectMenu-built message (C8)', () => {
+    const row = buildBrowseSelectMenu({
+      items: [
+        { id: 'item-1', label: 'Alpha' },
+        { id: 'item-12', label: '3. Foo' },
+      ],
+      customId: 'test::batch-select',
+      placeholder: 'Select items...',
+      startIndex: 10,
+      maxValues: 2,
+      formatItem: item => ({ value: item.id, label: item.label }),
+    });
+    const message = { components: row ? [row] : [] } as unknown as Message;
+
+    const labels = readSelectOptionLabels(message);
+    expect(labels.get('item-1')).toBe('Alpha');
+    expect(labels.get('item-12')).toBe('3. Foo');
   });
 
   it('walks nested component trees and degrades a non-string label to the value', () => {
@@ -310,6 +330,29 @@ describe('readSelectOptionLabels (the shared option-label walker)', () => {
       ])
     );
     expect(labels.get('deep-id')).toBe('deep-id');
+  });
+
+  it('omits an option whose stripped label is empty while keeping sibling options', () => {
+    const labels = readSelectOptionLabels(
+      messageWithRows([
+        {
+          type: 1,
+          components: [
+            {
+              type: 3,
+              options: [
+                { value: 'empty-id', label: '5.' },
+                { value: 'real-id', label: '6. Real' },
+              ],
+            },
+          ],
+        },
+      ])
+    );
+    expect(labels.has('empty-id')).toBe(false);
+    expect(labels.get('empty-id')).toBeUndefined();
+    expect(labels.get('real-id')).toBe('Real');
+    expect(labels.size).toBe(1);
   });
 });
 

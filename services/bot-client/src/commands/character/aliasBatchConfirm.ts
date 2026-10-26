@@ -51,7 +51,7 @@ const logger = createLogger('character-alias-batch');
 const UNKNOWN_ERROR = 'Unknown';
 
 /** Outcome of one single-alias removal call inside the batch loop. */
-type AliasBatchOutcome = 'success' | 'already-gone';
+type AliasBatchOutcome = 'success';
 
 /** Pre-loop resolution for one selected option value. */
 export type ResolvedAliasItem =
@@ -74,20 +74,24 @@ const resolutionFailureNote = (): string =>
 
 /**
  * Resolve one picked id whose key sits at or above the boundary length
- * (>= SELECT_ALIAS_KEY_LENGTH) against the fetched rows. A boundary key may
+ * (`>= SELECT_ALIAS_KEY_LENGTH`) against the fetched rows. A boundary key may
  * be the truncation of a longer alias, so two same-scope rows sharing the
  * prefix make the pick ambiguous — fail closed rather than removing whichever
- * row scans first. (The single-pick confirm shows the resolved full alias
- * before the user commits; this flow has no per-item confirm.) Returns
- * undefined for a below-boundary or unparseable id, and when no row matches
- * — the caller falls through to the page-resolution path.
+ * row scans first. When zero candidates match, an untruncated list proves
+ * absence (`asGone: true`), whereas a truncated list fails closed. Returns
+ * `undefined` only for an unparseable or below-boundary id.
  */
-function resolveBoundaryKey(id: string, rows: readonly AliasRow[]): ResolvedAliasItem | undefined {
+function resolveBoundaryKey(
+  id: string,
+  rows: readonly AliasRow[],
+  truncated: boolean
+): ResolvedAliasItem | undefined {
   const parsed = parseSelectValueId(id);
   if (parsed === null || parsed.aliasKey.length < SELECT_ALIAS_KEY_LENGTH) {
     return undefined;
   }
   const exactMatches = rows.filter(row => formatAliasSelectValue(row) === id);
+  // Case-insensitive fallback: see resolveAliasBatchItems for why a case-only difference is the same alias.
   const candidates =
     exactMatches.length > 0
       ? exactMatches
@@ -97,7 +101,9 @@ function resolveBoundaryKey(id: string, rows: readonly AliasRow[]): ResolvedAlia
   }
   const unambiguousRow = candidates[0];
   if (unambiguousRow === undefined) {
-    return undefined;
+    return truncated
+      ? { ok: false, label: fallbackAliasLabel(id), reason: resolutionFailureNote() }
+      : { ok: false, label: fallbackAliasLabel(id), reason: ALREADY_GONE_NOTE, asGone: true };
   }
   return {
     ok: true,
@@ -109,11 +115,12 @@ function resolveBoundaryKey(id: string, rows: readonly AliasRow[]): ResolvedAlia
 }
 
 /**
- * Resolve one picked id against the fetched page under the below-boundary
- * rules: exact select-value match first, then case-insensitive; a miss falls
- * to the parsed-key paths (gateway-decided in single-character mode,
- * already-gone in my-aliases mode when the list is untruncated) and finally
- * the shared resolution-failure tail.
+ * Resolve one picked id against the fetched rows under the below-boundary
+ * rules: exact select-value match first, then case-insensitive; when a
+ * below-boundary key (`< SELECT_ALIAS_KEY_LENGTH`) misses, an untruncated list
+ * proves the alias is already gone (`asGone: true` in both modes), whereas a
+ * truncated list falls back to a gateway-decided item in single-character mode
+ * or fails closed in my-aliases mode. Unparseable ids fail closed.
  */
 function resolveFromFetchedRows(
   id: string,
@@ -121,6 +128,7 @@ function resolveFromFetchedRows(
   coords: BrowseCoords,
   truncated: boolean
 ): ResolvedAliasItem {
+  // Case-insensitive fallback: see resolveAliasBatchItems for why at most one row can match.
   const matchedRow =
     rows.find(row => formatAliasSelectValue(row) === id) ??
     rows.find(row => formatAliasSelectValue(row).toLowerCase() === id.toLowerCase());
@@ -139,6 +147,14 @@ function resolveFromFetchedRows(
   const parsed = parseSelectValueId(id);
   if (parsed !== null && parsed.aliasKey.length < SELECT_ALIAS_KEY_LENGTH) {
     const label = truncateForSelect(`@${parsed.aliasKey}`, { stripNewlines: true });
+    if (!truncated) {
+      return {
+        ok: false,
+        label,
+        reason: ALREADY_GONE_NOTE,
+        asGone: true,
+      };
+    }
     if (coords.query !== null) {
       return {
         ok: true,
@@ -146,14 +162,6 @@ function resolveFromFetchedRows(
         scope: parsed.scope,
         alias: parsed.aliasKey,
         label,
-      };
-    }
-    if (!truncated) {
-      return {
-        ok: false,
-        label,
-        reason: ALREADY_GONE_NOTE,
-        asGone: true,
       };
     }
   }
@@ -166,19 +174,35 @@ function resolveFromFetchedRows(
 }
 
 /**
- * Match each decoded option value against the fetched rows by rebuilding
- * `${row.scope}:${row.alias.slice(0, SELECT_ALIAS_KEY_LENGTH)}`. A key of
- * length 92 may be either a full alias or the truncation of a longer one, so
- * it is ambiguous and fails closed — only
- * `aliasKey.length < SELECT_ALIAS_KEY_LENGTH` counts as untruncated. When an
- * untruncated row misses: in single-character mode
- * (`coords.query !== null`), fall back to `coords.query` + `aliasKey` so the
- * gateway call decides 200 vs 404; in my-aliases mode (`coords.query === null`),
- * a missing untruncated key is already gone only when `truncated` is `false`
- * (when `truncated` is `true`, absence from the capped list is not evidence
- * of deletion, so resolution fails). Select-value collisions below the
- * boundary length are accepted; a boundary-length key matching more than one
- * row fails closed — see `formatAliasSelectValue` in aliasBrowseView.ts.
+ * Canonical resolution rule for batch alias removal.
+ *
+ * Matches each decoded option value (`{scope}:{aliasKey}`) against the
+ * pre-fetched `rows` by rebuilding `formatAliasSelectValue(row)` (`row.alias`
+ * sliced to `SELECT_ALIAS_KEY_LENGTH`), trying an exact match first and a
+ * case-insensitive match second. Aliases are unique on lower(alias) per tier
+ * (global tier, and per user for personal rows — migration
+ * 20260718162934_add_user_scoped_aliases), and the gateway DELETE matches the
+ * alias case-insensitively, so a case-only difference is the same alias and at
+ * most one row can match below the boundary:
+ * - Boundary keys (`aliasKey.length >= SELECT_ALIAS_KEY_LENGTH`) may be the
+ *   truncation of a longer alias: a unique match resolves to that row; more
+ *   than one match is ambiguous and fails closed; zero matches report already
+ *   gone (`asGone: true`) when `truncated` is `false` (the complete list
+ *   proves absence) or fail closed when `truncated` is `true`. A boundary key
+ *   is a prefix, so if the picked alias was deleted after the pick and a
+ *   different alias sharing that `SELECT_ALIAS_KEY_LENGTH` prefix exists in
+ *   the same scope (only possible across pages or filters, since one menu
+ *   rejects duplicate values), the unique candidate is that other alias and it
+ *   is removed; the footer carries no more of the alias than the select value,
+ *   so this is an accepted limit.
+ * - Below-boundary keys (`aliasKey.length < SELECT_ALIAS_KEY_LENGTH`) carry
+ *   the full alias: a matched row resolves to that row; on a miss, an
+ *   untruncated list (`!truncated`) proves absence and reports already gone
+ *   (`asGone: true`) in both modes, while a truncated list (`truncated`)
+ *   falls back to `coords.query` + `aliasKey` in single-character mode
+ *   (`coords.query !== null`) so the gateway DELETE decides, or fails closed
+ *   in my-aliases mode (`coords.query === null`).
+ * - Unparseable ids always fail closed.
  */
 export function resolveAliasBatchItems(
   ids: readonly string[],
@@ -189,7 +213,7 @@ export function resolveAliasBatchItems(
   const resolved = new Map<string, ResolvedAliasItem>();
 
   for (const id of ids) {
-    const boundaryItem = resolveBoundaryKey(id, rows);
+    const boundaryItem = resolveBoundaryKey(id, rows, truncated);
     if (boundaryItem !== undefined) {
       resolved.set(id, boundaryItem);
       continue;
@@ -202,21 +226,31 @@ export function resolveAliasBatchItems(
 
 /**
  * Execute one alias removal against the gateway envelope contract:
- * `result.ok` → `'success'`, `404` → `'already-gone'`, any other failure
- * throws a formatted error so `runBatchSequentially` isolates and records it.
+ * `result.ok` → `'success'`; any non-ok status (including `404`, since the
+ * gateway also 404s an invisible character, and `0` on a network failure or
+ * timeout) raises a formatted error so `runBatchSequentially` isolates and
+ * records it as failed.
  */
 async function runSingleAliasRemoval(
   userClient: UserClient,
-  target: { slug: string; scope: AliasScope; alias: string }
+  target: { slug: string; scope: AliasScope; alias: string },
+  userId: string
 ): Promise<AliasBatchOutcome> {
-  const result = await userClient.removePersonalityAlias(target.slug, target.alias, {
-    scope: target.scope,
-  });
+  let result: Awaited<ReturnType<UserClient['removePersonalityAlias']>>;
+  try {
+    result = await userClient.removePersonalityAlias(target.slug, target.alias, {
+      scope: target.scope,
+    });
+  } catch (error) {
+    // The client returns an envelope for network failures and timeouts, so this catch only guards against a client-contract change.
+    logger.warn(
+      { err: error, userId, slug: target.slug, scope: target.scope },
+      'Batch alias removal item threw'
+    );
+    throw new Error(aliasFailureSpec(500, UNKNOWN_ERROR).text, { cause: error });
+  }
   if (result.ok) {
     return 'success';
-  }
-  if (result.status === 404) {
-    return 'already-gone';
   }
   throw new Error(aliasFailureSpec(result.status, result.error ?? UNKNOWN_ERROR).text);
 }
@@ -289,50 +323,60 @@ async function deliverAliasBatchResult(
  * failure isolation, and deliver the stacked report.
  */
 export async function handleAliasBatchConfirm(interaction: ButtonInteraction): Promise<void> {
-  // Explicit double-ack guard: the confirm handler is also invoked standalone
-  // (tests), and ackUpdate defers unconditionally.
-  if (!interaction.deferred && !interaction.replied) {
-    await ackUpdate(interaction);
-  }
-
-  const coords = parseRemoveCustomId(interaction.customId, BATCH_CONFIRM_PREFIX);
-  if (coords === null) {
-    await followUpSpec(interaction, CATALOG.progress.sessionExpired(BROWSE_COMMAND_HINT));
-    return;
-  }
-
-  const rawFooter = interaction.message.embeds[0]?.footer?.text;
-  // Defense in depth — pick time already refuses an over-budget selection.
-  if (rawFooter !== undefined && exceedsBatchFooterBudget(rawFooter)) {
-    await followUpSpec(interaction, CATALOG.error.validation(SELECTION_TOO_LARGE_COPY));
-    return;
-  }
-
-  const ids = parseAliasBatchFooterIds(rawFooter);
-  if (ids === null) {
-    const msg =
-      "Couldn't tell which aliases were selected — please run `/character alias browse` and try again.";
-    await followUpSpec(interaction, CATALOG.error.validation(msg));
-    return;
-  }
-
+  const userId = interaction.user.id;
+  let coords: BrowseCoords | null;
+  let ids: string[] | null;
   let userClient: UserClient;
+  let fetched: Awaited<ReturnType<typeof fetchAliasRows>>;
+
   try {
+    // Explicit double-ack guard: the confirm handler is also called standalone
+    // (tests); no router pre-acks it; the guard keeps it safe if one ever does.
+    if (!interaction.deferred && !interaction.replied) {
+      await ackUpdate(interaction);
+    }
+
+    coords = parseRemoveCustomId(interaction.customId, BATCH_CONFIRM_PREFIX);
+    if (coords === null) {
+      await followUpSpec(interaction, CATALOG.progress.sessionExpired(BROWSE_COMMAND_HINT));
+      return;
+    }
+
+    const rawFooter = interaction.message.embeds[0]?.footer?.text;
+    // Defense in depth — pick time already refuses an over-budget selection.
+    if (rawFooter !== undefined && exceedsBatchFooterBudget(rawFooter)) {
+      await followUpSpec(interaction, CATALOG.error.validation(SELECTION_TOO_LARGE_COPY));
+      return;
+    }
+
+    ids = parseAliasBatchFooterIds(rawFooter);
+    if (ids === null) {
+      const msg =
+        "Couldn't tell which aliases were selected — please run `/character alias browse` and try again.";
+      await followUpSpec(interaction, CATALOG.error.validation(msg));
+      return;
+    }
+
     ({ userClient } = clientsFor(interaction));
     await interaction.editReply({ components: [] });
+
+    fetched = await fetchAliasRows(userClient, coords.query);
+    if (!fetched.ok) {
+      await followUpSpec(interaction, CATALOG.error.transient(PAGE_FETCH_FAILED_COPY));
+      return;
+    }
   } catch (error) {
     // Nothing has been removed yet on this path, so a plain failure notice is safe.
-    logger.error(
-      { err: error, userId: interaction.user.id },
-      'Error preparing alias batch confirm'
-    );
-    await followUpSpec(interaction, CATALOG.error.transient(PAGE_FETCH_FAILED_COPY));
-    return;
-  }
-
-  const fetched = await fetchAliasRows(userClient, coords.query);
-  if (!fetched.ok) {
-    await followUpSpec(interaction, CATALOG.error.transient(PAGE_FETCH_FAILED_COPY));
+    // Guard on deferred || replied: if ackUpdate itself rejected, followUp would
+    // throw InteractionNotReplied and the token or 3-second window is already gone.
+    logger.error({ err: error, userId }, 'Error preparing alias batch confirm');
+    if (interaction.deferred || interaction.replied) {
+      await followUpSpec(interaction, CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)).catch(
+        (followUpError: unknown) => {
+          logger.warn({ err: followUpError, userId }, 'Alias batch confirm error followUp failed');
+        }
+      );
+    }
     return;
   }
 
@@ -346,10 +390,11 @@ export async function handleAliasBatchConfirm(interaction: ButtonInteraction): P
 
   const results = await runBatchSequentially(runIds, async id => {
     const item = resolvedMap.get(id);
+    // Unreachable because runIds holds only resolved items; it exists to narrow the type.
     if (item?.ok !== true) {
       throw new Error(aliasFailureSpec(500, UNKNOWN_ERROR).text);
     }
-    return runSingleAliasRemoval(userClient, item);
+    return runSingleAliasRemoval(userClient, item, userId);
   });
 
   const lines = buildAliasBatchResultLines(ids, resolvedMap, results);

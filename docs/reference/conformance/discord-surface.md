@@ -159,13 +159,13 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/character/aliasBatch.ts | message | 1 |
 | services/bot-client/src/commands/character/aliasBatch.ts | values | 1 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | customId | 1 |
-| services/bot-client/src/commands/character/aliasBatchConfirm.ts | deferred | 1 |
+| services/bot-client/src/commands/character/aliasBatchConfirm.ts | deferred | 2 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | embeds | 1 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | escapeMarkdown | 1 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | footer | 1 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | id | 1 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | message | 1 |
-| services/bot-client/src/commands/character/aliasBatchConfirm.ts | replied | 1 |
+| services/bot-client/src/commands/character/aliasBatchConfirm.ts | replied | 2 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | text | 1 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | user | 1 |
 | services/bot-client/src/commands/character/aliasBrowse.ts | customId | 4 |
@@ -3117,4 +3117,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 3047 entries across 7073 sites.
+Total: 3047 entries across 7075 sites.

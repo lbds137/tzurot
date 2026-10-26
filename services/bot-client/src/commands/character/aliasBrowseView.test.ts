@@ -100,6 +100,16 @@ describe('aliasBrowseView', () => {
       expect(value).toBe(`user:${'x'.repeat(SELECT_ALIAS_KEY_LENGTH)}`);
       expect(value.length).toBe('user:'.length + SELECT_ALIAS_KEY_LENGTH);
     });
+
+    it('strips embedded newlines from the option label in formatAliasSelectOption (C10)', () => {
+      const newlineRow: AliasRow = {
+        alias: 'a\nb',
+        scope: 'user',
+        character: { name: 'Lilith', slug: 'lilith' },
+        shadowed: false,
+      };
+      expect(formatAliasSelectOption(newlineRow).label).toBe('@a b');
+    });
   });
 
   describe('buildAliasListEmbed', () => {
