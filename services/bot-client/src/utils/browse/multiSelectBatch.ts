@@ -166,6 +166,9 @@ export function clampBatchConfirmDescription(listing: string, warning: string): 
  *   last surviving line when clamped, even when `lines.length === ids.length`).
  *   Walks candidates in order, stopping at the first line that does not start
  *   with `LISTING_BULLET`.
+ * - Not verified: assumes Discord returns the embed description unchanged
+ *   (same length); a normalized description could shift a borderline
+ *   listing's clamp detection.
  */
 export function recoverConfirmListingLabels(
   description: string | null | undefined,

@@ -196,6 +196,10 @@ export function formatOverrideSelectOption(override: OverrideSummary): BrowseSel
 export type OverrideBrowseAction =
   'select' | 'clear' | 'cancel' | 'batch-select' | 'batch-confirm' | 'batch-cancel';
 
+type ParsedOverrideBrowseCustomId =
+  | { action: 'clear'; personalityId: string; slot?: ModelSlot; slotUnknown: boolean }
+  | { action: Exclude<OverrideBrowseAction, 'clear'> };
+
 export interface OverrideBrowseCustomIds {
   select: string;
   cancel: string;
@@ -204,12 +208,7 @@ export interface OverrideBrowseCustomIds {
   batchCancel: string;
   clear: (personalityId: string, slot?: ModelSlot) => string;
   isOwn: (customId: string) => boolean;
-  parse: (customId: string) => {
-    action: OverrideBrowseAction;
-    personalityId?: string;
-    slot?: ModelSlot;
-    slotUnknown?: boolean;
-  } | null;
+  parse: (customId: string) => ParsedOverrideBrowseCustomId | null;
 }
 
 /** customId builders/parsers for a given override-browse domain. */
@@ -440,7 +439,7 @@ export async function handleOverrideBrowseButton(
   await ackUpdate(interaction);
   const userId = interaction.user.id;
   try {
-    if (parsed.action === 'clear' && parsed.slotUnknown === true) {
+    if (parsed.action === 'clear' && parsed.slotUnknown) {
       config.logger.warn(
         { userId, personalityId: parsed.personalityId },
         'Unknown slot segment in override clear button'
@@ -450,7 +449,7 @@ export async function handleOverrideBrowseButton(
     }
     const { userClient } = clientsFor(interaction);
 
-    if (parsed.action === 'clear' && parsed.personalityId !== undefined) {
+    if (parsed.action === 'clear') {
       const deleteResult = await config.delete(userClient, parsed.personalityId, parsed.slot);
       if (!deleteResult.ok) {
         config.logger.warn({ userId, status: deleteResult.status }, 'Failed to clear override');

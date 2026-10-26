@@ -118,7 +118,7 @@ function createButtonInteraction(options: {
           },
         ]
       : [];
-  return {
+  const interaction = {
     user: { id: 'u1' },
     customId: options.customId,
     deferred: options.deferred ?? false,
@@ -128,10 +128,19 @@ function createButtonInteraction(options: {
       embeds,
       components: options.messageComponents ?? [],
     },
-    deferUpdate: vi.fn().mockResolvedValue(undefined),
+    deferUpdate: vi.fn(() => {
+      interaction.deferred = true;
+      return Promise.resolve(undefined);
+    }),
     editReply: vi.fn().mockResolvedValue(undefined),
-    followUp: vi.fn().mockResolvedValue(undefined),
-  } as unknown as ButtonInteraction;
+    followUp: vi.fn(() => {
+      if (!interaction.deferred && !interaction.replied) {
+        return Promise.reject(new Error('InteractionNotReplied'));
+      }
+      return Promise.resolve(undefined);
+    }),
+  };
+  return interaction as unknown as ButtonInteraction;
 }
 
 function createSelectInteraction(options: {
@@ -581,41 +590,26 @@ describe('C1 — handleOverrideBatchConfirm (5 overrides, 4 cleared + 2nd wasSet
     );
   });
 
-  it('catches a rejecting ackUpdate/deferUpdate in handleOverrideBatchConfirm, makes no delete call, and sends an ephemeral error followUp (C6)', async () => {
+  it('catches a rejecting ackUpdate/deferUpdate in handleOverrideBatchConfirm, logs the error, and skips followUp on the unacked interaction (C6)', async () => {
     const config = makeConfig(PRESET_PREFIX);
     const confirmInteraction = createButtonInteraction({
       customId: 'settings-preset-override::batch-confirm',
       footerText: encodeBatchFooterIds(['p1::text']),
     });
-    vi.mocked(confirmInteraction.deferUpdate).mockRejectedValueOnce(new Error('ack rejected'));
+    const ackError = new Error('ack rejected');
+    vi.mocked(confirmInteraction.deferUpdate).mockRejectedValueOnce(ackError);
 
     await expect(handleOverrideBatchConfirm(config, confirmInteraction)).resolves.toBeUndefined();
 
+    expect(confirmInteraction.deferred).toBe(false);
     expect(stub.delete).not.toHaveBeenCalled();
     expect(confirmInteraction.editReply).not.toHaveBeenCalled();
-    expect(confirmInteraction.followUp).toHaveBeenCalledWith({
-      content: GENERIC_ERROR_MSG,
-      flags: MessageFlags.Ephemeral,
-    });
+    expect(confirmInteraction.followUp).not.toHaveBeenCalled();
     expect(config.logger.error).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'u1' }),
+      { err: ackError, userId: 'u1' },
       'Error preparing override batch confirm'
     );
-
-    // Also resolves cleanly and logs warn when both deferUpdate and followUp reject.
-    const interaction2 = createButtonInteraction({
-      customId: 'settings-preset-override::batch-confirm',
-      footerText: encodeBatchFooterIds(['p1::text']),
-    });
-    vi.mocked(interaction2.deferUpdate).mockRejectedValueOnce(new Error('ack rejected'));
-    vi.mocked(interaction2.followUp).mockRejectedValueOnce(new Error('followUp rejected'));
-
-    await expect(handleOverrideBatchConfirm(config, interaction2)).resolves.toBeUndefined();
-    expect(stub.delete).not.toHaveBeenCalled();
-    expect(config.logger.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'u1' }),
-      'Override batch confirm error followUp failed'
-    );
+    expect(config.logger.warn).not.toHaveBeenCalled();
   });
 
   it('fails closed for an unknown or empty slot segment in batch confirm, calling delete only for valid items and marking the unknown-slot item failed (C1, C4, C5)', async () => {

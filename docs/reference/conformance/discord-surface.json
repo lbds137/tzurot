@@ -7,7 +7,7 @@
   },
   "totals": {
     "entries": 3047,
-    "sites": 7071
+    "sites": 7073
   },
   "entries": [
     {
@@ -11228,7 +11228,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
       "symbol": "deferred",
-      "count": 1
+      "count": 2
     },
     {
       "category": "client-methods",
@@ -11270,7 +11270,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/utils/overrideBrowseBatch.ts",
       "symbol": "replied",
-      "count": 1
+      "count": 2
     },
     {
       "category": "client-methods",
