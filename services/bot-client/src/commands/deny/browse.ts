@@ -8,6 +8,7 @@
 
 import {
   escapeMarkdown,
+  MessageFlags,
   type EmbedBuilder,
   type ButtonInteraction,
   type StringSelectMenuInteraction,
@@ -42,6 +43,8 @@ import {
   buildSelectSeveralToggleRow,
 } from '../../utils/browse/multiSelectBatch.js';
 import { followUpBrowsePageFailure } from '../../utils/browse/pageLoadFailure.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { ackUpdate } from '../../ux/render/reply.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
 import { MODE_LABELS, formatScopeWithId } from './denyLabels.js';
@@ -316,20 +319,31 @@ function buildBrowsePage(
   return { embed, components };
 }
 
+/** Outcome of one denylist fetch: the entries, or the failure to classify. */
+export type DenylistFetchResult =
+  { ok: true; entries: DenylistEntryResponse[] } | { ok: false; failure: unknown };
+
+/** Fetch denylist entries, preserving the failure object for classification. */
+export async function fetchEntriesResult(ownerClient: OwnerClient): Promise<DenylistFetchResult> {
+  try {
+    const result = await ownerClient.listDenylistEntries();
+    if (!result.ok) {
+      logger.warn({ status: result.status }, 'Denylist fetch returned non-ok');
+      return { ok: false, failure: result };
+    }
+    return { ok: true, entries: result.data.entries };
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to fetch denylist entries');
+    return { ok: false, failure: error };
+  }
+}
+
 /** Fetch denylist entries via the typed owner client */
 export async function fetchEntries(
   ownerClient: OwnerClient
 ): Promise<DenylistEntryResponse[] | null> {
-  try {
-    const result = await ownerClient.listDenylistEntries();
-    if (!result.ok) {
-      return null;
-    }
-    return result.data.entries;
-  } catch (error) {
-    logger.error({ err: error }, 'Failed to fetch denylist entries');
-    return null;
-  }
+  const fetched = await fetchEntriesResult(ownerClient);
+  return fetched.ok ? fetched.entries : null;
 }
 
 /**
@@ -389,17 +403,13 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   const { page, filter, sort } = parsed;
 
   const { ownerClient } = clientsFor(interaction);
-  const entries = await fetchEntries(ownerClient);
-  if (entries === null) {
-    // `fetchEntries` collapses both failure arms (a `!ok` gateway result and a
-    // thrown error) into `null`, so there is no failure object to classify —
-    // the helper renders its generic load-failure shape (classify.test.ts's
-    // "TOTAL: unknown error shapes" case pins `null` among its inputs).
-    await followUpBrowsePageFailure(interaction, null);
+  const fetched = await fetchEntriesResult(ownerClient);
+  if (!fetched.ok) {
+    await followUpBrowsePageFailure(interaction, fetched.failure);
     return;
   }
 
-  const filtered = filterByType(entries, filter);
+  const filtered = filterByType(fetched.entries, filter);
   const sorted = sortEntries(filtered, sort);
   const { embed, components } = buildBrowsePage(sorted, page, filter, sort);
 
@@ -427,14 +437,18 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
 
   // Fetch entries to find the selected one
   const { ownerClient } = clientsFor(interaction);
-  const entries = await fetchEntries(ownerClient);
-  if (entries === null) {
+  const fetched = await fetchEntriesResult(ownerClient);
+  if (!fetched.ok) {
+    await followUpBrowsePageFailure(interaction, fetched.failure, 'entry');
     return;
   }
 
-  const entry = entries.find(e => e.id === selectedId);
+  const entry = fetched.entries.find(e => e.id === selectedId);
   if (entry === undefined) {
-    await interaction.editReply({ content: '\u274C Entry not found.', embeds: [], components: [] });
+    await interaction.followUp({
+      content: renderSpec(CATALOG.error.notFound('Denylist entry')),
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
 

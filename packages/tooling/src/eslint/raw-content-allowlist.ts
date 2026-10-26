@@ -39,7 +39,7 @@ export const RAW_CONTENT_ALLOWLIST: Readonly<Record<string, number>> = {
   'services/bot-client/src/commands/character/view.ts': 3,
   'services/bot-client/src/commands/character/voice.ts': 2,
   'services/bot-client/src/commands/deny/add.ts': 1,
-  'services/bot-client/src/commands/deny/browse.ts': 2,
+  'services/bot-client/src/commands/deny/browse.ts': 1,
   'services/bot-client/src/commands/deny/detail.ts': 2,
   'services/bot-client/src/commands/deny/detailEdit.ts': 1,
   'services/bot-client/src/commands/deny/remove.ts': 1,

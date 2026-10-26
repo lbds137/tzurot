@@ -78,6 +78,28 @@ describe('followUpBrowsePageFailure', () => {
     );
   });
 
+  it('forwards a custom resource noun to classifyGatewayFailure', async () => {
+    const error = new Error('boom');
+    const mockInteraction = interaction();
+
+    await followUpBrowsePageFailure(
+      mockInteraction as unknown as MessageComponentInteraction,
+      error,
+      'entry'
+    );
+
+    const expectedContent = renderSpec(
+      classifyGatewayFailure(error, 'entry', { operation: 'read' })
+    );
+    expect(expectedContent.length).toBeGreaterThan(0);
+    expect(mockInteraction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: expectedContent,
+      })
+    );
+  });
+
   it('a rejected follow-up is logged, not propagated', async () => {
     const followUpError = new Error('webhook token expired');
     const mockInteraction = {
