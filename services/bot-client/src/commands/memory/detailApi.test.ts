@@ -179,5 +179,14 @@ describe('Memory Detail API', () => {
 
       await expect(deleteMemory(asUserClient(stub), 'memory-123')).rejects.toThrow(InfraError);
     });
+
+    it('THROWS when the response body breaks the schema contract (e.g. { success: false })', async () => {
+      stub.deleteMemory.mockResolvedValue(
+        makeErr(0, 'Invalid response schema', undefined, 'schema')
+      );
+
+      await expect(deleteMemory(asUserClient(stub), 'memory-123')).rejects.toThrow(InfraError);
+      expect(stub.deleteMemory).toHaveBeenCalledWith('memory-123');
+    });
   });
 });
