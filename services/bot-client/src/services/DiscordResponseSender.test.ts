@@ -5,10 +5,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DiscordResponseSender } from './DiscordResponseSender.js';
 import { GUEST_MODE } from '@tzurot/common-types/constants/ai';
+import { buildModelFooterText } from '@tzurot/common-types/constants/discord';
 import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
+import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { Message } from 'discord.js';
 import { DiscordAPIError, TextChannel, ThreadChannel } from 'discord.js';
+import { buildResultMetadataPassthrough } from '../utils/resultMetadataPassthrough.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
 import { PartialDeliveryError } from './partialDelivery.js';
 
@@ -60,6 +63,16 @@ vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
   return {
     ...actual,
     isBotOwner: mockIsBotOwner,
+  };
+});
+
+vi.mock('@tzurot/common-types/constants/discord', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/discord')>(
+    '@tzurot/common-types/constants/discord'
+  );
+  return {
+    ...actual,
+    buildModelFooterText: vi.fn(actual.buildModelFooterText),
   };
 });
 
@@ -190,6 +203,44 @@ describe('DiscordResponseSender', () => {
       expect(calledContent).toContain('openrouter.ai/z-ai/glm-4.7');
       // The fallthrough is now obvious from the footer text itself.
       expect(calledContent).toContain('• via OpenRouter');
+    });
+
+    it('forwards fallthroughTriggered from resultMetadataPassthrough into buildModelFooterText options and renders the suffix', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+      vi.mocked(buildModelFooterText).mockClear();
+
+      const generationResult = {
+        requestId: 'req-fallthrough-1',
+        success: true,
+        content: 'Response content',
+        metadata: {
+          modelUsed: 'z-ai/glm-4.7',
+          providerUsed: 'openrouter',
+          fallthroughTriggered: true,
+        },
+      } satisfies LLMGenerationResult;
+
+      const passthrough = buildResultMetadataPassthrough(generationResult);
+      expect(passthrough.fallthroughTriggered).toBe(true);
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        ...senderTargetFrom(mockMessage),
+        ...passthrough,
+      });
+
+      expect(buildModelFooterText).toHaveBeenCalledWith(
+        'z-ai/glm-4.7',
+        'https://openrouter.ai/z-ai/glm-4.7',
+        expect.objectContaining({
+          provider: 'openrouter',
+          fallthroughTriggered: true,
+        })
+      );
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).toContain('• via OpenRouter (no coding plan key)');
     });
 
     it('should render the route chain on a both-routes-failed error result', async () => {

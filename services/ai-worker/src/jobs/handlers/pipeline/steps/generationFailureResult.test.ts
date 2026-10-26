@@ -103,6 +103,27 @@ describe('composeGenerationFailureResult', () => {
     expect(result.result?.metadata?.piggybackModel).toBe('x');
   });
 
+  it('forwards context.auth.fallthroughTriggered into the failure metadata', () => {
+    const base = buildOptions(new Error('boom'));
+    const withFallthrough = composeGenerationFailureResult({
+      ...base,
+      context: {
+        ...base.context,
+        auth: {
+          apiKey: 'fixture-or-key',
+          provider: 'openrouter' as GenerationFailureOptions['provider'],
+          isGuestMode: false,
+          audioProviderKeys: new Map(),
+          fallthroughTriggered: true,
+        },
+      },
+    });
+    expect(withFallthrough.result?.metadata?.fallthroughTriggered).toBe(true);
+
+    const withoutFallthrough = composeGenerationFailureResult(base);
+    expect(withoutFallthrough.result?.metadata?.fallthroughTriggered).toBeUndefined();
+  });
+
   it('mints one referenceId per failure — the record, its rawError, and the composed errorInfo agree', () => {
     // A plain Error re-classifies to a NEW id on every resolveApiErrorInfo
     // call, so three separate classifications would produce three different
