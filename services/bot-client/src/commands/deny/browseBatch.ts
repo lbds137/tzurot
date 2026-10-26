@@ -23,6 +23,7 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { ENTITY_EMOJI } from '@tzurot/common-types/constants/uxVocabulary';
+import { DENYLIST_LIST_MAX_ENTRIES } from '@tzurot/common-types/schemas/api/denylist';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import type { OwnerClient } from '@tzurot/clients';
@@ -57,6 +58,7 @@ import {
   buildBrowseResponse,
   buildDenyBatchCustomId,
   fetchEntries,
+  formatDenySelectOption,
   parseDenyBatchCustomId,
   type ParsedDenyBatchCustomId,
 } from './browse.js';
@@ -124,7 +126,8 @@ function recoverConfirmListingLabels(
 /**
  * Resolve one picked entry UUID against the pre-fetched denylist and execute
  * `ownerClient.removeDenylistEntry(type, discordId, scope, scopeId)`:
- * - entry absent from the fetched list → `'already-gone'` (no gateway delete call)
+ * - entry absent from an uncapped fetched list → `'already-gone'` (no gateway delete call)
+ * - entry absent from a capped fetched list (`listTruncated`) → logs `warn({ userId, entryId })` and throws `FAILED_TO_REMOVE_NOTE`
  * - `result.ok` → `'success'`
  * - `result.status === 404` → `'already-gone'`
  * - other `!result.ok` → logs `warn({ userId, entryId, status })` and throws `FAILED_TO_REMOVE_NOTE`
@@ -134,10 +137,15 @@ async function runSingleDenyRemoval(
   ownerClient: OwnerClient,
   entriesById: ReadonlyMap<string, DenylistEntryResponse>,
   entryId: string,
-  userId: string
+  userId: string,
+  listTruncated: boolean
 ): Promise<DenyBatchOutcome> {
   const entry = entriesById.get(entryId);
   if (entry === undefined) {
+    if (listTruncated) {
+      logger.warn({ userId, entryId }, 'Batch denylist pick absent from a capped re-fetch');
+      throw new Error(FAILED_TO_REMOVE_NOTE);
+    }
     return 'already-gone';
   }
   let result: Awaited<ReturnType<OwnerClient['removeDenylistEntry']>>;
@@ -164,7 +172,8 @@ async function runSingleDenyRemoval(
 
 function resolveDenyBatchLabel(
   entryId: string,
-  recoveredLabels: ReadonlyMap<string, string>
+  recoveredLabels: ReadonlyMap<string, string>,
+  entriesById: ReadonlyMap<string, DenylistEntryResponse>
 ): string {
   // Labels recovered from the confirm listing are already escaped and bounded;
   // only the fallback label path escapes.
@@ -172,15 +181,23 @@ function resolveDenyBatchLabel(
   if (recovered !== undefined) {
     return recovered;
   }
-  return escapeMarkdown(truncateForSelect(fallbackDenyLabel(entryId), { stripNewlines: true }));
+  const entry = entriesById.get(entryId);
+  const rawFallback =
+    entry !== undefined ? formatDenySelectOption(entry).label : fallbackDenyLabel(entryId);
+  return escapeMarkdown(truncateForSelect(rawFallback, { stripNewlines: true }));
 }
 
 function buildDenyBatchResultLines(
   results: readonly BatchItemResult<DenyBatchOutcome>[],
-  recoveredLabels: ReadonlyMap<string, string>
+  recoveredLabels: ReadonlyMap<string, string>,
+  entriesById: ReadonlyMap<string, DenylistEntryResponse>
 ): BatchResultLine[] {
   return results.map(item =>
-    toBatchOutcomeLine(item, resolveDenyBatchLabel(item.id, recoveredLabels), FAILED_TO_REMOVE_NOTE)
+    toBatchOutcomeLine(
+      item,
+      resolveDenyBatchLabel(item.id, recoveredLabels, entriesById),
+      FAILED_TO_REMOVE_NOTE
+    )
   );
 }
 
@@ -243,7 +260,9 @@ export async function handleDenyBatchSelectEntry(interaction: ButtonInteraction)
   if (parsed?.action !== DENY_BATCH_ACTION.SELECT) {
     return;
   }
-  await ackUpdate(interaction);
+  if (!interaction.deferred && !interaction.replied) {
+    await ackUpdate(interaction);
+  }
   await refreshDenyBrowseMode(interaction, parsed, 'batch');
 }
 
@@ -316,7 +335,9 @@ export async function handleDenyBatchCancel(interaction: ButtonInteraction): Pro
   if (parsed?.action !== DENY_BATCH_ACTION.CANCEL) {
     return;
   }
-  await ackUpdate(interaction);
+  if (!interaction.deferred && !interaction.replied) {
+    await ackUpdate(interaction);
+  }
   await refreshDenyBrowseMode(interaction, parsed, 'single');
 }
 
@@ -383,11 +404,12 @@ export async function handleDenyBatchConfirm(interaction: ButtonInteraction): Pr
   }
 
   const entriesById = new Map(entries.map(entry => [entry.id, entry]));
+  const listTruncated = entries.length >= DENYLIST_LIST_MAX_ENTRIES;
   const results = await runBatchSequentially(ids, entryId =>
-    runSingleDenyRemoval(ownerClient, entriesById, entryId, userId)
+    runSingleDenyRemoval(ownerClient, entriesById, entryId, userId, listTruncated)
   );
 
-  const lines = buildDenyBatchResultLines(results, recoveredLabels);
+  const lines = buildDenyBatchResultLines(results, recoveredLabels, entriesById);
   const succeeded = lines.filter(line => line.status === 'success').length;
   const gone = lines.filter(line => line.status === 'gone').length;
   const failed = lines.filter(line => line.status === 'failed').length;
