@@ -1884,14 +1884,14 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/overrideBrowse.ts | user | 2 |
 | services/bot-client/src/utils/overrideBrowse.ts | values | 1 |
 | services/bot-client/src/utils/overrideBrowseBatch.ts | customId | 2 |
-| services/bot-client/src/utils/overrideBrowseBatch.ts | deferred | 1 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | deferred | 2 |
 | services/bot-client/src/utils/overrideBrowseBatch.ts | description | 1 |
 | services/bot-client/src/utils/overrideBrowseBatch.ts | embeds | 2 |
 | services/bot-client/src/utils/overrideBrowseBatch.ts | escapeMarkdown | 3 |
 | services/bot-client/src/utils/overrideBrowseBatch.ts | footer | 1 |
 | services/bot-client/src/utils/overrideBrowseBatch.ts | id | 2 |
 | services/bot-client/src/utils/overrideBrowseBatch.ts | message | 3 |
-| services/bot-client/src/utils/overrideBrowseBatch.ts | replied | 1 |
+| services/bot-client/src/utils/overrideBrowseBatch.ts | replied | 2 |
 | services/bot-client/src/utils/overrideBrowseBatch.ts | text | 1 |
 | services/bot-client/src/utils/overrideBrowseBatch.ts | user | 2 |
 | services/bot-client/src/utils/overrideBrowseBatch.ts | values | 1 |
@@ -3117,4 +3117,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 3047 entries across 7071 sites.
+Total: 3047 entries across 7073 sites.

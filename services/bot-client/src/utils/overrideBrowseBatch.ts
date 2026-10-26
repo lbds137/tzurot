@@ -365,17 +365,22 @@ export async function handleOverrideBatchConfirm(
     ({ userClient } = clientsFor(interaction));
     await interaction.editReply({ components: [] });
   } catch (error) {
-    // Nothing has been cleared yet on this path. The ack or strip may be what failed,
-    // so the editReply channel is suspect: answer on an ephemeral followUp instead.
+    // Nothing has been cleared yet on this path. When the interaction is already
+    // acked (e.g. stripping components failed), editReply is suspect so we send an
+    // ephemeral followUp; when the ack itself failed (!deferred && !replied),
+    // followUp would throw InteractionNotReplied and the token or 3-second window
+    // is already gone, so no reply is attempted.
     config.logger.error({ err: error, userId }, 'Error preparing override batch confirm');
-    await interaction
-      .followUp({ content: GENERIC_ERROR_MSG, flags: MessageFlags.Ephemeral })
-      .catch((followUpError: unknown) => {
-        config.logger.warn(
-          { err: followUpError, userId },
-          'Override batch confirm error followUp failed'
-        );
-      });
+    if (interaction.deferred || interaction.replied) {
+      await interaction
+        .followUp({ content: GENERIC_ERROR_MSG, flags: MessageFlags.Ephemeral })
+        .catch((followUpError: unknown) => {
+          config.logger.warn(
+            { err: followUpError, userId },
+            'Override batch confirm error followUp failed'
+          );
+        });
+    }
     return;
   }
 
