@@ -200,6 +200,7 @@ function createSelectInteraction(options: {
   values: string[];
   userId?: string;
   messageComponents?: unknown[];
+  deferred?: boolean;
 }): StringSelectMenuInteraction {
   return {
     user: { id: options.userId ?? 'owner-1' },
@@ -207,7 +208,7 @@ function createSelectInteraction(options: {
     values: options.values,
     channelId: 'chan-1',
     guildId: 'guild-456',
-    deferred: false,
+    deferred: options.deferred ?? false,
     replied: false,
     message: {
       id: 'msg-1',
@@ -837,7 +838,7 @@ describe('deny browse batch removal flow', () => {
       expect(resultEmbed.description).not.toContain('Misaligned Recovered Label');
     });
 
-    it('recovers the numbered confirm listing labels built by handleDenyBatchPick for two picks on confirm', async () => {
+    it('recovers the bulleted confirm listing labels built by handleDenyBatchPick for two picks on confirm', async () => {
       const pickedEntries = [FIVE_DENY_ENTRIES[0], FIVE_DENY_ENTRIES[2]];
       stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: FIVE_DENY_ENTRIES }));
       stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
@@ -868,7 +869,7 @@ describe('deny browse batch removal flow', () => {
       ]);
     });
 
-    it('skips deferUpdate and still renders when handleDenyBatchSelectEntry or handleDenyBatchCancel is called with deferred: true', async () => {
+    it('skips deferUpdate and still renders when handleDenyBatchSelectEntry, handleDenyBatchPick, or handleDenyBatchCancel is called with deferred: true', async () => {
       stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: FIVE_DENY_ENTRIES }));
 
       const selectInteraction = createButtonInteraction({
@@ -880,6 +881,18 @@ describe('deny browse batch removal flow', () => {
       expect(selectInteraction.deferUpdate).not.toHaveBeenCalled();
       expect(selectInteraction.editReply).toHaveBeenCalledTimes(1);
       expect(lastComponentRows(selectInteraction)).toHaveLength(2);
+
+      const pickInteraction = createSelectInteraction({
+        customId: 'deny::batch-select::0::all::date',
+        values: [FIVE_DENY_ENTRIES[0].id],
+        deferred: true,
+      });
+      await handleDenyBatchPick(pickInteraction);
+
+      expect(pickInteraction.deferUpdate).not.toHaveBeenCalled();
+      expect(pickInteraction.editReply).toHaveBeenCalledTimes(1);
+      expect(lastEmbedsJson(pickInteraction)[0]?.title).toContain('Remove Denylist Entries?');
+      expect(lastComponentRows(pickInteraction)).toHaveLength(1);
 
       const cancelInteraction = createButtonInteraction({
         customId: 'deny::batch-cancel::0::all::date',
