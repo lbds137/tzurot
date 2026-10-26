@@ -140,13 +140,9 @@ export const LISTING_BULLET = '• ';
  * the one text that must survive a long pick list. The listing is cut to fit
  * the budget beside the warning; the warning itself is always appended whole.
  */
-export function clampBatchConfirmDescription(
-  listing: string,
-  warning: string,
-  budget = CONFIRM_DESCRIPTION_BUDGET
-): string {
+export function clampBatchConfirmDescription(listing: string, warning: string): string {
   const joiner = '\n\n';
-  const usable = Math.max(budget - warning.length - joiner.length, 0);
+  const usable = Math.max(CONFIRM_DESCRIPTION_BUDGET - warning.length - joiner.length, 0);
   const clampedListing =
     listing.length > usable ? truncateToUtf16Units(listing, usable, '…') : listing;
   return `${clampedListing}${joiner}${warning}`;
@@ -155,6 +151,10 @@ export function clampBatchConfirmDescription(
 /**
  * Recover per-id display labels from the confirm embed description's bullet
  * lines (written before the `\n\n` warning separator at pick time):
+ * - Callers write newline-free labels (one `LISTING_BULLET` line per id): an
+ *   embedded `\n• …` would split into an extra bullet-shaped line and shift
+ *   later labels onto the wrong ids under clamped recovery (or trip
+ *   `lines.length > ids.length` when unclamped).
  * - Empty or absent description, `lines.length > ids.length`, or an unclamped
  *   listing with `lines.length < ids.length` → empty map.
  * - `clamped` is `description.length >= CONFIRM_DESCRIPTION_BUDGET - 1`: a

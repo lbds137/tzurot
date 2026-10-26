@@ -730,6 +730,87 @@ describe('recovered labels reach the result lines as rendered at pick time', () 
     expect(resultLines[0]).toContain('(text)');
     expect(resultLines[24]).toBe('✅ Override ID: p-25… (text)');
   });
+
+  it('strips embedded newlines from a picked option label so it renders as one bullet line and every later label recovers onto its own id', async () => {
+    const config = makeConfig(PRESET_PREFIX);
+    stub.list.mockResolvedValue([]);
+    stub.delete.mockResolvedValue(
+      makeOk({ deleted: true, wasSet: true } satisfies DeleteModelOverrideResponse)
+    );
+
+    const pickInteraction = createSelectInteraction({
+      customId: 'settings-preset-override::batch-select',
+      values: ['p1::text', 'p2::vision'],
+      messageComponents: [
+        {
+          toJSON: () => ({
+            components: [
+              {
+                options: [
+                  { value: 'p1::text', label: '1. Alpha\n• Injected' },
+                  { value: 'p2::vision', label: '2. 👁️ Beta' },
+                ],
+              },
+            ],
+          }),
+        },
+      ],
+    });
+    await handleOverrideBatchPick(config, pickInteraction);
+    const [confirmEmbed] = lastEmbedsJson(pickInteraction);
+    const listingLines = (confirmEmbed.description ?? '').split('\n\n')[0]?.split('\n');
+    expect(listingLines).toEqual(['• 1. Alpha • Injected (text)', '• 2. 👁️ Beta (vision)']);
+
+    const confirmInteraction = createButtonInteraction({
+      customId: 'settings-preset-override::batch-confirm',
+      footerText: confirmEmbed.footer?.text,
+      description: confirmEmbed.description,
+    });
+    await handleOverrideBatchConfirm(config, confirmInteraction);
+    const [resultEmbed] = lastEmbedsJson(confirmInteraction);
+    expect((resultEmbed.description ?? '').split('\n')).toEqual([
+      '✅ 1. Alpha • Injected (text)',
+      '✅ 2. 👁️ Beta (vision)',
+    ]);
+
+    // Under clamped recovery (25 items), an embedded `\n• ` on item 1 must not shift item 2's label onto id 3.
+    const clampedValues = Array.from({ length: 25 }, (_, idx) => `p-${idx + 1}::text`);
+    const clampedPick = createSelectInteraction({
+      customId: 'settings-preset-override::batch-select',
+      values: clampedValues,
+      messageComponents: [
+        {
+          toJSON: () => ({
+            components: [
+              {
+                options: clampedValues.map((value, idx) => ({
+                  value,
+                  label:
+                    idx === 0
+                      ? '1. Alpha\n• Injected'
+                      : idx === 1
+                        ? '2. Second Label'
+                        : `${idx + 1}. ${'*_~'.repeat(27)}${idx + 1}`,
+                })),
+              },
+            ],
+          }),
+        },
+      ],
+    });
+    await handleOverrideBatchPick(config, clampedPick);
+    const [clampedConfirmEmbed] = lastEmbedsJson(clampedPick);
+    const clampedConfirm = createButtonInteraction({
+      customId: 'settings-preset-override::batch-confirm',
+      footerText: clampedConfirmEmbed.footer?.text,
+      description: clampedConfirmEmbed.description,
+    });
+    await handleOverrideBatchConfirm(config, clampedConfirm);
+    const [clampedResultEmbed] = lastEmbedsJson(clampedConfirm);
+    const clampedResultLines = (clampedResultEmbed.description ?? '').split('\n');
+    expect(clampedResultLines[0]).toBe('✅ 1. Alpha • Injected (text)');
+    expect(clampedResultLines[1]).toBe('✅ 2. Second Label (text)');
+  });
 });
 
 describe('C5 — slot axis survives the batch (same personality with two slots + bare TTS pick)', () => {
