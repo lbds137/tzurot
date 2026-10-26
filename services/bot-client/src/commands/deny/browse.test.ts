@@ -6,6 +6,9 @@ import {
   isDenyBrowseInteraction,
   isDenyBrowseSelectInteraction,
   buildBrowseResponse,
+  buildDenyBatchCustomId,
+  parseDenyBatchCustomId,
+  formatDenySelectOption,
 } from './browse.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
@@ -132,6 +135,7 @@ vi.mock('../../utils/browse/index.js', async importOriginal => {
         customId: string;
         placeholder: string;
         startIndex: number;
+        maxValues?: number;
         formatItem: (
           item: T,
           oneBasedNumber: number
@@ -144,6 +148,8 @@ vi.mock('../../utils/browse/index.js', async importOriginal => {
           type: 'select-menu-row',
           customId: opts.customId,
           placeholder: opts.placeholder,
+          minValues: 1,
+          maxValues: opts.maxValues === undefined ? 1 : Math.min(opts.maxValues, opts.items.length),
           options: opts.items.map((item, i) => opts.formatItem(item, opts.startIndex + i + 1)),
         };
       }
@@ -433,17 +439,22 @@ describe('handleBrowse', () => {
     expect(call.embeds[0].data.description).toContain('Channel: 123456789');
   });
 
-  it('should include select menu in components when entries exist', async () => {
+  it('should include select menu and Select several toggle in components when entries exist', async () => {
     stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: sampleEntries }));
     const context = createMockContext();
 
     await handleBrowse(context);
 
-    const call = vi.mocked(context.editReply).mock.calls[0][0] as {
-      components: unknown[];
+    const call = vi.mocked(context.editReply).mock.calls[0][0] as unknown as {
+      components: { toJSON?: () => { components: { custom_id?: string; label?: string }[] } }[];
     };
-    // Should have browse buttons + select menu = 2 rows
-    expect(call.components.length).toBe(2);
+    // Select menu + Select several toggle + browse buttons = 3 rows
+    expect(call.components.length).toBe(3);
+    const toggleJson = call.components[1].toJSON?.();
+    expect(toggleJson?.components[0]).toMatchObject({
+      custom_id: 'deny::batch-select::0::all::date',
+      label: 'Select several',
+    });
   });
 
   it('should not include select menu when no entries', async () => {
@@ -658,5 +669,77 @@ describe('buildBrowseResponse', () => {
 
     expect(result.embed.data.footer?.text).not.toContain('filtered by:');
     expect(result.embed.data.footer?.text).toContain('by target ID');
+  });
+
+  it('renders batch mode with min 1, max = page item count, batch customIds carrying page/filter/sort, and NO pagination row (C3)', () => {
+    const result = buildBrowseResponse(sampleEntries, 0, 'user', 'name', { mode: 'batch' });
+
+    expect(result.embed.data.footer?.text).toContain('Select several below, then confirm');
+    expect(result.components).toHaveLength(2);
+
+    const selectRow = result.components[0] as unknown as {
+      customId: string;
+      minValues: number;
+      maxValues: number;
+      options: { label: string; value: string; description?: string }[];
+    };
+    expect(selectRow.customId).toBe('deny::batch-select::0::user::name');
+    expect(selectRow.minValues).toBe(1);
+    // 2 of the 3 sampleEntries have type USER
+    expect(selectRow.maxValues).toBe(2);
+    expect(selectRow.options).toEqual([
+      formatDenySelectOption(sampleEntries[0]),
+      formatDenySelectOption(sampleEntries[2]),
+    ]);
+
+    const cancelRow = (
+      result.components[1] as unknown as {
+        toJSON: () => { components: Record<string, unknown>[] };
+      }
+    ).toJSON();
+    expect(cancelRow.components).toHaveLength(1);
+    expect(cancelRow.components[0]).toMatchObject({
+      custom_id: 'deny::batch-cancel::0::user::name',
+      label: 'Cancel',
+    });
+  });
+
+  it('early-returns on an empty page before the batch-mode branch: no menu, no toggle, no cancel row', () => {
+    const result = buildBrowseResponse([], 0, 'all', 'date', { mode: 'batch' });
+
+    // Only the filter/pagination buttonRow is returned, identical to single-mode empty
+    expect(result.components).toHaveLength(1);
+    expect(result.embed.data.footer?.text ?? '').not.toContain(
+      'Select several below, then confirm'
+    );
+  });
+});
+
+describe('buildDenyBatchCustomId & parseDenyBatchCustomId', () => {
+  it('round-trips batch-select, batch-confirm, and batch-cancel coordinates', () => {
+    for (const action of ['batch-select', 'batch-confirm', 'batch-cancel'] as const) {
+      const id = buildDenyBatchCustomId(action, 2, 'guild', 'name');
+      expect(id).toBe(`deny::${action}::2::guild::name`);
+      expect(isDenyBrowseInteraction(id)).toBe(false);
+      expect(isDenyBrowseSelectInteraction(id)).toBe(false);
+      expect(parseDenyBatchCustomId(id)).toEqual({
+        action,
+        page: 2,
+        filter: 'guild',
+        sort: 'name',
+      });
+    }
+  });
+
+  it('returns null for non-batch or malformed customIds', () => {
+    expect(parseDenyBatchCustomId('deny::browse::0::all::date::')).toBeNull();
+    expect(parseDenyBatchCustomId('deny::browse-select::0::all::date::')).toBeNull();
+    expect(parseDenyBatchCustomId('deny::del::entry-1')).toBeNull();
+    expect(parseDenyBatchCustomId('other::batch-select::0::all::date')).toBeNull();
+    expect(parseDenyBatchCustomId('deny::batch-select::-1::all::date')).toBeNull();
+    expect(parseDenyBatchCustomId('deny::batch-select::abc::all::date')).toBeNull();
+    expect(parseDenyBatchCustomId('deny::batch-select::0::bogus::date')).toBeNull();
+    expect(parseDenyBatchCustomId('deny::batch-select::0::all::bogus')).toBeNull();
+    expect(parseDenyBatchCustomId('deny::batch-select::0::all')).toBeNull();
   });
 });

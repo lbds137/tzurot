@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ChannelType } from 'discord.js';
+import { ChannelType, type ButtonInteraction, type StringSelectMenuInteraction } from 'discord.js';
 import type { SafeCommandContext } from '../../utils/defineCommand.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -48,16 +48,34 @@ vi.mock('./view.js', () => ({
 }));
 
 const mockHandleBrowse = vi.fn();
+const mockHandleBrowsePagination = vi.fn();
+const mockHandleBrowseSelect = vi.fn();
 vi.mock('./browse.js', () => ({
   handleBrowse: (...args: unknown[]) => mockHandleBrowse(...args),
-  handleBrowsePagination: vi.fn(),
-  handleBrowseSelect: vi.fn(),
-  isDenyBrowseInteraction: vi.fn(() => false),
-  isDenyBrowseSelectInteraction: vi.fn(() => false),
+  handleBrowsePagination: (...args: unknown[]) => mockHandleBrowsePagination(...args),
+  handleBrowseSelect: (...args: unknown[]) => mockHandleBrowseSelect(...args),
+  isDenyBrowseInteraction: vi.fn((customId: string) => customId.startsWith('deny::browse::')),
+  isDenyBrowseSelectInteraction: vi.fn((customId: string) =>
+    customId.startsWith('deny::browse-select::')
+  ),
 }));
 
+const mockHandleDenyBatchButton = vi.fn();
+const mockHandleDenyBatchPick = vi.fn();
+vi.mock('./browseBatch.js', () => ({
+  handleDenyBatchButton: (...args: unknown[]) => mockHandleDenyBatchButton(...args),
+  handleDenyBatchPick: (...args: unknown[]) => mockHandleDenyBatchPick(...args),
+  isDenyBatchButton: vi.fn((customId: string) =>
+    /^deny::batch-(select|confirm|cancel)::\d+::(all|user|guild)::(name|date)$/.test(customId)
+  ),
+  isDenyBatchSelect: vi.fn((customId: string) =>
+    /^deny::batch-select::\d+::(all|user|guild)::(name|date)$/.test(customId)
+  ),
+}));
+
+const mockHandleDetailButton = vi.fn();
 vi.mock('./detail.js', () => ({
-  handleDetailButton: vi.fn(),
+  handleDetailButton: (...args: unknown[]) => mockHandleDetailButton(...args),
   handleDetailModal: vi.fn(),
 }));
 
@@ -208,5 +226,74 @@ describe('deny add/remove channel command structure', () => {
         expect(sub.description, `${groupName} ${sub.name} description`).toMatch(expected);
       }
     });
+  });
+});
+
+describe('deny handleButton() and handleSelectMenu() routing (P5/P6, C2)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('routes browse pagination buttons to handleBrowsePagination', async () => {
+    const interaction = {
+      customId: 'deny::browse::0::all::date::',
+    } as unknown as ButtonInteraction;
+
+    await denyCommand.handleButton?.(interaction);
+
+    expect(mockHandleBrowsePagination).toHaveBeenCalledWith(interaction);
+    expect(mockHandleDenyBatchButton).not.toHaveBeenCalled();
+    expect(mockHandleDetailButton).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'deny::batch-select::0::all::date',
+    'deny::batch-confirm::1::user::name',
+    'deny::batch-cancel::2::guild::date',
+  ])(
+    'routes %s to handleDenyBatchButton before the handleDetailButton catch-all',
+    async customId => {
+      const interaction = { customId } as unknown as ButtonInteraction;
+
+      await denyCommand.handleButton?.(interaction);
+
+      expect(mockHandleDenyBatchButton).toHaveBeenCalledWith(interaction);
+      expect(mockHandleBrowsePagination).not.toHaveBeenCalled();
+      expect(mockHandleDetailButton).not.toHaveBeenCalled();
+    }
+  );
+
+  it('routes detail buttons (deny::del::, deny::mode::, etc.) to handleDetailButton', async () => {
+    const interaction = {
+      customId: 'deny::del::entry-uuid-1234',
+    } as unknown as ButtonInteraction;
+
+    await denyCommand.handleButton?.(interaction);
+
+    expect(mockHandleDetailButton).toHaveBeenCalledWith(interaction);
+    expect(mockHandleBrowsePagination).not.toHaveBeenCalled();
+    expect(mockHandleDenyBatchButton).not.toHaveBeenCalled();
+  });
+
+  it('routes one-pick browse-select to handleBrowseSelect and NOT handleDenyBatchPick (C2)', async () => {
+    const interaction = {
+      customId: 'deny::browse-select::0::all::date::',
+    } as unknown as StringSelectMenuInteraction;
+
+    await denyCommand.handleSelectMenu?.(interaction);
+
+    expect(mockHandleBrowseSelect).toHaveBeenCalledWith(interaction);
+    expect(mockHandleDenyBatchPick).not.toHaveBeenCalled();
+  });
+
+  it('routes batch-select menu submission to handleDenyBatchPick and NOT handleBrowseSelect', async () => {
+    const interaction = {
+      customId: 'deny::batch-select::0::all::date',
+    } as unknown as StringSelectMenuInteraction;
+
+    await denyCommand.handleSelectMenu?.(interaction);
+
+    expect(mockHandleDenyBatchPick).toHaveBeenCalledWith(interaction);
+    expect(mockHandleBrowseSelect).not.toHaveBeenCalled();
   });
 });
