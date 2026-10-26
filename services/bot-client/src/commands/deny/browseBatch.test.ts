@@ -23,6 +23,7 @@ import {
   PAGE_FETCH_FAILED_COPY,
   parseBatchFooterIds,
 } from '../../utils/browse/multiSelectBatch.js';
+import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
 import {
   buildBrowseResponse,
   buildDenyBatchCustomId,
@@ -769,6 +770,71 @@ describe('deny browse batch removal flow', () => {
       );
       expect(interaction.deferUpdate).not.toHaveBeenCalled();
       expect(stub.removeDenylistEntry).not.toHaveBeenCalled();
+    });
+
+    it('logs error and sends followUp when clientsFor throws on batch-select', async () => {
+      clientsForMock.mockImplementationOnce(() => {
+        throw new Error('clientsFor failed');
+      });
+      const interaction = createButtonInteraction({
+        customId: 'deny::batch-select::0::all::date',
+      });
+
+      await handleDenyBatchSelectEntry(interaction);
+
+      expect(interaction.editReply).not.toHaveBeenCalled();
+      expect(loggerMock.error).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'owner-1', mode: 'batch' }),
+        'Error refreshing deny browse view'
+      );
+      expect(interaction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Failed to remove denylist entries'),
+          flags: MessageFlags.Ephemeral,
+        })
+      );
+    });
+
+    it('logs error and sends followUp when editReply rejects on batch-cancel', async () => {
+      stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: FIVE_DENY_ENTRIES }));
+      const cancelInteraction = createButtonInteraction({
+        customId: 'deny::batch-cancel::0::all::date',
+      });
+      vi.mocked(cancelInteraction.editReply).mockRejectedValueOnce(new Error('editReply failed'));
+
+      await handleDenyBatchCancel(cancelInteraction);
+
+      expect(loggerMock.error).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'owner-1', mode: 'single' }),
+        'Error refreshing deny browse view'
+      );
+      expect(cancelInteraction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Failed to remove denylist entries'),
+          flags: MessageFlags.Ephemeral,
+        })
+      );
+    });
+
+    it('swallows and logs warn when editReply and refresh followUp both reject', async () => {
+      stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: FIVE_DENY_ENTRIES }));
+      const cancelInteraction = createButtonInteraction({
+        customId: 'deny::batch-cancel::0::all::date',
+      });
+      vi.mocked(cancelInteraction.editReply).mockRejectedValueOnce(new Error('editReply failed'));
+      vi.mocked(cancelInteraction.followUp).mockRejectedValueOnce(new Error('followUp failed'));
+
+      await expect(handleDenyBatchCancel(cancelInteraction)).resolves.toBeUndefined();
+
+      expect(loggerMock.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'owner-1' }),
+        'Deny batch refresh error followUp failed'
+      );
+    });
+
+    it('pins FAILED_TO_REMOVE_NOTE to the one-pick delete entry failure copy', () => {
+      const onePickCopy = DASHBOARD_MESSAGES.OPERATION_FAILED('delete entry');
+      expect(onePickCopy.endsWith(FAILED_TO_REMOVE_NOTE)).toBe(true);
     });
   });
 
