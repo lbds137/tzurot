@@ -310,6 +310,10 @@ describe('handleOverrideBatchPick (confirm view)', () => {
     expect(embed.description).toContain('2. 👁️ Aria');
     expect(embed.description).not.toContain('Nyx');
     expect(embed.description).toContain('**This clears 2 preset overrides immediately.**');
+    expect(embed.description).toContain(
+      'Cleared overrides will fall back to your default preset. You can re-set them any time.'
+    );
+    expect(embed.description).not.toContain('Cleared characters');
     expect(parseBatchFooterIds(embed.footer?.text)).toEqual(pickedValues);
 
     const rows = lastComponentRows(interaction);
@@ -340,6 +344,28 @@ describe('handleOverrideBatchPick (confirm view)', () => {
       embeds: [],
       components: [],
     });
+  });
+
+  it('omits the slot suffix on a confirm listing line when the option value carries an unknown slot segment', async () => {
+    const config = makeConfig(PRESET_PREFIX);
+    const interaction = createSelectInteraction({
+      customId: 'settings-preset-override::batch-select',
+      values: ['p1::bogus'],
+      messageComponents: [
+        {
+          toJSON: () => ({
+            components: [{ options: [{ value: 'p1::bogus', label: '1. Lilith' }] }],
+          }),
+        },
+      ],
+    });
+
+    await handleOverrideBatchPick(config, interaction);
+
+    const [embed] = lastEmbedsJson(interaction);
+    const listingBlock = (embed.description ?? '').split('\n\n')[0];
+    expect(listingBlock).toBe('• 1. Lilith');
+    expect(listingBlock).not.toContain('bogus');
   });
 });
 
@@ -554,6 +580,97 @@ describe('C1 — handleOverrideBatchConfirm (5 overrides, 4 cleared + 2nd wasSet
       expect.any(String)
     );
   });
+
+  it('catches a rejecting ackUpdate/deferUpdate in handleOverrideBatchConfirm, makes no delete call, and sends an ephemeral error followUp (C6)', async () => {
+    const config = makeConfig(PRESET_PREFIX);
+    const confirmInteraction = createButtonInteraction({
+      customId: 'settings-preset-override::batch-confirm',
+      footerText: encodeBatchFooterIds(['p1::text']),
+    });
+    vi.mocked(confirmInteraction.deferUpdate).mockRejectedValueOnce(new Error('ack rejected'));
+
+    await expect(handleOverrideBatchConfirm(config, confirmInteraction)).resolves.toBeUndefined();
+
+    expect(stub.delete).not.toHaveBeenCalled();
+    expect(confirmInteraction.editReply).not.toHaveBeenCalled();
+    expect(confirmInteraction.followUp).toHaveBeenCalledWith({
+      content: GENERIC_ERROR_MSG,
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(config.logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'u1' }),
+      'Error preparing override batch confirm'
+    );
+
+    // Also resolves cleanly and logs warn when both deferUpdate and followUp reject.
+    const interaction2 = createButtonInteraction({
+      customId: 'settings-preset-override::batch-confirm',
+      footerText: encodeBatchFooterIds(['p1::text']),
+    });
+    vi.mocked(interaction2.deferUpdate).mockRejectedValueOnce(new Error('ack rejected'));
+    vi.mocked(interaction2.followUp).mockRejectedValueOnce(new Error('followUp rejected'));
+
+    await expect(handleOverrideBatchConfirm(config, interaction2)).resolves.toBeUndefined();
+    expect(stub.delete).not.toHaveBeenCalled();
+    expect(config.logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'u1' }),
+      'Override batch confirm error followUp failed'
+    );
+  });
+
+  it('fails closed for an unknown or empty slot segment in batch confirm, calling delete only for valid items and marking the unknown-slot item failed (C1, C4, C5)', async () => {
+    const config = makeConfig(PRESET_PREFIX);
+    stub.list.mockResolvedValue([]);
+    stub.delete.mockResolvedValue(
+      makeOk({ deleted: true, wasSet: true } satisfies DeleteModelOverrideResponse)
+    );
+
+    const uuidA = '3f9c2e7a-8b4d-4c1a-9d6e-000000000001';
+    const uuidB = '9a8b7c6d-5e4f-3a2b-1c0d-000000000002';
+    const confirmInteraction = createButtonInteraction({
+      customId: 'settings-preset-override::batch-confirm',
+      footerText: encodeBatchFooterIds([`${uuidA}::text`, `${uuidB}::bogus`]),
+    });
+
+    await handleOverrideBatchConfirm(config, confirmInteraction);
+
+    expect(stub.delete).toHaveBeenCalledTimes(1);
+    expect(stub.delete).toHaveBeenCalledWith(uuidA, 'text');
+    expect(stub.delete).not.toHaveBeenCalledWith(uuidB, expect.anything());
+    expect(config.logger.warn).toHaveBeenCalledWith(
+      { userId: 'u1', personalityId: uuidB },
+      'Batch override clear item has unknown slot segment'
+    );
+    expect(JSON.stringify(vi.mocked(config.logger.warn).mock.calls)).not.toContain('bogus');
+
+    const [resultEmbed] = lastEmbedsJson(confirmInteraction);
+    const lines = (resultEmbed.description ?? '').split('\n');
+    expect(lines).toEqual([
+      '✅ Override ID: 3f9c2e7a… (text)',
+      `❌ Override ID: 9a8b7c6d… — ${FAILED_TO_CLEAR_NOTE}`,
+    ]);
+    expect(resultEmbed.color).toBe(DISCORD_COLORS.ERROR);
+
+    // C4 (bare TTS + vision slot) and C5 (empty slot segment `uuid::`) in one batch:
+    stub.delete.mockClear();
+    const uuidC = '11111111-2222-4333-8444-000000000003';
+    const mixedConfirm = createButtonInteraction({
+      customId: 'settings-preset-override::batch-confirm',
+      footerText: encodeBatchFooterIds([uuidA, `${uuidB}::vision`, `${uuidC}::`]),
+    });
+    await handleOverrideBatchConfirm(config, mixedConfirm);
+
+    expect(stub.delete).toHaveBeenCalledTimes(2);
+    expect(stub.delete).toHaveBeenNthCalledWith(1, uuidA, undefined);
+    expect(stub.delete).toHaveBeenNthCalledWith(2, uuidB, 'vision');
+    expect(stub.delete).not.toHaveBeenCalledWith(uuidC, expect.anything());
+    const [mixedEmbed] = lastEmbedsJson(mixedConfirm);
+    expect((mixedEmbed.description ?? '').split('\n')).toEqual([
+      '✅ Override ID: 3f9c2e7a…',
+      '✅ Override ID: 9a8b7c6d… (vision)',
+      `❌ Override ID: 11111111… — ${FAILED_TO_CLEAR_NOTE}`,
+    ]);
+  });
 });
 
 describe('recovered labels reach the result lines as rendered at pick time', () => {
@@ -599,6 +716,59 @@ describe('recovered labels reach the result lines as rendered at pick time', () 
 
     expect(resultDescription).toContain('✅ 1. \\*bold\\* (text)');
     expect(resultDescription).not.toContain('\\\\');
+  });
+
+  it('recovers the matched prefix of labels (excluding the last potentially-cut line) when the confirm listing is clamped to fewer lines than footer ids (C7)', async () => {
+    const config = makeConfig(PRESET_PREFIX);
+    stub.list.mockResolvedValue([]);
+    stub.delete.mockResolvedValue(
+      makeOk({ deleted: true, wasSet: true } satisfies DeleteModelOverrideResponse)
+    );
+
+    // Case 1: lines = [full1, full2, cut3…] (< ids.length) -> ids 0 and 1 recovered; rest fall back.
+    const confirm1 = createButtonInteraction({
+      customId: 'settings-preset-override::batch-confirm',
+      footerText: encodeBatchFooterIds(['p1::text', 'p2::vision', 'p3::text', 'p4::vision']),
+      description:
+        '• 1. Lilith (text)\n• 2. 👁️ Aria (vision)\n• 3. Nyx (te…\n\n' +
+        '**This clears 4 preset overrides immediately.** Cleared overrides will fall back to your default preset. You can re-set them any time.',
+    });
+    await handleOverrideBatchConfirm(config, confirm1);
+    const [embed1] = lastEmbedsJson(confirm1);
+    expect((embed1.description ?? '').split('\n')).toEqual([
+      '✅ 1. Lilith (text)',
+      '✅ 2. 👁️ Aria (vision)',
+      '✅ Override ID: p3… (text)',
+      '✅ Override ID: p4… (vision)',
+    ]);
+
+    // Case 2 (varying the cut): lines = [full1, cut2…] with 3 ids -> only id 0 recovered; ids 1, 2 fall back.
+    const confirm2 = createButtonInteraction({
+      customId: 'settings-preset-override::batch-confirm',
+      footerText: encodeBatchFooterIds(['p1::text', 'p2::vision', 'p3::text']),
+      description:
+        '• 1. Lilith (text)\n• 2. 👁️ Ar…\n\n' +
+        '**This clears 3 preset overrides immediately.** Cleared overrides will fall back to your default preset. You can re-set them any time.',
+    });
+    await handleOverrideBatchConfirm(config, confirm2);
+    const [embed2] = lastEmbedsJson(confirm2);
+    expect((embed2.description ?? '').split('\n')).toEqual([
+      '✅ 1. Lilith (text)',
+      '✅ Override ID: p2… (vision)',
+      '✅ Override ID: p3… (text)',
+    ]);
+
+    // Case 3 (25-id over-budget end-to-end pick -> confirm): markdown-heavy labels exceed 3800 chars,
+    // clamping the listing with `…` so the first k labels survive and the rest fall back.
+    const twentyFiveMarkdownHeavy = Array.from({ length: 25 }, (_, idx) =>
+      makeOverride(`p-${idx + 1}`, `${'*_~'.repeat(27)}${idx + 1}`, 'Fast', 'text', false)
+    );
+    const { resultDescription } = await runPickThenConfirm(twentyFiveMarkdownHeavy);
+    const resultLines = resultDescription.split('\n');
+    expect(resultLines).toHaveLength(25);
+    expect(resultLines[0]).toContain('✅ 1. ');
+    expect(resultLines[0]).toContain('(text)');
+    expect(resultLines[24]).toBe('✅ Override ID: p-25… (text)');
   });
 });
 
@@ -811,12 +981,18 @@ describe('survival ladder & customId length budget', () => {
     expect(view).toBeNull();
   });
 
-  it('fallbackOverrideLabel includes the slot when present and omits it when absent', () => {
+  it('fallbackOverrideLabel includes the slot when present and omits it when absent or unknown', () => {
     expect(fallbackOverrideLabel('3f9c2e7a-8b4d-4c1a-9d6e-000000000001')).toBe(
       'Override ID: 3f9c2e7a…'
     );
     expect(fallbackOverrideLabel('3f9c2e7a-8b4d-4c1a-9d6e-000000000001::vision')).toBe(
       'Override ID: 3f9c2e7a… (vision)'
+    );
+    expect(fallbackOverrideLabel('3f9c2e7a-8b4d-4c1a-9d6e-000000000001::bogus')).toBe(
+      'Override ID: 3f9c2e7a…'
+    );
+    expect(fallbackOverrideLabel('3f9c2e7a-8b4d-4c1a-9d6e-000000000001::')).toBe(
+      'Override ID: 3f9c2e7a…'
     );
   });
 

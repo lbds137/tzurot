@@ -24,6 +24,7 @@ import {
 } from 'discord.js';
 import type { UserClient } from '@tzurot/clients';
 import type { DeleteModelOverrideResponse } from '@tzurot/common-types/schemas/api/model-override';
+import type { DeleteTtsOverrideResponse } from '@tzurot/common-types/schemas/api/tts-override';
 import { clientsFor } from './gatewayClients.js';
 import { pluralize } from './browse/index.js';
 import {
@@ -84,9 +85,9 @@ type OverrideBatchOutcome = 'success' | 'already-gone';
  * remain distinct.
  */
 export function fallbackOverrideLabel(rawValue: string): string {
-  const { personalityId, slot } = parseOverrideSelectValue(rawValue);
+  const { personalityId, slot, slotUnknown } = parseOverrideSelectValue(rawValue);
   const base = formatFallbackIdLabel(personalityId, 'Override');
-  return slot === undefined ? base : `${base} (${slot})`;
+  return slot === undefined || slotUnknown ? base : `${base} (${slot})`;
 }
 
 /** Whether a customId targets one of the batch button actions (`batch-select` / `batch-confirm` / `batch-cancel`). */
@@ -103,21 +104,22 @@ export function isOverrideBatchButton(ids: OverrideBrowseCustomIds, customId: st
 /**
  * Append the slot suffix (` (text)` / ` (vision)`) to a label recovered from a
  * select option, so two slots of the same character stay distinguishable.
- * Slot-less ids (TTS) pass through unchanged. Not applied to
- * {@link fallbackOverrideLabel}, which already carries the suffix.
+ * Slot-less ids (TTS) and unknown slot segments pass through unchanged. Not
+ * applied to {@link fallbackOverrideLabel}, which already carries the suffix.
  */
 function withSlotSuffix(label: string, rawValue: string): string {
-  const { slot } = parseOverrideSelectValue(rawValue);
-  return slot === undefined ? label : `${label} (${slot})`;
+  const { slot, slotUnknown } = parseOverrideSelectValue(rawValue);
+  return slot === undefined || slotUnknown ? label : `${label} (${slot})`;
 }
 
 /**
  * Recover per-id display labels from the confirm embed description's bullet
- * lines (already escaped, slot suffix included, by `handleOverrideBatchPick`)
- * when they match `ids.length`. The confirm message carries only buttons, so no
- * select-menu options exist to read here. The all-or-nothing count match falls
- * back to id labels if the listing was clamped. 25 plain labels fit the ~3.8k
- * budget, but escaping can double a markdown-heavy label, so long ones can clamp.
+ * lines (already escaped, slot suffix included, by `handleOverrideBatchPick`).
+ * When `bulletLines.length === ids.length` and all start with the bullet, all
+ * labels are recovered. When clamped (`bulletLines.length < ids.length`),
+ * recovers every leading bullet line except the last (which may be cut
+ * mid-label) up to the first non-bullet line; remaining ids fall back to id
+ * labels. When `bulletLines.length > ids.length`, returns no labels.
  */
 function resolveConfirmDisplayLabels(
   message: Message,
@@ -125,26 +127,39 @@ function resolveConfirmDisplayLabels(
 ): Map<string, string> {
   const resolved = new Map<string, string>();
   const description = message.embeds[0]?.description;
-  if (typeof description === 'string' && description.length > 0) {
-    const [listingBlock] = description.split('\n\n');
-    const bulletLines = (listingBlock ?? '').split('\n');
-    if (
-      bulletLines.length === ids.length &&
-      bulletLines.every(line => line.startsWith(LISTING_BULLET))
-    ) {
-      ids.forEach((id, index) => {
-        const line = bulletLines[index];
-        if (line !== undefined) {
-          resolved.set(id, line.slice(LISTING_BULLET.length));
-        }
-      });
+  if (typeof description !== 'string' || description.length === 0) {
+    return resolved;
+  }
+  const [listingBlock = ''] = description.split('\n\n');
+  const bulletLines = listingBlock.split('\n');
+  if (
+    bulletLines.length === ids.length &&
+    bulletLines.every(line => line.startsWith(LISTING_BULLET))
+  ) {
+    ids.forEach((id, index) => {
+      const line = bulletLines[index];
+      if (line !== undefined) {
+        resolved.set(id, line.slice(LISTING_BULLET.length));
+      }
+    });
+    return resolved;
+  }
+  if (bulletLines.length < ids.length) {
+    for (let index = 0; index < bulletLines.length - 1; index += 1) {
+      const line = bulletLines[index];
+      const id = ids[index];
+      if (line === undefined || id === undefined || !line.startsWith(LISTING_BULLET)) {
+        break;
+      }
+      resolved.set(id, line.slice(LISTING_BULLET.length));
     }
   }
   return resolved;
 }
 
 /** `wasSet` as both DELETE routes' response schemas declare it. */
-type DeleteOverrideWasSet = Pick<DeleteModelOverrideResponse, 'wasSet'>;
+type DeleteOverrideWasSet = Pick<DeleteModelOverrideResponse, 'wasSet'> &
+  Pick<DeleteTtsOverrideResponse, 'wasSet'>;
 
 function isWasSetFalse(data: unknown): boolean {
   return (
@@ -170,7 +185,14 @@ async function runSingleOverrideClear(
   rawValue: string,
   userId: string
 ): Promise<OverrideBatchOutcome> {
-  const { personalityId, slot } = parseOverrideSelectValue(rawValue);
+  const { personalityId, slot, slotUnknown } = parseOverrideSelectValue(rawValue);
+  if (slotUnknown) {
+    config.logger.warn(
+      { userId, personalityId },
+      'Batch override clear item has unknown slot segment'
+    );
+    throw new Error(FAILED_TO_CLEAR_NOTE);
+  }
   let result: Awaited<ReturnType<OverrideBrowseConfig['delete']>>;
   try {
     result = await config.delete(userClient, personalityId, slot);
@@ -317,7 +339,7 @@ export async function handleOverrideBatchPick(
   });
   const warning =
     `**This clears ${countNoun} immediately.** ` +
-    `Cleared characters will fall back to your default ${config.fallbackNoun}. You can re-set them any time.`;
+    `Cleared overrides will fall back to your default ${config.fallbackNoun}. You can re-set them any time.`;
 
   const customIds = createOverrideBrowseCustomIds(config.prefix);
   const { embed, components } = buildBatchConfirmView({
@@ -367,28 +389,27 @@ export async function handleOverrideBatchConfirm(
   config: OverrideBrowseConfig,
   interaction: ButtonInteraction
 ): Promise<void> {
-  if (!interaction.deferred && !interaction.replied) {
-    await ackUpdate(interaction);
-  }
-
   const userId = interaction.user.id;
-  const rawFooter = interaction.message.embeds[0]?.footer?.text;
-  const ids = parseBatchFooterIds(rawFooter);
-  if (ids === null) {
-    config.logger.warn({ userId }, 'Missing or empty batch footer ids on override confirm');
-    await interaction.editReply(errorReply(MISSING_SELECTION_MSG));
-    return;
-  }
-
+  let ids: string[] | null;
   let labels: Map<string, string>;
   let userClient: UserClient;
   try {
+    if (!interaction.deferred && !interaction.replied) {
+      await ackUpdate(interaction);
+    }
+    const rawFooter = interaction.message.embeds[0]?.footer?.text;
+    ids = parseBatchFooterIds(rawFooter);
+    if (ids === null) {
+      config.logger.warn({ userId }, 'Missing or empty batch footer ids on override confirm');
+      await interaction.editReply(errorReply(MISSING_SELECTION_MSG));
+      return;
+    }
     labels = resolveConfirmDisplayLabels(interaction.message, ids);
     ({ userClient } = clientsFor(interaction));
     await interaction.editReply({ components: [] });
   } catch (error) {
-    // Nothing has been cleared yet on this path. The strip may be what failed, so
-    // the editReply channel is suspect: answer on an ephemeral followUp instead.
+    // Nothing has been cleared yet on this path. The ack or strip may be what failed,
+    // so the editReply channel is suspect: answer on an ephemeral followUp instead.
     config.logger.error({ err: error, userId }, 'Error preparing override batch confirm');
     await interaction
       .followUp({ content: GENERIC_ERROR_MSG, flags: MessageFlags.Ephemeral })

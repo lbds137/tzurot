@@ -108,6 +108,8 @@ export const DeleteTtsOverrideResponseSchema = z.object({
   wasSet: z.boolean().optional(),
 });
 
+export type DeleteTtsOverrideResponse = z.infer<typeof DeleteTtsOverrideResponseSchema>;
+
 // ============================================================================
 // Input schemas (request body validation)
 // ============================================================================
