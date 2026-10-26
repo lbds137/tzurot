@@ -3,13 +3,14 @@ id: TASK-1289
 title: >-
   Alias batch residue from PR 2654 rounds 6-7: JSDoc contradiction, label
   newlines, CI-fallback adjudication, missing tests
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-10-25 18:23'
+created_date: 2026-10-25 18:23
+updated_date: '2026-10-26T18:45:00Z'
 labels:
-  - 'area:bot-client'
-  - 'size:S'
-  - 'state:ready'
+  - area:bot-client
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1275000
