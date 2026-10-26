@@ -44,12 +44,18 @@ vi.mock('../../utils/dashboard/index.js', () => ({
 
 interface FactClientStub {
   listFacts: ReturnType<typeof vi.fn>;
+  getFact: ReturnType<typeof vi.fn>;
   forgetFact: ReturnType<typeof vi.fn>;
   setFactLock: ReturnType<typeof vi.fn>;
 }
 
 function createStub(): FactClientStub {
-  return { listFacts: vi.fn(), forgetFact: vi.fn(), setFactLock: vi.fn() };
+  return {
+    listFacts: vi.fn(),
+    getFact: vi.fn(),
+    forgetFact: vi.fn(),
+    setFactLock: vi.fn(),
+  };
 }
 
 const FACT_IDS = ['fact-1', 'fact-2', 'fact-3', 'fact-4', 'fact-5'];
@@ -705,6 +711,66 @@ describe('handleBatchConfirm — forget', () => {
 
     expect(interaction.deferUpdate).not.toHaveBeenCalled();
   });
+
+  it('skips the forget for an id whose per-id read 404s: no gateway call, ◻️ already gone', async () => {
+    stub.listFacts.mockResolvedValue(listResponse(FACTS.slice(1)));
+    stub.getFact.mockResolvedValue(makeErr(404, 'Not found'));
+    stub.forgetFact.mockResolvedValue(makeOk({ id: 'fact-2', forgotten: true }));
+    const interaction = createButtonInteraction({
+      messageEmbedFooter: encodeBatchFooterIds(['fact-1', 'fact-2']),
+    });
+
+    await handleBatchConfirm(interaction, 'forget');
+
+    expect(stub.getFact).toHaveBeenCalledWith('fact-1');
+    expect(stub.forgetFact).toHaveBeenCalledTimes(1);
+    expect(stub.forgetFact).toHaveBeenCalledWith('fact-2');
+    expect(stub.forgetFact).not.toHaveBeenCalledWith('fact-1');
+    const [resultEmbed] = editReplyEmbeds(interaction);
+    expect(resultEmbed.description).toContain('◻️ Fact ID: fact-1… — already gone');
+    expect(resultEmbed.description).not.toContain('❌ Fact ID: fact-1');
+    expect(resultEmbed.description).toContain('✅ Statement of fact-2');
+    expect(resultEmbed.color).toBe(DISCORD_COLORS.SUCCESS);
+  });
+
+  it('runs the FORGET past a failed per-id read: fallback label, never a ❌ (forget-side drift)', async () => {
+    stub.listFacts.mockResolvedValue(listResponse(FACTS.slice(1)));
+    stub.getFact.mockResolvedValue(makeErr(500, 'read failed'));
+    stub.forgetFact.mockResolvedValue(makeOk({ id: 'fact-1', forgotten: true }));
+    const interaction = createButtonInteraction({
+      messageEmbedFooter: encodeBatchFooterIds(['fact-1']),
+    });
+
+    await handleBatchConfirm(interaction, 'forget');
+
+    expect(stub.getFact).toHaveBeenCalledWith('fact-1');
+    expect(stub.forgetFact).toHaveBeenCalledWith('fact-1');
+    const [resultEmbed] = editReplyEmbeds(interaction);
+    expect(resultEmbed.description).toContain('✅ Fact ID: fact-1');
+    expect(resultEmbed.description).not.toContain('❌');
+  });
+
+  it('resolves a drifted id through the per-id fetch and skips it when locked', async () => {
+    const lockedOffPageFact = createMockFact('fact-1', { isLocked: true }) satisfies FactItem;
+    stub.listFacts.mockResolvedValue(listResponse(FACTS.slice(1)));
+    stub.getFact.mockResolvedValue(makeOk({ fact: lockedOffPageFact }));
+    stub.forgetFact.mockResolvedValue(makeOk({ id: 'fact-2', forgotten: true }));
+    const interaction = createButtonInteraction({
+      messageEmbedFooter: encodeBatchFooterIds(['fact-1', 'fact-2']),
+    });
+
+    await handleBatchConfirm(interaction, 'forget');
+
+    expect(stub.getFact).toHaveBeenCalledWith('fact-1');
+    expect(stub.forgetFact).toHaveBeenCalledTimes(1);
+    expect(stub.forgetFact).toHaveBeenCalledWith('fact-2');
+    expect(stub.forgetFact).not.toHaveBeenCalledWith('fact-1');
+
+    const [resultEmbed] = editReplyEmbeds(interaction);
+    expect(resultEmbed.description).toContain('🔐 Statement of fact-1 — locked — unlock first');
+    expect(resultEmbed.description).toContain('✅ Statement of fact-2');
+    expect(resultEmbed.color).toBe(DISCORD_COLORS.SUCCESS);
+  });
 });
 
 describe('handleBatchConfirm — guard rails', () => {
@@ -805,6 +871,85 @@ describe('handleBatchConfirm — lock', () => {
     expect(resultEmbed.description).toContain('✅ Statement of fact-2');
     expect(resultEmbed.color).toBe(DISCORD_COLORS.SUCCESS);
   });
+
+  it('resolves a drifted id through the per-id fetch and skips it when already locked', async () => {
+    const lockedOffPageFact = createMockFact('fact-1', { isLocked: true }) satisfies FactItem;
+    stub.listFacts.mockResolvedValue(listResponse(FACTS.slice(1)));
+    stub.getFact.mockResolvedValue(makeOk({ fact: lockedOffPageFact }));
+    const interaction = createButtonInteraction({
+      messageEmbedFooter: encodeBatchFooterIds(['fact-1', 'fact-2']),
+    });
+
+    await handleBatchConfirm(interaction, 'lock');
+
+    expect(stub.getFact).toHaveBeenCalledWith('fact-1');
+    expect(stub.setFactLock).toHaveBeenCalledTimes(1);
+    expect(stub.setFactLock).toHaveBeenCalledWith('fact-2', { locked: true });
+    expect(stub.setFactLock).not.toHaveBeenCalledWith('fact-1', expect.anything());
+
+    const [resultEmbed] = editReplyEmbeds(interaction);
+    expect(resultEmbed.description).toContain('🔐 Statement of fact-1 — already locked');
+    expect(resultEmbed.description).toContain('✅ Statement of fact-2');
+    expect(resultEmbed.color).toBe(DISCORD_COLORS.SUCCESS);
+  });
+
+  it('never re-locks an id whose lock state could not be resolved: failed line, no mutation', async () => {
+    stub.listFacts.mockResolvedValue(listResponse(FACTS.slice(1)));
+    stub.getFact.mockResolvedValue(makeErr(500, 'read failed'));
+    const interaction = createButtonInteraction({
+      messageEmbedFooter: encodeBatchFooterIds(['fact-1', 'fact-2']),
+    });
+
+    await handleBatchConfirm(interaction, 'lock');
+
+    expect(stub.getFact).toHaveBeenCalledWith('fact-1');
+    expect(stub.setFactLock).toHaveBeenCalledTimes(1);
+    expect(stub.setFactLock).toHaveBeenCalledWith('fact-2', { locked: true });
+    expect(stub.setFactLock).not.toHaveBeenCalledWith('fact-1', expect.anything());
+
+    const [resultEmbed] = editReplyEmbeds(interaction);
+    expect(resultEmbed.description).toContain('❌ Fact ID: fact-1');
+    expect(resultEmbed.description).toContain('✅ Statement of fact-2');
+    expect(resultEmbed.color).toBe(DISCORD_COLORS.ERROR);
+  });
+
+  it('skips the lock for an id whose per-id read 404s: no gateway call, ◻️ already gone', async () => {
+    stub.listFacts.mockResolvedValue(listResponse(FACTS.slice(1)));
+    stub.getFact.mockResolvedValue(makeErr(404, 'Not found'));
+    const interaction = createButtonInteraction({
+      messageEmbedFooter: encodeBatchFooterIds(['fact-1', 'fact-2']),
+    });
+
+    await handleBatchConfirm(interaction, 'lock');
+
+    expect(stub.getFact).toHaveBeenCalledWith('fact-1');
+    expect(stub.setFactLock).toHaveBeenCalledTimes(1);
+    expect(stub.setFactLock).toHaveBeenCalledWith('fact-2', { locked: true });
+    expect(stub.setFactLock).not.toHaveBeenCalledWith('fact-1', expect.anything());
+    const [resultEmbed] = editReplyEmbeds(interaction);
+    expect(resultEmbed.description).toContain('◻️ Fact ID: fact-1… — already gone');
+    expect(resultEmbed.description).not.toContain('❌ Fact ID: fact-1');
+    expect(resultEmbed.description).toContain('✅ Statement of fact-2');
+    expect(resultEmbed.color).toBe(DISCORD_COLORS.SUCCESS);
+  });
+
+  it('locks a drifted unlocked id and preserves its real label from the per-id fetch', async () => {
+    const unlockedOffPageFact = createMockFact('fact-1', { isLocked: false }) satisfies FactItem;
+    stub.listFacts.mockResolvedValue(listResponse(FACTS.slice(1)));
+    stub.getFact.mockResolvedValue(makeOk({ fact: unlockedOffPageFact }));
+    const interaction = createButtonInteraction({
+      messageEmbedFooter: encodeBatchFooterIds(['fact-1']),
+    });
+
+    await handleBatchConfirm(interaction, 'lock');
+
+    expect(stub.getFact).toHaveBeenCalledWith('fact-1');
+    expect(stub.setFactLock).toHaveBeenCalledWith('fact-1', { locked: true });
+
+    const [resultEmbed] = editReplyEmbeds(interaction);
+    expect(resultEmbed.description).toContain('✅ Statement of fact-1');
+    expect(resultEmbed.description).not.toContain('Fact ID:');
+  });
 });
 
 describe('handleBatchConfirm — locked facts in a forget run', () => {
@@ -870,10 +1015,11 @@ describe('handleBatchConfirm — locked facts in a forget run', () => {
   });
 
   it('maps a forget 403 on an id missing from the fetched page to the locked outcome', async () => {
-    // The fetch succeeded but fact-1 fell off the page — its lock state is
-    // UNKNOWN from the page; the gateway 403s the forget (locked fact), which
-    // is the only honest locked signal. Locked, not ❌, and the run stays green.
+    // fact-1 is off the page AND its per-id read failed, so its lock state is
+    // unknown; a Forget run still runs it, and the gateway's 403 is the honest
+    // locked signal.
     stub.listFacts.mockResolvedValue(listResponse(FACTS.slice(1)));
+    stub.getFact.mockResolvedValue(makeErr(500, 'read failed'));
     stub.forgetFact.mockResolvedValue(makeErr(403, 'Cannot forget a locked fact'));
     const interaction = createButtonInteraction({
       messageEmbedFooter: encodeBatchFooterIds(['fact-1']),

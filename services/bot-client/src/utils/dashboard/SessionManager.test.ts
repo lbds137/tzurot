@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { Redis, ChainableCommander } from 'ioredis';
+import type { Redis } from 'ioredis';
 import {
   DashboardSessionManager,
   getSessionManager,
@@ -12,110 +12,11 @@ import {
   isSessionManagerInitialized,
 } from './SessionManager.js';
 import { isDashboardInteraction, parseDashboardCustomId, buildDashboardCustomId } from './types.js';
+import { createMockRedis } from '../../test/mockRedis.js';
 
 interface TestData {
   name: string;
   value: number;
-}
-
-/**
- * Create a mock Redis client with common operations
- */
-function createMockRedis(): {
-  redis: Redis;
-  storage: Map<string, string>;
-  pipelineOps: Array<{ method: string; args: unknown[] }>;
-} {
-  const storage = new Map<string, string>();
-  const pipelineOps: Array<{ method: string; args: unknown[] }> = [];
-
-  // Use plain functions instead of vi.fn for pipeline to avoid closure issues
-  const createPipeline = (): ChainableCommander => {
-    // Track ops for this specific pipeline execution
-    const localOps: Array<{ method: string; args: unknown[] }> = [];
-
-    const pipeline: ChainableCommander = {
-      setex(key: string, ttl: number, value: string) {
-        localOps.push({ method: 'setex', args: [key, ttl, value] });
-        pipelineOps.push({ method: 'setex', args: [key, ttl, value] });
-        storage.set(key, value);
-        return pipeline;
-      },
-      del(key: string) {
-        localOps.push({ method: 'del', args: [key] });
-        pipelineOps.push({ method: 'del', args: [key] });
-        storage.delete(key);
-        return pipeline;
-      },
-      expire(key: string, ttl: number) {
-        localOps.push({ method: 'expire', args: [key, ttl] });
-        pipelineOps.push({ method: 'expire', args: [key, ttl] });
-        return pipeline;
-      },
-      async exec() {
-        // Return results for each pipeline operation
-        return localOps.map(op => {
-          if (op.method === 'del') {
-            return [null, 1]; // Key was deleted
-          }
-          return [null, 'OK'];
-        });
-      },
-    } as unknown as ChainableCommander;
-    return pipeline;
-  };
-
-  // Use plain async functions instead of vi.fn to avoid mock complications
-  const redis: Redis = {
-    async get(key: string) {
-      return storage.get(key) ?? null;
-    },
-    async setex(key: string, _ttl: number, value: string) {
-      storage.set(key, value);
-      return 'OK';
-    },
-    async del(...keys: string[]) {
-      let deleted = 0;
-      for (const key of keys) {
-        if (storage.has(key)) {
-          storage.delete(key);
-          deleted++;
-        }
-      }
-      return deleted;
-    },
-    async expire(_key: string, _ttl: number) {
-      return 1;
-    },
-    // mget receives keys as an array
-    async mget(keys: string[]) {
-      return keys.map(k => storage.get(k) ?? null);
-    },
-    // scan receives: cursor, 'MATCH', pattern, 'COUNT', count
-    async scan(_cursor: string, _match: string, pattern: string) {
-      // Convert glob pattern to regex for proper matching
-      // 'session:*' should NOT match 'session-msg:*'
-      const regexPattern = pattern
-        .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape regex special chars
-        .replace(/\*/g, '.*') // Convert glob * to regex .*
-        .replace(/\?/g, '.'); // Convert glob ? to regex .
-      const regex = new RegExp(`^${regexPattern}$`);
-
-      const matchingKeys: string[] = [];
-      for (const key of storage.keys()) {
-        if (regex.test(key)) {
-          matchingKeys.push(key);
-        }
-      }
-      return ['0', matchingKeys] as [string, string[]]; // Return cursor '0' to indicate scan complete
-    },
-    pipeline() {
-      pipelineOps.length = 0; // Reset pipeline ops for this pipeline
-      return createPipeline();
-    },
-  } as unknown as Redis;
-
-  return { redis, storage, pipelineOps };
 }
 
 describe('DashboardSessionManager', () => {

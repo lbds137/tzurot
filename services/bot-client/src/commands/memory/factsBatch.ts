@@ -4,7 +4,8 @@
  * Multi-select batch actions over the facts browse list: pick several facts
  * in one menu, confirm Lock or Forget for all of them in one view, then get
  * a per-item outcome listing (successes, gone items, locked skips and
- * failures). Execution loops the single-id gateway calls with per-item
+ * failures; a pick that left the page is resolved by a per-id read).
+ * Execution loops the single-id gateway calls with per-item
  * isolation — no batch route.
  *
  * Component contract:
@@ -23,7 +24,7 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { GatewayClientError, type UserClient } from '@tzurot/clients';
+import { type UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { buildBrowseSelectMenu } from '../../utils/browse/selectMenuBuilder.js';
 import {
@@ -44,7 +45,6 @@ import {
 } from '../../utils/browse/multiSelectBatch.js';
 import { truncateForSelect } from '../../utils/browse/truncation.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
-import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { followUpSpec, ackUpdate } from '../../ux/render/reply.js';
 import {
@@ -56,7 +56,20 @@ import {
   buildRefreshedFactsView,
 } from './factsBrowse.js';
 import { buildFactActionId } from './factsDetail.js';
-import { forgetFact, setFactLock, type FactItem } from './factsApi.js';
+import { fetchFact, forgetFact, setFactLock, type FactItem } from './factsApi.js';
+import {
+  buildSkippedLockableLine,
+  countLockableBatchLines,
+  formatLockableCountsLine,
+  resolveMissingLockableLabels,
+  toLockableResultLine,
+  type LockableBatchCounts,
+  type LockableBatchNouns,
+  type LockableBatchRunOptions,
+  type LockableGoneIds,
+  type LockableLabelReadErrors,
+  type ResolvedLockableLabel,
+} from './lockableBatchOutcome.js';
 
 const logger = createLogger('memory-facts-batch');
 
@@ -185,12 +198,6 @@ async function runBatchVerb(
   return updated === null ? 'already-gone' : 'success';
 }
 
-/** Resolved pre-loop state for one selected id: menu label + lock state. */
-interface ResolvedBatchLabel {
-  label: string;
-  isLocked: boolean;
-}
-
 /**
  * Why a confirm must refuse before any mutation: the browse session no longer
  * exists, or the pre-loop page fetch failed (transient gateway error).
@@ -198,20 +205,34 @@ interface ResolvedBatchLabel {
 type BatchLabelsRefusal = 'session-gone' | 'fetch-failed';
 
 /**
- * Result-time labels, resolved BEFORE the loop mutates the page: while every
- * selected id is still on the current page, one fetch matches them all; ids
- * whose fact has since vanished degrade to a short id prefix. A refusal means
- * the caller must refuse BEFORE mutating, because the outcome report could
- * not name the facts it acted on — true for BOTH refusal reasons: a gone
- * session and a failed fetch alike leave no honest basis for the run.
+ * Result-time labels, resolved BEFORE the loop mutates the page: one page
+ * fetch matches every still-present id, and a selected id the page fetch
+ * misses gets the per-id read, so its real label and lock state survive the
+ * drift (an id-prefix fallback only for reads that 404 — those ids are
+ * recorded gone and skip the mutation entirely). The reads run in parallel:
+ * they are independent per id and the results are keyed, so no ordering
+ * dependency exists (the mutations after them stay sequential). A refusal
+ * means the caller must refuse BEFORE mutating, because the outcome report
+ * could not name the facts it acted on — true for BOTH refusal reasons: a
+ * gone session and a failed fetch alike leave no honest basis for the run.
  */
 async function resolveBatchLabels(
   interaction: ButtonInteraction,
-  ids: readonly string[]
+  userClient: UserClient,
+  ids: readonly string[],
+  userId: string
 ): Promise<
-  { ok: true; labels: Map<string, ResolvedBatchLabel> } | { ok: false; reason: BatchLabelsRefusal }
+  | {
+      ok: true;
+      labels: Map<string, ResolvedLockableLabel>;
+      readErrors: LockableLabelReadErrors;
+      goneIds: LockableGoneIds;
+    }
+  | { ok: false; reason: BatchLabelsRefusal }
 > {
-  const resolved = new Map<string, ResolvedBatchLabel>();
+  const resolved = new Map<string, ResolvedLockableLabel>();
+  const readErrors: LockableLabelReadErrors = new Map();
+  const goneIds: LockableGoneIds = new Set();
   const idSet = new Set(ids);
   const result = await fetchCurrentFactsPage(interaction);
   if (!result.ok) {
@@ -225,7 +246,17 @@ async function resolveBatchLabels(
       });
     }
   }
-  return { ok: true, labels: resolved };
+  const missingIds = ids.filter(factId => !resolved.has(factId));
+  await resolveMissingLockableLabels(
+    missingIds,
+    {
+      read: id => fetchFact(userClient, id, userId),
+      toLabel: fact => formatFactSelectOption(fact).label,
+      fallbackLabel: fallbackFactLabel,
+    },
+    { resolved, readErrors, goneIds }
+  );
+  return { ok: true, labels: resolved, readErrors, goneIds };
 }
 
 /** Deliver a confirm refusal (nothing has mutated) with the reason-honest copy. */
@@ -245,13 +276,10 @@ async function replyBatchRefusal(
   });
 }
 
-/** Outcome counts for one finished batch run. */
-interface BatchRunCounts {
-  succeeded: number;
-  gone: number;
-  failed: number;
-  locked: number;
-}
+const FACT_BATCH_NOUNS = {
+  noun: 'fact',
+  destroyVerb: 'forget',
+} satisfies LockableBatchNouns;
 
 /**
  * Deliver the outcome report: build the result embed (the color ladder is the
@@ -264,20 +292,17 @@ interface BatchRunCounts {
 async function deliverBatchResult(
   interaction: ButtonInteraction,
   verb: BatchVerb,
-  counts: BatchRunCounts,
+  counts: LockableBatchCounts,
   lines: readonly BatchResultLine[]
 ): Promise<void> {
-  const { succeeded, gone, failed, locked } = counts;
+  const { succeeded, failed } = counts;
   const resultEmbed = buildBatchResultEmbed({
     title: verb === 'forget' ? '🗑️ Forget Results' : '🔐 Lock Results',
     color: batchResultColor({ succeeded, failed }),
     lines: formatBatchItemLines(lines),
   });
 
-  const countsLine =
-    verb === 'forget'
-      ? `Batch finished: ${succeeded} succeeded, ${gone} already gone, ${locked} locked (skipped), ${failed} failed.`
-      : `Batch finished: ${succeeded} succeeded, ${gone} already gone, ${locked} already locked, ${failed} failed.`;
+  const countsLine = formatLockableCountsLine(counts, verb === 'forget');
 
   // Rider on the survival ladder: the refreshed view does session-manager
   // round-trips that can throw AFTER the mutations ran — a throw must
@@ -331,7 +356,7 @@ export async function handleBatchConfirm(
   // and a failed pre-loop fetch — refuse BEFORE any gateway call: the
   // outcome report could not name the facts it acted on, so no mutation may
   // run on that basis.
-  const resolved = await resolveBatchLabels(interaction, ids);
+  const resolved = await resolveBatchLabels(interaction, userClient, ids, userId);
   if (!resolved.ok) {
     await replyBatchRefusal(interaction, resolved.reason);
     return;
@@ -339,70 +364,53 @@ export async function handleBatchConfirm(
   const labels = resolved.labels;
 
   const lockedIds = new Set(
-    [...labels.entries()].filter(([, meta]) => meta.isLocked).map(([id]) => id)
+    [...labels.entries()].filter(([, meta]) => meta.isLocked === true).map(([factId]) => factId)
   );
-  // Locked facts never run, for either verb: a forget would 403 at the
-  // gateway, and a lock's target state is already set — the skip is the
-  // outcome, so no call is made. Both verbs skip them upfront and report
-  // them as their own locked outcome.
-  const runIds = ids.filter(id => !lockedIds.has(id));
-  const results = await runBatchSequentially(runIds, id =>
-    runBatchVerb(userClient, verb, id, userId)
+  // A LOCK run must not re-send setFactLock(true) for an already-locked id
+  // and report success: an id whose lock state could not be resolved (off the
+  // page AND its per-id read failed) is failed upfront WITHOUT mutating. The
+  // forget run needs no such guard — its 403 names locked ids honestly, and
+  // a forgotten id needs no lock state at all.
+  const unverifiableIds = verb === 'lock' ? new Set(resolved.readErrors.keys()) : new Set<string>();
+  // A gone id (its per-id read 404'd) skips the mutation for BOTH verbs: the
+  // forget call would return false and the lock call null — the same
+  // already-gone outcome, reached without the wasted gateway call.
+  const runIds = ids.filter(
+    factId =>
+      !lockedIds.has(factId) && !unverifiableIds.has(factId) && !resolved.goneIds.has(factId)
+  );
+  const results = await runBatchSequentially(runIds, factId =>
+    runBatchVerb(userClient, verb, factId, userId)
   );
 
   // Same truncation the select menu applies to option labels — the result
   // lines must not resurrect the full statement the menu clipped.
-  const labelFor = (id: string): string =>
+  const labelFor = (factId: string): string =>
     escapeMarkdown(
-      truncateForSelect(labels.get(id)?.label ?? fallbackFactLabel(id), { stripNewlines: true })
+      truncateForSelect(labels.get(factId)?.label ?? fallbackFactLabel(factId), {
+        stripNewlines: true,
+      })
     );
 
-  const toResultLine = (result: (typeof results)[number]): BatchResultLine => {
-    const label = labelFor(result.id);
-    if (!result.ok) {
-      // On a forget run a 403 IS the gateway's locked-fact rejection (the
-      // factsApi contract) — and a selected id missing from the fetched page
-      // has UNKNOWN lock state, so the 403 is the only honest locked signal.
-      // Render it as the locked outcome, not a generic failure.
-      if (
-        verb === 'forget' &&
-        result.error instanceof GatewayClientError &&
-        result.error.status === 403
-      ) {
-        return { label, status: 'locked', note: 'locked — unlock first' };
-      }
-      const reason = renderSpec(
-        verb === 'forget'
-          ? classifyGatewayFailure(result.error, 'fact', { failedAction: 'forget the fact' })
-          : classifyGatewayFailure(result.error, 'fact lock')
-      );
-      return { label, status: 'failed', note: reason };
-    }
-    if (result.value === 'success') {
-      return { label, status: 'success' };
-    }
-    return { label, status: 'gone', note: 'already gone' };
-  };
+  const runOptions = {
+    destroying: verb === 'forget',
+    nouns: FACT_BATCH_NOUNS,
+  } satisfies LockableBatchRunOptions;
+  const toResultLine = (result: (typeof results)[number]): BatchResultLine =>
+    toLockableResultLine(result, labelFor(result.id), runOptions);
 
-  // Original ids order: loop results where the id ran, locked-skip lines for
-  // the ids neither verb attempted (every non-locked id has a result).
+  // Original ids order: loop results where the id ran, upfront skips otherwise (see buildSkippedLockableLine).
   const resultLines = new Map<string, BatchResultLine>(
     results.map(result => [result.id, toResultLine(result)])
   );
+  const skips = { goneIds: resolved.goneIds, lockedIds, readErrors: resolved.readErrors };
   const lines = ids.map(
-    (id): BatchResultLine =>
-      resultLines.get(id) ?? {
-        label: labelFor(id),
-        status: 'locked',
-        note: verb === 'forget' ? 'locked — unlock first' : 'already locked',
-      }
+    (factId): BatchResultLine =>
+      resultLines.get(factId) ??
+      buildSkippedLockableLine(factId, labelFor(factId), skips, runOptions)
   );
 
-  const succeeded = lines.filter(line => line.status === 'success').length;
-  const gone = lines.filter(line => line.status === 'gone').length;
-  const failed = lines.filter(line => line.status === 'failed').length;
-  const locked = lines.filter(line => line.status === 'locked').length;
-  const counts: BatchRunCounts = { succeeded, gone, failed, locked };
+  const counts = countLockableBatchLines(lines);
   logger.info({ userId, verb, requested: ids.length, ...counts }, 'Batch fact action finished');
 
   await deliverBatchResult(interaction, verb, counts, lines);
