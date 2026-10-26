@@ -144,6 +144,7 @@ export function composeGenerationFailureResult(
         // The failed fallback attempt (if any) rides along so the error
         // footer renders the full route chain, not just the primary.
         fallbackProviderAttempted: getAttemptedFallbackProvider(error),
+        fallthroughTriggered: context.auth?.fallthroughTriggered,
         // A proactive quota swap that took effect before the failure — the
         // footer must explain why modelUsed is the fallback (never silent).
         quotaFallback,

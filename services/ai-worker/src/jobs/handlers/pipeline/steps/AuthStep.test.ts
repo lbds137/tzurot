@@ -656,6 +656,104 @@ describe('AuthStep', () => {
         expect(result.config?.effectivePersonality.provider).toBe(AIProvider.OpenRouter);
         expect(result.auth?.apiKey).toBe('sk-or-user-key');
         expect(result.auth?.provider).toBe(AIProvider.OpenRouter);
+        expect(result.auth?.fallthroughTriggered).toBe(true);
+      });
+
+      it('sets auth.fallthroughTriggered from route.fallthroughTriggered across keyed and guest-override return arms', async () => {
+        // Keyed fallthrough route → auth.fallthroughTriggered === true
+        const fallthroughRouter = {
+          resolveRoute: vi.fn().mockResolvedValue({
+            effectiveProvider: AIProvider.OpenRouter,
+            effectiveModel: 'z-ai/glm-4.7',
+            apiKey: 'fixture-or-user-key',
+            isGuestMode: false,
+            fallthroughTriggered: true,
+            wasAutoPromoted: false,
+          }),
+        } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+
+        step = new AuthStep(mockApiKeyResolver, mockConfigResolver, fallthroughRouter);
+        const keyedResult = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: { effectivePersonality: ZAI_PERSONALITY, configSource: 'personality' },
+        });
+        expect(keyedResult.auth?.fallthroughTriggered).toBe(true);
+
+        // Non-fallthrough route → auth.fallthroughTriggered is absent
+        const directRouter = {
+          resolveRoute: vi.fn().mockResolvedValue({
+            effectiveProvider: AIProvider.ZaiCoding,
+            effectiveModel: 'glm-4.7',
+            apiKey: 'zai-user-key',
+            isGuestMode: false,
+            fallthroughTriggered: false,
+            wasAutoPromoted: false,
+          }),
+        } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+
+        step = new AuthStep(mockApiKeyResolver, mockConfigResolver, directRouter);
+        const directResult = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: { effectivePersonality: ZAI_PERSONALITY, configSource: 'personality' },
+        });
+        expect(directResult.auth?.fallthroughTriggered).toBeUndefined();
+
+        // Guest-mode override arm (no OpenRouter key either → system key + free model)
+        const guestFallthroughRouter = {
+          resolveRoute: vi.fn().mockResolvedValue({
+            effectiveProvider: AIProvider.OpenRouter,
+            effectiveModel: 'z-ai/glm-4.7',
+            apiKey: 'fixture-or-system-key',
+            isGuestMode: true,
+            fallthroughTriggered: true,
+            wasAutoPromoted: false,
+          }),
+        } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+
+        step = new AuthStep(mockApiKeyResolver, mockConfigResolver, guestFallthroughRouter);
+        const guestResult = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: { effectivePersonality: ZAI_PERSONALITY, configSource: 'personality' },
+        });
+        expect(guestResult.auth?.isGuestMode).toBe(true);
+        expect(guestResult.auth?.fallthroughTriggered).toBe(true);
+
+        // Guest-mode z.ai system-key upgrade arm (piggyback admitted after fallthrough)
+        const guestZaiUpgradeRouter = {
+          resolveRoute: vi.fn().mockResolvedValue({
+            effectiveProvider: AIProvider.OpenRouter,
+            effectiveModel: 'z-ai/glm-5.3-flash',
+            apiKey: 'fixture-or-system-key',
+            isGuestMode: true,
+            fallthroughTriggered: true,
+            wasAutoPromoted: false,
+          }),
+        } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+        const admission = {
+          admit: vi.fn().mockResolvedValue({ admitted: true }),
+          systemKey: vi.fn().mockReturnValue('fixture-zai-system-key'),
+        };
+
+        step = new AuthStep(
+          mockApiKeyResolver,
+          mockConfigResolver,
+          guestZaiUpgradeRouter,
+          undefined,
+          { zaiFreeTierAdmission: admission as never }
+        );
+        const guestZaiResult = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: {
+            effectivePersonality: { ...ZAI_PERSONALITY, model: 'glm-5.3-flash' },
+            configSource: 'personality',
+          },
+        });
+        expect(guestZaiResult.auth?.provider).toBe(AIProvider.ZaiCoding);
+        expect(guestZaiResult.auth?.fallthroughTriggered).toBe(true);
       });
 
       it('should NOT override effectivePersonality on direct z.ai-coding route', async () => {

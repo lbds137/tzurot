@@ -664,6 +664,91 @@ describe('GenerationStep', () => {
       });
     });
 
+    describe('fallthroughTriggered metadata propagation', () => {
+      it('carries fallthroughTriggered into success, empty-response failure, and unhandled-failure metadata when context.auth.fallthroughTriggered is true', async () => {
+        const fallthroughAuth = {
+          ...baseAuth,
+          provider: AIProvider.OpenRouter,
+          fallthroughTriggered: true,
+        } satisfies ResolvedAuth;
+
+        // 1. Success result
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValueOnce({
+          content: 'Answered via OpenRouter fallthrough',
+          retrievedMemories: 0,
+          tokensIn: 10,
+          tokensOut: 5,
+          modelUsed: 'z-ai/glm-4.7',
+        });
+
+        const successResult = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: fallthroughAuth,
+          preparedContext: basePreparedContext,
+        });
+
+        expect(successResult.result?.success).toBe(true);
+        expect(successResult.result?.metadata?.fallthroughTriggered).toBe(true);
+
+        // 2. Empty-response failure result
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValueOnce({
+          content: '',
+          retrievedMemories: 0,
+          tokensIn: 10,
+          tokensOut: 5,
+          modelUsed: 'z-ai/glm-4.7',
+        });
+
+        const emptyFailureResult = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: fallthroughAuth,
+          preparedContext: basePreparedContext,
+        });
+
+        expect(emptyFailureResult.result?.success).toBe(false);
+        expect(emptyFailureResult.result?.metadata?.fallthroughTriggered).toBe(true);
+
+        // 3. Unhandled-failure result (via composeGenerationFailureResult)
+        vi.mocked(mockRAGService.generateResponse).mockRejectedValueOnce(
+          new Error('OpenRouter 503')
+        );
+
+        const unhandledFailureResult = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: fallthroughAuth,
+          preparedContext: basePreparedContext,
+        });
+
+        expect(unhandledFailureResult.result?.success).toBe(false);
+        expect(unhandledFailureResult.result?.metadata?.fallthroughTriggered).toBe(true);
+      });
+
+      it('leaves fallthroughTriggered undefined when absent on context.auth', async () => {
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValueOnce({
+          content: 'Normal response',
+          retrievedMemories: 0,
+          tokensIn: 10,
+          tokensOut: 5,
+        });
+
+        const result = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: basePreparedContext,
+        });
+
+        expect(result.result?.metadata?.fallthroughTriggered).toBeUndefined();
+      });
+    });
+
     it('should pass preprocessed attachments to RAG service', async () => {
       const ragResponse: RAGResponse = {
         content: 'Response about the image',

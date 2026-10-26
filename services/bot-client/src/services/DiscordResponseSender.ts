@@ -91,6 +91,13 @@ interface SendResponseOptions {
    */
   fallbackFromProvider?: string;
   /**
+   * `true` when the request was configured for `zai-coding` and ProviderRouter
+   * redirected it to OpenRouter upfront because the user had no coding-plan
+   * key. Forwarded to `buildModelFooterText` to annotate the via-OpenRouter
+   * attribution (`• via OpenRouter (no coding plan key)`).
+   */
+  fallthroughTriggered?: boolean;
+  /**
    * Tier-aware quota fallback that fired for this turn (worker metadata
    * passthrough) — the footer announces the swap, never silent.
    */
@@ -335,6 +342,7 @@ export class DiscordResponseSender {
       providerUsed,
       fallbackProviderAttempted,
       fallbackFromProvider,
+      fallthroughTriggered,
       quotaFallback,
       piggybackSkipped,
       piggybackModel,
@@ -352,6 +360,7 @@ export class DiscordResponseSender {
         provider: providerUsed,
         fallbackProviderAttempted,
         fallbackFromProvider,
+        fallthroughTriggered,
         quotaFallback,
         withAutoBadge: isAutoResponse === true,
         routedModel,

@@ -14,6 +14,7 @@ import {
   stripMarkdownDelimiters,
   toInertCodeSpan,
   DISCORD_PROVIDER_CHOICES,
+  type ModelFooterOptions,
 } from './discord.js';
 import { AIProvider, ZAI_FREE_TIER_MODEL } from './ai.js';
 import { GUEST_MODE_CATEGORY } from './error.js';
@@ -130,6 +131,7 @@ describe('Bot Footer Text Constants', () => {
       expect(BOT_FOOTER_TEXT.AUTO_RESPONSE).toBe('📍 auto-response');
       expect(BOT_FOOTER_TEXT.FRESH_MODE).toBe('🌱 Fresh Mode • Memories not being used');
       expect(BOT_FOOTER_TEXT.INCOGNITO_MODE).toBe('👻 Incognito Mode • Memories not being saved');
+      expect(BOT_FOOTER_TEXT.NO_CODING_PLAN_KEY_SUFFIX).toBe(' (no coding plan key)');
     });
 
     it('should match corresponding BOT_FOOTER_PATTERNS', () => {
@@ -638,6 +640,83 @@ describe('Bot Footer Text Constants', () => {
       );
     });
 
+    it('annotates the OpenRouter provider attribution when fallthroughTriggered is true', () => {
+      const options = {
+        provider: 'openrouter',
+        fallthroughTriggered: true,
+      } satisfies ModelFooterOptions;
+      const result = buildModelFooterText('z-ai/glm-4.7', 'https://example.com/m', options);
+      expect(result).toBe(
+        'Model: [z-ai/glm-4.7](<https://example.com/m>) • via OpenRouter (no coding plan key)'
+      );
+
+      const withAuto = buildModelFooterText('z-ai/glm-4.7', 'https://example.com/m', {
+        ...options,
+        withAutoBadge: true,
+      });
+      expect(withAuto).toBe(
+        'Model: [z-ai/glm-4.7](<https://example.com/m>) • via OpenRouter (no coding plan key) • 📍 auto'
+      );
+    });
+
+    it('suppresses the fallthrough suffix when the served provider is not OpenRouter', () => {
+      // A guest-mode turn can be moved onto the system coding-plan key by the
+      // guest overrides after the fallthrough; "via Z.AI Coding Plan (no coding
+      // plan key)" would contradict itself.
+      const options = {
+        provider: AIProvider.ZaiCoding,
+        fallthroughTriggered: true,
+      } satisfies ModelFooterOptions;
+      const result = buildModelFooterText('glm-5.3-flash', 'https://example.com/m', options);
+      expect(result).toBe('Model: [glm-5.3-flash](<https://example.com/m>) • via Z.AI Coding Plan');
+      expect(result).not.toContain('(no coding plan key)');
+    });
+
+    it('leaves the plain, served-swap, and both-routes-failed arms byte-identical when fallthroughTriggered is absent or false', () => {
+      expect(
+        buildModelFooterText('z-ai/glm-5.2', 'https://example.com/m', {
+          provider: 'openrouter',
+        })
+      ).toBe('Model: [z-ai/glm-5.2](<https://example.com/m>) • via OpenRouter');
+      expect(
+        buildModelFooterText('z-ai/glm-5.2', 'https://example.com/m', {
+          provider: 'openrouter',
+          fallthroughTriggered: false,
+        })
+      ).toBe('Model: [z-ai/glm-5.2](<https://example.com/m>) • via OpenRouter');
+
+      expect(
+        buildModelFooterText('z-ai/glm-5.2', 'https://example.com/m', {
+          provider: 'openrouter',
+          fallbackFromProvider: 'zai-coding',
+          fallthroughTriggered: true,
+        })
+      ).toBe(
+        'Model: [z-ai/glm-5.2](<https://example.com/m>) • via Z.AI Coding Plan → OpenRouter (fallback)'
+      );
+
+      expect(
+        buildModelFooterText('glm-4.7', 'https://example.com/m', {
+          provider: 'zai-coding',
+          fallbackProviderAttempted: 'openrouter',
+          fallthroughTriggered: true,
+        })
+      ).toBe(
+        'Model: [glm-4.7](<https://example.com/m>) • via Z.AI Coding Plan → OpenRouter (both routes failed)'
+      );
+    });
+
+    it('co-renders the quota-fallback reason and the fallthrough suffix when both apply', () => {
+      const result = buildModelFooterText('paid-default', 'https://example.com/m', {
+        quotaFallback: { fromModel: 'expensive/primary', category: 'quota_exceeded' },
+        provider: 'openrouter',
+        fallthroughTriggered: true,
+      });
+      expect(result).toBe(
+        'Model: expensive/primary → [paid-default](<https://example.com/m>) (rate limited) • via OpenRouter (no coding plan key)'
+      );
+    });
+
     it('omits provider attribution for an unknown or absent provider', () => {
       expect(buildModelFooterText('gpt-4', 'https://example.com/m')).toBe(
         'Model: [gpt-4](<https://example.com/m>)'
@@ -665,6 +744,11 @@ describe('Bot Footer Text Constants', () => {
         buildModelFooterText('test/model', 'https://example.com/model'),
         buildModelFooterText('test/model', 'https://example.com/model', { withAutoBadge: true }),
         buildModelFooterText('test/model', 'https://example.com/model', { provider: 'openrouter' }),
+        buildModelFooterText('test/model', 'https://example.com/model', {
+          provider: 'openrouter',
+          fallthroughTriggered: true,
+          withAutoBadge: true,
+        }),
         buildModelFooterText('test/model', 'https://example.com/model', {
           provider: 'zai-coding',
           withAutoBadge: true,

@@ -17,6 +17,7 @@ describe('buildResultMetadataPassthrough', () => {
         providerUsed: 'openrouter',
         fallbackProviderAttempted: 'zai-coding',
         fallbackFromProvider: 'zai-coding',
+        fallthroughTriggered: true,
         quotaFallback: {
           fromModel: 'expensive/primary',
           toModel: 'free/model',
@@ -43,6 +44,7 @@ describe('buildResultMetadataPassthrough', () => {
     expect(passthrough.providerUsed).toBe('openrouter');
     expect(passthrough.fallbackProviderAttempted).toBe('zai-coding');
     expect(passthrough.fallbackFromProvider).toBe('zai-coding');
+    expect(passthrough.fallthroughTriggered).toBe(true);
     expect(passthrough.quotaFallback?.fromModel).toBe('expensive/primary');
     expect(passthrough.quotaFallback?.category).toBe('credit_exhaustion');
     expect(passthrough.piggybackSkipped).toBe(true);
@@ -68,7 +70,7 @@ describe('buildResultMetadataPassthrough', () => {
 });
 
 describe('buildErrorResultMetadataPassthrough', () => {
-  it('forwards the eleven error-delivery metadata fields and inherits the narrowing', () => {
+  it('forwards the twelve error-delivery metadata fields and inherits the narrowing', () => {
     const result = {
       requestId: 'r1',
       success: false,
@@ -79,6 +81,7 @@ describe('buildErrorResultMetadataPassthrough', () => {
         providerUsed: 'openrouter',
         fallbackProviderAttempted: 'zai-coding',
         fallbackFromProvider: 'zai-coding',
+        fallthroughTriggered: true,
         quotaFallback: {
           fromModel: 'expensive/primary',
           toModel: 'free/model',
@@ -104,6 +107,7 @@ describe('buildErrorResultMetadataPassthrough', () => {
     expect(passthrough.providerUsed).toBe('openrouter');
     expect(passthrough.fallbackProviderAttempted).toBe('zai-coding');
     expect(passthrough.fallbackFromProvider).toBe('zai-coding');
+    expect(passthrough.fallthroughTriggered).toBe(true);
     expect(passthrough.quotaFallback?.fromModel).toBe('expensive/primary');
     expect(passthrough.quotaFallback?.category).toBe('credit_exhaustion');
     expect(passthrough.piggybackSkipped).toBe(true);
@@ -134,6 +138,7 @@ describe('buildErrorResultMetadataPassthrough', () => {
         providerUsed: 'openrouter',
         fallbackProviderAttempted: 'zai-coding',
         fallbackFromProvider: 'zai-coding',
+        fallthroughTriggered: true,
         quotaFallback: {
           fromModel: 'expensive/primary',
           toModel: 'free/model',

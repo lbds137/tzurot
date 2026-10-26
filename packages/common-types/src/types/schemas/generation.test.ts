@@ -179,6 +179,30 @@ describe('llmGenerationResultSchema.metadata', () => {
     });
   });
 
+  describe('fallthroughTriggered', () => {
+    it('survives llmGenerationResultSchema.parse when metadata.fallthroughTriggered is true', () => {
+      const parsed = llmGenerationResultSchema.parse({
+        ...baseValid,
+        metadata: { providerUsed: 'openrouter', fallthroughTriggered: true },
+      });
+      expect(parsed.metadata?.fallthroughTriggered).toBe(true);
+
+      const withoutField = llmGenerationResultSchema.safeParse({
+        ...baseValid,
+        metadata: { providerUsed: 'openrouter' },
+      });
+      expect(withoutField.success).toBe(true);
+    });
+
+    it('rejects a non-boolean value', () => {
+      const parsed = llmGenerationResultSchema.safeParse({
+        ...baseValid,
+        metadata: { fallthroughTriggered: 'yes' },
+      });
+      expect(parsed.success).toBe(false);
+    });
+  });
+
   describe('piggybackSkipped / piggybackModel', () => {
     it('parses a metadata object carrying both fields and BOTH survive the parse', () => {
       // The pair crosses this schema on its way to bot-client's footer; a
