@@ -19,7 +19,6 @@ import {
   escapeMarkdown,
   MessageFlags,
   type ButtonInteraction,
-  type Message,
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import type { UserClient } from '@tzurot/clients';
@@ -37,8 +36,10 @@ import {
   formatBatchCountsLine,
   formatBatchItemLines,
   formatFallbackIdLabel,
+  LISTING_BULLET,
   parseBatchFooterIds,
   readSelectOptionLabels,
+  recoverConfirmListingLabels,
   runBatchSequentially,
   toBatchOutcomeLine,
   type BatchItemResult,
@@ -71,9 +72,6 @@ const MISSING_SELECTION_MSG =
 
 /** Shown when a multi-select submission carries no option values. */
 const EMPTY_SELECTION_MSG = '❌ No overrides were selected.';
-
-/** Bullet prefix of each listing line in the confirm embed, written at pick and parsed back at confirm. */
-const LISTING_BULLET = '• ';
 
 /** Outcome of one single-override delete call inside the batch loop. */
 type OverrideBatchOutcome = 'success' | 'already-gone';
@@ -110,51 +108,6 @@ export function isOverrideBatchButton(ids: OverrideBrowseCustomIds, customId: st
 function withSlotSuffix(label: string, rawValue: string): string {
   const { slot, slotUnknown } = parseOverrideSelectValue(rawValue);
   return slot === undefined || slotUnknown ? label : `${label} (${slot})`;
-}
-
-/**
- * Recover per-id display labels from the confirm embed description's bullet
- * lines (already escaped, slot suffix included, by `handleOverrideBatchPick`).
- * When `bulletLines.length === ids.length` and all start with the bullet, all
- * labels are recovered. When clamped (`bulletLines.length < ids.length`),
- * recovers every leading bullet line except the last (which may be cut
- * mid-label) up to the first non-bullet line; remaining ids fall back to id
- * labels. When `bulletLines.length > ids.length`, returns no labels.
- */
-function resolveConfirmDisplayLabels(
-  message: Message,
-  ids: readonly string[]
-): Map<string, string> {
-  const resolved = new Map<string, string>();
-  const description = message.embeds[0]?.description;
-  if (typeof description !== 'string' || description.length === 0) {
-    return resolved;
-  }
-  const [listingBlock = ''] = description.split('\n\n');
-  const bulletLines = listingBlock.split('\n');
-  if (
-    bulletLines.length === ids.length &&
-    bulletLines.every(line => line.startsWith(LISTING_BULLET))
-  ) {
-    ids.forEach((id, index) => {
-      const line = bulletLines[index];
-      if (line !== undefined) {
-        resolved.set(id, line.slice(LISTING_BULLET.length));
-      }
-    });
-    return resolved;
-  }
-  if (bulletLines.length < ids.length) {
-    for (let index = 0; index < bulletLines.length - 1; index += 1) {
-      const line = bulletLines[index];
-      const id = ids[index];
-      if (line === undefined || id === undefined || !line.startsWith(LISTING_BULLET)) {
-        break;
-      }
-      resolved.set(id, line.slice(LISTING_BULLET.length));
-    }
-  }
-  return resolved;
 }
 
 /** `wasSet` as both DELETE routes' response schemas declare it. */
@@ -404,7 +357,7 @@ export async function handleOverrideBatchConfirm(
       await interaction.editReply(errorReply(MISSING_SELECTION_MSG));
       return;
     }
-    labels = resolveConfirmDisplayLabels(interaction.message, ids);
+    labels = recoverConfirmListingLabels(interaction.message.embeds[0]?.description, ids);
     ({ userClient } = clientsFor(interaction));
     await interaction.editReply({ components: [] });
   } catch (error) {

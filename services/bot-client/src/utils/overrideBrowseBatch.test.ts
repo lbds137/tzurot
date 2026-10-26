@@ -718,48 +718,8 @@ describe('recovered labels reach the result lines as rendered at pick time', () 
     expect(resultDescription).not.toContain('\\\\');
   });
 
-  it('recovers the matched prefix of labels (excluding the last potentially-cut line) when the confirm listing is clamped to fewer lines than footer ids (C7)', async () => {
-    const config = makeConfig(PRESET_PREFIX);
-    stub.list.mockResolvedValue([]);
-    stub.delete.mockResolvedValue(
-      makeOk({ deleted: true, wasSet: true } satisfies DeleteModelOverrideResponse)
-    );
-
-    // Case 1: lines = [full1, full2, cut3…] (< ids.length) -> ids 0 and 1 recovered; rest fall back.
-    const confirm1 = createButtonInteraction({
-      customId: 'settings-preset-override::batch-confirm',
-      footerText: encodeBatchFooterIds(['p1::text', 'p2::vision', 'p3::text', 'p4::vision']),
-      description:
-        '• 1. Lilith (text)\n• 2. 👁️ Aria (vision)\n• 3. Nyx (te…\n\n' +
-        '**This clears 4 preset overrides immediately.** Cleared overrides will fall back to your default preset. You can re-set them any time.',
-    });
-    await handleOverrideBatchConfirm(config, confirm1);
-    const [embed1] = lastEmbedsJson(confirm1);
-    expect((embed1.description ?? '').split('\n')).toEqual([
-      '✅ 1. Lilith (text)',
-      '✅ 2. 👁️ Aria (vision)',
-      '✅ Override ID: p3… (text)',
-      '✅ Override ID: p4… (vision)',
-    ]);
-
-    // Case 2 (varying the cut): lines = [full1, cut2…] with 3 ids -> only id 0 recovered; ids 1, 2 fall back.
-    const confirm2 = createButtonInteraction({
-      customId: 'settings-preset-override::batch-confirm',
-      footerText: encodeBatchFooterIds(['p1::text', 'p2::vision', 'p3::text']),
-      description:
-        '• 1. Lilith (text)\n• 2. 👁️ Ar…\n\n' +
-        '**This clears 3 preset overrides immediately.** Cleared overrides will fall back to your default preset. You can re-set them any time.',
-    });
-    await handleOverrideBatchConfirm(config, confirm2);
-    const [embed2] = lastEmbedsJson(confirm2);
-    expect((embed2.description ?? '').split('\n')).toEqual([
-      '✅ 1. Lilith (text)',
-      '✅ Override ID: p2… (vision)',
-      '✅ Override ID: p3… (text)',
-    ]);
-
-    // Case 3 (25-id over-budget end-to-end pick -> confirm): markdown-heavy labels exceed 3800 chars,
-    // clamping the listing with `…` so the first k labels survive and the rest fall back.
+  it('recovers the matched prefix of labels (excluding the last potentially-cut line) when the confirm listing is clamped (C7)', async () => {
+    // The 25 markdown-heavy labels clamp inside the LAST line so the line count still matches ids.length.
     const twentyFiveMarkdownHeavy = Array.from({ length: 25 }, (_, idx) =>
       makeOverride(`p-${idx + 1}`, `${'*_~'.repeat(27)}${idx + 1}`, 'Fast', 'text', false)
     );

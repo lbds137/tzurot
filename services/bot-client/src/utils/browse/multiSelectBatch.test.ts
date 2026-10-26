@@ -13,18 +13,21 @@ import {
   buildSelectSeveralToggle,
   buildBatchResultEmbed,
   clampBatchConfirmDescription,
+  CONFIRM_DESCRIPTION_BUDGET,
   deliverBatchReport,
   encodeBatchFooterIds,
   formatBatchCountsLine,
   formatBatchItemLines,
   formatFallbackIdLabel,
+  LISTING_BULLET,
+  PAGE_FETCH_FAILED_COPY,
   parseBatchFooterIds,
   readSelectOptionLabels,
+  recoverConfirmListingLabels,
   runBatchSequentially,
   toBatchOutcomeLine,
   type BatchConfirmView,
 } from './multiSelectBatch.js';
-import { PAGE_FETCH_FAILED_COPY } from './multiSelectBatch.js';
 
 const followUpSpecMock = vi.hoisted(() => vi.fn());
 vi.mock('../../ux/render/reply.js', () => ({ followUpSpec: followUpSpecMock }));
@@ -331,8 +334,121 @@ describe('clampBatchConfirmDescription (clamp the listing, not the warning)', ()
     const longListing = Array.from({ length: 100 }, (_, i) => `• item ${i.toString()}`).join('\n');
     const description = clampBatchConfirmDescription(longListing, warning);
     expect(description.endsWith(warning)).toBe(true);
-    expect(description.length).toBeLessThanOrEqual(3800);
+    expect(description.length).toBeLessThanOrEqual(CONFIRM_DESCRIPTION_BUDGET);
     expect(description.startsWith('• item 0')).toBe(true);
+  });
+});
+
+describe('recoverConfirmListingLabels', () => {
+  const warning = '**This affects 3 items immediately.**';
+
+  it('(a) recovers all labels when unclamped and line count equals id count', () => {
+    const ids = ['id-1', 'id-2', 'id-3'];
+    const listing = [
+      `${LISTING_BULLET}Alpha`,
+      `${LISTING_BULLET}Beta`,
+      `${LISTING_BULLET}Gamma`,
+    ].join('\n');
+    const description = clampBatchConfirmDescription(listing, warning);
+    expect(description.length).toBeLessThan(CONFIRM_DESCRIPTION_BUDGET - 1);
+
+    expect(recoverConfirmListingLabels(description, ids)).toEqual(
+      new Map([
+        ['id-1', 'Alpha'],
+        ['id-2', 'Beta'],
+        ['id-3', 'Gamma'],
+      ])
+    );
+  });
+
+  it('(b) recovers all but the last label when clamped INSIDE the last line (equal line count)', () => {
+    const ids = ['id-1', 'id-2', 'id-3'];
+    const label1 = 'A'.repeat(1500);
+    const label2 = 'B'.repeat(1500);
+    const label3 = 'C'.repeat(1000);
+    const listing = [label1, label2, label3].map(label => `${LISTING_BULLET}${label}`).join('\n');
+    const description = clampBatchConfirmDescription(listing, warning);
+
+    // Cut lands inside line 3: line count still equals ids.length, and length hits the budget.
+    expect(description.split('\n\n')[0]?.split('\n')).toHaveLength(ids.length);
+    expect(description.length).toBe(CONFIRM_DESCRIPTION_BUDGET);
+
+    expect(recoverConfirmListingLabels(description, ids)).toEqual(
+      new Map([
+        ['id-1', label1],
+        ['id-2', label2],
+      ])
+    );
+  });
+
+  it('(c) recovers all but the last surviving line when clamped to fewer lines than ids', () => {
+    const ids = ['id-1', 'id-2', 'id-3', 'id-4'];
+    const label1 = 'A'.repeat(1500);
+    const label2 = 'B'.repeat(1500);
+    const label3 = 'C'.repeat(1000);
+    const label4 = 'D'.repeat(500);
+    const listing = [label1, label2, label3, label4]
+      .map(label => `${LISTING_BULLET}${label}`)
+      .join('\n');
+    const description = clampBatchConfirmDescription(listing, warning);
+
+    // Line 4 is cut off completely and line 3 is truncated mid-line (3 surviving lines < 4 ids).
+    expect(description.split('\n\n')[0]?.split('\n')).toHaveLength(3);
+    expect(description.length).toBe(CONFIRM_DESCRIPTION_BUDGET);
+
+    expect(recoverConfirmListingLabels(description, ids)).toEqual(
+      new Map([
+        ['id-1', label1],
+        ['id-2', label2],
+      ])
+    );
+  });
+
+  it('(d) returns an empty map when unclamped with fewer lines than ids (or empty/absent description)', () => {
+    const ids = ['id-1', 'id-2', 'id-3'];
+    const description = clampBatchConfirmDescription(
+      `${LISTING_BULLET}Alpha\n${LISTING_BULLET}Beta`,
+      warning
+    );
+    expect(description.length).toBeLessThan(CONFIRM_DESCRIPTION_BUDGET - 1);
+
+    expect(recoverConfirmListingLabels(description, ids).size).toBe(0);
+    expect(recoverConfirmListingLabels('', ids).size).toBe(0);
+    expect(recoverConfirmListingLabels(undefined, ids).size).toBe(0);
+    expect(recoverConfirmListingLabels(null, ids).size).toBe(0);
+  });
+
+  it('(e) returns an empty map when there are more lines than ids', () => {
+    const ids = ['id-1', 'id-2'];
+    const description = clampBatchConfirmDescription(
+      `${LISTING_BULLET}Alpha\n${LISTING_BULLET}Beta\n${LISTING_BULLET}Gamma`,
+      warning
+    );
+
+    expect(recoverConfirmListingLabels(description, ids).size).toBe(0);
+  });
+
+  it('(f) stops walking at the first non-bullet line mid-listing', () => {
+    const ids = ['id-1', 'id-2', 'id-3'];
+    const description = `${LISTING_BULLET}Alpha\nnot a bullet\n${LISTING_BULLET}Gamma\n\n${warning}`;
+
+    expect(recoverConfirmListingLabels(description, ids)).toEqual(new Map([['id-1', 'Alpha']]));
+  });
+
+  it('(g) detects a listing whose cut backs off a high surrogate (budget - 1) as clamped', () => {
+    // `'• First label\n• '` is 16 UTF-16 units (even), so each `'🔥'` (2 units) starts on an
+    // even index. With an 8-unit warning (`usable = 3790`), `usable - 1 = 3789` slices 0..3788,
+    // landing on the high surrogate at index 3788 and backing off 1 unit to `budget - 1` (3799).
+    const evenWarning = 'Warning.';
+    const listing = `${LISTING_BULLET}First label\n${LISTING_BULLET}${'🔥'.repeat(1900)}`;
+    const description = clampBatchConfirmDescription(listing, evenWarning);
+
+    expect(description.length).toBe(CONFIRM_DESCRIPTION_BUDGET - 1);
+    expect(description.split('\n\n')[0]?.split('\n')).toHaveLength(2);
+
+    expect(recoverConfirmListingLabels(description, ['id-1', 'id-2'])).toEqual(
+      new Map([['id-1', 'First label']])
+    );
   });
 });
 
