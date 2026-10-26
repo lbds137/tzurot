@@ -20,8 +20,10 @@ Why: PR 2661 round-3 claude-review. The admin denylist list route returns at mos
 
 What: when fetchEntries returns DENYLIST_LIST_MAX_ENTRIES or more rows, add a footer segment such as showing newest 500 in buildBrowsePage (services/bot-client/src/commands/deny/browse.ts).
 
-Owner question: Should /deny browse say it is showing only the newest 500 entries when the list hits the cap?
-Recommendation: yes - a full-looking list that silently drops the oldest rows misleads the owner, and the copy is one footer segment.
+PR 2661 round-5 addition (same cap theme): when the batch confirm re-fetch is at the cap and a pick is missing, the result line says FAILED_TO_REMOVE_NOTE (Please try again), but a retry hits the same window until the list shrinks; the one-pick detail path still works because its session carries the 4-tuple. Distinct copy for that case would say what to do, e.g. could not verify this entry - remove it from its detail view (runSingleDenyRemoval in services/bot-client/src/commands/deny/browseBatch.ts, the listTruncated branch).
 
-Acceptance: a footer test at exactly the cap shows the segment; below the cap it is absent.
+Owner question: At the 500 cap, should /deny browse say it shows only the newest 500, and should a missing batch pick point to the detail view instead of saying please try again?
+Recommendation: yes to both - a full-looking list that silently drops the oldest rows misleads, and a retry that cannot succeed wastes the owner a round trip; each is one string.
+
+Acceptance: a footer test at exactly the cap shows the segment, below the cap it is absent; the at-cap missing-pick test asserts the new note.
 <!-- SECTION:DESCRIPTION:END -->
