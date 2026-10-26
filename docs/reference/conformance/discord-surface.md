@@ -2572,7 +2572,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/modal/retry.ts | reply | 1 |
 | services/bot-client/src/utils/modelCatalogAutocomplete.ts | respond | 2 |
 | services/bot-client/src/utils/nsfwVerification.ts | reply | 2 |
-| services/bot-client/src/utils/overrideBrowse.ts | editReply | 8 |
+| services/bot-client/src/utils/overrideBrowse.ts | editReply | 10 |
 | services/bot-client/src/utils/overrideBrowseBatch.ts | editReply | 7 |
 | services/bot-client/src/utils/overrideBrowseBatch.ts | followUp | 1 |
 | services/bot-client/src/utils/permissions.ts | editReply | 2 |
@@ -3037,9 +3037,9 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/modal/retry.ts | components | 1 |
 | services/bot-client/src/utils/modal/retry.ts | content | 2 |
 | services/bot-client/src/utils/modal/retry.ts | flags | 1 |
-| services/bot-client/src/utils/overrideBrowse.ts | components | 6 |
-| services/bot-client/src/utils/overrideBrowse.ts | content | 8 |
-| services/bot-client/src/utils/overrideBrowse.ts | embeds | 6 |
+| services/bot-client/src/utils/overrideBrowse.ts | components | 8 |
+| services/bot-client/src/utils/overrideBrowse.ts | content | 10 |
+| services/bot-client/src/utils/overrideBrowse.ts | embeds | 8 |
 | services/bot-client/src/utils/overrideBrowseBatch.ts | components | 6 |
 | services/bot-client/src/utils/overrideBrowseBatch.ts | content | 7 |
 | services/bot-client/src/utils/overrideBrowseBatch.ts | embeds | 5 |
@@ -3117,4 +3117,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 3047 entries across 7063 sites.
+Total: 3047 entries across 7071 sites.

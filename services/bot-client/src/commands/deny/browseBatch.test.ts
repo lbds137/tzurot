@@ -20,7 +20,9 @@ import { DENYLIST_LIST_MAX_ENTRIES } from '@tzurot/common-types/schemas/api/deny
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
 import {
+  clampBatchConfirmDescription,
   encodeBatchFooterIds,
+  LISTING_BULLET,
   PAGE_FETCH_FAILED_COPY,
   parseBatchFooterIds,
 } from '../../utils/browse/multiSelectBatch.js';
@@ -838,11 +840,20 @@ describe('deny browse batch removal flow', () => {
       expect(resultEmbed.description).not.toContain('Misaligned Recovered Label');
     });
 
-    it('recovers the matched prefix of labels (excluding the last potentially-cut line) when the deny confirm listing is clamped to fewer lines than footer ids (C8)', async () => {
+    it('recovers the matched prefix of labels (excluding the last potentially-cut line) when the deny confirm listing is clamped at the real budget (C8)', async () => {
       stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: FIVE_DENY_ENTRIES }));
       stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
 
-      // Case 1: lines = [full1, full2, cut3…] (< entryIds.length) -> ids 0 and 1 recovered; rest fall back.
+      // Clamped to fewer lines than footer ids via clampBatchConfirmDescription at the real budget:
+      // lines 1 and 2 survive whole, line 3 is cut mid-label, and line 4 is cut off completely.
+      const label1 = `1. First Recovered Label ${'A'.repeat(1400)}`;
+      const label2 = `2. Second Recovered Label ${'B'.repeat(1400)}`;
+      const label3 = `3. Cut Third Label ${'C'.repeat(1000)}`;
+      const label4 = '4. Fourth Label';
+      const clampedFewerLines = clampBatchConfirmDescription(
+        [label1, label2, label3, label4].map(label => `${LISTING_BULLET}${label}`).join('\n'),
+        '**This removes 4 denylist entries immediately.** This action cannot be undone.'
+      );
       const confirm1 = createButtonInteraction({
         customId: 'deny::batch-confirm::0::all::date',
         footerText: encodeBatchFooterIds([
@@ -851,38 +862,62 @@ describe('deny browse batch removal flow', () => {
           FIVE_DENY_ENTRIES[2].id,
           FIVE_DENY_ENTRIES[3].id,
         ]),
-        description:
-          '• 1. First Recovered Label\n• 2. Second Recovered Label\n• 3. Cut Third Label…\n\n' +
-          '**This removes 4 denylist entries immediately.** This action cannot be undone.',
+        description: clampedFewerLines,
       });
       await handleDenyBatchConfirm(confirm1);
       const [embed1] = lastEmbedsJson(confirm1);
       expect((embed1.description ?? '').split('\n')).toEqual([
-        '✅ 1. First Recovered Label',
-        '✅ 2. Second Recovered Label',
+        `✅ ${label1}`,
+        `✅ ${label2}`,
         `✅ ${formatDenySelectOption(FIVE_DENY_ENTRIES[2]).label}`,
         `✅ ${formatDenySelectOption(FIVE_DENY_ENTRIES[3]).label}`,
       ]);
 
-      // Case 2 (varying the cut): lines = [full1, cut2…] with 3 ids -> only id 0 recovered; ids 1, 2 fall back.
+      // End-to-end handleDenyBatchPick -> handleDenyBatchConfirm with 25 markdown-heavy entries:
+      // clamps inside the 25th bullet line (equal line count), so lines 1–24 recover and line 25 falls back.
+      const twentyFiveMarkdownEntries: DenylistEntryResponse[] = Array.from(
+        { length: 25 },
+        (_, idx) => ({
+          ...FIVE_DENY_ENTRIES[0],
+          id: `00000000-0000-4000-8000-${String(idx + 1).padStart(12, '0')}`,
+          discordId: `${'*_~'.repeat(28)}${idx + 1}`,
+        })
+      );
+      stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: twentyFiveMarkdownEntries }));
+      const pickInteraction = createSelectInteraction({
+        customId: 'deny::batch-select::0::all::date',
+        values: twentyFiveMarkdownEntries.map(entry => entry.id),
+        messageComponents: [
+          {
+            toJSON: () => ({
+              components: [
+                {
+                  options: twentyFiveMarkdownEntries.map((entry, idx) => ({
+                    value: entry.id,
+                    label: `${idx + 1}. ${formatDenySelectOption(entry).label}`,
+                  })),
+                },
+              ],
+            }),
+          },
+        ],
+      });
+      await handleDenyBatchPick(pickInteraction);
+      const [confirmEmbed] = lastEmbedsJson(pickInteraction);
+
       const confirm2 = createButtonInteraction({
         customId: 'deny::batch-confirm::0::all::date',
-        footerText: encodeBatchFooterIds([
-          FIVE_DENY_ENTRIES[0].id,
-          FIVE_DENY_ENTRIES[1].id,
-          FIVE_DENY_ENTRIES[2].id,
-        ]),
-        description:
-          '• 1. First Recovered Label\n• 2. Cut Second Label…\n\n' +
-          '**This removes 3 denylist entries immediately.** This action cannot be undone.',
+        footerText: confirmEmbed.footer?.text,
+        description: confirmEmbed.description,
       });
       await handleDenyBatchConfirm(confirm2);
       const [embed2] = lastEmbedsJson(confirm2);
-      expect((embed2.description ?? '').split('\n')).toEqual([
-        '✅ 1. First Recovered Label',
-        `✅ ${formatDenySelectOption(FIVE_DENY_ENTRIES[1]).label}`,
-        `✅ ${formatDenySelectOption(FIVE_DENY_ENTRIES[2]).label}`,
-      ]);
+      const resultLines = (embed2.description ?? '').split('\n');
+      expect(resultLines).toHaveLength(25);
+      expect(resultLines[0]).toContain('✅ 1. 🧍 ');
+      // Line 25 falls back to the unnumbered formatDenySelectOption label (not the cut `25. …` confirm line).
+      expect(resultLines[24]).toMatch(/^✅ 🧍 /);
+      expect(resultLines[24]).not.toContain('…');
     });
 
     it('recovers the bulleted confirm listing labels built by handleDenyBatchPick for two picks on confirm', async () => {

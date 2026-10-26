@@ -128,6 +128,12 @@ export function formatFallbackIdLabel(id: string, noun: string): string {
   return `${noun} ID: ${id.slice(0, 8)}…`;
 }
 
+/** The confirm-embed description budget (UTF-16 code units). */
+export const CONFIRM_DESCRIPTION_BUDGET = 3800;
+
+/** Bullet prefix of each listing line in the confirm embed, written at pick and read back at confirm. */
+export const LISTING_BULLET = '• ';
+
 /**
  * Assemble a confirm description that clamps the LISTING, never the warning:
  * end-truncating the whole description would silently drop the safety copy —
@@ -137,13 +143,55 @@ export function formatFallbackIdLabel(id: string, noun: string): string {
 export function clampBatchConfirmDescription(
   listing: string,
   warning: string,
-  budget = 3800
+  budget = CONFIRM_DESCRIPTION_BUDGET
 ): string {
   const joiner = '\n\n';
   const usable = Math.max(budget - warning.length - joiner.length, 0);
   const clampedListing =
     listing.length > usable ? truncateToUtf16Units(listing, usable, '…') : listing;
   return `${clampedListing}${joiner}${warning}`;
+}
+
+/**
+ * Recover per-id display labels from the confirm embed description's bullet
+ * lines (written before the `\n\n` warning separator at pick time):
+ * - Empty or absent description, `lines.length > ids.length`, or an unclamped
+ *   listing with `lines.length < ids.length` → empty map.
+ * - `clamped` is `description.length >= CONFIRM_DESCRIPTION_BUDGET - 1`: a
+ *   clamp leaves the description at exactly the budget, or one unit under it
+ *   when `truncateToUtf16Units` backs off a high surrogate; an unclamped
+ *   description that happens to reach that length only loses its last label to
+ *   the id fallback — the safe direction.
+ * - Candidate lines are `clamped ? lines.slice(0, -1) : lines` (dropping the
+ *   last surviving line when clamped, even when `lines.length === ids.length`).
+ *   Walks candidates in order, stopping at the first line that does not start
+ *   with `LISTING_BULLET`.
+ */
+export function recoverConfirmListingLabels(
+  description: string | null | undefined,
+  ids: readonly string[]
+): Map<string, string> {
+  const resolved = new Map<string, string>();
+  if (typeof description !== 'string' || description.length === 0) {
+    return resolved;
+  }
+  const [listingBlock = ''] = description.split('\n\n');
+  const lines = listingBlock.split('\n');
+  const clamped = description.length >= CONFIRM_DESCRIPTION_BUDGET - 1;
+  if (lines.length > ids.length || (!clamped && lines.length < ids.length)) {
+    return resolved;
+  }
+  const candidates = clamped ? lines.slice(0, -1) : lines;
+  for (const [i, line] of candidates.entries()) {
+    if (!line.startsWith(LISTING_BULLET)) {
+      break;
+    }
+    const id = ids[i];
+    if (id !== undefined) {
+      resolved.set(id, line.slice(LISTING_BULLET.length));
+    }
+  }
+  return resolved;
 }
 
 /** A single Secondary Cancel button on its own row. */
