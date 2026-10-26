@@ -16,6 +16,7 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { DENYLIST_LIST_MAX_ENTRIES } from '@tzurot/common-types/schemas/api/denylist';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
 import {
@@ -27,6 +28,7 @@ import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
 import {
   buildBrowseResponse,
   buildDenyBatchCustomId,
+  formatDenySelectOption,
   handleBrowseSelect,
   type DenyBrowseFilter,
 } from './browse.js';
@@ -150,6 +152,14 @@ const FIVE_DENY_ENTRIES = [
     addedBy: 'owner-1',
   },
 ] satisfies DenylistEntryResponse[];
+
+function buildDenyEntries(count: number): DenylistEntryResponse[] {
+  return Array.from({ length: count }, (_, idx) => ({
+    ...FIVE_DENY_ENTRIES[0],
+    id: `00000000-0000-4000-8000-${String(idx + 1).padStart(12, '0')}`,
+    discordId: `100000000000${String(idx + 1).padStart(6, '0')}`,
+  }));
+}
 
 function createButtonInteraction(options: {
   customId: string;
@@ -464,8 +474,53 @@ describe('deny browse batch removal flow', () => {
       const [resultEmbed] = lastEmbedsJson(confirmInteraction);
       const lines = (resultEmbed.description ?? '').split('\n');
       expect(lines[0]).toBe(`◻️ ${fallbackDenyLabel(absentId)} — already gone`);
-      expect(lines[1]).toBe(`✅ ${fallbackDenyLabel(presentEntry.id)}`);
+      expect(lines[1]).toBe(`✅ ${formatDenySelectOption(presentEntry).label}`);
       expect(resultEmbed.color).toBe(DISCORD_COLORS.SUCCESS);
+    });
+
+    it('reports an absent picked id as failed (not already gone) with no delete call and logs warn when the re-fetch hits DENYLIST_LIST_MAX_ENTRIES', async () => {
+      const cappedEntries = buildDenyEntries(DENYLIST_LIST_MAX_ENTRIES);
+      const absentId = '99999999-9999-4999-8999-999999999999';
+      stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: cappedEntries }));
+
+      const confirmInteraction = createButtonInteraction({
+        customId: 'deny::batch-confirm::0::all::date',
+        footerText: encodeBatchFooterIds([absentId]),
+      });
+
+      await handleDenyBatchConfirm(confirmInteraction);
+
+      expect(stub.removeDenylistEntry).not.toHaveBeenCalled();
+      const [resultEmbed] = lastEmbedsJson(confirmInteraction);
+      const lines = (resultEmbed.description ?? '').split('\n');
+      expect(lines).toEqual([`❌ ${fallbackDenyLabel(absentId)} — ${FAILED_TO_REMOVE_NOTE}`]);
+      expect(resultEmbed.color).toBe(DISCORD_COLORS.ERROR);
+      expect(loggerMock.warn).toHaveBeenCalledWith(
+        { userId: 'owner-1', entryId: absentId },
+        'Batch denylist pick absent from a capped re-fetch'
+      );
+    });
+
+    it('still reports the same absent picked id as already gone when the re-fetch is below DENYLIST_LIST_MAX_ENTRIES', async () => {
+      const uncappedEntries = buildDenyEntries(DENYLIST_LIST_MAX_ENTRIES - 1);
+      const absentId = '99999999-9999-4999-8999-999999999999';
+      stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: uncappedEntries }));
+
+      const confirmInteraction = createButtonInteraction({
+        customId: 'deny::batch-confirm::0::all::date',
+        footerText: encodeBatchFooterIds([absentId]),
+      });
+
+      await handleDenyBatchConfirm(confirmInteraction);
+
+      expect(stub.removeDenylistEntry).not.toHaveBeenCalled();
+      const [resultEmbed] = lastEmbedsJson(confirmInteraction);
+      const lines = (resultEmbed.description ?? '').split('\n');
+      expect(lines).toEqual([`◻️ ${fallbackDenyLabel(absentId)} — already gone`]);
+      expect(loggerMock.warn).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'Batch denylist pick absent from a capped re-fetch'
+      );
     });
   });
 
@@ -567,7 +622,7 @@ describe('deny browse batch removal flow', () => {
 
       const [resultEmbed] = lastEmbedsJson(confirmInteraction);
       expect(resultEmbed.description).toContain(
-        `❌ ${fallbackDenyLabel(targetEntry.id)} — ${FAILED_TO_REMOVE_NOTE}`
+        `❌ ${formatDenySelectOption(targetEntry).label} — ${FAILED_TO_REMOVE_NOTE}`
       );
       expect(resultEmbed.description).not.toContain('raw transport socket hang up');
       expect(loggerMock.warn).toHaveBeenCalledWith(
@@ -733,6 +788,108 @@ describe('deny browse batch removal flow', () => {
       const [resultEmbed] = lastEmbedsJson(confirmInteraction);
       expect(resultEmbed.description).toContain('\\*111222333\\*');
       expect(resultEmbed.description).not.toContain('\\\\');
+    });
+
+    it('shows the entry discordId via formatDenySelectOption for an id present in the re-fetch and fallbackDenyLabel for an absent id when confirm has no description', async () => {
+      const presentEntry = FIVE_DENY_ENTRIES[0];
+      const absentId = '99999999-9999-4999-8999-999999999999';
+      stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: [presentEntry] }));
+      stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
+
+      const confirmInteraction = createButtonInteraction({
+        customId: 'deny::batch-confirm::0::all::date',
+        footerText: encodeBatchFooterIds([presentEntry.id, absentId]),
+      });
+
+      await handleDenyBatchConfirm(confirmInteraction);
+
+      const [resultEmbed] = lastEmbedsJson(confirmInteraction);
+      const lines = (resultEmbed.description ?? '').split('\n');
+      expect(lines).toHaveLength(2);
+      expect(lines[0]).toBe(`✅ ${formatDenySelectOption(presentEntry).label}`);
+      expect(lines[0]).toContain(presentEntry.discordId);
+      expect(lines[1]).toBe(`◻️ ${fallbackDenyLabel(absentId)} — already gone`);
+    });
+
+    it('falls back to tier (b)/(c) labels for every result line when the confirm listing has fewer bullet lines than the footer has ids', async () => {
+      const firstEntry = FIVE_DENY_ENTRIES[0];
+      const secondEntry = FIVE_DENY_ENTRIES[1];
+      const absentId = '99999999-9999-4999-8999-999999999999';
+      stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: [firstEntry, secondEntry] }));
+      stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
+
+      const confirmInteraction = createButtonInteraction({
+        customId: 'deny::batch-confirm::0::all::date',
+        footerText: encodeBatchFooterIds([firstEntry.id, secondEntry.id, absentId]),
+        description:
+          '• 1. Misaligned Recovered Label\n\n**This removes 3 denylist entries immediately.** This action cannot be undone.',
+      });
+
+      await handleDenyBatchConfirm(confirmInteraction);
+
+      const [resultEmbed] = lastEmbedsJson(confirmInteraction);
+      const lines = (resultEmbed.description ?? '').split('\n');
+      expect(lines).toEqual([
+        `✅ ${formatDenySelectOption(firstEntry).label}`,
+        `✅ ${formatDenySelectOption(secondEntry).label}`,
+        `◻️ ${fallbackDenyLabel(absentId)} — already gone`,
+      ]);
+      expect(resultEmbed.description).not.toContain('Misaligned Recovered Label');
+    });
+
+    it('recovers the numbered confirm listing labels built by handleDenyBatchPick for two picks on confirm', async () => {
+      const pickedEntries = [FIVE_DENY_ENTRIES[0], FIVE_DENY_ENTRIES[2]];
+      stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: FIVE_DENY_ENTRIES }));
+      stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
+
+      const batchView = buildBrowseResponse(FIVE_DENY_ENTRIES, 0, 'all', 'date', {
+        mode: 'batch',
+      });
+      const pickInteraction = createSelectInteraction({
+        customId: 'deny::batch-select::0::all::date',
+        values: pickedEntries.map(entry => entry.id),
+        messageComponents: batchView.components,
+      });
+      await handleDenyBatchPick(pickInteraction);
+      const [confirmEmbed] = lastEmbedsJson(pickInteraction);
+
+      const confirmInteraction = createButtonInteraction({
+        customId: 'deny::batch-confirm::0::all::date',
+        footerText: confirmEmbed.footer?.text,
+        description: confirmEmbed.description,
+      });
+      await handleDenyBatchConfirm(confirmInteraction);
+
+      const [resultEmbed] = lastEmbedsJson(confirmInteraction);
+      const lines = (resultEmbed.description ?? '').split('\n');
+      expect(lines).toEqual([
+        `✅ 1. ${formatDenySelectOption(FIVE_DENY_ENTRIES[0]).label}`,
+        `✅ 3. ${formatDenySelectOption(FIVE_DENY_ENTRIES[2]).label}`,
+      ]);
+    });
+
+    it('skips deferUpdate and still renders when handleDenyBatchSelectEntry or handleDenyBatchCancel is called with deferred: true', async () => {
+      stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: FIVE_DENY_ENTRIES }));
+
+      const selectInteraction = createButtonInteraction({
+        customId: 'deny::batch-select::0::all::date',
+        deferred: true,
+      });
+      await handleDenyBatchSelectEntry(selectInteraction);
+
+      expect(selectInteraction.deferUpdate).not.toHaveBeenCalled();
+      expect(selectInteraction.editReply).toHaveBeenCalledTimes(1);
+      expect(lastComponentRows(selectInteraction)).toHaveLength(2);
+
+      const cancelInteraction = createButtonInteraction({
+        customId: 'deny::batch-cancel::0::all::date',
+        deferred: true,
+      });
+      await handleDenyBatchCancel(cancelInteraction);
+
+      expect(cancelInteraction.deferUpdate).not.toHaveBeenCalled();
+      expect(cancelInteraction.editReply).toHaveBeenCalledTimes(1);
+      expect(lastComponentRows(cancelInteraction)).toHaveLength(3);
     });
 
     it('returns to the single-select browse view for the carried page/filter/sort on batch-cancel without deleting', async () => {
