@@ -208,8 +208,8 @@ type BatchLabelsRefusal = 'session-gone' | 'fetch-failed';
  * Result-time labels, resolved BEFORE the loop mutates the page: one page
  * fetch matches every still-present id, and a selected id the page fetch
  * misses gets the per-id read, so its real label and lock state survive the
- * drift (an id-prefix fallback only for reads that 404 — those ids are
- * recorded gone and skip the mutation entirely). The reads run in parallel:
+ * drift (an id-prefix fallback for reads that 404, which are recorded gone
+ * and skip the mutation, or that fail). The reads run in parallel:
  * they are independent per id and the results are keyed, so no ordering
  * dependency exists (the mutations after them stay sequential). A refusal
  * means the caller must refuse BEFORE mutating, because the outcome report
