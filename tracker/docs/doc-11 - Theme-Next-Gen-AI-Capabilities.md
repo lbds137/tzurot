@@ -43,6 +43,16 @@ Ingested 2026-07-05 (notes cleanup): once the agentic tool loop runs, image visi
 
 `@openrouter/agent` (TypeScript, launched 2026-04-24) is a real agentic loop, not a wrapper: Zod tools + runtime validation, multi-turn tool execution, composable stop conditions incl. `maxCost()`, concurrent text/tool/reasoning streams, per-response cost accounting, human approval gates. It predates the 2026-07-05 agentic adjudication but was NOT in evidence (grounding focused on LangChain/LangGraph per owner direction). **Action at agentic Phase-1 build time**: one honest comparison pass before writing the hand-rolled loop. Prior: the design's rationale likely survives — OpenRouter lock-in (we call z.ai + Gemini direct; guest routing spans providers) and quality-retries-never-re-bill-tools remain the decisive constraints — but "we didn't look" is not an adjudication.
 
+#### Prompt-injection defense in depth — review checklist for the agentic build (owner ingest 2026-10-26)
+
+From a conference slide the owner shared. Premise: assume prompt injection will eventually succeed, and design to contain the blast radius. The moment a character can call tools (web fetch especially, since fetched pages are attacker-authored text), injected instructions can act, not just talk. **Action at agentic Phase 0/1 design review**: check the accepted design against each layer and record the answer in the artifact:
+
+1. **Prevention**: filter input at the gateway (known jailbreak signatures, data-loss scanning of submitted text). It's the weakest layer, so never the only one.
+2. **Segregation**: put untrusted content (user messages, fetched pages, tool results) in API-native user/tool roles; never string-concatenate it into the system prompt.
+3. **Containment**: give each tool the minimum permissions it needs; any action that sends data outside the system needs human confirmation (in Discord, an explicit confirm from the invoking user).
+4. **One-way flow**: information may enter the loop, but no tool should let the agent carry data out (no arbitrary outbound URLs carrying conversation or memory content, no cross-user memory reads).
+5. **Deterministic backend validation**: high-risk actions are checked by an out-of-band policy gate in code (e.g. api-gateway authorization on every tool-backed write), never by the model's own judgment.
+
 #### OpenRouter video generation API (2026-07-05 ingest)
 
 Unified text/image→video API (Seedance 2.0, Veo 3.1, Wan 2.7, Sora 2 Pro...), async job tracking + capability discovery. Extends the accepted agentic design's `generate_image` tool family naturally (`generate_video` = same tool shape, longer job). File under v2 tools; no action until image-gen ships.
