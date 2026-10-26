@@ -23,4 +23,6 @@ PR 2653 round-3 scope addition: the null case covers BOTH a gone session AND a l
 Shared-flow hardening siblings (drift-proof labels, second-tap guard, maxValues clamp, warning-first clamp, 6000 JSDoc, transient-copy const, confirm-refusal copy unification) are riders on the TASK-1253 spec, not this task.
 
 PR 2654 round-1 addition (alias sibling, same class): the alias batch confirm (aliasBatch.ts) strips components, then a failed post-strip fetchAliasRows leaves a button-less confirm embed stranded with only a transient followUp — same shape as this task's facts fix. When this task's fix lands, sweep the alias flow (and confirm the memory flow) for the same post-strip-fetch-failure case; the fix there may want the result-only deliverBatchReport shape or a re-render, not just the expiry copy.
+
+PR 2661 round-1 addition (deny sibling, same class): the deny batch confirm (commands/deny/browseBatch.ts, handleDenyBatchConfirm) strips components, then a null pre-loop fetchEntries leaves the button-less confirm embed with only the transient followUp; claude-review suggested re-rendering the batch view or restoring Remove/Cancel on refusal. The same sweep covers it - five flows now share the shape (facts, memories, alias, override, deny), so the fix belongs in the shared confirm shape rather than per flow.
 <!-- SECTION:DESCRIPTION:END -->
