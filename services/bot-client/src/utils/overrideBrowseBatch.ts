@@ -114,6 +114,15 @@ function withSlotSuffix(label: string, rawValue: string): string {
 type DeleteOverrideWasSet = Pick<DeleteModelOverrideResponse, 'wasSet'> &
   Pick<DeleteTtsOverrideResponse, 'wasSet'>;
 
+type IsSame<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+
+/** Fails typecheck if the two DELETE schemas' `wasSet` types diverge (avoiding silent `never`). */
+const WAS_SET_TYPES_MATCH: IsSame<
+  DeleteModelOverrideResponse['wasSet'],
+  DeleteTtsOverrideResponse['wasSet']
+> = true;
+void WAS_SET_TYPES_MATCH;
+
 function isWasSetFalse(data: unknown): boolean {
   return (
     typeof data === 'object' && data !== null && (data as DeleteOverrideWasSet).wasSet === false

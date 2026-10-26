@@ -840,7 +840,7 @@ describe('deny browse batch removal flow', () => {
       expect(resultEmbed.description).not.toContain('Misaligned Recovered Label');
     });
 
-    it('recovers the matched prefix of labels (excluding the last potentially-cut line) when the deny confirm listing is clamped at the real budget (C8)', async () => {
+    it('recovers the matched prefix of labels (excluding the last potentially-cut line) when the deny confirm listing is clamped to fewer lines than footer ids', async () => {
       stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: FIVE_DENY_ENTRIES }));
       stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
 
@@ -872,7 +872,9 @@ describe('deny browse batch removal flow', () => {
         `✅ ${formatDenySelectOption(FIVE_DENY_ENTRIES[2]).label}`,
         `✅ ${formatDenySelectOption(FIVE_DENY_ENTRIES[3]).label}`,
       ]);
+    });
 
+    it('recovers the matched prefix of labels (excluding the last potentially-cut line) when a 25-entry deny confirm listing is clamped inside the last line', async () => {
       // End-to-end handleDenyBatchPick -> handleDenyBatchConfirm with 25 markdown-heavy entries:
       // clamps inside the 25th bullet line (equal line count), so lines 1–24 recover and line 25 falls back.
       const twentyFiveMarkdownEntries: DenylistEntryResponse[] = Array.from(
@@ -884,6 +886,7 @@ describe('deny browse batch removal flow', () => {
         })
       );
       stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: twentyFiveMarkdownEntries }));
+      stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
       const pickInteraction = createSelectInteraction({
         customId: 'deny::batch-select::0::all::date',
         values: twentyFiveMarkdownEntries.map(entry => entry.id),
@@ -999,10 +1002,13 @@ describe('deny browse batch removal flow', () => {
         '✅ 1. 🧍 111222333444555666 • Injected',
         '✅ 2. 🏛️ 999888777666555444',
       ]);
+    });
 
+    it('strips embedded newlines from a picked option label so a 25-item clamped confirm listing does not shift later labels onto the wrong ids', async () => {
       // Under clamped recovery (25 items), an embedded `\n• ` on item 1 must not shift item 2's label onto id 3.
       const twentyFiveEntries = buildDenyEntries(25);
       stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: twentyFiveEntries }));
+      stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
       const clampedPick = createSelectInteraction({
         customId: 'deny::batch-select::0::all::date',
         values: twentyFiveEntries.map(entry => entry.id),
