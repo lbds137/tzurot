@@ -219,8 +219,9 @@ describe('handleAliasBatchPick (confirm view)', () => {
     expect(interaction.deferUpdate).toHaveBeenCalledTimes(1);
     const [embed] = editReplyEmbeds(interaction);
     expect(embed.title).toContain('Remove Several Aliases');
-    expect(embed.description).toContain('@mommy');
-    expect(embed.description).toContain('@lila');
+    expect(embed.description).toContain('• @mommy');
+    expect(embed.description).toContain('• @lila');
+    expect(embed.description).not.toContain('• 1. @mommy');
     expect(embed.description).not.toContain('@queen');
     expect(parseAliasBatchFooterIds(embed.footer?.text)).toEqual(pickedValues);
 
@@ -236,6 +237,40 @@ describe('handleAliasBatchPick (confirm view)', () => {
     expect(removeBtn.custom_id).toBe('character-alias::batch-confirm::0::all::');
     expect(removeBtn.label).toBe('Remove (2)');
     expect(removeBtn.style).toBe(ButtonStyle.Danger);
+  });
+
+  it('strips the display number prefix from a select option label in the confirm listing (C9)', async () => {
+    const swapped = buildAliasBatchSelectComponents(
+      [
+        makeAliasRow({ alias: 'one', scope: 'user' }),
+        makeAliasRow({ alias: 'two', scope: 'user' }),
+        makeAliasRow({ alias: 'foo', scope: 'user' }),
+      ],
+      DEFAULT_COORDS
+    );
+    const interaction = createSelectInteraction({
+      values: ['user:foo'],
+      messageComponents: swapped,
+    });
+
+    await handleAliasBatchPick(interaction);
+
+    const [embed] = editReplyEmbeds(interaction);
+    expect(embed.description).toContain('• @foo');
+    expect(embed.description).not.toContain('• 3. @foo');
+  });
+
+  it('uses a truncated and newline-stripped fallbackAliasLabel when readSelectOptionLabels has no entry for a picked value (C13)', async () => {
+    const interaction = createSelectInteraction({
+      values: ['user:mommy', 'unparseable-raw-id'],
+      messageComponents: [],
+    });
+
+    await handleAliasBatchPick(interaction);
+
+    const [embed] = editReplyEmbeds(interaction);
+    expect(embed.description).toContain('• @mommy');
+    expect(embed.description).toContain('• Alias ID: unparsea…');
   });
 
   it('refuses with validation copy when no values are selected', async () => {

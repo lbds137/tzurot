@@ -917,8 +917,8 @@ describe('deny browse batch removal flow', () => {
       const [embed2] = lastEmbedsJson(confirm2);
       const resultLines = (embed2.description ?? '').split('\n');
       expect(resultLines).toHaveLength(25);
-      expect(resultLines[0]).toContain('✅ 1. 🧍 ');
-      // Line 25 falls back to the unnumbered formatDenySelectOption label (not the cut `25. …` confirm line).
+      expect(resultLines[0]).toContain('✅ 🧍 ');
+      // Line 25 uses the fallback label instead of the clamped confirm line; the not.toContain('…') assertion is what pins it.
       expect(resultLines[24]).toMatch(/^✅ 🧍 /);
       expect(resultLines[24]).not.toContain('…');
     });
@@ -949,8 +949,8 @@ describe('deny browse batch removal flow', () => {
       const [resultEmbed] = lastEmbedsJson(confirmInteraction);
       const lines = (resultEmbed.description ?? '').split('\n');
       expect(lines).toEqual([
-        `✅ 1. ${formatDenySelectOption(FIVE_DENY_ENTRIES[0]).label}`,
-        `✅ 3. ${formatDenySelectOption(FIVE_DENY_ENTRIES[2]).label}`,
+        `✅ ${formatDenySelectOption(FIVE_DENY_ENTRIES[0]).label}`,
+        `✅ ${formatDenySelectOption(FIVE_DENY_ENTRIES[2]).label}`,
       ]);
     });
 
@@ -987,8 +987,8 @@ describe('deny browse batch removal flow', () => {
       const [confirmEmbed] = lastEmbedsJson(pickInteraction);
       const listingLines = (confirmEmbed.description ?? '').split('\n\n')[0]?.split('\n');
       expect(listingLines).toEqual([
-        '• 1. 🧍 111222333444555666 • Injected',
-        '• 2. 🏛️ 999888777666555444',
+        '• 🧍 111222333444555666 • Injected',
+        '• 🏛️ 999888777666555444',
       ]);
 
       const confirmInteraction = createButtonInteraction({
@@ -999,8 +999,8 @@ describe('deny browse batch removal flow', () => {
       await handleDenyBatchConfirm(confirmInteraction);
       const [resultEmbed] = lastEmbedsJson(confirmInteraction);
       expect((resultEmbed.description ?? '').split('\n')).toEqual([
-        '✅ 1. 🧍 111222333444555666 • Injected',
-        '✅ 2. 🏛️ 999888777666555444',
+        '✅ 🧍 111222333444555666 • Injected',
+        '✅ 🏛️ 999888777666555444',
       ]);
     });
 
@@ -1042,8 +1042,8 @@ describe('deny browse batch removal flow', () => {
       await handleDenyBatchConfirm(clampedConfirm);
       const [clampedResultEmbed] = lastEmbedsJson(clampedConfirm);
       const clampedResultLines = (clampedResultEmbed.description ?? '').split('\n');
-      expect(clampedResultLines[0]).toBe(`✅ 1. 🧍 ${twentyFiveEntries[0].discordId} • Injected`);
-      expect(clampedResultLines[1]).toBe(`✅ 2. 🧍 ${twentyFiveEntries[1].discordId}`);
+      expect(clampedResultLines[0]).toBe(`✅ 🧍 ${twentyFiveEntries[0].discordId} • Injected`);
+      expect(clampedResultLines[1]).toBe(`✅ 🧍 ${twentyFiveEntries[1].discordId}`);
     });
 
     it('skips deferUpdate and still renders when handleDenyBatchSelectEntry, handleDenyBatchPick, or handleDenyBatchCancel is called with deferred: true', async () => {

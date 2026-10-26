@@ -90,15 +90,10 @@ export interface BrowseCoords {
 
 /**
  * Build the select menu value for one alias row (`{scope}:{aliasKey}`).
- * Two same-scope aliases sharing a 92-char prefix produce the same value:
- * the value carries a 92-char slice of an alias column capped at 100 chars,
- * leaving an 8-char suffix two same-prefix aliases can share. Believed to
- * fail at Discord render rather than silently mis-clearing; not pinned by a
- * test — that hedge covers only same-menu collisions, since a row on another
- * page or behind a filter never renders beside the pick; cross-page and
- * filtered collisions are handled by the batch resolver's fail-closed
- * multi-match rule (resolveAliasBatchItems in aliasBatchConfirm.ts) and the
- * single-pick confirm's full-alias display.
+ * Two same-scope aliases sharing a `SELECT_ALIAS_KEY_LENGTH` prefix produce the
+ * same value (`row.alias` is sliced to `SELECT_ALIAS_KEY_LENGTH`). See
+ * `resolveAliasBatchItems` in `aliasBatchConfirm.ts` for the batch resolution
+ * rule.
  */
 export function formatAliasSelectValue(row: AliasRow): string {
   return `${row.scope}:${row.alias.slice(0, SELECT_ALIAS_KEY_LENGTH)}`;
@@ -107,7 +102,7 @@ export function formatAliasSelectValue(row: AliasRow): string {
 /** Option fields for one alias in single-select and multi-select menus. */
 export function formatAliasSelectOption(row: AliasRow): BrowseSelectOption {
   return {
-    label: truncateForSelect(`@${row.alias}`),
+    label: truncateForSelect(`@${row.alias}`, { stripNewlines: true }),
     value: formatAliasSelectValue(row),
     description: truncateForSelect(
       row.scope === 'global' ? `Global · ${row.character.slug}` : `Personal · ${row.character.slug}`

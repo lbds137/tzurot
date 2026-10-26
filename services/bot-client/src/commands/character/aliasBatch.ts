@@ -27,6 +27,7 @@ import { clientsFor } from '../../utils/gatewayClients.js';
 import { buildBrowseSelectMenu } from '../../utils/browse/selectMenuBuilder.js';
 import { truncateForSelect } from '../../utils/browse/truncation.js';
 import {
+  LISTING_BULLET,
   buildBatchModeRows,
   buildBatchConfirmView,
   clampBatchConfirmDescription,
@@ -229,7 +230,10 @@ export async function handleAliasBatchPick(
 
   const labels = readSelectOptionLabels(interaction.message);
   const listing = ids
-    .map(id => `• ${escapeMarkdown(labels.get(id) ?? fallbackAliasLabel(id))}`)
+    .map(
+      id =>
+        `${LISTING_BULLET}${escapeMarkdown(labels.get(id) ?? truncateForSelect(fallbackAliasLabel(id), { stripNewlines: true }))}`
+    )
     .join('\n');
   const warning =
     `**This removes ${ids.length} ${ids.length === 1 ? 'alias' : 'aliases'} immediately.** ` +

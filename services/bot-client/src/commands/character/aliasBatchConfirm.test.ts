@@ -10,13 +10,18 @@ import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import {
   FIVE_ROWS,
   characterAliasesPayload,
-  createButtonInteraction,
+  createButtonInteraction as createBaseButtonInteraction,
   editReplyEmbeds,
   makeAliasRow,
   mockUserClient,
   myAliasesPayload,
 } from '../../test/mocks/aliasBatch.mock.js';
-import { BATCH_CONFIRM_PREFIX, encodeAliasBatchFooterIds } from './aliasBatch.js';
+import {
+  BATCH_CONFIRM_PREFIX,
+  MAX_BATCH_FOOTER_LENGTH,
+  SELECTION_TOO_LARGE_COPY,
+  encodeAliasBatchFooterIds,
+} from './aliasBatch.js';
 import { handleAliasBatchConfirm } from './aliasBatchConfirm.js';
 import {
   SELECT_ALIAS_KEY_LENGTH,
@@ -24,28 +29,56 @@ import {
   formatAliasSelectValue,
 } from './aliasBrowseView.js';
 
+const loggerMock = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
+
+const clientsForMock = vi.hoisted(() => vi.fn());
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+    createLogger: () => loggerMock,
   };
 });
 
-vi.mock('../../utils/gatewayClients.js', async () => {
-  const { mockUserClient } = await import('../../test/mocks/aliasBatch.mock.js');
-  return { clientsFor: () => ({ userClient: mockUserClient }) };
-});
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: (...args: unknown[]) => clientsForMock(...args),
+}));
+
+function createButtonInteraction(
+  options: Parameters<typeof createBaseButtonInteraction>[0] = {}
+): ReturnType<typeof createBaseButtonInteraction> {
+  const interaction = createBaseButtonInteraction(options);
+  vi.mocked(interaction.deferUpdate).mockImplementation(() => {
+    (interaction as { deferred: boolean }).deferred = true;
+    return Promise.resolve(undefined as never);
+  });
+  vi.mocked(interaction.followUp).mockImplementation(() => {
+    if (!interaction.deferred && !interaction.replied) {
+      return Promise.reject(
+        new Error('The reply to this interaction has not been sent or deferred.')
+      );
+    }
+    return Promise.resolve(undefined as never);
+  });
+  return interaction;
+}
 
 describe('C1 — handleAliasBatchConfirm (partial failure & already-gone named, loop reaches all)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clientsForMock.mockReturnValue({ userClient: mockUserClient });
     mockUserClient.listMyAliases.mockResolvedValue(myAliasesPayload(FIVE_ROWS));
   });
 
-  it('reaches all 5 aliases when #2 returns a 404 envelope, naming #2 already gone and the other 4 succeeded (C1 404 envelope)', async () => {
+  it('reaches all 5 aliases when #2 returns a 404 envelope, naming #2 failed with neutral copy and the other 4 succeeded (C1)', async () => {
     mockUserClient.removePersonalityAlias.mockImplementation(
       (slug: string, alias: string, opts: { scope?: string }) => {
         if (alias === 'lila') {
@@ -95,14 +128,18 @@ describe('C1 — handleAliasBatchConfirm (partial failure & already-gone named, 
 
     const [resultEmbed] = editReplyEmbeds(interaction);
     expect(resultEmbed.description).toContain('✅ @mommy');
-    expect(resultEmbed.description).toContain('◻️ @lila — already gone');
+    expect(resultEmbed.description).toContain('❌ @lila — Character or alias not found.');
     expect(resultEmbed.description).toContain('✅ @queen');
     expect(resultEmbed.description).toContain('✅ @boss');
     expect(resultEmbed.description).toContain('✅ @star');
-    expect(resultEmbed.color).toBe(DISCORD_COLORS.SUCCESS);
+    expect(resultEmbed.color).toBe(DISCORD_COLORS.ERROR);
+    expect(loggerMock.info).toHaveBeenCalledWith(
+      expect.objectContaining({ succeeded: 4, gone: 0, failed: 1 }),
+      'Batch alias removal finished'
+    );
   });
 
-  it('names every alias already gone and reports the WARNING colour when every removal returns a 404 envelope (C1 all-already-gone)', async () => {
+  it('names every alias failed with neutral copy and reports the ERROR colour when every removal returns a 404 envelope (C1 all-404)', async () => {
     mockUserClient.removePersonalityAlias.mockResolvedValue({
       ok: false,
       status: 404,
@@ -118,9 +155,13 @@ describe('C1 — handleAliasBatchConfirm (partial failure & already-gone named, 
 
     expect(mockUserClient.removePersonalityAlias).toHaveBeenCalledTimes(5);
     const [resultEmbed] = editReplyEmbeds(interaction);
-    expect(resultEmbed.description).toContain('◻️ @mommy — already gone');
-    expect(resultEmbed.description).toContain('◻️ @star — already gone');
-    expect(resultEmbed.color).toBe(DISCORD_COLORS.WARNING);
+    expect(resultEmbed.description).toContain('❌ @mommy — Character or alias not found.');
+    expect(resultEmbed.description).toContain('❌ @star — Character or alias not found.');
+    expect(resultEmbed.color).toBe(DISCORD_COLORS.ERROR);
+    expect(loggerMock.info).toHaveBeenCalledWith(
+      expect.objectContaining({ succeeded: 0, gone: 0, failed: 5 }),
+      'Batch alias removal finished'
+    );
   });
 
   it('reaches all 5 aliases when #2 fails with a non-404 error envelope, isolating the thrown failure (C1 partial failure)', async () => {
@@ -292,20 +333,242 @@ describe('C1 — handleAliasBatchConfirm (partial failure & already-gone named, 
     expect(mockUserClient.listMyAliases).not.toHaveBeenCalled();
     expect(mockUserClient.removePersonalityAlias).not.toHaveBeenCalled();
   });
-});
 
-describe('C5 — no prefix deletes on truncated keys when a row misses post-pick fetch', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  it('isolates a transport rejection on removePersonalityAlias, logs warn with ids only, and continues remaining items (C6)', async () => {
+    mockUserClient.removePersonalityAlias.mockImplementation(
+      (slug: string, alias: string, opts: { scope?: string }) => {
+        if (alias === 'lila') {
+          return Promise.reject(new Error('ECONNRESET'));
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          data: { removedAlias: alias, removedScope: opts.scope ?? 'user', slug },
+        });
+      }
+    );
+
+    const pickedValues = FIVE_ROWS.slice(0, 3).map(formatAliasSelectValue);
+    const interaction = createButtonInteraction({
+      footerText: encodeAliasBatchFooterIds(pickedValues),
+    });
+
+    await handleAliasBatchConfirm(interaction);
+
+    expect(mockUserClient.removePersonalityAlias).toHaveBeenCalledTimes(3);
+    const [resultEmbed] = editReplyEmbeds(interaction);
+    expect(resultEmbed.description).toContain('✅ @mommy');
+    expect(resultEmbed.description).toContain(
+      '❌ @lila — Failed to manage aliases. Please try again.'
+    );
+    expect(resultEmbed.description).toContain('✅ @queen');
+    expect(loggerMock.warn).toHaveBeenCalledTimes(1);
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        err: expect.any(Error),
+        userId: 'user-1',
+        slug: 'lila-elyona',
+        scope: 'global',
+      }),
+      'Batch alias removal item threw'
+    );
+    const warnPayload = loggerMock.warn.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(warnPayload).not.toHaveProperty('alias');
+    expect(Object.keys(warnPayload).sort()).toEqual(['err', 'scope', 'slug', 'userId']);
   });
 
-  it('reports FAILED with a resolution reason and makes NO removal call when a >=92-char alias row misses the page fetch (C5)', async () => {
+  it('isolates a status-0 network-failure envelope on removePersonalityAlias with generic copy, never leaking the raw error, while remaining items succeed (C14)', async () => {
+    mockUserClient.removePersonalityAlias.mockImplementation(
+      (slug: string, alias: string, opts: { scope?: string }) => {
+        if (alias === 'lila') {
+          return Promise.resolve({
+            ok: false,
+            kind: 'network',
+            error: 'fetch failed',
+            status: 0,
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          data: { removedAlias: alias, removedScope: opts.scope ?? 'user', slug },
+        });
+      }
+    );
+
+    const pickedValues = FIVE_ROWS.slice(0, 2).map(formatAliasSelectValue);
+    const interaction = createButtonInteraction({
+      footerText: encodeAliasBatchFooterIds(pickedValues),
+    });
+
+    await handleAliasBatchConfirm(interaction);
+
+    expect(mockUserClient.removePersonalityAlias).toHaveBeenCalledTimes(2);
+    const [resultEmbed] = editReplyEmbeds(interaction);
+    expect(resultEmbed.description).toContain('✅ @mommy');
+    expect(resultEmbed.description).toContain(
+      '❌ @lila — Failed to manage aliases. Please try again.'
+    );
+    expect(resultEmbed.description).not.toContain('fetch failed');
+    expect(resultEmbed.color).toBe(DISCORD_COLORS.ERROR);
+  });
+
+  it('marks an invalid-scope footer id as FAILED with the resolution-failure copy without calling removePersonalityAlias while still running valid ids (C12)', async () => {
+    mockUserClient.removePersonalityAlias.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { removedAlias: 'mommy', removedScope: 'user' },
+    });
+
+    const interaction = createButtonInteraction({
+      footerText: encodeAliasBatchFooterIds(['weird:foo', 'user:mommy']),
+    });
+
+    await handleAliasBatchConfirm(interaction);
+
+    expect(mockUserClient.removePersonalityAlias).toHaveBeenCalledTimes(1);
+    expect(mockUserClient.removePersonalityAlias).toHaveBeenCalledWith('lilith', 'mommy', {
+      scope: 'user',
+    });
+    const [resultEmbed] = editReplyEmbeds(interaction);
+    expect(resultEmbed.description).toContain(
+      '❌ Alias ID: weird:fo… — Could not resolve the full alias on this page — please refresh and try again.'
+    );
+    expect(resultEmbed.description).toContain('✅ @mommy');
+    expect(resultEmbed.color).toBe(DISCORD_COLORS.ERROR);
+  });
+
+  it('logs error and skips followUp when ackUpdate rejects before the interaction is deferred (C7)', async () => {
+    const interaction = createButtonInteraction({
+      footerText: encodeAliasBatchFooterIds(['user:mommy']),
+    });
+    vi.mocked(interaction.deferUpdate).mockRejectedValueOnce(new Error('Unknown interaction'));
+
+    await handleAliasBatchConfirm(interaction);
+
+    expect(loggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error), userId: 'user-1' }),
+      'Error preparing alias batch confirm'
+    );
+    expect(interaction.followUp).not.toHaveBeenCalled();
+    expect(mockUserClient.listMyAliases).not.toHaveBeenCalled();
+    expect(mockUserClient.removePersonalityAlias).not.toHaveBeenCalled();
+  });
+
+  it('catches a thrown fetchAliasRows rejection, logs error, and sends a transient followUp when deferred (C11)', async () => {
+    mockUserClient.listMyAliases.mockRejectedValueOnce(new Error('socket hang up'));
+    const interaction = createButtonInteraction({
+      footerText: encodeAliasBatchFooterIds(['user:mommy']),
+    });
+
+    await handleAliasBatchConfirm(interaction);
+
+    expect(loggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error), userId: 'user-1' }),
+      'Error preparing alias batch confirm'
+    );
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining("Couldn't load that page"),
+      })
+    );
+    expect(mockUserClient.removePersonalityAlias).not.toHaveBeenCalled();
+  });
+
+  it('catches and logs warn when both prep and the error-path followUp reject (C11b)', async () => {
+    clientsForMock.mockImplementationOnce(() => {
+      throw new Error('clientsFor exploded');
+    });
+    const interaction = createButtonInteraction({
+      footerText: encodeAliasBatchFooterIds(['user:mommy']),
+    });
+    vi.mocked(interaction.followUp).mockRejectedValueOnce(new Error('followUp exploded'));
+
+    await handleAliasBatchConfirm(interaction);
+
+    expect(loggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error), userId: 'user-1' }),
+      'Error preparing alias batch confirm'
+    );
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error), userId: 'user-1' }),
+      'Alias batch confirm error followUp failed'
+    );
+    expect(mockUserClient.removePersonalityAlias).not.toHaveBeenCalled();
+  });
+
+  it('refuses with validation copy when the confirm footer exceeds MAX_BATCH_FOOTER_LENGTH', async () => {
+    const overBudgetFooter = 'user:a\n'.repeat(Math.ceil(MAX_BATCH_FOOTER_LENGTH / 6) + 10);
+    expect(overBudgetFooter.length).toBeGreaterThan(MAX_BATCH_FOOTER_LENGTH);
+    const interaction = createButtonInteraction({
+      footerText: overBudgetFooter,
+    });
+
+    await handleAliasBatchConfirm(interaction);
+
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining(SELECTION_TOO_LARGE_COPY),
+        flags: MessageFlags.Ephemeral,
+      })
+    );
+    expect(mockUserClient.listMyAliases).not.toHaveBeenCalled();
+    expect(mockUserClient.removePersonalityAlias).not.toHaveBeenCalled();
+  });
+
+  it('skips deferUpdate and still executes when called with interaction.deferred = true', async () => {
+    mockUserClient.removePersonalityAlias.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { removedAlias: 'mommy', removedScope: 'user' },
+    });
+    const interaction = createButtonInteraction({
+      footerText: encodeAliasBatchFooterIds(['user:mommy']),
+      deferred: true,
+    });
+
+    await handleAliasBatchConfirm(interaction);
+
+    expect(interaction.deferUpdate).not.toHaveBeenCalled();
+    expect(mockUserClient.removePersonalityAlias).toHaveBeenCalledTimes(1);
+    const [resultEmbed] = editReplyEmbeds(interaction);
+    expect(resultEmbed.description).toContain('✅ @mommy');
+  });
+});
+
+describe('C5 — boundary and below-boundary resolution across truncated vs untruncated fetches', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clientsForMock.mockReturnValue({ userClient: mockUserClient });
+  });
+
+  it('reports already gone and makes NO removal call when a >=92-char alias key misses an untruncated single-character fetch (C2b)', async () => {
     const longAlias = 'a'.repeat(100);
     const truncatedKey = longAlias.slice(0, SELECT_ALIAS_KEY_LENGTH);
-    expect(truncatedKey).toHaveLength(92);
+    expect(truncatedKey).toHaveLength(SELECT_ALIAS_KEY_LENGTH);
 
-    // Post-pick page fetch returns empty (the long alias row vanished).
-    mockUserClient.listPersonalityAliases.mockResolvedValue(characterAliasesPayload([]));
+    mockUserClient.listPersonalityAliases.mockResolvedValue(characterAliasesPayload([], false));
+
+    const singleCharConfirmId = buildRemoveCustomId(BATCH_CONFIRM_PREFIX, 0, 'all', 'lilith');
+    const interaction = createButtonInteraction({
+      customId: singleCharConfirmId,
+      footerText: encodeAliasBatchFooterIds([`user:${truncatedKey}`]),
+    });
+
+    await handleAliasBatchConfirm(interaction);
+
+    expect(mockUserClient.removePersonalityAlias).not.toHaveBeenCalled();
+    const [resultEmbed] = editReplyEmbeds(interaction);
+    expect(resultEmbed.description).toContain(`◻️ @${truncatedKey} — already gone`);
+    expect(resultEmbed.color).toBe(DISCORD_COLORS.WARNING);
+  });
+
+  it('reports FAILED with a resolution reason and makes NO removal call when a >=92-char alias key misses a truncated single-character fetch (C3b)', async () => {
+    const longAlias = 'a'.repeat(100);
+    const truncatedKey = longAlias.slice(0, SELECT_ALIAS_KEY_LENGTH);
+    expect(truncatedKey).toHaveLength(SELECT_ALIAS_KEY_LENGTH);
+
+    mockUserClient.listPersonalityAliases.mockResolvedValue(characterAliasesPayload([], true));
 
     const singleCharConfirmId = buildRemoveCustomId(BATCH_CONFIRM_PREFIX, 0, 'all', 'lilith');
     const interaction = createButtonInteraction({
@@ -323,7 +586,7 @@ describe('C5 — no prefix deletes on truncated keys when a row misses post-pick
   });
 
   it('resolves the full >92-char alias when the row IS present on the fetched page', async () => {
-    const longAlias = `${'b'.repeat(92)}-tail-suffix`;
+    const longAlias = `${'b'.repeat(SELECT_ALIAS_KEY_LENGTH)}-tail-suffix`;
     const longRow = makeAliasRow({
       alias: longAlias,
       scope: 'user',
@@ -350,8 +613,78 @@ describe('C5 — no prefix deletes on truncated keys when a row misses post-pick
     });
   });
 
-  it('falls back to coords.query + aliasKey in single-character mode ONLY when aliasKey length < 92', async () => {
-    mockUserClient.listPersonalityAliases.mockResolvedValue(characterAliasesPayload([]));
+  it('resolves a boundary-length key that matches a single row only case-insensitively to that row canonical alias (C12)', async () => {
+    const canonicalAlias = `${'b'.repeat(SELECT_ALIAS_KEY_LENGTH)}-tail`;
+    const upperKey = 'B'.repeat(SELECT_ALIAS_KEY_LENGTH);
+    const longRow = makeAliasRow({
+      alias: canonicalAlias,
+      scope: 'user',
+      character: { name: 'Lilith', slug: 'lilith' },
+    });
+    mockUserClient.listMyAliases.mockResolvedValue(myAliasesPayload([longRow], false));
+    mockUserClient.removePersonalityAlias.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { removedAlias: canonicalAlias, removedScope: 'user' },
+    });
+
+    const interaction = createButtonInteraction({
+      footerText: encodeAliasBatchFooterIds([`user:${upperKey}`]),
+    });
+
+    await handleAliasBatchConfirm(interaction);
+
+    expect(mockUserClient.removePersonalityAlias).toHaveBeenCalledTimes(1);
+    expect(mockUserClient.removePersonalityAlias).toHaveBeenCalledWith('lilith', canonicalAlias, {
+      scope: 'user',
+    });
+  });
+
+  it('reports already gone without calling removePersonalityAlias when a <92-char alias misses an untruncated single-character fetch (C4)', async () => {
+    mockUserClient.listPersonalityAliases.mockResolvedValue(characterAliasesPayload([], false));
+
+    const singleCharConfirmId = buildRemoveCustomId(BATCH_CONFIRM_PREFIX, 0, 'all', 'lilith');
+    const interaction = createButtonInteraction({
+      customId: singleCharConfirmId,
+      footerText: encodeAliasBatchFooterIds(['user:untruncated-alias']),
+    });
+
+    await handleAliasBatchConfirm(interaction);
+
+    expect(mockUserClient.removePersonalityAlias).not.toHaveBeenCalled();
+    const [resultEmbed] = editReplyEmbeds(interaction);
+    expect(resultEmbed.description).toContain('◻️ @untruncated-alias — already gone');
+    expect(resultEmbed.color).toBe(DISCORD_COLORS.WARNING);
+  });
+
+  it('falls back to coords.query + aliasKey and succeeds when a <92-char alias misses a truncated single-character fetch and gateway returns 200 (C5)', async () => {
+    mockUserClient.listPersonalityAliases.mockResolvedValue(characterAliasesPayload([], true));
+    mockUserClient.removePersonalityAlias.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { removedAlias: 'untruncated-alias', removedScope: 'user' },
+    });
+
+    const singleCharConfirmId = buildRemoveCustomId(BATCH_CONFIRM_PREFIX, 0, 'all', 'lilith');
+    const interaction = createButtonInteraction({
+      customId: singleCharConfirmId,
+      footerText: encodeAliasBatchFooterIds(['user:untruncated-alias']),
+    });
+
+    await handleAliasBatchConfirm(interaction);
+
+    expect(mockUserClient.removePersonalityAlias).toHaveBeenCalledWith(
+      'lilith',
+      'untruncated-alias',
+      { scope: 'user' }
+    );
+    const [resultEmbed] = editReplyEmbeds(interaction);
+    expect(resultEmbed.description).toContain('✅ @untruncated-alias');
+    expect(resultEmbed.color).toBe(DISCORD_COLORS.SUCCESS);
+  });
+
+  it('falls back to coords.query + aliasKey and reports FAILED with neutral copy when a <92-char alias misses a truncated single-character fetch and gateway returns 404 (C5b)', async () => {
+    mockUserClient.listPersonalityAliases.mockResolvedValue(characterAliasesPayload([], true));
     mockUserClient.removePersonalityAlias.mockResolvedValue({
       ok: false,
       status: 404,
@@ -372,7 +705,10 @@ describe('C5 — no prefix deletes on truncated keys when a row misses post-pick
       { scope: 'user' }
     );
     const [resultEmbed] = editReplyEmbeds(interaction);
-    expect(resultEmbed.description).toContain('◻️ @untruncated-alias — already gone');
+    expect(resultEmbed.description).toContain(
+      '❌ @untruncated-alias — Character or alias not found.'
+    );
+    expect(resultEmbed.color).toBe(DISCORD_COLORS.ERROR);
   });
 
   it('reports already gone without calling removePersonalityAlias when an untruncated alias misses the my-aliases fetch', async () => {
@@ -406,12 +742,31 @@ describe('C5 — no prefix deletes on truncated keys when a row misses post-pick
     expect(resultEmbed.color).toBe(DISCORD_COLORS.ERROR);
   });
 
-  it('reports FAILED with a resolution reason and makes NO removal call when a >=92-char alias misses the my-aliases fetch', async () => {
+  it('reports already gone and makes NO removal call when a >=92-char alias misses an untruncated my-aliases fetch (C2)', async () => {
     const longAlias = 'a'.repeat(100);
     const truncatedKey = longAlias.slice(0, SELECT_ALIAS_KEY_LENGTH);
-    expect(truncatedKey).toHaveLength(92);
+    expect(truncatedKey).toHaveLength(SELECT_ALIAS_KEY_LENGTH);
 
-    mockUserClient.listMyAliases.mockResolvedValue(myAliasesPayload([]));
+    mockUserClient.listMyAliases.mockResolvedValue(myAliasesPayload([], false));
+
+    const interaction = createButtonInteraction({
+      footerText: encodeAliasBatchFooterIds([`user:${truncatedKey}`]),
+    });
+
+    await handleAliasBatchConfirm(interaction);
+
+    expect(mockUserClient.removePersonalityAlias).not.toHaveBeenCalled();
+    const [resultEmbed] = editReplyEmbeds(interaction);
+    expect(resultEmbed.description).toContain(`◻️ @${truncatedKey} — already gone`);
+    expect(resultEmbed.color).toBe(DISCORD_COLORS.WARNING);
+  });
+
+  it('reports FAILED with a resolution reason and makes NO removal call when a >=92-char alias misses a truncated my-aliases fetch (C3)', async () => {
+    const longAlias = 'a'.repeat(100);
+    const truncatedKey = longAlias.slice(0, SELECT_ALIAS_KEY_LENGTH);
+    expect(truncatedKey).toHaveLength(SELECT_ALIAS_KEY_LENGTH);
+
+    mockUserClient.listMyAliases.mockResolvedValue(myAliasesPayload([], true));
 
     const interaction = createButtonInteraction({
       footerText: encodeAliasBatchFooterIds([`user:${truncatedKey}`]),
@@ -430,6 +785,7 @@ describe('C5 — no prefix deletes on truncated keys when a row misses post-pick
 describe('boundary-key multi-match fails closed', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clientsForMock.mockReturnValue({ userClient: mockUserClient });
   });
 
   it('reports FAILED with the resolution copy and makes NO removal call when a 92-char key prefix-matches two same-scope rows', async () => {
@@ -473,6 +829,7 @@ describe('boundary-key multi-match fails closed', () => {
 describe('handleAliasBatchConfirm — survival ladder', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clientsForMock.mockReturnValue({ userClient: mockUserClient });
     mockUserClient.listMyAliases.mockResolvedValue(myAliasesPayload(FIVE_ROWS));
   });
 

@@ -15,7 +15,11 @@
 import { describe, it, expect } from 'vitest';
 import { ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
 
-import { buildBrowseSelectMenu, type BrowseSelectOption } from './selectMenuBuilder.js';
+import {
+  buildBrowseSelectMenu,
+  stripMenuDisplayNumber,
+  type BrowseSelectOption,
+} from './selectMenuBuilder.js';
 import { MAX_SELECT_LABEL_LENGTH } from './constants.js';
 
 interface TestItem {
@@ -323,6 +327,16 @@ describe('buildBrowseSelectMenu', () => {
       const options = (row?.components[0] as StringSelectMenuBuilder).toJSON().options;
       expect(options[0]).toMatchObject({ label: '1. first memory', value: 'm1' });
       expect(options[1]).toMatchObject({ label: '2. 🔒 second memory', value: 'm2' });
+    });
+  });
+
+  describe('stripMenuDisplayNumber', () => {
+    it('removes one leading N. prefix added by buildBrowseSelectMenu and leaves unnumbered labels intact (C8)', () => {
+      expect(stripMenuDisplayNumber('1. Alpha')).toBe('Alpha');
+      expect(stripMenuDisplayNumber('12. 3. Foo')).toBe('3. Foo');
+      expect(stripMenuDisplayNumber('5.')).toBe('');
+      expect(stripMenuDisplayNumber('5.  foo')).toBe('foo');
+      expect(stripMenuDisplayNumber('Alpha')).toBe('Alpha');
     });
   });
 });

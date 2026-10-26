@@ -369,6 +369,27 @@ describe('handleBatchPick (confirm view)', () => {
     expect(embed.description).toContain('Label from JSON');
     expect(embed.description).toContain('fact-9');
   });
+
+  it('strips the leading menu display number from a select option label in the confirm listing', async () => {
+    const numberedRow = {
+      toJSON: () => ({
+        type: 1,
+        components: [
+          {
+            type: 3,
+            options: [{ value: 'fact-2', label: '3. Statement of fact-2' }],
+          },
+        ],
+      }),
+    };
+    const interaction = createSelectInteraction(['fact-2'], [numberedRow as never]);
+
+    await handleBatchPick(interaction);
+
+    const [embed] = editReplyEmbeds(interaction);
+    expect(embed.description).toContain('• Statement of fact-2');
+    expect(embed.description).not.toContain('• 3. ');
+  });
 });
 
 function parseBatchFooterForTest(embed: EmbedData): string[] | null {

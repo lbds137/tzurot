@@ -315,8 +315,8 @@ describe('handleOverrideBatchPick (confirm view)', () => {
     expect(interaction.deferUpdate).toHaveBeenCalledTimes(1);
     const [embed] = lastEmbedsJson(interaction);
     expect(embed.title).toBe('⚙️ Clear Preset Overrides?');
-    expect(embed.description).toContain('1. Lilith');
-    expect(embed.description).toContain('2. 👁️ Aria');
+    expect(embed.description).toContain('• Lilith (text)');
+    expect(embed.description).toContain('• 👁️ Aria (vision)');
     expect(embed.description).not.toContain('Nyx');
     expect(embed.description).toContain('**This clears 2 preset overrides immediately.**');
     expect(embed.description).toContain(
@@ -373,7 +373,7 @@ describe('handleOverrideBatchPick (confirm view)', () => {
 
     const [embed] = lastEmbedsJson(interaction);
     const listingBlock = (embed.description ?? '').split('\n\n')[0];
-    expect(listingBlock).toBe('• 1. Lilith');
+    expect(listingBlock).toBe('• Lilith');
     expect(listingBlock).not.toContain('bogus');
   });
 });
@@ -419,11 +419,11 @@ describe('C1 — handleOverrideBatchConfirm (5 overrides, 4 cleared + 2nd wasSet
     expect(stub.delete).toHaveBeenNthCalledWith(5, 'p5', 'text');
 
     const [resultEmbed, refreshedEmbed] = lastEmbedsJson(confirmInteraction);
-    expect(resultEmbed.description).toContain('✅ 1. Lilith');
-    expect(resultEmbed.description).toContain('◻️ 2. 👁️ Aria (vision) — already gone');
-    expect(resultEmbed.description).toContain('✅ 3. Nyx');
-    expect(resultEmbed.description).toContain('✅ 4. 👁️ Raven');
-    expect(resultEmbed.description).toContain('✅ 5. Selene');
+    expect(resultEmbed.description).toContain('✅ Lilith (text)');
+    expect(resultEmbed.description).toContain('◻️ 👁️ Aria (vision) — already gone');
+    expect(resultEmbed.description).toContain('✅ Nyx (text)');
+    expect(resultEmbed.description).toContain('✅ 👁️ Raven (vision)');
+    expect(resultEmbed.description).toContain('✅ Selene (text)');
     expect(resultEmbed.color).toBe(DISCORD_COLORS.SUCCESS);
     expect(refreshedEmbed.title).toBe('⚙️ Preset Overrides');
   });
@@ -708,7 +708,7 @@ describe('recovered labels reach the result lines as rendered at pick time', () 
       makeOverride('p1', longName, 'Fast', 'vision', false),
     ]);
 
-    expect(resultDescription).toContain(`✅ 1. ${longName} (vision)`);
+    expect(resultDescription).toContain(`✅ ${longName} (vision)`);
   });
 
   it('does not double-escape markdown in a recovered label', async () => {
@@ -716,7 +716,7 @@ describe('recovered labels reach the result lines as rendered at pick time', () 
       makeOverride('p1', '*bold*', 'Fast', 'text', false),
     ]);
 
-    expect(resultDescription).toContain('✅ 1. \\*bold\\* (text)');
+    expect(resultDescription).toContain('✅ \\*bold\\* (text)');
     expect(resultDescription).not.toContain('\\\\');
   });
 
@@ -728,7 +728,7 @@ describe('recovered labels reach the result lines as rendered at pick time', () 
     const { resultDescription } = await runPickThenConfirm(twentyFiveMarkdownHeavy);
     const resultLines = resultDescription.split('\n');
     expect(resultLines).toHaveLength(25);
-    expect(resultLines[0]).toContain('✅ 1. ');
+    expect(resultLines[0]).toContain('✅ \\*\\_~');
     expect(resultLines[0]).toContain('(text)');
     expect(resultLines[24]).toBe('✅ Override ID: p-25… (text)');
   });
@@ -761,7 +761,7 @@ describe('recovered labels reach the result lines as rendered at pick time', () 
     await handleOverrideBatchPick(config, pickInteraction);
     const [confirmEmbed] = lastEmbedsJson(pickInteraction);
     const listingLines = (confirmEmbed.description ?? '').split('\n\n')[0]?.split('\n');
-    expect(listingLines).toEqual(['• 1. Alpha • Injected (text)', '• 2. 👁️ Beta (vision)']);
+    expect(listingLines).toEqual(['• Alpha • Injected (text)', '• 👁️ Beta (vision)']);
 
     const confirmInteraction = createButtonInteraction({
       customId: 'settings-preset-override::batch-confirm',
@@ -771,8 +771,8 @@ describe('recovered labels reach the result lines as rendered at pick time', () 
     await handleOverrideBatchConfirm(config, confirmInteraction);
     const [resultEmbed] = lastEmbedsJson(confirmInteraction);
     expect((resultEmbed.description ?? '').split('\n')).toEqual([
-      '✅ 1. Alpha • Injected (text)',
-      '✅ 2. 👁️ Beta (vision)',
+      '✅ Alpha • Injected (text)',
+      '✅ 👁️ Beta (vision)',
     ]);
   });
 
@@ -818,8 +818,8 @@ describe('recovered labels reach the result lines as rendered at pick time', () 
     await handleOverrideBatchConfirm(config, clampedConfirm);
     const [clampedResultEmbed] = lastEmbedsJson(clampedConfirm);
     const clampedResultLines = (clampedResultEmbed.description ?? '').split('\n');
-    expect(clampedResultLines[0]).toBe('✅ 1. Alpha • Injected (text)');
-    expect(clampedResultLines[1]).toBe('✅ 2. Second Label (text)');
+    expect(clampedResultLines[0]).toBe('✅ Alpha • Injected (text)');
+    expect(clampedResultLines[1]).toBe('✅ Second Label (text)');
   });
 });
 
@@ -845,7 +845,7 @@ describe('C5 — slot axis survives the batch (same personality with two slots +
 
     // The confirm listing tells the two slots of the same character apart.
     const listingLines = (confirmEmbed.description ?? '').split('\n\n')[0].split('\n');
-    expect(listingLines).toEqual(['• 1. Lilith (text)', '• 2. 👁️ Lilith (vision)']);
+    expect(listingLines).toEqual(['• Lilith (text)', '• 👁️ Lilith (vision)']);
 
     const presetConfirm = createButtonInteraction({
       customId: 'settings-preset-override::batch-confirm',
@@ -857,8 +857,8 @@ describe('C5 — slot axis survives the batch (same personality with two slots +
     // The result lines carry the same slot suffix, once each.
     const [presetResultEmbed] = lastEmbedsJson(presetConfirm);
     expect((presetResultEmbed.description ?? '').split('\n')).toEqual([
-      '✅ 1. Lilith (text)',
-      '✅ 2. 👁️ Lilith (vision)',
+      '✅ Lilith (text)',
+      '✅ 👁️ Lilith (vision)',
     ]);
 
     expect(stub.delete).toHaveBeenCalledTimes(2);
