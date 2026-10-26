@@ -383,4 +383,25 @@ describe('handleMemoryBatchPick (confirm view)', () => {
     expect(interaction.followUp).toHaveBeenCalled();
     expect(interaction.editReply).not.toHaveBeenCalled();
   });
+
+  it('strips the leading menu display number from a select option label in the confirm listing', async () => {
+    const numberedRow = {
+      toJSON: () => ({
+        type: 1,
+        components: [
+          {
+            type: 3,
+            options: [{ value: 'mem-2', label: '3. Content of mem-2' }],
+          },
+        ],
+      }),
+    };
+    const interaction = createSelectInteraction(['mem-2'], [numberedRow as never]);
+
+    await handleMemoryBatchPick(interaction);
+
+    const [embed] = editReplyEmbeds(interaction);
+    expect(embed.description).toContain('• Content of mem-2');
+    expect(embed.description).not.toContain('• 3. ');
+  });
 });

@@ -38,6 +38,7 @@ import { clampEmbedText } from '../embedLimits.js';
 import { truncateToUtf16Units } from '@tzurot/common-types/utils/codePointTruncation';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { followUpSpec } from '../../ux/render/reply.js';
+import { stripMenuDisplayNumber } from './selectMenuBuilder.js';
 import type { BrowseActionRow } from './types.js';
 
 const logger = createLogger('browse-multi-select-batch');
@@ -76,10 +77,18 @@ export function buildSelectSeveralToggleRow(
 }
 
 /**
- * Map option value → label for every select menu on a message. discord.js
- * rehydrates message components as builders, so each row is normalized via
- * toJSON() and walked generically as unknown data. Command-agnostic: the
- * walker knows nothing about the items behind the options.
+ * Map option value → unnumbered label for every select menu on a message.
+ * Option labels come from `buildBrowseSelectMenu`, whose leading display number
+ * points at a menu position that is gone once the confirm view replaces the
+ * menu, so every collected label is passed through {@link stripMenuDisplayNumber};
+ * if stripping leaves an empty (or whitespace-only) string, no entry is set for
+ * that value so the caller's fallback label applies.
+ * discord.js rehydrates message components as builders, so each row is
+ * normalized via toJSON() and walked generically as unknown data.
+ * The walker knows nothing about the items behind the options, but it REQUIRES
+ * labels built by `buildBrowseSelectMenu`: it strips one leading display number
+ * from every option, so a menu built another way whose item text starts with
+ * `N. ` would lose that prefix.
  */
 export function readSelectOptionLabels(message: Message): Map<string, string> {
   const labels = new Map<string, string>();
@@ -114,8 +123,16 @@ function collectOptionEntries(options: unknown[], labels: Map<string, string>): 
     const entry = option as Record<string, unknown>;
     const value = entry.value;
     const label = entry.label;
-    if (typeof value === 'string') {
-      labels.set(value, typeof label === 'string' ? label : value);
+    if (typeof value !== 'string') {
+      continue;
+    }
+    if (typeof label !== 'string') {
+      labels.set(value, value);
+      continue;
+    }
+    const stripped = stripMenuDisplayNumber(label);
+    if (stripped.trim().length > 0) {
+      labels.set(value, stripped);
     }
   }
 }

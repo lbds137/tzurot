@@ -97,7 +97,22 @@ export interface BuildBrowseSelectMenuOptions<T> {
 }
 
 /**
- * Build a Discord select menu from a list of items.
+ * Strip the single leading `<digits>.` display number prefix (followed by one
+ * or more spaces or end-of-string) that {@link buildBrowseSelectMenu} prepends
+ * to every option label. Handles both an empty/whitespace item label whose
+ * `"5. "` prefix was trimmed to `"5."` by `truncateForSelect` and a
+ * leading-newline item label whose newline replacement produced `"5.  foo"`.
+ * Leaves a label without that prefix (or any second prefix inside the item's
+ * own text) unchanged.
+ */
+export function stripMenuDisplayNumber(label: string): string {
+  return label.replace(/^\d+\.(?: +|$)/, '');
+}
+
+/**
+ * Build a Discord select menu from a list of items. Prepends
+ * `${oneBasedNumber}. ` to every option label ({@link stripMenuDisplayNumber}
+ * is the inverse).
  *
  * @returns An action row containing the select menu, or `null` if `items`
  *   is empty (legitimate empty state — the caller should skip pushing the
