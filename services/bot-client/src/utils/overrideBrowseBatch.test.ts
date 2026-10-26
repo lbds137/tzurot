@@ -590,7 +590,7 @@ describe('C1 — handleOverrideBatchConfirm (5 overrides, 4 cleared + 2nd wasSet
     );
   });
 
-  it('catches a rejecting ackUpdate/deferUpdate in handleOverrideBatchConfirm, logs the error, and skips followUp on the unacked interaction (C6)', async () => {
+  it('catches a rejecting ackUpdate/deferUpdate in handleOverrideBatchConfirm, logs the error, and skips followUp on the unacked interaction', async () => {
     const config = makeConfig(PRESET_PREFIX);
     const confirmInteraction = createButtonInteraction({
       customId: 'settings-preset-override::batch-confirm',
@@ -612,7 +612,7 @@ describe('C1 — handleOverrideBatchConfirm (5 overrides, 4 cleared + 2nd wasSet
     expect(config.logger.warn).not.toHaveBeenCalled();
   });
 
-  it('fails closed for an unknown or empty slot segment in batch confirm, calling delete only for valid items and marking the unknown-slot item failed (C1, C4, C5)', async () => {
+  it('fails closed for an unknown slot segment in batch confirm, calling delete only for valid items and marking the unknown-slot item failed', async () => {
     const config = makeConfig(PRESET_PREFIX);
     stub.list.mockResolvedValue([]);
     stub.delete.mockResolvedValue(
@@ -644,9 +644,17 @@ describe('C1 — handleOverrideBatchConfirm (5 overrides, 4 cleared + 2nd wasSet
       `❌ Override ID: 9a8b7c6d… — ${FAILED_TO_CLEAR_NOTE}`,
     ]);
     expect(resultEmbed.color).toBe(DISCORD_COLORS.ERROR);
+  });
 
-    // C4 (bare TTS + vision slot) and C5 (empty slot segment `uuid::`) in one batch:
-    stub.delete.mockClear();
+  it('fails closed for an empty slot segment in batch confirm while clearing bare and known-slot items in the same batch', async () => {
+    const config = makeConfig(PRESET_PREFIX);
+    stub.list.mockResolvedValue([]);
+    stub.delete.mockResolvedValue(
+      makeOk({ deleted: true, wasSet: true } satisfies DeleteModelOverrideResponse)
+    );
+
+    const uuidA = '3f9c2e7a-8b4d-4c1a-9d6e-000000000001';
+    const uuidB = '9a8b7c6d-5e4f-3a2b-1c0d-000000000002';
     const uuidC = '11111111-2222-4333-8444-000000000003';
     const mixedConfirm = createButtonInteraction({
       customId: 'settings-preset-override::batch-confirm',
@@ -712,7 +720,7 @@ describe('recovered labels reach the result lines as rendered at pick time', () 
     expect(resultDescription).not.toContain('\\\\');
   });
 
-  it('recovers the matched prefix of labels (excluding the last potentially-cut line) when the confirm listing is clamped (C7)', async () => {
+  it('recovers the matched prefix of labels (excluding the last potentially-cut line) when the confirm listing is clamped', async () => {
     // The 25 markdown-heavy labels clamp inside the LAST line so the line count still matches ids.length.
     const twentyFiveMarkdownHeavy = Array.from({ length: 25 }, (_, idx) =>
       makeOverride(`p-${idx + 1}`, `${'*_~'.repeat(27)}${idx + 1}`, 'Fast', 'text', false)
@@ -766,6 +774,14 @@ describe('recovered labels reach the result lines as rendered at pick time', () 
       '✅ 1. Alpha • Injected (text)',
       '✅ 2. 👁️ Beta (vision)',
     ]);
+  });
+
+  it('strips embedded newlines from a picked option label so a 25-item clamped confirm listing does not shift later labels onto the wrong ids', async () => {
+    const config = makeConfig(PRESET_PREFIX);
+    stub.list.mockResolvedValue([]);
+    stub.delete.mockResolvedValue(
+      makeOk({ deleted: true, wasSet: true } satisfies DeleteModelOverrideResponse)
+    );
 
     // Under clamped recovery (25 items), an embedded `\n• ` on item 1 must not shift item 2's label onto id 3.
     const clampedValues = Array.from({ length: 25 }, (_, idx) => `p-${idx + 1}::text`);

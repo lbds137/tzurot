@@ -138,7 +138,7 @@ describe('createOverrideBrowseCustomIds', () => {
 });
 
 describe('parseOverrideSelectValue', () => {
-  it('parses bare personalityId and known slots with slotUnknown: false (C4)', () => {
+  it('parses bare personalityId and known slots with slotUnknown: false', () => {
     expect(parseOverrideSelectValue('p1')).toEqual({
       personalityId: 'p1',
       slot: undefined,
@@ -156,7 +156,7 @@ describe('parseOverrideSelectValue', () => {
     });
   });
 
-  it('flags unknown or empty slot segments as slotUnknown: true (C5)', () => {
+  it('flags unknown or empty slot segments as slotUnknown: true', () => {
     expect(parseOverrideSelectValue('p1::bogus')).toEqual({
       personalityId: 'p1',
       slot: undefined,
@@ -381,7 +381,7 @@ describe('handleOverrideBrowseSelect', () => {
     });
   });
 
-  it('fails closed with error reply and builds no confirm view when select value carries an unknown or empty slot segment (C3, C5)', async () => {
+  it('fails closed with error reply and builds no confirm view when select value carries an unknown slot segment', async () => {
     const config = makeConfig();
     await handleOverrideBrowseSelect(config, selectInteraction('p1::bogus'));
 
@@ -398,9 +398,12 @@ describe('handleOverrideBrowseSelect', () => {
       embeds: [],
       components: [],
     });
+  });
 
-    editReply.mockClear();
+  it('fails closed with error reply and builds no confirm view when select value carries an empty slot segment', async () => {
+    const config = makeConfig();
     await handleOverrideBrowseSelect(config, selectInteraction('p1::'));
+
     expect(stub.list).not.toHaveBeenCalled();
     expect(editReply).toHaveBeenCalledWith({
       content: GENERIC_ERROR_MSG,
@@ -529,7 +532,7 @@ describe('handleOverrideBrowseButton', () => {
     expect(stub.delete).not.toHaveBeenCalled();
   });
 
-  it('fails closed with error reply and does not call delete when clear customId carries an unknown or empty slot segment (C2, C5)', async () => {
+  it('fails closed with error reply and does not call delete when clear customId carries an unknown slot segment', async () => {
     const config = makeConfig();
     await handleOverrideBrowseButton(config, buttonInteraction('test-override::clear::p1::bogus'));
 
@@ -546,9 +549,12 @@ describe('handleOverrideBrowseButton', () => {
       embeds: [],
       components: [],
     });
+  });
 
-    editReply.mockClear();
+  it('fails closed with error reply and does not call delete when clear customId carries an empty slot segment', async () => {
+    const config = makeConfig();
     await handleOverrideBrowseButton(config, buttonInteraction('test-override::clear::p1::'));
+
     expect(stub.delete).not.toHaveBeenCalled();
     expect(editReply).toHaveBeenCalledWith({
       content: FAILED_TO_CLEAR_MSG,
