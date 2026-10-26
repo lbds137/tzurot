@@ -43,6 +43,7 @@ import {
 } from '../../utils/browse/multiSelectBatch.js';
 import { followUpBrowsePageFailure } from '../../utils/browse/pageLoadFailure.js';
 import { ackUpdate } from '../../ux/render/reply.js';
+import type { DenylistEntryResponse } from './browseTypes.js';
 import { MODE_LABELS, formatScopeWithId } from './denyLabels.js';
 
 const logger = createLogger('deny-browse');
@@ -76,8 +77,6 @@ const browseHelpers = createBrowseCustomIdHelpers<DenyBrowseFilter>({
   prefix: 'deny',
   validFilters: VALID_FILTERS,
 });
-
-import type { DenylistEntryResponse } from './browseTypes.js';
 
 /** Check if custom ID is a deny browse button interaction */
 export function isDenyBrowseInteraction(customId: string): boolean {
