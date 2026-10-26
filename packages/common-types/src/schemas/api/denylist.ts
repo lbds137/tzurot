@@ -88,6 +88,9 @@ export const AddDenylistResponseSchema = z.object({
   entry: DenylistEntrySchema,
 });
 
+/** Max entries the admin denylist list route returns; the bot-client batch confirm compares against it. */
+export const DENYLIST_LIST_MAX_ENTRIES = 500;
+
 /**
  * Response for GET /admin/denylist — full list of entries with count.
  * Optional `?type=USER|GUILD` filter is applied at the handler before

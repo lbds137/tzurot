@@ -304,14 +304,14 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/deny/browse.ts | user | 2 |
 | services/bot-client/src/commands/deny/browse.ts | values | 1 |
 | services/bot-client/src/commands/deny/browseBatch.ts | customId | 6 |
-| services/bot-client/src/commands/deny/browseBatch.ts | deferred | 1 |
+| services/bot-client/src/commands/deny/browseBatch.ts | deferred | 3 |
 | services/bot-client/src/commands/deny/browseBatch.ts | description | 1 |
 | services/bot-client/src/commands/deny/browseBatch.ts | embeds | 2 |
 | services/bot-client/src/commands/deny/browseBatch.ts | escapeMarkdown | 2 |
 | services/bot-client/src/commands/deny/browseBatch.ts | footer | 1 |
 | services/bot-client/src/commands/deny/browseBatch.ts | id | 7 |
 | services/bot-client/src/commands/deny/browseBatch.ts | message | 3 |
-| services/bot-client/src/commands/deny/browseBatch.ts | replied | 1 |
+| services/bot-client/src/commands/deny/browseBatch.ts | replied | 3 |
 | services/bot-client/src/commands/deny/browseBatch.ts | text | 1 |
 | services/bot-client/src/commands/deny/browseBatch.ts | user | 7 |
 | services/bot-client/src/commands/deny/browseBatch.ts | values | 1 |
@@ -3117,4 +3117,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 3047 entries across 7057 sites.
+Total: 3047 entries across 7061 sites.

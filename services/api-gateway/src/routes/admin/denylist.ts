@@ -11,6 +11,7 @@
 
 import { type Request, type RequestHandler, type Response } from 'express';
 import {
+  DENYLIST_LIST_MAX_ENTRIES,
   DenylistAddSchema,
   denylistEntityTypeSchema,
   denylistScopeSchema,
@@ -29,9 +30,6 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('admin-denylist');
-
-/** Max entries returned in paginated list view */
-const LIST_MAX_ENTRIES = 500;
 
 /** Max entries returned for bot-client cache hydration (all entries) */
 const CACHE_HYDRATION_MAX_ENTRIES = 10_000;
@@ -105,7 +103,7 @@ export const handleListDenylistEntries = (deps: RouteDeps): RequestHandler => {
       const entries = await prisma.denylistedEntity.findMany({
         where,
         orderBy: { addedAt: 'desc' },
-        take: LIST_MAX_ENTRIES,
+        take: DENYLIST_LIST_MAX_ENTRIES,
       });
 
       sendCustomSuccess(res, { success: true, entries, count: entries.length });

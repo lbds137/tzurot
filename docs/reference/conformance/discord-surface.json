@@ -7,7 +7,7 @@
   },
   "totals": {
     "entries": 3047,
-    "sites": 7057
+    "sites": 7061
   },
   "entries": [
     {
@@ -1748,7 +1748,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/deny/browseBatch.ts",
       "symbol": "deferred",
-      "count": 1
+      "count": 3
     },
     {
       "category": "client-methods",
@@ -1790,7 +1790,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/deny/browseBatch.ts",
       "symbol": "replied",
-      "count": 1
+      "count": 3
     },
     {
       "category": "client-methods",
