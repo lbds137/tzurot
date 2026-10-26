@@ -307,9 +307,9 @@ export async function handleDenyBatchPick(interaction: StringSelectMenuInteracti
   const { embed, components } = buildBatchConfirmView({
     title: `${ENTITY_EMOJI.denial} Remove Denylist Entries?`,
     description: clampBatchConfirmDescription(listing, warning),
-    // Entry IDs are UUIDs (newline-free by construction), and a page holds at
-    // most 10 entries: 10 × 36 chars ≪ 2048, so encodeBatchFooterIds is used
-    // directly with no runtime guard or wrapper functions.
+    // Entry IDs are UUIDs (newline-free by construction); one pick spans one
+    // menu, capped at 25 options by buildBrowseSelectMenu: 25 × 37 chars ≪ 2048,
+    // so encodeBatchFooterIds is used directly with no runtime guard.
     footerText: encodeBatchFooterIds(ids),
     confirm: {
       customId: buildDenyBatchCustomId(DENY_BATCH_ACTION.CONFIRM, page, filter, sort),
