@@ -6,7 +6,7 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 3047,
+    "entries": 3050,
     "sites": 7075
   },
   "entries": [
@@ -13716,6 +13716,12 @@
     },
     {
       "category": "flags",
+      "file": "services/bot-client/src/commands/deny/browse.ts",
+      "symbol": "MessageFlags.Ephemeral",
+      "count": 1
+    },
+    {
+      "category": "flags",
       "file": "services/bot-client/src/commands/deny/browseBatch.ts",
       "symbol": "MessageFlags.Ephemeral",
       "count": 6
@@ -14282,7 +14288,13 @@
       "category": "interaction-acks",
       "file": "services/bot-client/src/commands/deny/browse.ts",
       "symbol": "editReply",
-      "count": 2
+      "count": 1
+    },
+    {
+      "category": "interaction-acks",
+      "file": "services/bot-client/src/commands/deny/browse.ts",
+      "symbol": "followUp",
+      "count": 1
     },
     {
       "category": "interaction-acks",
@@ -16718,7 +16730,7 @@
       "category": "message-options",
       "file": "services/bot-client/src/commands/deny/browse.ts",
       "symbol": "components",
-      "count": 2
+      "count": 1
     },
     {
       "category": "message-options",
@@ -16730,7 +16742,13 @@
       "category": "message-options",
       "file": "services/bot-client/src/commands/deny/browse.ts",
       "symbol": "embeds",
-      "count": 2
+      "count": 1
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/commands/deny/browse.ts",
+      "symbol": "flags",
+      "count": 1
     },
     {
       "category": "message-options",

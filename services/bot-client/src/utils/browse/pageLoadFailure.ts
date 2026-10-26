@@ -1,5 +1,5 @@
 /**
- * Shared page-load failure follow-up for browse pagination handlers.
+ * Shared page-load failure follow-up for browse pagination and select handlers.
  *
  * Every browse surface acks with an update before fetching the next page, so
  * a fetch failure has nothing to edit into — the current view stays as-is by
@@ -17,8 +17,10 @@ const logger = createLogger('browse-page-load-failure');
 
 /**
  * Tell the user their page fetch failed, without disturbing the page they
- * are looking at. Call it from a browse pagination handler's catch, or from
- * a `!result.ok` guard inside the try, after the site's own log line.
+ * are looking at. Call it from a browse pagination or select handler's catch,
+ * or from a `!result.ok` guard inside the try, after the site's own log line.
+ * The resource names what failed to load (default `'page'`; a select handler
+ * passes the picked item's noun).
  *
  * The notification itself is best-effort: a rejected `followUp` is logged
  * and swallowed rather than propagated, so a call from inside a `try` whose
@@ -27,11 +29,12 @@ const logger = createLogger('browse-page-load-failure');
  */
 export async function followUpBrowsePageFailure(
   interaction: MessageComponentInteraction,
-  error: unknown
+  error: unknown,
+  resource = 'page'
 ): Promise<void> {
   try {
     await interaction.followUp({
-      content: renderSpec(classifyGatewayFailure(error, 'page', { operation: 'read' })),
+      content: renderSpec(classifyGatewayFailure(error, resource, { operation: 'read' })),
       flags: MessageFlags.Ephemeral,
     });
   } catch (err) {

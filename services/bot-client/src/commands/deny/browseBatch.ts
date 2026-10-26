@@ -105,7 +105,7 @@ export function isDenyBatchSelect(customId: string): boolean {
  * Resolve one picked entry UUID against the pre-fetched denylist and execute
  * `ownerClient.removeDenylistEntry(type, discordId, scope, scopeId)`:
  * - entry absent from an uncapped fetched list → `'already-gone'` (no gateway delete call)
- * - entry absent from a capped fetched list (`listTruncated`) (a list at the cap counts, see listTruncated) → logs `warn({ userId, entryId })` and throws `FAILED_TO_REMOVE_NOTE`
+ * - entry absent from a fetched list at or over the cap (`listTruncated`) → logs `warn({ userId, entryId })` and throws `FAILED_TO_REMOVE_NOTE`
  * - `result.ok` → `'success'`
  * - `result.status === 404` → `'already-gone'`
  * - other `!result.ok` → logs `warn({ userId, entryId, status })` and throws `FAILED_TO_REMOVE_NOTE`
@@ -384,7 +384,8 @@ export async function handleDenyBatchConfirm(interaction: ButtonInteraction): Pr
   }
 
   const entriesById = new Map(entries.map(entry => [entry.id, entry]));
-  // A full page is treated as possibly truncated because the list response cannot tell exactly-the-cap from more-than-the-cap, so the check errs toward reporting failed.
+  // A full page is treated as possibly truncated because the list response cannot tell
+  // exactly-the-cap from more-than-the-cap, so the check errs toward reporting failed.
   const listTruncated = entries.length >= DENYLIST_LIST_MAX_ENTRIES;
   const results = await runBatchSequentially(ids, entryId =>
     runSingleDenyRemoval(ownerClient, entriesById, entryId, userId, listTruncated)

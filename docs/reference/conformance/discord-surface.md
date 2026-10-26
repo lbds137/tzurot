@@ -2319,6 +2319,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/character/view.ts | MessageFlags.Ephemeral | 1 |
 | services/bot-client/src/commands/character/view.ts | MessageFlags.IsComponentsV2 | 3 |
 | services/bot-client/src/commands/character/viewEdit.ts | MessageFlags.IsComponentsV2 | 1 |
+| services/bot-client/src/commands/deny/browse.ts | MessageFlags.Ephemeral | 1 |
 | services/bot-client/src/commands/deny/browseBatch.ts | MessageFlags.Ephemeral | 6 |
 | services/bot-client/src/commands/deny/detailEdit.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/commands/history/index.ts | MessageFlags.Ephemeral | 1 |
@@ -2423,7 +2424,8 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/character/viewEdit.ts | editReply | 1 |
 | services/bot-client/src/commands/chat/index.ts | respond | 1 |
 | services/bot-client/src/commands/chime-in/index.ts | respond | 1 |
-| services/bot-client/src/commands/deny/browse.ts | editReply | 2 |
+| services/bot-client/src/commands/deny/browse.ts | editReply | 1 |
+| services/bot-client/src/commands/deny/browse.ts | followUp | 1 |
 | services/bot-client/src/commands/deny/browseBatch.ts | editReply | 3 |
 | services/bot-client/src/commands/deny/browseBatch.ts | followUp | 6 |
 | services/bot-client/src/commands/deny/detail.ts | editReply | 5 |
@@ -2839,9 +2841,10 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/character/view.ts | flags | 3 |
 | services/bot-client/src/commands/character/viewEdit.ts | components | 1 |
 | services/bot-client/src/commands/character/viewEdit.ts | embeds | 1 |
-| services/bot-client/src/commands/deny/browse.ts | components | 2 |
+| services/bot-client/src/commands/deny/browse.ts | components | 1 |
 | services/bot-client/src/commands/deny/browse.ts | content | 1 |
-| services/bot-client/src/commands/deny/browse.ts | embeds | 2 |
+| services/bot-client/src/commands/deny/browse.ts | embeds | 1 |
+| services/bot-client/src/commands/deny/browse.ts | flags | 1 |
 | services/bot-client/src/commands/deny/browseBatch.ts | components | 3 |
 | services/bot-client/src/commands/deny/browseBatch.ts | content | 6 |
 | services/bot-client/src/commands/deny/browseBatch.ts | embeds | 2 |
@@ -3117,4 +3120,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 3047 entries across 7075 sites.
+Total: 3050 entries across 7075 sites.

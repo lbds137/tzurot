@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  fetchEntriesResult,
   handleBrowse,
   handleBrowsePagination,
   handleBrowseSelect,
@@ -14,6 +15,9 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
 import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/dateFormatting')>(
@@ -162,6 +166,7 @@ vi.mock('./detail.js', () => ({
   showDetailView: vi.fn(),
 }));
 
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
 import { showDetailView } from './detail.js';
@@ -215,6 +220,7 @@ function createMockSelectInteraction(
     message: { id: 'msg-1' },
     deferUpdate: vi.fn(),
     editReply: vi.fn(),
+    followUp: vi.fn(),
   } as unknown as StringSelectMenuInteraction;
 }
 
@@ -576,6 +582,21 @@ describe('handleBrowsePagination', () => {
       })
     );
   });
+
+  it('follows up with the classified copy of the real failure on a pagination fetch error', async () => {
+    const failure = makeErr(500, 'Error');
+    stub.listDenylistEntries.mockResolvedValue(failure);
+    const interaction = createMockButtonInteraction('deny::browse::1::all::date::');
+
+    await handleBrowsePagination(interaction);
+
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: renderSpec(classifyGatewayFailure(failure, 'page', { operation: 'read' })),
+      })
+    );
+  });
 });
 
 describe('handleBrowseSelect', () => {
@@ -625,9 +646,11 @@ describe('handleBrowseSelect', () => {
 
     await handleBrowseSelect(interaction);
 
-    expect(interaction.editReply).toHaveBeenCalledWith(
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: expect.stringContaining('Entry not found'),
+        content: renderSpec(CATALOG.error.notFound('Denylist entry')),
+        flags: MessageFlags.Ephemeral,
       })
     );
   });
@@ -649,8 +672,102 @@ describe('handleBrowseSelect', () => {
     await handleBrowseSelect(interaction);
 
     expect(interaction.deferUpdate).toHaveBeenCalled();
-    // Should silently return when fetch fails
+    // A failed fetch never opens the detail view
     expect(showDetailView).not.toHaveBeenCalled();
+  });
+
+  it('notifies the user (followUp) when the API errors and does not open the detail view', async () => {
+    const failure = makeErr(500, 'Error');
+    stub.listDenylistEntries.mockResolvedValue(failure);
+    const interaction = createMockSelectInteraction('deny::browse-select::0::all::date::', [
+      'entry-1',
+    ]);
+
+    await handleBrowseSelect(interaction);
+
+    expect(interaction.deferUpdate).toHaveBeenCalled();
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: renderSpec(classifyGatewayFailure(failure, 'entry', { operation: 'read' })),
+      })
+    );
+    expect(showDetailView).not.toHaveBeenCalled();
+  });
+
+  it('notifies the user (followUp) when the fetch throws and does not open the detail view', async () => {
+    const error = new Error('boom');
+    stub.listDenylistEntries.mockRejectedValue(error);
+    const interaction = createMockSelectInteraction('deny::browse-select::0::all::date::', [
+      'entry-1',
+    ]);
+
+    await handleBrowseSelect(interaction);
+
+    expect(interaction.deferUpdate).toHaveBeenCalled();
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: renderSpec(classifyGatewayFailure(error, 'entry', { operation: 'read' })),
+        flags: MessageFlags.Ephemeral,
+      })
+    );
+    expect(showDetailView).not.toHaveBeenCalled();
+  });
+});
+
+describe('fetchEntriesResult', () => {
+  const denyBrowseLoggerIndex = vi
+    .mocked(createLogger)
+    .mock.calls.findIndex(([name]) => name === 'deny-browse');
+  const denyBrowseLogger = vi.mocked(createLogger).mock.results[denyBrowseLoggerIndex]?.value as {
+    warn: ReturnType<typeof vi.fn>;
+    error: ReturnType<typeof vi.fn>;
+  };
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it('returns { ok: false, failure } and logs a warning with status when the fetch returns !ok', async () => {
+    const stub = createStub();
+    const failure = makeErr(500, 'Error');
+    stub.listDenylistEntries.mockResolvedValue(failure);
+
+    const result = await fetchEntriesResult(asOwnerClient(stub));
+
+    expect(result).toEqual({ ok: false, failure });
+    expect(denyBrowseLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 500 }),
+      'Denylist fetch returned non-ok'
+    );
+  });
+
+  it('returns { ok: false, failure: error } and logs an error when the fetch throws', async () => {
+    const stub = createStub();
+    const error = new Error('boom');
+    stub.listDenylistEntries.mockRejectedValue(error);
+
+    const result = await fetchEntriesResult(asOwnerClient(stub));
+
+    expect(result).toEqual({ ok: false, failure: error });
+    expect(denyBrowseLogger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: error }),
+      'Failed to fetch denylist entries'
+    );
+  });
+
+  it('returns { ok: true, entries } and logs nothing on success', async () => {
+    const stub = createStub();
+    const entries = [sampleEntries[0]];
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries }));
+
+    const result = await fetchEntriesResult(asOwnerClient(stub));
+
+    expect(result).toEqual({ ok: true, entries });
+    expect(denyBrowseLogger.warn).not.toHaveBeenCalled();
+    expect(denyBrowseLogger.error).not.toHaveBeenCalled();
   });
 });
 
