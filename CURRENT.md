@@ -1,12 +1,12 @@
 # Current
 
-> **Session handoff 2026-10-25 ~20:5xZ (Opus, anthropic-direct)**: **beta.239 SHIPPED** (below). doc-113 batch: 1252/1253/1254 shipped; **TASK-1255 = PR #2657** (override browser batch clear + shared batch-result helpers; rides beta.240, her call); 1256 (deny) unspecced. The GLM-era merges (#2644-#2654) got an Anthropic re-review: zero blocking, residue TASK-1291 + a TASK-1273 addition. Driver eval Mon 10-26 (Opus) / Tue 10-27 (Sonnet + Opus advisor): log in `docs/local/driver-eval-log.md`; this session idles clean before Tue so she can switch models.
+> **Session handoff 2026-10-26 ~13:15Z (Opus, anthropic-direct)**: **beta.240 SHIPPED** (below); doc-113 batch family closed. **`release:finalize` NOT run** — the classifier denied the agent's run (force-push to develop); the owner runs `! pnpm ops release:finalize --yes` (trees identical, SHAs diverged after the rebase-merge). Next: TASK-1291, TASK-1295, TASK-1293. Driver eval Mon 10-26 (Opus) / Tue 10-27 (Sonnet + Opus advisor): log in `docs/local/driver-eval-log.md`; this session idles clean before Tue so she can switch models.
 
-> **Version**: v3.0.0-beta.239 — "multi-select batch actions" — SHIPPED 2026-10-25 20:43Z (release PR #2655 after her "cut now" + merge approval; rebase-merge refused at 154 commits → documented fast-forward of `main` to `f26f3c750`; finalize no-op; tagged `latest`, beta.238 demoted). 22 PRs / 13 runtime / 239 files; no migrations. Holistic review: no blocking findings (its `zaiHeadroomPercent` 75→90 fallback note went into the notes). Notes: `docs/local/release-notes-beta.239.md`.
+> **Version**: v3.0.0-beta.240 — "batch clear and remove for the override and deny browsers" — SHIPPED 2026-10-26 13:10:50Z (release PR #2663 after her "cut now" + merge approval; plain rebase-merge at 25 commits; tagged `latest`, beta.239 demoted). 6 PRs / 6 runtime / 65 files (+ #2656 via main); no migrations. Holistic review: no blocking findings. Notes: `docs/local/release-notes-beta.240.md`.
 >
-> **Previous**: v3.0.0-beta.238 — "reasoning traces kept on memories" (1 PR / 1 runtime / 92 files; 2026-10-18, `73fa2db45`).
+> **Previous**: v3.0.0-beta.239 — "multi-select batch actions" (22 PRs / 13 runtime / 239 files; 2026-10-25, `f26f3c750`).
 
-## 🧪 beta.240 (PROPOSED 2026-10-26 — not cut yet) — smoke + watch
+## 🧪 beta.240 watch (shipped 2026-10-26; one optional needs-smoke)
 
 - **Optional needs-smoke (owner, after deploy):** `/deny browse` → Select several → Remove 2 — confirm the confirm view lists real labels and the result stack renders one line per pick. Covers the largest new UI path (#2661, 5 review rounds). Status: not run.
 - **Watch — LangChain minor bumps (#2658: @langchain/core 1.2→1.3, @langchain/openai 1.6→1.7):** the first prod AI replies after deploy are the check; an error spike in ai-worker logs = roll back. No smoke asked.
@@ -18,7 +18,7 @@
 - **Optional needs-smoke (owner):** one prod batch run, e.g. `/memory facts` → Select several → Lock 2 — confirm view and the result stack render. Status: not run.
 - **#2646 egress probe:** first prod boot logs the probe verdict in bot-client (ok/unavailable expected); an owner webhook alert only on a ≥300 s Retry-After 429.
 - **Advisories:** the 7 vite/@vitest/mocker default-branch alerts should close once GitHub rescans `main` (develop's lockfile resolves vite 8.3.4 / mocker 4.1.12); `pnpm ops security:advisories` still listed them right after the merge — re-check, then TASK-1278 Done.
-- **#2649 live:** dependabot opened #2656 (claude-code-action → main). Merge needs her explicit approval; after it: `release:finalize`, rebase open PRs, TASK-1233 Done once its CI is green.
+- **#2649 live:** #2656 (claude-code-action → main) merged 2026-10-25 22:39Z and shipped in beta.240's range; TASK-1233 Done once confirmed.
 
 ## 🧪 beta.238 watch (observability only — no needs-smoke items)
 
