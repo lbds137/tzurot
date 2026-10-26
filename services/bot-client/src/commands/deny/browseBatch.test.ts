@@ -838,6 +838,53 @@ describe('deny browse batch removal flow', () => {
       expect(resultEmbed.description).not.toContain('Misaligned Recovered Label');
     });
 
+    it('recovers the matched prefix of labels (excluding the last potentially-cut line) when the deny confirm listing is clamped to fewer lines than footer ids (C8)', async () => {
+      stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: FIVE_DENY_ENTRIES }));
+      stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
+
+      // Case 1: lines = [full1, full2, cut3…] (< entryIds.length) -> ids 0 and 1 recovered; rest fall back.
+      const confirm1 = createButtonInteraction({
+        customId: 'deny::batch-confirm::0::all::date',
+        footerText: encodeBatchFooterIds([
+          FIVE_DENY_ENTRIES[0].id,
+          FIVE_DENY_ENTRIES[1].id,
+          FIVE_DENY_ENTRIES[2].id,
+          FIVE_DENY_ENTRIES[3].id,
+        ]),
+        description:
+          '• 1. First Recovered Label\n• 2. Second Recovered Label\n• 3. Cut Third Label…\n\n' +
+          '**This removes 4 denylist entries immediately.** This action cannot be undone.',
+      });
+      await handleDenyBatchConfirm(confirm1);
+      const [embed1] = lastEmbedsJson(confirm1);
+      expect((embed1.description ?? '').split('\n')).toEqual([
+        '✅ 1. First Recovered Label',
+        '✅ 2. Second Recovered Label',
+        `✅ ${formatDenySelectOption(FIVE_DENY_ENTRIES[2]).label}`,
+        `✅ ${formatDenySelectOption(FIVE_DENY_ENTRIES[3]).label}`,
+      ]);
+
+      // Case 2 (varying the cut): lines = [full1, cut2…] with 3 ids -> only id 0 recovered; ids 1, 2 fall back.
+      const confirm2 = createButtonInteraction({
+        customId: 'deny::batch-confirm::0::all::date',
+        footerText: encodeBatchFooterIds([
+          FIVE_DENY_ENTRIES[0].id,
+          FIVE_DENY_ENTRIES[1].id,
+          FIVE_DENY_ENTRIES[2].id,
+        ]),
+        description:
+          '• 1. First Recovered Label\n• 2. Cut Second Label…\n\n' +
+          '**This removes 3 denylist entries immediately.** This action cannot be undone.',
+      });
+      await handleDenyBatchConfirm(confirm2);
+      const [embed2] = lastEmbedsJson(confirm2);
+      expect((embed2.description ?? '').split('\n')).toEqual([
+        '✅ 1. First Recovered Label',
+        `✅ ${formatDenySelectOption(FIVE_DENY_ENTRIES[1]).label}`,
+        `✅ ${formatDenySelectOption(FIVE_DENY_ENTRIES[2]).label}`,
+      ]);
+    });
+
     it('recovers the bulleted confirm listing labels built by handleDenyBatchPick for two picks on confirm', async () => {
       const pickedEntries = [FIVE_DENY_ENTRIES[0], FIVE_DENY_ENTRIES[2]];
       stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: FIVE_DENY_ENTRIES }));

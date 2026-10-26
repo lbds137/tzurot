@@ -104,8 +104,12 @@ export function isDenyBatchSelect(customId: string): boolean {
 
 /**
  * Recover per-id display labels from the confirm embed description's bullet
- * lines (already escaped and bounded by `handleDenyBatchPick`) when they match
- * `entryIds.length`. Falls back to an empty map if the listing was clamped or absent.
+ * lines (already escaped and bounded by `handleDenyBatchPick`). When
+ * `lines.length === entryIds.length` and all start with the bullet, all labels
+ * are recovered. When clamped (`lines.length < entryIds.length`), recovers
+ * every leading bullet line except the last (which may be cut mid-label) up to
+ * the first non-bullet line; remaining ids fall back. When
+ * `lines.length > entryIds.length`, returns an empty map.
  */
 function recoverConfirmListingLabels(
   description: string | null | undefined,
@@ -115,11 +119,24 @@ function recoverConfirmListingLabels(
     return new Map();
   }
   const lines = (description.split('\n\n')[0] ?? '').split('\n');
-  if (lines.length !== entryIds.length || !lines.every(line => line.startsWith(LISTING_BULLET))) {
+  if (lines.length > entryIds.length) {
     return new Map();
   }
+  if (lines.length === entryIds.length) {
+    return lines.every(line => line.startsWith(LISTING_BULLET))
+      ? new Map(
+          entryIds.map((entryId, idx) => [entryId, (lines[idx] ?? '').slice(LISTING_BULLET.length)])
+        )
+      : new Map();
+  }
+  const prefixLines = lines.slice(0, -1);
+  const firstNonBullet = prefixLines.findIndex(line => !line.startsWith(LISTING_BULLET));
+  const matched = firstNonBullet === -1 ? prefixLines : prefixLines.slice(0, firstNonBullet);
   return new Map(
-    entryIds.map((entryId, idx) => [entryId, (lines[idx] ?? '').slice(LISTING_BULLET.length)])
+    matched.flatMap((line, idx): [string, string][] => {
+      const entryId = entryIds[idx];
+      return entryId !== undefined ? [[entryId, line.slice(LISTING_BULLET.length)]] : [];
+    })
   );
 }
 
