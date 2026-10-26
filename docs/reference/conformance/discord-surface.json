@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 3028,
-    "sites": 6990
+    "entries": 3047,
+    "sites": 7057
   },
   "entries": [
     {
@@ -1740,6 +1740,78 @@
     },
     {
       "category": "client-methods",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "customId",
+      "count": 6
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "deferred",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "description",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "embeds",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "escapeMarkdown",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "footer",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "id",
+      "count": 7
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "message",
+      "count": 3
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "replied",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "text",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "user",
+      "count": 7
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "values",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
       "file": "services/bot-client/src/commands/deny/denyTarget.ts",
       "symbol": "displayName",
       "count": 1
@@ -1862,7 +1934,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/deny/index.ts",
       "symbol": "customId",
-      "count": 2
+      "count": 4
     },
     {
       "category": "client-methods",
@@ -13644,6 +13716,12 @@
     },
     {
       "category": "flags",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "MessageFlags.Ephemeral",
+      "count": 6
+    },
+    {
+      "category": "flags",
       "file": "services/bot-client/src/commands/deny/detailEdit.ts",
       "symbol": "MessageFlags.Ephemeral",
       "count": 2
@@ -14205,6 +14283,18 @@
       "file": "services/bot-client/src/commands/deny/browse.ts",
       "symbol": "editReply",
       "count": 2
+    },
+    {
+      "category": "interaction-acks",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "editReply",
+      "count": 3
+    },
+    {
+      "category": "interaction-acks",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "followUp",
+      "count": 6
     },
     {
       "category": "interaction-acks",
@@ -16641,6 +16731,30 @@
       "file": "services/bot-client/src/commands/deny/browse.ts",
       "symbol": "embeds",
       "count": 2
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "components",
+      "count": 3
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "content",
+      "count": 6
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "embeds",
+      "count": 2
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/commands/deny/browseBatch.ts",
+      "symbol": "flags",
+      "count": 6
     },
     {
       "category": "message-options",

@@ -35,7 +35,12 @@ import {
   type BrowseSortType,
   type FilterToggleDisplay,
   type BrowseActionRow,
+  type BrowseSelectOption,
 } from '../../utils/browse/index.js';
+import {
+  buildBatchModeRows,
+  buildSelectSeveralToggleRow,
+} from '../../utils/browse/multiSelectBatch.js';
 import { followUpBrowsePageFailure } from '../../utils/browse/pageLoadFailure.js';
 import { ackUpdate } from '../../ux/render/reply.js';
 import { MODE_LABELS, formatScopeWithId } from './denyLabels.js';
@@ -46,6 +51,26 @@ const logger = createLogger('deny-browse');
 export type DenyBrowseFilter = 'all' | 'user' | 'guild';
 
 const VALID_FILTERS = ['all', 'user', 'guild'] as const;
+/** Batch action tokens for the deny browse multi-select flow. */
+export const DENY_BATCH_ACTION = {
+  /** Enter batch mode (button) and submit the multi-select (menu). */
+  SELECT: 'batch-select',
+  /** Remove every picked entry. */
+  CONFIRM: 'batch-confirm',
+  /** Leave batch mode without removing anything. */
+  CANCEL: 'batch-cancel',
+} as const;
+/** One deny batch action token. */
+export type DenyBatchAction = (typeof DENY_BATCH_ACTION)[keyof typeof DENY_BATCH_ACTION];
+const VALID_BATCH_ACTIONS: readonly string[] = Object.values(DENY_BATCH_ACTION);
+
+/** Parsed coordinates from a deny batch customId (`deny::<action>::<page>::<filter>::<sort>`). */
+export interface ParsedDenyBatchCustomId {
+  action: DenyBatchAction;
+  page: number;
+  filter: DenyBrowseFilter;
+  sort: BrowseSortType;
+}
 
 const browseHelpers = createBrowseCustomIdHelpers<DenyBrowseFilter>({
   prefix: 'deny',
@@ -62,6 +87,40 @@ export function isDenyBrowseInteraction(customId: string): boolean {
 /** Check if custom ID is a deny browse select interaction */
 export function isDenyBrowseSelectInteraction(customId: string): boolean {
   return browseHelpers.isBrowseSelect(customId);
+}
+
+/** Build a customId for a deny browse batch action carrying `{page, filter, sort}`. */
+export function buildDenyBatchCustomId(
+  action: DenyBatchAction,
+  page: number,
+  filter: DenyBrowseFilter,
+  sort: BrowseSortType
+): string {
+  return `deny::${action}::${page}::${filter}::${sort}`;
+}
+
+/** Parse a deny browse batch customId, or return `null` when unmatched/invalid. */
+export function parseDenyBatchCustomId(customId: string): ParsedDenyBatchCustomId | null {
+  const parts = customId.split('::');
+  if (parts.length !== 5 || parts[0] !== 'deny') {
+    return null;
+  }
+  const [, action, pageRaw, filter, sort] = parts;
+  const page = pageRaw !== undefined && /^\d+$/.test(pageRaw) ? Number(pageRaw) : Number.NaN;
+  if (
+    !Number.isSafeInteger(page) ||
+    !VALID_BATCH_ACTIONS.includes(action ?? '') ||
+    !(VALID_FILTERS as readonly string[]).includes(filter ?? '') ||
+    (sort !== 'name' && sort !== 'date')
+  ) {
+    return null;
+  }
+  return {
+    action: action as DenyBatchAction,
+    page,
+    filter: filter as DenyBrowseFilter,
+    sort,
+  };
 }
 
 /** In-place filter toggle display (§3.1 affordance). */
@@ -90,6 +149,18 @@ function formatSelectLabel(entry: DenylistEntryResponse): string {
   return `${typeEmoji} ${entry.discordId}${modeIndicator}`;
 }
 
+/**
+ * Format an entry as a browse select menu option.
+ * Shared by the one-pick select menu and the batch multi-select menu.
+ */
+export function formatDenySelectOption(entry: DenylistEntryResponse): BrowseSelectOption {
+  return {
+    label: formatSelectLabel(entry),
+    value: entry.id,
+    description: formatScopeWithId(entry.scope, entry.scopeId),
+  };
+}
+
 /** Sort entries by the specified sort type */
 function sortEntries(
   entries: DenylistEntryResponse[],
@@ -116,12 +187,35 @@ function filterByType(
   return entries.filter(e => e.type === typeValue);
 }
 
+function formatDenyListRow(entry: DenylistEntryResponse): {
+  badges: string;
+  name: string;
+  techId: string | undefined;
+  metadata: string[];
+} {
+  return {
+    badges:
+      (entry.type === 'USER' ? AUTOCOMPLETE_BADGES.USER_TARGET : AUTOCOMPLETE_BADGES.GUILD_TARGET) +
+      (entry.mode === 'MUTE' ? AUTOCOMPLETE_BADGES.MUTED : ''),
+    // Users render as a live mention with the raw id as techId; guilds
+    // only have the raw id, which becomes the name itself.
+    name: entry.type === 'USER' ? `<@${entry.discordId}>` : entry.discordId,
+    techId: entry.type === 'USER' ? entry.discordId : undefined,
+    metadata: [
+      formatScopeWithId(entry.scope, entry.scopeId),
+      `Added ${formatDiscordTimestamp(entry.addedAt, 'D')}`,
+      ...(entry.reason !== null ? [escapeMarkdown(entry.reason)] : []),
+    ],
+  };
+}
+
 /** Build the browse page embed and components on the shared list builder. */
 function buildBrowsePage(
   entries: DenylistEntryResponse[],
   page: number,
   filter: DenyBrowseFilter,
-  sort: BrowseSortType
+  sort: BrowseSortType,
+  options?: { mode?: 'single' | 'batch' }
 ): { embed: EmbedBuilder; components: BrowseActionRow[] } {
   const { embed, pageItems, startIndex, totalPages, safePage } =
     buildBrowseListEmbed<DenylistEntryResponse>({
@@ -130,22 +224,7 @@ function buildBrowsePage(
       items: entries,
       page,
       itemsPerPage: ITEMS_PER_PAGE,
-      formatRow: entry => ({
-        badges:
-          (entry.type === 'USER'
-            ? AUTOCOMPLETE_BADGES.USER_TARGET
-            : AUTOCOMPLETE_BADGES.GUILD_TARGET) +
-          (entry.mode === 'MUTE' ? AUTOCOMPLETE_BADGES.MUTED : ''),
-        // Users render as a live mention with the raw id as techId; guilds
-        // only have the raw id, which becomes the name itself.
-        name: entry.type === 'USER' ? `<@${entry.discordId}>` : entry.discordId,
-        techId: entry.type === 'USER' ? entry.discordId : undefined,
-        metadata: [
-          formatScopeWithId(entry.scope, entry.scopeId),
-          `Added ${formatDiscordTimestamp(entry.addedAt, 'D')}`,
-          ...(entry.reason !== null ? [escapeMarkdown(entry.reason)] : []),
-        ],
-      }),
+      formatRow: formatDenyListRow,
       empty: {
         noItems: 'The denylist is empty \u2014 add entries with `/deny add`.',
         noMatch: 'No entries match this filter \u2014 toggle it to see all.',
@@ -156,29 +235,12 @@ function buildBrowsePage(
         // Derived from the toggle display so button and footer can't drift.
         filter !== 'all' && formatFilterLabeled(FILTER_TOGGLE_DISPLAY[filter].shortLabel),
         sort === 'date' ? formatSortNatural('date') : formatSortNatural('target ID'),
+        options?.mode === 'batch' && entries.length > 0 && 'Select several below, then confirm',
       ],
       badgeLegend: buildBadgeLegend(['USER_TARGET', 'GUILD_TARGET', 'MUTED']),
       // No ERROR color: browse is an informational surface and stays BLURPLE
       // (\u00A72.3 names "red deny lists" as the drift to kill).
     });
-
-  const components: BrowseActionRow[] = [];
-
-  // Select first, buttons second — the design system's composition order.
-  const selectRow = buildBrowseSelectMenu<DenylistEntryResponse>({
-    items: pageItems,
-    customId: browseHelpers.buildSelect(safePage, filter, sort, null),
-    placeholder: 'Select an entry to view/edit...',
-    startIndex,
-    formatItem: entry => ({
-      label: formatSelectLabel(entry),
-      value: entry.id,
-      description: formatScopeWithId(entry.scope, entry.scopeId),
-    }),
-  });
-  if (selectRow !== null) {
-    components.push(selectRow);
-  }
 
   // The button row always renders on filter-bearing browses (alias-pilot
   // norm): the filter toggle stays reachable even on an empty filtered list.
@@ -208,6 +270,48 @@ function buildBrowsePage(
       query: null,
     })
   );
+
+  // Empty page early-returns before the batch-mode branch (renders no menu, no toggle).
+  if (pageItems.length === 0) {
+    return { embed, components: [buttonRow] };
+  }
+
+  if (options?.mode === 'batch') {
+    const batchSelectRow = buildBrowseSelectMenu<DenylistEntryResponse>({
+      items: pageItems,
+      customId: buildDenyBatchCustomId(DENY_BATCH_ACTION.SELECT, safePage, filter, sort),
+      placeholder: 'Select several entries to remove...',
+      startIndex,
+      maxValues: ITEMS_PER_PAGE,
+      formatItem: formatDenySelectOption,
+    });
+    return {
+      embed,
+      components: buildBatchModeRows({
+        selectRow: batchSelectRow,
+        cancelCustomId: buildDenyBatchCustomId(DENY_BATCH_ACTION.CANCEL, safePage, filter, sort),
+      }),
+    };
+  }
+
+  const components: BrowseActionRow[] = [];
+
+  // Select first, toggle second, buttons third — the design system's composition order.
+  const selectRow = buildBrowseSelectMenu<DenylistEntryResponse>({
+    items: pageItems,
+    customId: browseHelpers.buildSelect(safePage, filter, sort, null),
+    placeholder: 'Select an entry to view/edit...',
+    startIndex,
+    formatItem: formatDenySelectOption,
+  });
+  if (selectRow !== null) {
+    components.push(
+      selectRow,
+      buildSelectSeveralToggleRow(
+        buildDenyBatchCustomId(DENY_BATCH_ACTION.SELECT, safePage, filter, sort)
+      )
+    );
+  }
   components.push(buttonRow);
 
   return { embed, components };
@@ -231,17 +335,18 @@ export async function fetchEntries(
 
 /**
  * Build a browse response from raw entries and browse context.
- * Used by detail.ts for back navigation.
+ * Used by detail.ts for back navigation and browseBatch.ts for batch mode / refresh.
  */
 export function buildBrowseResponse(
   entries: DenylistEntryResponse[],
   page: number,
   filter: DenyBrowseFilter,
-  sort: BrowseSortType
+  sort: BrowseSortType,
+  options?: { mode?: 'single' | 'batch' }
 ): { embed: EmbedBuilder; components: BrowseActionRow[] } {
   const filtered = filterByType(entries, filter);
   const sorted = sortEntries(filtered, sort);
-  return buildBrowsePage(sorted, page, filter, sort);
+  return buildBrowsePage(sorted, page, filter, sort, options);
 }
 
 /** Handle /deny browse [filter?] */

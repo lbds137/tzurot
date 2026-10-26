@@ -44,6 +44,12 @@ import {
   isDenyBrowseInteraction,
   isDenyBrowseSelectInteraction,
 } from './browse.js';
+import {
+  handleDenyBatchButton,
+  handleDenyBatchPick,
+  isDenyBatchButton,
+  isDenyBatchSelect,
+} from './browseBatch.js';
 import { handleDetailButton, handleDetailModal } from './detail.js';
 // Ensure the deny browse rebuilder is registered on module load, even when
 // subcommands that don't touch detail.ts fire first.
@@ -89,6 +95,8 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
 async function handleButton(interaction: ButtonInteraction): Promise<void> {
   if (isDenyBrowseInteraction(interaction.customId)) {
     await handleBrowsePagination(interaction);
+  } else if (isDenyBatchButton(interaction.customId)) {
+    await handleDenyBatchButton(interaction);
   } else {
     // Detail view buttons (deny::mode::, deny::edit::, deny::del::, etc.)
     await handleDetailButton(interaction);
@@ -98,6 +106,8 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
   if (isDenyBrowseSelectInteraction(interaction.customId)) {
     await handleBrowseSelect(interaction);
+  } else if (isDenyBatchSelect(interaction.customId)) {
+    await handleDenyBatchPick(interaction);
   }
 }
 
