@@ -135,7 +135,7 @@ export const SELECT_LIMIT = 25;
 /** Shown when the overrides list call fails. */
 export const FAILED_TO_LOAD_MSG = '❌ Failed to load overrides. Please try again later.';
 
-/** Shown when clearing an override fails or carries an unknown slot segment. */
+/** Shown when clearing an override fails (or the clear button carries an unknown slot segment). */
 export const FAILED_TO_CLEAR_MSG = '❌ Failed to clear the override. Please try again later.';
 
 /** Shown when a handler throws unexpectedly (network error, etc.). */
@@ -373,12 +373,12 @@ export async function handleOverrideBrowseSelect(
   // split is unambiguous — the first segment is the id, the second (if any) slot.
   const { personalityId, slot, slotUnknown } = parseOverrideSelectValue(interaction.values[0]);
   const userId = interaction.user.id;
-  if (slotUnknown) {
-    config.logger.warn({ userId, personalityId }, 'Unknown slot segment in override select');
-    await interaction.editReply(errorReply(FAILED_TO_CLEAR_MSG));
-    return;
-  }
   try {
+    if (slotUnknown) {
+      config.logger.warn({ userId, personalityId }, 'Unknown slot segment in override select');
+      await interaction.editReply(errorReply(GENERIC_ERROR_MSG));
+      return;
+    }
     const { userClient } = clientsFor(interaction);
     const overrides = await config.list(userClient);
     if (overrides === null) {
@@ -439,15 +439,15 @@ export async function handleOverrideBrowseButton(
 
   await ackUpdate(interaction);
   const userId = interaction.user.id;
-  if (parsed.action === 'clear' && parsed.slotUnknown === true) {
-    config.logger.warn(
-      { userId, personalityId: parsed.personalityId },
-      'Unknown slot segment in override clear button'
-    );
-    await interaction.editReply(errorReply(FAILED_TO_CLEAR_MSG));
-    return;
-  }
   try {
+    if (parsed.action === 'clear' && parsed.slotUnknown === true) {
+      config.logger.warn(
+        { userId, personalityId: parsed.personalityId },
+        'Unknown slot segment in override clear button'
+      );
+      await interaction.editReply(errorReply(FAILED_TO_CLEAR_MSG));
+      return;
+    }
     const { userClient } = clientsFor(interaction);
 
     if (parsed.action === 'clear' && parsed.personalityId !== undefined) {

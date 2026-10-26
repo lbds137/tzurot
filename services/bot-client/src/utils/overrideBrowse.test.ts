@@ -16,6 +16,7 @@ import {
   type OverrideBrowseConfig,
   type OverrideSummary,
   FAILED_TO_CLEAR_MSG,
+  GENERIC_ERROR_MSG,
   createOverrideBrowseCustomIds,
   parseOverrideSelectValue,
   buildOverrideBrowseView,
@@ -393,7 +394,7 @@ describe('handleOverrideBrowseSelect', () => {
     );
     expect(JSON.stringify(vi.mocked(config.logger.warn).mock.calls)).not.toContain('bogus');
     expect(editReply).toHaveBeenCalledWith({
-      content: FAILED_TO_CLEAR_MSG,
+      content: GENERIC_ERROR_MSG,
       embeds: [],
       components: [],
     });
@@ -402,7 +403,33 @@ describe('handleOverrideBrowseSelect', () => {
     await handleOverrideBrowseSelect(config, selectInteraction('p1::'));
     expect(stub.list).not.toHaveBeenCalled();
     expect(editReply).toHaveBeenCalledWith({
-      content: FAILED_TO_CLEAR_MSG,
+      content: GENERIC_ERROR_MSG,
+      embeds: [],
+      components: [],
+    });
+  });
+
+  it('routes a rejecting guard editReply into the catch block (logs error, retries editReply with GENERIC_ERROR_MSG, and does not call delete)', async () => {
+    const config = makeConfig();
+    const rejectErr = new Error('guard reply failed');
+    editReply.mockRejectedValueOnce(rejectErr).mockResolvedValueOnce(undefined);
+
+    await handleOverrideBrowseSelect(config, selectInteraction('p1::bogus'));
+
+    expect(stub.list).not.toHaveBeenCalled();
+    expect(stub.delete).not.toHaveBeenCalled();
+    expect(config.logger.error).toHaveBeenCalledWith(
+      { err: rejectErr, userId: 'u1' },
+      'Error in override select handler'
+    );
+    expect(editReply).toHaveBeenCalledTimes(2);
+    expect(editReply).toHaveBeenNthCalledWith(1, {
+      content: GENERIC_ERROR_MSG,
+      embeds: [],
+      components: [],
+    });
+    expect(editReply).toHaveBeenNthCalledWith(2, {
+      content: GENERIC_ERROR_MSG,
       embeds: [],
       components: [],
     });
@@ -525,6 +552,32 @@ describe('handleOverrideBrowseButton', () => {
     expect(stub.delete).not.toHaveBeenCalled();
     expect(editReply).toHaveBeenCalledWith({
       content: FAILED_TO_CLEAR_MSG,
+      embeds: [],
+      components: [],
+    });
+  });
+
+  it('routes a rejecting guard editReply into the catch block (logs error, retries editReply with GENERIC_ERROR_MSG, and does not call delete)', async () => {
+    const config = makeConfig();
+    const rejectErr = new Error('guard reply failed');
+    editReply.mockRejectedValueOnce(rejectErr).mockResolvedValueOnce(undefined);
+
+    await handleOverrideBrowseButton(config, buttonInteraction('test-override::clear::p1::bogus'));
+
+    expect(stub.delete).not.toHaveBeenCalled();
+    expect(stub.list).not.toHaveBeenCalled();
+    expect(config.logger.error).toHaveBeenCalledWith(
+      { err: rejectErr, userId: 'u1' },
+      'Error in override button handler'
+    );
+    expect(editReply).toHaveBeenCalledTimes(2);
+    expect(editReply).toHaveBeenNthCalledWith(1, {
+      content: FAILED_TO_CLEAR_MSG,
+      embeds: [],
+      components: [],
+    });
+    expect(editReply).toHaveBeenNthCalledWith(2, {
+      content: GENERIC_ERROR_MSG,
       embeds: [],
       components: [],
     });

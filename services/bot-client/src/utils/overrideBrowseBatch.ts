@@ -83,9 +83,9 @@ type OverrideBatchOutcome = 'success' | 'already-gone';
  * remain distinct.
  */
 export function fallbackOverrideLabel(rawValue: string): string {
-  const { personalityId, slot, slotUnknown } = parseOverrideSelectValue(rawValue);
+  const { personalityId, slot } = parseOverrideSelectValue(rawValue);
   const base = formatFallbackIdLabel(personalityId, 'Override');
-  return slot === undefined || slotUnknown ? base : `${base} (${slot})`;
+  return slot === undefined ? base : `${base} (${slot})`;
 }
 
 /** Whether a customId targets one of the batch button actions (`batch-select` / `batch-confirm` / `batch-cancel`). */
@@ -106,8 +106,8 @@ export function isOverrideBatchButton(ids: OverrideBrowseCustomIds, customId: st
  * applied to {@link fallbackOverrideLabel}, which already carries the suffix.
  */
 function withSlotSuffix(label: string, rawValue: string): string {
-  const { slot, slotUnknown } = parseOverrideSelectValue(rawValue);
-  return slot === undefined || slotUnknown ? label : `${label} (${slot})`;
+  const { slot } = parseOverrideSelectValue(rawValue);
+  return slot === undefined ? label : `${label} (${slot})`;
 }
 
 /** `wasSet` as both DELETE routes' response schemas declare it. */
@@ -283,7 +283,11 @@ export async function handleOverrideBatchPick(
   const listing = ids
     .map(id => {
       const known = labels.get(id);
-      return `${LISTING_BULLET}${known !== undefined ? withSlotSuffix(escapeMarkdown(known), id) : escapeMarkdown(fallbackOverrideLabel(id))}`;
+      const formatted =
+        known !== undefined
+          ? withSlotSuffix(escapeMarkdown(truncateForSelect(known, { stripNewlines: true })), id)
+          : escapeMarkdown(truncateForSelect(fallbackOverrideLabel(id), { stripNewlines: true }));
+      return `${LISTING_BULLET}${formatted}`;
     })
     .join('\n');
   const countNoun = pluralize(ids.length, {
