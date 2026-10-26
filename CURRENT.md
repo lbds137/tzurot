@@ -6,6 +6,13 @@
 >
 > **Previous**: v3.0.0-beta.238 — "reasoning traces kept on memories" (1 PR / 1 runtime / 92 files; 2026-10-18, `73fa2db45`).
 
+## 🧪 beta.240 (PROPOSED 2026-10-26 — not cut yet) — smoke + watch
+
+- **Optional needs-smoke (owner, after deploy):** `/deny browse` → Select several → Remove 2 — confirm the confirm view lists real labels and the result stack renders one line per pick. Covers the largest new UI path (#2661, 5 review rounds). Status: not run.
+- **Watch — LangChain minor bumps (#2658: @langchain/core 1.2→1.3, @langchain/openai 1.6→1.7):** the first prod AI replies after deploy are the check; an error spike in ai-worker logs = roll back. No smoke asked.
+- **Watch — #2662 fallthrough footer:** visible only when a coding-plan call falls through to OpenRouter; first occurrence in prod shows the suffix.
+- **Advisories:** after the cut, the 10 open alerts (undici, fast-uri, launch-editor, body-parser) should close on the `main` rescan — develop's lockfile already resolves undici 6.29.1, fast-uri 3.1.9, launch-editor 2.14.2, body-parser 2.4.0.
+
 ## 🧪 beta.239 watch (observability; one optional needs-smoke)
 
 - **Optional needs-smoke (owner):** one prod batch run, e.g. `/memory facts` → Select several → Lock 2 — confirm view and the result stack render. Status: not run.
