@@ -273,8 +273,8 @@ export async function handleDenyBatchPick(interaction: StringSelectMenuInteracti
   const labels = readSelectOptionLabels(interaction.message);
   const listing = ids
     .map(id => {
-      const known = labels.get(id);
-      return `${LISTING_BULLET}${escapeMarkdown(known ?? fallbackDenyLabel(id))}`;
+      const rawLabel = labels.get(id) ?? fallbackDenyLabel(id);
+      return `${LISTING_BULLET}${escapeMarkdown(truncateForSelect(rawLabel, { stripNewlines: true }))}`;
     })
     .join('\n');
   const countNoun = pluralize(ids.length, {

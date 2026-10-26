@@ -951,6 +951,95 @@ describe('deny browse batch removal flow', () => {
       ]);
     });
 
+    it('strips embedded newlines from a picked option label so it renders as one bullet line and every later label recovers onto its own id', async () => {
+      stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: FIVE_DENY_ENTRIES }));
+      stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
+
+      const pickedIds = [FIVE_DENY_ENTRIES[0].id, FIVE_DENY_ENTRIES[1].id];
+      const pickInteraction = createSelectInteraction({
+        customId: 'deny::batch-select::0::all::date',
+        values: pickedIds,
+        messageComponents: [
+          {
+            toJSON: () => ({
+              components: [
+                {
+                  options: [
+                    {
+                      value: FIVE_DENY_ENTRIES[0].id,
+                      label: '1. 🧍 111222333444555666\n• Injected',
+                    },
+                    {
+                      value: FIVE_DENY_ENTRIES[1].id,
+                      label: '2. 🏛️ 999888777666555444',
+                    },
+                  ],
+                },
+              ],
+            }),
+          },
+        ],
+      });
+      await handleDenyBatchPick(pickInteraction);
+      const [confirmEmbed] = lastEmbedsJson(pickInteraction);
+      const listingLines = (confirmEmbed.description ?? '').split('\n\n')[0]?.split('\n');
+      expect(listingLines).toEqual([
+        '• 1. 🧍 111222333444555666 • Injected',
+        '• 2. 🏛️ 999888777666555444',
+      ]);
+
+      const confirmInteraction = createButtonInteraction({
+        customId: 'deny::batch-confirm::0::all::date',
+        footerText: confirmEmbed.footer?.text,
+        description: confirmEmbed.description,
+      });
+      await handleDenyBatchConfirm(confirmInteraction);
+      const [resultEmbed] = lastEmbedsJson(confirmInteraction);
+      expect((resultEmbed.description ?? '').split('\n')).toEqual([
+        '✅ 1. 🧍 111222333444555666 • Injected',
+        '✅ 2. 🏛️ 999888777666555444',
+      ]);
+
+      // Under clamped recovery (25 items), an embedded `\n• ` on item 1 must not shift item 2's label onto id 3.
+      const twentyFiveEntries = buildDenyEntries(25);
+      stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: twentyFiveEntries }));
+      const clampedPick = createSelectInteraction({
+        customId: 'deny::batch-select::0::all::date',
+        values: twentyFiveEntries.map(entry => entry.id),
+        messageComponents: [
+          {
+            toJSON: () => ({
+              components: [
+                {
+                  options: twentyFiveEntries.map((entry, idx) => ({
+                    value: entry.id,
+                    label:
+                      idx === 0
+                        ? `1. 🧍 ${entry.discordId}\n• Injected`
+                        : idx === 1
+                          ? `2. 🧍 ${entry.discordId}`
+                          : `${idx + 1}. 🧍 ${'*_~'.repeat(28)}${idx + 1}`,
+                  })),
+                },
+              ],
+            }),
+          },
+        ],
+      });
+      await handleDenyBatchPick(clampedPick);
+      const [clampedConfirmEmbed] = lastEmbedsJson(clampedPick);
+      const clampedConfirm = createButtonInteraction({
+        customId: 'deny::batch-confirm::0::all::date',
+        footerText: clampedConfirmEmbed.footer?.text,
+        description: clampedConfirmEmbed.description,
+      });
+      await handleDenyBatchConfirm(clampedConfirm);
+      const [clampedResultEmbed] = lastEmbedsJson(clampedConfirm);
+      const clampedResultLines = (clampedResultEmbed.description ?? '').split('\n');
+      expect(clampedResultLines[0]).toBe(`✅ 1. 🧍 ${twentyFiveEntries[0].discordId} • Injected`);
+      expect(clampedResultLines[1]).toBe(`✅ 2. 🧍 ${twentyFiveEntries[1].discordId}`);
+    });
+
     it('skips deferUpdate and still renders when handleDenyBatchSelectEntry, handleDenyBatchPick, or handleDenyBatchCancel is called with deferred: true', async () => {
       stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: FIVE_DENY_ENTRIES }));
 
