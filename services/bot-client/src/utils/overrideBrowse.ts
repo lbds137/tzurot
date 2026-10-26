@@ -135,6 +135,9 @@ export const SELECT_LIMIT = 25;
 /** Shown when the overrides list call fails. */
 export const FAILED_TO_LOAD_MSG = '❌ Failed to load overrides. Please try again later.';
 
+/** Shown when clearing an override fails or carries an unknown slot segment. */
+export const FAILED_TO_CLEAR_MSG = '❌ Failed to clear the override. Please try again later.';
+
 /** Shown when a handler throws unexpectedly (network error, etc.). */
 export const GENERIC_ERROR_MSG = '❌ An error occurred. Please try again later.';
 
@@ -155,13 +158,23 @@ export function formatOverrideSelectValue(override: OverrideSummary): string {
     : `${override.personalityId}${CUSTOM_ID_DELIMITER}${override.slot}`;
 }
 
-/** Split a select value back into `{ personalityId, slot }`. */
+/**
+ * Split a select value back into `{ personalityId, slot, slotUnknown }`.
+ *
+ * `slotUnknown` is `true` when a second `::` segment is present (including an
+ * empty string `""`) but is not in `MODEL_SLOTS`; `false` when no second segment
+ * is present or when the segment is a known slot. Callers must fail closed and
+ * must not act on `slot` when `slotUnknown` is `true`, because `slot: undefined`
+ * defaults to the text slot at the gateway.
+ */
 export function parseOverrideSelectValue(value: string): {
   personalityId: string;
   slot?: ModelSlot;
+  slotUnknown: boolean;
 } {
   const [personalityId, slotStr] = value.split(CUSTOM_ID_DELIMITER);
-  return { personalityId, slot: narrowModelSlot(slotStr) };
+  const slot = narrowModelSlot(slotStr);
+  return { personalityId, slot, slotUnknown: slotStr !== undefined && slot === undefined };
 }
 
 /** Option fields for one override row in single-select and multi-select menus. */
@@ -191,9 +204,12 @@ export interface OverrideBrowseCustomIds {
   batchCancel: string;
   clear: (personalityId: string, slot?: ModelSlot) => string;
   isOwn: (customId: string) => boolean;
-  parse: (
-    customId: string
-  ) => { action: OverrideBrowseAction; personalityId?: string; slot?: ModelSlot } | null;
+  parse: (customId: string) => {
+    action: OverrideBrowseAction;
+    personalityId?: string;
+    slot?: ModelSlot;
+    slotUnknown?: boolean;
+  } | null;
 }
 
 /** customId builders/parsers for a given override-browse domain. */
@@ -232,7 +248,14 @@ export function createOverrideBrowseCustomIds(prefix: string): OverrideBrowseCus
         return { action };
       }
       if (action === 'clear' && parts[2] !== undefined && parts[2] !== '') {
-        return { action: 'clear', personalityId: parts[2], slot: narrowModelSlot(parts[3]) };
+        const slotStr = parts[3];
+        const slot = narrowModelSlot(slotStr);
+        return {
+          action: 'clear',
+          personalityId: parts[2],
+          slot,
+          slotUnknown: slotStr !== undefined && slot === undefined,
+        };
       }
       return null;
     },
@@ -348,8 +371,13 @@ export async function handleOverrideBrowseSelect(
   // domains) — split so `(personalityId, slot)` identifies the exact override.
   // Safe because personalityId is always a UUID (never contains `::`), so the
   // split is unambiguous — the first segment is the id, the second (if any) slot.
-  const { personalityId, slot } = parseOverrideSelectValue(interaction.values[0]);
+  const { personalityId, slot, slotUnknown } = parseOverrideSelectValue(interaction.values[0]);
   const userId = interaction.user.id;
+  if (slotUnknown) {
+    config.logger.warn({ userId, personalityId }, 'Unknown slot segment in override select');
+    await interaction.editReply(errorReply(FAILED_TO_CLEAR_MSG));
+    return;
+  }
   try {
     const { userClient } = clientsFor(interaction);
     const overrides = await config.list(userClient);
@@ -411,6 +439,14 @@ export async function handleOverrideBrowseButton(
 
   await ackUpdate(interaction);
   const userId = interaction.user.id;
+  if (parsed.action === 'clear' && parsed.slotUnknown === true) {
+    config.logger.warn(
+      { userId, personalityId: parsed.personalityId },
+      'Unknown slot segment in override clear button'
+    );
+    await interaction.editReply(errorReply(FAILED_TO_CLEAR_MSG));
+    return;
+  }
   try {
     const { userClient } = clientsFor(interaction);
 
@@ -418,9 +454,7 @@ export async function handleOverrideBrowseButton(
       const deleteResult = await config.delete(userClient, parsed.personalityId, parsed.slot);
       if (!deleteResult.ok) {
         config.logger.warn({ userId, status: deleteResult.status }, 'Failed to clear override');
-        await interaction.editReply(
-          errorReply('❌ Failed to clear the override. Please try again later.')
-        );
+        await interaction.editReply(errorReply(FAILED_TO_CLEAR_MSG));
         return;
       }
       config.logger.info(

@@ -15,7 +15,9 @@ import { makeOk, makeErr } from '../test/gatewayClientStubs.js';
 import {
   type OverrideBrowseConfig,
   type OverrideSummary,
+  FAILED_TO_CLEAR_MSG,
   createOverrideBrowseCustomIds,
+  parseOverrideSelectValue,
   buildOverrideBrowseView,
   handleOverrideBrowse,
   handleOverrideBrowseSelect,
@@ -97,7 +99,11 @@ describe('createOverrideBrowseCustomIds', () => {
     expect(ids.parse('test-override::batch-select')).toEqual({ action: 'batch-select' });
     expect(ids.parse('test-override::batch-confirm')).toEqual({ action: 'batch-confirm' });
     expect(ids.parse('test-override::batch-cancel')).toEqual({ action: 'batch-cancel' });
-    expect(ids.parse('test-override::clear::p1')).toEqual({ action: 'clear', personalityId: 'p1' });
+    expect(ids.parse('test-override::clear::p1')).toEqual({
+      action: 'clear',
+      personalityId: 'p1',
+      slotUnknown: false,
+    });
   });
 
   it('parses the slot segment on a clear id', () => {
@@ -105,12 +111,20 @@ describe('createOverrideBrowseCustomIds', () => {
       action: 'clear',
       personalityId: 'p1',
       slot: 'vision',
+      slotUnknown: false,
     });
-    // A non-slot 4th segment is ignored (slot left undefined).
+    // A non-slot or empty 4th segment is flagged as slotUnknown (slot left undefined).
     expect(ids.parse('test-override::clear::p1::bogus')).toEqual({
       action: 'clear',
       personalityId: 'p1',
       slot: undefined,
+      slotUnknown: true,
+    });
+    expect(ids.parse('test-override::clear::p1::')).toEqual({
+      action: 'clear',
+      personalityId: 'p1',
+      slot: undefined,
+      slotUnknown: true,
     });
   });
 
@@ -119,6 +133,39 @@ describe('createOverrideBrowseCustomIds', () => {
     expect(ids.parse('test-override::clear')).toBeNull();
     expect(ids.parse('test-override::clear::')).toBeNull();
     expect(ids.parse('test-override::bogus')).toBeNull();
+  });
+});
+
+describe('parseOverrideSelectValue', () => {
+  it('parses bare personalityId and known slots with slotUnknown: false (C4)', () => {
+    expect(parseOverrideSelectValue('p1')).toEqual({
+      personalityId: 'p1',
+      slot: undefined,
+      slotUnknown: false,
+    });
+    expect(parseOverrideSelectValue('p1::text')).toEqual({
+      personalityId: 'p1',
+      slot: 'text',
+      slotUnknown: false,
+    });
+    expect(parseOverrideSelectValue('p1::vision')).toEqual({
+      personalityId: 'p1',
+      slot: 'vision',
+      slotUnknown: false,
+    });
+  });
+
+  it('flags unknown or empty slot segments as slotUnknown: true (C5)', () => {
+    expect(parseOverrideSelectValue('p1::bogus')).toEqual({
+      personalityId: 'p1',
+      slot: undefined,
+      slotUnknown: true,
+    });
+    expect(parseOverrideSelectValue('p1::')).toEqual({
+      personalityId: 'p1',
+      slot: undefined,
+      slotUnknown: true,
+    });
   });
 });
 
@@ -332,6 +379,34 @@ describe('handleOverrideBrowseSelect', () => {
       components: [],
     });
   });
+
+  it('fails closed with error reply and builds no confirm view when select value carries an unknown or empty slot segment (C3, C5)', async () => {
+    const config = makeConfig();
+    await handleOverrideBrowseSelect(config, selectInteraction('p1::bogus'));
+
+    expect(deferUpdate).toHaveBeenCalledTimes(1);
+    expect(stub.list).not.toHaveBeenCalled();
+    expect(stub.delete).not.toHaveBeenCalled();
+    expect(config.logger.warn).toHaveBeenCalledWith(
+      { userId: 'u1', personalityId: 'p1' },
+      'Unknown slot segment in override select'
+    );
+    expect(JSON.stringify(vi.mocked(config.logger.warn).mock.calls)).not.toContain('bogus');
+    expect(editReply).toHaveBeenCalledWith({
+      content: FAILED_TO_CLEAR_MSG,
+      embeds: [],
+      components: [],
+    });
+
+    editReply.mockClear();
+    await handleOverrideBrowseSelect(config, selectInteraction('p1::'));
+    expect(stub.list).not.toHaveBeenCalled();
+    expect(editReply).toHaveBeenCalledWith({
+      content: FAILED_TO_CLEAR_MSG,
+      embeds: [],
+      components: [],
+    });
+  });
 });
 
 describe('handleOverrideBrowseButton', () => {
@@ -425,5 +500,33 @@ describe('handleOverrideBrowseButton', () => {
     await handleOverrideBrowseButton(makeConfig(), buttonInteraction('test-override::select'));
     expect(deferUpdate).not.toHaveBeenCalled();
     expect(stub.delete).not.toHaveBeenCalled();
+  });
+
+  it('fails closed with error reply and does not call delete when clear customId carries an unknown or empty slot segment (C2, C5)', async () => {
+    const config = makeConfig();
+    await handleOverrideBrowseButton(config, buttonInteraction('test-override::clear::p1::bogus'));
+
+    expect(deferUpdate).toHaveBeenCalledTimes(1);
+    expect(stub.delete).not.toHaveBeenCalled();
+    expect(stub.list).not.toHaveBeenCalled();
+    expect(config.logger.warn).toHaveBeenCalledWith(
+      { userId: 'u1', personalityId: 'p1' },
+      'Unknown slot segment in override clear button'
+    );
+    expect(JSON.stringify(vi.mocked(config.logger.warn).mock.calls)).not.toContain('bogus');
+    expect(editReply).toHaveBeenCalledWith({
+      content: FAILED_TO_CLEAR_MSG,
+      embeds: [],
+      components: [],
+    });
+
+    editReply.mockClear();
+    await handleOverrideBrowseButton(config, buttonInteraction('test-override::clear::p1::'));
+    expect(stub.delete).not.toHaveBeenCalled();
+    expect(editReply).toHaveBeenCalledWith({
+      content: FAILED_TO_CLEAR_MSG,
+      embeds: [],
+      components: [],
+    });
   });
 });
