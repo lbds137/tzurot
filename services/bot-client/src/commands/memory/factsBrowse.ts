@@ -119,8 +119,8 @@ export interface FactsRefreshOptions {
  * Notify the user ephemerally when a facts list page cannot be shown (expired
  * session vs transient page-fetch failure, or the post-forget confirmation copy
  * when `options.afterForget` is set). Logs the failed-fetch case with ids only
- * and swallows a rejected followUp so callers do not crash on an expired
- * interaction token.
+ * and swallows (and logs) a rejected followUp, so a notice that could not be
+ * delivered never fails the caller.
  */
 export async function followUpFactsRefusal(
   interaction: ButtonInteraction,
