@@ -94,7 +94,42 @@ export async function findFactBrowseSession(
 /** Why {@link fetchCurrentFactsPage} could not produce a page. */
 export type FactsPageRefusal = 'session-gone' | 'fetch-failed';
 
-const SESSION_GONE = 'session-gone';
+const FACTS_PAGE_REFUSAL = {
+  SESSION_GONE: 'session-gone',
+  FETCH_FAILED: 'fetch-failed',
+} as const satisfies Record<string, FactsPageRefusal>;
+
+/**
+ * Notify the user ephemerally when a facts list page cannot be shown (expired
+ * session vs transient page-fetch failure). Logs the failed-fetch case with
+ * ids only and swallows a rejected followUp so callers do not crash on an
+ * expired interaction token.
+ */
+export async function followUpFactsRefusal(
+  interaction: ButtonInteraction,
+  reason: FactsPageRefusal
+): Promise<void> {
+  if (reason === FACTS_PAGE_REFUSAL.FETCH_FAILED) {
+    logger.warn(
+      { userId: interaction.user.id, messageId: interaction.message.id },
+      'Facts list could not be shown: page fetch failed'
+    );
+  }
+  try {
+    await interaction.followUp({
+      content:
+        reason === FACTS_PAGE_REFUSAL.SESSION_GONE
+          ? FACTS_SESSION_EXPIRED
+          : renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
+      flags: MessageFlags.Ephemeral,
+    });
+  } catch (err) {
+    logger.warn(
+      { err, userId: interaction.user.id },
+      'Could not notify the user of the facts refusal'
+    );
+  }
+}
 
 /** Result of {@link fetchCurrentFactsPage}: the session + page, or why not. */
 export type CurrentFactsPage =
@@ -115,7 +150,7 @@ export async function fetchCurrentFactsPage(
 ): Promise<CurrentFactsPage> {
   const session = await findFactBrowseSession(interaction.message.id);
   if (session === null) {
-    return { ok: false, reason: SESSION_GONE };
+    return { ok: false, reason: FACTS_PAGE_REFUSAL.SESSION_GONE };
   }
   const { personalityId, tag, query } = session.data;
   const { userClient } = clientsFor(interaction);
@@ -127,7 +162,7 @@ export async function fetchCurrentFactsPage(
     { tag, query }
   );
   if (data === null) {
-    return { ok: false, reason: 'fetch-failed' };
+    return { ok: false, reason: FACTS_PAGE_REFUSAL.FETCH_FAILED };
   }
   return { ok: true, session, data };
 }
@@ -306,15 +341,7 @@ export async function handleFactsPagination(interaction: ButtonInteraction): Pro
   const messageId = interaction.message.id;
   const result = await fetchCurrentFactsPage(interaction, parsed.page);
   if (!result.ok) {
-    // A gone session is an expiry; a live session with a failed fetch is the
-    // transient copy — never the expiry message.
-    await interaction.followUp({
-      content:
-        result.reason === 'session-gone'
-          ? FACTS_SESSION_EXPIRED
-          : renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
-      flags: MessageFlags.Ephemeral,
-    });
+    await followUpFactsRefusal(interaction, result.reason);
     return;
   }
 
@@ -364,8 +391,7 @@ async function updateFactSessionPage(
 /** Outcome of {@link buildRefreshedFactsOutcome}: the rebuilt view, or why not. */
 export type RefreshedFactsOutcome =
   | { kind: 'view'; view: { embed: EmbedBuilder; components: BrowseActionRow[] } }
-  | { kind: 'session-gone' }
-  | { kind: 'fetch-failed' };
+  | { kind: FactsPageRefusal };
 
 /**
  * Build the refreshed list outcome for the message an interaction came from,
@@ -378,7 +404,7 @@ export async function buildRefreshedFactsOutcome(
   const messageId = interaction.message.id;
   const session = await findFactBrowseSession(messageId);
   if (session === null) {
-    return { kind: SESSION_GONE };
+    return { kind: FACTS_PAGE_REFUSAL.SESSION_GONE };
   }
 
   const { personalityId, tag, query } = session.data;
@@ -391,7 +417,7 @@ export async function buildRefreshedFactsOutcome(
     isEmpty: d => d.facts.length === 0,
   });
   if (result === null) {
-    return { kind: 'fetch-failed' };
+    return { kind: FACTS_PAGE_REFUSAL.FETCH_FAILED };
   }
 
   if (result.steppedBack) {
@@ -435,13 +461,7 @@ export async function buildRefreshedFactsView(
 export async function refreshFactsList(interaction: ButtonInteraction): Promise<void> {
   const outcome = await buildRefreshedFactsOutcome(interaction);
   if (outcome.kind !== 'view') {
-    await interaction.followUp({
-      content:
-        outcome.kind === SESSION_GONE
-          ? FACTS_SESSION_EXPIRED
-          : renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
-      flags: MessageFlags.Ephemeral,
-    });
+    await followUpFactsRefusal(interaction, outcome.kind);
     return;
   }
   await interaction.editReply({
