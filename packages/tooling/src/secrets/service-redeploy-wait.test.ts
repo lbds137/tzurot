@@ -1,16 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+import type { redeployRailwayServiceReusingImageWithSource } from '../deployment/railway-api.js';
 import {
   assertPresentersStillReady,
-  DEFAULT_VERIFIER_POLL_INTERVAL_MS,
-  DEFAULT_VERIFIER_WAIT_TIMEOUT_MS,
+  DEFAULT_SERVICE_POLL_INTERVAL_MS,
+  DEFAULT_SERVICE_WAIT_TIMEOUT_MS,
   MAX_CONSECUTIVE_POLL_ERRORS,
-  redeployAndWaitForVerifier,
-} from './verifier-redeploy-wait.js';
+  redeployAndWaitForService,
+  type RedeployWaitWording,
+} from './service-redeploy-wait.js';
 
-const VERIFIER = { id: 'svc-gateway', name: 'api-gateway' };
+const SERVICE = { id: 'svc-gateway', name: 'api-gateway' };
 
-describe('redeployAndWaitForVerifier', () => {
+type RedeployFn = typeof redeployRailwayServiceReusingImageWithSource;
+
+describe('redeployAndWaitForService', () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -32,15 +36,15 @@ describe('redeployAndWaitForVerifier', () => {
       .mockResolvedValueOnce({ id: 'dep-new', status: 'DEPLOYING' })
       .mockResolvedValueOnce({ id: 'dep-new', status: 'SUCCESS' });
 
-    const promise = redeployAndWaitForVerifier({
+    const promise = redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'dev',
       redeploy,
       getLatestDeployment,
     });
 
-    await vi.advanceTimersByTimeAsync(DEFAULT_VERIFIER_POLL_INTERVAL_MS * 4);
+    await vi.advanceTimersByTimeAsync(DEFAULT_SERVICE_POLL_INTERVAL_MS * 4);
     const result = await promise;
 
     expect(result).toBe('dep-new');
@@ -68,15 +72,15 @@ describe('redeployAndWaitForVerifier', () => {
       .mockResolvedValueOnce({ id: 'dep-old', status: 'SUCCESS' })
       .mockResolvedValueOnce({ id: 'dep-new', status: 'FAILED' });
 
-    const caughtPromise = redeployAndWaitForVerifier({
+    const caughtPromise = redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'dev',
       redeploy,
       getLatestDeployment,
     }).catch((err: unknown) => err);
 
-    await vi.advanceTimersByTimeAsync(DEFAULT_VERIFIER_POLL_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(DEFAULT_SERVICE_POLL_INTERVAL_MS);
     const caught = await caughtPromise;
 
     expect(caught).toBeInstanceOf(Error);
@@ -94,15 +98,15 @@ describe('redeployAndWaitForVerifier', () => {
       .mockResolvedValue({ sourceDeploymentId: 'dep-old', newDeploymentId: 'dep-new' });
     const getLatestDeployment = vi.fn().mockResolvedValue({ id: 'dep-old', status: 'SUCCESS' });
 
-    const caughtPromise = redeployAndWaitForVerifier({
+    const caughtPromise = redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'prod',
       redeploy,
       getLatestDeployment,
     }).catch((err: unknown) => err);
 
-    await vi.advanceTimersByTimeAsync(DEFAULT_VERIFIER_WAIT_TIMEOUT_MS);
+    await vi.advanceTimersByTimeAsync(DEFAULT_SERVICE_WAIT_TIMEOUT_MS);
     const caught = await caughtPromise;
 
     expect(caught).toBeInstanceOf(Error);
@@ -124,9 +128,9 @@ describe('redeployAndWaitForVerifier', () => {
       const sleep = vi.fn().mockResolvedValue(undefined);
       let t = 0;
 
-      const caught = await redeployAndWaitForVerifier({
+      const caught = await redeployAndWaitForService({
         environmentId: 'env-1',
-        verifier: VERIFIER,
+        service: SERVICE,
         env: 'dev',
         timeoutMs: 1000,
         redeploy,
@@ -155,15 +159,15 @@ describe('redeployAndWaitForVerifier', () => {
       .mockResolvedValueOnce({ id: 'dep-old', status: 'REMOVED' })
       .mockResolvedValueOnce({ id: 'dep-new', status: 'SUCCESS' });
 
-    const promise = redeployAndWaitForVerifier({
+    const promise = redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'dev',
       redeploy,
       getLatestDeployment,
     });
 
-    await vi.advanceTimersByTimeAsync(DEFAULT_VERIFIER_POLL_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(DEFAULT_SERVICE_POLL_INTERVAL_MS);
     await expect(promise).resolves.toBe('dep-new');
     expect(getLatestDeployment).toHaveBeenCalledTimes(2);
   });
@@ -174,15 +178,15 @@ describe('redeployAndWaitForVerifier', () => {
       .mockResolvedValue({ sourceDeploymentId: 'dep-old', newDeploymentId: 'dep-new' });
     const getLatestDeployment = vi.fn().mockResolvedValue({ id: 'dep-new', status: 'BUILDING' });
 
-    const caughtPromise = redeployAndWaitForVerifier({
+    const caughtPromise = redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'dev',
       redeploy,
       getLatestDeployment,
     }).catch((err: unknown) => err);
 
-    await vi.advanceTimersByTimeAsync(DEFAULT_VERIFIER_WAIT_TIMEOUT_MS);
+    await vi.advanceTimersByTimeAsync(DEFAULT_SERVICE_WAIT_TIMEOUT_MS);
     const caught = await caughtPromise;
 
     expect(caught).toBeInstanceOf(Error);
@@ -200,9 +204,9 @@ describe('redeployAndWaitForVerifier', () => {
       .mockResolvedValue({ sourceDeploymentId: 'dep-old', newDeploymentId: 'dep-new' });
     const getLatestDeployment = vi.fn().mockResolvedValue(null);
 
-    const caughtPromise = redeployAndWaitForVerifier({
+    const caughtPromise = redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'dev',
       timeoutMs: 10_000,
       pollIntervalMs: 5_000,
@@ -229,15 +233,15 @@ describe('redeployAndWaitForVerifier', () => {
       .mockRejectedValueOnce(new Error('transient network failure 2'))
       .mockResolvedValueOnce({ id: 'dep-new', status: 'SUCCESS' });
 
-    const promise = redeployAndWaitForVerifier({
+    const promise = redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'dev',
       redeploy,
       getLatestDeployment,
     });
 
-    await vi.advanceTimersByTimeAsync(DEFAULT_VERIFIER_POLL_INTERVAL_MS * 2);
+    await vi.advanceTimersByTimeAsync(DEFAULT_SERVICE_POLL_INTERVAL_MS * 2);
     await expect(promise).resolves.toBe('dep-new');
     expect(getLatestDeployment).toHaveBeenCalledTimes(3);
   });
@@ -257,15 +261,15 @@ describe('redeployAndWaitForVerifier', () => {
       .mockRejectedValueOnce(new Error('glitch 4'))
       .mockResolvedValueOnce({ id: 'dep-new', status: 'SUCCESS' });
 
-    const promise = redeployAndWaitForVerifier({
+    const promise = redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'dev',
       redeploy,
       getLatestDeployment,
     });
 
-    await vi.advanceTimersByTimeAsync(DEFAULT_VERIFIER_POLL_INTERVAL_MS * 7);
+    await vi.advanceTimersByTimeAsync(DEFAULT_SERVICE_POLL_INTERVAL_MS * 7);
     await expect(promise).resolves.toBe('dep-new');
     expect(getLatestDeployment).toHaveBeenCalledTimes(8);
   });
@@ -281,16 +285,16 @@ describe('redeployAndWaitForVerifier', () => {
       .mockRejectedValueOnce(new Error('glitch 3'))
       .mockRejectedValueOnce('raw rejection carrying SENTINEL-TOKEN-VALUE');
 
-    const caughtPromise = redeployAndWaitForVerifier({
+    const caughtPromise = redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'dev',
       redeploy,
       getLatestDeployment,
     }).catch((err: unknown) => err);
 
     await vi.advanceTimersByTimeAsync(
-      DEFAULT_VERIFIER_POLL_INTERVAL_MS * MAX_CONSECUTIVE_POLL_ERRORS
+      DEFAULT_SERVICE_POLL_INTERVAL_MS * MAX_CONSECUTIVE_POLL_ERRORS
     );
     const caught = await caughtPromise;
 
@@ -316,16 +320,16 @@ describe('redeployAndWaitForVerifier', () => {
       .mockRejectedValueOnce(new Error('glitch 3'))
       .mockRejectedValueOnce(new Error('Railway GraphQL 502 Bad Gateway'));
 
-    const caughtPromise = redeployAndWaitForVerifier({
+    const caughtPromise = redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'prod',
       redeploy,
       getLatestDeployment,
     }).catch((err: unknown) => err);
 
     await vi.advanceTimersByTimeAsync(
-      DEFAULT_VERIFIER_POLL_INTERVAL_MS * MAX_CONSECUTIVE_POLL_ERRORS
+      DEFAULT_SERVICE_POLL_INTERVAL_MS * MAX_CONSECUTIVE_POLL_ERRORS
     );
     const caught = await caughtPromise;
 
@@ -348,9 +352,9 @@ describe('redeployAndWaitForVerifier', () => {
     const sleep = vi.fn().mockResolvedValue(undefined);
     let t = 0;
 
-    const caught = await redeployAndWaitForVerifier({
+    const caught = await redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'prod',
       timeoutMs: 1000,
       redeploy,
@@ -384,15 +388,15 @@ describe('redeployAndWaitForVerifier', () => {
       .mockResolvedValueOnce({ id: 'dep-new', status: 'DEPLOYING' })
       .mockResolvedValueOnce({ id: 'dep-new', status: 'SUCCESS' });
 
-    const promise = redeployAndWaitForVerifier({
+    const promise = redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'dev',
       redeploy,
       getLatestDeployment,
     });
 
-    await vi.advanceTimersByTimeAsync(DEFAULT_VERIFIER_POLL_INTERVAL_MS * 6);
+    await vi.advanceTimersByTimeAsync(DEFAULT_SERVICE_POLL_INTERVAL_MS * 6);
     await expect(promise).resolves.toBe('dep-new');
 
     const lines = logSpy.mock.calls.flat().map(String);
@@ -406,9 +410,9 @@ describe('redeployAndWaitForVerifier', () => {
     const redeploy = vi.fn().mockRejectedValue(new Error('deploymentRedeploy mutation failed'));
     const getLatestDeployment = vi.fn();
 
-    const caught = await redeployAndWaitForVerifier({
+    const caught = await redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'dev',
       redeploy,
       getLatestDeployment,
@@ -431,9 +435,9 @@ describe('redeployAndWaitForVerifier', () => {
       .mockRejectedValue('raw trigger rejection carrying SENTINEL-TOKEN-VALUE');
     const getLatestDeployment = vi.fn();
 
-    const caught = await redeployAndWaitForVerifier({
+    const caught = await redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'prod',
       redeploy,
       getLatestDeployment,
@@ -453,9 +457,9 @@ describe('redeployAndWaitForVerifier', () => {
     const redeploy = vi.fn().mockRejectedValue(new Error('unexpected shape'));
     const getLatestDeployment = vi.fn();
 
-    const caught = await redeployAndWaitForVerifier({
+    const caught = await redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'dev',
       redeploy,
       getLatestDeployment,
@@ -478,9 +482,9 @@ describe('redeployAndWaitForVerifier', () => {
     const sleep = vi.fn().mockResolvedValue(undefined);
     let t = 0;
 
-    const caught = await redeployAndWaitForVerifier({
+    const caught = await redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'prod',
       timeoutMs: 1000,
       redeploy,
@@ -510,9 +514,9 @@ describe('redeployAndWaitForVerifier', () => {
     const sleep = vi.fn().mockResolvedValue(undefined);
     let t = 0;
 
-    const caught = await redeployAndWaitForVerifier({
+    const caught = await redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'prod',
       timeoutMs: 1000,
       redeploy,
@@ -543,15 +547,15 @@ describe('redeployAndWaitForVerifier', () => {
       .mockResolvedValueOnce({ id: 'dep-prev', status: 'SUCCESS' })
       .mockResolvedValueOnce({ id: 'dep-new', status: 'SUCCESS' });
 
-    const promise = redeployAndWaitForVerifier({
+    const promise = redeployAndWaitForService({
       environmentId: 'env-1',
-      verifier: VERIFIER,
+      service: SERVICE,
       env: 'dev',
       redeploy,
       getLatestDeployment,
     });
 
-    await vi.advanceTimersByTimeAsync(DEFAULT_VERIFIER_POLL_INTERVAL_MS * 2);
+    await vi.advanceTimersByTimeAsync(DEFAULT_SERVICE_POLL_INTERVAL_MS * 2);
     await expect(promise).resolves.toBe('dep-new');
     expect(getLatestDeployment).toHaveBeenCalledTimes(3);
   });
@@ -570,9 +574,9 @@ describe('redeployAndWaitForVerifier', () => {
     let nowReads = 0;
 
     await expect(
-      redeployAndWaitForVerifier({
+      redeployAndWaitForService({
         environmentId: 'env-1',
-        verifier: VERIFIER,
+        service: SERVICE,
         env: 'dev',
         timeoutMs: 1000,
         redeploy,
@@ -731,5 +735,174 @@ describe('assertPresentersStillReady', () => {
       serviceId: 'svc-bot',
       env: 'dev',
     });
+  });
+});
+
+describe('redeployAndWaitForService custom wording', () => {
+  const WORDING = {
+    noun: 'service',
+    stage: 'BYOK stage 2',
+    rerunNote: 'no row has been re-encrypted. Re-running BYOK stage 2 is safe.',
+    terminalRecovery: ({ service, env }) =>
+      `redeploy ${service} by hand in ${env}, then re-run BYOK stage 2.`,
+  } satisfies RedeployWaitWording;
+
+  const redeploy = (): RedeployFn =>
+    vi.fn().mockResolvedValue({ sourceDeploymentId: 'dep-old', newDeploymentId: 'dep-new' });
+
+  async function refusal(args: {
+    latest: { id: string; status: string };
+    wording?: RedeployWaitWording;
+  }): Promise<string> {
+    const caught = await redeployAndWaitForService({
+      environmentId: 'env-1',
+      service: SERVICE,
+      env: 'dev',
+      redeploy: redeploy(),
+      getLatestDeployment: vi.fn().mockResolvedValue(args.latest),
+      sleep: vi.fn().mockResolvedValue(undefined),
+      wording: args.wording,
+    }).catch((err: unknown) => err);
+    return (caught as Error).message;
+  }
+
+  it('terminal failure uses the supplied noun and stage, closes with terminalRecovery instead of the rerun note, and none of the rotate-env vocabulary', async () => {
+    const message = await refusal({
+      latest: { id: 'dep-new', status: 'FAILED' },
+      wording: WORDING,
+    });
+    expect(message).toBe(
+      'BYOK stage 2 redeployed service "api-gateway" (dev), but the new deployment reached terminal status FAILED instead of SUCCESS — redeploy api-gateway by hand in dev, then re-run BYOK stage 2.'
+    );
+  });
+
+  it('terminal failure without terminalRecovery still closes with the supplied rerun note', async () => {
+    const message = await refusal({
+      latest: { id: 'dep-new', status: 'FAILED' },
+      wording: { ...WORDING, terminalRecovery: undefined },
+    });
+    expect(message).toBe(
+      'BYOK stage 2 redeployed service "api-gateway" (dev), but the new deployment reached terminal status FAILED instead of SUCCESS — no row has been re-encrypted. Re-running BYOK stage 2 is safe.'
+    );
+  });
+
+  it('NEEDS_APPROVAL and superseding-deployment refusals say "re-run <stage>" with the supplied stage', async () => {
+    const approval = await refusal({
+      latest: { id: 'dep-new', status: 'NEEDS_APPROVAL' },
+      wording: WORDING,
+    });
+    expect(approval).toContain('re-run BYOK stage 2 (no row has been re-encrypted.');
+    const superseded = await refusal({
+      latest: { id: 'dep-third', status: 'BUILDING' },
+      wording: WORDING,
+    });
+    expect(superseded).toContain(
+      'BYOK stage 2 redeployed service "api-gateway" (dev), but a different'
+    );
+    expect(superseded).toContain('then re-run BYOK stage 2 (no row has been re-encrypted.');
+  });
+
+  it('trigger and poll-failure refusals use the supplied noun and rerun note', async () => {
+    const triggerMessage = await redeployAndWaitForService({
+      environmentId: 'env-1',
+      service: SERVICE,
+      env: 'dev',
+      redeploy: vi.fn().mockRejectedValue(new Error('trigger boom')),
+      wording: WORDING,
+    }).catch((err: unknown) => (err as Error).message);
+    expect(triggerMessage).toBe(
+      'The redeploy request for service "api-gateway" (dev) failed or returned an unexpected shape (trigger boom) — the service may already be restarting; no row has been re-encrypted. Re-running BYOK stage 2 is safe.'
+    );
+
+    const pollMessage = await redeployAndWaitForService({
+      environmentId: 'env-1',
+      service: SERVICE,
+      env: 'dev',
+      redeploy: redeploy(),
+      getLatestDeployment: vi.fn().mockRejectedValue(new Error('poll boom')),
+      sleep: vi.fn().mockResolvedValue(undefined),
+      wording: WORDING,
+    }).catch((err: unknown) => (err as Error).message);
+    expect(pollMessage).toContain(
+      'Polling latest deployment for service "api-gateway" (dev) failed'
+    );
+    expect(pollMessage).toContain('— no row has been re-encrypted.');
+  });
+
+  it('timeout refusal uses the supplied noun and rerun note', async () => {
+    let t = 0;
+    const message = await redeployAndWaitForService({
+      environmentId: 'env-1',
+      service: SERVICE,
+      env: 'dev',
+      redeploy: redeploy(),
+      getLatestDeployment: vi.fn().mockResolvedValue({ id: 'dep-new', status: 'DEPLOYING' }),
+      sleep: vi.fn().mockResolvedValue(undefined),
+      now: () => {
+        t += DEFAULT_SERVICE_WAIT_TIMEOUT_MS;
+        return t;
+      },
+      wording: WORDING,
+    }).catch((err: unknown) => (err as Error).message);
+    expect(message).toContain('waiting for service "api-gateway" (dev) redeploy to reach SUCCESS');
+    expect(message).toContain('(last observed status: DEPLOYING) — no row has been re-encrypted.');
+  });
+
+  it('a function-valued rerunNote receives the service and env and closes the superseding-deployment refusal', async () => {
+    const rerunNote = vi.fn(({ service, env }: { service: string; env: string }) => {
+      return `repair ${service} in ${env}`;
+    });
+    const message = await refusal({
+      latest: { id: 'dep-third', status: 'BUILDING' },
+      wording: { ...WORDING, rerunNote },
+    });
+    expect(rerunNote).toHaveBeenCalledWith({ service: 'api-gateway', env: 'dev' });
+    expect(message).toContain('then re-run BYOK stage 2 (repair api-gateway in dev)');
+  });
+
+  it('shortRerunNote closes the superseding-deployment and NEEDS_APPROVAL refusals while the other refusals keep rerunNote', async () => {
+    const wording = { ...WORDING, shortRerunNote: 'short note' } satisfies RedeployWaitWording;
+    const approval = await refusal({
+      latest: { id: 'dep-new', status: 'NEEDS_APPROVAL' },
+      wording,
+    });
+    expect(approval).toContain('re-run BYOK stage 2 (short note)');
+    expect(approval).not.toContain('no row has been re-encrypted');
+    const superseded = await refusal({ latest: { id: 'dep-third', status: 'BUILDING' }, wording });
+    expect(superseded).toContain('then re-run BYOK stage 2 (short note)');
+    expect(superseded).not.toContain('no row has been re-encrypted');
+
+    let t = 0;
+    const timedOut = await redeployAndWaitForService({
+      environmentId: 'env-1',
+      service: SERVICE,
+      env: 'dev',
+      redeploy: redeploy(),
+      getLatestDeployment: vi.fn().mockResolvedValue({ id: 'dep-new', status: 'DEPLOYING' }),
+      sleep: vi.fn().mockResolvedValue(undefined),
+      now: () => {
+        t += DEFAULT_SERVICE_WAIT_TIMEOUT_MS;
+        return t;
+      },
+      wording,
+    }).catch((err: unknown) => (err as Error).message);
+    expect(timedOut).toContain('— no row has been re-encrypted. Re-running BYOK stage 2 is safe.');
+    expect(timedOut).not.toContain('short note');
+  });
+
+  it('omitting wording closes the NEEDS_APPROVAL and superseding-deployment refusals with the default note, byte for byte', async () => {
+    const note =
+      '(nothing was redeployed on presenters. Re-running stage 2 is safe because redeploying the verifier is idempotent while the dual-acceptance window is open.)';
+    const approval = await refusal({ latest: { id: 'dep-new', status: 'NEEDS_APPROVAL' } });
+    expect(approval.endsWith(`approve it in the dashboard and re-run stage 2 ${note}`)).toBe(true);
+    const superseded = await refusal({ latest: { id: 'dep-third', status: 'BUILDING' } });
+    expect(superseded.endsWith(`then re-run stage 2 ${note}`)).toBe(true);
+  });
+
+  it('omitting wording keeps the rotate-env vocabulary', async () => {
+    const message = await refusal({ latest: { id: 'dep-new', status: 'FAILED' } });
+    expect(message).toBe(
+      'Stage 2 redeployed verifier "api-gateway" (dev), but the new deployment reached terminal status FAILED instead of SUCCESS — nothing was redeployed on presenters. Re-running stage 2 is safe because redeploying the verifier is idempotent while the dual-acceptance window is open.'
+    );
   });
 });

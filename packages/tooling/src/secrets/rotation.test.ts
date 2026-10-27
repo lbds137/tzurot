@@ -4,9 +4,10 @@
  */
 
 import util from 'node:util';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { encryptWithKey, parseEncryptionKeyMaterial } from '@tzurot/common-types/utils/encryption';
 import type { RailwayIds } from '../deployment/railway-status.js';
+import { DEFAULT_SERVICE_POLL_INTERVAL_MS } from './service-redeploy-wait.js';
 
 const mockExecFileSync = vi.fn();
 vi.mock('node:child_process', () => ({
@@ -34,6 +35,8 @@ const {
   upsertRailwayVariable,
   deleteRailwayVariable,
   redeployRailwayServiceReusingImage,
+  redeployRailwayServiceReusingImageWithSource,
+  getRailwayServiceLatestDeployment,
   resolveRailwayIds,
 } = vi.hoisted(() => ({
   assertRailwayServiceDeploymentReady: vi.fn(),
@@ -41,6 +44,8 @@ const {
   upsertRailwayVariable: vi.fn(),
   deleteRailwayVariable: vi.fn(),
   redeployRailwayServiceReusingImage: vi.fn(),
+  redeployRailwayServiceReusingImageWithSource: vi.fn(),
+  getRailwayServiceLatestDeployment: vi.fn(),
   resolveRailwayIds: vi.fn((_env: string, service: string): RailwayIds => ({
     projectId: 'proj',
     environmentId: 'envid',
@@ -54,6 +59,8 @@ vi.mock('../deployment/railway-api.js', () => ({
   upsertRailwayVariable,
   deleteRailwayVariable,
   redeployRailwayServiceReusingImage,
+  redeployRailwayServiceReusingImageWithSource,
+  getRailwayServiceLatestDeployment,
 }));
 
 vi.mock('../deployment/railway-status.js', () => ({
@@ -150,6 +157,18 @@ describe('rotateByokKey', () => {
     upsertRailwayVariable.mockResolvedValue(undefined);
     deleteRailwayVariable.mockResolvedValue(undefined);
     redeployRailwayServiceReusingImage.mockResolvedValue('dep-new');
+    // Stage 2's per-service wait: each redeploy yields a new id that the next
+    // latest-deployment poll reports at SUCCESS.
+    redeployRailwayServiceReusingImageWithSource.mockImplementation(
+      ({ serviceId }: { serviceId: string }) =>
+        Promise.resolve({
+          sourceDeploymentId: `old-${serviceId}`,
+          newDeploymentId: `new-${serviceId}`,
+        })
+    );
+    getRailwayServiceLatestDeployment.mockImplementation(({ serviceId }: { serviceId: string }) =>
+      Promise.resolve({ id: `new-${serviceId}`, status: 'SUCCESS' })
+    );
     resolveRailwayIds.mockImplementation((_env: string, service: string) => ({
       projectId: 'proj',
       environmentId: 'envid',
@@ -186,6 +205,7 @@ describe('rotateByokKey', () => {
   it('stage 2 refuses when no rotation window is open (PREVIOUS empty)', async () => {
     stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX, API_KEY_ENCRYPTION_KEY_PREVIOUS: '' });
     await expect(rotateByokKey({ env: 'dev', stage: '2' })).rejects.toThrow('stage 1 first');
+    expect(redeployRailwayServiceReusingImageWithSource).not.toHaveBeenCalled();
   });
 
   it('stage 2 re-encrypts previous-key rows to the current key and leaves current rows alone', async () => {
@@ -376,7 +396,7 @@ describe('rotateByokKey', () => {
     expect(caught).toBeInstanceOf(Error);
     const message = caught instanceof Error ? caught.message : '';
     expect(message).toBe(
-      'Failed to upsert API_KEY_ENCRYPTION_KEY on api-gateway (dev); it may or may not have applied. Re-run stage 1, then follow what it reports: if it completes, nothing more to do; if it reports API_KEY_ENCRYPTION_KEY DIFFERS, copy API_KEY_ENCRYPTION_KEY from api-gateway to ai-worker in the Railway dashboard, then run `pnpm ops deploy:redeploy --env dev --service api-gateway --yes` and the same for ai-worker, wait for both, then run stage 2; if it reports a rotation window is already open, every write landed: redeploy both services the same way, wait for both, then run stage 2. No stored row has been touched; stage 2 has not run.'
+      'Failed to upsert API_KEY_ENCRYPTION_KEY on api-gateway (dev); it may or may not have applied. Re-run stage 1, then follow what it reports: if it completes, nothing more to do; if it reports API_KEY_ENCRYPTION_KEY DIFFERS, copy API_KEY_ENCRYPTION_KEY from api-gateway to ai-worker in the Railway dashboard, then run stage 2, which redeploys both services itself and waits for each to reach SUCCESS; if it reports a rotation window is already open, every write landed: run stage 2, which redeploys both services itself. No stored row has been touched; stage 2 has not run.'
     );
     expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
   });
@@ -399,7 +419,7 @@ describe('rotateByokKey', () => {
     expect(caught).toBeInstanceOf(Error);
     const message = caught instanceof Error ? caught.message : '';
     expect(message).toBe(
-      'Failed to upsert API_KEY_ENCRYPTION_KEY on ai-worker (dev); it may or may not have applied. Re-run stage 1, then follow what it reports: if it completes, nothing more to do; if it reports API_KEY_ENCRYPTION_KEY DIFFERS, copy API_KEY_ENCRYPTION_KEY from api-gateway to ai-worker in the Railway dashboard, then run `pnpm ops deploy:redeploy --env dev --service api-gateway --yes` and the same for ai-worker, wait for both, then run stage 2; if it reports a rotation window is already open, every write landed: redeploy both services the same way, wait for both, then run stage 2. No stored row has been touched; stage 2 has not run.'
+      'Failed to upsert API_KEY_ENCRYPTION_KEY on ai-worker (dev); it may or may not have applied. Re-run stage 1, then follow what it reports: if it completes, nothing more to do; if it reports API_KEY_ENCRYPTION_KEY DIFFERS, copy API_KEY_ENCRYPTION_KEY from api-gateway to ai-worker in the Railway dashboard, then run stage 2, which redeploys both services itself and waits for each to reach SUCCESS; if it reports a rotation window is already open, every write landed: run stage 2, which redeploys both services itself. No stored row has been touched; stage 2 has not run.'
     );
     expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
   });
@@ -451,7 +471,7 @@ describe('rotateByokKey', () => {
 
     const promise = rotateByokKey({ env: 'dev', stage: '1' });
     await expect(promise).rejects.toThrow(
-      'Redeploy api-gateway with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`, wait for each redeploy to reach SUCCESS, then run stage 2.'
+      "Run stage 2 once both services' latest deployments have settled: it redeploys both services itself and waits for each new deployment to reach SUCCESS before touching any row. If a service's latest deployment is FAILED, CRASHED, REMOVED or SKIPPED, redeploy it first with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`, because stage 2's readiness check refuses it."
     );
     await expect(promise).rejects.not.toThrow('not verified:');
     expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
@@ -484,7 +504,7 @@ describe('rotateByokKey', () => {
       'A rotation window is already open (PREVIOUS is set) — run stage 2 then stage 3 to close it before starting a new rotation.'
     );
     await expect(promise).rejects.toThrow(
-      'If stage 1 itself was interrupted after its writes, redeploy both services first (`pnpm ops deploy:redeploy --env dev --service <name> --yes`) and wait for them before stage 2.'
+      "If stage 1 itself was interrupted after its writes, run stage 2 once both services' latest deployments have settled: it redeploys both services itself and waits for each to reach SUCCESS. If a service's latest deployment is FAILED, CRASHED, REMOVED or SKIPPED, redeploy it first (`pnpm ops deploy:redeploy --env dev --service <name> --yes`), because stage 2's readiness check refuses it."
     );
     // No variable writes or redeploys may have happened.
     const setCalls = mockExecFileSync.mock.calls.filter(
@@ -495,19 +515,222 @@ describe('rotateByokKey', () => {
     expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
   });
 
-  it('stage 2 skips (never overwrites) a row that changed between snapshot and write', async () => {
-    stubRailwayVars({
-      API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
-      API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+  describe('stage 2 through the real redeploy wait (only the Railway API mocked)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
     });
-    const oldRow = { id: 'row-old', ...encryptWithKey('sk-secret', KEY_B) };
-    mockPrisma.userApiKey.findMany.mockResolvedValueOnce([oldRow]).mockResolvedValueOnce([]);
-    mockPrisma.userCredential.findMany.mockResolvedValue([]);
-    // count 0 = the guarded write found no matching snapshot ciphertext.
-    mockPrisma.userApiKey.updateMany.mockResolvedValue({ count: 0 });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
 
-    await expect(rotateByokKey({ env: 'dev', stage: '2' })).resolves.toBeUndefined();
-    expect(mockPrisma.userApiKey.updateMany).toHaveBeenCalledTimes(1);
+    it('stage 2 skips (never overwrites) a row that changed between snapshot and write', async () => {
+      stubRailwayVars({
+        API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+        API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+      });
+      const oldRow = { id: 'row-old', ...encryptWithKey('sk-secret', KEY_B) };
+      mockPrisma.userApiKey.findMany.mockResolvedValueOnce([oldRow]).mockResolvedValueOnce([]);
+      mockPrisma.userCredential.findMany.mockResolvedValue([]);
+      // count 0 = the guarded write found no matching snapshot ciphertext.
+      mockPrisma.userApiKey.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(rotateByokKey({ env: 'dev', stage: '2' })).resolves.toBeUndefined();
+      expect(mockPrisma.userApiKey.updateMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('stage 2 warns to triage a row that matches neither key, leaves it untouched, and tallies it unreadable', async () => {
+      stubRailwayVars({
+        API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+        API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+      });
+      const strangerKey = parseEncryptionKeyMaterial('c'.repeat(64), 'TEST');
+      const strangerRow = { id: 'row-stranger', ...encryptWithKey('sk-stranger', strangerKey) };
+      mockPrisma.userApiKey.findMany
+        .mockResolvedValueOnce([strangerRow])
+        .mockResolvedValueOnce([strangerRow]);
+      mockPrisma.userCredential.findMany.mockResolvedValue([]);
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+      try {
+        await expect(rotateByokKey({ env: 'dev', stage: '2' })).resolves.toBeUndefined();
+        const lines = logSpy.mock.calls.map(call => util.stripVTControlCharacters(String(call[0])));
+        expect(lines).toContain(
+          '  userApiKey: 0 re-encrypted, 0 already current, 0 changed concurrently (skipped), 1 unreadable'
+        );
+        expect(lines).toContain('  ⚠️  1 row(s) match neither key — triage before finalizing.');
+      } finally {
+        logSpy.mockRestore();
+      }
+      expect(mockPrisma.userApiKey.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('stage 2 reports a row still off the current key after the sweep instead of the verified line', async () => {
+      stubRailwayVars({
+        API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+        API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+      });
+      const oldRow = { id: 'row-old', ...encryptWithKey('sk-secret', KEY_B) };
+      // The guarded write matches nothing (count 0), and the verify read still
+      // sees the row on the previous key.
+      mockPrisma.userApiKey.findMany
+        .mockResolvedValueOnce([oldRow])
+        .mockResolvedValueOnce([oldRow]);
+      mockPrisma.userCredential.findMany.mockResolvedValue([]);
+      mockPrisma.userApiKey.updateMany.mockResolvedValue({ count: 0 });
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+      try {
+        await expect(rotateByokKey({ env: 'dev', stage: '2' })).resolves.toBeUndefined();
+        const lines = logSpy.mock.calls.map(call => util.stripVTControlCharacters(String(call[0])));
+        expect(lines.some(line => line.includes('1 row(s) still not on the current key.'))).toBe(
+          true
+        );
+        expect(lines.some(line => line.includes('All rows verified on the current key'))).toBe(
+          false
+        );
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+
+    it('stage 2 redeploys api-gateway then ai-worker (real chain, mocked Railway API) before any row is written', async () => {
+      stubRailwayVars({
+        API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+        API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+      });
+      const oldRow = { id: 'row-old', ...encryptWithKey('sk-secret', KEY_B) };
+      mockPrisma.userApiKey.findMany.mockResolvedValueOnce([oldRow]).mockResolvedValueOnce([]);
+      mockPrisma.userCredential.findMany.mockResolvedValue([]);
+      mockPrisma.userApiKey.updateMany.mockResolvedValue({ count: 1 });
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+      try {
+        await rotateByokKey({ env: 'dev', stage: '2' });
+      } finally {
+        logSpy.mockRestore();
+      }
+
+      expect(redeployRailwayServiceReusingImageWithSource.mock.calls.map(c => c[0])).toEqual([
+        {
+          environmentId: 'envid',
+          serviceId: 'svc-api-gateway',
+          serviceName: 'api-gateway',
+          env: 'dev',
+        },
+        {
+          environmentId: 'envid',
+          serviceId: 'svc-ai-worker',
+          serviceName: 'ai-worker',
+          env: 'dev',
+        },
+      ]);
+      const [gatewayRedeployOrder, workerRedeployOrder] =
+        redeployRailwayServiceReusingImageWithSource.mock.invocationCallOrder;
+      expect(gatewayRedeployOrder).toBeLessThan(workerRedeployOrder);
+      expect(workerRedeployOrder).toBeLessThan(
+        mockPrisma.userApiKey.updateMany.mock.invocationCallOrder[0]
+      );
+      // Stage 2 calls the `WithSource` variant directly (it needs the source deployment
+      // id), not the thin wrapper that stage 1 uses.
+      expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
+    });
+
+    it('stage 2 refuses, writing no row, when only ai-worker CURRENT changes during the waits', async () => {
+      const window = {
+        API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+        API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+      };
+      const byService = { 'api-gateway': { ...window }, 'ai-worker': { ...window } };
+      stubRailwayVarsPerService(byService);
+      // The stub reads byService on every call, so editing it inside the ai-worker
+      // redeploy is a concurrent edit that lands between the first read and the re-read.
+      redeployRailwayServiceReusingImageWithSource.mockImplementation(
+        ({ serviceId }: { serviceId: string }) => {
+          if (serviceId === 'svc-ai-worker') {
+            byService['ai-worker'].API_KEY_ENCRYPTION_KEY = 'c'.repeat(64);
+          }
+          return Promise.resolve({
+            sourceDeploymentId: `old-${serviceId}`,
+            newDeploymentId: `new-${serviceId}`,
+          });
+        }
+      );
+      mockPrisma.userApiKey.findMany.mockResolvedValue([]);
+      mockPrisma.userCredential.findMany.mockResolvedValue([]);
+
+      await expect(rotateByokKey({ env: 'dev', stage: '2' })).rejects.toThrow('DIFFERS');
+
+      expect(redeployRailwayServiceReusingImageWithSource).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.userApiKey.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.userCredential.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('stage 2 sleeps through a DEPLOYING poll on the gateway and writes a row only after both waits settle', async () => {
+      stubRailwayVars({
+        API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+        API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+      });
+      const oldRow = { id: 'row-old', ...encryptWithKey('sk-secret', KEY_B) };
+      mockPrisma.userApiKey.findMany.mockResolvedValueOnce([oldRow]).mockResolvedValueOnce([]);
+      mockPrisma.userCredential.findMany.mockResolvedValue([]);
+      mockPrisma.userApiKey.updateMany.mockResolvedValue({ count: 1 });
+      getRailwayServiceLatestDeployment
+        .mockResolvedValueOnce({ id: 'new-svc-api-gateway', status: 'DEPLOYING' })
+        .mockImplementation(({ serviceId }: { serviceId: string }) =>
+          Promise.resolve({ id: `new-${serviceId}`, status: 'SUCCESS' })
+        );
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+      try {
+        const promise = rotateByokKey({ env: 'dev', stage: '2' });
+        await vi.advanceTimersByTimeAsync(DEFAULT_SERVICE_POLL_INTERVAL_MS);
+        await promise;
+      } finally {
+        logSpy.mockRestore();
+      }
+
+      expect(getRailwayServiceLatestDeployment).toHaveBeenCalledTimes(3);
+      expect(getRailwayServiceLatestDeployment.mock.calls.map(c => c[0].serviceId)).toEqual([
+        'svc-api-gateway',
+        'svc-api-gateway',
+        'svc-ai-worker',
+      ]);
+      const [, workerRedeployOrder] =
+        redeployRailwayServiceReusingImageWithSource.mock.invocationCallOrder;
+      const gatewaySettledOrder = getRailwayServiceLatestDeployment.mock.invocationCallOrder[1];
+      const workerSettledOrder = getRailwayServiceLatestDeployment.mock.invocationCallOrder[2];
+      expect(gatewaySettledOrder).toBeLessThan(workerRedeployOrder);
+      expect(workerSettledOrder).toBeLessThan(
+        mockPrisma.userApiKey.updateMany.mock.invocationCallOrder[0]
+      );
+    });
+
+    it('stage 2 touches no row when a service redeploy never reaches SUCCESS', async () => {
+      stubRailwayVars({
+        API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+        API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+      });
+      const oldRow = { id: 'row-old', ...encryptWithKey('sk-secret', KEY_B) };
+      mockPrisma.userApiKey.findMany.mockResolvedValue([oldRow]);
+      getRailwayServiceLatestDeployment.mockImplementation(({ serviceId }: { serviceId: string }) =>
+        Promise.resolve({
+          id: `new-${serviceId}`,
+          status: serviceId === 'svc-ai-worker' ? 'FAILED' : 'SUCCESS',
+        })
+      );
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+      try {
+        await expect(rotateByokKey({ env: 'dev', stage: '2' })).rejects.toThrow(
+          'BYOK stage 2 redeployed service "ai-worker" (dev), but the new deployment reached terminal status FAILED'
+        );
+      } finally {
+        logSpy.mockRestore();
+      }
+      expect(mockPrisma.userApiKey.findMany).not.toHaveBeenCalled();
+      expect(mockPrisma.userApiKey.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.userCredential.updateMany).not.toHaveBeenCalled();
+    });
   });
 
   it('stage 3 refuses to close the window while any row is off the current key', async () => {
@@ -842,6 +1065,7 @@ describe('rotateByokKey', () => {
     );
     expect(mockPrisma.userApiKey.findMany).not.toHaveBeenCalled();
     expect(mockPrisma.userApiKey.updateMany).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImageWithSource).not.toHaveBeenCalled();
   });
 
   it('stage 1 refuses before any upsert when a service deployment is not ready', async () => {
@@ -883,6 +1107,7 @@ describe('rotateByokKey', () => {
     );
     expect(mockPrisma.userApiKey.findMany).not.toHaveBeenCalled();
     expect(mockPrisma.userApiKey.updateMany).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImageWithSource).not.toHaveBeenCalled();
   });
 
   it('stage 3 refuses before deleting PREVIOUS when a service deployment is not ready', async () => {
