@@ -30,6 +30,8 @@ import {
   parseBatchFooterIds,
 } from '../../utils/browse/multiSelectBatch.js';
 import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 import {
   buildBrowseResponse,
   buildDenyBatchCustomId,
@@ -389,7 +391,7 @@ describe('deny browse batch removal flow', () => {
       );
     });
 
-    it('propagates an editReply failure to the central handler instead of swallowing it', async () => {
+    it('propagates an editReply failure after the ack instead of swallowing it', async () => {
       const batchView = buildBrowseResponse(FIVE_DENY_ENTRIES, 0, 'all', 'date', {
         mode: 'batch',
       });
@@ -445,7 +447,7 @@ describe('deny browse batch removal flow', () => {
       await expect(handler.handleComponentInteraction(interaction)).resolves.toBeUndefined();
       expect(interaction.followUp).toHaveBeenCalledTimes(1);
       expect(interaction.followUp).toHaveBeenCalledWith({
-        content: expect.stringContaining('There was an error processing this interaction!'),
+        content: renderSpec(CATALOG.error.interactionFailed()),
         flags: MessageFlags.Ephemeral,
       });
       expect(interaction.editReply).toHaveBeenCalledTimes(1);

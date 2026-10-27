@@ -377,7 +377,7 @@ describe('handleOverrideBatchPick (confirm view)', () => {
     expect(listingBlock).not.toContain('bogus');
   });
 
-  it('propagates an editReply failure to the central handler instead of swallowing it', async () => {
+  it('propagates an editReply failure after the ack instead of swallowing it', async () => {
     const config = makeConfig(PRESET_PREFIX);
     const batchView = buildOverrideBrowseView(config, FIVE_PRESET_OVERRIDES, { mode: 'batch' });
     const interaction = createSelectInteraction({
