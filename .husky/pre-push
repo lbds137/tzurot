@@ -285,19 +285,22 @@ if ! pnpm ops surface:inventory --check; then
     exit 1
 fi
 
-# 10c. Raw-content allowlist ratchet (BLOCKING)
-# The shrink-only budget test lives in packages/tooling, which turbo's
-# affected-package filter skips when only bot-client changed, so a file whose
-# raw-literal count moved reached CI red (TASK-1308). ~5s, measured. The gate
-# matches the test's inputs: every allowlisted file sits under bot-client's src
-# (pinned by the allowlist test's prefix check, which fails first if that
-# changes), and the rule/allowlist live in tooling's eslint dir. A tooling push also ran this file via step 6; the
-# overlap is intentional and costs the same ~5s.
+# 10c. Shrink-only allowlist ratchets (BLOCKING)
+# The raw-content and builder-import allowlist tests live in packages/tooling,
+# which turbo's affected-package filter skips when only bot-client changed, so a
+# moved raw-literal count or a deleted allowlisted file reached CI red. ~5s,
+# measured. The gate matches the tests' file inputs: every allowlisted file sits
+# under bot-client's src (each allowlist test pins that prefix, so it fails
+# first if that changes), and the rules and allowlists live in tooling's eslint
+# dir. Two limits: CHANGED_FILES is the push range (upstream-relative once the
+# branch is pushed), and a parser or eslint version bump can move counts without
+# matching the gate; CI covers both. A tooling push also ran these files via
+# step 6; the overlap is intentional.
 if echo "$CHANGED_FILES" | grep -qE '^(services/bot-client/src/|packages/tooling/src/eslint/)'; then
-    echo "Running raw-content allowlist ratchet..."
-    if ! pnpm --filter @tzurot/tooling exec vitest run src/eslint/raw-content-allowlist.test.ts; then
-        echo "${RED}Raw-content allowlist ratchet failed!${NC}"
-        echo "The raw-content allowlist contract failed (see the test output above);"
+    echo "Running allowlist ratchets..."
+    if ! pnpm --filter @tzurot/tooling exec vitest run src/eslint/raw-content-allowlist.test.ts src/eslint/builder-import-allowlist.test.ts; then
+        echo "${RED}Allowlist ratchet failed!${NC}"
+        echo "An allowlist contract failed (see the test output above);"
         echo "fix what the failing assertion names in the allowlist."
         exit 1
     fi

@@ -29,4 +29,11 @@ describe('allowlist contract (shrink-only)', () => {
       expect([...symbols].sort(), `${file} symbols should stay sorted`).toEqual([...symbols]);
     }
   });
+
+  it('keys only bot-client source (the pre-push allowlist gate matches that prefix)', () => {
+    const outside = Object.keys(BUILDER_IMPORT_ALLOWLIST).filter(
+      relPath => !relPath.startsWith('services/bot-client/src/')
+    );
+    expect(outside).toEqual([]);
+  });
 });
