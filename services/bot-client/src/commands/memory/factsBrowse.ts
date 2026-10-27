@@ -103,10 +103,17 @@ const FACTS_PAGE_REFUSAL = {
   FETCH_FAILED: 'fetch-failed',
 } as const satisfies Record<string, FactsPageRefusal>;
 
-const FACTS_REFUSAL_CONTENT: Record<FactsPageRefusal, string> = {
-  [FACTS_PAGE_REFUSAL.SESSION_GONE]: FACTS_SESSION_EXPIRED,
-  [FACTS_PAGE_REFUSAL.FETCH_FAILED]: renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
+// Thunks so catalog copy is rendered at send time, like the after-forget copy.
+const FACTS_REFUSAL_CONTENT: Record<FactsPageRefusal, () => string> = {
+  [FACTS_PAGE_REFUSAL.SESSION_GONE]: () => FACTS_SESSION_EXPIRED,
+  [FACTS_PAGE_REFUSAL.FETCH_FAILED]: () =>
+    renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
 };
+
+/** Options for {@link refreshFactsList} and {@link followUpFactsRefusal}. */
+export interface FactsRefreshOptions {
+  afterForget?: boolean;
+}
 
 /**
  * Notify the user ephemerally when a facts list page cannot be shown (expired
@@ -118,7 +125,7 @@ const FACTS_REFUSAL_CONTENT: Record<FactsPageRefusal, string> = {
 export async function followUpFactsRefusal(
   interaction: ButtonInteraction,
   reason: FactsPageRefusal,
-  options?: { afterForget?: boolean }
+  options?: FactsRefreshOptions
 ): Promise<void> {
   if (reason === FACTS_PAGE_REFUSAL.FETCH_FAILED) {
     logger.warn(
@@ -129,7 +136,7 @@ export async function followUpFactsRefusal(
   const content =
     options?.afterForget === true
       ? renderSpec(CATALOG.info.warning(FACTS_FORGOTTEN_REFRESH_COPY))
-      : FACTS_REFUSAL_CONTENT[reason];
+      : FACTS_REFUSAL_CONTENT[reason]();
   try {
     await interaction.followUp({
       content,
@@ -453,10 +460,9 @@ export async function buildRefreshedFactsOutcome(
 }
 
 /**
- * Build the refreshed list view (embed + components) for the message an
- * interaction came from, stepping back a page when the current one emptied.
- * Null when the session is gone or the fetch failed — the caller keeps the
- * message untouched in that case.
+ * Null-collapsing wrapper over {@link buildRefreshedFactsOutcome} for the batch
+ * survival ladder, which reports the result alone when there is no view and so
+ * deliberately drops the reason.
  */
 export async function buildRefreshedFactsView(
   interaction: ButtonInteraction
@@ -473,7 +479,7 @@ export async function buildRefreshedFactsView(
  */
 export async function refreshFactsList(
   interaction: ButtonInteraction,
-  options?: { afterForget?: boolean }
+  options?: FactsRefreshOptions
 ): Promise<void> {
   const outcome = await buildRefreshedFactsOutcome(interaction);
   if (outcome.kind !== 'view') {
