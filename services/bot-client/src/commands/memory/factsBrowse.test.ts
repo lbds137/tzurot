@@ -728,7 +728,7 @@ describe('error branches', () => {
     await expect(followUpFactsRefusal(interaction, 'session-gone')).resolves.toBeUndefined();
 
     expect(loggerMock.warn).toHaveBeenCalledWith(
-      { err: followUpError, userId: 'user-1' },
+      { err: followUpError, userId: 'user-1', messageId: 'message-1' },
       expect.any(String)
     );
   });
