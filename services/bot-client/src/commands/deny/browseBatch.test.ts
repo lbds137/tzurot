@@ -13,12 +13,15 @@ import {
   type APIEmbed,
   type ButtonInteraction,
   type EmbedBuilder,
+  type SlashCommandBuilder,
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { DENYLIST_LIST_MAX_ENTRIES } from '@tzurot/common-types/schemas/api/denylist';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { CommandHandler } from '../../handlers/CommandHandler.js';
 import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
+import type { Command } from '../../types.js';
 import {
   clampBatchConfirmDescription,
   encodeBatchFooterIds,
@@ -384,6 +387,69 @@ describe('deny browse batch removal flow', () => {
           flags: MessageFlags.Ephemeral,
         })
       );
+    });
+
+    it('propagates an editReply failure to the central handler instead of swallowing it', async () => {
+      const batchView = buildBrowseResponse(FIVE_DENY_ENTRIES, 0, 'all', 'date', {
+        mode: 'batch',
+      });
+      const interaction = createSelectInteraction({
+        customId: 'deny::batch-select::0::all::date',
+        values: [FIVE_DENY_ENTRIES[0].id, FIVE_DENY_ENTRIES[2].id],
+        messageComponents: batchView.components,
+      });
+      vi.mocked(interaction.editReply).mockRejectedValueOnce(new Error('editReply failed'));
+
+      await expect(handleDenyBatchPick(interaction)).rejects.toThrow('editReply failed');
+      expect(interaction.deferUpdate).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(interaction.deferUpdate).mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(interaction.editReply).mock.invocationCallOrder[0]
+      );
+      expect(interaction.followUp).not.toHaveBeenCalled();
+    });
+
+    it('answers a post-ack failure of the real pick handler with an ephemeral followUp via the central handler', async () => {
+      const handler = new CommandHandler();
+      const command: Command = {
+        data: {
+          name: 'deny-wire',
+          description: 'Failing acked deny batch select command',
+        } as unknown as SlashCommandBuilder,
+        execute: vi.fn(),
+        handleSelectMenu: handleDenyBatchPick,
+        componentPrefixes: ['deny'],
+      };
+      handler.getCommands().set('deny-wire', command);
+      (handler as any).prefixToCommand.set('deny', command);
+
+      const batchView = buildBrowseResponse(FIVE_DENY_ENTRIES, 0, 'all', 'date', {
+        mode: 'batch',
+      });
+      const baseInteraction = createSelectInteraction({
+        customId: 'deny::batch-select::0::all::date',
+        values: [FIVE_DENY_ENTRIES[0].id, FIVE_DENY_ENTRIES[2].id],
+        messageComponents: batchView.components,
+      });
+      const interaction = {
+        ...baseInteraction,
+        isStringSelectMenu: () => true,
+        isButton: () => false,
+        reply: vi.fn().mockResolvedValue(undefined),
+      } as unknown as StringSelectMenuInteraction;
+      vi.mocked(interaction.deferUpdate).mockImplementation(async () => {
+        (interaction as { deferred: boolean }).deferred = true;
+        return undefined as never;
+      });
+      vi.mocked(interaction.editReply).mockRejectedValueOnce(new Error('editReply failed'));
+
+      await expect(handler.handleComponentInteraction(interaction)).resolves.toBeUndefined();
+      expect(interaction.followUp).toHaveBeenCalledTimes(1);
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: expect.stringContaining('There was an error processing this interaction!'),
+        flags: MessageFlags.Ephemeral,
+      });
+      expect(interaction.editReply).toHaveBeenCalledTimes(1);
+      expect(interaction.reply).not.toHaveBeenCalled();
     });
   });
 

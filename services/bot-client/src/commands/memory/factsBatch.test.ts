@@ -396,6 +396,19 @@ describe('handleBatchPick (confirm view)', () => {
     expect(embed.description).toContain('• Statement of fact-2');
     expect(embed.description).not.toContain('• 3. ');
   });
+
+  it('propagates an editReply failure to the central handler instead of swallowing it', async () => {
+    const swappedRows = buildBatchSelectComponents(FACTS, 0);
+    const interaction = createSelectInteraction(['fact-2', 'fact-4'], swappedRows);
+    vi.mocked(interaction.editReply).mockRejectedValueOnce(new Error('editReply failed'));
+
+    await expect(handleBatchPick(interaction)).rejects.toThrow('editReply failed');
+    expect(interaction.deferUpdate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(interaction.deferUpdate).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(interaction.editReply).mock.invocationCallOrder[0]
+    );
+    expect(interaction.followUp).not.toHaveBeenCalled();
+  });
 });
 
 function parseBatchFooterForTest(embed: EmbedData): string[] | null {

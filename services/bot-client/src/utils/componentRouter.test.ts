@@ -116,4 +116,19 @@ describe('createComponentRouter', () => {
 
     await expect(router.handleButton(interaction('x'))).rejects.toThrow('handler failed');
   });
+
+  it('propagates select-menu handler rejections (no swallowing)', async () => {
+    const router = createComponentRouter({
+      routes: [
+        {
+          matches: () => true,
+          onSelect: vi.fn().mockRejectedValue(new Error('handler failed')),
+        },
+      ],
+    });
+
+    await expect(router.handleSelectMenu(interaction('x') as never)).rejects.toThrow(
+      'handler failed'
+    );
+  });
 });
