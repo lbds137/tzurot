@@ -3,10 +3,10 @@ id: TASK-1307
 title: >-
   Facts forget: a failed list refresh after a successful forget reads as if the
   forget failed
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-27T06:39:00Z'
-updated_date: '2026-10-27T12:49:00Z'
+updated_date: '2026-10-27T14:52:00Z'
 labels:
   - area:bot-client
   - size:S
@@ -29,4 +29,6 @@ Recommendation: one line for both reasons, for example: Fact forgotten. The list
 Acceptance: per the chosen wording; the confirm-forget path has a test for each refusal reason.
 
 OWNER RULING 2026-10-27 (Lila, via AskUserQuestion): confirm the forget first, one line for both refusal reasons: "Fact forgotten. The list could not be refreshed, so run /memory facts to see it." Built in PR 2672 (same PR as the refresh feedback), not as a separate change. No separate owner question remains.
+
+SHIPPED 2026-10-27 (PR 2672, Done). The notice goes through the catalog warning spec (CATALOG.info.warning), so it carries the catalog warning glyph ahead of the ruled sentence; the repo raw-content lint rule would not take a raw literal at that position. The stale buttons left on screen after a failed post-forget refresh are a member of TASK-1306.
 <!-- SECTION:DESCRIPTION:END -->
