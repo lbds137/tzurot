@@ -52,7 +52,6 @@ export const RAW_CONTENT_ALLOWLIST: Readonly<Record<string, number>> = {
   'services/bot-client/src/commands/memory/browse.ts': 1,
   'services/bot-client/src/commands/memory/detailActionRouter.ts': 1,
   'services/bot-client/src/commands/memory/detailModals.ts': 3,
-  'services/bot-client/src/commands/memory/factsBrowse.ts': 1,
   'services/bot-client/src/commands/memory/interactionHandlers.ts': 1,
   'services/bot-client/src/commands/memory/purge.ts': 1,
   'services/bot-client/src/commands/memory/search.ts': 1,
