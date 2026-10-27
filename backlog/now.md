@@ -14,18 +14,18 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 ---
 
-### 🚢 Next Release — beta.241 (theme: the batch residue pass)
+### 🚢 Next Release — beta.242 (theme: owner-queue copy fixes + pre-push ratchet; a sketch, not yet a commitment)
 
-_Drafted at the beta.240 cut (2026-10-26). beta.240 shipped 6 PRs / 6 runtime / 65 files (#2663, plain rebase-merge): override batch clear (#2657), deny batch remove (#2661) closing doc-113, the fallthrough footer suffix (#2662), security overrides (#2660), dependabot groups (#2658/#2659), plus #2656 via main._
+_Drafted at the beta.241 cut (2026-10-27). beta.241 shipped 8 PRs / 8 runtime / 71 files (#2673, plain rebase-merge): the bot-client batch-pick error-path hardening (#2665-#2672: override clears, alias "already gone", memories/facts outcome reports, deny select fetch failure, unbuildable facts refresh, plus three test-pinning PRs)._
 
 - **In already**: (empty at cut)
-- **Waiting on**: nothing (the cut criterion is met: propose the cut to Lila). Shipped since the cut: TASK-1291 (PRs 2665-2667), TASK-1295 (PR 2668), TASK-1293/1304/1305 (PRs 2669-2671, tests only), TASK-1280 facts half + TASK-1307 (PR 2672; its sweep half is TASK-1306, owner queue). Carried: TASK-705 phase 2 + the `debug:` removal of #2601's capture (watch-gated on prod `guildInfoAmbiguousRoles`), TASK-1137 (joint Spacebar/Machloket boot; needs Lila + the Machloket client session), TASK-1153, TASK-1150/1151, TASK-1197, the doc-61 economy pass ~2026-10-31.
-- **Watches**: the beta.240 set in CURRENT.md (optional `/deny` batch smoke, LangChain minors on the AI path, fallthrough footer); carried beta.239/238/237 watches in CURRENT.md.
+- **Waiting on**: TASK-1308 (pre-push ratchet, S) and whichever owner rulings land: TASK-1306 (restore confirm buttons after a refused batch confirm; rec yes), TASK-1309 (facts expiry copy via the catalog; rec yes), TASK-1303 (deny fetch-failure copy), TASK-1294 (deny cap copy). Carried: TASK-981 (needs a design choice + dev e2e), TASK-705 phase 2 + the `debug:` removal of #2601's capture (watch-gated on prod `guildInfoAmbiguousRoles`), TASK-1137 (joint Spacebar/Machloket boot; needs Lila + the Machloket client session), TASK-1153, TASK-1150/1151, TASK-1197, the doc-61 economy pass ~2026-10-31.
+- **Watches**: the beta.241 set in CURRENT.md (batch-pick error logs; single-delete memory schema); carried beta.240/239/238/237 watches in CURRENT.md.
 - **🧑‍💻 Owner to-do** (carried): the beta.235 smoke checklist in CURRENT.md; the TASK-1039 second read day at N=3, then N back to 10 on Emily and Lilith; TASK-907 commitment-facts review; TASK-1048 break-it pass; TASK-104 voice-reference trims.
 - **Owner decisions**: TASK-1262 (no rush). TASK-1294 (deny cap copy: "showing newest 500" footer + at-cap pick note; rec yes).
 - **Explicitly NOT in**: the doc-112 TUI/headless CLI (idea; widened 2026-10-25, not scheduled) · the memory-archive flips (settings, not code) · browse/UI waves 4–6 · doc-86 · the vitest 5 bump (TASK-913) · caching Phase 3 until the doc-17 reading · doc-107.
-- **Deploy notes**: no migrations planned. If one lands, `release:premigrate --force` is classifier-denied to the agent, so the owner runs it as a `!` line; `release:finalize --yes` was classifier-denied at the beta.240 cut too — expect to hand it over as a `!` line. Expect the rebase-merge to refuse above ~117 commits; the fast-forward fallback is the path. A push touching discord.js-adjacent files runs `pnpm ops surface:inventory --write` first. Driver eval Tue 10-27: the session idles clean for the owner's `/model sonnet` + `/advisor opus`.
-- **Cut when**: TASK-1291 lands (its #11 correctness fix is the theme's anchor), or the backstops (~10 runtime PRs / ~250 files) fire first; `pnpm ops release:range` reads 0 at cut.
+- **Deploy notes**: no migrations planned. If one lands, `release:premigrate --force` is classifier-denied to the agent, so the owner runs it as a `!` line; `release:finalize --yes` was classifier-denied at the beta.240 cut too — expect to hand it over as a `!` line. Expect the rebase-merge to refuse above ~117 commits; the fast-forward fallback is the path. A push touching discord.js-adjacent files runs `pnpm ops surface:inventory --write` first. Preflight: `guard:repo-settings` must read clean before any release PR opens (`delete_branch_on_merge` was re-enabled by an external repo sweep at the beta.241 cut).
+- **Cut when**: TASK-1308 and the owner-queue copy rulings she makes have landed, or the backstops (~10 runtime PRs / ~250 files) fire first; `pnpm ops release:range` reads 0 at cut.
 - **vNext+1 sketch**: caching Phase 3 (after the doc-17 reading) or the doc-114 Machloket e2e harness, whichever gate opens first.
 
 ### 🎯 Current Focus (max 3)

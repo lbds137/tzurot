@@ -1,10 +1,15 @@
 # Current
 
-> **Session handoff 2026-10-26 ~13:15Z (Opus, anthropic-direct)**: **beta.240 SHIPPED** (below); doc-113 batch family closed. `release:finalize` classifier-denied to the agent; Lila ran it (develop `637612043`, SHA-aligned). Next: TASK-1291, TASK-1295, TASK-1293. Driver eval Mon 10-26 (Opus) / Tue 10-27 (Sonnet + Opus advisor): log in `docs/local/driver-eval-log.md`; this session idles clean before Tue so she can switch models.
+> **Session handoff 2026-10-27 ~15:40Z (Sonnet 5.5 + Opus advisor, anthropic-direct)**: **beta.241 SHIPPED** (below); `release:finalize` run by Lila, develop SHA-aligned with main at `0cfc0d29f`. Dependabot #2664 (claude-code-action, targets `main`) still open and needs her explicit approval. Next: TASK-1308, TASK-981; owner queue TASK-1306/1309/1303/1294/1262. Driver eval Tue arm log: `docs/local/driver-eval-log.md`.
 
-> **Version**: v3.0.0-beta.240 — "batch clear and remove for the override and deny browsers" — SHIPPED 2026-10-26 13:10:50Z (release PR #2663 after her "cut now" + merge approval; plain rebase-merge at 25 commits; tagged `latest`, beta.239 demoted). 6 PRs / 6 runtime / 65 files (+ #2656 via main); no migrations. Holistic review: no blocking findings. Notes: `docs/local/release-notes-beta.240.md`.
+> **Version**: v3.0.0-beta.241 — "batch pick error-path hardening" — SHIPPED 2026-10-27 15:30Z (release PR #2673 after her merge approval; plain rebase-merge at 45 commits incl. already-applied ones; tagged `latest`, beta.240 demoted). 8 PRs / 8 runtime / 71 files; no migrations. Holistic review: no blocking findings. Notes: `docs/local/release-notes-beta.241.md`. Preflight caught `delete_branch_on_merge` re-enabled by a Deck repo-standard sweep; Deck reverted it and recorded tzurot as the exception.
 >
-> **Previous**: v3.0.0-beta.239 — "multi-select batch actions" (22 PRs / 13 runtime / 239 files; 2026-10-25, `f26f3c750`).
+> **Previous**: v3.0.0-beta.240 — "batch clear and remove for the override and deny browsers" (6 PRs / 6 runtime / 65 files; 2026-10-26 13:10Z).
+
+## 🧪 beta.241 watch (shipped 2026-10-27; no needs-smoke)
+
+- **Watch — bot-client batch pick error paths (#2665-#2672):** after deploy, check bot-client logs for batch-pick errors (override/alias/memories/facts/deny browsers). Error-path copy only; no smoke asked.
+- **Watch — single-delete memory response schema (#2667):** `DeleteMemoryResponseSchema.success` is now `z.literal(true)`; its only producer always sends `true` (`memorySingle.ts:390`). A parse failure on `/memory` single delete would be the signal.
 
 ## 🧪 beta.240 watch (shipped 2026-10-26; one optional needs-smoke)
 
