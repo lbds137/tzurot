@@ -186,8 +186,10 @@ export async function assertServicesDeploymentReady(
 
 /**
  * Redeploy each service in order and COLLECT failures rather than aborting —
- * a partial failure is reported with its repair instruction, never retried by
- * re-running the command.
+ * failures are collected and reported with a repair instruction chosen by the
+ * caller, and whether re-running the command is safe is caller-specific (in
+ * stage 2, re-running repeats the verifier and presenter redeploys; in stage 1,
+ * stage 3, and the single-shot path, the caller says not to re-run).
  */
 export async function redeployServices(
   services: { id: string; name: string }[],

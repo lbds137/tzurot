@@ -248,8 +248,8 @@ export async function runRotateEnvSecret(options: RotateEnvSecretOptions): Promi
     throw new UsageError(
       `"${options.name}" rotates through the staged flow — --stage is required ` +
         '(1|stage, 2|roll, 3|finalize). Stage 1 preserves the current value as ' +
-        `"${options.name}_PREVIOUS" and redeploys only the verifier; stage 2 rolls the ` +
-        'presenters; stage 3 closes the window.'
+        `"${options.name}_PREVIOUS" and redeploys only the verifier; stage 2 redeploys the ` +
+        'verifier first, waits for SUCCESS, then rolls the presenters; stage 3 closes the window.'
     );
   }
   if (dual !== undefined && stage !== undefined && resolveStageAlias(stage) === undefined) {

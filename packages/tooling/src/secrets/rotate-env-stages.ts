@@ -13,8 +13,9 @@
  * stage 1 — which is why each stage's output ends by naming what to wait for
  * before continuing.
  *
- * Stage 2 (`2|roll`) redeploys every OTHER inheriting service onto the new
- * primary. No variable is written at this stage.
+ * Stage 2 (`2|roll`) redeploys the verifier first and waits for that deployment
+ * to reach `SUCCESS`, then redeploys every OTHER inheriting service onto the
+ * new primary. No variable is written at this stage.
  *
  * Stage 3 (`3|finalize`) deletes `<NAME>_PREVIOUS` from that same scope, redeploys the verifier
  * once more (so it stops accepting the retired value), and stamps the
@@ -50,6 +51,10 @@ import {
   refuseIfWindowClosed,
   printGateVerdict,
 } from './rotate-env-stage-output.js';
+import {
+  assertPresentersStillReady,
+  redeployAndWaitForVerifier,
+} from './verifier-redeploy-wait.js';
 
 /**
  * Names whose VERIFIER service accepts `<NAME>_PREVIOUS` alongside the current
@@ -133,10 +138,9 @@ async function runStage1(args: StageArgs): Promise<void> {
         console.log(
           chalk.red(
             `\n⚠️  A rotation window is already open ("${previousName}" is set). A real run would ` +
-              'REFUSE — run stage 2 (roll) then stage 3 (finalize) to close it before starting a new ' +
-              `rotation. First confirm in the Railway dashboard that "${verifier.name}"'s redeploy ` +
-              'actually landed: an interrupted stage 1 can leave these values written with the ' +
-              'verifier never redeployed, and stage 2 in that state opens the window.'
+              'REFUSE — run stage 2 (roll) then stage 3 (finalize) to close it before starting a ' +
+              `new rotation. Stage 2 itself redeploys "${verifier.name}" and waits for it to ` +
+              'reach SUCCESS first, so an interrupted stage 1 is recoverable by running stage 2.'
           )
         );
         printDryRunNotice();
@@ -145,9 +149,8 @@ async function runStage1(args: StageArgs): Promise<void> {
       throw new UsageError(
         `A rotation window is already open ("${previousName}" is set) — run stage 2 (roll) then ` +
           'stage 3 (finalize) to close it before starting a new rotation. Demoting the current ' +
-          `value now would strand the original. First confirm in the Railway dashboard that ` +
-          `"${verifier.name}"'s redeploy actually landed: an interrupted stage 1 can leave these ` +
-          'values written with the verifier never redeployed, and stage 2 in that state opens the window.'
+          `value now would strand the original. Stage 2 itself redeploys "${verifier.name}" and ` +
+          'waits for SUCCESS first, so an interrupted stage 1 is recoverable by running stage 2.'
       );
     }
     console.log(
@@ -279,7 +282,10 @@ async function writeStage1ValuesAndRedeploy(args: StageArgs): Promise<void> {
     );
     throw new Error(
       `secrets:rotate-env stage 1: the values were written successfully, but the verifier failed ` +
-        `to redeploy. Do NOT re-run this command — redeploy "${verifier.name}" by hand.`
+        `to redeploy. Do NOT re-run stage 1 — run stage 2 only once "${verifier.name}" shows SUCCESS ` +
+        `in Railway (stage 2 redeploys "${verifier.name}" and waits for SUCCESS, but its ` +
+        `preflight refuses a FAILED or CRASHED latest deployment); otherwise redeploy ` +
+        `"${verifier.name}" by hand first.`
     );
   }
 }
@@ -294,6 +300,7 @@ async function runStage2(args: StageArgs): Promise<void> {
   const presenters = context.affectedServices.filter(svc => svc.id !== verifier.id);
 
   if (options.dryRun) {
+    console.log(chalk.dim(`  Plan: redeploy "${verifier.name}" first and wait for SUCCESS`));
     console.log(
       chalk.dim(`  Plan: redeploy ${presenters.map(svc => svc.name).join(', ') || '(none)'}`)
     );
@@ -304,7 +311,7 @@ async function runStage2(args: StageArgs): Promise<void> {
 
   if (!options.yes) {
     const confirmed = await confirmPrompt(
-      'This will redeploy every presenter onto the new primary.'
+      'This will restart the verifier and wait for SUCCESS, then redeploy every presenter.'
     );
     if (!confirmed) {
       console.log('Aborted.');
@@ -312,15 +319,11 @@ async function runStage2(args: StageArgs): Promise<void> {
     }
   }
 
-  await assertServicesDeploymentReady([verifier, ...presenters], {
-    environmentId: context.environmentId,
-    env: options.env,
-  });
-
-  const failures = await redeployServices(presenters, {
-    environmentId: context.environmentId,
-    env: options.env,
-  });
+  const deployTarget = { environmentId: context.environmentId, env: options.env };
+  await assertServicesDeploymentReady([verifier, ...presenters], deployTarget);
+  await redeployAndWaitForVerifier({ verifier, ...deployTarget });
+  await assertPresentersStillReady({ presenters, ...deployTarget });
+  const failures = await redeployServices(presenters, deployTarget);
 
   if (failures.length > 0) {
     console.log(chalk.yellow(`\n⚠️  Stage 2: ${failures.length} presenter(s) failed to redeploy`));
@@ -328,23 +331,24 @@ async function runStage2(args: StageArgs): Promise<void> {
     console.log(
       chalk.green(`\n✓ Stage 2 complete for "${options.name}" in Railway ${context.railwayEnvName}`)
     );
+    console.log(
+      chalk.dim(
+        '  Next: pnpm ops secrets:rotate-env ' +
+          `--env ${options.env} --name ${options.name} --stage 3`
+      )
+    );
   }
-  console.log(
-    chalk.dim(
-      '  Next: pnpm ops secrets:rotate-env ' +
-        `--env ${options.env} --name ${options.name} --stage 3`
-    )
-  );
 
   if (failures.length > 0) {
     reportRedeployFailures(
       failures,
-      'Nothing was written — stage 2 only redeploys presenters.',
+      'Nothing was written — the verifier restarted and its new deployment reached SUCCESS (per the stage-2 wait).',
       options.env
     );
     throw new Error(
-      `secrets:rotate-env stage 2: ${failures.length} service(s) failed to redeploy. Do NOT ` +
-        're-run this command — redeploy the lagging service(s) by hand.'
+      `secrets:rotate-env stage 2: ${failures.length} service(s) failed to redeploy. Re-run ` +
+        'stage 2 once every lagging service shows SUCCESS (its preflight refuses until every ' +
+        'service does); a service that ended FAILED or CRASHED must be redeployed by hand first.'
     );
   }
 }
