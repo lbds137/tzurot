@@ -405,7 +405,7 @@ describe('handleMemoryBatchPick (confirm view)', () => {
     expect(embed.description).not.toContain('• 3. ');
   });
 
-  it('propagates an editReply failure to the central handler instead of swallowing it', async () => {
+  it('propagates an editReply failure after the ack instead of swallowing it', async () => {
     const swappedRows = buildMemoryBatchSelectComponents(BROWSE_SESSION.data, MEMORIES, 0);
     const interaction = createSelectInteraction(['mem-2', 'mem-4'], swappedRows);
     vi.mocked(interaction.editReply).mockRejectedValueOnce(new Error('editReply failed'));

@@ -15,6 +15,8 @@ import type {
   StringSelectMenuInteraction,
 } from 'discord.js';
 import type { Command } from '../types.js';
+import { CATALOG } from '../ux/catalog/catalog.js';
+import { renderSpec } from '../ux/render/render.js';
 import { ackUpdate } from '../ux/render/reply.js';
 
 // Mock dependencies
@@ -500,7 +502,7 @@ describe('CommandHandler', () => {
       await expect(handler.handleComponentInteraction(mockInteraction)).resolves.toBeUndefined();
       expect(interaction.followUp).toHaveBeenCalledTimes(1);
       expect(interaction.followUp).toHaveBeenCalledWith({
-        content: expect.stringContaining('There was an error processing this interaction!'),
+        content: renderSpec(CATALOG.error.interactionFailed()),
         flags: MessageFlags.Ephemeral,
       });
       expect(interaction.editReply).not.toHaveBeenCalled();

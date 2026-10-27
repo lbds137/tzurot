@@ -296,4 +296,17 @@ describe('deny handleButton() and handleSelectMenu() routing (P5/P6, C2)', () =>
     expect(mockHandleDenyBatchPick).toHaveBeenCalledWith(interaction);
     expect(mockHandleBrowseSelect).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['deny::batch-select::0::all::date', mockHandleDenyBatchPick],
+    ['deny::browse-select::0::all::date::', mockHandleBrowseSelect],
+  ] as const)(
+    'propagates a rejection from the routed select handler (%s)',
+    async (customId, routedMock) => {
+      routedMock.mockRejectedValueOnce(new Error('handler failed'));
+      const interaction = { customId } as unknown as StringSelectMenuInteraction;
+
+      await expect(denyCommand.handleSelectMenu?.(interaction)).rejects.toThrow('handler failed');
+    }
+  );
 });

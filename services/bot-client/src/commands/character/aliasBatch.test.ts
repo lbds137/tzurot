@@ -282,7 +282,7 @@ describe('handleAliasBatchPick (confirm view)', () => {
     expect(interaction.editReply).not.toHaveBeenCalled();
   });
 
-  it('propagates an editReply failure to the central handler instead of swallowing it', async () => {
+  it('propagates an editReply failure after the ack instead of swallowing it', async () => {
     const swapped = buildAliasBatchSelectComponents(FIVE_ROWS, DEFAULT_COORDS);
     const interaction = createSelectInteraction({
       values: ['user:mommy', 'global:lila'],
