@@ -7,7 +7,7 @@
   },
   "totals": {
     "entries": 3046,
-    "sites": 7073
+    "sites": 7075
   },
   "entries": [
     {
@@ -2978,13 +2978,13 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/factsBrowse.ts",
       "symbol": "id",
-      "count": 11
+      "count": 12
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/factsBrowse.ts",
       "symbol": "message",
-      "count": 4
+      "count": 5
     },
     {
       "category": "client-methods",

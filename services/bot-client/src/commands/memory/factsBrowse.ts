@@ -103,6 +103,11 @@ const FACTS_PAGE_REFUSAL = {
   FETCH_FAILED: 'fetch-failed',
 } as const satisfies Record<string, FactsPageRefusal>;
 
+const FACTS_REFUSAL_CONTENT: Record<FactsPageRefusal, string> = {
+  [FACTS_PAGE_REFUSAL.SESSION_GONE]: FACTS_SESSION_EXPIRED,
+  [FACTS_PAGE_REFUSAL.FETCH_FAILED]: renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
+};
+
 /**
  * Notify the user ephemerally when a facts list page cannot be shown (expired
  * session vs transient page-fetch failure, or the post-forget confirmation copy
@@ -121,21 +126,18 @@ export async function followUpFactsRefusal(
       'Facts list could not be shown: page fetch failed'
     );
   }
-  const refusalContent =
-    reason === FACTS_PAGE_REFUSAL.SESSION_GONE
-      ? FACTS_SESSION_EXPIRED
-      : renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY));
+  const content =
+    options?.afterForget === true
+      ? renderSpec(CATALOG.info.warning(FACTS_FORGOTTEN_REFRESH_COPY))
+      : FACTS_REFUSAL_CONTENT[reason];
   try {
     await interaction.followUp({
-      content:
-        options?.afterForget === true
-          ? renderSpec(CATALOG.info.warning(FACTS_FORGOTTEN_REFRESH_COPY))
-          : refusalContent,
+      content,
       flags: MessageFlags.Ephemeral,
     });
   } catch (err) {
     logger.warn(
-      { err, userId: interaction.user.id },
+      { err, userId: interaction.user.id, messageId: interaction.message.id },
       'Could not notify the user of the facts refusal'
     );
   }
