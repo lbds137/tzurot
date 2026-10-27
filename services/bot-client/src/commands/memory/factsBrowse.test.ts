@@ -741,17 +741,15 @@ describe('error branches', () => {
     } as unknown as ButtonInteraction;
 
     await followUpFactsRefusal(interaction, 'session-gone', { afterForget: true });
+    expect(FACTS_FORGOTTEN_REFRESH_COPY).toBe(
+      'Fact forgotten. The list could not be refreshed, so run `/memory facts` to see it.'
+    );
 
     expect(interaction.followUp).toHaveBeenCalledTimes(1);
     expect(interaction.followUp).toHaveBeenCalledWith({
       content: renderSpec(CATALOG.info.warning(FACTS_FORGOTTEN_REFRESH_COPY)),
       flags: MessageFlags.Ephemeral,
     });
-    expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: expect.stringContaining(FACTS_FORGOTTEN_REFRESH_COPY),
-      })
-    );
     expect(loggerMock.warn).not.toHaveBeenCalled();
   });
 
@@ -792,14 +790,6 @@ describe('error branches', () => {
       content: renderSpec(CATALOG.info.warning(FACTS_FORGOTTEN_REFRESH_COPY)),
       flags: MessageFlags.Ephemeral,
     });
-    expect(interaction.followUp).not.toHaveBeenCalledWith(
-      expect.objectContaining({ content: FACTS_SESSION_EXPIRED })
-    );
-    expect(interaction.followUp).not.toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
-      })
-    );
     expect(interaction.editReply).not.toHaveBeenCalled();
   });
 
@@ -822,14 +812,6 @@ describe('error branches', () => {
       content: renderSpec(CATALOG.info.warning(FACTS_FORGOTTEN_REFRESH_COPY)),
       flags: MessageFlags.Ephemeral,
     });
-    expect(interaction.followUp).not.toHaveBeenCalledWith(
-      expect.objectContaining({ content: FACTS_SESSION_EXPIRED })
-    );
-    expect(interaction.followUp).not.toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
-      })
-    );
     expect(interaction.editReply).not.toHaveBeenCalled();
   });
 });

@@ -51,6 +51,7 @@ import {
   buildFactsEmbed,
   formatFactSelectOption,
   buildRefreshedFactsView,
+  type FactsPageRefusal,
 } from './factsBrowse.js';
 import { buildFactActionId } from './factsDetail.js';
 import { fetchFact, forgetFact, setFactLock, type FactItem } from './factsApi.js';
@@ -190,12 +191,6 @@ async function runBatchVerb(
 }
 
 /**
- * Why a confirm must refuse before any mutation: the browse session no longer
- * exists, or the pre-loop page fetch failed (transient gateway error).
- */
-type BatchLabelsRefusal = 'session-gone' | 'fetch-failed';
-
-/**
  * Result-time labels, resolved BEFORE the loop mutates the page: one page
  * fetch matches every still-present id, and a selected id the page fetch
  * misses gets the per-id read, so its real label and lock state survive the
@@ -219,7 +214,7 @@ async function resolveBatchLabels(
       readErrors: LockableLabelReadErrors;
       goneIds: LockableGoneIds;
     }
-  | { ok: false; reason: BatchLabelsRefusal }
+  | { ok: false; reason: FactsPageRefusal }
 > {
   const resolved = new Map<string, ResolvedLockableLabel>();
   const readErrors: LockableLabelReadErrors = new Map();
@@ -248,14 +243,6 @@ async function resolveBatchLabels(
     { resolved, readErrors, goneIds }
   );
   return { ok: true, labels: resolved, readErrors, goneIds };
-}
-
-/** Deliver a confirm refusal (nothing has mutated) with the reason-honest copy. */
-async function replyBatchRefusal(
-  interaction: ButtonInteraction,
-  reason: BatchLabelsRefusal
-): Promise<void> {
-  await followUpFactsRefusal(interaction, reason);
 }
 
 const FACT_BATCH_NOUNS = {
@@ -340,7 +327,7 @@ export async function handleBatchConfirm(
   // run on that basis.
   const resolved = await resolveBatchLabels(interaction, userClient, ids, userId);
   if (!resolved.ok) {
-    await replyBatchRefusal(interaction, resolved.reason);
+    await followUpFactsRefusal(interaction, resolved.reason);
     return;
   }
   const labels = resolved.labels;
