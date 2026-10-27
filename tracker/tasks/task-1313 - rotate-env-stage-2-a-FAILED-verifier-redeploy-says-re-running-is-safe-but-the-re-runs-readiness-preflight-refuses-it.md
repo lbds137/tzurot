@@ -22,5 +22,7 @@ Why: found in PR 2676 review. packages/tooling/src/secrets/verifier-redeploy-wai
 
 What: give the DEFAULT wording the same terminal-branch recovery text PR 2676 gives BYOK (name the hand redeploy, wait for SUCCESS, then re-run stage 2), and update the pinned rotate-env text and its tests deliberately.
 
-Acceptance: the rotate-env FAILED/CRASHED refusal names the hand redeploy step; tests pin it.
+Second member (same shared-message class, PR 2676 round 2): the trigger-failure message in the same wait helper (formatRedeployTriggerError) says the service "may already be restarting" even when nothing restarted. redeployRailwayServiceReusingImageWithSource (railway-api.ts) refuses BEFORE the mutation when the latest deployment is not SUCCESS ("Cannot redeploy ... resolve that before rotating"), and the wait wraps that refusal in the restarting text. It is reachable in BYOK stage 2 because ai-worker's trigger runs after the whole api-gateway wait, which can last minutes. Fix: tell a pre-mutation refusal apart from a mutation failure (a typed error or a distinct message prefix) and word each accurately, for the default wording and BYOK alike. The helper is renamed service-redeploy-wait.ts by PR 2676; if that has not merged yet, the file is verifier-redeploy-wait.ts.
+
+Acceptance: the rotate-env FAILED/CRASHED refusal names the hand redeploy step; a refused trigger does not claim a restart may be under way; tests pin both.
 <!-- SECTION:DESCRIPTION:END -->
