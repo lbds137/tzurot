@@ -2,6 +2,9 @@
  * Stage-1 helpers for the staged BYOK encryption-key rotation in rotation.ts:
  * ordered variable writes (PREVIOUS on both services before CURRENT on both)
  * and state-specific repair messages that omit error causes and key values.
+ * Stage 2 (byok-reencrypt-stage.ts) redeploys both services itself, so these
+ * messages send the operator to stage 2 rather than to a hand redeploy, except
+ * for a service whose latest deployment failed.
  */
 
 import crypto from 'node:crypto';
@@ -37,7 +40,7 @@ export function stageUpsertFailureError(args: {
   }
 
   return new Error(
-    `Failed to upsert ${CURRENT_VAR} on ${failedService} (${env}); it may or may not have applied. Re-run stage 1, then follow what it reports: if it completes, nothing more to do; if it reports ${CURRENT_VAR} DIFFERS, copy ${CURRENT_VAR} from api-gateway to ai-worker in the Railway dashboard, then run \`pnpm ops deploy:redeploy --env ${env} --service api-gateway --yes\` and the same for ai-worker, wait for both, then run stage 2; if it reports a rotation window is already open, every write landed: redeploy both services the same way, wait for both, then run stage 2.${suffix}`
+    `Failed to upsert ${CURRENT_VAR} on ${failedService} (${env}); it may or may not have applied. Re-run stage 1, then follow what it reports: if it completes, nothing more to do; if it reports ${CURRENT_VAR} DIFFERS, copy ${CURRENT_VAR} from api-gateway to ai-worker in the Railway dashboard, then run stage 2, which redeploys both services itself and waits for each to reach SUCCESS; if it reports a rotation window is already open, every write landed: run stage 2, which redeploys both services itself.${suffix}`
   );
 }
 
@@ -53,7 +56,8 @@ export function redeployCommands(failedServices: string, env: 'dev' | 'prod'): s
 export function stageRedeployFailureMessage(failedServices: string, env: 'dev' | 'prod'): string {
   return (
     `Both services hold both keys in Railway, but ${failedServices} failed to redeploy and still runs its old process until redeployed. ` +
-    `Redeploy ${failedServices} with ${redeployCommands(failedServices, env)}, wait for each redeploy to reach SUCCESS, then run stage 2.`
+    `Run stage 2 once both services' latest deployments have settled: it redeploys both services itself and waits for each new deployment to reach SUCCESS before touching any row. ` +
+    `If a service's latest deployment is FAILED, CRASHED, REMOVED or SKIPPED, redeploy it first with ${redeployCommands(failedServices, env)}, because stage 2's readiness check refuses it.`
   );
 }
 
@@ -116,7 +120,7 @@ export async function stageByokWindow(deps: StageByokWindowDeps): Promise<void> 
   if (previous !== '' && previous !== current) {
     throw new Error(
       'A rotation window is already open (PREVIOUS is set) — run stage 2 then stage 3 to close it before starting a new rotation.' +
-        ` If stage 1 itself was interrupted after its writes, redeploy both services first (\`pnpm ops deploy:redeploy --env ${env} --service <name> --yes\`) and wait for them before stage 2.`
+        ` If stage 1 itself was interrupted after its writes, run stage 2 once both services' latest deployments have settled: it redeploys both services itself and waits for each to reach SUCCESS. If a service's latest deployment is FAILED, CRASHED, REMOVED or SKIPPED, redeploy it first (\`pnpm ops deploy:redeploy --env ${env} --service <name> --yes\`), because stage 2's readiness check refuses it.`
     );
   }
   parseEncryptionKeyMaterial(current, CURRENT_VAR); // sanity before touching anything
@@ -159,7 +163,7 @@ export async function stageByokWindow(deps: StageByokWindowDeps): Promise<void> 
   console.log(
     chalk.cyan(
       '\nStage 1 complete. Both services now hold current+previous keys; redeploys requested (image reused, no rebuild).\n' +
-        'Wait for both redeploys to reach SUCCESS, then run stage 2 (reencrypt).'
+        'Once both redeploys have settled (stage 2 refuses a deployment still in flight), run stage 2 (reencrypt): it redeploys both services again and waits for each new deployment to reach SUCCESS before touching any row.'
     )
   );
 }
