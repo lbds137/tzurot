@@ -3,9 +3,10 @@ id: TASK-1305
 title: >-
   Derive the commandFailed copy in commandDispatch tests from the catalog and
   refresh the deny index test docblock
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-27T05:45:00Z'
+updated_date: '2026-10-27T06:02:00Z'
 labels:
   - area:bot-client
   - size:S
@@ -22,5 +23,7 @@ Why: PR 2670 review round 2. That PR couples the interaction-failed assertions t
 
 What: (1) services/bot-client/src/handlers/commandDispatch.test.ts, around lines 303 and 333, asserts the literal error-executing-this-command sentence; switch both to renderSpec(CATALOG.error.commandFailed()) (the literal stays pinned in ux/render/reply.test.ts); (2) extend the header docblock of services/bot-client/src/commands/deny/index.test.ts (lines 1-9) to mention the handleButton and handleSelectMenu routing and rejection-propagation coverage.
 
-Acceptance: both edits land; a one-character change to the commandFailed catalog text reddens only reply.test.ts and the catalog test; no source change.
+Acceptance: both edits land; a one-character change to the commandFailed catalog text reddens only reply.test.ts (the catalog snapshot test does not pin the wording); no source change.
+
+SHIPPED (PR 2671, tests only, Done 2026-10-27, done inline: two files, five or fewer touched lines each). Mutation checks: a one-character catalog edit reddened only reply.test.ts; sending interactionFailed instead of commandFailed from commandDispatch.ts reddened exactly the two derived assertions.
 <!-- SECTION:DESCRIPTION:END -->
