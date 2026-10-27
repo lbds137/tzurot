@@ -215,7 +215,7 @@ async function handleFactButton(interaction: ButtonInteraction): Promise<void> {
     await ackUpdate(interaction);
     const forgotten = await handleForgetConfirm(interaction, factId);
     if (forgotten) {
-      await refreshFactsList(interaction);
+      await refreshFactsList(interaction, { afterForget: true });
     }
     return;
   }
