@@ -9,8 +9,10 @@ import {
   listRailwayVariableNames,
   readRailwayVariableValue,
   upsertRailwayVariable,
+  getRailwayServiceLatestDeployment,
   assertRailwayServiceDeploymentReady,
   redeployRailwayServiceReusingImage,
+  redeployRailwayServiceReusingImageWithSource,
   getLiveDeploymentCommit,
 } from './railway-api.js';
 
@@ -744,6 +746,92 @@ describe('railway-api', () => {
     });
   });
 
+  describe('getRailwayServiceLatestDeployment', () => {
+    it('returns only { id, status } for serviceInstance.latestDeployment and sends environmentId and serviceId', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            serviceInstance: {
+              latestDeployment: {
+                id: 'dep-42',
+                status: 'BUILDING',
+                meta: { commitHash: 'abc1234' },
+              },
+            },
+          },
+        })
+      );
+
+      const latest = await getRailwayServiceLatestDeployment({
+        environmentId: 'env-1',
+        serviceId: 'svc-1',
+        env: 'dev',
+      });
+
+      expect(latest).toEqual({ id: 'dep-42', status: 'BUILDING' });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const parsedBody = JSON.parse(init.body as string) as {
+        query: string;
+        variables: Record<string, unknown>;
+      };
+      expect(parsedBody.query).toContain('serviceInstance');
+      expect(parsedBody.query).toContain('latestDeployment');
+      expect(parsedBody.variables).toEqual({
+        environmentId: 'env-1',
+        serviceId: 'svc-1',
+      });
+    });
+
+    it('returns null when serviceInstance.latestDeployment is null', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            serviceInstance: {
+              latestDeployment: null,
+            },
+          },
+        })
+      );
+
+      await expect(
+        getRailwayServiceLatestDeployment({
+          environmentId: 'env-1',
+          serviceId: 'svc-1',
+          env: 'dev',
+        })
+      ).resolves.toBeNull();
+    });
+
+    it('throws a shape error without echoing the raw body when serviceInstance is malformed', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      const sentinelPayload = 'SENTINEL-RAW-LATEST-DEPLOYMENT-PAYLOAD';
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: { serviceInstance: { unexpected: sentinelPayload } },
+        })
+      );
+
+      let caught: unknown;
+      try {
+        await getRailwayServiceLatestDeployment({
+          environmentId: 'env-1',
+          serviceId: 'svc-1',
+          env: 'dev',
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(Error);
+      const inspected = util.inspect(caught, { depth: null });
+      expect(inspected).toMatch(/unexpected shape/i);
+      expect(inspected).not.toContain(sentinelPayload);
+    });
+  });
+
   describe('redeployRailwayServiceReusingImage', () => {
     it('queries serviceInstance.latestDeployment with the passed environment and service ids, redeploys it with usePreviousImageTag: true, and returns the new id', async () => {
       process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
@@ -921,6 +1009,51 @@ describe('railway-api', () => {
       const inspected = util.inspect(caught, { depth: null });
       expect(inspected).toMatch(/unexpected shape/i);
       expect(inspected).not.toContain(sentinelPayload);
+    });
+  });
+
+  describe('redeployRailwayServiceReusingImageWithSource', () => {
+    it('returns both sourceDeploymentId and newDeploymentId and sends usePreviousImageTag: true for the source id', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch
+        .mockResolvedValueOnce(
+          jsonResponse(200, {
+            data: {
+              serviceInstance: {
+                latestDeployment: { id: 'dep-source', status: 'SUCCESS' },
+              },
+            },
+          })
+        )
+        .mockResolvedValueOnce(
+          jsonResponse(200, {
+            data: { deploymentRedeploy: { id: 'dep-new' } },
+          })
+        );
+
+      const result = await redeployRailwayServiceReusingImageWithSource({
+        environmentId: 'env-1',
+        serviceId: 'svc-1',
+        serviceName: 'api-gateway',
+        env: 'dev',
+      });
+
+      expect(result).toEqual({
+        sourceDeploymentId: 'dep-source',
+        newDeploymentId: 'dep-new',
+      });
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      const [, redeployInit] = mockFetch.mock.calls[1] as [string, RequestInit];
+      const redeployBody = JSON.parse(redeployInit.body as string) as {
+        query: string;
+        variables: Record<string, unknown>;
+      };
+      expect(redeployBody.query).toContain('deploymentRedeploy');
+      expect(redeployBody.variables).toEqual({
+        id: 'dep-source',
+        usePreviousImageTag: true,
+      });
     });
   });
 

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../deployment/railway-api.js', () => ({
   assertRailwayServiceDeploymentReady: vi.fn(),
+  getRailwayServiceLatestDeployment: vi.fn(),
+  redeployRailwayServiceReusingImageWithSource: vi.fn(),
   upsertRailwayVariable: vi.fn(),
   deleteRailwayVariable: vi.fn(),
   readRailwayVariableValue: vi.fn(),
@@ -45,6 +47,8 @@ vi.mock('./rotate-env-context.js', () => ({
 
 import {
   assertRailwayServiceDeploymentReady,
+  getRailwayServiceLatestDeployment,
+  redeployRailwayServiceReusingImageWithSource,
   upsertRailwayVariable,
   deleteRailwayVariable,
   readRailwayVariableValue,
@@ -59,9 +63,12 @@ import {
   type RotationContext,
 } from './rotate-env-context.js';
 import { runStagedRotation, type StagedRotationOptions } from './rotate-env-stages.js';
+import { DEFAULT_VERIFIER_POLL_INTERVAL_MS } from './verifier-redeploy-wait.js';
 import { UsageError } from '../utils/errors.js';
 
 const mockAssertReady = vi.mocked(assertRailwayServiceDeploymentReady);
+const mockGetLatestDeployment = vi.mocked(getRailwayServiceLatestDeployment);
+const mockRedeployVerifier = vi.mocked(redeployRailwayServiceReusingImageWithSource);
 const mockUpsert = vi.mocked(upsertRailwayVariable);
 const mockDelete = vi.mocked(deleteRailwayVariable);
 const mockReadValue = vi.mocked(readRailwayVariableValue);
@@ -123,6 +130,13 @@ describe('runStagedRotation', () => {
   beforeEach(() => {
     verifierNames = new Set([VAR_NAME]);
     mockAssertReady.mockReset().mockResolvedValue(undefined);
+    mockRedeployVerifier.mockReset().mockResolvedValue({
+      sourceDeploymentId: 'dep-verifier-old',
+      newDeploymentId: 'dep-verifier-stage2',
+    });
+    mockGetLatestDeployment
+      .mockReset()
+      .mockResolvedValue({ id: 'dep-verifier-stage2', status: 'SUCCESS' });
     mockUpsert.mockReset().mockImplementation(async args => {
       if (args.serviceId !== undefined) {
         verifierNames.add(args.name);
@@ -205,7 +219,7 @@ describe('runStagedRotation', () => {
       /stage 2.*stage 3/s
     );
     await expect(runStagedRotation(makeOptions({ stage: '1' }), context)).rejects.toThrow(
-      /confirm in the Railway dashboard.*redeploy actually landed/is
+      /Stage 2 itself redeploys "api-gateway" and waits for SUCCESS first.*recoverable by running stage 2/is
     );
     expect(mockUpsert).not.toHaveBeenCalled();
   });
@@ -276,6 +290,15 @@ describe('runStagedRotation', () => {
       environmentId: 'env-1',
       env: 'dev',
     });
+  });
+
+  it('stage 1 tells the operator not to re-run stage 1 and to confirm the verifier shows SUCCESS when its redeploy fails', async () => {
+    mockRedeploy.mockResolvedValue([{ name: 'api-gateway', error: new Error('boom') }]);
+
+    const rejection = runStagedRotation(makeOptions({ stage: '1' }), makeContext());
+
+    await expect(rejection).rejects.toThrow(/Do NOT re-run stage 1/);
+    await expect(rejection).rejects.toThrow(/"api-gateway" shows SUCCESS/);
   });
 
   // `reportRedeployFailures` prints an unconditional "⚠️ N service(s) failed to
@@ -638,5 +661,201 @@ describe('runStagedRotation', () => {
     await runStagedRotation(makeOptions({ stage: fixture.stage, dryRun: true }), makeContext());
 
     expect(mockAssertReady).not.toHaveBeenCalled();
+  });
+
+  it('stage 2 redeploys the verifier and waits for the new deployment to reach SUCCESS before redeploying presenters', async () => {
+    vi.useFakeTimers();
+    try {
+      verifierNames.add(PREVIOUS_NAME);
+      const events: string[] = [];
+
+      mockAssertReady.mockImplementation(async args => {
+        events.push(`ready:${args.serviceName}`);
+      });
+      mockRedeployVerifier.mockImplementation(async args => {
+        events.push(`redeploy-verifier:${args.serviceName}`);
+        return { sourceDeploymentId: 'dep-old', newDeploymentId: 'dep-verifier-stage2' };
+      });
+      mockGetLatestDeployment
+        .mockImplementationOnce(async () => {
+          events.push('poll:dep-old:SUCCESS');
+          return { id: 'dep-old', status: 'SUCCESS' };
+        })
+        .mockImplementationOnce(async () => {
+          events.push('poll:dep-verifier-stage2:BUILDING');
+          return { id: 'dep-verifier-stage2', status: 'BUILDING' };
+        })
+        .mockImplementationOnce(async () => {
+          events.push('poll:dep-verifier-stage2:SUCCESS');
+          return { id: 'dep-verifier-stage2', status: 'SUCCESS' };
+        })
+        .mockImplementationOnce(async args => {
+          events.push(`presenter-ready:${args.serviceId}:SUCCESS`);
+          return { id: 'dep-bot', status: 'SUCCESS' };
+        })
+        .mockImplementationOnce(async args => {
+          events.push(`presenter-ready:${args.serviceId}:SUCCESS`);
+          return { id: 'dep-ai', status: 'SUCCESS' };
+        });
+      mockRedeploy.mockImplementation(async services => {
+        events.push(`redeploy-presenters:${services.map(svc => svc.name).join(',')}`);
+        return [];
+      });
+
+      const promise = runStagedRotation(makeOptions({ stage: '2' }), makeContext());
+      await vi.advanceTimersByTimeAsync(DEFAULT_VERIFIER_POLL_INTERVAL_MS * 2);
+      await promise;
+
+      expect(mockRedeployVerifier).toHaveBeenCalledTimes(1);
+      expect(mockRedeployVerifier).toHaveBeenCalledWith({
+        environmentId: 'env-1',
+        serviceId: 'svc-gateway',
+        serviceName: 'api-gateway',
+        env: 'dev',
+      });
+      expect(mockGetLatestDeployment).toHaveBeenCalledTimes(5);
+      expect(mockRedeploy).toHaveBeenCalledTimes(1);
+      const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
+      expect(allOutput).toMatch(/Next: pnpm ops secrets:rotate-env .*--stage 3/);
+      expect(events).toEqual([
+        'ready:api-gateway',
+        'ready:bot-client',
+        'ready:ai-worker',
+        'redeploy-verifier:api-gateway',
+        'poll:dep-old:SUCCESS',
+        'poll:dep-verifier-stage2:BUILDING',
+        'poll:dep-verifier-stage2:SUCCESS',
+        'presenter-ready:svc-bot:SUCCESS',
+        'presenter-ready:svc-ai:SUCCESS',
+        'redeploy-presenters:bot-client,ai-worker',
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stage 2 refuses and leaves presenters untouched when the verifier redeploy reaches a terminal failure status', async () => {
+    vi.useFakeTimers();
+    try {
+      verifierNames.add(PREVIOUS_NAME);
+      mockGetLatestDeployment.mockResolvedValue({
+        id: 'dep-verifier-stage2',
+        status: 'CRASHED',
+      });
+
+      await expect(runStagedRotation(makeOptions({ stage: '2' }), makeContext())).rejects.toThrow(
+        /api-gateway.*CRASHED.*nothing was redeployed on presenters/s
+      );
+
+      expect(mockRedeployVerifier).toHaveBeenCalledTimes(1);
+      expect(mockRedeploy).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stage 2 refuses and leaves presenters untouched when triggering the verifier redeploy rejects', async () => {
+    verifierNames.add(PREVIOUS_NAME);
+    mockRedeployVerifier.mockRejectedValueOnce(new Error('verifier redeploy failed'));
+
+    await expect(runStagedRotation(makeOptions({ stage: '2' }), makeContext())).rejects.toThrow(
+      'verifier redeploy failed'
+    );
+
+    expect(mockRedeployVerifier).toHaveBeenCalledTimes(1);
+    expect(mockGetLatestDeployment).not.toHaveBeenCalled();
+    expect(mockRedeploy).not.toHaveBeenCalled();
+  });
+
+  it('stage 2 refuses to redeploy any presenter when a presenter flips to BUILDING during the verifier wait', async () => {
+    vi.useFakeTimers();
+    try {
+      verifierNames.add(PREVIOUS_NAME);
+      mockGetLatestDeployment
+        .mockResolvedValueOnce({ id: 'dep-verifier-stage2', status: 'SUCCESS' })
+        .mockResolvedValueOnce({ id: 'dep-bot', status: 'BUILDING' })
+        .mockResolvedValueOnce({ id: 'dep-ai', status: 'SUCCESS' });
+
+      await expect(runStagedRotation(makeOptions({ stage: '2' }), makeContext())).rejects.toThrow(
+        /bot-client.*BUILDING/
+      );
+
+      expect(mockRedeployVerifier).toHaveBeenCalledTimes(1);
+      expect(mockGetLatestDeployment).toHaveBeenCalledTimes(3);
+      expect(mockRedeploy).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stage 2 dry run prints the verifier redeploy-and-wait plan line and makes no deployment calls', async () => {
+    verifierNames.add(PREVIOUS_NAME);
+
+    await runStagedRotation(makeOptions({ stage: '2', dryRun: true }), makeContext());
+
+    const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
+    expect(allOutput).toContain('Plan: redeploy "api-gateway" first and wait for SUCCESS');
+    expect(allOutput).toContain('Plan: redeploy bot-client, ai-worker');
+    expect(
+      allOutput.indexOf('Plan: redeploy "api-gateway" first and wait for SUCCESS')
+    ).toBeLessThan(allOutput.indexOf('Plan: redeploy bot-client, ai-worker'));
+    expect(mockRedeployVerifier).not.toHaveBeenCalled();
+    expect(mockGetLatestDeployment).not.toHaveBeenCalled();
+    expect(mockRedeploy).not.toHaveBeenCalled();
+  });
+
+  it('stage 2 confirmation prompt mentions the verifier restart and waiting for SUCCESS', async () => {
+    verifierNames.add(PREVIOUS_NAME);
+
+    await runStagedRotation(makeOptions({ stage: '2', yes: false }), makeContext());
+
+    expect(mockConfirm).toHaveBeenCalledTimes(1);
+    expect(mockConfirm).toHaveBeenCalledWith(
+      expect.stringMatching(/restart the verifier.*wait for SUCCESS/i)
+    );
+  });
+
+  it('stage 1 dry run with an open non-degenerate window explains that stage 2 redeploys the verifier first', async () => {
+    verifierNames.add(PREVIOUS_NAME);
+
+    await runStagedRotation(makeOptions({ stage: '1', dryRun: true }), makeContext());
+
+    const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
+    expect(allOutput).toMatch(
+      /Stage 2 itself redeploys "api-gateway" and waits for it to reach SUCCESS first.*recoverable by running stage 2/is
+    );
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
+  it('stage 2 makes no verifier or presenter redeploy call when no window is open', async () => {
+    await expect(runStagedRotation(makeOptions({ stage: '2' }), makeContext())).rejects.toThrow(
+      UsageError
+    );
+
+    expect(mockAssertReady).not.toHaveBeenCalled();
+    expect(mockRedeployVerifier).not.toHaveBeenCalled();
+    expect(mockGetLatestDeployment).not.toHaveBeenCalled();
+    expect(mockRedeploy).not.toHaveBeenCalled();
+  });
+
+  it('stage 2 presenter failure report states that nothing was written and the verifier already restarted onto the new primary', async () => {
+    verifierNames.add(PREVIOUS_NAME);
+    mockRedeploy.mockResolvedValue([{ name: 'bot-client', error: new Error('boom') }]);
+
+    await expect(runStagedRotation(makeOptions({ stage: '2' }), makeContext())).rejects.toThrow(
+      'secrets:rotate-env stage 2: 1 service(s) failed to redeploy. Re-run stage 2 once every lagging service shows SUCCESS (its preflight refuses until every service does); a service that ended FAILED or CRASHED must be redeployed by hand first.'
+    );
+
+    const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
+    expect(allOutput).not.toContain('--stage 3');
+
+    expect(mockReportFailures).toHaveBeenCalledTimes(1);
+    const [failures, consequence, env] = mockReportFailures.mock.calls[0];
+    expect(failures).toEqual([{ name: 'bot-client', error: expect.any(Error) }]);
+    expect(consequence).not.toContain('only redeploys presenters');
+    expect(consequence).toBe(
+      'Nothing was written — the verifier restarted and its new deployment reached SUCCESS (per the stage-2 wait).'
+    );
+    expect(env).toBe('dev');
   });
 });
