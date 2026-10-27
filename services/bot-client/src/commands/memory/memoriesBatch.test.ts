@@ -404,4 +404,17 @@ describe('handleMemoryBatchPick (confirm view)', () => {
     expect(embed.description).toContain('• Content of mem-2');
     expect(embed.description).not.toContain('• 3. ');
   });
+
+  it('propagates an editReply failure to the central handler instead of swallowing it', async () => {
+    const swappedRows = buildMemoryBatchSelectComponents(BROWSE_SESSION.data, MEMORIES, 0);
+    const interaction = createSelectInteraction(['mem-2', 'mem-4'], swappedRows);
+    vi.mocked(interaction.editReply).mockRejectedValueOnce(new Error('editReply failed'));
+
+    await expect(handleMemoryBatchPick(interaction)).rejects.toThrow('editReply failed');
+    expect(interaction.deferUpdate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(interaction.deferUpdate).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(interaction.editReply).mock.invocationCallOrder[0]
+    );
+    expect(interaction.followUp).not.toHaveBeenCalled();
+  });
 });
