@@ -12,9 +12,12 @@
  *   stage 1 (stage):     mint new key; upsert PREVIOUS=old on both services,
  *                        then CURRENT=new on both (api-gateway + ai-worker)
  *                        through the Railway API (skipDeploys), then redeploy
- *                        both reusing their running image; wait for redeploys.
- *   stage 2 (reencrypt): re-encrypt every user_api_keys/user_credentials row
- *                        still on the previous key; verify sweep.
+ *                        both reusing their running image (stage 2 does not
+ *                        depend on that redeploy having happened).
+ *   stage 2 (reencrypt): redeploy api-gateway then ai-worker and wait for each
+ *                        new deployment to reach SUCCESS, then re-encrypt every
+ *                        user_api_keys/user_credentials row still on the
+ *                        previous key; verify sweep (byok-reencrypt-stage.ts).
  *   stage 3 (finalize):  verify again, delete PREVIOUS on both services
  *                        through the Railway API, redeploy them reusing their
  *                        running image, and stamp the ledger only when both
@@ -43,6 +46,7 @@ import {
 } from '../deployment/railway-api.js';
 import { getRailwayDatabaseUrl, getRailwayEnvName } from '../utils/env-runner.js';
 import { deleteFailureError, resolveServiceIds } from './byok-finalize-helpers.js';
+import { reencryptByokRows } from './byok-reencrypt-stage.js';
 import {
   assertByokServicesDeploymentReady,
   BYOK_SERVICES,
@@ -53,6 +57,7 @@ import {
   stageByokWindow,
   type ByokServiceIds,
 } from './byok-stage-helpers.js';
+import { redeployAndWaitForService } from './service-redeploy-wait.js';
 
 /** Default rotation intervals (owner decision: 180d BYOK, 365d the rest). */
 export const DEFAULT_INTERVALS: Record<string, number> = {
@@ -334,6 +339,33 @@ async function countNonCurrentRows(
   return failures;
 }
 
+/** Stage 2's row work: re-encrypt both tables, print the tallies, then verify. */
+async function reencryptAndVerifyRows(
+  prisma: Awaited<ReturnType<typeof createPrismaClient>>['prisma'],
+  currentKey: Buffer,
+  previousKey: Buffer
+): Promise<void> {
+  for (const table of ['userApiKey', 'userCredential'] as const) {
+    const tally = await reencryptTable(prisma, table, currentKey, previousKey);
+    console.log(
+      `  ${table}: ${tally.reencrypted} re-encrypted, ${tally.alreadyCurrent} already current, ${tally.changedConcurrently} changed concurrently (skipped), ${tally.unreadable} unreadable${tally.capped ? ' [READ CAPPED — incomplete]' : ''}`
+    );
+    if (tally.unreadable > 0) {
+      console.log(
+        chalk.yellow(
+          `  ⚠️  ${tally.unreadable} row(s) match neither key — triage before finalizing.`
+        )
+      );
+    }
+  }
+  const remaining = await countNonCurrentRows(prisma, currentKey);
+  if (remaining === 0) {
+    console.log(chalk.green('\nAll rows verified on the current key. Run stage 3 (finalize).'));
+  } else {
+    console.log(chalk.red(`\n${remaining} row(s) still not on the current key.`));
+  }
+}
+
 function resolveByokIds(env: SecretsEnv): ByokServiceIds {
   return Object.fromEntries(
     BYOK_SERVICES.map(svc => [svc, resolveServiceIds(env, svc)])
@@ -455,43 +487,16 @@ export async function rotateByokKey(options: { env: SecretsEnv; stage: string })
   }
 
   if (stage === '2' || stage === 'reencrypt') {
-    const currentRaw = getServiceVariable(env, GATEWAY_SERVICE, CURRENT_VAR);
-    const currentKey = parseEncryptionKeyMaterial(currentRaw, CURRENT_VAR);
-    const previousRaw = getServiceVariableOrEmpty(env, GATEWAY_SERVICE, PREVIOUS_VAR);
-    if (previousRaw === '') {
-      throw new Error('No rotation window is open (PREVIOUS is empty) — run stage 1 first.');
-    }
-    if (previousRaw === currentRaw) {
-      throw new Error('PREVIOUS equals CURRENT (an interrupted stage 1). Re-run stage 1.');
-    }
-    const previousKey = parseEncryptionKeyMaterial(previousRaw, PREVIOUS_VAR);
-
-    await assertByokServicesDeploymentReady(
+    await reencryptByokRows({
       env,
-      resolveByokIds(env),
-      assertRailwayServiceDeploymentReady
-    );
-
-    await withEnvPrisma(env, async prisma => {
-      for (const table of ['userApiKey', 'userCredential'] as const) {
-        const tally = await reencryptTable(prisma, table, currentKey, previousKey);
-        console.log(
-          `  ${table}: ${tally.reencrypted} re-encrypted, ${tally.alreadyCurrent} already current, ${tally.changedConcurrently} changed concurrently (skipped), ${tally.unreadable} unreadable${tally.capped ? ' [READ CAPPED — incomplete]' : ''}`
-        );
-        if (tally.unreadable > 0) {
-          console.log(
-            chalk.yellow(
-              `  ⚠️  ${tally.unreadable} row(s) match neither key — triage before finalizing.`
-            )
-          );
-        }
-      }
-      const remaining = await countNonCurrentRows(prisma, currentKey);
-      if (remaining === 0) {
-        console.log(chalk.green('\nAll rows verified on the current key. Run stage 3 (finalize).'));
-      } else {
-        console.log(chalk.red(`\n${remaining} row(s) still not on the current key.`));
-      }
+      getServiceVariable,
+      getServiceVariableOrEmpty,
+      resolveByokIds,
+      assertServiceDeploymentReady: assertRailwayServiceDeploymentReady,
+      redeployAndWait: redeployAndWaitForService,
+      assertServicesConsistent: assertByokServicesConsistent,
+      reencryptAndVerify: (currentKey, previousKey) =>
+        withEnvPrisma(env, prisma => reencryptAndVerifyRows(prisma, currentKey, previousKey)),
     });
     return;
   }

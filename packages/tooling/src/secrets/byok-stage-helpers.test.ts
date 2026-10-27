@@ -70,7 +70,7 @@ describe('stageUpsertFailureError', () => {
     });
 
     expect(err.message).toBe(
-      'Failed to upsert API_KEY_ENCRYPTION_KEY on api-gateway (dev); it may or may not have applied. Re-run stage 1, then follow what it reports: if it completes, nothing more to do; if it reports API_KEY_ENCRYPTION_KEY DIFFERS, copy API_KEY_ENCRYPTION_KEY from api-gateway to ai-worker in the Railway dashboard, then run `pnpm ops deploy:redeploy --env dev --service api-gateway --yes` and the same for ai-worker, wait for both, then run stage 2; if it reports a rotation window is already open, every write landed: redeploy both services the same way, wait for both, then run stage 2. No stored row has been touched; stage 2 has not run.'
+      'Failed to upsert API_KEY_ENCRYPTION_KEY on api-gateway (dev); it may or may not have applied. Re-run stage 1, then follow what it reports: if it completes, nothing more to do; if it reports API_KEY_ENCRYPTION_KEY DIFFERS, copy API_KEY_ENCRYPTION_KEY from api-gateway to ai-worker in the Railway dashboard, then run stage 2, which redeploys both services itself and waits for each to reach SUCCESS; if it reports a rotation window is already open, every write landed: run stage 2, which redeploys both services itself. No stored row has been touched; stage 2 has not run.'
     );
     expect(err.cause).toBeUndefined();
   });
@@ -83,7 +83,7 @@ describe('stageUpsertFailureError', () => {
     });
 
     expect(err.message).toBe(
-      'Failed to upsert API_KEY_ENCRYPTION_KEY on ai-worker (prod); it may or may not have applied. Re-run stage 1, then follow what it reports: if it completes, nothing more to do; if it reports API_KEY_ENCRYPTION_KEY DIFFERS, copy API_KEY_ENCRYPTION_KEY from api-gateway to ai-worker in the Railway dashboard, then run `pnpm ops deploy:redeploy --env prod --service api-gateway --yes` and the same for ai-worker, wait for both, then run stage 2; if it reports a rotation window is already open, every write landed: redeploy both services the same way, wait for both, then run stage 2. No stored row has been touched; stage 2 has not run.'
+      'Failed to upsert API_KEY_ENCRYPTION_KEY on ai-worker (prod); it may or may not have applied. Re-run stage 1, then follow what it reports: if it completes, nothing more to do; if it reports API_KEY_ENCRYPTION_KEY DIFFERS, copy API_KEY_ENCRYPTION_KEY from api-gateway to ai-worker in the Railway dashboard, then run stage 2, which redeploys both services itself and waits for each to reach SUCCESS; if it reports a rotation window is already open, every write landed: run stage 2, which redeploys both services itself. No stored row has been touched; stage 2 has not run.'
     );
     expect(err.cause).toBeUndefined();
   });
@@ -104,19 +104,23 @@ describe('redeployCommands', () => {
 });
 
 describe('stageRedeployFailureMessage', () => {
-  it('names the deploy:redeploy command per failed service, drops the dashboard hedge, and keeps "then run stage 2"', () => {
+  it('sends the operator to stage 2 (which redeploys itself) and keeps the hand redeploy only for a FAILED, CRASHED, REMOVED or SKIPPED latest deployment', () => {
     const singleMsg = stageRedeployFailureMessage('api-gateway', 'dev');
 
-    expect(singleMsg).toContain('`pnpm ops deploy:redeploy --env dev --service api-gateway --yes`');
-    expect(singleMsg).toContain('then run stage 2.');
-    expect(singleMsg).toContain('wait for each redeploy to reach SUCCESS, then run stage 2.');
+    expect(singleMsg).toContain(
+      "Run stage 2 once both services' latest deployments have settled: it redeploys both services itself and waits for each new deployment to reach SUCCESS before touching any row."
+    );
+    expect(singleMsg).toContain(
+      "If a service's latest deployment is FAILED, CRASHED, REMOVED or SKIPPED, redeploy it first with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`, because stage 2's readiness check refuses it."
+    );
+    expect(singleMsg).not.toContain('wait for each redeploy');
     expect(singleMsg).not.toContain('not verified:');
     expect(singleMsg).not.toContain('Railway dashboard');
 
     const bothMsg = stageRedeployFailureMessage('api-gateway, ai-worker', 'prod');
     expect(bothMsg).toContain('`pnpm ops deploy:redeploy --env prod --service api-gateway --yes`');
     expect(bothMsg).toContain('`pnpm ops deploy:redeploy --env prod --service ai-worker --yes`');
-    expect(bothMsg).toContain('then run stage 2.');
+    expect(bothMsg).toContain('Run stage 2 once both services');
   });
 });
 

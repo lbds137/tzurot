@@ -62,27 +62,50 @@ redeploys both services reusing their running image (no rebuild; requires
 `TZUROT_RAILWAY_API_TOKEN_DEV` or `TZUROT_RAILWAY_API_TOKEN_PROD` in the local
 `.env`).
 
-**Wait for both redeploys to finish before running stage 2.** A service still
-running on the old process doesn't know the new key yet.
+Run stage 2 once both redeploys have settled (it refuses a deployment still in
+flight); it redeploys both services again itself (see below). A service
+still running on the old process doesn't know the new key yet, which is why
+stage 2 does not re-encrypt until each service has a deployment it created.
 
 Stage 1 refuses to run if `PREVIOUS` is already set to a key different from the
 current one — that would demote the current key and discard the real previous
 one, permanently orphaning any row still on it. Finish the open window (stages 2
-then 3) first (or if stage 1 itself was interrupted after its writes, redeploy
-both services with `pnpm ops deploy:redeploy --env <env> --service <name> --yes`
-and wait for them before stage 2). `PREVIOUS` equal to the current key (on one
-or both services) is the degenerate window an interrupted stage 1 leaves behind;
-nothing can be orphaned, so stage 1 re-runs.
+then 3) first (if stage 1 itself was interrupted after its writes, run stage 2:
+it redeploys both services itself; a service whose latest deployment is `FAILED`,
+`CRASHED`, `REMOVED` or `SKIPPED` needs
+`pnpm ops deploy:redeploy --env <env> --service <name> --yes` first, because
+stage 2's readiness check refuses it). `PREVIOUS` equal to the current key (on
+one or both services) is the degenerate window an interrupted stage 1 leaves
+behind; nothing can be orphaned, so stage 1 re-runs.
 
 ### Stage 2 — reencrypt
 
 Refuses if `PREVIOUS` is empty or still equals `CURRENT` (an interrupted stage
-1), and preflights that both services' latest deployments are `SUCCESS` before
-touching any row. That preflight proves only that nothing is mid-deploy — it
-does not prove the deployments started after stage 1's writes — so after an
-interrupted stage 1, follow stage 1's repair text. Sweeps both tables,
-re-encrypting every row that still decrypts under the
-previous key, then verifies. Per-table tally:
+1), and preflights that both services' latest deployments are `SUCCESS`. That
+preflight proves only that nothing is mid-deploy, not that the deployments
+started after stage 1's writes, so stage 2 then redeploys api-gateway and then
+ai-worker itself (image reused, one service at a time) and waits for each new
+deployment to report `SUCCESS` before touching any row. This costs one extra
+restart per service per rotation, so run stage 2 off-peak: an ai-worker restart
+may interrupt its in-flight jobs.
+
+Stage 2 refuses, with no row re-encrypted, when:
+
+- a wait fails or times out;
+- a new deployment ends `FAILED`, `CRASHED`, `REMOVED` or `SKIPPED`: it becomes
+  that service's latest deployment, so the preflight refuses the next stage 2
+  until you redeploy the service by hand and it reaches `SUCCESS`;
+- once both waits finish, api-gateway's `CURRENT` or `PREVIOUS` differs from its
+  first read or is now missing;
+- the check that follows finds api-gateway and ai-worker no longer agree on both
+  keys (re-set the lagging service first, as the error says).
+
+After fixing the cause, re-run stage 2: it re-reads the keys. Re-running while
+the window is open repeats the restarts and the sweep; rows already on the
+current key are tallied `already current`, so the repeat is harmless.
+
+The sweep then re-encrypts every row in both tables that still decrypts under the
+previous key, and verifies. Per-table tally:
 
 - `re-encrypted` — migrated to the new key.
 - `already current` — nothing to do.
@@ -92,8 +115,17 @@ previous key, then verifies. Per-table tally:
 - `unreadable` — matches **neither** key. Triage these before finalizing; they
   are pre-existing corruption or ciphertext from a key no longer held.
 
-Stage 2 is idempotent. Re-run it until the verify reports zero rows off the
-current key.
+Stage 2 is idempotent for the rows, but each re-run also restarts both services,
+so do not loop it during peak traffic. Re-run it until the verify reports zero
+rows off the current key.
+
+**Before stage 3, confirm one BYOK-backed request succeeds.** The sweep runs
+locally in tooling, so "all rows verified on the current key" shows that the
+stored rows decrypt under the current key, not that the redeployed services
+decrypt with it. Stage 3 is the step that removes `PREVIOUS`, so exercise one
+request that needs a stored BYOK key (for example a bot reply on a personality
+using a user's own key) and check the service logs for decryption errors first.
+If it fails, do not run stage 3: `PREVIOUS` is still set on both services.
 
 ### Stage 3 — finalize
 

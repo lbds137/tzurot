@@ -51,10 +51,7 @@ import {
   refuseIfWindowClosed,
   printGateVerdict,
 } from './rotate-env-stage-output.js';
-import {
-  assertPresentersStillReady,
-  redeployAndWaitForVerifier,
-} from './verifier-redeploy-wait.js';
+import { assertPresentersStillReady, redeployAndWaitForService } from './service-redeploy-wait.js';
 
 /**
  * Names whose VERIFIER service accepts `<NAME>_PREVIOUS` alongside the current
@@ -321,7 +318,7 @@ async function runStage2(args: StageArgs): Promise<void> {
 
   const deployTarget = { environmentId: context.environmentId, env: options.env };
   await assertServicesDeploymentReady([verifier, ...presenters], deployTarget);
-  await redeployAndWaitForVerifier({ verifier, ...deployTarget });
+  await redeployAndWaitForService({ service: verifier, ...deployTarget });
   await assertPresentersStillReady({ presenters, ...deployTarget });
   const failures = await redeployServices(presenters, deployTarget);
 

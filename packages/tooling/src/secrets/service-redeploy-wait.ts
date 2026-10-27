@@ -1,8 +1,15 @@
 /**
- * Stage 2's verifier-redeploy guarantee for `secrets:rotate-env`.
+ * Redeploy a Railway service and wait for its NEW deployment to reach `SUCCESS`.
  *
- * Stage 1 upserts `<NAME>_PREVIOUS` and the new primary with `skipDeploys: true`,
- * then triggers a verifier redeploy. If stage 1 is interrupted between the
+ * Two callers share it: `secrets:rotate-env` stage 2 (the redeployed service is the
+ * name's verifier, described below) and BYOK stage 2 (`byok-reencrypt-stage.ts`,
+ * which redeploys its two key-holding services, one after the other). Each supplies
+ * its own refusal `wording`.
+ *
+ * The paragraphs below, up to the BYOK note, describe the `secrets:rotate-env` use.
+ * Stage 1 upserts
+ * `<NAME>_PREVIOUS` and the new primary with `skipDeploys: true`, then triggers a
+ * verifier redeploy. If stage 1 is interrupted between the
  * variable writes and the redeploy, the verifier's `latestDeployment` still
  * reports `SUCCESS` on the pre-rotation deployment — which `assertServicesDeploymentReady`
  * cannot distinguish from a completed stage-1 redeploy, and Railway's
@@ -16,10 +23,10 @@
  * `serviceInstance.latestDeployment` both matches the NEW deployment id and
  * reaches `SUCCESS`, before any presenter is redeployed.
  *
- * Observed against the live Railway API in two dev runs, not pinned by a test:
+ * Observed against the live Railway API in two rotate-env dev runs, not pinned by a test:
  * the id returned by the redeploy is the id latestDeployment reports; statuses
  * seen for it were INITIALIZING, DEPLOYING, SUCCESS (no BUILDING, the image is
- * reused; the second run saw INITIALIZING first); stage 2 completed in about
+ * reused; the second run saw INITIALIZING first); rotate-env stage 2 completed in about
  * 16-22 seconds.
  *
  * Not verified against the live Railway API: a superseding third deployment id
@@ -29,14 +36,18 @@
  * statuses (`FAILED`, `CRASHED`, `REMOVED`, `SKIPPED`) refuse immediately, a
  * third deployment id fails fast as superseding ours, and any other non-`SUCCESS`
  * status falls back to the poll timeout path (all pinned in
- * `verifier-redeploy-wait.test.ts`).
+ * `service-redeploy-wait.test.ts`).
  *
- * `SAFE_RERUN_NOTE` claims that redeploying the verifier in stage 2 is
+ * The default wording's `rerunNote` claims that redeploying the verifier in stage 2 is
  * idempotent while the dual-acceptance window is open: stage 2 cannot reach
- * `redeployAndWaitForVerifier` outside an open window because `runStage2` in
+ * `redeployAndWaitForService` outside an open window because `runStage2` in
  * `rotate-env-stages.ts` calls `refuseIfWindowClosed` (`rotate-env-stage-output.ts`)
  * first (pinned by `stage 2 refuses when no window is open` and its no-redeploy
  * companion test in `rotate-env-stages.test.ts`).
+ *
+ * BYOK stage 2 has no verifier and no presenters; the same reachability argument is
+ * pinned in `byok-reencrypt-stage.test.ts` by `refuses an empty PREVIOUS before any
+ * redeploy` and `refuses PREVIOUS equal to CURRENT before any redeploy`.
  *
  * `timeoutMs` is a soft budget because the deadline is only checked after a
  * successful poll, so up to `MAX_CONSECUTIVE_POLL_ERRORS` failed polls (each
@@ -53,16 +64,73 @@ import {
   type RailwayServiceLatestDeployment,
 } from '../deployment/railway-api.js';
 
-export const DEFAULT_VERIFIER_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
-export const DEFAULT_VERIFIER_POLL_INTERVAL_MS = 5 * 1000;
+export const DEFAULT_SERVICE_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
+export const DEFAULT_SERVICE_POLL_INTERVAL_MS = 5 * 1000;
 /** Maximum consecutive `getLatestDeployment` rejections tolerated before aborting the wait. */
 export const MAX_CONSECUTIVE_POLL_ERRORS = 3;
 
 const TERMINAL_BAD_STATUSES = new Set(['FAILED', 'CRASHED', 'REMOVED', 'SKIPPED']);
 
-const SAFE_RERUN_NOTE =
-  'nothing was redeployed on presenters. Re-running stage 2 is safe because ' +
-  'redeploying the verifier is idempotent while the dual-acceptance window is open.';
+/** The service and environment a refusal is about, handed to the function-valued wording fields. */
+export interface RedeployWordingContext {
+  service: string;
+  env: RailwayEnv;
+}
+
+/**
+ * Operator-facing vocabulary of the wait's refusals. The defaults reproduce the
+ * `secrets:rotate-env` text byte for byte; another caller (BYOK stage 2) supplies
+ * its own so a refusal never names presenters or a dual-acceptance window it
+ * does not have.
+ */
+export interface RedeployWaitWording {
+  /** What is being redeployed, lower case, e.g. `verifier` or `service`. */
+  noun: string;
+  /** The stage name as it reads mid-sentence; `upperFirst` is applied where it starts a sentence. */
+  stage: string;
+  /**
+   * Closing clause stating what was left untouched and how to re-run. A function
+   * receives the service and environment of the refusal, so a caller can embed a
+   * ready-to-run command in every message that uses `rerunNote`.
+   */
+  rerunNote: string | ((ctx: RedeployWordingContext) => string);
+  /**
+   * Optional closing text for the two refusals that already tell the operator to
+   * re-run and wrap the note in parentheses (a superseding deployment, and
+   * `NEEDS_APPROVAL`), used instead of `rerunNote`. A caller whose `rerunNote` is a
+   * full sentence that restates the re-run supplies a short fragment here; omitted
+   * means `rerunNote` is used there exactly as everywhere else.
+   */
+  shortRerunNote?: string;
+  /**
+   * Optional closing text for the terminal-failure refusal only (`FAILED`,
+   * `CRASHED`, `REMOVED`, `SKIPPED`), used instead of `rerunNote`. A caller whose
+   * re-run is itself refused while the failed deployment is the service's latest
+   * one supplies it to give the repair; omitted means `rerunNote` closes the message.
+   */
+  terminalRecovery?: (ctx: RedeployWordingContext) => string;
+}
+
+const DEFAULT_WORDING: RedeployWaitWording = {
+  noun: 'verifier',
+  stage: 'stage 2',
+  rerunNote:
+    'nothing was redeployed on presenters. Re-running stage 2 is safe because ' +
+    'redeploying the verifier is idempotent while the dual-acceptance window is open.',
+};
+
+function resolveRerunNote(
+  wording: RedeployWaitWording,
+  serviceName: string,
+  env: RailwayEnv
+): string {
+  const { rerunNote } = wording;
+  return typeof rerunNote === 'function' ? rerunNote({ service: serviceName, env }) : rerunNote;
+}
+
+function upperFirst(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 function defaultSleep(ms: number): Promise<void> {
   return new Promise(resolve => {
@@ -87,22 +155,28 @@ function errorDetail(error: unknown): string {
   return error instanceof Error ? error.message : 'unknown error';
 }
 
-function formatRedeployTriggerError(verifierName: string, env: RailwayEnv, error: unknown): Error {
+function formatRedeployTriggerError(
+  serviceName: string,
+  env: RailwayEnv,
+  error: unknown,
+  wording: RedeployWaitWording
+): Error {
   return new Error(
-    `The redeploy request for verifier "${verifierName}" (${env}) failed or returned an unexpected shape ` +
-      `(${errorDetail(error)}) — the verifier may already be restarting; ${SAFE_RERUN_NOTE}`
+    `The redeploy request for ${wording.noun} "${serviceName}" (${env}) failed or returned an unexpected shape ` +
+      `(${errorDetail(error)}) — the ${wording.noun} may already be restarting; ${resolveRerunNote(wording, serviceName, env)}`
   );
 }
 
 function formatPollFailureError(
-  verifierName: string,
+  serviceName: string,
   env: RailwayEnv,
   consecutivePollErrors: number,
-  error: unknown
+  error: unknown,
+  wording: RedeployWaitWording
 ): Error {
   return new Error(
-    `Polling latest deployment for verifier "${verifierName}" (${env}) failed ` +
-      `${consecutivePollErrors} consecutive times (last error: ${errorDetail(error)}) — ${SAFE_RERUN_NOTE}`
+    `Polling latest deployment for ${wording.noun} "${serviceName}" (${env}) failed ` +
+      `${consecutivePollErrors} consecutive times (last error: ${errorDetail(error)}) — ${resolveRerunNote(wording, serviceName, env)}`
   );
 }
 
@@ -117,16 +191,22 @@ function formatPresenterReadError(presenterName: string, error: unknown): Error 
 interface PollEvaluationContext {
   newDeploymentId: string;
   previousDeploymentId: string;
-  verifierName: string;
+  serviceName: string;
   env: RailwayEnv;
   lastPrintedStatus: string | undefined;
+  wording: RedeployWaitWording;
 }
 
 function evaluateNewDeploymentStatus(
   latest: RailwayServiceLatestDeployment | null,
   context: PollEvaluationContext
 ): { done: boolean; lastPrintedStatus: string | undefined } {
-  const { newDeploymentId, previousDeploymentId, verifierName, env, lastPrintedStatus } = context;
+  const { newDeploymentId, previousDeploymentId, serviceName, env, lastPrintedStatus, wording } =
+    context;
+  const { noun, stage, terminalRecovery, shortRerunNote } = wording;
+  const rerunNote = resolveRerunNote(wording, serviceName, env);
+  const parenthesizedNote = shortRerunNote ?? rerunNote;
+  const lead = `${upperFirst(stage)} redeployed ${noun} "${serviceName}" (${env})`;
   if (latest === null) {
     return { done: false, lastPrintedStatus };
   }
@@ -135,15 +215,17 @@ function evaluateNewDeploymentStatus(
       return { done: false, lastPrintedStatus };
     }
     throw new Error(
-      `Stage 2 redeployed verifier "${verifierName}" (${env}), but a different deployment ` +
+      `${lead}, but a different deployment ` +
         `(${latest.id}, ${latest.status}) became the latest during the wait and supersedes ours — ` +
-        `check it reached SUCCESS in Railway, then re-run stage 2 (${SAFE_RERUN_NOTE})`
+        `check it reached SUCCESS in Railway, then re-run ${stage} (${parenthesizedNote})`
     );
   }
   let nextPrintedStatus = lastPrintedStatus;
   if (latest.status !== lastPrintedStatus) {
     console.log(
-      chalk.dim(`  Verifier "${verifierName}" (${newDeploymentId}) status: ${latest.status}`)
+      chalk.dim(
+        `  ${upperFirst(noun)} "${serviceName}" (${newDeploymentId}) status: ${latest.status}`
+      )
     );
     nextPrintedStatus = latest.status;
   }
@@ -152,48 +234,50 @@ function evaluateNewDeploymentStatus(
   }
   if (latest.status === 'NEEDS_APPROVAL') {
     throw new Error(
-      `Stage 2 redeployed verifier "${verifierName}" (${env}), but the new deployment is ` +
+      `${lead}, but the new deployment is ` +
         `awaiting approval in Railway (NEEDS_APPROVAL) — approve it in the dashboard and ` +
-        `re-run stage 2 (${SAFE_RERUN_NOTE})`
+        `re-run ${stage} (${parenthesizedNote})`
     );
   }
   if (TERMINAL_BAD_STATUSES.has(latest.status)) {
     throw new Error(
-      `Stage 2 redeployed verifier "${verifierName}" (${env}), but the new deployment ` +
-        `reached terminal status ${latest.status} instead of SUCCESS — ${SAFE_RERUN_NOTE}`
+      `${lead}, but the new deployment ` +
+        `reached terminal status ${latest.status} instead of SUCCESS — ` +
+        (terminalRecovery?.({ service: serviceName, env }) ?? rerunNote)
     );
   }
   return { done: false, lastPrintedStatus: nextPrintedStatus };
 }
 
-async function triggerVerifierRedeploy(args: {
+async function triggerServiceRedeploy(args: {
   environmentId: string;
-  verifier: { id: string; name: string };
+  service: { id: string; name: string };
   env: RailwayEnv;
   redeploy: typeof redeployRailwayServiceReusingImageWithSource;
+  wording: RedeployWaitWording;
 }): Promise<{ previousDeploymentId: string; newDeploymentId: string }> {
-  const { environmentId, verifier, env, redeploy } = args;
+  const { environmentId, service, env, redeploy, wording } = args;
   let sourceDeploymentId: string;
   let newDeploymentId: string;
   try {
     ({ sourceDeploymentId, newDeploymentId } = await redeploy({
       environmentId,
-      serviceId: verifier.id,
-      serviceName: verifier.name,
+      serviceId: service.id,
+      serviceName: service.name,
       env,
     }));
   } catch (error: unknown) {
-    throw formatRedeployTriggerError(verifier.name, env, error);
+    throw formatRedeployTriggerError(service.name, env, error, wording);
   }
   console.log(
-    chalk.dim(`  Redeployed "${verifier.name}" (${newDeploymentId}); waiting for SUCCESS…`)
+    chalk.dim(`  Redeployed "${service.name}" (${newDeploymentId}); waiting for SUCCESS…`)
   );
   return { previousDeploymentId: sourceDeploymentId, newDeploymentId };
 }
 
-export interface RedeployAndWaitForVerifierArgs {
+export interface RedeployAndWaitForServiceArgs {
   environmentId: string;
-  verifier: { id: string; name: string };
+  service: { id: string; name: string };
   env: RailwayEnv;
   timeoutMs?: number;
   pollIntervalMs?: number;
@@ -201,37 +285,42 @@ export interface RedeployAndWaitForVerifierArgs {
   getLatestDeployment?: typeof getRailwayServiceLatestDeployment;
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
+  /** Refusal vocabulary; omitted means the `secrets:rotate-env` text. */
+  wording?: RedeployWaitWording;
 }
 
 /**
- * Redeploy the verifier (reusing its current image) and poll until
+ * Redeploy the service (reusing its current image) and poll until
  * `serviceInstance.latestDeployment` reports the NEW deployment id with status
- * `SUCCESS`. Throws an `Error` naming the verifier when triggering the redeploy
+ * `SUCCESS`. Throws an `Error` naming the service when triggering the redeploy
  * fails, when a third deployment id supersedes ours during the wait, on
  * `NEEDS_APPROVAL` or a terminal failure status (`FAILED`, `CRASHED`, `REMOVED`,
  * `SKIPPED`), after more than `MAX_CONSECUTIVE_POLL_ERRORS` consecutive poll
- * errors, or on poll timeout, before any presenter is touched.
+ * errors, or on poll timeout, so the caller never proceeds past a service that is
+ * not running the new deployment.
  */
-export async function redeployAndWaitForVerifier(
-  args: RedeployAndWaitForVerifierArgs
+export async function redeployAndWaitForService(
+  args: RedeployAndWaitForServiceArgs
 ): Promise<string> {
   const {
     environmentId,
-    verifier,
+    service,
     env,
-    timeoutMs = DEFAULT_VERIFIER_WAIT_TIMEOUT_MS,
-    pollIntervalMs = DEFAULT_VERIFIER_POLL_INTERVAL_MS,
+    timeoutMs = DEFAULT_SERVICE_WAIT_TIMEOUT_MS,
+    pollIntervalMs = DEFAULT_SERVICE_POLL_INTERVAL_MS,
     redeploy = redeployRailwayServiceReusingImageWithSource,
     getLatestDeployment = getRailwayServiceLatestDeployment,
     sleep = defaultSleep,
     now = Date.now,
+    wording = DEFAULT_WORDING,
   } = args;
 
-  const { previousDeploymentId, newDeploymentId } = await triggerVerifierRedeploy({
+  const { previousDeploymentId, newDeploymentId } = await triggerServiceRedeploy({
     environmentId,
-    verifier,
+    service,
     env,
     redeploy,
+    wording,
   });
 
   const startMs = now();
@@ -243,14 +332,14 @@ export async function redeployAndWaitForVerifier(
     try {
       latest = await getLatestDeployment({
         environmentId,
-        serviceId: verifier.id,
+        serviceId: service.id,
         env,
       });
       consecutivePollErrors = 0;
     } catch (error: unknown) {
       consecutivePollErrors += 1;
       if (consecutivePollErrors > MAX_CONSECUTIVE_POLL_ERRORS) {
-        throw formatPollFailureError(verifier.name, env, consecutivePollErrors, error);
+        throw formatPollFailureError(service.name, env, consecutivePollErrors, error, wording);
       }
       await sleep(pollIntervalMs);
       continue;
@@ -259,9 +348,10 @@ export async function redeployAndWaitForVerifier(
     const step = evaluateNewDeploymentStatus(latest, {
       newDeploymentId,
       previousDeploymentId,
-      verifierName: verifier.name,
+      serviceName: service.name,
       env,
       lastPrintedStatus,
+      wording,
     });
     lastPrintedStatus = step.lastPrintedStatus;
     if (step.done) {
@@ -271,9 +361,9 @@ export async function redeployAndWaitForVerifier(
     if (now() - startMs >= timeoutMs) {
       const observedStatus = describeObservedStatus(latest, newDeploymentId);
       throw new Error(
-        `Timed out after ${Math.round(timeoutMs / 1000)}s waiting for verifier ` +
-          `"${verifier.name}" (${env}) redeploy to reach SUCCESS ` +
-          `(last observed status: ${observedStatus}) — ${SAFE_RERUN_NOTE}`
+        `Timed out after ${Math.round(timeoutMs / 1000)}s waiting for ${wording.noun} ` +
+          `"${service.name}" (${env}) redeploy to reach SUCCESS ` +
+          `(last observed status: ${observedStatus}) — ${resolveRerunNote(wording, service.name, env)}`
       );
     }
 

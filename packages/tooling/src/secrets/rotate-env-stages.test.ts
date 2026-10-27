@@ -63,7 +63,7 @@ import {
   type RotationContext,
 } from './rotate-env-context.js';
 import { runStagedRotation, type StagedRotationOptions } from './rotate-env-stages.js';
-import { DEFAULT_VERIFIER_POLL_INTERVAL_MS } from './verifier-redeploy-wait.js';
+import { DEFAULT_SERVICE_POLL_INTERVAL_MS } from './service-redeploy-wait.js';
 import { UsageError } from '../utils/errors.js';
 
 const mockAssertReady = vi.mocked(assertRailwayServiceDeploymentReady);
@@ -703,7 +703,7 @@ describe('runStagedRotation', () => {
       });
 
       const promise = runStagedRotation(makeOptions({ stage: '2' }), makeContext());
-      await vi.advanceTimersByTimeAsync(DEFAULT_VERIFIER_POLL_INTERVAL_MS * 2);
+      await vi.advanceTimersByTimeAsync(DEFAULT_SERVICE_POLL_INTERVAL_MS * 2);
       await promise;
 
       expect(mockRedeployVerifier).toHaveBeenCalledTimes(1);
