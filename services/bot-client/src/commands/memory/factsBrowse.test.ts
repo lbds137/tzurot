@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageFlags, type ButtonInteraction } from 'discord.js';
 import {
   FACT_BROWSE_PREFIX,
+  FACTS_FORGOTTEN_REFRESH_COPY,
   FACTS_SESSION_EXPIRED,
   factBrowseHelpers,
   followUpFactsRefusal,
@@ -730,5 +731,105 @@ describe('error branches', () => {
       { err: followUpError, userId: 'user-1' },
       expect.any(String)
     );
+  });
+
+  it('followUpFactsRefusal: sends FACTS_FORGOTTEN_REFRESH_COPY on session-gone when afterForget is true', async () => {
+    const interaction = {
+      user: { id: 'user-1' },
+      message: { id: 'message-1' },
+      followUp: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ButtonInteraction;
+
+    await followUpFactsRefusal(interaction, 'session-gone', { afterForget: true });
+
+    expect(interaction.followUp).toHaveBeenCalledTimes(1);
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: renderSpec(CATALOG.info.warning(FACTS_FORGOTTEN_REFRESH_COPY)),
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining(FACTS_FORGOTTEN_REFRESH_COPY),
+      })
+    );
+    expect(loggerMock.warn).not.toHaveBeenCalled();
+  });
+
+  it('followUpFactsRefusal: sends FACTS_FORGOTTEN_REFRESH_COPY and logs warn on fetch-failed when afterForget is true', async () => {
+    const interaction = {
+      user: { id: 'user-1' },
+      message: { id: 'message-1' },
+      followUp: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ButtonInteraction;
+
+    await followUpFactsRefusal(interaction, 'fetch-failed', { afterForget: true });
+
+    expect(interaction.followUp).toHaveBeenCalledTimes(1);
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: renderSpec(CATALOG.info.warning(FACTS_FORGOTTEN_REFRESH_COPY)),
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(loggerMock.warn).toHaveBeenCalledTimes(1);
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      { userId: 'user-1', messageId: 'message-1' },
+      'Facts list could not be shown: page fetch failed'
+    );
+  });
+
+  it('refreshFactsList: confirms the forget when the session is gone after a forget', async () => {
+    const interaction = {
+      user: { id: 'user-1' },
+      message: { id: 'message-1' },
+      editReply: vi.fn().mockResolvedValue(undefined),
+      followUp: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ButtonInteraction;
+
+    sessionManagerMock.findByMessageId.mockResolvedValue(null);
+    await refreshFactsList(interaction, { afterForget: true });
+
+    expect(interaction.followUp).toHaveBeenCalledTimes(1);
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: renderSpec(CATALOG.info.warning(FACTS_FORGOTTEN_REFRESH_COPY)),
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(interaction.followUp).not.toHaveBeenCalledWith(
+      expect.objectContaining({ content: FACTS_SESSION_EXPIRED })
+    );
+    expect(interaction.followUp).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
+      })
+    );
+    expect(interaction.editReply).not.toHaveBeenCalled();
+  });
+
+  it('refreshFactsList: confirms the forget when the fetch fails after a forget', async () => {
+    const interaction = {
+      user: { id: 'user-1' },
+      message: { id: 'message-1' },
+      editReply: vi.fn().mockResolvedValue(undefined),
+      followUp: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ButtonInteraction;
+
+    sessionManagerMock.findByMessageId.mockResolvedValue({
+      data: { personalityId: 'personality-456', currentPage: 0 },
+    });
+    stub.listFacts.mockResolvedValue(makeErr(500, 'boom'));
+    await refreshFactsList(interaction, { afterForget: true });
+
+    expect(interaction.followUp).toHaveBeenCalledTimes(1);
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: renderSpec(CATALOG.info.warning(FACTS_FORGOTTEN_REFRESH_COPY)),
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(interaction.followUp).not.toHaveBeenCalledWith(
+      expect.objectContaining({ content: FACTS_SESSION_EXPIRED })
+    );
+    expect(interaction.followUp).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
+      })
+    );
+    expect(interaction.editReply).not.toHaveBeenCalled();
   });
 });

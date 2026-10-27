@@ -588,7 +588,7 @@ describe('fact routing (correction slice)', () => {
     await handleButton(interaction as never);
 
     expect(mockHandleForgetConfirm).toHaveBeenCalledWith(interaction, 'fact-1');
-    expect(mockRefreshFactsList).toHaveBeenCalledWith(interaction);
+    expect(mockRefreshFactsList).toHaveBeenCalledWith(interaction, { afterForget: true });
     expect(vi.mocked(interaction.deferUpdate).mock.invocationCallOrder[0]).toBeLessThan(
       mockRefreshFactsList.mock.invocationCallOrder[0]
     );
