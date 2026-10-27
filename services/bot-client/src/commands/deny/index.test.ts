@@ -5,7 +5,9 @@
  * route to their scope-group handlers, and everything else must fall through
  * to the flat subcommand router (`browse`/`view`) — plus structural
  * assertions on the channel option that `buildChannel` shares between the
- * `add` and `remove` groups.
+ * `add` and `remove` groups. The `handleButton` / `handleSelectMenu` routing
+ * block pins which handler each custom ID reaches and that a routed handler's
+ * rejection propagates to the caller.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
