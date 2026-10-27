@@ -94,6 +94,8 @@ export async function findFactBrowseSession(
 /** Why {@link fetchCurrentFactsPage} could not produce a page. */
 export type FactsPageRefusal = 'session-gone' | 'fetch-failed';
 
+const SESSION_GONE = 'session-gone';
+
 /** Result of {@link fetchCurrentFactsPage}: the session + page, or why not. */
 export type CurrentFactsPage =
   | { ok: true; session: DashboardSession<FactBrowseSession>; data: FactListResponse }
@@ -113,7 +115,7 @@ export async function fetchCurrentFactsPage(
 ): Promise<CurrentFactsPage> {
   const session = await findFactBrowseSession(interaction.message.id);
   if (session === null) {
-    return { ok: false, reason: 'session-gone' };
+    return { ok: false, reason: SESSION_GONE };
   }
   const { personalityId, tag, query } = session.data;
   const { userClient } = clientsFor(interaction);
@@ -359,19 +361,24 @@ async function updateFactSessionPage(
   });
 }
 
+/** Outcome of {@link buildRefreshedFactsOutcome}: the rebuilt view, or why not. */
+export type RefreshedFactsOutcome =
+  | { kind: 'view'; view: { embed: EmbedBuilder; components: BrowseActionRow[] } }
+  | { kind: 'session-gone' }
+  | { kind: 'fetch-failed' };
+
 /**
- * Build the refreshed list view (embed + components) for the message an
- * interaction came from, stepping back a page when the current one emptied.
- * Null when the session is gone or the fetch failed — the caller keeps the
- * message untouched in that case.
+ * Build the refreshed list outcome for the message an interaction came from,
+ * stepping back a page when the current one emptied. Distinguishes a gone
+ * session from a failed fetch so callers can deliver reason-honest feedback.
  */
-export async function buildRefreshedFactsView(
+export async function buildRefreshedFactsOutcome(
   interaction: ButtonInteraction
-): Promise<{ embed: EmbedBuilder; components: BrowseActionRow[] } | null> {
+): Promise<RefreshedFactsOutcome> {
   const messageId = interaction.message.id;
   const session = await findFactBrowseSession(messageId);
   if (session === null) {
-    return null;
+    return { kind: SESSION_GONE };
   }
 
   const { personalityId, tag, query } = session.data;
@@ -384,7 +391,7 @@ export async function buildRefreshedFactsView(
     isEmpty: d => d.facts.length === 0,
   });
   if (result === null) {
-    return null;
+    return { kind: 'fetch-failed' };
   }
 
   if (result.steppedBack) {
@@ -393,25 +400,52 @@ export async function buildRefreshedFactsView(
 
   const { totalPages } = calculatePaginationState(result.data.total, FACTS_PER_PAGE, result.page);
   return {
-    embed: buildFactsEmbed({
-      facts: result.data.facts,
-      total: result.data.total,
-      page: result.page,
-      tag,
-      query,
-    }),
-    components: buildFactsComponents(result.data.facts, result.page, totalPages),
+    kind: 'view',
+    view: {
+      embed: buildFactsEmbed({
+        facts: result.data.facts,
+        total: result.data.total,
+        page: result.page,
+        tag,
+        query,
+      }),
+      components: buildFactsComponents(result.data.facts, result.page, totalPages),
+    },
   };
 }
 
 /**
- * Refresh the list view — called after "back" from detail and after a forget.
- * Steps back a page when a forget empties the current one.
+ * Build the refreshed list view (embed + components) for the message an
+ * interaction came from, stepping back a page when the current one emptied.
+ * Null when the session is gone or the fetch failed — the caller keeps the
+ * message untouched in that case.
+ */
+export async function buildRefreshedFactsView(
+  interaction: ButtonInteraction
+): Promise<{ embed: EmbedBuilder; components: BrowseActionRow[] } | null> {
+  const outcome = await buildRefreshedFactsOutcome(interaction);
+  return outcome.kind === 'view' ? outcome.view : null;
+}
+
+/**
+ * Refresh the list view — called after "back" from detail, batch cancel, and
+ * after a forget. Steps back a page when a forget empties the current one;
+ * answers a gone session or failed fetch with an ephemeral followUp.
  */
 export async function refreshFactsList(interaction: ButtonInteraction): Promise<void> {
-  const view = await buildRefreshedFactsView(interaction);
-  if (view === null) {
+  const outcome = await buildRefreshedFactsOutcome(interaction);
+  if (outcome.kind !== 'view') {
+    await interaction.followUp({
+      content:
+        outcome.kind === SESSION_GONE
+          ? FACTS_SESSION_EXPIRED
+          : renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
-  await interaction.editReply({ embeds: [view.embed], components: view.components });
+  await interaction.editReply({
+    embeds: [outcome.view.embed],
+    components: outcome.view.components,
+  });
 }

@@ -2330,7 +2330,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/detail.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/commands/memory/detailModals.ts | MessageFlags.Ephemeral | 4 |
 | services/bot-client/src/commands/memory/factsBatch.ts | MessageFlags.Ephemeral | 2 |
-| services/bot-client/src/commands/memory/factsBrowse.ts | MessageFlags.Ephemeral | 1 |
+| services/bot-client/src/commands/memory/factsBrowse.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/commands/memory/factsDetail.ts | MessageFlags.Ephemeral | 1 |
 | services/bot-client/src/commands/memory/interactionHandlers.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/commands/memory/search.ts | MessageFlags.Ephemeral | 2 |
@@ -2454,7 +2454,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/factsBatch.ts | editReply | 3 |
 | services/bot-client/src/commands/memory/factsBatch.ts | followUp | 2 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | editReply | 2 |
-| services/bot-client/src/commands/memory/factsBrowse.ts | followUp | 1 |
+| services/bot-client/src/commands/memory/factsBrowse.ts | followUp | 2 |
 | services/bot-client/src/commands/memory/factsDetail.ts | editReply | 2 |
 | services/bot-client/src/commands/memory/factsDetail.ts | reply | 1 |
 | services/bot-client/src/commands/memory/index.ts | respond | 1 |
@@ -2892,9 +2892,9 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/factsBatch.ts | embeds | 2 |
 | services/bot-client/src/commands/memory/factsBatch.ts | flags | 2 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | components | 2 |
-| services/bot-client/src/commands/memory/factsBrowse.ts | content | 1 |
+| services/bot-client/src/commands/memory/factsBrowse.ts | content | 2 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | embeds | 2 |
-| services/bot-client/src/commands/memory/factsBrowse.ts | flags | 1 |
+| services/bot-client/src/commands/memory/factsBrowse.ts | flags | 2 |
 | services/bot-client/src/commands/memory/factsDetail.ts | components | 2 |
 | services/bot-client/src/commands/memory/factsDetail.ts | content | 1 |
 | services/bot-client/src/commands/memory/factsDetail.ts | embeds | 2 |
@@ -3120,4 +3120,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 3050 entries across 7075 sites.
+Total: 3050 entries across 7079 sites.

@@ -3,9 +3,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ButtonInteraction } from 'discord.js';
+import { MessageFlags, type ButtonInteraction } from 'discord.js';
 import {
   FACT_BROWSE_PREFIX,
+  FACTS_SESSION_EXPIRED,
   factBrowseHelpers,
   isFactBrowsePagination,
   handleFacts,
@@ -14,6 +15,9 @@ import {
 } from './factsBrowse.js';
 import type { FactItem } from './factsApi.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import { PAGE_FETCH_FAILED_COPY } from '../../utils/browse/multiSelectBatch.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -612,22 +616,47 @@ describe('error branches', () => {
     );
   });
 
-  it('refreshFactsList: no-ops when the session is gone or the fetch fails', async () => {
+  it('refreshFactsList: sends the expiry followUp when the session is gone', async () => {
     const interaction = {
       user: { id: 'user-1' },
       message: { id: 'message-1' },
       editReply: vi.fn().mockResolvedValue(undefined),
+      followUp: vi.fn().mockResolvedValue(undefined),
     } as unknown as ButtonInteraction;
 
     sessionManagerMock.findByMessageId.mockResolvedValue(null);
     await refreshFactsList(interaction);
+
+    expect(interaction.followUp).toHaveBeenCalledTimes(1);
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: FACTS_SESSION_EXPIRED,
+      flags: MessageFlags.Ephemeral,
+    });
     expect(interaction.editReply).not.toHaveBeenCalled();
+  });
+
+  it('refreshFactsList: sends the transient error followUp when the fetch fails', async () => {
+    const interaction = {
+      user: { id: 'user-1' },
+      message: { id: 'message-1' },
+      editReply: vi.fn().mockResolvedValue(undefined),
+      followUp: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ButtonInteraction;
 
     sessionManagerMock.findByMessageId.mockResolvedValue({
       data: { personalityId: 'personality-456', currentPage: 0 },
     });
     stub.listFacts.mockResolvedValue(makeErr(500, 'boom'));
     await refreshFactsList(interaction);
+
+    expect(interaction.followUp).toHaveBeenCalledTimes(1);
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(interaction.followUp).not.toHaveBeenCalledWith(
+      expect.objectContaining({ content: FACTS_SESSION_EXPIRED })
+    );
     expect(interaction.editReply).not.toHaveBeenCalled();
   });
 });
