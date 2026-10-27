@@ -55,6 +55,10 @@ export const FACTS_PER_PAGE = 10;
 export const FACTS_SESSION_EXPIRED =
   '⏰ This interaction has expired. Please run `/memory facts` again.';
 
+/** Copy when a fact was forgotten but the list refresh after it could not be shown. */
+export const FACTS_FORGOTTEN_REFRESH_COPY =
+  'Fact forgotten. The list could not be refreshed, so run `/memory facts` to see it.';
+
 /**
  * One string, two roles: the customId prefix (componentPrefixes registration,
  * pagination ids) AND the dashboard-session entity type — the browse message
@@ -101,13 +105,15 @@ const FACTS_PAGE_REFUSAL = {
 
 /**
  * Notify the user ephemerally when a facts list page cannot be shown (expired
- * session vs transient page-fetch failure). Logs the failed-fetch case with
- * ids only and swallows a rejected followUp so callers do not crash on an
- * expired interaction token.
+ * session vs transient page-fetch failure, or the post-forget confirmation copy
+ * when `options.afterForget` is set). Logs the failed-fetch case with ids only
+ * and swallows a rejected followUp so callers do not crash on an expired
+ * interaction token.
  */
 export async function followUpFactsRefusal(
   interaction: ButtonInteraction,
-  reason: FactsPageRefusal
+  reason: FactsPageRefusal,
+  options?: { afterForget?: boolean }
 ): Promise<void> {
   if (reason === FACTS_PAGE_REFUSAL.FETCH_FAILED) {
     logger.warn(
@@ -115,12 +121,16 @@ export async function followUpFactsRefusal(
       'Facts list could not be shown: page fetch failed'
     );
   }
+  const refusalContent =
+    reason === FACTS_PAGE_REFUSAL.SESSION_GONE
+      ? FACTS_SESSION_EXPIRED
+      : renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY));
   try {
     await interaction.followUp({
       content:
-        reason === FACTS_PAGE_REFUSAL.SESSION_GONE
-          ? FACTS_SESSION_EXPIRED
-          : renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
+        options?.afterForget === true
+          ? renderSpec(CATALOG.info.warning(FACTS_FORGOTTEN_REFRESH_COPY))
+          : refusalContent,
       flags: MessageFlags.Ephemeral,
     });
   } catch (err) {
@@ -456,12 +466,16 @@ export async function buildRefreshedFactsView(
 /**
  * Refresh the list view — called after "back" from detail, batch cancel, and
  * after a forget. Steps back a page when a forget empties the current one;
- * answers a gone session or failed fetch with an ephemeral followUp.
+ * answers a gone session or failed fetch with an ephemeral followUp (confirming
+ * the forget first when `options.afterForget` is set).
  */
-export async function refreshFactsList(interaction: ButtonInteraction): Promise<void> {
+export async function refreshFactsList(
+  interaction: ButtonInteraction,
+  options?: { afterForget?: boolean }
+): Promise<void> {
   const outcome = await buildRefreshedFactsOutcome(interaction);
   if (outcome.kind !== 'view') {
-    await followUpFactsRefusal(interaction, outcome.kind);
+    await followUpFactsRefusal(interaction, outcome.kind, options);
     return;
   }
   await interaction.editReply({

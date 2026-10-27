@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 3050,
-    "sites": 7079
+    "entries": 3046,
+    "sites": 7073
   },
   "entries": [
     {
@@ -2978,19 +2978,19 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/factsBrowse.ts",
       "symbol": "id",
-      "count": 8
+      "count": 11
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/factsBrowse.ts",
       "symbol": "message",
-      "count": 3
+      "count": 4
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/factsBrowse.ts",
       "symbol": "user",
-      "count": 2
+      "count": 4
     },
     {
       "category": "client-methods",
@@ -13776,15 +13776,9 @@
     },
     {
       "category": "flags",
-      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
-      "symbol": "MessageFlags.Ephemeral",
-      "count": 2
-    },
-    {
-      "category": "flags",
       "file": "services/bot-client/src/commands/memory/factsBrowse.ts",
       "symbol": "MessageFlags.Ephemeral",
-      "count": 2
+      "count": 1
     },
     {
       "category": "flags",
@@ -14454,12 +14448,6 @@
     },
     {
       "category": "interaction-acks",
-      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
-      "symbol": "followUp",
-      "count": 2
-    },
-    {
-      "category": "interaction-acks",
       "file": "services/bot-client/src/commands/memory/factsBrowse.ts",
       "symbol": "editReply",
       "count": 2
@@ -14468,7 +14456,7 @@
       "category": "interaction-acks",
       "file": "services/bot-client/src/commands/memory/factsBrowse.ts",
       "symbol": "followUp",
-      "count": 2
+      "count": 1
     },
     {
       "category": "interaction-acks",
@@ -17011,19 +16999,7 @@
     {
       "category": "message-options",
       "file": "services/bot-client/src/commands/memory/factsBatch.ts",
-      "symbol": "content",
-      "count": 2
-    },
-    {
-      "category": "message-options",
-      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
       "symbol": "embeds",
-      "count": 2
-    },
-    {
-      "category": "message-options",
-      "file": "services/bot-client/src/commands/memory/factsBatch.ts",
-      "symbol": "flags",
       "count": 2
     },
     {
@@ -17036,7 +17012,7 @@
       "category": "message-options",
       "file": "services/bot-client/src/commands/memory/factsBrowse.ts",
       "symbol": "content",
-      "count": 2
+      "count": 1
     },
     {
       "category": "message-options",
@@ -17048,7 +17024,7 @@
       "category": "message-options",
       "file": "services/bot-client/src/commands/memory/factsBrowse.ts",
       "symbol": "flags",
-      "count": 2
+      "count": 1
     },
     {
       "category": "message-options",
