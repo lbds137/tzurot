@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CommandHandler } from './CommandHandler.js';
 import { InfraError } from '@tzurot/clients';
-import { Collection, type SlashCommandBuilder } from 'discord.js';
+import { Collection, MessageFlags, type SlashCommandBuilder } from 'discord.js';
 import type {
   ModalSubmitInteraction,
   AutocompleteInteraction,
@@ -15,6 +15,7 @@ import type {
   StringSelectMenuInteraction,
 } from 'discord.js';
 import type { Command } from '../types.js';
+import { ackUpdate } from '../ux/render/reply.js';
 
 // Mock dependencies
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -459,6 +460,51 @@ describe('CommandHandler', () => {
       } as unknown as ButtonInteraction;
 
       await expect(handler.handleComponentInteraction(mockInteraction)).resolves.toBeUndefined();
+    });
+
+    it('sends an ephemeral followUp (never editReply) when an acked select handler throws', async () => {
+      const mockCommand: Command = {
+        data: {
+          name: 'select-fail',
+          description: 'Failing acked select command',
+        } as unknown as SlashCommandBuilder,
+        execute: vi.fn(),
+        handleSelectMenu: vi
+          .fn()
+          .mockImplementation(async (interaction: StringSelectMenuInteraction) => {
+            await ackUpdate(interaction);
+            throw new Error('handler failed after ack');
+          }),
+        componentPrefixes: ['select-fail'],
+      };
+
+      handler.getCommands().set('select-fail', mockCommand);
+      (handler as any).prefixToCommand.set('select-fail', mockCommand);
+
+      const interaction = {
+        customId: 'select-fail::batch-select::0',
+        isStringSelectMenu: () => true,
+        isButton: () => false,
+        deferred: false,
+        replied: false,
+        deferUpdate: vi.fn(),
+        reply: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
+      };
+      interaction.deferUpdate.mockImplementation(async () => {
+        interaction.deferred = true;
+      });
+      const mockInteraction = interaction as unknown as StringSelectMenuInteraction;
+
+      await expect(handler.handleComponentInteraction(mockInteraction)).resolves.toBeUndefined();
+      expect(interaction.followUp).toHaveBeenCalledTimes(1);
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: expect.stringContaining('There was an error processing this interaction!'),
+        flags: MessageFlags.Ephemeral,
+      });
+      expect(interaction.editReply).not.toHaveBeenCalled();
+      expect(interaction.reply).not.toHaveBeenCalled();
     });
   });
 

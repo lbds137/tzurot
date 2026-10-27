@@ -281,6 +281,22 @@ describe('handleAliasBatchPick (confirm view)', () => {
     expect(interaction.followUp).toHaveBeenCalledTimes(1);
     expect(interaction.editReply).not.toHaveBeenCalled();
   });
+
+  it('propagates an editReply failure to the central handler instead of swallowing it', async () => {
+    const swapped = buildAliasBatchSelectComponents(FIVE_ROWS, DEFAULT_COORDS);
+    const interaction = createSelectInteraction({
+      values: ['user:mommy', 'global:lila'],
+      messageComponents: swapped,
+    });
+    vi.mocked(interaction.editReply).mockRejectedValueOnce(new Error('editReply failed'));
+
+    await expect(handleAliasBatchPick(interaction)).rejects.toThrow('editReply failed');
+    expect(interaction.deferUpdate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(interaction.deferUpdate).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(interaction.editReply).mock.invocationCallOrder[0]
+    );
+    expect(interaction.followUp).not.toHaveBeenCalled();
+  });
 });
 
 describe('C2 — one-pick path unchanged alongside batch routing', () => {

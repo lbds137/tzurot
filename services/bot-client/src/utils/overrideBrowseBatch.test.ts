@@ -376,6 +376,24 @@ describe('handleOverrideBatchPick (confirm view)', () => {
     expect(listingBlock).toBe('• Lilith');
     expect(listingBlock).not.toContain('bogus');
   });
+
+  it('propagates an editReply failure to the central handler instead of swallowing it', async () => {
+    const config = makeConfig(PRESET_PREFIX);
+    const batchView = buildOverrideBrowseView(config, FIVE_PRESET_OVERRIDES, { mode: 'batch' });
+    const interaction = createSelectInteraction({
+      customId: 'settings-preset-override::batch-select',
+      values: ['p1::text', 'p2::vision'],
+      messageComponents: batchView.components,
+    });
+    vi.mocked(interaction.editReply).mockRejectedValueOnce(new Error('editReply failed'));
+
+    await expect(handleOverrideBatchPick(config, interaction)).rejects.toThrow('editReply failed');
+    expect(interaction.deferUpdate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(interaction.deferUpdate).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(interaction.editReply).mock.invocationCallOrder[0]
+    );
+    expect(interaction.followUp).not.toHaveBeenCalled();
+  });
 });
 
 describe('C1 — handleOverrideBatchConfirm (5 overrides, 4 cleared + 2nd wasSet:false → #2 already-gone, all 5 reached)', () => {
