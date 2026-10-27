@@ -3,13 +3,14 @@ id: TASK-981
 title: >-
   Staged rotation cannot tell whether the verifier actually redeployed, so an
   interrupted stage 1 reads as a normal open window
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-09-14 19:29'
+created_date: 2026-09-14 19:29
+updated_date: '2026-10-27T20:44:00Z'
 labels:
-  - 'area:tooling'
-  - 'size:M'
-  - 'state:ready'
+  - area:tooling
+  - size:M
+  - state:ready
 dependencies: []
 priority: high
 ordinal: 977000
@@ -32,3 +33,9 @@ Candidate replacement shapes (unverified, pick at build time): (a) stage 2 requi
 
 Acceptance: stage 2 refuses when the verifier is not yet running the new primary; the refusal names the wait rather than the operator guessing; the message-only hedge added in PR 2427 is replaced by a cite of the shipped check.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped 2026-10-27 in #2675 (e83192094): stage 2 redeploys the verifier and waits for its NEW deployment id at SUCCESS before touching presenters. Two dev E2E runs green. Not run live: repeated verifier redeploy idempotence, superseding third id, NEEDS_APPROVAL. Follow-ups: TASK-1311 (BYOK stage 2 same gap), TASK-1312 (stack-trace readiness refusals).
+<!-- SECTION:NOTES:END -->
