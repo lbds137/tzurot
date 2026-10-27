@@ -30,7 +30,7 @@ describe('allowlist contract (shrink-only)', () => {
     }
   });
 
-  it('keys only bot-client source (the pre-push 10c gate in .husky/pre-push matches that prefix)', () => {
+  it('keys only bot-client source (the pre-push allowlist gate matches that prefix)', () => {
     const outside = Object.keys(RAW_CONTENT_ALLOWLIST).filter(
       relPath => !relPath.startsWith('services/bot-client/src/')
     );
