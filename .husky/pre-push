@@ -288,14 +288,17 @@ fi
 # 10c. Raw-content allowlist ratchet (BLOCKING)
 # The shrink-only budget test lives in packages/tooling, which turbo's
 # affected-package filter skips when only bot-client changed, so a file whose
-# raw-literal count moved reached CI red (TASK-1308). ~5s, measured; runs
-# only when the push touches source a budget could count.
-if echo "$CHANGED_FILES" | grep -qE '^(services/|packages/[^/]+/src/)'; then
+# raw-literal count moved reached CI red (TASK-1308). ~5s, measured. The gate
+# matches the test's inputs: every allowlisted file sits under bot-client's src
+# (widen it if the allowlist ever grows elsewhere), and the rule/allowlist live
+# in tooling's eslint dir. A tooling push also ran this file via step 6; the
+# overlap is intentional and costs the same ~5s.
+if echo "$CHANGED_FILES" | grep -qE '^(services/bot-client/src/|packages/tooling/src/eslint/)'; then
     echo "Running raw-content allowlist ratchet..."
     if ! pnpm --filter @tzurot/tooling exec vitest run src/eslint/raw-content-allowlist.test.ts; then
         echo "${RED}Raw-content allowlist ratchet failed!${NC}"
-        echo "A budget in the allowlist no longer equals its file's raw-literal count;"
-        echo "lower the stale entry (or drop it at 0) in the allowlist the test names."
+        echo "The raw-content allowlist contract failed (see the test output above);"
+        echo "fix the allowlist entry it names (lower a stale budget, drop a deleted file)."
         exit 1
     fi
 fi
