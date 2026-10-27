@@ -3,9 +3,10 @@ id: TASK-1308
 title: >-
   Pre-push should run the raw-content allowlist ratchet test (a stale budget
   reached CI twice in two days)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-27T13:50:00Z'
+updated_date: '2026-10-27T16:34:00Z'
 labels:
   - area:husky
   - size:S
