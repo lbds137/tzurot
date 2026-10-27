@@ -1,9 +1,10 @@
 ---
 id: TASK-1295
 title: Deny one-pick select is silent when the entry fetch fails
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-26T09:56:00Z'
+updated_date: '2026-10-27T00:12:00Z'
 labels:
   - area:bot-client
   - size:S
@@ -26,3 +27,9 @@ Rider from the TASK-1291 slice-a review (2026-10-26): handleDenyBatchConfirm in 
 
 Acceptance: a test where listDenylistEntries fails on a one-pick select sends the page-load failure followUp; the riders land in the same PR.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+SHIPPED in PR 2668 (41d5a7e27). The select now sends the classified page-load failure followUp naming the entry; fetchEntriesResult keeps the failure object; not-found became an ephemeral catalog followUp that keeps the browse list (owner ruling). Riders landed. The ack rider is ruled out on merit: deny's batch confirm reaches handleDenyBatchButton via deny/index.ts handleButton, so a rejecting ack throws to CommandHandler.handleComponentInteraction's catch, which logs it and replies. Review round 2 findings 2 and 4 and round 3 findings 2 to 4 were declined with reasons in the PR body; round 2 finding 3 plus round 3 finding 1 are filed as TASK-1303.
+<!-- SECTION:NOTES:END -->
