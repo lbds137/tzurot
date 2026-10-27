@@ -20,6 +20,8 @@ import { handleCommandWithContext, resolveEffectiveDeferralMode } from './comman
 import type { Command } from '../types.js';
 import type { DeferralMode, SafeCommandContext } from '../utils/commandContext/index.js';
 import { noteRenderedOutcome } from '../observability/commandOutcomeSlot.js';
+import { CATALOG } from '../ux/catalog/catalog.js';
+import { renderSpec } from '../ux/render/render.js';
 
 const mockEmitCommandEvent = vi.fn();
 vi.mock('../observability/emitCommandEvent.js', () => ({
@@ -300,7 +302,7 @@ describe('handleCommandWithContext', () => {
 
     // deferred && !replied → editReply (fills "Thinking…"), not followUp
     expect(interaction.editReply).toHaveBeenCalledWith({
-      content: '❌ There was an error executing this command!',
+      content: renderSpec(CATALOG.error.commandFailed()),
     });
     expect(interaction.followUp).not.toHaveBeenCalled();
     expect(interaction.reply).not.toHaveBeenCalled();
@@ -330,7 +332,7 @@ describe('handleCommandWithContext', () => {
     await handleCommandWithContext(asInteraction(interaction), command);
 
     expect(interaction.reply).toHaveBeenCalledWith({
-      content: '❌ There was an error executing this command!',
+      content: renderSpec(CATALOG.error.commandFailed()),
       flags: MessageFlags.Ephemeral,
     });
   });
