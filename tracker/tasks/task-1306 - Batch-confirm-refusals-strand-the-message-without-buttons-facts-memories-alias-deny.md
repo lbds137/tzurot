@@ -26,4 +26,6 @@ Owner question: after a batch confirm refuses before mutating (the notice says t
 Recommendation: restore the confirm view with its original buttons — nothing was mutated, a retry is one tap, and the strip-first order still guards the double-submit window because the buttons return only after the refusal is delivered.
 
 Acceptance: per decision; every changed pinned assertion is called out in the PR body.
+
+Member added 2026-10-27 (PR 2672 review rounds 3 and 4, both flagged it): the same family on the OTHER side of a refusal. After a confirmed fact forget whose list refresh then cannot be shown, PR 2672 now sends the owner-ruled notice (Fact forgotten, run /memory facts) but leaves the original forget-confirm or detail view on screen with live buttons for a fact that no longer exists; a second tap gives the fact-not-found error. The decision this task asks (what state the message is left in when a refusal means the view cannot be rebuilt: restore buttons, strip them, or re-render) should cover this case too, and the post-forget refusal path in factsBrowse.ts (followUpFactsRefusal with afterForget) is where a best-effort editReply with no components would go if the answer is strip.
 <!-- SECTION:DESCRIPTION:END -->
