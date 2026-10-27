@@ -518,7 +518,7 @@ Rotation ledger (`secret_rotations`, per-env, sync-excluded) driving the daily o
 
 BYOK rotation is breakage-free via the dual-key window in `common-types/utils/encryption.ts` — never rotate `API_KEY_ENCRYPTION_KEY` by hand-replacing the variable.
 
-`secrets:rotate-env` rotates a plain shared secret with a brief 401 mismatch window while services redeploy on the new value at different times, UNLESS the name's verifier dual-accepts `<NAME>_PREVIOUS` (`INTERNAL_SERVICE_SECRET`, verified by api-gateway) — for those, `--stage 1|2|3` is required and there is no window: stage 1 preserves the old value and redeploys only the verifier, stage 2 rolls the presenters, stage 3 clears `_PREVIOUS`.
+`secrets:rotate-env` rotates a plain shared secret with a brief 401 mismatch window while services redeploy on the new value at different times, UNLESS the name's verifier dual-accepts `<NAME>_PREVIOUS` (`INTERNAL_SERVICE_SECRET`, verified by api-gateway) — for those, `--stage 1|2|3` is required and there is no window: stage 1 preserves the old value and redeploys only the verifier, stage 2 redeploys the verifier first and waits for that deployment to reach `SUCCESS` (which restarts the verifier once more, after stage 1's restart, making an interrupted stage 1 recoverable by running stage 2) before rolling the presenters, and stage 3 clears `_PREVIOUS`.
 
 ## Security Commands
 

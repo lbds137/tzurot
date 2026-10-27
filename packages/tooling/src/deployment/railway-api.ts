@@ -452,6 +452,31 @@ async function fetchServiceInstanceLatestDeployment(args: {
   return parsed.data.serviceInstance.latestDeployment;
 }
 
+export interface GetRailwayServiceLatestDeploymentArgs {
+  environmentId: string;
+  serviceId: string;
+  env: RailwayEnv;
+}
+
+export interface RailwayServiceLatestDeployment {
+  id: string;
+  status: string;
+}
+
+/**
+ * Return `{ id, status }` for `serviceInstance.latestDeployment`, or `null`
+ * when the service has no latest deployment.
+ */
+export async function getRailwayServiceLatestDeployment(
+  args: GetRailwayServiceLatestDeploymentArgs
+): Promise<RailwayServiceLatestDeployment | null> {
+  const latestDeployment = await fetchServiceInstanceLatestDeployment(args);
+  if (latestDeployment === null) {
+    return null;
+  }
+  return { id: latestDeployment.id, status: latestDeployment.status };
+}
+
 export interface AssertRailwayServiceDeploymentReadyArgs {
   environmentId: string;
   serviceId: string;
@@ -507,8 +532,10 @@ export interface RedeployRailwayServiceReusingImageArgs {
 /**
  * Redeploy a service by reusing the image of its `serviceInstance.latestDeployment`
  * (`deploymentRedeploy` with `usePreviousImageTag: true`) instead of building
- * the branch HEAD via `serviceInstanceRedeploy`, and return the new
- * deployment's id.
+ * the branch HEAD via `serviceInstanceRedeploy`, and return both the source
+ * deployment's id (`sourceDeploymentId`) and the new deployment's id
+ * (`newDeploymentId`). `redeployRailwayServiceReusingImage` wraps this and
+ * returns only `newDeploymentId`.
  *
  * Selecting `serviceInstance(environmentId, serviceId).latestDeployment` and
  * requiring its status to be `SUCCESS` (refusing when missing or non-`SUCCESS`,
@@ -523,9 +550,9 @@ export interface RedeployRailwayServiceReusingImageArgs {
  * `deploymentRedeploy(id, usePreviousImageTag: true)` skips the build stage and
  * snapshots the service's current variable values fresh into the new deployment.
  */
-export async function redeployRailwayServiceReusingImage(
+export async function redeployRailwayServiceReusingImageWithSource(
   args: RedeployRailwayServiceReusingImageArgs
-): Promise<string> {
+): Promise<{ sourceDeploymentId: string; newDeploymentId: string }> {
   const latestDeployment = await fetchServiceInstanceLatestDeployment(args);
   if (latestDeployment === null) {
     throw new Error(
@@ -549,7 +576,17 @@ export async function redeployRailwayServiceReusingImage(
     throw unexpectedShapeError('deployment-redeploy');
   }
 
-  return parsedRedeploy.data.deploymentRedeploy.id;
+  return {
+    sourceDeploymentId: latestDeployment.id,
+    newDeploymentId: parsedRedeploy.data.deploymentRedeploy.id,
+  };
+}
+
+/** Same as `redeployRailwayServiceReusingImageWithSource`, returning only `newDeploymentId`. */
+export async function redeployRailwayServiceReusingImage(
+  args: RedeployRailwayServiceReusingImageArgs
+): Promise<string> {
+  return (await redeployRailwayServiceReusingImageWithSource(args)).newDeploymentId;
 }
 
 /**

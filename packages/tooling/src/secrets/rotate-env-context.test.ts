@@ -228,12 +228,12 @@ describe('rotate-env-context', () => {
 
       reportRedeployFailures(
         [{ name: 'bot-client', error: new Error('boom') }],
-        'Nothing was written — stage 2 only redeploys presenters.',
+        'Nothing was written.',
         'dev'
       );
 
       const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
-      expect(allOutput).toContain('Nothing was written — stage 2 only redeploys presenters.');
+      expect(allOutput).toContain('Nothing was written.');
       expect(allOutput).not.toContain('mint a THIRD value');
     });
   });
