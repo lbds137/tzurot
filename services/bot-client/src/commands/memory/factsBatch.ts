@@ -18,7 +18,6 @@
  */
 
 import {
-  MessageFlags,
   escapeMarkdown,
   type ButtonInteraction,
   type StringSelectMenuInteraction,
@@ -40,17 +39,15 @@ import {
   readSelectOptionLabels,
   runBatchSequentially,
   formatBatchItemLines,
-  PAGE_FETCH_FAILED_COPY,
   type BatchResultLine,
 } from '../../utils/browse/multiSelectBatch.js';
 import { truncateForSelect } from '../../utils/browse/truncation.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
-import { renderSpec } from '../../ux/render/render.js';
 import { followUpSpec, ackUpdate } from '../../ux/render/reply.js';
 import {
   FACTS_PER_PAGE,
-  FACTS_SESSION_EXPIRED,
   fetchCurrentFactsPage,
+  followUpFactsRefusal,
   buildFactsEmbed,
   formatFactSelectOption,
   buildRefreshedFactsView,
@@ -112,13 +109,7 @@ export async function handleBatchSelectEntry(interaction: ButtonInteraction): Pr
 
   const result = await fetchCurrentFactsPage(interaction);
   if (!result.ok) {
-    await interaction.followUp({
-      content:
-        result.reason === 'session-gone'
-          ? FACTS_SESSION_EXPIRED
-          : renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
-      flags: MessageFlags.Ephemeral,
-    });
+    await followUpFactsRefusal(interaction, result.reason);
     return;
   }
 
@@ -264,16 +255,7 @@ async function replyBatchRefusal(
   interaction: ButtonInteraction,
   reason: BatchLabelsRefusal
 ): Promise<void> {
-  if (reason === 'fetch-failed') {
-    // A live session with a failed fetch is NOT an expired session —
-    // transient copy, not the expiry copy.
-    await followUpSpec(interaction, CATALOG.error.transient(PAGE_FETCH_FAILED_COPY));
-    return;
-  }
-  await interaction.followUp({
-    content: FACTS_SESSION_EXPIRED,
-    flags: MessageFlags.Ephemeral,
-  });
+  await followUpFactsRefusal(interaction, reason);
 }
 
 const FACT_BATCH_NOUNS = {

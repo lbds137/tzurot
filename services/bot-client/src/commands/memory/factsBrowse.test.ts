@@ -8,6 +8,7 @@ import {
   FACT_BROWSE_PREFIX,
   FACTS_SESSION_EXPIRED,
   factBrowseHelpers,
+  followUpFactsRefusal,
   isFactBrowsePagination,
   handleFacts,
   handleFactsPagination,
@@ -20,13 +21,22 @@ import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
+const { loggerMock } = vi.hoisted(() => ({
+  loggerMock: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+    createLogger: () => loggerMock,
   };
 });
 
@@ -658,5 +668,67 @@ describe('error branches', () => {
       expect.objectContaining({ content: FACTS_SESSION_EXPIRED })
     );
     expect(interaction.editReply).not.toHaveBeenCalled();
+  });
+
+  it('refreshFactsList: sends the transient error followUp when the step-back retry fetch fails', async () => {
+    const interaction = {
+      user: { id: 'user-1' },
+      message: { id: 'message-1' },
+      editReply: vi.fn().mockResolvedValue(undefined),
+      followUp: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ButtonInteraction;
+
+    sessionManagerMock.findByMessageId.mockResolvedValue({
+      data: { personalityId: 'personality-456', currentPage: 1 },
+    });
+    stub.listFacts
+      .mockResolvedValueOnce(
+        makeOk({ facts: [], total: 10, limit: 10, offset: 10, hasMore: false })
+      )
+      .mockResolvedValueOnce(makeErr(500, 'boom'));
+
+    await refreshFactsList(interaction);
+
+    expect(stub.listFacts).toHaveBeenCalledTimes(2);
+    expect(interaction.followUp).toHaveBeenCalledTimes(1);
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(interaction.editReply).not.toHaveBeenCalled();
+  });
+
+  it('followUpFactsRefusal: logs warn with ids only on fetch-failed and not on session-gone', async () => {
+    const interaction = {
+      user: { id: 'user-1' },
+      message: { id: 'message-1' },
+      followUp: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ButtonInteraction;
+
+    await followUpFactsRefusal(interaction, 'session-gone');
+    expect(loggerMock.warn).not.toHaveBeenCalled();
+
+    await followUpFactsRefusal(interaction, 'fetch-failed');
+    expect(loggerMock.warn).toHaveBeenCalledTimes(1);
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      { userId: 'user-1', messageId: 'message-1' },
+      'Facts list could not be shown: page fetch failed'
+    );
+  });
+
+  it('followUpFactsRefusal: swallows and logs a rejected followUp', async () => {
+    const followUpError = new Error('webhook token expired');
+    const interaction = {
+      user: { id: 'user-1' },
+      message: { id: 'message-1' },
+      followUp: vi.fn().mockRejectedValue(followUpError),
+    } as unknown as ButtonInteraction;
+
+    await expect(followUpFactsRefusal(interaction, 'session-gone')).resolves.toBeUndefined();
+
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      { err: followUpError, userId: 'user-1' },
+      expect.any(String)
+    );
   });
 });

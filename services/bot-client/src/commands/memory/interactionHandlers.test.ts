@@ -575,6 +575,9 @@ describe('fact routing (correction slice)', () => {
 
     expect(interaction.deferUpdate).toHaveBeenCalled();
     expect(mockRefreshFactsList).toHaveBeenCalledWith(interaction);
+    expect(vi.mocked(interaction.deferUpdate).mock.invocationCallOrder[0]).toBeLessThan(
+      mockRefreshFactsList.mock.invocationCallOrder[0]
+    );
   });
 
   it('confirm-forget refreshes the list ONLY when the forget succeeded', async () => {
@@ -586,6 +589,9 @@ describe('fact routing (correction slice)', () => {
 
     expect(mockHandleForgetConfirm).toHaveBeenCalledWith(interaction, 'fact-1');
     expect(mockRefreshFactsList).toHaveBeenCalledWith(interaction);
+    expect(vi.mocked(interaction.deferUpdate).mock.invocationCallOrder[0]).toBeLessThan(
+      mockRefreshFactsList.mock.invocationCallOrder[0]
+    );
 
     // Failure path: no refresh (the error was already surfaced via followUp).
     mockRefreshFactsList.mockClear();
@@ -616,6 +622,9 @@ describe('fact routing (correction slice)', () => {
 
     expect(interaction.deferUpdate).toHaveBeenCalled();
     expect(mockRefreshFactsList).toHaveBeenCalledWith(interaction);
+    expect(vi.mocked(interaction.deferUpdate).mock.invocationCallOrder[0]).toBeLessThan(
+      mockRefreshFactsList.mock.invocationCallOrder[0]
+    );
   });
 
   it('routes batch-confirm with the decoded verb', async () => {
