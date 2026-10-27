@@ -26,4 +26,6 @@ Owner question: do you want the facts expired-session notice reworded to match t
 Recommendation: switch to the catalog spec. The three sibling flows already use it, the wording change is small and consistent, and the facts copy has no reason to differ; a one-line comment is the only alternative if you want it kept.
 
 Acceptance: per decision; if switched, the expiry tests derive the text from the catalog.
+
+Follow-on if switched (PR 2672 review): once the expiry copy is a MessageSpec, all three branches of followUpFactsRefusal in factsBrowse.ts become specs, and its local try/catch swallow-and-log can become a followUpSpecSafe(interaction, spec, { logContext }) sibling of replySpecSafe in ux/render/reply.ts, removing the hand-written catch.
 <!-- SECTION:DESCRIPTION:END -->
