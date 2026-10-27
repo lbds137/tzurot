@@ -307,6 +307,22 @@ describe('deny handleButton() and handleSelectMenu() routing (P5/P6, C2)', () =>
       const interaction = { customId } as unknown as StringSelectMenuInteraction;
 
       await expect(denyCommand.handleSelectMenu?.(interaction)).rejects.toThrow('handler failed');
+      expect(routedMock).toHaveBeenCalledWith(interaction);
+    }
+  );
+
+  it.each([
+    ['deny::browse::0::all::date::', mockHandleBrowsePagination],
+    ['deny::batch-confirm::1::user::name', mockHandleDenyBatchButton],
+    ['deny::del::entry-uuid-1234', mockHandleDetailButton],
+  ] as const)(
+    'propagates a rejection from the routed button handler (%s)',
+    async (customId, routedMock) => {
+      routedMock.mockRejectedValueOnce(new Error('handler failed'));
+      const interaction = { customId } as unknown as ButtonInteraction;
+
+      await expect(denyCommand.handleButton?.(interaction)).rejects.toThrow('handler failed');
+      expect(routedMock).toHaveBeenCalledWith(interaction);
     }
   );
 });
