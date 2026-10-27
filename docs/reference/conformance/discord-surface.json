@@ -7,7 +7,7 @@
   },
   "totals": {
     "entries": 3050,
-    "sites": 7075
+    "sites": 7079
   },
   "entries": [
     {
@@ -13784,7 +13784,7 @@
       "category": "flags",
       "file": "services/bot-client/src/commands/memory/factsBrowse.ts",
       "symbol": "MessageFlags.Ephemeral",
-      "count": 1
+      "count": 2
     },
     {
       "category": "flags",
@@ -14468,7 +14468,7 @@
       "category": "interaction-acks",
       "file": "services/bot-client/src/commands/memory/factsBrowse.ts",
       "symbol": "followUp",
-      "count": 1
+      "count": 2
     },
     {
       "category": "interaction-acks",
@@ -17036,7 +17036,7 @@
       "category": "message-options",
       "file": "services/bot-client/src/commands/memory/factsBrowse.ts",
       "symbol": "content",
-      "count": 1
+      "count": 2
     },
     {
       "category": "message-options",
@@ -17048,7 +17048,7 @@
       "category": "message-options",
       "file": "services/bot-client/src/commands/memory/factsBrowse.ts",
       "symbol": "flags",
-      "count": 1
+      "count": 2
     },
     {
       "category": "message-options",
