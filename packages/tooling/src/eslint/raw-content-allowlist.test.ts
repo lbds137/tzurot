@@ -29,6 +29,13 @@ describe('allowlist contract (shrink-only)', () => {
       expect(budget, `${file} has a zero/negative budget — remove the entry`).toBeGreaterThan(0);
     }
   });
+
+  it('keys only bot-client source (the pre-push 10c gate in .husky/pre-push matches that prefix)', () => {
+    const outside = Object.keys(RAW_CONTENT_ALLOWLIST).filter(
+      relPath => !relPath.startsWith('services/bot-client/src/')
+    );
+    expect(outside).toEqual([]);
+  });
 });
 
 describe('budgets stay exact (live staleness sweep)', () => {
