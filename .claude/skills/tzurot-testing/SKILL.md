@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: 'Testing procedures. Invoke with /tzurot-testing for test execution, coverage audits, and debugging test failures.'
-lastUpdated: '2026-09-25'
+lastUpdated: '2026-10-28'
 ---
 
 # Testing Procedures
@@ -150,6 +150,14 @@ it('should call service', () => {
   expect(getMyServiceMock().someMethod).toHaveBeenCalled();
 });
 ```
+
+**A shared mock module (`src/test/mocks/*.mock.ts`) that a `vi.mock` factory `await import`s must not value-import anything whose chain reaches the module that factory mocks** — `import type { … }` declarations are always fine, and importing nothing from the code under test is the simplest way to guarantee it.
+
+Observed symptom: the circular await deadlocks vitest at startup — the banner prints, then zero output with no error. Recognize the trap by that silence.
+
+Safe cases: reaching a _different_ mocked module whose factory does not also import this mock module just runs that factory once; an unmocked module is safe when its value-import chain never reaches the mocked module, which is why `aliasBatch.mock.ts` can value-import `buildRemoveCustomId` from `aliasBrowseView.ts`.
+
+Fix: inline the literal (or the needed constant) into the mock module to break the cycle — and pin the inlined copy against the real export in a test file that already imports the source module, so the copy cannot drift.
 
 ## Probe fixtures come from the real corpus
 
