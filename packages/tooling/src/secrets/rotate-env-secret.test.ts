@@ -8,6 +8,10 @@ vi.mock('../deployment/railway-api.js', () => ({
   listRailwayVariableNames: vi.fn(),
   readRailwayVariableValue: vi.fn(),
   deleteRailwayVariable: vi.fn(),
+  // redeploy-repair-text.ts does `instanceof` against this class on a failure's error.
+  RailwayRedeployRefusedError: class RailwayRedeployRefusedError extends Error {
+    name = 'RailwayRedeployRefusedError';
+  },
 }));
 
 vi.mock('../deployment/railway-status.js', () => ({
@@ -52,6 +56,7 @@ import {
   upsertRailwayVariable,
   redeployRailwayServiceReusingImage,
   listRailwayVariableNames,
+  RailwayRedeployRefusedError,
 } from '../deployment/railway-api.js';
 import { listRailwayServices } from '../deployment/railway-status.js';
 import { UsageError } from '../utils/errors.js';
@@ -261,6 +266,63 @@ describe('runRotateEnvSecret', () => {
     expect(allOutput).toContain('do NOT re-run');
     expect(allOutput).toContain('pnpm ops deploy:redeploy --env dev --service api-gateway --yes');
     expect(allOutput).not.toContain('railway redeploy');
+  });
+
+  it('a refused redeploy is sent to the dashboard first, with deploy:redeploy only as the retry, in both the report and the thrown error', async () => {
+    mockRedeploy.mockImplementation(async args => {
+      if (args.serviceId === 'svc-gateway') {
+        throw new RailwayRedeployRefusedError('api-gateway latest deployment is BUILDING');
+      }
+      return 'dep-new';
+    });
+
+    const error = await runRotateEnvSecret(BASE_OPTIONS).then(
+      () => new Error('expected a rejection'),
+      (e: unknown) => e as Error
+    );
+
+    const refusedSentence =
+      'api-gateway: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`';
+    expect(error.message).toContain(`Do NOT re-run this command — ${refusedSentence}.`);
+    const allOutput = [...logSpy.mock.calls, ...errorSpy.mock.calls, ...warnSpy.mock.calls]
+      .flat()
+      .map(String)
+      .join('\n');
+    expect(allOutput).toContain(refusedSentence);
+  });
+
+  it('a mixed refused + plain failure gives the refused sentence, then the lowercase by-hand repair, exactly', async () => {
+    mockRedeploy.mockImplementation(async args => {
+      if (args.serviceId === 'svc-gateway') {
+        throw new RailwayRedeployRefusedError('api-gateway latest deployment is BUILDING');
+      }
+      if (args.serviceId === 'svc-bot') {
+        throw new Error('redeploy boom');
+      }
+      return 'dep-new';
+    });
+
+    const error = await runRotateEnvSecret(BASE_OPTIONS).then(
+      () => new Error('expected a rejection'),
+      (e: unknown) => e as Error
+    );
+
+    expect(error.message).toBe(
+      'secrets:rotate-env: the variable was rotated successfully, but 2 service(s) failed to redeploy: api-gateway, bot-client. Do NOT re-run this command — api-gateway: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`; for the rest: redeploy the lagging service(s) by hand (Railway dashboard or `pnpm ops deploy:redeploy --env dev --service bot-client --yes`).'
+    );
+  });
+
+  it('a plain redeploy failure keeps the hand-redeploy command in the thrown error', async () => {
+    mockRedeploy.mockImplementation(async args => {
+      if (args.serviceId === 'svc-gateway') {
+        throw new Error('redeploy boom');
+      }
+      return 'dep-new';
+    });
+
+    await expect(runRotateEnvSecret(BASE_OPTIONS)).rejects.toThrow(
+      'Do NOT re-run this command — redeploy the lagging service(s) by hand (Railway dashboard or `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`).'
+    );
   });
 
   it('collects and names ALL failures when multiple redeploys fail', async () => {

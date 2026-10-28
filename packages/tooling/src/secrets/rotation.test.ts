@@ -6,6 +6,7 @@
 import util from 'node:util';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { encryptWithKey, parseEncryptionKeyMaterial } from '@tzurot/common-types/utils/encryption';
+import { RailwayRedeployRefusedError } from '../deployment/railway-api.js';
 import type { RailwayIds } from '../deployment/railway-status.js';
 import { DEFAULT_SERVICE_POLL_INTERVAL_MS } from './service-redeploy-wait.js';
 
@@ -61,6 +62,10 @@ vi.mock('../deployment/railway-api.js', () => ({
   redeployRailwayServiceReusingImage,
   redeployRailwayServiceReusingImageWithSource,
   getRailwayServiceLatestDeployment,
+  // redeploy-repair-text.ts does `instanceof` against this class on a failure's error.
+  RailwayRedeployRefusedError: class RailwayRedeployRefusedError extends Error {
+    name = 'RailwayRedeployRefusedError';
+  },
 }));
 
 vi.mock('../deployment/railway-status.js', () => ({
@@ -471,7 +476,7 @@ describe('rotateByokKey', () => {
 
     const promise = rotateByokKey({ env: 'dev', stage: '1' });
     await expect(promise).rejects.toThrow(
-      "Run stage 2 once both services' latest deployments have settled: it redeploys both services itself and waits for each new deployment to reach SUCCESS before touching any row. If a service's latest deployment is FAILED, CRASHED, REMOVED or SKIPPED, redeploy it first with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`, because stage 2's readiness check refuses it."
+      "Run stage 2 once both services' latest deployments have settled: it redeploys both services itself and waits for each new deployment to reach SUCCESS before touching any row. If a service's latest deployment is FAILED, CRASHED, REMOVED or SKIPPED, fix it in the Railway dashboard until its latest deployment is SUCCESS first, because stage 2's readiness check refuses it (`pnpm ops deploy:redeploy` refuses it too)."
     );
     await expect(promise).rejects.not.toThrow('not verified:');
     expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
@@ -504,7 +509,7 @@ describe('rotateByokKey', () => {
       'A rotation window is already open (PREVIOUS is set) — run stage 2 then stage 3 to close it before starting a new rotation.'
     );
     await expect(promise).rejects.toThrow(
-      "If stage 1 itself was interrupted after its writes, run stage 2 once both services' latest deployments have settled: it redeploys both services itself and waits for each to reach SUCCESS. If a service's latest deployment is FAILED, CRASHED, REMOVED or SKIPPED, redeploy it first (`pnpm ops deploy:redeploy --env dev --service <name> --yes`), because stage 2's readiness check refuses it."
+      "If stage 1 itself was interrupted after its writes, run stage 2 once both services' latest deployments have settled: it redeploys both services itself and waits for each to reach SUCCESS. If a service's latest deployment is FAILED, CRASHED, REMOVED or SKIPPED, fix it in the Railway dashboard until its latest deployment is SUCCESS first, because stage 2's readiness check refuses it (`pnpm ops deploy:redeploy` refuses it too)."
     );
     // No variable writes or redeploys may have happened.
     const setCalls = mockExecFileSync.mock.calls.filter(
@@ -864,6 +869,35 @@ describe('rotateByokKey', () => {
     await expect(promise).rejects.not.toThrow('re-run stage 3');
     await expect(promise).rejects.not.toThrow('api-gateway');
     expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
+  });
+
+  it('stage 3 sends a REFUSED redeploy to the dashboard first and keeps the command only as the retry', async () => {
+    stubRailwayVars({
+      API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+      API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+    });
+    mockPrisma.userApiKey.findMany.mockResolvedValue([]);
+    mockPrisma.userCredential.findMany.mockResolvedValue([]);
+    redeployRailwayServiceReusingImage.mockImplementation(({ serviceId }: { serviceId: string }) =>
+      serviceId === 'svc-ai-worker'
+        ? Promise.reject(
+            new RailwayRedeployRefusedError("ai-worker's latest deployment is BUILDING")
+          )
+        : Promise.resolve('dep-new')
+    );
+
+    const error = await rotateByokKey({ env: 'dev', stage: '3' }).then(
+      () => new Error('expected a rejection'),
+      (e: unknown) => e as Error
+    );
+
+    expect(error.message).toContain(
+      'ai-worker: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env dev --service ai-worker --yes`, then stamp the ledger'
+    );
+    // The command is never the first repair for the refused service.
+    expect(error.message).not.toContain('Redeploy ai-worker with');
+    expect(error.message).not.toContain('api-gateway');
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
   });
 

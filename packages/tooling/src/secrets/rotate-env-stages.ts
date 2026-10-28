@@ -50,6 +50,12 @@ import {
   printDryRunNotice,
   refuseIfWindowClosed,
   printGateVerdict,
+  stage1NextStep,
+  stage1RedeployFailureError,
+  STAGE2_NEXT_STEP,
+  stage2RedeployFailureError,
+  stage3NextStep,
+  stage3RedeployFailureError,
 } from './rotate-env-stage-output.js';
 import { assertPresentersStillReady, redeployAndWaitForService } from './service-redeploy-wait.js';
 
@@ -275,15 +281,10 @@ async function writeStage1ValuesAndRedeploy(args: StageArgs): Promise<void> {
       failures,
       `The new primary is live and "${previousName}" holds the old value; re-running stage 1 ` +
         'would refuse, because the window is now open.',
-      options.env
+      options.env,
+      stage1NextStep(verifier.name)
     );
-    throw new Error(
-      `secrets:rotate-env stage 1: the values were written successfully, but the verifier failed ` +
-        `to redeploy. Do NOT re-run stage 1 — run stage 2 only once "${verifier.name}" shows SUCCESS ` +
-        `in Railway (stage 2 redeploys "${verifier.name}" and waits for SUCCESS, but its ` +
-        `preflight refuses a FAILED or CRASHED latest deployment); otherwise redeploy ` +
-        `"${verifier.name}" by hand first.`
-    );
+    throw stage1RedeployFailureError(verifier.name);
   }
 }
 
@@ -340,13 +341,10 @@ async function runStage2(args: StageArgs): Promise<void> {
     reportRedeployFailures(
       failures,
       'Nothing was written — the verifier restarted and its new deployment reached SUCCESS (per the stage-2 wait).',
-      options.env
+      options.env,
+      STAGE2_NEXT_STEP
     );
-    throw new Error(
-      `secrets:rotate-env stage 2: ${failures.length} service(s) failed to redeploy. Re-run ` +
-        'stage 2 once every lagging service shows SUCCESS (its preflight refuses until every ' +
-        'service does); a service that ended FAILED or CRASHED must be redeployed by hand first.'
-    );
+    throw stage2RedeployFailureError(failures.length);
   }
 }
 
@@ -418,9 +416,11 @@ async function runStage3(args: StageArgs): Promise<void> {
   // `VariableDeleteInput` carries no `skipDeploys` field at all — probed by
   // live GraphQL introspection, so there is nothing to pass here. Whether
   // Railway auto-redeploys the verifier on a variable delete is UNVERIFIED
-  // for a referenced variable; if it does, the explicit redeploy below is a
-  // second, redundant restart rather than a correctness problem, since both
-  // deploys land on the same post-delete configuration.
+  // for a referenced variable; if it does, that deployment is in flight when
+  // the explicit redeploy below runs, and the redeploy helper refuses a latest
+  // deployment that is not SUCCESS — the failure text then sends the operator
+  // to the dashboard rather than to `deploy:redeploy`. Both deploys would
+  // land on the same post-delete configuration.
   await deleteRailwayVariable({
     projectId: context.projectId,
     environmentId: context.environmentId,
@@ -446,14 +446,16 @@ async function runStage3(args: StageArgs): Promise<void> {
       failures,
       `"${previousName}" was deleted, so the retired value is gone from Railway's store, but the ` +
         'un-redeployed verifier may still accept it in memory.',
-      options.env
+      options.env,
+      stage3NextStep({ verifierName: verifier.name, failures, ledgerName, env: options.env })
     );
-    throw new Error(
-      `secrets:rotate-env stage 3: "${previousName}" was deleted from Railway, but "${verifier.name}" ` +
-        'failed to redeploy, so it may still accept the retired value in memory until it restarts. ' +
-        `Do NOT re-run this command — redeploy "${verifier.name}" by hand, then stamp the ledger with ` +
-        `\`pnpm ops secrets:mark-rotated ${ledgerName} --env ${options.env}\`.`
-    );
+    throw stage3RedeployFailureError({
+      previousName,
+      verifierName: verifier.name,
+      failures,
+      ledgerName,
+      env: options.env,
+    });
   }
 
   const ledgerStamped = await stampLedger(options.env, ledgerName);
