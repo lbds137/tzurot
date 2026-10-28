@@ -26,10 +26,10 @@ the mechanics). Under an Opus driver the same shape applies to SUBSTANTIVE
 units (nested dispatch — the orchestration skill's mode table carries the
 full Opus statement), and review-round fixes are dispatch work under ANY
 driver — the missing fresh reader, not the budget, is the reason
-(`/tzurot-review-response` § 3a). The dispatch's lane comes first from
-`lane-meters --for implement` (machine-local; absent → own lane), and
-harness-protected files never go to a headless worker — their routing,
-fallback conditions, and the gate-scope carve-out live in
+(`/tzurot-review-response` § 3a). An implementation dispatch's lane comes
+first from `lane-meters --for implement` (machine-local; absent → own
+lane), and harness-protected files never go to a headless worker — their
+routing, fallback conditions, and the gate-scope carve-out live in
 `/tzurot-orchestration` § Dispatch lane. Inline is a narrow exception: a
 ≤5-line mechanical edit in a file already in context, or work where the spec
 would genuinely cost more than the edit. Seyag's `dispatch-posture-gate`

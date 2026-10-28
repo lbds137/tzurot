@@ -126,6 +126,12 @@ Always `vi.useFakeTimers()`; for an expected rejection attach the assertion befo
 | New `*.service.ts` | ✅   | If shared   | ✅ For complex DB operations |
 | Bug fix            | ✅   | If schema   | If multi-component           |
 
+**Worker verification floor**: a dispatched implementation worker (any
+agent type) runs, for every touched package, the package's own
+`pnpm --filter @tzurot/<pkg> test`, `typecheck`, and `typecheck:spec`
+(where defined) even when the spec omits them — the spec's verification
+list is a floor, not a ceiling.
+
 ## Types & Constants
 
 ### When to Add to Common-Types

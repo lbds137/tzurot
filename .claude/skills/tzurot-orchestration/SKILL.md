@@ -49,10 +49,13 @@ main-loop input on all later turns.
 **Worker model tier (settled)**: for a **mechanical-class** unit — one whose
 spec describes the edit precisely (renames, sweeps, fixture updates, applying
 a settled pattern across files) — the orchestrator passes `model: sonnet` on
-the Agent call instead of the default Opus model (same `opus-implementer`
+the Agent call instead of the default Opus model (same `seyag:implementer`
 contract, only the model overridden per-call); an edit that can be described
 precisely does not need Opus-tier judgment to execute, and the spec template
-produces exactly that. Sonnet is the STANDING tier for mechanical-class units. Semantic-class units (design judgment inside the
+produces exactly that. Sonnet is the STANDING tier for mechanical-class units.
+(The per-call override is verified only on an Anthropic lane; on other lanes
+the lane's own model serves regardless of the passed field — TASK-1318.)
+Semantic-class units (design judgment inside the
 diff) stay on Opus. If a Sonnet unit ships a semantic defect: append it to
 TASK-487's notes (that file is the tier's standing evidence ledger; its Done
 status does not bar appends, and appends are file edits only — the CLI's
@@ -66,23 +69,24 @@ spec/scope rather than the worker tier, or the owner calls it.
 `lane-meters --for implement` is a machine-local fleet command (installed on
 the operator's machine) that reads live lane meters and prints the unit
 class's routing. The routing is a how-line — the lane's launch command; an
-empty or unparseable output, or a non-zero exit, counts as absent → treat
-the lane as the driver's own. Every implementation dispatch begins with it,
-then:
+empty or unparseable output, a non-zero exit, or a missing command counts
+as absent → treat the lane as the driver's own. Every implementation
+dispatch begins with it, then:
 
-- **Cross-lane** goes to the how-line's headless worker (a separate worker
-  process; spec inlined with its `## Premise ledger` heading — the prompt
-  itself must carry the heading (the lane's premise lint parses for it, per
-  the worker's contract; not probed here) — worktree per that worker's
-  contract).
+- **Cross-lane** goes to the how-line's headless worker:
+  - a separate worker process;
+  - the spec is inlined with its `## Premise ledger` heading — the prompt
+    itself must carry the heading (the lane's premise lint parses for it, per
+    the worker's contract; not probed here);
+  - worktree per that worker's contract.
 - **Own-lane** keeps the Agent-tool workers this skill describes — same-lane
   dispatch prefers a visible subagent.
 - **Fallbacks to the Agent-tool path**: the how-line's launch is refused (it
   fails or the lane is explicitly unavailable) or the worker gave up after
   its relaunch (the machine-local stall signal — for example agy-worker
   exit 5 after two stalls in fresh conversations; not exercised live on
-  this route), or the command itself is missing (a cloud VM, another
-  machine). The lane order is machine-local posture, never hardcoded here.
+  this route). The lane order is machine-local posture, never hardcoded
+  here.
 
 One class routes independently of the meter: harness-protected files
 (`.claude/hooks`, `.claude/skills`, `.claude/rules`, `.github`). Headless
@@ -94,10 +98,16 @@ part takes the meter's lane, the protected part goes to a visible
 Agent-tool subagent, and the main loop is the fallback only when no subagent
 path fits — the Agent tool is unavailable in this harness, or the subagent's
 Edit came back denied — with the dispatching turn stating which one applied;
-that fallback is the standing exemption to the ≤5-line inline limit. The
-dispatch names its lane and one-line reason in the dispatching turn's text,
-with the durable line in the PR body's verification section, and the
-full-diff read (§ When the worker reports) stays the gate on every lane.
+that fallback is the standing exemption to the ≤5-line inline limit; the
+general spec-cost inline exception (`10-working-posture.md` § Delegation
+posture) also applies to protected files — when it fires instead, the lane
+line records the deviation from the dispatch default. (still capped at
+five lines; only the no-subagent fallback above lifts the cap) The
+dispatch names its
+lane and one-line reason — including which fallback or exception applied —
+in the dispatching turn's text, with the durable line in the PR body's
+verification section, and the full-diff read (§ When the worker reports)
+stays the gate on every lane.
 
 ## Nested dispatch — the Fable-driver standard
 
@@ -106,10 +116,10 @@ On the meter's own lane (§ Dispatch lane): one Agent call
 `isolation: "worktree"`) whose prompt IS a full orchestration spec — every
 section of the spec template below, plus the nested-specific contract points
 here. The Opus orchestrator grounds itself in the worktree, spawns ONE Sonnet
-worker (`model: "sonnet"`, NO isolation flag — it must edit the
-orchestrator's own worktree; absolute paths, `pwd` confirmed) for the
-mechanical edits, runs every verification gate, and reports with verbatim gate
-tails.
+worker (`subagent_type: "seyag:implementer"`, `model: "sonnet"`, NO
+isolation flag — it must edit the orchestrator's own worktree; absolute
+paths, `pwd` confirmed) for the mechanical edits, runs every verification
+gate, and reports with verbatim gate tails.
 
 How this composes with § Worker model tier: that section's single-hop
 `model: sonnet` dispatch is the OPUS-DRIVER rule and is unchanged. Under
@@ -265,7 +275,11 @@ fetched remote branch instead of `HEAD`: `git fetch origin <branch>`, then
 `--sha $(git rev-parse origin/<branch>)`. The
 cloud orchestrator is its session's own main loop; Seyag's `dispatch-posture-gate`
 reaches it only if the VM loads the seyag plugin (unverified), so the spec
-itself tells it to hand all src edits above five lines to ONE Sonnet worker. Observed behavior: units have ignored that and split their
+itself tells it to hand all src edits above five lines to ONE Sonnet
+worker, and always carries the spec-template item-6 fallback clauses
+(commit, sub-spawn, gate-weakening, report) — plugin load on the VM is
+unverified, so the worker may be `general-purpose` with no contract of its
+own. Observed behavior: units have ignored that and split their
 edits into five-line pieces instead, which is correct but slow. The VM never loads harness `core.md`, so every cloud spec pastes that file's § Safety section verbatim under a `## Harness safety rules` heading (source on the driver's machine: `/home/deck/Projects/seyag/plugins/seyag/rules/core.md`), refreshed at each launch; without it a cloud unit has no written ask-first list at all.
 
 **Reading the result.** RemoteTrigger `get_run_log` with the session id,
@@ -341,6 +355,15 @@ a gap the worker will fill by guessing.
    solo. Everything material not listed is a stop condition.
 6. **Stop conditions** — the task-specific ones, on top of the agent contract's
    defaults.
+
+   When the worker is `general-purpose` (the fallback where the seyag plugin is
+   not loaded), the spec carries the implementer role clauses itself: no
+   commit/push/branch beyond the spec's named step; no sub-spawning, including
+   never verifying its own work with a subagent; never weaken a gate, lint
+   rule, or guard to satisfy the spec; and the full report contract — verbatim
+   gate tails, every deviation flagged, every routine call listed, the final
+   git state.
+
 7. **Verification gates — enumerate the exact commands, copied from the target
    package's `package.json` scripts** (or the direct `npx` equivalent when the
    script is absent — and say which): a missing script produces empty `pnpm`
@@ -348,7 +371,9 @@ a gap the worker will fill by guessing.
    for the touched packages; in particular BOTH `typecheck` AND
    `typecheck:spec` where the package defines it (separate tsconfig — plain
    `typecheck` misses test-file errors). Sequential, long timeouts, never in
-   parallel (`05-tooling.md` § Resource Constraints).
+   parallel (`05-tooling.md` § Resource Constraints). The worker verification
+   floor (`02-code-standards.md` § Testing Standards) applies even where this
+   list omits a gate.
    **Default the gate list to the touched packages' WHOLE-package commands**
    (`pnpm --filter <pkg> test`) plus every repo-level gate CI runs for them.
 
@@ -579,8 +604,14 @@ works behind a spec.
 
 ## Relationship to the rules
 
-- **`.claude/agents/opus-implementer.md`** is the worker's own contract — the
-  spec template above supplies what that contract expects to receive.
+- **`seyag:implementer`** is the worker's own contract — the
+  spec template above supplies what that contract expects to receive (the
+  seyag plugin's implementer; where the plugin is not loaded, a
+  `general-purpose` agent takes the same spec — the ledger gate then only
+  WARNs on phantom scripts for it; on a single-hop dispatch, pass
+  `isolation: "worktree"` to restore the block — a nested inner worker keeps
+  no isolation by contract (it edits the outer orchestrator's tree), so its
+  orchestrator re-checks the spec's gate list itself).
 - **`00-critical.md`** § Merge Approval and § Never Merge PRs Without Completed
   CI govern the merge gate; the diff-read gate here sits before it, not instead
   of it.
