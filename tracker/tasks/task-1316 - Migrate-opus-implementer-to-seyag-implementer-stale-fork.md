@@ -1,9 +1,10 @@
 ---
 id: TASK-1316
 title: Migrate opus-implementer to seyag:implementer (stale fork)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-28T15:21:00Z'
+updated_date: '2026-10-28T20:05:00Z'
 labels:
   - area:skills
   - area:hooks

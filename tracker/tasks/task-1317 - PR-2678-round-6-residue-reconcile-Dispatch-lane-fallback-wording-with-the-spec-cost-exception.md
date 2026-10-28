@@ -3,9 +3,10 @@ id: TASK-1317
 title: >-
   PR 2678 round-6 residue: reconcile Dispatch-lane fallback wording with the
   spec-cost exception
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-28T16:17:00Z'
+updated_date: '2026-10-28T20:05:00Z'
 labels:
   - area:skills
   - size:S
