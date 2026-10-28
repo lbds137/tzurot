@@ -24,4 +24,6 @@ What: point tzurot-orchestration SKILL.md (~line 49, Worker model tier) and disp
 Acceptance: git grep opus-implementer over tracked files comes back empty; the gate and its probe pass on the new agent name; the verification floor is stated in a Tzurot always-loaded surface, not only the deleted agent file; model-override behavior confirmed by the dispatch path that replaces the deleted agent.
 
 Needs a PR (agent file + hook + skill are load-bearing). Sequence: lands after PR 2678 (TASK-1315) merges — same skill file, separate review scope.
+
+Close-out notes (PR 2679, recorded before the Done flip so the acceptance reads honestly): (1) the model-override clause was FALSIFIED on the z.ai lane — both dispatches ran glm-5.3-flash despite model: sonnet (subagent JSONL .message.model) — and moved to TASK-1318 (Anthropic-lane probe + Worker-model-tier caveat). (2) The grep-empty clause is met OUTSIDE tracker/ (zero hits); the tracker hits are historical records (doc-69 snapshot, resolved tasks, this task's own title) that 06-backlog keeps — the scope note lives in the PR body too.
 <!-- SECTION:DESCRIPTION:END -->
