@@ -50,8 +50,8 @@ export function partitionRedeployFailures(
  * same reason, so the dashboard comes first). `redeployCommands` is appended as
  * the retry once the deployment has settled, followed by the instruction to
  * wait for that redeploy to reach SUCCESS (`deploy:redeploy` returns right
- * after triggering it), so a caller's next step never runs against a redeploy
- * still in flight.
+ * after triggering it), so the text asks the operator to wait before taking the
+ * caller's next step (the ledger stamp); it cannot enforce that.
  */
 function refusedRedeployRepair(names: string[], redeployCommands: string): string {
   const plural = names.length > 1;
