@@ -108,7 +108,7 @@ describe('rotate-env-stage-output', () => {
       }).message;
 
       expect(message).toContain(
-        'Do NOT re-run this command — redeploy "api-gateway" by hand and wait for it to reach SUCCESS, then'
+        'Do NOT re-run this command — redeploy "api-gateway" by hand (Railway dashboard or `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`) and wait for it to reach SUCCESS, then'
       );
       expect(message.indexOf('wait for it to reach SUCCESS')).toBeLessThan(
         message.indexOf('stamp the ledger')
