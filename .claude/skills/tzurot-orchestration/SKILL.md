@@ -78,7 +78,11 @@ dispatch begins with it, then:
   - the spec is inlined with its `## Premise ledger` heading — the prompt
     itself must carry the heading (the lane's premise lint parses for it, per
     the worker's contract; not probed here);
-  - worktree per that worker's contract.
+  - worktree per that worker's contract;
+  - the spec carries the template **Fallback worker contract** unless the
+    lane contract is verified to cover those clauses, and inlines the
+    verification-floor commands (the template's **Verification gates** item)
+    unless it is verified to cover the floor.
 - **Own-lane** keeps the Agent-tool workers this skill describes — same-lane
   dispatch prefers a visible subagent.
 - **Fallbacks to the Agent-tool path**: the how-line's launch is refused (it
@@ -101,13 +105,12 @@ Edit came back denied — with the dispatching turn stating which one applied;
 that fallback is the standing exemption to the ≤5-line inline limit; the
 general spec-cost inline exception (`10-working-posture.md` § Delegation
 posture) also applies to protected files — when it fires instead, the lane
-line records the deviation from the dispatch default. (still capped at
-five lines; only the no-subagent fallback above lifts the cap) The
-dispatch names its
-lane and one-line reason — including which fallback or exception applied —
-in the dispatching turn's text, with the durable line in the PR body's
-verification section, and the full-diff read (§ When the worker reports)
-stays the gate on every lane.
+line records the deviation from the dispatch default (still capped at five
+lines; only the no-subagent fallback above lifts the cap). The dispatch
+names its lane and one-line reason — including which fallback or exception
+applied — in the dispatching turn's text, with the durable line in the PR
+body's verification section, and the full-diff read (§ When the worker
+reports) stays the gate on every lane.
 
 ## Nested dispatch — the Fable-driver standard
 
@@ -152,10 +155,10 @@ The dispatch prompt's non-negotiable contract points:
   is done in the MAIN tree and committed as the base the worker self-heals
   onto.
 - **NO commits, branches, or pushes** — the deliverable is a dirty worktree
-  plus the report. This supersedes spec-template item 8 for nested dispatch:
-  the harness's own `worktree-agent-*` branch already satisfies branch setup,
-  and step 0's base verification takes item 8's place as the separate first
-  step.
+  plus the report. This supersedes the spec template's **Branch setup** item
+  for nested dispatch: the harness's own `worktree-agent-*` branch already
+  satisfies branch setup, and step 0's base verification takes its place as
+  the separate first step.
 - **Expect a bare worktree**: no node_modules, no built dist. The prompt says
   to run `pnpm install` + `pnpm --filter "./packages/**" build` up front, and
   that "Failed to resolve entry for package @tzurot/…" means unbuilt dist,
@@ -168,9 +171,10 @@ The dispatch prompt's non-negotiable contract points:
 - **Verification gates enumerated as exact commands** with the instruction to
   capture verbatim tails, run sequentially, and never run repo-wide heavy
   commands. The canary set opens with the purpose canary (§ The spec
-  template, item 7). Canaries (Core Principle 9) are DERIVED from the claim set, not
-  chosen by taste: for every behavior the PR body will assert as fixed or
-  pinned, the spec names the mutation that falsifies it. A claim with no
+  template, **Verification gates**). Canaries (Core Principle 9) are
+  DERIVED from the claim set, not chosen by taste: for every behavior the
+  PR body will assert as fixed or pinned, the spec names the mutation that
+  falsifies it. A claim with no
   canary is the signal the claim is unverified — give it one or scope the
   sentence down. A canary pins the case it runs, not the general property: a
   body claim broader than its canary gets a second canary varying the next
@@ -276,11 +280,15 @@ fetched remote branch instead of `HEAD`: `git fetch origin <branch>`, then
 cloud orchestrator is its session's own main loop; Seyag's `dispatch-posture-gate`
 reaches it only if the VM loads the seyag plugin (unverified), so the spec
 itself tells it to hand all src edits above five lines to ONE Sonnet
-worker, and always carries the spec-template item-6 fallback clauses
-(commit, sub-spawn, gate-weakening, report) — plugin load on the VM is
-unverified, so the worker may be `general-purpose` with no contract of its
-own. Observed behavior: units have ignored that and split their
-edits into five-line pieces instead, which is correct but slow. The VM never loads harness `core.md`, so every cloud spec pastes that file's § Safety section verbatim under a `## Harness safety rules` heading (source on the driver's machine: `/home/deck/Projects/seyag/plugins/seyag/rules/core.md`), refreshed at each launch; without it a cloud unit has no written ask-first list at all.
+worker, and always carries the spec template's **Fallback worker contract**
+clauses — plugin load on the VM is unverified, so the worker may be
+`general-purpose` with no contract of its own. Observed behavior: units
+have ignored that and split their edits into five-line pieces instead,
+which is correct but slow. The VM never loads harness `core.md`, so every
+cloud spec pastes that file's § Safety section verbatim under a
+`## Harness safety rules` heading (the seyag plugin's `rules/core.md` on
+the driver's machine), refreshed at each launch; without it a cloud unit
+has no written ask-first list at all.
 
 **Reading the result.** RemoteTrigger `get_run_log` with the session id,
 paging with its cursor. `get_run_log` cuts each log entry at roughly 400
@@ -356,13 +364,36 @@ a gap the worker will fill by guessing.
 6. **Stop conditions** — the task-specific ones, on top of the agent contract's
    defaults.
 
-   When the worker is `general-purpose` (the fallback where the seyag plugin is
-   not loaded), the spec carries the implementer role clauses itself: no
-   commit/push/branch beyond the spec's named step; no sub-spawning, including
-   never verifying its own work with a subagent; never weaken a gate, lint
-   rule, or guard to satisfy the spec; and the full report contract — verbatim
-   gate tails, every deviation flagged, every routine call listed, the final
-   git state.
+   **Fallback worker contract** — when the worker is `general-purpose` (the
+   fallback where the seyag plugin is not loaded) or carries no implementer
+   contract of its own (a cross-lane headless worker whose lane contract is
+   unverified to cover these clauses), the spec carries the implementer role
+   clauses itself. The clauses bind the leaf/edit worker; a nested-dispatch
+   orchestrator that itself runs `general-purpose` does not inherit the
+   no-sub-spawning clause — it forwards this contract to its inner worker
+   when that worker is `general-purpose`:
+
+   - execute the spec exactly and STOP and report instead of improvising
+     when readings diverge materially (a conflict between the spec and an
+     enforced test/guard, or a file that doesn't match the spec's
+     description);
+   - no commit/push/branch beyond the spec's named step;
+   - no sub-spawning, including never verifying its own work with a
+     subagent;
+   - never weaken a gate, lint rule, or guard to satisfy the spec;
+   - regenerate generated artifacts only through their sanctioned commands —
+     when `packages/clients/src/routes/**` is in scope, the spec inlines the
+     sequence: build `@tzurot/clients`, run `pnpm ops codegen:routes`,
+     report the generated route count beside the count of routes the spec
+     adds (details: `05-tooling.md` § After a branch switch, and stale
+     dist);
+   - scratch stays contained in one temp directory, named in the report,
+     never loose in `/tmp` or the repo — a path the spec itself names (e.g.
+     the report file, a step-0 block's Redis dump dir) is not worker
+     scratch;
+   - the full report contract — verbatim gate tails, every deviation
+     flagged, every routine call listed, the final git state — plus
+     everything in **Report requirements**, whose list is the complete one.
 
 7. **Verification gates — enumerate the exact commands, copied from the target
    package's `package.json` scripts** (or the direct `npx` equivalent when the
@@ -373,7 +404,10 @@ a gap the worker will fill by guessing.
    `typecheck` misses test-file errors). Sequential, long timeouts, never in
    parallel (`05-tooling.md` § Resource Constraints). The worker verification
    floor (`02-code-standards.md` § Testing Standards) applies even where this
-   list omits a gate.
+   list omits a gate. A spec bound for a cross-lane headless worker inlines
+   the floor's commands explicitly unless its lane contract is verified to
+   cover the floor: such a worker may not load `.claude/rules/` and cannot
+   see the floor as a default.
    **Default the gate list to the touched packages' WHOLE-package commands**
    (`pnpm --filter <pkg> test`) plus every repo-level gate CI runs for them.
 
