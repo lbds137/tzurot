@@ -1,7 +1,7 @@
 ---
 name: tzurot-review-response
 description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → decided when engineering-only, ASK when it carries a product/UX, user-visible, schema, spend, data-rights, or security dimension, changes an existing test assertion, or changes an async boundary or external contract), check reviewer-vs-agent signal conflict, batch-present the four sections, step back at ~3 automated rounds (rule of thumb), and hard-cap at ~6 — hand off to a fresh context or the owner. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
-lastUpdated: '2026-10-11'
+lastUpdated: '2026-10-28'
 ---
 
 # Review-Response Iteration
@@ -88,7 +88,7 @@ Mid-PR rebase (i.e., autosquash + force-push between review rounds) is reserved 
 
 ### 3a. Review-round fixes are a dispatch, under any driver
 
-Procedure and reason: `seyag:review-response § 3a. Review-round fixes are a dispatch` and `seyag:delegation`. Tzurot driver statement: under Fable, prefer a `SendMessage` resume of the unit's own nested orchestrator (context intact, cache-riding; a fresh spawn re-pays the whole spec). Under Opus or any other single-hop driver, dispatch a fresh worker (`model: sonnet` for mechanical-shape fixes) with the round's findings as the spec. The worker applies the fixes and runs the gates; the main loop reads the diff and the verdict only. Inline application is reserved for a ≤5-line mechanical edit, comment-only edits included (`10-working-posture.md` § Delegation posture). Step-in stays with the main loop on semantic disagreement with the reviewer, or orchestrator uncertainty about the unit's design.
+Procedure and reason: `seyag:review-response § 3a. Review-round fixes are a dispatch` and `seyag:delegation`. Every fresh dispatch in this step runs `lane-meters --for implement` first and follows its how-line (`/tzurot-orchestration` § Dispatch lane): the meter's own-lane call keeps the subagent shapes below, a cross-lane call goes to the how-line's worker, and the stalled-agy and harness-protected-file fallbacks live there. A `SendMessage` resume of the unit's own orchestrator is not a fresh dispatch — it continues on the unit's existing lane without re-consulting the meter; a unit that originally ran headless has no orchestrator to resume, so its round is a fresh dispatch on the meter's current lane. Tzurot driver statement: under Fable, prefer a `SendMessage` resume of the unit's own nested orchestrator (context intact, cache-riding; a fresh spawn re-pays the whole spec). Under Opus or any other single-hop driver, dispatch a fresh worker (`model: sonnet` for mechanical-shape fixes) with the round's findings as the spec. The worker applies the fixes and runs the gates; the main loop reads the diff and the verdict only. Inline application is reserved for a ≤5-line mechanical edit (`10-working-posture.md` § Delegation posture), comment-only edits included, or the harness-protected-file fallback named by `/tzurot-orchestration` § Dispatch lane. Step-in stays with the main loop on semantic disagreement with the reviewer, or orchestrator uncertainty about the unit's design.
 
 ### 4. Batch-present at end of round
 

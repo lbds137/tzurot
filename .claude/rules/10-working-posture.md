@@ -26,13 +26,19 @@ the mechanics). Under an Opus driver the same shape applies to SUBSTANTIVE
 units (nested dispatch — the orchestration skill's mode table carries the
 full Opus statement), and review-round fixes are dispatch work under ANY
 driver — the missing fresh reader, not the budget, is the reason
-(`/tzurot-review-response` § 3a). Inline is a narrow exception: a ≤5-line
-mechanical edit in a file already in context, or work where the spec would
-genuinely cost more than the edit. Seyag's `dispatch-posture-gate` MEASURES that
-five (touched lines of the edit's own old/new text) and hard-blocks a larger
-inline src edit; a comment-only edit above five lines is dispatched or split
-like any other. The five is the OUTER gate: above it dispatch is the only
-path, whichever justification applied. Read fan-outs of ~4+ files go to
+(`/tzurot-review-response` § 3a). The dispatch's lane comes first from
+`lane-meters --for implement` (machine-local; absent → own lane), and
+harness-protected files never go to a headless worker — their routing,
+fallback conditions, and the gate-scope carve-out live in
+`/tzurot-orchestration` § Dispatch lane. Inline is a narrow exception: a
+≤5-line mechanical edit in a file already in context, or work where the spec
+would genuinely cost more than the edit. Seyag's `dispatch-posture-gate`
+MEASURES that five (touched lines of the edit's own old/new text) and
+hard-blocks a larger inline src edit; a comment-only edit above five lines
+is dispatched or split like any other. The five is the OUTER gate: above it
+dispatch is the only path, whichever justification applied — the
+protected-file fallback in `/tzurot-orchestration` § Dispatch lane is the
+sole exception. Read fan-outs of ~4+ files go to
 Explore (`model: haiku`); file mutations use the Edit tool, never interpreter
 rewrite-scripts in Bash. The reason is arithmetic: every main-loop tool call
 re-reads the full context, so inline legwork bills the scarcest budget at the
