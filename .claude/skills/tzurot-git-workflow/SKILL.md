@@ -148,11 +148,9 @@ pnpm -C "$(git rev-parse --show-toplevel)" ops gh:ci-gate <N> --sha $(git rev-pa
 **Copy the substitution verbatim — never resolve the SHA and paste the result.** The gate rejects an abbreviated SHA and a well-formed one naming no local commit, but the substitution removes the step entirely. Outside the Monitor template, never type or hand-extend a SHA either: omit `--sha` and the gate watches the PR's current head.
 
 When the monitor fires, run the four-step procedure in `05-tooling.md`
-§ PR Monitoring in full — CI state plus the SHA-pinned run-list query, the
-three review endpoints (`gh:pr-comments` / `gh:pr-reviews` / `gh:pr-info`),
-one consolidated report that reads every `###` section of every `claude[bot]`
-entry, then `/tzurot-review-response`. Do not stop after the CI check: only
-`CI_COMPLETE` means CI finished, and a green check list is not proof CI ran.
+§ PR Monitoring in full — not just the CI check — ending in
+`/tzurot-review-response`. Only `CI_COMPLETE` means CI finished, and a
+green check list is not proof CI ran.
 
 **Merge gate is green-only** — every check green before `gh pr merge`, release PRs included; infrastructure-shaped failures get `gh run rerun <run-id> --failed` and a re-armed Monitor, never a merge through the red (`00-critical.md` § Never Merge PRs Without Completed CI).
 
@@ -525,9 +523,9 @@ What it does (release-flow steps 7–8):
    `gh release create` mints the tag server-side). A **stable** `X.Y.Z` release
    skips the demote — a GA release doesn't demote its predecessor.
 
-**Release-channel convention** (what the command enforces): the newest release holds
-`latest` (`prerelease=false`); every older beta is `prerelease=true`. **Do NOT** mark
-the newest tag `--prerelease` — that's mutually exclusive with `latest`.
+The command enforces the channel convention — newest release holds `latest`
+(`prerelease=false`), every older beta `prerelease=true` — so **do NOT** mark
+the newest tag `--prerelease`: that's mutually exclusive with `latest`.
 
 **Known-benign race — publish right after the merge.** Publishing while Railway is
 still swapping prod containers can 502 the release webhooks at Railway's edge
@@ -557,21 +555,25 @@ at close-out is enough, and the call is theirs.
 
 ### 10. Draft the Next Release Plan
 
-Close the release by planning the next one (`10-working-posture.md` § Ship in bounded units). Rewrite the 🚢 Next Release section in
-`backlog/now.md` for vNext (~10 minutes, direct-commit doc change):
+Close the release by planning the next one: rewrite the 🚢 Next Release
+section in `backlog/now.md` (~10 minutes, direct-commit doc change).
+`10-working-posture.md` § Ship in bounded units holds the cut triggers
+and summarizes the list; the drafting semantics live here:
 
-- **Theme** — what this release IS, in a phrase. Pull candidates from Current
-  Focus, `active-epic.md`, `cold/queue.md`, and the digest's oldest-20.
+- **Theme** — what this release IS, in a phrase; pull candidates from
+  Current Focus, `active-epic.md`, `cold/queue.md`, and the digest's
+  oldest-20.
 - **In already** — empty at cut time; grows as PRs merge.
 - **Waiting on** — the named items whose landing defines the cut.
 - **Explicitly NOT in** — what's deliberately deferred to the next train,
-  with the gating reason.
-- **Deploy notes** — migration timing, maintenance windows, owner decisions
-  that must survive until cut time (CURRENT.md is session state; this is the
-  durable home for release-scoped facts).
-- **Cut when** — the criterion, plus the standing backstops (~10 runtime PRs /
-  ~250 files) with current values from `release:range`.
-- **vNext+1 sketch** — one line, so the horizon extends past a single train.
+  each item with its gating reason.
+- **Deploy notes** — migration timing, maintenance windows, and owner
+  decisions that must survive until cut time (the durable home;
+  CURRENT.md is session state).
+- **Cut when** — the criterion plus the standing backstops (~10 runtime
+  PRs / ~250 files) with current values from `release:range`.
+- **vNext+1 sketch** — one line, so the horizon extends past a single
+  train.
 
 ### Hotfix release cut from `main`
 
