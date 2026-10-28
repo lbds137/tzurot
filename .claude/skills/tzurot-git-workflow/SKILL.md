@@ -80,9 +80,10 @@ git push -u origin feat/your-feature
 gh pr create --base develop --title "feat: description" --assignee @me
 ```
 
-Every dispatch has a lane, own-lane included (`/tzurot-orchestration` §
-Dispatch lane): the PR body's Verification section carries the durable lane
-line — which lane the unit's edits took and the one-line reason.
+Every unit's PR records its lane, dispatch or inline (`/tzurot-orchestration`
+§ Dispatch lane): the PR body's Verification section carries the durable lane
+line — which lane the unit's edits took, the one-line reason, and which
+fallback or exception applied.
 
 ### Before writing a closing reference in the PR body
 

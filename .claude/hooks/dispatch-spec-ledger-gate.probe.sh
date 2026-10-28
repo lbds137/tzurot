@@ -66,7 +66,7 @@ run() {
 # Same contract as run(), plus the two inputs the inline/mechanical checks read:
 # the project dir the hook resolves against, and the `isolation` field. An
 # optional 7th arg supplies `subagent_type` — the nested-dispatch pair's
-# inner worker (opus-implementer) carries no isolation flag of its own but
+# inner worker (seyag:implementer) carries no isolation flag of its own but
 # still runs gate commands, so the phantom-block gating needs it too.
 # run_iso <expected-exit> <expect-substring|-> <label> <project-dir> <isolation|-> <prompt> [<subagent_type|->]
 run_iso() {
@@ -509,13 +509,25 @@ run_iso 0 - "a path-shaped flag value is not mistaken for the script" \
   "$(inline_prompt ledger 'Gate: `pnpm --filter @tzurot/probe -C packages/probe test`.')"
 
 # --- case 15d: the phantom check now runs WITHOUT worktree isolation --------
-# The nested-dispatch pair's inner worker (opus-implementer, no isolation of
+# The nested-dispatch pair's inner worker (seyag:implementer, no isolation of
 # its own) still carries gate commands, so a phantom script there must still
 # be caught — this is the CAN_RUN_GATES=1-via-subagent_type path.
-run_iso 2 "phantom pnpm script" "the inner worker (opus-implementer, no isolation) is still blocked on a phantom" \
+run_iso 2 "phantom pnpm script" "the inner worker (seyag:implementer, no isolation) is still blocked on a phantom" \
   "$FIXTURE" - \
   "$(inline_prompt no-ledger 'Gate: `pnpm --filter @tzurot/probe typecheck`.')" \
-  opus-implementer
+  seyag:implementer
+
+# --- case 15d1: same shape, the BARE name against a plugin rename ----------
+run_iso 2 "phantom pnpm script" "the inner worker (bare implementer, no isolation) is still blocked on a phantom" \
+  "$FIXTURE" - \
+  "$(inline_prompt no-ledger 'Gate: `pnpm --filter @tzurot/probe typecheck`.')" \
+  implementer
+
+# --- case 15d1b: a foreign plugin's *:implementer gets NO gate path --------
+run_iso 0 - "a foreign foo:implementer dispatch without isolation is not blocked" \
+  "$FIXTURE" - \
+  "$(inline_prompt no-ledger 'Gate: `pnpm --filter @tzurot/probe typecheck`.')" \
+  foo:implementer
 
 # --- case 15d2: a pure research prompt quoting the SAME phantom is warned, --
 # not blocked — it cannot run the command at all.
@@ -525,7 +537,7 @@ run_iso 0 "not blocking" "a research prompt quoting a phantom is warned, not blo
   Explore
 
 # --- case 15d3: same shape, no subagent_type and no isolation at all --------
-run_iso 0 - "a non-worktree, non-opus-implementer dispatch with a phantom is not blocked" \
+run_iso 0 - "a general-purpose dispatch without isolation is not blocked" \
   "$FIXTURE" - \
   "$(inline_prompt no-ledger 'Gate: `pnpm --filter @tzurot/probe typecheck`.')" \
   general-purpose
