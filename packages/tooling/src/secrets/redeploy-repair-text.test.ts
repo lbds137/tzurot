@@ -16,7 +16,7 @@ describe('the refused-service repair (built inside partitionRedeployFailures)', 
 
   it('names one service and appends the retry commands as " it with <commands>"', () => {
     expect(partitionRedeployFailures([refused('ai-worker')], 'dev').refusedRepair).toBe(
-      `ai-worker${SENTENCE_TAIL} it with ${cmd('ai-worker')}`
+      `ai-worker${SENTENCE_TAIL} it with ${cmd('ai-worker')}, wait for it to reach SUCCESS`
     );
   });
 
@@ -24,7 +24,21 @@ describe('the refused-service repair (built inside partitionRedeployFailures)', 
     expect(
       partitionRedeployFailures([refused('api-gateway'), refused('ai-worker')], 'dev').refusedRepair
     ).toBe(
-      `api-gateway, ai-worker${SENTENCE_TAIL} them with ${cmd('api-gateway')}; ${cmd('ai-worker')}`
+      `api-gateway, ai-worker${SENTENCE_TAIL} them with ${cmd('api-gateway')}; ${cmd('ai-worker')}, wait for each to reach SUCCESS`
+    );
+  });
+
+  it('puts the wait-for-SUCCESS clause after the last command, in the singular and the plural form', () => {
+    const one = partitionRedeployFailures([refused('ai-worker')], 'dev').refusedRepair ?? '';
+    const several =
+      partitionRedeployFailures([refused('api-gateway'), refused('ai-worker')], 'dev')
+        .refusedRepair ?? '';
+
+    expect(one.indexOf('wait for it to reach SUCCESS')).toBeGreaterThan(
+      one.lastIndexOf('deploy:redeploy')
+    );
+    expect(several.indexOf('wait for each to reach SUCCESS')).toBeGreaterThan(
+      several.lastIndexOf('deploy:redeploy')
     );
   });
 });
@@ -80,7 +94,7 @@ describe('partitionRedeployFailures', () => {
         'dev'
       )
     ).toEqual({
-      refusedRepair: `api-gateway${SENTENCE_TAIL} it with ${cmd('api-gateway')}`,
+      refusedRepair: `api-gateway${SENTENCE_TAIL} it with ${cmd('api-gateway')}, wait for it to reach SUCCESS`,
       commands: cmd('ai-worker'),
       plainNames: ['ai-worker'],
     });

@@ -419,8 +419,8 @@ async function runStage3(args: StageArgs): Promise<void> {
   // for a referenced variable; if it does, that deployment is in flight when
   // the explicit redeploy below runs, and the redeploy helper refuses a latest
   // deployment that is not SUCCESS — the failure text then sends the operator
-  // to the dashboard rather than to `deploy:redeploy`. Both deploys would
-  // land on the same post-delete configuration.
+  // to the dashboard first, with `deploy:redeploy` as the retry. Both deploys
+  // would land on the same post-delete configuration.
   await deleteRailwayVariable({
     projectId: context.projectId,
     environmentId: context.environmentId,

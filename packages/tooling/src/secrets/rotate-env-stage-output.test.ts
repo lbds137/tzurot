@@ -108,7 +108,10 @@ describe('rotate-env-stage-output', () => {
       }).message;
 
       expect(message).toContain(
-        'Do NOT re-run this command — redeploy "api-gateway" by hand, then'
+        'Do NOT re-run this command — redeploy "api-gateway" by hand and wait for it to reach SUCCESS, then'
+      );
+      expect(message.indexOf('wait for it to reach SUCCESS')).toBeLessThan(
+        message.indexOf('stamp the ledger')
       );
       expect(message).toContain(
         '`pnpm ops secrets:mark-rotated internal-service-secret --env dev`'
@@ -128,7 +131,10 @@ describe('rotate-env-stage-output', () => {
       expect(message).toContain('Railway dashboard');
       expect(message).not.toContain('by hand');
       expect(message).toContain(
-        'fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`, then stamp'
+        'fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`, wait for it to reach SUCCESS, then stamp'
+      );
+      expect(message.indexOf('wait for it to reach SUCCESS')).toBeLessThan(
+        message.indexOf('stamp the ledger')
       );
       expect(message).toContain(
         '`pnpm ops secrets:mark-rotated internal-service-secret --env dev`'
