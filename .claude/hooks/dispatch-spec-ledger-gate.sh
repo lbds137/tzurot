@@ -29,11 +29,11 @@
 #     declared by NONE of the workspace packages the invocation selects —
 #     the check RUNS for EVERY Agent prompt, but it only BLOCKS a dispatch
 #     that can actually run the command (`isolation: worktree`, or
-#     `subagent_type: opus-implementer` as the nested pair's inner worker
-#     with no isolation flag of its own); everywhere else (Explore, a miner,
-#     a plain research agent) it warns to stderr and keeps scanning, since
-#     such a prompt may legitimately quote a phantom script for discussion
-#     rather than execution;
+#     `subagent_type: seyag:implementer` (or bare `implementer`) as the
+#     nested pair's inner worker with no isolation flag of its own);
+#     everywhere else (Explore, a miner, a plain research agent) it warns
+#     to stderr and keeps scanning, since such a prompt may legitimately
+#     quote a phantom script for discussion rather than execution;
 #   - a base SHA that resolves but is NOT the main checkout's current HEAD —
 #     worktree-only, since a research agent's prompt has no base SHA to
 #     drift from. `worktree.baseRef: "head"` cuts the worktree from wherever
@@ -86,9 +86,11 @@ PROMPT=$(jq -r '.tool_input.prompt // empty' <<<"$INPUT" 2>/dev/null || echo "")
 ISOLATION=$(jq -r '.tool_input.isolation // empty' <<<"$INPUT" 2>/dev/null || echo "")
 
 # `subagent_type` distinguishes the nested-dispatch pair's INNER worker
-# (opus-implementer, no isolation flag of its own — still runs the gate
+# (seyag:implementer, no isolation flag of its own — still runs the gate
 # commands a spec quotes) from a research agent (Explore, general-purpose,
-# claude-code-guide) that carries no gates to run at all.
+# claude-code-guide) that carries no gates to run at all. The
+# plugin-qualified form is what the agent listing emits (the bare form is
+# accepted against a plugin rename).
 SUBAGENT_TYPE=$(jq -r '.tool_input.subagent_type // empty' <<<"$INPUT" 2>/dev/null || echo "")
 
 # Whether this dispatch can actually RUN the gate commands a spec/prompt
@@ -97,9 +99,10 @@ SUBAGENT_TYPE=$(jq -r '.tool_input.subagent_type // empty' <<<"$INPUT" 2>/dev/nu
 # a miner, a plain research agent) cannot run anything — it only reads or
 # discusses.
 CAN_RUN_GATES=0
-if [ "$ISOLATION" = "worktree" ] || [ "$SUBAGENT_TYPE" = "opus-implementer" ]; then
-  CAN_RUN_GATES=1
-fi
+if [ "$ISOLATION" = "worktree" ]; then CAN_RUN_GATES=1; fi
+case "$SUBAGENT_TYPE" in
+seyag:implementer|implementer) CAN_RUN_GATES=1 ;;
+esac
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
 
@@ -411,7 +414,7 @@ while IFS= read -r HIT; do
   # discussing what a spec SHOULD say. Warn instead of blocking; only a
   # dispatch that can actually run the command loses a cycle to it.
   if [ "$CAN_RUN_GATES" -ne 1 ]; then
-    echo "dispatch-spec-ledger-gate: research prompt quotes a script no selected package declares ($FILTER_PKGS $FILTER_SCRIPT) — not blocking a non-gate-running dispatch" >&2
+    echo "dispatch-spec-ledger-gate: dispatch without worktree isolation or an implementer subagent_type quotes a script no selected package declares ($FILTER_PKGS $FILTER_SCRIPT) — not blocking a non-gate-running dispatch" >&2
     continue
   fi
 
