@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit; and the cloud dispatch mode (one cloud unit beside one local unit). Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-10-11'
+lastUpdated: '2026-10-28'
 ---
 
 # Orchestrator Mode
@@ -29,11 +29,14 @@ documented BACKUP lane** for when Fable usage runs low — a fallback, not a
 deprecation. Release operations are **not** model-scoped: release safety rests
 on the per-release owner-approval gate (`00-critical.md` § Merge Approval),
 which is model-independent. Schema and migration work, and any owner-taste
-call, still escalate to the owner regardless of driver.
+call, still escalate to the owner regardless of driver. The rows describe the
+own-lane (Agent-tool) mechanics: when § Dispatch lane's meter names a
+cross-lane worker, that lane's how-line replaces the Agent call, and the rest
+of this skill's gates still apply.
 
 | Driver                                                | Posture                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Fable main loop** _(PRIMARY — routine work)_        | **Nested dispatch is the STANDARD** — mechanics and contract in § Nested dispatch below; Fable's own full-diff read stays the gate. Inline only for: trivial mechanical edits (~≤5 lines), or work where writing the spec genuinely costs more than the edit. Review-round fixes are NOT an inline carve-out — batch each round's findings into one dispatch, preferring a SendMessage resume of the unit's own orchestrator (/tzurot-review-response § 3a).                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **Fable main loop** _(PRIMARY — routine work)_        | **Nested dispatch is the STANDARD** — mechanics and contract in § Nested dispatch below; Fable's own full-diff read stays the gate. Inline only for: trivial mechanical edits (~≤5 lines), work where writing the spec genuinely costs more than the edit, or the harness-protected-file main-loop fallback (§ Dispatch lane). Review-round fixes are NOT an inline carve-out — batch each round's findings into one dispatch, preferring a SendMessage resume of the unit's own orchestrator (/tzurot-review-response § 3a).                                                                                                                                                                                                                                                                                                                                                                                       |
 | **Opus main loop** _(BACKUP — low Fable usage)_       | **Nested dispatch for SUBSTANTIVE units under this driver too** (owner call): one fresh Opus orchestrator + Sonnet worker per unit, same § Nested dispatch contract, with the Opus main loop's own full-diff read as the gate. The fresh-context layer, not the model tier, is the defect-catcher — a fresh instance of the SAME model re-verifies spec premises the authoring context cannot see past, and its marginal cost bills the non-binding budget. Mechanical-class units may go single-hop Sonnet (§ Worker model tier). But do NOT delegate work finishable in a handful of tool calls: Opus 5 over-delegates by documented tendency (prompting guide § controlling subagent spawning). Review-round fix batches are dispatch work under this driver too (/tzurot-review-response § 3a) — the handful-of-tool-calls exception never covers them: inline round-fixes are how self-fed review loops start. |
 | **Cloud unit** _(at most one, beside one local unit)_ | A unit's orchestrator + worker and gates run in a cloud VM and deliver a pushed branch; the driver's full-diff read stays the gate. Launch, step 0, and what stays local: § Cloud dispatch below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | **Bulk reading/exploration**                          | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use. **Any read fan-out of ~4+ files, or any search across unknown locations, goes to `Explore` with `model: "haiku"` passed on the Agent call — never inline** (mechanism below the table).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -58,9 +61,48 @@ AND drop mechanical-class delegation back to Opus for subsequent units.
 Resume Sonnet only when the recorded analysis attributes the defect to
 spec/scope rather than the worker tier, or the owner calls it.
 
+## Dispatch lane — consult the meter before any dispatch
+
+`lane-meters --for implement` is a machine-local fleet command (installed on
+the operator's machine) that reads live lane meters and prints the unit
+class's routing. The routing is a how-line — the lane's launch command; an
+empty or unparseable output, or a non-zero exit, counts as absent → treat
+the lane as the driver's own. Every implementation dispatch begins with it,
+then:
+
+- **Cross-lane** goes to the how-line's headless worker (a separate worker
+  process; spec inlined with its `## Premise ledger` heading — the prompt
+  itself must carry the heading (the lane's premise lint parses for it, per
+  the worker's contract; not probed here) — worktree per that worker's
+  contract).
+- **Own-lane** keeps the Agent-tool workers this skill describes — same-lane
+  dispatch prefers a visible subagent.
+- **Fallbacks to the Agent-tool path**: the how-line's launch is refused (it
+  fails or the lane is explicitly unavailable) or the worker gave up after
+  its relaunch (the machine-local stall signal — for example agy-worker
+  exit 5 after two stalls in fresh conversations; not exercised live on
+  this route), or the command itself is missing (a cloud VM, another
+  machine). The lane order is machine-local posture, never hardcoded here.
+
+One class routes independently of the meter: harness-protected files
+(`.claude/hooks`, `.claude/skills`, `.claude/rules`, `.github`). Headless
+workers cannot edit them (probed; the block is worker-process-specific — a
+visible Agent-tool subagent's Edit reaches `.claude/skills/`,
+`.claude/hooks/`, and `.claude/rules/` unblocked; `.github/` assumed, not
+probed), so a unit spanning src and protected files splits by class: the src
+part takes the meter's lane, the protected part goes to a visible
+Agent-tool subagent, and the main loop is the fallback only when no subagent
+path fits — the Agent tool is unavailable in this harness, or the subagent's
+Edit came back denied — with the dispatching turn stating which one applied;
+that fallback is the standing exemption to the ≤5-line inline limit. The
+dispatch names its lane and one-line reason in the dispatching turn's text,
+with the durable line in the PR body's verification section, and the
+full-diff read (§ When the worker reports) stays the gate on every lane.
+
 ## Nested dispatch — the Fable-driver standard
 
-One Agent call (`subagent_type: "general-purpose"`, `model: "opus"`,
+On the meter's own lane (§ Dispatch lane): one Agent call
+(`subagent_type: "general-purpose"`, `model: "opus"`,
 `isolation: "worktree"`) whose prompt IS a full orchestration spec — every
 section of the spec template below, plus the nested-specific contract points
 here. The Opus orchestrator grounds itself in the worktree, spawns ONE Sonnet
