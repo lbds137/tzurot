@@ -122,7 +122,10 @@ describe('finalizeRedeployFailureMessage', () => {
     });
 
     expect(message).toBe(
-      `API_KEY_ENCRYPTION_KEY_PREVIOUS is deleted from Railway, but ai-worker still holds it in memory until it restarts. ai-worker${REFUSED_TAIL}${cmd('ai-worker')}, then ${LEDGER}`
+      `API_KEY_ENCRYPTION_KEY_PREVIOUS is deleted from Railway, but ai-worker still holds it in memory until it restarts. ai-worker${REFUSED_TAIL}${cmd('ai-worker')}, wait for it to reach SUCCESS, then ${LEDGER}`
+    );
+    expect(message.indexOf('wait for it to reach SUCCESS')).toBeLessThan(
+      message.indexOf('stamp the ledger')
     );
     expect(message).not.toContain('Redeploy ai-worker with');
     expect(message).not.toContain('if it still holds');
@@ -138,7 +141,7 @@ describe('finalizeRedeployFailureMessage', () => {
         ],
       })
     ).toBe(
-      `API_KEY_ENCRYPTION_KEY_PREVIOUS is deleted from Railway, but api-gateway, ai-worker still hold it in memory until they restart. ai-worker${REFUSED_TAIL}${cmd('ai-worker')}; for the rest: redeploy api-gateway with ${cmd('api-gateway')}, wait for each redeploy to reach SUCCESS, then ${LEDGER}`
+      `API_KEY_ENCRYPTION_KEY_PREVIOUS is deleted from Railway, but api-gateway, ai-worker still hold it in memory until they restart. ai-worker${REFUSED_TAIL}${cmd('ai-worker')}, wait for it to reach SUCCESS; for the rest: redeploy api-gateway with ${cmd('api-gateway')}, wait for each redeploy to reach SUCCESS, then ${LEDGER}`
     );
   });
 });

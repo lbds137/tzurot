@@ -893,7 +893,7 @@ describe('rotateByokKey', () => {
     );
 
     expect(error.message).toContain(
-      'ai-worker: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env dev --service ai-worker --yes`, then stamp the ledger'
+      'ai-worker: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env dev --service ai-worker --yes`, wait for it to reach SUCCESS, then stamp the ledger'
     );
     // The command is never the first repair for the refused service.
     expect(error.message).not.toContain('Redeploy ai-worker with');

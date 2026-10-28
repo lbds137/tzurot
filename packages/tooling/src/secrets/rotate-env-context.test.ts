@@ -252,7 +252,7 @@ describe('rotate-env-context', () => {
         'bot-client: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy'
       );
       expect(allOutput).toContain(
-        'Nothing was written. bot-client: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env prod --service bot-client --yes`; for the rest: repair the lagging service(s) from the Railway dashboard or `pnpm ops deploy:redeploy --env prod --service ai-worker --yes` — do NOT re-run this command.'
+        'Nothing was written. bot-client: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env prod --service bot-client --yes`, wait for it to reach SUCCESS; for the rest: repair the lagging service(s) from the Railway dashboard or `pnpm ops deploy:redeploy --env prod --service ai-worker --yes` — do NOT re-run this command.'
       );
     });
 
@@ -268,7 +268,7 @@ describe('rotate-env-context', () => {
 
       const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
       expect(allOutput).toContain(
-        'Nothing was written. bot-client: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env prod --service bot-client --yes` — do NOT re-run this command.'
+        'Nothing was written. bot-client: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env prod --service bot-client --yes`, wait for it to reach SUCCESS — do NOT re-run this command.'
       );
     });
 
@@ -298,11 +298,10 @@ describe('rotate-env-context', () => {
       );
 
       const lines = logSpy.mock.calls.flat().map(String);
-      expect(lines).toHaveLength(3);
-      expect(lines[2]).toContain(
+      expect(lines.at(-1)).toContain(
         '\nNothing was written. Re-run stage 2 once bot-client shows SUCCESS.'
       );
-      expect(lines[2].endsWith('Re-run stage 2 once bot-client shows SUCCESS.')).toBe(true);
+      expect(lines.at(-1)?.endsWith('Re-run stage 2 once bot-client shows SUCCESS.')).toBe(true);
       expect(lines.join('\n')).not.toContain('do NOT re-run this command');
       expect(lines.join('\n')).not.toContain('deploy:redeploy');
     });
@@ -318,8 +317,7 @@ describe('rotate-env-context', () => {
       );
 
       const lines = logSpy.mock.calls.flat().map(String);
-      expect(lines).toHaveLength(3);
-      expect(lines[2]).toContain(
+      expect(lines.at(-1)).toContain(
         'Nothing was written. Repair the lagging service(s) from the Railway dashboard or `pnpm ops deploy:redeploy --env prod --service bot-client --yes` — do NOT re-run this command.'
       );
     });

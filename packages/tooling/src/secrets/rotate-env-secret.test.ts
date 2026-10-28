@@ -282,7 +282,7 @@ describe('runRotateEnvSecret', () => {
     );
 
     const refusedSentence =
-      'api-gateway: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`';
+      'api-gateway: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`, wait for it to reach SUCCESS';
     expect(error.message).toContain(`Do NOT re-run this command — ${refusedSentence}.`);
     const allOutput = [...logSpy.mock.calls, ...errorSpy.mock.calls, ...warnSpy.mock.calls]
       .flat()
@@ -308,7 +308,7 @@ describe('runRotateEnvSecret', () => {
     );
 
     expect(error.message).toBe(
-      'secrets:rotate-env: the variable was rotated successfully, but 2 service(s) failed to redeploy: api-gateway, bot-client. Do NOT re-run this command — api-gateway: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`; for the rest: redeploy the lagging service(s) by hand (Railway dashboard or `pnpm ops deploy:redeploy --env dev --service bot-client --yes`).'
+      'secrets:rotate-env: the variable was rotated successfully, but 2 service(s) failed to redeploy: api-gateway, bot-client. Do NOT re-run this command — api-gateway: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`, wait for it to reach SUCCESS; for the rest: redeploy the lagging service(s) by hand (Railway dashboard or `pnpm ops deploy:redeploy --env dev --service bot-client --yes`).'
     );
   });
 
