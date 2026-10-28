@@ -3,9 +3,10 @@ id: TASK-1311
 title: >-
   BYOK staged rotation: stage 2 (reencrypt) cannot tell whether both services
   redeployed after an interrupted stage 1
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-27T17:10:00Z'
+updated_date: '2026-10-28T00:48:00Z'
 labels:
   - area:tooling
   - size:M
