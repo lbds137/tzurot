@@ -1,9 +1,10 @@
 ---
 id: TASK-1319
 title: 'PR 2679 round-6 residue: fallback-contract completeness and cap wording'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-28T20:03:00Z'
+updated_date: '2026-10-28T22:02:00Z'
 labels:
   - area:skills
   - size:S
