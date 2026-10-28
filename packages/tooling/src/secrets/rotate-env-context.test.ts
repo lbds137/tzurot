@@ -5,6 +5,10 @@ vi.mock('../deployment/railway-api.js', () => ({
   requireRailwayApiToken: vi.fn(),
   redeployRailwayServiceReusingImage: vi.fn(),
   listRailwayVariableNames: vi.fn(),
+  // redeploy-repair-text.ts does `instanceof` against this class on a failure's error.
+  RailwayRedeployRefusedError: class RailwayRedeployRefusedError extends Error {
+    name = 'RailwayRedeployRefusedError';
+  },
 }));
 
 vi.mock('../deployment/railway-status.js', () => ({
@@ -22,6 +26,7 @@ import {
   requireRailwayApiToken,
   redeployRailwayServiceReusingImage,
   listRailwayVariableNames,
+  RailwayRedeployRefusedError,
 } from '../deployment/railway-api.js';
 import { listRailwayServices } from '../deployment/railway-status.js';
 import { markSecretRotated } from './rotation.js';
@@ -34,6 +39,12 @@ import {
   reportRedeployFailures,
   stampLedger,
 } from './rotate-env-context.js';
+import {
+  STAGE2_NEXT_STEP,
+  stage1NextStep,
+  stage1RedeployFailureError,
+  stage2RedeployFailureError,
+} from './rotate-env-stage-output.js';
 
 const mockAssertReady = vi.mocked(assertRailwayServiceDeploymentReady);
 const mockRequireToken = vi.mocked(requireRailwayApiToken);
@@ -223,6 +234,44 @@ describe('rotate-env-context', () => {
       expect(allOutput).not.toContain('railway redeploy');
     });
 
+    it('sends a refused redeploy to the dashboard and lists the command only for the other failures', () => {
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      logSpy.mockClear();
+
+      reportRedeployFailures(
+        [
+          { name: 'bot-client', error: new RailwayRedeployRefusedError('not SUCCESS') },
+          { name: 'ai-worker', error: new Error('boom') },
+        ],
+        'Nothing was written.',
+        'prod'
+      );
+
+      const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
+      expect(allOutput).toContain(
+        'bot-client: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy'
+      );
+      expect(allOutput).toContain(
+        'Nothing was written. bot-client: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env prod --service bot-client --yes`; for the rest: repair the lagging service(s) from the Railway dashboard or `pnpm ops deploy:redeploy --env prod --service ai-worker --yes` — do NOT re-run this command.'
+      );
+    });
+
+    it('prints the dashboard repair with the command only as the retry when every failure was refused', () => {
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      logSpy.mockClear();
+
+      reportRedeployFailures(
+        [{ name: 'bot-client', error: new RailwayRedeployRefusedError('not SUCCESS') }],
+        'Nothing was written.',
+        'prod'
+      );
+
+      const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
+      expect(allOutput).toContain(
+        'Nothing was written. bot-client: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env prod --service bot-client --yes` — do NOT re-run this command.'
+      );
+    });
+
     it('prints the caller-supplied consequence sentence', () => {
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
@@ -236,5 +285,68 @@ describe('rotate-env-context', () => {
       expect(allOutput).toContain('Nothing was written.');
       expect(allOutput).not.toContain('mint a THIRD value');
     });
+
+    it('with a closing, prints "<consequence> <closing>" exactly, with no composed repair and no re-run suffix', () => {
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      logSpy.mockClear();
+
+      reportRedeployFailures(
+        [{ name: 'bot-client', error: new RailwayRedeployRefusedError('not SUCCESS') }],
+        'Nothing was written.',
+        'prod',
+        'Re-run stage 2 once bot-client shows SUCCESS.'
+      );
+
+      const lines = logSpy.mock.calls.flat().map(String);
+      expect(lines).toHaveLength(3);
+      expect(lines[2]).toContain(
+        '\nNothing was written. Re-run stage 2 once bot-client shows SUCCESS.'
+      );
+      expect(lines[2].endsWith('Re-run stage 2 once bot-client shows SUCCESS.')).toBe(true);
+      expect(lines.join('\n')).not.toContain('do NOT re-run this command');
+      expect(lines.join('\n')).not.toContain('deploy:redeploy');
+    });
+
+    it('without a closing, the output is unchanged: composed repair plus the re-run suffix', () => {
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      logSpy.mockClear();
+
+      reportRedeployFailures(
+        [{ name: 'bot-client', error: new Error('boom') }],
+        'Nothing was written.',
+        'prod'
+      );
+
+      const lines = logSpy.mock.calls.flat().map(String);
+      expect(lines).toHaveLength(3);
+      expect(lines[2]).toContain(
+        'Nothing was written. Repair the lagging service(s) from the Railway dashboard or `pnpm ops deploy:redeploy --env prod --service bot-client --yes` — do NOT re-run this command.'
+      );
+    });
+
+    it.each([
+      ['stage 1', stage1NextStep('api-gateway'), stage1RedeployFailureError('api-gateway').message],
+      ['stage 2', STAGE2_NEXT_STEP, stage2RedeployFailureError(1).message],
+    ])(
+      '%s: the printed report and the thrown error give the same next step and never say "re-run this command"',
+      (_stage, closing, thrown) => {
+        const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+        logSpy.mockClear();
+
+        reportRedeployFailures(
+          [{ name: 'api-gateway', error: new RailwayRedeployRefusedError('not SUCCESS') }],
+          'The new primary is live.',
+          'dev',
+          closing
+        );
+
+        const printed = logSpy.mock.calls.flat().map(String).join('\n');
+        expect(printed).not.toMatch(/re-run this command/i);
+        expect(thrown).not.toMatch(/re-run this command/i);
+        expect(printed).not.toContain('deploy:redeploy --');
+        expect(printed).toContain(closing);
+        expect(thrown).toContain(closing);
+      }
+    );
   });
 });

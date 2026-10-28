@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import type { redeployRailwayServiceReusingImageWithSource } from '../deployment/railway-api.js';
+import {
+  RailwayRedeployRefusedError,
+  type redeployRailwayServiceReusingImageWithSource,
+} from '../deployment/railway-api.js';
 import {
   assertPresentersStillReady,
   DEFAULT_SERVICE_POLL_INTERVAL_MS,
@@ -8,6 +11,7 @@ import {
   MAX_CONSECUTIVE_POLL_ERRORS,
   redeployAndWaitForService,
   type RedeployWaitWording,
+  type RedeployWordingContext,
 } from './service-redeploy-wait.js';
 
 const SERVICE = { id: 'svc-gateway', name: 'api-gateway' };
@@ -88,7 +92,12 @@ describe('redeployAndWaitForService', () => {
     expect(message).toContain('api-gateway');
     expect(message).toContain('FAILED');
     expect(message).toContain('nothing was redeployed on presenters');
-    expect(message).toMatch(/re-running stage 2 is safe/i);
+    expect(message).toContain(
+      'fix api-gateway in the Railway dashboard until its latest deployment is SUCCESS, then re-run stage 2.'
+    );
+    expect(message).toContain('`pnpm ops deploy:redeploy` refuses it too');
+    expect(message).not.toContain('--service');
+    expect(message).not.toMatch(/re-running stage 2 is safe/i);
     expect(getLatestDeployment).toHaveBeenCalledTimes(2);
   });
 
@@ -144,7 +153,11 @@ describe('redeployAndWaitForService', () => {
       expect(message).toContain('api-gateway');
       expect(message).toContain(status);
       expect(message).toContain('nothing was redeployed on presenters');
-      expect(message).toMatch(/re-running stage 2 is safe/i);
+      expect(message).toContain(
+        'fix api-gateway in the Railway dashboard until its latest deployment is SUCCESS, then re-run stage 2.'
+      );
+      expect(message).not.toContain('--service');
+      expect(message).not.toMatch(/re-running stage 2 is safe/i);
       expect(getLatestDeployment).toHaveBeenCalledTimes(1);
       expect(sleep).not.toHaveBeenCalled();
     }
@@ -368,7 +381,7 @@ describe('redeployAndWaitForService', () => {
     expect(message).toContain('api-gateway');
     expect(message).toContain('NEEDS_APPROVAL');
     expect(message).toContain('nothing was redeployed on presenters');
-    expect(message).toMatch(/re-running stage 2 is safe/i);
+    expect(message).toMatch(/re-running stage 2 is then safe/i);
     expect(getLatestDeployment).toHaveBeenCalledTimes(1);
     expect(sleep).not.toHaveBeenCalled();
   });
@@ -890,9 +903,26 @@ describe('redeployAndWaitForService custom wording', () => {
     expect(timedOut).not.toContain('short note');
   });
 
+  it('a function-valued shortRerunNote receives the service and env of the refusal', async () => {
+    const shortRerunNote = vi.fn(
+      ({ service, env }: RedeployWordingContext) => `short for ${service} in ${env}`
+    );
+    const wording = { ...WORDING, shortRerunNote } satisfies RedeployWaitWording;
+
+    const superseded = await refusal({ latest: { id: 'dep-third', status: 'BUILDING' }, wording });
+    expect(shortRerunNote).toHaveBeenCalledWith({ service: 'api-gateway', env: 'dev' });
+    expect(superseded).toContain('then re-run BYOK stage 2 (short for api-gateway in dev)');
+
+    const approval = await refusal({
+      latest: { id: 'dep-new', status: 'NEEDS_APPROVAL' },
+      wording,
+    });
+    expect(approval).toContain('re-run BYOK stage 2 (short for api-gateway in dev)');
+  });
+
   it('omitting wording closes the NEEDS_APPROVAL and superseding-deployment refusals with the default note, byte for byte', async () => {
     const note =
-      '(nothing was redeployed on presenters. Re-running stage 2 is safe because redeploying the verifier is idempotent while the dual-acceptance window is open.)';
+      '(nothing was redeployed on presenters. If the latest deployment settles to FAILED, CRASHED, REMOVED or SKIPPED, fix api-gateway in the Railway dashboard until its latest deployment is SUCCESS first; re-running stage 2 is then safe because redeploying the verifier is idempotent while the dual-acceptance window is open.)';
     const approval = await refusal({ latest: { id: 'dep-new', status: 'NEEDS_APPROVAL' } });
     expect(approval.endsWith(`approve it in the dashboard and re-run stage 2 ${note}`)).toBe(true);
     const superseded = await refusal({ latest: { id: 'dep-third', status: 'BUILDING' } });
@@ -902,7 +932,34 @@ describe('redeployAndWaitForService custom wording', () => {
   it('omitting wording keeps the rotate-env vocabulary', async () => {
     const message = await refusal({ latest: { id: 'dep-new', status: 'FAILED' } });
     expect(message).toBe(
-      'Stage 2 redeployed verifier "api-gateway" (dev), but the new deployment reached terminal status FAILED instead of SUCCESS — nothing was redeployed on presenters. Re-running stage 2 is safe because redeploying the verifier is idempotent while the dual-acceptance window is open.'
+      'Stage 2 redeployed verifier "api-gateway" (dev), but the new deployment reached terminal status FAILED instead of SUCCESS — nothing was redeployed on presenters. That deployment is now api-gateway\'s latest deployment, so stage 2 refuses to run until it is fixed, and `pnpm ops deploy:redeploy` refuses it too (it also needs a SUCCESS latest deployment): fix api-gateway in the Railway dashboard until its latest deployment is SUCCESS, then re-run stage 2.'
     );
+  });
+
+  it('a refused redeploy says it was refused before it restarted, with the default rerun note; any other trigger error keeps the may-already-be-restarting text', async () => {
+    const refused = await redeployAndWaitForService({
+      environmentId: 'env-1',
+      service: SERVICE,
+      env: 'dev',
+      redeploy: vi
+        .fn()
+        .mockRejectedValue(new RailwayRedeployRefusedError('latest deployment is FAILED')),
+      getLatestDeployment: vi.fn(),
+    }).catch((err: unknown) => (err as Error).message);
+    expect(refused).toBe(
+      'The redeploy of verifier "api-gateway" (dev) was refused before it restarted (latest deployment is FAILED) — nothing was redeployed on presenters. Re-running stage 2 is safe because redeploying the verifier is idempotent while the dual-acceptance window is open, but it is refused until api-gateway has a SUCCESS latest deployment: wait for one in flight to settle, or fix api-gateway in the Railway dashboard.'
+    );
+    expect(refused).not.toContain('may already be restarting');
+
+    const other = await redeployAndWaitForService({
+      environmentId: 'env-1',
+      service: SERVICE,
+      env: 'dev',
+      redeploy: vi.fn().mockRejectedValue(new Error('latest deployment is FAILED')),
+      getLatestDeployment: vi.fn(),
+    }).catch((err: unknown) => (err as Error).message);
+    expect(other).toContain('failed or returned an unexpected shape (latest deployment is FAILED)');
+    expect(other).toContain('the verifier may already be restarting');
+    expect(other).not.toContain('refused before it restarted');
   });
 });

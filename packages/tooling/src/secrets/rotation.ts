@@ -52,11 +52,12 @@ import {
   BYOK_SERVICES,
   CURRENT_VAR,
   GATEWAY_SERVICE,
+  finalizeRedeployFailureMessage,
   PREVIOUS_VAR,
-  redeployCommands,
   stageByokWindow,
   type ByokServiceIds,
 } from './byok-stage-helpers.js';
+import type { RedeployFailure } from './redeploy-repair-text.js';
 import { redeployAndWaitForService } from './service-redeploy-wait.js';
 
 /** Default rotation intervals (owner decision: 180d BYOK, 365d the rest). */
@@ -375,15 +376,15 @@ function resolveByokIds(env: SecretsEnv): ByokServiceIds {
 async function redeployByokServices(
   env: SecretsEnv,
   ids: ByokServiceIds,
-  buildFailureMessage: (failedServices: string) => string
+  buildFailureMessage: (failures: RedeployFailure[]) => string
 ): Promise<void> {
-  const failures: { service: string; error: unknown }[] = [];
+  const failures: RedeployFailure[] = [];
   for (const svc of BYOK_SERVICES) {
     try {
       await redeployRailwayServiceReusingImage({ ...ids[svc], serviceName: svc, env });
       console.log(chalk.green(`  redeployed ${svc} (${env})`));
     } catch (error) {
-      failures.push({ service: svc, error });
+      failures.push({ name: svc, error });
     }
   }
   if (failures.length === 0) {
@@ -391,9 +392,9 @@ async function redeployByokServices(
   }
   for (const failure of failures) {
     const detail = failure.error instanceof Error ? failure.error.message : 'unknown error';
-    console.log(chalk.red(`  failed to redeploy ${failure.service} (${env}): ${detail}`));
+    console.log(chalk.red(`  failed to redeploy ${failure.name} (${env}): ${detail}`));
   }
-  const message = buildFailureMessage(failures.map(f => f.service).join(', '));
+  const message = buildFailureMessage(failures);
   console.log(chalk.red(`\n${message}`));
   throw new Error(message);
 }
@@ -442,13 +443,8 @@ async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
     }
   }
 
-  await redeployByokServices(
-    env,
-    ids,
-    failedServices =>
-      `${PREVIOUS_VAR} is deleted from Railway, but ${failedServices} still holds it in memory until it restarts. ` +
-      `Redeploy ${failedServices} with ${redeployCommands(failedServices, env)}, wait for each redeploy to reach SUCCESS, ` +
-      `then stamp the ledger: \`pnpm ops secrets:mark-rotated byok-encryption-key --env ${env}\`.`
+  await redeployByokServices(env, ids, failures =>
+    finalizeRedeployFailureMessage({ env, failures })
   );
 
   await markSecretRotated({ env, name: 'byok-encryption-key' });

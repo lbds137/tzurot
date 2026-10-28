@@ -3,9 +3,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { RailwayRedeployRefusedError } from '../deployment/railway-api.js';
 import {
   assertByokServicesDeploymentReady,
-  redeployCommands,
+  finalizeRedeployFailureMessage,
   stageUpsertFailureError,
   stageRedeployFailureMessage,
   stageByokWindow,
@@ -18,6 +19,10 @@ const { requireRailwayApiToken } = vi.hoisted(() => ({
 
 vi.mock('../deployment/railway-api.js', () => ({
   requireRailwayApiToken,
+  // The partition helper does `instanceof` against this class on a failure's error.
+  RailwayRedeployRefusedError: class RailwayRedeployRefusedError extends Error {
+    name = 'RailwayRedeployRefusedError';
+  },
 }));
 
 const KEY_A_HEX = 'a'.repeat(64);
@@ -89,38 +94,72 @@ describe('stageUpsertFailureError', () => {
   });
 });
 
-describe('redeployCommands', () => {
-  it('builds one deploy:redeploy command per service, joined by "; "', () => {
-    expect(redeployCommands('api-gateway, ai-worker', 'prod')).toBe(
-      '`pnpm ops deploy:redeploy --env prod --service api-gateway --yes`; `pnpm ops deploy:redeploy --env prod --service ai-worker --yes`'
+describe('finalizeRedeployFailureMessage', () => {
+  const LEDGER = 'stamp the ledger: `pnpm ops secrets:mark-rotated byok-encryption-key --env dev`.';
+  const REFUSED_TAIL =
+    ': the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with ';
+  const cmd = (svc: string): string =>
+    `\`pnpm ops deploy:redeploy --env dev --service ${svc} --yes\``;
+
+  it('with no refusal, keeps the plain redeploy-with-commands text and the ledger sentence', () => {
+    expect(
+      finalizeRedeployFailureMessage({
+        env: 'dev',
+        failures: [
+          { name: 'api-gateway', error: new Error('boom') },
+          { name: 'ai-worker', error: new Error('boom') },
+        ],
+      })
+    ).toBe(
+      `API_KEY_ENCRYPTION_KEY_PREVIOUS is deleted from Railway, but api-gateway, ai-worker still hold it in memory until they restart. Redeploy api-gateway, ai-worker with ${cmd('api-gateway')}; ${cmd('ai-worker')}, wait for each redeploy to reach SUCCESS, then ${LEDGER}`
     );
   });
 
-  it('builds a single command for a single service with no joiner', () => {
-    expect(redeployCommands('api-gateway', 'dev')).toBe(
-      '`pnpm ops deploy:redeploy --env dev --service api-gateway --yes`'
+  it('with every failure refused, sends them to the dashboard with the command only as the retry', () => {
+    const message = finalizeRedeployFailureMessage({
+      env: 'dev',
+      failures: [{ name: 'ai-worker', error: new RailwayRedeployRefusedError('not SUCCESS') }],
+    });
+
+    expect(message).toBe(
+      `API_KEY_ENCRYPTION_KEY_PREVIOUS is deleted from Railway, but ai-worker still holds it in memory until it restarts. ai-worker${REFUSED_TAIL}${cmd('ai-worker')}, then ${LEDGER}`
+    );
+    expect(message).not.toContain('Redeploy ai-worker with');
+    expect(message).not.toContain('if it still holds');
+  });
+
+  it('with a mix, gives the refused sentence first and then the plain redeploy for the rest', () => {
+    expect(
+      finalizeRedeployFailureMessage({
+        env: 'dev',
+        failures: [
+          { name: 'api-gateway', error: new Error('boom') },
+          { name: 'ai-worker', error: new RailwayRedeployRefusedError('not SUCCESS') },
+        ],
+      })
+    ).toBe(
+      `API_KEY_ENCRYPTION_KEY_PREVIOUS is deleted from Railway, but api-gateway, ai-worker still hold it in memory until they restart. ai-worker${REFUSED_TAIL}${cmd('ai-worker')}; for the rest: redeploy api-gateway with ${cmd('api-gateway')}, wait for each redeploy to reach SUCCESS, then ${LEDGER}`
     );
   });
 });
 
 describe('stageRedeployFailureMessage', () => {
-  it('sends the operator to stage 2 (which redeploys itself) and keeps the hand redeploy only for a FAILED, CRASHED, REMOVED or SKIPPED latest deployment', () => {
-    const singleMsg = stageRedeployFailureMessage('api-gateway', 'dev');
+  it('sends the operator to stage 2 (which redeploys itself) and names the dashboard fix, not a deploy:redeploy command, for a FAILED, CRASHED, REMOVED or SKIPPED latest deployment', () => {
+    const singleMsg = stageRedeployFailureMessage('api-gateway');
 
     expect(singleMsg).toContain(
       "Run stage 2 once both services' latest deployments have settled: it redeploys both services itself and waits for each new deployment to reach SUCCESS before touching any row."
     );
     expect(singleMsg).toContain(
-      "If a service's latest deployment is FAILED, CRASHED, REMOVED or SKIPPED, redeploy it first with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`, because stage 2's readiness check refuses it."
+      "If a service's latest deployment is FAILED, CRASHED, REMOVED or SKIPPED, fix it in the Railway dashboard until its latest deployment is SUCCESS first, because stage 2's readiness check refuses it (`pnpm ops deploy:redeploy` refuses it too)."
     );
     expect(singleMsg).not.toContain('wait for each redeploy');
     expect(singleMsg).not.toContain('not verified:');
-    expect(singleMsg).not.toContain('Railway dashboard');
+    expect(singleMsg).not.toContain('--service');
 
-    const bothMsg = stageRedeployFailureMessage('api-gateway, ai-worker', 'prod');
-    expect(bothMsg).toContain('`pnpm ops deploy:redeploy --env prod --service api-gateway --yes`');
-    expect(bothMsg).toContain('`pnpm ops deploy:redeploy --env prod --service ai-worker --yes`');
+    const bothMsg = stageRedeployFailureMessage('api-gateway, ai-worker');
     expect(bothMsg).toContain('Run stage 2 once both services');
+    expect(bothMsg).toContain('api-gateway, ai-worker failed to redeploy');
   });
 });
 

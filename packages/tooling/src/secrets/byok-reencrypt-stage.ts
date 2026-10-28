@@ -60,17 +60,21 @@ import type { redeployAndWaitForService, RedeployWaitWording } from './service-r
 export const BYOK_REDEPLOY_WORDING: RedeployWaitWording = {
   noun: 'service',
   stage: 'BYOK stage 2',
-  rerunNote: ({ service, env }) =>
+  rerunNote: ({ service }) =>
     "no row has been re-encrypted; wait for the service's latest deployment to settle, " +
     'then re-run BYOK stage 2, and if a deployment settles to FAILED, CRASHED, REMOVED or ' +
-    `SKIPPED, run \`pnpm ops deploy:redeploy --env ${env} --service ${service} --yes\` first.`,
-  shortRerunNote: 'no row has been re-encrypted',
+    `SKIPPED, fix ${service} in the Railway dashboard until its latest deployment is SUCCESS first.`,
+  shortRerunNote: ({ service }) =>
+    'no row has been re-encrypted; if the latest deployment settles to FAILED, CRASHED, ' +
+    `REMOVED or SKIPPED, fix ${service} in the Railway dashboard until its latest deployment is SUCCESS first`,
   // A terminal deployment becomes the service's latest, which the readiness
-  // preflight (`assertRailwayServiceDeploymentReady`) refuses on any re-run, so
-  // the repair is a hand redeploy first.
-  terminalRecovery: ({ service, env }) =>
-    `no row has been re-encrypted. That deployment is now ${service}'s latest deployment, so BYOK stage 2 refuses to run until it is fixed: ` +
-    `redeploy ${service} with \`pnpm ops deploy:redeploy --env ${env} --service ${service} --yes\`, wait for SUCCESS, then re-run BYOK stage 2.`,
+  // preflight (`assertRailwayServiceDeploymentReady`) refuses on any re-run, and
+  // `deploy:redeploy` needs a SUCCESS latest deployment too, so the repair is
+  // fixing the service in the Railway dashboard.
+  terminalRecovery: ({ service }) =>
+    `no row has been re-encrypted. That deployment is now ${service}'s latest deployment, so BYOK stage 2 refuses to run until it is fixed, and ` +
+    '`pnpm ops deploy:redeploy` refuses it too (it also needs a SUCCESS latest deployment): ' +
+    `fix ${service} in the Railway dashboard until its latest deployment is SUCCESS, then re-run BYOK stage 2.`,
 };
 
 export interface ByokReencryptStageDeps {

@@ -38,6 +38,13 @@
  * status falls back to the poll timeout path (all pinned in
  * `service-redeploy-wait.test.ts`).
  *
+ * A redeploy that the redeploy helper refuses up front (`RailwayRedeployRefusedError`:
+ * no latest deployment, or one that is not `SUCCESS`) is reported as refused before
+ * that service restarted (BYOK stage 2's first service may already have); any
+ * other trigger failure keeps the "may already be restarting" text. A
+ * terminal-status deployment becomes the service's latest, so `deploy:redeploy`
+ * refuses it too and the wording's repair is the Railway dashboard.
+ *
  * The default wording's `rerunNote` claims that redeploying the verifier in stage 2 is
  * idempotent while the dual-acceptance window is open: stage 2 cannot reach
  * `redeployAndWaitForService` outside an open window because `runStage2` in
@@ -59,6 +66,7 @@ import chalk from 'chalk';
 
 import {
   getRailwayServiceLatestDeployment,
+  RailwayRedeployRefusedError,
   redeployRailwayServiceReusingImageWithSource,
   type RailwayEnv,
   type RailwayServiceLatestDeployment,
@@ -99,9 +107,10 @@ export interface RedeployWaitWording {
    * re-run and wrap the note in parentheses (a superseding deployment, and
    * `NEEDS_APPROVAL`), used instead of `rerunNote`. A caller whose `rerunNote` is a
    * full sentence that restates the re-run supplies a short fragment here; omitted
-   * means `rerunNote` is used there exactly as everywhere else.
+   * means `rerunNote` is used there exactly as everywhere else. A function receives
+   * the service and environment of the refusal, as for `rerunNote`.
    */
-  shortRerunNote?: string;
+  shortRerunNote?: string | ((ctx: RedeployWordingContext) => string);
   /**
    * Optional closing text for the terminal-failure refusal only (`FAILED`,
    * `CRASHED`, `REMOVED`, `SKIPPED`), used instead of `rerunNote`. A caller whose
@@ -114,9 +123,24 @@ export interface RedeployWaitWording {
 const DEFAULT_WORDING: RedeployWaitWording = {
   noun: 'verifier',
   stage: 'stage 2',
-  rerunNote:
+  rerunNote: ({ service }) =>
     'nothing was redeployed on presenters. Re-running stage 2 is safe because ' +
-    'redeploying the verifier is idempotent while the dual-acceptance window is open.',
+    'redeploying the verifier is idempotent while the dual-acceptance window is open, ' +
+    `but it is refused until ${service} has a SUCCESS latest deployment: wait for one in flight ` +
+    `to settle, or fix ${service} in the Railway dashboard.`,
+  shortRerunNote: ({ service }) =>
+    'nothing was redeployed on presenters. If the latest deployment settles to FAILED, ' +
+    `CRASHED, REMOVED or SKIPPED, fix ${service} in the Railway dashboard until its latest ` +
+    'deployment is SUCCESS first; re-running stage 2 is then safe because redeploying the ' +
+    'verifier is idempotent while the dual-acceptance window is open.',
+  // A terminal deployment becomes the verifier's latest, which stage 2's readiness
+  // preflight refuses on a re-run, and `deploy:redeploy` needs a SUCCESS latest
+  // deployment too, so the only repair is fixing the service in Railway.
+  terminalRecovery: ({ service }) =>
+    'nothing was redeployed on presenters. That deployment is now ' +
+    `${service}'s latest deployment, so stage 2 refuses to run until it is fixed, and ` +
+    '`pnpm ops deploy:redeploy` refuses it too (it also needs a SUCCESS latest deployment): ' +
+    `fix ${service} in the Railway dashboard until its latest deployment is SUCCESS, then re-run stage 2.`,
 };
 
 function resolveRerunNote(
@@ -126,6 +150,21 @@ function resolveRerunNote(
 ): string {
   const { rerunNote } = wording;
   return typeof rerunNote === 'function' ? rerunNote({ service: serviceName, env }) : rerunNote;
+}
+
+/** The note for the superseding and `NEEDS_APPROVAL` refusals: `shortRerunNote` when set, else `rerunNote`. */
+function resolveShortRerunNote(
+  wording: RedeployWaitWording,
+  serviceName: string,
+  env: RailwayEnv
+): string {
+  const { shortRerunNote } = wording;
+  if (shortRerunNote === undefined) {
+    return resolveRerunNote(wording, serviceName, env);
+  }
+  return typeof shortRerunNote === 'function'
+    ? shortRerunNote({ service: serviceName, env })
+    : shortRerunNote;
 }
 
 function upperFirst(text: string): string {
@@ -161,6 +200,12 @@ function formatRedeployTriggerError(
   error: unknown,
   wording: RedeployWaitWording
 ): Error {
+  if (error instanceof RailwayRedeployRefusedError) {
+    return new Error(
+      `The redeploy of ${wording.noun} "${serviceName}" (${env}) was refused before it restarted ` +
+        `(${errorDetail(error)}) — ${resolveRerunNote(wording, serviceName, env)}`
+    );
+  }
   return new Error(
     `The redeploy request for ${wording.noun} "${serviceName}" (${env}) failed or returned an unexpected shape ` +
       `(${errorDetail(error)}) — the ${wording.noun} may already be restarting; ${resolveRerunNote(wording, serviceName, env)}`
@@ -203,9 +248,9 @@ function evaluateNewDeploymentStatus(
 ): { done: boolean; lastPrintedStatus: string | undefined } {
   const { newDeploymentId, previousDeploymentId, serviceName, env, lastPrintedStatus, wording } =
     context;
-  const { noun, stage, terminalRecovery, shortRerunNote } = wording;
+  const { noun, stage, terminalRecovery } = wording;
   const rerunNote = resolveRerunNote(wording, serviceName, env);
-  const parenthesizedNote = shortRerunNote ?? rerunNote;
+  const parenthesizedNote = resolveShortRerunNote(wording, serviceName, env);
   const lead = `${upperFirst(stage)} redeployed ${noun} "${serviceName}" (${env})`;
   if (latest === null) {
     return { done: false, lastPrintedStatus };
