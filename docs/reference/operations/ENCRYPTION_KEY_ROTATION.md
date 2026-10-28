@@ -102,7 +102,8 @@ Stage 2 refuses, with no row re-encrypted, when:
 
 After fixing the cause, re-run stage 2: it re-reads the keys. Re-running while
 the window is open repeats the restarts and the sweep; rows already on the
-current key are tallied `already current`, so the repeat is harmless.
+current key are tallied `already current`, so the repeat is harmless to the
+rows (the restarts still happen).
 
 The sweep then re-encrypts every row in both tables that still decrypts under the
 previous key, and verifies. Per-table tally:
