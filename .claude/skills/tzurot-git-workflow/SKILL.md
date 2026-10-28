@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-10-24'
+lastUpdated: '2026-10-28'
 ---
 
 # Git Workflow Procedures
@@ -79,6 +79,10 @@ git rebase develop
 git push -u origin feat/your-feature
 gh pr create --base develop --title "feat: description" --assignee @me
 ```
+
+Every dispatch has a lane, own-lane included (`/tzurot-orchestration` §
+Dispatch lane): the PR body's Verification section carries the durable lane
+line — which lane the unit's edits took and the one-line reason.
 
 ### Before writing a closing reference in the PR body
 
