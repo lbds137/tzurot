@@ -3,9 +3,10 @@ id: TASK-1315
 title: >-
   Dispatch skills never consult lane-meters, so sessions without it route
   implement work to plan subagents instead of agy
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-28T12:40:00Z'
+updated_date: '2026-10-28T16:19:00Z'
 labels:
   - area:skills
   - size:M
