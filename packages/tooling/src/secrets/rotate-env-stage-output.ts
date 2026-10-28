@@ -98,7 +98,7 @@ export function stage3NextStep(args: {
   const repair = composeRedeployRepair(
     refusedRepair,
     commands,
-    `redeploy "${verifierName}" by hand and wait for it to reach SUCCESS`
+    `redeploy "${verifierName}" by hand (Railway dashboard or ${commands}) and wait for it to reach SUCCESS`
   );
   return (
     `Do NOT re-run this command — ${repair}, then stamp the ledger with ` +
