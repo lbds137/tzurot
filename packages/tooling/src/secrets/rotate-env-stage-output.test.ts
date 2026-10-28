@@ -1,10 +1,14 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
+import { RailwayRedeployRefusedError } from '../deployment/railway-api.js';
 import { UsageError } from '../utils/errors.js';
 import {
   printDryRunNotice,
   refuseIfWindowClosed,
   printGateVerdict,
+  stage1RedeployFailureError,
+  stage2RedeployFailureError,
+  stage3RedeployFailureError,
 } from './rotate-env-stage-output.js';
 
 const PREVIOUS_NAME = 'INTERNAL_SERVICE_SECRET_PREVIOUS';
@@ -71,6 +75,63 @@ describe('rotate-env-stage-output', () => {
       expect(() => refuseIfWindowClosed(false, false, PREVIOUS_NAME)).toThrow(UsageError);
       expect(() => refuseIfWindowClosed(false, false, PREVIOUS_NAME)).toThrow(
         new RegExp(`${PREVIOUS_NAME}.*run stage 1`, 's')
+      );
+    });
+  });
+
+  describe('redeploy failure errors', () => {
+    it('stage 1 names the verifier, all four terminal states and the dashboard', () => {
+      const message = stage1RedeployFailureError('api-gateway').message;
+
+      expect(message).toContain('"api-gateway" shows SUCCESS');
+      expect(message).toContain('FAILED, CRASHED, REMOVED or SKIPPED');
+      expect(message).toContain('fix "api-gateway" in the Railway dashboard');
+      expect(message).not.toContain('by hand');
+    });
+
+    it('stage 2 names the count, all four terminal states and the dashboard', () => {
+      const message = stage2RedeployFailureError(2).message;
+
+      expect(message).toContain('2 service(s) failed to redeploy');
+      expect(message).toContain('FAILED, CRASHED, REMOVED or SKIPPED');
+      expect(message).toContain('fixed in the Railway dashboard');
+      expect(message).not.toContain('by hand');
+    });
+
+    it('stage 3 keeps the by-hand wording for a plain failure', () => {
+      const message = stage3RedeployFailureError({
+        previousName: PREVIOUS_NAME,
+        verifierName: 'api-gateway',
+        failures: [{ name: 'api-gateway', error: new Error('boom') }],
+        ledgerName: 'internal-service-secret',
+        env: 'dev',
+      }).message;
+
+      expect(message).toContain(
+        'Do NOT re-run this command — redeploy "api-gateway" by hand, then'
+      );
+      expect(message).toContain(
+        '`pnpm ops secrets:mark-rotated internal-service-secret --env dev`'
+      );
+    });
+
+    it('stage 3 sends a refused redeploy to the dashboard and keeps the ledger sentence', () => {
+      const message = stage3RedeployFailureError({
+        previousName: PREVIOUS_NAME,
+        verifierName: 'api-gateway',
+        failures: [{ name: 'api-gateway', error: new RailwayRedeployRefusedError('BUILDING') }],
+        ledgerName: 'internal-service-secret',
+        env: 'dev',
+      }).message;
+
+      expect(message).toContain('api-gateway: the redeploy was refused');
+      expect(message).toContain('Railway dashboard');
+      expect(message).not.toContain('by hand');
+      expect(message).toContain(
+        'fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`, then stamp'
+      );
+      expect(message).toContain(
+        '`pnpm ops secrets:mark-rotated internal-service-secret --env dev`'
       );
     });
   });

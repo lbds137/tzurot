@@ -55,9 +55,14 @@ mints a new 32-byte key and upserts it via the Railway GraphQL API
 every row, so an interrupted stage 1 never strands data, and no row is touched
 before stage 2. Because an upsert that fails or times out may or may not have
 applied on Railway, stage 1's failure text instructs to re-run stage 1 (any
-`PREVIOUS`-phase failure is repaired by the re-run, and a `CURRENT`-phase
-re-run classifies whether the write landed and prints the exact repair steps,
-using `pnpm ops deploy:redeploy --env <env> --service <name> --yes`). It then
+`PREVIOUS`-phase failure is repaired by the re-run). After a `CURRENT`-phase
+upsert failure, the failure text says to follow what the re-run reports: if it
+completes, nothing more to do; if the key differs between the services, copy it
+from api-gateway to ai-worker in the Railway dashboard, then run stage 2; if a
+rotation window is already open, run stage 2. A re-run that finds the key
+already split across the services is refused by the consistency check, whose
+own message says to re-set the key on the lagging service (the dashboard's
+variable history has the value), then re-run. A completed stage 1 then
 redeploys both services reusing their running image (no rebuild; requires
 `TZUROT_RAILWAY_API_TOKEN_DEV` or `TZUROT_RAILWAY_API_TOKEN_PROD` in the local
 `.env`).
@@ -72,11 +77,11 @@ current one — that would demote the current key and discard the real previous
 one, permanently orphaning any row still on it. Finish the open window (stages 2
 then 3) first (if stage 1 itself was interrupted after its writes, run stage 2:
 it redeploys both services itself; a service whose latest deployment is `FAILED`,
-`CRASHED`, `REMOVED` or `SKIPPED` needs
-`pnpm ops deploy:redeploy --env <env> --service <name> --yes` first, because
-stage 2's readiness check refuses it). `PREVIOUS` equal to the current key (on
-one or both services) is the degenerate window an interrupted stage 1 leaves
-behind; nothing can be orphaned, so stage 1 re-runs.
+`CRASHED`, `REMOVED` or `SKIPPED` must be fixed in the Railway dashboard until
+its latest deployment is `SUCCESS` first, because stage 2's readiness check
+refuses it, and `pnpm ops deploy:redeploy` refuses it too). `PREVIOUS` equal to
+the current key (on one or both services) is the degenerate window an
+interrupted stage 1 leaves behind; nothing can be orphaned, so stage 1 re-runs.
 
 ### Stage 2 — reencrypt
 
@@ -94,7 +99,8 @@ Stage 2 refuses, with no row re-encrypted, when:
 - a wait fails or times out;
 - a new deployment ends `FAILED`, `CRASHED`, `REMOVED` or `SKIPPED`: it becomes
   that service's latest deployment, so the preflight refuses the next stage 2
-  until you redeploy the service by hand and it reaches `SUCCESS`;
+  until you fix the service in the Railway dashboard and its latest deployment
+  reaches `SUCCESS`;
 - once both waits finish, api-gateway's `CURRENT` or `PREVIOUS` differs from its
   first read or is now missing;
 - the check that follows finds api-gateway and ai-worker no longer agree on both

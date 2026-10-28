@@ -530,6 +530,19 @@ export interface RedeployRailwayServiceReusingImageArgs {
 }
 
 /**
+ * Thrown by `redeployRailwayServiceReusingImageWithSource` when it declines to
+ * redeploy because the service has no latest deployment or its latest deployment
+ * is not `SUCCESS`. Both refusals precede the redeploy mutation, so a caller can
+ * tell "refused, nothing restarted" apart from a failed or malformed mutation call.
+ */
+export class RailwayRedeployRefusedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RailwayRedeployRefusedError';
+  }
+}
+
+/**
  * Redeploy a service by reusing the image of its `serviceInstance.latestDeployment`
  * (`deploymentRedeploy` with `usePreviousImageTag: true`) instead of building
  * the branch HEAD via `serviceInstanceRedeploy`, and return both the source
@@ -555,12 +568,12 @@ export async function redeployRailwayServiceReusingImageWithSource(
 ): Promise<{ sourceDeploymentId: string; newDeploymentId: string }> {
   const latestDeployment = await fetchServiceInstanceLatestDeployment(args);
   if (latestDeployment === null) {
-    throw new Error(
+    throw new RailwayRedeployRefusedError(
       `Railway service "${args.serviceName}" (${args.env}) has no latest deployment; resolve that before rotating`
     );
   }
   if (latestDeployment.status !== 'SUCCESS') {
-    throw new Error(
+    throw new RailwayRedeployRefusedError(
       `Cannot redeploy Railway service "${args.serviceName}" (${args.env}): its latest deployment is ${latestDeployment.status}, not SUCCESS; resolve that before rotating`
     );
   }

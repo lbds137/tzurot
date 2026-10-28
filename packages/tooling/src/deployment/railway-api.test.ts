@@ -14,6 +14,7 @@ import {
   redeployRailwayServiceReusingImage,
   redeployRailwayServiceReusingImageWithSource,
   getLiveDeploymentCommit,
+  RailwayRedeployRefusedError,
 } from './railway-api.js';
 
 const SENTINEL_TOKEN = 'tok-SENTINEL-do-not-leak';
@@ -909,7 +910,7 @@ describe('railway-api', () => {
         caught = error;
       }
 
-      expect(caught).toBeInstanceOf(Error);
+      expect(caught).toBeInstanceOf(RailwayRedeployRefusedError);
       const message = caught instanceof Error ? caught.message : '';
       expect(message).toContain('api-gateway');
       expect(message).not.toContain('svc-1');
@@ -940,7 +941,7 @@ describe('railway-api', () => {
         caught = error;
       }
 
-      expect(caught).toBeInstanceOf(Error);
+      expect(caught).toBeInstanceOf(RailwayRedeployRefusedError);
       const message = caught instanceof Error ? caught.message : '';
       expect(message).toContain('api-gateway');
       expect(message).not.toContain('svc-1');

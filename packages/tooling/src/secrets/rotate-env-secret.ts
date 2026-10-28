@@ -43,6 +43,7 @@ import chalk from 'chalk';
 import { upsertRailwayVariable } from '../deployment/railway-api.js';
 import { confirmPrompt } from '../utils/confirm.js';
 import { UsageError } from '../utils/errors.js';
+import { composeRedeployRepair, partitionRedeployFailures } from './redeploy-repair-text.js';
 import { getDualAcceptance, resolveStageAlias, runStagedRotation } from './rotate-env-stages.js';
 import {
   assertServicesDeploymentReady,
@@ -219,13 +220,13 @@ async function runSingleShotRotation(
       'The variable was rotated successfully; re-running would mint a THIRD value and widen the split.',
       options.env
     );
-    const commands = failures
-      .map(f => `\`pnpm ops deploy:redeploy --env ${options.env} --service ${f.name} --yes\``)
-      .join('; ');
+    const { refusedRepair, commands } = partitionRedeployFailures(failures, options.env);
+    const handRepair = `redeploy the lagging service(s) by hand (Railway dashboard or ${commands})`;
+    const repair = composeRedeployRepair(refusedRepair, commands, handRepair);
     throw new Error(
       `secrets:rotate-env: the variable was rotated successfully, but ${failures.length} ` +
         `service(s) failed to redeploy: ${failures.map(f => f.name).join(', ')}. Do NOT re-run ` +
-        `this command — redeploy the lagging service(s) by hand (Railway dashboard or ${commands}).`
+        `this command — ${repair}.`
     );
   }
 }

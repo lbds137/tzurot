@@ -7,6 +7,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { parseEncryptionKeyMaterial } from '@tzurot/common-types/utils/encryption';
 import { BYOK_REDEPLOY_WORDING, reencryptByokRows } from './byok-reencrypt-stage.js';
 import type { ByokServiceIds } from './byok-stage-helpers.js';
+import { RailwayRedeployRefusedError } from '../deployment/railway-api.js';
 import { redeployAndWaitForService } from './service-redeploy-wait.js';
 
 const KEY_A_HEX = 'a'.repeat(64);
@@ -394,35 +395,38 @@ describe('reencryptByokRows', () => {
 
       expect(message).toBe(
         'BYOK stage 2 redeployed service "api-gateway" (dev), but the new deployment reached terminal status FAILED instead of SUCCESS — no row has been re-encrypted. ' +
-          "That deployment is now api-gateway's latest deployment, so BYOK stage 2 refuses to run until it is fixed: " +
-          'redeploy api-gateway with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`, wait for SUCCESS, then re-run BYOK stage 2.'
+          "That deployment is now api-gateway's latest deployment, so BYOK stage 2 refuses to run until it is fixed, and " +
+          '`pnpm ops deploy:redeploy` refuses it too (it also needs a SUCCESS latest deployment): ' +
+          'fix api-gateway in the Railway dashboard until its latest deployment is SUCCESS, then re-run BYOK stage 2.'
       );
+      expect(message).not.toContain('--service');
       expect(message).not.toMatch(/presenter|dual-acceptance|verifier/);
       expect(message).not.toMatch(/[0-9a-f]{64}/);
       expect(deps.reencryptAndVerify).not.toHaveBeenCalled();
     });
 
     it.each(['CRASHED', 'REMOVED', 'SKIPPED'])(
-      'a %s terminal status tells the operator to hand-redeploy the failed service first',
+      'a %s terminal status tells the operator to fix the failed service in the Railway dashboard, not to run deploy:redeploy',
       async status => {
         const deps = makeDeps(OPEN_WINDOW, withFakeRailway(status));
         const message = await refusalMessage(deps);
 
         expect(message).toContain(`reached terminal status ${status}`);
         expect(message).toContain(
-          '`pnpm ops deploy:redeploy --env dev --service api-gateway --yes`'
+          'fix api-gateway in the Railway dashboard until its latest deployment is SUCCESS'
         );
+        expect(message).not.toContain('--service');
         expect(message).toContain('latest deployment, so BYOK stage 2 refuses to run');
         expect(deps.reencryptAndVerify).not.toHaveBeenCalled();
       }
     );
 
-    it('a worker trigger refused after the gateway reached SUCCESS names the worker and BYOK stage 2, and re-encrypts nothing', async () => {
+    it('a worker trigger refused after the gateway reached SUCCESS names the worker and BYOK stage 2, says it was refused before it restarted (not that nothing restarted), and re-encrypts nothing', async () => {
       const refusal =
         'Cannot redeploy Railway service "ai-worker" (dev): its latest deployment is DEPLOYING, not SUCCESS; resolve that before rotating';
       const redeploy = vi.fn(async ({ serviceName }: { serviceName: string }) => {
         if (serviceName === 'ai-worker') {
-          throw new Error(refusal);
+          throw new RailwayRedeployRefusedError(refusal);
         }
         return { sourceDeploymentId: 'dep-old', newDeploymentId: 'dep-new' };
       });
@@ -440,8 +444,14 @@ describe('reencryptByokRows', () => {
       expect(message).toContain('service "ai-worker"');
       expect(message).toContain('BYOK stage 2');
       expect(message).toContain(refusal);
+      expect(message).toContain('was refused before it restarted');
+      expect(message).not.toContain('anything restarted');
+      expect(message).not.toContain('may already be restarting');
       expect(message).toContain("wait for the service's latest deployment to settle");
-      expect(message).toContain('`pnpm ops deploy:redeploy --env dev --service ai-worker --yes`');
+      expect(message).toContain(
+        'fix ai-worker in the Railway dashboard until its latest deployment is SUCCESS first.'
+      );
+      expect(message).not.toContain('deploy:redeploy');
       expect(message).not.toMatch(/<env>|<name>/);
       expect(message).not.toMatch(/presenter|dual-acceptance|verifier/);
       expect(redeploy).toHaveBeenCalledTimes(2);
@@ -456,7 +466,50 @@ describe('reencryptByokRows', () => {
       expect(deps.reencryptAndVerify).not.toHaveBeenCalled();
     });
 
-    it('a timeout tells the operator to let the still-deploying service settle, names the filled-in deploy:redeploy repair for a later terminal failure, and re-encrypts nothing', async () => {
+    it('a trigger that fails with a non-refusal error still says the service may already be restarting', async () => {
+      const deps = makeDeps(OPEN_WINDOW, {
+        redeployAndWait: args =>
+          redeployAndWaitForService({
+            ...args,
+            redeploy: vi.fn().mockRejectedValue(new Error('network down')),
+            getLatestDeployment: vi.fn().mockResolvedValue(null),
+            sleep: vi.fn().mockResolvedValue(undefined),
+          }),
+      });
+      const message = await refusalMessage(deps);
+
+      expect(message).toContain('failed or returned an unexpected shape (network down)');
+      expect(message).toContain('the service may already be restarting');
+      expect(message).not.toContain('refused before it restarted');
+      expect(deps.reencryptAndVerify).not.toHaveBeenCalled();
+    });
+
+    it('a superseding deployment names the dashboard repair for a settling-to-terminal deployment, not deploy:redeploy', async () => {
+      const deps = makeDeps(OPEN_WINDOW, {
+        redeployAndWait: args =>
+          redeployAndWaitForService({
+            ...args,
+            redeploy: vi
+              .fn()
+              .mockResolvedValue({ sourceDeploymentId: 'dep-old', newDeploymentId: 'dep-new' }),
+            getLatestDeployment: vi
+              .fn()
+              .mockResolvedValue({ id: 'dep-other', status: 'DEPLOYING' }),
+            sleep: vi.fn().mockResolvedValue(undefined),
+          }),
+      });
+      const message = await refusalMessage(deps);
+
+      expect(message).toContain('supersedes ours');
+      expect(message).toContain(
+        'then re-run BYOK stage 2 (no row has been re-encrypted; if the latest deployment settles to FAILED, CRASHED, REMOVED or SKIPPED, ' +
+          'fix api-gateway in the Railway dashboard until its latest deployment is SUCCESS first)'
+      );
+      expect(message).not.toContain('deploy:redeploy');
+      expect(deps.reencryptAndVerify).not.toHaveBeenCalled();
+    });
+
+    it('a timeout tells the operator to let the still-deploying service settle, names the dashboard repair for a later terminal failure, and re-encrypts nothing', async () => {
       let clock = 0;
       const deps = makeDeps(OPEN_WINDOW, {
         redeployAndWait: args =>
@@ -479,8 +532,10 @@ describe('reencryptByokRows', () => {
       expect(message).toContain('service "api-gateway"');
       expect(message).toContain("wait for the service's latest deployment to settle");
       expect(message).toContain('FAILED, CRASHED, REMOVED or SKIPPED');
-      expect(message).toContain('deploy:redeploy');
-      expect(message).toContain('`pnpm ops deploy:redeploy --env dev --service api-gateway --yes`');
+      expect(message).toContain(
+        'fix api-gateway in the Railway dashboard until its latest deployment is SUCCESS first.'
+      );
+      expect(message).not.toContain('deploy:redeploy');
       expect(message).not.toMatch(/<env>|<name>/);
       expect(deps.reencryptAndVerify).not.toHaveBeenCalled();
     });
@@ -491,7 +546,9 @@ describe('reencryptByokRows', () => {
 
       expect(message).toContain('BYOK stage 2');
       expect(message).toContain('approve it in the dashboard');
-      expect(message).toContain('(no row has been re-encrypted)');
+      expect(message).toContain(
+        '(no row has been re-encrypted; if the latest deployment settles to'
+      );
       expect(message).not.toContain("wait for the service's latest deployment to settle");
       expect(message.match(/re-run BYOK stage 2/gi)).toHaveLength(1);
       expect(message).not.toContain('deploy:redeploy');

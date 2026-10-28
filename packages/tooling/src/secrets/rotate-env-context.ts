@@ -17,6 +17,11 @@ import {
 import { listRailwayServices } from '../deployment/railway-status.js';
 import { getRailwayEnvName } from '../utils/env-runner.js';
 import { UsageError } from '../utils/errors.js';
+import {
+  composeRedeployRepair,
+  partitionRedeployFailures,
+  type RedeployFailure,
+} from './redeploy-repair-text.js';
 import { markSecretRotated } from './rotation.js';
 
 export interface RotationListContext {
@@ -59,11 +64,6 @@ export async function computeAffectedServices(
   return affected;
 }
 
-export interface RedeployFailure {
-  name: string;
-  error: unknown;
-}
-
 /**
  * Print each redeploy failure loudly, with the repair instruction — never
  * "re-run this command". `consequence` is REQUIRED and carries the
@@ -72,11 +72,17 @@ export interface RedeployFailure {
  * single-shot path and three in the staged path, and only the single-shot
  * caller's redeploy failure follows a completed rotation. A default here
  * would silently reproduce that single-shot wording at a staged call site.
+ *
+ * `closing`, when given, replaces the composed repair AND the "do NOT re-run
+ * this command" suffix: the staged paths whose next step is a re-run of a
+ * stage (or a different stage) pass the same clause their thrown error uses,
+ * so the printed and thrown instructions are one sentence.
  */
 export function reportRedeployFailures(
   failures: RedeployFailure[],
   consequence: string,
-  env: 'dev' | 'prod'
+  env: 'dev' | 'prod',
+  closing?: string
 ): void {
   console.log(chalk.red(`\n⚠️  ${failures.length} service(s) failed to redeploy:`));
   for (const failure of failures) {
@@ -86,15 +92,14 @@ export function reportRedeployFailures(
       )
     );
   }
-  const commands = failures
-    .map(f => `\`pnpm ops deploy:redeploy --env ${env} --service ${f.name} --yes\``)
-    .join('; ');
-  console.log(
-    chalk.red(
-      `\n${consequence} Repair the lagging service(s) from the Railway dashboard or ` +
-        `${commands} — do NOT re-run this command.`
-    )
-  );
+  if (closing !== undefined) {
+    console.log(chalk.red(`\n${consequence} ${closing}`));
+    return;
+  }
+  const { refusedRepair, commands } = partitionRedeployFailures(failures, env);
+  const plainRepair = `Repair the lagging service(s) from the Railway dashboard or ${commands}`;
+  const repair = composeRedeployRepair(refusedRepair, commands, plainRepair);
+  console.log(chalk.red(`\n${consequence} ${repair} — do NOT re-run this command.`));
 }
 
 /** Stamp the ledger; a failure here is reported, never mistaken for a failed rotation. */

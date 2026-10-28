@@ -8,6 +8,10 @@ vi.mock('../deployment/railway-api.js', () => ({
   deleteRailwayVariable: vi.fn(),
   readRailwayVariableValue: vi.fn(),
   listRailwayVariableNames: vi.fn(),
+  // The real wait and redeploy-repair-text.ts do `instanceof` against this class.
+  RailwayRedeployRefusedError: class RailwayRedeployRefusedError extends Error {
+    name = 'RailwayRedeployRefusedError';
+  },
 }));
 
 vi.mock('../utils/confirm.js', () => ({
@@ -53,6 +57,7 @@ import {
   deleteRailwayVariable,
   readRailwayVariableValue,
   listRailwayVariableNames,
+  RailwayRedeployRefusedError,
 } from '../deployment/railway-api.js';
 import { confirmPrompt } from '../utils/confirm.js';
 import { checkDeployedCodeAcceptsPrevious } from './deployed-code-gate.js';
@@ -62,6 +67,7 @@ import {
   stampLedger,
   type RotationContext,
 } from './rotate-env-context.js';
+import { STAGE2_NEXT_STEP, stage1NextStep, stage3NextStep } from './rotate-env-stage-output.js';
 import { runStagedRotation, type StagedRotationOptions } from './rotate-env-stages.js';
 import { DEFAULT_SERVICE_POLL_INTERVAL_MS } from './service-redeploy-wait.js';
 import { UsageError } from '../utils/errors.js';
@@ -301,6 +307,59 @@ describe('runStagedRotation', () => {
     await expect(rejection).rejects.toThrow(/"api-gateway" shows SUCCESS/);
   });
 
+  it('stage 1 prints the same next-step clause its thrown error carries (the report closing)', async () => {
+    mockRedeploy.mockResolvedValue([{ name: 'api-gateway', error: new Error('boom') }]);
+
+    const error = await runStagedRotation(makeOptions({ stage: '1' }), makeContext()).then(
+      () => new Error('stage 1 did not throw'),
+      (e: unknown) => e as Error
+    );
+
+    expect(mockReportFailures).toHaveBeenCalledTimes(1);
+    const closing = mockReportFailures.mock.calls[0][3];
+    expect(closing).toBe(stage1NextStep('api-gateway'));
+    expect(error.message).toContain(closing);
+  });
+
+  it('stage 2 prints the same next-step clause its thrown error carries (the report closing)', async () => {
+    verifierNames.add(PREVIOUS_NAME);
+    mockRedeploy.mockResolvedValue([{ name: 'bot-client', error: new Error('boom') }]);
+
+    const error = await runStagedRotation(makeOptions({ stage: '2' }), makeContext()).then(
+      () => new Error('stage 2 did not throw'),
+      (e: unknown) => e as Error
+    );
+
+    expect(mockReportFailures).toHaveBeenCalledTimes(1);
+    const closing = mockReportFailures.mock.calls[0][3];
+    expect(closing).toBe(STAGE2_NEXT_STEP);
+    expect(error.message).toContain(closing);
+  });
+
+  it('stage 3 prints the same next-step clause its thrown error carries (the report closing)', async () => {
+    const failures = [{ name: 'api-gateway', error: new Error('boom') }];
+    mockRedeploy.mockResolvedValue(failures);
+    verifierNames.add(PREVIOUS_NAME);
+
+    const error = await runStagedRotation(makeOptions({ stage: '3' }), makeContext()).then(
+      () => new Error('stage 3 did not throw'),
+      (e: unknown) => e as Error
+    );
+
+    expect(mockReportFailures).toHaveBeenCalledTimes(1);
+    const closing = mockReportFailures.mock.calls[0][3];
+    expect(closing).toBe(
+      stage3NextStep({
+        verifierName: 'api-gateway',
+        failures,
+        ledgerName: 'internal-service-secret',
+        env: 'dev',
+      })
+    );
+    expect(closing).toContain('Do NOT re-run this command');
+    expect(error.message).toContain(closing);
+  });
+
   // `reportRedeployFailures` prints an unconditional "⚠️ N service(s) failed to
   // redeploy" banner plus repair instructions, so calling it with an empty list
   // tells the operator a successful stage failed.
@@ -414,6 +473,68 @@ describe('runStagedRotation', () => {
     const [, consequence] = mockReportFailures.mock.calls[0];
     expect(consequence).not.toMatch(/THIRD value/);
     expect(consequence).toMatch(/was deleted/);
+  });
+
+  it('stage 1 failure error names all four terminal states and the dashboard, not a hand redeploy', async () => {
+    mockRedeploy.mockResolvedValue([{ name: 'api-gateway', error: new Error('boom') }]);
+
+    const rejection = runStagedRotation(makeOptions({ stage: '1' }), makeContext());
+
+    await expect(rejection).rejects.toThrow(/FAILED, CRASHED, REMOVED or SKIPPED/);
+    await expect(rejection).rejects.toThrow(
+      /Railway dashboard until its latest deployment is SUCCESS/
+    );
+    await expect(rejection).rejects.toThrow(/`pnpm ops deploy:redeploy` refuses it too/);
+    await expect(rejection).rejects.not.toThrow(/by hand/);
+  });
+
+  it('stage 2 failure error names all four terminal states and the dashboard, not a hand redeploy', async () => {
+    verifierNames.add(PREVIOUS_NAME);
+    mockRedeploy.mockResolvedValue([{ name: 'bot-client', error: new Error('boom') }]);
+
+    const rejection = runStagedRotation(makeOptions({ stage: '2' }), makeContext());
+
+    await expect(rejection).rejects.toThrow(/FAILED, CRASHED, REMOVED or SKIPPED/);
+    await expect(rejection).rejects.toThrow(
+      /Railway dashboard until its latest deployment is SUCCESS/
+    );
+    await expect(rejection).rejects.not.toThrow(/by hand/);
+  });
+
+  it('stage 3 sends a REFUSED verifier redeploy to the dashboard first, with the deploy:redeploy command only as the retry, and keeps the ledger sentence', async () => {
+    mockRedeploy.mockResolvedValue([
+      {
+        name: 'api-gateway',
+        error: new RailwayRedeployRefusedError('latest deployment is BUILDING'),
+      },
+    ]);
+    verifierNames.add(PREVIOUS_NAME);
+
+    const error = await runStagedRotation(makeOptions({ stage: '3' }), makeContext()).then(
+      () => new Error('expected a rejection'),
+      (e: unknown) => e as Error
+    );
+
+    expect(error.message).toContain(
+      'Do NOT re-run this command — api-gateway: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`, then stamp the ledger with `pnpm ops secrets:mark-rotated internal-service-secret --env dev`.'
+    );
+    expect(error.message).not.toContain('by hand');
+    expect(mockMarkRotated).not.toHaveBeenCalled();
+  });
+
+  it('stage 3 keeps the by-hand wording and the ledger sentence for a plain verifier redeploy failure', async () => {
+    mockRedeploy.mockResolvedValue([{ name: 'api-gateway', error: new Error('boom') }]);
+    verifierNames.add(PREVIOUS_NAME);
+
+    const error = await runStagedRotation(makeOptions({ stage: '3' }), makeContext()).then(
+      () => new Error('expected a rejection'),
+      (e: unknown) => e as Error
+    );
+
+    expect(error.message).toContain(
+      'Do NOT re-run this command — redeploy "api-gateway" by hand, then stamp the ledger with `pnpm ops secrets:mark-rotated internal-service-secret --env dev`.'
+    );
+    expect(error.message).not.toContain('refused');
   });
 
   it('stage 3 refuses when no window is open', async () => {
@@ -843,7 +964,7 @@ describe('runStagedRotation', () => {
     mockRedeploy.mockResolvedValue([{ name: 'bot-client', error: new Error('boom') }]);
 
     await expect(runStagedRotation(makeOptions({ stage: '2' }), makeContext())).rejects.toThrow(
-      'secrets:rotate-env stage 2: 1 service(s) failed to redeploy. Re-run stage 2 once every lagging service shows SUCCESS (its preflight refuses until every service does); a service that ended FAILED or CRASHED must be redeployed by hand first.'
+      'secrets:rotate-env stage 2: 1 service(s) failed to redeploy. Re-run stage 2 once every lagging service shows SUCCESS (its preflight refuses until every service does); a service whose latest deployment ended FAILED, CRASHED, REMOVED or SKIPPED must be fixed in the Railway dashboard until its latest deployment is SUCCESS first (`pnpm ops deploy:redeploy` refuses it too).'
     );
 
     const allOutput = logSpy.mock.calls.flat().map(String).join('\n');

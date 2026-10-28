@@ -3,8 +3,8 @@
  * ordered variable writes (PREVIOUS on both services before CURRENT on both)
  * and state-specific repair messages that omit error causes and key values.
  * Stage 2 (byok-reencrypt-stage.ts) redeploys both services itself, so these
- * messages send the operator to stage 2 rather than to a hand redeploy, except
- * for a service whose latest deployment failed.
+ * messages send the operator to stage 2 rather than to a hand redeploy; a service
+ * whose latest deployment failed is fixed in the Railway dashboard first.
  */
 
 import crypto from 'node:crypto';
@@ -16,6 +16,11 @@ import {
   type upsertRailwayVariable,
 } from '../deployment/railway-api.js';
 import type { RailwayIds } from '../deployment/railway-status.js';
+import {
+  composeRedeployRepair,
+  partitionRedeployFailures,
+  type RedeployFailure,
+} from './redeploy-repair-text.js';
 
 export const GATEWAY_SERVICE = 'api-gateway';
 export const BYOK_SERVICES = [GATEWAY_SERVICE, 'ai-worker'] as const;
@@ -44,20 +49,34 @@ export function stageUpsertFailureError(args: {
   );
 }
 
-export function redeployCommands(failedServices: string, env: 'dev' | 'prod'): string {
-  return failedServices
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean)
-    .map(s => `\`pnpm ops deploy:redeploy --env ${env} --service ${s} --yes\``)
-    .join('; ');
+/**
+ * Stage 3's failure text after the PREVIOUS delete. A failure the helper
+ * refused (`RailwayRedeployRefusedError`) is sent to the dashboard first, with
+ * the command only as the retry; the sentence is built by the same
+ * partition/compose helpers the rotate-env paths use. `failures` is non-empty
+ * (the caller returns early when nothing failed).
+ */
+export function finalizeRedeployFailureMessage(args: {
+  env: 'dev' | 'prod';
+  failures: RedeployFailure[];
+}): string {
+  const { env, failures } = args;
+  const { refusedRepair, commands, plainNames } = partitionRedeployFailures(failures, env);
+  const plainRepair = `Redeploy ${plainNames.join(', ')} with ${commands}, wait for each redeploy to reach SUCCESS`;
+  const repair = composeRedeployRepair(refusedRepair, commands, plainRepair);
+  const ledger = `stamp the ledger: \`pnpm ops secrets:mark-rotated byok-encryption-key --env ${env}\`.`;
+  const several = failures.length > 1;
+  const head =
+    `${PREVIOUS_VAR} is deleted from Railway, but ${failures.map(f => f.name).join(', ')} still ` +
+    `${several ? 'hold' : 'holds'} it in memory until ${several ? 'they restart' : 'it restarts'}. `;
+  return `${head}${repair}, then ${ledger}`;
 }
 
-export function stageRedeployFailureMessage(failedServices: string, env: 'dev' | 'prod'): string {
+export function stageRedeployFailureMessage(failedServices: string): string {
   return (
     `Both services hold both keys in Railway, but ${failedServices} failed to redeploy and still runs its old process until redeployed. ` +
     `Run stage 2 once both services' latest deployments have settled: it redeploys both services itself and waits for each new deployment to reach SUCCESS before touching any row. ` +
-    `If a service's latest deployment is FAILED, CRASHED, REMOVED or SKIPPED, redeploy it first with ${redeployCommands(failedServices, env)}, because stage 2's readiness check refuses it.`
+    `If a service's latest deployment is FAILED, CRASHED, REMOVED or SKIPPED, fix it in the Railway dashboard until its latest deployment is SUCCESS first, because stage 2's readiness check refuses it (\`pnpm ops deploy:redeploy\` refuses it too).`
   );
 }
 
@@ -92,7 +111,7 @@ export interface StageByokWindowDeps {
   redeployServices: (
     env: 'dev' | 'prod',
     ids: ByokServiceIds,
-    buildFailureMessage: (failedServices: string) => string
+    buildFailureMessage: (failures: RedeployFailure[]) => string
   ) => Promise<void>;
 }
 
@@ -120,7 +139,7 @@ export async function stageByokWindow(deps: StageByokWindowDeps): Promise<void> 
   if (previous !== '' && previous !== current) {
     throw new Error(
       'A rotation window is already open (PREVIOUS is set) — run stage 2 then stage 3 to close it before starting a new rotation.' +
-        ` If stage 1 itself was interrupted after its writes, run stage 2 once both services' latest deployments have settled: it redeploys both services itself and waits for each to reach SUCCESS. If a service's latest deployment is FAILED, CRASHED, REMOVED or SKIPPED, redeploy it first (\`pnpm ops deploy:redeploy --env ${env} --service <name> --yes\`), because stage 2's readiness check refuses it.`
+        ` If stage 1 itself was interrupted after its writes, run stage 2 once both services' latest deployments have settled: it redeploys both services itself and waits for each to reach SUCCESS. If a service's latest deployment is FAILED, CRASHED, REMOVED or SKIPPED, fix it in the Railway dashboard until its latest deployment is SUCCESS first, because stage 2's readiness check refuses it (\`pnpm ops deploy:redeploy\` refuses it too).`
     );
   }
   parseEncryptionKeyMaterial(current, CURRENT_VAR); // sanity before touching anything
@@ -156,8 +175,8 @@ export async function stageByokWindow(deps: StageByokWindowDeps): Promise<void> 
     }
   }
 
-  await redeployServices(env, ids, failedServices =>
-    stageRedeployFailureMessage(failedServices, env)
+  await redeployServices(env, ids, failures =>
+    stageRedeployFailureMessage(failures.map(f => f.name).join(', '))
   );
 
   console.log(
