@@ -48,13 +48,18 @@ export function partitionRedeployFailures(
  * The repair for services whose redeploy was REFUSED (the helper refuses a
  * latest deployment that is not SUCCESS; `deploy:redeploy` refuses it for the
  * same reason, so the dashboard comes first). `redeployCommands` is appended as
- * the retry once the deployment has settled.
+ * the retry once the deployment has settled, followed by the instruction to
+ * wait for that redeploy to reach SUCCESS (`deploy:redeploy` returns right
+ * after triggering it), so a caller's next step never runs against a redeploy
+ * still in flight.
  */
 function refusedRedeployRepair(names: string[], redeployCommands: string): string {
-  const pronoun = names.length > 1 ? 'them' : 'it';
+  const plural = names.length > 1;
+  const pronoun = plural ? 'them' : 'it';
+  const waitClause = plural ? 'wait for each to reach SUCCESS' : 'wait for it to reach SUCCESS';
   return (
     `${names.join(', ')}: the redeploy was refused because the latest deployment is not SUCCESS — ` +
-    `wait for it to settle, or fix it in the Railway dashboard, then redeploy ${pronoun} with ${redeployCommands}`
+    `wait for it to settle, or fix it in the Railway dashboard, then redeploy ${pronoun} with ${redeployCommands}, ${waitClause}`
   );
 }
 

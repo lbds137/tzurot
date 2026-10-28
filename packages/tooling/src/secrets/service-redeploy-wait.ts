@@ -105,10 +105,10 @@ export interface RedeployWaitWording {
   /**
    * Optional closing text for the two refusals that already tell the operator to
    * re-run and wrap the note in parentheses (a superseding deployment, and
-   * `NEEDS_APPROVAL`), used instead of `rerunNote`. A caller whose `rerunNote` is a
-   * full sentence that restates the re-run supplies a short fragment here; omitted
-   * means `rerunNote` is used there exactly as everywhere else. A function receives
-   * the service and environment of the refusal, as for `rerunNote`.
+   * `NEEDS_APPROVAL`), used instead of `rerunNote`. It holds that closing text,
+   * whether a short fragment or a fuller note; omitted means `rerunNote` is used
+   * there exactly as everywhere else. A string, or a function of the service and
+   * environment of the refusal, as for `rerunNote`.
    */
   shortRerunNote?: string | ((ctx: RedeployWordingContext) => string);
   /**

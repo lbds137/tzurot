@@ -516,7 +516,7 @@ describe('runStagedRotation', () => {
     );
 
     expect(error.message).toContain(
-      'Do NOT re-run this command — api-gateway: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`, then stamp the ledger with `pnpm ops secrets:mark-rotated internal-service-secret --env dev`.'
+      'Do NOT re-run this command — api-gateway: the redeploy was refused because the latest deployment is not SUCCESS — wait for it to settle, or fix it in the Railway dashboard, then redeploy it with `pnpm ops deploy:redeploy --env dev --service api-gateway --yes`, wait for it to reach SUCCESS, then stamp the ledger with `pnpm ops secrets:mark-rotated internal-service-secret --env dev`.'
     );
     expect(error.message).not.toContain('by hand');
     expect(mockMarkRotated).not.toHaveBeenCalled();
@@ -532,7 +532,7 @@ describe('runStagedRotation', () => {
     );
 
     expect(error.message).toContain(
-      'Do NOT re-run this command — redeploy "api-gateway" by hand, then stamp the ledger with `pnpm ops secrets:mark-rotated internal-service-secret --env dev`.'
+      'Do NOT re-run this command — redeploy "api-gateway" by hand and wait for it to reach SUCCESS, then stamp the ledger with `pnpm ops secrets:mark-rotated internal-service-secret --env dev`.'
     );
     expect(error.message).not.toContain('refused');
   });
