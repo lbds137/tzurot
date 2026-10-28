@@ -3,9 +3,10 @@ id: TASK-1313
 title: >-
   rotate-env stage 2: a FAILED verifier redeploy says re-running is safe, but
   the re-run's readiness preflight refuses it
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-27T21:24:00Z'
+updated_date: '2026-10-28T11:59:00Z'
 labels:
   - area:tooling
   - size:S
@@ -28,3 +29,9 @@ Third member (PR 2676 final review): the superseding-deployment refusal (evaluat
 
 Acceptance: the rotate-env FAILED/CRASHED refusal names the hand redeploy step; a refused trigger does not claim a restart may be under way; a superseding deployment that ends terminal names the hand redeploy in the BYOK text; tests pin all three.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped in PR 2677 (merged 8bec9ccc6, four commits) with a corrected premise: the task and PR 2676 said to hand-run deploy:redeploy after a FAILED/CRASHED/REMOVED/SKIPPED latest deployment, but deploy:redeploy runs the same SUCCESS-only readiness check and refuses it, so every rotation path now points at the Railway dashboard first (the command stays as the retry once the deployment settles). Also shipped: the typed RailwayRedeployRefusedError (refused before the service restarted), function-valued shortRerunNote, the shared leaf module redeploy-repair-text.ts, and print==throw next-step clauses for staged rotate-env stages 1-3. Declined review nits are listed in the PR body Residue.
+<!-- SECTION:NOTES:END -->
