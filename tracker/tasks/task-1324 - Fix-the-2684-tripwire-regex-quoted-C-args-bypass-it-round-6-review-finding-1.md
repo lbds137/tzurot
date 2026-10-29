@@ -3,9 +3,10 @@ id: TASK-1324
 title: >-
   Fix the 2684 tripwire regex - quoted -C args bypass it (round-6 review finding
   1)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-29T03:52:00Z'
+updated_date: '2026-10-29T05:00:00Z'
 labels:
   - area:tooling
   - size:S
