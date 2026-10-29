@@ -1,13 +1,14 @@
 ---
 id: TASK-835
 title: Deny edit modal can set a server-type entry to a narrower scope
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-08-30 20:53'
+created_date: 2026-08-30 20:53
+updated_date: '2026-10-29T22:13:00Z'
 labels:
-  - 'area:bot-client'
-  - 'size:S'
-  - 'state:ready'
+  - area:bot-client
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 835000
