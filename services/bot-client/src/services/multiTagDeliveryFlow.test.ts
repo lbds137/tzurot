@@ -14,9 +14,11 @@ import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/gen
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import {
+  deliverAllFailedNotice,
   deliverGroup,
   deliverErroredOutcomes,
   type DeliveryFlowDeps,
+  type ErroredSlotOutcome,
 } from './multiTagDeliveryFlow.js';
 import type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
 import { confirmDelivery, setDmSessionPersonality } from '../utils/gatewayServiceCalls.js';
@@ -776,5 +778,88 @@ describe('deliverErroredOutcomes', () => {
     );
 
     expect(vi.mocked(reportJobError)).toHaveBeenCalledWith(spec, 'Alice');
+  });
+});
+
+describe('deliverAllFailedNotice', () => {
+  it('stays silent when suppression is requested (no notice reply)', async () => {
+    const deliverErrorNoPersist = vi.fn().mockResolvedValue(undefined);
+    const deps = {
+      slotDelivery: { deliverErrorNoPersist } as unknown as DeliveryFlowDeps['slotDelivery'],
+    };
+    const message = {
+      id: 'msg-source',
+      reply: vi.fn(),
+    } as unknown as Message;
+    const channel = { id: 'channel-1' } as unknown as TypingChannel;
+
+    await deliverAllFailedNotice({ message, channel }, [], deps, true);
+
+    // Suppression holds at the function's own seam: no notice, no delivery.
+    expect(message.reply).not.toHaveBeenCalled();
+    expect(deliverErrorNoPersist).not.toHaveBeenCalled();
+  });
+
+  it('still delivers an errored sibling even when suppression is requested', async () => {
+    // Suppression is notice-only: errored outcomes route before the guard,
+    // so requesting suppression cannot silence an errored character's
+    // in-character delivery.
+    const deliverErrorNoPersist = vi.fn().mockResolvedValue(undefined);
+    const deps = {
+      slotDelivery: { deliverErrorNoPersist } as unknown as DeliveryFlowDeps['slotDelivery'],
+    };
+    // guildId + client.user are read by deliverErroredOutcomes' error context;
+    // allSettled would swallow a fixture missing them as a silent no-delivery.
+    const message = {
+      id: 'msg-source',
+      guildId: 'guild-1',
+      client: { user: { id: 'client-1' } },
+      reply: vi.fn(),
+    } as unknown as Message;
+    const channel = { id: 'channel-1' } as unknown as TypingChannel;
+    const outcome: ErroredSlotOutcome = {
+      personality: buildPersonality('Alice'),
+      isAutoResponse: false,
+      spec: {
+        requestId: 'req-Alice',
+        success: false,
+        error: 'boom',
+      } as LLMGenerationResult,
+    };
+
+    await deliverAllFailedNotice({ message, channel }, [outcome], deps, true);
+
+    expect(deliverErrorNoPersist).toHaveBeenCalledTimes(1);
+    const deliveredIds = deliverErrorNoPersist.mock.calls.map(
+      c => (c[2] as { personality: { id: string } }).personality.id
+    );
+    expect(deliveredIds).toEqual(['id-alice']);
+    // No notice either — the errored route returns before the notice path.
+    expect(message.reply).not.toHaveBeenCalled();
+  });
+
+  it('sends the generic notice when suppression is not requested', async () => {
+    // The positive half of the suppression seam: flag false + no errored
+    // outcomes → the notice IS delivered. A regression to always-suppress
+    // would leave every all-denied batch silently unanswered.
+    const deliverErrorNoPersist = vi.fn().mockResolvedValue(undefined);
+    const deps = {
+      slotDelivery: { deliverErrorNoPersist } as unknown as DeliveryFlowDeps['slotDelivery'],
+    };
+    // Same enriched fixture as the errored test above (guildId + client.user).
+    const message = {
+      id: 'msg-source',
+      guildId: 'guild-1',
+      client: { user: { id: 'client-1' } },
+      reply: vi.fn(),
+    } as unknown as Message;
+    const channel = { id: 'channel-1' } as unknown as TypingChannel;
+
+    await deliverAllFailedNotice({ message, channel }, [], deps, false);
+
+    expect(message.reply).toHaveBeenCalledWith(
+      expect.stringContaining('None of the tagged characters are currently available')
+    );
+    expect(deliverErrorNoPersist).not.toHaveBeenCalled();
   });
 });

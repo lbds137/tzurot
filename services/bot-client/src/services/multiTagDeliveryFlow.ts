@@ -22,7 +22,6 @@ import type { Message } from 'discord.js';
 import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
 import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
-import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   reportJobError,
@@ -34,6 +33,7 @@ import {
   buildSlotContext,
   buildSyntheticErrorResult,
   toSnapshot,
+  type ErroredSlotOutcome,
   type RuntimeEntry,
   type RuntimeSlot,
 } from './multiTagCoordinatorHelpers.js';
@@ -305,12 +305,12 @@ export async function deliverGroup(entry: RuntimeEntry, deps: DeliveryFlowDeps):
 /**
  * The errored variant of the coordinator's `SlotOutcome`, carried into the
  * all-failed delivery so each character can speak its own error line.
+ * Defined in multiTagCoordinatorHelpers beside the union it projects and
+ * re-exported here (the original import point) — a type-only import from
+ * this module would make helpers → deliveryFlow → helpers a cycle depcruise
+ * flags.
  */
-export interface ErroredSlotOutcome {
-  personality: LoadedPersonality;
-  isAutoResponse: boolean;
-  spec: LLMGenerationResult;
-}
+export type { ErroredSlotOutcome };
 
 /**
  * Deliver each errored character's OWN error line via its webhook
@@ -368,17 +368,23 @@ export async function deliverErroredOutcomes(
  *   error replies just adds register-noise. Bounded by the multi-character cap
  *   upstream.
  * - **All denied**: a single system notice (no character has anything to say
- *   in-voice, and a per-persona "I'm unavailable" from each would confuse).
+ *   in-voice, and a per-persona "I'm unavailable" from each would confuse) —
+ *   except when every denial wants silence (MUTE-silent or nsfw-blocked),
+ *   which stays fully silent (guard below).
  */
 export async function deliverAllFailedNotice(
   source: { message: Message; channel: TypingChannel },
   erroredOutcomes: ErroredSlotOutcome[],
   deps: Pick<DeliveryFlowDeps, 'slotDelivery'>,
-  allDenialsSilent = false
+  suppressNotice = false
 ): Promise<void> {
   const { message } = source;
   logger.info(
-    { sourceMessageId: message.id, erroredCount: erroredOutcomes.length, allDenialsSilent },
+    {
+      sourceMessageId: message.id,
+      erroredCount: erroredOutcomes.length,
+      suppressNotice,
+    },
     'All multi-tag slots failed (denied or errored) — nothing to coordinate'
   );
 
@@ -387,10 +393,15 @@ export async function deliverAllFailedNotice(
     return;
   }
 
-  // Every denial was a MUTE-mode entry: the mode's contract is "ignore but
-  // keep in context", so posting the unavailable notice would announce the
-  // exact denial MUTE exists to hide. Full silence is the feature.
-  if (allDenialsSilent) {
+  // Every denial wants silence: MUTE's contract is "ignore but keep in
+  // context", so posting the unavailable notice would announce the exact
+  // denial MUTE exists to hide. Full silence is the feature.
+  // An nsfw-blocked denial's verification prompt names age verification (or,
+  // on `check-failed`, asks the user to retry) — either is more accurate
+  // than the generic copy, which names denylist/private/restricted instead,
+  // so a user who just verified would read it as a moderation block
+  // (prod-observed).
+  if (suppressNotice) {
     return;
   }
 
