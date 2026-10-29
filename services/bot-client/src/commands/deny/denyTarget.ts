@@ -5,12 +5,12 @@
  * subcommand name selects the denial scope, and for BOT scope it additionally
  * selects the target type (`everywhere` → a user, `server` → a whole server).
  *
- * These two groups offer a server target at BOT scope only — that is a property
- * of THIS surface, not of the stored data. The detail edit modal writes scope
- * through `validateEditInput` (`detailEdit.ts`), which accepts any of the four
- * scopes without consulting the entry's entity type, so a stored GUILD-type
- * entry at a narrower scope is reachable by that path. Do not treat "server
- * denials are bot-wide" as an invariant when reading denylist rows.
+ * These two groups offer a server target at BOT scope only, and that holds for
+ * stored data too: the gateway rejects a GUILD-type entry at any other scope,
+ * the denylist cache stores non-BOT rows for USER type only, and the detail
+ * edit modal (`detailEdit.ts`) validates the same rule before submitting. A
+ * server denial is always bot-wide; the modal rule is pinned by
+ * `detailEdit.test.ts`.
  */
 
 import { escapeMarkdown } from 'discord.js';

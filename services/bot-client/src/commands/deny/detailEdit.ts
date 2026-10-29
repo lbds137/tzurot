@@ -7,7 +7,10 @@
  */
 
 import { MessageFlags, type ButtonInteraction, type ModalSubmitInteraction } from 'discord.js';
-import { type DenylistScope } from '@tzurot/common-types/schemas/api/denylist';
+import {
+  type DenylistEntityType,
+  type DenylistScope,
+} from '@tzurot/common-types/schemas/api/denylist';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { buildToolkitModal } from '../../utils/modal/toolkit.js';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
@@ -86,7 +89,8 @@ export async function handleEdit(interaction: ButtonInteraction, entryId: string
         id: 'scope',
         label: 'Scope',
         style: 'short',
-        placeholder: SCOPE_LABEL_LIST,
+        placeholder:
+          data.type === 'GUILD' ? 'Bot-wide (server denials are bot-wide only)' : SCOPE_LABEL_LIST,
         maxLength: MAX_SCOPE_LENGTH,
         required: true,
         initialValue: SCOPE_LABELS[data.scope],
@@ -96,7 +100,10 @@ export async function handleEdit(interaction: ButtonInteraction, entryId: string
         id: 'scopeId',
         label: 'Scope ID',
         style: 'short',
-        placeholder: '* for Bot-wide, channel/character ID for others',
+        placeholder:
+          data.type === 'GUILD'
+            ? '* (the only scope ID for a server denial)'
+            : '* for Bot-wide, channel/character ID for others',
         maxLength: MAX_SCOPE_ID_LENGTH,
         required: true,
         initialValue: data.scopeId,
@@ -136,29 +143,46 @@ type EditValidationResult = { ok: true; scope: DenylistScope } | { ok: false; me
  * Validate edit modal inputs, accepting either the canonical scope enum
  * name or its display label (case-insensitive) so the friendly placeholder
  * copy doesn't lie about what the field accepts.
+ *
+ * Also enforces the gateway's scope-combination rules: a GUILD-type entry (a
+ * server denial) only supports BOT scope, BOT scope requires the `*` scope ID,
+ * and a non-BOT scope requires a specific one.
  */
 function validateEditInput(
   scope: string,
   scopeId: string,
-  reason: string | null
+  reason: string | null,
+  entityType: DenylistEntityType
 ): EditValidationResult {
   const parsedScope = parseScopeInput(scope);
   if (parsedScope === null) {
     return {
       ok: false,
-      message: `\u274C Invalid scope "${scope}". Must be ${SCOPE_LABEL_LIST}.`,
+      message: `❌ Invalid scope "${scope}". Must be ${SCOPE_LABEL_LIST}.`,
     };
   }
   if (parsedScope === 'BOT' && scopeId !== '*') {
     return {
       ok: false,
-      message: `\u274C ${SCOPE_LABELS.BOT} scope requires scope ID to be \`*\`.`,
+      message: `❌ ${SCOPE_LABELS.BOT} scope requires scope ID to be \`*\`.`,
+    };
+  }
+  if (entityType === 'GUILD' && parsedScope !== 'BOT') {
+    return {
+      ok: false,
+      message: `❌ Server denials are only supported at ${SCOPE_LABELS.BOT} scope.`,
+    };
+  }
+  if (parsedScope !== 'BOT' && scopeId === '*') {
+    return {
+      ok: false,
+      message: `❌ ${SCOPE_LABELS[parsedScope]} scope requires a specific scope ID.`,
     };
   }
   if (reason !== null && reason.length > MAX_REASON_LENGTH) {
     return {
       ok: false,
-      message: `\u274C Reason too long (${reason.length}/${MAX_REASON_LENGTH} characters).`,
+      message: `❌ Reason too long (${reason.length}/${MAX_REASON_LENGTH} characters).`,
     };
   }
   return { ok: true, scope: parsedScope };
@@ -224,7 +248,7 @@ export async function handleEditModal(
   const newScopeId = interaction.fields.getTextInputValue('scopeId').trim();
   const newReason = interaction.fields.getTextInputValue('reason').trim() || null;
 
-  const validation = validateEditInput(newScopeRaw, newScopeId, newReason);
+  const validation = validateEditInput(newScopeRaw, newScopeId, newReason, data.type);
   if (!validation.ok) {
     // intentionally-raw: deny uses manual re-render for back-to-browse (see
     // detail.ts file-top comment). Validation error is terminal; session
@@ -252,7 +276,7 @@ export async function handleEditModal(
 
     if (!upsertResult.ok) {
       await interaction.editReply({
-        content: `\u274C Failed to update: ${upsertResult.error}`,
+        content: `❌ Failed to update: ${upsertResult.error}`,
         embeds: [],
         // intentionally-raw: deny uses manual re-render for back-to-browse
         // (see detail.ts file-top comment). Edit-API-failure terminal path.
