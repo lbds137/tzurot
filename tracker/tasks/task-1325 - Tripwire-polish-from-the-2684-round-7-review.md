@@ -1,9 +1,10 @@
 ---
 id: TASK-1325
 title: Tripwire polish from the 2684 round-7 review
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-29T05:01:00Z'
+updated_date: '2026-10-29T17:41:00Z'
 labels:
   - area:tooling
   - size:S
