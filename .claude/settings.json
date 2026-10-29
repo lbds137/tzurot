@@ -4,6 +4,7 @@
   },
   "env": {
     "SYG_DISPATCH_SRC_RE": "^(services|packages)/.+\\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|py)$",
+    "SYG_GH_WRAPPERS": "pnpm ops",
     "SYG_LOSSY_PIPE_GH_WRAPPERS": "gh:pr-all gh:pr-comments gh:pr-conversation gh:pr-info gh:pr-reviews gh:ci-gate"
   },
   "hooks": {
