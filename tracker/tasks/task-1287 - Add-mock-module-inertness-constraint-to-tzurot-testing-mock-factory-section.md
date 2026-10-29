@@ -1,13 +1,14 @@
 ---
 id: TASK-1287
 title: Add mock-module inertness constraint to /tzurot-testing mock-factory section
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-10-25 15:17'
+created_date: 2026-10-25 15:17
+updated_date: '2026-10-29T01:51:00Z'
 labels:
-  - 'area:bot-client'
-  - 'size:S'
-  - 'state:ready'
+  - area:bot-client
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1273000
