@@ -54,6 +54,7 @@ export type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js'
 import {
   buildSyntheticErrorResult,
   partitionSlotSubmissions,
+  shouldSuppressAllFailedNotice,
   toSnapshot,
   type RuntimeEntry,
   type RuntimeSlot,
@@ -174,17 +175,25 @@ export class MultiTagCoordinator {
     const { runtimeSlots, erroredOutcomes } = partitionSlotSubmissions(slotSubmissions);
 
     if (runtimeSlots.length === 0) {
-      // Every-denial-is-MUTE means the user asked for zero acknowledgment —
-      // the unavailable notice would announce the very denial MUTE hides.
-      // Any errored or BLOCK-denied slot keeps the notice/error delivery.
-      const allDenialsSilent =
-        erroredOutcomes.length === 0 &&
-        slotSubmissions.every(outcome => outcome.kind === 'denied' && outcome.silent === true);
+      // Every denial wants silence → suppress; rationale in shouldSuppressAllFailedNotice.
+      const suppressNotice = shouldSuppressAllFailedNotice(slotSubmissions, erroredOutcomes);
+      logger.info(
+        {
+          sourceMessageId: input.message.id,
+          suppressNotice,
+          deniedTotal: slotSubmissions.length,
+          nsfwBlocked: slotSubmissions.filter(
+            o => o.kind === 'denied' && o.reason === 'nsfw-blocked'
+          ).length,
+          muteSilent: slotSubmissions.filter(o => o.kind === 'denied' && o.silent === true).length,
+        },
+        'All multi-tag slots denied — suppression decision'
+      );
       await deliverAllFailedNotice(
         { message: input.message, channel: input.channel },
         erroredOutcomes,
         this.deps,
-        allDenialsSilent
+        suppressNotice
       );
       return;
     }
@@ -515,7 +524,8 @@ export class MultiTagCoordinator {
         return {
           kind: 'denied',
           personality: resolved.personality,
-          silent: result.kind === 'denied' && result.silent === true,
+          reason: result.reason,
+          silent: result.silent === true,
         };
       }
       // Register with JobTracker for typing-indicator refresh + context

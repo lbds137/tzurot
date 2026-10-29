@@ -7,7 +7,7 @@
   },
   "totals": {
     "entries": 3046,
-    "sites": 7075
+    "sites": 7076
   },
   "entries": [
     {
@@ -7376,7 +7376,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/services/MultiTagCoordinator.ts",
       "symbol": "id",
-      "count": 13
+      "count": 14
     },
     {
       "category": "client-methods",
