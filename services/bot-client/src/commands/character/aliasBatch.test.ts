@@ -10,6 +10,7 @@ import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import {
   DEFAULT_COORDS,
   FIVE_ROWS,
+  MOCK_BATCH_CONFIRM_PREFIX,
   createButtonInteraction,
   editReplyEmbeds,
   editReplyPayload,
@@ -50,6 +51,14 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 vi.mock('../../utils/gatewayClients.js', async () => {
   const { mockUserClient } = await import('../../test/mocks/aliasBatch.mock.js');
   return { clientsFor: () => ({ userClient: mockUserClient }) };
+});
+
+describe('mock fixture drift', () => {
+  // Guards the mock defaults for BOTH consumers of this module: aliasBatch.test.ts and
+  // aliasBatchConfirm.test.ts (whose interactions use createButtonInteraction's customId).
+  it('pins the mock-inlined BATCH_CONFIRM_PREFIX against the real export', () => {
+    expect(MOCK_BATCH_CONFIRM_PREFIX).toBe(BATCH_CONFIRM_PREFIX);
+  });
 });
 
 function editReplyComponentRows(interaction: unknown): Record<string, unknown>[][] {
