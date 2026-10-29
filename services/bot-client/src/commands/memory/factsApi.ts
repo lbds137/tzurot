@@ -4,6 +4,8 @@
  *
  * CONTRACT (mirrors detailApi.ts): `null` (or `false` for forget) means
  * DEFINITIVELY absent — a genuine 404. Every other failure THROWS
+ * (fetchFacts below is the exception: its null is ANY failure — the browse
+ * view degrades to a transient message rather than classifying)
  * (`InfraError` for transport/5xx, `GatewayClientError` for a non-404 4xx,
  * including the 403 a locked fact returns on correct/forget) so callers can
  * classify honestly via `classifyGatewayFailure`.
@@ -60,6 +62,10 @@ export async function fetchFacts(
     ...(query !== undefined && query.length > 0 ? { query } : {}),
   });
   if (!result.ok) {
+    logger.warn(
+      { personalityId, offset, limit, kind: result.kind, status: result.status },
+      'Failed to fetch facts'
+    );
     return null;
   }
   return result.data;

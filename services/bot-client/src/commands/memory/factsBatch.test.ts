@@ -713,6 +713,23 @@ describe('handleBatchConfirm — forget', () => {
     expect(vi.mocked(interaction.editReply).mock.calls[0]?.[0]).toEqual({ components: [] });
   });
 
+  it('swallows a rejected followUp when refusing on a failed pre-loop page fetch', async () => {
+    stub.listFacts.mockResolvedValue(makeErr(500, 'boom'));
+    const interaction = createButtonInteraction({
+      messageEmbedFooter: encodeBatchFooterIds(['fact-1']),
+    });
+    vi.mocked(interaction.followUp).mockRejectedValueOnce(new Error('webhook token expired'));
+
+    await expect(handleBatchConfirm(interaction, 'forget')).resolves.toBeUndefined();
+
+    expect(interaction.followUp).toHaveBeenCalledTimes(1);
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining("Couldn't load that page") })
+    );
+    expect(stub.forgetFact).not.toHaveBeenCalled();
+    expect(stub.setFactLock).not.toHaveBeenCalled();
+  });
+
   it('skips the ack when the router already deferred', async () => {
     stub.forgetFact.mockResolvedValue(makeOk({ id: 'fact-1', forgotten: true }));
     const interaction = createButtonInteraction({

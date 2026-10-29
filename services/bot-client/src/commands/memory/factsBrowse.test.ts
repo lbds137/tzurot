@@ -727,9 +727,10 @@ describe('error branches', () => {
 
     await expect(followUpFactsRefusal(interaction, 'session-gone')).resolves.toBeUndefined();
 
+    expect(loggerMock.warn).toHaveBeenCalledTimes(1);
     expect(loggerMock.warn).toHaveBeenCalledWith(
       { err: followUpError, userId: 'user-1', messageId: 'message-1' },
-      expect.any(String)
+      'Could not notify the user of the facts refusal'
     );
   });
 

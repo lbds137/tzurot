@@ -12,13 +12,22 @@ import { fetchFacts, fetchFact, correctFact, forgetFact, setFactLock } from './f
 import type { FactItem } from './factsApi.js';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
+const { loggerMock } = vi.hoisted(() => ({
+  loggerMock: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+    createLogger: () => loggerMock,
   };
 });
 
@@ -91,6 +100,30 @@ describe('Memory Facts API', () => {
       stub.listFacts.mockResolvedValue(makeErr(500, 'boom'));
 
       expect(await fetchFacts(asUserClient(stub), 'personality-456', 0, 10)).toBeNull();
+      expect(loggerMock.warn).toHaveBeenCalledWith(
+        { personalityId: 'personality-456', offset: 0, limit: 10, kind: 'http', status: 500 },
+        'Failed to fetch facts'
+      );
+    });
+
+    it('logs kind and status on a timeout failure', async () => {
+      stub.listFacts.mockResolvedValue(makeErr(0, 'timed out', undefined, 'timeout'));
+
+      expect(await fetchFacts(asUserClient(stub), 'personality-456', 0, 10)).toBeNull();
+      expect(loggerMock.warn).toHaveBeenCalledWith(
+        { personalityId: 'personality-456', offset: 0, limit: 10, kind: 'timeout', status: 0 },
+        'Failed to fetch facts'
+      );
+    });
+
+    it('logs warn and returns null on 404', async () => {
+      stub.listFacts.mockResolvedValue(makeErr(404, 'Not found'));
+
+      expect(await fetchFacts(asUserClient(stub), 'personality-456', 0, 10)).toBeNull();
+      expect(loggerMock.warn).toHaveBeenCalledWith(
+        { personalityId: 'personality-456', offset: 0, limit: 10, kind: 'http', status: 404 },
+        'Failed to fetch facts'
+      );
     });
 
     it('forwards a non-empty tag to the client', async () => {
