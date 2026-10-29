@@ -9,13 +9,17 @@
 
 import { type Mock, vi } from 'vitest';
 import type { ButtonInteraction } from 'discord.js';
-// Local literal, not the aliasBatch.js export: that value import re-entered the tests' gatewayClients mock factory mid-eval and deadlocked vitest.
-const BATCH_CONFIRM_PREFIX = 'character-alias::batch-confirm::';
 import {
   buildRemoveCustomId,
   type BrowseCoords,
 } from '../../commands/character/aliasBrowseView.js';
 import type { AliasRow } from '../../commands/character/aliasData.js';
+
+// Local literal, not the aliasBatch.js export: importing that value here re-entered the
+// tests' gatewayClients mock factory mid-eval and deadlocked vitest. aliasBatch.test.ts
+// pins this copy against the real export. Keep this file's value imports off any chain
+// reaching gatewayClients.js.
+export const MOCK_BATCH_CONFIRM_PREFIX = 'character-alias::batch-confirm::';
 
 /**
  * Typed `vi.fn()` bundle matching the `UserClient` methods exercised by the
@@ -210,7 +214,7 @@ export function createButtonInteraction(options: {
     customId:
       options.customId ??
       buildRemoveCustomId(
-        BATCH_CONFIRM_PREFIX,
+        MOCK_BATCH_CONFIRM_PREFIX,
         DEFAULT_COORDS.page,
         DEFAULT_COORDS.filter,
         DEFAULT_COORDS.query
