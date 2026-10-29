@@ -1,9 +1,10 @@
 ---
 id: TASK-1323
 title: Fresh-session probe of the SYG_GH_WRAPPERS wiring - gates PR 2684 merge
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-29T02:38:00Z'
+updated_date: '2026-10-29T04:47:00Z'
 labels:
   - area:repo
   - size:S
