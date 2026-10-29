@@ -3,9 +3,10 @@ id: TASK-1310
 title: >-
   Facts fetch failures log no kind or status, and the refusal helper swallow
   path is only tested on the helper
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-27T14:49:00Z'
+updated_date: '2026-10-29T01:29:00Z'
 labels:
   - area:bot-client
   - size:S
