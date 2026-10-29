@@ -226,7 +226,7 @@ describe('MultiTagCoordinator', () => {
       // Alice submits, Bob is denied
       chatManager.submitChatJob.mockImplementation(async ({ personality }) => {
         if (personality.id === 'id-Bob') {
-          return { kind: 'denied', reason: 'denylist' };
+          return { kind: 'denied', reason: 'denylisted' };
         }
         return {
           kind: 'submitted',
@@ -257,7 +257,7 @@ describe('MultiTagCoordinator', () => {
 
     it('sends the unavailable notice (characters) when every slot is genuinely denied', async () => {
       const msg = buildMessage();
-      chatManager.submitChatJob.mockResolvedValue({ kind: 'denied', reason: 'denylist' });
+      chatManager.submitChatJob.mockResolvedValue({ kind: 'denied', reason: 'denylisted' });
 
       await coordinator.startFanOut({
         message: msg,
@@ -277,9 +277,25 @@ describe('MultiTagCoordinator', () => {
       const msg = buildMessage();
       chatManager.submitChatJob.mockResolvedValue({
         kind: 'denied',
-        reason: 'denylist',
+        reason: 'denylisted',
         silent: true,
       });
+
+      await coordinator.startFanOut({
+        message: msg,
+        channel: buildChannel(),
+        slots: [buildResolvedSlot(buildPersonality('Alice'))],
+        content: 'hi',
+        truncated: false,
+        maxTags: 5,
+      });
+
+      expect(vi.mocked(msg.reply)).not.toHaveBeenCalled();
+    });
+
+    it('stays silent when every slot is nsfw-blocked (the verification prompt explains the block)', async () => {
+      const msg = buildMessage();
+      chatManager.submitChatJob.mockResolvedValue({ kind: 'denied', reason: 'nsfw-blocked' });
 
       await coordinator.startFanOut({
         message: msg,
@@ -296,8 +312,8 @@ describe('MultiTagCoordinator', () => {
     it('still posts the notice on a MIXED batch (one MUTE, one BLOCK denial)', async () => {
       const msg = buildMessage();
       chatManager.submitChatJob
-        .mockResolvedValueOnce({ kind: 'denied', reason: 'denylist', silent: true })
-        .mockResolvedValueOnce({ kind: 'denied', reason: 'denylist' });
+        .mockResolvedValueOnce({ kind: 'denied', reason: 'denylisted', silent: true })
+        .mockResolvedValueOnce({ kind: 'denied', reason: 'denylisted' });
 
       await coordinator.startFanOut({
         message: msg,
@@ -316,6 +332,54 @@ describe('MultiTagCoordinator', () => {
       );
     });
 
+    it('still posts the notice when denials mix nsfw-blocked and denylisted', async () => {
+      const msg = buildMessage();
+      chatManager.submitChatJob
+        .mockResolvedValueOnce({ kind: 'denied', reason: 'nsfw-blocked' })
+        .mockResolvedValueOnce({ kind: 'denied', reason: 'denylisted' });
+
+      await coordinator.startFanOut({
+        message: msg,
+        channel: buildChannel(),
+        slots: [
+          buildResolvedSlot(buildPersonality('Alice')),
+          buildResolvedSlot(buildPersonality('Bob')),
+        ],
+        content: 'hi',
+        truncated: false,
+        maxTags: 5,
+      });
+
+      expect(vi.mocked(msg.reply)).toHaveBeenCalledWith(
+        expect.stringContaining('None of the tagged characters are currently available')
+      );
+    });
+
+    it('stays silent when denials mix MUTE-silent and nsfw-blocked', async () => {
+      // Each denial wants silence on its own terms — MUTE hides the denial,
+      // and the nsfw-blocked one's best-effort verification prompt names age
+      // verification — so the unified predicate suppresses the generic
+      // notice for this mix too.
+      const msg = buildMessage();
+      chatManager.submitChatJob
+        .mockResolvedValueOnce({ kind: 'denied', reason: 'denylisted', silent: true })
+        .mockResolvedValueOnce({ kind: 'denied', reason: 'nsfw-blocked' });
+
+      await coordinator.startFanOut({
+        message: msg,
+        channel: buildChannel(),
+        slots: [
+          buildResolvedSlot(buildPersonality('Alice')),
+          buildResolvedSlot(buildPersonality('Bob')),
+        ],
+        content: 'hi',
+        truncated: false,
+        maxTags: 5,
+      });
+
+      expect(vi.mocked(msg.reply)).not.toHaveBeenCalled();
+    });
+
     it('MUTE-denied + errored batch: the errored character still speaks (no full silence)', async () => {
       // Pins the doc-commented rule directly: an errored slot keeps its
       // in-character error delivery even when every DENIAL was MUTE — full
@@ -325,7 +389,7 @@ describe('MultiTagCoordinator', () => {
         if (personality.id === 'id-Alice') {
           throw new Error('gateway timeout');
         }
-        return { kind: 'denied', reason: 'denylist', silent: true };
+        return { kind: 'denied', reason: 'denylisted', silent: true };
       });
 
       await coordinator.startFanOut({
@@ -334,6 +398,36 @@ describe('MultiTagCoordinator', () => {
         slots: [
           buildResolvedSlot(buildPersonality('Alice')), // errored → speaks
           buildResolvedSlot(buildPersonality('Bob')), // MUTE-denied → silent
+        ],
+        content: 'hi',
+        truncated: false,
+        maxTags: 5,
+      });
+
+      expect(slotDelivery.deliverErrorNoPersist).toHaveBeenCalledTimes(1);
+      expect(slotDelivery.deliverErrorNoPersist.mock.calls[0][2].personality.id).toBe('id-Alice');
+      expect(vi.mocked(msg.reply)).not.toHaveBeenCalled();
+    });
+
+    it('still delivers the errored character when an nsfw-blocked denial accompanies it', async () => {
+      // Errored routing precedes any suppression consultation in
+      // deliverAllFailedNotice, so the errored sibling still speaks its
+      // in-character line even when the batch also carries an nsfw-blocked
+      // denial.
+      const msg = buildMessage();
+      chatManager.submitChatJob.mockImplementation(async ({ personality }) => {
+        if (personality.id === 'id-Alice') {
+          throw new Error('gateway timeout');
+        }
+        return { kind: 'denied', reason: 'nsfw-blocked' };
+      });
+
+      await coordinator.startFanOut({
+        message: msg,
+        channel: buildChannel(),
+        slots: [
+          buildResolvedSlot(buildPersonality('Alice')), // errored → speaks
+          buildResolvedSlot(buildPersonality('Bob')), // nsfw-blocked → silent
         ],
         content: 'hi',
         truncated: false,
@@ -382,7 +476,7 @@ describe('MultiTagCoordinator', () => {
         if (personality.id === 'id-Alice') {
           throw new Error('gateway timeout');
         }
-        return { kind: 'denied', reason: 'denylist' };
+        return { kind: 'denied', reason: 'denylisted' };
       });
 
       await coordinator.startFanOut({

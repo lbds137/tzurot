@@ -20,7 +20,9 @@ import {
   buildSlotContext,
   buildSyntheticErrorResult,
   partitionSlotSubmissions,
+  shouldSuppressAllFailedNotice,
   toSnapshot,
+  type ErroredSlotOutcome,
   type RuntimeEntry,
   type RuntimeSlot,
   type SlotOutcome,
@@ -263,7 +265,7 @@ describe('partitionSlotSubmissions', () => {
   it('assigns DENSE indices: denied slots are skipped, survivors get 0..k-1', () => {
     const { runtimeSlots, erroredOutcomes } = partitionSlotSubmissions([
       submitted('Alice'),
-      { kind: 'denied', personality: buildPersonality('Denny') },
+      { kind: 'denied', personality: buildPersonality('Denny'), reason: 'denylisted' },
       submitted('Bob'),
     ]);
 
@@ -296,9 +298,79 @@ describe('partitionSlotSubmissions', () => {
 
   it('returns both empty for an all-denied batch', () => {
     const { runtimeSlots, erroredOutcomes } = partitionSlotSubmissions([
-      { kind: 'denied', personality: buildPersonality('Denny') },
+      { kind: 'denied', personality: buildPersonality('Denny'), reason: 'denylisted' },
     ]);
     expect(runtimeSlots).toEqual([]);
     expect(erroredOutcomes).toEqual([]);
+  });
+});
+
+describe('shouldSuppressAllFailedNotice', () => {
+  // Producer shapes (PersonalityChatManager.runGates): a MUTE-mode denylist
+  // entry denies with reason 'denylisted' + silent:true; an overt BLOCK
+  // denylist entry denies with reason 'denylisted' and silent absent; an
+  // NSFW-gate denial is reason 'nsfw-blocked' (never silent).
+  function denied(
+    name: string,
+    reason: Extract<SlotOutcome, { kind: 'denied' }>['reason'],
+    silent?: boolean
+  ): SlotOutcome {
+    return { kind: 'denied', personality: buildPersonality(name), reason, silent };
+  }
+
+  const mute = (name: string): SlotOutcome => denied(name, 'denylisted', true);
+  const block = (name: string): SlotOutcome => denied(name, 'denylisted');
+  const nsfw = (name: string): SlotOutcome => denied(name, 'nsfw-blocked');
+  const errored: ErroredSlotOutcome = {
+    personality: buildPersonality('Boom'),
+    isAutoResponse: true,
+    spec: { requestId: 'r1', success: false } as ErroredSlotOutcome['spec'],
+  };
+
+  it.each([
+    {
+      name: 'every denial is MUTE-silent',
+      submissions: [mute('Alice'), mute('Bob')],
+      erroredOutcomes: [],
+      expected: true,
+    },
+    {
+      name: 'every denial is nsfw-blocked',
+      submissions: [nsfw('Alice'), nsfw('Bob')],
+      erroredOutcomes: [],
+      expected: true,
+    },
+    {
+      name: 'MUTE-silent and nsfw-blocked mixed',
+      submissions: [mute('Alice'), nsfw('Bob')],
+      erroredOutcomes: [],
+      expected: true,
+    },
+    {
+      name: 'one overt denylisted BLOCK beside an nsfw-blocked denial',
+      submissions: [nsfw('Alice'), block('Bob')],
+      erroredOutcomes: [],
+      expected: false,
+    },
+    {
+      name: 'one MUTE-silent denial beside an overt denylisted BLOCK',
+      submissions: [mute('Alice'), block('Bob')],
+      erroredOutcomes: [],
+      expected: false,
+    },
+    {
+      name: 'an errored outcome beside an nsfw-blocked denial',
+      submissions: [nsfw('Alice')],
+      erroredOutcomes: [errored],
+      expected: false,
+    },
+    {
+      name: 'empty submissions',
+      submissions: [],
+      erroredOutcomes: [],
+      expected: false,
+    },
+  ])('$name → $expected', ({ submissions, erroredOutcomes, expected }) => {
+    expect(shouldSuppressAllFailedNotice(submissions, erroredOutcomes)).toBe(expected);
   });
 });

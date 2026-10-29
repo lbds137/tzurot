@@ -22,6 +22,7 @@ import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import type { SlotDeliveryContext } from './SlotDeliveryService.js';
 import type { CoordinatorEntrySnapshot } from './MultiTagPersistence.js';
 import type { SlotSource } from './SlotResolver.js';
+import type { SubmitChatJobResult } from './character/PersonalityChatManager.js';
 
 /** Per-slot runtime state. Re-declared here so the helpers can be standalone. */
 export interface RuntimeSlot {
@@ -170,7 +171,9 @@ export function toSnapshot(entry: RuntimeEntry): CoordinatorEntrySnapshot {
  * - `'denied'` — a genuine refusal: the character can't respond (denylisted,
  *   NSFW-gated, or restricted here). The input was understood; the character
  *   simply isn't available. Rendered as a single system notice when the whole
- *   batch is denied.
+ *   batch is denied — except when every denial wants silence (MUTE-silent or
+ *   nsfw-blocked, whose verification prompt already names age verification),
+ *   which stays fully silent.
  * - `'errored'` — an infrastructure failure: the submission threw (e.g. a
  *   gateway write-timeout while persisting the trigger message). Transient.
  *   Carries a synthetic `success:false` result so the character can deliver
@@ -190,13 +193,33 @@ export type SlotOutcome =
       source: SlotSource;
       isAutoResponse: boolean;
     }
-  | { kind: 'denied'; personality: LoadedPersonality; silent?: boolean }
+  | {
+      kind: 'denied';
+      personality: LoadedPersonality;
+      /** The gate's refusal reason, driving notice suppression. */
+      reason: Extract<SubmitChatJobResult, { kind: 'denied' }>['reason'];
+      silent?: boolean;
+    }
   | {
       kind: 'errored';
       personality: LoadedPersonality;
       isAutoResponse: boolean;
       spec: LLMGenerationResult;
     };
+
+/**
+ * The errored variant of `SlotOutcome`, carried into the all-failed delivery
+ * so each character can speak its own error line. Defined here beside the
+ * union it projects — not in `multiTagDeliveryFlow` — because a type-only
+ * import from that module would make helpers → deliveryFlow → helpers a
+ * cycle depcruise flags. Re-exported from `multiTagDeliveryFlow` so the
+ * original import points keep working.
+ */
+export interface ErroredSlotOutcome {
+  personality: LoadedPersonality;
+  isAutoResponse: boolean;
+  spec: LLMGenerationResult;
+}
 
 /**
  * Partition slot submissions into the dense runtime slots (submitted, status
@@ -211,7 +234,9 @@ export type SlotOutcome =
  * canonical view.
  *
  * Denied outcomes need no accumulation — they render as a single system
- * notice only when the WHOLE batch is denied.
+ * notice only when the WHOLE batch is denied, and even that notice is
+ * suppressed when every denial wants silence (both decided by the caller —
+ * see `SlotOutcome`'s denied variant).
  */
 export function partitionSlotSubmissions(slotSubmissions: SlotOutcome[]): {
   runtimeSlots: RuntimeSlot[];
@@ -238,4 +263,36 @@ export function partitionSlotSubmissions(slotSubmissions: SlotOutcome[]): {
     });
   }
   return { runtimeSlots, erroredOutcomes };
+}
+
+/**
+ * Whether the all-failed notice is suppressed — i.e. every submission was
+ * denied, and every denial wants silence:
+ *
+ * - MUTE-silent: MUTE's contract is "ignore but keep in context", so posting
+ *   the unavailable notice would announce the exact denial MUTE exists to
+ *   hide. Full silence is the feature.
+ * - nsfw-blocked: the verification prompt already names age verification
+ *   (or, on `check-failed`, asks the user to retry) — either is more accurate
+ *   than the generic copy, which names denylist/private/restricted instead,
+ *   so a user who just verified would read it as a moderation block.
+ *
+ * Mixed batches with any BLOCK denial that is not nsfw-blocked keep the
+ * notice: the generic copy is accurate for them. Any errored outcome keeps
+ * the notice/delivery path (the errored characters speak in their own voice
+ * via `deliverAllFailedNotice`); an empty batch never suppresses. Pinned by
+ * the `shouldSuppressAllFailedNotice` table in
+ * multiTagCoordinatorHelpers.test.ts.
+ */
+export function shouldSuppressAllFailedNotice(
+  slotSubmissions: SlotOutcome[],
+  erroredOutcomes: ErroredSlotOutcome[]
+): boolean {
+  return (
+    erroredOutcomes.length === 0 &&
+    slotSubmissions.length > 0 &&
+    slotSubmissions.every(
+      o => o.kind === 'denied' && (o.silent === true || o.reason === 'nsfw-blocked')
+    )
+  );
 }
