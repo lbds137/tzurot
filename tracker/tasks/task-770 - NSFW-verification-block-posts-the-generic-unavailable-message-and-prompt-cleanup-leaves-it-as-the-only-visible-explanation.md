@@ -3,13 +3,14 @@ id: TASK-770
 title: >-
   NSFW-verification block posts the generic unavailable message, and prompt
   cleanup leaves it as the only visible explanation
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-08-25 10:42'
+created_date: 2026-08-25 10:42
+updated_date: '2026-10-30T00:07:00Z'
 labels:
-  - 'area:bot-client'
-  - 'size:S'
-  - 'state:ready'
+  - area:bot-client
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 770000
