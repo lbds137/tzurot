@@ -160,6 +160,13 @@ export function setupCatalogDriftAlertWorker(deps: CatalogDriftAlertWorkerDeps):
   );
 
   worker.on('failed', (job, err) => {
+    if (job !== undefined && job.attemptsMade >= (job.opts.attempts ?? 1)) {
+      logger.error(
+        { jobId: job.id, attemptsMade: job.attemptsMade, err },
+        'Catalog drift alert dropped after final attempt'
+      );
+      return;
+    }
     logger.warn({ jobId: job?.id, err }, 'Catalog drift alert failed (BullMQ will retry)');
   });
   worker.on('stalled', (jobId: string) => {

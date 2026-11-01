@@ -144,6 +144,8 @@ export function composeGenerationFailureResult(
         // The failed fallback attempt (if any) rides along so the error
         // footer renders the full route chain, not just the primary.
         fallbackProviderAttempted: getAttemptedFallbackProvider(error),
+        // A proactive retarget has already cleared this flag in AuthStep, and a failed reactive
+        // retarget is not carried, so the footer here still names the route that fell through.
         fallthroughTriggered: context.auth?.fallthroughTriggered,
         // A proactive quota swap that took effect before the failure — the
         // footer must explain why modelUsed is the fallback (never silent).
