@@ -1,9 +1,10 @@
 ---
 id: TASK-1332
 title: 'Audit batch: bot-client batch and modal error paths'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-01T11:33:00Z'
+updated_date: '2026-11-01T22:30:00Z'
 labels:
   - area:bot-client
   - size:M
