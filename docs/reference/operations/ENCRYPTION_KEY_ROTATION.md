@@ -152,7 +152,9 @@ stage 3 was interrupted after `API_KEY_ENCRYPTION_KEY_PREVIOUS` was deleted from
 both services (or after cleaning up a partial delete with `deploy:var-delete`),
 run `pnpm ops secrets:rotate-byok --env prod --stage 3 --resume` to finish the
 redeploys and ledger stamp; `--resume` is refused on stages 1 and 2 and whenever
-`API_KEY_ENCRYPTION_KEY_PREVIOUS` is still set.
+`API_KEY_ENCRYPTION_KEY_PREVIOUS` is still set. `--resume` is taken on trust, so
+running it with no interrupted stage 3 behind it stamps the ledger and resets
+the 180-day reminder with no rotation having happened.
 
 ## Safety properties worth knowing
 

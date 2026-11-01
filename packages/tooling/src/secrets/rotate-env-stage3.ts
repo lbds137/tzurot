@@ -162,11 +162,12 @@ export async function runStage3(args: StageArgs): Promise<void> {
       verifier,
       primaryName: options.name,
     });
-  } catch {
+  } catch (error) {
     console.log(
       chalk.yellow(
-        `  ⚠️  Could not delete completion marker "${rolledName}" from "${verifier.name}" ` +
-          '(its hash binding keeps a stale marker harmless); clean it up with:\n' +
+        `  ⚠️  Could not delete completion marker "${rolledName}" from "${verifier.name}": ` +
+          `${error instanceof Error ? error.message : String(error)} ` +
+          '(a leftover marker is harmless because the hash stops matching once the primary changes and stage 3 refuses a primary never rotated); clean it up with:\n' +
           `  pnpm ops deploy:var-delete --env ${options.env} --service ${verifier.name} --name ${rolledName} --yes`
       )
     );

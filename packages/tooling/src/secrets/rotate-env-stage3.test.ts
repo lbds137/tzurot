@@ -190,6 +190,51 @@ describe('runStage3 roll-marker and presenter-readiness guards', () => {
     expect(mockMarkRotated).not.toHaveBeenCalled();
   });
 
+  it('refuses a degenerate window even when a leftover roll marker matches the unrotated primary', async () => {
+    mockReadValue.mockImplementation(async args => {
+      if (args.name === PREVIOUS_NAME) {
+        return SENTINEL_VALUE;
+      }
+      if (args.name === ROLLED_NAME) {
+        return SENTINEL_VALUE_HASH;
+      }
+      return SENTINEL_VALUE;
+    });
+
+    const error = await runStagedRotation(makeOptions({ stage: '3' }), makeContext()).catch(
+      (err: unknown) => err
+    );
+
+    expect(error).toBeInstanceOf(UsageError);
+    const message = error instanceof Error ? error.message : String(error);
+    expect(message).toContain('never rotated');
+    expect(message).not.toContain('Stage 2 has not finished');
+    expect(mockDelete).not.toHaveBeenCalled();
+    expect(mockRedeploy).not.toHaveBeenCalled();
+    expect(mockMarkRotated).not.toHaveBeenCalled();
+  });
+
+  it('dry run with a degenerate window and matching roll marker reports the degenerate-window refusal', async () => {
+    mockReadValue.mockImplementation(async args => {
+      if (args.name === PREVIOUS_NAME) {
+        return SENTINEL_VALUE;
+      }
+      if (args.name === ROLLED_NAME) {
+        return SENTINEL_VALUE_HASH;
+      }
+      return SENTINEL_VALUE;
+    });
+
+    await runStagedRotation(makeOptions({ stage: '3', dryRun: true }), makeContext());
+
+    const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
+    expect(allOutput).toContain('never rotated');
+    expect(allOutput).not.toContain('Stage 2 has not finished');
+    expect(mockDelete).not.toHaveBeenCalled();
+    expect(mockRedeploy).not.toHaveBeenCalled();
+    expect(mockMarkRotated).not.toHaveBeenCalled();
+  });
+
   it('proceeds when the roll marker matches the current primary, deleting _PREVIOUS before the marker', async () => {
     await runStagedRotation(makeOptions({ stage: '3' }), makeContext());
 
@@ -290,6 +335,7 @@ describe('runStage3 roll-marker and presenter-readiness guards', () => {
     expect(mockMarkRotated).toHaveBeenCalledWith('dev', 'internal-service-secret');
 
     const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
+    expect(allOutput).toContain('marker delete failed');
     expect(allOutput).toContain(
       `pnpm ops deploy:var-delete --env dev --service api-gateway --name ${ROLLED_NAME} --yes`
     );
