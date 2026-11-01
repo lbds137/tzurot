@@ -180,8 +180,11 @@ export class AuthStep implements IPipelineStep {
       // pre-computed auto-promotion passthrough route no longer describes
       // this request — carrying it forward would let GenerationStep retry a
       // failure via the STALE route (the original z-ai model), which is the
-      // exact dead end the retarget just escaped.
+      // exact dead end the retarget just escaped. Likewise,
+      // fallthroughTriggered says the original zai-coding route fell through,
+      // which no longer describes a retargeted admin-default model.
       wasAutoPromoted: undefined,
+      fallthroughTriggered: undefined,
       fallback: undefined,
     };
   }

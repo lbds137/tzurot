@@ -223,6 +223,8 @@ export class GenerationStep implements IPipelineStep {
       const quotaFallbackInfo =
         composeQuotaFallbackInfo(reactiveQuotaFallback, auth.quotaFallback) ??
         autoPromotionFallback;
+      const effectiveFallthrough =
+        reactiveQuotaFallback === undefined ? auth.fallthroughTriggered : undefined;
 
       const fallbackFromProvider = deriveFallbackFromProvider(provider, effectiveProviderUsed);
 
@@ -316,7 +318,7 @@ export class GenerationStep implements IPipelineStep {
               modelUsed: response.modelUsed,
               providerUsed: servedProvider,
               fallbackFromProvider,
-              fallthroughTriggered: auth.fallthroughTriggered,
+              fallthroughTriggered: effectiveFallthrough,
               configSource,
               // Effective guest-mode after any mid-turn credential swap (a
               // credit-exhausted BYOK request retargeted onto the system key
@@ -358,7 +360,7 @@ export class GenerationStep implements IPipelineStep {
             // when the promoted z.ai call failed), so the footer links correctly.
             providerUsed: servedProvider,
             fallbackFromProvider,
-            fallthroughTriggered: auth.fallthroughTriggered,
+            fallthroughTriggered: effectiveFallthrough,
             configSource,
             // Same mid-turn-swap correction as providerUsed: the usage row's
             // byok column derives from this, and the pre-retarget value would

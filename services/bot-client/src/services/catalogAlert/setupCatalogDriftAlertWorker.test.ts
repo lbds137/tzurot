@@ -31,6 +31,10 @@ vi.mock('../../utils/ownerChannel.js', () => ({
   postOwnerChannelEmbed: postOwnerChannelEmbedMock,
 }));
 
+const configOverrides = vi.hoisted(() => ({
+  feedbackChannelId: undefined as string | undefined,
+}));
+
 // Mock getConfig so setupCatalogDriftAlertWorker() finds a valid REDIS_URL
 // without environment setup; parseRedisUrl/createBullMQRedisConfig stay real
 // (pure URL parsing, deterministic).
@@ -40,7 +44,11 @@ vi.mock('@tzurot/common-types/config/config', async () => {
   );
   return {
     ...actual,
-    getConfig: () => actual.createTestConfig({ REDIS_URL: 'redis://localhost:6379' }),
+    getConfig: () =>
+      actual.createTestConfig({
+        REDIS_URL: 'redis://localhost:6379',
+        FEEDBACK_CHANNEL_ID: configOverrides.feedbackChannelId,
+      }),
   };
 });
 
@@ -99,6 +107,7 @@ interface EmbedLike {
 describe('createCatalogDriftAlertProcessor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    configOverrides.feedbackChannelId = undefined;
     postOwnerChannelEmbedMock.mockResolvedValue(true);
   });
 
@@ -146,6 +155,31 @@ describe('createCatalogDriftAlertProcessor', () => {
     expect(result).toEqual({ posted: false, driftCount: 1 });
     expect(mockLogger.info).toHaveBeenCalledWith(
       expect.objectContaining({ driftCount: 1, posted: false }),
+      'Catalog drift alert processed'
+    );
+  });
+
+  it('throws when FEEDBACK_CHANNEL_ID is set and the owner channel post fails', async () => {
+    configOverrides.feedbackChannelId = '123456789012345678';
+    postOwnerChannelEmbedMock.mockResolvedValue(false);
+    const processor = createCatalogDriftAlertProcessor({ client: {} as unknown as Client });
+
+    await expect(processor(asJob(makePayload([DRIFTS[0]])))).rejects.toThrow(
+      'Catalog drift alert post failed'
+    );
+    expect(mockLogger.info).not.toHaveBeenCalled();
+  });
+
+  it('resolves when FEEDBACK_CHANNEL_ID is set and the owner channel post succeeds', async () => {
+    configOverrides.feedbackChannelId = '123456789012345678';
+    postOwnerChannelEmbedMock.mockResolvedValue(true);
+    const processor = createCatalogDriftAlertProcessor({ client: {} as unknown as Client });
+
+    const result = await processor(asJob(makePayload([DRIFTS[0]])));
+
+    expect(result).toEqual({ posted: true, driftCount: 1 });
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ driftCount: 1, posted: true }),
       'Catalog drift alert processed'
     );
   });

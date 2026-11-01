@@ -11,9 +11,10 @@
  *
  * Delivery discipline mirrors the retention-notice worker: payload passes the
  * shared schema's safeParse gate before anything is posted (fail-to-skip on a
- * malformed payload — it can never succeed on retry), and the post is
- * best-effort (the checker's Redis sentinel already recorded the alert, so a
- * failed post loses the notification, not the dedup).
+ * malformed payload — it can never succeed on retry), while a failed post when
+ * FEEDBACK_CHANNEL_ID is configured throws so the queue retries (the checker's
+ * Redis sentinel still holds the dedup, and an unset channel stays a silent
+ * no-op).
  */
 
 import { Worker, type Job } from 'bullmq';
@@ -118,6 +119,9 @@ export function createCatalogDriftAlertProcessor(deps: CatalogDriftAlertWorkerDe
       deps.client,
       buildCatalogDriftEmbed(parsed.data.drifts)
     );
+    if (!posted && getConfig().FEEDBACK_CHANNEL_ID !== undefined) {
+      throw new Error('Catalog drift alert post failed');
+    }
     logger.info(
       { jobId: job.id, driftCount: parsed.data.drifts.length, posted },
       'Catalog drift alert processed'
