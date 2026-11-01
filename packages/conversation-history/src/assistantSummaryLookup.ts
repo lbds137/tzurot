@@ -12,7 +12,9 @@
  * rows with no summary do not use up `take`. Summary status and prompt version
  * are deliberately NOT checked — a stored summary renders regardless of retry
  * status or version bump (`archiveSummary/archiveSummaryStore.ts` writes it for
- * the current content, and `routes/user/memorySingle.ts` clears it on edit).
+ * the current content, `routes/user/memorySingle.ts` clears it on edit, and the
+ * dev-to-prod sync in api-gateway's `services/sync/SyncUpsertBuilder.ts`
+ * copies content and summary together from the winning row).
  * `visibility` IS checked here, which the archive predicate does not need to do
  * because its caller — the retrieval query in ai-worker's
  * `PgvectorQueryBuilder.ts`, which applies `m.visibility = 'normal'` — already
@@ -63,6 +65,7 @@ export async function findUsableAssistantSummariesByTriggerIds(
 
   const requested = new Set(ids);
   for (const row of rows) {
+    // The `where` already excludes these rows, and this guard stays to narrow the nullable column type for TypeScript.
     if (typeof row.assistantSummary !== 'string' || row.assistantSummary.length === 0) {
       continue;
     }
