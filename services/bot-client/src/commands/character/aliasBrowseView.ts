@@ -5,6 +5,7 @@
 
 import { escapeMarkdown, type EmbedBuilder } from 'discord.js';
 import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
+import { truncateToUtf16Units } from '@tzurot/common-types/utils/codePointTruncation';
 import {
   ENTITY_EMOJI,
   buildBadgeLegend,
@@ -89,14 +90,27 @@ export interface BrowseCoords {
 }
 
 /**
+ * Whether an alias select key is at the truncation boundary (`>= SELECT_ALIAS_KEY_LENGTH - 1`).
+ * `truncateToUtf16Units` backs off one UTF-16 code unit when cutting at
+ * `SELECT_ALIAS_KEY_LENGTH` would split a surrogate pair, so a truncated alias
+ * can produce a key of `SELECT_ALIAS_KEY_LENGTH - 1` units. An alias of exactly
+ * that length also classifies as boundary, deliberately: the boundary path
+ * matches by rebuilt value and fails closed when no single row matches.
+ */
+export function isBoundaryAliasKey(key: string): boolean {
+  return key.length >= SELECT_ALIAS_KEY_LENGTH - 1;
+}
+
+/**
  * Build the select menu value for one alias row (`{scope}:{aliasKey}`).
- * Two same-scope aliases sharing a `SELECT_ALIAS_KEY_LENGTH` prefix produce the
- * same value (`row.alias` is sliced to `SELECT_ALIAS_KEY_LENGTH`). See
- * `resolveAliasBatchItems` in `aliasBatchConfirm.ts` for the batch resolution
- * rule.
+ * Two same-scope aliases sharing a truncated prefix produce the same value
+ * (`row.alias` is truncated to `SELECT_ALIAS_KEY_LENGTH` UTF-16 units via
+ * `truncateToUtf16Units`, which backs off a split surrogate pair to
+ * `SELECT_ALIAS_KEY_LENGTH - 1` units). See `resolveAliasBatchItems` in
+ * `aliasBatchConfirm.ts` for the batch resolution rule.
  */
 export function formatAliasSelectValue(row: AliasRow): string {
-  return `${row.scope}:${row.alias.slice(0, SELECT_ALIAS_KEY_LENGTH)}`;
+  return `${row.scope}:${truncateToUtf16Units(row.alias, SELECT_ALIAS_KEY_LENGTH)}`;
 }
 
 /** Option fields for one alias in single-select and multi-select menus. */

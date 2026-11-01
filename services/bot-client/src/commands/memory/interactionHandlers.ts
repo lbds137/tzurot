@@ -43,7 +43,9 @@ import {
 } from './search.js';
 import { MEMORY_PURGE_OPERATION, handlePurgeButton, handlePurgeModal } from './purge.js';
 import {
+  FACTS_PAGE_REFUSAL,
   factBrowseHelpers,
+  followUpFactsRefusal,
   isFactBrowsePagination,
   handleFactsPagination,
   refreshFactsList,
@@ -174,6 +176,24 @@ async function handleDetailButton(interaction: ButtonInteraction): Promise<void>
 }
 
 /**
+ * Refresh the facts list after a confirmed forget, surfacing a fetch refusal
+ * via followUp if the post-forget refresh throws (the fact is already deleted).
+ */
+async function refreshFactsAfterForget(interaction: ButtonInteraction): Promise<void> {
+  try {
+    await refreshFactsList(interaction, { afterForget: true });
+  } catch (error) {
+    logger.warn(
+      { err: error, userId: interaction.user.id },
+      'Failed to refresh facts list after forget'
+    );
+    await followUpFactsRefusal(interaction, FACTS_PAGE_REFUSAL.FETCH_FAILED, {
+      afterForget: true,
+    });
+  }
+}
+
+/**
  * Fact-detail button dispatch (memory-fact::...).
  *
  * Ack discipline: 'correct' must NOT be deferred here — it opens a modal, and
@@ -215,7 +235,7 @@ async function handleFactButton(interaction: ButtonInteraction): Promise<void> {
     await ackUpdate(interaction);
     const forgotten = await handleForgetConfirm(interaction, factId);
     if (forgotten) {
-      await refreshFactsList(interaction, { afterForget: true });
+      await refreshFactsAfterForget(interaction);
     }
     return;
   }

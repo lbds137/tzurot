@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleEdit, handleEditModal } from './detailEdit.js';
-import { DiscordAPIError } from 'discord.js';
+import { DiscordAPIError, MessageFlags } from 'discord.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
 
@@ -137,7 +137,7 @@ function createMockModalInteraction(
     deferUpdate: vi.fn(),
     editReply: vi.fn(),
     reply: vi.fn(),
-    followUp: vi.fn(),
+    followUp: vi.fn().mockResolvedValue(undefined),
     fields: {
       getTextInputValue: vi.fn((name: string) => fields[name] ?? ''),
     },
@@ -325,11 +325,11 @@ describe('handleEditModal', () => {
 
     await handleEditModal(interaction, 'entry-uuid-1234');
 
-    expect(interaction.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: expect.stringContaining('Bot-wide, Server, Channel, or Character'),
-      })
-    );
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: expect.stringContaining('Bot-wide, Server, Channel, or Character'),
+      flags: MessageFlags.Ephemeral,
+    });
     expect(stub.addDenylistEntry).not.toHaveBeenCalled();
   });
 
@@ -377,9 +377,11 @@ describe('handleEditModal', () => {
 
       await handleEditModal(interaction, 'entry-uuid-1234');
 
-      expect(interaction.editReply).toHaveBeenCalledWith(
-        expect.objectContaining({ content: expect.stringContaining('only supported at Bot-wide') })
-      );
+      expect(interaction.editReply).not.toHaveBeenCalled();
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: expect.stringContaining('only supported at Bot-wide'),
+        flags: MessageFlags.Ephemeral,
+      });
       expect(stub.addDenylistEntry).not.toHaveBeenCalled();
       expect(stub.removeDenylistEntry).not.toHaveBeenCalled();
     }
@@ -423,9 +425,11 @@ describe('handleEditModal', () => {
 
     await handleEditModal(interaction, 'entry-uuid-1234');
 
-    expect(interaction.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('Bot-wide scope requires') })
-    );
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: expect.stringContaining('Bot-wide scope requires'),
+      flags: MessageFlags.Ephemeral,
+    });
     expect(stub.addDenylistEntry).not.toHaveBeenCalled();
   });
 
@@ -439,11 +443,11 @@ describe('handleEditModal', () => {
 
     await handleEditModal(interaction, 'entry-uuid-1234');
 
-    expect(interaction.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: expect.stringContaining('requires a specific scope ID'),
-      })
-    );
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: expect.stringContaining('requires a specific scope ID'),
+      flags: MessageFlags.Ephemeral,
+    });
     expect(stub.addDenylistEntry).not.toHaveBeenCalled();
     expect(stub.removeDenylistEntry).not.toHaveBeenCalled();
   });
@@ -481,9 +485,43 @@ describe('handleEditModal', () => {
 
     await handleEditModal(interaction, 'entry-uuid-1234');
 
-    expect(interaction.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('Failed to update') })
-    );
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: '❌ Failed to update: Bad request',
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+
+  it('should handle thrown exception on edit with ephemeral followUp and keep the view', async () => {
+    mockSessionManager.get.mockResolvedValue(sampleSession);
+    stub.addDenylistEntry.mockRejectedValue(new Error('network error'));
+    const interaction = createMockModalInteraction('deny::modal::entry-uuid-1234::edit', {
+      scope: 'BOT',
+      scopeId: '*',
+      reason: 'New reason',
+    });
+
+    await handleEditModal(interaction, 'entry-uuid-1234');
+
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: '❌ Failed to update entry.',
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+
+  it('should not reject when both the edit and the catch-arm followUp reject', async () => {
+    mockSessionManager.get.mockResolvedValue(sampleSession);
+    stub.addDenylistEntry.mockRejectedValue(new Error('network error'));
+    const interaction = createMockModalInteraction('deny::modal::entry-uuid-1234::edit', {
+      scope: 'BOT',
+      scopeId: '*',
+      reason: 'New reason',
+    });
+    vi.mocked(interaction.followUp).mockRejectedValueOnce(new Error('followUp failed'));
+
+    await expect(handleEditModal(interaction, 'entry-uuid-1234')).resolves.toBeUndefined();
+    expect(interaction.editReply).not.toHaveBeenCalled();
   });
 
   it('should reject reason exceeding max length', async () => {
@@ -497,9 +535,11 @@ describe('handleEditModal', () => {
 
     await handleEditModal(interaction, 'entry-uuid-1234');
 
-    expect(interaction.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('Reason too long') })
-    );
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: expect.stringContaining('Reason too long'),
+      flags: MessageFlags.Ephemeral,
+    });
     expect(stub.addDenylistEntry).not.toHaveBeenCalled();
   });
 

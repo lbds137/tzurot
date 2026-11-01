@@ -29,6 +29,7 @@ const {
   mockFindMemoryListSessionByMessage,
   mockIsFactBrowsePagination,
   mockFactBrowseHelpers,
+  mockFollowUpFactsRefusal,
   mockHandleFactsPagination,
   mockRefreshFactsList,
   mockParseFactActionId,
@@ -67,6 +68,7 @@ const {
   mockFindMemoryListSessionByMessage: vi.fn(),
   mockIsFactBrowsePagination: vi.fn(),
   mockFactBrowseHelpers: { isBrowseSelect: vi.fn() },
+  mockFollowUpFactsRefusal: vi.fn(),
   mockHandleFactsPagination: vi.fn(),
   mockRefreshFactsList: vi.fn(),
   mockParseFactActionId: vi.fn(),
@@ -129,7 +131,12 @@ vi.mock('./search.js', () => ({
 }));
 
 vi.mock('./factsBrowse.js', () => ({
+  FACTS_PAGE_REFUSAL: {
+    SESSION_GONE: 'session-gone',
+    FETCH_FAILED: 'fetch-failed',
+  },
   factBrowseHelpers: mockFactBrowseHelpers,
+  followUpFactsRefusal: (...args: unknown[]) => mockFollowUpFactsRefusal(...args),
   isFactBrowsePagination: (...args: unknown[]) => mockIsFactBrowsePagination(...args),
   handleFactsPagination: (...args: unknown[]) => mockHandleFactsPagination(...args),
   refreshFactsList: (...args: unknown[]) => mockRefreshFactsList(...args),
@@ -167,6 +174,7 @@ const TEST_MESSAGE_ID = 'msg-123';
 
 interface MockButtonInteraction {
   customId: string;
+  user: { id: string };
   message: { id: string };
   reply: ReturnType<typeof vi.fn>;
   deferUpdate: ReturnType<typeof vi.fn>;
@@ -185,6 +193,7 @@ interface MockSelectInteraction {
 function createButtonInteraction(customId: string): MockButtonInteraction {
   return {
     customId,
+    user: { id: 'user-123' },
     message: { id: TEST_MESSAGE_ID },
     reply: vi.fn().mockResolvedValue(undefined),
     deferUpdate: vi.fn().mockResolvedValue(undefined),
@@ -598,6 +607,28 @@ describe('fact routing (correction slice)', () => {
     mockHandleForgetConfirm.mockResolvedValue(false);
     await handleButton(createButtonInteraction('memory-fact::confirm-forget::fact-1') as never);
     expect(mockRefreshFactsList).not.toHaveBeenCalled();
+  });
+
+  it('confirm-forget catches a rejected refresh and calls followUpFactsRefusal with fetch-failed and afterForget: true', async () => {
+    mockParseFactActionId.mockReturnValue({ action: 'confirm-forget', factId: 'fact-1' });
+    mockHandleForgetConfirm.mockResolvedValue(true);
+    mockRefreshFactsList.mockRejectedValueOnce(new Error('refresh exploded'));
+    const interaction = createButtonInteraction('memory-fact::confirm-forget::fact-1');
+
+    await expect(handleButton(interaction as never)).resolves.toBeUndefined();
+
+    expect(mockFollowUpFactsRefusal).toHaveBeenCalledWith(interaction, 'fetch-failed', {
+      afterForget: true,
+    });
+  });
+
+  it('back propagates a rejected refresh without calling followUpFactsRefusal', async () => {
+    mockParseFactActionId.mockReturnValue({ action: 'back' });
+    mockRefreshFactsList.mockRejectedValueOnce(new Error('back refresh exploded'));
+    const interaction = createButtonInteraction('memory-fact::back');
+
+    await expect(handleButton(interaction as never)).rejects.toThrow('back refresh exploded');
+    expect(mockFollowUpFactsRefusal).not.toHaveBeenCalled();
   });
 
   it('routes the batch-select toggle button and the multi-select by interaction kind', async () => {

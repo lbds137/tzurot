@@ -13,6 +13,7 @@ import {
   buildRefreshedAliasView,
   formatAliasSelectOption,
   formatAliasSelectValue,
+  isBoundaryAliasKey,
   type BrowseCoords,
 } from './aliasBrowseView.js';
 import type { AliasRow } from './aliasData.js';
@@ -109,6 +110,28 @@ describe('aliasBrowseView', () => {
         shadowed: false,
       };
       expect(formatAliasSelectOption(newlineRow).label).toBe('@a b');
+    });
+
+    it('backs off a split surrogate pair at SELECT_ALIAS_KEY_LENGTH - 1 in formatAliasSelectValue', () => {
+      const prefix91 = 'a'.repeat(SELECT_ALIAS_KEY_LENGTH - 1);
+      const emojiBoundaryRow: AliasRow = {
+        alias: `${prefix91}😀-tail`,
+        scope: 'user',
+        character: { name: 'Lilith', slug: 'lilith' },
+        shadowed: false,
+      };
+
+      const value = formatAliasSelectValue(emojiBoundaryRow);
+      const key = value.slice('user:'.length);
+      expect(value).not.toMatch(/[\uD800-\uDFFF]/u);
+      expect(key).toHaveLength(SELECT_ALIAS_KEY_LENGTH - 1);
+      expect(key).toBe(prefix91);
+    });
+
+    it('classifies keys at SELECT_ALIAS_KEY_LENGTH - 2, SELECT_ALIAS_KEY_LENGTH - 1, and SELECT_ALIAS_KEY_LENGTH with isBoundaryAliasKey', () => {
+      expect(isBoundaryAliasKey('x'.repeat(SELECT_ALIAS_KEY_LENGTH - 2))).toBe(false);
+      expect(isBoundaryAliasKey('x'.repeat(SELECT_ALIAS_KEY_LENGTH - 1))).toBe(true);
+      expect(isBoundaryAliasKey('x'.repeat(SELECT_ALIAS_KEY_LENGTH))).toBe(true);
     });
   });
 

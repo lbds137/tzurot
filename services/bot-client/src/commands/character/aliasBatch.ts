@@ -23,6 +23,7 @@ import {
 } from 'discord.js';
 import { ENTITY_EMOJI } from '@tzurot/common-types/constants/uxVocabulary';
 import type { AliasScope } from '@tzurot/common-types/schemas/api/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { buildBrowseSelectMenu } from '../../utils/browse/selectMenuBuilder.js';
 import { truncateForSelect } from '../../utils/browse/truncation.js';
@@ -54,6 +55,8 @@ import {
   formatAliasSelectOption,
   type BrowseCoords,
 } from './aliasBrowseView.js';
+
+const logger = createLogger('character-alias-batch');
 
 export const BATCH_CONFIRM_PREFIX = 'character-alias::batch-confirm::';
 export const BATCH_CANCEL_PREFIX = 'character-alias::batch-cancel::';
@@ -164,41 +167,60 @@ export function buildAliasBatchSelectComponents(
   return buildBatchModeRows({ selectRow, cancelCustomId });
 }
 
+async function followUpAliasBatchError(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  userId: string
+): Promise<void> {
+  if (interaction.deferred || interaction.replied) {
+    await followUpSpec(interaction, CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)).catch(
+      (followUpError: unknown) => {
+        logger.warn({ err: followUpError, userId }, 'Alias batch error followUp failed');
+      }
+    );
+  }
+}
+
 /**
  * "Select several" entry — re-fetch the page for the carried coords and swap
  * the browse view into multi-select mode without pagination buttons.
  */
 export async function handleAliasBatchSelectEntry(interaction: ButtonInteraction): Promise<void> {
   await ackUpdate(interaction);
+  const userId = interaction.user.id;
 
-  const coords = parseRemoveCustomId(interaction.customId, BATCH_SELECT_PREFIX);
-  if (coords === null) {
-    await followUpSpec(interaction, CATALOG.progress.sessionExpired(BROWSE_COMMAND_HINT));
-    return;
+  try {
+    const coords = parseRemoveCustomId(interaction.customId, BATCH_SELECT_PREFIX);
+    if (coords === null) {
+      await followUpSpec(interaction, CATALOG.progress.sessionExpired(BROWSE_COMMAND_HINT));
+      return;
+    }
+
+    const { userClient } = clientsFor(interaction);
+    const fetched = await fetchAliasRows(userClient, coords.query);
+    if (!fetched.ok) {
+      await followUpSpec(interaction, CATALOG.error.transient(PAGE_FETCH_FAILED_COPY));
+      return;
+    }
+
+    const filtered = applyFilter(fetched.data.rows, coords.filter);
+    const { embed, pageItems, startIndex, safePage } = buildAliasListEmbed({
+      rows: filtered,
+      truncated: fetched.data.truncated,
+      coords,
+    });
+    const safeCoords: BrowseCoords = { page: safePage, filter: coords.filter, query: coords.query };
+
+    // The cleared-content marker keeps the payload shape identical to
+    // renderAliasBrowse's sibling render (it clears prior error text).
+    await interaction.editReply({
+      content: CLEARED_RENDER_CONTENT,
+      embeds: [embed],
+      components: buildAliasBatchSelectComponents(pageItems, safeCoords, startIndex),
+    });
+  } catch (error) {
+    logger.error({ err: error, userId }, 'Error in handleAliasBatchSelectEntry');
+    await followUpAliasBatchError(interaction, userId);
   }
-
-  const { userClient } = clientsFor(interaction);
-  const fetched = await fetchAliasRows(userClient, coords.query);
-  if (!fetched.ok) {
-    await followUpSpec(interaction, CATALOG.error.transient(PAGE_FETCH_FAILED_COPY));
-    return;
-  }
-
-  const filtered = applyFilter(fetched.data.rows, coords.filter);
-  const { embed, pageItems, startIndex, safePage } = buildAliasListEmbed({
-    rows: filtered,
-    truncated: fetched.data.truncated,
-    coords,
-  });
-  const safeCoords: BrowseCoords = { page: safePage, filter: coords.filter, query: coords.query };
-
-  // The cleared-content marker keeps the payload shape identical to
-  // renderAliasBrowse's sibling render (it clears prior error text).
-  await interaction.editReply({
-    content: CLEARED_RENDER_CONTENT,
-    embeds: [embed],
-    components: buildAliasBatchSelectComponents(pageItems, safeCoords, startIndex),
-  });
 }
 
 /**
@@ -209,58 +231,64 @@ export async function handleAliasBatchPick(
   interaction: StringSelectMenuInteraction
 ): Promise<void> {
   await ackUpdate(interaction);
+  const userId = interaction.user.id;
 
-  const coords = parseRemoveCustomId(interaction.customId, BATCH_SELECT_PREFIX);
-  if (coords === null) {
-    await followUpSpec(interaction, CATALOG.progress.sessionExpired(BROWSE_COMMAND_HINT));
-    return;
+  try {
+    const coords = parseRemoveCustomId(interaction.customId, BATCH_SELECT_PREFIX);
+    if (coords === null) {
+      await followUpSpec(interaction, CATALOG.progress.sessionExpired(BROWSE_COMMAND_HINT));
+      return;
+    }
+
+    const ids = interaction.values.filter(value => value.length > 0);
+    if (ids.length === 0) {
+      await followUpSpec(interaction, CATALOG.error.validation('No aliases were selected.'));
+      return;
+    }
+
+    const footerText = encodeAliasBatchFooterIds(ids);
+    if (exceedsBatchFooterBudget(footerText)) {
+      await followUpSpec(interaction, CATALOG.error.validation(SELECTION_TOO_LARGE_COPY));
+      return;
+    }
+
+    const labels = readSelectOptionLabels(interaction.message);
+    const listing = ids
+      .map(
+        id =>
+          `${LISTING_BULLET}${escapeMarkdown(labels.get(id) ?? truncateForSelect(fallbackAliasLabel(id), { stripNewlines: true }))}`
+      )
+      .join('\n');
+    const warning =
+      `**This removes ${ids.length} ${ids.length === 1 ? 'alias' : 'aliases'} immediately.** ` +
+      'Global aliases stop resolving for everyone; personal aliases only affect you.';
+
+    const confirmCustomId = buildRemoveCustomId(
+      BATCH_CONFIRM_PREFIX,
+      coords.page,
+      coords.filter,
+      coords.query
+    );
+    const cancelCustomId = buildRemoveCustomId(
+      BATCH_CANCEL_PREFIX,
+      coords.page,
+      coords.filter,
+      coords.query
+    );
+
+    const { embed, components } = buildBatchConfirmView({
+      title: `${ENTITY_EMOJI.alias} Remove Several Aliases?`,
+      description: clampBatchConfirmDescription(listing, warning),
+      footerText,
+      confirm: { customId: confirmCustomId, label: `Remove (${ids.length})`, emoji: '🗑️' },
+      cancelCustomId,
+    });
+
+    await interaction.editReply({ embeds: [embed], components });
+  } catch (error) {
+    logger.error({ err: error, userId }, 'Error in handleAliasBatchPick');
+    await followUpAliasBatchError(interaction, userId);
   }
-
-  const ids = interaction.values.filter(value => value.length > 0);
-  if (ids.length === 0) {
-    await followUpSpec(interaction, CATALOG.error.validation('No aliases were selected.'));
-    return;
-  }
-
-  const footerText = encodeAliasBatchFooterIds(ids);
-  if (exceedsBatchFooterBudget(footerText)) {
-    await followUpSpec(interaction, CATALOG.error.validation(SELECTION_TOO_LARGE_COPY));
-    return;
-  }
-
-  const labels = readSelectOptionLabels(interaction.message);
-  const listing = ids
-    .map(
-      id =>
-        `${LISTING_BULLET}${escapeMarkdown(labels.get(id) ?? truncateForSelect(fallbackAliasLabel(id), { stripNewlines: true }))}`
-    )
-    .join('\n');
-  const warning =
-    `**This removes ${ids.length} ${ids.length === 1 ? 'alias' : 'aliases'} immediately.** ` +
-    'Global aliases stop resolving for everyone; personal aliases only affect you.';
-
-  const confirmCustomId = buildRemoveCustomId(
-    BATCH_CONFIRM_PREFIX,
-    coords.page,
-    coords.filter,
-    coords.query
-  );
-  const cancelCustomId = buildRemoveCustomId(
-    BATCH_CANCEL_PREFIX,
-    coords.page,
-    coords.filter,
-    coords.query
-  );
-
-  const { embed, components } = buildBatchConfirmView({
-    title: `${ENTITY_EMOJI.alias} Remove Several Aliases?`,
-    description: clampBatchConfirmDescription(listing, warning),
-    footerText,
-    confirm: { customId: confirmCustomId, label: `Remove (${ids.length})`, emoji: '🗑️' },
-    cancelCustomId,
-  });
-
-  await interaction.editReply({ embeds: [embed], components });
 }
 
 /**
