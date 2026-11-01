@@ -207,7 +207,7 @@ function findRowByValue(rows: AliasRow[], value: string): AliasRow | null {
   const scope = value.slice(0, separator);
   const aliasKey = value.slice(separator + 1).toLowerCase();
   const inScope = rows.filter(row => row.scope === scope);
-  // Exact match first; prefix fallback covers the 92-char truncation edge.
+  // Exact match first; prefix fallback covers a key cut at the select-value limit.
   return (
     inScope.find(row => row.alias.toLowerCase() === aliasKey) ??
     inScope.find(row => row.alias.toLowerCase().startsWith(aliasKey)) ??

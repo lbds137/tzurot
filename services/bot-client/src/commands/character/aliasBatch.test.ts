@@ -11,7 +11,7 @@ import {
   DEFAULT_COORDS,
   FIVE_ROWS,
   MOCK_BATCH_CONFIRM_PREFIX,
-  createButtonInteraction,
+  createButtonInteraction as createBaseButtonInteraction,
   editReplyEmbeds,
   editReplyPayload,
   makeAliasRow,
@@ -33,6 +33,7 @@ import {
 import { handleAliasBatchConfirm } from './aliasBatchConfirm.js';
 import {
   BATCH_SELECT_PREFIX,
+  SELECT_ALIAS_KEY_LENGTH,
   buildRemoveCustomId,
   formatAliasSelectValue,
 } from './aliasBrowseView.js';
@@ -67,12 +68,23 @@ function editReplyComponentRows(interaction: unknown): Record<string, unknown>[]
   );
 }
 
+function createButtonInteraction(
+  options: Parameters<typeof createBaseButtonInteraction>[0] = {}
+): ReturnType<typeof createBaseButtonInteraction> {
+  const interaction = createBaseButtonInteraction(options);
+  vi.mocked(interaction.deferUpdate).mockImplementation(() => {
+    (interaction as { deferred: boolean }).deferred = true;
+    return Promise.resolve(undefined as never);
+  });
+  return interaction;
+}
+
 function createSelectInteraction(options: {
   values: string[];
   customId?: string;
   messageComponents?: unknown[];
 }): StringSelectMenuInteraction {
-  return {
+  const interaction = {
     user: { id: 'user-1' },
     customId:
       options.customId ??
@@ -89,10 +101,15 @@ function createSelectInteraction(options: {
     },
     deferred: false,
     replied: false,
-    deferUpdate: vi.fn().mockResolvedValue(undefined),
+    deferUpdate: vi.fn(),
     editReply: vi.fn().mockResolvedValue(undefined),
     followUp: vi.fn().mockResolvedValue(undefined),
   } as unknown as StringSelectMenuInteraction;
+  vi.mocked(interaction.deferUpdate).mockImplementation(() => {
+    (interaction as { deferred: boolean }).deferred = true;
+    return Promise.resolve(undefined as never);
+  });
+  return interaction;
 }
 
 describe('C3 — buildAliasBatchSelectComponents & handleAliasBatchSelectEntry (real multi-select)', () => {
@@ -190,6 +207,51 @@ describe('C3 — buildAliasBatchSelectComponents & handleAliasBatchSelectEntry (
       })
     );
     expect(mockUserClient.listMyAliases).not.toHaveBeenCalled();
+  });
+
+  it('catches duplicate-value throw from buildBrowseSelectMenu when two rows share a SELECT_ALIAS_KEY_LENGTH prefix in the same scope and sends transient followUp', async () => {
+    const sharedPrefix = 'p'.repeat(SELECT_ALIAS_KEY_LENGTH);
+    const duplicatePrefixRows = [
+      makeAliasRow({ alias: `${sharedPrefix}-one`, scope: 'user' }),
+      makeAliasRow({ alias: `${sharedPrefix}-two`, scope: 'user' }),
+    ];
+    mockUserClient.listMyAliases.mockResolvedValue(myAliasesPayload(duplicatePrefixRows));
+    const interaction = createButtonInteraction({
+      customId: 'character-alias::batch-select::0::all::',
+    });
+
+    await expect(handleAliasBatchSelectEntry(interaction)).resolves.toBeUndefined();
+
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining("Couldn't load that page"),
+        flags: MessageFlags.Ephemeral,
+      })
+    );
+  });
+
+  it('swallows a rejected followUp when buildBrowseSelectMenu throws in handleAliasBatchSelectEntry', async () => {
+    const sharedPrefix = 'p'.repeat(SELECT_ALIAS_KEY_LENGTH);
+    const duplicatePrefixRows = [
+      makeAliasRow({ alias: `${sharedPrefix}-one`, scope: 'user' }),
+      makeAliasRow({ alias: `${sharedPrefix}-two`, scope: 'user' }),
+    ];
+    mockUserClient.listMyAliases.mockResolvedValue(myAliasesPayload(duplicatePrefixRows));
+    const interaction = createButtonInteraction({
+      customId: 'character-alias::batch-select::0::all::',
+    });
+    vi.mocked(interaction.followUp).mockRejectedValueOnce(new Error('followUp failed'));
+
+    await expect(handleAliasBatchSelectEntry(interaction)).resolves.toBeUndefined();
+
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining("Couldn't load that page"),
+        flags: MessageFlags.Ephemeral,
+      })
+    );
   });
 });
 
@@ -291,7 +353,7 @@ describe('handleAliasBatchPick (confirm view)', () => {
     expect(interaction.editReply).not.toHaveBeenCalled();
   });
 
-  it('propagates an editReply failure after the ack instead of swallowing it', async () => {
+  it('catches an editReply failure after the ack and sends the transient followUp', async () => {
     const swapped = buildAliasBatchSelectComponents(FIVE_ROWS, DEFAULT_COORDS);
     const interaction = createSelectInteraction({
       values: ['user:mommy', 'global:lila'],
@@ -299,12 +361,35 @@ describe('handleAliasBatchPick (confirm view)', () => {
     });
     vi.mocked(interaction.editReply).mockRejectedValueOnce(new Error('editReply failed'));
 
-    await expect(handleAliasBatchPick(interaction)).rejects.toThrow('editReply failed');
+    await expect(handleAliasBatchPick(interaction)).resolves.toBeUndefined();
     expect(interaction.deferUpdate).toHaveBeenCalledTimes(1);
     expect(vi.mocked(interaction.deferUpdate).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(interaction.editReply).mock.invocationCallOrder[0]
     );
-    expect(interaction.followUp).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining("Couldn't load that page"),
+        flags: MessageFlags.Ephemeral,
+      })
+    );
+  });
+
+  it('swallows a rejected followUp after an editReply failure in handleAliasBatchPick', async () => {
+    const swapped = buildAliasBatchSelectComponents(FIVE_ROWS, DEFAULT_COORDS);
+    const interaction = createSelectInteraction({
+      values: ['user:mommy', 'global:lila'],
+      messageComponents: swapped,
+    });
+    vi.mocked(interaction.editReply).mockRejectedValueOnce(new Error('editReply failed'));
+    vi.mocked(interaction.followUp).mockRejectedValueOnce(new Error('followUp failed'));
+
+    await expect(handleAliasBatchPick(interaction)).resolves.toBeUndefined();
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining("Couldn't load that page"),
+        flags: MessageFlags.Ephemeral,
+      })
+    );
   });
 });
 

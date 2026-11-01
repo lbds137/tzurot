@@ -250,10 +250,11 @@ export async function handleEditModal(
 
   const validation = validateEditInput(newScopeRaw, newScopeId, newReason, data.type);
   if (!validation.ok) {
-    // intentionally-raw: deny uses manual re-render for back-to-browse (see
-    // detail.ts file-top comment). Validation error is terminal; session
-    // remains so user can re-edit.
-    await interaction.editReply({ content: validation.message, embeds: [], components: [] });
+    // Ephemeral followUp keeps the detail view and session intact so the user can re-edit.
+    await interaction.followUp({
+      content: validation.message,
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
 
@@ -275,12 +276,10 @@ export async function handleEditModal(
     });
 
     if (!upsertResult.ok) {
-      await interaction.editReply({
+      // Ephemeral followUp keeps the detail view and session intact on an API error.
+      await interaction.followUp({
         content: `❌ Failed to update: ${upsertResult.error}`,
-        embeds: [],
-        // intentionally-raw: deny uses manual re-render for back-to-browse
-        // (see detail.ts file-top comment). Edit-API-failure terminal path.
-        components: [],
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -337,13 +336,14 @@ export async function handleEditModal(
     });
   } catch (error) {
     logger.error({ err: error }, 'Failed to edit entry');
-    // Edit-exception terminal path; deny doesn't use the Back-to-Browse
-    // button pattern (see detail.ts file-top comment).
-    await interaction.editReply({
-      content: DASHBOARD_MESSAGES.OPERATION_FAILED('update entry'),
-      embeds: [],
-      // intentionally-raw: see block comment above.
-      components: [],
-    });
+    // Ephemeral followUp keeps the detail view and session intact when an edit throws.
+    await interaction
+      .followUp({
+        content: DASHBOARD_MESSAGES.OPERATION_FAILED('update entry'),
+        flags: MessageFlags.Ephemeral,
+      })
+      .catch((err: unknown) => {
+        logger.warn({ err }, 'Deny edit error followUp failed');
+      });
   }
 }

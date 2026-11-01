@@ -31,10 +31,10 @@ import { followUpSpec, ackUpdate } from '../../ux/render/reply.js';
 import { fetchAliasRows, type AliasRow } from './aliasData.js';
 import { BROWSE_COMMAND_HINT, aliasFailureSpec, parseRemoveCustomId } from './aliasBrowse.js';
 import {
-  SELECT_ALIAS_KEY_LENGTH,
   buildRefreshedAliasView,
   formatAliasSelectOption,
   formatAliasSelectValue,
+  isBoundaryAliasKey,
   type BrowseCoords,
 } from './aliasBrowseView.js';
 import {
@@ -74,12 +74,12 @@ const resolutionFailureNote = (): string =>
 
 /**
  * Resolve one picked id whose key sits at or above the boundary length
- * (`>= SELECT_ALIAS_KEY_LENGTH`) against the fetched rows. A boundary key may
- * be the truncation of a longer alias, so two same-scope rows sharing the
- * prefix make the pick ambiguous — fail closed rather than removing whichever
- * row scans first. When zero candidates match, an untruncated list proves
- * absence (`asGone: true`), whereas a truncated list fails closed. Returns
- * `undefined` only for an unparseable or below-boundary id.
+ * (`isBoundaryAliasKey`, `>= SELECT_ALIAS_KEY_LENGTH - 1`) against the fetched
+ * rows. A boundary key may be the truncation of a longer alias, so two
+ * same-scope rows sharing the prefix make the pick ambiguous — fail closed
+ * rather than removing whichever row scans first. When zero candidates match,
+ * an untruncated list proves absence (`asGone: true`), whereas a truncated list
+ * fails closed. Returns `undefined` only for an unparseable or below-boundary id.
  */
 function resolveBoundaryKey(
   id: string,
@@ -87,7 +87,7 @@ function resolveBoundaryKey(
   truncated: boolean
 ): ResolvedAliasItem | undefined {
   const parsed = parseSelectValueId(id);
-  if (parsed === null || parsed.aliasKey.length < SELECT_ALIAS_KEY_LENGTH) {
+  if (parsed === null || !isBoundaryAliasKey(parsed.aliasKey)) {
     return undefined;
   }
   const exactMatches = rows.filter(row => formatAliasSelectValue(row) === id);
@@ -117,10 +117,11 @@ function resolveBoundaryKey(
 /**
  * Resolve one picked id against the fetched rows under the below-boundary
  * rules: exact select-value match first, then case-insensitive; when a
- * below-boundary key (`< SELECT_ALIAS_KEY_LENGTH`) misses, an untruncated list
- * proves the alias is already gone (`asGone: true` in both modes), whereas a
- * truncated list falls back to a gateway-decided item in single-character mode
- * or fails closed in my-aliases mode. Unparseable ids fail closed.
+ * below-boundary key (`!isBoundaryAliasKey`, `< SELECT_ALIAS_KEY_LENGTH - 1`)
+ * misses, an untruncated list proves the alias is already gone (`asGone: true`
+ * in both modes), whereas a truncated list falls back to a gateway-decided
+ * item in single-character mode or fails closed in my-aliases mode.
+ * Unparseable ids fail closed.
  */
 function resolveFromFetchedRows(
   id: string,
@@ -145,7 +146,7 @@ function resolveFromFetchedRows(
   }
 
   const parsed = parseSelectValueId(id);
-  if (parsed !== null && parsed.aliasKey.length < SELECT_ALIAS_KEY_LENGTH) {
+  if (parsed !== null && !isBoundaryAliasKey(parsed.aliasKey)) {
     const label = truncateForSelect(`@${parsed.aliasKey}`, { stripNewlines: true });
     if (!truncated) {
       return {
@@ -178,30 +179,31 @@ function resolveFromFetchedRows(
  *
  * Matches each decoded option value (`{scope}:{aliasKey}`) against the
  * pre-fetched `rows` by rebuilding `formatAliasSelectValue(row)` (`row.alias`
- * sliced to `SELECT_ALIAS_KEY_LENGTH`), trying an exact match first and a
- * case-insensitive match second. Aliases are unique on lower(alias) per tier
- * (global tier, and per user for personal rows — migration
- * 20260718162934_add_user_scoped_aliases), and the gateway DELETE matches the
- * alias case-insensitively, so a case-only difference is the same alias and at
- * most one row can match below the boundary:
- * - Boundary keys (`aliasKey.length >= SELECT_ALIAS_KEY_LENGTH`) may be the
- *   truncation of a longer alias: a unique match resolves to that row; more
- *   than one match is ambiguous and fails closed; zero matches report already
- *   gone (`asGone: true`) when `truncated` is `false` (the complete list
- *   proves absence) or fail closed when `truncated` is `true`. A boundary key
- *   is a prefix, so if the picked alias was deleted after the pick and a
- *   different alias sharing that `SELECT_ALIAS_KEY_LENGTH` prefix exists in
- *   the same scope (only possible across pages or filters, since one menu
- *   rejects duplicate values), the unique candidate is that other alias and it
- *   is removed; the footer carries no more of the alias than the select value,
- *   so this is an accepted limit.
- * - Below-boundary keys (`aliasKey.length < SELECT_ALIAS_KEY_LENGTH`) carry
- *   the full alias: a matched row resolves to that row; on a miss, an
- *   untruncated list (`!truncated`) proves absence and reports already gone
- *   (`asGone: true`) in both modes, while a truncated list (`truncated`)
- *   falls back to `coords.query` + `aliasKey` in single-character mode
- *   (`coords.query !== null`) so the gateway DELETE decides, or fails closed
- *   in my-aliases mode (`coords.query === null`).
+ * truncated to `SELECT_ALIAS_KEY_LENGTH` UTF-16 units via
+ * `truncateToUtf16Units`), trying an exact match first and a case-insensitive
+ * match second. Aliases are unique on lower(alias) per tier (global tier, and
+ * per user for personal rows — migration 20260718162934_add_user_scoped_aliases),
+ * and the gateway DELETE matches the alias case-insensitively, so a case-only
+ * difference is the same alias and at most one row can match below the boundary:
+ * - Boundary keys (`isBoundaryAliasKey(aliasKey)`, i.e.
+ *   `aliasKey.length >= SELECT_ALIAS_KEY_LENGTH - 1`) may be the truncation of
+ *   a longer alias: a unique match resolves to that row; more than one match
+ *   is ambiguous and fails closed; zero matches report already gone
+ *   (`asGone: true`) when `truncated` is `false` (the complete list proves
+ *   absence) or fail closed when `truncated` is `true`. A boundary key is a
+ *   prefix, so if the picked alias was deleted after the pick and a different
+ *   alias sharing that truncated prefix exists in the same scope (only possible
+ *   across pages or filters, since one menu rejects duplicate values), the
+ *   unique candidate is that other alias and it is removed; the footer carries
+ *   no more of the alias than the select value, so this is an accepted limit.
+ * - Below-boundary keys (`!isBoundaryAliasKey(aliasKey)`, i.e.
+ *   `aliasKey.length < SELECT_ALIAS_KEY_LENGTH - 1`) carry the full alias: a
+ *   matched row resolves to that row; on a miss, an untruncated list
+ *   (`!truncated`) proves absence and reports already gone (`asGone: true`) in
+ *   both modes, while a truncated list (`truncated`) falls back to
+ *   `coords.query` + `aliasKey` in single-character mode (`coords.query !== null`)
+ *   so the gateway DELETE decides, or fails closed in my-aliases mode
+ *   (`coords.query === null`).
  * - Unparseable ids always fail closed.
  */
 export function resolveAliasBatchItems(

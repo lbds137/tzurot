@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { showDetailView, handleDetailButton, handleDetailModal } from './detail.js';
-import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
+import { MessageFlags, type ButtonInteraction, type ModalSubmitInteraction } from 'discord.js';
 import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
 
 // Mock dependencies
@@ -169,7 +169,7 @@ function createMockButtonInteraction(customId: string): ButtonInteraction {
     message: { id: 'msg-1' },
     deferUpdate: vi.fn(),
     editReply: vi.fn(),
-    followUp: vi.fn(),
+    followUp: vi.fn().mockResolvedValue(undefined),
     showModal: vi.fn(),
   } as unknown as ButtonInteraction;
 }
@@ -284,9 +284,39 @@ describe('handleDetailButton', () => {
 
       await handleDetailButton(interaction);
 
-      expect(interaction.editReply).toHaveBeenCalledWith(
-        expect.objectContaining({ content: expect.stringContaining('Failed to toggle mode') })
-      );
+      expect(interaction.editReply).not.toHaveBeenCalled();
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: '❌ Failed to toggle mode.',
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+
+    it('should handle thrown exception on mode toggle with ephemeral followUp and keep the view', async () => {
+      mockSessionManager.get.mockResolvedValue(sampleSession);
+      stub.addDenylistEntry.mockRejectedValue(new Error('network error'));
+      const interaction = createMockButtonInteraction('deny::mode::entry-uuid-1234');
+
+      await handleDetailButton(interaction);
+
+      expect(interaction.editReply).not.toHaveBeenCalled();
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: '❌ Failed to toggle mode.',
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+
+    it('should not reject when both the mode toggle and the catch-arm followUp reject', async () => {
+      mockSessionManager.get.mockResolvedValue(sampleSession);
+      stub.addDenylistEntry.mockRejectedValue(new Error('network error'));
+      const interaction = createMockButtonInteraction('deny::mode::entry-uuid-1234');
+      vi.mocked(interaction.followUp).mockRejectedValueOnce(new Error('followUp failed'));
+
+      await expect(handleDetailButton(interaction)).resolves.toBeUndefined();
+      expect(interaction.editReply).not.toHaveBeenCalled();
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: '❌ Failed to toggle mode.',
+        flags: MessageFlags.Ephemeral,
+      });
     });
   });
 

@@ -98,7 +98,7 @@ export async function findFactBrowseSession(
 /** Why {@link fetchCurrentFactsPage} could not produce a page. */
 export type FactsPageRefusal = 'session-gone' | 'fetch-failed';
 
-const FACTS_PAGE_REFUSAL = {
+export const FACTS_PAGE_REFUSAL = {
   SESSION_GONE: 'session-gone',
   FETCH_FAILED: 'fetch-failed',
 } as const satisfies Record<string, FactsPageRefusal>;

@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 3047,
-    "sites": 7076
+    "entries": 3055,
+    "sites": 7084
   },
   "entries": [
     {
@@ -853,14 +853,38 @@
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/character/aliasBatch.ts",
+      "symbol": "deferred",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBatch.ts",
       "symbol": "escapeMarkdown",
       "count": 1
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/character/aliasBatch.ts",
+      "symbol": "id",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBatch.ts",
       "symbol": "message",
       "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBatch.ts",
+      "symbol": "replied",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/aliasBatch.ts",
+      "symbol": "user",
+      "count": 2
     },
     {
       "category": "client-methods",
@@ -3188,12 +3212,18 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/interactionHandlers.ts",
       "symbol": "id",
-      "count": 1
+      "count": 2
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/memory/interactionHandlers.ts",
       "symbol": "message",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/memory/interactionHandlers.ts",
+      "symbol": "user",
       "count": 1
     },
     {
@@ -13734,9 +13764,15 @@
     },
     {
       "category": "flags",
-      "file": "services/bot-client/src/commands/deny/detailEdit.ts",
+      "file": "services/bot-client/src/commands/deny/detail.ts",
       "symbol": "MessageFlags.Ephemeral",
       "count": 2
+    },
+    {
+      "category": "flags",
+      "file": "services/bot-client/src/commands/deny/detailEdit.ts",
+      "symbol": "MessageFlags.Ephemeral",
+      "count": 5
     },
     {
       "category": "flags",
@@ -14312,19 +14348,25 @@
       "category": "interaction-acks",
       "file": "services/bot-client/src/commands/deny/detail.ts",
       "symbol": "editReply",
-      "count": 5
+      "count": 3
+    },
+    {
+      "category": "interaction-acks",
+      "file": "services/bot-client/src/commands/deny/detail.ts",
+      "symbol": "followUp",
+      "count": 2
     },
     {
       "category": "interaction-acks",
       "file": "services/bot-client/src/commands/deny/detailEdit.ts",
       "symbol": "editReply",
-      "count": 4
+      "count": 1
     },
     {
       "category": "interaction-acks",
       "file": "services/bot-client/src/commands/deny/detailEdit.ts",
       "symbol": "followUp",
-      "count": 1
+      "count": 4
     },
     {
       "category": "interaction-acks",
@@ -16772,7 +16814,7 @@
       "category": "message-options",
       "file": "services/bot-client/src/commands/deny/detail.ts",
       "symbol": "components",
-      "count": 5
+      "count": 3
     },
     {
       "category": "message-options",
@@ -16784,13 +16826,19 @@
       "category": "message-options",
       "file": "services/bot-client/src/commands/deny/detail.ts",
       "symbol": "embeds",
-      "count": 5
+      "count": 3
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/commands/deny/detail.ts",
+      "symbol": "flags",
+      "count": 2
     },
     {
       "category": "message-options",
       "file": "services/bot-client/src/commands/deny/detailEdit.ts",
       "symbol": "components",
-      "count": 4
+      "count": 1
     },
     {
       "category": "message-options",
@@ -16802,13 +16850,13 @@
       "category": "message-options",
       "file": "services/bot-client/src/commands/deny/detailEdit.ts",
       "symbol": "embeds",
-      "count": 4
+      "count": 1
     },
     {
       "category": "message-options",
       "file": "services/bot-client/src/commands/deny/detailEdit.ts",
       "symbol": "flags",
-      "count": 2
+      "count": 5
     },
     {
       "category": "message-options",

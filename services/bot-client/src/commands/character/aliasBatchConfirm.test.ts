@@ -585,6 +585,34 @@ describe('C5 — boundary and below-boundary resolution across truncated vs untr
     expect(resultEmbed.color).toBe(DISCORD_COLORS.ERROR);
   });
 
+  it('reports FAILED with a resolution reason rather than already gone and makes NO removal call when a 91-unit backed-off emoji-boundary key misses a truncated single-character fetch', async () => {
+    const prefix91 = 'e'.repeat(SELECT_ALIAS_KEY_LENGTH - 1);
+    const emojiRow = makeAliasRow({
+      alias: `${prefix91}😀-tail`,
+      scope: 'user',
+      character: { name: 'Lilith', slug: 'lilith' },
+    });
+    const pickedId = formatAliasSelectValue(emojiRow);
+    expect(pickedId.slice('user:'.length)).toHaveLength(SELECT_ALIAS_KEY_LENGTH - 1);
+
+    mockUserClient.listPersonalityAliases.mockResolvedValue(characterAliasesPayload([], true));
+
+    const singleCharConfirmId = buildRemoveCustomId(BATCH_CONFIRM_PREFIX, 0, 'all', 'lilith');
+    const interaction = createButtonInteraction({
+      customId: singleCharConfirmId,
+      footerText: encodeAliasBatchFooterIds([pickedId]),
+    });
+
+    await handleAliasBatchConfirm(interaction);
+
+    expect(mockUserClient.removePersonalityAlias).not.toHaveBeenCalled();
+    const [resultEmbed] = editReplyEmbeds(interaction);
+    expect(resultEmbed.description).toContain('❌');
+    expect(resultEmbed.description).toContain('resolve');
+    expect(resultEmbed.description).not.toContain('already gone');
+    expect(resultEmbed.color).toBe(DISCORD_COLORS.ERROR);
+  });
+
   it('resolves the full >92-char alias when the row IS present on the fetched page', async () => {
     const longAlias = `${'b'.repeat(SELECT_ALIAS_KEY_LENGTH)}-tail-suffix`;
     const longRow = makeAliasRow({
@@ -823,6 +851,68 @@ describe('boundary-key multi-match fails closed', () => {
     expect(resultEmbed.description).toContain('❌');
     expect(resultEmbed.description).toContain('resolve');
     expect(resultEmbed.color).toBe(DISCORD_COLORS.ERROR);
+  });
+
+  it('resolves and removes an emoji-boundary alias (91-unit backed-off key) when confirmed against a single matching row', async () => {
+    const prefix91 = 'e'.repeat(SELECT_ALIAS_KEY_LENGTH - 1);
+    const emojiRow = makeAliasRow({
+      alias: `${prefix91}😀-alpha`,
+      scope: 'user',
+      character: { name: 'Lilith', slug: 'lilith' },
+    });
+    const pickedId = formatAliasSelectValue(emojiRow);
+    expect(pickedId.slice('user:'.length)).toHaveLength(SELECT_ALIAS_KEY_LENGTH - 1);
+
+    mockUserClient.listMyAliases.mockResolvedValue(myAliasesPayload([emojiRow]));
+    mockUserClient.removePersonalityAlias.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { removedAlias: emojiRow.alias, removedScope: 'user' },
+    });
+
+    const interaction = createButtonInteraction({
+      footerText: encodeAliasBatchFooterIds([pickedId]),
+    });
+
+    await handleAliasBatchConfirm(interaction);
+
+    expect(mockUserClient.removePersonalityAlias).toHaveBeenCalledTimes(1);
+    expect(mockUserClient.removePersonalityAlias).toHaveBeenCalledWith('lilith', emojiRow.alias, {
+      scope: 'user',
+    });
+    const [embed] = editReplyEmbeds(interaction);
+    expect(embed.description).not.toContain('already gone');
+    expect(embed.color).toBe(DISCORD_COLORS.SUCCESS);
+  });
+
+  it('fails closed without calling removePersonalityAlias when two rows share a 91-unit backed-off emoji-boundary key', async () => {
+    const prefix91 = 'e'.repeat(SELECT_ALIAS_KEY_LENGTH - 1);
+    const emojiRowA = makeAliasRow({
+      alias: `${prefix91}😀-alpha`,
+      scope: 'user',
+      character: { name: 'Lilith', slug: 'lilith' },
+    });
+    const emojiRowB = makeAliasRow({
+      alias: `${prefix91}🚀-beta`,
+      scope: 'user',
+      character: { name: 'Lilith', slug: 'lilith' },
+    });
+    const pickedId = formatAliasSelectValue(emojiRowA);
+    expect(pickedId.slice('user:'.length)).toHaveLength(SELECT_ALIAS_KEY_LENGTH - 1);
+    expect(formatAliasSelectValue(emojiRowB)).toBe(pickedId);
+    mockUserClient.listMyAliases.mockResolvedValue(myAliasesPayload([emojiRowA, emojiRowB]));
+
+    const interaction = createButtonInteraction({
+      footerText: encodeAliasBatchFooterIds([pickedId]),
+    });
+
+    await handleAliasBatchConfirm(interaction);
+
+    expect(mockUserClient.removePersonalityAlias).not.toHaveBeenCalled();
+    const [embed] = editReplyEmbeds(interaction);
+    expect(embed.description).toContain('❌');
+    expect(embed.description).toContain('resolve');
+    expect(embed.color).toBe(DISCORD_COLORS.ERROR);
   });
 });
 

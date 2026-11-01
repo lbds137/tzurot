@@ -15,14 +15,14 @@
  * registered in `browse.ts` — it does `fetchEntries` + `buildBrowseResponse`
  * internally so the unified helper works the same across all four commands.
  *
- * `handleModeToggle` keeps plain empty-components replies on its error
- * paths — those are recoverable in-place errors (session still alive, user
- * can retry), not terminal post-actions. Marked `intentionally-raw:` so
- * the structural test catches new terminal paths without false positives
- * on these legitimate non-terminal error renders.
+ * `handleModeToggle` and `handleEditModal` answer a failed action with an
+ * ephemeral followUp and leave the detail view in place, as the session is
+ * still alive; the session-expired helper clears the view with a plain reply,
+ * marked `intentionally-raw:` so the structural test catches new terminal
+ * paths without a false positive on it.
  */
 
-import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
+import { MessageFlags, type ButtonInteraction, type ModalSubmitInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
@@ -143,12 +143,10 @@ async function handleModeToggle(interaction: ButtonInteraction, entryId: string)
     });
 
     if (!result.ok) {
-      // intentionally-raw: deny uses manual re-render for back-to-browse (see
-      // file-top comment); terminal error path, session remains for retry.
-      await interaction.editReply({
+      // Ephemeral followUp keeps the detail view and session intact on an API error.
+      await interaction.followUp({
         content: DASHBOARD_MESSAGES.OPERATION_FAILED('toggle mode'),
-        embeds: [],
-        components: [], // intentionally-raw: see file-top UX note.
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -164,13 +162,15 @@ async function handleModeToggle(interaction: ButtonInteraction, entryId: string)
     });
   } catch (error) {
     logger.error({ err: error }, 'Failed to toggle mode');
-    // intentionally-raw: terminal exception path; see file-top comment for
-    // why deny doesn't use renderTerminalScreen's Back-to-Browse pattern.
-    await interaction.editReply({
-      content: DASHBOARD_MESSAGES.OPERATION_FAILED('toggle mode'),
-      embeds: [],
-      components: [], // intentionally-raw: see file-top UX note.
-    });
+    // Ephemeral followUp keeps the detail view and session intact when a mode toggle throws.
+    await interaction
+      .followUp({
+        content: DASHBOARD_MESSAGES.OPERATION_FAILED('toggle mode'),
+        flags: MessageFlags.Ephemeral,
+      })
+      .catch((err: unknown) => {
+        logger.warn({ err }, 'Deny mode toggle error followUp failed');
+      });
   }
 }
 

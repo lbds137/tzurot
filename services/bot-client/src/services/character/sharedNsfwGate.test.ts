@@ -214,16 +214,16 @@ describe('sharedNsfwGate (unit)', () => {
     expect(message.reply).toHaveBeenCalledTimes(1);
   });
 
-  it('runNsfwGate returns the decision and sends the confirmation only on wasNewVerification', async () => {
-    // 1. Unverified in non-NSFW channel -> returns false, no confirmation
+  it('runNsfwGate returns false without confirmation when unverified in a non-NSFW channel', async () => {
     userClient.getNsfwStatus.mockResolvedValueOnce(
       makeOk({ nsfwVerified: false, nsfwVerifiedAt: null })
     );
     const blockedMsg = buildMessage();
     await expect(runNsfwGate(blockedMsg)).resolves.toBe(false);
     expect(blockedMsg.channel.send).not.toHaveBeenCalled();
+  });
 
-    // 2. Already verified in NSFW channel -> returns true, no confirmation
+  it('runNsfwGate returns true without confirmation when already verified in an NSFW channel', async () => {
     userClient.verifyNsfw.mockResolvedValueOnce(
       makeOk({
         nsfwVerified: true,
@@ -234,8 +234,9 @@ describe('sharedNsfwGate (unit)', () => {
     const alreadyVerifiedMsg = buildMessage({ channel: buildChannel({ nsfw: true }) });
     await expect(runNsfwGate(alreadyVerifiedMsg)).resolves.toBe(true);
     expect(alreadyVerifiedMsg.channel.send).not.toHaveBeenCalled();
+  });
 
-    // 3. First-time verification in NSFW channel -> returns true, sends confirmation once
+  it('runNsfwGate returns true and sends confirmation on first-time verification in an NSFW channel', async () => {
     userClient.verifyNsfw.mockResolvedValueOnce(
       makeOk({
         nsfwVerified: true,
