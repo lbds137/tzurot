@@ -1,9 +1,10 @@
 ---
 id: TASK-1331
 title: 'Secret rotation: stage 3 refuses when stage 2 never ran or no window opened'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-01T11:33:00Z'
+updated_date: '2026-11-01T20:47:00Z'
 labels:
   - area:tooling
   - size:M
