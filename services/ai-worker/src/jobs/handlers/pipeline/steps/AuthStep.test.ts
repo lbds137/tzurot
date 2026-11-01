@@ -621,6 +621,73 @@ describe('AuthStep', () => {
 
         expect(result.auth?.quotaFallback).toBeUndefined();
       });
+
+      it('clears fallthroughTriggered when a fallen-through zai-coding route is doomed and retargets', async () => {
+        vi.mocked(mockApiKeyResolver.tryResolveUserKey).mockResolvedValue(null);
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue(BYOK_RESULT);
+        const resolverWithGlobal = {
+          ...mockConfigResolver,
+          getGlobalDefaultConfig: vi
+            .fn()
+            .mockResolvedValue({ model: 'paid/default', temperature: 0.5 }),
+        } as unknown as LlmConfigResolver;
+        const caches = buildCaches({
+          rateLimitedModels: ['z-ai/glm-4.7'],
+        });
+
+        step = new AuthStep(mockApiKeyResolver, resolverWithGlobal, undefined, undefined, {
+          quotaFallbackCaches: caches as never,
+        });
+        const fallthroughPersonality: LoadedPersonality = {
+          ...TEST_PERSONALITY,
+          provider: 'zai-coding',
+          model: 'glm-4.7',
+        };
+        const result = await step.process({
+          job: createMockJob({ personality: fallthroughPersonality }),
+          startTime: Date.now(),
+          config: { effectivePersonality: fallthroughPersonality, configSource: 'personality' },
+        });
+
+        expect(result.config?.effectivePersonality.model).toBe('paid/default');
+        expect(result.auth?.quotaFallback).toEqual({
+          fromModel: 'z-ai/glm-4.7',
+          toModel: 'paid/default',
+          category: 'quota_exceeded',
+          mode: 'proactive',
+        });
+        expect(result.auth?.fallthroughTriggered).toBeUndefined();
+      });
+
+      it('keeps fallthroughTriggered true when a fallen-through zai-coding route is viable (no retarget)', async () => {
+        vi.mocked(mockApiKeyResolver.tryResolveUserKey).mockResolvedValue(null);
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue(BYOK_RESULT);
+        const resolverWithGlobal = {
+          ...mockConfigResolver,
+          getGlobalDefaultConfig: vi
+            .fn()
+            .mockResolvedValue({ model: 'paid/default', temperature: 0.5 }),
+        } as unknown as LlmConfigResolver;
+        const caches = buildCaches();
+
+        step = new AuthStep(mockApiKeyResolver, resolverWithGlobal, undefined, undefined, {
+          quotaFallbackCaches: caches as never,
+        });
+        const fallthroughPersonality: LoadedPersonality = {
+          ...TEST_PERSONALITY,
+          provider: 'zai-coding',
+          model: 'glm-4.7',
+        };
+        const result = await step.process({
+          job: createMockJob({ personality: fallthroughPersonality }),
+          startTime: Date.now(),
+          config: { effectivePersonality: fallthroughPersonality, configSource: 'personality' },
+        });
+
+        expect(result.config?.effectivePersonality.model).toBe('z-ai/glm-4.7');
+        expect(result.auth?.quotaFallback).toBeUndefined();
+        expect(result.auth?.fallthroughTriggered).toBe(true);
+      });
     });
 
     describe('zai-coding provider routing', () => {

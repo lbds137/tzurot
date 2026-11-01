@@ -747,6 +747,108 @@ describe('GenerationStep', () => {
 
         expect(result.result?.metadata?.fallthroughTriggered).toBeUndefined();
       });
+
+      it('clears fallthroughTriggered on success and empty-response failure when a reactive retarget fires', async () => {
+        const fallthroughAuth = {
+          ...baseAuth,
+          provider: AIProvider.OpenRouter,
+          fallthroughTriggered: true,
+        } satisfies ResolvedAuth;
+        const reactiveSwap = {
+          fromModel: 'z-ai/glm-4.7',
+          toModel: 'paid/default',
+          category: ApiErrorCategory.QUOTA_EXCEEDED,
+          mode: 'reactive' as const,
+        };
+
+        quotaFallbackResultTransform.fn = result => ({
+          ...(result as Record<string, unknown>),
+          quotaFallback: reactiveSwap,
+        });
+
+        try {
+          vi.mocked(mockRAGService.generateResponse).mockResolvedValueOnce({
+            content: 'Answered via reactive retarget',
+            retrievedMemories: 0,
+            tokensIn: 10,
+            tokensOut: 5,
+            modelUsed: 'paid/default',
+          });
+
+          const successResult = await step.process({
+            job: createMockJob(),
+            startTime: Date.now(),
+            config: baseConfig,
+            auth: fallthroughAuth,
+            preparedContext: basePreparedContext,
+          });
+
+          expect(successResult.result?.success).toBe(true);
+          expect(successResult.result?.metadata?.quotaFallback).toEqual(reactiveSwap);
+          expect(successResult.result?.metadata?.fallthroughTriggered).toBeUndefined();
+
+          vi.mocked(mockRAGService.generateResponse).mockResolvedValue({
+            content: '',
+            retrievedMemories: 0,
+            tokensIn: 10,
+            tokensOut: 5,
+            modelUsed: 'paid/default',
+          });
+
+          const emptyFailureResult = await step.process({
+            job: createMockJob(),
+            startTime: Date.now(),
+            config: baseConfig,
+            auth: fallthroughAuth,
+            preparedContext: basePreparedContext,
+          });
+
+          expect(emptyFailureResult.result?.success).toBe(false);
+          expect(emptyFailureResult.result?.errorInfo?.category).toBe(
+            ApiErrorCategory.EMPTY_RESPONSE
+          );
+          expect(emptyFailureResult.result?.metadata?.quotaFallback).toEqual(reactiveSwap);
+          expect(emptyFailureResult.result?.metadata?.fallthroughTriggered).toBeUndefined();
+        } finally {
+          quotaFallbackResultTransform.fn = null;
+        }
+      });
+
+      it('keeps fallthroughTriggered true when auth.quotaFallback is set (guest announce) without a reactive retarget', async () => {
+        const guestAnnounce = {
+          fromModel: 'z-ai/glm-4.7',
+          toModel: 'openrouter/free',
+          category: 'guest_mode' as const,
+          mode: 'proactive' as const,
+        };
+        const guestFallthroughAuth = {
+          ...baseAuth,
+          provider: AIProvider.OpenRouter,
+          isGuestMode: true,
+          fallthroughTriggered: true,
+          quotaFallback: guestAnnounce,
+        } satisfies ResolvedAuth;
+
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValueOnce({
+          content: 'Answered on free model after fallthrough',
+          retrievedMemories: 0,
+          tokensIn: 10,
+          tokensOut: 5,
+          modelUsed: 'openrouter/free',
+        });
+
+        const result = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: guestFallthroughAuth,
+          preparedContext: basePreparedContext,
+        });
+
+        expect(result.result?.success).toBe(true);
+        expect(result.result?.metadata?.quotaFallback).toEqual(guestAnnounce);
+        expect(result.result?.metadata?.fallthroughTriggered).toBe(true);
+      });
     });
 
     it('should pass preprocessed attachments to RAG service', async () => {
