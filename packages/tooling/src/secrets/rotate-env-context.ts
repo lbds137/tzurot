@@ -130,6 +130,23 @@ export interface RotationContext {
   affectedServices: { id: string; name: string }[];
 }
 
+export interface StagedRotationOptions {
+  env: 'dev' | 'prod';
+  name: string;
+  stage: string;
+  dryRun: boolean;
+  yes: boolean;
+  verifierService: string;
+}
+
+export interface StageArgs {
+  options: StagedRotationOptions;
+  context: RotationContext;
+  verifier: { id: string; name: string };
+  previousName: string;
+  windowOpen: boolean;
+}
+
 /**
  * Resolve everything both the single-shot and the staged rotation paths need:
  * the Railway ids, the shared-tier name list, and the DERIVED set of services

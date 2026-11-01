@@ -13,7 +13,135 @@ vi.mock('../deployment/railway-status.js', () => ({
   resolveRailwayIds,
 }));
 
-import { deleteFailureError, resolveServiceIds } from './byok-finalize-helpers.js';
+import {
+  assertFinalizeWindowState,
+  classifyFinalizeWindow,
+  deleteFailureError,
+  resolveServiceIds,
+} from './byok-finalize-helpers.js';
+
+describe('classifyFinalizeWindow', () => {
+  const CURRENT = 'current-key-value-for-test';
+  const PREVIOUS = 'previous-key-value-for-test';
+
+  it('returns open when every service holds a distinct non-empty previous value', () => {
+    expect(
+      classifyFinalizeWindow({
+        current: CURRENT,
+        previousByService: [PREVIOUS, PREVIOUS],
+      })
+    ).toBe('open');
+  });
+
+  it('returns open when one service still holds a distinct non-empty previous value and the other is absent or empty', () => {
+    expect(
+      classifyFinalizeWindow({
+        current: CURRENT,
+        previousByService: [PREVIOUS, undefined],
+      })
+    ).toBe('open');
+    expect(
+      classifyFinalizeWindow({
+        current: CURRENT,
+        previousByService: ['', PREVIOUS],
+      })
+    ).toBe('open');
+  });
+
+  it.each([
+    { label: 'undefined on both services', previousByService: [undefined, undefined] },
+    { label: 'empty string on both services', previousByService: ['', ''] },
+    { label: 'undefined on one and empty string on the other', previousByService: [undefined, ''] },
+  ])('returns none when PREVIOUS is $label', ({ previousByService }) => {
+    expect(
+      classifyFinalizeWindow({
+        current: CURRENT,
+        previousByService,
+      })
+    ).toBe('none');
+  });
+
+  it.each([
+    { label: 'equal to current on both services', previousByService: [CURRENT, CURRENT] },
+    {
+      label: 'equal to current on one service and undefined on the other',
+      previousByService: [CURRENT, undefined],
+    },
+    {
+      label: 'equal to current on one service and empty string on the other',
+      previousByService: ['', CURRENT],
+    },
+  ])('returns degenerate when PREVIOUS is $label', ({ previousByService }) => {
+    expect(
+      classifyFinalizeWindow({
+        current: CURRENT,
+        previousByService,
+      })
+    ).toBe('degenerate');
+  });
+});
+
+describe('assertFinalizeWindowState', () => {
+  const CURRENT = 'current-key-value-for-test';
+  const PREVIOUS = 'previous-key-value-for-test';
+
+  it.each([false, true])(
+    'throws on a degenerate window (resume=%s) and directs the operator to stage 1',
+    resume => {
+      expect(() =>
+        assertFinalizeWindowState({
+          env: 'dev',
+          resume,
+          current: CURRENT,
+          previousByService: [CURRENT, undefined],
+        })
+      ).toThrow(/never rotated.*pnpm ops secrets:rotate-byok --env dev --stage 1/s);
+    }
+  );
+
+  it('throws on a closed window without --resume, naming both --stage 1 and --stage 3 --resume', () => {
+    expect(() =>
+      assertFinalizeWindowState({
+        env: 'dev',
+        resume: false,
+        current: CURRENT,
+        previousByService: [undefined, ''],
+      })
+    ).toThrow(
+      /pnpm ops secrets:rotate-byok --env dev --stage 1.*pnpm ops secrets:rotate-byok --env dev --stage 3 --resume/s
+    );
+  });
+
+  it('throws on an open window with --resume, telling the operator to run stage 3 without --resume', () => {
+    expect(() =>
+      assertFinalizeWindowState({
+        env: 'dev',
+        resume: true,
+        current: CURRENT,
+        previousByService: [PREVIOUS, PREVIOUS],
+      })
+    ).toThrow(/nothing to resume.*pnpm ops secrets:rotate-byok --env dev --stage 3/is);
+  });
+
+  it('allows an open window without --resume and a closed window with --resume', () => {
+    expect(() =>
+      assertFinalizeWindowState({
+        env: 'dev',
+        resume: false,
+        current: CURRENT,
+        previousByService: [PREVIOUS, PREVIOUS],
+      })
+    ).not.toThrow();
+    expect(() =>
+      assertFinalizeWindowState({
+        env: 'dev',
+        resume: true,
+        current: CURRENT,
+        previousByService: [undefined, ''],
+      })
+    ).not.toThrow();
+  });
+});
 
 describe('resolveServiceIds', () => {
   beforeEach(() => {
@@ -58,6 +186,7 @@ describe('deleteFailureError', () => {
     });
 
     expect(err.message).toContain('Re-run stage 3 to retry');
+    expect(err.message).toContain('re-run stage 3 with --resume');
     expect(err.message).not.toContain('--service');
     expect(err.cause).toBe(cause);
   });
@@ -78,6 +207,7 @@ describe('deleteFailureError', () => {
     expect(err.message).toContain(
       '`pnpm ops deploy:var-delete --env dev --service b --name X --yes`; `pnpm ops deploy:var-delete --env dev --service c --name X --yes`'
     );
+    expect(err.message).toContain('re-run stage 3 with --resume');
     expect(err.cause).toBe(cause);
   });
 });

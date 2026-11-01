@@ -15,22 +15,21 @@
  *
  * Stage 2 (`2|roll`) redeploys the verifier first and waits for that deployment
  * to reach `SUCCESS`, then redeploys every OTHER inheriting service onto the
- * new primary. No variable is written at this stage.
+ * new primary and records `<NAME>_ROLLED` (the SHA-256 of the current primary)
+ * in the verifier's own scope once every presenter redeploy is accepted.
  *
- * Stage 3 (`3|finalize`) deletes `<NAME>_PREVIOUS` from that same scope, redeploys the verifier
- * once more (so it stops accepting the retired value), and stamps the
- * rotation ledger — only stage 3 stamps it, since an abandoned stage 1 must
- * not read as a completed rotation.
+ * Stage 3 (`3|finalize`, in `./rotate-env-stage3.ts`) refuses unless
+ * `<NAME>_ROLLED` matches the current primary, preflights readiness across
+ * every affected service, deletes `<NAME>_PREVIOUS` and `<NAME>_ROLLED` from
+ * the verifier's scope, redeploys the verifier once more (so it stops accepting
+ * the retired value), and stamps the rotation ledger — only stage 3 stamps it,
+ * since an abandoned stage 1 must not read as a completed rotation.
  */
 
 import crypto from 'node:crypto';
 import chalk from 'chalk';
 
-import {
-  upsertRailwayVariable,
-  deleteRailwayVariable,
-  readRailwayVariableValue,
-} from '../deployment/railway-api.js';
+import { upsertRailwayVariable, readRailwayVariableValue } from '../deployment/railway-api.js';
 import { confirmPrompt } from '../utils/confirm.js';
 import { UsageError } from '../utils/errors.js';
 import { checkDeployedCodeAcceptsPrevious } from './deployed-code-gate.js';
@@ -38,13 +37,18 @@ import {
   assertServicesDeploymentReady,
   redeployServices,
   reportRedeployFailures,
-  stampLedger,
   type RotationContext,
+  type StageArgs,
+  type StagedRotationOptions,
 } from './rotate-env-context.js';
+import { runStage3 } from './rotate-env-stage3.js';
 import {
   isWindowOpenForVerifier,
   assertPreviousReachesVerifier,
   isDegenerateWindow,
+  readRollMarkerValue,
+  rollMarkerName,
+  writeRollMarker,
 } from './rotate-env-window.js';
 import {
   printDryRunNotice,
@@ -54,8 +58,6 @@ import {
   stage1RedeployFailureError,
   STAGE2_NEXT_STEP,
   stage2RedeployFailureError,
-  stage3NextStep,
-  stage3RedeployFailureError,
 } from './rotate-env-stage-output.js';
 import { assertPresentersStillReady, redeployAndWaitForService } from './service-redeploy-wait.js';
 
@@ -94,23 +96,6 @@ const STAGE_ALIASES: Record<string, 1 | 2 | 3> = {
 export function resolveStageAlias(rawStage: string): 1 | 2 | 3 | undefined {
   const trimmed = rawStage.trim();
   return Object.hasOwn(STAGE_ALIASES, trimmed) ? STAGE_ALIASES[trimmed] : undefined;
-}
-
-export interface StagedRotationOptions {
-  env: 'dev' | 'prod';
-  name: string;
-  stage: string;
-  dryRun: boolean;
-  yes: boolean;
-  verifierService: string;
-}
-
-interface StageArgs {
-  options: StagedRotationOptions;
-  context: RotationContext;
-  verifier: { id: string; name: string };
-  previousName: string;
-  windowOpen: boolean;
 }
 
 async function runStage1(args: StageArgs): Promise<void> {
@@ -296,13 +281,16 @@ async function runStage2(args: StageArgs): Promise<void> {
   }
 
   const presenters = context.affectedServices.filter(svc => svc.id !== verifier.id);
+  const rolledName = rollMarkerName(options.name);
 
   if (options.dryRun) {
     console.log(chalk.dim(`  Plan: redeploy "${verifier.name}" first and wait for SUCCESS`));
     console.log(
       chalk.dim(`  Plan: redeploy ${presenters.map(svc => svc.name).join(', ') || '(none)'}`)
     );
-    console.log(chalk.dim('  Plan: no variable writes'));
+    console.log(
+      chalk.dim(`  Plan: record completion marker "${rolledName}" in "${verifier.name}"'s scope`)
+    );
     printDryRunNotice();
     return;
   }
@@ -317,6 +305,10 @@ async function runStage2(args: StageArgs): Promise<void> {
     }
   }
 
+  const rollMarkerArgs = { context, env: options.env, verifier, primaryName: options.name };
+  // Read the primary hash before the redeploys so a primary changed during the stage cannot satisfy stage 3.
+  const rollMarkerValue = await readRollMarkerValue(rollMarkerArgs);
+
   const deployTarget = { environmentId: context.environmentId, env: options.env };
   await assertServicesDeploymentReady([verifier, ...presenters], deployTarget);
   await redeployAndWaitForService({ service: verifier, ...deployTarget });
@@ -325,19 +317,6 @@ async function runStage2(args: StageArgs): Promise<void> {
 
   if (failures.length > 0) {
     console.log(chalk.yellow(`\n⚠️  Stage 2: ${failures.length} presenter(s) failed to redeploy`));
-  } else {
-    console.log(
-      chalk.green(`\n✓ Stage 2 complete for "${options.name}" in Railway ${context.railwayEnvName}`)
-    );
-    console.log(
-      chalk.dim(
-        '  Next: pnpm ops secrets:rotate-env ' +
-          `--env ${options.env} --name ${options.name} --stage 3`
-      )
-    );
-  }
-
-  if (failures.length > 0) {
     reportRedeployFailures(
       failures,
       'Nothing was written — the verifier restarted and its new deployment reached SUCCESS (per the stage-2 wait).',
@@ -346,127 +325,25 @@ async function runStage2(args: StageArgs): Promise<void> {
     );
     throw stage2RedeployFailureError(failures.length);
   }
-}
 
-async function runStage3(args: StageArgs): Promise<void> {
-  const { options, context, verifier, previousName, windowOpen } = args;
-
-  if (refuseIfWindowClosed(windowOpen, options.dryRun, previousName)) {
-    return;
-  }
-
-  // A degenerate window here means the primary was NEVER rotated — only stage 1's
-  // first upsert (preserving `_PREVIOUS`) landed, never its second (minting a fresh
-  // primary). Closing the window in that state would stamp the ledger for a
-  // rotation that did not happen, silently defeating the cadence guarantee. Checked
-  // before the dry-run plan below so `--dry-run` reports what a real run would do.
-  const degenerate = await isDegenerateWindow({
-    context,
-    env: options.env,
-    verifier,
-    previousName,
-    primaryName: options.name,
-  });
-  if (degenerate) {
-    if (options.dryRun) {
-      console.log(
-        chalk.red(
-          `\n⚠️  "${previousName}" still matches the current primary for "${options.name}" — the ` +
-            'primary was never rotated. A real run would REFUSE to stamp the ledger for a ' +
-            'rotation that did not happen — re-run stage 1 (it will now resume) instead.'
-        )
-      );
-      printDryRunNotice();
-      return;
-    }
-    throw new UsageError(
-      `"${previousName}" still matches the current primary for "${options.name}" — the primary ` +
-        'was never rotated, so closing the window here would stamp the ledger for a rotation ' +
-        'that did not happen. Re-run stage 1 (it will now resume) instead.'
+  try {
+    await writeRollMarker(rollMarkerArgs, rollMarkerValue);
+  } catch (error) {
+    throw new Error(
+      `secrets:rotate-env stage 2: the presenters were redeployed, but completion could not be ` +
+        `recorded in "${rolledName}" on "${verifier.name}". Re-run stage 2 once every service ` +
+        'shows SUCCESS.',
+      { cause: error }
     );
   }
-
-  if (options.dryRun) {
-    console.log(chalk.dim(`  Plan: delete "${previousName}" from "${verifier.name}"'s scope`));
-    console.log(chalk.dim(`  Plan: redeploy "${verifier.name}"`));
-    console.log(chalk.dim('  Plan: stamp the ledger'));
-    printDryRunNotice();
-    return;
-  }
-
-  if (!options.yes) {
-    const confirmed = await confirmPrompt(
-      'This will close the rotation window and redeploy the verifier.'
-    );
-    if (!confirmed) {
-      console.log('Aborted.');
-      return;
-    }
-  }
-
-  await assertServicesDeploymentReady([verifier], {
-    environmentId: context.environmentId,
-    env: options.env,
-  });
-
-  // Deleted, not upserted as '' (the Railway CLI rejects an empty value, and
-  // the API can delete).
-  //
-  // Unlike the upsert calls above (both pass `skipDeploys: true`), Railway's
-  // `VariableDeleteInput` carries no `skipDeploys` field at all — probed by
-  // live GraphQL introspection, so there is nothing to pass here. Whether
-  // Railway auto-redeploys the verifier on a variable delete is UNVERIFIED
-  // for a referenced variable; if it does, that deployment is in flight when
-  // the explicit redeploy below runs, and the redeploy helper refuses a latest
-  // deployment that is not SUCCESS — the failure text then sends the operator
-  // to the dashboard first, with `deploy:redeploy` as the retry. Both deploys
-  // would land on the same post-delete configuration.
-  await deleteRailwayVariable({
-    projectId: context.projectId,
-    environmentId: context.environmentId,
-    serviceId: verifier.id,
-    name: previousName,
-    env: options.env,
-  });
-
-  const failures = await redeployServices([verifier], {
-    environmentId: context.environmentId,
-    env: options.env,
-  });
-
-  // Stamped only when the verifier's redeploy succeeded: `_PREVIOUS` is gone from
-  // Railway's store either way, but a still-running verifier loaded its env at
-  // process start and keeps accepting the retired value in memory until it
-  // restarts — stamping here would record a completed rotation (and reset the
-  // overdue-nag interval) while the acceptance window is still open in practice.
-  const ledgerName = options.name.toLowerCase().replaceAll('_', '-');
-
-  if (failures.length > 0) {
-    reportRedeployFailures(
-      failures,
-      `"${previousName}" was deleted, so the retired value is gone from Railway's store, but the ` +
-        'un-redeployed verifier may still accept it in memory.',
-      options.env,
-      stage3NextStep({ verifierName: verifier.name, failures, ledgerName, env: options.env })
-    );
-    throw stage3RedeployFailureError({
-      previousName,
-      verifierName: verifier.name,
-      failures,
-      ledgerName,
-      env: options.env,
-    });
-  }
-
-  const ledgerStamped = await stampLedger(options.env, ledgerName);
 
   console.log(
-    chalk.green(`\n✓ Rotation of "${options.name}" complete in Railway ${context.railwayEnvName}`)
+    chalk.green(`\n✓ Stage 2 complete for "${options.name}" in Railway ${context.railwayEnvName}`)
   );
-  console.log(chalk.dim('  Window: closed'));
   console.log(
     chalk.dim(
-      `  Ledger: ${ledgerStamped ? `${ledgerName} stamped` : 'NOT stamped — run the command above'}`
+      '  Next: pnpm ops secrets:rotate-env ' +
+        `--env ${options.env} --name ${options.name} --stage 3`
     )
   );
 }

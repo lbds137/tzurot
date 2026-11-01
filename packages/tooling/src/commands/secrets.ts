@@ -93,14 +93,22 @@ export function registerSecretsCommands(cli: CAC): void {
     )
     .option(ENV_OPTION_FLAG, ENV_OPTION_HELP, ENV_DEFAULT)
     .option('--stage <stage>', 'Rotation stage: 1|stage, 2|reencrypt, 3|finalize')
+    .option(
+      '--resume',
+      'Finish an interrupted stage 3 after API_KEY_ENCRYPTION_KEY_PREVIOUS was already deleted'
+    )
     .example('ops secrets:rotate-byok --env prod --stage 1')
-    .action(async (options: { env: SecretsEnv; stage?: string | number }) => {
+    .action(async (options: { env: SecretsEnv; stage?: string | number; resume?: boolean }) => {
       const stage = normalizeStageFlag(options.stage);
       if (stage === undefined) {
         throw new UsageError('--stage is required (1|stage, 2|reencrypt, 3|finalize)');
       }
       const { rotateByokKey } = await loadRotation();
-      await rotateByokKey({ env: options.env, stage });
+      await rotateByokKey({
+        env: options.env,
+        stage,
+        ...(options.resume === true ? { resume: true } : {}),
+      });
     });
 
   cli
