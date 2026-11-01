@@ -24,6 +24,7 @@ export function classifyFinalizeWindow(args: {
   previousByService: readonly (string | undefined)[];
 }): FinalizeWindowState {
   const { current, previousByService } = args;
+  // finalizeByokWindow parses CURRENT first, so an empty value cannot reach it there; this check keeps the function correct when called on its own.
   if (current !== '' && previousByService.some(prev => prev === current)) {
     return 'degenerate';
   }

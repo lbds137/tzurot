@@ -54,8 +54,11 @@ export function rollMarkerName(primaryName: string): string {
 
 /**
  * Unsalted SHA-256 of the primary value for `<NAME>_ROLLED`. This relies on the
- * primary being high-entropy, as stage 1 mints it from `crypto.randomBytes(32)`;
- * a lower-entropy or operator-chosen secret would need a keyed hash.
+ * primary being high-entropy, as stage 1 mints it from `crypto.randomBytes(32)`
+ * and stage 2 refuses a primary stage 1 never rotated (so the marker is only
+ * written over a minted value; pinned by `stage 2 refuses to roll services when
+ * _PREVIOUS equals the primary` in `rotate-env-stages.test.ts`); a
+ * lower-entropy or operator-chosen secret would need a keyed hash.
  */
 function hashPrimaryValue(value: string): string {
   return crypto.createHash('sha256').update(value).digest('hex');
