@@ -991,14 +991,15 @@ model Memory {
   /// written. A value below the current constant marks the row stale: it is
   /// re-enqueued at retrieval (`done` and `dead` alike), and a stored summary
   /// keeps rendering whatever the status until a new one lands. A `failed`
-  /// row is re-enqueued at retrieval regardless of version.
+  /// row is re-enqueued at retrieval regardless of version. On a `failed` or
+  /// `dead` row this records the last attempt, not what produced the stored text.
   summaryPromptVersion Int?                   @map("summary_prompt_version")
   /// Deferred-set: sha-256 hex of `content` the stored summary (or the
   /// recorded failure) describes; null until the first billed attempt. A
   /// content edit clears the stored summary and this hash together, so a
   /// stored summary always describes the live content. The processor compares
   /// it with the live content to decide whether a job re-summarizes or skips.
-  sourceContentHash   String?                @map("source_content_hash") @db.VarChar(64)
+  sourceContentHash    String?                @map("source_content_hash") @db.VarChar(64)
   /// Deferred-set: when the row was last enqueued for summarization; null
   /// until the first enqueue.
   summaryRequestedAt   DateTime?              @map("summary_requested_at")
