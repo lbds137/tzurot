@@ -204,9 +204,13 @@ export async function readRollMarkerValue(args: RollMarkerArgs): Promise<string>
  * Record stage-2 roll completion in the verifier's own scope as `<NAME>_ROLLED`,
  * set to the hash returned by {@link readRollMarkerValue}.
  *
- * Binding the marker to the primary value means a stale marker from an earlier
- * rotation, or a primary changed after stage 2, cannot satisfy stage 3, so
- * stage 1 does not have to clear it.
+ * A stale marker stops matching once stage 1 mints a new primary, and a primary
+ * changed after stage 2 fails the same match; the hash alone does not catch a
+ * stage 1 that died before minting, because the primary still equals the
+ * earlier rotation's, and stage 3's degenerate check refuses that case (pinned
+ * by `refuses a degenerate window even when a leftover roll marker matches the
+ * unrotated primary` in `rotate-env-stage3.test.ts`); together these are why
+ * stage 1 does not have to clear the marker.
  */
 export async function writeRollMarker(args: RollMarkerArgs, value: string): Promise<void> {
   await upsertRailwayVariable({
