@@ -44,7 +44,8 @@ export interface SubmitChatJobInput {
   /**
    * Shared gate passed by a fan-out so N slots of one message evaluate and
    * reply once; absent = this submission evaluates alone (pinned in
-   * `character/sharedNsfwGate.test.ts`).
+   * `character/sharedNsfwGate.test.ts`). The gate is bound to one message, so
+   * a caller must pass a gate built for this same `message`.
    */
   nsfwGate?: NsfwGate;
 }
@@ -107,7 +108,7 @@ export class PersonalityChatManager {
       };
     }
 
-    const allowed = await (nsfwGate ?? (() => runNsfwGate(message)))();
+    const allowed = nsfwGate !== undefined ? await nsfwGate() : await runNsfwGate(message);
     if (!allowed) {
       return { kind: 'denied', reason: 'nsfw-blocked' };
     }
