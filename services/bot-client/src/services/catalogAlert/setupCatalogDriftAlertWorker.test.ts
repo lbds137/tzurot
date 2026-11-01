@@ -253,4 +253,59 @@ describe('setupCatalogDriftAlertWorker', () => {
     expect(queueName).toBe(CATALOG_DRIFT_ALERT_QUEUE_NAME);
     expect(options).toEqual(expect.objectContaining({ autorun: false }));
   });
+
+  it('logs an error when the failed handler runs on the final attempt', () => {
+    const worker = setupCatalogDriftAlertWorker({ client: {} as unknown as Client });
+    const failedHandler = (
+      worker.on as unknown as {
+        mock: { calls: [string, (job: unknown, err: Error) => void][] };
+      }
+    ).mock.calls.find(([event]) => event === 'failed')?.[1];
+    const err = new Error('post failed');
+
+    failedHandler!({ id: 'j', attemptsMade: 3, opts: { attempts: 3 } }, err);
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      { jobId: 'j', attemptsMade: 3, err },
+      'Catalog drift alert dropped after final attempt'
+    );
+    expect(mockLogger.warn).not.toHaveBeenCalled();
+  });
+
+  it('logs a retry warning when the failed handler runs before the final attempt', () => {
+    const worker = setupCatalogDriftAlertWorker({ client: {} as unknown as Client });
+    const failedHandler = (
+      worker.on as unknown as {
+        mock: { calls: [string, (job: unknown, err: Error) => void][] };
+      }
+    ).mock.calls.find(([event]) => event === 'failed')?.[1];
+    const err = new Error('post failed');
+
+    failedHandler!({ id: 'j', attemptsMade: 1, opts: { attempts: 3 } }, err);
+
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      { jobId: 'j', err },
+      'Catalog drift alert failed (BullMQ will retry)'
+    );
+    expect(mockLogger.error).not.toHaveBeenCalled();
+  });
+
+  it('logs a retry warning without throwing when the failed handler receives an undefined job', () => {
+    const worker = setupCatalogDriftAlertWorker({ client: {} as unknown as Client });
+    const failedHandler = (
+      worker.on as unknown as {
+        mock: { calls: [string, (job: unknown, err: Error) => void][] };
+      }
+    ).mock.calls.find(([event]) => event === 'failed')?.[1];
+    const err = new Error('post failed');
+
+    expect(() => {
+      failedHandler!(undefined, err);
+    }).not.toThrow();
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      { jobId: undefined, err },
+      'Catalog drift alert failed (BullMQ will retry)'
+    );
+    expect(mockLogger.error).not.toHaveBeenCalled();
+  });
 });
