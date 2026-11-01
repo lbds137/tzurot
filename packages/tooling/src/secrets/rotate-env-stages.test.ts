@@ -1002,8 +1002,15 @@ describe('runStagedRotation', () => {
   it('stage 2 reads the primary before redeploys and writes the roll marker with the sha256 of the primary in the verifier scope after presenter redeploys', async () => {
     verifierNames.add(PREVIOUS_NAME);
     const callOrder: string[] = [];
+    let degenerateChecked = false;
     mockReadValue.mockImplementation(async args => {
-      callOrder.push(`read:${args.name}`);
+      if (args.name === PREVIOUS_NAME) {
+        degenerateChecked = true;
+        return SENTINEL_PREVIOUS_VALUE;
+      }
+      if (degenerateChecked) {
+        callOrder.push(`read:${args.name}`);
+      }
       return SENTINEL_VALUE;
     });
     mockRedeploy.mockImplementation(async () => {
@@ -1043,7 +1050,7 @@ describe('runStagedRotation', () => {
       if (args.name === PREVIOUS_NAME) return SENTINEL_PREVIOUS_VALUE;
       if (args.name === ROLLED_NAME) return SENTINEL_VALUE_HASH;
       primaryReadCount += 1;
-      return primaryReadCount === 1 ? currentPrimary : 'primary-changed-on-later-read';
+      return primaryReadCount <= 2 ? currentPrimary : 'primary-changed-on-later-read';
     });
     mockRedeploy.mockImplementation(async () => {
       currentPrimary = 'primary-changed-during-redeploy';
@@ -1073,7 +1080,10 @@ describe('runStagedRotation', () => {
 
   it('stage 2 throws before redeploying or upserting when the primary read before redeploys fails', async () => {
     verifierNames.add(PREVIOUS_NAME);
-    mockReadValue.mockResolvedValueOnce(undefined);
+    mockReadValue
+      .mockResolvedValueOnce(SENTINEL_VALUE)
+      .mockResolvedValueOnce(SENTINEL_PREVIOUS_VALUE)
+      .mockResolvedValueOnce(undefined);
 
     await expect(runStagedRotation(makeOptions({ stage: '2' }), makeContext())).rejects.toThrow(
       VAR_NAME
@@ -1092,7 +1102,46 @@ describe('runStagedRotation', () => {
 
     expect(error).toBeInstanceOf(UsageError);
     expect(String(error)).toContain('run stage 1 first.');
+    expect(String(error)).not.toContain('Otherwise');
     expect(String(error)).not.toContain('mark-rotated');
+  });
+
+  it('stage 2 refuses to roll services when _PREVIOUS equals the primary (degenerate window)', async () => {
+    mockReadValue.mockReset().mockResolvedValue(SENTINEL_VALUE);
+    verifierNames.add(PREVIOUS_NAME);
+    const context = makeContext();
+
+    const rejection = runStagedRotation(makeOptions({ stage: '2' }), context);
+    await expect(rejection).rejects.toThrow(UsageError);
+    await expect(rejection).rejects.toThrow(/stage 1/i);
+    await expect(rejection).rejects.toThrow(/never rotated/i);
+
+    expect(mockAssertReady).not.toHaveBeenCalled();
+    expect(mockRedeployVerifier).not.toHaveBeenCalled();
+    expect(mockGetLatestDeployment).not.toHaveBeenCalled();
+    expect(mockRedeploy).not.toHaveBeenCalled();
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
+  it('a dry run of stage 2 against a degenerate window prints A real run would REFUSE and writes and redeploys nothing', async () => {
+    mockReadValue.mockReset().mockResolvedValue(SENTINEL_VALUE);
+    verifierNames.add(PREVIOUS_NAME);
+    const context = makeContext();
+
+    await runStagedRotation(makeOptions({ stage: '2', dryRun: true }), context);
+
+    expect(mockAssertReady).not.toHaveBeenCalled();
+    expect(mockRedeployVerifier).not.toHaveBeenCalled();
+    expect(mockGetLatestDeployment).not.toHaveBeenCalled();
+    expect(mockRedeploy).not.toHaveBeenCalled();
+    expect(mockUpsert).not.toHaveBeenCalled();
+
+    const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
+    expect(allOutput).toContain('A real run would REFUSE');
+    expect(allOutput).toMatch(/stage 1/i);
+    expect(allOutput).not.toContain('Plan:');
+    expect(allOutput).not.toContain(SENTINEL_VALUE);
+    expect(allOutput).not.toContain(SENTINEL_PREVIOUS_VALUE);
   });
 
   it('stage 2 throws the re-run text and omits Stage 2 complete when writing the roll marker throws', async () => {

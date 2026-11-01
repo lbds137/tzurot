@@ -23,16 +23,12 @@ import {
 } from './rotate-env-context.js';
 import {
   printDryRunNotice,
+  refuseIfDegenerateWindow,
   refuseIfWindowClosed,
   stage3NextStep,
   stage3RedeployFailureError,
 } from './rotate-env-stage-output.js';
-import {
-  deleteRollMarker,
-  isDegenerateWindow,
-  isRollComplete,
-  rollMarkerName,
-} from './rotate-env-window.js';
+import { deleteRollMarker, isRollComplete, rollMarkerName } from './rotate-env-window.js';
 
 async function refuseIfDegenerateOrUnrolled(args: StageArgs): Promise<boolean> {
   const { options, context, verifier, previousName } = args;
@@ -42,30 +38,19 @@ async function refuseIfDegenerateOrUnrolled(args: StageArgs): Promise<boolean> {
   // primary). Closing the window in that state would stamp the ledger for a
   // rotation that did not happen, silently defeating the cadence guarantee. Checked
   // before the dry-run plan below so `--dry-run` reports what a real run would do.
-  const degenerate = await isDegenerateWindow({
-    context,
-    env: options.env,
-    verifier,
-    previousName,
-    primaryName: options.name,
-  });
-  if (degenerate) {
-    if (options.dryRun) {
-      console.log(
-        chalk.red(
-          `\n⚠️  "${previousName}" still matches the current primary for "${options.name}" — the ` +
-            'primary was never rotated. A real run would REFUSE to stamp the ledger for a ' +
-            'rotation that did not happen — re-run stage 1 (it will now resume) instead.'
-        )
-      );
-      printDryRunNotice();
-      return true;
-    }
-    throw new UsageError(
-      `"${previousName}" still matches the current primary for "${options.name}" — the primary ` +
+  if (
+    await refuseIfDegenerateWindow(args, {
+      dryRun:
+        `"${previousName}" still matches the current primary for "${options.name}" — the ` +
+        'primary was never rotated. A real run would REFUSE to stamp the ledger for a ' +
+        'rotation that did not happen — re-run stage 1 (it will now resume) instead.',
+      refusal:
+        `"${previousName}" still matches the current primary for "${options.name}" — the primary ` +
         'was never rotated, so closing the window here would stamp the ledger for a rotation ' +
-        'that did not happen. Re-run stage 1 (it will now resume) instead.'
-    );
+        'that did not happen. Re-run stage 1 (it will now resume) instead.',
+    })
+  ) {
+    return true;
   }
 
   const rollComplete = await isRollComplete({
@@ -148,13 +133,15 @@ export async function runStage3(args: StageArgs): Promise<void> {
   //
   // Unlike stage 1's upserts (both pass `skipDeploys: true`), Railway's
   // `VariableDeleteInput` carries no `skipDeploys` field at all — probed by
-  // live GraphQL introspection, so there is nothing to pass here. Whether
-  // Railway auto-redeploys the verifier on a variable delete is UNVERIFIED
-  // for a referenced variable; if it does, that deployment is in flight when
-  // the explicit redeploy below runs, and the redeploy helper refuses a latest
-  // deployment that is not SUCCESS — the failure text then sends the operator
-  // to the dashboard first, with `deploy:redeploy` as the retry. Both deploys
-  // would land on the same post-delete configuration.
+  // live GraphQL introspection, so there is nothing to pass on either delete
+  // below (`_PREVIOUS` or `_ROLLED`). Whether Railway auto-redeploys the
+  // verifier on a variable delete is UNVERIFIED (either for a referenced
+  // variable like `_PREVIOUS` or for the `_ROLLED` marker); if either delete
+  // triggers a deployment, that deployment is in flight when the explicit
+  // redeploy below runs, and the redeploy helper refuses a latest deployment
+  // that is not SUCCESS — the failure text then sends the operator to the
+  // dashboard first, with `deploy:redeploy` as the retry. Any such deploy and
+  // the explicit redeploy would land on the same post-delete configuration.
   await deleteRailwayVariable({
     projectId: context.projectId,
     environmentId: context.environmentId,

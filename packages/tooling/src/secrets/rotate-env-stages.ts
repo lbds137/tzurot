@@ -52,6 +52,7 @@ import {
 } from './rotate-env-window.js';
 import {
   printDryRunNotice,
+  refuseIfDegenerateWindow,
   refuseIfWindowClosed,
   printGateVerdict,
   stage1NextStep,
@@ -277,6 +278,20 @@ async function runStage2(args: StageArgs): Promise<void> {
   const { options, context, verifier, previousName, windowOpen } = args;
 
   if (refuseIfWindowClosed(windowOpen, options.dryRun, previousName)) {
+    return;
+  }
+
+  if (
+    await refuseIfDegenerateWindow(args, {
+      dryRun:
+        `"${previousName}" still matches the current primary for "${options.name}" — the ` +
+        'primary was never rotated. A real run would REFUSE — re-run stage 1 (it will now ' +
+        'resume) instead.',
+      refusal:
+        `"${previousName}" still matches the current primary for "${options.name}" — the primary ` +
+        'was never rotated. Re-run stage 1 (it will now resume) instead.',
+    })
+  ) {
     return;
   }
 
