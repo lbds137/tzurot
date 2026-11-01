@@ -80,7 +80,9 @@ export function mapQueryResultToDocument(memory: MemoryQueryResult): PgvectorMem
 
   // @spec MEM-ARCH-021 — a stored summary renders regardless of status and
   // prompt version (`archiveSummary/archiveSummaryStore.ts` writes it for the
-  // current content, and `routes/user/memorySingle.ts` clears it on edit).
+  // current content, `routes/user/memorySingle.ts` clears it on edit, and the
+  // dev-to-prod sync in api-gateway's `services/sync/SyncUpsertBuilder.ts`
+  // copies content and summary together from the winning row).
   // Chunk rows never render a summary: the write side never summarizes them,
   // so excluding them here keeps that invariant local — it stops one chunk of
   // a group from ever rendering as a summary beside its verbatim siblings.

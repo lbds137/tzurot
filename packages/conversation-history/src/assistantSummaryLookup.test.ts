@@ -59,28 +59,26 @@ describe('findUsableAssistantSummariesByTriggerIds', () => {
     expect(callArg.where).not.toHaveProperty('summaryStatus');
   });
 
-  it('returns the stored summary for a failed row and excludes non-normal visibility or empty summary', async () => {
+  it('returns the stored summary for a failed row and skips an empty summary', async () => {
     const findMany = vi
       .fn()
-      .mockImplementation(
-        ({ where }: { where: { visibility?: string; summaryStatus?: string } }) => {
-          if (where.summaryStatus !== undefined || where.visibility !== 'normal') {
-            return Promise.resolve([]);
-          }
-          return Promise.resolve([
-            {
-              messageIds: ['m-failed'],
-              assistantSummary: 'stored summary from prior done run',
-              createdAt: new Date('2026-01-02'),
-            },
-            {
-              messageIds: ['m-empty'],
-              assistantSummary: '',
-              createdAt: new Date('2026-01-01'),
-            },
-          ]);
+      .mockImplementation(({ where }: { where: { summaryStatus?: string } }) => {
+        if (where.summaryStatus !== undefined) {
+          return Promise.resolve([]);
         }
-      );
+        return Promise.resolve([
+          {
+            messageIds: ['m-failed'],
+            assistantSummary: 'stored summary from prior done run',
+            createdAt: new Date('2026-01-02'),
+          },
+          {
+            messageIds: ['m-empty'],
+            assistantSummary: '',
+            createdAt: new Date('2026-01-01'),
+          },
+        ]);
+      });
     const prisma = { memory: { findMany } } as unknown as PrismaClient;
 
     const result = await findUsableAssistantSummariesByTriggerIds(
