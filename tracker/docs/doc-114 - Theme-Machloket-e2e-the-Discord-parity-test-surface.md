@@ -15,8 +15,10 @@ A Machloket↔Discord gap is SIGNAL, not an obstacle. Discord is the authoritati
 
 ## First unit
 
-Pick the surfaces the interop already exercises — message send/receive, gateway events, slash commands — and stand up the harness against the Machloket server's dev A/B.
+Pick the surfaces the interop already exercises — message send/receive, gateway events, slash commands — and run them against a throwaway server booted by the Machloket server's own e2e harness, not the shared dev A/B instances. It runs locally for now; CI follows once the harness can be reached from CI. Implementation goes through `lane-meters --for implement`. Security regression tests for the server live in the server's repo, not in this one.
 
 ## Ordering and coordination
 
-Scope after the current TASK-1252..1256 drain batch (interleaving is the Tzurot session's call). Joins the fleet tooling push: the Machloket Client session is building Playwright + screenshot verification in the same window.
+Promoted out of cold on 2026-11-01 (owner posture: automate as much testing as possible). Starts after TASK-1331 and TASK-1332..1335. Joins the fleet tooling push: the Machloket Client session is building Playwright + screenshot verification in the same window.
+
+**What it can and cannot replace.** It covers behaviour against a Discord-shaped API, so it can stand in for dev runs that only prove Discord-facing behaviour. It does not replace the end-to-end dev exercise that `00-critical.md` § Testing requires for tooling that writes to a live environment: a throwaway server has no Railway variables, deployments or database to observe.

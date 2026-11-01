@@ -63,7 +63,6 @@ _One row per epic whose theme doc has a done step and a not-done step and which 
 
 ### Owner-seeded 2026-10-24 (queued behind the drain batch)
 
-- **Machloket e2e — the Discord parity test surface** (`doc-114`) — scope after the TASK-1252..1256 drain batch; first unit picks the surfaces the interop exercises and stands up the harness against Machloket dev A/B. Mismatches route as findings (Discord authoritative). Joins the Machloket Client Playwright window.
 - **Seyag collaboration — extract project-agnostic tooling** (`doc-115`) — extraction audit first; behind doc-114 scoping; coordinated with the Seyag session directly.
 
 ### Unscheduled pool (pick by dependency + value when a slot opens)
