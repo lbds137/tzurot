@@ -1,11 +1,11 @@
 /**
  * Component Test: retrieval-time assistant-summary lookup
  *
- * The usability predicate combines several columns (`summary_status`,
- * `assistant_summary`, `chunk_group_id`, `visibility`, `personality_id`) — a
- * mocked-Prisma unit test can only assert the where-clause shape sent to
- * Prisma, not that Postgres actually applies it the way the predicate intends.
- * PGlite is that boundary.
+ * The usability predicate combines several columns (`assistant_summary`,
+ * `chunk_group_id`, `visibility`, `personality_id`) — a mocked-Prisma unit
+ * test can only assert the where-clause shape sent to Prisma, not that
+ * Postgres actually applies it the way the predicate intends. PGlite is that
+ * boundary.
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
@@ -105,7 +105,7 @@ describe('findUsableAssistantSummariesByTriggerIds (component)', () => {
     expect(result.get('msg-1')).toBe('the stored summary');
   });
 
-  it('does NOT return a row with summaryStatus failed even with a non-empty summary (C4 canary)', async () => {
+  it('returns a row with summaryStatus failed when it carries a non-empty summary (C4 canary)', async () => {
     await seedMemory('10000000-0000-0000-0000-000000000002', ['msg-2'], {
       summaryStatus: 'failed',
       assistantSummary: 'leftover text',
@@ -118,7 +118,23 @@ describe('findUsableAssistantSummariesByTriggerIds (component)', () => {
       10
     );
 
-    expect(result.has('msg-2')).toBe(false);
+    expect(result.get('msg-2')).toBe('leftover text');
+  });
+
+  it('does NOT return a row with an empty-string summary', async () => {
+    await seedMemory('10000000-0000-0000-0000-000000000008', ['msg-empty'], {
+      summaryStatus: 'failed',
+      assistantSummary: '',
+    });
+
+    const result = await findUsableAssistantSummariesByTriggerIds(
+      prisma,
+      testPersonalityId,
+      ['msg-empty'],
+      10
+    );
+
+    expect(result.has('msg-empty')).toBe(false);
   });
 
   it('does NOT return a row with visibility deleted (C9 canary target)', async () => {
@@ -193,5 +209,49 @@ describe('findUsableAssistantSummariesByTriggerIds (component)', () => {
     );
 
     expect(result.get('msg-6')).toBe('the newest summary');
+  });
+
+  it('does not let a newer row with a null summary use up take and hide an older usable row', async () => {
+    await seedMemory('10000000-0000-0000-0000-000000000009', ['msg-7'], {
+      summaryStatus: 'done',
+      assistantSummary: 'usable',
+      createdAt: '2026-01-01T00:00:00Z',
+    });
+    await seedMemory('10000000-0000-0000-0000-000000000010', ['msg-7'], {
+      summaryStatus: 'failed',
+      assistantSummary: null,
+      createdAt: '2026-06-01T00:00:00Z',
+    });
+
+    const result = await findUsableAssistantSummariesByTriggerIds(
+      prisma,
+      testPersonalityId,
+      ['msg-7'],
+      1
+    );
+
+    expect(result.get('msg-7')).toBe('usable');
+  });
+
+  it('does not let a newer row with an empty-string summary use up take and hide an older usable row', async () => {
+    await seedMemory('10000000-0000-0000-0000-000000000011', ['msg-8'], {
+      summaryStatus: 'done',
+      assistantSummary: 'usable',
+      createdAt: '2026-01-01T00:00:00Z',
+    });
+    await seedMemory('10000000-0000-0000-0000-000000000012', ['msg-8'], {
+      summaryStatus: 'failed',
+      assistantSummary: '',
+      createdAt: '2026-06-01T00:00:00Z',
+    });
+
+    const result = await findUsableAssistantSummariesByTriggerIds(
+      prisma,
+      testPersonalityId,
+      ['msg-8'],
+      1
+    );
+
+    expect(result.get('msg-8')).toBe('usable');
   });
 });

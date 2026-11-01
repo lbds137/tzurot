@@ -385,6 +385,7 @@ describe('memoryUtils', () => {
         const result = mapQueryResultToDocument(queryResult);
 
         expect(result.metadata?.assistantSummary).toBe('A neutral third-person summary.');
+        expect('summaryRefreshEligible' in (result.metadata ?? {})).toBe(false);
       });
 
       it('stamps assistantSummary for a done row whose prompt version is stale', () => {
@@ -397,54 +398,66 @@ describe('memoryUtils', () => {
         const result = mapQueryResultToDocument(queryResult);
 
         expect(result.metadata?.assistantSummary).toBe('An older summary.');
+        expect(result.metadata?.summaryRefreshEligible).toBe(true);
       });
 
-      // Each of these fixtures carries a NON-EMPTY summary on purpose: the row's
-      // status is then the only thing that can prevent the stamp, so the assertion
-      // fails if the status gate ever widens. A null summary would make these pass
-      // for the wrong reason.
-      it('does not stamp assistantSummary for a pending row', () => {
+      // A stored non-empty summary renders regardless of retry status; status
+      // drives only summaryRefreshEligible.
+      it('stamps assistantSummary for a pending row with stored text and leaves summaryRefreshEligible absent', () => {
         const queryResult = makeQueryResult({
           summary_status: 'pending',
-          assistant_summary: 'A summary that must not render yet.',
+          assistant_summary: 'A stored summary.',
         });
 
         const result = mapQueryResultToDocument(queryResult);
 
-        expect('assistantSummary' in (result.metadata ?? {})).toBe(false);
+        expect(result.metadata?.assistantSummary).toBe('A stored summary.');
+        expect('summaryRefreshEligible' in (result.metadata ?? {})).toBe(false);
       });
 
-      it('does not stamp assistantSummary for a failed row', () => {
+      it('stamps assistantSummary for a failed row with stored text and still stamps summaryRefreshEligible', () => {
         const queryResult = makeQueryResult({
           summary_status: 'failed',
-          assistant_summary: 'A summary that must not render.',
+          assistant_summary: 'A stored summary.',
         });
 
         const result = mapQueryResultToDocument(queryResult);
 
-        expect('assistantSummary' in (result.metadata ?? {})).toBe(false);
+        expect(result.metadata?.assistantSummary).toBe('A stored summary.');
+        expect(result.metadata?.summaryRefreshEligible).toBe(true);
       });
 
-      it('does not stamp assistantSummary for a dead row', () => {
-        const queryResult = makeQueryResult({
+      it('stamps assistantSummary for a dead row with stored text and preserves its refresh-eligibility rule', () => {
+        const currentDead = makeQueryResult({
           summary_status: 'dead',
-          assistant_summary: 'A summary that must not render.',
+          assistant_summary: 'A stored summary.',
+          summary_prompt_version: ARCHIVE_SUMMARY_PROMPT_VERSION,
+        });
+        const staleDead = makeQueryResult({
+          summary_status: 'dead',
+          assistant_summary: 'A stored summary.',
+          summary_prompt_version: ARCHIVE_SUMMARY_PROMPT_VERSION - 1,
         });
 
-        const result = mapQueryResultToDocument(queryResult);
+        const currentResult = mapQueryResultToDocument(currentDead);
+        const staleResult = mapQueryResultToDocument(staleDead);
 
-        expect('assistantSummary' in (result.metadata ?? {})).toBe(false);
+        expect(currentResult.metadata?.assistantSummary).toBe('A stored summary.');
+        expect('summaryRefreshEligible' in (currentResult.metadata ?? {})).toBe(false);
+        expect(staleResult.metadata?.assistantSummary).toBe('A stored summary.');
+        expect(staleResult.metadata?.summaryRefreshEligible).toBe(true);
       });
 
-      it('does not stamp assistantSummary for a null-status row', () => {
+      it('stamps assistantSummary for a null-status row with stored text and still stamps summaryRefreshEligible', () => {
         const queryResult = makeQueryResult({
           summary_status: null,
-          assistant_summary: 'A summary that must not render.',
+          assistant_summary: 'A stored summary.',
         });
 
         const result = mapQueryResultToDocument(queryResult);
 
-        expect('assistantSummary' in (result.metadata ?? {})).toBe(false);
+        expect(result.metadata?.assistantSummary).toBe('A stored summary.');
+        expect(result.metadata?.summaryRefreshEligible).toBe(true);
       });
 
       it('does not stamp assistantSummary for a done row with an empty-string summary', () => {
@@ -459,6 +472,29 @@ describe('memoryUtils', () => {
         expect('assistantSummary' in (result.metadata ?? {})).toBe(false);
       });
 
+      it('does not stamp assistantSummary for failed or dead rows with null or empty-string summary, so the excerpt fallback applies', () => {
+        for (const status of ['failed', 'dead'] as const) {
+          for (const summary of [null, ''] as const) {
+            const doc = mapQueryResultToDocument(
+              makeQueryResult({
+                content: '{user}: hi\n{assistant}: noted, {user} asked about the knee',
+                persona_name: 'Alice',
+                personality_name: 'Emily',
+                summary_status: status,
+                assistant_summary: summary,
+                summary_prompt_version: ARCHIVE_SUMMARY_PROMPT_VERSION,
+              })
+            );
+
+            expect('assistantSummary' in (doc.metadata ?? {})).toBe(false);
+            const rendered = renderSplitNoteBody(doc as unknown as MemoryDocument);
+            expect(rendered.usedSummary).toBe(false);
+            expect(rendered.usedExcerpt).toBe(true);
+            expect(rendered.body).toContain('Alice asked about the knee');
+          }
+        }
+      });
+
       it('MEM-ARCH-021: does not stamp assistantSummary for a chunk row even when its status is done', () => {
         const queryResult = makeQueryResult({
           chunk_group_id: '11111111-1111-4111-8111-111111111111',
@@ -471,6 +507,25 @@ describe('memoryUtils', () => {
 
         expect('assistantSummary' in (result.metadata ?? {})).toBe(false);
         expect('summaryRefreshEligible' in (result.metadata ?? {})).toBe(false);
+      });
+
+      it('MEM-ARCH-021: does not stamp assistantSummary for a chunk row with stored text and status failed', () => {
+        const queryResult = makeQueryResult({
+          content: '{user}: hi\n{assistant}: chunk reply that must not render',
+          persona_name: 'Alice',
+          personality_name: 'Emily',
+          chunk_group_id: '11111111-1111-4111-8111-111111111111',
+          summary_status: 'failed',
+          assistant_summary: 'A summary that must not render on a chunk row.',
+        });
+
+        const result = mapQueryResultToDocument(queryResult);
+
+        expect('assistantSummary' in (result.metadata ?? {})).toBe(false);
+        expect('summaryRefreshEligible' in (result.metadata ?? {})).toBe(false);
+        const rendered = renderSplitNoteBody(result as unknown as MemoryDocument);
+        expect(rendered.usedSummary).toBe(false);
+        expect(rendered.usedExcerpt).toBe(false);
       });
     });
 

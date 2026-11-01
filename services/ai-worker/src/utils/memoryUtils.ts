@@ -78,18 +78,16 @@ export function mapQueryResultToDocument(memory: MemoryQueryResult): PgvectorMem
   // renderer reads to pick the verbatim fallback.
   const split = splitMemoryContent(memory.content);
 
-  // @spec MEM-ARCH-021 — a stored `done` summary renders REGARDLESS of prompt
-  // version: a version bump drives re-enqueue, it must never blank the archive.
+  // @spec MEM-ARCH-021 — a stored summary renders regardless of status and
+  // prompt version (`archiveSummary/archiveSummaryStore.ts` writes it for the
+  // current content, and `routes/user/memorySingle.ts` clears it on edit).
   // Chunk rows never render a summary: the write side never summarizes them,
   // so excluding them here keeps that invariant local — it stops one chunk of
   // a group from ever rendering as a summary beside its verbatim siblings.
   // The excerpt arm excludes chunk rows renderer-side (MemoryNoteSplitRender.ts) for the same reason.
   const storedSummary = memory.assistant_summary;
   const hasSummary =
-    memory.chunk_group_id === null &&
-    memory.summary_status === 'done' &&
-    typeof storedSummary === 'string' &&
-    storedSummary.length > 0;
+    memory.chunk_group_id === null && typeof storedSummary === 'string' && storedSummary.length > 0;
 
   // @spec MEM-ARCH-022 — retrieval-time refresh eligibility. Chunk rows are
   // never eligible: the write side deliberately never enqueues them (a chunk is

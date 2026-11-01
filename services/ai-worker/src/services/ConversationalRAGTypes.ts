@@ -80,7 +80,7 @@ export interface MemoryDocument {
      *  absent. */
     personalityName?: string;
     /** The stored assistant-side summary for this row, stamped by `mapQueryResultToDocument`
-     *  ONLY when `summary_status` is `done` and the column is non-empty — regardless of prompt
+     *  ONLY when the column is non-empty on a non-chunk row — regardless of summary status or prompt
      *  version. ABSENT otherwise; absence is meaningful (it selects the user-turn + linked-facts
      *  note), so never write a default. */
     assistantSummary?: string;
@@ -91,7 +91,7 @@ export interface MemoryDocument {
     archiveRender?: {
       mode: 'split';
       linkedFacts: { id: string; statement: string; salience: number }[];
-      /** The summary the note renders. Present only when the row carries a `done` summary; the
+      /** The summary the note renders. Present only when the row carries a stored summary; the
        *  render reads it from HERE (never from the doc's own metadata) so verbatim mode — which
        *  never gets an `archiveRender` — can never render a summary. */
       assistantSummary?: string;

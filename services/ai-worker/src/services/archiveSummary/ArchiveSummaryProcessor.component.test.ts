@@ -425,6 +425,33 @@ describe('ArchiveSummaryProcessor (PGLite)', () => {
     expect(row.summary_attempts).toBe(1);
     expect(row.summary_status).toBe('failed');
   });
+
+  it('MEM-ARCH-021: a billed failure on a row with a stored summary leaves the text in place', async () => {
+    await seedMemory(13, '{user}: hi there\n{assistant}: hello!');
+    const storedSummary = 'Jules greeted Nova and Nova greeted them back warmly.';
+    await new ArchiveSummaryProcessor({
+      prisma,
+      budget: makeBudget(),
+      invokeModel: successInvoker(),
+    }).process(makeJobHandle(), undefined, makeJobData(13));
+    expect((await readMemory(13)).summary_status).toBe('done');
+    expect((await readMemory(13)).assistant_summary).toBe(storedSummary);
+
+    await prisma.$executeRaw`UPDATE memories SET summary_prompt_version = 0 WHERE id = ${memoryId(13)}::uuid`;
+
+    const processor = new ArchiveSummaryProcessor({
+      prisma,
+      budget: makeBudget(),
+      invokeModel: failingInvoker(),
+    });
+    await processor.process(makeJobHandle(), undefined, makeJobData(13));
+
+    const row = await readMemory(13);
+    expect(row.assistant_summary).toBe(storedSummary);
+    expect(row.summary_status).toBe('failed');
+    expect(row.summary_attempts).toBe(1);
+    expect(row.summary_last_error).toBe('parse_failure');
+  });
 });
 
 describe('ArchiveSummaryTrigger write-side stamp', () => {

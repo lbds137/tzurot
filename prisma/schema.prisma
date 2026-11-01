@@ -989,13 +989,14 @@ model Memory {
   /// summary, the recorded failure (`failed`, retry allowed), or the terminal
   /// verdict (`dead`); null until the first summary or terminal verdict is
   /// written. A value below the current constant marks the row stale: it is
-  /// re-enqueued at retrieval (`done` and `dead` alike), and a `done` row
-  /// keeps rendering its stored summary until the new one lands. A `failed`
+  /// re-enqueued at retrieval (`done` and `dead` alike), and a stored summary
+  /// keeps rendering whatever the status until a new one lands. A `failed`
   /// row is re-enqueued at retrieval regardless of version.
   summaryPromptVersion Int?                   @map("summary_prompt_version")
   /// Deferred-set: sha-256 hex of `content` the stored summary (or the
   /// recorded failure) describes; null until the first billed attempt. A
-  /// mismatch with the live content marks the summary stale.
+  /// content edit clears the stored summary and this hash together, so a
+  /// stored summary always describes the live content.
   sourceContentHash    String?                @map("source_content_hash") @db.VarChar(64)
   /// Deferred-set: when the row was last enqueued for summarization; null
   /// until the first enqueue.
