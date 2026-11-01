@@ -13,8 +13,6 @@ import {
   partitionRedeployFailures,
   type RedeployFailure,
 } from './redeploy-repair-text.js';
-import type { StageArgs } from './rotate-env-context.js';
-import { isDegenerateWindow } from './rotate-env-window.js';
 
 const DRY_RUN_NOTICE = '\n[DRY RUN] No changes made.';
 
@@ -52,29 +50,6 @@ export function refuseIfWindowClosed(
     );
   }
   throw new UsageError(`${summary} — run stage 1 first.`);
-}
-
-export async function refuseIfDegenerateWindow(
-  args: StageArgs,
-  text: { dryRun: string; refusal: string }
-): Promise<boolean> {
-  const { options, context, verifier, previousName } = args;
-  const degenerate = await isDegenerateWindow({
-    context,
-    env: options.env,
-    verifier,
-    previousName,
-    primaryName: options.name,
-  });
-  if (!degenerate) {
-    return false;
-  }
-  if (options.dryRun) {
-    console.log(chalk.red(`\n⚠️  ${text.dryRun}`));
-    printDryRunNotice();
-    return true;
-  }
-  throw new UsageError(text.refusal);
 }
 
 /**

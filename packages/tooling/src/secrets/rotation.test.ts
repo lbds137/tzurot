@@ -1245,6 +1245,21 @@ describe('rotateByokKey', () => {
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
   });
 
+  it('stage 3 with an empty API_KEY_ENCRYPTION_KEY rejects with the parse error rather than No BYOK rotation window', async () => {
+    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: '' });
+
+    const promise = rotateByokKey({ env: 'dev', stage: '3' });
+    await expect(promise).rejects.toThrow(
+      'API_KEY_ENCRYPTION_KEY environment variable is required for encryption'
+    );
+    await expect(promise).rejects.not.toThrow('No BYOK rotation window');
+    expect(mockPrisma.userApiKey.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.userCredential.findMany).not.toHaveBeenCalled();
+    expect(deleteRailwayVariable).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
+    expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
+  });
+
   it.each(['1', 'stage', '2', 'reencrypt'])(
     'resume: true with stage %s refuses before any Railway read',
     async stage => {

@@ -23,12 +23,16 @@ import {
 } from './rotate-env-context.js';
 import {
   printDryRunNotice,
-  refuseIfDegenerateWindow,
   refuseIfWindowClosed,
   stage3NextStep,
   stage3RedeployFailureError,
 } from './rotate-env-stage-output.js';
-import { deleteRollMarker, isRollComplete, rollMarkerName } from './rotate-env-window.js';
+import {
+  deleteRollMarker,
+  isRollComplete,
+  refuseIfDegenerateWindow,
+  rollMarkerName,
+} from './rotate-env-window.js';
 
 async function refuseIfDegenerateOrUnrolled(args: StageArgs): Promise<boolean> {
   const { options, context, verifier, previousName } = args;
@@ -87,11 +91,14 @@ async function refuseIfDegenerateOrUnrolled(args: StageArgs): Promise<boolean> {
 export async function runStage3(args: StageArgs): Promise<void> {
   const { options, context, verifier, previousName, windowOpen } = args;
   const ledgerName = options.name.toLowerCase().replaceAll('_', '-');
+  const rolledName = rollMarkerName(options.name);
   const closedWindowNote =
     `If an earlier stage 3 was interrupted after deleting "${previousName}", do NOT start a new ` +
     `rotation: redeploy "${verifier.name}" with ` +
     `\`pnpm ops deploy:redeploy --env ${options.env} --service ${verifier.name} --yes\` and ` +
-    `stamp with \`pnpm ops secrets:mark-rotated ${ledgerName} --env ${options.env}\`.`;
+    `stamp with \`pnpm ops secrets:mark-rotated ${ledgerName} --env ${options.env}\`; ` +
+    `a "${rolledName}" left behind is harmless and can be removed with ` +
+    `\`pnpm ops deploy:var-delete --env ${options.env} --service ${verifier.name} --name ${rolledName} --yes\`.`;
 
   if (refuseIfWindowClosed(windowOpen, options.dryRun, previousName, closedWindowNote)) {
     return;
@@ -100,8 +107,6 @@ export async function runStage3(args: StageArgs): Promise<void> {
   if (await refuseIfDegenerateOrUnrolled(args)) {
     return;
   }
-
-  const rolledName = rollMarkerName(options.name);
 
   if (options.dryRun) {
     console.log(chalk.dim(`  Plan: delete "${previousName}" from "${verifier.name}"'s scope`));

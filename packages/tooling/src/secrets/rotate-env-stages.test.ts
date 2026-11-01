@@ -1045,27 +1045,15 @@ describe('runStagedRotation', () => {
   it('stage 2 binds the roll marker to the first primary value when the primary changes between the read and the write', async () => {
     verifierNames.add(PREVIOUS_NAME);
     let primaryReadCount = 0;
-    let currentPrimary = SENTINEL_VALUE;
     mockReadValue.mockImplementation(async args => {
       if (args.name === PREVIOUS_NAME) return SENTINEL_PREVIOUS_VALUE;
       if (args.name === ROLLED_NAME) return SENTINEL_VALUE_HASH;
       primaryReadCount += 1;
-      return primaryReadCount <= 2 ? currentPrimary : 'primary-changed-on-later-read';
-    });
-    mockRedeploy.mockImplementation(async () => {
-      currentPrimary = 'primary-changed-during-redeploy';
-      return [];
+      return primaryReadCount <= 2 ? SENTINEL_VALUE : 'primary-changed-on-later-read';
     });
 
     await runStagedRotation(makeOptions({ stage: '2' }), makeContext());
 
-    const secondPrimaryValue = await mockReadValue({
-      projectId: 'proj-1',
-      environmentId: 'env-1',
-      name: VAR_NAME,
-      env: 'dev',
-    });
-    expect(secondPrimaryValue).toBe('primary-changed-on-later-read');
     expect(mockUpsert).toHaveBeenCalledTimes(1);
     expect(mockUpsert).toHaveBeenCalledWith({
       projectId: 'proj-1',
