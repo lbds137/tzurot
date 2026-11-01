@@ -21,13 +21,35 @@
  * reads it, so the primary-value read below deliberately passes no `serviceId`.
  */
 
-import { listRailwayVariableNames, readRailwayVariableValue } from '../deployment/railway-api.js';
+import crypto from 'node:crypto';
+
+import {
+  deleteRailwayVariable,
+  listRailwayVariableNames,
+  readRailwayVariableValue,
+  upsertRailwayVariable,
+} from '../deployment/railway-api.js';
 
 export interface VerifierWindowArgs {
   context: { projectId: string; environmentId: string };
   env: 'dev' | 'prod';
   verifier: { id: string; name: string };
   previousName: string;
+}
+
+export interface RollMarkerArgs {
+  context: { projectId: string; environmentId: string };
+  env: 'dev' | 'prod';
+  verifier: { id: string; name: string };
+  primaryName: string;
+}
+
+export function rollMarkerName(primaryName: string): string {
+  return `${primaryName}_ROLLED`;
+}
+
+function hashPrimaryValue(value: string): string {
+  return crypto.createHash('sha256').update(value).digest('hex');
 }
 
 /**
@@ -122,4 +144,89 @@ export async function isDegenerateWindow(
     }),
   ]);
   return primaryValue === previousValue;
+}
+
+/**
+ * Read the current shared primary value and return its lowercase hex SHA-256
+ * hash for `<NAME>_ROLLED`, or throw if the primary has no value.
+ *
+ * Neither the primary value nor its hash is ever printed, logged, or included
+ * in a thrown error.
+ */
+export async function readRollMarkerValue(args: RollMarkerArgs): Promise<string> {
+  const primaryValue = await readRailwayVariableValue({
+    projectId: args.context.projectId,
+    environmentId: args.context.environmentId,
+    name: args.primaryName,
+    env: args.env,
+  });
+  if (primaryValue === undefined || primaryValue.length === 0) {
+    throw new Error(
+      `"${args.primaryName}" has no value at the shared tier — cannot record "${rollMarkerName(args.primaryName)}".`
+    );
+  }
+  return hashPrimaryValue(primaryValue);
+}
+
+/**
+ * Record stage-2 roll completion in the verifier's own scope as `<NAME>_ROLLED`,
+ * set to the hash returned by {@link readRollMarkerValue}.
+ *
+ * Binding the marker to the primary value means a stale marker from an earlier
+ * rotation, or a primary changed after stage 2, cannot satisfy stage 3, so
+ * stage 1 does not have to clear it.
+ */
+export async function writeRollMarker(args: RollMarkerArgs, value: string): Promise<void> {
+  await upsertRailwayVariable({
+    projectId: args.context.projectId,
+    environmentId: args.context.environmentId,
+    serviceId: args.verifier.id,
+    name: rollMarkerName(args.primaryName),
+    value,
+    skipDeploys: true,
+    env: args.env,
+  });
+}
+
+/**
+ * Whether stage 2 has completed for the CURRENT primary: `<NAME>_ROLLED` is
+ * present in the verifier's scope and equals the SHA-256 hash of a non-empty
+ * shared primary value.
+ */
+export async function isRollComplete(args: RollMarkerArgs): Promise<boolean> {
+  const [primaryValue, markerValue] = await Promise.all([
+    readRailwayVariableValue({
+      projectId: args.context.projectId,
+      environmentId: args.context.environmentId,
+      name: args.primaryName,
+      env: args.env,
+    }),
+    readRailwayVariableValue({
+      projectId: args.context.projectId,
+      environmentId: args.context.environmentId,
+      serviceId: args.verifier.id,
+      name: rollMarkerName(args.primaryName),
+      env: args.env,
+    }),
+  ]);
+  if (
+    primaryValue === undefined ||
+    primaryValue.length === 0 ||
+    markerValue === undefined ||
+    markerValue.length === 0
+  ) {
+    return false;
+  }
+  return markerValue === hashPrimaryValue(primaryValue);
+}
+
+/** Delete `<NAME>_ROLLED` from the verifier's own variable scope. */
+export async function deleteRollMarker(args: RollMarkerArgs): Promise<void> {
+  await deleteRailwayVariable({
+    projectId: args.context.projectId,
+    environmentId: args.context.environmentId,
+    serviceId: args.verifier.id,
+    name: rollMarkerName(args.primaryName),
+    env: args.env,
+  });
 }

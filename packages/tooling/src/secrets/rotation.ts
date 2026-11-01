@@ -18,10 +18,12 @@
  *                        new deployment to reach SUCCESS, then re-encrypt every
  *                        user_api_keys/user_credentials row still on the
  *                        previous key; verify sweep (byok-reencrypt-stage.ts).
- *   stage 3 (finalize):  verify again, delete PREVIOUS on both services
- *                        through the Railway API, redeploy them reusing their
- *                        running image, and stamp the ledger only when both
- *                        redeploys were accepted.
+ *   stage 3 (finalize):  refuse with no open window or PREVIOUS equal to CURRENT
+ *                        (`--resume` finishes an interrupted stage 3), verify
+ *                        again, delete PREVIOUS on both services through the
+ *                        Railway API, redeploy them reusing their running image,
+ *                        and stamp the ledger only when both redeploys were
+ *                        accepted.
  *
  * Secret VALUES never reach stdout; only names, counts, and hashes-free
  * confirmations are printed.
@@ -45,7 +47,11 @@ import {
   upsertRailwayVariable,
 } from '../deployment/railway-api.js';
 import { getRailwayDatabaseUrl, getRailwayEnvName } from '../utils/env-runner.js';
-import { deleteFailureError, resolveServiceIds } from './byok-finalize-helpers.js';
+import {
+  assertFinalizeWindowState,
+  deleteFailureError,
+  resolveServiceIds,
+} from './byok-finalize-helpers.js';
 import { reencryptByokRows } from './byok-reencrypt-stage.js';
 import {
   assertByokServicesDeploymentReady,
@@ -165,7 +171,7 @@ function assertByokServicesConsistent(env: SecretsEnv): void {
   if (firstPrevious !== secondPrevious) {
     throw new Error(
       `${PREVIOUS_VAR} DIFFERS between ${first} and ${second} (${env}) — a previous variable write partially failed. Re-set it on the lagging service (Railway dashboard history has the values), then re-run.` +
-        ` If stage 3 was interrupted (PREVIOUS deleted on one service only), delete it on the other with \`pnpm ops deploy:var-delete --env ${env} --service <name> --name API_KEY_ENCRYPTION_KEY_PREVIOUS --yes\` instead, then re-run stage 3.`
+        ` If stage 3 was interrupted (PREVIOUS deleted on one service only), delete it on the other with \`pnpm ops deploy:var-delete --env ${env} --service <name> --name API_KEY_ENCRYPTION_KEY_PREVIOUS --yes\` instead, then re-run stage 3 with --resume.`
     );
   }
 }
@@ -399,13 +405,17 @@ async function redeployByokServices(
   throw new Error(message);
 }
 
-async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
+async function finalizeByokWindow(env: SecretsEnv, resume: boolean): Promise<void> {
   requireRailwayApiToken(env);
 
-  const currentKey = parseEncryptionKeyMaterial(
-    getServiceVariable(env, GATEWAY_SERVICE, CURRENT_VAR),
-    CURRENT_VAR
-  );
+  const currentRaw = getServiceVariable(env, GATEWAY_SERVICE, CURRENT_VAR);
+  assertFinalizeWindowState({
+    env,
+    resume,
+    current: currentRaw,
+    previousByService: BYOK_SERVICES.map(svc => readServiceVariable(env, svc, PREVIOUS_VAR)),
+  });
+  const currentKey = parseEncryptionKeyMaterial(currentRaw, CURRENT_VAR);
   const remaining = await withEnvPrisma(env, prisma => countNonCurrentRows(prisma, currentKey));
   if (remaining > 0) {
     throw new Error(
@@ -456,13 +466,21 @@ async function finalizeByokWindow(env: SecretsEnv): Promise<void> {
 }
 
 /** Staged BYOK key rotation. See module doc for the three stages. */
-export async function rotateByokKey(options: { env: SecretsEnv; stage: string }): Promise<void> {
-  const { env, stage } = options;
+export async function rotateByokKey(options: {
+  env: SecretsEnv;
+  stage: string;
+  resume?: boolean;
+}): Promise<void> {
+  const { env, stage, resume = false } = options;
 
   // Cheap argument validation first…
   const KNOWN_STAGES = new Set(['1', 'stage', '2', 'reencrypt', '3', 'finalize']);
   if (!KNOWN_STAGES.has(stage)) {
     throw new Error(`Unknown stage "${stage}" — use 1|stage, 2|reencrypt, or 3|finalize.`);
+  }
+  const isFinalizeStage = stage === '3' || stage === 'finalize';
+  if (resume && !isFinalizeStage) {
+    throw new Error(`--resume is only valid for stage 3 (finalize), got stage "${stage}".`);
   }
   // …then the IO-touching guard: every stage refuses to run on a split-brain
   // variable state — reads below use api-gateway's copy, which is only
@@ -497,8 +515,8 @@ export async function rotateByokKey(options: { env: SecretsEnv; stage: string })
     return;
   }
 
-  if (stage === '3' || stage === 'finalize') {
-    await finalizeByokWindow(env);
+  if (isFinalizeStage) {
+    await finalizeByokWindow(env, resume);
     return;
   }
 

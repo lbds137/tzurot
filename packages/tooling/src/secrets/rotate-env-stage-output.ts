@@ -28,18 +28,20 @@ export function printDryRunNotice(): void {
 export function refuseIfWindowClosed(
   windowOpen: boolean,
   dryRun: boolean,
-  previousName: string
+  previousName: string,
+  closedWindowNote?: string
 ): boolean {
   if (windowOpen) {
     return false;
   }
   const summary = `No rotation window is open ("${previousName}" is not set)`;
+  const noteSuffix = closedWindowNote === undefined ? '' : ` ${closedWindowNote}`;
   if (dryRun) {
-    console.log(chalk.red(`\n⚠️  ${summary}. A real run would REFUSE.`));
+    console.log(chalk.red(`\n⚠️  ${summary}. A real run would REFUSE.${noteSuffix}`));
     printDryRunNotice();
     return true;
   }
-  throw new UsageError(`${summary} — run stage 1 first.`);
+  throw new UsageError(`${summary} — run stage 1 first.${noteSuffix}`);
 }
 
 /**

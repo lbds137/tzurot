@@ -739,7 +739,10 @@ describe('rotateByokKey', () => {
   });
 
   it('stage 3 refuses to close the window while any row is off the current key', async () => {
-    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
+    stubRailwayVars({
+      API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+      API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+    });
     const strayRow = { id: 'stray', ...encryptWithKey('sk-x', KEY_B) };
     mockPrisma.userApiKey.findMany.mockResolvedValue([strayRow]);
     mockPrisma.userCredential.findMany.mockResolvedValue([]);
@@ -817,7 +820,7 @@ describe('rotateByokKey', () => {
     mockPrisma.userCredential.findMany.mockResolvedValue([]);
     mockPrisma.secretRotation.upsert.mockResolvedValue({});
 
-    await rotateByokKey({ env: 'dev', stage: '3' });
+    await rotateByokKey({ env: 'dev', stage: '3', resume: true });
 
     expect(deleteRailwayVariable).not.toHaveBeenCalled();
     expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
@@ -835,7 +838,7 @@ describe('rotateByokKey', () => {
     mockPrisma.userCredential.findMany.mockResolvedValue([]);
     mockPrisma.secretRotation.upsert.mockResolvedValue({});
 
-    await rotateByokKey({ env: 'dev', stage: '3' });
+    await rotateByokKey({ env: 'dev', stage: '3', resume: true });
 
     expect(deleteRailwayVariable).toHaveBeenCalledTimes(2);
     expect(mockPrisma.secretRotation.upsert).toHaveBeenCalledWith(
@@ -978,7 +981,7 @@ describe('rotateByokKey', () => {
     mockPrisma.userCredential.findMany.mockResolvedValue([]);
     deleteRailwayVariable.mockRejectedValueOnce(new Error('delete boom'));
 
-    const promise = rotateByokKey({ env: 'dev', stage: '3' });
+    const promise = rotateByokKey({ env: 'dev', stage: '3', resume: true });
     await expect(promise).rejects.toThrow('absent on api-gateway');
     await expect(promise).rejects.toThrow('may still be set on ai-worker');
     await expect(promise).rejects.toThrow(
@@ -1064,6 +1067,7 @@ describe('rotateByokKey', () => {
     const promise = rotateByokKey({ env: 'dev', stage: '3' });
     await expect(promise).rejects.toThrow('API_KEY_ENCRYPTION_KEY_PREVIOUS DIFFERS');
     await expect(promise).rejects.toThrow('deploy:var-delete');
+    await expect(promise).rejects.toThrow('--resume');
     expect(deleteRailwayVariable).not.toHaveBeenCalled();
     expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
   });
@@ -1168,6 +1172,89 @@ describe('rotateByokKey', () => {
     expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
     expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
   });
+
+  it('stage 3 without --resume refuses when PREVIOUS is already absent on both services', async () => {
+    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
+
+    const promise = rotateByokKey({ env: 'dev', stage: '3' });
+    await expect(promise).rejects.toThrow('pnpm ops secrets:rotate-byok --env dev --stage 1');
+    await expect(promise).rejects.toThrow(
+      'pnpm ops secrets:rotate-byok --env dev --stage 3 --resume'
+    );
+    expect(mockPrisma.userApiKey.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.userCredential.findMany).not.toHaveBeenCalled();
+    expect(deleteRailwayVariable).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
+    expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
+  });
+
+  it('stage 3 without --resume refuses when PREVIOUS is empty on both services', async () => {
+    stubRailwayVars({
+      API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+      API_KEY_ENCRYPTION_KEY_PREVIOUS: '',
+    });
+
+    const promise = rotateByokKey({ env: 'dev', stage: '3' });
+    await expect(promise).rejects.toThrow('pnpm ops secrets:rotate-byok --env dev --stage 1');
+    await expect(promise).rejects.toThrow(
+      'pnpm ops secrets:rotate-byok --env dev --stage 3 --resume'
+    );
+    expect(mockPrisma.userApiKey.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.userCredential.findMany).not.toHaveBeenCalled();
+    expect(deleteRailwayVariable).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
+    expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])(
+    'stage 3 refuses a one-sided degenerate window before any DB read, delete, redeploy, or stamp (resume=%s)',
+    async resume => {
+      stubRailwayVarsPerService({
+        'api-gateway': {
+          API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+          API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_A_HEX,
+        },
+        'ai-worker': {
+          API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+        },
+      });
+
+      const promise = rotateByokKey({ env: 'dev', stage: '3', resume });
+      await expect(promise).rejects.toThrow('pnpm ops secrets:rotate-byok --env dev --stage 1');
+      expect(mockPrisma.userApiKey.findMany).not.toHaveBeenCalled();
+      expect(mockPrisma.userCredential.findMany).not.toHaveBeenCalled();
+      expect(deleteRailwayVariable).not.toHaveBeenCalled();
+      expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
+      expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
+    }
+  );
+
+  it('stage 3 with --resume refuses when an open window is present', async () => {
+    stubRailwayVars({
+      API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+      API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+    });
+
+    const promise = rotateByokKey({ env: 'dev', stage: '3', resume: true });
+    await expect(promise).rejects.toThrow(/nothing to resume/i);
+    await expect(promise).rejects.toThrow('pnpm ops secrets:rotate-byok --env dev --stage 3');
+    expect(mockPrisma.userApiKey.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.userCredential.findMany).not.toHaveBeenCalled();
+    expect(deleteRailwayVariable).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
+    expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
+  });
+
+  it.each(['1', 'stage', '2', 'reencrypt'])(
+    'resume: true with stage %s refuses before any Railway read',
+    async stage => {
+      await expect(rotateByokKey({ env: 'dev', stage, resume: true })).rejects.toThrow(
+        '--resume is only valid for stage 3 (finalize)'
+      );
+      expect(mockExecFileSync).not.toHaveBeenCalled();
+      expect(requireRailwayApiToken).not.toHaveBeenCalled();
+    }
+  );
 });
 
 describe('showRotationStatus', () => {

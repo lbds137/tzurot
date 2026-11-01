@@ -49,6 +49,7 @@ vi.mock('./rotate-env-context.js', () => ({
   ),
 }));
 
+import crypto from 'node:crypto';
 import {
   assertRailwayServiceDeploymentReady,
   getRailwayServiceLatestDeployment,
@@ -66,9 +67,11 @@ import {
   reportRedeployFailures,
   stampLedger,
   type RotationContext,
+  type StagedRotationOptions,
 } from './rotate-env-context.js';
 import { STAGE2_NEXT_STEP, stage1NextStep, stage3NextStep } from './rotate-env-stage-output.js';
-import { runStagedRotation, type StagedRotationOptions } from './rotate-env-stages.js';
+import { runStagedRotation } from './rotate-env-stages.js';
+import { rollMarkerName } from './rotate-env-window.js';
 import { DEFAULT_SERVICE_POLL_INTERVAL_MS } from './service-redeploy-wait.js';
 import { UsageError } from '../utils/errors.js';
 
@@ -87,8 +90,10 @@ const mockMarkRotated = vi.mocked(stampLedger);
 
 const VAR_NAME = 'INTERNAL_SERVICE_SECRET';
 const PREVIOUS_NAME = `${VAR_NAME}_PREVIOUS`;
+const ROLLED_NAME = rollMarkerName(VAR_NAME);
 const SENTINEL_VALUE = 'sentinel-current-value-do-not-log';
 const SENTINEL_PREVIOUS_VALUE = 'sentinel-previous-value-do-not-log';
+const SENTINEL_VALUE_HASH = crypto.createHash('sha256').update(SENTINEL_VALUE).digest('hex');
 
 const SERVICES = [
   { id: 'svc-gateway', name: 'api-gateway' },
@@ -151,13 +156,14 @@ describe('runStagedRotation', () => {
     mockListNames.mockReset().mockImplementation(async () => [...verifierNames]);
     mockDelete.mockReset().mockResolvedValue(undefined);
     // Default: a NORMAL (non-degenerate) open window — the primary and
-    // `_PREVIOUS` read back as DIFFERENT values. Tests exercising the
-    // degenerate-window paths override this per-call.
-    mockReadValue
-      .mockReset()
-      .mockImplementation(async args =>
-        args.name === PREVIOUS_NAME ? SENTINEL_PREVIOUS_VALUE : SENTINEL_VALUE
-      );
+    // `_PREVIOUS` read back as DIFFERENT values, and `_ROLLED` matches the
+    // SHA-256 of the primary. Tests exercising the degenerate-window or
+    // unrolled paths override this per-call.
+    mockReadValue.mockReset().mockImplementation(async args => {
+      if (args.name === PREVIOUS_NAME) return SENTINEL_PREVIOUS_VALUE;
+      if (args.name === ROLLED_NAME) return SENTINEL_VALUE_HASH;
+      return SENTINEL_VALUE;
+    });
     mockConfirm.mockReset().mockResolvedValue(true);
     mockGate.mockReset().mockResolvedValue({ ok: true, commit: 'abc123' });
     mockRedeploy.mockReset().mockResolvedValue([]);
@@ -395,7 +401,7 @@ describe('runStagedRotation', () => {
     expect(allOutput).not.toContain(SENTINEL_VALUE);
   });
 
-  it('stage 2 redeploys every inheriting service except the verifier and writes no variables', async () => {
+  it('stage 2 redeploys every inheriting service except the verifier and writes only the roll marker', async () => {
     verifierNames.add(PREVIOUS_NAME);
     const context = makeContext();
 
@@ -412,7 +418,16 @@ describe('runStagedRotation', () => {
         env: 'dev',
       }
     );
-    expect(mockUpsert).not.toHaveBeenCalled();
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+    expect(mockUpsert).toHaveBeenCalledWith({
+      projectId: 'proj-1',
+      environmentId: 'env-1',
+      serviceId: 'svc-gateway',
+      name: ROLLED_NAME,
+      value: SENTINEL_VALUE_HASH,
+      skipDeploys: true,
+      env: 'dev',
+    });
     expect(mockDelete).not.toHaveBeenCalled();
   });
 
@@ -430,10 +445,13 @@ describe('runStagedRotation', () => {
 
     await runStagedRotation(makeOptions({ stage: '3' }), context);
 
-    expect(mockDelete).toHaveBeenCalledTimes(1);
+    expect(mockDelete).toHaveBeenCalledTimes(2);
     const deleteArg = mockDelete.mock.calls[0][0];
     expect(deleteArg.name).toBe(PREVIOUS_NAME);
     expect(deleteArg.serviceId).toBe('svc-gateway');
+    const markerDeleteArg = mockDelete.mock.calls[1][0];
+    expect(markerDeleteArg.name).toBe(ROLLED_NAME);
+    expect(markerDeleteArg.serviceId).toBe('svc-gateway');
     expect(mockUpsert).not.toHaveBeenCalled();
   });
 
@@ -978,5 +996,135 @@ describe('runStagedRotation', () => {
       'Nothing was written — the verifier restarted and its new deployment reached SUCCESS (per the stage-2 wait).'
     );
     expect(env).toBe('dev');
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
+  it('stage 2 reads the primary before redeploys and writes the roll marker with the sha256 of the primary in the verifier scope after presenter redeploys', async () => {
+    verifierNames.add(PREVIOUS_NAME);
+    const callOrder: string[] = [];
+    mockReadValue.mockImplementation(async args => {
+      callOrder.push(`read:${args.name}`);
+      return SENTINEL_VALUE;
+    });
+    mockRedeploy.mockImplementation(async () => {
+      callOrder.push('redeploy-presenters');
+      return [];
+    });
+    mockUpsert.mockImplementation(async args => {
+      callOrder.push(`upsert:${args.name}`);
+      if (args.serviceId !== undefined) {
+        verifierNames.add(args.name);
+      }
+    });
+
+    await runStagedRotation(makeOptions({ stage: '2' }), makeContext());
+
+    expect(callOrder).toEqual([`read:${VAR_NAME}`, 'redeploy-presenters', `upsert:${ROLLED_NAME}`]);
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+    expect(mockUpsert).toHaveBeenCalledWith({
+      projectId: 'proj-1',
+      environmentId: 'env-1',
+      serviceId: 'svc-gateway',
+      name: ROLLED_NAME,
+      value: SENTINEL_VALUE_HASH,
+      skipDeploys: true,
+      env: 'dev',
+    });
+    const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
+    expect(allOutput).not.toContain(SENTINEL_VALUE);
+    expect(allOutput).not.toContain(SENTINEL_VALUE_HASH);
+  });
+
+  it('stage 2 binds the roll marker to the first primary value when the primary changes between the read and the write', async () => {
+    verifierNames.add(PREVIOUS_NAME);
+    let primaryReadCount = 0;
+    let currentPrimary = SENTINEL_VALUE;
+    mockReadValue.mockImplementation(async args => {
+      if (args.name === PREVIOUS_NAME) return SENTINEL_PREVIOUS_VALUE;
+      if (args.name === ROLLED_NAME) return SENTINEL_VALUE_HASH;
+      primaryReadCount += 1;
+      return primaryReadCount === 1 ? currentPrimary : 'primary-changed-on-later-read';
+    });
+    mockRedeploy.mockImplementation(async () => {
+      currentPrimary = 'primary-changed-during-redeploy';
+      return [];
+    });
+
+    await runStagedRotation(makeOptions({ stage: '2' }), makeContext());
+
+    const secondPrimaryValue = await mockReadValue({
+      projectId: 'proj-1',
+      environmentId: 'env-1',
+      name: VAR_NAME,
+      env: 'dev',
+    });
+    expect(secondPrimaryValue).toBe('primary-changed-on-later-read');
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+    expect(mockUpsert).toHaveBeenCalledWith({
+      projectId: 'proj-1',
+      environmentId: 'env-1',
+      serviceId: 'svc-gateway',
+      name: ROLLED_NAME,
+      value: SENTINEL_VALUE_HASH,
+      skipDeploys: true,
+      env: 'dev',
+    });
+  });
+
+  it('stage 2 throws before redeploying or upserting when the primary read before redeploys fails', async () => {
+    verifierNames.add(PREVIOUS_NAME);
+    mockReadValue.mockResolvedValueOnce(undefined);
+
+    await expect(runStagedRotation(makeOptions({ stage: '2' }), makeContext())).rejects.toThrow(
+      VAR_NAME
+    );
+
+    expect(mockAssertReady).not.toHaveBeenCalled();
+    expect(mockRedeployVerifier).not.toHaveBeenCalled();
+    expect(mockRedeploy).not.toHaveBeenCalled();
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
+  it('stage 2 closed-window refusal does not contain mark-rotated', async () => {
+    const error = await runStagedRotation(makeOptions({ stage: '2' }), makeContext()).catch(
+      (err: unknown) => err
+    );
+
+    expect(error).toBeInstanceOf(UsageError);
+    expect(String(error)).toContain('run stage 1 first.');
+    expect(String(error)).not.toContain('mark-rotated');
+  });
+
+  it('stage 2 throws the re-run text and omits Stage 2 complete when writing the roll marker throws', async () => {
+    verifierNames.add(PREVIOUS_NAME);
+    mockUpsert.mockRejectedValueOnce(new Error('railway upsert boom'));
+
+    const error = await runStagedRotation(makeOptions({ stage: '2' }), makeContext()).then(
+      () => new Error('expected rejection'),
+      (e: unknown) => e as Error
+    );
+
+    expect(error.message).toMatch(/presenters were redeployed.*completion could not be recorded/i);
+    expect(error.message).toMatch(/re-run stage 2 once every service shows SUCCESS/i);
+    expect(error.message).not.toContain(SENTINEL_VALUE);
+    expect(error.message).not.toContain(SENTINEL_VALUE_HASH);
+
+    const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
+    expect(allOutput).not.toContain('Stage 2 complete');
+    expect(allOutput).not.toContain(SENTINEL_VALUE);
+    expect(allOutput).not.toContain(SENTINEL_VALUE_HASH);
+  });
+
+  it('stage 2 dry run prints the completion marker plan line and writes nothing', async () => {
+    verifierNames.add(PREVIOUS_NAME);
+
+    await runStagedRotation(makeOptions({ stage: '2', dryRun: true }), makeContext());
+
+    expect(mockUpsert).not.toHaveBeenCalled();
+    const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
+    expect(allOutput).toMatch(
+      /Plan:.*completion marker.*INTERNAL_SERVICE_SECRET_ROLLED.*"api-gateway"/
+    );
+    expect(allOutput).not.toContain('Plan: no variable writes');
   });
 });

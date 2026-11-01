@@ -79,6 +79,13 @@ describe('registerSecretsCommands', () => {
     expect(command?.options.find(option => option.name === 'stage')).toBeDefined();
   });
 
+  it('rotate-byok exposes the --resume option', () => {
+    registerSecretsCommands(cli);
+
+    const command = cli.commands.find(c => c.name === 'secrets:rotate-byok');
+    expect(command?.options.find(option => option.name === 'resume')).toBeDefined();
+  });
+
   // cac's underlying parser (mri) coerces a numeric-looking flag value to a
   // NUMBER, so `--stage 1` arrives as `1`, not `'1'` — this pins that
   // normalizeStageFlag converts it before it crosses the seam into
@@ -90,6 +97,17 @@ describe('registerSecretsCommands', () => {
     await cli.runMatchedCommand();
 
     expect(mockRotateByokKey).toHaveBeenCalledWith({ env: 'dev', stage: '1' });
+  });
+
+  it('forwards --resume to rotateByokKey when passed', async () => {
+    registerSecretsCommands(cli);
+
+    cli.parse(['node', 'test', 'secrets:rotate-byok', '--stage', '3', '--resume'], {
+      run: false,
+    });
+    await cli.runMatchedCommand();
+
+    expect(mockRotateByokKey).toHaveBeenCalledWith({ env: 'dev', stage: '3', resume: true });
   });
 
   // The action validates --stage before the dynamic import into

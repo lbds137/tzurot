@@ -136,14 +136,23 @@ If it fails, do not run stage 3: `PREVIOUS` is still set on both services.
 
 ### Stage 3 — finalize
 
-Re-verifies, preflights that both services' latest deployments are `SUCCESS`
+Refuses before touching the database when no rotation window is open
+(`API_KEY_ENCRYPTION_KEY_PREVIOUS` absent or empty on both services) or when
+`API_KEY_ENCRYPTION_KEY_PREVIOUS` still equals `API_KEY_ENCRYPTION_KEY` (an
+interrupted stage 1 — re-run stage 1 instead). When a window is open, stage 3
+re-verifies, preflights that both services' latest deployments are `SUCCESS`
 before mutating anything, then deletes `API_KEY_ENCRYPTION_KEY_PREVIOUS` on both
 services via the Railway GraphQL API, redeploys both services reusing their
 running image, and stamps the ledger only if both redeploys were accepted
 (requires `TZUROT_RAILWAY_API_TOKEN_DEV` or `TZUROT_RAILWAY_API_TOKEN_PROD` in
 the local `.env`, same as stages 1 and 2). It **refuses to finalize** while any
 row still fails to decrypt with the current key, and equally if a read hit the
-50,000-row cap, since a capped sweep cannot prove completeness.
+50,000-row cap, since a capped sweep cannot prove completeness. If an earlier
+stage 3 was interrupted after `API_KEY_ENCRYPTION_KEY_PREVIOUS` was deleted from
+both services (or after cleaning up a partial delete with `deploy:var-delete`),
+run `pnpm ops secrets:rotate-byok --env prod --stage 3 --resume` to finish the
+redeploys and ledger stamp; `--resume` is refused on stages 1 and 2 and whenever
+`API_KEY_ENCRYPTION_KEY_PREVIOUS` is still set.
 
 ## Safety properties worth knowing
 
