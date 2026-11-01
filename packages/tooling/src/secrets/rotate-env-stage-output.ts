@@ -13,6 +13,8 @@ import {
   partitionRedeployFailures,
   type RedeployFailure,
 } from './redeploy-repair-text.js';
+import type { StageArgs } from './rotate-env-context.js';
+import { isDegenerateWindow } from './rotate-env-window.js';
 
 const DRY_RUN_NOTICE = '\n[DRY RUN] No changes made.';
 
@@ -35,13 +37,44 @@ export function refuseIfWindowClosed(
     return false;
   }
   const summary = `No rotation window is open ("${previousName}" is not set)`;
-  const noteSuffix = closedWindowNote === undefined ? '' : ` ${closedWindowNote}`;
   if (dryRun) {
-    console.log(chalk.red(`\n⚠️  ${summary}. A real run would REFUSE.${noteSuffix}`));
+    const dryRunMessage =
+      closedWindowNote === undefined
+        ? `${summary}. A real run would REFUSE.`
+        : `${summary}. A real run would REFUSE. ${closedWindowNote} Otherwise, run stage 1 to start a rotation.`;
+    console.log(chalk.red(`\n⚠️  ${dryRunMessage}`));
     printDryRunNotice();
     return true;
   }
-  throw new UsageError(`${summary} — run stage 1 first.${noteSuffix}`);
+  if (closedWindowNote !== undefined) {
+    throw new UsageError(
+      `${summary}. ${closedWindowNote} Otherwise, run stage 1 to start a rotation.`
+    );
+  }
+  throw new UsageError(`${summary} — run stage 1 first.`);
+}
+
+export async function refuseIfDegenerateWindow(
+  args: StageArgs,
+  text: { dryRun: string; refusal: string }
+): Promise<boolean> {
+  const { options, context, verifier, previousName } = args;
+  const degenerate = await isDegenerateWindow({
+    context,
+    env: options.env,
+    verifier,
+    previousName,
+    primaryName: options.name,
+  });
+  if (!degenerate) {
+    return false;
+  }
+  if (options.dryRun) {
+    console.log(chalk.red(`\n⚠️  ${text.dryRun}`));
+    printDryRunNotice();
+    return true;
+  }
+  throw new UsageError(text.refusal);
 }
 
 /**

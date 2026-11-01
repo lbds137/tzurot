@@ -1,15 +1,22 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
+vi.mock('./rotate-env-window.js', () => ({
+  isDegenerateWindow: vi.fn(),
+}));
+
 import { RailwayRedeployRefusedError } from '../deployment/railway-api.js';
 import { UsageError } from '../utils/errors.js';
+import type { StageArgs } from './rotate-env-context.js';
 import {
   printDryRunNotice,
+  refuseIfDegenerateWindow,
   refuseIfWindowClosed,
   printGateVerdict,
   stage1RedeployFailureError,
   stage2RedeployFailureError,
   stage3RedeployFailureError,
 } from './rotate-env-stage-output.js';
+import { isDegenerateWindow } from './rotate-env-window.js';
 
 const PREVIOUS_NAME = 'INTERNAL_SERVICE_SECRET_PREVIOUS';
 
@@ -76,6 +83,83 @@ describe('rotate-env-stage-output', () => {
       expect(() => refuseIfWindowClosed(false, false, PREVIOUS_NAME)).toThrow(
         new RegExp(`${PREVIOUS_NAME}.*run stage 1`, 's')
       );
+    });
+
+    it('with closedWindowNote given, places the note before Otherwise, run stage 1 to start a rotation', () => {
+      const note = 'If an earlier stage 3 was interrupted, do NOT start a new rotation.';
+
+      expect(() => refuseIfWindowClosed(false, false, PREVIOUS_NAME, note)).toThrow(
+        `No rotation window is open ("${PREVIOUS_NAME}" is not set). ${note} Otherwise, run stage 1 to start a rotation.`
+      );
+
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const result = refuseIfWindowClosed(false, true, PREVIOUS_NAME, note);
+      expect(result).toBe(true);
+      const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
+      expect(allOutput).toContain(
+        `No rotation window is open ("${PREVIOUS_NAME}" is not set). A real run would REFUSE. ${note} Otherwise, run stage 1 to start a rotation.`
+      );
+    });
+  });
+
+  describe('refuseIfDegenerateWindow', () => {
+    it('returns false when not degenerate, prints the dry-run text and returns true on a dry run, and throws UsageError on a real run', async () => {
+      const mockIsDegenerate = vi.mocked(isDegenerateWindow);
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const verifier = { id: 'svc-gateway', name: 'api-gateway' };
+      const context = {
+        projectId: 'proj-1',
+        environmentId: 'env-1',
+        railwayEnvName: 'dev',
+        sharedNames: ['INTERNAL_SERVICE_SECRET'],
+        services: [verifier],
+        affectedServices: [verifier],
+      };
+      const baseArgs: StageArgs = {
+        options: {
+          env: 'dev',
+          name: 'INTERNAL_SERVICE_SECRET',
+          stage: '2',
+          dryRun: false,
+          yes: true,
+          verifierService: 'api-gateway',
+        },
+        context,
+        verifier,
+        previousName: PREVIOUS_NAME,
+        windowOpen: true,
+      };
+      const text = {
+        dryRun: 'dry-run degenerate refusal text',
+        refusal: 'real-run degenerate refusal text',
+      };
+
+      mockIsDegenerate.mockResolvedValueOnce(false);
+      await expect(refuseIfDegenerateWindow(baseArgs, text)).resolves.toBe(false);
+      expect(mockIsDegenerate).toHaveBeenCalledWith({
+        context,
+        env: 'dev',
+        verifier,
+        previousName: PREVIOUS_NAME,
+        primaryName: 'INTERNAL_SERVICE_SECRET',
+      });
+      expect(logSpy).not.toHaveBeenCalled();
+
+      mockIsDegenerate.mockResolvedValueOnce(true);
+      await expect(
+        refuseIfDegenerateWindow(
+          { ...baseArgs, options: { ...baseArgs.options, dryRun: true } },
+          text
+        )
+      ).resolves.toBe(true);
+      const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
+      expect(allOutput).toContain(`⚠️  ${text.dryRun}`);
+      expect(allOutput).toContain('[DRY RUN] No changes made.');
+
+      mockIsDegenerate.mockResolvedValueOnce(true);
+      await expect(refuseIfDegenerateWindow(baseArgs, text)).rejects.toThrow(UsageError);
+      mockIsDegenerate.mockResolvedValueOnce(true);
+      await expect(refuseIfDegenerateWindow(baseArgs, text)).rejects.toThrow(text.refusal);
     });
   });
 

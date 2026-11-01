@@ -304,9 +304,13 @@ describe('runStage3 roll-marker and presenter-readiness guards', () => {
 
     expect(error).toBeInstanceOf(UsageError);
     const message = String(error);
-    expect(message).toContain('run stage 1 first.');
+    expect(message).not.toContain('run stage 1 first');
     expect(message).toContain('pnpm ops deploy:redeploy --env dev --service api-gateway --yes');
     expect(message).toContain('pnpm ops secrets:mark-rotated internal-service-secret --env dev');
+    expect(message).toContain('Otherwise, run stage 1 to start a rotation.');
+    expect(
+      message.indexOf('pnpm ops secrets:mark-rotated internal-service-secret --env dev')
+    ).toBeLessThan(message.indexOf('Otherwise, run stage 1'));
     expect(mockDelete).not.toHaveBeenCalled();
     expect(mockRedeploy).not.toHaveBeenCalled();
     expect(mockMarkRotated).not.toHaveBeenCalled();
@@ -324,9 +328,28 @@ describe('runStage3 roll-marker and presenter-readiness guards', () => {
 
     const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
     expect(allOutput).toContain('A real run would REFUSE.');
+    expect(allOutput).not.toContain('run stage 1 first');
     expect(allOutput).toContain('pnpm ops deploy:redeploy --env dev --service api-gateway --yes');
     expect(allOutput).toContain('pnpm ops secrets:mark-rotated internal-service-secret --env dev');
+    expect(allOutput).toContain('Otherwise, run stage 1 to start a rotation.');
+    expect(
+      allOutput.indexOf('pnpm ops secrets:mark-rotated internal-service-secret --env dev')
+    ).toBeLessThan(allOutput.indexOf('Otherwise, run stage 1'));
     expect(allOutput).toContain('[DRY RUN] No changes made.');
     expect(allOutput).not.toContain('Plan:');
+  });
+
+  it('aborts without deleting, redeploying, or stamping when the confirmation prompt is declined', async () => {
+    mockConfirm.mockResolvedValue(false);
+
+    await runStagedRotation(makeOptions({ stage: '3', yes: false }), makeContext());
+
+    expect(mockConfirm).toHaveBeenCalledTimes(1);
+    expect(mockConfirm).toHaveBeenCalledWith(
+      'This will close the rotation window and redeploy the verifier.'
+    );
+    expect(mockDelete).not.toHaveBeenCalled();
+    expect(mockRedeploy).not.toHaveBeenCalled();
+    expect(mockMarkRotated).not.toHaveBeenCalled();
   });
 });
