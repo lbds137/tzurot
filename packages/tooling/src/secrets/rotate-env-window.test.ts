@@ -14,10 +14,13 @@ import {
   readRailwayVariableValue,
   upsertRailwayVariable,
 } from '../deployment/railway-api.js';
+import { UsageError } from '../utils/errors.js';
+import type { StageArgs } from './rotate-env-context.js';
 import {
   isWindowOpenForVerifier,
   assertPreviousReachesVerifier,
   isDegenerateWindow,
+  refuseIfDegenerateWindow,
   readRollMarkerValue,
   writeRollMarker,
   isRollComplete,
@@ -70,6 +73,37 @@ function makeRollMarkerArgs(overrides: Partial<RollMarkerArgs> = {}): RollMarker
     env: 'dev',
     verifier: VERIFIER,
     primaryName: VAR_NAME,
+    ...overrides,
+  };
+}
+
+const REFUSAL_TEXT = {
+  dryRun: 'dry-run degenerate refusal text',
+  refusal: 'real-run degenerate refusal text',
+};
+
+function makeStageArgs(overrides: Partial<StageArgs> = {}): StageArgs {
+  const context = {
+    projectId: 'proj-1',
+    environmentId: 'env-1',
+    railwayEnvName: 'dev',
+    sharedNames: [VAR_NAME],
+    services: [VERIFIER],
+    affectedServices: [VERIFIER],
+  };
+  return {
+    options: {
+      env: 'dev',
+      name: VAR_NAME,
+      stage: '2',
+      dryRun: false,
+      yes: true,
+      verifierService: VERIFIER.name,
+    },
+    context,
+    verifier: VERIFIER,
+    previousName: PREVIOUS_NAME,
+    windowOpen: true,
     ...overrides,
   };
 }
@@ -194,6 +228,55 @@ describe('rotate-env-window', () => {
       expect(previousCall).toBeDefined();
       expect(Object.hasOwn(primaryCall?.[0] ?? {}, 'serviceId')).toBe(false);
       expect(previousCall?.[0].serviceId).toBe(VERIFIER.id);
+    });
+  });
+
+  describe('refuseIfDegenerateWindow', () => {
+    it('returns false and prints nothing when the window is not degenerate', async () => {
+      mockReadValue.mockImplementation(async args =>
+        args.name === PREVIOUS_NAME ? SENTINEL_PREVIOUS_VALUE : SENTINEL_PRIMARY_VALUE
+      );
+
+      await expect(refuseIfDegenerateWindow(makeStageArgs(), REFUSAL_TEXT)).resolves.toBe(false);
+
+      expect(mockReadValue).toHaveBeenCalledWith({
+        projectId: 'proj-1',
+        environmentId: 'env-1',
+        name: VAR_NAME,
+        env: 'dev',
+      });
+      expect(mockReadValue).toHaveBeenCalledWith({
+        projectId: 'proj-1',
+        environmentId: 'env-1',
+        serviceId: VERIFIER.id,
+        name: PREVIOUS_NAME,
+        env: 'dev',
+      });
+      expect(logSpy).not.toHaveBeenCalled();
+    });
+
+    it('returns true and prints the dry-run text when the window is degenerate on a dry run', async () => {
+      mockReadValue.mockResolvedValue(SENTINEL_PRIMARY_VALUE);
+      const baseArgs = makeStageArgs();
+      const dryRunArgs: StageArgs = {
+        ...baseArgs,
+        options: { ...baseArgs.options, dryRun: true },
+      };
+
+      await expect(refuseIfDegenerateWindow(dryRunArgs, REFUSAL_TEXT)).resolves.toBe(true);
+
+      const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
+      expect(allOutput).toContain(`⚠️  ${REFUSAL_TEXT.dryRun}`);
+      expect(allOutput).toContain('[DRY RUN] No changes made.');
+    });
+
+    it('throws UsageError with the refusal text when the window is degenerate on a real run', async () => {
+      mockReadValue.mockResolvedValue(SENTINEL_PRIMARY_VALUE);
+
+      const rejection = refuseIfDegenerateWindow(makeStageArgs(), REFUSAL_TEXT);
+      await expect(rejection).rejects.toThrow(UsageError);
+      await expect(rejection).rejects.toThrow(REFUSAL_TEXT.refusal);
+      expect(logSpy).not.toHaveBeenCalled();
     });
   });
 

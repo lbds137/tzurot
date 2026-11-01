@@ -47,12 +47,12 @@ import {
   assertPreviousReachesVerifier,
   isDegenerateWindow,
   readRollMarkerValue,
+  refuseIfDegenerateWindow,
   rollMarkerName,
   writeRollMarker,
 } from './rotate-env-window.js';
 import {
   printDryRunNotice,
-  refuseIfDegenerateWindow,
   refuseIfWindowClosed,
   printGateVerdict,
   stage1NextStep,

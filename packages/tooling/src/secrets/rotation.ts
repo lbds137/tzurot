@@ -409,13 +409,13 @@ async function finalizeByokWindow(env: SecretsEnv, resume: boolean): Promise<voi
   requireRailwayApiToken(env);
 
   const currentRaw = getServiceVariable(env, GATEWAY_SERVICE, CURRENT_VAR);
+  const currentKey = parseEncryptionKeyMaterial(currentRaw, CURRENT_VAR);
   assertFinalizeWindowState({
     env,
     resume,
     current: currentRaw,
     previousByService: BYOK_SERVICES.map(svc => readServiceVariable(env, svc, PREVIOUS_VAR)),
   });
-  const currentKey = parseEncryptionKeyMaterial(currentRaw, CURRENT_VAR);
   const remaining = await withEnvPrisma(env, prisma => countNonCurrentRows(prisma, currentKey));
   if (remaining > 0) {
     throw new Error(

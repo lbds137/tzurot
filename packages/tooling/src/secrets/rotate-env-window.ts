@@ -22,6 +22,7 @@
  */
 
 import crypto from 'node:crypto';
+import chalk from 'chalk';
 
 import {
   deleteRailwayVariable,
@@ -29,6 +30,9 @@ import {
   readRailwayVariableValue,
   upsertRailwayVariable,
 } from '../deployment/railway-api.js';
+import { UsageError } from '../utils/errors.js';
+import type { StageArgs } from './rotate-env-context.js';
+import { printDryRunNotice } from './rotate-env-stage-output.js';
 
 export interface VerifierWindowArgs {
   context: { projectId: string; environmentId: string };
@@ -48,6 +52,11 @@ export function rollMarkerName(primaryName: string): string {
   return `${primaryName}_ROLLED`;
 }
 
+/**
+ * Unsalted SHA-256 of the primary value for `<NAME>_ROLLED`. This relies on the
+ * primary being high-entropy, as stage 1 mints it from `crypto.randomBytes(32)`;
+ * a lower-entropy or operator-chosen secret would need a keyed hash.
+ */
 function hashPrimaryValue(value: string): string {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
@@ -144,6 +153,29 @@ export async function isDegenerateWindow(
     }),
   ]);
   return primaryValue === previousValue;
+}
+
+export async function refuseIfDegenerateWindow(
+  args: StageArgs,
+  text: { dryRun: string; refusal: string }
+): Promise<boolean> {
+  const { options, context, verifier, previousName } = args;
+  const degenerate = await isDegenerateWindow({
+    context,
+    env: options.env,
+    verifier,
+    previousName,
+    primaryName: options.name,
+  });
+  if (!degenerate) {
+    return false;
+  }
+  if (options.dryRun) {
+    console.log(chalk.red(`\n⚠️  ${text.dryRun}`));
+    printDryRunNotice();
+    return true;
+  }
+  throw new UsageError(text.refusal);
 }
 
 /**

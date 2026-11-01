@@ -307,6 +307,9 @@ describe('runStage3 roll-marker and presenter-readiness guards', () => {
     expect(message).not.toContain('run stage 1 first');
     expect(message).toContain('pnpm ops deploy:redeploy --env dev --service api-gateway --yes');
     expect(message).toContain('pnpm ops secrets:mark-rotated internal-service-secret --env dev');
+    expect(message).toContain(
+      `pnpm ops deploy:var-delete --env dev --service api-gateway --name ${ROLLED_NAME} --yes`
+    );
     expect(message).toContain('Otherwise, run stage 1 to start a rotation.');
     expect(
       message.indexOf('pnpm ops secrets:mark-rotated internal-service-secret --env dev')
