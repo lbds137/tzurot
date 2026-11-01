@@ -1341,7 +1341,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/services/channelFetcher/messageTypeFilters.ts | reference | 1 |
 | services/bot-client/src/services/channelFetcher/messageTypeFilters.ts | type | 2 |
 | services/bot-client/src/services/character/PersonalityChatManager.ts | author | 5 |
-| services/bot-client/src/services/character/PersonalityChatManager.ts | channel | 3 |
+| services/bot-client/src/services/character/PersonalityChatManager.ts | channel | 2 |
 | services/bot-client/src/services/character/PersonalityChatManager.ts | client | 1 |
 | services/bot-client/src/services/character/PersonalityChatManager.ts | guildId | 1 |
 | services/bot-client/src/services/character/PersonalityChatManager.ts | id | 9 |
@@ -1364,6 +1364,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/services/character/chimeInTag.ts | id | 5 |
 | services/bot-client/src/services/character/randomPick.ts | escapeMarkdown | 1 |
 | services/bot-client/src/services/character/randomPick.ts | id | 1 |
+| services/bot-client/src/services/character/sharedNsfwGate.ts | channel | 1 |
 | services/bot-client/src/services/character/slashChatGates.ts | channelId | 1 |
 | services/bot-client/src/services/character/slashChatGates.ts | id | 3 |
 | services/bot-client/src/services/character/slashChatGates.ts | type | 1 |
@@ -3116,4 +3117,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 1 |
 
-Total: 3046 entries across 7076 sites.
+Total: 3047 entries across 7076 sites.

@@ -202,6 +202,9 @@ describe('MultiTagCoordinator', () => {
       await coordinator.startFanOut(input);
 
       expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+      const [firstSubmit, secondSubmit] = chatManager.submitChatJob.mock.calls;
+      expect(typeof firstSubmit[0].nsfwGate).toBe('function');
+      expect(secondSubmit[0].nsfwGate).toBe(firstSubmit[0].nsfwGate);
       expect(jobTracker.trackJob).toHaveBeenCalledTimes(2);
       // Both slot registrations skip ordering — coordinator owns the group
       // entry — AND skip the single-job recovery mirror, because

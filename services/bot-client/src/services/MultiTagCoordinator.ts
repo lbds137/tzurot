@@ -37,6 +37,7 @@ import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { PersonalityChatManager } from './character/PersonalityChatManager.js';
+import { createSharedNsfwGate, type NsfwGate } from './character/sharedNsfwGate.js';
 import type { JobTracker } from './JobTracker.js';
 import type { ResponseOrderingService } from './ResponseOrderingService.js';
 import type { SlotDeliveryService } from './SlotDeliveryService.js';
@@ -53,6 +54,7 @@ const logger = createLogger('MultiTagCoordinator');
 export type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
 import {
   buildSyntheticErrorResult,
+  logAllDeniedDecision,
   partitionSlotSubmissions,
   shouldSuppressAllFailedNotice,
   toSnapshot,
@@ -168,8 +170,9 @@ export class MultiTagCoordinator {
 
     // Submit N jobs in parallel. Each submission collapses to a denied slot
     // (gates / NSFW) or a submitted slot with a jobId.
+    const nsfwGate = createSharedNsfwGate(input.message);
     const slotSubmissions = await Promise.all(
-      input.slots.map(async resolved => this.submitSlot(input, resolved))
+      input.slots.map(async resolved => this.submitSlot(input, resolved, nsfwGate))
     );
 
     const { runtimeSlots, erroredOutcomes } = partitionSlotSubmissions(slotSubmissions);
@@ -177,18 +180,7 @@ export class MultiTagCoordinator {
     if (runtimeSlots.length === 0) {
       // Every denial wants silence → suppress; rationale in shouldSuppressAllFailedNotice.
       const suppressNotice = shouldSuppressAllFailedNotice(slotSubmissions, erroredOutcomes);
-      logger.info(
-        {
-          sourceMessageId: input.message.id,
-          suppressNotice,
-          deniedTotal: slotSubmissions.length,
-          nsfwBlocked: slotSubmissions.filter(
-            o => o.kind === 'denied' && o.reason === 'nsfw-blocked'
-          ).length,
-          muteSilent: slotSubmissions.filter(o => o.kind === 'denied' && o.silent === true).length,
-        },
-        'All multi-tag slots denied — suppression decision'
-      );
+      logAllDeniedDecision(input.message.id, slotSubmissions, suppressNotice);
       await deliverAllFailedNotice(
         { message: input.message, channel: input.channel },
         erroredOutcomes,
@@ -504,13 +496,18 @@ export class MultiTagCoordinator {
    * synthetic error result) when submission throws (transient infra failure,
    * e.g. a gateway write-timeout persisting the trigger message).
    */
-  private async submitSlot(input: StartFanOutInput, resolved: ResolvedSlot): Promise<SlotOutcome> {
+  private async submitSlot(
+    input: StartFanOutInput,
+    resolved: ResolvedSlot,
+    nsfwGate: NsfwGate
+  ): Promise<SlotOutcome> {
     try {
       const result = await this.deps.chatManager.submitChatJob({
         message: input.message,
         personality: resolved.personality,
         content: input.content,
         isAutoResponse: resolved.isAutoResponse,
+        nsfwGate,
       });
       if (result.kind !== 'submitted') {
         logger.debug(

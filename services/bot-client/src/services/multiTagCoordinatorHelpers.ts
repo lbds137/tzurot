@@ -19,10 +19,13 @@ import {
 import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
 import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { SlotDeliveryContext } from './SlotDeliveryService.js';
 import type { CoordinatorEntrySnapshot } from './MultiTagPersistence.js';
 import type { SlotSource } from './SlotResolver.js';
 import type { SubmitChatJobResult } from './character/PersonalityChatManager.js';
+
+const logger = createLogger('MultiTagCoordinatorHelpers');
 
 /** Per-slot runtime state. Re-declared here so the helpers can be standalone. */
 export interface RuntimeSlot {
@@ -294,5 +297,27 @@ export function shouldSuppressAllFailedNotice(
     slotSubmissions.every(
       o => o.kind === 'denied' && (o.silent === true || o.reason === 'nsfw-blocked')
     )
+  );
+}
+
+/**
+ * Log the all-denied suppression decision and per-reason denial counts for
+ * an all-failed multi-tag batch.
+ */
+export function logAllDeniedDecision(
+  sourceMessageId: string,
+  slotSubmissions: SlotOutcome[],
+  suppressNotice: boolean
+): void {
+  logger.info(
+    {
+      sourceMessageId,
+      suppressNotice,
+      deniedTotal: slotSubmissions.length,
+      nsfwBlocked: slotSubmissions.filter(o => o.kind === 'denied' && o.reason === 'nsfw-blocked')
+        .length,
+      muteSilent: slotSubmissions.filter(o => o.kind === 'denied' && o.silent === true).length,
+    },
+    'All multi-tag slots denied — suppression decision'
   );
 }
