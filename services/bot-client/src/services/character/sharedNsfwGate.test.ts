@@ -12,6 +12,7 @@ import { ChannelType, type Message } from 'discord.js';
 import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
+import { generate } from '../../utils/gatewayServiceCalls.js';
 import {
   NSFW_VERIFICATION_CHECK_FAILED_MESSAGE,
   nsfwVerificationMessage,
@@ -390,7 +391,7 @@ describe('MultiTagCoordinator + PersonalityChatManager NSFW gate (wiring)', () =
     };
   }
 
-  it('1. unverified user across 4 slots: replies once with verification prompt, checks once, suppresses generic notice', async () => {
+  it('unverified user across 4 slots: replies once with verification prompt, checks once, suppresses generic notice', async () => {
     userClient.getNsfwStatus.mockResolvedValue(
       makeOk({ nsfwVerified: false, nsfwVerifiedAt: null })
     );
@@ -407,7 +408,7 @@ describe('MultiTagCoordinator + PersonalityChatManager NSFW gate (wiring)', () =
     expect(jobTracker.trackJob).not.toHaveBeenCalled();
   });
 
-  it('2. check-failed across 4 slots: replies once with NSFW_VERIFICATION_CHECK_FAILED_MESSAGE', async () => {
+  it('check-failed across 4 slots: replies once with NSFW_VERIFICATION_CHECK_FAILED_MESSAGE', async () => {
     userClient.getNsfwStatus.mockResolvedValue(makeErr(503, 'Gateway unavailable'));
     const message = buildMessage();
 
@@ -418,7 +419,7 @@ describe('MultiTagCoordinator + PersonalityChatManager NSFW gate (wiring)', () =
     expect(message.reply).toHaveBeenCalledWith(NSFW_VERIFICATION_CHECK_FAILED_MESSAGE);
   });
 
-  it('3. NSFW channel first-time verify across 4 slots: calls verifyNsfw once and sends confirmation once', async () => {
+  it('NSFW channel first-time verify across 4 slots: calls verifyNsfw once and sends confirmation once', async () => {
     userClient.verifyNsfw.mockResolvedValue(
       makeOk({
         nsfwVerified: true,
@@ -426,6 +427,7 @@ describe('MultiTagCoordinator + PersonalityChatManager NSFW gate (wiring)', () =
         alreadyVerified: false,
       })
     );
+    // Stops processing after the gate; not part of the scenario.
     mockContextBuilder.buildContext.mockRejectedValue(new Error('stop after gate'));
     const nsfwMessage = buildMessage({ channel: buildChannel({ nsfw: true }) });
 
@@ -436,7 +438,7 @@ describe('MultiTagCoordinator + PersonalityChatManager NSFW gate (wiring)', () =
     expect(nsfwMessage.channel.send).toHaveBeenCalledWith(expect.stringContaining('✅'));
   });
 
-  it('4. all 4 slots MUTE-denylisted and user unverified: never calls check or message.reply', async () => {
+  it('all 4 slots MUTE-denylisted and user unverified: never calls check or message.reply', async () => {
     mockDenylistCache.isPersonalityDenied.mockReturnValue(true);
     mockDenylistCache.isPersonalityMuted.mockReturnValue(true);
     userClient.getNsfwStatus.mockResolvedValue(
@@ -450,7 +452,7 @@ describe('MultiTagCoordinator + PersonalityChatManager NSFW gate (wiring)', () =
     expect(message.reply).not.toHaveBeenCalled();
   });
 
-  it('5. one slot denylisted and three not for an unverified user: replies once', async () => {
+  it('one slot denylisted and three not for an unverified user: replies once', async () => {
     mockDenylistCache.isPersonalityDenied.mockImplementation(
       (_userId: string, personalityId: string) => personalityId === 'id-Alice'
     );
@@ -469,7 +471,7 @@ describe('MultiTagCoordinator + PersonalityChatManager NSFW gate (wiring)', () =
     expect(message.reply).toHaveBeenCalledWith(nsfwVerificationMessage());
   });
 
-  it('6. two successive startFanOut calls with different messages: replies once on each message', async () => {
+  it('two successive startFanOut calls with different messages: replies once on each message', async () => {
     userClient.getNsfwStatus.mockResolvedValue(
       makeOk({ nsfwVerified: false, nsfwVerifiedAt: null })
     );
@@ -486,7 +488,7 @@ describe('MultiTagCoordinator + PersonalityChatManager NSFW gate (wiring)', () =
     expect(userClient.getNsfwStatus).toHaveBeenCalledTimes(2);
   });
 
-  it('7. single submission through PersonalityChatManager.submitChatJob with no nsfwGate: unverified yields one reply', async () => {
+  it('single submission through PersonalityChatManager.submitChatJob with no nsfwGate: unverified yields one reply', async () => {
     userClient.getNsfwStatus.mockResolvedValue(
       makeOk({ nsfwVerified: false, nsfwVerifiedAt: null })
     );
@@ -505,5 +507,17 @@ describe('MultiTagCoordinator + PersonalityChatManager NSFW gate (wiring)', () =
     expect(userClient.getNsfwStatus).toHaveBeenCalledTimes(1);
     expect(message.reply).toHaveBeenCalledTimes(1);
     expect(message.reply).toHaveBeenCalledWith(nsfwVerificationMessage());
+  });
+
+  it('a rejecting gate fails closed across all slots and submits nothing', async () => {
+    userClient.getNsfwStatus.mockRejectedValue(new Error('unexpected client failure'));
+    const message = buildMessage();
+
+    await coordinator.startFanOut(buildFanOutInput(message));
+
+    expect(userClient.getNsfwStatus).toHaveBeenCalledTimes(1);
+    expect(jobTracker.trackJob).not.toHaveBeenCalled();
+    expect(generate).not.toHaveBeenCalled();
+    expect(slotDelivery.deliverErrorNoPersist).toHaveBeenCalledTimes(4);
   });
 });
