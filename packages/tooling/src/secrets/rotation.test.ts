@@ -1270,6 +1270,21 @@ describe('rotateByokKey', () => {
       expect(requireRailwayApiToken).not.toHaveBeenCalled();
     }
   );
+
+  it('stage finalize with resume: true skips the delete when PREVIOUS is already absent and finishes with a redeploy and a stamp', async () => {
+    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
+    mockPrisma.userApiKey.findMany.mockResolvedValue([]);
+    mockPrisma.userCredential.findMany.mockResolvedValue([]);
+    mockPrisma.secretRotation.upsert.mockResolvedValue({});
+
+    await rotateByokKey({ env: 'dev', stage: 'finalize', resume: true });
+
+    expect(deleteRailwayVariable).not.toHaveBeenCalled();
+    expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.secretRotation.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { name: 'byok-encryption-key' } })
+    );
+  });
 });
 
 describe('showRotationStatus', () => {

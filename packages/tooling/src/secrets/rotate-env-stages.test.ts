@@ -1068,13 +1068,15 @@ describe('runStagedRotation', () => {
 
   it('stage 2 throws before redeploying or upserting when the primary read before redeploys fails', async () => {
     verifierNames.add(PREVIOUS_NAME);
-    mockReadValue
-      .mockResolvedValueOnce(SENTINEL_VALUE)
-      .mockResolvedValueOnce(SENTINEL_PREVIOUS_VALUE)
-      .mockResolvedValueOnce(undefined);
+    let primaryReadCount = 0;
+    mockReadValue.mockImplementation(async args => {
+      if (args.name === PREVIOUS_NAME) return SENTINEL_PREVIOUS_VALUE;
+      primaryReadCount += 1;
+      return primaryReadCount === 1 ? SENTINEL_VALUE : undefined;
+    });
 
     await expect(runStagedRotation(makeOptions({ stage: '2' }), makeContext())).rejects.toThrow(
-      VAR_NAME
+      `"${VAR_NAME}" has no value at the shared tier — cannot record "${ROLLED_NAME}".`
     );
 
     expect(mockAssertReady).not.toHaveBeenCalled();
