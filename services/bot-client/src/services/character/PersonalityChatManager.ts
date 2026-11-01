@@ -14,7 +14,7 @@
  * pipeline only.
  */
 
-import type { Message, SendableChannels } from 'discord.js';
+import type { Message } from 'discord.js';
 import { isTypingChannel } from '@tzurot/common-types/types/discord-types';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -22,12 +22,9 @@ import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { generate } from '../../utils/gatewayServiceCalls.js';
 import { clientsForUser } from '../../utils/gatewayClients.js';
 import { resolveChatLlmConfig, buildExtendedContextSettings } from './chatConfigResolution.js';
+import { runNsfwGate, type NsfwGate } from './sharedNsfwGate.js';
 import { type MessageContextBuilder } from '../MessageContextBuilder.js';
 import { type ConversationPersistence } from '../ConversationPersistence.js';
-import {
-  handleNsfwVerification,
-  sendVerificationConfirmation,
-} from '../../utils/nsfwVerification.js';
 import type { DenylistCache } from '../DenylistCache.js';
 import type { MessageJobContext } from '../JobTracker.js';
 
@@ -44,6 +41,12 @@ export interface SubmitChatJobInput {
   personality: LoadedPersonality;
   content: string;
   isAutoResponse?: boolean;
+  /**
+   * Shared gate passed by a fan-out so N slots of one message evaluate and
+   * reply once; absent = this submission evaluates alone (pinned in
+   * `character/sharedNsfwGate.test.ts`).
+   */
+  nsfwGate?: NsfwGate;
 }
 
 export type SubmitChatJobResult =
@@ -85,7 +88,8 @@ export class PersonalityChatManager {
    */
   private async runGates(
     message: Message,
-    personality: LoadedPersonality
+    personality: LoadedPersonality,
+    nsfwGate?: NsfwGate
   ): Promise<SubmitChatJobResult | null> {
     if (
       this.denylistCache !== undefined &&
@@ -103,16 +107,9 @@ export class PersonalityChatManager {
       };
     }
 
-    const verificationResult = await handleNsfwVerification(message);
-    if (!verificationResult.allowed) {
+    const allowed = await (nsfwGate ?? (() => runNsfwGate(message)))();
+    if (!allowed) {
       return { kind: 'denied', reason: 'nsfw-blocked' };
-    }
-
-    if (verificationResult.wasNewVerification) {
-      // First-time verification gets a self-destructing confirmation. Cast
-      // through SendableChannels because the helper accepts any channel that
-      // implements .send (including DMs/threads/text channels).
-      void sendVerificationConfirmation(message.channel as SendableChannels);
     }
 
     return null;
@@ -125,10 +122,10 @@ export class PersonalityChatManager {
    * specific reason if a gate (denylist, NSFW, channel type) refused.
    */
   async submitChatJob(input: SubmitChatJobInput): Promise<SubmitChatJobResult> {
-    const { message, personality, content, isAutoResponse } = input;
+    const { message, personality, content, isAutoResponse, nsfwGate } = input;
     const { channel } = message;
 
-    const denied = await this.runGates(message, personality);
+    const denied = await this.runGates(message, personality, nsfwGate);
     if (denied !== null) {
       return denied;
     }

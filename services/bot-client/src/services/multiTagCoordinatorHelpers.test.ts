@@ -7,7 +7,7 @@
  * than structure-test exclusions.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Message } from 'discord.js';
 import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -19,6 +19,7 @@ import {
 import {
   buildSlotContext,
   buildSyntheticErrorResult,
+  logAllDeniedDecision,
   partitionSlotSubmissions,
   shouldSuppressAllFailedNotice,
   toSnapshot,
@@ -27,6 +28,19 @@ import {
   type RuntimeSlot,
   type SlotOutcome,
 } from './multiTagCoordinatorHelpers.js';
+
+const { loggerMock } = vi.hoisted(() => ({
+  loggerMock: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+vi.mock('@tzurot/common-types/utils/logger', () => ({
+  createLogger: () => loggerMock,
+}));
 
 function buildPersonality(name: string): LoadedPersonality {
   return {
@@ -372,5 +386,33 @@ describe('shouldSuppressAllFailedNotice', () => {
     },
   ])('$name → $expected', ({ submissions, erroredOutcomes, expected }) => {
     expect(shouldSuppressAllFailedNotice(submissions, erroredOutcomes)).toBe(expected);
+  });
+});
+
+describe('logAllDeniedDecision', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('logs the five fields with correct counts for a mix of nsfw-blocked, MUTE-silent, and BLOCK denials', () => {
+    const submissions: SlotOutcome[] = [
+      { kind: 'denied', personality: buildPersonality('Alice'), reason: 'nsfw-blocked' },
+      { kind: 'denied', personality: buildPersonality('Bob'), reason: 'denylisted', silent: true },
+      { kind: 'denied', personality: buildPersonality('Carol'), reason: 'denylisted' },
+    ];
+
+    logAllDeniedDecision('msg-42', submissions, false);
+
+    expect(loggerMock.info).toHaveBeenCalledOnce();
+    expect(loggerMock.info).toHaveBeenCalledWith(
+      {
+        sourceMessageId: 'msg-42',
+        suppressNotice: false,
+        deniedTotal: 3,
+        nsfwBlocked: 1,
+        muteSilent: 1,
+      },
+      'All multi-tag slots denied — suppression decision'
+    );
   });
 });

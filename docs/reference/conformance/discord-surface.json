@@ -6,7 +6,7 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 3046,
+    "entries": 3047,
     "sites": 7076
   },
   "entries": [
@@ -7970,7 +7970,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/services/character/PersonalityChatManager.ts",
       "symbol": "channel",
-      "count": 3
+      "count": 2
     },
     {
       "category": "client-methods",
@@ -8102,6 +8102,12 @@
       "category": "client-methods",
       "file": "services/bot-client/src/services/character/randomPick.ts",
       "symbol": "id",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/character/sharedNsfwGate.ts",
+      "symbol": "channel",
       "count": 1
     },
     {
