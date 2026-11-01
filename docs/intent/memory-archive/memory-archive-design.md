@@ -199,12 +199,14 @@ queries, so each is pinned by its own SQL-text test rather than sharing a
 constant (no composition shape in this codebase nests a `Prisma.Sql` fragment
 inside a `$queryRaw` tagged template).
 
-**The `done`-only render stamp.** `mapQueryResultToDocument`
+**The render stamp.** `mapQueryResultToDocument`
 (`services/ai-worker/src/utils/memoryUtils.ts`) stamps
-`metadata.assistantSummary` only when `summary_status === 'done'` AND the
-column is non-empty — a stale prompt version still renders, because a version
-bump drives re-enqueue, never a blanked archive. Absence is meaningful, same
-rule as `userTurn`: never a default.
+`metadata.assistantSummary` whenever `chunk_group_id === null` and the column
+is non-empty, regardless of `summary_status` or prompt version — a failed or
+dead re-summarize or a version bump drives retry/re-enqueue, never a blanked
+archive, because `assistant_summary` is only written for the current content
+and a content edit clears it. Absence is meaningful, same rule as `userTurn`:
+never a default.
 
 **The eligibility rule.** The same function stamps
 `metadata.summaryRefreshEligible = true` only for a non-chunk row

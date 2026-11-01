@@ -6,16 +6,18 @@
  * site is `buildMemoryMetadata` in ai-worker's `LongTermMemoryService.ts` — so a
  * character's reply is reached through the user message that prompted it.
  *
- * The usability predicate mirrors the archive render's (ai-worker's
- * `memoryUtils.ts` `mapQueryResultToDocument`, `hasSummary`): a `done` status, a
- * non-empty `assistant_summary`, and a null `chunk_group_id`. Prompt version is
- * deliberately NOT checked — a stored done summary renders regardless, because a
- * version bump drives re-enqueue and must never blank the render. `visibility`
- * IS checked here, which the archive predicate does not need to do because its
- * caller — the retrieval query in ai-worker's `PgvectorQueryBuilder.ts`, which
- * applies `m.visibility = 'normal'` — already filtered: a memory soft-deleted
- * by source-message deletion must not reappear as a history summary through
- * this second door.
+ * The usability predicate mirrors the archive render's (`ai-worker/src/utils/memoryUtils.ts`
+ * `mapQueryResultToDocument`, `hasSummary`): a non-empty `assistant_summary` and
+ * a null `chunk_group_id`, with the non-empty filter sitting in the `where` so
+ * rows with no summary do not use up `take`. Summary status and prompt version
+ * are deliberately NOT checked — a stored summary renders regardless of retry
+ * status or version bump (`archiveSummary/archiveSummaryStore.ts` writes it for
+ * the current content, and `routes/user/memorySingle.ts` clears it on edit).
+ * `visibility` IS checked here, which the archive predicate does not need to do
+ * because its caller — the retrieval query in ai-worker's
+ * `PgvectorQueryBuilder.ts`, which applies `m.visibility = 'normal'` — already
+ * filtered: a memory soft-deleted by source-message deletion must not reappear
+ * as a history summary through this second door.
  */
 
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
@@ -52,7 +54,7 @@ export async function findUsableAssistantSummariesByTriggerIds(
       messageIds: { hasSome: ids },
       visibility: 'normal',
       chunkGroupId: null,
-      summaryStatus: 'done',
+      AND: [{ assistantSummary: { not: null } }, { assistantSummary: { not: '' } }],
     },
     select: { messageIds: true, assistantSummary: true, createdAt: true },
     orderBy: { createdAt: 'desc' },

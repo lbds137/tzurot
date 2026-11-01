@@ -39,7 +39,7 @@ describe('findUsableAssistantSummariesByTriggerIds', () => {
     expect(findMany).not.toHaveBeenCalled();
   });
 
-  it('asserts the exact where clause (C4 canary home)', async () => {
+  it('asserts the exact where clause — visibility normal, chunkGroupId null, and no summaryStatus filter (C4 canary home)', async () => {
     const { prisma, findMany } = makePrisma([]);
 
     await findUsableAssistantSummariesByTriggerIds(prisma, 'p1', ['m1', 'm2'], 10);
@@ -51,10 +51,47 @@ describe('findUsableAssistantSummariesByTriggerIds', () => {
           messageIds: { hasSome: ['m1', 'm2'] },
           visibility: 'normal',
           chunkGroupId: null,
-          summaryStatus: 'done',
+          AND: [{ assistantSummary: { not: null } }, { assistantSummary: { not: '' } }],
         },
       })
     );
+    const callArg = findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> };
+    expect(callArg.where).not.toHaveProperty('summaryStatus');
+  });
+
+  it('returns the stored summary for a failed row and excludes non-normal visibility or empty summary', async () => {
+    const findMany = vi
+      .fn()
+      .mockImplementation(
+        ({ where }: { where: { visibility?: string; summaryStatus?: string } }) => {
+          if (where.summaryStatus !== undefined || where.visibility !== 'normal') {
+            return Promise.resolve([]);
+          }
+          return Promise.resolve([
+            {
+              messageIds: ['m-failed'],
+              assistantSummary: 'stored summary from prior done run',
+              createdAt: new Date('2026-01-02'),
+            },
+            {
+              messageIds: ['m-empty'],
+              assistantSummary: '',
+              createdAt: new Date('2026-01-01'),
+            },
+          ]);
+        }
+      );
+    const prisma = { memory: { findMany } } as unknown as PrismaClient;
+
+    const result = await findUsableAssistantSummariesByTriggerIds(
+      prisma,
+      'p1',
+      ['m-failed', 'm-empty'],
+      10
+    );
+
+    expect(result.get('m-failed')).toBe('stored summary from prior done run');
+    expect(result.has('m-empty')).toBe(false);
   });
 
   it('forwards the take limit', async () => {

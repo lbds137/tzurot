@@ -10,6 +10,8 @@ import { retrieveMemoriesAndFacts } from './factRetrievalHelper.js';
 import { retrieveFactsForPrompt } from './factRetrievalHelper.js';
 import type { FactRetriever } from './FactRetriever.js';
 import type { SimilarFact, LinkedFact } from './extraction/FactStore.js';
+import { mapQueryResultToDocument } from '../utils/memoryUtils.js';
+import { renderSplitNoteBody } from './prompt/MemoryNoteSplitRender.js';
 
 const { mockLogger } = vi.hoisted(() => ({
   mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -503,6 +505,81 @@ describe('retrieveMemoriesAndFacts — archive summary render + lazy enqueue (B2
       mode: 'split',
       linkedFacts: [],
       assistantSummary: 'A neutral summary.',
+    });
+  });
+
+  it('wiring: a failed row with stored text through mapQueryResultToDocument, retrieveMemoriesAndFacts, and renderSplitNoteBody produces the summary with no linked-facts section and no excerpt', async () => {
+    setFlag(true, ['nova']);
+    const mappedDoc = mapQueryResultToDocument({
+      id: 'mem-failed-summary',
+      content:
+        '{user}: how is my knee plan?\n{assistant}: verbatim assistant reply that must not appear as an excerpt',
+      persona_id: 'persona-1',
+      persona_name: 'Alice',
+      owner_username: 'aliceuser',
+      personality_id: 'personality-1',
+      personality_name: 'Nova',
+      session_id: null,
+      canon_scope: 'personal',
+      summary_type: null,
+      channel_id: null,
+      guild_id: null,
+      message_ids: null,
+      senders: null,
+      created_at: new Date('2026-01-01T00:00:00.000Z'),
+      distance: 0.1,
+      chunk_group_id: null,
+      chunk_index: null,
+      total_chunks: null,
+      assistant_summary: 'Nova reviewed the knee stretches with Alice.',
+      summary_status: 'failed',
+      summary_prompt_version: 1,
+    });
+    const memoryRetriever = {
+      retrieveRelevantMemories: vi.fn().mockResolvedValue({
+        memories: [mappedDoc],
+        freshModeEnabled: false,
+        personaId: 'persona-1',
+      }),
+    } as unknown as MemoryRetriever;
+    const factRetriever = {
+      retrieveFacts: vi.fn().mockResolvedValue([]),
+      retrieveLinkedFacts: vi.fn().mockResolvedValue([
+        {
+          id: 'f-1',
+          statement: 'Alice does knee stretches',
+          salience: 0.9,
+          sourceMemoryIds: ['mem-failed-summary'],
+        },
+      ]),
+    };
+    const trigger = { enqueue: vi.fn().mockResolvedValue(undefined) };
+
+    const result = await retrieveMemoriesAndFacts({
+      memoryRetriever,
+      factRetriever: factRetriever as never,
+      personality: { id: 'personality-1', slug: 'nova' } as never,
+      searchQuery: 'knee plan',
+      context: {} as never,
+      configOverrides: undefined,
+      archiveSummaryTrigger: trigger as never,
+    });
+
+    const doc = result.memories[0];
+    expect(doc).toBeDefined();
+    const rendered = renderSplitNoteBody(doc!);
+    expect(rendered.usedSummary).toBe(true);
+    expect(rendered.usedExcerpt).toBe(false);
+    expect(rendered.body).toBe(
+      'Alice: how is my knee plan?\nNova: Nova reviewed the knee stretches with Alice.'
+    );
+    expect(rendered.body).not.toContain('Recorded about this exchange');
+    expect(rendered.body).not.toContain('Alice does knee stretches');
+    expect(rendered.body).not.toContain('verbatim assistant reply');
+    expect(trigger.enqueue).toHaveBeenCalledWith({
+      memoryId: 'mem-failed-summary',
+      personalityId: 'personality-1',
+      reason: 'retrieval',
     });
   });
 
