@@ -996,8 +996,9 @@ model Memory {
   /// Deferred-set: sha-256 hex of `content` the stored summary (or the
   /// recorded failure) describes; null until the first billed attempt. A
   /// content edit clears the stored summary and this hash together, so a
-  /// stored summary always describes the live content.
-  sourceContentHash    String?                @map("source_content_hash") @db.VarChar(64)
+  /// stored summary always describes the live content. The processor compares
+  /// it with the live content to decide whether a job re-summarizes or skips.
+  sourceContentHash   String?                @map("source_content_hash") @db.VarChar(64)
   /// Deferred-set: when the row was last enqueued for summarization; null
   /// until the first enqueue.
   summaryRequestedAt   DateTime?              @map("summary_requested_at")

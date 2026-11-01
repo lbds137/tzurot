@@ -65,7 +65,7 @@ export async function findUsableAssistantSummariesByTriggerIds(
 
   const requested = new Set(ids);
   for (const row of rows) {
-    // The `where` already excludes these rows, and this guard stays to narrow the nullable column type for TypeScript.
+    // The `where` already excludes these rows: `typeof` narrows the nullable column for TypeScript, the length check is defence in depth.
     if (typeof row.assistantSummary !== 'string' || row.assistantSummary.length === 0) {
       continue;
     }
