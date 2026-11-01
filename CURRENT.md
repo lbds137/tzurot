@@ -1,10 +1,17 @@
 # Current
 
-> **Session handoff 2026-10-29 ~20:15 EDT (GLM 5.3-flash, z.ai)**: **TWO SHIPPED** — #2687 (TASK-835: deny modal mirrors gateway scope rules; owner re-ruled 09-02 after review disproved its premise) and #2688 (TASK-770: multi-tag generic denial suppressed when every denial wants silence; MUTE+nsfw mix fixed round 1). Residue filed TASK-1326/1327/1329; dedup task TASK-1328. Tracker at `318b94c6e`. Worktrees cleaned (scratch in `docs/local/`). **Session at its driving stop**: z.ai week 74% (75 stop; resets Wed 11-04 11:25), agy 3p at its 50% cap (review-reserved until Mon 11-02), Anthropic week 92% — no lane open for a new code unit; resume TASK-1328 or the drain when one reopens. Owner queue: 1306/1309/1303/1294/1262 + #2664 approval.
+> **Session handoff 2026-11-01 08:45 EST (Opus 5.5, Anthropic direct)**: post-merge audit of work built on non-Anthropic lanes (owner call): review done, 52 PRs and 72 direct commits, results in gitignored `docs/local/glm-audit/findings.md`. One prod bug found and fixed: #2689 (TASK-1330). Also shipped #2690 (TASK-1328) and owner-approved #2664. Filed TASK-1331 to 1335; fixes go through agy one at a time, 1331 next. Hold: no archive-summary prompt-version bump or re-sweep until #2689 reaches prod. Owner queue: 1306/1309/1303/1294/1262.
 
 > **Version**: v3.0.0-beta.241 — "batch pick error-path hardening" — SHIPPED 2026-10-27 15:30Z (release PR #2673 after her merge approval; plain rebase-merge at 45 commits incl. already-applied ones; tagged `latest`, beta.240 demoted). 8 PRs / 8 runtime / 71 files; no migrations. Holistic review: no blocking findings. Notes: `docs/local/release-notes-beta.241.md`. Preflight caught `delete_branch_on_merge` re-enabled by a Deck repo-standard sweep; Deck reverted it and recorded tzurot as the exception.
 >
 > **Previous**: v3.0.0-beta.240 — "batch clear and remove for the override and deny browsers" (6 PRs / 6 runtime / 65 files; 2026-10-26 13:10Z).
+
+## 🧪 Next release watch (merged to develop, not yet in prod)
+
+- **Check — stored summaries render (#2689):** a prod read on 11-01 found 39 rows with a stored summary not rendering (`failed` or `dead`), all recalled. After deploy, confirm a real affected row renders its summary; not runtime-confirmed yet. Count script: `docs/local/glm-audit/stranded-summaries.mjs` (read-only; its count will not fall, because the rows keep their status).
+- **Expected — `summaryNotes` telemetry rises (#2689):** notes from `failed`, `dead` and `pending` rows now count as summary notes. A small step up is not a regression.
+- **Watch — one NSFW prompt per multi-tag message (#2690):** logs should show one `Interaction blocked - user not NSFW verified` per message. The all-denied log now comes from logger `MultiTagCoordinatorHelpers`, so a saved Railway filter on the old name needs updating.
+- **Release preflight — Dependabot alert 197:** `minimatch` moderate, transitive and dev-scope, needs a `pnpm.overrides` bump.
 
 ## 🧪 beta.241 watch (shipped 2026-10-27; no needs-smoke)
 

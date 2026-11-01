@@ -1,9 +1,10 @@
 ---
 id: TASK-1330
 title: Failed re-summarize stops a good stored memory summary rendering
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-01T11:23:00Z'
+updated_date: '2026-11-01T13:43:00Z'
 labels:
   - area:ai-worker
   - size:M

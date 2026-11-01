@@ -3,9 +3,10 @@ id: TASK-1328
 title: >-
   Multi-tag NSFW gate runs once per slot: N tags produce N identical
   verification prompts
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-29T22:21:00Z'
+updated_date: '2026-11-01T13:43:00Z'
 labels:
   - area:bot-client
   - size:M
