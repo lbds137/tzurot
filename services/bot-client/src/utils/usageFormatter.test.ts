@@ -69,3 +69,17 @@ describe('buildAdminUsageEmbed — z.ai plan section', () => {
     expect(field?.value).not.toContain('Resets');
   });
 });
+
+describe('buildAdminUsageEmbed — top models rendering', () => {
+  it('sanitizes a byModel key before it renders in bold', () => {
+    const embed = buildAdminUsageEmbed({
+      ...baseStats(),
+      totalRequests: 1,
+      byModel: { 'vendor/a[b]c': { requests: 1, tokensIn: 0, tokensOut: 0 } },
+    });
+
+    const field = (embed.data.fields ?? []).find(f => f.name === 'Top Models');
+    expect(field?.value).toContain('**abc**');
+    expect(field?.value).not.toContain('[');
+  });
+});
