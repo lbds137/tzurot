@@ -103,6 +103,15 @@ describe('findContentWriters — flagged content writers', () => {
     "const sql = 'UPDATE memories AS m SET content = 1';",
     "const sql = 'UPDATE memories m SET a = 1, content = 2';",
     "const sql = 'UPDATE memories SET (a, content) = (1, 2)';",
+    'prisma.persona.update({ where, data: { memories: { updateMany: { where: {}, data: { content: x } } } } })',
+    'prisma.personality.update({ where, data: { memories: { update: { where: {}, data: { content: x } } } } })',
+    'tx.persona.upsert({ where, create: {}, update: { memories: { upsert: [] } } })',
+    'prisma.persona.update({ where, data: { memories: payload } })',
+    'prisma.persona.update({ where, data: { memories } })',
+    'prisma.persona.update({ where, data: { memories: { [key]: value } } })',
+    'prisma.persona.update({ where, data: { memories: { update } } })',
+    'prisma.persona.update({ where, data: { memories: { ...payload } } })',
+    'prisma.memory!.update({ where: { id }, data: { content: x } })',
   ])('flags %s', src => {
     expect(findContentWriters('services/a/src/f.ts', src)).toHaveLength(1);
   });
@@ -217,6 +226,16 @@ describe('findContentWriters — non-content writes not flagged', () => {
     "const sql = 'UPDATE memories m SET thinking_content = 1';",
     "const sql = 'UPDATE memories SET (a, thinking_content) = (1, 2)';",
     "const sql = 'UPDATE memories SET (a, content_hash) = (1, 2)';",
+    "const sql = 'UPDATE memories SET (a, o.content) = (1, 2)';",
+    "const sql = 'UPDATE memories m SET a = 1 FROM other JOIN x ON content = x.y WHERE m.id = 1';",
+    'prisma.persona.update({ where, data: { memories: { connect: { id } } } })',
+    'prisma.persona.update({ where, data: { memories: { deleteMany: {} } } })',
+    'prisma.persona.update({ where, data: { name: x } })',
+    'prisma.persona.upsert({ where, create: { memories: { create: [] } }, update: { name: x } })',
+    'prisma.persona.update(args)',
+    "const sql = 'INSERT INTO memories (id) VALUES (1); INSERT INTO other (id) VALUES (1) ON CONFLICT (id) DO UPDATE SET content = 2';",
+    "const sql = 'UPDATE memories m SET a = o.a FROM other o JOIN x ON o.content = x.y WHERE m.id = o.id';",
+    "const sql = 'UPDATE memories m SET a = o.content = 1';",
   ])('does not flag %s', src => {
     expect(findContentWriters('services/a/src/f.ts', src)).toEqual([]);
   });
@@ -267,6 +286,7 @@ describe('positive control and repository scan', () => {
     expect(findings[0]?.filePath).toBe(ALLOWLISTED_REL_PATH);
   });
 
+  // Deliberate second tripwire beside the CI step; a canary on the allowlist relies on it.
   it('returns no violations over the real repo root', () => {
     expect(findContentWriterViolations(REPO_ROOT)).toEqual([]);
   });
@@ -357,5 +377,20 @@ describe('findContentWriterViolations — temp tree', () => {
     );
 
     expect(findContentWriterViolations(tmp)).toEqual([]);
+  });
+
+  it('reports a writer outside the allowlist when rootDir contains a dist directory', () => {
+    write(
+      `dist/${ALLOWLISTED_REL_PATH}`,
+      `await prisma.memory.update({ where: { id }, data: { content, assistantSummary: null } });\n`
+    );
+    write(
+      'dist/services/other/src/rogue.ts',
+      `await prisma.memory.update({ where: { id }, data: { content: 'new' } });\n`
+    );
+
+    const violations = findContentWriterViolations(join(tmp, 'dist'));
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.filePath).toBe('services/other/src/rogue.ts');
   });
 });
