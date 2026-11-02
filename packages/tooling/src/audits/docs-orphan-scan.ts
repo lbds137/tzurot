@@ -2,8 +2,8 @@
  * Docs-Orphan Scan (health-report section, no CLI command)
  *
  * Finds `docs/reference/**\/*.md` files with zero inbound markdown links:
- * nothing else in the repo's markdown (any `*.md` outside node_modules,
- * excluding the file itself) mentions the file's basename. Same matching
+ * nothing else in the repo's markdown (any `*.md` outside the skipped sets
+ * below, excluding the file itself) mentions the file's basename. Same matching
  * style as `check-proposal-orphans.ts` — a word-boundary regex over the
  * basename-without-extension — but report-only: `pnpm ops health` prints
  * the count + list; nothing fails on it.
@@ -43,7 +43,7 @@ export interface DocsOrphanResult {
   orphans: string[];
 }
 
-/** Recursively collect every `.md` file under `dir`, skipping vendored trees. */
+/** Recursively collect every `.md` file under `dir`, minus the skipped sets above. */
 function findMarkdownFiles(dir: string, repoRoot: string): string[] {
   const results: string[] = [];
   let entries;
