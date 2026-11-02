@@ -60,8 +60,8 @@ export class DenylistCache {
    * 60 s) until an attempt succeeds or `stop()` is called. A newer call
    * supersedes one in flight, discarding its result even if it succeeded and
    * the newer one then fails; add and remove events received during an attempt
-   * are replayed over its snapshot. Each is pinned by a test in
-   * `DenylistCache.test.ts`.
+   * are replayed over its snapshot. `DenylistCache.test.ts` pins these, except
+   * an older success followed by a newer failure, which has no test of its own.
    *
    * Note: The gateway endpoint returns up to 10,000 entries (hardcoded limit).
    * At current scale this is more than sufficient, but if the denylist grows
