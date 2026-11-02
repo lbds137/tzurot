@@ -28,8 +28,8 @@ describe('CANONICAL_TEST_TIERS', () => {
 });
 
 describe('TEST_FILE_KINDS', () => {
-  it('is the four mechanically-distinguishable kinds (schema kind dropped)', () => {
-    expect([...TEST_FILE_KINDS]).toEqual(['unit', 'component', 'integration', 'contract']);
+  it('is the five mechanically-distinguishable kinds (schema kind dropped)', () => {
+    expect([...TEST_FILE_KINDS]).toEqual(['unit', 'component', 'integration', 'contract', 'e2e']);
   });
 });
 
@@ -81,6 +81,10 @@ describe('classifyTestFile', () => {
     expect(classifyTestFile('tests/e2e/contracts/BullMQJobConsumer.contract.test.ts')).toBe(
       'contract'
     );
+  });
+
+  it('classifies a .e2e.test.ts as e2e', () => {
+    expect(classifyTestFile('tests/e2e/machloket/messages.e2e.test.ts')).toBe('e2e');
   });
 
   it('returns null for non-test files', () => {

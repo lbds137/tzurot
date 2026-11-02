@@ -724,6 +724,9 @@ importers:
       '@tzurot/test-utils':
         specifier: workspace:*
         version: link:../packages/test-utils
+      discord.js:
+        specifier: ^14.27.0
+        version: 14.27.0
       pg:
         specifier: ^8.23.1
         version: 8.23.1

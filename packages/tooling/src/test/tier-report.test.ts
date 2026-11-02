@@ -50,13 +50,13 @@ describe('buildTierReport', () => {
     expect(byKind.contract).toBe(1); // the .contract.test.ts
   });
 
-  it('rolls bare-unit and schema-suffixed files into the unit tier; surfaces e2e tier as 0', () => {
+  it('rolls bare-unit and schema-suffixed files into the unit tier; surfaces e2e tier as 0 when the synthetic input omits .e2e.test.ts', () => {
     const { byTier } = buildTierReport(paths);
     expect(byTier.unit).toBe(3); // 2 bare unit + 1 schema-suffixed (all unit-tier)
     expect(byTier.component).toBe(2);
     expect(byTier.integration).toBe(1);
     expect(byTier.contract).toBe(1);
-    expect(byTier.e2e).toBe(0); // we have no true black-box e2e
+    expect(byTier.e2e).toBe(0); // synthetic input list above includes no .e2e.test.ts path
   });
 
   it('groups counts per package', () => {

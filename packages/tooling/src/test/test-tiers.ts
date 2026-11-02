@@ -48,7 +48,7 @@ export type TestTier = (typeof CANONICAL_TEST_TIERS)[number];
  * `matches` description in `TEST_FILE_KIND_INFO` records the rule so the
  * classification stays verifiable.
  */
-export const TEST_FILE_KINDS = ['unit', 'component', 'integration', 'contract'] as const;
+export const TEST_FILE_KINDS = ['unit', 'component', 'integration', 'contract', 'e2e'] as const;
 
 export type TestFileKind = (typeof TEST_FILE_KINDS)[number];
 
@@ -63,6 +63,8 @@ export const TIER_FOR_KIND: Readonly<Record<TestFileKind, TestTier>> = {
   integration: 'integration',
   // `*.contract.test.ts` verifies a bilateral provider↔consumer agreement.
   contract: 'contract',
+  // `*.e2e.test.ts` exercises the system end-to-end over a live transport.
+  e2e: 'e2e',
 };
 
 /** Human-readable mechanical rule that identifies each file-kind. */
@@ -73,6 +75,7 @@ export const TEST_FILE_KIND_INFO: Readonly<
   component: { tier: 'component', matches: '*.component.test.ts' },
   integration: { tier: 'integration', matches: '*.integration.test.ts' },
   contract: { tier: 'contract', matches: '*.contract.test.ts' },
+  e2e: { tier: 'e2e', matches: '*.e2e.test.ts' },
 };
 
 /**
@@ -91,5 +94,6 @@ export function classifyTestFile(relPath: string): TestFileKind | null {
   if (p.endsWith('.component.test.ts')) return 'component';
   if (p.endsWith('.integration.test.ts')) return 'integration';
   if (p.endsWith('.contract.test.ts')) return 'contract';
+  if (p.endsWith('.e2e.test.ts')) return 'e2e';
   return 'unit';
 }
