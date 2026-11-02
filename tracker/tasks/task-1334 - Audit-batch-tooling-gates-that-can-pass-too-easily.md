@@ -1,9 +1,10 @@
 ---
 id: TASK-1334
 title: 'Audit batch: tooling gates that can pass too easily'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-01T11:33:00Z'
+updated_date: '2026-11-02T13:02:00Z'
 labels:
   - area:tooling
   - size:S
