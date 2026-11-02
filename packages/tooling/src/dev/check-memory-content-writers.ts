@@ -15,8 +15,10 @@
  * `assistant_summary` together from the winning row. The guard scans only
  * `packages/*\/src` and `services/*\/src`, so `prisma/migrations/*.sql` and
  * `scripts/` are out of scope; and it cannot see a delegate held in another
- * variable (`const m = prisma.memory`), SQL split by string concatenation, or
- * a column name interpolated into SQL.
+ * variable (`const m = prisma.memory`), bracket access (`prisma['memory']`,
+ * `prisma.memory['update']`), a nested write through a further relation level
+ * (only a direct `memories` key on `data`/`update` is checked), SQL split by
+ * string concatenation, or a column name interpolated into SQL.
  *
  * Binary sync-check (like `guard:no-export-star`): no threshold, no WHY.md,
  * no `--summary`.
@@ -37,15 +39,17 @@ const ROOTS = ['packages', 'services'] as const;
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'generated', '__mocks__', '.turbo', 'coverage']);
 const SKIP_PATH_SEGMENT = /(?:^|\/)(?:generated|_generated|__mocks__|node_modules|dist)\//;
 const WRITE_METHODS = new Set(['update', 'updateMany', 'updateManyAndReturn', 'upsert']);
+const NESTED_MEMORIES_WRITE_KEYS = new Set(['update', 'updateMany', 'upsert']);
 
 const UPDATE_MEMORIES_SET =
   /\bUPDATE\s+(?:ONLY\s+)?(?:(?:"public"|public)\.)?(?:"memories"|memories\b)(?:\s+(?:AS\s+)?\w+)?\s+SET\b/gi;
 const INTO_MEMORIES = /\bINTO\s+(?:(?:"public"|public)\.)?(?:"memories"|memories\b)/gi;
 const DO_OR_THEN_UPDATE_SET = /\b(?:DO|THEN)\s+UPDATE\s+SET\b/gi;
-const SET_CLAUSE_BOUNDARY = /\b(?:WHERE|RETURNING)\b|;/i;
+const SET_CLAUSE_BOUNDARY = /\b(?:FROM|WHERE|RETURNING)\b|;/i;
 const CONTENT_COLUMN_ASSIGNMENT =
-  /(?<![\w"])(?:"content"|content\b)\s*=(?!=)|\([^()]*(?<![\w"])(?:"content"|content\b)[^()]*\)\s*=/i;
-const CANDIDATE_MEMORY_CALL = /\.memory\s*\??\.\s*(?:update(?:Many(?:AndReturn)?)?|upsert)\b/;
+  /(?<![\w".])(?:"content"|content\b)\s*=(?!=)|\([^()]*(?<![\w".])(?:"content"|content\b)[^()]*\)\s*=/i;
+const CANDIDATE_MEMORY_CALL =
+  /\.memory\s*!?\??\.\s*(?:update(?:Many(?:AndReturn)?)?|upsert)\b|\bmemories\s*[:,}]/;
 const CANDIDATE_MEMORIES_SQL =
   /\b(?:UPDATE(?:\s+ONLY)?|INTO)\s+(?:(?:\\?"public\\?"|public)\.)?(?:\\?"memories\\?"|memories\b)/i;
 
@@ -93,7 +97,7 @@ export function isScannedSourceFile(filePath: string): boolean {
   return !SKIP_PATH_SEGMENT.test(normalized);
 }
 
-function collectPackageSourceFiles(dir: string, out: string[]): void {
+function collectPackageSourceFiles(dir: string, rootDir: string, out: string[]): void {
   let entries: Dirent[];
   try {
     entries = readdirSync(dir, { withFileTypes: true });
@@ -105,8 +109,8 @@ function collectPackageSourceFiles(dir: string, out: string[]): void {
     if (SKIP_DIRS.has(entry.name)) continue;
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
-      collectPackageSourceFiles(full, out);
-    } else if (isScannedSourceFile(full)) {
+      collectPackageSourceFiles(full, rootDir, out);
+    } else if (isScannedSourceFile(relative(rootDir, full))) {
       out.push(full);
     }
   }
@@ -176,11 +180,117 @@ function unwrapExpression(node: Node | undefined): Node | undefined {
     current !== undefined &&
     (Node.isAsExpression(current) ||
       Node.isSatisfiesExpression(current) ||
-      Node.isParenthesizedExpression(current))
+      Node.isParenthesizedExpression(current) ||
+      Node.isNonNullExpression(current))
   ) {
     current = current.getExpression();
   }
   return current;
+}
+
+function inspectNestedMemoriesChildProperty(
+  prop: ObjectLiteralElementLike,
+  calleeText: string,
+  filePath: string
+): ContentWriterFinding | null {
+  const line = prop.getStartLineNumber();
+  if (Node.isSpreadAssignment(prop)) {
+    return {
+      filePath,
+      line,
+      reason: `${calleeText} nested write to 'memories' cannot be verified ('memories' has a spread assignment)`,
+    };
+  }
+  if (Node.isShorthandPropertyAssignment(prop)) {
+    const name = prop.getName();
+    return NESTED_MEMORIES_WRITE_KEYS.has(name)
+      ? {
+          filePath,
+          line,
+          reason: `${calleeText} nested write to 'memories' cannot be verified ('memories.${name}' may write 'content')`,
+        }
+      : null;
+  }
+  if (Node.isPropertyAssignment(prop)) {
+    const keyName = getPropertyAssignmentKey(prop);
+    if (keyName === null) {
+      return {
+        filePath,
+        line,
+        reason: `${calleeText} nested write to 'memories' cannot be verified ('memories' has a computed key)`,
+      };
+    }
+    return NESTED_MEMORIES_WRITE_KEYS.has(keyName)
+      ? {
+          filePath,
+          line,
+          reason: `${calleeText} nested write to 'memories' cannot be verified ('memories.${keyName}' may write 'content')`,
+        }
+      : null;
+  }
+  return {
+    filePath,
+    line,
+    reason: `${calleeText} nested write to 'memories' cannot be verified ('memories' has a non-literal property)`,
+  };
+}
+
+function inspectNestedMemoriesProperty(
+  memoriesProp: ObjectLiteralElementLike,
+  calleeText: string,
+  filePath: string
+): ContentWriterFinding | null {
+  const propLine = memoriesProp.getStartLineNumber();
+  if (!Node.isPropertyAssignment(memoriesProp)) {
+    return {
+      filePath,
+      line: propLine,
+      reason: `${calleeText} nested write to 'memories' cannot be verified ('memories' is not an object literal)`,
+    };
+  }
+  const memoriesInit = unwrapExpression(memoriesProp.getInitializer());
+  if (memoriesInit === undefined || !Node.isObjectLiteralExpression(memoriesInit)) {
+    return {
+      filePath,
+      line: propLine,
+      reason: `${calleeText} nested write to 'memories' cannot be verified ('memories' is not an object literal)`,
+    };
+  }
+  for (const prop of memoriesInit.getProperties()) {
+    const finding = inspectNestedMemoriesChildProperty(prop, calleeText, filePath);
+    if (finding !== null) return finding;
+  }
+  return null;
+}
+
+function inspectNestedMemoriesCall(
+  call: CallExpression,
+  calleeText: string,
+  method: string,
+  filePath: string
+): ContentWriterFinding | null {
+  const firstArg = unwrapExpression(call.getArguments()[0]);
+  if (firstArg === undefined || !Node.isObjectLiteralExpression(firstArg)) {
+    return null;
+  }
+
+  const targetKey = method === 'upsert' ? 'update' : 'data';
+  const targetProp = firstArg.getProperty(targetKey);
+  if (targetProp === undefined || !Node.isPropertyAssignment(targetProp)) {
+    return null;
+  }
+
+  const targetInit = unwrapExpression(targetProp.getInitializer());
+  if (targetInit === undefined || !Node.isObjectLiteralExpression(targetInit)) {
+    return null;
+  }
+
+  const memoriesProp = targetInit.getProperty('memories');
+  if (memoriesProp === undefined) {
+    return null;
+  }
+
+  return inspectNestedMemoriesProperty(memoriesProp, calleeText, filePath);
 }
 
 function inspectMemoryCall(call: CallExpression, filePath: string): ContentWriterFinding | null {
@@ -189,12 +299,16 @@ function inspectMemoryCall(call: CallExpression, filePath: string): ContentWrite
   const method = callee.getName();
   if (!WRITE_METHODS.has(method)) return null;
 
-  const modelAccess = callee.getExpression();
-  if (!Node.isPropertyAccessExpression(modelAccess) || modelAccess.getName() !== 'memory') {
+  const modelAccess = unwrapExpression(callee.getExpression());
+  if (!Node.isPropertyAccessExpression(modelAccess)) {
     return null;
   }
 
   const calleeText = callee.getText();
+  if (modelAccess.getName() !== 'memory') {
+    return inspectNestedMemoriesCall(call, calleeText, method, filePath);
+  }
+
   const firstArg = unwrapExpression(call.getArguments()[0]);
   if (firstArg === undefined || !Node.isObjectLiteralExpression(firstArg)) {
     return {
@@ -238,7 +352,9 @@ function rawSqlAssignsMemoryContent(sqlText: string): boolean {
     if (setClauseAssignsContent(afterSet)) return true;
   }
   for (const intoMatch of sqlText.matchAll(INTO_MEMORIES)) {
-    const afterInto = sqlText.slice(intoMatch.index + intoMatch[0].length);
+    const tail = sqlText.slice(intoMatch.index + intoMatch[0].length);
+    const semicolonIndex = tail.indexOf(';');
+    const afterInto = semicolonIndex === -1 ? tail : tail.slice(0, semicolonIndex);
     for (const updateSetMatch of afterInto.matchAll(DO_OR_THEN_UPDATE_SET)) {
       const afterSet = afterInto.slice(updateSetMatch.index + updateSetMatch[0].length);
       if (setClauseAssignsContent(afterSet)) return true;
@@ -308,7 +424,7 @@ function collectAllScannedFiles(rootDir: string): string[] {
       continue;
     }
     for (const pkg of packages) {
-      collectPackageSourceFiles(join(rootPath, pkg, 'src'), files);
+      collectPackageSourceFiles(join(rootPath, pkg, 'src'), rootDir, files);
     }
   }
   return files;
