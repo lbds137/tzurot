@@ -213,6 +213,7 @@ export default tseslint.config(
       '**/vitest.config.ts',
       'vitest.component.config.ts',
       'vitest.integration.config.ts',
+      'vitest.e2e.config.ts',
       'vitest.eval.config.ts',
       'prisma.config.ts',
       'audit.config.ts',

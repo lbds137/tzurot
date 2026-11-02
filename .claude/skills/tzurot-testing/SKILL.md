@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: 'Testing procedures. Invoke with /tzurot-testing for test execution, coverage audits, and debugging test failures.'
-lastUpdated: '2026-10-28'
+lastUpdated: '2026-11-02'
 ---
 
 # Testing Procedures
@@ -65,12 +65,13 @@ Tiers are canonically defined in **one place** —
 This table is the suffix→tier quick reference; don't re-define the tiers here
 (the `pnpm ops guard:test-taxonomy` gate enforces the single-source link).
 
-| Suffix / location       | Tier ([taxonomy](../../../docs/reference/guides/TESTING.md#test-tier-taxonomy)) | Infrastructure | Location               |
-| ----------------------- | ------------------------------------------------------------------------------- | -------------- | ---------------------- |
-| `*.test.ts`             | Unit                                                                            | Fully mocked   | Next to source         |
-| `*.component.test.ts`   | **Component** (one service, PGLite)                                             | PGLite         | Next to source         |
-| `*.integration.test.ts` | **Integration** (real DB+Redis)                                                 | Real services  | `tests/e2e/`           |
-| `*.contract.test.ts`    | **Contract** (provider↔consumer)                                                | Real services  | `tests/e2e/contracts/` |
+| Suffix / location       | Tier ([taxonomy](../../../docs/reference/guides/TESTING.md#test-tier-taxonomy)) | Infrastructure             | Location               |
+| ----------------------- | ------------------------------------------------------------------------------- | -------------------------- | ---------------------- |
+| `*.test.ts`             | Unit                                                                            | Fully mocked               | Next to source         |
+| `*.component.test.ts`   | **Component** (one service, PGLite)                                             | PGLite                     | Next to source         |
+| `*.integration.test.ts` | **Integration** (real DB+Redis)                                                 | Real services              | `tests/e2e/`           |
+| `*.contract.test.ts`    | **Contract** (provider↔consumer)                                                | Real services              | `tests/e2e/contracts/` |
+| `*.e2e.test.ts`         | **E2E** (transport contract, local only)                                        | Throwaway Machloket server | `tests/e2e/machloket/` |
 
 > Each suffix names its tier directly. **Schema test ≠ contract test**: a Zod
 > schema test (a plain `*.test.ts`) validates one type's own rules (unit-tier); a
