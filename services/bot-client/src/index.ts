@@ -529,7 +529,8 @@ async function start(): Promise<void> {
     bootWatchdog.notePhase('services-initialized');
 
     // Subscribe to all cache invalidation events first, so a denylist event published
-    // around the snapshot is replayed over it. The other handlers only clear caches.
+    // around the snapshot is replayed over it. The personality and channel handlers only
+    // clear caches, and the denied-guild leave finds no cached guild before login.
     await subscribeToCacheInvalidation();
     const denylistApplied = await services.denylistCache.hydrate();
     logger.info({ snapshotApplied: denylistApplied }, 'Denylist cache hydrate attempted');
