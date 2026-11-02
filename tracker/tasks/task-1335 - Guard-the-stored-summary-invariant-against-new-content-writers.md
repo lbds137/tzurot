@@ -1,9 +1,10 @@
 ---
 id: TASK-1335
 title: Guard the stored-summary invariant against new content writers
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-01T13:43:00Z'
+updated_date: '2026-11-02T04:03:00Z'
 labels:
   - area:ai-worker
   - size:S
