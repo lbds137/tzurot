@@ -1,9 +1,10 @@
 ---
 id: TASK-1333
 title: Catalog drift alert is lost when the owner-channel post fails
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-01T11:33:00Z'
+updated_date: '2026-11-02T00:26:00Z'
 labels:
   - area:api-gateway
   - size:S
