@@ -122,6 +122,7 @@ export function registerDevCommands(cli: CAC): void {
   registerBacklogCommand(cli);
   registerWorktreeTransferCommand(cli);
   registerUnitCloseoutCommand(cli);
+  registerTrackerCommitCommand(cli);
 }
 
 function registerWorktreeTransferCommand(cli: CAC): void {
@@ -178,6 +179,32 @@ function registerUnitCloseoutCommand(cli: CAC): void {
       const result = unitCloseout({ taskId, pr, sha });
       if (!result.ok) {
         console.error(`unit:closeout refused (${result.check}): ${result.reason}`);
+        process.exitCode = 1;
+      }
+    });
+}
+
+function registerTrackerCommitCommand(cli: CAC): void {
+  cli
+    .command(
+      'tracker:commit',
+      'Commit and push dirty tracker and board files to develop from any checkout'
+    )
+    .option('--subject <text>', 'Commit message subject line')
+    .example('ops tracker:commit --subject "docs(backlog): file TASK-1332"')
+    .action(async (options: { subject?: string | number | boolean }) => {
+      if (
+        options.subject === undefined ||
+        options.subject === true ||
+        String(options.subject).trim().length === 0
+      ) {
+        throw new UsageError('--subject <text> is required');
+      }
+      const subject = String(options.subject).trim();
+      const { trackerCommit } = await import('../dev/tracker-commit.js');
+      const result = trackerCommit({ subject });
+      if (!result.ok) {
+        console.error(`tracker:commit refused (${result.check}): ${result.reason}`);
         process.exitCode = 1;
       }
     });

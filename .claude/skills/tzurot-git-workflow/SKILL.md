@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-10-28'
+lastUpdated: '2026-11-01'
 ---
 
 # Git Workflow Procedures
@@ -52,6 +52,7 @@ test "$(git rev-parse HEAD)" = "$(git ls-remote origin "refs/heads/<branch>" | c
 ```
 
 - A commit-body line starting with `#` is dropped when git cleans the message in editor/strip mode (`-m` and `-F` keep it). Start such lines with a word ("PR #2466 …"); same for `#TASK` prefixes.
+- Board-only commits (`tracker/**`, `backlog/**`, `BACKLOG.md`, `CURRENT.md`) made from a feature branch or a worktree shell go through `pnpm ops tracker:commit --subject "<subject>"`, which lands them on develop from any checkout, stages only those paths, and refuses if the current checkout would strand dirty board files.
 
 ### 3. Push
 
@@ -84,6 +85,9 @@ Every unit's PR records its lane, dispatch or inline (`/tzurot-orchestration`
 § Dispatch lane): the PR body's Verification section carries the durable lane
 line — which lane the unit's edits took, the one-line reason, and which
 fallback or exception applied.
+
+Every count or enumeration in a PR or commit body is derived from the final head, against the ref, right before `gh pr create` or `pnpm ops gh:pr-edit`.
+The PR body is a file written with Write and changed with Edit, then passed with `--body-file`, so a later round edits the same text rather than retyping it.
 
 ### Before writing a closing reference in the PR body
 
