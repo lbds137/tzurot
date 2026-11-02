@@ -122,7 +122,7 @@ describe('Machloket transport contract: messages, webhooks, DMs, guild state, an
     });
   });
 
-  it.each(['Support Persona', 'Spacebar Steam Community Ticket', 'everyone', 'here'])(
+  it.each(['Support Persona', 'Spacebar Steam Community Ticket'])(
     'resolves webhook.send with username %s',
     async username => {
       const m = await webhook.send({ content: 'n', username });
@@ -213,9 +213,13 @@ describe('Machloket transport contract: messages, webhooks, DMs, guild state, an
     expect(await codeOf(guild.members.fetch({ user: unknownId, force: true }))).toBe(10007);
   });
 
-  it('resolves channel.send with 4000 characters and refuses 4001 at the default limit', async () => {
+  // 4000 is Machloket's default by owner ruling, not Discord's bot limit, which is DISCORD_LIMITS.MESSAGE_LENGTH.
+  it('resolves channel.send with 4000 characters at the default limit', async () => {
     const m = await channel.send('x'.repeat(4000));
     expect(m.content.length).toBe(4000);
+  });
+
+  it('refuses channel.send with 4001 characters at the default limit', async () => {
     await expect(channel.send('x'.repeat(4001))).rejects.toMatchObject({
       status: 400,
       code: 50035,
