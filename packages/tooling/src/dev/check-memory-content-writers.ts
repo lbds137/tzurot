@@ -19,7 +19,10 @@
  * to `Memory` under a name other than `memories`, bracket access (`prisma['memory']`,
  * `prisma.memory['update']`), a nested write through a further relation level
  * (only a direct `memories` key on `data`/`update` is checked), SQL split by
- * string concatenation, or a column name interpolated into SQL.
+ * string concatenation, a column name interpolated into SQL, or a comment
+ * between the delegate and the method. The allowlist counts writers without
+ * telling them apart, so a raw-SQL writer replacing the route's Prisma one
+ * still counts; the MEM-ARCH-024 test named below catches that.
  *
  * Binary sync-check (like `guard:no-export-star`): no threshold, no WHY.md,
  * no `--summary`.
@@ -40,6 +43,8 @@ const ROOTS = ['packages', 'services'] as const;
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'generated', '__mocks__', '.turbo', 'coverage']);
 const SKIP_PATH_SEGMENT = /(?:^|\/)(?:generated|_generated|__mocks__|node_modules|dist)\//;
 const WRITE_METHODS = new Set(['update', 'updateMany', 'updateManyAndReturn', 'upsert']);
+/** Marks a finding the allowlist must not count, so its wording lives in one place. */
+const CANNOT_BE_VERIFIED = 'cannot be verified';
 const NESTED_MEMORIES_WRITE_KEYS = new Set(['update', 'updateMany', 'upsert']);
 
 const UPDATE_MEMORIES_SET =
@@ -134,7 +139,7 @@ function inspectDataProperty(
     return {
       filePath,
       line,
-      reason: `${calleeText} write cannot be verified ('${targetKey}' has a spread assignment)`,
+      reason: `${calleeText} write ${CANNOT_BE_VERIFIED} ('${targetKey}' has a spread assignment)`,
     };
   }
   if (Node.isShorthandPropertyAssignment(prop)) {
@@ -148,7 +153,7 @@ function inspectDataProperty(
       return {
         filePath,
         line,
-        reason: `${calleeText} write cannot be verified ('${targetKey}' has a computed key)`,
+        reason: `${calleeText} write ${CANNOT_BE_VERIFIED} ('${targetKey}' has a computed key)`,
       };
     }
     return keyName === 'content'
@@ -158,7 +163,7 @@ function inspectDataProperty(
   return {
     filePath,
     line,
-    reason: `${calleeText} write cannot be verified ('${targetKey}' has a non-literal property)`,
+    reason: `${calleeText} write ${CANNOT_BE_VERIFIED} ('${targetKey}' has a non-literal property)`,
   };
 }
 
@@ -199,7 +204,7 @@ function inspectNestedMemoriesChildProperty(
     return {
       filePath,
       line,
-      reason: `${calleeText} nested write to 'memories' cannot be verified ('memories' has a spread assignment)`,
+      reason: `${calleeText} nested write to 'memories' ${CANNOT_BE_VERIFIED} ('memories' has a spread assignment)`,
     };
   }
   if (Node.isShorthandPropertyAssignment(prop)) {
@@ -208,7 +213,7 @@ function inspectNestedMemoriesChildProperty(
       ? {
           filePath,
           line,
-          reason: `${calleeText} nested write to 'memories' cannot be verified ('memories.${name}' may write 'content')`,
+          reason: `${calleeText} nested write to 'memories' ${CANNOT_BE_VERIFIED} ('memories.${name}' may write 'content')`,
         }
       : null;
   }
@@ -218,21 +223,21 @@ function inspectNestedMemoriesChildProperty(
       return {
         filePath,
         line,
-        reason: `${calleeText} nested write to 'memories' cannot be verified ('memories' has a computed key)`,
+        reason: `${calleeText} nested write to 'memories' ${CANNOT_BE_VERIFIED} ('memories' has a computed key)`,
       };
     }
     return NESTED_MEMORIES_WRITE_KEYS.has(keyName)
       ? {
           filePath,
           line,
-          reason: `${calleeText} nested write to 'memories' cannot be verified ('memories.${keyName}' may write 'content')`,
+          reason: `${calleeText} nested write to 'memories' ${CANNOT_BE_VERIFIED} ('memories.${keyName}' may write 'content')`,
         }
       : null;
   }
   return {
     filePath,
     line,
-    reason: `${calleeText} nested write to 'memories' cannot be verified ('memories' has a non-literal property)`,
+    reason: `${calleeText} nested write to 'memories' ${CANNOT_BE_VERIFIED} ('memories' has a non-literal property)`,
   };
 }
 
@@ -249,7 +254,7 @@ function inspectNestedMemoriesProperty(
     return {
       filePath,
       line: propLine,
-      reason: `${calleeText} nested write to 'memories' cannot be verified ('memories' is not an object literal)`,
+      reason: `${calleeText} nested write to 'memories' ${CANNOT_BE_VERIFIED} ('memories' is not an object literal)`,
     };
   }
   for (const prop of memoriesInit.getProperties()) {
@@ -310,7 +315,7 @@ function inspectMemoryCall(call: CallExpression, filePath: string): ContentWrite
     return {
       filePath,
       line: call.getStartLineNumber(),
-      reason: `${calleeText} write cannot be verified (first argument is not an object literal)`,
+      reason: `${calleeText} write ${CANNOT_BE_VERIFIED} (first argument is not an object literal)`,
     };
   }
 
@@ -320,7 +325,7 @@ function inspectMemoryCall(call: CallExpression, filePath: string): ContentWrite
     return {
       filePath,
       line: call.getStartLineNumber(),
-      reason: `${calleeText} write cannot be verified ('${targetKey}' is not an object literal)`,
+      reason: `${calleeText} write ${CANNOT_BE_VERIFIED} ('${targetKey}' is not an object literal)`,
     };
   }
 
@@ -329,7 +334,7 @@ function inspectMemoryCall(call: CallExpression, filePath: string): ContentWrite
     return {
       filePath,
       line: targetProp.getStartLineNumber(),
-      reason: `${calleeText} write cannot be verified ('${targetKey}' is not an object literal)`,
+      reason: `${calleeText} write ${CANNOT_BE_VERIFIED} ('${targetKey}' is not an object literal)`,
     };
   }
 
@@ -437,10 +442,10 @@ export function findContentWriterViolations(rootDir: string): ContentWriterFindi
   for (const file of collectAllScannedFiles(rootDir)) {
     const relPath = relative(rootDir, file).replaceAll('\\', '/');
     const findings = findContentWriters(relPath, readFileSync(file, 'utf-8'));
-    if (relPath in ALLOWED_CONTENT_WRITERS) {
-      const readable = findings.filter(f => !f.reason.includes('cannot be verified'));
-      allowlistedCounts.set(relPath, readable.length);
-      violations.push(...findings.filter(f => !readable.includes(f)));
+    if (Object.hasOwn(ALLOWED_CONTENT_WRITERS, relPath)) {
+      const unreadable = findings.filter(f => f.reason.includes(CANNOT_BE_VERIFIED));
+      allowlistedCounts.set(relPath, findings.length - unreadable.length);
+      violations.push(...unreadable);
     } else {
       violations.push(...findings);
     }

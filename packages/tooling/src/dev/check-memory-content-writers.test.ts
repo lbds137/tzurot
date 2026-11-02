@@ -106,6 +106,8 @@ describe('findContentWriters — flagged content writers', () => {
     'prisma.persona.update({ where, data: { memories: { updateMany: { where: {}, data: { content: x } } } } })',
     'prisma.personality.update({ where, data: { memories: { update: { where: {}, data: { content: x } } } } })',
     'tx.persona.upsert({ where, create: {}, update: { memories: { upsert: [] } } })',
+    'prisma.memory.update({ where, data })',
+    "await prisma.$executeRawUnsafe('UPDATE memories SET content = $1', x);",
     'prisma.persona.update({ where, data: { memories: payload } })',
     'prisma.persona.update({ where, data: { memories } })',
     'prisma.persona.update({ where, data: { memories: { [key]: value } } })',
@@ -287,7 +289,8 @@ describe('positive control and repository scan', () => {
     expect(findings[0]?.reason).toMatch(/sets 'content'/);
   });
 
-  // Deliberate second tripwire beside the CI step; a canary on the allowlist relies on it.
+  // A second tripwire beside the CI step only on a tooling test cache miss, as turbo's
+  // tooling inputs exclude services/. A canary on the allowlist relies on it.
   it('returns no violations over the real repo root', () => {
     expect(findContentWriterViolations(REPO_ROOT)).toEqual([]);
   }, 30_000);
