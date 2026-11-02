@@ -486,19 +486,19 @@ function namesSameModel(a: string, b: string): boolean {
  *
  * Model and provider ids look catalog-derived but are NOT: both are free-text
  * modal inputs on the `/preset` dashboard (`model` maxLength 255, `provider`
- * 50), validated for length only. Discord-parsed text that renders a provider
- * id or other free text must strip these first, or a user-chosen id like
- * `[Free Nitro](http://evil.example)` renders as a live masked link. A model id
- * goes through {@link sanitizeModelIdForDisplay} instead, which also removes
- * the scheme separator a bare URL needs to auto-link.
+ * 50), validated for length only. Discord-parsed text that renders other free
+ * text must strip these first, or a user-chosen id like
+ * `[Free Nitro](http://evil.example)` renders as a live masked link. Model and
+ * provider ids go through {@link sanitizeModelIdForDisplay} instead, which also
+ * removes the scheme separator a bare URL needs to auto-link.
  *
  * CAN return '' from a non-empty input (`'()'` strips to nothing), and an
  * empty Discord embed field value throws at build time — so a caller
  * rendering this into a field must skip the field rather than emit the empty
  * result. Pinned by a case in `discord.test.ts`.
  *
- * Exported because bot-client's inspect and owner-channel embeds render provider
- * and other non-model values through it.
+ * Exported because bot-client's inspect and owner-channel embeds render the
+ * upstream provider name and other non-model values through it.
  */
 export function stripMarkdownDelimiters(value: string): string {
   return value.replace(/[[\]()<>]/g, '');
@@ -517,7 +517,8 @@ const DISCORD_INVITE_PATH = /discord(?:app)?\.(?:gg|gift|com\/invite)\//gi;
  * every character outside a model id's alphabet, which covers the markdown
  * delimiters and backslash escapes, then repeats until no link shape is left, so
  * a removal cannot join the pieces of a new one. Render only: comparisons keep
- * the raw id. The result can be empty, as with `stripMarkdownDelimiters`.
+ * the raw id. It also serves provider ids, which are free text from the same
+ * modal. The result can be empty, as with `stripMarkdownDelimiters`.
  */
 export function sanitizeModelIdForDisplay(value: string): string {
   let result = value.replace(MODEL_ID_DISALLOWED_CHARS, '');

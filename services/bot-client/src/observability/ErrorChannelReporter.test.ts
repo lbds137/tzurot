@@ -636,8 +636,8 @@ describe('ErrorChannelReporter', () => {
     it('strips markdown link delimiters from Model and Provider (free-text preset inputs)', () => {
       // Both are `/preset` modal fields validated for length only, so a chosen
       // id like `[Free Nitro](http://evil)` would render as a live masked link
-      // in the owner's alert channel. Model takes `sanitizeModelIdForDisplay`,
-      // the same sanitizer buildModelFooterText uses; Provider takes the strip.
+      // in the owner's alert channel. Model and Provider both take
+      // `sanitizeModelIdForDisplay`, the same sanitizer buildModelFooterText uses.
       initErrorChannelReporter(fakeClient());
       reportJobError(
         {
@@ -670,6 +670,20 @@ describe('ErrorChannelReporter', () => {
       const model = lastFields().find(f => f.name === 'Model')?.value;
       expect(model).toBe('https:evil.example/x');
       expect(model).not.toContain('://');
+    });
+
+    it('renders a URL-shaped Provider with no scheme separator in the owner alert', () => {
+      initErrorChannelReporter(fakeClient());
+      reportJobError(
+        {
+          requestId: 'req-url-provider',
+          errorInfo: { category: 'model_not_found' },
+          metadata: { modelUsed: 'openrouter/model', providerUsed: 'https://evil.example/x' },
+        },
+        undefined
+      );
+
+      expect(lastFields().find(f => f.name === 'Provider')?.value).toBe('https:evil.example/x');
     });
 
     it('omits Model when the id sanitizes away to nothing rather than dropping the report', () => {

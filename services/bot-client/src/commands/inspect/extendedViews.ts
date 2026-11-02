@@ -3,7 +3,7 @@
 import { EmbedBuilder, MessageFlags } from 'discord.js';
 import {
   DISCORD_COLORS,
-  stripMarkdownDelimiters,
+  sanitizeModelIdForDisplay,
   toInertCodeSpan,
 } from '@tzurot/common-types/constants/discord';
 import { UX_SENTINELS } from '@tzurot/common-types/constants/uxVocabulary';
@@ -214,7 +214,7 @@ export function buildGenerationParamsView(
     .setDescription(
       [
         `**Model:** ${toInertCodeSpan(config.model)}`,
-        `**Provider:** ${stripMarkdownDelimiters(config.provider)}`,
+        `**Provider:** ${sanitizeModelIdForDisplay(config.provider)}`,
         '',
         ...(named.length > 0 ? named : ['_No sampling overrides set._']),
       ].join('\n')
