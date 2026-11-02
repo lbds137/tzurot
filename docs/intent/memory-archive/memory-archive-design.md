@@ -209,8 +209,9 @@ archive, because `assistant_summary` is only written for the current content
 `archiveSummary/archiveSummaryStore.ts`), a content edit clears it
 (api-gateway's `routes/user/memorySingle.ts`), the dev-to-prod sync copies both
 together (api-gateway's `services/sync/SyncUpsertBuilder.ts`), and
-`pnpm ops guard:memory-content-writers` fails on any new Prisma or literal-SQL
-content writer. Absence is meaningful, same rule as `userTurn`: never a
+`pnpm ops guard:memory-content-writers` fails on a new Prisma or literal-SQL
+content writer of the shapes it can read (its header names the limits). Absence
+is meaningful, same rule as `userTurn`: never a
 default.
 
 **The eligibility rule.** The same function stamps

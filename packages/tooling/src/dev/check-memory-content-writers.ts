@@ -15,7 +15,8 @@
  * `assistant_summary` together from the winning row. The guard scans only
  * `packages/*\/src` and `services/*\/src`, so `prisma/migrations/*.sql` and
  * `scripts/` are out of scope; and it cannot see a delegate held in another
- * variable (`const m = prisma.memory`), bracket access (`prisma['memory']`,
+ * variable (`const m = prisma.memory`, `const { memory } = prisma`), a relation
+ * to `Memory` under a name other than `memories`, bracket access (`prisma['memory']`,
  * `prisma.memory['update']`), a nested write through a further relation level
  * (only a direct `memories` key on `data`/`update` is checked), SQL split by
  * string concatenation, or a column name interpolated into SQL.
@@ -241,14 +242,9 @@ function inspectNestedMemoriesProperty(
   filePath: string
 ): ContentWriterFinding | null {
   const propLine = memoriesProp.getStartLineNumber();
-  if (!Node.isPropertyAssignment(memoriesProp)) {
-    return {
-      filePath,
-      line: propLine,
-      reason: `${calleeText} nested write to 'memories' cannot be verified ('memories' is not an object literal)`,
-    };
-  }
-  const memoriesInit = unwrapExpression(memoriesProp.getInitializer());
+  const memoriesInit = Node.isPropertyAssignment(memoriesProp)
+    ? unwrapExpression(memoriesProp.getInitializer())
+    : undefined;
   if (memoriesInit === undefined || !Node.isObjectLiteralExpression(memoriesInit)) {
     return {
       filePath,
@@ -442,7 +438,9 @@ export function findContentWriterViolations(rootDir: string): ContentWriterFindi
     const relPath = relative(rootDir, file).replaceAll('\\', '/');
     const findings = findContentWriters(relPath, readFileSync(file, 'utf-8'));
     if (relPath in ALLOWED_CONTENT_WRITERS) {
-      allowlistedCounts.set(relPath, findings.length);
+      const readable = findings.filter(f => !f.reason.includes('cannot be verified'));
+      allowlistedCounts.set(relPath, readable.length);
+      violations.push(...findings.filter(f => !readable.includes(f)));
     } else {
       violations.push(...findings);
     }
@@ -479,7 +477,8 @@ export function checkMemoryContentWriters(): void {
   console.error(
     '\nA new content writer must clear the stored summary in the same write ' +
       '(`assistantSummary: null` and companion summary columns), then join ' +
-      'ALLOWED_CONTENT_WRITERS in packages/tooling/src/dev/check-memory-content-writers.ts.'
+      'ALLOWED_CONTENT_WRITERS in packages/tooling/src/dev/check-memory-content-writers.ts. ' +
+      'A finding on an object that is not the Prisma delegate needs a literal argument or a rename, not the allowlist.'
   );
   process.exitCode = 1;
 }
