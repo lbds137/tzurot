@@ -118,6 +118,8 @@ describe('Machloket transport contract: slash, component, modal, context-menu, a
     await invoke({ version: cmd.version, id: cmd.id, name: 'parity', type: 1, options: [] });
     const i = await got;
     await i.reply({ content: 'only you', flags: 64 });
+    const reply = await i.fetchReply();
+    expect((reply.flags?.bitfield ?? 0) & 64).toBe(64);
     const follow = await i.followUp({ content: 'follow up', flags: 64 });
     expect((follow.flags?.bitfield ?? 0) & 64).toBe(64);
   });
@@ -135,8 +137,9 @@ describe('Machloket transport contract: slash, component, modal, context-menu, a
     );
     const btnInteraction = await gotButton;
     await btnInteraction.deferUpdate();
-    await btnInteraction.followUp({ content: 'button followed', flags: 64 });
-    expect(btnInteraction.customId).toBe('parity::go::1');
+    const follow = await btnInteraction.followUp({ content: 'button followed', flags: 64 });
+    expect((follow.flags?.bitfield ?? 0) & 64).toBe(64);
+    expect(follow.content).toBe('button followed');
   });
 
   it('handles string-select update with selected values', async () => {
@@ -148,6 +151,8 @@ describe('Machloket transport contract: slash, component, modal, context-menu, a
     );
     const selectInteraction = await gotSelect;
     await selectInteraction.update({ content: 'updated' });
+    const frame = await contentFrame('updated');
+    expect(frame.d.id).toBe(withButton.id);
     expect(selectInteraction.values).toEqual(['a']);
   });
 

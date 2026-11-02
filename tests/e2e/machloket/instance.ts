@@ -103,6 +103,7 @@ export interface MatchedInteraction {
   deferReply(options?: Record<string, unknown>): Promise<unknown>;
   editReply(options: unknown): Promise<unknown>;
   reply(options: unknown): Promise<unknown>;
+  fetchReply(): Promise<Message>;
   followUp(options: unknown): Promise<Message>;
   deferUpdate(): Promise<unknown>;
   update(options: unknown): Promise<unknown>;
@@ -170,6 +171,16 @@ export function timeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> 
       clearTimeout(timer);
     }
   });
+}
+
+export async function loginAndReady(client: Client, token: string): Promise<void> {
+  const ready = new Promise<void>(res => {
+    client.once(Events.ClientReady, () => {
+      res();
+    });
+  });
+  await timeout(client.login(token), 60_000, 'login');
+  await timeout(ready, 60_000, 'ClientReady');
 }
 
 export function nextMessage(
@@ -311,13 +322,7 @@ export async function bootParity(config?: Record<string, unknown>): Promise<Pari
     const origin = `http://127.0.0.1:${String(inst.port)}`;
     client = new Client(buildDiscordClientOptions(origin));
     const activeClient = client;
-    const ready = new Promise<void>(res => {
-      activeClient.once(Events.ClientReady, () => {
-        res();
-      });
-    });
-    await timeout(activeClient.login(bot.token), 60_000, 'login');
-    await timeout(ready, 60_000, 'ClientReady');
+    await loginAndReady(activeClient, bot.token);
 
     human = new Gateway(inst.gatewayUrl());
     const waitFrame = createWaitFrame(human);

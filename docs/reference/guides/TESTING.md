@@ -71,22 +71,22 @@ Five tiers, ordered most-isolated → most-integrated:
 
 <!-- canonical-test-tiers:start -->
 
-| Tier            | Scope                                                                                                                    | Real vs. stubbed                                                    | Our file convention                                               |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| **Unit**        | one class / small group; business logic                                                                                  | all collaborators mocked (solitary) or real-but-observed (sociable) | `*.test.ts`                                                       |
-| **Component**   | one whole service in isolation; its datastore is part of the unit                                                        | external _services_ stubbed; datastore real (PGLite)                | `*.component.test.ts`                                             |
-| **Integration** | a module against ONE real external dependency; verifies the communication path (protocol, serialization, error handling) | the external dep is real (or a faithful double)                     | `*.integration.test.ts` (under `tests/e2e/`, real DB+Redis)       |
-| **Contract**    | bilateral provider↔consumer agreement on a specific interface (consumer-driven)                                          | neither full service booted — just the contract                     | `*.contract.test.ts` (colocated, or under `tests/e2e/contracts/`) |
-| **E2E**         | the system as a black box; full deployed ecosystem; user journeys                                                        | everything real                                                     | `*.e2e.test.ts` under `tests/e2e/machloket/`, local only          |
+| Tier            | Scope                                                                                                                    | Real vs. stubbed                                                    | Our file convention                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **Unit**        | one class / small group; business logic                                                                                  | all collaborators mocked (solitary) or real-but-observed (sociable) | `*.test.ts`                                                                                                           |
+| **Component**   | one whole service in isolation; its datastore is part of the unit                                                        | external _services_ stubbed; datastore real (PGLite)                | `*.component.test.ts`                                                                                                 |
+| **Integration** | a module against ONE real external dependency; verifies the communication path (protocol, serialization, error handling) | the external dep is real (or a faithful double)                     | `*.integration.test.ts` (under `tests/e2e/`, real DB+Redis); `*.e2e.test.ts` under `tests/e2e/machloket/`, local only |
+| **Contract**    | bilateral provider↔consumer agreement on a specific interface (consumer-driven)                                          | neither full service booted — just the contract                     | `*.contract.test.ts` (colocated, or under `tests/e2e/contracts/`)                                                     |
+| **E2E**         | the system as a black box; full deployed ecosystem; user journeys                                                        | everything real                                                     | effectively none today                                                                                                |
 
 <!-- canonical-test-tiers:end -->
 
-`pnpm test:e2e` covers the Discord transport contract through bot-client's real
-client options against a throwaway Machloket server instance, not Tzurot's own
-handlers. It requires `MACHLOKET_SERVER_DIR` pointing at a built
-`machloket-server` checkout and a local container engine; CI does not run it,
-and it does not replace the live dev exercise that `00-critical.md` § Testing
-requires.
+`pnpm test:e2e` is an integration-tier run that covers the Discord transport
+contract through bot-client's real client options against a throwaway Machloket
+server instance, not Tzurot's own handlers. It requires `MACHLOKET_SERVER_DIR`
+pointing at a built `machloket-server` checkout and a local container engine; CI
+does not run it, and it does not replace the live dev exercise that
+`00-critical.md` § Testing requires.
 
 **Which tier suits which logic:** business/domain logic → **unit** (local, fast).
 Cross-boundary / application logic → **contract** + **component** (local) and
@@ -170,13 +170,13 @@ services/bot-client/
 Tzurot uses a **naming convention based on infrastructure needs**. Each suffix
 maps directly to its [canonical tier](#test-tier-taxonomy):
 
-| Extension               | Tier ([taxonomy](#test-tier-taxonomy)) | Infrastructure    | Location                              |
-| ----------------------- | -------------------------------------- | ----------------- | ------------------------------------- |
-| `*.test.ts`             | Unit                                   | Fully mocked      | Co-located with source                |
-| `*.component.test.ts`   | **Component** (one service, PGLite)    | PGLite database   | Co-located with source                |
-| `*.integration.test.ts` | **Integration** (real DB+Redis)        | Real services     | `tests/e2e/`                          |
-| `*.contract.test.ts`    | **Contract** (provider↔consumer)       | PGLite / fixtures | Co-located, or `tests/e2e/contracts/` |
-| `*.e2e.test.ts`         | **E2E** (transport contract, local)    | Throwaway server  | `tests/e2e/machloket/`                |
+| Extension               | Tier ([taxonomy](#test-tier-taxonomy))      | Infrastructure    | Location                              |
+| ----------------------- | ------------------------------------------- | ----------------- | ------------------------------------- |
+| `*.test.ts`             | Unit                                        | Fully mocked      | Co-located with source                |
+| `*.component.test.ts`   | **Component** (one service, PGLite)         | PGLite database   | Co-located with source                |
+| `*.integration.test.ts` | **Integration** (real DB+Redis)             | Real services     | `tests/e2e/`                          |
+| `*.contract.test.ts`    | **Contract** (provider↔consumer)            | PGLite / fixtures | Co-located, or `tests/e2e/contracts/` |
+| `*.e2e.test.ts`         | **Integration** (transport contract, local) | Throwaway server  | `tests/e2e/machloket/`                |
 
 (A Zod schema test is just a unit test — a plain `*.test.ts`, not a distinct
 suffix. See "Schema tests are unit-tier" above.)
@@ -369,9 +369,9 @@ beforeAll(async () => {
 > Redis) — Clemson's "integration" — under `tests/e2e/`. `*.contract.test.ts` locks
 > a provider↔consumer agreement; it may be colocated with the code it locks or live
 > under `tests/e2e/contracts/`. The suffix carries the tier (the `tests/e2e/`
-> directory name is legacy). The only **E2E** tier is this Machloket transport
-> contract (`tests/e2e/machloket/*.e2e.test.ts`); a black-box run of Tzurot itself
-> does not exist yet.
+> directory name is legacy). True black-box **E2E** is effectively none today. The
+> `.e2e.test.ts` suffix selects a local runner and these files count as integration
+> until a run drives Tzurot itself.
 
 > ℹ️ **Real-Postgres integration tests:** the `component-integration-tests` CI job
 > provisions Redis **and** a `pgvector/pgvector:pg15` Postgres, and applies the real
@@ -948,7 +948,7 @@ See [personalityMentionParser.test.ts](../../services/bot-client/src/utils/perso
 1. **Add more utility tests** - Format helpers, validators
 2. **Service layer tests** - PersonalityService, UserService
 3. **Integration tests** - Full message flow
-4. **E2E tests** - Machloket transport contract (`tests/e2e/machloket/*.e2e.test.ts`, local only); full black-box Tzurot Discord → AI response flow does not exist yet
+4. **E2E tests** - Discord → AI response (future)
 
 ---
 

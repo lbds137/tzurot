@@ -50,6 +50,10 @@ describe('TIER_FOR_KIND', () => {
     expect(TIER_FOR_KIND.contract).toBe('contract');
   });
 
+  it('maps the e2e kind to the integration tier', () => {
+    expect(TIER_FOR_KIND.e2e).toBe('integration');
+  });
+
   it('keeps every kind documented with a mechanical match rule', () => {
     for (const kind of TEST_FILE_KINDS) {
       expect(TEST_FILE_KIND_INFO[kind].matches).toBeTruthy();
