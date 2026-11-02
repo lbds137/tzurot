@@ -206,8 +206,9 @@ Q2 in the original open-questions list is obsolete.)
   `/emojis/`, `/stickers/`, `/icons/`, … — full list in `discordInstanceOrigin.ts:116-137`).
   `/api` is deliberately NEVER a CDN prefix — CDN and API must stay distinguishable by path.
 - **TR-5.2 [S]** Payload URLs fetchable headlessly by ai-worker (no cookies, no client-bound
-  session; `redirect: 'error'`; 403 read as expired-CDN signal). Signing is OFF
-  **[as-exposed-today: `cdnSignUrls=false`]** — keep it off, or set `cdnSignatureIncludeIp` and
+  session; `redirect: 'error'`; 403 read as expired-CDN signal). Signatures are NOT VERIFIED
+  **[as-exposed-today: `cdnSignUrls=false`]**: URLs always carry `ex/is/hm`, and the setting only
+  decides whether the CDN checks them (Machloket Server, code-read, 2026-11-02). Keep it off, or set `cdnSignatureIncludeIp` and
   `cdnSignatureIncludeUserAgent` false (bot-client and ai-worker differ in both). If signing is
   ever enabled, the `ex/is/hm` param scheme must match Discord's — `discordCdnExpiry.ts` parses
   it; unsigned URLs simply pass (no `ex` → not expired).

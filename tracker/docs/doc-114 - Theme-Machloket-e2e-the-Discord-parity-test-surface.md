@@ -30,6 +30,8 @@ Gaps, sent to the Machloket Server session the same day. The Discord side of 3 a
 5. A 2001-character message is accepted, against TR-3.3's 2000.
 6. A modal submit with a text input fails the request schema, so by code-reading every Tzurot modal fails on submit from the Machloket client.
 
+Machloket Server's answer the same day, confirmed by its reading of the code and not yet run or deployed: 1 to 4 and 6 are in its worker; 5 is Lila's call on the server side. It messages when a fix lands; each workaround stays until then. Its fix for 4 is 1 to 80, which leaves a further gap: the instance's `blockedContains` list refuses names holding spacebar, steam, community, support or ticket, where Discord's docs name only clyde and discord, so a persona with "support" in its name still gets a 400 (also Lila's call there). A 2000 limit can be pinned whichever default she picks, through `limits.message.maxCharacters` on `bootInstance`.
+
 ### Later units
 
 - Tzurot's own handlers and `deployCommands` read `getConfig()`, whose origin check accepts https only (`discordInstanceOrigin.ts`), and the harness is http. Driving them needs TLS in the harness or a loopback exemption; that choice is made when the unit is picked.
