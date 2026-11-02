@@ -28,6 +28,14 @@ const DOCS_REFERENCE_ROOT = 'docs/reference';
  */
 const SKIPPED_DIR_NAMES = new Set(['node_modules', '.git', 'dist', 'coverage', '.turbo']);
 
+/**
+ * Gitignored, machine-local directory paths never traversed when collecting
+ * the markdown haystack, so a mention there must not count as an inbound link.
+ * Matched as whole repo-relative paths, so a directory merely named `local`
+ * elsewhere is still read.
+ */
+const SKIPPED_REPO_PATHS = new Set(['docs/local', '.claude/worktrees']);
+
 export interface DocsOrphanResult {
   /** Total `docs/reference/**\/*.md` files scanned. */
   totalDocs: number;
@@ -36,7 +44,7 @@ export interface DocsOrphanResult {
 }
 
 /** Recursively collect every `.md` file under `dir`, skipping vendored trees. */
-function findMarkdownFiles(dir: string): string[] {
+function findMarkdownFiles(dir: string, repoRoot: string): string[] {
   const results: string[] = [];
   let entries;
   try {
@@ -46,8 +54,10 @@ function findMarkdownFiles(dir: string): string[] {
   }
   for (const entry of entries) {
     if (entry.isDirectory()) {
-      if (!SKIPPED_DIR_NAMES.has(entry.name)) {
-        results.push(...findMarkdownFiles(join(dir, entry.name)));
+      const subDir = join(dir, entry.name);
+      const relPath = relative(repoRoot, subDir).replaceAll('\\', '/');
+      if (!SKIPPED_DIR_NAMES.has(entry.name) && !SKIPPED_REPO_PATHS.has(relPath)) {
+        results.push(...findMarkdownFiles(subDir, repoRoot));
       }
     } else if (entry.isFile() && entry.name.endsWith('.md')) {
       // Dirent predicates don't follow symlinks, so cycles are impossible
@@ -80,12 +90,12 @@ function buildSlugMatcher(slug: string): RegExp {
  * rescue merely under-reports, which is the safe direction for a nudge.
  */
 export function scanDocsOrphans(repoRoot: string): DocsOrphanResult {
-  const docs = findMarkdownFiles(join(repoRoot, DOCS_REFERENCE_ROOT));
+  const docs = findMarkdownFiles(join(repoRoot, DOCS_REFERENCE_ROOT), repoRoot);
   if (docs.length === 0) {
     // Nothing to check — skip the repo-wide haystack read entirely.
     return { totalDocs: 0, orphans: [] };
   }
-  const allMarkdown = findMarkdownFiles(repoRoot);
+  const allMarkdown = findMarkdownFiles(repoRoot, repoRoot);
 
   const haystack = allMarkdown.map(file => {
     let content: string;
