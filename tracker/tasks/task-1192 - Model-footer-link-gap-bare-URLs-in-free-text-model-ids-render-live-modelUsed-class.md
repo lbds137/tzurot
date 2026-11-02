@@ -3,13 +3,14 @@ id: TASK-1192
 title: >-
   Model-footer link gap: bare URLs in free-text model ids render live (modelUsed
   class)
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-10-08 16:54'
+created_date: 2026-10-08 16:54
+updated_date: '2026-11-02T22:52:00Z'
 labels:
-  - 'area:bot-client'
-  - 'size:S'
-  - 'state:ready'
+  - area:bot-client
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1182000

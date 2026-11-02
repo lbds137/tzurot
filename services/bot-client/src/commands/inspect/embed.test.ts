@@ -653,6 +653,29 @@ describe('buildDiagnosticEmbed', () => {
     expect(modelField?.value).not.toContain('🔀');
   });
 
+  it('renders a URL-shaped requested and served id with no scheme separator', () => {
+    // Two different ids, so isSameModel reports substitution and both lines render.
+    const payload = createMockPayload();
+    payload.llmConfig.model = 'https://evil.example/req';
+    payload.llmResponse.modelUsed = 'https://evil.example/served';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const modelField = embed.toJSON().fields?.find(f => f.name.includes('Model'));
+    expect(modelField?.value).toContain('**Requested:** https:evil.example/req');
+    expect(modelField?.value).toContain('⚠️ **Served:** https:evil.example/served');
+  });
+
+  it('renders a URL-shaped routed model id with no scheme separator', () => {
+    const payload = createMockPayload();
+    payload.llmConfig.model = 'openrouter/auto';
+    payload.llmResponse.modelUsed = 'openrouter/auto';
+    payload.llmResponse.routedModel = 'https://evil.example/x';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const modelField = embed.toJSON().fields?.find(f => f.name.includes('Model'));
+    expect(modelField?.value).toContain('🔀 **Routed:** https:evil.example/x');
+  });
+
   it('shows the Routed line for a router alias with no requested/served substitution', () => {
     // The openrouter/auto case: what was requested equals what was asked
     // for, but the provider resolved the alias to a concrete model.
@@ -791,6 +814,17 @@ describe('buildDiagnosticEmbed', () => {
     expect(value).not.toContain('[Free Nitro]');
     expect(value).not.toContain('(http://evil.example)');
     expect(value).toContain('Free Nitro');
+  });
+
+  it('renders a URL-shaped model id with no scheme separator on the Model line', () => {
+    const payload = createMockPayload();
+    payload.llmConfig.model = 'https://evil.example/x';
+    payload.llmResponse.modelUsed = 'https://evil.example/x';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const value = embed.toJSON().fields?.find(f => f.name.includes('Model'))?.value ?? '';
+    const modelLine = value.split('\n').find(line => line.startsWith('**Model:**'));
+    expect(modelLine).toBe('**Model:** https:evil.example/x');
   });
 
   it('sanitizes the Upstream provider line too', () => {

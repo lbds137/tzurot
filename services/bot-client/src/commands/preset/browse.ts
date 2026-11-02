@@ -23,6 +23,7 @@ import {
 } from '@tzurot/common-types/constants/ai';
 import { ENTITY_EMOJI, buildBadgeLegend } from '@tzurot/common-types/constants/uxVocabulary';
 import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
+import { toInertCodeSpan } from '@tzurot/common-types/constants/discord';
 import { presetBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
 import { type LlmConfigSummary } from '@tzurot/common-types/schemas/api/llm-config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -234,7 +235,7 @@ function buildBrowsePage(
           // Guest-mode dims paid presets — the one styling exception (§2.4).
           nameMarkup: dimmed ? `~~${safeName}~~` : undefined,
           // Preset ids are detail-view territory, not typed anywhere — no techId.
-          metadata: [`\`${shortModelName(preset.model)}\``],
+          metadata: [toInertCodeSpan(shortModelName(preset.model))],
         };
       },
       empty: {

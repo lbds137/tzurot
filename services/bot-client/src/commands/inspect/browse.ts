@@ -26,6 +26,7 @@ import {
 } from 'discord.js';
 import { formatRelativeTime, normalizeDateTime } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { toInertCodeSpan } from '@tzurot/common-types/constants/discord';
 import { type UserClient } from '@tzurot/clients';
 import {
   ITEMS_PER_PAGE,
@@ -151,7 +152,7 @@ export function buildBrowsePage(
         return {
           name: escapeMarkdown(log.personalityName ?? 'Unknown'),
           metadata: [
-            `\`${log.model}\``,
+            toInertCodeSpan(log.model),
             Number.isNaN(unix) ? 'unknown' : `<t:${unix}:R>`,
             `${log.durationMs.toLocaleString()}ms`,
           ],

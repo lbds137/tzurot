@@ -17,7 +17,11 @@
  */
 
 import { EmbedBuilder, escapeMarkdown, type Client } from 'discord.js';
-import { DISCORD_COLORS, stripMarkdownDelimiters } from '@tzurot/common-types/constants/discord';
+import {
+  DISCORD_COLORS,
+  sanitizeModelIdForDisplay,
+  stripMarkdownDelimiters,
+} from '@tzurot/common-types/constants/discord';
 import { ApiErrorCategory, GUEST_MODE_CATEGORY } from '@tzurot/common-types/constants/error';
 import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -275,10 +279,14 @@ function deriveDiagnosticFields(
 ): Pick<ErrorReport, 'model' | 'provider' | 'durationMs'> {
   const metadata = result?.metadata;
   const quotaFallback = metadata?.quotaFallback;
-  const model =
-    rescued && quotaFallback !== undefined
-      ? `${quotaFallback.fromModel} → ${quotaFallback.toModel}`
-      : metadata?.modelUsed;
+  const modelUsed = metadata?.modelUsed;
+  let model: string | undefined;
+  if (rescued && quotaFallback !== undefined) {
+    // Each id is sanitized alone: the arrow is our own text and is outside a model id's alphabet.
+    model = `${sanitizeModelIdForDisplay(quotaFallback.fromModel)} → ${sanitizeModelIdForDisplay(quotaFallback.toModel)}`;
+  } else if (modelUsed !== undefined) {
+    model = sanitizeModelIdForDisplay(modelUsed);
+  }
   return {
     ...(model !== undefined ? { model } : {}),
     ...(metadata?.providerUsed !== undefined ? { provider: metadata.providerUsed } : {}),

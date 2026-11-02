@@ -6,6 +6,7 @@
  */
 
 import { SectionStatus, type SectionDefinition } from '../../utils/dashboard/types.js';
+import { toInertCodeSpan } from '@tzurot/common-types/constants/discord';
 import type { FlattenedPresetData } from './types.js';
 
 /** Common separator for preview fields */
@@ -81,7 +82,7 @@ export const identitySection: SectionDefinition<FlattenedPresetData> = {
     }
     if (data.model) {
       const zaiBadge = data.requiresZaiKey === true ? ' ⚠️ requires z.ai key' : '';
-      parts.push(`**Model:** \`${data.model}\`${zaiBadge}`);
+      parts.push(`**Model:** ${toInertCodeSpan(data.model)}${zaiBadge}`);
     }
     return parts.length > 0 ? parts.join('\n') : '_Not configured_';
   },

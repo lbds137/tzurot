@@ -233,6 +233,12 @@ describe('buildBrowsePage', () => {
     expect(result.components).toHaveLength(2);
   });
 
+  it('renders a backtick-bearing model id as one inert code span', () => {
+    const logs = [createMockLog({ model: 'a`[Free](http://evil.example)`b' })];
+    const result = buildBrowsePage(logs, 0);
+    expect(result.embeds[0].data.description).toContain('`a[Free](http://evil.example)b`');
+  });
+
   it('should show empty state when no logs', () => {
     const result = buildBrowsePage([], 0);
 

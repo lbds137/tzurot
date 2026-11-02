@@ -1,7 +1,11 @@
 // Extracted from views.ts to stay under the 400-line ESLint limit.
 
 import { EmbedBuilder, MessageFlags } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import {
+  DISCORD_COLORS,
+  stripMarkdownDelimiters,
+  toInertCodeSpan,
+} from '@tzurot/common-types/constants/discord';
 import { UX_SENTINELS } from '@tzurot/common-types/constants/uxVocabulary';
 import type {
   DiagnosticPayload,
@@ -209,8 +213,8 @@ export function buildGenerationParamsView(
     .setColor(DISCORD_COLORS.BLURPLE)
     .setDescription(
       [
-        `**Model:** \`${escapeFenceBreaks(config.model)}\``,
-        `**Provider:** ${config.provider}`,
+        `**Model:** ${toInertCodeSpan(config.model)}`,
+        `**Provider:** ${stripMarkdownDelimiters(config.provider)}`,
         '',
         ...(named.length > 0 ? named : ['_No sampling overrides set._']),
       ].join('\n')
