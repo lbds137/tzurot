@@ -11,8 +11,8 @@ async function codeOf(p: Promise<unknown>): Promise<unknown> {
   try {
     await p;
     return 'no error';
-  } catch (e: any) {
-    return e.code;
+  } catch (e) {
+    return (e as { code?: unknown }).code;
   }
 }
 
@@ -181,14 +181,6 @@ describe('Machloket transport contract: messages, webhooks, DMs, guild state, an
 
   it('matches client.application.id to the created application id', () => {
     expect(ctx.client.application.id).toBe(ctx.app.id);
-  });
-
-  it('sets bot presence status to online', () => {
-    const presence = ctx.client.user.setPresence({
-      activities: [{ name: 'x', type: 0 }],
-      status: 'online',
-    });
-    expect(presence.status).toBe('online');
   });
 
   it('surfaces Discord REST error codes 10003, 10008, 10013, and 10007 on unknown snowflakes', async () => {

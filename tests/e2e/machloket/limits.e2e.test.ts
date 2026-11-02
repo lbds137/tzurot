@@ -20,7 +20,10 @@ describe('Machloket transport contract: configured message character limit', () 
     expect(m.content.length).toBe(2000);
   });
 
+  // doc-114: Discord answers 50035 here; the server's generic error is a known difference, and this message pins that the limit is what refused it.
   it('rejects channel.send with 2001 characters', async () => {
-    await expect(channel.send('x'.repeat(2001))).rejects.toThrow();
+    await expect(channel.send('x'.repeat(2001))).rejects.toThrow(
+      'Content length over max character limit'
+    );
   });
 });

@@ -1,17 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Client, Events, GatewayIntentBits } from 'discord.js';
+import { Client, GatewayIntentBits } from 'discord.js';
 import { buildDiscordClientOptions } from '../../../services/bot-client/src/utils/discordClientOptions.js';
-import { bootParity, nextMessage, type ParityContext, timeout } from './instance.js';
-
-async function loginAndReady(client: Client, token: string): Promise<void> {
-  const ready = new Promise<void>(res => {
-    client.once(Events.ClientReady, () => {
-      res();
-    });
-  });
-  await timeout(client.login(token), 60_000, 'login');
-  await timeout(ready, 60_000, 'ClientReady');
-}
+import { bootParity, loginAndReady, nextMessage, type ParityContext } from './instance.js';
 
 describe('Machloket transport contract: gateway intents filtering', () => {
   let ctx: ParityContext;

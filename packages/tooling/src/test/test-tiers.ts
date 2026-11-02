@@ -42,7 +42,7 @@ export type TestTier = (typeof CANONICAL_TEST_TIERS)[number];
  * a file-suffix / location rule (see `classifyTestFile`) and maps to exactly
  * one canonical tier (see `TIER_FOR_KIND`).
  *
- * Post-rename the suffixes ARE the tier names (`*.component.test.ts`,
+ * Post-rename the suffixes ARE the tier names, `.e2e.test.ts` excepted (`*.component.test.ts`,
  * `*.integration.test.ts`, `*.contract.test.ts`, plain `*.test.ts` = unit), so
  * classification is a pure suffix check — no directory-location rule. The
  * `matches` description in `TEST_FILE_KIND_INFO` records the rule so the
@@ -63,8 +63,8 @@ export const TIER_FOR_KIND: Readonly<Record<TestFileKind, TestTier>> = {
   integration: 'integration',
   // `*.contract.test.ts` verifies a bilateral provider↔consumer agreement.
   contract: 'contract',
-  // `*.e2e.test.ts` exercises the system end-to-end over a live transport.
-  e2e: 'e2e',
+  // `*.e2e.test.ts` drives bot-client's client options against a real server double, one external dependency: integration by the table in TESTING.md. It needs its own runner, hence its own kind.
+  e2e: 'integration',
 };
 
 /** Human-readable mechanical rule that identifies each file-kind. */
@@ -75,7 +75,7 @@ export const TEST_FILE_KIND_INFO: Readonly<
   component: { tier: 'component', matches: '*.component.test.ts' },
   integration: { tier: 'integration', matches: '*.integration.test.ts' },
   contract: { tier: 'contract', matches: '*.contract.test.ts' },
-  e2e: { tier: 'e2e', matches: '*.e2e.test.ts' },
+  e2e: { tier: 'integration', matches: '*.e2e.test.ts' },
 };
 
 /**

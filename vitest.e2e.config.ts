@@ -13,7 +13,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@tzurot/common-types': resolve(import.meta.dirname, './packages/common-types/src'),
-      '@tzurot/api-clients': resolve(import.meta.dirname, './packages/api-clients/src'),
     },
   },
   test: {

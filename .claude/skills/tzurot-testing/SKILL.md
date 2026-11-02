@@ -71,9 +71,10 @@ This table is the suffix→tier quick reference; don't re-define the tiers here
 | `*.component.test.ts`   | **Component** (one service, PGLite)                                             | PGLite                     | Next to source         |
 | `*.integration.test.ts` | **Integration** (real DB+Redis)                                                 | Real services              | `tests/e2e/`           |
 | `*.contract.test.ts`    | **Contract** (provider↔consumer)                                                | Real services              | `tests/e2e/contracts/` |
-| `*.e2e.test.ts`         | **E2E** (transport contract, local only)                                        | Throwaway Machloket server | `tests/e2e/machloket/` |
+| `*.e2e.test.ts`         | **Integration** (transport contract, local only)                                | Throwaway Machloket server | `tests/e2e/machloket/` |
 
-> Each suffix names its tier directly. **Schema test ≠ contract test**: a Zod
+> Each suffix names its tier directly, except `.e2e.test.ts`, which selects a local
+> runner and counts as integration. **Schema test ≠ contract test**: a Zod
 > schema test (a plain `*.test.ts`) validates one type's own rules (unit-tier); a
 > contract test verifies two services agree. Run `pnpm ops test:tiers` for the
 > per-package tier distribution.
