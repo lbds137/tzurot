@@ -176,7 +176,8 @@ client.once(Events.ClientReady, () => {
 
   // Auto-leave denied guilds when bot is added.
   // Registered inside ClientReady to make the dependency on denylistCache hydration explicit
-  // (hydration runs in start() before client.login(), but co-locating here is clearer).
+  // (the first attempt runs in start() before client.login(), but co-locating here is clearer).
+  // A snapshot arriving later through a retry does not re-check guilds joined in the meantime.
   client.on(Events.GuildCreate, guild => {
     if (services.denylistCache.isBotDenied('', guild.id)) {
       logger.info({ guildId: guild.id, guildName: guild.name }, 'Leaving denied guild');
@@ -527,7 +528,8 @@ async function start(): Promise<void> {
     logger.info('All services initialized');
     bootWatchdog.notePhase('services-initialized');
 
-    // Subscribe first, so a denylist event published around the snapshot is replayed over it.
+    // Subscribe to all cache invalidation events first, so a denylist event published
+    // around the snapshot is replayed over it. The other handlers only clear caches.
     await subscribeToCacheInvalidation();
     const denylistApplied = await services.denylistCache.hydrate();
     logger.info({ snapshotApplied: denylistApplied }, 'Denylist cache hydrate attempted');

@@ -58,7 +58,8 @@ export class DenylistCache {
    * boot is not blocked on the gateway beyond that one attempt. A failed
    * attempt keeps the entries held and retries on a timer (5 s doubling to
    * 60 s) until an attempt succeeds or `stop()` is called. A newer call
-   * supersedes one in flight; add and remove events received during an attempt
+   * supersedes one in flight, discarding its result even if it succeeded and
+   * the newer one then fails; add and remove events received during an attempt
    * are replayed over its snapshot. Each is pinned by a test in
    * `DenylistCache.test.ts`.
    *
