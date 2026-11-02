@@ -74,7 +74,7 @@
     "@changesets/cli": "^3.0.3",
     "@commitlint/cli": "^21.2.4",
     "@commitlint/config-conventional": "^21.2.4",
-    "@electric-sql/pglite": "^0.5.11",
+    "@electric-sql/pglite": "^0.5.13",
     "@eslint/js": "^10.0.1",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
