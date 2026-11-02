@@ -451,6 +451,7 @@ describe('findContentRefs (against real repo)', () => {
       'voice-refs:audit',
       'worktree:transfer',
       'unit:closeout',
+      'tracker:commit',
       'xray',
     ]);
     const result = findContentRefs(repoRoot, validCommands);

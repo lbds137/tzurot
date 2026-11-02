@@ -85,6 +85,7 @@ Focused (changed-packages-only) task runs plus the standalone dev audits:
 | `pnpm ops commands:audit`           | Slash-command surface inventory + consistency audit (CI runs it with `--summary`)                                                                                        |
 | `pnpm ops worktree:transfer <path>` | Apply a worker worktree's staged diff into the main tree, verify it byte-for-byte, then remove the worktree and its throwaway branch                                     |
 | `pnpm ops unit:closeout <task-id>`  | Close a tracker task, commit + push the tracker file to develop, and print the now.md/CURRENT.md lines that still need judgment                                          |
+| `pnpm ops tracker:commit`           | Commit + push dirty tracker and board files (`tracker/**`, `backlog/**`, `BACKLOG.md`, `CURRENT.md`) to develop from any checkout (`--subject <text>`)                   |
 
 ## Backlog Commands
 
