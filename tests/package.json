@@ -3,7 +3,7 @@
   "version": "3.0.0-beta.241",
   "private": true,
   "type": "module",
-  "description": "Integration + contract tests for Tzurot services (run via the root `pnpm test:integration`; see vitest.integration.config.ts).",
+  "description": "Integration + contract tests for Tzurot services (run via the root `pnpm test:integration`; see vitest.integration.config.ts), plus the local transport tier (`pnpm test:e2e`).",
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
