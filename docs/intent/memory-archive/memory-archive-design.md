@@ -204,9 +204,14 @@ inside a `$queryRaw` tagged template).
 `metadata.assistantSummary` whenever `chunk_group_id === null` and the column
 is non-empty, regardless of `summary_status` or prompt version — a failed or
 dead re-summarize or a version bump drives retry/re-enqueue, never a blanked
-archive, because `assistant_summary` is only written for the current content,
-a content edit clears it, and the dev-to-prod sync copies both together. Absence is meaningful, same rule as `userTurn`:
-never a default.
+archive, because `assistant_summary` is only written for the current content
+(`writeArchiveSummarySuccess` in ai-worker's
+`archiveSummary/archiveSummaryStore.ts`), a content edit clears it
+(api-gateway's `routes/user/memorySingle.ts`), the dev-to-prod sync copies both
+together (api-gateway's `services/sync/SyncUpsertBuilder.ts`), and
+`pnpm ops guard:memory-content-writers` fails on any new Prisma or literal-SQL
+content writer. Absence is meaningful, same rule as `userTurn`: never a
+default.
 
 **The eligibility rule.** The same function stamps
 `metadata.summaryRefreshEligible = true` only for a non-chunk row

@@ -165,6 +165,9 @@ jobs:
       - name: Check for export* barrels (re-mask knip)
         run: pnpm ops guard:no-export-star
 
+      - name: Check memory content writers keep stored summaries current
+        run: pnpm ops guard:memory-content-writers
+
       - name: Check tsc-invoking build scripts clear dist + tsbuildinfo first
         run: pnpm ops guard:build-scripts
 

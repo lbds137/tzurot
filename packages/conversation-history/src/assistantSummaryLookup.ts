@@ -11,10 +11,8 @@
  * a null `chunk_group_id`, with the non-empty filter sitting in the `where` so
  * rows with no summary do not use up `take`. Summary status and prompt version
  * are deliberately NOT checked — a stored summary renders regardless of retry
- * status or version bump (`archiveSummary/archiveSummaryStore.ts` writes it for
- * the current content, `routes/user/memorySingle.ts` clears it on edit, and the
- * dev-to-prod sync in api-gateway's `services/sync/SyncUpsertBuilder.ts`
- * copies content and summary together from the winning row).
+ * status or version bump (see `docs/intent/memory-archive/memory-archive-design.md`
+ * § The render stamp).
  * `visibility` IS checked here, which the archive predicate does not need to do
  * because its caller — the retrieval query in ai-worker's
  * `PgvectorQueryBuilder.ts`, which applies `m.visibility = 'normal'` — already

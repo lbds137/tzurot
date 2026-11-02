@@ -126,6 +126,13 @@ function registerSyncGuards(cli: CAC): void {
     });
 
   cli
+    .command('guard:memory-content-writers', 'Fail on unallowlisted `memories.content` writers')
+    .example('ops guard:memory-content-writers')
+    .action(async () => {
+      (await import('../dev/check-memory-content-writers.js')).checkMemoryContentWriters();
+    });
+
+  cli
     .command(
       'guard:build-scripts',
       'Fail if a tsc-invoking build script does not clear dist + tsconfig.tsbuildinfo first (turbo cache poisoning)'
