@@ -60,25 +60,18 @@ describe('findUsableAssistantSummariesByTriggerIds', () => {
   });
 
   it('returns the stored summary for a failed row and skips an empty summary', async () => {
-    const findMany = vi
-      .fn()
-      .mockImplementation(({ where }: { where: { summaryStatus?: string } }) => {
-        if (where.summaryStatus !== undefined) {
-          return Promise.resolve([]);
-        }
-        return Promise.resolve([
-          {
-            messageIds: ['m-failed'],
-            assistantSummary: 'stored summary from prior done run',
-            createdAt: new Date('2026-01-02'),
-          },
-          {
-            messageIds: ['m-empty'],
-            assistantSummary: '',
-            createdAt: new Date('2026-01-01'),
-          },
-        ]);
-      });
+    const findMany = vi.fn().mockResolvedValue([
+      {
+        messageIds: ['m-failed'],
+        assistantSummary: 'stored summary from prior done run',
+        createdAt: new Date('2026-01-02'),
+      },
+      {
+        messageIds: ['m-empty'],
+        assistantSummary: '',
+        createdAt: new Date('2026-01-01'),
+      },
+    ]);
     const prisma = { memory: { findMany } } as unknown as PrismaClient;
 
     const result = await findUsableAssistantSummariesByTriggerIds(
