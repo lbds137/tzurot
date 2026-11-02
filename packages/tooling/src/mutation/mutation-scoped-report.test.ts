@@ -82,4 +82,28 @@ describe('parseTextSummary', () => {
       uncovered: [],
     });
   });
+
+  it('returns null when a count cell is garbled rather than a finite number', () => {
+    expect(
+      parseTextSummary(
+        'All files       |  83.33 |   83.33 |      abc |         0 |          1 |        0 |        0 |'
+      )
+    ).toBeNull();
+  });
+
+  it('still counts n/a and empty cells as 0', () => {
+    expect(
+      parseTextSummary(
+        'All files       | 100.00 |  100.00 |        3 |       n/a |          0 |      n/a |          |'
+      )
+    ).toEqual({
+      generated: 3,
+      killed: 3,
+      survived: 0,
+      noCoverage: 0,
+      other: 0,
+      survivors: [],
+      uncovered: [],
+    });
+  });
 });

@@ -304,6 +304,110 @@ describe('checkMigrationSafety', () => {
 
       expect(processExitSpy).not.toHaveBeenCalled();
     });
+
+    it('treats create then drop of a protected index as a violation', async () => {
+      vol.fromJSON({
+        '/migrations/20240115_create_then_drop/migration.sql': [
+          'CREATE INDEX "idx_memories_embedding" ON "memories" USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 50);',
+          'DROP INDEX "idx_memories_embedding";',
+        ].join('\n'),
+      });
+
+      const { checkMigrationSafety } = await import('./check-migration-safety.js');
+      await checkMigrationSafety({ migrationsPath: '/migrations' });
+
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('idx_memories_embedding');
+    });
+
+    it('passes when a protected index is dropped then created', async () => {
+      vol.fromJSON({
+        '/migrations/20240116_drop_then_create/migration.sql': [
+          'DROP INDEX "idx_memories_embedding";',
+          'CREATE INDEX "idx_memories_embedding" ON "memories" USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 50);',
+        ].join('\n'),
+      });
+
+      const { checkMigrationSafety } = await import('./check-migration-safety.js');
+      await checkMigrationSafety({ migrationsPath: '/migrations' });
+
+      expect(processExitSpy).not.toHaveBeenCalled();
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('All migrations are safe');
+    });
+
+    it('treats drop, create, drop of a protected index as a violation', async () => {
+      vol.fromJSON({
+        '/migrations/20240117_drop_create_drop/migration.sql': [
+          'DROP INDEX "idx_memories_embedding";',
+          'CREATE INDEX "idx_memories_embedding" ON "memories" USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 50);',
+          'DROP INDEX "idx_memories_embedding";',
+        ].join('\n'),
+      });
+
+      const { checkMigrationSafety } = await import('./check-migration-safety.js');
+      await checkMigrationSafety({ migrationsPath: '/migrations' });
+
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('idx_memories_embedding');
+    });
+
+    it('passes on drop, drop, create of a protected index', async () => {
+      vol.fromJSON({
+        '/migrations/20240118_drop_drop_create/migration.sql': [
+          'DROP INDEX "idx_memories_embedding";',
+          'DROP INDEX IF EXISTS "idx_memories_embedding";',
+          'CREATE INDEX "idx_memories_embedding" ON "memories" USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 50);',
+        ].join('\n'),
+      });
+
+      const { checkMigrationSafety } = await import('./check-migration-safety.js');
+      await checkMigrationSafety({ migrationsPath: '/migrations' });
+
+      expect(processExitSpy).not.toHaveBeenCalled();
+    });
+
+    it('passes on drop, create, drop, create of a protected index', async () => {
+      vol.fromJSON({
+        '/migrations/20240118_drop_create_drop_create/migration.sql': [
+          'DROP INDEX "idx_memories_embedding";',
+          'CREATE INDEX "idx_memories_embedding" ON "memories" USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 50);',
+          'DROP INDEX "idx_memories_embedding";',
+          'CREATE INDEX "idx_memories_embedding" ON "memories" USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 50);',
+        ].join('\n'),
+      });
+
+      const { checkMigrationSafety } = await import('./check-migration-safety.js');
+      await checkMigrationSafety({ migrationsPath: '/migrations' });
+
+      expect(processExitSpy).not.toHaveBeenCalled();
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('All migrations are safe');
+    });
+  });
+
+  it('bounds each committed pattern to the exact index name', async () => {
+    const realFs = await vi.importActual<typeof import('node:fs')>('node:fs');
+    const registry = JSON.parse(realFs.readFileSync(DRIFT_IGNORE_PATH, 'utf8')) as {
+      protectedIndexes: {
+        name: string;
+        recreateSQL: string;
+        dropPattern: string;
+        createPattern: string;
+      }[];
+    };
+    expect(registry.protectedIndexes.length).toBeGreaterThan(0);
+    for (const { name, recreateSQL, dropPattern, createPattern } of registry.protectedIndexes) {
+      const drop = new RegExp(dropPattern, 'i');
+      const create = new RegExp(createPattern, 'i');
+      expect(drop.test(`DROP INDEX IF EXISTS "${name}"`)).toBe(true);
+      expect(drop.test(`DROP INDEX IF EXISTS "${name}_local"`)).toBe(false);
+      expect(create.test(recreateSQL)).toBe(true);
+      expect(create.test(recreateSQL.replace(name, `${name}_local`))).toBe(false);
+      expect(create.test(`CREATE INDEX "other" ON "t" (${name})`)).toBe(false);
+    }
   });
 
   it('pins the committed drift-ignore.json chunk-group createPattern to its recreateSQL', async () => {

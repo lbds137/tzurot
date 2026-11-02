@@ -102,7 +102,10 @@ function diffHasAddedLineHunks(diffText: string): boolean {
   );
 }
 
-function planFromDiff(repoRoot: string, base: string): { plans: PackagePlan[]; notes: string[] } {
+function planFromDiff(
+  repoRoot: string,
+  base: string
+): { plans: PackagePlan[]; notes: string[]; skippedPackages: boolean } {
   const notes: string[] = [];
   const resolved: ResolvedFile[] = [];
   const withoutStryker = new Set<string>();
@@ -148,7 +151,11 @@ function planFromDiff(repoRoot: string, base: string): { plans: PackagePlan[]; n
         `use pnpm --filter ${name} test:mutation for a full run)`
     );
   }
-  return { plans: buildPlans(resolved), notes };
+  return {
+    plans: buildPlans(resolved),
+    notes,
+    skippedPackages: withoutStryker.size > 0 || withoutScopedConfig.size > 0,
+  };
 }
 
 function elapsedSeconds(startedAt: number): number {
@@ -304,13 +311,24 @@ function collectDirtyFiles(plans: PackagePlan[]): string[] {
   }
 }
 
+function printNoPlansOutcome(base: string, skippedPackages: boolean): void {
+  if (skippedPackages) {
+    console.log(
+      `⚠ test:mutation-scoped: changed files vs ${base} sit only in skipped packages, so nothing was checked — this is not a pass`
+    );
+    return;
+  }
+  console.log(`✓ No mutable diff lines vs ${base} — nothing to run`);
+}
+
 export function runMutationScoped(options: { base?: string; dryRun?: boolean } = {}): boolean {
   const base = options.base ?? DEFAULT_BASE;
   const repoRoot = process.cwd();
   let plans: PackagePlan[];
   let notes: string[];
+  let skippedPackages: boolean;
   try {
-    ({ plans, notes } = planFromDiff(repoRoot, base));
+    ({ plans, notes, skippedPackages } = planFromDiff(repoRoot, base));
   } catch (error) {
     console.error(
       `❌ test:mutation-scoped could not diff against ${base}: ${(error as Error).message}`
@@ -321,7 +339,7 @@ export function runMutationScoped(options: { base?: string; dryRun?: boolean } =
     console.log(note);
   }
   if (plans.length === 0) {
-    console.log(`✓ No mutable diff lines vs ${base} — nothing to run`);
+    printNoPlansOutcome(base, skippedPackages);
     return true;
   }
   if (options.dryRun === true) {
