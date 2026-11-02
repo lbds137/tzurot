@@ -141,6 +141,12 @@ describe('Machloket transport contract: messages, webhooks, DMs, guild state, an
     });
   });
 
+  it('resolves createWebhook named Support Persona', async () => {
+    const created = await channel.createWebhook({ name: 'Support Persona' });
+    expect(created.name).toBe('Support Persona');
+    await created.delete();
+  });
+
   it('refuses createWebhook named My Clyde Hook with 50035 on name', async () => {
     await expect(channel.createWebhook({ name: 'My Clyde Hook' })).rejects.toMatchObject({
       status: 400,
