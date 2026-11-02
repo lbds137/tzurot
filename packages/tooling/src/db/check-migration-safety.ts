@@ -77,12 +77,15 @@ function findSqlFiles(dir: string): string[] {
 /**
  * Split comment-stripped SQL into statements on `;`, collapsing each
  * statement's whitespace (newlines included) to single spaces. Patterns are
- * tested per statement, so a DROP or CREATE spanning several lines matches the
- * same as a one-line one. A recreate of the same index anywhere in the file
- * still satisfies the create check; what per-statement matching buys is that
- * a recreate's own WHERE must sit inside the recreate's statement - a WHERE
- * in an unrelated statement cannot complete a non-partial recreate. The
- * normalized text is for matching only.
+ * tested per statement in order, so a DROP or CREATE spanning several lines
+ * matches the same as a one-line one, a recreate's own WHERE must sit inside
+ * the recreate's statement (a WHERE in an unrelated statement cannot complete
+ * a non-partial recreate), and a protected index's last drop is balanced only
+ * by a matching recreate in a later statement: Postgres refuses to create a name that already
+ * exists, so create-then-drop leaves the index gone, and no legitimate
+ * migration needs that order. A create inside a conditional that never runs
+ * still counts: the check matches text and does not evaluate SQL, and such a
+ * migration has to be hand-edited. The normalized text is for matching only.
  */
 function splitStatements(sql: string): string[] {
   return sql
@@ -102,6 +105,19 @@ function stripSqlComments(sql: string): string {
 }
 
 /**
+ * True when `statements`, walked in order, end with `index` dropped: its last
+ * drop has no matching recreate in a later statement.
+ */
+function hasUnbalancedDrop(statements: string[], index: ProtectedIndex): boolean {
+  let dropped = false;
+  for (const statement of statements) {
+    if (index.createPattern.test(statement)) dropped = false;
+    if (index.dropPattern.test(statement)) dropped = true;
+  }
+  return dropped;
+}
+
+/**
  * Check a single migration file for dangerous patterns
  */
 function checkMigrationFile(filePath: string): CheckResult {
@@ -110,10 +126,7 @@ function checkMigrationFile(filePath: string): CheckResult {
   const violations: string[] = [];
 
   for (const index of PROTECTED_INDEXES) {
-    const hasDropIndex = statements.some(statement => index.dropPattern.test(statement));
-    const hasCreateIndex = statements.some(statement => index.createPattern.test(statement));
-
-    if (hasDropIndex && !hasCreateIndex) {
+    if (hasUnbalancedDrop(statements, index)) {
       violations.push(`Drops ${index.name} without recreating (${index.description})`);
     }
   }

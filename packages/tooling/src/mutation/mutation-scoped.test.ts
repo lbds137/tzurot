@@ -283,6 +283,9 @@ describe('runMutationScoped', () => {
     expect(vi.mocked(console.log)).toHaveBeenCalledWith(
       expect.stringContaining('use pnpm --filter @tzurot/identity test:mutation for a full run')
     );
+    expect(vi.mocked(console.log)).toHaveBeenCalledWith(
+      expect.stringContaining('sit only in skipped packages')
+    );
     expect(mockExec.mock.calls.filter(call => call[0] === 'pnpm')).toHaveLength(0);
     expect(mockWrite).not.toHaveBeenCalled();
   });
@@ -616,6 +619,59 @@ describe('runMutationScoped', () => {
     expect(runMutationScoped({ base: 'origin/develop' })).toBe(true);
     const pnpmCalls = mockExec.mock.calls.filter(call => call[0] === 'pnpm');
     expect(pnpmCalls).toHaveLength(0);
+  });
+
+  it('prints a warning and not nothing to run when changed files sit only in skipped packages', () => {
+    const skippedOnlyDiff = [
+      'diff --git a/packages/common-types/src/utils/dateUtils.ts b/packages/common-types/src/utils/dateUtils.ts',
+      '+++ b/packages/common-types/src/utils/dateUtils.ts',
+      '@@ -12 +13 @@',
+      '-old',
+      '+new',
+    ].join('\n');
+    stubExec(skippedOnlyDiff);
+    stubFs(FS_STUB);
+
+    expect(runMutationScoped({ base: 'origin/develop' })).toBe(true);
+    const lines = vi.mocked(console.log).mock.calls.map(call => String(call[0]));
+    expect(lines).toEqual([
+      '  • skipped package (no Stryker deps): @tzurot/common-types',
+      expect.stringMatching(
+        /changed files.*sit only in skipped packages.*nothing was checked.*not a pass/i
+      ),
+    ]);
+    expect(lines.join('\n')).not.toContain('nothing to run');
+  });
+
+  it('prints the warning when the only skip is a package with no scoped config', () => {
+    const f = 'packages/identity/src/personality/PersonalityLoader.ts';
+    stubExec(
+      [`diff --git a/${f} b/${f}`, `+++ b/${f}`, '@@ -12 +13 @@', '-old', '+new'].join('\n')
+    );
+    stubFs(NO_PACKAGE_CONFIG_STUB);
+
+    expect(runMutationScoped({ base: 'origin/develop' })).toBe(true);
+    const lines = vi.mocked(console.log).mock.calls.map(call => String(call[0]));
+    expect(lines.join('\n')).toContain('sit only in skipped packages');
+    expect(lines.join('\n')).not.toContain('nothing to run');
+  });
+
+  it('still prints nothing to run when a diff has no mutable lines and no skipped packages', () => {
+    const testOnlyDiff = [
+      'diff --git a/packages/identity/src/personality/PersonalityLoader.test.ts b/packages/identity/src/personality/PersonalityLoader.test.ts',
+      '+++ b/packages/identity/src/personality/PersonalityLoader.test.ts',
+      '@@ -10 +11,2 @@',
+      '+it("covers the new branch", () => {});',
+      '+it("covers the other branch", () => {});',
+    ].join('\n');
+    stubExec(testOnlyDiff);
+    stubFs(FS_STUB);
+
+    expect(runMutationScoped({ base: 'origin/develop' })).toBe(true);
+    expect(vi.mocked(console.log)).toHaveBeenCalledWith(expect.stringContaining('nothing to run'));
+    expect(vi.mocked(console.log)).not.toHaveBeenCalledWith(
+      expect.stringContaining('sit only in skipped packages')
+    );
   });
 
   it('passes with nothing to run when the diff only deletes lines', () => {

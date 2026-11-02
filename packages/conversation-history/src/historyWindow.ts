@@ -105,9 +105,11 @@ export function resolveHistoryWindow(inScopeCount: number, cap: number): History
   // the eviction branch returns evicted = chunk * Math.ceil(0 / chunk) ===
   // 0 and take = inScopeCount - 0 — exactly what the early return
   // produces, for every chunk > 0; chunk === 0 reaches the early return
-  // either way. quantizeEviction is extracted so historyWindow.test.ts can
-  // pin the REAL arithmetic at the boundary directly; if that pin reddens,
-  // the boundary became observable and this exclusion must be re-examined.
+  // either way. The disable also hides the <= to > mutant, which is not
+  // equivalent; resolveHistoryWindow's tests in historyWindow.test.ts fail
+  // on it. quantizeEviction is extracted so historyWindow.test.ts can pin
+  // the REAL arithmetic at the boundary directly; if that pin reddens, the
+  // boundary became observable and this exclusion must be re-examined.
   // Stryker disable next-line EqualityOperator: equivalent at the clamp boundary, see above
   const unfull = inScopeCount <= effectiveCap;
 

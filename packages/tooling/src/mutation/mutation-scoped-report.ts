@@ -69,9 +69,10 @@ export function summarizeReport(reportJson: string, packageDir: string): Mutatio
 
 /**
  * Fallback when the JSON report is absent: Stryker's clear-text "All files" row.
- * Returns null when the row is missing — a rowless output is a failed or
- * unparseable Stryker run, never "zero mutants"; the runner maps null to a
- * package error (pinned by the rowless-stdout tests).
+ * Returns null when the row is missing or a count cell is not a finite number
+ * (beyond `n/a` and empty) — a rowless or unparseable output is a failed
+ * Stryker run, never "zero mutants"; the runner maps null to a package error
+ * (pinned by the rowless-stdout and garbled-cell tests).
  */
 export function parseTextSummary(stdout: string): MutationSummary | null {
   const row = stdout.split('\n').find(line => line.trim().startsWith('All files'));
@@ -79,16 +80,31 @@ export function parseTextSummary(stdout: string): MutationSummary | null {
     return null;
   }
   const cells = row.split('|').map(cell => cell.trim());
-  const count = (index: number): number => {
+  const count = (index: number): number | null => {
     const value = cells[index];
-    return value === undefined || value === 'n/a' || value === '' ? 0 : Number(value) || 0;
+    if (value === 'n/a' || value === '') {
+      return 0;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
   };
   // Row layout: name | total score | covered score | killed | timeout | survived | no cov | errors
   // (the name column is first — the row has no leading pipe).
   const killed = count(3);
+  const timeout = count(4);
   const survived = count(5);
   const noCoverage = count(6);
-  const other = count(4) + count(7);
+  const errors = count(7);
+  if (
+    killed === null ||
+    timeout === null ||
+    survived === null ||
+    noCoverage === null ||
+    errors === null
+  ) {
+    return null;
+  }
+  const other = timeout + errors;
   return {
     generated: killed + survived + other + noCoverage,
     killed,

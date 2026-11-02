@@ -8,8 +8,8 @@
       "type": "ivfflat",
       "description": "IVFFlat vector index for BGE similarity search (384 dims). Dropping it degrades memory retrieval to sequential scans; Prisma can't represent Unsupported-type indexes, so it regenerates the DROP every time.",
       "recreateSQL": "CREATE INDEX \"idx_memories_embedding\" ON \"memories\" USING ivfflat (\"embedding\" vector_cosine_ops) WITH (lists = 50);",
-      "dropPattern": "DROP\\s+INDEX.*idx_memories_embedding",
-      "createPattern": "CREATE\\s+INDEX.*idx_memories_embedding"
+      "dropPattern": "DROP\\s+INDEX.*\\bidx_memories_embedding\\b",
+      "createPattern": "CREATE\\s+INDEX\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?\"?idx_memories_embedding\\b"
     },
     {
       "name": "memories_chunk_group_id_idx",
@@ -17,8 +17,8 @@
       "type": "partial",
       "description": "Partial index for chunk retrieval (WHERE chunk_group_id IS NOT NULL). Prisma generates a non-partial version, causing conflicts.",
       "recreateSQL": "CREATE INDEX \"memories_chunk_group_id_idx\" ON \"memories\"(\"chunk_group_id\") WHERE \"chunk_group_id\" IS NOT NULL;",
-      "dropPattern": "DROP\\s+INDEX.*memories_chunk_group_id_idx",
-      "createPattern": "CREATE\\s+INDEX.*memories_chunk_group_id_idx.*WHERE[\\s(]+(?:\"?memories\"?\\.)?\"?chunk_group_id\"?\\s*\\)*\\s+IS\\s+NOT\\s+NULL[\\s);]*$"
+      "dropPattern": "DROP\\s+INDEX.*\\bmemories_chunk_group_id_idx\\b",
+      "createPattern": "CREATE\\s+INDEX\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?\"?memories_chunk_group_id_idx\\b.*WHERE[\\s(]+(?:\"?memories\"?\\.)?\"?chunk_group_id\"?\\s*\\)*\\s+IS\\s+NOT\\s+NULL[\\s);]*$"
     },
     {
       "name": "idx_memory_facts_embedding",
@@ -26,8 +26,8 @@
       "type": "ivfflat",
       "description": "IVFFlat vector index for fact similarity retrieval (memory Phase 2). Dropping it silently degrades fact queries to sequential scans as the table grows.",
       "recreateSQL": "CREATE INDEX \"idx_memory_facts_embedding\" ON \"memory_facts\" USING ivfflat (\"embedding\" vector_cosine_ops) WITH (lists = 50);",
-      "dropPattern": "DROP\\s+INDEX.*idx_memory_facts_embedding",
-      "createPattern": "CREATE\\s+INDEX.*idx_memory_facts_embedding"
+      "dropPattern": "DROP\\s+INDEX.*\\bidx_memory_facts_embedding\\b",
+      "createPattern": "CREATE\\s+INDEX\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?\"?idx_memory_facts_embedding\\b"
     }
   ],
   "ignorePatterns": [
