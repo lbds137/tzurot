@@ -3,13 +3,14 @@ id: TASK-1154
 title: >-
   DenylistCache hydrate has no retry - a boot-race miss leaves the denylist
   empty until restart
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-10-01 21:45'
+created_date: 2026-10-01 21:45
+updated_date: '2026-11-02T18:03:00Z'
 labels:
-  - 'area:bot-client'
-  - 'size:S'
-  - 'state:ready'
+  - area:bot-client
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1146000
@@ -24,4 +25,3 @@ What: add a bounded retry/backoff to `DenylistCache.hydrate` (or re-hydrate on g
 
 Acceptance: a boot where the gateway is slow to listen does not leave the denylist empty until an unrelated invalidation event happens to fire.
 <!-- SECTION:DESCRIPTION:END -->
-
