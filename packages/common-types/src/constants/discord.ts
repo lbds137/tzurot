@@ -504,7 +504,7 @@ export function stripMarkdownDelimiters(value: string): string {
   return value.replace(/[[\]()<>]/g, '');
 }
 
-/** Everything outside the characters a provider model id uses, plus the space. */
+/** Everything outside a provider model id's characters, plus the space, so a typed id with spaces still reads as typed. */
 const MODEL_ID_DISALLOWED_CHARS = /[^A-Za-z0-9 /._:~@+-]/g;
 /** A scheme separator. Not verified: from memory, Discord needs one to auto-link a bare URL. */
 const URL_SCHEME_SEPARATOR = /:\/+/g;
@@ -529,7 +529,7 @@ export function sanitizeModelIdForDisplay(value: string): string {
   return result;
 }
 
-/** A model id as a link label. The footer pattern needs a non-empty label, or the footer would not be stripped from history. */
+/** A model id as footer text. The footer pattern needs a non-empty label, or the footer would not be stripped from history. */
 function modelLinkLabel(modelId: string): string {
   const sanitized = sanitizeModelIdForDisplay(modelId);
   return sanitized.length > 0 ? sanitized : 'unknown';
@@ -689,7 +689,7 @@ export function buildModelFooterText(
   const quotaReasonRendered =
     quotaFallback !== undefined && quotaFallback.category !== GUEST_MODE_CATEGORY;
   if (quotaReasonRendered && quotaFallback !== undefined) {
-    const sanitizedFrom = sanitizeModelIdForDisplay(quotaFallback.fromModel);
+    const sanitizedFrom = modelLinkLabel(quotaFallback.fromModel);
     const reason = QUOTA_FALLBACK_REASON[quotaFallback.category];
     // A route-only swap keeps the reason — it still explains why this model
     // is serving — and drops the chain, which would otherwise name the same

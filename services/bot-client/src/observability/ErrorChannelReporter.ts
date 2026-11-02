@@ -303,8 +303,9 @@ function deriveDiagnosticFields(
  * a live clickable link in the owner's alert channel. `{ maskedLink: true }`
  * escapes the opening bracket, which renders the whole thing as literal text.
  *
- * Escaped rather than stripped (the treatment `model`/`provider` get) because
- * persona names legitimately contain parentheses — `Lilith (v2)` survives this
+ * Escaped rather than stripped (the treatment `provider` gets; a model id is
+ * sanitized in `deriveDiagnosticFields`, and the strip on its field is the
+ * composed value's second pass) because persona names legitimately contain parentheses — `Lilith (v2)` survives this
  * untouched, and stripping would mangle it.
  *
  * `Personality.name` is `VarChar(255)` with no character restriction and any

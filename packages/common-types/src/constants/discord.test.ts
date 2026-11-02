@@ -591,6 +591,13 @@ describe('Bot Footer Text Constants', () => {
       );
     });
 
+    it('labels a quota-fallback source that sanitizes to nothing as unknown', () => {
+      const result = buildModelFooterText('free-model', 'https://example.com/m', {
+        quotaFallback: { fromModel: '()', category: 'quota_exceeded' },
+      });
+      expect(result).toBe('Model: unknown → [free-model](<https://example.com/m>) (rate limited)');
+    });
+
     it('names the resolved model exactly once on a swap', () => {
       // The point of the shape: the target must appear once, not twice — once
       // as a leading link and again after the arrow — which is what made the
