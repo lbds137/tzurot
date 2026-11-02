@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { DenylistCache } from './DenylistCache.js';
 import { getServiceClient } from '../utils/gatewayClients.js';
 
@@ -29,10 +29,16 @@ describe('DenylistCache', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetDenylistCache.mockReset();
     vi.mocked(getServiceClient).mockReturnValue({
       getDenylistCache: mockGetDenylistCache,
     } as unknown as ReturnType<typeof getServiceClient>);
     cache = new DenylistCache();
+  });
+
+  afterEach(() => {
+    cache.stop();
+    vi.useRealTimers();
   });
 
   describe('hydrate', () => {
@@ -83,6 +89,474 @@ describe('DenylistCache', () => {
       await cache.hydrate();
 
       expect(cache.isBotDenied('user1')).toBe(false);
+    });
+  });
+
+  describe('hydrate retry', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    it('recovers from a failed first hydrate without a restart', async () => {
+      mockGetDenylistCache
+        .mockRejectedValueOnce(new Error('Gateway ECONNREFUSED'))
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            entries: [
+              { type: 'USER', discordId: 'user1', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
+            ],
+          },
+        });
+
+      await expect(cache.hydrate()).resolves.toBe(false);
+      expect(cache.isBotDenied('user1')).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(cache.isBotDenied('user1')).toBe(true);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(2);
+    });
+
+    it('recovers when the first hydrate returns a non-ok gateway response', async () => {
+      mockGetDenylistCache
+        .mockResolvedValueOnce({ ok: false, status: 503, error: 'x' })
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            entries: [
+              { type: 'USER', discordId: 'user1', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
+            ],
+          },
+        });
+
+      await expect(cache.hydrate()).resolves.toBe(false);
+      expect(cache.isBotDenied('user1')).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(cache.isBotDenied('user1')).toBe(true);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(2);
+    });
+
+    it('doubles the retry delay up to the 60s cap when attempts keep rejecting', async () => {
+      mockGetDenylistCache.mockRejectedValue(new Error('Gateway down'));
+
+      await expect(cache.hydrate()).resolves.toBe(false);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(2);
+
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(3);
+
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(4);
+
+      await vi.advanceTimersByTimeAsync(40_000);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(5);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(6);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(7);
+    });
+
+    it('stops retrying once an attempt succeeds', async () => {
+      mockGetDenylistCache.mockRejectedValueOnce(new Error('Gateway down')).mockResolvedValueOnce({
+        ok: true,
+        data: { entries: [] },
+      });
+
+      await expect(cache.hydrate()).resolves.toBe(false);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(2);
+
+      await vi.advanceTimersByTimeAsync(300_000);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(2);
+    });
+
+    it('cancels a pending retry when stop() is called', async () => {
+      mockGetDenylistCache.mockRejectedValue(new Error('Gateway down'));
+
+      await expect(cache.hydrate()).resolves.toBe(false);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(1);
+
+      cache.stop();
+
+      await vi.advanceTimersByTimeAsync(300_000);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not schedule a retry when stop() is called while an attempt is in flight', async () => {
+      let rejectAttempt!: (reason?: unknown) => void;
+      mockGetDenylistCache.mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectAttempt = reject;
+          })
+      );
+
+      const hydratePromise = cache.hydrate();
+      cache.stop();
+      rejectAttempt(new Error('Gateway down'));
+
+      await expect(hydratePromise).resolves.toBe(false);
+
+      await vi.advanceTimersByTimeAsync(300_000);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps current entries on a failed re-hydrate and replaces them when the retry succeeds', async () => {
+      mockGetDenylistCache
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            entries: [
+              { type: 'USER', discordId: 'user1', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
+            ],
+          },
+        })
+        .mockRejectedValueOnce(new Error('Transient failure'))
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            entries: [
+              { type: 'USER', discordId: 'user2', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
+            ],
+          },
+        });
+
+      await expect(cache.hydrate()).resolves.toBe(true);
+      expect(cache.isBotDenied('user1')).toBe(true);
+
+      await expect(cache.hydrate()).resolves.toBe(false);
+      expect(cache.isBotDenied('user1')).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(cache.isBotDenied('user1')).toBe(false);
+      expect(cache.isBotDenied('user2')).toBe(true);
+    });
+
+    it('cancels a pending retry timer when hydrate() is called again', async () => {
+      mockGetDenylistCache.mockRejectedValueOnce(new Error('Gateway down')).mockResolvedValueOnce({
+        ok: true,
+        data: { entries: [] },
+      });
+
+      await expect(cache.hydrate()).resolves.toBe(false);
+      await expect(cache.hydrate()).resolves.toBe(true);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(2);
+
+      await vi.advanceTimersByTimeAsync(300_000);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(2);
+    });
+
+    it('resets the retry delay after a successful hydrate', async () => {
+      mockGetDenylistCache
+        .mockRejectedValueOnce(new Error('Boot failure'))
+        .mockResolvedValueOnce({
+          ok: true,
+          data: { entries: [] },
+        })
+        .mockRejectedValueOnce(new Error('Reload failure'))
+        .mockResolvedValueOnce({
+          ok: true,
+          data: { entries: [] },
+        });
+
+      await expect(cache.hydrate()).resolves.toBe(false);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(2);
+
+      await expect(cache.hydrate()).resolves.toBe(false);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(3);
+
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(3);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(4);
+    });
+
+    it('an older attempt failing after a newer one also fails leaves one retry', async () => {
+      let rejectA!: (reason?: unknown) => void;
+      let rejectB!: (reason?: unknown) => void;
+      mockGetDenylistCache
+        .mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              rejectA = reject;
+            })
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              rejectB = reject;
+            })
+        )
+        .mockResolvedValue({
+          ok: true,
+          data: { entries: [] },
+        });
+
+      const attemptA = cache.hydrate();
+      const attemptB = cache.hydrate();
+
+      rejectA(new Error('Attempt A failed'));
+      rejectB(new Error('Attempt B failed'));
+
+      await expect(attemptA).resolves.toBe(false);
+      await expect(attemptB).resolves.toBe(false);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(2);
+
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(3);
+    });
+
+    it('a superseded failure arriving last schedules nothing extra', async () => {
+      let rejectA!: (reason?: unknown) => void;
+      let rejectB!: (reason?: unknown) => void;
+      mockGetDenylistCache
+        .mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              rejectA = reject;
+            })
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              rejectB = reject;
+            })
+        )
+        .mockResolvedValue({
+          ok: true,
+          data: { entries: [] },
+        });
+
+      const attemptA = cache.hydrate();
+      const attemptB = cache.hydrate();
+
+      rejectB(new Error('Attempt B failed'));
+      await expect(attemptB).resolves.toBe(false);
+
+      rejectA(new Error('Attempt A failed'));
+      await expect(attemptA).resolves.toBe(false);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(2);
+
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(3);
+
+      await vi.advanceTimersByTimeAsync(300_000);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(3);
+    });
+
+    it('an older snapshot arriving after a newer one is ignored', async () => {
+      let resolveA!: (value: unknown) => void;
+      mockGetDenylistCache
+        .mockImplementationOnce(
+          () =>
+            new Promise(resolve => {
+              resolveA = resolve;
+            })
+        )
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            entries: [
+              { type: 'USER', discordId: 'user2', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
+            ],
+          },
+        });
+
+      const attemptA = cache.hydrate();
+      const attemptB = cache.hydrate();
+
+      await expect(attemptB).resolves.toBe(true);
+
+      resolveA({
+        ok: true,
+        data: {
+          entries: [
+            { type: 'USER', discordId: 'user1', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
+          ],
+        },
+      });
+
+      await expect(attemptA).resolves.toBe(false);
+      expect(cache.isBotDenied('user2')).toBe(true);
+      expect(cache.isBotDenied('user1')).toBe(false);
+    });
+
+    it('an older failure after a newer success schedules no retry', async () => {
+      let rejectA!: (reason?: unknown) => void;
+      mockGetDenylistCache
+        .mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              rejectA = reject;
+            })
+        )
+        .mockResolvedValueOnce({
+          ok: true,
+          data: { entries: [] },
+        });
+
+      const attemptA = cache.hydrate();
+      const attemptB = cache.hydrate();
+
+      await expect(attemptB).resolves.toBe(true);
+
+      rejectA(new Error('Attempt A failed'));
+      await expect(attemptA).resolves.toBe(false);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(2);
+
+      await vi.advanceTimersByTimeAsync(300_000);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(2);
+
+      mockGetDenylistCache
+        .mockRejectedValueOnce(new Error('Subsequent failure'))
+        .mockResolvedValueOnce({
+          ok: true,
+          data: { entries: [] },
+        });
+
+      await expect(cache.hydrate()).resolves.toBe(false);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(3);
+
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(3);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mockGetDenylistCache).toHaveBeenCalledTimes(4);
+    });
+
+    it('an add event during a hydrate survives the snapshot', async () => {
+      let resolveAttempt!: (value: unknown) => void;
+      mockGetDenylistCache.mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            resolveAttempt = resolve;
+          })
+      );
+
+      const hydratePromise = cache.hydrate();
+
+      cache.handleEvent({
+        type: 'add',
+        entry: { type: 'USER', discordId: 'user2', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
+      });
+
+      resolveAttempt({
+        ok: true,
+        data: {
+          entries: [
+            { type: 'USER', discordId: 'user1', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
+          ],
+        },
+      });
+
+      await expect(hydratePromise).resolves.toBe(true);
+      expect(cache.isBotDenied('user1')).toBe(true);
+      expect(cache.isBotDenied('user2')).toBe(true);
+    });
+
+    it('a remove event during a hydrate survives the snapshot', async () => {
+      let resolveAttempt!: (value: unknown) => void;
+      mockGetDenylistCache.mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            resolveAttempt = resolve;
+          })
+      );
+
+      const hydratePromise = cache.hydrate();
+
+      cache.handleEvent({
+        type: 'remove',
+        entry: { type: 'USER', discordId: 'user1', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
+      });
+
+      resolveAttempt({
+        ok: true,
+        data: {
+          entries: [
+            { type: 'USER', discordId: 'user1', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
+          ],
+        },
+      });
+
+      await expect(hydratePromise).resolves.toBe(true);
+      expect(cache.isBotDenied('user1')).toBe(false);
+    });
+
+    it('events replay in arrival order', async () => {
+      let resolveAttempt!: (value: unknown) => void;
+      mockGetDenylistCache.mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            resolveAttempt = resolve;
+          })
+      );
+
+      const hydratePromise = cache.hydrate();
+
+      const entry = {
+        type: 'USER',
+        discordId: 'user2',
+        scope: 'BOT',
+        scopeId: '*',
+        mode: 'BLOCK' as const,
+      };
+      cache.handleEvent({ type: 'add', entry });
+      cache.handleEvent({ type: 'remove', entry });
+
+      resolveAttempt({
+        ok: true,
+        data: {
+          entries: [
+            { type: 'USER', discordId: 'user1', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
+          ],
+        },
+      });
+
+      await expect(hydratePromise).resolves.toBe(true);
+      expect(cache.isBotDenied('user2')).toBe(false);
+    });
+
+    it('events from a failed attempt are not replayed by the next one', async () => {
+      let rejectAttempt!: (reason?: unknown) => void;
+      mockGetDenylistCache
+        .mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              rejectAttempt = reject;
+            })
+        )
+        .mockResolvedValueOnce({
+          ok: true,
+          data: { entries: [] },
+        });
+
+      const hydratePromise = cache.hydrate();
+
+      cache.handleEvent({
+        type: 'add',
+        entry: { type: 'USER', discordId: 'user2', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
+      });
+
+      rejectAttempt(new Error('Gateway failure'));
+      await expect(hydratePromise).resolves.toBe(false);
+
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(cache.isBotDenied('user2')).toBe(false);
     });
   });
 

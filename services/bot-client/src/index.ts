@@ -280,6 +280,7 @@ async function disposeBotClient(): Promise<void> {
     // resort for hangs this race doesn't cover.
     const SHUTDOWN_TIMEOUT_MS = 5000;
     try {
+      services.denylistCache.stop();
       await Promise.race([
         Promise.all([
           services.cacheInvalidationService.unsubscribe(),
@@ -400,9 +401,7 @@ async function subscribeToCacheInvalidation(): Promise<void> {
   await services.denylistCacheInvalidationService.subscribe(event => {
     if (event.type === 'all') {
       // Full reload — re-hydrate from gateway
-      void services.denylistCache.hydrate().catch(err => {
-        logger.error({ err }, 'Failed to re-hydrate denylist cache');
-      });
+      void services.denylistCache.hydrate();
       logger.info('Denylist cache full reload triggered');
     } else {
       // Incremental add/remove
@@ -529,8 +528,8 @@ async function start(): Promise<void> {
     bootWatchdog.notePhase('services-initialized');
 
     // Hydrate denylist cache from gateway
-    await services.denylistCache.hydrate();
-    logger.info('Denylist cache hydrated');
+    const denylistHydrated = await services.denylistCache.hydrate();
+    logger.info({ hydrated: denylistHydrated }, 'Denylist cache hydrate attempted');
 
     // Start notification cache cleanup timer
     startNotificationCacheCleanup();
