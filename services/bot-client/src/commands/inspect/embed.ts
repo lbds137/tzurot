@@ -215,15 +215,13 @@ function buildModelField(
   // fallback retargets), show BOTH prominently. Normalized comparison:
   // provider prefixes ('z-ai/…' → bare) and version-suffixed variants
   // ('…-sonnet' served as '…-sonnet-20241022') are the SAME model.
-  // Model ids go through `sanitizeModelIdForDisplay`, and the other values
-  // through `stripMarkdownDelimiters`. `model` is a free-text `/preset` modal
-  // input validated for LENGTH only, so an id like `[Free Nitro](http://evil.example)`
-  // would otherwise render as a live masked link inside the embed value, and a
-  // bare URL would auto-link. `provider` is free text too and takes the strip.
-  // The provider-supplied upstream name takes the delimiter strip, and the
-  // served and routed ids take the model-id sanitizer.
-  // Sanitize at RENDER only, never before a comparison: stripping would change
-  // what isSameModel considers equal.
+  // Model, provider, served and routed ids take `sanitizeModelIdForDisplay`,
+  // because `model` and `provider` are free-text `/preset` modal inputs validated
+  // for length only, so an id like `[Free Nitro](http://evil.example)` would
+  // otherwise render as a live masked link, and a bare URL would auto-link. The
+  // provider-supplied upstream name takes `stripMarkdownDelimiters`. Sanitize at
+  // RENDER only, never before a comparison, because stripping would change what
+  // isSameModel considers equal.
   const served = llmResponse.modelUsed;
   const substituted = served.length > 0 && !isSameModel(llmConfig.model, served);
   const lines: string[] = substituted
@@ -265,7 +263,7 @@ function buildModelField(
   ) {
     lines.push(`🔀 **Routed:** ${sanitizeModelIdForDisplay(routedModel)}`);
   }
-  lines.push(`**Family:** ${stripMarkdownDelimiters(llmConfig.provider)}`);
+  lines.push(`**Family:** ${sanitizeModelIdForDisplay(llmConfig.provider)}`);
   const upstreamProvider = llmResponse.reasoningDebug?.upstreamProvider;
   if (upstreamProvider !== undefined) {
     lines.push(`**Upstream:** ${stripMarkdownDelimiters(upstreamProvider)}`);

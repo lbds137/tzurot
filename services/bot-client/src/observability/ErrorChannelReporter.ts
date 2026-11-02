@@ -303,10 +303,11 @@ function deriveDiagnosticFields(
  * a live clickable link in the owner's alert channel. `{ maskedLink: true }`
  * escapes the opening bracket, which renders the whole thing as literal text.
  *
- * Escaped rather than stripped (the treatment `provider` gets; a model id is
- * sanitized in `deriveDiagnosticFields`, and the strip on its field is the
- * composed value's second pass) because persona names legitimately contain parentheses — `Lilith (v2)` survives this
- * untouched, and stripping would mangle it.
+ * Escaped rather than stripped because persona names legitimately contain
+ * parentheses — `Lilith (v2)` survives this untouched, and stripping would
+ * mangle it. Model and provider ids go through `sanitizeModelIdForDisplay`
+ * instead: a model id is sanitized in `deriveDiagnosticFields`, and the strip
+ * on its field is the composed value's second pass.
  *
  * `Personality.name` is `VarChar(255)` with no character restriction and any
  * user can set one via `/character create`, so this is as reachable as the
@@ -415,7 +416,7 @@ function buildEmbed({
   // but `stripMarkdownDelimiters('()')` does, and an empty field value throws.
   addSanitizedField(embed, 'Personality', report.personalityName, escapePersonaName);
   addSanitizedField(embed, 'Model', report.model, stripMarkdownDelimiters);
-  addSanitizedField(embed, 'Provider', report.provider, stripMarkdownDelimiters);
+  addSanitizedField(embed, 'Provider', report.provider, sanitizeModelIdForDisplay);
   if (report.durationMs !== undefined) {
     embed.addFields({ name: 'Duration', value: `${report.durationMs}ms`, inline: true });
   }

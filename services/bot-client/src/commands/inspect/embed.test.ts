@@ -827,6 +827,16 @@ describe('buildDiagnosticEmbed', () => {
     expect(modelLine).toBe('**Model:** https:evil.example/x');
   });
 
+  it('renders a URL-shaped provider with no scheme separator on the Family line', () => {
+    const payload = createMockPayload();
+    payload.llmConfig.provider = 'https://evil.example/x';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const value = embed.toJSON().fields?.find(f => f.name.includes('Model'))?.value ?? '';
+    const familyLine = value.split('\n').find(line => line.startsWith('**Family:**'));
+    expect(familyLine).toBe('**Family:** https:evil.example/x');
+  });
+
   it('sanitizes the Upstream provider line too', () => {
     const payload = createMockPayload();
     payload.llmResponse.reasoningDebug = {

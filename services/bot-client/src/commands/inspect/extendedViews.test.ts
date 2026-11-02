@@ -340,7 +340,7 @@ describe('buildGenerationParamsView', () => {
     const description = result.embeds?.[0].toJSON().description;
 
     expect(description).toContain('**Model:** `a[Free](http://evil.example)b`');
-    expect(description).toContain('**Provider:** xhttp://evil.example');
+    expect(description).toContain('**Provider:** xhttp:evil.example');
   });
 
   it('notes when no sampling overrides are set and defers a huge allParams to Full JSON', () => {
