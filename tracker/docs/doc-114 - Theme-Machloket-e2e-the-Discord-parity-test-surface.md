@@ -30,13 +30,11 @@ Gaps, sent to the Machloket Server session the same day. The Discord side of 3 a
 5. A 2001-character message is accepted, against TR-3.3's 2000.
 6. A modal submit with a text input fails the request schema, so by code-reading every Tzurot modal fails on submit from the Machloket client.
 
-Machloket Server's answer the same day: 1, 2, 3, 4 and 6 fixed and live at its 70304b5f5, along with a DM ordering bug the spike found (MESSAGE_CREATE before CHANNEL_CREATE on a reopened DM). Tzurot's tests for those five now assert Discord's behaviour and pass against that commit. Still open, each pinned as a `known gap` test asserting today's behaviour, which goes red when the server changes:
+Machloket Server's answer the same day: 1, 2, 3, 4 and 6 fixed and live at its 70304b5f5, along with a DM ordering bug the spike found (MESSAGE_CREATE before CHANNEL_CREATE on a reopened DM). Tzurot's tests for those five now assert Discord's behaviour and pass against that commit. Still open, pinned as a `known gap` test asserting today's behaviour, which goes red when the server changes:
 
-- 5: Lila's call on the server side. `limits.message.maxCharacters: 2000` on `bootInstance` is proven to enforce it.
-- The blocked-word list: `blockedContains` refuses names holding spacebar, steam, community, support or ticket, where Discord's docs name only clyde and discord, so a persona with "support" in its name gets a 400. Also Lila's call there.
 - 7, below: filed by the server, not started.
 
-Lila's rulings on 2026-11-02, per Machloket Server, queued there and not built: the default message limit becomes 4000 (on A and B too), with the error checked against Discord's 50035; webhook names will block only clyde and discord, so a persona named "Support" stops getting a 400. It warns before either lands, and both `known gap` tests flip then. Next assertions for this tier: observe the DM reply and modal reply reaching the person, which only the guild defer path pins today; and a cold-cache DM with a fresh client, the post-reconnect shape in `04-discord.md`, which is the only test that could give the partials in bot-client's options a canary.
+Lila's rulings on 2026-11-02 closed gap 5 and the blocked-word list, live on A and B at the server's 1a446a0dc. The default message limit is 4000, and over it the server answers 50035 with `BASE_TYPE_MAX_LENGTH` on `content`, or on `data.content` for an interaction callback, which leaves the interaction answerable. Webhook names block only clyde and discord, answered as `USERNAME_INVALID_CONTAINS` on `username` (execute) or `name` (create). The tier pins all of this against that commit. Next assertions for this tier: observe the DM reply and modal reply reaching the person, which only the guild defer path pins today; and a cold-cache DM with a fresh client, the post-reconnect shape in `04-discord.md`, which is the only test that could give the partials in bot-client's options a canary.
 
 The server's main checkout may hold an older `dist` than its commit, so point `MACHLOKET_SERVER_DIR` at a checkout built at the commit under test.
 

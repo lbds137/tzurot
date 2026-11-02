@@ -20,10 +20,12 @@ describe('Machloket transport contract: configured message character limit', () 
     expect(m.content.length).toBe(2000);
   });
 
-  // doc-114 gap 5: goes red when the server changes its error. Discord's docs, from memory and not probed, give 50035 here; this message pins that the limit is what refused it.
-  it('known gap 5: rejects channel.send with 2001 characters using a generic error', async () => {
-    await expect(channel.send('x'.repeat(2001))).rejects.toThrow(
-      'Content length over max character limit'
-    );
+  // Machloket's field and message match a real Discord report per its server session; the code name was not probed against Discord.
+  it('refuses channel.send with 2001 characters at a configured limit of 2000 with 50035 on content', async () => {
+    await expect(channel.send('x'.repeat(2001))).rejects.toMatchObject({
+      status: 400,
+      code: 50035,
+      message: 'Invalid Form Body\ncontent[BASE_TYPE_MAX_LENGTH]: Must be 2000 or fewer in length.',
+    });
   });
 });

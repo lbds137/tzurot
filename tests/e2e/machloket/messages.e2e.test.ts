@@ -122,11 +122,32 @@ describe('Machloket transport contract: messages, webhooks, DMs, guild state, an
     });
   });
 
-  // doc-114 blocked-word gap: goes red when the server is fixed; then assert Discord's behaviour instead.
-  it('known gap: rejects webhook.send with username Support Persona', async () => {
-    await expect(webhook.send({ content: 'n', username: 'Support Persona' })).rejects.toThrow(
-      'Username cannot contain "support"'
-    );
+  it.each(['Support Persona', 'Spacebar Steam Community Ticket', 'everyone', 'here'])(
+    'resolves webhook.send with username %s',
+    async username => {
+      const m = await webhook.send({ content: 'n', username });
+      expect(m.author.username).toBe(username);
+    }
+  );
+
+  it.each([
+    ['My Clyde Hook', 'clyde'],
+    ['my discord hook', 'discord'],
+  ])('refuses webhook.send with username %s with 50035 on username', async (username, word) => {
+    await expect(webhook.send({ content: 'n', username })).rejects.toMatchObject({
+      status: 400,
+      code: 50035,
+      message: `Invalid Form Body\nusername[USERNAME_INVALID_CONTAINS]: Username cannot contain "${word}"`,
+    });
+  });
+
+  it('refuses createWebhook named My Clyde Hook with 50035 on name', async () => {
+    await expect(channel.createWebhook({ name: 'My Clyde Hook' })).rejects.toMatchObject({
+      status: 400,
+      code: 50035,
+      message:
+        'Invalid Form Body\nname[USERNAME_INVALID_CONTAINS]: Username cannot contain "clyde"',
+    });
   });
 
   it('suppresses @everyone and user mentions under default allowedMentions: { parse: [] }', async () => {
@@ -192,9 +213,13 @@ describe('Machloket transport contract: messages, webhooks, DMs, guild state, an
     expect(await codeOf(guild.members.fetch({ user: unknownId, force: true }))).toBe(10007);
   });
 
-  // doc-114 gap 5: goes red when the server is fixed; then assert Discord's behaviour instead.
-  it('known gap 5: resolves channel.send with 2001 characters', async () => {
-    const m = await channel.send('x'.repeat(2001));
-    expect(m.content.length).toBe(2001);
+  it('resolves channel.send with 4000 characters and refuses 4001 at the default limit', async () => {
+    const m = await channel.send('x'.repeat(4000));
+    expect(m.content.length).toBe(4000);
+    await expect(channel.send('x'.repeat(4001))).rejects.toMatchObject({
+      status: 400,
+      code: 50035,
+      message: 'Invalid Form Body\ncontent[BASE_TYPE_MAX_LENGTH]: Must be 4000 or fewer in length.',
+    });
   });
 });

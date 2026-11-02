@@ -124,6 +124,21 @@ describe('Machloket transport contract: slash, component, modal, context-menu, a
     expect((follow.flags?.bitfield ?? 0) & 64).toBe(64);
   });
 
+  it('refuses a 4001-character reply with 50035 on data.content and leaves the interaction answerable', async () => {
+    const got = nextInteraction(ctx.client, i => i.commandName === 'parity');
+    await invoke({ version: cmd.version, id: cmd.id, name: 'parity', type: 1, options: [] });
+    const i = await got;
+    await expect(i.reply({ content: 'x'.repeat(4001) })).rejects.toMatchObject({
+      status: 400,
+      code: 50035,
+      message:
+        'Invalid Form Body\ndata.content[BASE_TYPE_MAX_LENGTH]: Must be 4000 or fewer in length.',
+    });
+    await i.reply({ content: 'within the limit' });
+    const frame = await contentFrame('within the limit');
+    expect(frame.d.content).toBe('within the limit');
+  });
+
   it('sends a message with button and string-select component rows', () => {
     expect(withButton.components.length).toBe(2);
   });
