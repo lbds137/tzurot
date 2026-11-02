@@ -3,9 +3,10 @@ id: TASK-1341
 title: >-
   Machloket e2e first unit: pin the Discord transport contract against a
   throwaway server
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-02T13:20:00Z'
+updated_date: '2026-11-02T16:24:00Z'
 labels:
   - area:tests
   - size:M

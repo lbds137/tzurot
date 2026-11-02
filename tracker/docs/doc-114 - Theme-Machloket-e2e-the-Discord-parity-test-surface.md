@@ -36,6 +36,8 @@ Machloket Server's answer the same day: 1, 2, 3, 4 and 6 fixed and live at its 7
 - The blocked-word list: `blockedContains` refuses names holding spacebar, steam, community, support or ticket, where Discord's docs name only clyde and discord, so a persona with "support" in its name gets a 400. Also Lila's call there.
 - 7, below: filed by the server, not started.
 
+Lila's rulings on 2026-11-02, per Machloket Server, queued there and not built: the default message limit becomes 4000 (on A and B too), with the error checked against Discord's 50035; webhook names will block only clyde and discord, so a persona named "Support" stops getting a 400. It warns before either lands, and both `known gap` tests flip then. Next assertions for this tier: observe the DM reply and modal reply reaching the person, which only the guild defer path pins today; and a cold-cache DM with a fresh client, the post-reconnect shape in `04-discord.md`, which is the only test that could give the partials in bot-client's options a canary.
+
 The server's main checkout may hold an older `dist` than its commit, so point `MACHLOKET_SERVER_DIR` at a checkout built at the commit under test.
 
 7. Found by canaries, sent the same day: gateway intents appear not to gate anything. With `MessageContent` removed a bot still read another user's guild content, and with `DirectMessages` removed it still received the DM. So the tier cannot notice an intent dropped from bot-client's options until the server gates them; pin it once the server has ruled.
