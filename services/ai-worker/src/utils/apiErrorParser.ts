@@ -30,8 +30,8 @@ import { type ApiErrorInfo } from '@tzurot/common-types/types/schemas/generation
  * OpenRouter's wording when a model id is not in its catalog — the shape a
  * staggered provider release produces for a model that exists upstream but is
  * not yet published on OpenRouter. Named separately from the broader
- * MODEL_NOT_FOUND group below because `detectSpecialCases` hoists THIS pattern
- * (and only this one) above HTTP-status classification: OpenRouter returns it
+ * MODEL_NOT_FOUND group below because `detectSpecialCases` hoists this pattern,
+ * not the whole group, above HTTP-status classification: OpenRouter returns it
  * wrapped in a 400, which would otherwise read as BAD_REQUEST.
  *
  * Anchored through "model ID" — the full verified specimen shape — so sibling
@@ -618,7 +618,7 @@ function detectContentError(error: unknown): ApiErrorCategory | null {
 
 /**
  * Resolve category + type from error, running detection layers in priority order:
- * 1. Special cases (AbortError, media-URL 404s) — must win over HTTP status
+ * 1. Special cases (see `detectSpecialCases`) — must win over HTTP status
  * 2. HTTP status classification (most reliable when no special case)
  * 3. Message pattern matching (fallback for errors without status)
  * 4. Content-specific detection (empty/censored response text)
