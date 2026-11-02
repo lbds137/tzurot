@@ -75,6 +75,8 @@ describe('trackerCommit — current checkout holds develop', () => {
       [`${MAIN_TREE}::add -- tracker/tasks/task-1332 - Board commit command.md backlog/now.md BACKLOG.md CURRENT.md`]:
         () => '',
       [`${MAIN_TREE}::commit`]: () => '',
+      [`${MAIN_TREE}::reset -q -- tracker/tasks/task-1332 - Board commit command.md backlog/now.md BACKLOG.md CURRENT.md`]:
+        () => '',
       [`${MAIN_TREE}::push origin develop`]: () => '',
     });
     const log = vi.fn();
@@ -92,6 +94,7 @@ describe('trackerCommit — current checkout holds develop', () => {
       `${MAIN_TREE}::status --porcelain -z`,
       `${MAIN_TREE}::add -- tracker/tasks/task-1332 - Board commit command.md backlog/now.md BACKLOG.md CURRENT.md`,
       `${MAIN_TREE}::commit -m <message>`,
+      `${MAIN_TREE}::reset -q -- tracker/tasks/task-1332 - Board commit command.md backlog/now.md BACKLOG.md CURRENT.md`,
       `${MAIN_TREE}::push origin develop`,
     ]);
 
@@ -140,6 +143,8 @@ describe('trackerCommit — current checkout holds develop', () => {
       [`${MAIN_TREE}::status --porcelain -z`]: () => porcelain,
       [`${MAIN_TREE}::add -- tracker/tasks/task-1332 - New Title.md`]: () => '',
       [`${MAIN_TREE}::commit`]: () => '',
+      [`${MAIN_TREE}::reset -q -- tracker/tasks/task-1332 - New Title.md tracker/tasks/task-1332 - Old Title.md`]:
+        () => '',
       [`${MAIN_TREE}::push origin develop`]: () => '',
     });
 
@@ -156,6 +161,7 @@ describe('trackerCommit — current checkout holds develop', () => {
       `${MAIN_TREE}::status --porcelain -z`,
       `${MAIN_TREE}::add -- tracker/tasks/task-1332 - New Title.md`,
       `${MAIN_TREE}::commit -m <message>`,
+      `${MAIN_TREE}::reset -q -- tracker/tasks/task-1332 - New Title.md tracker/tasks/task-1332 - Old Title.md`,
       `${MAIN_TREE}::push origin develop`,
     ]);
     expect(runGit.mock.calls[7]?.[0]).toEqual([
@@ -198,6 +204,7 @@ describe('trackerCommit — another checkout holds develop', () => {
         'M  tracker/tasks/task-1332 - Title.md\0M  backlog/now.md\0',
       [`${MAIN_TREE}::add -- tracker/tasks/task-1332 - Title.md backlog/now.md`]: () => '',
       [`${MAIN_TREE}::commit`]: () => '',
+      [`${MAIN_TREE}::reset -q -- tracker/tasks/task-1332 - Title.md backlog/now.md`]: () => '',
       [`${MAIN_TREE}::push origin develop`]: () => '',
     });
 
@@ -215,14 +222,16 @@ describe('trackerCommit — another checkout holds develop', () => {
       `${MAIN_TREE}::status --porcelain -z`,
       `${MAIN_TREE}::add -- tracker/tasks/task-1332 - Title.md backlog/now.md`,
       `${MAIN_TREE}::commit -m <message>`,
+      `${MAIN_TREE}::reset -q -- tracker/tasks/task-1332 - Title.md backlog/now.md`,
       `${MAIN_TREE}::push origin develop`,
     ]);
     expect(runGit.mock.calls[8]?.[1]).toBe(MAIN_TREE);
     expect(runGit.mock.calls[9]?.[1]).toBe(MAIN_TREE);
     expect(runGit.mock.calls[10]?.[1]).toBe(MAIN_TREE);
+    expect(runGit.mock.calls[11]?.[1]).toBe(MAIN_TREE);
   });
 
-  it('refuses stranded-board-files naming the current checkout board files with no stage, commit, or push call', () => {
+  it('refuses stranded-board-files naming the current checkout board files and target checkout with no stage, commit, or push call', () => {
     const runGit = gitStub({
       '::rev-parse --show-toplevel': () => `${WORKTREE}\n`,
       [`${WORKTREE}::worktree list --porcelain`]: () => listing,
@@ -231,7 +240,7 @@ describe('trackerCommit — another checkout holds develop', () => {
       [`${MAIN_TREE}::merge-base --is-ancestor origin/develop develop`]: () => '',
       [`${MAIN_TREE}::rev-list --count origin/develop..develop`]: () => '0\n',
       [`${WORKTREE}::status --porcelain -z`]: () =>
-        '?? tracker/tasks/task-1332 - Stranded.md\0 M src/feature.ts\0',
+        '?? tracker/tasks/task-1332 - Stranded.md\0R  tracker/tasks/new.md\0tracker/tasks/old.md\0 M src/feature.ts\0',
     });
 
     const result = trackerCommit({ subject: SUBJECT, runGit, log: vi.fn() });
@@ -239,8 +248,7 @@ describe('trackerCommit — another checkout holds develop', () => {
     expect(result).toEqual({
       ok: false,
       check: 'stranded-board-files',
-      reason:
-        'current checkout has dirty board files that would be left behind: tracker/tasks/task-1332 - Stranded.md',
+      reason: `current checkout has dirty board files that would be left behind: tracker/tasks/task-1332 - Stranded.md, tracker/tasks/old.md -> tracker/tasks/new.md; move those files to the checkout holding develop (${MAIN_TREE}) and re-run, or run from there`,
     });
     expect(formatCalls(runGit)).toEqual([
       '::rev-parse --show-toplevel',
@@ -274,6 +282,7 @@ describe('trackerCommit — no checkout holds develop', () => {
       [`${MAIN_TREE}::switch develop`]: () => '',
       [`${MAIN_TREE}::add -- tracker/tasks/task-1332 - Title.md`]: () => '',
       [`${MAIN_TREE}::commit`]: () => '',
+      [`${MAIN_TREE}::reset -q -- tracker/tasks/task-1332 - Title.md`]: () => '',
       [`${MAIN_TREE}::push origin develop`]: () => '',
       [`${MAIN_TREE}::switch ${FEATURE_BRANCH}`]: () => '',
     });
@@ -292,9 +301,38 @@ describe('trackerCommit — no checkout holds develop', () => {
       `${MAIN_TREE}::switch develop`,
       `${MAIN_TREE}::add -- tracker/tasks/task-1332 - Title.md`,
       `${MAIN_TREE}::commit -m <message>`,
+      `${MAIN_TREE}::reset -q -- tracker/tasks/task-1332 - Title.md`,
       `${MAIN_TREE}::push origin develop`,
       `${MAIN_TREE}::switch ${FEATURE_BRANCH}`,
     ]);
+  });
+
+  it('proceeds to push and logs a warning when post-commit git reset throws', () => {
+    const runGit = gitStub({
+      '::rev-parse --show-toplevel': () => `${MAIN_TREE}\n`,
+      [`${MAIN_TREE}::worktree list --porcelain`]: () => listing,
+      [`${MAIN_TREE}::fetch origin develop`]: () => '',
+      [`${MAIN_TREE}::rev-parse --verify --quiet refs/heads/develop`]: () => 'aaa111\n',
+      [`${MAIN_TREE}::merge-base --is-ancestor origin/develop develop`]: () => '',
+      [`${MAIN_TREE}::rev-list --count origin/develop..develop`]: () => '0\n',
+      [`${MAIN_TREE}::status --porcelain -z`]: () => 'M  tracker/tasks/task-1332 - Title.md\0',
+      [`${MAIN_TREE}::switch develop`]: () => '',
+      [`${MAIN_TREE}::add -- tracker/tasks/task-1332 - Title.md`]: () => '',
+      [`${MAIN_TREE}::commit`]: () => '',
+      [`${MAIN_TREE}::reset -q -- tracker/tasks/task-1332 - Title.md`]: () => {
+        throw new Error('index.lock exists');
+      },
+      [`${MAIN_TREE}::push origin develop`]: () => '',
+      [`${MAIN_TREE}::switch ${FEATURE_BRANCH}`]: () => '',
+    });
+    const log = vi.fn();
+
+    const result = trackerCommit({ subject: SUBJECT, runGit, log });
+
+    expect(result).toEqual({ ok: true });
+    expect(log).toHaveBeenCalledTimes(2);
+    expect(log.mock.calls[0]?.[0]).toContain('index may disagree with HEAD');
+    expect(log.mock.calls[0]?.[0]).toContain('tracker/tasks/task-1332 - Title.md');
   });
 
   it('resets the commit pathspec and switches back when commit fails, refusing commit without pushing', () => {
@@ -379,6 +417,7 @@ describe('trackerCommit — no checkout holds develop', () => {
       [`${MAIN_TREE}::switch develop`]: () => '',
       [`${MAIN_TREE}::add -- tracker/tasks/task-1332 - Title.md`]: () => '',
       [`${MAIN_TREE}::commit`]: () => '',
+      [`${MAIN_TREE}::reset -q -- tracker/tasks/task-1332 - Title.md`]: () => '',
       [`${MAIN_TREE}::push origin develop`]: () => {
         const error = new Error('Command failed') as Error & { stderr?: string };
         error.stderr = 'fatal: unable to access remote\n';
@@ -406,6 +445,7 @@ describe('trackerCommit — no checkout holds develop', () => {
       `${MAIN_TREE}::switch develop`,
       `${MAIN_TREE}::add -- tracker/tasks/task-1332 - Title.md`,
       `${MAIN_TREE}::commit -m <message>`,
+      `${MAIN_TREE}::reset -q -- tracker/tasks/task-1332 - Title.md`,
       `${MAIN_TREE}::push origin develop`,
       `${MAIN_TREE}::switch ${FEATURE_BRANCH}`,
     ]);
@@ -423,6 +463,7 @@ describe('trackerCommit — no checkout holds develop', () => {
       [`${MAIN_TREE}::switch develop`]: () => '',
       [`${MAIN_TREE}::add -- tracker/tasks/task-1332 - Title.md`]: () => '',
       [`${MAIN_TREE}::commit`]: () => '',
+      [`${MAIN_TREE}::reset -q -- tracker/tasks/task-1332 - Title.md`]: () => '',
       [`${MAIN_TREE}::push origin develop`]: () => '',
       [`${MAIN_TREE}::switch ${FEATURE_BRANCH}`]: () => {
         throw new Error('error: Your local changes would be overwritten by checkout');
@@ -448,6 +489,7 @@ describe('trackerCommit — no checkout holds develop', () => {
       `${MAIN_TREE}::switch develop`,
       `${MAIN_TREE}::add -- tracker/tasks/task-1332 - Title.md`,
       `${MAIN_TREE}::commit -m <message>`,
+      `${MAIN_TREE}::reset -q -- tracker/tasks/task-1332 - Title.md`,
       `${MAIN_TREE}::push origin develop`,
       `${MAIN_TREE}::switch ${FEATURE_BRANCH}`,
     ]);
@@ -564,6 +606,49 @@ describe('trackerCommit — pre-write check refusals', () => {
     ]);
   });
 
+  it('refuses fresh when rev-list --count returns non-numeric output, quoting the output with no write', () => {
+    const runGit = gitStub({
+      '::rev-parse --show-toplevel': () => `${MAIN_TREE}\n`,
+      [`${MAIN_TREE}::worktree list --porcelain`]: () => listing,
+      [`${MAIN_TREE}::fetch origin develop`]: () => '',
+      [`${MAIN_TREE}::rev-parse --verify --quiet refs/heads/develop`]: () => 'aaa111\n',
+      [`${MAIN_TREE}::merge-base --is-ancestor origin/develop develop`]: () => '',
+      [`${MAIN_TREE}::rev-list --count origin/develop..develop`]: () => 'not-a-number\n',
+    });
+
+    const result = trackerCommit({ subject: SUBJECT, runGit, log: vi.fn() });
+
+    expect(result).toMatchObject({ ok: false, check: 'fresh' });
+    expect(result.ok === false && result.reason).toContain('"not-a-number"');
+    expect(formatCalls(runGit)).toEqual([
+      '::rev-parse --show-toplevel',
+      `${MAIN_TREE}::worktree list --porcelain`,
+      `${MAIN_TREE}::fetch origin develop`,
+      `${MAIN_TREE}::rev-parse --verify --quiet refs/heads/develop`,
+      `${MAIN_TREE}::merge-base --is-ancestor origin/develop develop`,
+      `${MAIN_TREE}::rev-list --count origin/develop..develop`,
+    ]);
+  });
+
+  it('refuses unmerged when a board entry has U, AA, or DD status, naming the paths with no write', () => {
+    for (const xy of ['UU', 'AA', 'DD', 'AU', 'UA', 'UD', 'DU']) {
+      const runGit = gitStub({
+        '::rev-parse --show-toplevel': () => `${MAIN_TREE}\n`,
+        [`${MAIN_TREE}::worktree list --porcelain`]: () => listing,
+        [`${MAIN_TREE}::fetch origin develop`]: () => '',
+        [`${MAIN_TREE}::rev-parse --verify --quiet refs/heads/develop`]: () => 'aaa111\n',
+        [`${MAIN_TREE}::merge-base --is-ancestor origin/develop develop`]: () => '',
+        [`${MAIN_TREE}::rev-list --count origin/develop..develop`]: () => '0\n',
+        [`${MAIN_TREE}::status --porcelain -z`]: () => `${xy} CURRENT.md\0M  BACKLOG.md\0`,
+      });
+
+      const result = trackerCommit({ subject: SUBJECT, runGit, log: vi.fn() });
+
+      expect(result).toMatchObject({ ok: false, check: 'unmerged' });
+      expect(result.ok === false && result.reason).toContain('CURRENT.md');
+    }
+  });
+
   it('refuses nothing-to-commit when no dirty board paths exist, with no write', () => {
     const runGit = gitStub({
       '::rev-parse --show-toplevel': () => `${MAIN_TREE}\n`,
@@ -646,7 +731,7 @@ describe('default runner (no injected runGit)', () => {
     expect(result).toEqual({ ok: true });
 
     const calls = vi.mocked(execFileSync).mock.calls;
-    expect(calls.length).toBe(10);
+    expect(calls.length).toBe(11);
     for (const call of calls) {
       expect(call[0]).toBe('git');
       const args = call[1] as string[];
@@ -884,5 +969,89 @@ describe('trackerCommit — real git repository', () => {
     expect(files).toContain('CURRENT.md');
     expect(files).not.toContain('src/staged.ts');
     expect(gitIn(cloneDir, ['diff', '--cached', '--name-only']).trim()).toBe('src/staged.ts');
+  });
+
+  it('leaves the checkout clean when .git/hooks/pre-commit rewrites and re-stages staged .md files in both current and switch cases', () => {
+    const hookPath = join(cloneDir, '.git/hooks/pre-commit');
+    mkdirSync(join(cloneDir, '.git/hooks'), { recursive: true });
+    writeFileSync(
+      hookPath,
+      [
+        '#!/bin/sh',
+        'set -e',
+        'for f in $(git diff --cached --name-only --diff-filter=ACM | grep "\\.md$" || true); do',
+        '  printf "rewritten-by-hook\\n" >> "$f"',
+        '  git add "$f"',
+        'done',
+        '',
+      ].join('\n')
+    );
+    chmodSync(hookPath, 0o755);
+
+    writeFileSync(join(cloneDir, 'CURRENT.md'), '# Current 1\n');
+    const currentResult = trackerCommit({ subject: SUBJECT, runGit, log: vi.fn() });
+    expect(currentResult).toEqual({ ok: true });
+    expect(gitIn(originDir, ['show', 'refs/heads/develop:CURRENT.md'])).toBe(
+      '# Current 1\nrewritten-by-hook\n'
+    );
+    expect(gitIn(cloneDir, ['status', '--porcelain'])).toBe('');
+
+    gitIn(cloneDir, ['switch', '-c', 'feature']);
+    writeFileSync(join(cloneDir, 'CURRENT.md'), '# Current 2\n');
+    const switchResult = trackerCommit({ subject: SUBJECT, runGit, log: vi.fn() });
+    expect(switchResult).toEqual({ ok: true });
+    expect(gitIn(originDir, ['show', 'refs/heads/develop:CURRENT.md'])).toBe(
+      '# Current 2\nrewritten-by-hook\n'
+    );
+    expect(gitIn(cloneDir, ['status', '--porcelain'])).toBe('');
+    expect(gitIn(cloneDir, ['branch', '--show-current']).trim()).toBe('feature');
+  });
+
+  it('commits a dirty file from the clone when another checkout holds develop, and refuses stranded-board-files naming the clone path when the worktree has a dirty tracker file', () => {
+    const wtDir = join(tmpRoot, 'wt');
+    gitIn(cloneDir, ['worktree', 'add', wtDir, '-b', 'feature']);
+    repoCwd = wtDir;
+
+    writeFileSync(join(cloneDir, 'tracker/tasks/other-checkout.md'), '# Other checkout\n');
+    const okResult = trackerCommit({ subject: SUBJECT, runGit, log: vi.fn() });
+    expect(okResult).toEqual({ ok: true });
+    expect(originTreeFiles()).toContain('tracker/tasks/other-checkout.md');
+    expect(gitIn(wtDir, ['branch', '--show-current']).trim()).toBe('feature');
+
+    const beforeSha = originDevelopSha();
+    writeFileSync(join(wtDir, 'tracker/tasks/stranded-in-wt.md'), '# Stranded\n');
+    const strandedResult = trackerCommit({ subject: SUBJECT, runGit, log: vi.fn() });
+    expect(strandedResult.ok).toBe(false);
+    if (!strandedResult.ok) {
+      expect(strandedResult.check).toBe('stranded-board-files');
+      expect(strandedResult.reason).toContain('tracker/tasks/stranded-in-wt.md');
+      expect(strandedResult.reason).toContain(cloneDir);
+    }
+    expect(originDevelopSha()).toBe(beforeSha);
+  });
+
+  it('refuses unmerged when a tracker file is in a real UU merge conflict, naming the path and leaving origin unchanged', () => {
+    gitIn(cloneDir, ['switch', '-c', 'conflict-branch']);
+    writeFileSync(join(cloneDir, 'tracker/tasks/task-1.md'), '# Conflict branch edit\n');
+    gitIn(cloneDir, ['add', 'tracker/tasks/task-1.md']);
+    gitIn(cloneDir, ['commit', '-m', 'docs: conflict branch edit']);
+
+    gitIn(cloneDir, ['switch', 'develop']);
+    writeFileSync(join(cloneDir, 'tracker/tasks/task-1.md'), '# Develop conflicting edit\n');
+    gitIn(cloneDir, ['add', 'tracker/tasks/task-1.md']);
+    gitIn(cloneDir, ['commit', '-m', 'docs: develop conflicting edit']);
+    gitIn(cloneDir, ['push', 'origin', 'develop']);
+
+    const beforeSha = originDevelopSha();
+    expect(() => gitIn(cloneDir, ['merge', 'conflict-branch'])).toThrow();
+    expect(gitIn(cloneDir, ['status', '--porcelain'])).toContain('UU tracker/tasks/task-1.md');
+
+    const result = trackerCommit({ subject: SUBJECT, runGit, log: vi.fn() });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.check).toBe('unmerged');
+      expect(result.reason).toContain('tracker/tasks/task-1.md');
+    }
+    expect(originDevelopSha()).toBe(beforeSha);
   });
 });
