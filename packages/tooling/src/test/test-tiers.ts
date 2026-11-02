@@ -42,8 +42,9 @@ export type TestTier = (typeof CANONICAL_TEST_TIERS)[number];
  * a file-suffix / location rule (see `classifyTestFile`) and maps to exactly
  * one canonical tier (see `TIER_FOR_KIND`).
  *
- * Post-rename the suffixes ARE the tier names, `.e2e.test.ts` excepted (`*.component.test.ts`,
- * `*.integration.test.ts`, `*.contract.test.ts`, plain `*.test.ts` = unit), so
+ * Post-rename the suffixes ARE the tier names (`*.component.test.ts`,
+ * `*.integration.test.ts`, `*.contract.test.ts`, plain `*.test.ts` = unit; `*.e2e.test.ts`
+ * names its runner instead and counts as integration), so
  * classification is a pure suffix check — no directory-location rule. The
  * `matches` description in `TEST_FILE_KIND_INFO` records the rule so the
  * classification stays verifiable.

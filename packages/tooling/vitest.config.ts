@@ -1,7 +1,7 @@
 import { defineConfig, mergeConfig } from 'vitest/config';
 import baseConfig from '../../vitest.config.js';
 
-export default mergeConfig(
+const merged = mergeConfig(
   baseConfig,
   defineConfig({
     test: {
@@ -9,3 +9,11 @@ export default mergeConfig(
     },
   })
 );
+
+// src/test here is this package's test-audit code, not test helpers, so the root
+// config's blanket exclude must not hide it from coverage.
+merged.test.coverage.exclude = merged.test.coverage.exclude.filter(
+  (pattern: string) => pattern !== '**/test/**'
+);
+
+export default merged;

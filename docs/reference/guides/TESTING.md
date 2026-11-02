@@ -95,7 +95,8 @@ there are brittle and sacrifice the very encapsulation the test is meant to prot
 
 > **Suffix = tier.** Each suffix names its tier directly — `*.component.test.ts`,
 > `*.integration.test.ts`, `*.contract.test.ts`, and plain `*.test.ts` for unit.
-> Classification is a pure suffix check (no directory-location rule). Run
+> The exception is `*.e2e.test.ts`, which names its local runner and counts as
+> integration. Classification is a pure suffix check (no directory-location rule). Run
 > `pnpm ops test:tiers` for the current per-package distribution.
 
 ### Schema tests are unit-tier, NOT contract tests
@@ -168,7 +169,7 @@ services/bot-client/
 ### Test File Naming
 
 Tzurot uses a **naming convention based on infrastructure needs**. Each suffix
-maps directly to its [canonical tier](#test-tier-taxonomy):
+maps to its [canonical tier](#test-tier-taxonomy):
 
 | Extension               | Tier ([taxonomy](#test-tier-taxonomy))      | Infrastructure    | Location                              |
 | ----------------------- | ------------------------------------------- | ----------------- | ------------------------------------- |
