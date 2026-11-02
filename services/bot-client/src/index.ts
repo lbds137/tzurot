@@ -264,6 +264,7 @@ async function disposeBotClient(): Promise<void> {
     stopExportSmokeScheduler();
     stopArchivePromotionScheduler();
     stopNightlyDbSyncScheduler();
+    services.denylistCache.stop();
     // ioredis Redis#disconnect is synchronous (returns void) — kept outside
     // the awaited Promise.all because there's no Promise to await.
     services.cacheRedis.disconnect();
@@ -280,7 +281,6 @@ async function disposeBotClient(): Promise<void> {
     // resort for hangs this race doesn't cover.
     const SHUTDOWN_TIMEOUT_MS = 5000;
     try {
-      services.denylistCache.stop();
       await Promise.race([
         Promise.all([
           services.cacheInvalidationService.unsubscribe(),
@@ -527,16 +527,14 @@ async function start(): Promise<void> {
     logger.info('All services initialized');
     bootWatchdog.notePhase('services-initialized');
 
-    // Hydrate denylist cache from gateway
-    const denylistHydrated = await services.denylistCache.hydrate();
-    logger.info({ hydrated: denylistHydrated }, 'Denylist cache hydrate attempted');
+    // Subscribe first, so a denylist event published around the snapshot is replayed over it.
+    await subscribeToCacheInvalidation();
+    const denylistApplied = await services.denylistCache.hydrate();
+    logger.info({ snapshotApplied: denylistApplied }, 'Denylist cache hydrate attempted');
 
     // Start notification cache cleanup timer
     startNotificationCacheCleanup();
     logger.info('Notification cache cleanup started');
-
-    // Subscribe to all cache invalidation events (personality, persona, channel activation)
-    await subscribeToCacheInvalidation();
 
     // Health check gateway
     logger.info('Checking gateway health...');

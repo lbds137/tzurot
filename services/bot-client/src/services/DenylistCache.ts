@@ -51,7 +51,8 @@ export class DenylistCache {
   private eventsDuringHydrate: DenylistInvalidationEvent[] | null = null;
 
   /**
-   * Hydrate cache from the API gateway (one attempt per call).
+   * Hydrate cache from the API gateway (one attempt per call). Resolves true
+   * when this attempt applied a snapshot, false when it failed or was superseded.
    *
    * The first attempt failing leaves the list empty and the bot permissive, so
    * boot is not blocked on the gateway beyond that one attempt. A failed
