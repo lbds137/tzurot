@@ -30,33 +30,60 @@ const logger = createLogger('DenylistCache');
 /** Default mode for entries that don't specify one (backward compat with hydration) */
 const DEFAULT_MODE: DenylistMode = 'BLOCK';
 
+/** Initial backoff delay before retrying a failed gateway hydration */
+const HYDRATE_RETRY_INITIAL_MS = 5_000;
+
+/** Maximum backoff delay between gateway hydration retries */
+const HYDRATE_RETRY_MAX_MS = 60_000;
+
 export class DenylistCache {
   private botUsers = new Map<string, DenylistMode>();
   private botGuilds = new Map<string, DenylistMode>();
   private guildUsers = new Map<string, Map<string, DenylistMode>>();
   private channelUsers = new Map<string, Map<string, DenylistMode>>();
   private personalityUsers = new Map<string, Map<string, DenylistMode>>();
+  private retryTimer: NodeJS.Timeout | null = null;
+  private retryDelayMs = HYDRATE_RETRY_INITIAL_MS;
+  private stopped = false;
+  /** Counter incremented on each hydrate() call to identify the newest attempt */
+  private latestAttempt = 0;
+  /** Invalidation events buffered while the latest hydrate() attempt is in flight */
+  private eventsDuringHydrate: DenylistInvalidationEvent[] | null = null;
 
   /**
-   * Hydrate cache from the API gateway on startup.
+   * Hydrate cache from the API gateway (one attempt per call).
    *
-   * Fail-open by design: if the gateway is unreachable, the bot starts with
-   * an empty denylist cache and operates permissively. This favors availability
-   * over strictness — better to allow everyone temporarily than to block all
-   * users because of a transient gateway outage. The cache will be populated
-   * once the gateway becomes reachable (via retry or pub/sub sync).
+   * The first attempt failing leaves the list empty and the bot permissive, so
+   * boot is not blocked on the gateway beyond that one attempt. A failed
+   * attempt keeps the entries held and retries on a timer (5 s doubling to
+   * 60 s) until an attempt succeeds or `stop()` is called. A newer call
+   * supersedes one in flight; add and remove events received during an attempt
+   * are replayed over its snapshot. Each is pinned by a test in
+   * `DenylistCache.test.ts`.
    *
    * Note: The gateway endpoint returns up to 10,000 entries (hardcoded limit).
    * At current scale this is more than sufficient, but if the denylist grows
    * significantly, pagination or streaming would be needed.
    */
-  async hydrate(): Promise<void> {
+  async hydrate(): Promise<boolean> {
+    this.clearRetryTimer();
+    const attempt = ++this.latestAttempt;
+    this.eventsDuringHydrate = [];
     try {
       const result = await getServiceClient().getDenylistCache();
+      if (attempt !== this.latestAttempt) {
+        return false;
+      }
       if (!result.ok) {
         throw new Error(`Denylist cache fetch failed: ${result.status} ${result.error}`);
       }
+      const bufferedEvents = this.eventsDuringHydrate ?? [];
+      this.eventsDuringHydrate = null;
       this.loadEntries(result.data);
+      for (const event of bufferedEvents) {
+        this.handleEvent(event);
+      }
+      this.retryDelayMs = HYDRATE_RETRY_INITIAL_MS;
       logger.info(
         {
           botUsers: this.botUsers.size,
@@ -64,11 +91,43 @@ export class DenylistCache {
           guildUsers: this.guildUsers.size,
           channelUsers: this.channelUsers.size,
           personalityUsers: this.personalityUsers.size,
+          replayedEvents: bufferedEvents.length,
         },
         'Hydrated from gateway'
       );
+      return true;
     } catch (error) {
-      logger.error({ err: error }, 'Failed to hydrate - starting with empty cache');
+      if (attempt !== this.latestAttempt) {
+        logger.debug({ err: error }, 'Superseded denylist hydrate failed');
+        return false;
+      }
+      this.eventsDuringHydrate = null;
+      const retryInMs = this.stopped ? null : this.retryDelayMs;
+      logger.error({ err: error, retryInMs }, 'Failed to hydrate denylist');
+      if (retryInMs !== null) {
+        this.retryDelayMs = Math.min(retryInMs * 2, HYDRATE_RETRY_MAX_MS);
+        this.retryTimer = setTimeout(() => {
+          this.retryTimer = null;
+          void this.hydrate();
+        }, retryInMs);
+        this.retryTimer.unref();
+      }
+      return false;
+    }
+  }
+
+  /**
+   * Stop pending hydration retries (called during shutdown).
+   */
+  stop(): void {
+    this.stopped = true;
+    this.clearRetryTimer();
+  }
+
+  private clearRetryTimer(): void {
+    if (this.retryTimer !== null) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
     }
   }
 
@@ -93,6 +152,7 @@ export class DenylistCache {
    * Handle a cache invalidation event from Redis pub/sub
    */
   handleEvent(event: DenylistInvalidationEvent): void {
+    this.eventsDuringHydrate?.push(event);
     if (event.type === 'add') {
       const mode = this.resolveMode(event.entry.mode);
       this.addEntry(
