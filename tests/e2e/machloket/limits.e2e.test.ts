@@ -20,7 +20,7 @@ describe('Machloket transport contract: configured message character limit', () 
     expect(m.content.length).toBe(2000);
   });
 
-  // Machloket's field and message match a real Discord report per its server session; the code name was not probed against Discord.
+  // The code and message are the server's and were not probed against Discord.
   it('refuses channel.send with 2001 characters at a configured limit of 2000 with 50035 on content', async () => {
     await expect(channel.send('x'.repeat(2001))).rejects.toMatchObject({
       status: 400,
