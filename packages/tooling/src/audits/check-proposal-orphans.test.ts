@@ -244,6 +244,40 @@ describe('findProposalOrphans', () => {
       expect(result.orphans).toEqual([]);
     });
   });
+
+  it('does NOT count a link from gitignored docs/local/ as inbound', async () => {
+    await withTempRepo(root => {
+      scaffold(root, {
+        'docs/proposals/backlog/foo-proposal.md': '# Foo',
+        'docs/local/handoffs/note.md': 'See foo-proposal.',
+      });
+      const result = findProposalOrphans(root);
+      expect(result.orphans).toEqual(['docs/proposals/backlog/foo-proposal.md']);
+    });
+  });
+
+  it('rescues a proposal mentioned in both docs/local/ and docs/reference/', async () => {
+    await withTempRepo(root => {
+      scaffold(root, {
+        'docs/proposals/backlog/foo-proposal.md': '# Foo',
+        'docs/local/handoffs/note.md': 'See foo-proposal.',
+        'docs/reference/note.md': 'See foo-proposal.',
+      });
+      const result = findProposalOrphans(root);
+      expect(result.orphans).toEqual([]);
+    });
+  });
+
+  it('accepts inbound link from docs/localized/ (trailing-slash prefix boundary)', async () => {
+    await withTempRepo(root => {
+      scaffold(root, {
+        'docs/proposals/backlog/foo-proposal.md': '# Foo',
+        'docs/localized/note.md': 'See foo-proposal.',
+      });
+      const result = findProposalOrphans(root);
+      expect(result.orphans).toEqual([]);
+    });
+  });
 });
 
 describe('checkProposalOrphans (CLI entry point with --summary)', () => {

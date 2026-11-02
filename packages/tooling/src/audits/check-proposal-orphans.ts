@@ -3,7 +3,8 @@
  *
  * Asserts every `docs/proposals/backlog/*.md` has at least one inbound link
  * from any non-proposal markdown under `backlog/**\/*.md`, `docs/**\/*.md`
- * (excluding `docs/proposals/`), `tracker/docs/**\/*.md`, or `CURRENT.md`.
+ * (excluding `docs/proposals/` and `docs/local/`), `tracker/docs/**\/*.md`,
+ * or `CURRENT.md`.
  * Search shape is defined by `SEARCH_ROOTS` and `EXCLUDED_PREFIXES` below.
  *
  * Layer 1 sibling of the canary/golden-fixture pattern (see
@@ -79,7 +80,8 @@ export const SEARCH_ROOTS = [
   'CURRENT.md',
   'BACKLOG.md',
 ] as const;
-const EXCLUDED_PREFIXES = ['docs/proposals/'];
+// `docs/local/` is gitignored, so a mention there does not exist in CI.
+const EXCLUDED_PREFIXES = ['docs/proposals/', 'docs/local/'];
 
 /**
  * Recursively walk a directory and return all .md files.
@@ -280,7 +282,7 @@ export async function checkProposalOrphans(
   if (totalFindings === 0) {
     console.log(`✅ All ${totalProposals} proposals have at least one inbound link.`);
     console.log(
-      `   Searched: backlog/**/*.md, docs/**/*.md (excluding docs/proposals/), tracker/docs/**/*.md, CURRENT.md, BACKLOG.md\n`
+      `   Searched: backlog/**/*.md, docs/**/*.md (excluding docs/proposals/ and docs/local/), tracker/docs/**/*.md, CURRENT.md, BACKLOG.md\n`
     );
     return;
   }
@@ -307,8 +309,8 @@ kebab-case slug — e.g., \`memory.md\` → \`memory-and-context-redesign.md\`.
     }
     console.log(`
 A proposal is "orphan" when nothing under \`backlog/**/*.md\`,
-\`docs/**/*.md\` (excluding \`docs/proposals/\`), \`tracker/docs/**/*.md\`,
-\`CURRENT.md\`, or \`BACKLOG.md\` mentions its basename.
+\`docs/**/*.md\` (excluding \`docs/proposals/\` and \`docs/local/\`),
+\`tracker/docs/**/*.md\`, \`CURRENT.md\`, or \`BACKLOG.md\` mentions its basename.
 
 Fix one of:
   - Link the proposal from its owning theme/idea doc or a backlog file (most common)

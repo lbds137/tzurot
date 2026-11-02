@@ -3,13 +3,14 @@ id: TASK-1186
 title: >-
   guard:proposal-links counts gitignored docs/local files as inbound links, so
   it passes locally and fails in CI
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-10-06 02:52'
+created_date: 2026-10-06 02:52
+updated_date: '2026-11-02T19:54:00Z'
 labels:
-  - 'area:tooling'
-  - 'size:S'
-  - 'state:ready'
+  - area:tooling
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1176000
