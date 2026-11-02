@@ -17,6 +17,24 @@ A Machloket↔Discord gap is SIGNAL, not an obstacle. Discord is the authoritati
 
 Pick the surfaces the interop already exercises — message send/receive, gateway events, slash commands — and run them against a throwaway server booted by the Machloket server's own e2e harness, not the shared dev A/B instances. It runs locally for now; CI follows once the harness can be reached from CI. Implementation goes through `lane-meters --for implement`. Security regression tests for the server live in the server's repo, not in this one.
 
+### What the spike showed (2026-11-02)
+
+discord.js with bot-client's real client options ran against `bootInstance()` (a run takes about 25 s, boot about 20 s of that). These passed: READY, GUILD_CREATE, send, edit, reply, delete, typing, webhook identity and files, guild, global and context-menu commands, defer then edit, ephemeral follow-up, buttons, selects, reactions, member chunk, permissions, snowflake time, presence, error codes 10003, 10008, 10013 and 10007, and DMs both ways.
+
+Gaps, sent to the Machloket Server session the same day. The Discord side of 3 and 4 is from memory of its docs, not probed:
+
+1. The default config closes the gateway to a client with no User-Agent, which discord.js is, and `login()` never returns. Instance B is immune only through its config.
+2. The harness's `cdn.endpointPublic` trailing slash makes attachment URLs `//attachments/...`: 404 as given, 200 with one slash.
+3. Bulk PUT and POST of application commands echo the request, with no `id` or `version`.
+4. Webhook `username` is held to 2 to 32 characters, against Discord's 1 to 80. A persona name plus suffix over 32 gets a 400.
+5. A 2001-character message is accepted, against TR-3.3's 2000.
+6. A modal submit with a text input fails the request schema, so by code-reading every Tzurot modal fails on submit from the Machloket client.
+
+### Later units
+
+- Tzurot's own handlers and `deployCommands` read `getConfig()`, whose origin check accepts https only (`discordInstanceOrigin.ts`), and the harness is http. Driving them needs TLS in the harness or a loopback exemption; that choice is made when the unit is picked.
+- CI, once the harness can be reached from it.
+
 ## Ordering and coordination
 
 Promoted out of cold on 2026-11-01 (owner posture: automate as much testing as possible). Starts after TASK-1331 and TASK-1332..1335. Joins the fleet tooling push: the Machloket Client session is building Playwright + screenshot verification in the same window.
