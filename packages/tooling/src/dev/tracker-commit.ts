@@ -81,6 +81,7 @@ export type TrackerCommitCheckName =
   | 'target'
   | 'fresh'
   | 'stranded-board-files'
+  | 'unmerged'
   | 'mixed-rename'
   | 'nothing-to-commit'
   | 'switch'
@@ -254,8 +255,16 @@ function checkFresh(runGit: RunGit, targetCwd: string): TrackerCommitResult | nu
     );
   }
 
-  const aheadCount = Number.parseInt(aheadRaw.trim(), 10);
-  if (aheadCount > 0) {
+  const aheadTrimmed = aheadRaw.trim();
+  if (!/^\d+$/.test(aheadTrimmed)) {
+    return refuse(
+      'fresh',
+      `git rev-list --count origin/develop..develop returned non-integer output: ${JSON.stringify(aheadTrimmed)}`
+    );
+  }
+
+  const aheadCount = Number.parseInt(aheadTrimmed, 10);
+  if (aheadCount !== 0) {
     const noun = aheadCount === 1 ? 'commit' : 'commits';
     return refuse(
       'fresh',
@@ -268,6 +277,14 @@ function checkFresh(runGit: RunGit, targetCwd: string): TrackerCommitResult | nu
 
 function isBoardEntry(entry: PorcelainZEntry): boolean {
   return isBoardPath(entry.path) || (entry.fromPath !== undefined && isBoardPath(entry.fromPath));
+}
+
+function isUnmergedXy(xy: string): boolean {
+  return xy.includes('U') || xy === 'AA' || xy === 'DD';
+}
+
+function formatBoardEntry(entry: PorcelainZEntry): string {
+  return entry.fromPath !== undefined ? `${entry.fromPath} -> ${entry.path}` : entry.path;
 }
 
 function readDirtyBoardEntries(runGit: RunGit, cwd: string): PorcelainZEntry[] {
@@ -298,7 +315,8 @@ function stageAndCommit(
   runGit: RunGit,
   targetCwd: string,
   plan: BoardWritePlan,
-  subject: string
+  subject: string,
+  log: (line: string) => void
 ): TrackerCommitResult | null {
   const { addPaths, commitPaths } = plan;
   const message = buildCommitMessage(subject);
@@ -309,7 +327,6 @@ function stageAndCommit(
     }
     // The pathspec keeps a file someone else already staged out of this commit.
     runGit(['commit', '-m', message, '--', ...commitPaths], targetCwd);
-    return null;
   } catch (error) {
     let resetNote = 'the board files are still modified and unstaged';
     try {
@@ -319,13 +336,24 @@ function stageAndCommit(
     }
     return refuse('commit', `git commit failed: ${execErrorOutput(error)}; ${resetNote}`);
   }
+
+  try {
+    runGit(['reset', '-q', '--', ...commitPaths], targetCwd);
+  } catch (resetError) {
+    log(
+      `git reset after commit failed (${execErrorOutput(resetError)}); the index may disagree with HEAD for: ${commitPaths.join(', ')}`
+    );
+  }
+
+  return null;
 }
 
 function executeWriteSequence(
   runGit: RunGit,
   target: ResolvedTarget,
   plan: BoardWritePlan,
-  subject: string
+  subject: string,
+  log: (line: string) => void
 ): TrackerCommitResult | null {
   const { targetCwd, recordedBranch } = target;
 
@@ -337,7 +365,7 @@ function executeWriteSequence(
     }
   }
 
-  let actionRefusal = stageAndCommit(runGit, targetCwd, plan, subject);
+  let actionRefusal = stageAndCommit(runGit, targetCwd, plan, subject, log);
 
   if (actionRefusal === null) {
     try {
@@ -400,7 +428,7 @@ export function trackerCommit(opts: TrackerCommitOptions): TrackerCommitResult {
     if (stranded.length > 0) {
       return refuse(
         'stranded-board-files',
-        `current checkout has dirty board files that would be left behind: ${stranded.map(entry => entry.path).join(', ')}`
+        `current checkout has dirty board files that would be left behind: ${stranded.map(formatBoardEntry).join(', ')}; move those files to the checkout holding develop (${target.targetCwd}) and re-run, or run from there`
       );
     }
   }
@@ -412,6 +440,14 @@ export function trackerCommit(opts: TrackerCommitOptions): TrackerCommitResult {
     return refuse(
       'nothing-to-commit',
       `nothing-to-commit: git command failed: ${execErrorOutput(error)}`
+    );
+  }
+
+  const unmerged = boardEntries.filter(entry => isUnmergedXy(entry.xy));
+  if (unmerged.length > 0) {
+    return refuse(
+      'unmerged',
+      `board files have unmerged conflict status: ${unmerged.map(entry => `${entry.path} (${entry.xy})`).join(', ')}`
     );
   }
 
@@ -430,7 +466,7 @@ export function trackerCommit(opts: TrackerCommitOptions): TrackerCommitResult {
   }
 
   const plan = buildBoardWritePlan(boardEntries);
-  const writeRefusal = executeWriteSequence(runGit, target, plan, subject);
+  const writeRefusal = executeWriteSequence(runGit, target, plan, subject, log);
   if (writeRefusal !== null) {
     return writeRefusal;
   }

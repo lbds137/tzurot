@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-11-01'
+lastUpdated: '2026-11-02'
 ---
 
 # Git Workflow Procedures
@@ -52,7 +52,7 @@ test "$(git rev-parse HEAD)" = "$(git ls-remote origin "refs/heads/<branch>" | c
 ```
 
 - A commit-body line starting with `#` is dropped when git cleans the message in editor/strip mode (`-m` and `-F` keep it). Start such lines with a word ("PR #2466 …"); same for `#TASK` prefixes.
-- Board-only commits (`tracker/**`, `backlog/**`, `BACKLOG.md`, `CURRENT.md`) made from a feature branch or a worktree shell go through `pnpm ops tracker:commit --subject "<subject>"`, which lands them on develop from any checkout, stages only those paths, and refuses if the current checkout would strand dirty board files.
+- Board-only commits (`tracker/**`, `backlog/**`, `BACKLOG.md`, `CURRENT.md`) go through `pnpm ops tracker:commit --subject "<subject>"` when the shell is not on develop: it commits and pushes the board files dirty in the checkout that holds develop, stages only those paths, and refuses rather than moves files dirty in the current checkout, so edit them where develop is checked out.
 
 ### 3. Push
 
