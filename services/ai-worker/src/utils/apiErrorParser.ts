@@ -42,6 +42,13 @@ import { type ApiErrorInfo } from '@tzurot/common-types/types/schemas/generation
 const INVALID_MODEL_ID_PATTERN = /not a valid model id/i;
 
 /**
+ * OpenRouter's wording for a model it restricts to listed agent apps — an
+ * access gate returned as a 403, which status mapping would read as a content
+ * refusal. Only this specimen phrase is hoisted, not a broader access pattern.
+ */
+const OPENROUTER_HARNESS_ONLY_PATTERN = /only available on agentic harnesses/i;
+
+/**
  * z.ai's error-code token for "the configured model id is not a real z.ai
  * model" — body code `1214` paired with a `modelCode: does not exist`
  * message, wrapped in a 400. This deliberately survives the client-boundary
@@ -167,6 +174,7 @@ const ERROR_PATTERNS = {
     /model.*unavailable/i,
     /invalid.*model/i,
     INVALID_MODEL_ID_PATTERN,
+    OPENROUTER_HARNESS_ONLY_PATTERN,
   ],
   // Timeout
   TIMEOUT: [/timeout/i, /timed.*out/i, /deadline.*exceeded/i],
@@ -460,6 +468,11 @@ export function isAccountCreditExhaustion(error: unknown): boolean {
  * wrapped in a 400; must classify as MODEL_NOT_FOUND before the wrapping 400
  * reads as retryable BAD_REQUEST and dead-ends the quota-fallback retarget.
  *
+ * OpenRouter harness-only 403: OpenRouter's "only available on agentic
+ * harnesses" wording for a model restricted to listed agent apps arrives as a
+ * 403; must classify as MODEL_NOT_FOUND before status mapping reads the 403 as
+ * CONTENT_POLICY.
+ *
  * z.ai model-not-found (code 1214): z.ai's own "the configured model id
  * doesn't exist" error also arrives wrapped in a 400; must classify as
  * MODEL_NOT_FOUND for the same reason as the unpublished-model-id case above.
@@ -472,85 +485,93 @@ function detectSpecialCases(error: unknown): ApiErrorCategory | null {
   // AbortError is always an Error subclass at the runtime level. If a future
   // LangChain version ever wraps the abort in a plain object, this check falls
   // through to UNKNOWN — acceptable safety behavior, but update this guard.
-  if (error instanceof Error) {
-    // Cap the scanned message length to match `extractStatusCode`'s ReDoS
-    // prevention convention. The bounded quantifiers below make catastrophic
-    // backtracking essentially impossible on their own, but keeping this
-    // function consistent with the rest of the file prevents a future pattern
-    // addition (e.g., one with unbounded `.*`) from accidentally regressing
-    // that safety.
-    const messageToSearch = error.message.substring(0, MAX_ERROR_MESSAGE_LENGTH);
-    if (error.name === 'AbortError' || /request was aborted/i.test(messageToSearch)) {
-      return ApiErrorCategory.TIMEOUT;
-    }
-    // OpenRouter/vision API wrap media-fetch 404s inside a 400 response body.
-    // Must catch before status extraction so the wrapping 400 doesn't classify
-    // this as retryable BAD_REQUEST.
-    //
-    // Observed prod variants (verified from Railway logs 2026-04-14+):
-    //   "400 Received 404 when fetching URL"                        ← minimal
-    //   "400 Received 404 status code when fetching URL"            ← OpenRouter variant
-    //   "400 Received 404 status code when fetching image from URL" ← Google AI Studio variant
-    //   "400 Received 404 when fetching image from URL"             ← plausible variant
-    //
-    // The regex allows up to ~40 chars between "received 404" and "fetching",
-    // and up to ~30 chars between "fetching" and "url", using non-greedy
-    // matching to restrict to a single error-message span. This covers every
-    // observed variant without matching loosely-related content across
-    // different parts of a longer error message.
-    //
-    // Bound calibration: the widest observed gap between "received 404" and
-    // "fetching" in the four documented prod variants is `" status code when "`
-    // (~18 chars). The `{0,40}` bound gives ~2.2× headroom, and `{0,30}`
-    // between "fetching" and "url" covers `" image from "` (~12 chars) with
-    // ~2.5× headroom. If a future provider variant has wider filler text,
-    // tighten the bounds only after confirming the new max-gap; loosening
-    // beyond ~50 chars starts to risk false matches on compound error
-    // messages that mention both 404s and URLs in unrelated clauses.
-    if (/received 404.{0,40}?fetching.{0,30}?url/i.test(messageToSearch)) {
-      return ApiErrorCategory.MEDIA_NOT_FOUND;
-    }
-    // A provider input-filter refusal arrives wrapped in a 400 ("400 Provider
-    // returned error" carrying `data_inspection_failed`). Like the media-404
-    // case above it must be caught BEFORE status extraction, or the wrapping
-    // 400 classifies as retryable BAD_REQUEST and the caller re-attempts the
-    // same provider that just refused. Reads the shared ERROR_PATTERNS group
-    // so the pattern list keeps a single home.
-    if (ERROR_PATTERNS.PROVIDER_CONTENT_REFUSED.some(pattern => pattern.test(messageToSearch))) {
-      return ApiErrorCategory.PROVIDER_CONTENT_REFUSED;
-    }
-    // The SDK-shaped error carries the code only in the upstream body; scan
-    // it for this group alone so other upstream wording keeps status routing.
-    const upstreamRaw = readUpstreamRawError(error);
-    if (
-      upstreamRaw !== undefined &&
-      ERROR_PATTERNS.PROVIDER_CONTENT_REFUSED.some(pattern => pattern.test(upstreamRaw))
-    ) {
-      return ApiErrorCategory.PROVIDER_CONTENT_REFUSED;
-    }
-    // An unpublished-model id arrives wrapped in a 400, exactly like the
-    // media-404 and provider-refusal cases above, so it must be caught BEFORE
-    // status extraction — a 400 otherwise classifies as BAD_REQUEST, which the
-    // quota-fallback retarget gate treats as non-retargetable and dead-ends.
-    // Deliberately narrower than the full MODEL_NOT_FOUND group: only this
-    // specimen-grounded phrase is hoisted, so the broader `invalid.*model` /
-    // `model.*not.*found` patterns keep their existing post-status precedence
-    // and no unrelated error is re-routed. A 404 already maps to
-    // MODEL_NOT_FOUND via status, so this changes only the 400-wrapped shape.
-    if (INVALID_MODEL_ID_PATTERN.test(messageToSearch)) {
-      return ApiErrorCategory.MODEL_NOT_FOUND;
-    }
-    // z.ai's own model-not-found error (code 1214) arrives wrapped in a 400,
-    // exactly like the three cases above. Requires BOTH the code token and the
-    // message shape — either alone is not distinctive enough (see the
-    // pattern doc comments above for why each half exists).
-    if (
-      ZAI_MODEL_NOT_FOUND_CODE_PATTERN.test(messageToSearch) &&
-      ZAI_MODEL_NOT_FOUND_MESSAGE_PATTERN.test(messageToSearch)
-    ) {
-      return ApiErrorCategory.MODEL_NOT_FOUND;
-    }
+  if (!(error instanceof Error)) {
+    return null;
   }
+
+  // Cap the scanned message length to match `extractStatusCode`'s ReDoS
+  // prevention convention. The bounded quantifiers below make catastrophic
+  // backtracking essentially impossible on their own, but keeping this
+  // function consistent with the rest of the file prevents a future pattern
+  // addition (e.g., one with unbounded `.*`) from accidentally regressing
+  // that safety.
+  const messageToSearch = error.message.substring(0, MAX_ERROR_MESSAGE_LENGTH);
+  if (error.name === 'AbortError' || /request was aborted/i.test(messageToSearch)) {
+    return ApiErrorCategory.TIMEOUT;
+  }
+  // OpenRouter/vision API wrap media-fetch 404s inside a 400 response body.
+  // Must catch before status extraction so the wrapping 400 doesn't classify
+  // this as retryable BAD_REQUEST.
+  //
+  // Observed prod variants (verified from Railway logs):
+  //   "400 Received 404 when fetching URL"                        ← minimal
+  //   "400 Received 404 status code when fetching URL"            ← OpenRouter variant
+  //   "400 Received 404 status code when fetching image from URL" ← Google AI Studio variant
+  //   "400 Received 404 when fetching image from URL"             ← plausible variant
+  //
+  // The regex allows up to ~40 chars between "received 404" and "fetching",
+  // and up to ~30 chars between "fetching" and "url", using non-greedy
+  // matching to restrict to a single error-message span. This covers every
+  // observed variant without matching loosely-related content across
+  // different parts of a longer error message.
+  //
+  // Bound calibration: the widest observed gap between "received 404" and
+  // "fetching" in the four documented prod variants is `" status code when "`
+  // (~18 chars). The `{0,40}` bound gives ~2.2× headroom, and `{0,30}`
+  // between "fetching" and "url" covers `" image from "` (~12 chars) with
+  // ~2.5× headroom. If a future provider variant has wider filler text,
+  // tighten the bounds only after confirming the new max-gap; loosening
+  // beyond ~50 chars starts to risk false matches on compound error
+  // messages that mention both 404s and URLs in unrelated clauses.
+  if (/received 404.{0,40}?fetching.{0,30}?url/i.test(messageToSearch)) {
+    return ApiErrorCategory.MEDIA_NOT_FOUND;
+  }
+  // A provider input-filter refusal arrives wrapped in a 400 ("400 Provider
+  // returned error" carrying `data_inspection_failed`). Like the media-404
+  // case above it must be caught BEFORE status extraction, or the wrapping
+  // 400 classifies as retryable BAD_REQUEST and the caller re-attempts the
+  // same provider that just refused. Reads the shared ERROR_PATTERNS group
+  // so the pattern list keeps a single home.
+  if (ERROR_PATTERNS.PROVIDER_CONTENT_REFUSED.some(pattern => pattern.test(messageToSearch))) {
+    return ApiErrorCategory.PROVIDER_CONTENT_REFUSED;
+  }
+  // The SDK-shaped error carries the code only in the upstream body; scan
+  // it for this group alone so other upstream wording keeps status routing.
+  const upstreamRaw = readUpstreamRawError(error);
+  if (
+    upstreamRaw !== undefined &&
+    ERROR_PATTERNS.PROVIDER_CONTENT_REFUSED.some(pattern => pattern.test(upstreamRaw))
+  ) {
+    return ApiErrorCategory.PROVIDER_CONTENT_REFUSED;
+  }
+  // An unpublished-model id arrives wrapped in a 400, exactly like the
+  // media-404 and provider-refusal cases above, so it must be caught BEFORE
+  // status extraction — a 400 otherwise classifies as BAD_REQUEST, which the
+  // quota-fallback retarget gate treats as non-retargetable and dead-ends.
+  // Deliberately narrower than the full MODEL_NOT_FOUND group: only this
+  // specimen-grounded phrase is hoisted, so the broader `invalid.*model` /
+  // `model.*not.*found` patterns keep their existing post-status precedence
+  // and no unrelated error is re-routed. A 404 already maps to
+  // MODEL_NOT_FOUND via status, so this changes only the 400-wrapped shape.
+  if (INVALID_MODEL_ID_PATTERN.test(messageToSearch)) {
+    return ApiErrorCategory.MODEL_NOT_FOUND;
+  }
+  // z.ai's own model-not-found error (code 1214) arrives wrapped in a 400,
+  // exactly like the three cases above. Requires BOTH the code token and the
+  // message shape — either alone is not distinctive enough (see the
+  // pattern doc comments above for why each half exists).
+  if (
+    ZAI_MODEL_NOT_FOUND_CODE_PATTERN.test(messageToSearch) &&
+    ZAI_MODEL_NOT_FOUND_MESSAGE_PATTERN.test(messageToSearch)
+  ) {
+    return ApiErrorCategory.MODEL_NOT_FOUND;
+  }
+  // OpenRouter's harness-only access gate arrives as a 403; catch it before
+  // status extraction maps 403 to CONTENT_POLICY.
+  if (OPENROUTER_HARNESS_ONLY_PATTERN.test(messageToSearch)) {
+    return ApiErrorCategory.MODEL_NOT_FOUND;
+  }
+
   return null;
 }
 

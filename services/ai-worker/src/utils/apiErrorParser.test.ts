@@ -478,6 +478,52 @@ describe('parseApiError', () => {
     });
   });
 
+  describe('harness-only 403 detection', () => {
+    const specimen =
+      '403 thinkingmachines/inkling:free is only available on agentic harnesses. Try plugging it into a coding agent or productivity app listed on https://openrouter.ai/apps';
+
+    it('classifies a bare error (no status) as MODEL_NOT_FOUND', () => {
+      const error = new Error(specimen);
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.MODEL_NOT_FOUND);
+    });
+
+    it('classifies the error as MODEL_NOT_FOUND when wrapped in a 403, not CONTENT_POLICY, while preserving statusCode 403', () => {
+      const error = Object.assign(new Error(specimen), { status: 403 });
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.MODEL_NOT_FOUND);
+      expect(result.category).not.toBe(ApiErrorCategory.CONTENT_POLICY);
+      expect(result.statusCode).toBe(403);
+    });
+
+    it('keeps a content-policy 403 as CONTENT_POLICY', () => {
+      const error = Object.assign(new Error('403 Your request was flagged by our content policy'), {
+        status: 403,
+      });
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.CONTENT_POLICY);
+    });
+
+    it('does NOT hoist a broader access phrase — "model is only available on paid plans" on a 403 stays CONTENT_POLICY', () => {
+      const error = Object.assign(new Error('model is only available on paid plans'), {
+        status: 403,
+      });
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.CONTENT_POLICY);
+    });
+
+    it('is permanent (shouldRetry === false)', () => {
+      const error = Object.assign(new Error(specimen), { status: 403 });
+      const result = parseApiError(error);
+      expect(result.shouldRetry).toBe(false);
+    });
+
+    it('is retarget-eligible: classifyQuotaFailure resolves it to MODEL_NOT_FOUND for the 403-wrapped shape', () => {
+      const error = Object.assign(new Error(specimen), { status: 403 });
+      expect(classifyQuotaFailure(error)).toBe(ApiErrorCategory.MODEL_NOT_FOUND);
+    });
+  });
+
   describe('z.ai model-not-found detection (code 1214)', () => {
     const zaiSpecimen = Object.assign(
       new Error(

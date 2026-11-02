@@ -3,13 +3,14 @@ id: TASK-1184
 title: >-
   OpenRouter 403 access restrictions classify as content_policy and render as
   model refused
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-10-05 19:41'
+created_date: 2026-10-05 19:41
+updated_date: '2026-11-02T19:10:00Z'
 labels:
-  - 'area:ai-worker'
-  - 'size:S'
-  - 'state:ready'
+  - area:ai-worker
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1174000
