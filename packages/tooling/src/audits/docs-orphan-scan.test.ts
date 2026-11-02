@@ -97,6 +97,57 @@ describe('scanDocsOrphans', () => {
     );
   });
 
+  it('ignores mentions inside gitignored docs/local', async () => {
+    await withRepo(
+      {
+        'docs/reference/local-only.md': '# Only local notes mention this',
+        'docs/local/note.md': 'Mentions local-only here.',
+      },
+      async repoRoot => {
+        expect(scanDocsOrphans(repoRoot).orphans).toEqual(['docs/reference/local-only.md']);
+      }
+    );
+  });
+
+  it('ignores mentions inside gitignored .claude/worktrees', async () => {
+    await withRepo(
+      {
+        'docs/reference/worktree-only.md': '# Only worktree copy mentions this',
+        '.claude/worktrees/x/docs/guide.md': 'Mentions worktree-only here.',
+      },
+      async repoRoot => {
+        expect(scanDocsOrphans(repoRoot).orphans).toEqual(['docs/reference/worktree-only.md']);
+      }
+    );
+  });
+
+  it('accepts a doc mentioned in both docs/local and a tracked doc', async () => {
+    await withRepo(
+      {
+        'docs/reference/shared-guide.md': '# Linked from both local and tracked docs',
+        'docs/local/note.md': 'Mentions shared-guide here.',
+        'docs/guide.md': 'Also mentions shared-guide here.',
+      },
+      async repoRoot => {
+        expect(scanDocsOrphans(repoRoot).orphans).toEqual([]);
+      }
+    );
+  });
+
+  it('matches skipped repo paths as whole paths, not prefixes or bare names', async () => {
+    await withRepo(
+      {
+        'docs/reference/prefix-neighbor.md': '# Linked from docs/localized',
+        'docs/reference/nested-local.md': '# Linked from packages/x/local',
+        'docs/localized/note.md': 'Mentions prefix-neighbor here.',
+        'packages/x/local/note.md': 'Mentions nested-local here.',
+      },
+      async repoRoot => {
+        expect(scanDocsOrphans(repoRoot).orphans).toEqual([]);
+      }
+    );
+  });
+
   it('returns an empty result when docs/reference does not exist', async () => {
     await withRepo({ 'README.md': 'no docs tree at all' }, async repoRoot => {
       expect(scanDocsOrphans(repoRoot)).toEqual({ totalDocs: 0, orphans: [] });

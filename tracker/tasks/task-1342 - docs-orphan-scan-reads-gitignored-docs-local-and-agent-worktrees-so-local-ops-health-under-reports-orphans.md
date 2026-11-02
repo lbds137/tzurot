@@ -3,9 +3,10 @@ id: TASK-1342
 title: >-
   docs-orphan-scan reads gitignored docs/local and agent worktrees, so local ops
   health under-reports orphans
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-02T20:04:00Z'
+updated_date: '2026-11-02T20:33:00Z'
 labels:
   - area:tooling
   - size:S
