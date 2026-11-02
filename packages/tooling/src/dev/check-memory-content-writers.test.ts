@@ -284,12 +284,13 @@ describe('positive control and repository scan', () => {
     const findings = findContentWriters(ALLOWLISTED_REL_PATH, sourceText);
     expect(findings).toHaveLength(1);
     expect(findings[0]?.filePath).toBe(ALLOWLISTED_REL_PATH);
+    expect(findings[0]?.reason).toMatch(/sets 'content'/);
   });
 
   // Deliberate second tripwire beside the CI step; a canary on the allowlist relies on it.
   it('returns no violations over the real repo root', () => {
     expect(findContentWriterViolations(REPO_ROOT)).toEqual([]);
-  });
+  }, 30_000);
 });
 
 describe('findContentWriterViolations — temp tree', () => {
@@ -335,6 +336,15 @@ describe('findContentWriterViolations — temp tree', () => {
     );
 
     expect(findContentWriterViolations(tmp)).toEqual([]);
+  });
+
+  it('reports an unverifiable write on the allowlisted path instead of counting it', () => {
+    write(ALLOWLISTED_REL_PATH, `await prisma.memory.update({ where: { id }, data: payload });\n`);
+    const reasons = findContentWriterViolations(tmp).map(v => v.reason);
+    expect(reasons).toEqual([
+      expect.stringMatching(/cannot be verified/),
+      expect.stringMatching(/found 0/),
+    ]);
   });
 
   it('reports the allowlisted path when it has no content writer', () => {
