@@ -25,9 +25,9 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@stryker-mutator/api": "^10.0.0",
-    "@stryker-mutator/core": "^10.0.0",
-    "@stryker-mutator/vitest-runner": "^10.0.0",
+    "@stryker-mutator/api": "^10.1.1",
+    "@stryker-mutator/core": "^10.1.1",
+    "@stryker-mutator/vitest-runner": "^10.1.1",
     "@types/node": "^24.19.2"
   }
 }
