@@ -5,6 +5,7 @@
 import { EmbedBuilder } from 'discord.js';
 import {
   DISCORD_COLORS,
+  sanitizeModelIdForDisplay,
   stripMarkdownDelimiters,
   toInertCodeSpan,
 } from '@tzurot/common-types/constants/discord';
@@ -214,21 +215,23 @@ function buildModelField(
   // fallback retargets), show BOTH prominently. Normalized comparison:
   // provider prefixes ('z-ai/…' → bare) and version-suffixed variants
   // ('…-sonnet' served as '…-sonnet-20241022') are the SAME model.
-  // Every id below is rendered through stripMarkdownDelimiters. `model` and
-  // `provider` are free-text `/preset` modal inputs validated for LENGTH
-  // only, so an id like `[Free Nitro](http://evil.example)` would otherwise
-  // render as a live masked link inside the embed value. The provider-
-  // supplied ids get the same treatment as defence in depth. Sanitize at
-  // RENDER only, never before a comparison: stripping would change what
-  // isSameModel considers equal.
+  // Model ids go through `sanitizeModelIdForDisplay`, and the other values
+  // through `stripMarkdownDelimiters`. `model` is a free-text `/preset` modal
+  // input validated for LENGTH only, so an id like `[Free Nitro](http://evil.example)`
+  // would otherwise render as a live masked link inside the embed value, and a
+  // bare URL would auto-link. `provider` is free text too and takes the strip.
+  // The provider-supplied upstream name takes the delimiter strip, and the
+  // served and routed ids take the model-id sanitizer.
+  // Sanitize at RENDER only, never before a comparison: stripping would change
+  // what isSameModel considers equal.
   const served = llmResponse.modelUsed;
   const substituted = served.length > 0 && !isSameModel(llmConfig.model, served);
   const lines: string[] = substituted
     ? [
-        `**Requested:** ${stripMarkdownDelimiters(llmConfig.model)}`,
-        `⚠️ **Served:** ${stripMarkdownDelimiters(served)}`,
+        `**Requested:** ${sanitizeModelIdForDisplay(llmConfig.model)}`,
+        `⚠️ **Served:** ${sanitizeModelIdForDisplay(served)}`,
       ]
-    : [`**Model:** ${stripMarkdownDelimiters(llmConfig.model)}`];
+    : [`**Model:** ${sanitizeModelIdForDisplay(llmConfig.model)}`];
   // A router alias (e.g. openrouter/auto) resolves to a concrete model at
   // the provider; name what actually ran, independent of any requested/
   // served substitution above.
@@ -260,7 +263,7 @@ function buildModelField(
     isRouterAliasModel(served) &&
     !isSameModel(routedModel, served)
   ) {
-    lines.push(`🔀 **Routed:** ${stripMarkdownDelimiters(routedModel)}`);
+    lines.push(`🔀 **Routed:** ${sanitizeModelIdForDisplay(routedModel)}`);
   }
   lines.push(`**Family:** ${stripMarkdownDelimiters(llmConfig.provider)}`);
   const upstreamProvider = llmResponse.reasoningDebug?.upstreamProvider;

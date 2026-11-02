@@ -636,7 +636,8 @@ describe('ErrorChannelReporter', () => {
     it('strips markdown link delimiters from Model and Provider (free-text preset inputs)', () => {
       // Both are `/preset` modal fields validated for length only, so a chosen
       // id like `[Free Nitro](http://evil)` would render as a live masked link
-      // in the owner's alert channel. Same strip buildModelFooterText applies.
+      // in the owner's alert channel. Model takes `sanitizeModelIdForDisplay`,
+      // the same sanitizer buildModelFooterText uses; Provider takes the strip.
       initErrorChannelReporter(fakeClient());
       reportJobError(
         {
@@ -651,8 +652,24 @@ describe('ErrorChannelReporter', () => {
       );
 
       const fields = lastFields();
-      expect(fields.find(f => f.name === 'Model')?.value).toBe('Free Nitrohttp://evil.example');
+      expect(fields.find(f => f.name === 'Model')?.value).toBe('Free Nitrohttp:evil.example');
       expect(fields.find(f => f.name === 'Provider')?.value).toBe('@everyone');
+    });
+
+    it('renders a URL-shaped Model with no scheme separator in the owner alert', () => {
+      initErrorChannelReporter(fakeClient());
+      reportJobError(
+        {
+          requestId: 'req-url-model',
+          errorInfo: { category: 'model_not_found' },
+          metadata: { modelUsed: 'https://evil.example/x', providerUsed: 'openrouter' },
+        },
+        undefined
+      );
+
+      const model = lastFields().find(f => f.name === 'Model')?.value;
+      expect(model).toBe('https:evil.example/x');
+      expect(model).not.toContain('://');
     });
 
     it('omits Model when the id sanitizes away to nothing rather than dropping the report', () => {
@@ -724,6 +741,54 @@ describe('ErrorChannelReporter', () => {
 
       const fields = lastFields();
       expect(fields.find(f => f.name === 'Model')?.value).toBe('delisted/model → admin/default');
+    });
+
+    it('sanitizes each id of a rescue Model field alone, keeping the arrow intact', () => {
+      initErrorChannelReporter(fakeClient());
+      reportQuotaFallbackRescue(
+        {
+          requestId: 'req-diag-rescue-url',
+          metadata: {
+            modelUsed: 'should-not-appear/model',
+            quotaFallback: {
+              fromModel: 'https://evil.example/x',
+              toModel: 'admin/default',
+              category: 'model_not_found',
+              mode: 'reactive',
+            },
+          },
+        },
+        'Lila'
+      );
+
+      const fields = lastFields();
+      expect(fields.find(f => f.name === 'Model')?.value).toBe(
+        'https:evil.example/x → admin/default'
+      );
+    });
+
+    it('sanitizes the rescue toModel alone, keeping the arrow intact', () => {
+      initErrorChannelReporter(fakeClient());
+      reportQuotaFallbackRescue(
+        {
+          requestId: 'req-diag-rescue-to-url',
+          metadata: {
+            modelUsed: 'should-not-appear/model',
+            quotaFallback: {
+              fromModel: 'delisted/model',
+              toModel: 'https://evil.example/y',
+              category: 'model_not_found',
+              mode: 'reactive',
+            },
+          },
+        },
+        'Lila'
+      );
+
+      const fields = lastFields();
+      expect(fields.find(f => f.name === 'Model')?.value).toBe(
+        'delisted/model → https:evil.example/y'
+      );
     });
 
     it('canary: the rescue Model-swap rendering is load-bearing (mutate deriveDiagnosticFields mentally: using metadata.modelUsed unconditionally would show should-not-appear/model)', () => {

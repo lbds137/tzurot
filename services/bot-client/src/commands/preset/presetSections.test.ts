@@ -79,6 +79,17 @@ describe('identitySection', () => {
     expect(preview).toContain('**Model:** `anthropic/claude-sonnet-4`');
   });
 
+  it('renders a backtick-bearing model as one inert code span', () => {
+    const data = {
+      name: 'Ticked',
+      model: 'a`[Free](http://evil.example)`b',
+      description: '',
+    } as FlattenedPresetData;
+    expect(identitySection.getPreview(data)).toContain(
+      '**Model:** `a[Free](http://evil.example)b`'
+    );
+  });
+
   it('should show not configured when empty', () => {
     const data = { name: '', model: '', description: '' } as FlattenedPresetData;
     expect(identitySection.getPreview(data)).toBe('_Not configured_');

@@ -486,20 +486,53 @@ function namesSameModel(a: string, b: string): boolean {
  *
  * Model and provider ids look catalog-derived but are NOT: both are free-text
  * modal inputs on the `/preset` dashboard (`model` maxLength 255, `provider`
- * 50), validated for length only. So any surface that renders one into
- * Discord-parsed text must strip these first, or a user-chosen id like
- * `[Free Nitro](http://evil.example)` renders as a live masked link.
+ * 50), validated for length only. Discord-parsed text that renders a provider
+ * id or other free text must strip these first, or a user-chosen id like
+ * `[Free Nitro](http://evil.example)` renders as a live masked link. A model id
+ * goes through {@link sanitizeModelIdForDisplay} instead, which also removes
+ * the scheme separator a bare URL needs to auto-link.
  *
  * CAN return '' from a non-empty input (`'()'` strips to nothing), and an
  * empty Discord embed field value throws at build time — so a caller
  * rendering this into a field must skip the field rather than emit the empty
  * result. Pinned by a case in `discord.test.ts`.
  *
- * Exported because the same values reach more than one rendered surface — the
- * response footer here, and bot-client's owner-channel alert embeds.
+ * Exported because bot-client's inspect and owner-channel embeds render provider
+ * and other non-model values through it.
  */
 export function stripMarkdownDelimiters(value: string): string {
   return value.replace(/[[\]()<>]/g, '');
+}
+
+/** Everything outside the characters a provider model id uses, plus the space. */
+const MODEL_ID_DISALLOWED_CHARS = /[^A-Za-z0-9 /._:~@+-]/g;
+/** A scheme separator. Not verified: from memory, Discord needs one to auto-link a bare URL. */
+const URL_SCHEME_SEPARATOR = /:\/+/g;
+/** An invite or gift path. Not verified: from memory, Discord links these with no scheme. */
+const DISCORD_INVITE_PATH = /discord(?:app)?\.(?:gg|gift|com\/invite)\//gi;
+
+/**
+ * Sanitize a model id for rendering in Discord text, where a bare URL would
+ * auto-link and a free-text id could disguise a link as our own footer. Removes
+ * every character outside a model id's alphabet, which covers the markdown
+ * delimiters and backslash escapes, then repeats until no link shape is left, so
+ * a removal cannot join the pieces of a new one. Render only: comparisons keep
+ * the raw id. The result can be empty, as with `stripMarkdownDelimiters`.
+ */
+export function sanitizeModelIdForDisplay(value: string): string {
+  let result = value.replace(MODEL_ID_DISALLOWED_CHARS, '');
+  let previous: string;
+  do {
+    previous = result;
+    result = result.replace(URL_SCHEME_SEPARATOR, ':').replace(DISCORD_INVITE_PATH, '');
+  } while (result !== previous);
+  return result;
+}
+
+/** A model id as a link label. The footer pattern needs a non-empty label, or the footer would not be stripped from history. */
+function modelLinkLabel(modelId: string): string {
+  const sanitized = sanitizeModelIdForDisplay(modelId);
+  return sanitized.length > 0 ? sanitized : 'unknown';
 }
 
 /**
@@ -610,9 +643,9 @@ function buildProviderAttribution(args: {
  * caller can render the note independently of the model footer line.
  */
 export function buildPiggybackNoteLine(piggybackModel: string): string {
-  // Same sanitization as every rendered model id (modal free-text, length-only
-  // validation), then a code span: stripping alone leaves a bare URL that
-  // Discord auto-links. The post-strip value can be empty — skip then.
+  // The delimiter strip plus a code span. Stripping alone leaves a bare URL that
+  // Discord auto-links, so the span is what keeps it inert. The post-strip value
+  // can be empty — skip then.
   const sanitizedPiggyback = stripMarkdownDelimiters(piggybackModel);
   return sanitizedPiggyback.length > 0
     ? `\n-# ${toInertCodeSpan(sanitizedPiggyback)} is temporarily unavailable, so a fallback free model answered.`
@@ -642,7 +675,7 @@ export function buildModelFooterText(
     routedModel,
     routedModelUrl,
   } = options;
-  const sanitizedModel = stripMarkdownDelimiters(modelUsed);
+  const sanitizedModel = modelLinkLabel(modelUsed);
   // The link rides the RESOLVED model wherever it ends up, so that model is
   // named exactly once. On a swap it is the arrow's target — the chain reads
   // `<from> → <to> (<reason>)` and the old leading mention is gone; the swap
@@ -656,7 +689,7 @@ export function buildModelFooterText(
   const quotaReasonRendered =
     quotaFallback !== undefined && quotaFallback.category !== GUEST_MODE_CATEGORY;
   if (quotaReasonRendered && quotaFallback !== undefined) {
-    const sanitizedFrom = stripMarkdownDelimiters(quotaFallback.fromModel);
+    const sanitizedFrom = sanitizeModelIdForDisplay(quotaFallback.fromModel);
     const reason = QUOTA_FALLBACK_REASON[quotaFallback.category];
     // A route-only swap keeps the reason — it still explains why this model
     // is serving — and drops the chain, which would otherwise name the same
@@ -688,7 +721,7 @@ export function buildModelFooterText(
     // routing happened is the requested model being a known router alias —
     // gate on that, and keep the inequality check only to suppress an
     // alias that happened to resolve to itself.
-    text = `Model: ${sanitizedModel} → [${stripMarkdownDelimiters(routedModel)}](<${routedModelUrl}>) (routed)`;
+    text = `Model: ${sanitizedModel} → [${modelLinkLabel(routedModel)}](<${routedModelUrl}>) (routed)`;
   } else {
     // No quota fallback, no applicable routing, OR a guest-mode substitution:
     // guest mode renders bare, exactly as if quotaFallback were absent — see

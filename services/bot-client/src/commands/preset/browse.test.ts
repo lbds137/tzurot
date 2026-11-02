@@ -232,6 +232,26 @@ describe('handleBrowse', () => {
     expect(description).not.toContain('Claude Paid');
   });
 
+  it('renders a backtick-bearing model id as one inert code span in the row', async () => {
+    configurePresets(stub, [
+      {
+        id: '00000000-0000-4000-8000-000000000003',
+        name: 'Ticked',
+        model: 'a`[Free]`b',
+        provider: 'openrouter',
+        isGlobal: true,
+        isDefault: false,
+        isOwned: false,
+      },
+    ]);
+
+    await handleBrowse(createMockContext());
+
+    const embed = mockEditReply.mock.calls[0][0].embeds[0];
+    expect(embed.data.description).toContain('`a[Free]b`');
+    expect(embed.data.description).not.toContain('``');
+  });
+
   it('should browse presets with default settings (no filter, no query)', async () => {
     configurePresets(stub, [
       {

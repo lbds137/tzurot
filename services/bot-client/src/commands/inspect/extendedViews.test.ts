@@ -327,6 +327,22 @@ describe('buildGenerationParamsView', () => {
     expect(embed?.fields?.[0].value).toContain('"seed": 42');
   });
 
+  it('renders a backtick-bearing model as one inert span and strips a masked-link provider', () => {
+    const payload = createMockPayload({
+      llmConfig: {
+        model: 'a`[Free](http://evil.example)`b',
+        provider: '[x](http://evil.example)',
+        allParams: {},
+      },
+    });
+
+    const result = buildGenerationParamsView(payload, 'req-1', OWNER_CTX);
+    const description = result.embeds?.[0].toJSON().description;
+
+    expect(description).toContain('**Model:** `a[Free](http://evil.example)b`');
+    expect(description).toContain('**Provider:** xhttp://evil.example');
+  });
+
   it('notes when no sampling overrides are set and defers a huge allParams to Full JSON', () => {
     const result = buildGenerationParamsView(
       createMockPayload({

@@ -11,6 +11,7 @@ import {
   BOT_FOOTER_PATTERNS,
   buildModelFooterText,
   buildPiggybackNoteLine,
+  sanitizeModelIdForDisplay,
   stripMarkdownDelimiters,
   toInertCodeSpan,
   DISCORD_PROVIDER_CHOICES,
@@ -22,6 +23,28 @@ import { stripBotFooters } from '../utils/discord.js';
 
 /** The piggyback model in its `z-ai/`-prefixed form — derived so the id never drifts. */
 const PREFIXED_ZAI = `z-ai/${ZAI_FREE_TIER_MODEL}`;
+
+/** Remove every `(<...>)` link target, so only the visible text is checked for a scheme. */
+function stripLinkTargets(text: string): string {
+  return text.replace(/\(<[^>]*>\)/g, '');
+}
+
+/** Hostile model-id inputs and the exact text each must render as. */
+const HOSTILE_MODEL_ID_TABLE: ReadonlyArray<readonly [string, string]> = [
+  ['http://evil.example', 'http:evil.example'],
+  ['[Free Nitro](http://evil.example)', 'Free Nitrohttp:evil.example'],
+  ['https:\\/\\/evil.example', 'https:evil.example'],
+  ['https:/\\/evil.example', 'https:evil.example'],
+  ['HTTPS://evil.example', 'HTTPS:evil.example'],
+  ['https:///evil.example', 'https:evil.example'],
+  ['discord.gg/free', 'free'],
+  ['https://discord.com/invite/free', 'https:free'],
+  ['discord.discord.gg/gg/free', 'free'],
+  ['a\nb', 'ab'],
+  ['[]()', ''],
+  ['discord.gift/free', 'free'],
+  ['http:discord.gg//evil.example', 'http:evil.example'],
+];
 
 describe('Discord ID Validation', () => {
   describe('DISCORD_SNOWFLAKE constants', () => {
@@ -181,6 +204,30 @@ describe('Bot Footer Text Constants', () => {
       expect(stripMarkdownDelimiters('()')).toBe('');
       expect(stripMarkdownDelimiters('[]')).toBe('');
       expect(stripMarkdownDelimiters('<>')).toBe('');
+    });
+  });
+
+  describe('sanitizeModelIdForDisplay', () => {
+    it.each([
+      'openrouter/auto',
+      'z-ai/glm-5.2',
+      'glm-5.3-flash',
+      'anthropic/claude-sonnet-4:free',
+      '~anthropic/claude-sonnet',
+      'meta-llama/llama-3.1_70b',
+      'vendor/model@2024+beta',
+    ])('leaves the legitimate model id %s unchanged', id => {
+      expect(sanitizeModelIdForDisplay(id)).toBe(id);
+    });
+
+    it.each(HOSTILE_MODEL_ID_TABLE)('renders %j as %j', (input, expected) => {
+      expect(sanitizeModelIdForDisplay(input)).toBe(expected);
+    });
+
+    it('never yields a scheme separator for any hostile input', () => {
+      for (const [input] of HOSTILE_MODEL_ID_TABLE) {
+        expect(sanitizeModelIdForDisplay(input)).not.toContain('://');
+      }
     });
   });
 
@@ -499,6 +546,49 @@ describe('Bot Footer Text Constants', () => {
         quotaFallback: { fromModel: 'bad[model](x)', category: 'quota_exceeded' },
       });
       expect(result).toContain('badmodelx → [free-model]');
+    });
+
+    it('renders a URL-shaped model id with no scheme separator in the plain arm', () => {
+      const result = buildModelFooterText('https://evil.example/x', 'https://example.com/m');
+      expect(result).toBe('Model: [https:evil.example/x](<https://example.com/m>)');
+      expect(stripLinkTargets(result)).not.toContain('://');
+    });
+
+    it('renders a URL-shaped quota-fallback source with no scheme separator', () => {
+      const result = buildModelFooterText('free-model', 'https://example.com/m', {
+        quotaFallback: { fromModel: 'https://evil.example/x', category: 'quota_exceeded' },
+      });
+      expect(result).toBe(
+        'Model: https:evil.example/x → [free-model](<https://example.com/m>) (rate limited)'
+      );
+      expect(stripLinkTargets(result)).not.toContain('://');
+    });
+
+    it('renders a URL-shaped routed model id with no scheme separator', () => {
+      const result = buildModelFooterText('openrouter/auto', 'https://example.com/m', {
+        routedModel: 'https://evil.example/x',
+        routedModelUrl: 'https://example.com/m',
+      });
+      expect(result).toBe(
+        'Model: openrouter/auto → [https:evil.example/x](<https://example.com/m>) (routed)'
+      );
+      expect(stripLinkTargets(result)).not.toContain('://');
+    });
+
+    it('labels a model id that sanitizes to nothing as unknown, so the footer is still stripped', () => {
+      expect(buildModelFooterText('()', 'https://example.com/m')).toBe(
+        'Model: [unknown](<https://example.com/m>)'
+      );
+      const routed = buildModelFooterText('openrouter/auto', 'https://example.com/m', {
+        routedModel: '()',
+        routedModelUrl: 'https://example.com/routed',
+      });
+      expect(routed).toBe(
+        'Model: openrouter/auto → [unknown](<https://example.com/routed>) (routed)'
+      );
+      expect(stripBotFooters('Answer body\n-# Model: [unknown](<https://example.com/m>)')).toBe(
+        'Answer body'
+      );
     });
 
     it('names the resolved model exactly once on a swap', () => {
@@ -971,7 +1061,7 @@ describe('Bot Footer Text Constants', () => {
           routedModelUrl: 'https://example.com/routed',
         });
         expect(result).toBe(
-          'Model: openrouter/auto → [Free Nitrohttp://evil.example](<https://example.com/routed>) (routed)'
+          'Model: openrouter/auto → [Free Nitrohttp:evil.example](<https://example.com/routed>) (routed)'
         );
         expect(result).not.toContain('](http://evil.example)');
       });
