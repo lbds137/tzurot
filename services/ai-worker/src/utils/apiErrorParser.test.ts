@@ -482,6 +482,10 @@ describe('parseApiError', () => {
     const specimen =
       '403 thinkingmachines/inkling:free is only available on agentic harnesses. Try plugging it into a coding agent or productivity app listed on https://openrouter.ai/apps';
 
+    it('classifies a non-Error value through the pattern group', () => {
+      expect(parseApiError(specimen).category).toBe(ApiErrorCategory.MODEL_NOT_FOUND);
+    });
+
     it('classifies a bare error (no status) as MODEL_NOT_FOUND', () => {
       const error = new Error(specimen);
       const result = parseApiError(error);
