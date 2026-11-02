@@ -20,7 +20,7 @@ ordinal: 1324000
 <!-- SECTION:DESCRIPTION:BEGIN -->
 Why: doc-114 first unit. Discord-local was the blocker for end-to-end tests; a throwaway Machloket server removes it.
 
-What: a local e2e tier (pnpm test:e2e, *.e2e.test.ts under tests/e2e/machloket) that boots the Machloket server e2e harness and drives discord.js with the real bot-client options (buildDiscordClientOptions, discordRestOptions) through message, webhook, DM, gateway, slash, component and error-code surfaces. Each known server gap is an it.fails test that goes red when the server fixes it.
+What: a local e2e tier (pnpm test:e2e, *.e2e.test.ts under tests/e2e/machloket) that boots the Machloket server e2e harness and drives discord.js with the real bot-client options (buildDiscordClientOptions, discordRestOptions) through message, webhook, DM, gateway, slash, component and error-code surfaces. Each known server gap is a plain test asserting what the server does today, so it goes red when the server fixes it.
 
 Acceptance: pnpm test:e2e passes locally with MACHLOKET_SERVER_DIR set; without it the run fails naming the variable; pnpm test, test:component and test:integration do not collect the new files; TESTING.md records the tier.
 

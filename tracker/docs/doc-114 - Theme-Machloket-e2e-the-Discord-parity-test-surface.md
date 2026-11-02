@@ -30,7 +30,15 @@ Gaps, sent to the Machloket Server session the same day. The Discord side of 3 a
 5. A 2001-character message is accepted, against TR-3.3's 2000.
 6. A modal submit with a text input fails the request schema, so by code-reading every Tzurot modal fails on submit from the Machloket client.
 
-Machloket Server's answer the same day, confirmed by its reading of the code and not yet run or deployed: 1 to 4 and 6 are in its worker; 5 is Lila's call on the server side. It messages when a fix lands; each workaround stays until then. Its fix for 4 is 1 to 80, which leaves a further gap: the instance's `blockedContains` list refuses names holding spacebar, steam, community, support or ticket, where Discord's docs name only clyde and discord, so a persona with "support" in its name still gets a 400 (also Lila's call there). A 2000 limit can be pinned whichever default she picks, through `limits.message.maxCharacters` on `bootInstance`.
+Machloket Server's answer the same day: 1, 2, 3, 4 and 6 fixed and live at its 70304b5f5, along with a DM ordering bug the spike found (MESSAGE_CREATE before CHANNEL_CREATE on a reopened DM). Tzurot's tests for those five now assert Discord's behaviour and pass against that commit. Still open, each pinned as a `known gap` test asserting today's behaviour, which goes red when the server changes:
+
+- 5: Lila's call on the server side. `limits.message.maxCharacters: 2000` on `bootInstance` is proven to enforce it.
+- The blocked-word list: `blockedContains` refuses names holding spacebar, steam, community, support or ticket, where Discord's docs name only clyde and discord, so a persona with "support" in its name gets a 400. Also Lila's call there.
+- 7, below: filed by the server, not started.
+
+The server's main checkout may hold an older `dist` than its commit, so point `MACHLOKET_SERVER_DIR` at a checkout built at the commit under test.
+
+7. Found by canaries, sent the same day: gateway intents appear not to gate anything. With `MessageContent` removed a bot still read another user's guild content, and with `DirectMessages` removed it still received the DM. So the tier cannot notice an intent dropped from bot-client's options until the server gates them; pin it once the server has ruled.
 
 ### Later units
 
