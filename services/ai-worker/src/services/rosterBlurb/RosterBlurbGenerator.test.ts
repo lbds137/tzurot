@@ -96,6 +96,13 @@ describe('generateRosterBlurb', () => {
 describe('invokeRosterBlurbModel seam', () => {
   it('passes the roster-blurb output cap across the shared model call', async () => {
     vi.mocked(invokeSystemModel).mockClear();
+    vi.mocked(invokeSystemModel).mockResolvedValueOnce({
+      content: '{}',
+      tokensIn: 1,
+      tokensOut: 1,
+      provider: AIProvider.ZaiCoding,
+      model: 'z-ai/glm-5.2',
+    } satisfies SystemModelResult);
 
     await invokeRosterBlurbModel('p');
 

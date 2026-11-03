@@ -87,8 +87,9 @@ export interface SystemModelCallOptions {
    * has refused oversized asks against a low key balance (see
    * `AI_DEFAULTS.VISION_MAX_TOKENS` for what is and is not known about where the
    * asked-for size came from). Bounding the ask keeps it affordable whatever the cause.
-   * A response that reaches the cap, or reports a length finish reason, is likely truncated;
-   * `invokeSystemModel` warns in either case.
+   * A response that reaches the cap, or reports a length finish reason, is likely truncated.
+   * `invokeSystemModel` warns on the token-count check on both routes; the length
+   * finish-reason branch is known for OpenRouter and unverified on z.ai-direct.
    */
   maxTokens: number;
   /** Pre-resolved route. Callers that gate on the route (the archive
@@ -131,9 +132,12 @@ export async function invokeSystemModel(
   // extractOpenRouterReasoning.test.ts ("does NOT warn when expectsRawResponse
   // is false and __raw_response is missing on a completed message").
   extractAndPopulateOpenRouterReasoning(response, expectsRawResponse);
+  // When the provider omits usage, tokensOut is 0, so the cap check cannot fire and only
+  // the finish-reason check remains; no warning is not proof the response was complete.
   const tokensOut = response.usage_metadata?.output_tokens ?? 0;
   // Same read as LLMInvoker.logFinishReason: resolveFinishReason over response_metadata.
   const finishReason = resolveFinishReason(response.response_metadata);
+  // The length finish-reason value is unverified on z.ai-direct; the token-count check is route-independent.
   if (tokensOut >= options.maxTokens || finishReason === FINISH_REASONS.LENGTH) {
     logger.warn(
       {
