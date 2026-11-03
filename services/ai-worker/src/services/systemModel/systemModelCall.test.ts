@@ -42,6 +42,15 @@ vi.mock('../ModelFactory.js', () => ({
   createChatModel: createChatModelMock,
 }));
 
+const warnMock = vi.hoisted(() => vi.fn());
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
+  return {
+    ...actual,
+    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: warnMock, error: vi.fn() }),
+  };
+});
+
 import { invokeSystemModel, resolveSystemModelRoute } from './systemModelCall.js';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import {
@@ -93,7 +102,11 @@ describe('invokeSystemModel provider seam', () => {
     setExtractionSettings({ provider: 'zai-coding' });
     getConfigMock.mockReturnValue({ ...baseConfig, ZAI_CODING_API_KEY: 'zai-system-key' });
 
-    const result = await invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000 });
+    const result = await invokeSystemModel('prompt', {
+      appTitleSuffix: 'Test',
+      timeoutMs: 1000,
+      maxTokens: 1000,
+    });
 
     expect(createChatModelMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -118,7 +131,7 @@ describe('invokeSystemModel provider seam', () => {
     setExtractionSettings({ provider: 'zai-coding', model: 'Z-AI/glm-5' });
     getConfigMock.mockReturnValue({ ...baseConfig, ZAI_CODING_API_KEY: 'zai-system-key' });
 
-    await invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000 });
+    await invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000, maxTokens: 1000 });
 
     expect(createChatModelMock).toHaveBeenCalledWith(
       expect.objectContaining({ modelName: 'glm-5' })
@@ -129,7 +142,7 @@ describe('invokeSystemModel provider seam', () => {
     setExtractionSettings({});
     getConfigMock.mockReturnValue(baseConfig);
 
-    await invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000 });
+    await invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000, maxTokens: 1000 });
 
     const args = createChatModelMock.mock.calls[0][0] as Record<string, unknown>;
     expect(args.modelName).toBe('z-ai/glm-5.2');
@@ -145,6 +158,7 @@ describe('invokeSystemModel provider seam', () => {
     await invokeSystemModel('the actual prompt text', {
       appTitleSuffix: 'Test',
       timeoutMs: 4242,
+      maxTokens: 1000,
     });
 
     expect(mockModelGenerate).toHaveBeenCalledWith(
@@ -154,15 +168,15 @@ describe('invokeSystemModel provider seam', () => {
     );
   });
 
-  it('forwards neither thinking nor maxTokens when omitted (no key present, not just undefined-valued)', async () => {
+  it('forwards maxTokens and omits thinking when thinking is not supplied (no key present, not just undefined-valued)', async () => {
     setExtractionSettings({});
     getConfigMock.mockReturnValue(baseConfig);
 
-    await invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000 });
+    await invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000, maxTokens: 1000 });
 
     const args = createChatModelMock.mock.calls[0][0] as Record<string, unknown>;
     expect(Object.keys(args)).not.toContain('thinking');
-    expect(Object.keys(args)).not.toContain('maxTokens');
+    expect(args.maxTokens).toBe(1000);
   });
 
   it('forwards thinking and maxTokens when both are supplied', async () => {
@@ -188,6 +202,7 @@ describe('invokeSystemModel provider seam', () => {
     await invokeSystemModel('prompt', {
       appTitleSuffix: 'Test',
       timeoutMs: 1000,
+      maxTokens: 1000,
       route: { provider: AIProvider.ZaiCoding, apiKey: 'gate-key' },
     });
 
@@ -206,7 +221,7 @@ describe('invokeSystemModel provider seam', () => {
     mockModelGenerate.mockResolvedValueOnce({ generations: [[]] });
 
     await expect(
-      invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000 })
+      invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000, maxTokens: 1000 })
     ).rejects.toThrow('LLM returned empty response');
   });
 
@@ -235,13 +250,58 @@ describe('invokeSystemModel provider seam', () => {
       generations: [[{ text: '', message: fixture }]],
     });
 
-    const result = await invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000 });
+    const result = await invokeSystemModel('prompt', {
+      appTitleSuffix: 'Test',
+      timeoutMs: 1000,
+      maxTokens: 1000,
+    });
 
     expect((fixture.additional_kwargs as Record<string, unknown>).__raw_response).toBeUndefined();
     expect((fixture.response_metadata as Record<string, unknown>).openrouter).toMatchObject({
       provider: 'Parasail',
     });
     expect(result.content).toBe(sentinelContent);
+  });
+
+  it('warns once when output tokens reach the maxTokens cap (likely truncation)', async () => {
+    setExtractionSettings({});
+    getConfigMock.mockReturnValue(baseConfig);
+    mockModelGenerate.mockResolvedValueOnce({
+      generations: [
+        [
+          {
+            text: '{"facts": []}',
+            message: {
+              content: '{"facts": []}',
+              usage_metadata: { input_tokens: 10, output_tokens: 512 },
+            },
+          },
+        ],
+      ],
+    });
+
+    const result = await invokeSystemModel('prompt', {
+      appTitleSuffix: 'Test',
+      timeoutMs: 1000,
+      maxTokens: 512,
+    });
+
+    expect(result.tokensOut).toBe(512);
+    expect(warnMock).toHaveBeenCalledTimes(1);
+    expect(warnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ tokensOut: 512, maxTokens: 512 }),
+      'System model output reached its max_tokens cap; the response is likely truncated'
+    );
+  });
+
+  it('does not warn when output tokens stay below the maxTokens cap', async () => {
+    setExtractionSettings({});
+    getConfigMock.mockReturnValue(baseConfig);
+
+    // Default fixture reports 5 output tokens against a cap of 1000.
+    await invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000, maxTokens: 1000 });
+
+    expect(warnMock).not.toHaveBeenCalled();
   });
 
   it('promotes reasoning into the returned content when the response content is empty', async () => {
@@ -269,7 +329,11 @@ describe('invokeSystemModel provider seam', () => {
       generations: [[{ text: '', message: fixture }]],
     });
 
-    const result = await invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000 });
+    const result = await invokeSystemModel('prompt', {
+      appTitleSuffix: 'Test',
+      timeoutMs: 1000,
+      maxTokens: 1000,
+    });
 
     expect(result.content).toBe(sentinelReasoning);
     expect((fixture.additional_kwargs as Record<string, unknown>).__raw_response).toBeUndefined();

@@ -3,13 +3,20 @@ import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { JobType } from '@tzurot/common-types/constants/queue';
 import type { FactExtractionJobData } from '@tzurot/common-types/types/jobs';
 import {
+  EXTRACTION_MAX_TOKENS,
   FactExtractionService,
   hasEntityOverlap,
   ExtractionProviderBusyError,
+  invokeExtractionModel,
 } from './FactExtractionService.js';
 import { generateFactExtractionJobUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import type { FactStore, SimilarFact } from './FactStore.js';
 import type { ExtractionBudget } from './ExtractionBudget.js';
+import { invokeSystemModel } from '../systemModel/systemModelCall.js';
+
+vi.mock('../systemModel/systemModelCall.js', () => ({
+  invokeSystemModel: vi.fn(),
+}));
 
 const PERSONALITY = '4f9b0f66-0000-4000-8000-0000000000aa';
 const PERSONA_A = '4f9b0f66-0000-4000-8000-0000000000bb';
@@ -644,5 +651,18 @@ describe('delay-not-downgrade (provider busy)', () => {
     expect(written).toBe(0);
     // Permanent failures spent the attempt legitimately — no refund.
     expect(s.budget.refund).not.toHaveBeenCalled();
+  });
+});
+
+describe('invokeExtractionModel seam', () => {
+  it('passes the extraction output cap across the shared model call', async () => {
+    vi.mocked(invokeSystemModel).mockClear();
+
+    await invokeExtractionModel('p');
+
+    expect(invokeSystemModel).toHaveBeenCalledWith(
+      'p',
+      expect.objectContaining({ maxTokens: EXTRACTION_MAX_TOKENS })
+    );
   });
 });
