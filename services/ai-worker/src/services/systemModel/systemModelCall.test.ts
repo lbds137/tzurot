@@ -47,7 +47,13 @@ vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
-    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: warnMock, error: vi.fn() }),
+    // Only this module's logger shares warnMock; other modules get their own spy.
+    createLogger: (name: string) => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: name === 'systemModelCall' ? warnMock : vi.fn(),
+      error: vi.fn(),
+    }),
   };
 });
 
@@ -290,7 +296,34 @@ describe('invokeSystemModel provider seam', () => {
     expect(warnMock).toHaveBeenCalledTimes(1);
     expect(warnMock).toHaveBeenCalledWith(
       expect.objectContaining({ tokensOut: 512, maxTokens: 512 }),
-      'System model output reached its max_tokens cap; the response is likely truncated'
+      'System model response is likely truncated (output reached max_tokens or finish reason was length)'
+    );
+  });
+
+  it('warns once when the provider reports a length finish reason below the maxTokens cap', async () => {
+    setExtractionSettings({});
+    getConfigMock.mockReturnValue(baseConfig);
+    mockModelGenerate.mockResolvedValueOnce({
+      generations: [
+        [
+          {
+            text: '{"facts": [',
+            message: {
+              content: '{"facts": [',
+              usage_metadata: { input_tokens: 10, output_tokens: 5 },
+              response_metadata: { finish_reason: 'length' },
+            },
+          },
+        ],
+      ],
+    });
+
+    await invokeSystemModel('prompt', { appTitleSuffix: 'Test', timeoutMs: 1000, maxTokens: 1000 });
+
+    expect(warnMock).toHaveBeenCalledTimes(1);
+    expect(warnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ tokensOut: 5, maxTokens: 1000, finishReason: 'length' }),
+      'System model response is likely truncated (output reached max_tokens or finish reason was length)'
     );
   });
 

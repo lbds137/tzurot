@@ -18,6 +18,7 @@
 import { HumanMessage } from '@langchain/core/messages';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { AIProvider, toZaiWireModelId } from '@tzurot/common-types/constants/ai';
+import { FINISH_REASONS, resolveFinishReason } from '@tzurot/common-types/constants/finishReasons';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import type { ThinkingLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -86,7 +87,8 @@ export interface SystemModelCallOptions {
    * has refused oversized asks against a low key balance (see
    * `AI_DEFAULTS.VISION_MAX_TOKENS` for what is and is not known about where the
    * asked-for size came from). Bounding the ask keeps it affordable whatever the cause.
-   * A response that reaches the cap is likely truncated; `invokeSystemModel` warns when it does.
+   * A response that reaches the cap, or reports a length finish reason, is likely truncated;
+   * `invokeSystemModel` warns in either case.
    */
   maxTokens: number;
   /** Pre-resolved route. Callers that gate on the route (the archive
@@ -130,7 +132,9 @@ export async function invokeSystemModel(
   // is false and __raw_response is missing on a completed message").
   extractAndPopulateOpenRouterReasoning(response, expectsRawResponse);
   const tokensOut = response.usage_metadata?.output_tokens ?? 0;
-  if (tokensOut >= options.maxTokens) {
+  // Same read as LLMInvoker.logFinishReason: resolveFinishReason over response_metadata.
+  const finishReason = resolveFinishReason(response.response_metadata);
+  if (tokensOut >= options.maxTokens || finishReason === FINISH_REASONS.LENGTH) {
     logger.warn(
       {
         appTitleSuffix: options.appTitleSuffix,
@@ -138,8 +142,9 @@ export async function invokeSystemModel(
         provider: route.provider,
         tokensOut,
         maxTokens: options.maxTokens,
+        finishReason,
       },
-      'System model output reached its max_tokens cap; the response is likely truncated'
+      'System model response is likely truncated (output reached max_tokens or finish reason was length)'
     );
   }
   return {

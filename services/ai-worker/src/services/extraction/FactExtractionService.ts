@@ -66,7 +66,10 @@ const EXTRACTION_TIMEOUT_MS = 180_000;
  * `usage_logs.tokens_out` (p99 11159, max 13517 over 1278 extraction calls),
  * ~2.4x the observed max. Sized high on purpose: a cap
  * that truncates the JSON fact array mid-array surfaces as a parse failure and
- * silently loses facts.
+ * silently loses facts. The distribution above was measured while prod extraction
+ * ran the z.ai-direct route (inferred from the extraction provider setting, not
+ * checked per row); OpenRouter may count reasoning tokens differently, so the
+ * cap-hit warning in `invokeSystemModel` is the check after a provider switch.
  */
 export const EXTRACTION_MAX_TOKENS = 32_768;
 
