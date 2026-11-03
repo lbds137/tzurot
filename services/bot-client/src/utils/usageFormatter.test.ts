@@ -1,7 +1,7 @@
 /**
- * Focused coverage for the z.ai plan section of the admin usage embed —
- * the rest of the formatter long predates its test file (structure-excluded
- * as a Formatter helper); this suite covers the new surface directly.
+ * Focused coverage of the admin usage embed: the z.ai plan section and how
+ * model and provider keys render. The rest of the formatter long predates its
+ * test file (structure-excluded as a Formatter helper).
  */
 
 import { describe, it, expect } from 'vitest';
