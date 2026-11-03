@@ -2,16 +2,23 @@
 
 > **Session handoff 2026-11-01 08:45 EST (Opus 5.5, Anthropic direct)**: post-merge audit of work built on non-Anthropic lanes (owner call): review done, 52 PRs and 72 direct commits, results in gitignored `docs/local/glm-audit/findings.md`. One prod bug found and fixed: #2689 (TASK-1330). Also shipped #2690 (TASK-1328) and owner-approved #2664. Filed TASK-1331 to 1335; fixes go through agy one at a time, 1331 next. Hold: no archive-summary prompt-version bump or re-sweep until #2689 reaches prod. Owner queue: 1306/1309/1303/1294/1262.
 
-> **Version**: v3.0.0-beta.241 — "batch pick error-path hardening" — SHIPPED 2026-10-27 15:30Z (release PR #2673 after her merge approval; plain rebase-merge at 45 commits incl. already-applied ones; tagged `latest`, beta.240 demoted). 8 PRs / 8 runtime / 71 files; no migrations. Holistic review: no blocking findings. Notes: `docs/local/release-notes-beta.241.md`. Preflight caught `delete_branch_on_merge` re-enabled by a Deck repo-standard sweep; Deck reverted it and recorded tzurot as the exception.
+> **Version**: v3.0.0-beta.242 — "bot-client hardening and the Machloket e2e tier" — SHIPPED 2026-11-03 12:24Z (release PR #2711 after her merge approval; GitHub refused the rebase-merge at 139 commits, so main was fast-forwarded to develop `58919f86f` and finalize was a no-op; tagged `latest`, beta.241 demoted). 33 PRs / 18 runtime / 238 files; no migrations. Holistic review: no blocking findings. Notes: `docs/local/release-notes-beta.242.md`. Dependabot #2697/#2698 did not answer a rebase request and ride the next release.
 >
-> **Previous**: v3.0.0-beta.240 — "batch clear and remove for the override and deny browsers" (6 PRs / 6 runtime / 65 files; 2026-10-26 13:10Z).
+> **Previous**: v3.0.0-beta.241 — "batch pick error-path hardening" (8 PRs / 8 runtime / 71 files; 2026-10-27 15:30Z).
 
 ## 🧪 Next release watch (merged to develop, not yet in prod)
+
+- _(empty since the beta.242 cut)_
+
+## 🧪 beta.242 watch (shipped 2026-11-03; no needs-smoke)
+
+- **Check — refused webhook names (#2710):** the first persona whose name Discord refuses should log `Webhook username refused, retrying with adjusted name` followed by a delivered message; a second send to that persona should go straight out under the cached name. Runtime-unverified end to end.
+- **Watch — OpenRouter harness-only 403 (#2702):** classified as model unavailable; fires only on that provider response.
 
 - **Check — stored summaries render (#2689):** a prod read on 11-01 found 39 rows with a stored summary not rendering (`failed` or `dead`), all recalled. After deploy, confirm a real affected row renders its summary; not runtime-confirmed yet. Count script: `docs/local/glm-audit/stranded-summaries.mjs` (read-only; its count will not fall, because the rows keep their status).
 - **Expected — `summaryNotes` telemetry rises (#2689):** notes from `failed`, `dead` and `pending` rows now count as summary notes. A small step up is not a regression.
 - **Watch — one NSFW prompt per multi-tag message (#2690):** logs should show one `Interaction blocked - user not NSFW verified` per message. The all-denied log now comes from logger `MultiTagCoordinatorHelpers`, so a saved Railway filter on the old name needs updating.
-- **Release preflight — Dependabot alert 197:** `minimatch` moderate, transitive and dev-scope, needs a `pnpm.overrides` bump.
+- **Follow-up — Dependabot alert 197:** `minimatch` moderate, transitive and dev-scope only; its override PR follows the cut.
 
 ## 🧪 beta.241 watch (shipped 2026-10-27; no needs-smoke)
 
