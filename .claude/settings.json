@@ -86,13 +86,13 @@
   },
   "permissions": {
     "allow": [
-      "Read(*)",
-      "Write(*)",
-      "Edit(*)",
+      "Read",
+      "Write",
+      "Edit",
       "MultiEdit(*)",
       "LS(*)",
-      "Glob(*)",
-      "Grep(*)",
+      "Glob",
+      "Grep",
       "Task(*)",
       "TodoRead",
       "TodoWrite(*)",
