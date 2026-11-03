@@ -72,7 +72,9 @@ fi
 CODE_FILES=$(echo "$CHANGED_FILES" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|d\.ts)$|package\.json$|pnpm-lock\.yaml$|(^|/)(tsconfig[^/]*\.json|turbo\.json|pnpm-workspace\.yaml|\.npmrc|\.node-version|knip\.json|Dockerfile[^/]*|schema\.prisma)$' || true)
 # Turbo's affected filter selects no package for these root files (measured with
 # --dry=json), and they change what every package builds or checks.
-ROOT_CONFIG_FILES=$(echo "$CHANGED_FILES" | grep -E '^(tsconfig[^/]*\.json|package\.json|pnpm-workspace\.yaml|\.npmrc|\.node-version|eslint\.config\.js|vitest[^/]*\.config\.[^/]+|prisma/schema\.prisma)$' || true)
+# knip.json and .dependency-cruiser.cjs stay filtered: the steps that read them,
+# knip:dead and depcruise, run without turbo's filter.
+ROOT_CONFIG_FILES=$(echo "$CHANGED_FILES" | grep -E '^(tsconfig[^/]*\.json|package\.json|pnpm-workspace\.yaml|\.npmrc|\.node-version|eslint\.config\.js|vitest\.config\.[^/]+|prisma\.config\.ts|prisma/schema\.prisma)$' || true)
 # PYTHON_FILES also covers voice-engine's dependency files (pyproject.toml, requirements*.txt).
 PYTHON_FILES=$(echo "$CHANGED_FILES" | grep -E '\.py$|^services/voice-engine/(pyproject\.toml|requirements[^/]*\.txt)$' || true)
 
