@@ -42,7 +42,7 @@
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@types/estree": "^1.0.9",
+    "@types/estree": "^1.0.10",
     "@types/node": "^24.19.2",
     "@types/semver": "^7.8.0",
     "@tzurot/test-utils": "workspace:*",
