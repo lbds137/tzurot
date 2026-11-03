@@ -14,7 +14,6 @@
 
 - **Check — refused webhook names (#2710):** the first persona whose name Discord refuses should log `Webhook username refused, retrying with adjusted name` followed by a delivered message; a second send to that persona should go straight out under the cached name. Runtime-unverified end to end.
 - **Watch — OpenRouter harness-only 403 (#2702):** classified as model unavailable; fires only on that provider response.
-
 - **Check — stored summaries render (#2689):** a prod read on 11-01 found 39 rows with a stored summary not rendering (`failed` or `dead`), all recalled. After deploy, confirm a real affected row renders its summary; not runtime-confirmed yet. Count script: `docs/local/glm-audit/stranded-summaries.mjs` (read-only; its count will not fall, because the rows keep their status).
 - **Expected — `summaryNotes` telemetry rises (#2689):** notes from `failed`, `dead` and `pending` rows now count as summary notes. A small step up is not a regression.
 - **Watch — one NSFW prompt per multi-tag message (#2690):** logs should show one `Interaction blocked - user not NSFW verified` per message. The all-denied log now comes from logger `MultiTagCoordinatorHelpers`, so a saved Railway filter on the old name needs updating.
@@ -56,12 +55,6 @@
 2. **(needs-smoke)** #2583's guest footer: flip the z.ai piggyback kill-switch on dev → a guest (alt account) turn shows the "temporarily unavailable, so a fallback free model answered" footer; a keyed user's turn does not. Unflip after.
 3. **(observability, no action)** #2587's drift alert arrives organically if a configured model leaves the catalog — silence means all configured ids are catalog-healthy. #2582's retarget log line appears on the next real retarget.
 4. **(carried)** The beta.234 items: #2572's retarget log line on prod; #2577's check is the owner's Lilith recall retest (ask about Haida and Inui).
-
-## ⏳ In flight (2026-10-09, GLM-flash lane)
-
-- **beta.236 SHIPPED 2026-10-12** (above); TASK-822 and TASK-1194 flipped Done at ship. The bullets below are the pre-cut record.
-- **beta.235 SHIPPED; 2026-10-09 GLM-lane session merged five PRs.** #2589 + #2591 (the #2578 claude-workflow bumps 1.0.240→244) to MAIN with two Lila-approved `release:finalize` runs; **#2578 closed itself satisfied** · #2590 (deps security overrides: proxy-addr + shell-quote CRITICAL, sharp HIGH) to develop · #2593 (TASK-1194: pre-push §10b mirrors `surface:inventory --check` + the orchestration-skill gate line; 3 rounds, no blocking) to develop · **#2592 (TASK-822: job-wide LLM budget — `LLM_PER_ATTEMPT` 300s, `LLM_INVOCATION` 910s, `LLM_JOB_BUDGET` 720s, gates at every attempt-starting layer) to develop: 6 review rounds, NO blocking findings in any; round 1 fixed a real spec gap (the duplicate-retry loop was a fourth attempt-starting layer the original enforcement list omitted); deferred dispositions in the PR body; TASK-1197 filed for the backoff-formula derivation.** TASK-822 flips Done at beta.236 ship. TASK-1196 stays `state:dependent`. Watch: Machloket W2 deploy (invalidWhereValues ignore→throw) — new 500s against :8443/:8444 go to Machloket Server. Queue: TASK-1175 (characters:import AVATARS.json) → Deck's ruled tailnet scrub → doc-7 drain. A leftover stash entry `current-md-update` (a superseded CURRENT.md draft) is safe to `git stash drop` — owner's yes.
-- **Done 2026-10-08→09**: #2583 (TASK-1171) · #2584/#2585 (dep groups) · #2586 (TASK-1166+1185) · #2587 (TASK-1182) — all merged after 3-5 review rounds each; TASK-1171/1166/1185/1182 flipped Done at ship; TASK-1193/1194/1196 filed as riders.
 
 ---
 
