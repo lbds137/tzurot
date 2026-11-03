@@ -61,6 +61,15 @@ const SIMILARITY_SUPERSESSION_THRESHOLD = 0.88;
  * runs the same calls at 120s; 180s adds headroom for the heaviest windows. */
 const EXTRACTION_TIMEOUT_MS = 180_000;
 
+/**
+ * Output-token cap for one extraction call. Sized off measured prod
+ * `usage_logs.tokens_out` (p99 11159, max 13517 over 1278 extraction calls),
+ * ~2.4x the observed max. Sized high on purpose: a cap
+ * that truncates the JSON fact array mid-array surfaces as a parse failure and
+ * silently loses facts.
+ */
+export const EXTRACTION_MAX_TOKENS = 32_768;
+
 interface EpisodeGroup {
   personaId: string;
   isFiction: boolean;
@@ -134,6 +143,7 @@ export function invokeExtractionModel(prompt: string): Promise<SystemModelResult
   return invokeSystemModel(prompt, {
     appTitleSuffix: 'Extraction',
     timeoutMs: EXTRACTION_TIMEOUT_MS,
+    maxTokens: EXTRACTION_MAX_TOKENS,
   });
 }
 

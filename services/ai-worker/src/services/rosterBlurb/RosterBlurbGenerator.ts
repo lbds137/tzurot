@@ -34,6 +34,13 @@ const logger = createLogger('RosterBlurbGenerator');
  */
 const ROSTER_BLURB_TIMEOUT_MS = 60_000;
 
+/**
+ * Output-token cap for one summarization call. Sized off measured prod
+ * `usage_logs.tokens_out` (p99 2641, max 3027 over 221 roster-blurb calls),
+ * ~2.7x the observed max.
+ */
+export const ROSTER_BLURB_MAX_TOKENS = 8_192;
+
 /** One generation attempt: the blurb if it parsed, plus what the call cost. */
 export interface RosterBlurbGeneration {
   /** The generated blurb, or `null` when the response failed to parse. */
@@ -48,6 +55,7 @@ export function invokeRosterBlurbModel(prompt: string): Promise<SystemModelResul
   return invokeSystemModel(prompt, {
     appTitleSuffix: 'RosterBlurb',
     timeoutMs: ROSTER_BLURB_TIMEOUT_MS,
+    maxTokens: ROSTER_BLURB_MAX_TOKENS,
   });
 }
 

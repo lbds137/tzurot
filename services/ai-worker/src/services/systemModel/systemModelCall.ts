@@ -20,9 +20,12 @@ import { getConfig } from '@tzurot/common-types/config/config';
 import { AIProvider, toZaiWireModelId } from '@tzurot/common-types/constants/ai';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import type { ThinkingLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { createChatModel } from '../ModelFactory.js';
 import { extractAndPopulateOpenRouterReasoning } from '../modelFactory/extractOpenRouterReasoning.js';
 import { invokeModelGuarded } from '../../utils/invokeModelGuarded.js';
+
+const logger = createLogger('systemModelCall');
 
 /** One background model call's outcome — content plus token usage for cost rows. */
 export interface SystemModelResult {
@@ -77,8 +80,15 @@ export interface SystemModelCallOptions {
   /** Reasoning level for this call. Omitted entirely when undefined, because
    *  absent (provider default) is distinct from 'off' (explicitly disabled). */
   thinking?: ThinkingLevel;
-  /** Per-call output cap, forwarded only when defined. */
-  maxTokens?: number;
+  /**
+   * Per-call output cap, always forwarded; every background caller must choose one.
+   * Without `max_tokens` we cannot say what budget the request asks for. OpenRouter
+   * has refused oversized asks against a low key balance (see
+   * `AI_DEFAULTS.VISION_MAX_TOKENS` for what is and is not known about where the
+   * asked-for size came from). Bounding the ask keeps it affordable whatever the cause.
+   * A response that reaches the cap is likely truncated; `invokeSystemModel` warns when it does.
+   */
+  maxTokens: number;
   /** Pre-resolved route. Callers that gate on the route (the archive
    *  summarizer) pass the value their gate accepted, so a live
    *  `extractionProvider` change between gate and call cannot bill a route the
@@ -107,7 +117,7 @@ export async function invokeSystemModel(
     provider: route.provider,
     ...(route.apiKey !== undefined ? { apiKey: route.apiKey } : {}),
     ...(options.thinking !== undefined ? { thinking: options.thinking } : {}),
-    ...(options.maxTokens !== undefined ? { maxTokens: options.maxTokens } : {}),
+    maxTokens: options.maxTokens,
   });
   const response = await invokeModelGuarded(model, [new HumanMessage(prompt)], {
     timeout: options.timeoutMs,
@@ -119,11 +129,24 @@ export async function invokeSystemModel(
   // extractOpenRouterReasoning.test.ts ("does NOT warn when expectsRawResponse
   // is false and __raw_response is missing on a completed message").
   extractAndPopulateOpenRouterReasoning(response, expectsRawResponse);
+  const tokensOut = response.usage_metadata?.output_tokens ?? 0;
+  if (tokensOut >= options.maxTokens) {
+    logger.warn(
+      {
+        appTitleSuffix: options.appTitleSuffix,
+        model: systemModel,
+        provider: route.provider,
+        tokensOut,
+        maxTokens: options.maxTokens,
+      },
+      'System model output reached its max_tokens cap; the response is likely truncated'
+    );
+  }
   return {
     content:
       typeof response.content === 'string' ? response.content : JSON.stringify(response.content),
     tokensIn: response.usage_metadata?.input_tokens ?? 0,
-    tokensOut: response.usage_metadata?.output_tokens ?? 0,
+    tokensOut,
     provider: route.provider,
     model: systemModel,
   };
