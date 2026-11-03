@@ -83,3 +83,26 @@ describe('buildAdminUsageEmbed — top models rendering', () => {
     expect(field?.value).not.toContain('[');
   });
 });
+
+describe('buildAdminUsageEmbed — provider breakdown rendering', () => {
+  function providerField(byProvider: AdminUsageStats['byProvider']): string | undefined {
+    const embed = buildAdminUsageEmbed({ ...baseStats(), totalRequests: 1, byProvider });
+    return (embed.data.fields ?? []).find(f => f.name === 'By Provider')?.value;
+  }
+
+  it('sanitizes a byProvider key before it renders in bold', () => {
+    const value = providerField({
+      '[x](http://evil.example)': { requests: 1, tokensIn: 0, tokensOut: 0 },
+    });
+
+    expect(value).toContain('**xhttp:evil.example**');
+    expect(value).not.toContain('://');
+    expect(value).not.toContain('[');
+  });
+
+  it('renders a real provider name unchanged', () => {
+    const value = providerField({ 'zai-coding': { requests: 1, tokensIn: 0, tokensOut: 0 } });
+
+    expect(value).toContain('**zai-coding**');
+  });
+});

@@ -1,9 +1,10 @@
 ---
 id: TASK-1343
 title: usageFormatter renders byProvider keys unsanitized
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-03T00:16:00Z'
+updated_date: '2026-11-03T00:49:00Z'
 labels:
   - area:bot-client
   - size:S

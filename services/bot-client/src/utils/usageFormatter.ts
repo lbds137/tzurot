@@ -51,7 +51,9 @@ function addProviderBreakdown(
     .slice(0, maxItems)
     .map(provider => {
       const p = byProvider[provider];
-      return `**${provider}**: ${p.requests} req • ${formatTokens(p.tokensIn + p.tokensOut)} tokens`;
+      // Keys come from usage rows, and route resolution passes a config's free-text
+      // provider through unvalidated, so they are not treated as canonical names.
+      return `**${sanitizeModelIdForDisplay(provider)}**: ${p.requests} req • ${formatTokens(p.tokensIn + p.tokensOut)} tokens`;
     });
 
   embed.addFields({
