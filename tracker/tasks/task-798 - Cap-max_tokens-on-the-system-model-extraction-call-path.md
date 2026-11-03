@@ -3,11 +3,12 @@ id: TASK-798
 title: Cap max_tokens on the system-model (extraction) call path
 status: To Do
 assignee: []
-created_date: '2026-08-28 19:18'
+created_date: 2026-08-28 19:18
+updated_date: '2026-11-03T20:38:00Z'
 labels:
-  - 'area:ai-worker'
-  - 'size:S'
-  - 'state:ready'
+  - area:ai-worker
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 798000
@@ -34,7 +35,18 @@ Acceptance: invokeSystemModel sends a bounded max_tokens derived from measured o
 <!-- COMMENTS:BEGIN -->
 author: agent
 created: 2026-09-13
+
 ---
+
 MEASURED 2026-09-13 on prod usage_logs (owner-run query, aggregates only), tokens_out by request_type: fact_extraction n=1278 p50=3199 p90=7290 p99=11159 max=13517 (2026-07-11 to 2026-09-13); roster_blurb n=221 p50=1261 p90=2001 p99=2641 max=3027; llm_generation n=28342 p50=619 p99=5675 max=10636. Recommended cap: AI_DEFAULTS.EXTRACTION_MAX_TOKENS = 32768 (~2.4x the observed max, so a truncated JSON array is not a realistic outcome at current batch sizes); roster_blurb rides the same seam and fits under it. state:ready for the drain; the measurement clause of the fix shape is satisfied.
+
+---
+
+created: 2026-11-03T20:38:00Z
+
+---
+
+Shipped as PR #2715 (in review). Departures from the fix shape, both deliberate: the caps live beside each job's timeout (EXTRACTION_MAX_TOKENS 32768 in FactExtractionService.ts, ROSTER_BLURB_MAX_TOKENS 8192 in RosterBlurbGenerator.ts), matching the archive-summary and recent-days-digest siblings, rather than in AI_DEFAULTS; roster-blurb gets its own cap sized off its own distribution instead of riding the extraction one. Also: maxTokens is now required on SystemModelCallOptions, and invokeSystemModel warns when output reaches the cap. Set Done at merge.
+
 ---
 <!-- COMMENTS:END -->
