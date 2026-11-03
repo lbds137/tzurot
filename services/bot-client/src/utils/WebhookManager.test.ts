@@ -817,6 +817,11 @@ describe('isRefusedUsernameError', () => {
     expect(isRefusedUsernameError(error)).toBe(false);
   });
 
+  it('accepts a 50035 whose username object has no _errors array', () => {
+    // The reason is then reported as 'unknown' by the retry path's warn log.
+    expect(isRefusedUsernameError(createDiscordError(50035, { username: {} }))).toBe(true);
+  });
+
   it('rejects a Discord error with another code', () => {
     expect(isRefusedUsernameError(createDiscordError(10062, undefined))).toBe(false);
   });

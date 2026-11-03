@@ -165,8 +165,8 @@ describe('adjustRefusedWebhookUsername', () => {
   it('clamps a 100-character name so the whole username fits the cap', () => {
     const out = adjustRefusedWebhookUsername('a'.repeat(100), suffix);
 
-    expect(out.length).toBeLessThanOrEqual(WEBHOOK_USERNAME_MAX_LENGTH);
-    expect(out.endsWith(`… · Tzurot`)).toBe(true);
+    expect(out).toBe(`${'a'.repeat(70)}… · Tzurot`);
+    expect(out.length).toBe(WEBHOOK_USERNAME_MAX_LENGTH);
   });
 
   it('never leaves a lone surrogate at the cut point', () => {
