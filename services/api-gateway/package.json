@@ -1,6 +1,6 @@
 {
   "name": "@tzurot/api-gateway",
-  "version": "3.0.0-beta.241",
+  "version": "3.0.0-beta.242",
   "private": true,
   "type": "module",
   "description": "API gateway service for Tzurot bot",

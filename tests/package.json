@@ -1,6 +1,6 @@
 {
   "name": "@tzurot/e2e",
-  "version": "3.0.0-beta.241",
+  "version": "3.0.0-beta.242",
   "private": true,
   "type": "module",
   "description": "Integration + contract tests for Tzurot services (run via the root `pnpm test:integration`; see vitest.integration.config.ts), plus the local transport tier (`pnpm test:e2e`).",
