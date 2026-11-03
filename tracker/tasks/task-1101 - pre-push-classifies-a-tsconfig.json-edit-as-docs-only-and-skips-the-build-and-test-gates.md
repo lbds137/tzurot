@@ -3,13 +3,14 @@ id: TASK-1101
 title: >-
   pre-push classifies a tsconfig.json edit as docs-only and skips the build and
   test gates
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-09-25 13:43'
+created_date: 2026-09-25 13:43
+updated_date: '2026-11-03T01:49:00Z'
 labels:
-  - 'area:husky'
-  - 'size:S'
-  - 'state:ready'
+  - area:husky
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1094000

@@ -97,8 +97,7 @@ export const HOOK_PROBES: HookProbeEntry[] = [
   },
   {
     // Decision logic for the pre-push tracker gate lives here (probeable)
-    // rather than inline in .husky/pre-push, which stays a composer per its
-    // own unprobedReason.
+    // rather than inline in .husky/pre-push, which stays a composer.
     hook: '.claude/hooks/tracker-dirty-push-gate.sh',
     probe: '.claude/hooks/tracker-dirty-push-gate.probe.sh',
   },
@@ -136,14 +135,12 @@ export const HOOK_PROBES: HookProbeEntry[] = [
       'commitlint, which is what the retired rider-checklist banner used to be.',
   },
   {
+    // Partial by design, and the probe's own header says so: it pins which path
+    // the hook takes (docs-only exit or the code path) and whether turbo is
+    // scoped by --filter, with `pnpm` stubbed. It does not run the gates
+    // themselves; driving them means running the whole pipeline the hook wraps.
     hook: '.husky/pre-push',
-    probe: null,
-    unprobedReason:
-      'Runs the real gates (build, lint, tests, and a hand-picked subset of the guards) ' +
-      'rather than deciding anything itself — a harness would have to re-run the pipeline ' +
-      'it wraps. It composes its own check list rather than calling `pnpm quality`, and ' +
-      'guard:hook-probes is deliberately NOT in it: this gate belongs to CI and to an ' +
-      'explicit `pnpm quality`, as the backstop rather than the loop.',
+    probe: '.claude/hooks/husky-pre-push.probe.sh',
   },
 ];
 
