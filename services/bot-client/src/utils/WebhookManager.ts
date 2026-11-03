@@ -273,7 +273,7 @@ export class WebhookManager {
         webhook,
         webhookOptions,
         personality,
-        channel.id
+        standardizedName
       );
     }
     logger.info({ username: sent.username, channelId: channel.id }, 'Sent message as personality');
@@ -291,9 +291,8 @@ export class WebhookManager {
     webhook: Webhook,
     options: WebhookSendOptions,
     personality: LoadedPersonality,
-    channelId: string
+    standardizedName: string
   ): Promise<{ message: Message; username: string }> {
-    const standardizedName = this.getStandardizedUsername(personality);
     const refusal = usernameRefusalCode(error);
     if (refusal === null) {
       throw error;
@@ -310,7 +309,7 @@ export class WebhookManager {
       throw error;
     }
     logger.warn(
-      { personalityId: personality.id, channelId, refusal },
+      { personalityId: personality.id, channelId: webhook.channelId, refusal },
       'Webhook username refused, retrying with adjusted name'
     );
 

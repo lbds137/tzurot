@@ -6,7 +6,7 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 3058,
+    "entries": 3059,
     "sites": 7090
   },
   "entries": [
@@ -8857,6 +8857,12 @@
     {
       "category": "client-methods",
       "file": "services/bot-client/src/utils/WebhookManager.ts",
+      "symbol": "channelId",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/WebhookManager.ts",
       "symbol": "client",
       "count": 2
     },
@@ -8888,7 +8894,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/utils/WebhookManager.ts",
       "symbol": "id",
-      "count": 9
+      "count": 8
     },
     {
       "category": "client-methods",

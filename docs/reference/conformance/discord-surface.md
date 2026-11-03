@@ -1489,12 +1489,13 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/MessageContentBuilder.ts | messageSnapshots | 2 |
 | services/bot-client/src/utils/MessageContentBuilder.ts | reference | 1 |
 | services/bot-client/src/utils/MessageContentBuilder.ts | toJSON | 2 |
+| services/bot-client/src/utils/WebhookManager.ts | channelId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | client | 2 |
 | services/bot-client/src/utils/WebhookManager.ts | code | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | createWebhook | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | fetchWebhooks | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | find | 1 |
-| services/bot-client/src/utils/WebhookManager.ts | id | 9 |
+| services/bot-client/src/utils/WebhookManager.ts | id | 8 |
 | services/bot-client/src/utils/WebhookManager.ts | isThread | 2 |
 | services/bot-client/src/utils/WebhookManager.ts | owner | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | parent | 1 |
@@ -3128,4 +3129,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 2 |
 
-Total: 3058 entries across 7090 sites.
+Total: 3059 entries across 7090 sites.

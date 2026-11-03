@@ -165,6 +165,10 @@ export function stripBotSuffix(webhookUsername: string, botSuffix: string): stri
  *    Whole code points are dropped from the end and `…` appended, so no
  *    surrogate pair is cut.
  * 3. Append the bot suffix.
+ *
+ * Only the contains-word (`USERNAME_INVALID_CONTAINS`) and length
+ * (`BASE_TYPE_BAD_LENGTH`) refusals are addressed; any other refusal gets one
+ * retry that is refused again and rethrown.
  */
 export function adjustRefusedWebhookUsername(displayName: string, botSuffix: string): string {
   let name = displayName;
