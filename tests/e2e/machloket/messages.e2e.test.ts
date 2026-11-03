@@ -144,6 +144,7 @@ describe('Machloket transport contract: messages, webhooks, DMs, guild state, an
   it.each([
     ['everyone', 'everyone'],
     ['HERE', 'here'],
+    ['Everyone', 'everyone'],
   ])(
     'refuses webhook.send with exact username %s with 50035 on username',
     async (username, word) => {
@@ -173,6 +174,7 @@ describe('Machloket transport contract: messages, webhooks, DMs, guild state, an
   it.each([
     ['everyone', 'everyone'],
     ['HERE', 'here'],
+    ['Everyone', 'everyone'],
   ])('refuses createWebhook with exact name %s with 50035 on name', async (name, word) => {
     await expect(channel.createWebhook({ name })).rejects.toMatchObject({
       status: 400,
