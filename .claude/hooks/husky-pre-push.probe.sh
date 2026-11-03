@@ -12,9 +12,15 @@
 # `pnpm` and `uv` stubs first on PATH. Git is real and is not stubbed. The real
 # repo is only read, never written.
 #
+# Every case is a first push (the fixture branch has no upstream), so step 2's
+# merge-base branch runs. The `@{u}` branch and the fallbacks used when
+# `origin/develop` is missing are not covered.
+#
 # Usage: .claude/hooks/husky-pre-push.probe.sh   (from anywhere)
 
 set -uo pipefail
+# An inherited GIT_DIR would point the fixture's git calls at another repo.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
@@ -163,5 +169,13 @@ check "a doc named like a tsconfig is docs-only" \
     "docs/tsconfig-notes.md" docs none
 check "requirements outside voice-engine is docs-only" \
     "docs/requirements.txt" docs none
+check "root prisma.config.ts takes the code path, unfiltered" \
+    "prisma.config.ts" full nofilter
+check "a vitest tier config the hook does not run stays filtered" \
+    "vitest.component.config.ts" full filter
+check "pnpm-lock.yaml takes the code path, filtered" \
+    "pnpm-lock.yaml" full filter
+check "dependency-cruiser config takes the code path, filtered" \
+    ".dependency-cruiser.cjs" full filter
 
 exit $fail

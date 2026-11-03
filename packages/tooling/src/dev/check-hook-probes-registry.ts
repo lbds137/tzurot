@@ -137,8 +137,11 @@ export const HOOK_PROBES: HookProbeEntry[] = [
   {
     // Partial by design, and the probe's own header says so: it pins which path
     // the hook takes (docs-only exit or the code path) and whether turbo is
-    // scoped by --filter, with `pnpm` stubbed. It does not run the gates
+    // scoped by --filter, with `pnpm` and `uv` stubbed. It does not run the gates
     // themselves; driving them means running the whole pipeline the hook wraps.
+    // The hook composes its own check list rather than calling `pnpm quality`,
+    // and `guard:hook-probes` is deliberately not in that list: that gate belongs
+    // to CI and an explicit `pnpm quality`, as the backstop rather than the loop.
     hook: '.husky/pre-push',
     probe: '.claude/hooks/husky-pre-push.probe.sh',
   },
