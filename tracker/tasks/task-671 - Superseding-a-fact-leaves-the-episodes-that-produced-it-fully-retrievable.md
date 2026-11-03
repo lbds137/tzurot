@@ -3,11 +3,12 @@ id: TASK-671
 title: Superseding a fact leaves the episodes that produced it fully retrievable
 status: To Do
 assignee: []
-created_date: '2026-08-19 02:09'
+created_date: 2026-08-19 02:09
+updated_date: '2026-11-03T20:58:00Z'
 labels:
-  - 'area:ai-worker'
-  - 'size:L'
-  - 'state:ready'
+  - area:ai-worker
+  - size:L
+  - state:observable
 dependencies: []
 priority: high
 ordinal: 671000
@@ -98,3 +99,15 @@ Owner explicitly did NOT ask for work on this when reporting it - it was raised 
 
 THIRD SIGHTING of the second instance, owner report 2026-09-13 (again without specifics). Two things it adds. First, the correcting utterance HAS been given, repeatedly, in conversation - the owner describes periodically reminding the character - and the episodes still recirculate. That is the original hypothesis of this task exactly: whatever the fact layer holds, the episode layer keeps serving the source. Second, the recurrence is SCHEDULE-SHAPED: the ended activity was weekly, and the stale episodes surface on that weekday, so the retrieval trigger is the day-of-week context rather than a topical cue. A time-aware instruction cannot help with that either, because the episodes are not old enough to read as stale and the cue that retrieves them is the present date. Raised while ruling on doc-97 Phase 4 (cross-channel history stays on because memory pulls are the weaker channel for recent life details); still not a promotion request.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+created: 2026-11-03T20:57:00Z
+
+---
+
+Relabelled state:ready to state:observable: step 0 shipped in #2614 and the task's own next step is to observe it in prod before choosing a structural fix (owner reports are the signal). Not drain-eligible.
+
+---
+<!-- COMMENTS:END -->
