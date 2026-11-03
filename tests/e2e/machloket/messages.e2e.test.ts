@@ -122,7 +122,7 @@ describe('Machloket transport contract: messages, webhooks, DMs, guild state, an
     });
   });
 
-  it.each(['Support Persona', 'Spacebar Steam Community Ticket'])(
+  it.each(['Support Persona', 'Spacebar Steam Community Ticket', 'Here For Everyone'])(
     'resolves webhook.send with username %s',
     async username => {
       const m = await webhook.send({ content: 'n', username });
@@ -141,6 +141,20 @@ describe('Machloket transport contract: messages, webhooks, DMs, guild state, an
     });
   });
 
+  it.each([
+    ['everyone', 'everyone'],
+    ['HERE', 'here'],
+  ])(
+    'refuses webhook.send with exact username %s with 50035 on username',
+    async (username, word) => {
+      await expect(webhook.send({ content: 'n', username })).rejects.toMatchObject({
+        status: 400,
+        code: 50035,
+        message: `Invalid Form Body\nusername[USERNAME_INVALID]: Name cannot be "${word}"`,
+      });
+    }
+  );
+
   it('resolves createWebhook named Support Persona', async () => {
     const created = await channel.createWebhook({ name: 'Support Persona' });
     expect(created.name).toBe('Support Persona');
@@ -154,6 +168,23 @@ describe('Machloket transport contract: messages, webhooks, DMs, guild state, an
       message:
         'Invalid Form Body\nname[USERNAME_INVALID_CONTAINS]: Username cannot contain "clyde"',
     });
+  });
+
+  it.each([
+    ['everyone', 'everyone'],
+    ['HERE', 'here'],
+  ])('refuses createWebhook with exact name %s with 50035 on name', async (name, word) => {
+    await expect(channel.createWebhook({ name })).rejects.toMatchObject({
+      status: 400,
+      code: 50035,
+      message: `Invalid Form Body\nname[USERNAME_INVALID]: Name cannot be "${word}"`,
+    });
+  });
+
+  it('resolves createWebhook named Here For Everyone', async () => {
+    const created = await channel.createWebhook({ name: 'Here For Everyone' });
+    expect(created.name).toBe('Here For Everyone');
+    await created.delete();
   });
 
   it('suppresses @everyone and user mentions under default allowedMentions: { parse: [] }', async () => {
