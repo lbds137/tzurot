@@ -27,7 +27,7 @@
     "@tzurot/clients": "workspace:*",
     "@tzurot/common-types": "workspace:*",
     "bullmq": "^5.81.5",
-    "discord.js": "^14.27.0",
+    "discord.js": "^14.28.0",
     "fflate": "^0.8.3",
     "ioredis": "^5.11.1",
     "pino": "^10.4.0",
