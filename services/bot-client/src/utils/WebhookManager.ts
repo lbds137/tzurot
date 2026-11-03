@@ -8,8 +8,10 @@
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { INTERVALS } from '@tzurot/common-types/constants/timing';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import {
   ChannelType,
+  DiscordAPIError,
   type Client,
   type TextChannel,
   type ThreadChannel,
@@ -18,10 +20,61 @@ import {
   type Webhook,
   type Message,
 } from 'discord.js';
-import { deriveBotSuffix } from './webhookNaming.js';
+import { adjustRefusedWebhookUsername, deriveBotSuffix } from './webhookNaming.js';
 import type { LoadedPersonality } from '../types.js';
 
 const logger = createLogger('WebhookManager');
+
+/** Discord's code for an invalid form body; a refused webhook username arrives under it. */
+const DISCORD_INVALID_FORM_BODY = 50035;
+
+/** How long an adjusted username is reused for a persona after Discord refused the plain one. */
+const ADJUSTED_USERNAME_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** Upper bound on remembered adjusted usernames. */
+const ADJUSTED_USERNAME_MAX_ENTRIES = 1000;
+
+/** Options passed to `webhook.send` for a personality message. */
+interface WebhookSendOptions {
+  content: string;
+  username: string;
+  avatarURL?: string;
+  threadId?: string;
+  allowedMentions: { parse: [] };
+  files?: { attachment: Buffer; name: string }[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * The first refusal code Discord reports for the username field, or `null`
+ * when the error is not a username refusal. A refusal is a 50035 whose
+ * `errors` object carries a `username` object.
+ */
+function usernameRefusalCode(error: unknown): string | null {
+  if (!(error instanceof DiscordAPIError) || error.code !== DISCORD_INVALID_FORM_BODY) {
+    return null;
+  }
+  const raw: unknown = error.rawError;
+  const errors: unknown = isRecord(raw) ? raw.errors : undefined;
+  const username: unknown = isRecord(errors) ? errors.username : undefined;
+  if (!isRecord(username)) {
+    return null;
+  }
+  const list: unknown = username._errors;
+  const first: unknown = Array.isArray(list) ? list[0] : undefined;
+  return isRecord(first) && typeof first.code === 'string' ? first.code : 'unknown';
+}
+
+/**
+ * Whether a send error is Discord refusing the webhook username (code 50035
+ * with an `errors.username` object). Any other error returns false.
+ */
+export function isRefusedUsernameError(error: unknown): boolean {
+  return usernameRefusalCode(error) !== null;
+}
 
 /**
  * Cached webhook info
@@ -41,6 +94,11 @@ export class WebhookManager {
   private cleanupInterval?: NodeJS.Timeout;
   private client: Client;
   private botSuffix: string | null = null;
+  /** Adjusted usernames keyed by the standard name Discord refused. */
+  private adjustedUsernames = new TTLCache<string>({
+    ttl: ADJUSTED_USERNAME_TTL_MS,
+    maxSize: ADJUSTED_USERNAME_MAX_ENTRIES,
+  });
 
   constructor(client: Client) {
     this.client = client;
@@ -172,6 +230,8 @@ export class WebhookManager {
   ): Promise<Message> {
     const webhook = await this.getWebhook(channel);
     const standardizedName = this.getStandardizedUsername(personality);
+    // A persona whose plain name Discord refused is sent under its adjusted name
+    const username = this.adjustedUsernames.get(standardizedName) ?? standardizedName;
 
     // Avatar URL already includes path-based cache-busting (timestamp in filename)
     // e.g., /avatars/cold-1705827727111.png
@@ -182,16 +242,9 @@ export class WebhookManager {
     // Build webhook send options
     // Webhooks don't inherit Client's allowedMentions — must be set explicitly
     // to prevent AI-generated @everyone/@here/@role pings
-    const webhookOptions: {
-      content: string;
-      username: string;
-      avatarURL?: string;
-      threadId?: string;
-      allowedMentions: { parse: [] };
-      files?: { attachment: Buffer; name: string }[];
-    } = {
+    const webhookOptions: WebhookSendOptions = {
       content,
-      username: standardizedName,
+      username,
       avatarURL,
       allowedMentions: { parse: [] },
     };
@@ -204,19 +257,67 @@ export class WebhookManager {
     // For threads, add threadId parameter (Discord.js v14 official API)
     if (channel.isThread()) {
       webhookOptions.threadId = channel.id;
-      logger.info({ threadId: channel.id, username: standardizedName }, 'Sending to thread');
+      logger.info({ threadId: channel.id, username }, 'Sending to thread');
     }
 
     // Debug logging for avatar URL (log the actual URL with cache-busting)
     logger.debug({ avatarURL: avatarURL ?? null }, 'Sending with avatar');
 
     // Send via webhook and return message
-    const sentMessage = await webhook.send(webhookOptions);
-    logger.info(
-      { username: standardizedName, channelId: channel.id },
-      'Sent message as personality'
+    let sent: { message: Message; username: string };
+    try {
+      sent = { message: await webhook.send(webhookOptions), username };
+    } catch (error) {
+      sent = await this.retryRefusedUsername(
+        error,
+        webhook,
+        webhookOptions,
+        personality,
+        channel.id
+      );
+    }
+    logger.info({ username: sent.username, channelId: channel.id }, 'Sent message as personality');
+    return sent.message;
+  }
+
+  /**
+   * Handle a failed send. When Discord refused the username, retry once with the
+   * adjusted name and remember it for this persona once that send is accepted.
+   * Any other error, and a refusal of a name that was already adjusted,
+   * propagates unchanged.
+   */
+  private async retryRefusedUsername(
+    error: unknown,
+    webhook: Webhook,
+    options: WebhookSendOptions,
+    personality: LoadedPersonality,
+    channelId: string
+  ): Promise<{ message: Message; username: string }> {
+    const standardizedName = this.getStandardizedUsername(personality);
+    const refusal = usernameRefusalCode(error);
+    if (refusal === null) {
+      throw error;
+    }
+    if (options.username !== standardizedName) {
+      // A cached adjusted name was refused: forget it so the next send starts from the plain name
+      this.adjustedUsernames.delete(standardizedName);
+      throw error;
+    }
+
+    const adjusted = adjustRefusedWebhookUsername(personality.displayName, this.getBotSuffix());
+    // Nothing to adjust (no refused word, fits the cap): a retry would resend the same refused name
+    if (adjusted === standardizedName) {
+      throw error;
+    }
+    logger.warn(
+      { personalityId: personality.id, channelId, refusal },
+      'Webhook username refused, retrying with adjusted name'
     );
-    return sentMessage;
+
+    const message = await webhook.send({ ...options, username: adjusted });
+    // Cache only after the adjusted send is accepted; a refused retry leaves the plain name in charge
+    this.adjustedUsernames.set(standardizedName, adjusted);
+    return { message, username: adjusted };
   }
 
   /**

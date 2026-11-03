@@ -1490,14 +1490,16 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/MessageContentBuilder.ts | reference | 1 |
 | services/bot-client/src/utils/MessageContentBuilder.ts | toJSON | 2 |
 | services/bot-client/src/utils/WebhookManager.ts | client | 2 |
+| services/bot-client/src/utils/WebhookManager.ts | code | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | createWebhook | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | fetchWebhooks | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | find | 1 |
-| services/bot-client/src/utils/WebhookManager.ts | id | 8 |
+| services/bot-client/src/utils/WebhookManager.ts | id | 9 |
 | services/bot-client/src/utils/WebhookManager.ts | isThread | 2 |
 | services/bot-client/src/utils/WebhookManager.ts | owner | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | parent | 1 |
-| services/bot-client/src/utils/WebhookManager.ts | send | 1 |
+| services/bot-client/src/utils/WebhookManager.ts | rawError | 1 |
+| services/bot-client/src/utils/WebhookManager.ts | send | 2 |
 | services/bot-client/src/utils/WebhookManager.ts | tag | 2 |
 | services/bot-client/src/utils/WebhookManager.ts | type | 4 |
 | services/bot-client/src/utils/WebhookManager.ts | user | 3 |
@@ -3116,6 +3118,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 
 | file | symbol | count |
 | --- | --- | --- |
+| services/bot-client/src/utils/WebhookManager.ts | * | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | allowedMentions | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | avatarURL | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | content | 1 |
@@ -3123,6 +3126,6 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | name | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | reason | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
-| services/bot-client/src/utils/WebhookManager.ts | username | 1 |
+| services/bot-client/src/utils/WebhookManager.ts | username | 2 |
 
-Total: 3055 entries across 7084 sites.
+Total: 3058 entries across 7090 sites.
