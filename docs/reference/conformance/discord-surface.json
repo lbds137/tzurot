@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 3055,
-    "sites": 7084
+    "entries": 3058,
+    "sites": 7090
   },
   "entries": [
     {
@@ -8863,6 +8863,12 @@
     {
       "category": "client-methods",
       "file": "services/bot-client/src/utils/WebhookManager.ts",
+      "symbol": "code",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/WebhookManager.ts",
       "symbol": "createWebhook",
       "count": 1
     },
@@ -8882,7 +8888,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/utils/WebhookManager.ts",
       "symbol": "id",
-      "count": 8
+      "count": 9
     },
     {
       "category": "client-methods",
@@ -8905,8 +8911,14 @@
     {
       "category": "client-methods",
       "file": "services/bot-client/src/utils/WebhookManager.ts",
-      "symbol": "send",
+      "symbol": "rawError",
       "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/WebhookManager.ts",
+      "symbol": "send",
+      "count": 2
     },
     {
       "category": "client-methods",
@@ -18295,6 +18307,12 @@
     {
       "category": "webhook-options",
       "file": "services/bot-client/src/utils/WebhookManager.ts",
+      "symbol": "*",
+      "count": 1
+    },
+    {
+      "category": "webhook-options",
+      "file": "services/bot-client/src/utils/WebhookManager.ts",
       "symbol": "allowedMentions",
       "count": 1
     },
@@ -18338,7 +18356,7 @@
       "category": "webhook-options",
       "file": "services/bot-client/src/utils/WebhookManager.ts",
       "symbol": "username",
-      "count": 1
+      "count": 2
     }
   ]
 }

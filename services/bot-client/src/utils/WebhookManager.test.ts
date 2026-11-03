@@ -9,9 +9,11 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { WebhookManager } from './WebhookManager.js';
+import { WebhookManager, isRefusedUsernameError } from './WebhookManager.js';
+import { adjustRefusedWebhookUsername } from './webhookNaming.js';
 import {
   ChannelType,
+  DiscordAPIError,
   type Client,
   TextChannel,
   ThreadChannel,
@@ -773,5 +775,276 @@ describe('WebhookManager', () => {
         manager.destroy();
       }).not.toThrow();
     });
+  });
+});
+
+// Discord refuses a webhook username containing "discord" or "clyde", or longer
+// than 80 characters, with a 50035 whose errors.username carries the reason.
+function createDiscordError(
+  code: number,
+  errors: Record<string, unknown> | undefined
+): DiscordAPIError {
+  const rawError = { message: 'Invalid Form Body', code, errors };
+  return new DiscordAPIError(
+    rawError as unknown as ConstructorParameters<typeof DiscordAPIError>[0],
+    code,
+    400,
+    'POST',
+    '/webhooks/123/token',
+    {}
+  );
+}
+
+function createUsernameRefusal(): DiscordAPIError {
+  return createDiscordError(50035, {
+    username: {
+      _errors: [
+        { code: 'USERNAME_INVALID_CONTAINS', message: 'Username cannot contain "discord"' },
+      ],
+    },
+  });
+}
+
+describe('isRefusedUsernameError', () => {
+  it('accepts a 50035 whose errors carry a username object', () => {
+    expect(isRefusedUsernameError(createUsernameRefusal())).toBe(true);
+  });
+
+  it('rejects a 50035 whose errors have no username key', () => {
+    const error = createDiscordError(50035, {
+      content: { _errors: [{ code: 'BASE_TYPE_REQUIRED', message: 'Required' }] },
+    });
+    expect(isRefusedUsernameError(error)).toBe(false);
+  });
+
+  it('rejects a Discord error with another code', () => {
+    expect(isRefusedUsernameError(createDiscordError(10062, undefined))).toBe(false);
+  });
+
+  it('rejects a non-Discord error', () => {
+    expect(isRefusedUsernameError(new Error('boom'))).toBe(false);
+  });
+});
+
+describe('WebhookManager refused usernames', () => {
+  let manager: WebhookManager;
+  const suffix = ' · TestBot';
+  const adjusted = adjustRefusedWebhookUsername('Discord Helper', suffix);
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    manager?.destroy();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  /** Replace the cached webhook's send with a scripted mock. */
+  async function scriptedSend(
+    channel: TextChannel | ThreadChannel,
+    ...results: unknown[]
+  ): Promise<ReturnType<typeof vi.fn>> {
+    const webhook = await manager.getWebhook(channel);
+    const send = vi.fn();
+    for (const result of results) {
+      if (result instanceof Error) {
+        send.mockRejectedValueOnce(result);
+      } else {
+        send.mockResolvedValueOnce(result);
+      }
+    }
+    webhook.send = send;
+    return send;
+  }
+
+  it('retries once under the adjusted name and delivers the message', async () => {
+    manager = new WebhookManager(createMockClient('TestBot#1234'));
+    const personality = createMockPersonality('Discord Helper');
+    const channel = createMockTextChannel('channel-123', 'bot-123');
+    const send = await scriptedSend(channel, createUsernameRefusal(), { id: 'retry-message' });
+
+    const message = await manager.sendAsPersonality(channel, personality, 'Hello');
+
+    expect(message.id).toBe('retry-message');
+    expect(send).toHaveBeenCalledTimes(2);
+    const first = send.mock.calls[0][0];
+    const second = send.mock.calls[1][0];
+    expect(first.username).toBe('Discord Helper · TestBot');
+    expect(second.username).toBe(adjusted);
+    expect(second).toEqual({ ...first, username: adjusted });
+  });
+
+  it('keeps threadId on the retry for a thread send', async () => {
+    manager = new WebhookManager(createMockClient('TestBot#1234'));
+    const personality = createMockPersonality('Discord Helper');
+    const parent = createMockTextChannel('channel-123', 'bot-123');
+    const thread = createMockThreadChannel('thread-456', parent);
+    const send = await scriptedSend(thread, createUsernameRefusal(), { id: 'retry-message' });
+
+    await manager.sendAsPersonality(thread, personality, 'Hello');
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[0][0].threadId).toBe('thread-456');
+    expect(send.mock.calls[1][0].threadId).toBe('thread-456');
+    expect(send.mock.calls[1][0].username).toBe(adjusted);
+  });
+
+  it('rethrows a 50035 whose errors have no username key, after one send', async () => {
+    manager = new WebhookManager(createMockClient('TestBot#1234'));
+    const personality = createMockPersonality('Discord Helper');
+    const channel = createMockTextChannel('channel-123', 'bot-123');
+    const error = createDiscordError(50035, {
+      content: { _errors: [{ code: 'BASE_TYPE_REQUIRED', message: 'Required' }] },
+    });
+    const send = await scriptedSend(channel, error);
+
+    await expect(manager.sendAsPersonality(channel, personality, 'Hello')).rejects.toBe(error);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('rethrows a non-Discord error, after one send', async () => {
+    manager = new WebhookManager(createMockClient('TestBot#1234'));
+    const personality = createMockPersonality('Discord Helper');
+    const channel = createMockTextChannel('channel-123', 'bot-123');
+    const error = new Error('network down');
+    const send = await scriptedSend(channel, error);
+
+    await expect(manager.sendAsPersonality(channel, personality, 'Hello')).rejects.toBe(error);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('rethrows the second error when the adjusted name is refused too, after two sends', async () => {
+    manager = new WebhookManager(createMockClient('TestBot#1234'));
+    const personality = createMockPersonality('Discord Helper');
+    const channel = createMockTextChannel('channel-123', 'bot-123');
+    const secondRefusal = createUsernameRefusal();
+    const send = await scriptedSend(channel, createUsernameRefusal(), secondRefusal);
+
+    await expect(manager.sendAsPersonality(channel, personality, 'Hello')).rejects.toBe(
+      secondRefusal
+    );
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends the adjusted name directly on the next send for the same persona', async () => {
+    manager = new WebhookManager(createMockClient('TestBot#1234'));
+    const personality = createMockPersonality('Discord Helper');
+    const channel = createMockTextChannel('channel-123', 'bot-123');
+    const send = await scriptedSend(
+      channel,
+      createUsernameRefusal(),
+      { id: 'retry-message' },
+      { id: 'next-message' }
+    );
+
+    await manager.sendAsPersonality(channel, personality, 'First');
+    const message = await manager.sendAsPersonality(channel, personality, 'Second');
+
+    expect(message.id).toBe('next-message');
+    expect(send).toHaveBeenCalledTimes(3);
+    expect(send.mock.calls[2][0].username).toBe(adjusted);
+  });
+
+  it('rethrows the original refusal without a second send when the adjusted name equals the plain one', async () => {
+    manager = new WebhookManager(createMockClient('TestBot#1234'));
+    const personality = createMockPersonality('Weaver');
+    const channel = createMockTextChannel('channel-123', 'bot-123');
+    const refusal = createUsernameRefusal();
+    const send = await scriptedSend(channel, refusal);
+
+    await expect(manager.sendAsPersonality(channel, personality, 'Hello')).rejects.toBe(refusal);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cache a refused retry, so the next send starts from the plain name', async () => {
+    manager = new WebhookManager(createMockClient('TestBot#1234'));
+    const personality = createMockPersonality('Discord Helper');
+    const channel = createMockTextChannel('channel-123', 'bot-123');
+    const retryRefusal = createUsernameRefusal();
+    const send = await scriptedSend(channel, createUsernameRefusal(), retryRefusal, {
+      id: 'plain-again',
+    });
+
+    await expect(manager.sendAsPersonality(channel, personality, 'First')).rejects.toBe(
+      retryRefusal
+    );
+    const message = await manager.sendAsPersonality(channel, personality, 'Second');
+
+    expect(message.id).toBe('plain-again');
+    expect(send).toHaveBeenCalledTimes(3);
+    expect(send.mock.calls[2][0].username).toBe('Discord Helper · TestBot');
+  });
+
+  it('forgets a cached adjusted name once it is refused, so the send after uses the plain name', async () => {
+    manager = new WebhookManager(createMockClient('TestBot#1234'));
+    const personality = createMockPersonality('Discord Helper');
+    const channel = createMockTextChannel('channel-123', 'bot-123');
+    const laterRefusal = createUsernameRefusal();
+    const send = await scriptedSend(
+      channel,
+      createUsernameRefusal(),
+      { id: 'retry-message' },
+      laterRefusal,
+      { id: 'plain-again' }
+    );
+
+    await manager.sendAsPersonality(channel, personality, 'First');
+    await expect(manager.sendAsPersonality(channel, personality, 'Second')).rejects.toBe(
+      laterRefusal
+    );
+    const message = await manager.sendAsPersonality(channel, personality, 'Third');
+
+    expect(message.id).toBe('plain-again');
+    expect(send).toHaveBeenCalledTimes(4);
+    expect(send.mock.calls[3][0].username).toBe('Discord Helper · TestBot');
+  });
+
+  it('reuses the adjusted name within 24h and sends the plain name again after it expires', async () => {
+    manager = new WebhookManager(createMockClient('TestBot#1234'));
+    const personality = createMockPersonality('Discord Helper');
+    const channel = createMockTextChannel('channel-123', 'bot-123');
+    // The TTL cache reads performance.now (lru-cache's default clock), which the
+    // fake timers do not move, so the test drives that clock directly. lru-cache
+    // debounces that clock with a setTimeout, so fake timers must advance between
+    // clock moves for the new reading to be taken. The clock starts above zero:
+    // lru-cache treats a zero start time as unset and never expires that entry.
+    const base = 1000;
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(base);
+    const send = await scriptedSend(
+      channel,
+      createUsernameRefusal(),
+      { id: 'retry-message' },
+      { id: 'within-ttl' },
+      { id: 'expired' }
+    );
+    const day = 24 * 60 * 60 * 1000;
+
+    await manager.sendAsPersonality(channel, personality, 'First');
+    clock.mockReturnValue(base + day - 1);
+    vi.advanceTimersByTime(1000);
+    await manager.sendAsPersonality(channel, personality, 'Second');
+    clock.mockReturnValue(base + day + 1);
+    vi.advanceTimersByTime(1000);
+    await manager.sendAsPersonality(channel, personality, 'Third');
+
+    expect(send.mock.calls[2][0].username).toBe(adjusted);
+    expect(send.mock.calls[3][0].username).toBe('Discord Helper · TestBot');
+  });
+
+  it('passes the same files to the retry', async () => {
+    manager = new WebhookManager(createMockClient('TestBot#1234'));
+    const personality = createMockPersonality('Discord Helper');
+    const channel = createMockTextChannel('channel-123', 'bot-123');
+    const files = [{ attachment: Buffer.from('audio'), name: 'voice.ogg' }];
+    const send = await scriptedSend(channel, createUsernameRefusal(), { id: 'retry-message' });
+
+    await manager.sendAsPersonality(channel, personality, 'Hello', files);
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[0][0].files).toBe(files);
+    expect(send.mock.calls[1][0].files).toBe(files);
   });
 });

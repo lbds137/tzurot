@@ -22,6 +22,31 @@ const SEPARATOR_CURRENT = ' · ';
 const SEPARATOR_LEGACY = ' | ';
 
 /**
+ * Hair space (U+200A). Discord accepts it inside a webhook username where it
+ * refuses a zero-width space, so it breaks a refused word without changing how
+ * the name reads. Built from its code point so no invisible character sits in
+ * source.
+ */
+const HAIR_SPACE = String.fromCodePoint(0x200a);
+
+/**
+ * Discord's webhook username length cap. Probed: 80 characters accepted, 81
+ * refused with code 50035 (`BASE_TYPE_BAD_LENGTH`). The probe used ASCII only, so
+ * whether Discord counts UTF-16 units or code points is unverified; the clamp
+ * measures UTF-16 `.length`, which is never shorter than a code-point count, so
+ * it errs toward trimming.
+ */
+export const WEBHOOK_USERNAME_MAX_LENGTH = 80;
+
+/** Words Discord refuses inside a webhook username, matched case-insensitively. */
+const REFUSED_USERNAME_WORDS = ['discord', 'clyde'];
+
+/** Remove every hair space, restoring a name that was adjusted for a refused send. */
+function removeHairSpaces(name: string): string {
+  return name.split(HAIR_SPACE).join('');
+}
+
+/**
  * Strip a Discord username's `#NNNN` discriminator if present.
  *
  * Bots created before 2023's username-system migration carry a 4-digit
@@ -92,6 +117,12 @@ export function deriveBotSuffix(botTag: string | null | undefined): string {
  * matched by `endsWith`; the canonical-first / legacy-fallback ordering
  * still resolves cleanly for either input.
  *
+ * Hair spaces that `adjustRefusedWebhookUsername` inserted are removed from the
+ * returned name, so a reply to an adjusted message recovers the persona's real
+ * name. A trimmed (`…`) name cannot be recovered this way; reply resolution tries
+ * Redis and then a database lookup by message id before parsing names
+ * (`ReplyResolutionService`), so only that last tier misses a trimmed name.
+ *
  * @returns The personality display name, or `null` if `webhookUsername`
  *   doesn't end with either suffix form. Returning `null` (rather than the
  *   raw username) lets callers distinguish "matched and stripped" from
@@ -104,7 +135,7 @@ export function stripBotSuffix(webhookUsername: string, botSuffix: string): stri
   }
 
   if (webhookUsername.endsWith(botSuffix)) {
-    return webhookUsername.slice(0, -botSuffix.length).trim();
+    return removeHairSpaces(webhookUsername.slice(0, -botSuffix.length).trim());
   }
 
   // Legacy form: suffix produced by an older WebhookManager that used ` | `.
@@ -113,11 +144,48 @@ export function stripBotSuffix(webhookUsername: string, botSuffix: string): stri
   if (botSuffix.startsWith(SEPARATOR_CURRENT)) {
     const legacy = `${SEPARATOR_LEGACY}${botSuffix.slice(SEPARATOR_CURRENT.length)}`;
     if (webhookUsername.endsWith(legacy)) {
-      return webhookUsername.slice(0, -legacy.length).trim();
+      return removeHairSpaces(webhookUsername.slice(0, -legacy.length).trim());
     }
   }
 
   return null;
+}
+
+/**
+ * Adjust a persona's webhook username after Discord refused the plain one, so
+ * the persona can still speak. Only the retry path calls this; a name Discord
+ * accepts is never passed through it.
+ *
+ * 1. Insert a hair space after the first character of every `discord` and
+ *    `clyde` (any case). Discord refuses those words in a username; a
+ *    zero-width space inside the word is still refused (probed), while a hair
+ *    space inside it is accepted and stored intact (probed).
+ * 2. Clamp the name so the whole username, bot suffix included, fits the
+ *    80-character cap. 80 characters are accepted and 81 refused (probed).
+ *    Whole code points are dropped from the end and `…` appended, so no
+ *    surrogate pair is cut.
+ * 3. Append the bot suffix.
+ */
+export function adjustRefusedWebhookUsername(displayName: string, botSuffix: string): string {
+  let name = displayName;
+  for (const word of REFUSED_USERNAME_WORDS) {
+    name = name.replace(
+      new RegExp(word, 'gi'),
+      match => `${match.charAt(0)}${HAIR_SPACE}${match.slice(1)}`
+    );
+  }
+
+  const budget = WEBHOOK_USERNAME_MAX_LENGTH - botSuffix.length;
+  if (name.length > budget) {
+    const kept = Array.from(name);
+    let length = name.length;
+    while (length + 1 > budget && kept.length > 0) {
+      length -= kept.pop()?.length ?? 0;
+    }
+    name = `${kept.join('').trimEnd()}…`;
+  }
+
+  return `${name}${botSuffix}`;
 }
 
 /**
