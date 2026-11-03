@@ -53,6 +53,7 @@ function addProviderBreakdown(
       const p = byProvider[provider];
       // Keys come from usage rows, and route resolution passes a config's free-text
       // provider through unvalidated, so they are not treated as canonical names.
+      // Not verified: whether a non-canonical key ever reaches a usage row.
       return `**${sanitizeModelIdForDisplay(provider)}**: ${p.requests} req • ${formatTokens(p.tokensIn + p.tokensOut)} tokens`;
     });
 
