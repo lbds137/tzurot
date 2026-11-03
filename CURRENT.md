@@ -17,7 +17,7 @@
 - **Check — stored summaries render (#2689):** a prod read on 11-01 found 39 rows with a stored summary not rendering (`failed` or `dead`), all recalled. After deploy, confirm a real affected row renders its summary; not runtime-confirmed yet. Count script: `docs/local/glm-audit/stranded-summaries.mjs` (read-only; its count will not fall, because the rows keep their status).
 - **Expected — `summaryNotes` telemetry rises (#2689):** notes from `failed`, `dead` and `pending` rows now count as summary notes. A small step up is not a regression.
 - **Watch — one NSFW prompt per multi-tag message (#2690):** logs should show one `Interaction blocked - user not NSFW verified` per message. The all-denied log now comes from logger `MultiTagCoordinatorHelpers`, so a saved Railway filter on the old name needs updating.
-- **Follow-up — Dependabot alert 197:** `minimatch` moderate, transitive and dev-scope only; its override PR follows the cut.
+- **Watch — Dependabot alert 197 (minimatch, dev tooling only):** the 11.x override breaks lint (eslint-plugin-import-x needs `makeRe`); TASK-1345 watches for an import-x release that accepts 11.
 
 ## 🧪 beta.241 watch (shipped 2026-10-27; no needs-smoke)
 
