@@ -12,7 +12,9 @@ import {
 import { generateFactExtractionJobUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import type { FactStore, SimilarFact } from './FactStore.js';
 import type { ExtractionBudget } from './ExtractionBudget.js';
+import type { SystemModelResult } from '../systemModel/systemModelCall.js';
 import { invokeSystemModel } from '../systemModel/systemModelCall.js';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 
 vi.mock('../systemModel/systemModelCall.js', () => ({
   invokeSystemModel: vi.fn(),
@@ -657,6 +659,13 @@ describe('delay-not-downgrade (provider busy)', () => {
 describe('invokeExtractionModel seam', () => {
   it('passes the extraction output cap across the shared model call', async () => {
     vi.mocked(invokeSystemModel).mockClear();
+    vi.mocked(invokeSystemModel).mockResolvedValueOnce({
+      content: '{}',
+      tokensIn: 1,
+      tokensOut: 1,
+      provider: AIProvider.ZaiCoding,
+      model: 'z-ai/glm-5.2',
+    } satisfies SystemModelResult);
 
     await invokeExtractionModel('p');
 
