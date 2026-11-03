@@ -632,6 +632,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "description": "Avatar image (PNG, JPG, GIF, WebP)",
             "description_localizations": undefined,
+            "file_types": undefined,
             "name": "image",
             "name_localizations": undefined,
             "required": true,
@@ -691,6 +692,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "description": "Voice reference audio (WAV, MP3, OGG, FLAC)",
             "description_localizations": undefined,
+            "file_types": undefined,
             "name": "audio",
             "name_localizations": undefined,
             "required": true,
@@ -732,6 +734,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "description": "JSON file containing character data",
         "description_localizations": undefined,
+        "file_types": undefined,
         "name": "file",
         "name_localizations": undefined,
         "required": true,
@@ -740,6 +743,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "description": "Avatar image (PNG, JPG, GIF, WebP)",
         "description_localizations": undefined,
+        "file_types": undefined,
         "name": "image",
         "name_localizations": undefined,
         "required": false,
@@ -748,6 +752,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "description": "Voice reference audio (WAV, MP3, OGG, FLAC)",
         "description_localizations": undefined,
+        "file_types": undefined,
         "name": "audio",
         "name_localizations": undefined,
         "required": false,
@@ -2540,6 +2545,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "description": "JSON file to import",
         "description_localizations": undefined,
+        "file_types": undefined,
         "name": "file",
         "name_localizations": undefined,
         "required": true,
