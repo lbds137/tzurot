@@ -1,13 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { AIProvider } from '@tzurot/common-types/constants/ai';
-import { generateRosterBlurb } from './RosterBlurbGenerator.js';
+import {
+  generateRosterBlurb,
+  invokeRosterBlurbModel,
+  ROSTER_BLURB_MAX_TOKENS,
+} from './RosterBlurbGenerator.js';
 import {
   ROSTER_BLURB_CARD_FIELDS,
   type RosterBlurbCard,
 } from '@tzurot/common-types/utils/rosterBlurbCard';
 import { buildRosterBlurbPrompt, ROSTER_BLURB_MAX_LENGTH } from './rosterBlurbPrompt.js';
 import type { SystemModelResult } from '../systemModel/systemModelCall.js';
+import { invokeSystemModel } from '../systemModel/systemModelCall.js';
+
+vi.mock('../systemModel/systemModelCall.js', () => ({
+  invokeSystemModel: vi.fn(),
+}));
 
 function card(): RosterBlurbCard {
   return {
@@ -81,5 +90,18 @@ describe('generateRosterBlurb', () => {
     const invoke = vi.fn().mockResolvedValue(respondWith(JSON.stringify({ blurb: over })));
 
     expect((await generateRosterBlurb(card(), invoke)).blurb).toBeNull();
+  });
+});
+
+describe('invokeRosterBlurbModel seam', () => {
+  it('passes the roster-blurb output cap across the shared model call', async () => {
+    vi.mocked(invokeSystemModel).mockClear();
+
+    await invokeRosterBlurbModel('p');
+
+    expect(invokeSystemModel).toHaveBeenCalledWith(
+      'p',
+      expect.objectContaining({ maxTokens: ROSTER_BLURB_MAX_TOKENS })
+    );
   });
 });
