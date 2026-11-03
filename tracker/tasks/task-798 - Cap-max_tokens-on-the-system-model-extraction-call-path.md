@@ -1,10 +1,10 @@
 ---
 id: TASK-798
 title: Cap max_tokens on the system-model (extraction) call path
-status: To Do
+status: Done
 assignee: []
 created_date: 2026-08-28 19:18
-updated_date: '2026-11-03T20:38:00Z'
+updated_date: '2026-11-03T21:14:00Z'
 labels:
   - area:ai-worker
   - size:S

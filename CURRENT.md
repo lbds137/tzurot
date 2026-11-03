@@ -8,7 +8,7 @@
 
 ## 🧪 Next release watch (merged to develop, not yet in prod)
 
-- _(empty since the beta.242 cut)_
+- **Watch — system-model truncation warn (#2715, TASK-798):** `System model response is likely truncated` now fires for every background caller at its cap. A burst tagged `appTitleSuffix: 'ArchiveSummary'` (cap 512) or the digest is expected, since how often those reach their caps is unmeasured; an `Extraction` or `RosterBlurb` hit means the 32768/8192 cap is too low. The length finish-reason branch is unverified on z.ai-direct.
 
 ## 🧪 beta.242 watch (shipped 2026-11-03; no needs-smoke)
 
