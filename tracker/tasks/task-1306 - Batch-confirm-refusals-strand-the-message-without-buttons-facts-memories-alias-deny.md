@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-27T06:08:00Z'
+updated_date: '2026-11-04T18:53:00Z'
 labels:
   - area:bot-client
   - size:M
-  - state:owner
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1291000
@@ -24,6 +25,8 @@ What: when a confirm refuses before mutating, put the user somewhere useful inst
 
 Owner question: after a batch confirm refuses before mutating (the notice says the list could not be loaded), should the message come back with its Remove and Cancel buttons so you can retry, or stay button-less as today with the notice telling you to re-run the command?
 Recommendation: restore the confirm view with its original buttons — nothing was mutated, a retry is one tap, and the strip-first order still guards the double-submit window because the buttons return only after the refusal is delivered.
+
+Owner ruling (2026-11-04, via the batched Needs-Lila questions): restore the confirm view's original buttons after a refused pre-mutation confirm — the recommendation, including the post-forget case in the member note.
 
 Acceptance: per decision; every changed pinned assertion is called out in the PR body.
 

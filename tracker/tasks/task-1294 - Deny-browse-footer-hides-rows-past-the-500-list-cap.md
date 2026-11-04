@@ -4,10 +4,11 @@ title: Deny browse footer hides rows past the 500 list cap
 status: To Do
 assignee: []
 created_date: '2026-10-26T09:56:00Z'
+updated_date: '2026-11-04T18:53:00Z'
 labels:
   - area:bot-client
   - size:S
-  - state:owner
+  - state:ready
 dependencies: []
 priority: low
 ordinal: 1280000
@@ -24,6 +25,8 @@ PR 2661 round-5 addition (same cap theme): when the batch confirm re-fetch is at
 
 Owner question: At the 500 cap, should /deny browse say it shows only the newest 500, and should a missing batch pick point to the detail view instead of saying please try again?
 Recommendation: yes to both - a full-looking list that silently drops the oldest rows misleads, and a retry that cannot succeed wastes the owner a round trip; each is one string.
+
+Owner ruling (2026-11-04, via the batched Needs-Lila questions): yes to both — the showing-newest-500 footer segment and the detail-view pointer for at-cap missing picks (the recommendation).
 
 Acceptance: a footer test at exactly the cap shows the segment, below the cap it is absent; the at-cap missing-pick test asserts the new note.
 <!-- SECTION:DESCRIPTION:END -->

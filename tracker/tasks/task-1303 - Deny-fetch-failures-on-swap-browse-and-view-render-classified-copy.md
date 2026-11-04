@@ -23,5 +23,7 @@ Why: PR 2668 review rounds 2 (finding 3) and 3 (finding 1). Three deny surfaces 
 
 What: switch all three to fetchEntriesResult and render the classified copy of the real failure: followUpBrowsePageFailure where the reply shape is a followUp, renderSpec(classifyGatewayFailure(fetched.failure, <noun>, { operation: 'read' })) on the slash-command editReply paths. User-visible copy change, so the owner sees the before/after wording first. Three existing assertions pin the current literal (browse.test.ts x2, view.test.ts x1); changing them is part of the owner call. Dropping the two raw literals lowers the raw-content-allowlist budgets (packages/tooling/src/eslint/raw-content-allowlist.ts) and refreshes the Discord-surface snapshot (pnpm ops surface:inventory --write); run the tooling suite too. handleDenyBatchConfirm keeps its refuse-before-mutation copy on purpose (it refuses BEFORE any mutation, and that copy says so).
 
+Owner ruling (2026-11-04, via the batched Needs-Lila questions): approved — render the classified copy of the real failure on all three surfaces (the fetchEntriesResult path).
+
 Acceptance: a failed fetch on each of the three surfaces renders the classified copy of the real failure, each pinned by a test with the exact rendered string; the batch-confirm refusal copy is unchanged.
 <!-- SECTION:DESCRIPTION:END -->
