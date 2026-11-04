@@ -348,6 +348,91 @@ describe('summarizeSweep', () => {
     spy.mockRestore();
   });
 
+  /** Routes failed- and dead-class queries separately (both contain
+   *  `error_class`); the earlier branches keep WINDOW_COUNTS_SQL (which also
+   *  carries the `summary_status = 'failed'` FILTER text) out of the failed
+   *  branch. */
+  function routeFailedAndDead(
+    failedRows: { error_class: string; row_count: number }[],
+    deadRows: { error_class: string; row_count: number }[]
+  ): void {
+    queryMock.mockImplementation((sql: string) => {
+      if (sql.includes('FROM personalities')) {
+        return Promise.resolve([{ id: PERSONALITY_ID }]);
+      }
+      if (sql.includes('retrieval_count DESC')) {
+        return Promise.resolve([{ id: MEM(1), content_chars: 40 }]);
+      }
+      if (sql.includes('ORDER BY created_at DESC')) {
+        return Promise.resolve([]);
+      }
+      if (sql.includes('total_non_chunk')) {
+        return Promise.resolve([WINDOW_COUNTS_ROW]);
+      }
+      if (sql.includes('memory_facts f')) {
+        return Promise.resolve([{ covered: 10 }]);
+      }
+      if (sql.includes("summary_status = 'failed'")) {
+        return Promise.resolve(failedRows);
+      }
+      if (sql.includes("summary_status = 'dead'")) {
+        return Promise.resolve(deadRows);
+      }
+      throw new Error(`unexpected query: ${sql}`);
+    });
+  }
+
+  it('MEM-ARCH-030: prints failed rows grouped by error class, above the dead section, when any exist', async () => {
+    routeFailedAndDead(
+      [
+        { error_class: 'rate_limit', row_count: 7 },
+        { error_class: 'provider', row_count: 2 },
+      ],
+      [{ error_class: 'no_template', row_count: 3 }]
+    );
+
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await summarizeSweep({ env: 'dev', personality: 'test-persona', dryRun: true });
+
+    const lines = spy.mock.calls.map(call => String(call[0]));
+    const failedCaptionIndex = lines.findIndex(line =>
+      line.includes('Failed rows by error class')
+    );
+    const deadCaptionIndex = lines.findIndex(line => line.includes('Dead rows by error class'));
+    expect(failedCaptionIndex).toBeGreaterThan(-1);
+    expect(deadCaptionIndex).toBeGreaterThan(-1);
+    // Transient before terminal: the failed section prints above the dead one.
+    expect(failedCaptionIndex).toBeLessThan(deadCaptionIndex);
+    expect(
+      lines.some(line =>
+        line.includes(
+          'Failed rows by error class (ALL failed rows for this personality, not just the window; failed is transient — retries drain it):'
+        )
+      )
+    ).toBe(true);
+    expect(lines.some(line => line.includes('rate_limit') && line.includes('7'))).toBe(true);
+    expect(lines.some(line => line.includes('provider') && line.includes('2'))).toBe(true);
+
+    spy.mockRestore();
+  });
+
+  it('MEM-ARCH-030: prints no failed section when the failed breakdown is empty', async () => {
+    routeFailedAndDead([], [{ error_class: 'no_template', row_count: 3 }]);
+
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await summarizeSweep({ env: 'dev', personality: 'test-persona', dryRun: true });
+
+    const lines = spy.mock.calls.map(call => String(call[0]));
+    expect(lines.some(line => line.includes('Failed rows by error class'))).toBe(false);
+    // The dead section still prints — proves the routing worked and the
+    // skipped section is the failed one, not a silent no-output failure.
+    expect(lines.some(line => line.includes('Dead rows by error class'))).toBe(true);
+
+    spy.mockRestore();
+  });
+
   it('resolves the Redis URL once per run', async () => {
     await summarizeSweep({ env: 'dev', personality: 'test-persona' });
 

@@ -7,6 +7,7 @@ import {
   WINDOW_COUNTS_SQL,
   FACT_COVERAGE_SQL,
   DEAD_BY_ERROR_CLASS_SQL,
+  FAILED_BY_ERROR_CLASS_SQL,
 } from './summarize-sweep-sql.js';
 
 describe('ELIGIBLE_PREDICATE', () => {
@@ -109,5 +110,20 @@ describe('DEAD_BY_ERROR_CLASS_SQL', () => {
     expect(DEAD_BY_ERROR_CLASS_SQL).toContain("summary_status = 'dead'");
     expect(DEAD_BY_ERROR_CLASS_SQL).toContain('GROUP BY 1');
     expect(DEAD_BY_ERROR_CLASS_SQL).toContain('LIMIT 50');
+  });
+});
+
+describe('FAILED_BY_ERROR_CLASS_SQL', () => {
+  it('MEM-ARCH-030: filters to failed rows and groups by error class like the dead query', () => {
+    expect(FAILED_BY_ERROR_CLASS_SQL).toContain("summary_status = 'failed'");
+    expect(FAILED_BY_ERROR_CLASS_SQL).toContain("COALESCE(summary_last_error, 'unrecorded')");
+    expect(FAILED_BY_ERROR_CLASS_SQL).toContain('GROUP BY 1');
+    expect(FAILED_BY_ERROR_CLASS_SQL).toContain('LIMIT 50');
+  });
+
+  it('is byte-identical to the dead query except the status filter', () => {
+    expect(
+      FAILED_BY_ERROR_CLASS_SQL.replace("summary_status = 'failed'", "summary_status = 'dead'")
+    ).toBe(DEAD_BY_ERROR_CLASS_SQL);
   });
 });

@@ -149,3 +149,17 @@ WHERE personality_id = $1::uuid AND chunk_group_id IS NULL AND summary_status = 
 GROUP BY 1
 ORDER BY 2 DESC, 1 ASC
 LIMIT 50`;
+
+/**
+ * Failed rows grouped by error class. Param `$1` = personality id.
+ * `summary_last_error` is `VARCHAR(40)` — an error CLASS, never free text —
+ * so grouping and printing it never leaks memory or summary content. Failed
+ * is transient: rows leave it as retries succeed or exhaust to dead, so the
+ * bucket is a snapshot, not a terminal tally.
+ */
+export const FAILED_BY_ERROR_CLASS_SQL = `SELECT COALESCE(summary_last_error, 'unrecorded') AS error_class, COUNT(*)::int AS row_count
+FROM memories
+WHERE personality_id = $1::uuid AND chunk_group_id IS NULL AND summary_status = 'failed'
+GROUP BY 1
+ORDER BY 2 DESC, 1 ASC
+LIMIT 50`;
