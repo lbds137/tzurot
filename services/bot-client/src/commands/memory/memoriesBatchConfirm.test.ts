@@ -131,6 +131,8 @@ const SEARCH_SESSION = {
 function createButtonInteraction(options: {
   messageEmbedFooter?: string;
   deferred?: boolean;
+  /** Non-empty message rows for tests asserting the restore-after-refusal payload. */
+  messageComponents?: unknown[];
 }): ButtonInteraction {
   return {
     user: { id: 'user-1' },
@@ -138,7 +140,7 @@ function createButtonInteraction(options: {
     message: {
       id: 'message-1',
       embeds: options.messageEmbedFooter ? [{ footer: { text: options.messageEmbedFooter } }] : [],
-      components: [],
+      components: options.messageComponents ?? [],
     },
     deferred: options.deferred ?? false,
     replied: false,
@@ -370,26 +372,47 @@ describe('handleMemoryBatchConfirm — delete', () => {
 
   it('refuses with the re-run copy, before any mutation, when the pre-loop page fetch fails', async () => {
     mockFetchMemories.mockResolvedValue(null);
+    // Two DISTINCT rows: a hardcoded `{ components: [] }` restore cannot
+    // pass the restore assertion below the way it could with empty mocks.
+    const capturedRows = [
+      { toJSON: () => ({ type: 1, components: [{ custom_id: 'memory-row-1' }] }) },
+      { toJSON: () => ({ type: 1, components: [{ custom_id: 'memory-row-2' }] }) },
+    ];
     const interaction = createButtonInteraction({
       messageEmbedFooter: encodeBatchFooterIds(['mem-1']),
+      messageComponents: capturedRows,
     });
 
     await handleMemoryBatchConfirm(interaction, 'delete', BROWSE_SESSION);
 
-    // The buttons are already stripped, so nothing on this message is
-    // retryable — the copy asks for a fresh run, not a bare "try again later".
+    // Nothing was mutated, so after the refusal followUp lands the captured
+    // rows are restored — the copy is the shared transient page-fetch one
+    // (a live session with a failed fetch must not read as an expiry, and a
+    // bare "run it again" would), matching the sibling batch flows.
     expect(interaction.followUp).toHaveBeenCalledWith(
       expect.objectContaining({
         content: expect.stringContaining("Couldn't load that page"),
       })
     );
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('run the command again') })
+      expect.objectContaining({ content: expect.stringContaining('right now') })
     );
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.not.stringContaining('run the command again') })
+    );
+    // The refusal path makes exactly one followUp — the restore helper's
+    // notice — which keeps the per-call assertions above sound.
+    expect(interaction.followUp).toHaveBeenCalledTimes(1);
     expect(mockDeleteMemory).not.toHaveBeenCalled();
     expect(mockSetMemoryLock).not.toHaveBeenCalled();
-    expect(interaction.editReply).toHaveBeenCalledTimes(1);
+    expect(interaction.editReply).toHaveBeenCalledTimes(2);
     expect(vi.mocked(interaction.editReply).mock.calls[0]?.[0]).toEqual({ components: [] });
+    // Restore puts the captured rows back verbatim.
+    const restorePayload = vi.mocked(interaction.editReply).mock.calls[1]?.[0] as {
+      components: unknown[];
+    };
+    expect(restorePayload.components).toEqual(capturedRows);
+    expect(restorePayload.components).toHaveLength(2);
   });
 
   it('skips the ack when the router already deferred', async () => {

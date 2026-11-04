@@ -21,7 +21,12 @@
 import { registerBrowseRebuilder } from '../../utils/dashboard/index.js';
 import type { BrowseSortType } from '../../utils/browse/index.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
-import { fetchEntries, buildBrowseResponse, type DenyBrowseFilter } from './browse.js';
+import {
+  buildBrowseResponse,
+  fetchEntries,
+  isDenylistAtCap,
+  type DenyBrowseFilter,
+} from './browse.js';
 
 registerBrowseRebuilder('deny', async (interaction, browseContext, successBanner) => {
   const { ownerClient } = clientsFor(interaction);
@@ -33,7 +38,8 @@ registerBrowseRebuilder('deny', async (interaction, browseContext, successBanner
     entries,
     browseContext.page,
     browseContext.filter as DenyBrowseFilter,
-    (browseContext.sort ?? 'date') as BrowseSortType
+    (browseContext.sort ?? 'date') as BrowseSortType,
+    { listTruncated: isDenylistAtCap(entries) }
   );
   return {
     content: successBanner,

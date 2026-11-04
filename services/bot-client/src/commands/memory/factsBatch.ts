@@ -37,6 +37,7 @@ import {
   formatFallbackIdLabel,
   parseBatchFooterIds,
   readSelectOptionLabels,
+  restoreAfterRefusal,
   runBatchSequentially,
   formatBatchItemLines,
   type BatchResultLine,
@@ -46,8 +47,11 @@ import { CATALOG } from '../../ux/catalog/catalog.js';
 import { followUpSpec, ackUpdate } from '../../ux/render/reply.js';
 import {
   FACTS_PER_PAGE,
+  FACTS_PAGE_REFUSAL,
   fetchCurrentFactsPage,
+  factsRefusalSpec,
   followUpFactsRefusal,
+  logFactsFetchFailure,
   buildFactsEmbed,
   formatFactSelectOption,
   buildRefreshedFactsView,
@@ -311,12 +315,18 @@ export async function handleBatchConfirm(
   const userId = interaction.user.id;
   const { userClient } = clientsFor(interaction);
 
+  // Capture the confirm view's rows BEFORE the strip (a plain read) so a
+  // refused pre-mutation confirm can put the buttons back.
+  const confirmRows = [...interaction.message.components];
+
   // Strip the confirm buttons to shrink the double-tap window to the ack +
   // strip round-trips themselves — a tap Discord delivers inside that window
   // still runs the whole flow. After the strip, later taps find nothing to
   // act on. The embeds stay untouched: the confirm view remains visible but
-  // inert. A refusal below loses only that inert view — its followUp copy
-  // tells the user to re-run.
+  // inert. A failed-fetch refusal below restores the captured rows (after the
+  // refusal followUp lands, preserving the double-submit guard) — nothing was
+  // mutated, so the user can retry without re-running the command; a
+  // session-gone refusal does not restore (the fresh run is the retry path).
   await interaction.editReply({ components: [] });
 
   // Labels come from a fetch made BEFORE the loop: after it runs, the
@@ -327,6 +337,16 @@ export async function handleBatchConfirm(
   // run on that basis.
   const resolved = await resolveBatchLabels(interaction, userClient, ids, userId);
   if (!resolved.ok) {
+    if (resolved.reason === FACTS_PAGE_REFUSAL.FETCH_FAILED) {
+      // A failed fetch can be retried on this message once the gateway
+      // recovers, so the captured rows come back (the notice rides the
+      // restore helper, preserving the double-submit guard).
+      logFactsFetchFailure(interaction, resolved.reason);
+      await restoreAfterRefusal(interaction, confirmRows, factsRefusalSpec(resolved.reason));
+      return;
+    }
+    // A gone session cannot be retried on this message — keep the ephemeral
+    // notice but leave the stripped view inert; the fresh run is the retry path.
     await followUpFactsRefusal(interaction, resolved.reason);
     return;
   }

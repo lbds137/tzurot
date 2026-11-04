@@ -14,10 +14,12 @@ import {
   handleBatchConfirm,
 } from './factsBatch.js';
 import { buildFactActionId } from './factsDetail.js';
-import { FACTS_SESSION_EXPIRED } from './factsBrowse.js';
+import { FACTS_COMMAND_HINT } from './factsBrowse.js';
 import { encodeBatchFooterIds } from '../../utils/browse/multiSelectBatch.js';
 import type { FactItem } from './factsApi.js';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -674,9 +676,9 @@ describe('handleBatchConfirm — forget', () => {
 
   it('refuses with the transient copy, before any mutation, when the pre-loop page fetch fails', async () => {
     // The session lives, but its page fetch failed — the run must not mutate
-    // on an unloadable page, and must NOT read as an expired session. The
-    // strip editReply has already run (the confirm view is inert); the refusal
-    // loses only that inert view — the copy rides the ephemeral followUp.
+    // on an unloadable page, and must NOT read as an expired session. Nothing
+    // was mutated, so after the refusal followUp lands the confirm view's
+    // captured rows are restored (the retry can succeed once the fetch does).
     stub.listFacts.mockResolvedValue(makeErr(500, 'boom'));
     const interaction = createButtonInteraction({
       messageEmbedFooter: encodeBatchFooterIds(['fact-1']),
@@ -689,11 +691,37 @@ describe('handleBatchConfirm — forget', () => {
     );
     expect(stub.forgetFact).not.toHaveBeenCalled();
     expect(stub.setFactLock).not.toHaveBeenCalled();
-    expect(interaction.editReply).toHaveBeenCalledTimes(1);
+    expect(interaction.editReply).toHaveBeenCalledTimes(2);
     expect(vi.mocked(interaction.editReply).mock.calls[0]?.[0]).toEqual({ components: [] });
+    // Restore puts the captured rows back (the mock message carried none).
+    expect(vi.mocked(interaction.editReply).mock.calls[1]?.[0]).toEqual({ components: [] });
   });
 
-  it('refuses with the expiry message BEFORE mutating when the list session is gone', async () => {
+  it('restores the captured confirm rows after a refused pre-mutation confirm', async () => {
+    stub.listFacts.mockResolvedValue(makeErr(500, 'boom'));
+    const interaction = createButtonInteraction({
+      messageEmbedFooter: encodeBatchFooterIds(['fact-1']),
+    });
+    // The captured rows ride the restore editReply verbatim.
+    const capturedRow = { toJSON: () => ({ type: 1, components: [] }) };
+    (interaction.message as { components: unknown[] }).components = [capturedRow];
+
+    await handleBatchConfirm(interaction, 'forget');
+
+    // Strip first with the rows still present, then restore them verbatim.
+    expect(vi.mocked(interaction.editReply).mock.calls[0]?.[0]).toEqual({ components: [] });
+    expect(vi.mocked(interaction.editReply).mock.calls[1]?.[0]).toEqual({
+      components: [capturedRow],
+    });
+    // The refusal followUp lands BEFORE the restore (double-submit guard).
+    const followUpOrder = vi.mocked(interaction.followUp).mock.invocationCallOrder[0];
+    const restoreOrder = vi.mocked(interaction.editReply).mock.invocationCallOrder[1];
+    expect(followUpOrder).toBeLessThan(restoreOrder);
+    expect(stub.forgetFact).not.toHaveBeenCalled();
+    expect(stub.setFactLock).not.toHaveBeenCalled();
+  });
+
+  it('refuses with the catalog expiry copy BEFORE mutating when the list session is gone', async () => {
     sessionManagerMock.findByMessageId.mockResolvedValue(null);
     const interaction = createButtonInteraction({
       messageEmbedFooter: encodeBatchFooterIds(['fact-1']),
@@ -702,13 +730,14 @@ describe('handleBatchConfirm — forget', () => {
     await handleBatchConfirm(interaction, 'forget');
 
     expect(interaction.followUp).toHaveBeenCalledWith({
-      content: FACTS_SESSION_EXPIRED,
+      content: renderSpec(CATALOG.progress.sessionExpired(FACTS_COMMAND_HINT)),
       flags: MessageFlags.Ephemeral,
     });
     expect(stub.forgetFact).not.toHaveBeenCalled();
     expect(stub.setFactLock).not.toHaveBeenCalled();
-    // The strip already ran (before the session lookup); the refusal loses
-    // only the inert confirm view.
+    // The strip already ran (before the session lookup). A gone session gets
+    // the ephemeral notice but NO restore — the stripped view stays inert,
+    // because the fresh run is the only retry path.
     expect(interaction.editReply).toHaveBeenCalledTimes(1);
     expect(vi.mocked(interaction.editReply).mock.calls[0]?.[0]).toEqual({ components: [] });
   });

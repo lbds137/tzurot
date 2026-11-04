@@ -227,3 +227,28 @@ export async function replySpecSafe(
     logger.warn({ err: error, ...opts.logContext }, 'Failed to deliver catalog message');
   }
 }
+
+/**
+ * Best-effort variant of {@link followUpSpec} for refusal paths: a rejected
+ * ephemeral followUp is logged (with the caller's `logContext`) and swallowed,
+ * never rethrown — the caller has already decided what the user should see and
+ * a delivery failure must not mask the surrounding flow's own handling.
+ */
+export async function followUpSpecSafe(
+  interaction: RepliableInteraction,
+  spec: MessageSpec,
+  opts: RenderOptions & {
+    /** Correlation fields for the failure log (commandName, customId, …). */
+    logContext?: Record<string, unknown>;
+  } = {}
+): Promise<void> {
+  try {
+    await followUpSpec(interaction, spec, opts);
+  } catch (error) {
+    // warn, not error: the followUp fires long after the original ack, so
+    // delivery can fail here without anything actionable per-event (typical
+    // cause: expired/invalid interaction token — not verified from logs);
+    // error-level would pollute post-deploy level-50 scans.
+    logger.warn({ err: error, ...opts.logContext }, 'Failed to deliver catalog message');
+  }
+}
