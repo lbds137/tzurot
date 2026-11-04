@@ -195,7 +195,7 @@ async function printReport(
     `  ${formatFactCoverageLine(factCoverageShare(factCoverage.covered, counts.retrieved_in_window))}`
   );
   printErrorClassBreakdown(
-    '  Failed rows by error class (ALL failed rows for this personality, not just the window; failed rows are re-eligible — a re-sweep retries them, each retry spending an attempt, and a row at the cap goes dead on its next failure; cold rows only with --include-cold):',
+    '  Failed rows by error class (ALL failed rows for this personality, not just the window; re-eligible — a re-sweep retries them, and rows whose failures reach the attempt cap go dead; cold rows only with --include-cold):',
     failedRows
   );
   printErrorClassBreakdown(

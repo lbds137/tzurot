@@ -116,6 +116,7 @@ describe('DEAD_BY_ERROR_CLASS_SQL', () => {
 describe('FAILED_BY_ERROR_CLASS_SQL', () => {
   it('MEM-ARCH-030: filters to failed rows and groups by error class like the dead query', () => {
     expect(FAILED_BY_ERROR_CLASS_SQL).toContain("summary_status = 'failed'");
+    expect(FAILED_BY_ERROR_CLASS_SQL).not.toContain("summary_status = 'dead'");
     expect(FAILED_BY_ERROR_CLASS_SQL).toContain("COALESCE(summary_last_error, 'unrecorded')");
     expect(FAILED_BY_ERROR_CLASS_SQL).toContain('GROUP BY 1');
     expect(FAILED_BY_ERROR_CLASS_SQL).toContain('LIMIT 50');
