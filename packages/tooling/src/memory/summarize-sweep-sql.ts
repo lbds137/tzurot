@@ -171,6 +171,9 @@ export const DEAD_BY_ERROR_CLASS_SQL = byErrorClassSql('dead');
  * re-eligible: rows leave it only when something enqueues them again — a
  * sweep (cold rows only with `--include-cold`) or the live retrieval
  * trigger; a billed failure writes the status and returns, so the job
- * queue never retries it. The bucket is a snapshot, not a terminal tally.
+ * queue never retries it. Each re-sweep spends one attempt per row (same
+ * content hash and prompt version); the next billed failure at
+ * `MAX_SUMMARY_ATTEMPTS` marks the row `dead`. The bucket is a snapshot,
+ * not a terminal tally.
  */
 export const FAILED_BY_ERROR_CLASS_SQL = byErrorClassSql('failed');
