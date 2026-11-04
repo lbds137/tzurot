@@ -32,6 +32,14 @@ The owner explicitly left this open: "I don't know if this is part of the taggin
 - doc-8 (Memory System Overhaul, PARKED) — memory-plane sharing semantics should be designed compatibly with that epic's retrieval model if it un-parks.
 - Existing mechanisms to generalize (grounding at design time): cross-channel history sharing setting (same-character, off by default), the all-characters LTM sharing toggle, fact retrieval scoping.
 
+### Owner re-raise + premise verification (2026-11-04)
+
+The owner re-raised this theme via the fleet relay (condensed): she wants to choose whether characters jointly read from one database of information and memories about her — global, or per tag group, each group its own mini hive mind. Same direction as 2026-08-09; no mechanism change. Premises re-verified in code 2026-11-04:
+
+- **The tag substrate this theme sequences after now exists** — `tags String[]` on the Personality model (prisma/schema.prisma: owner-authored discovery tags, GLOBAL namespace, normalized lowercase kebab tokens, `PersonalityTagsInputSchema` at the gateway boundary). The "after doc-60's tag storage exists" note above no longer gates.
+- **Both sharing planes exist** — `shareHistoryAcrossPersonalities` is the 4-mode location-aware enum while `shareLtmAcrossPersonalities` is still the flat boolean (packages/common-types/src/schemas/api/configOverrides.ts); widening LTM to that enum is TASK-786, the natural carrier a `tags:<set>` scope mode would extend.
+- **doc-8 already expects this axis** — its venue-scoped memory note (2026-08-09) names doc-67's tag-set sharing as one of three axes the Phase 3 scoping-matrix design must reconcile coherently.
+
 ## Moved from cold/queue.md (2026-10-05 backlog cleanup)
 
 - **Tag-Scoped Sharing (context + memories + facts)** (`doc-67`) — unify cross-channel history sharing, the all-characters LTM toggle, and fact scoping into ONE per-user mechanism, consuming doc-60's character tags. Sequenced after doc-60's tag substrate; council pass before plan-mode. _(Owner-initiated 2026-08-09.)_

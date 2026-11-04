@@ -136,6 +136,10 @@ Five tracker rows absorbed here because **every one's promote-when is a phase of
 
 - **TASK-1222 — over-mention of old trivial memories** (prod user report). Retrieval is always-on and age-blind, so trivia resurfaces every turn. The July 1b refutation measured recall, not unprompted-mention rate, so it does not settle this. On-demand retrieval (memory as a tool) is one of the arms to measure. Keep `memoryScoreThreshold` alive (TASK-217) until a replacement ships, because it is the current user-facing remedy.
 
+## Owner direction (2026-11-04, relayed via Deck, condensed) — shared-memory scoping + model-driven retrieval
+
+Two-part direction. (1) Shared memory: she wants to choose whether characters jointly read from one database of information and memories about her — global, or per tag group, each group its own mini hive mind. The entry for that is doc-67 (tag-scoped sharing; its 2026-11-04 note re-verifies the premises in code), which the Phase 3 scoping matrix must reconcile with the character and venue axes as the venue note above already records. (2) Retrieval: the weak part today — hit or miss — and single-lookup vector RAG reads outdated to her; the agentic capability she names first is retrieval the model drives (search, filter, follow-ups), not one embedding lookup. That is design input here and in TASK-1347 (the bounded tool loop, `recall_memories` first, owner queue). The July refutations (RRF, fold, composite) measured single-pass ranking: they neither settle nor conflict with a model-driven loop — same relation as the TASK-1222 on-demand arm records — and the MRAgent-style cost scope-out in the memory-architecture proposal §4 is untouched, because her framing targets the single-shot lookup, not unbounded loops. Re-entry design treats both halves as first-class inputs.
+
 ## Superseded tasks (2026-09-04 pass)
 
 TASK-211, TASK-217, TASK-227, TASK-254, TASK-536
