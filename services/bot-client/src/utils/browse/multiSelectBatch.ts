@@ -30,6 +30,7 @@ import {
   type ButtonInteraction,
   type Message,
   type StringSelectMenuBuilder,
+  type TopLevelComponent,
 } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -37,9 +38,10 @@ import { buildConfirmAction } from '../confirmation/confirmAction.js';
 import { clampEmbedText } from '../embedLimits.js';
 import { truncateToUtf16Units } from '@tzurot/common-types/utils/codePointTruncation';
 import { CATALOG } from '../../ux/catalog/catalog.js';
-import { followUpSpec } from '../../ux/render/reply.js';
+import { followUpSpec, followUpSpecSafe } from '../../ux/render/reply.js';
 import { stripMenuDisplayNumber } from './selectMenuBuilder.js';
 import type { BrowseActionRow } from './types.js';
+import type { MessageSpec } from '../../ux/catalog/types.js';
 
 const logger = createLogger('browse-multi-select-batch');
 
@@ -49,6 +51,45 @@ const logger = createLogger('browse-multi-select-batch');
  * and refusal paths quote identical copy.
  */
 export const PAGE_FETCH_FAILED_COPY = "Couldn't load that page right now.";
+
+/**
+ * Deliver a REFUSED pre-mutation confirm's ephemeral refusal notice, then put
+ * the confirm view's original buttons back. A confirm handler captures its
+ * message's components from `interaction.message.components` BEFORE the
+ * strip `editReply({ components: [] })` and passes them here verbatim; the
+ * refusal goes first so the order preserves the strip's double-submit guard
+ * (a tap delivered while the buttons are gone finds nothing to act on).
+ *
+ * Both deliveries are best-effort: the notice rides {@link followUpSpecSafe},
+ * and a rejected restore editReply is logged and swallowed — propagating it
+ * never restored anything (the view stayed inert either way) and, in callers
+ * whose restore sat inside their own try block, turned one refusal into a
+ * second error notice on top of it. The restore itself is unconditional:
+ * because {@link followUpSpecSafe} swallows its own delivery failure, the
+ * buttons go back even when the refusal notice never reached the user, so the
+ * strip-then-restore ordering above does not depend on the notice succeeding.
+ * Known narrow race: if a second confirm tap runs to completion between
+ * this refusal and the restore, the restored buttons are already-spent
+ * ones (the next tap resolves to "already gone" rather than re-removing)
+ * — accepted for the transient-failure window, not guarded.
+ */
+export async function restoreAfterRefusal(
+  interaction: ButtonInteraction,
+  capturedRows: readonly TopLevelComponent[],
+  refusalSpec: MessageSpec
+): Promise<void> {
+  await followUpSpecSafe(interaction, refusalSpec, {
+    logContext: { customId: interaction.customId },
+  });
+  try {
+    await interaction.editReply({ components: [...capturedRows] });
+  } catch (error) {
+    logger.warn(
+      { err: error, customId: interaction.customId },
+      'Restore-after-refusal editReply failed; the inert view stays'
+    );
+  }
+}
 
 /**
  * The "Select several" entry button. Secondary: it opens a mode, it does not

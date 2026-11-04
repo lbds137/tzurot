@@ -6,6 +6,7 @@ import {
   ackDeferReply,
   deferKindOf,
   followUpSpec,
+  followUpSpecSafe,
   replySpec,
   replySpecSafe,
   topLevelErrorSpec,
@@ -13,7 +14,10 @@ import {
   type DeferUpdatableInteraction,
 } from './reply.js';
 import { CATALOG } from '../catalog/catalog.js';
+import { renderSpec } from './render.js';
 import { InfraError } from '@tzurot/clients';
+
+const loggerWarnMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -21,7 +25,12 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   );
   return {
     ...actual,
-    createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+    createLogger: () => ({
+      info: vi.fn(),
+      debug: vi.fn(),
+      warn: loggerWarnMock,
+      error: vi.fn(),
+    }),
   };
 });
 
@@ -183,6 +192,46 @@ describe('replySpecSafe', () => {
     interaction.reply.mockRejectedValue(new Error('Unknown interaction'));
 
     await expect(replySpecSafe(interaction, CATALOG.error.commandFailed())).resolves.not.toThrow();
+  });
+});
+
+describe('followUpSpecSafe', () => {
+  it('always follows up ephemerally and swallows the delivery failure (logging it with the caller context)', async () => {
+    const interaction = mockInteraction({ deferred: true, replied: false });
+    interaction.followUp.mockRejectedValue(new Error('webhook token expired'));
+
+    await expect(
+      followUpSpecSafe(interaction, CATALOG.error.transient('page'), {
+        logContext: { customId: 'memory-fact::batch-confirm::forget' },
+      })
+    ).resolves.toBeUndefined();
+
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: renderSpec(CATALOG.error.transient('page')),
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        err: expect.any(Error),
+        customId: 'memory-fact::batch-confirm::forget',
+      }),
+      'Failed to deliver catalog message'
+    );
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.reply).not.toHaveBeenCalled();
+  });
+
+  it('delivers the spec rendered and ephemerally when the followUp succeeds', async () => {
+    const interaction = mockInteraction({ deferred: false, replied: true });
+    await expect(
+      followUpSpecSafe(interaction, CATALOG.error.validation('no'))
+    ).resolves.toBeUndefined();
+
+    expect(interaction.followUp).toHaveBeenCalledTimes(1);
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: renderSpec(CATALOG.error.validation('no')),
+      flags: MessageFlags.Ephemeral,
+    });
   });
 });
 

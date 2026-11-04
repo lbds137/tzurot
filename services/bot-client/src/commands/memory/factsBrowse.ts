@@ -7,12 +7,7 @@
  * state lives in a messageId-keyed dashboard session, no inline collectors.
  */
 
-import {
-  escapeMarkdown,
-  MessageFlags,
-  type ButtonInteraction,
-  type EmbedBuilder,
-} from 'discord.js';
+import { escapeMarkdown, type ButtonInteraction, type EmbedBuilder } from 'discord.js';
 import { memoryFactsOptions } from '@tzurot/common-types/generated/commandOptions';
 import { ENTITY_EMOJI, buildBadgeLegend } from '@tzurot/common-types/constants/uxVocabulary';
 import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
@@ -40,20 +35,20 @@ import { resolveRequiredPersonality } from './resolveHelpers.js';
 import { truncateContent } from './formatters.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import type { MessageSpec } from '../../ux/catalog/types.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { fetchPageWithEmptyFallback } from './browseSession.js';
 import { buildFactActionId } from './factsDetail.js';
 import { fetchFacts, type FactItem, type FactListResponse } from './factsApi.js';
-import { ackUpdate } from '../../ux/render/reply.js';
+import { ackUpdate, followUpSpecSafe } from '../../ux/render/reply.js';
 
 const logger = createLogger('memory-facts-browse');
 
 /** Items per page */
 export const FACTS_PER_PAGE = 10;
 
-/** Shared expiry copy for interactions whose dashboard session is gone. */
-export const FACTS_SESSION_EXPIRED =
-  '⏰ This interaction has expired. Please run `/memory facts` again.';
+/** The command hint the facts session-expiry copy points the user at. */
+export const FACTS_COMMAND_HINT = '/memory facts';
 
 /** Copy when a fact was forgotten but the list refresh after it could not be shown. */
 export const FACTS_FORGOTTEN_REFRESH_COPY =
@@ -103,12 +98,44 @@ export const FACTS_PAGE_REFUSAL = {
   FETCH_FAILED: 'fetch-failed',
 } as const satisfies Record<string, FactsPageRefusal>;
 
-// Thunks so catalog copy is rendered at send time, like the after-forget copy.
-const FACTS_REFUSAL_CONTENT: Record<FactsPageRefusal, () => string> = {
-  [FACTS_PAGE_REFUSAL.SESSION_GONE]: () => FACTS_SESSION_EXPIRED,
-  [FACTS_PAGE_REFUSAL.FETCH_FAILED]: () =>
-    renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
+// MessageSpec thunks so catalog copy is rendered at send time.
+const FACTS_REFUSAL_SPECS: Record<FactsPageRefusal, () => MessageSpec> = {
+  [FACTS_PAGE_REFUSAL.SESSION_GONE]: () => CATALOG.progress.sessionExpired(FACTS_COMMAND_HINT),
+  [FACTS_PAGE_REFUSAL.FETCH_FAILED]: () => CATALOG.error.transient(PAGE_FETCH_FAILED_COPY),
 };
+
+/**
+ * The refusal notice for a facts page refusal as a MessageSpec — the same copy
+ * {@link followUpFactsRefusal} delivers, exposed so a caller that delivers the
+ * notice through another path (the batch confirm's restore-after-refusal
+ * helper) quotes the identical catalog copy.
+ */
+export function factsRefusalSpec(
+  reason: FactsPageRefusal,
+  options?: FactsRefreshOptions
+): MessageSpec {
+  if (options?.afterForget === true) {
+    return CATALOG.info.warning(FACTS_FORGOTTEN_REFRESH_COPY);
+  }
+  return FACTS_REFUSAL_SPECS[reason]();
+}
+
+/**
+ * Log the fetch-failed refusal (ids only) — the one warn both refusal paths
+ * share: {@link followUpFactsRefusal}'s own notice, and the batch confirm's
+ * restore path which delivers the notice through another helper.
+ */
+export function logFactsFetchFailure(
+  interaction: ButtonInteraction,
+  reason: FactsPageRefusal
+): void {
+  if (reason === FACTS_PAGE_REFUSAL.FETCH_FAILED) {
+    logger.warn(
+      { userId: interaction.user.id, messageId: interaction.message.id },
+      'Facts list could not be shown: page fetch failed'
+    );
+  }
+}
 
 /** Options for {@link refreshFactsList} and {@link followUpFactsRefusal}. */
 export interface FactsRefreshOptions {
@@ -118,35 +145,30 @@ export interface FactsRefreshOptions {
 /**
  * Notify the user ephemerally when a facts list page cannot be shown (expired
  * session vs transient page-fetch failure, or the post-forget confirmation copy
- * when `options.afterForget` is set). Logs the failed-fetch case with ids only
- * and swallows (and logs) a rejected followUp, so a notice that could not be
- * delivered never fails the caller.
+ * when `options.afterForget` is set). Logs the failed-fetch case with ids only;
+ * a rejected followUp is logged and swallowed by the safe followUp, so a notice
+ * that could not be delivered never fails the caller. The afterForget case
+ * additionally best-effort strips the stale forget-confirm/detail view after
+ * the notice — the mutation DID land, so its buttons must not stay live.
  */
 export async function followUpFactsRefusal(
   interaction: ButtonInteraction,
   reason: FactsPageRefusal,
   options?: FactsRefreshOptions
 ): Promise<void> {
-  if (reason === FACTS_PAGE_REFUSAL.FETCH_FAILED) {
-    logger.warn(
-      { userId: interaction.user.id, messageId: interaction.message.id },
-      'Facts list could not be shown: page fetch failed'
-    );
-  }
-  const content =
-    options?.afterForget === true
-      ? renderSpec(CATALOG.info.warning(FACTS_FORGOTTEN_REFRESH_COPY))
-      : FACTS_REFUSAL_CONTENT[reason]();
-  try {
-    await interaction.followUp({
-      content,
-      flags: MessageFlags.Ephemeral,
-    });
-  } catch (err) {
-    logger.warn(
-      { err, userId: interaction.user.id, messageId: interaction.message.id },
-      'Could not notify the user of the facts refusal'
-    );
+  logFactsFetchFailure(interaction, reason);
+  await followUpSpecSafe(interaction, factsRefusalSpec(reason, options), {
+    logContext: { userId: interaction.user.id, messageId: interaction.message.id },
+  });
+  if (options?.afterForget === true) {
+    try {
+      await interaction.editReply({ components: [] });
+    } catch (err) {
+      logger.warn(
+        { err, userId: interaction.user.id, messageId: interaction.message.id },
+        'Could not strip the stale facts detail view after the forget'
+      );
+    }
   }
 }
 

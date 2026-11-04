@@ -162,13 +162,14 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/character/aliasBatch.ts | replied | 1 |
 | services/bot-client/src/commands/character/aliasBatch.ts | user | 2 |
 | services/bot-client/src/commands/character/aliasBatch.ts | values | 1 |
+| services/bot-client/src/commands/character/aliasBatchConfirm.ts | components | 1 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | customId | 1 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | deferred | 2 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | embeds | 1 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | escapeMarkdown | 1 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | footer | 1 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | id | 1 |
-| services/bot-client/src/commands/character/aliasBatchConfirm.ts | message | 1 |
+| services/bot-client/src/commands/character/aliasBatchConfirm.ts | message | 2 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | replied | 2 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | text | 1 |
 | services/bot-client/src/commands/character/aliasBatchConfirm.ts | user | 1 |
@@ -307,6 +308,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/deny/browse.ts | id | 2 |
 | services/bot-client/src/commands/deny/browse.ts | user | 2 |
 | services/bot-client/src/commands/deny/browse.ts | values | 1 |
+| services/bot-client/src/commands/deny/browseBatch.ts | components | 1 |
 | services/bot-client/src/commands/deny/browseBatch.ts | customId | 6 |
 | services/bot-client/src/commands/deny/browseBatch.ts | deferred | 4 |
 | services/bot-client/src/commands/deny/browseBatch.ts | description | 1 |
@@ -314,7 +316,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/deny/browseBatch.ts | escapeMarkdown | 2 |
 | services/bot-client/src/commands/deny/browseBatch.ts | footer | 1 |
 | services/bot-client/src/commands/deny/browseBatch.ts | id | 7 |
-| services/bot-client/src/commands/deny/browseBatch.ts | message | 3 |
+| services/bot-client/src/commands/deny/browseBatch.ts | message | 4 |
 | services/bot-client/src/commands/deny/browseBatch.ts | replied | 4 |
 | services/bot-client/src/commands/deny/browseBatch.ts | text | 1 |
 | services/bot-client/src/commands/deny/browseBatch.ts | user | 7 |
@@ -352,6 +354,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/deny/remove.ts | getChannel | 1 |
 | services/bot-client/src/commands/deny/remove.ts | id | 1 |
 | services/bot-client/src/commands/deny/remove.ts | options | 1 |
+| services/bot-client/src/commands/deny/view.ts | escapeMarkdown | 2 |
 | services/bot-client/src/commands/feedback/index.ts | client | 1 |
 | services/bot-client/src/commands/feedback/index.ts | escapeMarkdown | 1 |
 | services/bot-client/src/commands/feedback/index.ts | id | 1 |
@@ -500,12 +503,13 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/detailModals.ts | setStyle | 2 |
 | services/bot-client/src/commands/memory/detailModals.ts | setTitle | 1 |
 | services/bot-client/src/commands/memory/detailModals.ts | user | 8 |
+| services/bot-client/src/commands/memory/factsBatch.ts | components | 1 |
 | services/bot-client/src/commands/memory/factsBatch.ts | deferred | 1 |
 | services/bot-client/src/commands/memory/factsBatch.ts | embeds | 1 |
 | services/bot-client/src/commands/memory/factsBatch.ts | escapeMarkdown | 2 |
 | services/bot-client/src/commands/memory/factsBatch.ts | footer | 1 |
 | services/bot-client/src/commands/memory/factsBatch.ts | id | 1 |
-| services/bot-client/src/commands/memory/factsBatch.ts | message | 2 |
+| services/bot-client/src/commands/memory/factsBatch.ts | message | 3 |
 | services/bot-client/src/commands/memory/factsBatch.ts | replied | 1 |
 | services/bot-client/src/commands/memory/factsBatch.ts | text | 1 |
 | services/bot-client/src/commands/memory/factsBatch.ts | user | 1 |
@@ -513,9 +517,9 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/factsBrowse.ts | channelId | 1 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | customId | 1 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | escapeMarkdown | 1 |
-| services/bot-client/src/commands/memory/factsBrowse.ts | id | 12 |
-| services/bot-client/src/commands/memory/factsBrowse.ts | message | 5 |
-| services/bot-client/src/commands/memory/factsBrowse.ts | user | 4 |
+| services/bot-client/src/commands/memory/factsBrowse.ts | id | 14 |
+| services/bot-client/src/commands/memory/factsBrowse.ts | message | 6 |
+| services/bot-client/src/commands/memory/factsBrowse.ts | user | 5 |
 | services/bot-client/src/commands/memory/factsDetail.ts | addComponents | 2 |
 | services/bot-client/src/commands/memory/factsDetail.ts | deferred | 1 |
 | services/bot-client/src/commands/memory/factsDetail.ts | escapeMarkdown | 2 |
@@ -555,12 +559,13 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/memoriesBatch.ts | id | 1 |
 | services/bot-client/src/commands/memory/memoriesBatch.ts | message | 2 |
 | services/bot-client/src/commands/memory/memoriesBatch.ts | values | 1 |
+| services/bot-client/src/commands/memory/memoriesBatchConfirm.ts | components | 1 |
 | services/bot-client/src/commands/memory/memoriesBatchConfirm.ts | deferred | 1 |
 | services/bot-client/src/commands/memory/memoriesBatchConfirm.ts | embeds | 1 |
 | services/bot-client/src/commands/memory/memoriesBatchConfirm.ts | escapeMarkdown | 1 |
 | services/bot-client/src/commands/memory/memoriesBatchConfirm.ts | footer | 1 |
 | services/bot-client/src/commands/memory/memoriesBatchConfirm.ts | id | 1 |
-| services/bot-client/src/commands/memory/memoriesBatchConfirm.ts | message | 1 |
+| services/bot-client/src/commands/memory/memoriesBatchConfirm.ts | message | 2 |
 | services/bot-client/src/commands/memory/memoriesBatchConfirm.ts | replied | 1 |
 | services/bot-client/src/commands/memory/memoriesBatchConfirm.ts | text | 1 |
 | services/bot-client/src/commands/memory/memoriesBatchConfirm.ts | user | 1 |
@@ -1559,6 +1564,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/browse/listEmbedBuilder.ts | setTitle | 1 |
 | services/bot-client/src/utils/browse/multiSelectBatch.ts | addComponents | 3 |
 | services/bot-client/src/utils/browse/multiSelectBatch.ts | components | 1 |
+| services/bot-client/src/utils/browse/multiSelectBatch.ts | customId | 2 |
 | services/bot-client/src/utils/browse/multiSelectBatch.ts | setColor | 1 |
 | services/bot-client/src/utils/browse/multiSelectBatch.ts | setCustomId | 3 |
 | services/bot-client/src/utils/browse/multiSelectBatch.ts | setDescription | 1 |
@@ -2329,7 +2335,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/character/view.ts | MessageFlags.IsComponentsV2 | 3 |
 | services/bot-client/src/commands/character/viewEdit.ts | MessageFlags.IsComponentsV2 | 1 |
 | services/bot-client/src/commands/deny/browse.ts | MessageFlags.Ephemeral | 1 |
-| services/bot-client/src/commands/deny/browseBatch.ts | MessageFlags.Ephemeral | 6 |
+| services/bot-client/src/commands/deny/browseBatch.ts | MessageFlags.Ephemeral | 4 |
 | services/bot-client/src/commands/deny/detail.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/commands/deny/detailEdit.ts | MessageFlags.Ephemeral | 5 |
 | services/bot-client/src/commands/history/index.ts | MessageFlags.Ephemeral | 1 |
@@ -2339,7 +2345,6 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/browse.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/commands/memory/detail.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/commands/memory/detailModals.ts | MessageFlags.Ephemeral | 4 |
-| services/bot-client/src/commands/memory/factsBrowse.ts | MessageFlags.Ephemeral | 1 |
 | services/bot-client/src/commands/memory/factsDetail.ts | MessageFlags.Ephemeral | 1 |
 | services/bot-client/src/commands/memory/interactionHandlers.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/commands/memory/search.ts | MessageFlags.Ephemeral | 2 |
@@ -2436,7 +2441,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/deny/browse.ts | editReply | 1 |
 | services/bot-client/src/commands/deny/browse.ts | followUp | 1 |
 | services/bot-client/src/commands/deny/browseBatch.ts | editReply | 3 |
-| services/bot-client/src/commands/deny/browseBatch.ts | followUp | 6 |
+| services/bot-client/src/commands/deny/browseBatch.ts | followUp | 4 |
 | services/bot-client/src/commands/deny/detail.ts | editReply | 3 |
 | services/bot-client/src/commands/deny/detail.ts | followUp | 2 |
 | services/bot-client/src/commands/deny/detailEdit.ts | editReply | 1 |
@@ -2462,8 +2467,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/detailModals.ts | reply | 3 |
 | services/bot-client/src/commands/memory/detailModals.ts | update | 2 |
 | services/bot-client/src/commands/memory/factsBatch.ts | editReply | 3 |
-| services/bot-client/src/commands/memory/factsBrowse.ts | editReply | 2 |
-| services/bot-client/src/commands/memory/factsBrowse.ts | followUp | 1 |
+| services/bot-client/src/commands/memory/factsBrowse.ts | editReply | 3 |
 | services/bot-client/src/commands/memory/factsDetail.ts | editReply | 2 |
 | services/bot-client/src/commands/memory/factsDetail.ts | reply | 1 |
 | services/bot-client/src/commands/memory/index.ts | respond | 1 |
@@ -2536,7 +2540,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/autocomplete/personaAutocomplete.ts | respond | 3 |
 | services/bot-client/src/utils/autocomplete/personalityAutocomplete.ts | respond | 4 |
 | services/bot-client/src/utils/autocomplete/tagAutocomplete.ts | respond | 3 |
-| services/bot-client/src/utils/browse/multiSelectBatch.ts | editReply | 2 |
+| services/bot-client/src/utils/browse/multiSelectBatch.ts | editReply | 3 |
 | services/bot-client/src/utils/browse/pageLoadFailure.ts | followUp | 1 |
 | services/bot-client/src/utils/chunkedReply.ts | editReply | 1 |
 | services/bot-client/src/utils/chunkedReply.ts | followUp | 4 |
@@ -2855,9 +2859,9 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/deny/browse.ts | embeds | 1 |
 | services/bot-client/src/commands/deny/browse.ts | flags | 1 |
 | services/bot-client/src/commands/deny/browseBatch.ts | components | 3 |
-| services/bot-client/src/commands/deny/browseBatch.ts | content | 6 |
+| services/bot-client/src/commands/deny/browseBatch.ts | content | 4 |
 | services/bot-client/src/commands/deny/browseBatch.ts | embeds | 2 |
-| services/bot-client/src/commands/deny/browseBatch.ts | flags | 6 |
+| services/bot-client/src/commands/deny/browseBatch.ts | flags | 4 |
 | services/bot-client/src/commands/deny/detail.ts | components | 3 |
 | services/bot-client/src/commands/deny/detail.ts | content | 2 |
 | services/bot-client/src/commands/deny/detail.ts | embeds | 3 |
@@ -2899,10 +2903,8 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/detailModals.ts | flags | 4 |
 | services/bot-client/src/commands/memory/factsBatch.ts | components | 3 |
 | services/bot-client/src/commands/memory/factsBatch.ts | embeds | 2 |
-| services/bot-client/src/commands/memory/factsBrowse.ts | components | 2 |
-| services/bot-client/src/commands/memory/factsBrowse.ts | content | 1 |
+| services/bot-client/src/commands/memory/factsBrowse.ts | components | 3 |
 | services/bot-client/src/commands/memory/factsBrowse.ts | embeds | 2 |
-| services/bot-client/src/commands/memory/factsBrowse.ts | flags | 1 |
 | services/bot-client/src/commands/memory/factsDetail.ts | components | 2 |
 | services/bot-client/src/commands/memory/factsDetail.ts | content | 1 |
 | services/bot-client/src/commands/memory/factsDetail.ts | embeds | 2 |
@@ -2988,7 +2990,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/services/releaseDm/setupReleaseDmWorker.ts | content | 1 |
 | services/bot-client/src/services/retentionNotice/setupRetentionNotifyWorker.ts | allowedMentions | 1 |
 | services/bot-client/src/services/retentionNotice/setupRetentionNotifyWorker.ts | content | 1 |
-| services/bot-client/src/utils/browse/multiSelectBatch.ts | components | 2 |
+| services/bot-client/src/utils/browse/multiSelectBatch.ts | components | 3 |
 | services/bot-client/src/utils/browse/multiSelectBatch.ts | embeds | 2 |
 | services/bot-client/src/utils/browse/pageLoadFailure.ts | content | 1 |
 | services/bot-client/src/utils/browse/pageLoadFailure.ts | flags | 1 |
@@ -3129,4 +3131,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 2 |
 
-Total: 3059 entries across 7090 sites.
+Total: 3061 entries across 7098 sites.

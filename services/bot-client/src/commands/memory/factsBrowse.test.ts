@@ -6,8 +6,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageFlags, type ButtonInteraction } from 'discord.js';
 import {
   FACT_BROWSE_PREFIX,
+  FACTS_COMMAND_HINT,
   FACTS_FORGOTTEN_REFRESH_COPY,
-  FACTS_SESSION_EXPIRED,
   factBrowseHelpers,
   followUpFactsRefusal,
   isFactBrowsePagination,
@@ -640,7 +640,7 @@ describe('error branches', () => {
 
     expect(interaction.followUp).toHaveBeenCalledTimes(1);
     expect(interaction.followUp).toHaveBeenCalledWith({
-      content: FACTS_SESSION_EXPIRED,
+      content: renderSpec(CATALOG.progress.sessionExpired(FACTS_COMMAND_HINT)),
       flags: MessageFlags.Ephemeral,
     });
     expect(interaction.editReply).not.toHaveBeenCalled();
@@ -666,7 +666,9 @@ describe('error branches', () => {
       flags: MessageFlags.Ephemeral,
     });
     expect(interaction.followUp).not.toHaveBeenCalledWith(
-      expect.objectContaining({ content: FACTS_SESSION_EXPIRED })
+      expect.objectContaining({
+        content: renderSpec(CATALOG.progress.sessionExpired(FACTS_COMMAND_HINT)),
+      })
     );
     expect(interaction.editReply).not.toHaveBeenCalled();
   });
@@ -730,14 +732,15 @@ describe('error branches', () => {
     expect(loggerMock.warn).toHaveBeenCalledTimes(1);
     expect(loggerMock.warn).toHaveBeenCalledWith(
       { err: followUpError, userId: 'user-1', messageId: 'message-1' },
-      'Could not notify the user of the facts refusal'
+      'Failed to deliver catalog message'
     );
   });
 
-  it('followUpFactsRefusal: sends FACTS_FORGOTTEN_REFRESH_COPY on session-gone when afterForget is true', async () => {
+  it('followUpFactsRefusal: sends FACTS_FORGOTTEN_REFRESH_COPY and best-effort strips the stale view on session-gone when afterForget is true', async () => {
     const interaction = {
       user: { id: 'user-1' },
       message: { id: 'message-1' },
+      editReply: vi.fn().mockResolvedValue(undefined),
       followUp: vi.fn().mockResolvedValue(undefined),
     } as unknown as ButtonInteraction;
 
@@ -751,13 +754,16 @@ describe('error branches', () => {
       content: renderSpec(CATALOG.info.warning(FACTS_FORGOTTEN_REFRESH_COPY)),
       flags: MessageFlags.Ephemeral,
     });
+    // The forget landed, so the stale confirm/detail view loses its buttons.
+    expect(interaction.editReply).toHaveBeenCalledWith({ components: [] });
     expect(loggerMock.warn).not.toHaveBeenCalled();
   });
 
-  it('followUpFactsRefusal: sends FACTS_FORGOTTEN_REFRESH_COPY and logs warn on fetch-failed when afterForget is true', async () => {
+  it('followUpFactsRefusal: sends FACTS_FORGOTTEN_REFRESH_COPY, strips the stale view, and logs warn on fetch-failed when afterForget is true', async () => {
     const interaction = {
       user: { id: 'user-1' },
       message: { id: 'message-1' },
+      editReply: vi.fn().mockResolvedValue(undefined),
       followUp: vi.fn().mockResolvedValue(undefined),
     } as unknown as ButtonInteraction;
 
@@ -768,11 +774,44 @@ describe('error branches', () => {
       content: renderSpec(CATALOG.info.warning(FACTS_FORGOTTEN_REFRESH_COPY)),
       flags: MessageFlags.Ephemeral,
     });
+    expect(interaction.editReply).toHaveBeenCalledWith({ components: [] });
     expect(loggerMock.warn).toHaveBeenCalledTimes(1);
     expect(loggerMock.warn).toHaveBeenCalledWith(
       { userId: 'user-1', messageId: 'message-1' },
       'Facts list could not be shown: page fetch failed'
     );
+  });
+
+  it('followUpFactsRefusal: the afterForget strip is best-effort — a failing editReply is logged and swallowed', async () => {
+    const interaction = {
+      user: { id: 'user-1' },
+      message: { id: 'message-1' },
+      editReply: vi.fn().mockRejectedValue(new Error('message gone')),
+      followUp: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ButtonInteraction;
+
+    await expect(
+      followUpFactsRefusal(interaction, 'session-gone', { afterForget: true })
+    ).resolves.toBeUndefined();
+
+    expect(interaction.followUp).toHaveBeenCalledTimes(1);
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      'Could not strip the stale facts detail view after the forget'
+    );
+  });
+
+  it('followUpFactsRefusal: no strip without afterForget', async () => {
+    const interaction = {
+      user: { id: 'user-1' },
+      message: { id: 'message-1' },
+      editReply: vi.fn().mockResolvedValue(undefined),
+      followUp: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ButtonInteraction;
+
+    await followUpFactsRefusal(interaction, 'session-gone');
+
+    expect(interaction.editReply).not.toHaveBeenCalled();
   });
 
   it('refreshFactsList: confirms the forget when the session is gone after a forget', async () => {
@@ -791,7 +830,8 @@ describe('error branches', () => {
       content: renderSpec(CATALOG.info.warning(FACTS_FORGOTTEN_REFRESH_COPY)),
       flags: MessageFlags.Ephemeral,
     });
-    expect(interaction.editReply).not.toHaveBeenCalled();
+    // The forget landed, so the stale view is best-effort stripped.
+    expect(interaction.editReply).toHaveBeenCalledWith({ components: [] });
   });
 
   it('refreshFactsList: confirms the forget when the fetch fails after a forget', async () => {
@@ -813,6 +853,7 @@ describe('error branches', () => {
       content: renderSpec(CATALOG.info.warning(FACTS_FORGOTTEN_REFRESH_COPY)),
       flags: MessageFlags.Ephemeral,
     });
-    expect(interaction.editReply).not.toHaveBeenCalled();
+    // The forget landed, so the stale view is best-effort stripped.
+    expect(interaction.editReply).toHaveBeenCalledWith({ components: [] });
   });
 });

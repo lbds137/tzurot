@@ -53,9 +53,15 @@ vi.mock('../../utils/gatewayClients.js', () => ({
 }));
 
 function createButtonInteraction(
-  options: Parameters<typeof createBaseButtonInteraction>[0] = {}
+  options: Parameters<typeof createBaseButtonInteraction>[0] & {
+    /** Non-empty message rows for tests asserting the restore-after-refusal payload. */
+    messageComponents?: unknown[];
+  } = {}
 ): ReturnType<typeof createBaseButtonInteraction> {
   const interaction = createBaseButtonInteraction(options);
+  if (options.messageComponents !== undefined) {
+    (interaction.message as { components: unknown[] }).components = options.messageComponents;
+  }
   vi.mocked(interaction.deferUpdate).mockImplementation(() => {
     (interaction as { deferred: boolean }).deferred = true;
     return Promise.resolve(undefined as never);
@@ -303,8 +309,15 @@ describe('C1 — handleAliasBatchConfirm (partial failure & already-gone named, 
       status: 500,
       error: 'boom',
     });
+    // Two DISTINCT rows: a hardcoded `{ components: [] }` restore cannot
+    // pass the restore assertion below the way it could with empty mocks.
+    const capturedRows = [
+      { toJSON: () => ({ type: 1, components: [{ custom_id: 'alias-row-1' }] }) },
+      { toJSON: () => ({ type: 1, components: [{ custom_id: 'alias-row-2' }] }) },
+    ];
     const interaction = createButtonInteraction({
       footerText: encodeAliasBatchFooterIds(['user:mommy']),
+      messageComponents: capturedRows,
     });
 
     await handleAliasBatchConfirm(interaction);
@@ -314,6 +327,17 @@ describe('C1 — handleAliasBatchConfirm (partial failure & already-gone named, 
         content: expect.stringContaining("Couldn't load that page"),
       })
     );
+    // Nothing was removed — after the refusal followUp lands, the captured
+    // rows go back verbatim.
+    expect(vi.mocked(interaction.editReply).mock.calls[0]?.[0]).toEqual({ components: [] });
+    const restorePayload = vi.mocked(interaction.editReply).mock.calls[1]?.[0] as {
+      components: unknown[];
+    };
+    expect(restorePayload.components).toEqual(capturedRows);
+    expect(restorePayload.components).toHaveLength(2);
+    const followUpOrder = vi.mocked(interaction.followUp).mock.invocationCallOrder[0];
+    const restoreOrder = vi.mocked(interaction.editReply).mock.invocationCallOrder[1];
+    expect(followUpOrder).toBeLessThan(restoreOrder);
     expect(mockUserClient.removePersonalityAlias).not.toHaveBeenCalled();
   });
 

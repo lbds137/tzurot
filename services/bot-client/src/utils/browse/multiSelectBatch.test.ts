@@ -3,7 +3,13 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ButtonStyle, EmbedBuilder, type ButtonInteraction, type Message } from 'discord.js';
+import {
+  ButtonStyle,
+  EmbedBuilder,
+  type ButtonInteraction,
+  type Message,
+  type TopLevelComponent,
+} from 'discord.js';
 
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 
@@ -24,6 +30,7 @@ import {
   parseBatchFooterIds,
   readSelectOptionLabels,
   recoverConfirmListingLabels,
+  restoreAfterRefusal,
   runBatchSequentially,
   toBatchOutcomeLine,
   type BatchConfirmView,
@@ -31,7 +38,27 @@ import {
 import { buildBrowseSelectMenu } from './selectMenuBuilder.js';
 
 const followUpSpecMock = vi.hoisted(() => vi.fn());
-vi.mock('../../ux/render/reply.js', () => ({ followUpSpec: followUpSpecMock }));
+const followUpSpecSafeMock = vi.hoisted(() => vi.fn());
+vi.mock('../../ux/render/reply.js', () => ({
+  followUpSpec: followUpSpecMock,
+  followUpSpecSafe: followUpSpecSafeMock,
+}));
+
+const loggerWarnMock = vi.hoisted(() => vi.fn());
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      debug: vi.fn(),
+      warn: loggerWarnMock,
+      error: vi.fn(),
+    }),
+  };
+});
 
 // Real CATALOG everywhere (the module graph reads it at load time) except
 // info.note, overridden to identity so the ladder test can assert the
@@ -53,6 +80,68 @@ describe('PAGE_FETCH_FAILED_COPY', () => {
   it('names the page, not the session — a failed fetch is not an expiry', () => {
     expect(PAGE_FETCH_FAILED_COPY).toContain("Couldn't load that page");
     expect(PAGE_FETCH_FAILED_COPY.toLowerCase()).not.toContain('expired');
+  });
+});
+
+describe('restoreAfterRefusal', () => {
+  const refusalSpec = {
+    severity: 'error',
+    outcome: 'failed',
+    text: 'the refusal copy',
+  } as const;
+
+  function createInteraction(): ButtonInteraction {
+    return {
+      customId: 'memory-fact::batch-confirm::forget',
+      editReply: vi.fn().mockResolvedValue(undefined),
+      followUp: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ButtonInteraction;
+  }
+
+  // Two DISTINCT rows: a hardcoded `{ components: [] }` restore cannot pass
+  // these assertions the way it can when callers' flows capture empty mocks.
+  const capturedRows = [
+    { toJSON: () => ({ type: 1, components: [{ custom_id: 'row-1' }] }) },
+    { toJSON: () => ({ type: 1, components: [{ custom_id: 'row-2' }] }) },
+  ] as unknown as TopLevelComponent[];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('follows up with the refusal spec, then restores the captured rows verbatim (non-empty)', async () => {
+    const interaction = createInteraction();
+
+    await restoreAfterRefusal(interaction, capturedRows, refusalSpec);
+
+    expect(followUpSpecSafeMock).toHaveBeenCalledTimes(1);
+    expect(followUpSpecSafeMock).toHaveBeenCalledWith(interaction, refusalSpec, {
+      logContext: { customId: 'memory-fact::batch-confirm::forget' },
+    });
+    const payload = vi.mocked(interaction.editReply).mock.calls[0]?.[0] as {
+      components: unknown[];
+    };
+    expect(payload.components).toEqual(capturedRows);
+    expect(payload.components).toHaveLength(2);
+  });
+
+  it('swallows and logs a rejected restore editReply — the already-delivered notice stays', async () => {
+    const interaction = createInteraction();
+    vi.mocked(interaction.editReply).mockRejectedValue(new Error('Unknown Message'));
+
+    await expect(
+      restoreAfterRefusal(interaction, capturedRows, refusalSpec)
+    ).resolves.toBeUndefined();
+
+    // The refusal notice was delivered before the restore attempt.
+    expect(followUpSpecSafeMock).toHaveBeenCalledTimes(1);
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        err: expect.any(Error),
+        customId: 'memory-fact::batch-confirm::forget',
+      }),
+      'Restore-after-refusal editReply failed; the inert view stays'
+    );
   });
 });
 
