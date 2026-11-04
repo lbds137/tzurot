@@ -52,9 +52,9 @@ import {
   type BatchReportView,
   type BatchResultLine,
 } from '../../utils/browse/multiSelectBatch.js';
+import { followUpBrowsePageFailure } from '../../utils/browse/pageLoadFailure.js';
 import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
-import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { ackUpdate } from '../../ux/render/reply.js';
 import {
@@ -218,10 +218,7 @@ async function refreshDenyBrowseMode(
     const fetched = await fetchEntriesResult(ownerClient);
     if (!fetched.ok) {
       logger.warn({ userId, mode }, 'Failed to fetch denylist entries for batch browse swap');
-      await interaction.followUp({
-        content: renderSpec(classifyGatewayFailure(fetched.failure, 'page', { operation: 'read' })),
-        flags: MessageFlags.Ephemeral,
-      });
+      await followUpBrowsePageFailure(interaction, fetched.failure);
       return;
     }
     const { embed, components } = buildBrowseResponse(
