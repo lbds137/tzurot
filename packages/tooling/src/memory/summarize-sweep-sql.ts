@@ -154,7 +154,7 @@ export interface ErrorClassRow {
  * `status` is a closed `'failed' | 'dead'` literal union interpolated into
  * the WHERE clause — there is no third value, so the interpolation is safe.
  */
-export function byErrorClassSql(status: 'failed' | 'dead'): string {
+function byErrorClassSql(status: 'failed' | 'dead'): string {
   return `SELECT COALESCE(summary_last_error, 'unrecorded') AS error_class, COUNT(*)::int AS row_count
 FROM memories
 WHERE personality_id = $1::uuid AND chunk_group_id IS NULL AND summary_status = '${status}'

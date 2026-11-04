@@ -368,8 +368,8 @@ describe('summarizeSweep', () => {
   it('MEM-ARCH-030: prints failed rows grouped by error class, above the dead section, when any exist', async () => {
     routeFailedAndDead(
       [
-        { error_class: 'rate_limit', row_count: 7 },
-        { error_class: 'provider', row_count: 2 },
+        { error_class: 'parse_failure', row_count: 7 },
+        { error_class: 'overflow', row_count: 2 },
       ],
       [{ error_class: 'no_template', row_count: 3 }]
     );
@@ -392,8 +392,8 @@ describe('summarizeSweep', () => {
         )
       )
     ).toBe(true);
-    expect(lines).toContain('    rate_limit  7');
-    expect(lines).toContain('    provider  2');
+    expect(lines).toContain('    parse_failure  7');
+    expect(lines).toContain('    overflow  2');
 
     spy.mockRestore();
   });
