@@ -15,6 +15,7 @@ import {
 } from 'discord.js';
 import { ENTITY_EMOJI, buildBadgeLegend } from '@tzurot/common-types/constants/uxVocabulary';
 import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
+import { DENYLIST_LIST_MAX_ENTRIES } from '@tzurot/common-types/schemas/api/denylist';
 import { formatDiscordTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
@@ -44,6 +45,7 @@ import {
 } from '../../utils/browse/multiSelectBatch.js';
 import { followUpBrowsePageFailure } from '../../utils/browse/pageLoadFailure.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { ackUpdate } from '../../ux/render/reply.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
@@ -211,13 +213,43 @@ function formatDenyListRow(entry: DenylistEntryResponse): {
   };
 }
 
+/**
+ * Footer segment shown when the fetched list sits at the list route's cap
+ * (`DENYLIST_LIST_MAX_ENTRIES`): the browse shows only the newest entries the
+ * route returned, so a pick made from this page may not cover the whole list.
+ */
+const DENYLIST_CAP_FOOTER = `Showing only the newest ${DENYLIST_LIST_MAX_ENTRIES} entries`;
+
+/**
+ * Whether the RAW fetched list sits at the route cap. `>=`, not `>`: the
+ * route returns at most DENYLIST_LIST_MAX_ENTRIES rows for any list at or
+ * over the cap, so exactly-at-cap already means "possibly truncated" —
+ * this response cannot distinguish the two without fetching one more row.
+ */
+export function isDenylistAtCap(entries: DenylistEntryResponse[]): boolean {
+  return entries.length >= DENYLIST_LIST_MAX_ENTRIES;
+}
+
+/** Options shared by the browse page/response builders. */
+interface DenyBrowsePageOptions {
+  /** Multi-select batch mode swaps the select menu's rows for the batch set. */
+  mode?: 'single' | 'batch';
+  /**
+   * Whether the RAW fetched list sits at the route cap — computed by the
+   * caller from the raw length, never from the filtered list (any active
+   * filter shrinks the filtered list below the cap and would hide the
+   * segment on a capped list).
+   */
+  listTruncated: boolean;
+}
+
 /** Build the browse page embed and components on the shared list builder. */
 function buildBrowsePage(
   entries: DenylistEntryResponse[],
   page: number,
   filter: DenyBrowseFilter,
   sort: BrowseSortType,
-  options?: { mode?: 'single' | 'batch' }
+  options: DenyBrowsePageOptions
 ): { embed: EmbedBuilder; components: BrowseActionRow[] } {
   const { embed, pageItems, startIndex, totalPages, safePage } =
     buildBrowseListEmbed<DenylistEntryResponse>({
@@ -237,7 +269,11 @@ function buildBrowsePage(
         // Derived from the toggle display so button and footer can't drift.
         filter !== 'all' && formatFilterLabeled(FILTER_TOGGLE_DISPLAY[filter].shortLabel),
         sort === 'date' ? formatSortNatural('date') : formatSortNatural('target ID'),
-        options?.mode === 'batch' && entries.length > 0 && 'Select several below, then confirm',
+        options.mode === 'batch' && entries.length > 0 && 'Select several below, then confirm',
+        // Gated on the RAW fetched length, not the filtered `entries`: any
+        // active filter shrinks the filtered list below the cap and would
+        // otherwise hide the segment on a capped list.
+        options.listTruncated && DENYLIST_CAP_FOOTER,
       ],
       badgeLegend: buildBadgeLegend(['USER_TARGET', 'GUILD_TARGET', 'MUTED']),
       // No ERROR color: browse is an informational surface and stays BLURPLE
@@ -278,7 +314,7 @@ function buildBrowsePage(
     return { embed, components: [buttonRow] };
   }
 
-  if (options?.mode === 'batch') {
+  if (options.mode === 'batch') {
     const batchSelectRow = buildBrowseSelectMenu<DenylistEntryResponse>({
       items: pageItems,
       customId: buildDenyBatchCustomId(DENY_BATCH_ACTION.SELECT, safePage, filter, sort),
@@ -349,13 +385,15 @@ export async function fetchEntries(
 /**
  * Build a browse response from raw entries and browse context.
  * Used by detail.ts for back navigation and browseBatch.ts for batch mode / refresh.
+ * `options.listTruncated` is the caller's RAW-fetched-length cap check (the
+ * filtered list this function derives cannot decide it).
  */
 export function buildBrowseResponse(
   entries: DenylistEntryResponse[],
   page: number,
   filter: DenyBrowseFilter,
   sort: BrowseSortType,
-  options?: { mode?: 'single' | 'batch' }
+  options: DenyBrowsePageOptions
 ): { embed: EmbedBuilder; components: BrowseActionRow[] } {
   const filtered = filterByType(entries, filter);
   const sorted = sortEntries(filtered, sort);
@@ -373,15 +411,20 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     filterOption === 'user' || filterOption === 'guild' ? filterOption : 'all';
 
   const { ownerClient } = clientsFor(context.interaction);
-  const entries = await fetchEntries(ownerClient);
-  if (entries === null) {
-    await context.editReply('\u274C Failed to fetch denylist entries.');
+  const fetched = await fetchEntriesResult(ownerClient);
+  if (!fetched.ok) {
+    await context.editReply(
+      renderSpec(classifyGatewayFailure(fetched.failure, 'page', { operation: 'read' }))
+    );
     return;
   }
+  const entries = fetched.entries;
 
   const filtered = filterByType(entries, filter);
   const sorted = sortEntries(filtered, 'date');
-  const { embed, components } = buildBrowsePage(sorted, 0, filter, 'date');
+  const { embed, components } = buildBrowsePage(sorted, 0, filter, 'date', {
+    listTruncated: isDenylistAtCap(entries),
+  });
 
   await context.editReply({ embeds: [embed], components });
 }
@@ -411,7 +454,9 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
 
   const filtered = filterByType(fetched.entries, filter);
   const sorted = sortEntries(filtered, sort);
-  const { embed, components } = buildBrowsePage(sorted, page, filter, sort);
+  const { embed, components } = buildBrowsePage(sorted, page, filter, sort, {
+    listTruncated: isDenylistAtCap(fetched.entries),
+  });
 
   await interaction.editReply({ embeds: [embed], components });
 }

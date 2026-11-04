@@ -45,6 +45,7 @@ import {
   parseBatchFooterIds,
   readSelectOptionLabels,
   recoverConfirmListingLabels,
+  restoreAfterRefusal,
   runBatchSequentially,
   toBatchOutcomeLine,
   type BatchItemResult,
@@ -53,13 +54,16 @@ import {
 } from '../../utils/browse/multiSelectBatch.js';
 import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { ackUpdate } from '../../ux/render/reply.js';
 import {
   DENY_BATCH_ACTION,
   buildBrowseResponse,
   buildDenyBatchCustomId,
+  isDenylistAtCap,
   fetchEntries,
+  fetchEntriesResult,
   formatDenySelectOption,
   parseDenyBatchCustomId,
   type ParsedDenyBatchCustomId,
@@ -74,6 +78,16 @@ const logger = createLogger('deny-browse-batch');
  * glyph because `formatBatchItemLines` prepends `❌`.
  */
 export const FAILED_TO_REMOVE_NOTE = 'Failed to delete entry. Please try again.';
+
+/**
+ * Note for a pick that could not be confirmed because it fell outside the
+ * newest {@link DENYLIST_LIST_MAX_ENTRIES} entries the list route returns —
+ * unlike {@link FAILED_TO_REMOVE_NOTE}, a retry cannot succeed until the list
+ * shrinks, so the copy points the user at `/deny remove`, which resolves the
+ * target directly (no capped list lookup) and is the path that works for
+ * past-cap entries.
+ */
+export const COULD_NOT_VERIFY_NOTE = `Couldn't confirm this entry (the list only shows the newest ${DENYLIST_LIST_MAX_ENTRIES}) — if it still exists, remove it with /deny remove.`;
 
 const EMPTY_SELECTION_MSG = renderSpec(CATALOG.error.validation('No entries were selected.'));
 
@@ -105,7 +119,7 @@ export function isDenyBatchSelect(customId: string): boolean {
  * Resolve one picked entry UUID against the pre-fetched denylist and execute
  * `ownerClient.removeDenylistEntry(type, discordId, scope, scopeId)`:
  * - entry absent from an uncapped fetched list → `'already-gone'` (no gateway delete call)
- * - entry absent from a fetched list at or over the cap (`listTruncated`) → logs `warn({ userId, entryId })` and throws `FAILED_TO_REMOVE_NOTE`
+ * - entry absent from a fetched list at or over the cap (`listTruncated`) → logs `warn({ userId, entryId })` and throws `COULD_NOT_VERIFY_NOTE`
  * - `result.ok` → `'success'`
  * - `result.status === 404` → `'already-gone'`
  * - other `!result.ok` → logs `warn({ userId, entryId, status })` and throws `FAILED_TO_REMOVE_NOTE`
@@ -122,7 +136,7 @@ async function runSingleDenyRemoval(
   if (entry === undefined) {
     if (listTruncated) {
       logger.warn({ userId, entryId }, 'Batch denylist pick absent from a capped re-fetch');
-      throw new Error(FAILED_TO_REMOVE_NOTE);
+      throw new Error(COULD_NOT_VERIFY_NOTE);
     }
     return 'already-gone';
   }
@@ -188,7 +202,9 @@ export async function buildRefreshedDenyBrowseView(
   if (entries === null) {
     return null;
   }
-  return buildBrowseResponse(entries, coords.page, coords.filter, coords.sort);
+  return buildBrowseResponse(entries, coords.page, coords.filter, coords.sort, {
+    listTruncated: isDenylistAtCap(entries),
+  });
 }
 
 async function refreshDenyBrowseMode(
@@ -199,21 +215,24 @@ async function refreshDenyBrowseMode(
   const userId = interaction.user.id;
   try {
     const { ownerClient } = clientsFor(interaction);
-    const entries = await fetchEntries(ownerClient);
-    if (entries === null) {
+    const fetched = await fetchEntriesResult(ownerClient);
+    if (!fetched.ok) {
       logger.warn({ userId, mode }, 'Failed to fetch denylist entries for batch browse swap');
       await interaction.followUp({
-        content: renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
+        content: renderSpec(classifyGatewayFailure(fetched.failure, 'page', { operation: 'read' })),
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
     const { embed, components } = buildBrowseResponse(
-      entries,
+      fetched.entries,
       coords.page,
       coords.filter,
       coords.sort,
-      { mode }
+      {
+        mode,
+        listTruncated: isDenylistAtCap(fetched.entries),
+      }
     );
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
@@ -356,6 +375,9 @@ export async function handleDenyBatchConfirm(interaction: ButtonInteraction): Pr
   let recoveredLabels: ReadonlyMap<string, string>;
   let ownerClient: OwnerClient;
   let entries: DenylistEntryResponse[] | null;
+  // Capture the confirm view's rows BEFORE the strip (a plain read) so a
+  // refused pre-mutation confirm can put the buttons back.
+  const confirmRows = [...interaction.message.components];
   try {
     recoveredLabels = recoverConfirmListingLabels(interaction.message.embeds[0]?.description, ids);
     ({ ownerClient } = clientsFor(interaction));
@@ -373,21 +395,18 @@ export async function handleDenyBatchConfirm(interaction: ButtonInteraction): Pr
 
   if (entries === null) {
     logger.warn({ userId }, 'Pre-loop denylist fetch failed on batch confirm');
-    await interaction
-      .followUp({
-        content: renderSpec(CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)),
-        flags: MessageFlags.Ephemeral,
-      })
-      .catch((followUpError: unknown) => {
-        logger.warn({ err: followUpError, userId }, 'Deny batch refusal followUp failed');
-      });
+    // Nothing was removed — after the refusal followUp lands (preserving the
+    // double-submit guard), the captured rows go back so the user can retry.
+    await restoreAfterRefusal(
+      interaction,
+      confirmRows,
+      CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)
+    );
     return;
   }
 
   const entriesById = new Map(entries.map(entry => [entry.id, entry]));
-  // A full page is treated as possibly truncated because the list response cannot tell
-  // exactly-the-cap from more-than-the-cap, so the check errs toward reporting failed.
-  const listTruncated = entries.length >= DENYLIST_LIST_MAX_ENTRIES;
+  const listTruncated = isDenylistAtCap(entries);
   const results = await runBatchSequentially(ids, entryId =>
     runSingleDenyRemoval(ownerClient, entriesById, entryId, userId, listTruncated)
   );

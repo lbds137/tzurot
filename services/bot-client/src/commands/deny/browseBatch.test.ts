@@ -31,6 +31,7 @@ import {
 } from '../../utils/browse/multiSelectBatch.js';
 import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import {
   buildBrowseResponse,
@@ -42,6 +43,7 @@ import {
 import type { DenylistEntryResponse } from './browseTypes.js';
 import {
   FAILED_TO_REMOVE_NOTE,
+  COULD_NOT_VERIFY_NOTE,
   buildRefreshedDenyBrowseView,
   fallbackDenyLabel,
   handleDenyBatchButton,
@@ -260,7 +262,10 @@ describe('deny browse batch removal flow', () => {
 
   describe('real multi-select swap render & handleDenyBatchSelectEntry', () => {
     it('renders a real multi-select with min 1, max = page item count, batch customId carrying page/filter/sort, Cancel button, and NO pagination row', () => {
-      const view = buildBrowseResponse(FIVE_DENY_ENTRIES, 0, 'all', 'date', { mode: 'batch' });
+      const view = buildBrowseResponse(FIVE_DENY_ENTRIES, 0, 'all', 'date', {
+        mode: 'batch',
+        listTruncated: false,
+      });
 
       expect(view.components).toHaveLength(2);
       const [selectRow, cancelRow] = view.components.map(row => row.toJSON().components);
@@ -286,7 +291,9 @@ describe('deny browse batch removal flow', () => {
       const footerText = view.embed.toJSON().footer?.text ?? '';
       expect(footerText).toContain('Select several below, then confirm');
 
-      const singleView = buildBrowseResponse(FIVE_DENY_ENTRIES, 0, 'all', 'date');
+      const singleView = buildBrowseResponse(FIVE_DENY_ENTRIES, 0, 'all', 'date', {
+        listTruncated: false,
+      });
       expect(singleView.embed.toJSON().footer?.text ?? '').not.toContain(
         'Select several below, then confirm'
       );
@@ -318,8 +325,9 @@ describe('deny browse batch removal flow', () => {
       });
     });
 
-    it('surfaces PAGE_FETCH_FAILED_COPY on an ephemeral followUp when fetchEntries returns null on batch-select entry', async () => {
-      stub.listDenylistEntries.mockResolvedValue(makeErr(500, 'Internal error'));
+    it('surfaces the classified copy of the real failure on an ephemeral followUp when the fetch fails on batch-select entry', async () => {
+      const failure = makeErr(500, 'Internal error');
+      stub.listDenylistEntries.mockResolvedValue(failure);
       const interaction = createButtonInteraction({
         customId: 'deny::batch-select::0::all::date',
       });
@@ -329,7 +337,7 @@ describe('deny browse batch removal flow', () => {
       expect(interaction.editReply).not.toHaveBeenCalled();
       expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining(PAGE_FETCH_FAILED_COPY),
+          content: renderSpec(classifyGatewayFailure(failure, 'page', { operation: 'read' })),
           flags: MessageFlags.Ephemeral,
         })
       );
@@ -340,6 +348,7 @@ describe('deny browse batch removal flow', () => {
     it('acks first, reads option labels from the attached select menu, and renders Remove (N) (Danger, last) + Cancel', async () => {
       const batchView = buildBrowseResponse(FIVE_DENY_ENTRIES, 0, 'all', 'date', {
         mode: 'batch',
+        listTruncated: false,
       });
       const pickedIds = [FIVE_DENY_ENTRIES[0].id, FIVE_DENY_ENTRIES[2].id];
       const interaction = createSelectInteraction({
@@ -394,6 +403,7 @@ describe('deny browse batch removal flow', () => {
     it('propagates an editReply failure after the ack instead of swallowing it', async () => {
       const batchView = buildBrowseResponse(FIVE_DENY_ENTRIES, 0, 'all', 'date', {
         mode: 'batch',
+        listTruncated: false,
       });
       const interaction = createSelectInteraction({
         customId: 'deny::batch-select::0::all::date',
@@ -426,6 +436,7 @@ describe('deny browse batch removal flow', () => {
 
       const batchView = buildBrowseResponse(FIVE_DENY_ENTRIES, 0, 'all', 'date', {
         mode: 'batch',
+        listTruncated: false,
       });
       const baseInteraction = createSelectInteraction({
         customId: 'deny::batch-select::0::all::date',
@@ -470,6 +481,7 @@ describe('deny browse batch removal flow', () => {
 
       const batchView = buildBrowseResponse(FIVE_DENY_ENTRIES, 0, 'all', 'date', {
         mode: 'batch',
+        listTruncated: false,
       });
       const pickedIds = FIVE_DENY_ENTRIES.map(e => e.id);
       const pickInteraction = createSelectInteraction({
@@ -564,11 +576,17 @@ describe('deny browse batch removal flow', () => {
       expect(stub.removeDenylistEntry).not.toHaveBeenCalled();
       const [resultEmbed] = lastEmbedsJson(confirmInteraction);
       const lines = (resultEmbed.description ?? '').split('\n');
-      expect(lines).toEqual([`❌ ${fallbackDenyLabel(absentId)} — ${FAILED_TO_REMOVE_NOTE}`]);
+      expect(lines).toEqual([`❌ ${fallbackDenyLabel(absentId)} — ${COULD_NOT_VERIFY_NOTE}`]);
       expect(resultEmbed.color).toBe(DISCORD_COLORS.ERROR);
       expect(loggerMock.warn).toHaveBeenCalledWith(
         { userId: 'owner-1', entryId: absentId },
         'Batch denylist pick absent from a capped re-fetch'
+      );
+    });
+
+    it('carries the owner-ruled wording (11-04 ruling)', () => {
+      expect(COULD_NOT_VERIFY_NOTE).toBe(
+        "Couldn't confirm this entry (the list only shows the newest 500) — if it still exists, remove it with /deny remove."
       );
     });
 
@@ -598,9 +616,16 @@ describe('deny browse batch removal flow', () => {
   describe('refuse before mutation when pre-loop fetchEntries returns null', () => {
     it('answers with PAGE_FETCH_FAILED_COPY and makes zero delete calls when fetchEntries returns null', async () => {
       stub.listDenylistEntries.mockResolvedValue(makeErr(503, 'Gateway unavailable'));
+      // Two DISTINCT rows: a hardcoded `{ components: [] }` restore cannot
+      // pass the restore assertion below the way it could with empty mocks.
+      const capturedRows = [
+        { toJSON: () => ({ type: 1, components: [{ custom_id: 'deny-row-1' }] }) },
+        { toJSON: () => ({ type: 1, components: [{ custom_id: 'deny-row-2' }] }) },
+      ];
       const confirmInteraction = createButtonInteraction({
         customId: 'deny::batch-confirm::0::all::date',
         footerText: encodeBatchFooterIds([FIVE_DENY_ENTRIES[0].id, FIVE_DENY_ENTRIES[1].id]),
+        messageComponents: capturedRows,
       });
 
       await handleDenyBatchConfirm(confirmInteraction);
@@ -612,11 +637,20 @@ describe('deny browse batch removal flow', () => {
           flags: MessageFlags.Ephemeral,
         })
       );
-      // Only the pre-loop component strip ran on editReply.
-      expect(confirmInteraction.editReply).toHaveBeenCalledTimes(1);
+      // Strip first, then the restore-after-refusal editReply (nothing was
+      // removed, so the captured rows go back verbatim).
+      expect(confirmInteraction.editReply).toHaveBeenCalledTimes(2);
       expect(vi.mocked(confirmInteraction.editReply).mock.calls[0]?.[0]).toEqual({
         components: [],
       });
+      const restorePayload = vi.mocked(confirmInteraction.editReply).mock.calls[1]?.[0] as {
+        components: unknown[];
+      };
+      expect(restorePayload.components).toEqual(capturedRows);
+      expect(restorePayload.components).toHaveLength(2);
+      const followUpOrder = vi.mocked(confirmInteraction.followUp).mock.invocationCallOrder[0];
+      const restoreOrder = vi.mocked(confirmInteraction.editReply).mock.invocationCallOrder[1];
+      expect(followUpOrder).toBeLessThan(restoreOrder);
     });
   });
 
@@ -840,6 +874,7 @@ describe('deny browse batch removal flow', () => {
 
       const batchView = buildBrowseResponse([entryWithMarkdownId], 0, 'all', 'date', {
         mode: 'batch',
+        listTruncated: false,
       });
       const pickInteraction = createSelectInteraction({
         customId: 'deny::batch-select::0::all::date',
@@ -998,6 +1033,7 @@ describe('deny browse batch removal flow', () => {
 
       const batchView = buildBrowseResponse(FIVE_DENY_ENTRIES, 0, 'all', 'date', {
         mode: 'batch',
+        listTruncated: false,
       });
       const pickInteraction = createSelectInteraction({
         customId: 'deny::batch-select::0::all::date',

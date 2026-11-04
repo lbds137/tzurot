@@ -22,6 +22,7 @@ import {
   formatBatchCountsLine,
   formatBatchItemLines,
   toBatchOutcomeLine,
+  restoreAfterRefusal,
   PAGE_FETCH_FAILED_COPY,
   type BatchItemResult,
   type BatchResultLine,
@@ -360,11 +361,20 @@ export async function handleAliasBatchConfirm(interaction: ButtonInteraction): P
     }
 
     ({ userClient } = clientsFor(interaction));
+    // Capture the confirm view's rows BEFORE the strip (a plain read) so a
+    // refused pre-mutation confirm can put the buttons back (after the
+    // refusal followUp lands, preserving the double-submit guard — nothing
+    // was removed, so the user can retry without re-running the command).
+    const confirmRows = [...interaction.message.components];
     await interaction.editReply({ components: [] });
 
     fetched = await fetchAliasRows(userClient, coords.query);
     if (!fetched.ok) {
-      await followUpSpec(interaction, CATALOG.error.transient(PAGE_FETCH_FAILED_COPY));
+      await restoreAfterRefusal(
+        interaction,
+        confirmRows,
+        CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)
+      );
       return;
     }
   } catch (error) {

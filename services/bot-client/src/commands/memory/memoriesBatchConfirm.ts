@@ -17,6 +17,8 @@ import {
   buildBatchResultEmbed,
   deliverBatchReport,
   parseBatchFooterIds,
+  PAGE_FETCH_FAILED_COPY,
+  restoreAfterRefusal,
   runBatchSequentially,
   formatBatchItemLines,
   type BatchResultLine,
@@ -202,13 +204,17 @@ export async function handleMemoryBatchConfirm(
   const userId = interaction.user.id;
   const { userClient } = clientsFor(interaction);
 
+  // Capture the confirm view's rows BEFORE the strip (a plain read) so a
+  // refused pre-mutation confirm can put the buttons back.
+  const confirmRows = [...interaction.message.components];
+
   // Strip the confirm buttons to shrink the double-tap window to the ack +
   // strip round-trips themselves — a tap Discord delivers inside that window
   // still runs the whole flow (see multiSelectBatch.ts's second-tap note).
   // After the strip, later taps find nothing to act on. The embeds stay
   // untouched: the confirm view remains visible but inert. A refusal below
-  // loses that inert view, and its followUp tells the user to re-run the
-  // command — there is nothing left to retry on this message.
+  // restores the captured rows (after the refusal followUp lands, preserving
+  // the double-submit guard) — nothing was mutated, so the buttons come back.
   await interaction.editReply({ components: [] });
 
   // Labels come from a fetch made BEFORE the loop: after it runs, the
@@ -219,12 +225,13 @@ export async function handleMemoryBatchConfirm(
   // the outcome report could not name the memories it acted on.
   const resolved = await resolveBatchLabels(userClient, session, ids, userId);
   if (!resolved.ok) {
-    // A live session with a failed fetch is NOT an expired session — but
-    // nothing on this message is retryable either, so the copy asks for a
-    // fresh run instead of a bare "try again later".
-    await followUpSpec(
+    // A live session with a failed fetch is NOT an expired session — the same
+    // transient page copy the sibling batch flows quote, so the notice never
+    // reads as an expiry.
+    await restoreAfterRefusal(
       interaction,
-      CATALOG.error.validation("Couldn't load that page. Please run the command again.")
+      confirmRows,
+      CATALOG.error.transient(PAGE_FETCH_FAILED_COPY)
     );
     return;
   }

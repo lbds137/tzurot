@@ -8,13 +8,16 @@ import {
   isDenyBrowseSelectInteraction,
   buildBrowseResponse,
   buildDenyBatchCustomId,
+  isDenylistAtCap,
   parseDenyBatchCustomId,
   formatDenySelectOption,
 } from './browse.js';
+import type { DenylistEntryResponse } from './browseTypes.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
 import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
+import { DENYLIST_LIST_MAX_ENTRIES } from '@tzurot/common-types/schemas/api/denylist';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
@@ -260,6 +263,22 @@ const sampleEntries = [
   },
 ];
 
+// Cap-list fixture shared by the caller-level (handleBrowse) and builder-level
+// (buildBrowseResponse) footer tests: `type` alternates so a capped list's
+// filtered USER subset sits BELOW the cap — the discriminator for the
+// raw-length (not filtered-length) `listTruncated` computation.
+const makeCapEntry = (n: number, type: 'USER' | 'GUILD' = 'USER') => ({
+  id: `cap-entry-${n}`,
+  type,
+  discordId: `${100000000000000000n + BigInt(n)}`,
+  scope: 'BOT' as const,
+  scopeId: '*',
+  mode: 'BLOCK' as const,
+  reason: null,
+  addedAt: new Date('2026-01-15T00:00:00.000Z'),
+  addedBy: 'owner-1',
+});
+
 describe('isDenyBrowseInteraction', () => {
   it('should return true for browse custom IDs', () => {
     expect(isDenyBrowseInteraction('deny::browse::0::all::date::')).toBe(true);
@@ -375,22 +394,28 @@ describe('handleBrowse', () => {
     expect(call.embeds[0].data.footer.text).not.toContain('filtered by:');
   });
 
-  it('should handle API error', async () => {
-    stub.listDenylistEntries.mockResolvedValue(makeErr(500, 'Error'));
+  it('renders the classified copy of the API failure', async () => {
+    const failure = makeErr(500, 'Error');
+    stub.listDenylistEntries.mockResolvedValue(failure);
     const context = createMockContext();
 
     await handleBrowse(context);
 
-    expect(context.editReply).toHaveBeenCalledWith('❌ Failed to fetch denylist entries.');
+    expect(context.editReply).toHaveBeenCalledWith(
+      renderSpec(classifyGatewayFailure(failure, 'page', { operation: 'read' }))
+    );
   });
 
-  it('should handle fetch exception', async () => {
-    stub.listDenylistEntries.mockRejectedValue(new Error('Network error'));
+  it('renders the classified copy of a fetch exception', async () => {
+    const error = new Error('Network error');
+    stub.listDenylistEntries.mockRejectedValue(error);
     const context = createMockContext();
 
     await handleBrowse(context);
 
-    expect(context.editReply).toHaveBeenCalledWith('❌ Failed to fetch denylist entries.');
+    expect(context.editReply).toHaveBeenCalledWith(
+      renderSpec(classifyGatewayFailure(error, 'page', { operation: 'read' }))
+    );
   });
 
   it('should include entry details in embed description', async () => {
@@ -498,6 +523,28 @@ describe('handleBrowse', () => {
     const formatItem = vi.mocked(buildBrowseSelectMenu).mock.calls[0][0].formatItem;
     const blockEntry = sampleEntries[0];
     expect(formatItem(blockEntry, 1).label).not.toContain('[');
+  });
+
+  it('carries the cap footer segment at the handleBrowse level when the RAW fetch is capped under an active filter', async () => {
+    // MIXED types at the cap: the raw list sits at DENYLIST_LIST_MAX_ENTRIES
+    // while the filtered USER slice sits BELOW it, so a filtered-length (or
+    // hardcoded-false) listTruncated computation hides the segment and
+    // reddens this test.
+    const mixedCapped = Array.from({ length: DENYLIST_LIST_MAX_ENTRIES }, (_, i) =>
+      makeCapEntry(i, i % 2 === 0 ? 'USER' : 'GUILD')
+    );
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: mixedCapped }));
+    const context = createMockContext({ filter: 'user' });
+
+    await handleBrowse(context);
+
+    const call = vi.mocked(context.editReply).mock.calls[0][0] as {
+      embeds: { data: { footer: { text: string } } }[];
+    };
+    // Substring, not the full DENYLIST_CAP_FOOTER string — the const is
+    // module-private and the segment's stable prefix is the pin.
+    expect(call.embeds[0].data.footer.text).toContain('Showing only the newest');
+    expect(call.embeds[0].data.footer.text).toContain('filtered by: Users');
   });
 });
 
@@ -772,8 +819,40 @@ describe('fetchEntriesResult', () => {
 });
 
 describe('buildBrowseResponse', () => {
+  it('states the newest-entries cap in the footer when the list sits at DENYLIST_LIST_MAX_ENTRIES', () => {
+    const capped = Array.from({ length: DENYLIST_LIST_MAX_ENTRIES }, (_, i) => makeCapEntry(i));
+    const result = buildBrowseResponse(capped, 0, 'all', 'date', { listTruncated: true });
+
+    expect(result.embed.data.footer?.text).toContain(
+      `Showing only the newest ${DENYLIST_LIST_MAX_ENTRIES} entries`
+    );
+  });
+
+  it('keeps the cap footer segment under an active filter on a capped list (the segment gates on the RAW list, not the filtered one)', () => {
+    // A capped list whose USER subset alone sits BELOW the cap: gating on the
+    // filtered length would hide the segment exactly when a filter is active.
+    const mixed = Array.from({ length: DENYLIST_LIST_MAX_ENTRIES }, (_, i) =>
+      makeCapEntry(i, i % 2 === 0 ? 'USER' : 'GUILD')
+    );
+    const result = buildBrowseResponse(mixed, 0, 'user', 'date', { listTruncated: true });
+
+    expect(result.embed.data.footer?.text).toContain('filtered by: Users');
+    expect(result.embed.data.footer?.text).toContain(
+      `Showing only the newest ${DENYLIST_LIST_MAX_ENTRIES} entries`
+    );
+  });
+
+  it('omits the cap footer segment below DENYLIST_LIST_MAX_ENTRIES', () => {
+    const belowCap = Array.from({ length: DENYLIST_LIST_MAX_ENTRIES - 1 }, (_, i) =>
+      makeCapEntry(i)
+    );
+    const result = buildBrowseResponse(belowCap, 0, 'all', 'date', { listTruncated: false });
+
+    expect(result.embed.data.footer?.text).not.toContain('Showing only the newest');
+  });
+
   it('should build a filtered and sorted browse response', () => {
-    const result = buildBrowseResponse(sampleEntries, 0, 'user', 'date');
+    const result = buildBrowseResponse(sampleEntries, 0, 'user', 'date', { listTruncated: false });
 
     expect(result.embed).toBeDefined();
     expect(result.components).toBeDefined();
@@ -782,14 +861,17 @@ describe('buildBrowseResponse', () => {
   });
 
   it('should handle all filter', () => {
-    const result = buildBrowseResponse(sampleEntries, 0, 'all', 'name');
+    const result = buildBrowseResponse(sampleEntries, 0, 'all', 'name', { listTruncated: false });
 
     expect(result.embed.data.footer?.text).not.toContain('filtered by:');
     expect(result.embed.data.footer?.text).toContain('by target ID');
   });
 
   it('renders batch mode with min 1, max = page item count, batch customIds carrying page/filter/sort, and NO pagination row (C3)', () => {
-    const result = buildBrowseResponse(sampleEntries, 0, 'user', 'name', { mode: 'batch' });
+    const result = buildBrowseResponse(sampleEntries, 0, 'user', 'name', {
+      mode: 'batch',
+      listTruncated: false,
+    });
 
     expect(result.embed.data.footer?.text).toContain('Select several below, then confirm');
     expect(result.components).toHaveLength(2);
@@ -822,13 +904,34 @@ describe('buildBrowseResponse', () => {
   });
 
   it('early-returns on an empty page before the batch-mode branch: no menu, no toggle, no cancel row', () => {
-    const result = buildBrowseResponse([], 0, 'all', 'date', { mode: 'batch' });
+    const result = buildBrowseResponse([], 0, 'all', 'date', {
+      mode: 'batch',
+      listTruncated: false,
+    });
 
     // Only the filter/pagination buttonRow is returned, identical to single-mode empty
     expect(result.components).toHaveLength(1);
     expect(result.embed.data.footer?.text ?? '').not.toContain(
       'Select several below, then confirm'
     );
+  });
+});
+
+describe('isDenylistAtCap', () => {
+  // The helper only reads the array's length; the filler carries only the id
+  // field to keep the fixture minimal.
+  const entryAt = (n: number) => ({ id: `cap-probe-${n}` }) as DenylistEntryResponse;
+
+  it('returns true for an exactly-at-cap array', () => {
+    const atCap = Array.from({ length: DENYLIST_LIST_MAX_ENTRIES }, (_, i) => entryAt(i));
+
+    expect(isDenylistAtCap(atCap)).toBe(true);
+  });
+
+  it('returns false for a one-below-cap array', () => {
+    const belowCap = Array.from({ length: DENYLIST_LIST_MAX_ENTRIES - 1 }, (_, i) => entryAt(i));
+
+    expect(isDenylistAtCap(belowCap)).toBe(false);
   });
 });
 
