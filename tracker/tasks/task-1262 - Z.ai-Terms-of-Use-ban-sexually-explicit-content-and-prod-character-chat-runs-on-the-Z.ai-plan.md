@@ -3,13 +3,14 @@ id: TASK-1262
 title: >-
   Z.ai Terms of Use ban sexually explicit content, and prod character chat runs
   on the Z.ai plan
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-10-22 13:38'
+created_date: 2026-10-22 13:38
+updated_date: '2026-11-04T18:53:00Z'
 labels:
-  - 'area:ai-worker'
-  - 'size:M'
-  - 'state:owner'
+  - area:ai-worker
+  - size:M
+  - state:owner
 dependencies: []
 priority: high
 ordinal: 1250000
@@ -26,6 +27,8 @@ The same survey (community reading of ToS, not verified here beyond Z.ai) lists 
 
 Owner question: should adult-content character traffic keep running on the Z.ai plan despite its terms?
 Recommendation: move chat replies (and memory extraction, which reads the same content) for adult-enabled personas to GLM on a host whose terms allow it, via OpenRouter with a provider allowlist (TASK-1261 builds that mechanism), and keep the Z.ai plan for tooling and SFW work; verify the chosen host terms first. Cost changes from flat-rate to per-token, so it is a spend call.
+
+Owner ruling (2026-11-04, via the batched Needs-Lila questions): KEEP adult-content character chat on the Z.ai plan — the terms risk (III.3(f)/(g), suspension for violations) is consciously accepted; no enforcement observed to date. No follow-up task: keeping is the status quo.
 
 Acceptance: the owner ruling recorded here, and a follow-up task for whatever it decides.
 <!-- SECTION:DESCRIPTION:END -->

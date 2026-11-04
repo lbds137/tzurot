@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-27T14:08:00Z'
+updated_date: '2026-11-04T18:53:00Z'
 labels:
   - area:bot-client
   - size:S
-  - state:owner
+  - state:ready
 dependencies: []
 priority: low
 ordinal: 1293000
@@ -24,6 +25,8 @@ What: send the session-gone refusal through CATALOG.progress.sessionExpired with
 
 Owner question: do you want the facts expired-session notice reworded to match the other browsers (catalog wording and glyph), or keep the current facts-specific wording?
 Recommendation: switch to the catalog spec. The three sibling flows already use it, the wording change is small and consistent, and the facts copy has no reason to differ; a one-line comment is the only alternative if you want it kept.
+
+Owner ruling (2026-11-04, via the batched Needs-Lila questions): switch to the catalog session-expired spec — the recommendation, follow-on included.
 
 Acceptance: per decision; if switched, the expiry tests derive the text from the catalog.
 
