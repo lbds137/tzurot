@@ -3,13 +3,14 @@ id: TASK-971
 title: >-
   memory:summarize sweep report breaks down dead rows by error class but not
   failed rows
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-09-13 22:45'
+created_date: 2026-09-13 22:45
+updated_date: '2026-11-04T19:01:00Z'
 labels:
-  - 'area:tooling'
-  - 'size:S'
-  - 'state:ready'
+  - area:tooling
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 967000
