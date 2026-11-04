@@ -396,9 +396,7 @@ describe('summarizeSweep', () => {
     await summarizeSweep({ env: 'dev', personality: 'test-persona', dryRun: true });
 
     const lines = spy.mock.calls.map(call => String(call[0]));
-    const failedCaptionIndex = lines.findIndex(line =>
-      line.includes('Failed rows by error class')
-    );
+    const failedCaptionIndex = lines.findIndex(line => line.includes('Failed rows by error class'));
     const deadCaptionIndex = lines.findIndex(line => line.includes('Dead rows by error class'));
     expect(failedCaptionIndex).toBeGreaterThan(-1);
     expect(deadCaptionIndex).toBeGreaterThan(-1);
