@@ -3,10 +3,10 @@
  *
  * Enqueues archive-summary jobs for one personality's eligible rows ahead
  * of a per-personality flip to split-render summaries, and reports the
- * summarized-share flip gate (95%), fact coverage, and dead and failed
- * rows by error classes. Idempotent by memory id — the enqueue path and the pending
- * stamp both key off `memories.id`, so a re-run only touches rows still
- * eligible.
+ * summarized-share flip gate (95%), fact coverage, and failed and dead
+ * rows by error class. Idempotent by memory id — the enqueue path and the
+ * pending stamp both key off `memories.id`, so a re-run only touches rows
+ * still eligible.
  *
  * The flip itself is deliberately NOT done here: this command reads system
  * settings through `SystemSettingsService` (read-only) and reports whether
@@ -45,6 +45,7 @@ import {
   FACT_COVERAGE_SQL,
   DEAD_BY_ERROR_CLASS_SQL,
   FAILED_BY_ERROR_CLASS_SQL,
+  type ErrorClassRow,
 } from './summarize-sweep-sql.js';
 import {
   estimateInputTokens,
@@ -136,6 +137,20 @@ async function selectRows(
   return { hot, cold, selected: [...hot, ...cold] };
 }
 
+/** One error-class breakdown section: the caption line, then one
+ *  `class  count` line per row, all chalk-dimmed like the rest of the
+ *  report's secondary output. An empty breakdown prints nothing at all —
+ *  not even the caption. */
+function printErrorClassBreakdown(caption: string, rows: ErrorClassRow[]): void {
+  if (rows.length === 0) {
+    return;
+  }
+  console.log(chalk.dim(caption));
+  for (const row of rows) {
+    console.log(chalk.dim(`    ${row.error_class}  ${row.row_count}`));
+  }
+}
+
 /** @spec MEM-ARCH-030 */
 async function printReport(
   prisma: PrismaLike,
@@ -153,11 +168,11 @@ async function printReport(
     personalityId,
     windowDays
   );
-  const failedRows = await prisma.$queryRawUnsafe<{ error_class: string; row_count: number }[]>(
+  const failedRows = await prisma.$queryRawUnsafe<ErrorClassRow[]>(
     FAILED_BY_ERROR_CLASS_SQL,
     personalityId
   );
-  const deadRows = await prisma.$queryRawUnsafe<{ error_class: string; row_count: number }[]>(
+  const deadRows = await prisma.$queryRawUnsafe<ErrorClassRow[]>(
     DEAD_BY_ERROR_CLASS_SQL,
     personalityId
   );
@@ -179,26 +194,14 @@ async function printReport(
   console.log(
     `  ${formatFactCoverageLine(factCoverageShare(factCoverage.covered, counts.retrieved_in_window))}`
   );
-  if (failedRows.length > 0) {
-    console.log(
-      chalk.dim(
-        '  Failed rows by error class (ALL failed rows for this personality, not just the window; failed is transient — retries drain it):'
-      )
-    );
-    for (const row of failedRows) {
-      console.log(chalk.dim(`    ${row.error_class}  ${row.row_count}`));
-    }
-  }
-  if (deadRows.length > 0) {
-    console.log(
-      chalk.dim(
-        '  Dead rows by error class (ALL dead rows for this personality, not just the window):'
-      )
-    );
-    for (const row of deadRows) {
-      console.log(chalk.dim(`    ${row.error_class}  ${row.row_count}`));
-    }
-  }
+  printErrorClassBreakdown(
+    '  Failed rows by error class (ALL failed rows for this personality, not just the window; failed rows are re-eligible — a re-sweep retries them, cold rows only with --include-cold):',
+    failedRows
+  );
+  printErrorClassBreakdown(
+    '  Dead rows by error class (ALL dead rows for this personality, not just the window):',
+    deadRows
+  );
 }
 
 /** Loaded state of the settings read, so the caller can decide whether to

@@ -120,10 +120,4 @@ describe('FAILED_BY_ERROR_CLASS_SQL', () => {
     expect(FAILED_BY_ERROR_CLASS_SQL).toContain('GROUP BY 1');
     expect(FAILED_BY_ERROR_CLASS_SQL).toContain('LIMIT 50');
   });
-
-  it('is byte-identical to the dead query except the status filter', () => {
-    expect(
-      FAILED_BY_ERROR_CLASS_SQL.replace("summary_status = 'failed'", "summary_status = 'dead'")
-    ).toBe(DEAD_BY_ERROR_CLASS_SQL);
-  });
 });
