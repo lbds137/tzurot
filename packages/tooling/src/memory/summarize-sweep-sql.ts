@@ -139,27 +139,38 @@ WHERE m.personality_id = $1::uuid
   )`;
 
 /**
- * Dead rows grouped by error class. Param `$1` = personality id.
- * `summary_last_error` is `VARCHAR(40)` — an error CLASS, never free text —
- * so grouping and printing it never leaks memory or summary content.
+ * One error-class breakdown row: the COALESCE'd `summary_last_error` class
+ * and how many rows carry it.
  */
-export const DEAD_BY_ERROR_CLASS_SQL = `SELECT COALESCE(summary_last_error, 'unrecorded') AS error_class, COUNT(*)::int AS row_count
-FROM memories
-WHERE personality_id = $1::uuid AND chunk_group_id IS NULL AND summary_status = 'dead'
-GROUP BY 1
-ORDER BY 2 DESC, 1 ASC
-LIMIT 50`;
+export interface ErrorClassRow {
+  error_class: string;
+  row_count: number;
+}
 
 /**
- * Failed rows grouped by error class. Param `$1` = personality id.
- * `summary_last_error` is `VARCHAR(40)` — an error CLASS, never free text —
- * so grouping and printing it never leaks memory or summary content. Failed
- * is transient: rows leave it as retries succeed or exhaust to dead, so the
- * bucket is a snapshot, not a terminal tally.
+ * Shared breakdown query for one summary status. Param `$1` = personality
+ * id. `summary_last_error` is `VARCHAR(40)` — an error CLASS, never free
+ * text — so grouping and printing it never leaks memory or summary content.
+ * `status` is a closed `'failed' | 'dead'` literal union interpolated into
+ * the WHERE clause — there is no third value, so the interpolation is safe.
  */
-export const FAILED_BY_ERROR_CLASS_SQL = `SELECT COALESCE(summary_last_error, 'unrecorded') AS error_class, COUNT(*)::int AS row_count
+export function byErrorClassSql(status: 'failed' | 'dead'): string {
+  return `SELECT COALESCE(summary_last_error, 'unrecorded') AS error_class, COUNT(*)::int AS row_count
 FROM memories
-WHERE personality_id = $1::uuid AND chunk_group_id IS NULL AND summary_status = 'failed'
+WHERE personality_id = $1::uuid AND chunk_group_id IS NULL AND summary_status = '${status}'
 GROUP BY 1
 ORDER BY 2 DESC, 1 ASC
 LIMIT 50`;
+}
+
+/** Dead rows grouped by error class. See `byErrorClassSql`. */
+export const DEAD_BY_ERROR_CLASS_SQL = byErrorClassSql('dead');
+
+/**
+ * Failed rows grouped by error class. See `byErrorClassSql`. Failed is
+ * re-eligible: rows leave it only when something enqueues them again — a
+ * sweep (cold rows only with `--include-cold`) or the live retrieval
+ * trigger; a billed failure writes the status and returns, so the job
+ * queue never retries it. The bucket is a snapshot, not a terminal tally.
+ */
+export const FAILED_BY_ERROR_CLASS_SQL = byErrorClassSql('failed');

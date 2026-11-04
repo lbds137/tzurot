@@ -42,6 +42,7 @@ import { summarizeSweep } from './summarize-sweep.js';
 import { createInspectorQueue, getRailwayRedisUrl } from '../inspect/bullmqConnection.js';
 import { requireProductionConfirmation } from '../utils/env-runner.js';
 import { getPrismaForEnv, type PrismaEnvConnection } from './prisma-env.js';
+import type { ErrorClassRow } from './summarize-sweep-sql.js';
 
 const PERSONALITY_ID = '4f9b0f66-3333-4000-8000-00000000000a';
 const MEM = (n: number): string =>
@@ -311,51 +312,13 @@ describe('summarizeSweep', () => {
     spy.mockRestore();
   });
 
-  it('MEM-ARCH-030: prints dead rows grouped by error class when any exist', async () => {
-    queryMock.mockImplementation((sql: string) => {
-      if (sql.includes('FROM personalities')) {
-        return Promise.resolve([{ id: PERSONALITY_ID }]);
-      }
-      if (sql.includes('retrieval_count DESC')) {
-        return Promise.resolve([{ id: MEM(1), content_chars: 40 }]);
-      }
-      if (sql.includes('ORDER BY created_at DESC')) {
-        return Promise.resolve([]);
-      }
-      if (sql.includes('total_non_chunk')) {
-        return Promise.resolve([WINDOW_COUNTS_ROW]);
-      }
-      if (sql.includes('memory_facts f')) {
-        return Promise.resolve([{ covered: 10 }]);
-      }
-      if (sql.includes('error_class')) {
-        return Promise.resolve([
-          { error_class: 'no_template', row_count: 3 },
-          { error_class: 'overflow', row_count: 1 },
-        ]);
-      }
-      throw new Error(`unexpected query: ${sql}`);
-    });
-
-    const spy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-
-    await summarizeSweep({ env: 'dev', personality: 'test-persona', dryRun: true });
-
-    const lines = spy.mock.calls.map(call => String(call[0]));
-    expect(lines.some(line => line.includes('no_template') && line.includes('3'))).toBe(true);
-    expect(lines.some(line => line.includes('overflow') && line.includes('1'))).toBe(true);
-
-    spy.mockRestore();
-  });
-
   /** Routes failed- and dead-class queries separately (both contain
    *  `error_class`); the earlier branches keep WINDOW_COUNTS_SQL (which also
    *  carries the `summary_status = 'failed'` FILTER text) out of the failed
-   *  branch. */
-  function routeFailedAndDead(
-    failedRows: { error_class: string; row_count: number }[],
-    deadRows: { error_class: string; row_count: number }[]
-  ): void {
+   *  branch. Branch order matters — the failed/dead literals also appear in
+   *  earlier queries (the window counts' FILTERs, the eligibility
+   *  predicate), so those branches match first. */
+  function routeFailedAndDead(failedRows: ErrorClassRow[], deadRows: ErrorClassRow[]): void {
     queryMock.mockImplementation((sql: string) => {
       if (sql.includes('FROM personalities')) {
         return Promise.resolve([{ id: PERSONALITY_ID }]);
@@ -382,6 +345,26 @@ describe('summarizeSweep', () => {
     });
   }
 
+  it('MEM-ARCH-030: prints dead rows grouped by error class when any exist', async () => {
+    routeFailedAndDead(
+      [],
+      [
+        { error_class: 'no_template', row_count: 3 },
+        { error_class: 'overflow', row_count: 1 },
+      ]
+    );
+
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await summarizeSweep({ env: 'dev', personality: 'test-persona', dryRun: true });
+
+    const lines = spy.mock.calls.map(call => String(call[0]));
+    expect(lines.some(line => line.includes('no_template') && line.includes('3'))).toBe(true);
+    expect(lines.some(line => line.includes('overflow') && line.includes('1'))).toBe(true);
+
+    spy.mockRestore();
+  });
+
   it('MEM-ARCH-030: prints failed rows grouped by error class, above the dead section, when any exist', async () => {
     routeFailedAndDead(
       [
@@ -400,17 +383,17 @@ describe('summarizeSweep', () => {
     const deadCaptionIndex = lines.findIndex(line => line.includes('Dead rows by error class'));
     expect(failedCaptionIndex).toBeGreaterThan(-1);
     expect(deadCaptionIndex).toBeGreaterThan(-1);
-    // Transient before terminal: the failed section prints above the dead one.
+    // Re-eligible before terminal: the failed section prints above the dead one.
     expect(failedCaptionIndex).toBeLessThan(deadCaptionIndex);
     expect(
       lines.some(line =>
         line.includes(
-          'Failed rows by error class (ALL failed rows for this personality, not just the window; failed is transient — retries drain it):'
+          'Failed rows by error class (ALL failed rows for this personality, not just the window; failed rows are re-eligible — a re-sweep retries them, cold rows only with --include-cold):'
         )
       )
     ).toBe(true);
-    expect(lines.some(line => line.includes('rate_limit') && line.includes('7'))).toBe(true);
-    expect(lines.some(line => line.includes('provider') && line.includes('2'))).toBe(true);
+    expect(lines).toContain('    rate_limit  7');
+    expect(lines).toContain('    provider  2');
 
     spy.mockRestore();
   });
