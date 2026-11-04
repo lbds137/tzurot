@@ -3,8 +3,8 @@
  *
  * Enqueues archive-summary jobs for one personality's eligible rows ahead
  * of a per-personality flip to split-render summaries, and reports the
- * summarized-share flip gate (95%), fact coverage, and dead-row error
- * classes. Idempotent by memory id — the enqueue path and the pending
+ * summarized-share flip gate (95%), fact coverage, and dead and failed
+ * rows by error classes. Idempotent by memory id — the enqueue path and the pending
  * stamp both key off `memories.id`, so a re-run only touches rows still
  * eligible.
  *
@@ -44,6 +44,7 @@ import {
   WINDOW_COUNTS_SQL,
   FACT_COVERAGE_SQL,
   DEAD_BY_ERROR_CLASS_SQL,
+  FAILED_BY_ERROR_CLASS_SQL,
 } from './summarize-sweep-sql.js';
 import {
   estimateInputTokens,
@@ -152,6 +153,10 @@ async function printReport(
     personalityId,
     windowDays
   );
+  const failedRows = await prisma.$queryRawUnsafe<{ error_class: string; row_count: number }[]>(
+    FAILED_BY_ERROR_CLASS_SQL,
+    personalityId
+  );
   const deadRows = await prisma.$queryRawUnsafe<{ error_class: string; row_count: number }[]>(
     DEAD_BY_ERROR_CLASS_SQL,
     personalityId
@@ -174,6 +179,16 @@ async function printReport(
   console.log(
     `  ${formatFactCoverageLine(factCoverageShare(factCoverage.covered, counts.retrieved_in_window))}`
   );
+  if (failedRows.length > 0) {
+    console.log(
+      chalk.dim(
+        '  Failed rows by error class (ALL failed rows for this personality, not just the window; failed is transient — retries drain it):'
+      )
+    );
+    for (const row of failedRows) {
+      console.log(chalk.dim(`    ${row.error_class}  ${row.row_count}`));
+    }
+  }
   if (deadRows.length > 0) {
     console.log(
       chalk.dim(
