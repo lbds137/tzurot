@@ -359,8 +359,8 @@ describe('summarizeSweep', () => {
     await summarizeSweep({ env: 'dev', personality: 'test-persona', dryRun: true });
 
     const lines = spy.mock.calls.map(call => String(call[0]));
-    expect(lines.some(line => line.includes('no_template') && line.includes('3'))).toBe(true);
-    expect(lines.some(line => line.includes('overflow') && line.includes('1'))).toBe(true);
+    expect(lines).toContain('    no_template  3');
+    expect(lines).toContain('    overflow  1');
 
     spy.mockRestore();
   });
@@ -385,6 +385,7 @@ describe('summarizeSweep', () => {
     expect(deadCaptionIndex).toBeGreaterThan(-1);
     // Re-eligible before terminal: the failed section prints above the dead one.
     expect(failedCaptionIndex).toBeLessThan(deadCaptionIndex);
+    expect(lines).toContain('    no_template  3');
     expect(
       lines.some(line =>
         line.includes(
