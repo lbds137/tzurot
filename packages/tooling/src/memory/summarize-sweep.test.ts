@@ -388,7 +388,7 @@ describe('summarizeSweep', () => {
     expect(
       lines.some(line =>
         line.includes(
-          'Failed rows by error class (ALL failed rows for this personality, not just the window; failed rows are re-eligible — a re-sweep retries them, cold rows only with --include-cold):'
+          'Failed rows by error class (ALL failed rows for this personality, not just the window; failed rows are re-eligible — a re-sweep retries them, each retry spending an attempt, and a row at the cap goes dead on its next failure; cold rows only with --include-cold):'
         )
       )
     ).toBe(true);
