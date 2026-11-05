@@ -3,9 +3,10 @@ id: TASK-1354
 title: >-
   /deny view: cap-aware copy for entries past the newest-500 window (owner copy
   ruling needed)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-05T00:26:00Z'
+updated_date: '2026-11-05T04:12:00Z'
 labels:
   - area:bot-client
   - size:S

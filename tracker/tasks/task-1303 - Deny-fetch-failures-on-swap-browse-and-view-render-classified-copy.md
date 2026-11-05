@@ -1,9 +1,10 @@
 ---
 id: TASK-1303
 title: Deny fetch failures on swap, browse and view render classified copy
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-27T00:12:00Z'
+updated_date: '2026-11-05T04:12:00Z'
 labels:
   - area:bot-client
   - size:S
