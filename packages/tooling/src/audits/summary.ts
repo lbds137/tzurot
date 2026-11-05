@@ -45,7 +45,7 @@ export interface AuditSummary {
     configHash?: string;
     /** Node version the tool ran under. */
     nodeVersion?: string;
-    /** Git SHA the audit was generated against. */
+    /** The develop-side commit the measured tree was built on top of (the branch's own changes are not in it). */
     generatedFromSha?: string;
     /** ISO-8601 timestamp of when the summary was emitted. */
     generatedAt?: string;

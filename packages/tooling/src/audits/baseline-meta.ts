@@ -2,14 +2,15 @@
  * Baseline Metadata
  *
  * Layer 3 of the audit-enforcement architecture (`docs/reference/audit-enforcement.md`): every audit baseline
- * file carries a `meta` block with the context that produced it. The two
- * fields that matter for drift detection are `configHash` (catches "tool
- * config changed since this baseline was captured") and `generatedFromSha`
- * (the git commit the baseline reflects).
+ * file carries a `meta` block with the context that produced it. The one
+ * field that matters for drift detection is `configHash` (catches "tool
+ * config changed since this baseline was captured") — `checkMetaDrift`
+ * compares it alone.
  *
- * The other fields (`toolVersion`, `nodeVersion`, `generatedAt`) are
- * observability — they don't gate behavior, but they make it possible to
- * answer "when was this baseline last refreshed?" without git archaeology.
+ * The other fields (`toolVersion`, `nodeVersion`, `generatedFromSha`,
+ * `generatedAt`) are observability — they don't gate behavior, but they
+ * make it possible to answer "when was this baseline last refreshed, and
+ * on top of what?" without git archaeology.
  *
  * **Why this exists**: baselines go stale not just because the codebase
  * changed but because the *tool measuring it* changed. If `cpd:check`'s
@@ -22,7 +23,7 @@
  * baseline FILE looks stale; the actual drift is in the tool config).
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, type ExecFileSyncOptionsWithStringEncoding } from 'node:child_process';
 import { sha256Hex } from '@tzurot/common-types/utils/sha256Hex';
 
 export interface BaselineMeta {
@@ -38,7 +39,10 @@ export interface BaselineMeta {
   configHash: string;
   /** Node version the tool ran under at baseline-capture time. */
   nodeVersion: string;
-  /** Git SHA the baseline was captured against. */
+  /**
+   * The develop-side commit the measured tree was built on top of; see
+   * `buildBaselineMeta` for the provenance contract.
+   */
   generatedFromSha: string;
   /** ISO-8601 timestamp of when the baseline was captured. */
   generatedAt: string;
@@ -49,9 +53,19 @@ export interface BaselineMeta {
  * and `generatedAt` automatically; the caller supplies the tool-specific
  * `toolVersion` and `configHash`.
  *
- * `generatedFromSha` falls back to `'unknown'` if git is unavailable or
- * the working tree isn't a repo — the metadata block is still useful
- * for the other fields. Don't throw on git absence.
+ * `generatedFromSha` records the develop-side commit the measured tree
+ * was built on top of (`merge-base HEAD origin/develop`, or
+ * `'unknown'` when that read fails or is empty); the branch's own changes
+ * are not in it. GitHub's
+ * rebase-and-merge rewrites PR commit SHAs — a recorded PR SHA would
+ * dangle after merge, while the base commit stays an ancestor of
+ * `develop` unless `develop` history is rewritten. A re-run on the same
+ * tree records the same base (the baseline's own local modification does
+ * not affect the read). The recorded base is the base at capture time:
+ * if `develop` advances (or the branch is rebased) without re-running
+ * the update, the field keeps pointing at the older base. Don't throw on
+ * git absence: a repo where the read fails degrades to `'unknown'`, and
+ * the metadata block is still useful for the other fields.
  */
 export function buildBaselineMeta(toolVersion: string, configHash: string): BaselineMeta {
   return {
@@ -124,21 +138,28 @@ export function hashConfigSlice(slice: unknown): string {
 }
 
 /**
- * Bound on the SHA read. Only the manual `*:update-baseline` commands reach
- * this — not the gate — so the stake is a developer watching a stalled
- * command rather than a blocked pipeline. Bounded anyway: it is the same
- * catch-and-degrade shape as every other probe, and the catch below already
- * answers `unknown`.
+ * Bound on the merge-base read. Only the manual
+ * `*:update-baseline` commands reach this — not the gate — so the stake
+ * is a developer watching a stalled command rather than a blocked
+ * pipeline. Bounded anyway: it is the same catch-and-degrade shape as
+ * every other probe, and the catch below already answers `unknown`.
  */
 export const BASELINE_SHA_TIMEOUT_MS = 15_000;
 
+const GIT_READ_OPTS: ExecFileSyncOptionsWithStringEncoding = {
+  encoding: 'utf-8',
+  stdio: ['ignore', 'pipe', 'ignore'],
+  timeout: BASELINE_SHA_TIMEOUT_MS,
+};
+
 function getGitSha(): string {
   try {
-    return execFileSync('git', ['rev-parse', 'HEAD'], {
-      encoding: 'utf-8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: BASELINE_SHA_TIMEOUT_MS,
-    }).trim();
+    const base = execFileSync(
+      'git',
+      ['merge-base', 'HEAD', 'origin/develop'],
+      GIT_READ_OPTS
+    ).trim();
+    return base.length > 0 ? base : 'unknown';
   } catch {
     return 'unknown';
   }
