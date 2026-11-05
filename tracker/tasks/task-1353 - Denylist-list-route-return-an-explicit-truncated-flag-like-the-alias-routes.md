@@ -1,9 +1,10 @@
 ---
 id: TASK-1353
 title: 'Denylist list route: return an explicit truncated flag like the alias routes'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-05T00:25:00Z'
+updated_date: '2026-11-05T12:35:00Z'
 labels:
   - area:api-gateway
   - size:M
