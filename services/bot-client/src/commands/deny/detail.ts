@@ -12,8 +12,9 @@
  * through `renderPostActionScreen` (shared with preset/character/persona).
  * Success re-renders the browse list with a banner in `content`; failure
  * renders a terminal with Back-to-Browse. The browse rebuilder is
- * registered in `browse.ts` — it does `fetchEntries` + `buildBrowseResponse`
- * internally so the unified helper works the same across all four commands.
+ * registered in `browseRebuilder.ts` — it does `fetchEntriesResult` +
+ * `buildBrowseResponse` internally so the unified helper works the same
+ * across all four commands.
  *
  * `handleModeToggle` and `handleEditModal` answer a failed action with an
  * ephemeral followUp and leave the detail view in place, as the session is
@@ -263,7 +264,7 @@ async function handleCancelDelete(interaction: ButtonInteraction, entryId: strin
 // handleBack was deleted in favor of the shared `handleSharedBackButton`
 // (utils/dashboard/sharedBackButtonHandler.ts) — routed to from the switch
 // in handleDetailButton below. The browse rebuilder registered in
-// `./browse.js` owns the fetchEntries + buildBrowseResponse path.
+// `./browseRebuilder.js` owns the fetchEntriesResult + buildBrowseResponse path.
 
 /** Route detail button interactions */
 export async function handleDetailButton(interaction: ButtonInteraction): Promise<void> {

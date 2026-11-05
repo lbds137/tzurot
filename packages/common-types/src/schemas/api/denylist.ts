@@ -88,7 +88,7 @@ export const AddDenylistResponseSchema = z.object({
   entry: DenylistEntrySchema,
 });
 
-/** Max entries the admin denylist list route returns; the bot-client batch confirm compares against it. */
+/** Max entries the admin denylist list route returns; the bot-client cap copy interpolates it. */
 export const DENYLIST_LIST_MAX_ENTRIES = 500;
 
 /**
@@ -100,6 +100,8 @@ export const ListDenylistResponseSchema = z.object({
   success: z.literal(true),
   entries: z.array(DenylistEntrySchema),
   count: z.number().int().nonnegative(),
+  /** True when more entries exist than DENYLIST_LIST_MAX_ENTRIES — the route fetched CAP + 1 to know. */
+  truncated: z.boolean(),
 });
 
 /**
