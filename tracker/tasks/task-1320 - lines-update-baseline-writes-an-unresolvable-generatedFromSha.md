@@ -1,7 +1,7 @@
 ---
 id: TASK-1320
 title: lines:update-baseline writes an unresolvable generatedFromSha
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-28T23:16:00Z'
 labels:
@@ -17,4 +17,6 @@ ordinal: 1303000
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
 lines:update-baseline stamps generatedFromSha from the working tree, so the SHA names a pre-squash/pre-amend state that dangles after rebase-merge. Recurred 4x on PR 2681 (r2/r4/r5/r6 findings) and consumed a review round each time. Fix shape: record HEAD when the tree matches the commit, or omit the field when the tree is dirty; first grep the consumer set (generatedFromSha across packages/tooling) so no gate resolves the field. Precedent: dc2862a5 on the current baseline also dangles - informational today, but any future resolver fails on both baselines.
+
+Superseded (2026-11-05, PR #2719 merged f27765703): shipped as develop merge-base provenance — `git merge-base HEAD origin/develop`, degrading to 'unknown' — not the HEAD+dirty fix shape. The fix-shape letter was superseded on review: rebase-and-merge rewrites PR commit SHAs, so even a clean-tree HEAD dangles while the recorded base stays an ancestor of develop unless develop history is rewritten. Full round record in the PR body; round-6 residue filed as TASK-1355.
 <!-- SECTION:DESCRIPTION:END -->
