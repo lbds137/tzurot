@@ -15,7 +15,7 @@ import { clientsFor } from '../../utils/gatewayClients.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
-import { fetchEntriesResult, isDenylistAtCap } from './browse.js';
+import { fetchEntriesResult } from './browse.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
 import { showDetailView } from './detail.js';
 import { formatTypeLabel } from './denyLabels.js';
@@ -55,7 +55,7 @@ export async function handleView(context: DeferredCommandContext): Promise<void>
 
   if (matches.length === 0) {
     const typeNote = typeFilter !== undefined ? ` (type: ${formatTypeLabel(typeFilter)})` : '';
-    if (isDenylistAtCap(entries)) {
+    if (fetched.truncated) {
       await context.editReply(
         renderSpec(
           CATALOG.error.validation(

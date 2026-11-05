@@ -8,8 +8,8 @@
  *   single-verb `Remove (N)` confirmation listing every selected entry, with
  *   the picked entry UUIDs encoded in the confirm embed's footer.
  * - `deny::batch-confirm::<page>::<filter>::<sort>` strips components, fetches
- *   the full denylist once via `fetchEntries`, resolves each picked UUID to its
- *   `(type, discordId, scope, scopeId)` removal tuple, runs `removeDenylistEntry`
+ *   the full denylist once via `fetchEntriesResult`, resolves each picked UUID
+ *   to its `(type, discordId, scope, scopeId)` removal tuple, runs `removeDenylistEntry`
  *   sequentially with per-item failure isolation, and delivers the outcome
  *   report stacked over a refreshed browse view via `deliverBatchReport`.
  * - `deny::batch-cancel::<page>::<filter>::<sort>` returns to a freshly-fetched
@@ -61,11 +61,10 @@ import {
   DENY_BATCH_ACTION,
   buildBrowseResponse,
   buildDenyBatchCustomId,
-  isDenylistAtCap,
-  fetchEntries,
   fetchEntriesResult,
   formatDenySelectOption,
   parseDenyBatchCustomId,
+  type DenylistFetchResult,
   type ParsedDenyBatchCustomId,
 } from './browse.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
@@ -198,12 +197,12 @@ export async function buildRefreshedDenyBrowseView(
   ownerClient: OwnerClient,
   coords: Pick<ParsedDenyBatchCustomId, 'page' | 'filter' | 'sort'>
 ): Promise<BatchReportView | null> {
-  const entries = await fetchEntries(ownerClient);
-  if (entries === null) {
+  const fetched = await fetchEntriesResult(ownerClient);
+  if (!fetched.ok) {
     return null;
   }
-  return buildBrowseResponse(entries, coords.page, coords.filter, coords.sort, {
-    listTruncated: isDenylistAtCap(entries),
+  return buildBrowseResponse(fetched.entries, coords.page, coords.filter, coords.sort, {
+    listTruncated: fetched.truncated,
   });
 }
 
@@ -228,7 +227,7 @@ async function refreshDenyBrowseMode(
       coords.sort,
       {
         mode,
-        listTruncated: isDenylistAtCap(fetched.entries),
+        listTruncated: fetched.truncated,
       }
     );
     await interaction.editReply({ embeds: [embed], components });
@@ -371,7 +370,7 @@ export async function handleDenyBatchConfirm(interaction: ButtonInteraction): Pr
 
   let recoveredLabels: ReadonlyMap<string, string>;
   let ownerClient: OwnerClient;
-  let entries: DenylistEntryResponse[] | null;
+  let fetched: DenylistFetchResult;
   // Capture the confirm view's rows BEFORE the strip (a plain read) so a
   // refused pre-mutation confirm can put the buttons back.
   const confirmRows = [...interaction.message.components];
@@ -379,7 +378,7 @@ export async function handleDenyBatchConfirm(interaction: ButtonInteraction): Pr
     recoveredLabels = recoverConfirmListingLabels(interaction.message.embeds[0]?.description, ids);
     ({ ownerClient } = clientsFor(interaction));
     await interaction.editReply({ components: [] });
-    entries = await fetchEntries(ownerClient);
+    fetched = await fetchEntriesResult(ownerClient);
   } catch (error) {
     logger.error({ err: error, userId }, 'Error preparing deny batch confirm');
     await interaction
@@ -390,7 +389,7 @@ export async function handleDenyBatchConfirm(interaction: ButtonInteraction): Pr
     return;
   }
 
-  if (entries === null) {
+  if (!fetched.ok) {
     logger.warn({ userId }, 'Pre-loop denylist fetch failed on batch confirm');
     // Nothing was removed — after the refusal followUp lands (preserving the
     // double-submit guard), the captured rows go back so the user can retry.
@@ -402,8 +401,8 @@ export async function handleDenyBatchConfirm(interaction: ButtonInteraction): Pr
     return;
   }
 
-  const entriesById = new Map(entries.map(entry => [entry.id, entry]));
-  const listTruncated = isDenylistAtCap(entries);
+  const entriesById = new Map(fetched.entries.map(entry => [entry.id, entry]));
+  const listTruncated = fetched.truncated;
   const results = await runBatchSequentially(ids, entryId =>
     runSingleDenyRemoval(ownerClient, entriesById, entryId, userId, listTruncated)
   );

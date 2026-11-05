@@ -28,8 +28,8 @@ vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: clientsForMock,
 }));
 
-// Pass through the real browse module so the REAL isDenylistAtCap decides the
-// cap branch; only the gateway fetch is stubbed.
+// Pass through the real browse module; only the gateway fetch is stubbed, and
+// the route's `truncated` flag rides in each ok payload.
 vi.mock('./browse.js', async importOriginal => {
   const actual = await importOriginal<typeof import('./browse.js')>();
   return { ...actual, fetchEntriesResult: vi.fn() };
@@ -85,7 +85,7 @@ const ENTRY_GUILD = {
   addedBy: 'owner-1',
 };
 
-function buildCappedEntries(count: number): DenylistEntryResponse[] {
+function buildEntries(count: number): DenylistEntryResponse[] {
   return Array.from({ length: count }, (_, idx) => ({
     ...ENTRY_USER,
     id: `00000000-0000-4000-8000-${String(idx + 1).padStart(12, '0')}`,
@@ -149,7 +149,7 @@ describe('handleView', () => {
   });
 
   it('should show not-found message when no matches', async () => {
-    vi.mocked(fetchEntriesResult).mockResolvedValue({ ok: true, entries: [] });
+    vi.mocked(fetchEntriesResult).mockResolvedValue({ ok: true, entries: [], truncated: false });
     const context = createMockContext({ target: '111222333' });
 
     await handleView(context);
@@ -160,7 +160,11 @@ describe('handleView', () => {
   });
 
   it('should include type filter in not-found message', async () => {
-    vi.mocked(fetchEntriesResult).mockResolvedValue({ ok: true, entries: [ENTRY_USER] });
+    vi.mocked(fetchEntriesResult).mockResolvedValue({
+      ok: true,
+      entries: [ENTRY_USER],
+      truncated: false,
+    });
     const context = createMockContext({ target: '111222333', type: 'guild' });
 
     await handleView(context);
@@ -168,10 +172,11 @@ describe('handleView', () => {
     expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('(type: Server)'));
   });
 
-  it('reports a cap-aware miss through the catalog when the fetch is at the cap and nothing matches', async () => {
+  it('reports a cap-aware miss through the catalog when the fetch reports truncated and nothing matches', async () => {
     vi.mocked(fetchEntriesResult).mockResolvedValue({
       ok: true,
-      entries: buildCappedEntries(DENYLIST_LIST_MAX_ENTRIES),
+      entries: buildEntries(2),
+      truncated: true,
     });
     const context = createMockContext({ target: '111222333' });
 
@@ -189,7 +194,8 @@ describe('handleView', () => {
   it('escapes a markdown-bearing target in the at-cap miss copy', async () => {
     vi.mocked(fetchEntriesResult).mockResolvedValue({
       ok: true,
-      entries: buildCappedEntries(DENYLIST_LIST_MAX_ENTRIES),
+      entries: buildEntries(2),
+      truncated: true,
     });
     // Backtick inside the target would otherwise break out of the inline-code
     // span; the expected string derives the escaped form, never hand-escapes.
@@ -207,8 +213,12 @@ describe('handleView', () => {
     );
   });
 
-  it('keeps the plain not-found copy when the fetch is below the cap and nothing matches', async () => {
-    vi.mocked(fetchEntriesResult).mockResolvedValue({ ok: true, entries: [ENTRY_USER] });
+  it('keeps the plain not-found copy when the fetch reports not truncated and nothing matches', async () => {
+    vi.mocked(fetchEntriesResult).mockResolvedValue({
+      ok: true,
+      entries: [ENTRY_USER],
+      truncated: false,
+    });
     const context = createMockContext({ target: '111222333' });
 
     await handleView(context);
@@ -219,7 +229,8 @@ describe('handleView', () => {
   it('pins the type note placement in the at-cap miss copy', async () => {
     vi.mocked(fetchEntriesResult).mockResolvedValue({
       ok: true,
-      entries: buildCappedEntries(DENYLIST_LIST_MAX_ENTRIES),
+      entries: buildEntries(2),
+      truncated: true,
     });
     const context = createMockContext({ target: '111222333', type: 'guild' });
 
@@ -235,7 +246,11 @@ describe('handleView', () => {
   });
 
   it('should show detail view for single match', async () => {
-    vi.mocked(fetchEntriesResult).mockResolvedValue({ ok: true, entries: [ENTRY_USER] });
+    vi.mocked(fetchEntriesResult).mockResolvedValue({
+      ok: true,
+      entries: [ENTRY_USER],
+      truncated: false,
+    });
     const context = createMockContext({ target: '999888777' });
 
     await handleView(context);
@@ -247,6 +262,7 @@ describe('handleView', () => {
     vi.mocked(fetchEntriesResult).mockResolvedValue({
       ok: true,
       entries: [ENTRY_USER, ENTRY_GUILD],
+      truncated: false,
     });
     const context = createMockContext({ target: '999888777' });
 
@@ -264,6 +280,7 @@ describe('handleView', () => {
     vi.mocked(fetchEntriesResult).mockResolvedValue({
       ok: true,
       entries: [ENTRY_USER, ENTRY_GUILD],
+      truncated: false,
     });
     const context = createMockContext({ target: '999888777', type: 'guild' });
 

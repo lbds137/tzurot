@@ -8,11 +8,9 @@ import {
   isDenyBrowseSelectInteraction,
   buildBrowseResponse,
   buildDenyBatchCustomId,
-  isDenylistAtCap,
   parseDenyBatchCustomId,
   formatDenySelectOption,
 } from './browse.js';
-import type { DenylistEntryResponse } from './browseTypes.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
@@ -263,10 +261,9 @@ const sampleEntries = [
   },
 ];
 
-// Cap-list fixture shared by the caller-level (handleBrowse) and builder-level
-// (buildBrowseResponse) footer tests: `type` alternates so a capped list's
-// filtered USER subset sits BELOW the cap — the discriminator for the
-// raw-length (not filtered-length) `listTruncated` computation.
+// Fixture shared by the caller-level (handleBrowse) and builder-level
+// (buildBrowseResponse) footer tests: `type` alternates so the filtered USER
+// subset sits below the cap while an active filter still renders its note.
 const makeCapEntry = (n: number, type: 'USER' | 'GUILD' = 'USER') => ({
   id: `cap-entry-${n}`,
   type,
@@ -525,15 +522,19 @@ describe('handleBrowse', () => {
     expect(formatItem(blockEntry, 1).label).not.toContain('[');
   });
 
-  it('carries the cap footer segment at the handleBrowse level when the RAW fetch is capped under an active filter', async () => {
-    // MIXED types at the cap: the raw list sits at DENYLIST_LIST_MAX_ENTRIES
-    // while the filtered USER slice sits BELOW it, so a filtered-length (or
-    // hardcoded-false) listTruncated computation hides the segment and
-    // reddens this test.
-    const mixedCapped = Array.from({ length: DENYLIST_LIST_MAX_ENTRIES }, (_, i) =>
-      makeCapEntry(i, i % 2 === 0 ? 'USER' : 'GUILD')
+  it('carries the cap footer segment at the handleBrowse level when the fetch reports truncated under an active filter', async () => {
+    // The route's `truncated` flag drives the footer, not the entry count: a
+    // small fixture with truncated: true keeps the segment visible even though
+    // the filtered USER slice sits far below the cap — a hardcoded-false (or
+    // filtered-length) computation hides the segment and reddens this test.
+    const flaggedEntries = [
+      makeCapEntry(0, 'USER'),
+      makeCapEntry(1, 'GUILD'),
+      makeCapEntry(2, 'USER'),
+    ];
+    stub.listDenylistEntries.mockResolvedValue(
+      makeOk({ entries: flaggedEntries, truncated: true })
     );
-    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: mixedCapped }));
     const context = createMockContext({ filter: 'user' });
 
     await handleBrowse(context);
@@ -805,35 +806,47 @@ describe('fetchEntriesResult', () => {
     );
   });
 
-  it('returns { ok: true, entries } and logs nothing on success', async () => {
+  it('returns { ok: true, entries, truncated } and logs nothing on success', async () => {
     const stub = createStub();
     const entries = [sampleEntries[0]];
-    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries }));
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries, truncated: false }));
 
     const result = await fetchEntriesResult(asOwnerClient(stub));
 
-    expect(result).toEqual({ ok: true, entries });
+    expect(result).toEqual({ ok: true, entries, truncated: false });
     expect(denyBrowseLogger.warn).not.toHaveBeenCalled();
     expect(denyBrowseLogger.error).not.toHaveBeenCalled();
+  });
+
+  it('maps the route payload truncated flag through to the ok result', async () => {
+    const stub = createStub();
+    stub.listDenylistEntries.mockResolvedValue(
+      makeOk({ entries: [sampleEntries[0]], truncated: true })
+    );
+
+    const result = await fetchEntriesResult(asOwnerClient(stub));
+
+    expect(result).toEqual({ ok: true, entries: [sampleEntries[0]], truncated: true });
   });
 });
 
 describe('buildBrowseResponse', () => {
-  it('states the newest-entries cap in the footer when the list sits at DENYLIST_LIST_MAX_ENTRIES', () => {
-    const capped = Array.from({ length: DENYLIST_LIST_MAX_ENTRIES }, (_, i) => makeCapEntry(i));
-    const result = buildBrowseResponse(capped, 0, 'all', 'date', { listTruncated: true });
+  it('states the newest-entries cap in the footer when listTruncated is true', () => {
+    // The route's `truncated` flag drives the footer segment, not the entry
+    // count — a small flagged fixture is enough to keep the segment visible.
+    const entries = [makeCapEntry(0), makeCapEntry(1)];
+    const result = buildBrowseResponse(entries, 0, 'all', 'date', { listTruncated: true });
 
     expect(result.embed.data.footer?.text).toContain(
       `Showing only the newest ${DENYLIST_LIST_MAX_ENTRIES} entries`
     );
   });
 
-  it('keeps the cap footer segment under an active filter on a capped list (the segment gates on the RAW list, not the filtered one)', () => {
-    // A capped list whose USER subset alone sits BELOW the cap: gating on the
-    // filtered length would hide the segment exactly when a filter is active.
-    const mixed = Array.from({ length: DENYLIST_LIST_MAX_ENTRIES }, (_, i) =>
-      makeCapEntry(i, i % 2 === 0 ? 'USER' : 'GUILD')
-    );
+  it('keeps the cap footer segment under an active filter when listTruncated is true', () => {
+    // The flag drives the segment, not the entry count: the filtered USER
+    // subset here sits below the cap, yet the segment stays visible alongside
+    // the filter note.
+    const mixed = [makeCapEntry(0, 'USER'), makeCapEntry(1, 'GUILD'), makeCapEntry(2, 'USER')];
     const result = buildBrowseResponse(mixed, 0, 'user', 'date', { listTruncated: true });
 
     expect(result.embed.data.footer?.text).toContain('filtered by: Users');
@@ -842,11 +855,9 @@ describe('buildBrowseResponse', () => {
     );
   });
 
-  it('omits the cap footer segment below DENYLIST_LIST_MAX_ENTRIES', () => {
-    const belowCap = Array.from({ length: DENYLIST_LIST_MAX_ENTRIES - 1 }, (_, i) =>
-      makeCapEntry(i)
-    );
-    const result = buildBrowseResponse(belowCap, 0, 'all', 'date', { listTruncated: false });
+  it('omits the cap footer segment when listTruncated is false', () => {
+    const entries = [makeCapEntry(0), makeCapEntry(1)];
+    const result = buildBrowseResponse(entries, 0, 'all', 'date', { listTruncated: false });
 
     expect(result.embed.data.footer?.text).not.toContain('Showing only the newest');
   });
@@ -914,24 +925,6 @@ describe('buildBrowseResponse', () => {
     expect(result.embed.data.footer?.text ?? '').not.toContain(
       'Select several below, then confirm'
     );
-  });
-});
-
-describe('isDenylistAtCap', () => {
-  // The helper only reads the array's length; the filler carries only the id
-  // field to keep the fixture minimal.
-  const entryAt = (n: number) => ({ id: `cap-probe-${n}` }) as DenylistEntryResponse;
-
-  it('returns true for an exactly-at-cap array', () => {
-    const atCap = Array.from({ length: DENYLIST_LIST_MAX_ENTRIES }, (_, i) => entryAt(i));
-
-    expect(isDenylistAtCap(atCap)).toBe(true);
-  });
-
-  it('returns false for a one-below-cap array', () => {
-    const belowCap = Array.from({ length: DENYLIST_LIST_MAX_ENTRIES - 1 }, (_, i) => entryAt(i));
-
-    expect(isDenylistAtCap(belowCap)).toBe(false);
   });
 });
 

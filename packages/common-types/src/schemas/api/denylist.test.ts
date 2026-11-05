@@ -260,25 +260,63 @@ describe('AddDenylistResponseSchema', () => {
 });
 
 describe('ListDenylistResponseSchema', () => {
-  it('accepts an empty list', () => {
+  it('accepts truncated true and false over an empty-list payload', () => {
+    expect(
+      ListDenylistResponseSchema.safeParse({
+        success: true,
+        entries: [],
+        count: 0,
+        truncated: true,
+      }).success
+    ).toBe(true);
+    expect(
+      ListDenylistResponseSchema.safeParse({
+        success: true,
+        entries: [],
+        count: 0,
+        truncated: false,
+      }).success
+    ).toBe(true);
+  });
+
+  it('rejects when truncated is missing', () => {
     expect(
       ListDenylistResponseSchema.safeParse({ success: true, entries: [], count: 0 }).success
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it('rejects non-boolean truncated', () => {
+    expect(
+      ListDenylistResponseSchema.safeParse({
+        success: true,
+        entries: [],
+        count: 0,
+        truncated: 'yes',
+      }).success
+    ).toBe(false);
   });
 
   it('rejects mismatched count vs entries length — wait, schema is permissive', () => {
     // Schema doesn't enforce count === entries.length; handler is trusted to
     // emit them consistent. Document the trust assumption via a test that
     // EXPECTS lenient parsing.
-    expect(
-      ListDenylistResponseSchema.safeParse({ success: true, entries: [], count: 99 }).success
-    ).toBe(true);
+    const result = ListDenylistResponseSchema.safeParse({
+      success: true,
+      entries: [],
+      count: 99,
+      truncated: false,
+    });
+    expect(result.success).toBe(true);
   });
 
   it('rejects negative count', () => {
-    expect(
-      ListDenylistResponseSchema.safeParse({ success: true, entries: [], count: -1 }).success
-    ).toBe(false);
+    const result = ListDenylistResponseSchema.safeParse({
+      success: true,
+      entries: [],
+      count: -1,
+      truncated: false,
+    });
+    expect(result.success).toBe(false);
   });
 });
 

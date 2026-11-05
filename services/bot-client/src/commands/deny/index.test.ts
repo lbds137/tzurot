@@ -30,7 +30,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 });
 
 // Registration side effect only — importing it for real would pull in
-// browse.js's fetchEntries/buildBrowseResponse, which the browse.js mock
+// browse.js's fetchEntriesResult/buildBrowseResponse, which the browse.js mock
 // below does not provide.
 vi.mock('./browseRebuilder.js', () => ({}));
 
