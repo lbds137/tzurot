@@ -1,10 +1,10 @@
 ---
 id: TASK-1294
 title: Deny browse footer hides rows past the 500 list cap
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-26T09:56:00Z'
-updated_date: '2026-11-04T18:53:00Z'
+updated_date: '2026-11-05T04:12:00Z'
 labels:
   - area:bot-client
   - size:S

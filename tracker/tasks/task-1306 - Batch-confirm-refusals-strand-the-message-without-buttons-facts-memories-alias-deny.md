@@ -3,10 +3,10 @@ id: TASK-1306
 title: >-
   Batch confirm refusals strand the message without buttons (facts, memories,
   alias, deny)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-27T06:08:00Z'
-updated_date: '2026-11-04T18:53:00Z'
+updated_date: '2026-11-05T04:12:00Z'
 labels:
   - area:bot-client
   - size:M
