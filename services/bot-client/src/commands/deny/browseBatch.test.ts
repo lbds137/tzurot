@@ -17,7 +17,6 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
-import { DENYLIST_LIST_MAX_ENTRIES } from '@tzurot/common-types/schemas/api/denylist';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { CommandHandler } from '../../handlers/CommandHandler.js';
 import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
@@ -561,10 +560,12 @@ describe('deny browse batch removal flow', () => {
       expect(resultEmbed.color).toBe(DISCORD_COLORS.SUCCESS);
     });
 
-    it('reports an absent picked id as failed (not already gone) with no delete call and logs warn when the re-fetch hits DENYLIST_LIST_MAX_ENTRIES', async () => {
-      const cappedEntries = buildDenyEntries(DENYLIST_LIST_MAX_ENTRIES);
+    it('reports an absent picked id as failed (not already gone) with no delete call and logs warn when the re-fetch reports truncated', async () => {
+      const flaggedEntries = buildDenyEntries(3);
       const absentId = '99999999-9999-4999-8999-999999999999';
-      stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: cappedEntries }));
+      stub.listDenylistEntries.mockResolvedValue(
+        makeOk({ entries: flaggedEntries, truncated: true })
+      );
 
       const confirmInteraction = createButtonInteraction({
         customId: 'deny::batch-confirm::0::all::date',
@@ -590,10 +591,12 @@ describe('deny browse batch removal flow', () => {
       );
     });
 
-    it('still reports the same absent picked id as already gone when the re-fetch is below DENYLIST_LIST_MAX_ENTRIES', async () => {
-      const uncappedEntries = buildDenyEntries(DENYLIST_LIST_MAX_ENTRIES - 1);
+    it('still reports the same absent picked id as already gone when the re-fetch reports not truncated', async () => {
+      const unflaggedEntries = buildDenyEntries(3);
       const absentId = '99999999-9999-4999-8999-999999999999';
-      stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: uncappedEntries }));
+      stub.listDenylistEntries.mockResolvedValue(
+        makeOk({ entries: unflaggedEntries, truncated: false })
+      );
 
       const confirmInteraction = createButtonInteraction({
         customId: 'deny::batch-confirm::0::all::date',
@@ -613,8 +616,8 @@ describe('deny browse batch removal flow', () => {
     });
   });
 
-  describe('refuse before mutation when pre-loop fetchEntries returns null', () => {
-    it('answers with PAGE_FETCH_FAILED_COPY and makes zero delete calls when fetchEntries returns null', async () => {
+  describe('refuse before mutation when the pre-loop fetch fails', () => {
+    it('answers with PAGE_FETCH_FAILED_COPY and makes zero delete calls when fetchEntriesResult reports !ok', async () => {
       stub.listDenylistEntries.mockResolvedValue(makeErr(503, 'Gateway unavailable'));
       // Two DISTINCT rows: a hardcoded `{ components: [] }` restore cannot
       // pass the restore assertion below the way it could with empty mocks.
@@ -785,7 +788,7 @@ describe('deny browse batch removal flow', () => {
   });
 
   describe('pre-loop try/catch, label recovery, cancel, and router debug', () => {
-    it('strips confirm components BEFORE pre-loop fetchEntries and removeDenylistEntry, and skips ack when already deferred', async () => {
+    it('strips confirm components BEFORE the pre-loop fetchEntriesResult and removeDenylistEntry, and skips ack when already deferred', async () => {
       stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: [FIVE_DENY_ENTRIES[0]] }));
       stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
 
@@ -1328,7 +1331,7 @@ describe('deny browse batch removal flow', () => {
       );
     });
 
-    it('buildRefreshedDenyBrowseView returns null when fetchEntries returns null', async () => {
+    it('buildRefreshedDenyBrowseView returns null when the fetch reports !ok', async () => {
       stub.listDenylistEntries.mockResolvedValue(makeErr(500, 'boom'));
       const view = await buildRefreshedDenyBrowseView(asOwnerClient(stub), {
         page: 0,

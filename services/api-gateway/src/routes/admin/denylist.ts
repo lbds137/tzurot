@@ -13,8 +13,10 @@ import { type Request, type RequestHandler, type Response } from 'express';
 import {
   DENYLIST_LIST_MAX_ENTRIES,
   DenylistAddSchema,
+  DenylistEntrySchema,
   denylistEntityTypeSchema,
   denylistScopeSchema,
+  ListDenylistResponseSchema,
 } from '@tzurot/common-types/schemas/api/denylist';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -24,7 +26,7 @@ import { adminRoutes } from '@tzurot/clients';
 import { extractOwnerId } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { withManifestInput } from '../../utils/manifestInput.js';
-import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
+import { sendContractSuccess, sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { RouteDeps } from '../routeDeps.js';
@@ -103,10 +105,21 @@ export const handleListDenylistEntries = (deps: RouteDeps): RequestHandler => {
       const entries = await prisma.denylistedEntity.findMany({
         where,
         orderBy: { addedAt: 'desc' },
-        take: DENYLIST_LIST_MAX_ENTRIES,
+        take: DENYLIST_LIST_MAX_ENTRIES + 1,
       });
+      const truncated = entries.length > DENYLIST_LIST_MAX_ENTRIES;
+      const page = truncated ? entries.slice(0, DENYLIST_LIST_MAX_ENTRIES) : entries;
 
-      sendCustomSuccess(res, { success: true, entries, count: entries.length });
+      // Prisma's enum columns are VarChar strings, so the raw rows don't
+      // carry the schema's literal unions; parse narrows each row to the
+      // contract type — the same validation the generated client already
+      // applies to every response in transport, surfaced here at the source.
+      sendContractSuccess(res, ListDenylistResponseSchema, {
+        success: true,
+        entries: page.map(entry => DenylistEntrySchema.parse(entry)),
+        count: page.length,
+        truncated,
+      });
     }
   );
 };

@@ -214,29 +214,20 @@ function formatDenyListRow(entry: DenylistEntryResponse): {
 }
 
 /**
- * Footer segment shown when the fetched list sits at the list route's cap
- * (`DENYLIST_LIST_MAX_ENTRIES`): the browse shows only the newest entries the
- * route returned, so a pick made from this page may not cover the whole list.
+ * Footer segment shown when the fetched list is truncated by the list route's
+ * cap (`DENYLIST_LIST_MAX_ENTRIES`): the browse shows only the newest entries
+ * the route returned, so a pick made from this page may not cover the whole
+ * list.
  */
 const DENYLIST_CAP_FOOTER = `Showing only the newest ${DENYLIST_LIST_MAX_ENTRIES} entries`;
-
-/**
- * Whether the RAW fetched list sits at the route cap. `>=`, not `>`: the
- * route returns at most DENYLIST_LIST_MAX_ENTRIES rows for any list at or
- * over the cap, so exactly-at-cap already means "possibly truncated" —
- * this response cannot distinguish the two without fetching one more row.
- */
-export function isDenylistAtCap(entries: DenylistEntryResponse[]): boolean {
-  return entries.length >= DENYLIST_LIST_MAX_ENTRIES;
-}
 
 /** Options shared by the browse page/response builders. */
 interface DenyBrowsePageOptions {
   /** Multi-select batch mode swaps the select menu's rows for the batch set. */
   mode?: 'single' | 'batch';
   /**
-   * Whether the RAW fetched list sits at the route cap — computed by the
-   * caller from the raw length, never from the filtered list (any active
+   * Whether the route truncated the RAW fetched list (its `truncated` flag) —
+   * taken from the fetch, never derived from the filtered list (any active
    * filter shrinks the filtered list below the cap and would hide the
    * segment on a capped list).
    */
@@ -355,9 +346,10 @@ function buildBrowsePage(
   return { embed, components };
 }
 
-/** Outcome of one denylist fetch: the entries, or the failure to classify. */
+/** Outcome of one denylist fetch: the entries plus the route's truncation flag, or the failure to classify. */
 export type DenylistFetchResult =
-  { ok: true; entries: DenylistEntryResponse[] } | { ok: false; failure: unknown };
+  | { ok: true; entries: DenylistEntryResponse[]; truncated: boolean }
+  | { ok: false; failure: unknown };
 
 /** Fetch denylist entries, preserving the failure object for classification. */
 export async function fetchEntriesResult(ownerClient: OwnerClient): Promise<DenylistFetchResult> {
@@ -367,25 +359,17 @@ export async function fetchEntriesResult(ownerClient: OwnerClient): Promise<Deny
       logger.warn({ status: result.status }, 'Denylist fetch returned non-ok');
       return { ok: false, failure: result };
     }
-    return { ok: true, entries: result.data.entries };
+    return { ok: true, entries: result.data.entries, truncated: result.data.truncated };
   } catch (error) {
     logger.error({ err: error }, 'Failed to fetch denylist entries');
     return { ok: false, failure: error };
   }
 }
 
-/** Fetch denylist entries via the typed owner client */
-export async function fetchEntries(
-  ownerClient: OwnerClient
-): Promise<DenylistEntryResponse[] | null> {
-  const fetched = await fetchEntriesResult(ownerClient);
-  return fetched.ok ? fetched.entries : null;
-}
-
 /**
  * Build a browse response from raw entries and browse context.
  * Used by detail.ts for back navigation and browseBatch.ts for batch mode / refresh.
- * `options.listTruncated` is the caller's RAW-fetched-length cap check (the
+ * `options.listTruncated` is the route's truncation flag for the RAW fetch (the
  * filtered list this function derives cannot decide it).
  */
 export function buildBrowseResponse(
@@ -423,7 +407,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
   const filtered = filterByType(entries, filter);
   const sorted = sortEntries(filtered, 'date');
   const { embed, components } = buildBrowsePage(sorted, 0, filter, 'date', {
-    listTruncated: isDenylistAtCap(entries),
+    listTruncated: fetched.truncated,
   });
 
   await context.editReply({ embeds: [embed], components });
@@ -455,7 +439,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   const filtered = filterByType(fetched.entries, filter);
   const sorted = sortEntries(filtered, sort);
   const { embed, components } = buildBrowsePage(sorted, page, filter, sort, {
-    listTruncated: isDenylistAtCap(fetched.entries),
+    listTruncated: fetched.truncated,
   });
 
   await interaction.editReply({ embeds: [embed], components });

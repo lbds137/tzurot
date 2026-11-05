@@ -131,7 +131,9 @@ describe('deny browse rebuilder', () => {
   it('returns rebuilt view with banner on success', async () => {
     clientsForMock.mockReturnValue({
       ownerClient: asOwnerClient({
-        listDenylistEntries: vi.fn().mockResolvedValue(makeOk({ entries: sampleEntries })),
+        listDenylistEntries: vi
+          .fn()
+          .mockResolvedValue(makeOk({ entries: sampleEntries, truncated: false })),
       }),
     });
 
@@ -149,7 +151,7 @@ describe('deny browse rebuilder', () => {
     });
   });
 
-  it('returns null when fetchEntries returns null (owner API fails)', async () => {
+  it('returns null when fetchEntriesResult reports !ok (owner API fails)', async () => {
     clientsForMock.mockReturnValue({
       ownerClient: asOwnerClient({
         listDenylistEntries: vi.fn().mockResolvedValue(makeErr(500, 'Error')),

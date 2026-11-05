@@ -97,7 +97,7 @@ vi.mock('../../utils/gatewayClients.js', () => ({
 }));
 
 vi.mock('./browse.js', () => ({
-  fetchEntries: vi.fn(),
+  fetchEntriesResult: vi.fn(),
   buildBrowseResponse: vi.fn(() => ({
     embed: { data: { title: 'Browse' } },
     components: [],

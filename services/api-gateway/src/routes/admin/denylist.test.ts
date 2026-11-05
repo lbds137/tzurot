@@ -12,6 +12,10 @@ import {
   handleRemoveDenylistEntry,
 } from './denylist.js';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import {
+  DENYLIST_LIST_MAX_ENTRIES,
+  ListDenylistResponseSchema,
+} from '@tzurot/common-types/schemas/api/denylist';
 import type { RouteDeps } from '../routeDeps.js';
 
 // Mock AuthMiddleware
@@ -127,6 +131,75 @@ describe('Denylist Admin Routes', () => {
 
       expect(response.status).toBe(400);
       expect(mockPrisma.denylistedEntity.findMany).not.toHaveBeenCalled();
+    });
+
+    it('fetches CAP + 1 rows and reports truncated: true with exactly CAP entries when the list overflows the cap', async () => {
+      const overCap = Array.from({ length: DENYLIST_LIST_MAX_ENTRIES + 1 }, (_, i) => ({
+        id: `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+        type: 'USER',
+        discordId: `${100000000000000000n + BigInt(i)}`,
+        scope: 'BOT',
+        scopeId: '*',
+        mode: 'BLOCK',
+        reason: null,
+        addedBy: '999999999999999999',
+        addedAt: new Date('2026-01-15T00:00:00.000Z'),
+      }));
+      mockPrisma.denylistedEntity.findMany.mockResolvedValue(overCap);
+
+      const response = await request(app).get('/api/admin/denylist');
+
+      expect(response.status).toBe(200);
+      expect(mockPrisma.denylistedEntity.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ take: DENYLIST_LIST_MAX_ENTRIES + 1 })
+      );
+      expect(response.body.truncated).toBe(true);
+      expect(response.body.entries).toHaveLength(DENYLIST_LIST_MAX_ENTRIES);
+      expect(response.body.count).toBe(DENYLIST_LIST_MAX_ENTRIES);
+      expect(ListDenylistResponseSchema.safeParse(response.body).success).toBe(true);
+    });
+
+    it('reports truncated: false and returns all CAP entries when the list sits exactly at the cap', async () => {
+      const atCap = Array.from({ length: DENYLIST_LIST_MAX_ENTRIES }, (_, i) => ({
+        id: `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+        type: 'USER',
+        discordId: `${100000000000000000n + BigInt(i)}`,
+        scope: 'BOT',
+        scopeId: '*',
+        mode: 'BLOCK',
+        reason: null,
+        addedBy: '999999999999999999',
+        addedAt: new Date('2026-01-15T00:00:00.000Z'),
+      }));
+      mockPrisma.denylistedEntity.findMany.mockResolvedValue(atCap);
+
+      const response = await request(app).get('/api/admin/denylist');
+
+      expect(response.status).toBe(200);
+      expect(response.body.truncated).toBe(false);
+      expect(response.body.entries).toHaveLength(DENYLIST_LIST_MAX_ENTRIES);
+      expect(response.body.count).toBe(DENYLIST_LIST_MAX_ENTRIES);
+      expect(ListDenylistResponseSchema.safeParse(response.body).success).toBe(true);
+    });
+
+    it('returns 500 when a stored row carries an out-of-enum type (schema.parse throws at the source)', async () => {
+      mockPrisma.denylistedEntity.findMany.mockResolvedValue([
+        {
+          id: '00000000-0000-4000-8000-000000000001',
+          type: 'BOGUS',
+          discordId: '123456789012345678',
+          scope: 'BOT',
+          scopeId: '*',
+          mode: 'BLOCK',
+          reason: null,
+          addedBy: '999999999999999999',
+          addedAt: new Date('2026-01-15T00:00:00.000Z'),
+        },
+      ]);
+
+      const response = await request(app).get('/api/admin/denylist');
+
+      expect(response.status).toBe(500);
     });
   });
 
