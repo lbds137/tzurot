@@ -83,7 +83,7 @@ Tools with a baseline file carry a `meta` block in the baseline JSON:
 }
 ```
 
-`configHash` is the **only** drift gate. The other fields (`toolVersion`, `nodeVersion`, `generatedFromSha`, `generatedAt`) are recorded for diagnostics — when did this baseline get captured, against what tooling, on what code — but they are NOT part of the `configHash` and don't trigger drift detection. A Node version bump alone does not invalidate baselines; only measurement-affecting config changes do.
+`configHash` is the **only** drift gate. The other fields (`toolVersion`, `nodeVersion`, `generatedFromSha`, `generatedAt`) are recorded for diagnostics — when did this baseline get captured, against what tooling, on what develop-side base commit (the commit the measured tree was built on top of; the branch's own changes are not in it) — but they are NOT part of the `configHash` and don't trigger drift detection. A Node version bump alone does not invalidate baselines; only measurement-affecting config changes do.
 
 Each tool defines a `getConfigFingerprint()` that returns the measurement-affecting config slice (thresholds, implementation version, etc.). `hashConfigSlice` produces a stable 12-char SHA-256 from the slice. When the stored hash doesn't match the current hash, the tool hard-fails with:
 
