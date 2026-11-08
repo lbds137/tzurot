@@ -1,16 +1,16 @@
 ---
 id: TASK-283
 title: Entity-tag erasure sweep is exact-match
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-07-15 00:00'
-updated_date: '2026-08-14 22:31'
+created_date: 2026-07-15 00:00
+updated_date: '2026-11-08T21:11:00Z'
 labels:
-  - 'origin:review'
-  - 'area:api-gateway'
-  - 'area:db'
-  - 'size:S'
-  - 'state:ready'
+  - origin:review
+  - area:api-gateway
+  - area:db
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 283000
