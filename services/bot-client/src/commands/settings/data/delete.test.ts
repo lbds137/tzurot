@@ -66,6 +66,9 @@ describe('handleDataDelete', () => {
     expect(description).toContain('deleted for EVERYONE');
     expect(description).toContain('**2** other user(s) have data');
     expect(description).toContain('export downloads stop');
+    expect(description).toContain('like a nickname someone else coined, may persist');
+    expect(description).toContain('your username, a persona name, or a preferred name');
+    expect(description).toContain('a name another user shares may be removed too');
     expect(description).toContain('DELETE MY ACCOUNT');
     const customIds = call.components[0].components.map(
       (c: { data: { custom_id: string } }) => c.data.custom_id
