@@ -32,6 +32,10 @@
           },
           {
             "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/no-verify-guard.sh"
+          },
+          {
+            "type": "command",
             "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/board-commit-branch-gate.sh"
           },
           {

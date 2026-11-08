@@ -86,13 +86,32 @@ const CASES: readonly (readonly [expected: boolean, input: string])[] = [
   [true, 'git\u00A0commit -m "x"'],
 ];
 
+/** Cases pinning the expected verdicts for GIT_PUSH_RE (same shape, `push` subcommand). */
+const PUSH_CASES: readonly (readonly [expected: boolean, input: string])[] = [
+  [true, 'git push'],
+  [true, 'git push --no-verify origin feat/x'],
+  [true, 'git -C /some/path push'],
+  [true, 'git -c user.name=x push origin x'],
+  [true, 'cd foo && git push'],
+  // Inline (?i), as for commit.
+  [true, 'GIT PUSH'],
+  [true, 'GIT -C /some/path PUSH'],
+  [false, 'git push-foo'],
+  [false, 'git pushd'],
+  [false, 'git push_backup'],
+  [false, 'gitpush'],
+  [false, 'git pull'],
+  [false, 'git commit -m push'],
+  [false, 'echo pushing now'],
+];
+
 /** One python3 spawn evaluates the shared constant over every case. */
-function pythonVerdicts(inputs: readonly string[]): boolean[] {
+function pythonVerdicts(inputs: readonly string[], constant = 'GIT_COMMIT_RE'): boolean[] {
   const script = [
     'import json, sys',
     'sys.path.insert(0, sys.argv[1])',
-    'from git_commit import GIT_COMMIT_RE',
-    'json.dump([bool(GIT_COMMIT_RE.search(c)) for c in json.load(sys.stdin)], sys.stdout)',
+    `from git_commit import ${constant} as PATTERN`,
+    'json.dump([bool(PATTERN.search(c)) for c in json.load(sys.stdin)], sys.stdout)',
   ].join('\n');
   const out = execFileSync('python3', ['-c', script, LIB_DIR], {
     input: JSON.stringify(inputs),
@@ -106,11 +125,23 @@ function pythonVerdicts(inputs: readonly string[]): boolean[] {
 }
 
 const verdicts = pythonVerdicts(CASES.map(([, input]) => input));
+const pushVerdicts = pythonVerdicts(
+  PUSH_CASES.map(([, input]) => input),
+  'GIT_PUSH_RE'
+);
 
 describe('git_commit.GIT_COMMIT_RE: pinned verdicts', () => {
   for (const [caseIndex, [expected, input]] of CASES.entries()) {
     it(`${expected ? 'detects' : 'ignores'}: ${JSON.stringify(input)}`, () => {
       expect(verdicts[caseIndex]).toBe(expected);
+    });
+  }
+});
+
+describe('git_commit.GIT_PUSH_RE: pinned verdicts', () => {
+  for (const [caseIndex, [expected, input]] of PUSH_CASES.entries()) {
+    it(`${expected ? 'detects' : 'ignores'}: ${JSON.stringify(input)}`, () => {
+      expect(pushVerdicts[caseIndex]).toBe(expected);
     });
   }
 });
