@@ -1,7 +1,12 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
+
+vi.mock('node:child_process', () => ({
+  execFileSync: vi.fn(),
+}));
 
 vi.mock('./railway-api.js', () => ({
   getRailwayServiceWatchPatterns: vi.fn(),
@@ -20,6 +25,10 @@ import {
   runWatchPatternCheck,
 } from './watch-patterns.js';
 
+// `watch-patterns.ts` calls execFileSync with `encoding: 'utf-8'`, so the real
+// return value is a string; execFileSync's overload set would otherwise force
+// every mockReturnValue through a Buffer cast.
+const mockExecFileSync = vi.mocked(execFileSync) as unknown as Mock<(...args: unknown[]) => string>;
 const mockGetWatchPatterns = vi.mocked(getRailwayServiceWatchPatterns);
 const mockResolveIds = vi.mocked(resolveRailwayIds);
 
@@ -112,6 +121,14 @@ describe('parseDockerfileCopySources', () => {
     expect(parseDockerfileCopySources(dockerfile)).toEqual([]);
   });
 
+  it('skips blank lines inside a backslash continuation (BuildKit behaviour)', () => {
+    const runWithBlank = ['RUN foo \\', '', '  COPY x y', 'COPY a ./'].join('\n');
+    expect(parseDockerfileCopySources(runWithBlank)).toEqual(['a']);
+
+    const copyWithBlank = ['COPY a \\', '', '  b ./'].join('\n');
+    expect(parseDockerfileCopySources(copyWithBlank)).toEqual(['a', 'b']);
+  });
+
   it('parses a CRLF-delimited Dockerfile including backslash continuations', () => {
     const dockerfile = [
       'FROM node:24-slim',
@@ -150,10 +167,15 @@ describe('parseDockerfileCopySources', () => {
   });
 
   it('throws UsageError naming the offending line on a heredoc RUN instruction', () => {
-    const line = 'RUN <<EOF';
-    const dockerfile = `${line}\nCOPY secret.txt ./\nEOF`;
-    expect(() => parseDockerfileCopySources(dockerfile)).toThrow(UsageError);
-    expect(() => parseDockerfileCopySources(dockerfile)).toThrow(line);
+    for (const line of ['RUN <<EOF', 'RUN cat <<EOF']) {
+      const dockerfile = `${line}\nCOPY secret.txt ./\nEOF`;
+      expect(() => parseDockerfileCopySources(dockerfile)).toThrow(UsageError);
+      expect(() => parseDockerfileCopySources(dockerfile)).toThrow(line);
+    }
+  });
+
+  it('allows arithmetic bit-shift in a RUN instruction without treating it as a heredoc', () => {
+    expect(parseDockerfileCopySources('RUN echo $((1<<4))')).toEqual([]);
   });
 
   it('throws UsageError naming the offending line on an ADD instruction', () => {
@@ -177,9 +199,10 @@ describe('parseDockerfileCopySources', () => {
   });
 
   it('throws UsageError naming the offending line on a heredoc COPY instruction', () => {
-    const line = 'COPY <<EOF /app/config.json';
-    expect(() => parseDockerfileCopySources(line)).toThrow(UsageError);
-    expect(() => parseDockerfileCopySources(line)).toThrow(line);
+    for (const line of ['COPY <<EOF /app/config.json', 'COPY <<-"EOT" /x']) {
+      expect(() => parseDockerfileCopySources(line)).toThrow(UsageError);
+      expect(() => parseDockerfileCopySources(line)).toThrow(line);
+    }
   });
 
   it('throws UsageError naming the offending line when a source contains *', () => {
@@ -387,6 +410,43 @@ describe('uncoveredSources', () => {
       )
     ).toEqual(['docs/guides', 'docs/commands.md']);
   });
+
+  it('classifies a watch pattern starting with # (after / strip) as uncredited', () => {
+    expect(
+      uncoveredSources(
+        [
+          { path: '#docs/commands.md', isDir: false },
+          { path: '#docs/legal', isDir: true },
+        ],
+        ['#docs/commands.md', '/#docs/legal/**']
+      )
+    ).toEqual(['#docs/commands.md', '#docs/legal']);
+  });
+
+  it('classifies a watch pattern containing a backslash as uncredited', () => {
+    expect(
+      uncoveredSources(
+        [
+          { path: 'docs\\commands.md', isDir: false },
+          { path: 'docs\\legal', isDir: true },
+        ],
+        ['docs\\commands.md', 'docs\\legal/**']
+      )
+    ).toEqual(['docs\\commands.md', 'docs\\legal']);
+  });
+
+  it('classifies a watch pattern with leading or trailing whitespace as uncredited', () => {
+    expect(
+      uncoveredSources(
+        [
+          { path: ' docs/commands.md', isDir: false },
+          { path: 'docs/commands.md ', isDir: false },
+          { path: ' docs/legal', isDir: true },
+        ],
+        [' docs/commands.md', 'docs/commands.md ', '/ docs/legal/**', 'docs/legal/** ']
+      )
+    ).toEqual([' docs/commands.md', 'docs/commands.md ', ' docs/legal']);
+  });
 });
 
 describe('runWatchPatternCheck', () => {
@@ -394,8 +454,19 @@ describe('runWatchPatternCheck', () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    mockExecFileSync.mockReset();
     mockResolveIds.mockReset();
     mockGetWatchPatterns.mockReset();
+    mockExecFileSync.mockImplementation((_cmd: unknown, args: unknown) => {
+      const argv = args as string[];
+      if (argv.includes('--abbrev-ref')) {
+        return 'develop\n';
+      }
+      if (argv.includes('--short')) {
+        return 'abc1234\n';
+      }
+      return '';
+    });
     mockResolveIds.mockReturnValue({
       projectId: 'proj-1',
       environmentId: 'env-dev',
@@ -410,13 +481,44 @@ describe('runWatchPatternCheck', () => {
     vi.restoreAllMocks();
   });
 
-  it('forwards args across resolveRailwayIds and getRailwayServiceWatchPatterns and prints the covered count and Dockerfile path', async () => {
+  it('forwards args across execFileSync, resolveRailwayIds, and getRailwayServiceWatchPatterns and prints branch@sha and the Dockerfile path', async () => {
     await runWatchPatternCheck({
       env: 'dev',
       service: 'tzurot-website',
       dockerfile: FIXTURE_DOCKERFILE_REL,
     });
 
+    expect(mockExecFileSync).toHaveBeenNthCalledWith(
+      1,
+      'git',
+      ['-C', REPO_ROOT, 'rev-parse', '--abbrev-ref', 'HEAD'],
+      { encoding: 'utf-8' }
+    );
+    expect(mockExecFileSync).toHaveBeenNthCalledWith(
+      2,
+      'git',
+      ['-C', REPO_ROOT, 'rev-parse', '--short', 'HEAD'],
+      { encoding: 'utf-8' }
+    );
+    expect(mockExecFileSync).toHaveBeenNthCalledWith(
+      3,
+      'git',
+      [
+        '-C',
+        REPO_ROOT,
+        'status',
+        '--porcelain',
+        '--',
+        FIXTURE_DOCKERFILE_REL,
+        'package.json',
+        'pnpm-lock.yaml',
+        'pnpm-workspace.yaml',
+        'docs/legal',
+        'docs/guides',
+        'docs/commands.md',
+      ],
+      { encoding: 'utf-8' }
+    );
     expect(mockResolveIds).toHaveBeenCalledWith('dev', 'tzurot-website');
     expect(mockGetWatchPatterns).toHaveBeenCalledWith({
       environmentId: 'env-dev',
@@ -427,12 +529,12 @@ describe('runWatchPatternCheck', () => {
     const output = logSpy.mock.calls.flat().map(String).join('\n');
     expect(output).toContain('✅');
     expect(output).toContain(
-      `All 7 image inputs (Dockerfile + COPY sources) are covered by tzurot-website watch patterns (dev) [${FIXTURE_DOCKERFILE_PATH}]`
+      `All 7 image inputs (Dockerfile + COPY sources) are covered by tzurot-website watch patterns (dev) [develop@abc1234 ${FIXTURE_DOCKERFILE_REL}]`
     );
     expect(errorSpy).not.toHaveBeenCalled();
   });
 
-  it('prints each uncovered source and the Dockerfile path and throws when a COPY source is missing from watchPatterns', async () => {
+  it('prints each uncovered source and branch@sha with the Dockerfile path and throws when a COPY source is missing from watchPatterns', async () => {
     mockResolveIds.mockReturnValue({
       projectId: 'proj-1',
       environmentId: 'env-prod',
@@ -464,7 +566,7 @@ describe('runWatchPatternCheck', () => {
     const errOutput = errorSpy.mock.calls.flat().map(String).join('\n');
     expect(errOutput).toContain('docs/guides');
     expect(errOutput).toContain('docs/commands.md');
-    expect(errOutput).toContain(FIXTURE_DOCKERFILE_PATH);
+    expect(errOutput).toContain(`[develop@abc1234 ${FIXTURE_DOCKERFILE_REL}]`);
   });
 
   it('prints the uncredited-shape diagnostic line when uncredited watch patterns exist and the check fails', async () => {
@@ -546,8 +648,88 @@ describe('runWatchPatternCheck', () => {
     const output = logSpy.mock.calls.flat().map(String).join('\n');
     expect(output).toContain('No watchPatterns configured for tzurot-website (dev)');
     expect(output).toContain('every push deploys');
-    expect(output).toContain(FIXTURE_DOCKERFILE_PATH);
+    expect(output).toContain(`[develop@abc1234 ${FIXTURE_DOCKERFILE_REL}]`);
     expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it('throws UsageError naming the dirty paths when git status --porcelain is non-empty and skips Railway calls', async () => {
+    mockExecFileSync.mockImplementation((_cmd: unknown, args: unknown) => {
+      const argv = args as string[];
+      if (argv.includes('--abbrev-ref')) {
+        return 'develop\n';
+      }
+      if (argv.includes('--short')) {
+        return 'abc1234\n';
+      }
+      return ' M package.json\n?? docs/legal/PRIVACY_POLICY.md\n';
+    });
+
+    let caught: unknown;
+    try {
+      await runWatchPatternCheck({
+        env: 'dev',
+        service: 'tzurot-website',
+        dockerfile: FIXTURE_DOCKERFILE_REL,
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(UsageError);
+    expect((caught as Error).message).toContain(
+      'uncommitted changes in image inputs; commit or stash them so the check reads the tree that deploys'
+    );
+    expect((caught as Error).message).toContain('package.json');
+    expect((caught as Error).message).toContain('docs/legal/PRIVACY_POLICY.md');
+    expect(mockResolveIds).not.toHaveBeenCalled();
+    expect(mockGetWatchPatterns).not.toHaveBeenCalled();
+  });
+
+  it('refuses an absolute --dockerfile path with UsageError before reading from disk', async () => {
+    const readSpy = vi.spyOn(fs, 'readFileSync');
+
+    const promise = runWatchPatternCheck({
+      env: 'dev',
+      service: 'tzurot-website',
+      dockerfile: '/etc/Dockerfile',
+    });
+
+    await expect(promise).rejects.toBeInstanceOf(UsageError);
+    await expect(promise).rejects.toThrow('/etc/Dockerfile');
+    expect(readSpy).not.toHaveBeenCalled();
+    expect(mockExecFileSync).not.toHaveBeenCalled();
+  });
+
+  it('refuses a parent-escaping --dockerfile path (../x/Dockerfile) with UsageError before reading from disk', async () => {
+    const readSpy = vi.spyOn(fs, 'readFileSync');
+
+    const promise = runWatchPatternCheck({
+      env: 'dev',
+      service: 'tzurot-website',
+      dockerfile: '../x/Dockerfile',
+    });
+
+    await expect(promise).rejects.toBeInstanceOf(UsageError);
+    await expect(promise).rejects.toThrow('../x/Dockerfile');
+    expect(readSpy).not.toHaveBeenCalled();
+    expect(mockExecFileSync).not.toHaveBeenCalled();
+  });
+
+  it('normalizes a repo-relative --dockerfile path (./...) for the Dockerfile input entry', async () => {
+    await runWatchPatternCheck({
+      env: 'dev',
+      service: 'tzurot-website',
+      dockerfile: `./${FIXTURE_DOCKERFILE_REL}`,
+    });
+
+    expect(mockExecFileSync).toHaveBeenNthCalledWith(
+      3,
+      'git',
+      expect.arrayContaining([FIXTURE_DOCKERFILE_REL]),
+      { encoding: 'utf-8' }
+    );
+    const output = logSpy.mock.calls.flat().map(String).join('\n');
+    expect(output).toContain(`[develop@abc1234 ${FIXTURE_DOCKERFILE_REL}]`);
   });
 
   it('throws UsageError naming the missing source when statSync fails with ENOENT', async () => {

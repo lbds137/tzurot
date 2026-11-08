@@ -196,18 +196,25 @@ function registerWatchCheckCommand(cli: CAC): void {
     .option(SERVICE_OPTION, 'Service name whose watch patterns to inspect', {
       default: DEFAULT_WATCH_CHECK_SERVICE,
     })
-    .option('--dockerfile <path>', 'Repo-relative Dockerfile path', {
-      default: DEFAULT_WATCH_CHECK_DOCKERFILE,
-    })
+    .option(
+      '--dockerfile <path>',
+      'Repo-relative Dockerfile path; its build context must be the repo root',
+      { default: DEFAULT_WATCH_CHECK_DOCKERFILE }
+    )
     .example('pnpm ops deploy:watch-check --env dev')
     .example('pnpm ops deploy:watch-check --env prod')
     .action(async (options: { env: string | undefined; service: string; dockerfile: string }) => {
       requireDevProdEnv(options.env);
-      const service = String(options.service).trim();
+      // Read from rawArgs first: cac (mri) runs `+val` on every option value,
+      // which coerces a whitespace-only string (`+'   ' === 0`) to the number 0
+      // before the action sees `options`.
+      const service = (rawOptionValue(cli.rawArgs, '--service') ?? String(options.service)).trim();
       if (service.length === 0) {
         throw new UsageError('--service <name> must not be empty');
       }
-      const dockerfile = String(options.dockerfile).trim();
+      const dockerfile = (
+        rawOptionValue(cli.rawArgs, '--dockerfile') ?? String(options.dockerfile)
+      ).trim();
       if (dockerfile.length === 0) {
         throw new UsageError('--dockerfile <path> must not be empty');
       }
