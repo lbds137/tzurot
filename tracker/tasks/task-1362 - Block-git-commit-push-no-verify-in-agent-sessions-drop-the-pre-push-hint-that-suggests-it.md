@@ -3,9 +3,10 @@ id: TASK-1362
 title: >-
   Block git commit/push --no-verify in agent sessions; drop the pre-push hint
   that suggests it
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-08T10:28:00Z'
+updated_date: '2026-11-08T17:34:00Z'
 labels:
   - area:tooling
   - size:S
