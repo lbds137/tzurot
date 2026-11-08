@@ -43,8 +43,10 @@ vi.mock('../../services/AuthMiddleware.js', () => ({
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
+import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
 import { handleListModels, resetModelCache } from './voiceModels.js';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
+import { makeUndecryptableCiphertext } from '../../test/undecryptableCiphertext.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
@@ -59,6 +61,7 @@ describe('Voice Models Route', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   beforeEach(() => {
@@ -113,6 +116,34 @@ describe('Voice Models Route', () => {
     const response = await request(app).get('/models');
 
     expect(response.status).toBe(StatusCodes.NOT_FOUND);
+  });
+
+  it('should return 401 with the undecryptable-key message when the stored ElevenLabs key cannot be decrypted', async () => {
+    const realEncryption = await vi.importActual<
+      typeof import('@tzurot/common-types/utils/encryption')
+    >('@tzurot/common-types/utils/encryption');
+
+    vi.stubEnv('API_KEY_ENCRYPTION_KEY', 'a'.repeat(64));
+    vi.stubEnv('API_KEY_ENCRYPTION_KEY_PREVIOUS', undefined);
+
+    const corruptedKey = makeUndecryptableCiphertext(
+      realEncryption.encryptApiKey,
+      'TEST-FIXTURE-not-a-real-elevenlabs-api-key-abcdef'
+    );
+
+    (mockPrisma.user.findFirst as any).mockResolvedValue({
+      id: 'user-uuid-123',
+      apiKeys: [corruptedKey],
+    });
+    vi.mocked(decryptApiKey).mockImplementationOnce(realEncryption.decryptApiKey);
+
+    const response = await request(app).get('/models');
+
+    expect(response.status).toBe(StatusCodes.UNAUTHORIZED);
+    expect(response.body.message).toBe(
+      "Your saved ElevenLabs key can't be read anymore. Set it again with /settings apikey set."
+    );
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it('should return error on ElevenLabs auth failure', async () => {

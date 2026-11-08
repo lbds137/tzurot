@@ -97,6 +97,7 @@ describe('Shapes List Routes', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 
   describe('GET /api/user/shapes/list (list shapes)', () => {
@@ -154,8 +155,6 @@ describe('Shapes List Routes', () => {
           total: 1,
         })
       );
-
-      vi.unstubAllGlobals();
     });
 
     it('should log a gated body preview and the body length when the shapes.inc call fails and previews are disabled', async () => {
@@ -186,8 +185,6 @@ describe('Shapes List Routes', () => {
       };
       expect(fields.bodyPreview).toBeUndefined();
       expect(fields.bodyLength).toBe(failingBody.length);
-
-      vi.unstubAllGlobals();
     });
 
     it('should log the actual body preview and the body length when the shapes.inc call fails and previews are enabled', async () => {
@@ -218,8 +215,6 @@ describe('Shapes List Routes', () => {
       };
       expect(fields.bodyPreview).toBe(failingBody);
       expect(fields.bodyLength).toBe(failingBody.length);
-
-      vi.unstubAllGlobals();
     });
 
     it('returns 401 with the undecryptable-credential message when the stored cookie cannot be decrypted', async () => {
@@ -256,8 +251,6 @@ describe('Shapes List Routes', () => {
       expect((loggedFields.err as Error).message).toBe(
         'Unsupported state or unable to authenticate data'
       );
-
-      vi.unstubAllGlobals();
     });
 
     it('lets a decrypt failure propagate instead of answering re-authenticate when the service itself is misconfigured', async () => {
@@ -292,8 +285,6 @@ describe('Shapes List Routes', () => {
       expect(res.json).not.toHaveBeenCalled();
       expect(mockLogger.warn).not.toHaveBeenCalled();
       expect(mockFetch).not.toHaveBeenCalled();
-
-      vi.unstubAllGlobals();
     });
 
     it('returns the expired-cookie message, distinct from the undecryptable one, when shapes.inc rejects the cookie', async () => {
@@ -318,8 +309,6 @@ describe('Shapes List Routes', () => {
       const payload = vi.mocked(res.json).mock.calls[0][0] as { message: string };
       expect(payload.message).toBe(EXPIRED_CREDENTIAL_MESSAGE);
       expect(EXPIRED_CREDENTIAL_MESSAGE).not.toBe(UNDECRYPTABLE_CREDENTIAL_MESSAGE);
-
-      vi.unstubAllGlobals();
     });
 
     it('lets a non-decrypt failure inside the handler propagate instead of answering re-authenticate', async () => {
@@ -339,8 +328,6 @@ describe('Shapes List Routes', () => {
 
       await expect(handler(req, res, vi.fn())).rejects.toThrow('network boom');
       expect(res.status).not.toHaveBeenCalledWith(401);
-
-      vi.unstubAllGlobals();
     });
   });
 });
