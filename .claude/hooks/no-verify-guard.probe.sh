@@ -31,6 +31,10 @@ run 2 "commit --no-verify" Bash "git commit --no-verify -m x"
 run 2 "commit -n" Bash "git commit -n -m x"
 run 2 "commit -nm bundle" Bash "git commit -nm x"
 run 2 "commit -an bundle" Bash "git commit -an -m x"
+run 2 "-nm with an attached quoted message" Bash 'git commit -nm"fix: x"'
+run 2 "-nF with an attached file name" Bash "git commit -nFmsg.txt"
+run 2 "-anm with an attached quoted message" Bash "git commit -anm'x'"
+run 2 "brace expansion does not end the argument span" Bash "git commit -m x src/{a,b}.ts -n"
 run 2 "push --no-verify" Bash "git push --no-verify"
 run 2 "push --no-verify with remote and branch" Bash "git push --no-verify origin feat/x"
 run 2 "git -C dir commit --no-verify" Bash "git -C /some/dir commit --no-verify -m x"
@@ -101,6 +105,11 @@ CMDEOF
 )
 run 0 "heredoc message mentions --no-verify" Bash "$CMD_HEREDOC"
 run 0 "-mn is the message n, not no-verify" Bash "git commit -m x -mn"
+run 0 "-mn with an attached quoted value is the message" Bash 'git commit -mn"x"'
+run 0 "brace group is still a separator" Bash "{ git commit -m x; } && echo -n done"
+# Named gaps, pinned as current behavior.
+run 0 "process substitution ends the span (named gap)" Bash "git commit -F <(echo x) -n"
+run 0 "git alias is not resolved (named gap)" Bash "git ci -n"
 run 0 "-n belongs to head, not the commit" Bash "head -n 5 file && git commit -m x"
 run 0 "grep -n then push" Bash "grep -n x f; git push"
 run 0 "push -n is --dry-run" Bash "git push -n"
@@ -114,5 +123,15 @@ run 0 "probe invocation (script commits with --no-verify internally)" Bash \
 run 0 "git log -n does not leak into the chained commit" Bash \
   "git log --oneline -n 3 && git commit -m x"
 run 0 "tool_name Edit is ignored" Edit "git commit --no-verify -m x"
+
+# --- the override announces itself ---------------------------------------------
+OVERRIDE_ERR=$(jq -n --arg c "TZUROT_ALLOW_NO_VERIFY=1 git push --no-verify" \
+  '{tool_name:"Bash",tool_input:{command:$c}}' | "$HOOK" 2>&1 >/dev/null)
+if printf '%s' "$OVERRIDE_ERR" | grep -qF 'no-verify-guard: override used (git push)'; then
+  printf 'PASS  override prints its stderr line\n'
+else
+  printf 'FAIL  override stderr line missing: %s\n' "$OVERRIDE_ERR"
+  FAILURES=$((FAILURES + 1))
+fi
 
 exit $FAILURES

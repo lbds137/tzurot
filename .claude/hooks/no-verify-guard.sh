@@ -29,8 +29,8 @@
 # invocation like `;`, and args are tokenized on whitespace, parens and
 # redirect angle brackets, so `(git push --no-verify)` and
 # `--no-verify>/dev/null` are seen. Redirect forms (`2>&1`, `&>`), comments,
-# a bare `--` (pathspecs follow) and `${…}`, `@{…}`, `$(…)`, backtick spans
-# are blanked or cut before splitting so they neither end nor extend an
+# a bare `--` (pathspecs follow), brace expansions (`{a,b}`) and `${…}`,
+# `@{…}`, `$(…)`, backtick spans are blanked or cut before splitting so they neither end nor extend an
 # invocation; substitution bodies are scanned as strings of their own.
 #
 # A waived invocation prints `no-verify-guard: override used (git <kind>)` to
@@ -68,6 +68,9 @@
 #     (`git commit -m -n`, `-F -n`) blocks.
 #   - OVER-arm: an unquoted `echo git commit --no-verify` blocks (the text
 #     is indistinguishable from an invocation once quotes are stripped).
+#   - process substitution ends the argument span: `git commit -F <(echo x)
+#     -n` passes (its `(` reads as a separator).
+#   - git aliases are not resolved: `git ci -n` passes.
 #
 # Fixture check: run .claude/hooks/no-verify-guard.probe.sh after ANY edit to
 # this hook.
@@ -137,8 +140,11 @@ def commit_skips(tokens):
     for tok in tokens:
         if tok == "--no-verify":
             return "--no-verify"
-        if re.fullmatch(r"-[A-Za-z]+", tok):
-            for ch in tok[1:]:
+        # The leading letter run of a single-dash bundle: an attached non-letter
+        # value (`-nm"x"`, `-nFmsg.txt`) does not hide an `n` that comes first.
+        bundle = re.match(r"-([A-Za-z]+)", tok)
+        if bundle:
+            for ch in bundle.group(1):
                 if ch in ARG_TAKING:
                     break
                 if ch == "n":
@@ -147,6 +153,9 @@ def commit_skips(tokens):
 
 
 SEPARATOR_RE = re.compile(r"[;&|\n(){}]")
+# Brace expansion (`src/{a,b}.ts`): a `{` with no whitespace before its `}` is
+# never a brace group, so it must not end the invocation.
+BRACE_EXPANSION_RE = re.compile(r"\{[^\s{};&|()]+\}")
 TOKEN_SPLIT_RE = re.compile(r"[\s()<>]+")
 
 
@@ -227,6 +236,7 @@ def prefix_assignments(orig_view, values, pstart, ptext):
 found = []
 for orig_view, values in indexed_views(cmd):
     view = blank_substitutions(COMMENT_RE.sub(blank, REDIRECT_RE.sub(blank, orig_view)))
+    view = BRACE_EXPANSION_RE.sub(blank, view)
 
     def segment_after(end):
         """Text from `end` to the next command separator: one invocation's args."""
