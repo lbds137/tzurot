@@ -27,22 +27,27 @@ vi.mock('@tzurot/common-types/utils/encryption', async () => {
   };
 });
 
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 
 import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
+import { undecryptableApiKeyMessage } from '@tzurot/common-types/utils/providerDisplayName';
 const mockDecryptApiKey = vi.mocked(decryptApiKey);
 
 // Uses the shared mock at `src/services/__mocks__/AuthMiddleware.ts`
@@ -177,21 +182,95 @@ describe('POST /api/user/wallet/test', () => {
       });
     });
 
-    it('should return 500 when decryption fails', async () => {
-      mockDecryptApiKey.mockImplementationOnce(() => {
-        throw new Error('Decryption failed');
-      });
+    it('returns 401 with the undecryptable-key message when the stored API key cannot be decrypted', async () => {
+      const realEncryption = await vi.importActual<
+        typeof import('@tzurot/common-types/utils/encryption')
+      >('@tzurot/common-types/utils/encryption');
 
-      const { req, res } = createMockReqRes({ provider: AIProvider.OpenRouter });
+      const previousKey = process.env.API_KEY_ENCRYPTION_KEY;
+      const previousPreviousKey = process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+      process.env.API_KEY_ENCRYPTION_KEY = 'a'.repeat(64);
+      delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
 
-      await callHandler(mockPrisma, req, res);
+      try {
+        const encrypted = realEncryption.encryptApiKey(
+          'TEST-FIXTURE-not-a-real-provider-api-key-abcdef'
+        );
 
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'INTERNAL_ERROR',
-        })
-      );
+        const corruptedTag = `${encrypted.tag[0] === '0' ? '1' : '0'}${encrypted.tag.slice(1)}`;
+        const corruptedKey = { ...encrypted, tag: corruptedTag };
+
+        mockDecryptApiKey.mockImplementationOnce(realEncryption.decryptApiKey);
+        mockPrisma.userApiKey.findFirst.mockResolvedValue(corruptedKey);
+
+        const { req, res } = createMockReqRes({ provider: AIProvider.OpenRouter });
+
+        await callHandler(mockPrisma, req, res);
+
+        expect(res.status).toHaveBeenCalledWith(401);
+        const payload = vi.mocked(res.json).mock.calls[0][0] as { error: string; message: string };
+        expect(payload.error).toBe('UNAUTHORIZED');
+        expect(payload.message).toBe(undecryptableApiKeyMessage(AIProvider.OpenRouter));
+        expect(mockValidateApiKey).not.toHaveBeenCalled();
+
+        // Pins that the caught failure is the GCM auth-tag mismatch (the
+        // fixture's actual failure mode), not a missing-encryption-key
+        // config error that would also produce a caught `unknown` here.
+        const loggedFields = mockLogger.warn.mock.calls[0][0] as { err: unknown };
+        expect((loggedFields.err as Error).message).toBe(
+          'Unsupported state or unable to authenticate data'
+        );
+      } finally {
+        if (previousKey === undefined) {
+          delete process.env.API_KEY_ENCRYPTION_KEY;
+        } else {
+          process.env.API_KEY_ENCRYPTION_KEY = previousKey;
+        }
+        if (previousPreviousKey === undefined) {
+          delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+        } else {
+          process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS = previousPreviousKey;
+        }
+      }
+    });
+
+    it('lets a decrypt failure propagate instead of answering re-enter when the service itself is misconfigured', async () => {
+      const realEncryption = await vi.importActual<
+        typeof import('@tzurot/common-types/utils/encryption')
+      >('@tzurot/common-types/utils/encryption');
+
+      const previousKey = process.env.API_KEY_ENCRYPTION_KEY;
+      const previousPreviousKey = process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+      delete process.env.API_KEY_ENCRYPTION_KEY;
+      delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+
+      try {
+        mockDecryptApiKey.mockImplementationOnce(realEncryption.decryptApiKey);
+        mockPrisma.userApiKey.findFirst.mockResolvedValue({
+          iv: 'mock-iv',
+          content: 'mock-content',
+          tag: 'mock-tag',
+        });
+
+        const { req, res } = createMockReqRes({ provider: AIProvider.OpenRouter });
+
+        await expect(callHandler(mockPrisma, req, res)).rejects.toThrow(
+          'API_KEY_ENCRYPTION_KEY environment variable is required'
+        );
+        expect(res.status).not.toHaveBeenCalledWith(401);
+        expect(mockValidateApiKey).not.toHaveBeenCalled();
+      } finally {
+        if (previousKey === undefined) {
+          delete process.env.API_KEY_ENCRYPTION_KEY;
+        } else {
+          process.env.API_KEY_ENCRYPTION_KEY = previousKey;
+        }
+        if (previousPreviousKey === undefined) {
+          delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+        } else {
+          process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS = previousPreviousKey;
+        }
+      }
     });
   });
 

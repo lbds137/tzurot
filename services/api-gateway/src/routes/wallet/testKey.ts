@@ -8,8 +8,9 @@
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { TestWalletKeySchema } from '@tzurot/common-types/schemas/api/wallet';
-import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
+import { decryptApiKey, isEncryptionConfigured } from '@tzurot/common-types/utils/encryption';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { undecryptableApiKeyMessage } from '@tzurot/common-types/utils/providerDisplayName';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
@@ -64,8 +65,11 @@ export const handleTestWalletKey = (deps: WalletTestDeps): RequestHandler => {
         tag: storedKey.tag,
       });
     } catch (error) {
-      logger.error({ err: error, provider, discordUserId }, 'Failed to decrypt API key');
-      sendError(res, ErrorResponses.internalError('Failed to decrypt stored API key'));
+      if (!isEncryptionConfigured()) {
+        throw error;
+      }
+      logger.warn({ err: error, provider, discordUserId }, 'Failed to decrypt stored API key');
+      sendError(res, ErrorResponses.unauthorized(undecryptableApiKeyMessage(provider)));
       return;
     }
 
