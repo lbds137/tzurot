@@ -27,7 +27,8 @@ export interface WatchPatternCheckOptions {
 const DEFAULT_REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 const PARSER_DIRECTIVE_PATTERN = /^#\s*(?:escape|syntax)\s*=/i;
-const HEREDOC_PATTERN = /(^|\s)<<-?\s*["']?[A-Za-z_]/;
+const HEREDOC_PATTERN = /<<-?\s*["']?[A-Za-z_]/;
+const ALLOWED_COPY_FLAG_PATTERN = /^--(?:chown=.+|chmod=.+|link(?:=(?:true|false))?)$/;
 const UNSUPPORTED_LITERAL_CHARS = /[*?[\]{}!]/;
 
 type ClassifiedWatchPattern =
@@ -163,6 +164,12 @@ function parseInstructionLine(rawLine: string): string[] {
     return [];
   }
 
+  for (const token of args) {
+    if (token.startsWith('--') && !ALLOWED_COPY_FLAG_PATTERN.test(token)) {
+      throw new UsageError(`Unsupported COPY flag "${token}" in Dockerfile: ${trimmed}`);
+    }
+  }
+
   const positional = args.filter(token => !token.startsWith('--'));
   if (positional[0]?.startsWith('[')) {
     throw new UsageError(`Unsupported JSON-array COPY instruction in Dockerfile: ${trimmed}`);
@@ -184,13 +191,15 @@ function parseInstructionLine(rawLine: string): string[] {
  * that does not carry a `--from=` stage flag.
  *
  * Physical lines ending with `\` are joined into logical lines first (dropping
- * blank and comment lines inside a continuation), `--flag=value` tokens (`--chown=`,
- * `--chmod=`) are stripped, comment lines are ignored, and all remaining
- * tokens on each `COPY` instruction except the final destination argument are
- * returned in order. Throws `UsageError` on Dockerfile or `COPY` shapes this
- * parser refuses (`# escape=` / `# syntax=` directives, heredocs, `ADD` /
- * `ONBUILD` instructions, JSON-array form, or glob, variable, quote,
- * backslash, absolute, or dot-path sources).
+ * blank and comment lines inside a continuation), accepted `COPY` flags
+ * (`--chown=…`, `--chmod=…`, `--link`, `--link=true|false`) are stripped,
+ * comment lines are ignored, and all remaining tokens on each `COPY`
+ * instruction except the final destination argument are returned in order.
+ * Throws `UsageError` on Dockerfile or `COPY` shapes this parser refuses
+ * (`# escape=` / `# syntax=` directives, heredocs, `ADD` / `ONBUILD`
+ * instructions, unsupported `COPY` `--` flags such as `--parents` or
+ * `--exclude=…`, JSON-array form, or glob, variable, quote, backslash,
+ * absolute, or dot-path sources).
  */
 export function parseDockerfileCopySources(text: string): string[] {
   return joinLogicalLines(text).flatMap(logicalLine => parseInstructionLine(logicalLine));
@@ -235,7 +244,7 @@ function isSourceCoveredByPattern(
     case 'all':
       return true;
     case 'prefix':
-      return cleanPath === pattern.prefix || cleanPath.startsWith(`${pattern.prefix}/`);
+      return (isDir && cleanPath === pattern.prefix) || cleanPath.startsWith(`${pattern.prefix}/`);
     case 'exact-file':
       return !isDir && cleanPath === pattern.path;
     case 'uncredited':
@@ -258,9 +267,9 @@ function uncreditedWatchPatterns(patterns: string[]): string[] {
  * `/` from each pattern before classifying it into one of three credited
  * shapes:
  * - `**` covers any file or directory source.
- * - `<lit>/**` (where `<lit>` contains none of `* ? [ ] { } !`) covers any
- *   file or directory source whose path equals `<lit>` or starts with
- *   `<lit>/` (dotfiles included).
+ * - `<lit>/**` (where `<lit>` contains none of `* ? [ ] { } !`) covers a
+ *   directory source equal to `<lit>`, and any source under `<lit>/`
+ *   (dotfiles included).
  * - `<lit>` (with none of `* ? [ ] { } !` and no trailing `/`) covers a file
  *   source whose path equals `<lit>` exactly (not credited for directories).
  *
@@ -326,7 +335,11 @@ function resolveDockerfilePath(
   }
   const dockerfilePath = path.resolve(repoRoot, stripped);
   const cleanDockerfile = path.relative(repoRoot, dockerfilePath);
-  if (cleanDockerfile.length === 0 || cleanDockerfile.startsWith('..')) {
+  if (
+    cleanDockerfile.length === 0 ||
+    cleanDockerfile === '..' ||
+    cleanDockerfile.startsWith('../')
+  ) {
     throw new UsageError(
       `--dockerfile "${rawDockerfile}" must resolve inside the repository (${repoRoot})`
     );
@@ -368,8 +381,8 @@ function verifyGitProvenance(repoRoot: string, imageInputPaths: string[]): strin
 
 /**
  * Parse `options.dockerfile` (whose Docker build context must be the repo
- * root), stat each `COPY` source from the repo root, verify the image inputs
- * have no uncommitted changes in git, fetch the live `watchPatterns` for
+ * root), verify the image inputs have no uncommitted changes in git, stat each
+ * `COPY` source from the repo root, fetch the live `watchPatterns` for
  * `options.service` in `options.env`, and throw if the Dockerfile itself or any
  * `COPY` source is uncovered.
  */
@@ -388,17 +401,15 @@ export async function runWatchPatternCheck(options: WatchPatternCheckOptions): P
     throw error;
   }
   const rawSources = parseDockerfileCopySources(dockerfileText);
+  const cleanSourcePaths = rawSources.map(sourcePath => stripTrailingSlash(sourcePath));
+
+  const gitRef = verifyGitProvenance(DEFAULT_REPO_ROOT, [cleanDockerfile, ...cleanSourcePaths]);
+  const provenance = `${gitRef} ${cleanDockerfile}`;
 
   const sources: CopySource[] = [
     { path: cleanDockerfile, isDir: false },
-    ...rawSources.map(sourcePath => statCopySource(DEFAULT_REPO_ROOT, sourcePath)),
+    ...cleanSourcePaths.map(sourcePath => statCopySource(DEFAULT_REPO_ROOT, sourcePath)),
   ];
-
-  const gitRef = verifyGitProvenance(
-    DEFAULT_REPO_ROOT,
-    sources.map(source => source.path)
-  );
-  const provenance = `${gitRef} ${cleanDockerfile}`;
 
   const { environmentId, serviceId } = resolveRailwayIds(options.env, options.service);
   if (serviceId === undefined) {
@@ -413,15 +424,17 @@ export async function runWatchPatternCheck(options: WatchPatternCheckOptions): P
     env: options.env,
   });
 
-  // Empty `watchPatterns` (`[]` or `null`) means every push deploys
-  // (Railway's documented default; not probed here, not verified).
+  // Empty `watchPatterns` (`[]` or `null`) is Railway's documented every-push
+  // default (not verified); fail closed because no pattern list is present.
   if (patterns.length === 0) {
     console.log(
       chalk.cyan(
         `ℹ️ No watchPatterns configured for ${options.service} (${options.env}) — every push deploys [${provenance}]`
       )
     );
-    return;
+    throw new Error(
+      `no watchPatterns configured for ${options.service} (${options.env}); this guard cannot confirm Railway's every-push default, so it refuses to pass`
+    );
   }
 
   const uncovered = uncoveredSources(sources, patterns);
