@@ -15,7 +15,7 @@ const ENV_DEV_PROD_ERROR = '--env must be "dev" or "prod"';
 /** `--env` description for the dev/prod-only commands (maintenance and logs differ). */
 const ENV_DEV_PROD_DESCRIPTION = 'Target environment (dev or prod)';
 
-/** `--service <service>` flag shared by the var-delete, redeploy, and logs options. */
+/** `--service <service>` flag shared by the var-delete, redeploy, watch-check, and logs options. */
 const SERVICE_OPTION = '--service <service>';
 
 /** Throws `UsageError` unless `env` is one of the two Railway-backed environments. */
@@ -29,6 +29,7 @@ function assertDevProdEnv(env: string): asserts env is 'dev' | 'prod' {
  * The three Railway-writing commands (var-delete, redeploy, setup-vars)
  * declare no `--env` default: a Railway write must never silently target dev
  * because the operator forgot the flag.
+ * `deploy:watch-check`, though read-only, requires `--env` too so a prod check is never silently a dev check.
  */
 const ENV_REQUIRED_ERROR = '--env <dev|prod> is required';
 
@@ -181,6 +182,44 @@ function registerRedeployCommand(cli: CAC): void {
     );
 }
 
+const DEFAULT_WATCH_CHECK_SERVICE = 'tzurot-website';
+const DEFAULT_WATCH_CHECK_DOCKERFILE = 'services/website/Dockerfile';
+
+function registerWatchCheckCommand(cli: CAC): void {
+  cli
+    .command(
+      'deploy:watch-check',
+      'Check Railway service watch patterns cover every Dockerfile COPY source'
+    )
+    .option(ENV_OPTION, ENV_DEV_PROD_DESCRIPTION)
+    .option(SERVICE_OPTION, 'Service name whose watch patterns to inspect', {
+      default: DEFAULT_WATCH_CHECK_SERVICE,
+    })
+    .option('--dockerfile <path>', 'Repo-relative Dockerfile path', {
+      default: DEFAULT_WATCH_CHECK_DOCKERFILE,
+    })
+    .example('pnpm ops deploy:watch-check --env dev')
+    .example('pnpm ops deploy:watch-check --env prod')
+    .action(async (options: { env: string | undefined; service: string; dockerfile: string }) => {
+      requireDevProdEnv(options.env);
+      const service = String(options.service).trim();
+      if (service.length === 0) {
+        throw new UsageError('--service <name> must not be empty');
+      }
+      const dockerfile = String(options.dockerfile).trim();
+      if (dockerfile.length === 0) {
+        throw new UsageError('--dockerfile <path> must not be empty');
+      }
+
+      const { runWatchPatternCheck } = await import('../deployment/watch-patterns.js');
+      await runWatchPatternCheck({
+        env: options.env,
+        service,
+        dockerfile,
+      });
+    });
+}
+
 export function registerDeployCommands(cli: CAC): void {
   cli.command('deploy:dev', 'Deploy to Railway development environment').action(async () => {
     const { deployDev } = await import('../deployment/deploy-dev.js');
@@ -216,6 +255,8 @@ export function registerDeployCommands(cli: CAC): void {
   registerVarDeleteCommand(cli);
 
   registerRedeployCommand(cli);
+
+  registerWatchCheckCommand(cli);
 
   registerMaintenanceCommand(cli);
 
