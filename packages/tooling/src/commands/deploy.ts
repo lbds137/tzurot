@@ -29,6 +29,7 @@ function assertDevProdEnv(env: string): asserts env is 'dev' | 'prod' {
  * The three Railway-writing commands (var-delete, redeploy, setup-vars)
  * declare no `--env` default: a Railway write must never silently target dev
  * because the operator forgot the flag.
+ *
  * `deploy:watch-check`, though read-only, requires `--env` too so a prod check is never silently a dev check.
  */
 const ENV_REQUIRED_ERROR = '--env <dev|prod> is required';
