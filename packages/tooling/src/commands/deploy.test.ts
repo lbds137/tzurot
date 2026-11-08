@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { cac } from 'cac';
 
+import { UsageError } from '../utils/errors.js';
 import { registerDeployCommands } from './deploy.js';
 
 // The action dynamically imports the maintenance runner, which would talk to
@@ -280,5 +281,23 @@ describe('deploy:watch-check validation', () => {
       service: 'custom-svc',
       dockerfile: 'services/custom/Dockerfile',
     });
+  });
+
+  it('rejects a whitespace-only --service with UsageError', async () => {
+    const { runWatchPatternCheck } = await import('../deployment/watch-patterns.js');
+
+    const promise = runWatchCheckCli(['--env', 'dev', '--service', '   ']);
+    await expect(promise).rejects.toBeInstanceOf(UsageError);
+    await expect(promise).rejects.toThrow('--service <name> must not be empty');
+    expect(runWatchPatternCheck).not.toHaveBeenCalled();
+  });
+
+  it('rejects a whitespace-only --dockerfile with UsageError', async () => {
+    const { runWatchPatternCheck } = await import('../deployment/watch-patterns.js');
+
+    const promise = runWatchCheckCli(['--env', 'dev', '--dockerfile', '   ']);
+    await expect(promise).rejects.toBeInstanceOf(UsageError);
+    await expect(promise).rejects.toThrow('--dockerfile <path> must not be empty');
+    expect(runWatchPatternCheck).not.toHaveBeenCalled();
   });
 });

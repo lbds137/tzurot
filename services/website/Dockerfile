@@ -29,7 +29,8 @@ WORKDIR /app
 # Every COPY'd content path below must ALSO appear in the Railway service's
 # watch patterns (dashboard setting, both environments) — a path baked at
 # build time but absent from the watch list means pushes touching it are
-# SKIPPED and the live site silently serves stale docs.
+# SKIPPED and the live site silently serves stale docs (verify:
+# `pnpm ops deploy:watch-check --env dev`).
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY services/website ./services/website
 COPY docs/legal ./docs/legal
