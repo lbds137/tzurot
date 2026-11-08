@@ -31,5 +31,11 @@ describe('providerDisplayName', () => {
         "Your saved OpenRouter key can't be read anymore. Set it again with /settings apikey set."
       );
     });
+
+    it('should return the ElevenLabs re-enter message literal', () => {
+      expect(undecryptableApiKeyMessage(AIProvider.ElevenLabs)).toBe(
+        "Your saved ElevenLabs key can't be read anymore. Set it again with /settings apikey set."
+      );
+    });
   });
 });
