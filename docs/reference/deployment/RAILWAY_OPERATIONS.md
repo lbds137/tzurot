@@ -331,7 +331,7 @@ When a feature PR merges into `develop`, dev redeploys automatically. When a rel
 
 ### Watch Paths (per-service redeploy triggers)
 
-Each service has a **Watch Paths** config (Railway dashboard → service → Settings → "Watch Paths") — gitignore-style globs that decide which file changes trigger a redeploy of that service. **This config lives only in the Railway dashboard; it is not in the repo.** That makes it invisible to code review and easy to forget when the monorepo structure changes — so it's documented here. Recorded 2026-06-03 (verified against the dashboard).
+Each service has a **Watch Paths** config (Railway dashboard → service → Settings → "Watch Paths") — gitignore-style globs that decide which file changes trigger a redeploy of that service. **This config lives only in the Railway dashboard; it is not in the repo.** That makes it invisible to code review and easy to forget when the monorepo structure changes — so it's documented here. Recorded 2026-06-03 (verified against the dashboard). The `tzurot-website` row was recorded 2026-11-08 from the Railway API and is checked by `pnpm ops deploy:watch-check`.
 
 | Service          | Watch paths                                                                                                                                  |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |

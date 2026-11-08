@@ -74,6 +74,28 @@ describe('parseDockerfileCopySources', () => {
     expect(parseDockerfileCopySources(dockerfile)).toEqual(['package.json', 'pnpm-lock.yaml']);
   });
 
+  it('accepts --link, --link=true, and --link=false flags on COPY instructions', () => {
+    expect(parseDockerfileCopySources('COPY --link package.json ./')).toEqual(['package.json']);
+    expect(parseDockerfileCopySources('COPY --link=true package.json ./')).toEqual([
+      'package.json',
+    ]);
+    expect(parseDockerfileCopySources('COPY --link=false package.json ./')).toEqual([
+      'package.json',
+    ]);
+  });
+
+  it('throws UsageError naming the flag and line on unsupported COPY flags (--parents, --exclude=*.md, bare --chown)', () => {
+    for (const [flag, line] of [
+      ['--parents', 'COPY --parents docs/legal ./'],
+      ['--exclude=*.md', 'COPY --exclude=*.md docs/legal ./docs/legal'],
+      ['--chown', 'COPY --chown package.json ./'],
+    ] as const) {
+      expect(() => parseDockerfileCopySources(line)).toThrow(UsageError);
+      expect(() => parseDockerfileCopySources(line)).toThrow(flag);
+      expect(() => parseDockerfileCopySources(line)).toThrow(line);
+    }
+  });
+
   it('ignores comment lines and non-COPY instructions', () => {
     const dockerfile = [
       '# COPY ignored/comment ./ignored',
@@ -172,6 +194,13 @@ describe('parseDockerfileCopySources', () => {
       expect(() => parseDockerfileCopySources(dockerfile)).toThrow(UsageError);
       expect(() => parseDockerfileCopySources(dockerfile)).toThrow(line);
     }
+  });
+
+  it('throws UsageError naming the offending line on a heredoc RUN instruction without leading whitespace (RUN cat<<EOF)', () => {
+    const line = 'RUN cat<<EOF';
+    const dockerfile = `${line}\nCOPY secret.txt ./\nEOF`;
+    expect(() => parseDockerfileCopySources(dockerfile)).toThrow(UsageError);
+    expect(() => parseDockerfileCopySources(dockerfile)).toThrow(line);
   });
 
   it('allows arithmetic bit-shift in a RUN instruction without treating it as a heredoc', () => {
@@ -274,6 +303,13 @@ describe('uncoveredSources', () => {
         ['docs/legal/**', 'docs/guides/**']
       )
     ).toEqual([]);
+  });
+
+  it('does not credit <path>/** for a file source named <path>, while covering a directory source', () => {
+    expect(
+      uncoveredSources([{ path: 'docs/commands.md', isDir: false }], ['docs/commands.md/**'])
+    ).toEqual(['docs/commands.md']);
+    expect(uncoveredSources([{ path: 'docs/legal', isDir: true }], ['docs/legal/**'])).toEqual([]);
   });
 
   it('marks a directory source as covered by a parent docs/** pattern', () => {
@@ -636,20 +672,69 @@ describe('runWatchPatternCheck', () => {
     expect(mockGetWatchPatterns).not.toHaveBeenCalled();
   });
 
-  it('succeeds and prints an info line when watchPatterns is empty ([] normalized from null API response)', async () => {
+  it('prints an info line and throws when watchPatterns is empty ([] normalized from null API response)', async () => {
     mockGetWatchPatterns.mockResolvedValue([]);
 
-    await runWatchPatternCheck({
-      env: 'dev',
-      service: 'tzurot-website',
-      dockerfile: FIXTURE_DOCKERFILE_REL,
-    });
+    await expect(
+      runWatchPatternCheck({
+        env: 'dev',
+        service: 'tzurot-website',
+        dockerfile: FIXTURE_DOCKERFILE_REL,
+      })
+    ).rejects.toThrow(
+      "no watchPatterns configured for tzurot-website (dev); this guard cannot confirm Railway's every-push default, so it refuses to pass"
+    );
 
     const output = logSpy.mock.calls.flat().map(String).join('\n');
     expect(output).toContain('No watchPatterns configured for tzurot-website (dev)');
     expect(output).toContain('every push deploys');
     expect(output).toContain(`[develop@abc1234 ${FIXTURE_DOCKERFILE_REL}]`);
     expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it('throws the uncommitted-changes UsageError (not "does not exist") when a COPY source is both dirty in git and missing on disk', async () => {
+    vi.spyOn(fs, 'readFileSync').mockReturnValue('COPY docs/dirty-and-missing/ ./\n');
+    mockExecFileSync.mockImplementation((_cmd: unknown, args: unknown) => {
+      const argv = args as string[];
+      if (argv.includes('--abbrev-ref')) {
+        return 'develop\n';
+      }
+      if (argv.includes('--short')) {
+        return 'abc1234\n';
+      }
+      return ' D docs/dirty-and-missing\n';
+    });
+
+    let caught: unknown;
+    try {
+      await runWatchPatternCheck({
+        env: 'dev',
+        service: 'tzurot-website',
+        dockerfile: FIXTURE_DOCKERFILE_REL,
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(UsageError);
+    expect((caught as Error).message).toContain(
+      'uncommitted changes in image inputs; commit or stash them so the check reads the tree that deploys: docs/dirty-and-missing'
+    );
+    expect((caught as Error).message).not.toContain('does not exist');
+    expect(mockExecFileSync).toHaveBeenNthCalledWith(
+      3,
+      'git',
+      [
+        '-C',
+        REPO_ROOT,
+        'status',
+        '--porcelain',
+        '--',
+        FIXTURE_DOCKERFILE_REL,
+        'docs/dirty-and-missing',
+      ],
+      { encoding: 'utf-8' }
+    );
   });
 
   it('throws UsageError naming the dirty paths when git status --porcelain is non-empty and skips Railway calls', async () => {

@@ -283,6 +283,23 @@ describe('deploy:watch-check validation', () => {
     });
   });
 
+  it('forwards --service=custom-svc and --dockerfile=custom/Dockerfile in equals form', async () => {
+    const { runWatchPatternCheck } = await import('../deployment/watch-patterns.js');
+
+    await runWatchCheckCli([
+      '--env',
+      'prod',
+      '--service=custom-svc',
+      '--dockerfile=custom/Dockerfile',
+    ]);
+
+    expect(runWatchPatternCheck).toHaveBeenCalledWith({
+      env: 'prod',
+      service: 'custom-svc',
+      dockerfile: 'custom/Dockerfile',
+    });
+  });
+
   it('rejects a whitespace-only --service with UsageError', async () => {
     const { runWatchPatternCheck } = await import('../deployment/watch-patterns.js');
 
