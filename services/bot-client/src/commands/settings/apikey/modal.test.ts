@@ -45,7 +45,7 @@ vi.mock('../../../utils/gatewayClients.js', () => ({
 }));
 
 // Mock providers utility
-vi.mock('../../../utils/providers.js', () => ({
+vi.mock('@tzurot/common-types/utils/providerDisplayName', () => ({
   getProviderDisplayName: (provider: string) => {
     if (provider === 'openrouter') return 'OpenRouter';
     return provider;

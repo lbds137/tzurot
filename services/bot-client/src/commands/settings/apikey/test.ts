@@ -12,9 +12,9 @@ import { type AIProvider } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { settingsApikeyTestOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { getProviderDisplayName } from '@tzurot/common-types/utils/providerDisplayName';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
-import { getProviderDisplayName } from '../../../utils/providers.js';
 import { CATALOG } from '../../../ux/catalog/catalog.js';
 import { renderSpec } from '../../../ux/render/render.js';
 

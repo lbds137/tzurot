@@ -8,8 +8,9 @@
 
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
-import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
+import { decryptApiKey, isEncryptionConfigured } from '@tzurot/common-types/utils/encryption';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { undecryptableApiKeyMessage } from '@tzurot/common-types/utils/providerDisplayName';
 import { type ErrorResponse, ErrorResponses } from './errorResponses.js';
 
 const logger = createLogger('ElevenLabsKeyResolver');
@@ -57,7 +58,12 @@ export async function resolveElevenLabsKey(
     });
     return { apiKey };
   } catch (error) {
-    logger.error({ err: error, discordUserId }, 'Failed to decrypt key');
-    return { errorResponse: ErrorResponses.internalError('Failed to decrypt stored API key') };
+    if (!isEncryptionConfigured()) {
+      throw error;
+    }
+    logger.warn({ err: error, discordUserId }, 'Failed to decrypt stored ElevenLabs key');
+    return {
+      errorResponse: ErrorResponses.unauthorized(undecryptableApiKeyMessage(AIProvider.ElevenLabs)),
+    };
   }
 }
