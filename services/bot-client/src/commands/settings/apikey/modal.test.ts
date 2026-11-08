@@ -44,14 +44,6 @@ vi.mock('../../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
 
-// Mock providers utility
-vi.mock('@tzurot/common-types/utils/providerDisplayName', () => ({
-  getProviderDisplayName: (provider: string) => {
-    if (provider === 'openrouter') return 'OpenRouter';
-    return provider;
-  },
-}));
-
 describe('handleApikeyModalSubmit', () => {
   const mockReply = vi.fn();
   const mockDeferReply = vi.fn();

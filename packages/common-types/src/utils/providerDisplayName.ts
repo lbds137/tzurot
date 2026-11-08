@@ -26,7 +26,10 @@ export function getProviderDisplayName(provider: AIProvider): string {
   }
 }
 
-/** Sent when a user's stored BYOK API key exists but cannot be decrypted; the fix is re-entering it. */
+/**
+ * Sent when a user's stored BYOK API key exists but cannot be decrypted; the fix is re-entering it.
+ * Keep consistent with the shapes-credential counterpart `UNDECRYPTABLE_CREDENTIAL_MESSAGE` in `types/shapes-import`.
+ */
 export function undecryptableApiKeyMessage(provider: AIProvider): string {
   return `Your saved ${getProviderDisplayName(provider)} key can't be read anymore. Set it again with /settings apikey set.`;
 }

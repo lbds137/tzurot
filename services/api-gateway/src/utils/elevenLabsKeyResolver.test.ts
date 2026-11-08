@@ -2,9 +2,10 @@
  * Tests for ElevenLabs API Key Resolver
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolveElevenLabsKey } from './elevenLabsKeyResolver.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { makeUndecryptableCiphertext } from '../test/undecryptableCiphertext.js';
 
 vi.mock('@tzurot/common-types/utils/encryption', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/encryption')>(
@@ -49,6 +50,10 @@ describe('resolveElevenLabsKey', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(decryptApiKey).mockReturnValue('decrypted-elevenlabs-key');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('should return decrypted API key when user has an ElevenLabs key', async () => {
@@ -98,54 +103,35 @@ describe('resolveElevenLabsKey', () => {
       typeof import('@tzurot/common-types/utils/encryption')
     >('@tzurot/common-types/utils/encryption');
 
-    const previousKey = process.env.API_KEY_ENCRYPTION_KEY;
-    const previousPreviousKey = process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
-    process.env.API_KEY_ENCRYPTION_KEY = 'a'.repeat(64);
-    delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+    vi.stubEnv('API_KEY_ENCRYPTION_KEY', 'a'.repeat(64));
+    vi.stubEnv('API_KEY_ENCRYPTION_KEY_PREVIOUS', undefined);
 
-    try {
-      const encrypted = realEncryption.encryptApiKey(
-        'TEST-FIXTURE-not-a-real-elevenlabs-api-key-abcdef'
-      );
+    const corruptedKey = makeUndecryptableCiphertext(
+      realEncryption.encryptApiKey,
+      'TEST-FIXTURE-not-a-real-elevenlabs-api-key-abcdef'
+    );
 
-      const corruptedTag = `${encrypted.tag[0] === '0' ? '1' : '0'}${encrypted.tag.slice(1)}`;
-      const corruptedKey = { ...encrypted, tag: corruptedTag };
+    (mockPrisma.user.findFirst as any).mockResolvedValue({
+      id: 'user-uuid',
+      apiKeys: [corruptedKey],
+    });
+    vi.mocked(decryptApiKey).mockImplementationOnce(realEncryption.decryptApiKey);
 
-      (mockPrisma.user.findFirst as any).mockResolvedValue({
-        id: 'user-uuid',
-        apiKeys: [corruptedKey],
-      });
-      vi.mocked(decryptApiKey).mockImplementationOnce(realEncryption.decryptApiKey);
+    const result = await resolveElevenLabsKey(mockPrisma, 'discord-123');
 
-      const result = await resolveElevenLabsKey(mockPrisma, 'discord-123');
-
-      expect(result).toHaveProperty('errorResponse');
-      if ('errorResponse' in result) {
-        expect(result.errorResponse.error).toBe('UNAUTHORIZED');
-        expect(result.errorResponse.message).toBe(
-          undecryptableApiKeyMessage(AIProvider.ElevenLabs)
-        );
-      }
-
-      // Pins that the caught failure is the GCM auth-tag mismatch (the
-      // fixture's actual failure mode), not a missing-encryption-key
-      // config error that would also produce a caught `unknown` here.
-      const loggedFields = mockLogger.warn.mock.calls[0][0] as { err: unknown };
-      expect((loggedFields.err as Error).message).toBe(
-        'Unsupported state or unable to authenticate data'
-      );
-    } finally {
-      if (previousKey === undefined) {
-        delete process.env.API_KEY_ENCRYPTION_KEY;
-      } else {
-        process.env.API_KEY_ENCRYPTION_KEY = previousKey;
-      }
-      if (previousPreviousKey === undefined) {
-        delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
-      } else {
-        process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS = previousPreviousKey;
-      }
+    expect(result).toHaveProperty('errorResponse');
+    if ('errorResponse' in result) {
+      expect(result.errorResponse.error).toBe('UNAUTHORIZED');
+      expect(result.errorResponse.message).toBe(undecryptableApiKeyMessage(AIProvider.ElevenLabs));
     }
+
+    // Pins that the caught failure is the GCM auth-tag mismatch (the
+    // fixture's actual failure mode), not a missing-encryption-key
+    // config error that would also produce a caught `unknown` here.
+    const loggedFields = mockLogger.warn.mock.calls[0][0] as { err: unknown };
+    expect((loggedFields.err as Error).message).toBe(
+      'Unsupported state or unable to authenticate data'
+    );
   });
 
   it('lets a decrypt failure propagate instead of returning UNAUTHORIZED when the service itself is misconfigured', async () => {
@@ -153,33 +139,18 @@ describe('resolveElevenLabsKey', () => {
       typeof import('@tzurot/common-types/utils/encryption')
     >('@tzurot/common-types/utils/encryption');
 
-    const previousKey = process.env.API_KEY_ENCRYPTION_KEY;
-    const previousPreviousKey = process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
-    delete process.env.API_KEY_ENCRYPTION_KEY;
-    delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+    vi.stubEnv('API_KEY_ENCRYPTION_KEY', undefined);
+    vi.stubEnv('API_KEY_ENCRYPTION_KEY_PREVIOUS', undefined);
 
-    try {
-      (mockPrisma.user.findFirst as any).mockResolvedValue({
-        id: 'user-uuid',
-        apiKeys: [{ iv: 'bad-iv', content: 'bad-content', tag: 'bad-tag' }],
-      });
-      vi.mocked(decryptApiKey).mockImplementationOnce(realEncryption.decryptApiKey);
+    (mockPrisma.user.findFirst as any).mockResolvedValue({
+      id: 'user-uuid',
+      apiKeys: [{ iv: 'bad-iv', content: 'bad-content', tag: 'bad-tag' }],
+    });
+    vi.mocked(decryptApiKey).mockImplementationOnce(realEncryption.decryptApiKey);
 
-      await expect(resolveElevenLabsKey(mockPrisma, 'discord-123')).rejects.toThrow(
-        'API_KEY_ENCRYPTION_KEY environment variable is required'
-      );
-      expect(mockLogger.warn).not.toHaveBeenCalled();
-    } finally {
-      if (previousKey === undefined) {
-        delete process.env.API_KEY_ENCRYPTION_KEY;
-      } else {
-        process.env.API_KEY_ENCRYPTION_KEY = previousKey;
-      }
-      if (previousPreviousKey === undefined) {
-        delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
-      } else {
-        process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS = previousPreviousKey;
-      }
-    }
+    await expect(resolveElevenLabsKey(mockPrisma, 'discord-123')).rejects.toThrow(
+      'API_KEY_ENCRYPTION_KEY environment variable is required'
+    );
+    expect(mockLogger.warn).not.toHaveBeenCalled();
   });
 });
