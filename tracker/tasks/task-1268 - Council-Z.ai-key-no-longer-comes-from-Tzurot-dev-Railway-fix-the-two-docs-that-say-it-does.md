@@ -3,13 +3,14 @@ id: TASK-1268
 title: >-
   Council Z.ai key no longer comes from Tzurot dev Railway: fix the two docs
   that say it does
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-10-23 15:32'
+created_date: 2026-10-23 15:32
+updated_date: '2026-11-08T03:49:00Z'
 labels:
-  - 'area:tooling'
-  - 'size:S'
-  - 'state:ready'
+  - area:tooling
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1256000
@@ -24,3 +25,9 @@ What: council CLAUDE.md: replace the railway pipe with the hidden-prompt form (s
 
 Acceptance: grep for 'service ai-worker --json | jq' in both repos returns only intended uses.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped in PR 2720 (7afdf77ca); council half in council-mcp-server 50b0822. Acceptance grep 'service ai-worker --json | jq': tzurot = 05-tooling.md:282 (intended tooling pull) + doc-53 (railway logs, different command) + this task; council = no hits.
+<!-- SECTION:NOTES:END -->
