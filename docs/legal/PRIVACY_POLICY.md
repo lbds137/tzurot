@@ -2,7 +2,7 @@
 
 **Status: In effect.**
 
-_Last updated: 2026-09-27_
+_Last updated: 2026-11-08_
 
 Tzurot is a Discord bot that lets you talk with AI characters. It is operated by an individual developer ("the operator", "we"). This policy explains what data the bot stores, why, where it goes, and what control you have over it. It is written to describe what the software actually does — nothing more.
 
@@ -124,7 +124,7 @@ We never sell your data.
 - **Keys**: remove a connected API key at any time (immediate hard delete).
 - **Creations**: delete your personas and characters (deletion cascades to their conversation history and memories).
 - **Export everything**: export all data associated with your account in a portable format (`/settings data export`).
-- **Delete everything**: permanently erase all data associated with your account, with an explicit confirmation step (`/settings data delete`). You can also contact the operator (see "Contact") to request removal of anything without a self-serve path.
+- **Delete everything**: permanently erase all data associated with your account, with an explicit confirmation step (`/settings data delete`). Facts any character recorded about you are erased wherever they are tagged with your username, a persona name, or a preferred name; a different label, like a nickname someone else coined (say "Ali" for "Alice"), is not recognized and may persist — contact the operator to have one removed. Because the match is by name, facts tagged with a name another user also goes by may be removed along with yours. You can also contact the operator (see "Contact") to request removal of anything without a self-serve path.
 
 ## Age requirement
 

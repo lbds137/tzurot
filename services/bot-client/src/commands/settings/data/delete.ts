@@ -84,6 +84,7 @@ function buildWarningDescription(preview: {
     `- **${counts.conversationMessages}** conversation message(s)`,
     `- **${counts.memories}** memories and **${counts.facts}** facts`,
     '- All settings, configs, API-key registrations, and feedback',
+    '- Also: facts any character recorded about you, wherever tagged with your username, a persona name, or a preferred name (a different label, like a nickname someone else coined, may persist; facts tagged with a name another user shares may be removed too)',
   ];
 
   if (preview.ownedCharacters.length > 0) {
