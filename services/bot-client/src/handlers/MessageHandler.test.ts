@@ -766,6 +766,15 @@ describe('MessageHandler', () => {
         expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
       });
 
+      it('loadPersonality rejects -> dropped, never confirmed, marker cleared', async () => {
+        mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
+        mockPersonalityService.loadPersonality.mockRejectedValue(new Error('db down'));
+
+        expect(await deliver('job-late', lateResult)).toBe('dropped');
+        expect(mockGatewayClient.confirmDelivery).not.toHaveBeenCalled();
+        expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-late');
+      });
+
       it('send throws PartialDeliveryError -> delivered, confirmed exactly once', async () => {
         mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
         mockPersonalityService.loadPersonality.mockResolvedValue(lila);

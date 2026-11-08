@@ -24,10 +24,11 @@ import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/gen
  * that owns its own delivery confirmation, or a job the system deliberately
  * resolved where confirming records no loss (stale-discard after a restart; a
  * failed/empty late result whose user already saw the synthetic-timeout
- * message). `'dropped'` means it was discarded with nothing shown to the
- * user — the caller MUST NOT confirm delivery for it, because a confirmed row
- * records a reply the user never received and nothing ever revisits
- * `PENDING_DELIVERY` rows to notice.
+ * message). `'dropped'` means a real reply was lost: nothing, or only a
+ * synthetic stand-in (the synthetic-timeout message), reached the user — the
+ * caller MUST NOT confirm delivery for it, because a confirmed row records a
+ * reply the user never received and nothing ever revisits `PENDING_DELIVERY`
+ * rows to notice.
  */
 export type JobResultDisposition = 'delivered' | 'dropped';
 
