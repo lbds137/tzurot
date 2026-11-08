@@ -2,9 +2,8 @@
  * Verdict pin for the one shared git-commit-detection pattern.
  *
  * The "does this command string invoke `git commit`" decision lives ONCE, in
- * `.claude/hooks/lib/git_commit.py` (`GIT_COMMIT_RE`), imported by both
- * commit-blocking hooks (`develop-code-commit-guard.sh`,
- * `board-commit-branch-gate.sh`). This file pins the constant's verdicts:
+ * `.claude/hooks/lib/git_commit.py` (`GIT_COMMIT_RE`, beside `GIT_PUSH_RE`),
+ * imported by every hook in `HOOK_FILES` below. This file pins the verdicts:
  * every row below is a case where a wrong answer either blocks a commit that
  * should run or lets one through that should stop.
  *
@@ -20,14 +19,28 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 
 const LIB_DIR = fileURLToPath(new URL('../../../../.claude/hooks/lib', import.meta.url));
 const HOOKS_DIR = fileURLToPath(new URL('../../../../.claude/hooks', import.meta.url));
-/** The two hooks that must import the shared constant rather than inline a copy. */
-const HOOK_FILES = ['board-commit-branch-gate.sh', 'develop-code-commit-guard.sh'];
+/** The hooks that must import the shared constants rather than inline a copy. */
+const HOOK_FILES = [
+  'board-commit-branch-gate.sh',
+  'develop-code-commit-guard.sh',
+  'no-verify-guard.sh',
+];
+/** The hooks that detect pushes and must import GIT_PUSH_RE from the shared lib. */
+const PUSH_HOOK_FILES = ['no-verify-guard.sh'];
+
+/** Hook file names (sorted) whose source contains `needle`, scanned from HOOKS_DIR. */
+function hooksContaining(needle: string): string[] {
+  return readdirSync(HOOKS_DIR)
+    .filter(name => name.endsWith('.sh') && !name.endsWith('.probe.sh'))
+    .filter(name => readFileSync(`${HOOKS_DIR}/${name}`, 'utf-8').includes(needle))
+    .sort();
+}
 
 /** Cases pinning the expected verdicts for the pattern. */
 const CASES: readonly (readonly [expected: boolean, input: string])[] = [
@@ -148,13 +161,13 @@ describe('git_commit.GIT_PUSH_RE: pinned verdicts', () => {
   }
 });
 
-describe('git_commit.GIT_COMMIT_RE: single definition', () => {
+describe('git_commit: single definition of the shared patterns', () => {
   // Presence check, not pattern extraction: each hook must import the shared
   // constant (the board gate aliases it to COMMIT_RE — the substring still
-  // matches) and must not carry an inlined commit-pattern copy. The tail
-  // fragment is commit-specific on purpose: the board gate's own ADD_RE
-  // legitimately contains `\bgit(?:`, so that broader fragment cannot be the
-  // marker here. It only catches a verbatim re-inline.
+  // matches) and must not carry an inlined commit-pattern or push-pattern copy.
+  // The tail fragments are subcommand-specific on purpose: the board gate's own
+  // ADD_RE legitimately contains `\bgit(?:`, so that broader fragment cannot be
+  // the marker here. They only catch a verbatim re-inline.
   it('every hook imports the constant; none inlines its own copy', () => {
     for (const file of HOOK_FILES) {
       const src = readFileSync(`${HOOKS_DIR}/${file}`, 'utf-8');
@@ -164,6 +177,32 @@ describe('git_commit.GIT_COMMIT_RE: single definition', () => {
       expect(src, `${file}: found an inlined commit-pattern copy`).not.toContain(
         '\\s+commit(?![-\\w])'
       );
+      expect(src, `${file}: found an inlined push-pattern copy`).not.toContain(
+        '\\s+push(?![-\\w])'
+      );
     }
+  });
+
+  it('every hook importing git_commit is listed in HOOK_FILES', () => {
+    expect(
+      hooksContaining('from git_commit import'),
+      'a hook importing git_commit is missing from HOOK_FILES (or a listed hook no longer imports it)'
+    ).toEqual([...HOOK_FILES].sort());
+  });
+
+  it('each push-detecting hook imports GIT_PUSH_RE on its git_commit import line', () => {
+    for (const file of PUSH_HOOK_FILES) {
+      const src = readFileSync(`${HOOKS_DIR}/${file}`, 'utf-8');
+      expect(src, `${file}: expected GIT_PUSH_RE on its from git_commit import line`).toMatch(
+        /from git_commit import [^\n]*GIT_PUSH_RE/
+      );
+    }
+  });
+
+  it('every hook using GIT_PUSH_RE is listed in PUSH_HOOK_FILES', () => {
+    expect(
+      hooksContaining('GIT_PUSH_RE'),
+      'a hook using GIT_PUSH_RE is missing from PUSH_HOOK_FILES (or a listed hook no longer uses it)'
+    ).toEqual([...PUSH_HOOK_FILES].sort());
   });
 });
