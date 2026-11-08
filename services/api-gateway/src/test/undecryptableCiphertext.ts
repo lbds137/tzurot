@@ -12,7 +12,7 @@ import type { EncryptedData } from '@tzurot/common-types/utils/encryption';
  * ('0' -> '1', anything else -> '0') so `decryptApiKey` fails authentication.
  */
 export function makeUndecryptableCiphertext(
-  encrypt: typeof import('@tzurot/common-types/utils/encryption').encryptApiKey,
+  encrypt: (plaintext: string) => EncryptedData,
   plaintext: string
 ): EncryptedData {
   const encrypted = encrypt(plaintext);
