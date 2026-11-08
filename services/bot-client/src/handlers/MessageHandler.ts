@@ -182,7 +182,12 @@ export class MessageHandler {
       // stale SET across the bot's lifetime (each graceful shutdown adds N
       // entries; without cleanup the SET grows monotonically). Confirmation
       // is the caller's job: returning 'delivered' makes deliverJobResult
-      // confirm exactly once.
+      // confirm exactly once. That confirm is awaited like every other
+      // delivered result (index.ts's results listener awaits deliverJobResult;
+      // a stale jobId is untracked after the restart, so it takes the
+      // unknown-job branch there, not the ordering service), so the post-restart
+      // stale path now costs one gateway round trip instead of a
+      // fire-and-forget.
       void this.coordinator
         .clearStale(jobId)
         .catch(err =>
