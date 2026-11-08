@@ -752,17 +752,17 @@ describe('MessageHandler', () => {
       } as LLMGenerationResult;
 
       it.each([
-        ['successful follow-up', 'delivered', 1, lateResult],
-        ['empty late result', 'delivered', 1, emptyLate],
-        ['failed late result', 'delivered', 1, failedLate],
-      ] as const)('%s -> %s, confirmed %i time', async (_name, expected, confirms, late) => {
+        ['successful follow-up', lateResult],
+        ['empty late result', emptyLate],
+        ['failed late result', failedLate],
+      ] as const)('%s -> delivered, confirmed exactly once', async (_name, late) => {
         mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
         mockPersonalityService.loadPersonality.mockResolvedValue(lila);
         mockClient.channels.fetch.mockResolvedValue(typingChannel);
         mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m1'] });
 
-        expect(await deliver('job-late', late)).toBe(expected);
-        expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledTimes(confirms);
+        expect(await deliver('job-late', late)).toBe('delivered');
+        expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledTimes(1);
         expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
       });
 

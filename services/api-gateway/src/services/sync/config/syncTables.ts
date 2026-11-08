@@ -36,7 +36,7 @@ export const EXCLUDED_TABLES: Record<string, string> = {
   import_jobs: 'Transient import job tracking (environment-specific, retryable)',
   export_jobs: 'Transient export job tracking (environment-specific, retryable)',
   job_results:
-    'Transient per-job delivery state (PENDING_DELIVERY/DELIVERED, auto-cleaned) — environment-specific, never synced',
+    'Transient per-job delivery state (PENDING_DELIVERY/DELIVERED; only DELIVERED rows are auto-cleaned) — environment-specific, never synced',
   user_guild_infos:
     "Cache of Discord guild membership that either environment re-observes for itself; syncing would propagate one env's staleness to the other, and its write frequency would dominate last-write-wins reconciliation",
 

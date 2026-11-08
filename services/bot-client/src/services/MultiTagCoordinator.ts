@@ -20,7 +20,8 @@
  * Restart contract: in-memory state is volatile. On graceful shutdown, all
  * pending slot jobIds are added to a Redis stale set. Post-restart, results
  * arriving for those jobIds are discarded by the MessageHandler stale check
- * (confirmDelivery is still called so the Redis stream entry clears).
+ * (the handler returns 'delivered', so deliverJobResult still confirms and the
+ * gateway row becomes reclaimable).
  * MultiTagRecovery scans the persisted entries on startup, polls BullMQ for
  * each pending slot's authoritative job state, and adopts the entries back
  * into this coordinator — so user-facing experience after a
