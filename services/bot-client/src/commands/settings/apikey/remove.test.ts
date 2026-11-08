@@ -35,16 +35,6 @@ vi.mock('../../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
 
-// Mock providers
-vi.mock('@tzurot/common-types/utils/providerDisplayName', () => ({
-  getProviderDisplayName: (provider: string) => {
-    const names: Record<string, string> = {
-      openrouter: 'OpenRouter',
-    };
-    return names[provider] ?? provider;
-  },
-}));
-
 describe('handleRemoveKey', () => {
   const mockEditReply = vi.fn();
 
