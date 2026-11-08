@@ -33,7 +33,7 @@ import {
   type MessageJobContext,
   type SlashJobContext,
 } from '../services/JobTracker.js';
-import { confirmDelivery, updateDiagnosticResponseIds } from '../utils/gatewayServiceCalls.js';
+import { updateDiagnosticResponseIds } from '../utils/gatewayServiceCalls.js';
 import type { SlotDeliveryService } from '../services/SlotDeliveryService.js';
 import type { MultiTagCoordinator } from '../services/MultiTagCoordinator.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
@@ -163,10 +163,11 @@ export class MessageHandler {
 
     // Pre-restart stale check: if the jobId was marked stale during a prior
     // shutdown (because its result hadn't arrived yet), discard the result
-    // silently. Recovery already resolved this job's group; the confirm below
-    // is a deliberate policy resolution of a job the system consciously gave
-    // up on, not an accidental drop — it also lets the ai-worker's
-    // `DELIVERED`-only cleanup reclaim the row, which nothing else would.
+    // silently. Recovery already resolved this job's group; the 'delivered'
+    // verdict below (which the caller turns into a confirm) is a deliberate
+    // policy resolution of a job the system consciously gave up on, not an
+    // accidental drop — it also lets the ai-worker's `DELIVERED`-only cleanup
+    // reclaim the row, which nothing else would.
     //
     // Fast-path short-circuit: in normal operation (no recent shutdown, no
     // recovery pending), the stale-jobs SET is empty and the Redis
@@ -177,16 +178,11 @@ export class MessageHandler {
     // personality result.
     if (this.coordinator.staleCheckNeeded && (await this.coordinator.isStale(jobId))) {
       logger.info({ jobId }, 'Discarding result for pre-restart (stale) jobId');
-      // Confirm delivery so the gateway row can be reclaimed, and remove the
-      // jobId from the stale SET so it doesn't accumulate across the bot's
-      // lifetime (each graceful shutdown adds N entries; without cleanup the
-      // SET grows monotonically).
-      void confirmDelivery(jobId).catch(err =>
-        logger.warn(
-          { err, jobId },
-          'stale-discard: confirmDelivery failed — Redis stream entry may not clear'
-        )
-      );
+      // Only clear the stale entry here, so the jobId doesn't accumulate in the
+      // stale SET across the bot's lifetime (each graceful shutdown adds N
+      // entries; without cleanup the SET grows monotonically). Confirmation
+      // is the caller's job: returning 'delivered' makes deliverJobResult
+      // confirm exactly once.
       void this.coordinator
         .clearStale(jobId)
         .catch(err =>
