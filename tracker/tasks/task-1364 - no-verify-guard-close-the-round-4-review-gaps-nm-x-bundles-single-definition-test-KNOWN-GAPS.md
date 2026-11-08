@@ -3,9 +3,10 @@ id: TASK-1364
 title: >-
   no-verify-guard: close the round-4 review gaps (-nm"x" bundles,
   single-definition test, KNOWN GAPS)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-08T17:32:00Z'
+updated_date: '2026-11-08T19:19:00Z'
 labels:
   - area:tooling
   - size:S
