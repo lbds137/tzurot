@@ -18,7 +18,7 @@ ordinal: 824000
 <!-- SECTION:DESCRIPTION:BEGIN -->
 Why: raised by claude-review on PR 2253 (TASK-821) and accepted as a backlog candidate. That PR stopped the delivery path from confirming a DROPPED result, so a lost reply now honestly leaves its job_results row at PENDING_DELIVERY instead of falsely flipping it to DELIVERED. Strictly better — a silent data loss recorded as success was the bug — but it trades a WRONG invisible state for a CORRECT invisible state. Nothing sweeps, alerts on, or reports a row that has sat PENDING_DELIVERY for hours, so "the honest state" is currently honest to nobody.
 
-Two mechanisms already known to leave such rows, both deliberate: (a) the unknown-job drop in the results-listener path, and (b) SingleJobRecovery.discard when a context cannot be rebuilt (channel gone, personality inaccessible, source message deleted, aged out). Both are correct not to confirm; neither leaves a signal anyone reads.
+Three mechanisms already known to leave such rows, all deliberate: (a) the unknown-job drop in the results-listener path, (b) SingleJobRecovery.discard when a context cannot be rebuilt (channel gone, personality inaccessible, source message deleted, aged out), and (c) since TASK-823 (PR 2723), the late-result recovery `'dropped'` paths in `services/bot-client/src/handlers/lateResultRecovery.ts` (personality unloadable, channel missing, send threw with nothing delivered), each logged at error level with a `reason`. All are correct not to confirm; none leaves a signal anyone reads.
 
 Second cost worth stating: the ai-worker cleanup job deletes only DELIVERED rows, so an unconfirmed row is never reclaimed at all. The leak is slow and bounded by how often delivery genuinely fails, but it is unbounded in time.
 
