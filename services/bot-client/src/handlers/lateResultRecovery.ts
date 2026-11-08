@@ -40,7 +40,7 @@ export interface LateResultRecoveryDeps {
  * Late-result recovery for multi-tag slots that were synthetic-timed-out.
  * Returns null if this jobId had no recovery marker (a genuinely unknown job
  * that the caller drops). On a marker hit it returns the disposition and
- * always clears the marker so it doesn't linger.
+ * always clears the marker (a `finally`), so it doesn't linger.
  *
  * This function never confirms delivery; only the caller does, when it sees
  * 'delivered'. 'delivered' means the follow-up send succeeded, the send
@@ -48,11 +48,12 @@ export interface LateResultRecoveryDeps {
  * a user-visible outcome), or the late result was failed/empty (the user
  * already received the synthetic timeout message, so there is nothing real
  * to deliver). 'dropped' means a real late reply was lost (personality
- * unloadable, channel missing, or the send threw with nothing delivered),
- * so the gateway row stays PENDING_DELIVERY as an honest unconfirmed record.
- * Nothing reclaims PENDING_DELIVERY rows (the ai-worker cleanup deletes only
- * DELIVERED ones), so this trades a small row leak for a
- * visible loss signal, the same trade the unknown-job drop makes.
+ * unloadable, channel missing, the send threw with nothing delivered, or any
+ * unexpected throw such as loadPersonality rejecting), so the gateway row
+ * stays PENDING_DELIVERY as an honest unconfirmed record. Nothing reclaims
+ * PENDING_DELIVERY rows (the ai-worker cleanup deletes only DELIVERED ones),
+ * so this trades a small row leak for a visible loss signal, the same trade
+ * the unknown-job drop makes.
  *
  * A successful result is re-sent as a personality follow-up (prefixed with
  * a "took longer than expected" notice).
@@ -72,92 +73,93 @@ export async function recoverLateResult(
     return null; // not a synthetic-timeout job — let the caller drop it
   }
 
-  // From here we own the outcome and always clear the marker. Delivery
-  // confirmation is NOT done here: the caller confirms only on 'delivered',
-  // so a lossy branch below returns 'dropped' and leaves the row unconfirmed.
-  // clearSyntheticTimeout is awaited so the recovery marker doesn't linger
-  // if we crash right after the follow-up send but before its TTL elapses.
-  const finalize = async (): Promise<void> => {
-    await deps.coordinator.clearSyntheticTimeout(jobId);
-  };
-
-  // Failed/empty late result: the user already saw the synthetic timeout
-  // error — don't send a second (error) message. Just clean up.
-  if (
-    result.success === false ||
-    typeof result.content !== 'string' ||
-    result.content.length === 0
-  ) {
-    logger.info(
-      { jobId },
-      'Late result for synthetic-timed-out job was unusable — clearing marker, no follow-up'
-    );
-    await finalize();
-    return 'delivered';
-  }
-
-  const personality = await deps.personalityService.loadPersonality(
-    ctx.personalitySlug,
-    ctx.recipientUserId
-  );
-  if (personality === null) {
-    logger.error(
-      { jobId, slug: ctx.personalitySlug, reason: 'personality-unloadable' },
-      'Late recovery: personality no longer loadable - dropping, NOT confirming'
-    );
-    await finalize();
-    return 'dropped';
-  }
-
-  const channel = await fetchTypingChannel(deps.client, ctx.channelId);
-  if (channel === null) {
-    logger.error(
-      { jobId, channelId: ctx.channelId, reason: 'channel-missing' },
-      'Late recovery: channel missing, not a typing channel, or fetch failed - dropping, NOT confirming'
-    );
-    await finalize();
-    return 'dropped';
-  }
-
-  reportQuotaFallbackRescue(result, personality.name);
-
+  // From here we own the outcome. Delivery confirmation is NOT done here: the
+  // caller confirms only on 'delivered', so a lossy branch returns 'dropped'
+  // and leaves the row unconfirmed. The marker clear holds structurally via
+  // `finally` and is awaited, so the marker doesn't linger if we crash right
+  // after the follow-up send but before its TTL elapses. Any unexpected throw
+  // (e.g. loadPersonality rejecting) is a 'dropped'.
   try {
-    await deps.responseSender.sendResponse({
-      content: LATE_RECOVERY_NOTICE + result.content,
-      personality,
-      channel,
-      guildId: ctx.guildId,
-      clientId: ctx.clientId,
-      recipientUserId: ctx.recipientUserId,
-      isAutoResponse: ctx.isAutoResponse,
-      ...buildResultMetadataPassthrough(result),
-    });
-    logger.info(
-      { jobId, personalityId: personality.id },
-      'Late result recovered and delivered as a follow-up'
-    );
-  } catch (err) {
-    if (err instanceof PartialDeliveryError) {
-      logger.error(
-        { err, jobId, reason: 'send-partial' },
-        'Late recovery: send failed after some chunks reached the user - treating as delivered'
+    // Failed/empty late result: the user already saw the synthetic timeout
+    // error — don't send a second (error) message. Just clean up.
+    if (
+      result.success === false ||
+      typeof result.content !== 'string' ||
+      result.content.length === 0
+    ) {
+      logger.info(
+        { jobId },
+        'Late result for synthetic-timed-out job was unusable — clearing marker, no follow-up'
       );
-      reportDeliveryFailure(err, result, personality.name);
-      await finalize();
       return 'delivered';
     }
-    logger.error(
-      { err, jobId, reason: 'send-failed' },
-      'Late recovery: follow-up send failed - dropping, NOT confirming'
+
+    const personality = await deps.personalityService.loadPersonality(
+      ctx.personalitySlug,
+      ctx.recipientUserId
     );
-    // Send failure on an already-successful late result — the same
-    // always-pageable class as the delivery catches in MessageHandler.
-    reportDeliveryFailure(err, result, personality.name);
-    // The marker still clears, but the throw means the real reply may not
-    // have reached the user, so the row stays PENDING_DELIVERY.
-    await finalize();
+    if (personality === null) {
+      logger.error(
+        { jobId, slug: ctx.personalitySlug, reason: 'personality-unloadable' },
+        'Late recovery: personality no longer loadable — dropping, NOT confirming'
+      );
+      return 'dropped';
+    }
+
+    const channel = await fetchTypingChannel(deps.client, ctx.channelId);
+    if (channel === null) {
+      logger.error(
+        { jobId, channelId: ctx.channelId, reason: 'channel-missing' },
+        'Late recovery: channel missing, not a typing channel, or fetch failed — dropping, NOT confirming'
+      );
+      return 'dropped';
+    }
+
+    reportQuotaFallbackRescue(result, personality.name);
+
+    try {
+      await deps.responseSender.sendResponse({
+        content: LATE_RECOVERY_NOTICE + result.content,
+        personality,
+        channel,
+        guildId: ctx.guildId,
+        clientId: ctx.clientId,
+        recipientUserId: ctx.recipientUserId,
+        isAutoResponse: ctx.isAutoResponse,
+        ...buildResultMetadataPassthrough(result),
+      });
+      logger.info(
+        { jobId, personalityId: personality.id },
+        'Late result recovered and delivered as a follow-up'
+      );
+    } catch (err) {
+      if (err instanceof PartialDeliveryError) {
+        logger.error(
+          { err, jobId, reason: 'send-partial' },
+          'Late recovery: send failed after some chunks reached the user — treating as delivered'
+        );
+        reportDeliveryFailure(err, result, personality.name);
+        return 'delivered';
+      }
+      logger.error(
+        { err, jobId, reason: 'send-failed' },
+        'Late recovery: follow-up send failed — dropping, NOT confirming'
+      );
+      // Send failure on an already-successful late result — the same
+      // always-pageable class as the delivery catches in MessageHandler.
+      reportDeliveryFailure(err, result, personality.name);
+      // The throw means the real reply may not have reached the user, so the
+      // row stays PENDING_DELIVERY.
+      return 'dropped';
+    }
+    return 'delivered';
+  } catch (err) {
+    logger.error(
+      { err, jobId, reason: 'recovery-threw' },
+      'Late recovery: threw before delivery — dropping, NOT confirming'
+    );
     return 'dropped';
+  } finally {
+    await deps.coordinator.clearSyntheticTimeout(jobId);
   }
-  await finalize();
-  return 'delivered';
 }

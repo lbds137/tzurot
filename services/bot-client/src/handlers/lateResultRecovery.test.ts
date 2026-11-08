@@ -108,6 +108,27 @@ describe('recoverLateResult', () => {
     );
   });
 
+  it.each([
+    [
+      'loadPersonality rejects',
+      () => personalityService.loadPersonality.mockRejectedValue(new Error('db down')),
+    ],
+    [
+      'fetchTypingChannel rejects',
+      () => mockFetchTypingChannel.mockRejectedValue(new Error('fetch blew up')),
+    ],
+  ])('%s -> dropped, marker cleared, error logged as recovery-threw', async (_name, arrange) => {
+    arrange();
+
+    expect(await recoverLateResult(deps, 'job-1', okResult)).toBe('dropped');
+    expect(responseSender.sendResponse).not.toHaveBeenCalled();
+    expect(coordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-1');
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: 'job-1', reason: 'recovery-threw' }),
+      expect.stringContaining('NOT confirming')
+    );
+  });
+
   it('channel missing -> dropped, marker cleared, error logged with reason', async () => {
     mockFetchTypingChannel.mockResolvedValue(null);
 
