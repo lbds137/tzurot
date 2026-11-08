@@ -3,13 +3,14 @@ id: TASK-823
 title: >-
   Late-result recovery confirms delivery on three paths that lose a real
   successful reply
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-08-29 18:32'
+created_date: 2026-08-29 18:32
+updated_date: '2026-11-08T18:19:00Z'
 labels:
-  - 'area:bot-client'
-  - 'size:S'
-  - 'state:ready'
+  - area:bot-client
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 823000
