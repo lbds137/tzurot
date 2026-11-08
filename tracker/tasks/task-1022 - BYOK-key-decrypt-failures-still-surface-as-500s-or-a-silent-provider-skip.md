@@ -33,3 +33,14 @@ So each site must FIRST rethrow the original error when isEncryptionConfigured()
 
 Acceptance: no BYOK decrypt failure reaches the caller as a 500 or as a silent absence; each site has a test pinning the user-visible answer; the tests fail when the catch is removed.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Owner rulings + build notes (2026-11-07)
+
+Rulings (Lila, AskUserQuestion):
+- Copy: a NEW BYOK constant beside `UNDECRYPTABLE_CREDENTIAL_MESSAGE` (`packages/common-types/src/types/shapes-import.ts:279`, which is shapes-worded, so don't reuse it), rendered as "Your saved <provider> key can't be read anymore. Set it again with /settings apikey set." Provider = the display name the route already uses.
+- `audioProviderKeyResolver.ts` silent skip: KEEP it (one bad key must not break voice; the fixed test route now names the problem). Acceptance narrows accordingly: the resolver is out of scope except that its skip log line stays.
+
+Measured context for the build (Explore read, develop 257240ac0):
+- bot-client `commands/settings/apikey/test.ts` branches only on 404 and 429; every other status renders "❌ API Key Invalid" with the gateway `message` verbatim (line ~103). So the status code doesn't change what the user sees; use `ErrorResponses.unauthorized(...)` (401), mirroring the shipped `routes/user/shapes/list.ts` pattern, including the `!isEncryptionConfigured()` rethrow.
+- `elevenLabsKeyResolver.ts` feeds only `GET /user/voices/models`, which has no bot-client caller today; fix it the same way for consistency.
+- Tests to change: `routes/wallet/testKey.test.ts` 'should return 500 when decryption fails' (asserts 500 and INTERNAL_ERROR) and `utils/elevenLabsKeyResolver.test.ts` 'should return INTERNAL_ERROR when decryption fails'. These assertions encode the defect, so changing them is the fix, not test-bending. Template: `routes/user/shapes/list.test.ts` ~248.
