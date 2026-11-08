@@ -15,7 +15,17 @@
  */
 
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
-import { type JobResultDisposition } from '../handlers/MessageHandler.js';
+
+/**
+ * What became of a job result handed to `handleJobResult`.
+ *
+ * `'delivered'` means the result reached a path that produced a user-visible
+ * outcome, or one that owns its own delivery confirmation. `'dropped'` means
+ * it was discarded with nothing shown to the user — the caller MUST NOT
+ * confirm delivery for it, because a confirmed row records a reply the user
+ * never received and nothing ever revisits `PENDING_DELIVERY` rows to notice.
+ */
+export type JobResultDisposition = 'delivered' | 'dropped';
 
 /**
  * The two collaborators the gate sits between. Injected rather than imported

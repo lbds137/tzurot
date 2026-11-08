@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageType, TextChannel } from 'discord.js';
 import { MessageHandler } from './MessageHandler.js';
+import { deliverJobResult } from '../services/deliverJobResult.js';
 import { BotMessageFilter } from '../processors/BotMessageFilter.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import type { Message } from 'discord.js';
@@ -692,8 +693,77 @@ describe('MessageHandler', () => {
       metadata: { modelUsed: 'anthropic/claude-sonnet-4' },
     } as LLMGenerationResult;
 
+    const lila = { id: 'p-lila', name: 'lila', slug: 'lila', displayName: 'Lila' };
+    const typingChannel = {
+      id: 'channel-late',
+      isTextBased: () => true,
+      isThread: () => false,
+      type: 0, // GuildText — passes isTypingChannel
+    };
+
+    // The REAL deliverJobResult gate wired to the same confirmDelivery mock the
+    // handler module sees, so a handler-internal confirm is counted too.
+    const deliver = (jobId: string, result: LLMGenerationResult) =>
+      deliverJobResult(
+        {
+          handleJobResult: (id, r) => messageHandler.handleJobResult(id, r),
+          confirmDelivery: mockGatewayClient.confirmDelivery,
+        },
+        jobId,
+        result
+      );
+
     beforeEach(() => {
       mockJobTracker.getContext.mockReturnValue(null); // not tracked → recovery path
+    });
+
+    describe('seam with deliverJobResult (confirm counted across handler + caller)', () => {
+      const emptyLate = {
+        requestId: 'req-late',
+        success: true,
+        content: '',
+      } as LLMGenerationResult;
+      const failedLate = {
+        requestId: 'req-late',
+        success: false,
+        error: 'x',
+      } as LLMGenerationResult;
+
+      it.each([
+        ['successful follow-up', 'delivered', 1, lateResult],
+        ['empty late result', 'delivered', 1, emptyLate],
+        ['failed late result', 'delivered', 1, failedLate],
+      ] as const)('%s -> %s, confirmed %i time', async (_name, expected, confirms, late) => {
+        mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
+        mockPersonalityService.loadPersonality.mockResolvedValue(lila);
+        mockClient.channels.fetch.mockResolvedValue(typingChannel);
+        mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m1'] });
+
+        expect(await deliver('job-late', late)).toBe(expected);
+        expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledTimes(confirms);
+        expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
+      });
+
+      it.each([
+        [
+          'personality unloadable',
+          () => mockPersonalityService.loadPersonality.mockResolvedValue(null),
+        ],
+        ['channel missing', () => mockClient.channels.fetch.mockResolvedValue(null)],
+        [
+          'send throws',
+          () => mockResponseSender.sendResponse.mockRejectedValue(new Error('rate limited')),
+        ],
+      ])('%s -> dropped, never confirmed, marker cleared', async (_name, arrange) => {
+        mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
+        mockPersonalityService.loadPersonality.mockResolvedValue(lila);
+        mockClient.channels.fetch.mockResolvedValue(typingChannel);
+        arrange();
+
+        expect(await deliver('job-late', lateResult)).toBe('dropped');
+        expect(mockGatewayClient.confirmDelivery).not.toHaveBeenCalled();
+        expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-late');
+      });
     });
 
     it('delivers a late successful result as a follow-up, then confirms + clears', async () => {
@@ -720,7 +790,8 @@ describe('MessageHandler', () => {
       expect(opts.content).toContain('took longer than expected');
       expect(opts.content).toContain('The real reply that arrived late');
       expect(opts.personality.slug).toBe('lila');
-      expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
+      // Handler no longer confirms; only deliverJobResult does, on 'delivered'.
+      expect(mockGatewayClient.confirmDelivery).not.toHaveBeenCalled();
       expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-late');
     });
 
@@ -737,7 +808,7 @@ describe('MessageHandler', () => {
       expect(disposition).toBe('delivered');
       expect(mockResponseSender.sendResponse).not.toHaveBeenCalled();
       expect(mockPersonalityService.loadPersonality).not.toHaveBeenCalled();
-      expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
+      expect(mockGatewayClient.confirmDelivery).not.toHaveBeenCalled();
       expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-late');
     });
 
@@ -747,9 +818,9 @@ describe('MessageHandler', () => {
 
       const disposition = await messageHandler.handleJobResult('job-late', lateResult);
 
-      expect(disposition).toBe('delivered');
+      expect(disposition).toBe('dropped');
       expect(mockResponseSender.sendResponse).not.toHaveBeenCalled();
-      expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
+      expect(mockGatewayClient.confirmDelivery).not.toHaveBeenCalled();
       expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-late');
     });
 
@@ -765,9 +836,9 @@ describe('MessageHandler', () => {
 
       const disposition = await messageHandler.handleJobResult('job-late', lateResult);
 
-      expect(disposition).toBe('delivered');
+      expect(disposition).toBe('dropped');
       expect(mockResponseSender.sendResponse).not.toHaveBeenCalled();
-      expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
+      expect(mockGatewayClient.confirmDelivery).not.toHaveBeenCalled();
       expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-late');
     });
 
@@ -782,7 +853,7 @@ describe('MessageHandler', () => {
       expect(mockCoordinator.clearSyntheticTimeout).not.toHaveBeenCalled();
     });
 
-    it('still confirms + clears when the follow-up send throws (finalize is unconditional)', async () => {
+    it('drops, clears the marker and does not confirm when the follow-up send throws', async () => {
       mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
       mockPersonalityService.loadPersonality.mockResolvedValue({
         id: 'p-lila',
@@ -800,11 +871,10 @@ describe('MessageHandler', () => {
 
       const disposition = await messageHandler.handleJobResult('job-late', lateResult);
 
-      expect(disposition).toBe('delivered');
-      // Send threw, but finalize() runs anyway: confirmDelivery is an idempotent
-      // status flip with no retry consumer, and the marker must not linger.
+      expect(disposition).toBe('dropped');
+      // Send threw: the marker still clears, but the row must stay unconfirmed.
       expect(mockResponseSender.sendResponse).toHaveBeenCalledTimes(1);
-      expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
+      expect(mockGatewayClient.confirmDelivery).not.toHaveBeenCalled();
       expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-late');
       // Send failure on an already-successful late result is always-pageable —
       // the ORIGINAL error crosses the reporter seam so its stack can be hashed.
@@ -815,9 +885,11 @@ describe('MessageHandler', () => {
       );
     });
 
-    it('recovers once, then drops a duplicate result (marker cleared after first)', async () => {
+    it('recovers once, then drops a duplicate result (marker cleared after first), confirming once via deliverJobResult', async () => {
       // First call sees the marker; the recovery path clears it, so the second
       // call sees null and falls through to the normal unknown-job drop.
+      // Runs the REAL deliverJobResult so the confirm count covers both the
+      // handler and its caller (the same confirmDelivery mock).
       mockCoordinator.getSyntheticTimeout
         .mockResolvedValueOnce(recoveryCtx)
         .mockResolvedValue(null);
@@ -835,8 +907,8 @@ describe('MessageHandler', () => {
       });
       mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m1'] });
 
-      const first = await messageHandler.handleJobResult('job-late', lateResult);
-      const second = await messageHandler.handleJobResult('job-late', lateResult);
+      const first = await deliver('job-late', lateResult);
+      const second = await deliver('job-late', lateResult);
 
       expect(first).toBe('delivered');
       expect(second).toBe('dropped');
