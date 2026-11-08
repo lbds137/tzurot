@@ -15,15 +15,22 @@
  */
 
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+
+const logger = createLogger('deliverJobResult');
 
 /**
  * What became of a job result handed to `handleJobResult`.
  *
  * `'delivered'` means the result reached a path that produced a user-visible
- * outcome, or one that owns its own delivery confirmation. `'dropped'` means
- * it was discarded with nothing shown to the user — the caller MUST NOT
- * confirm delivery for it, because a confirmed row records a reply the user
- * never received and nothing ever revisits `PENDING_DELIVERY` rows to notice.
+ * outcome (including a partial send where some chunks reached the user), one
+ * that owns its own delivery confirmation, or a job the system deliberately
+ * resolved where confirming records no loss (stale-discard after a restart; a
+ * failed/empty late result whose user already saw the synthetic-timeout
+ * message). `'dropped'` means it was discarded with nothing shown to the
+ * user — the caller MUST NOT confirm delivery for it, because a confirmed row
+ * records a reply the user never received and nothing ever revisits
+ * `PENDING_DELIVERY` rows to notice.
  */
 export type JobResultDisposition = 'delivered' | 'dropped';
 
@@ -44,7 +51,10 @@ export interface JobResultDeliveryDeps {
  * the handler reports the user actually got something.
  *
  * Returns the handler's disposition so callers can log or branch on it; the
- * confirm decision itself is made here and nowhere else.
+ * confirm decision itself is made here and nowhere else. A rejected confirm
+ * is caught and logged at warn: the reply was already delivered, so a confirm
+ * failure must not surface as a delivery failure (the row just stays
+ * `PENDING_DELIVERY`). This function does not throw on a confirm failure.
  */
 export async function deliverJobResult(
   deps: JobResultDeliveryDeps,
@@ -53,7 +63,11 @@ export async function deliverJobResult(
 ): Promise<JobResultDisposition> {
   const disposition = await deps.handleJobResult(jobId, result);
   if (disposition === 'delivered') {
-    await deps.confirmDelivery(jobId);
+    try {
+      await deps.confirmDelivery(jobId);
+    } catch (err) {
+      logger.warn({ err, jobId }, 'confirm failed after delivery');
+    }
   }
   return disposition;
 }

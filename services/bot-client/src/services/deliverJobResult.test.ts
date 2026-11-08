@@ -11,6 +11,19 @@ import { describe, it, expect, vi } from 'vitest';
 import { deliverJobResult } from './deliverJobResult.js';
 import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 
+const mockLogger = vi.hoisted(() => ({
+  info: vi.fn(),
+  debug: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: () => mockLogger };
+});
+
 const RESULT = {
   requestId: 'req-1',
   success: true,
@@ -65,14 +78,20 @@ describe('deliverJobResult', () => {
     expect(handleJobResult).toHaveBeenCalledWith('job-sentinel', sentinel);
   });
 
-  it('propagates a confirmDelivery failure rather than swallowing it', async () => {
-    // The caller wraps this in its own try/catch and logs; silently eating the
-    // failure here would hide a gateway outage behind a clean delivery.
-    const confirmDelivery = vi.fn().mockRejectedValue(new Error('gateway down'));
+  it('resolves delivered and logs a warning when confirmDelivery rejects', async () => {
+    // The reply already reached the user; a confirm failure must not read as a
+    // delivery failure to the caller.
+    const boom = new Error('gateway down');
+    const confirmDelivery = vi.fn().mockRejectedValue(boom);
     const handleJobResult = vi.fn().mockResolvedValue('delivered');
 
     await expect(
       deliverJobResult({ handleJobResult, confirmDelivery }, 'job-boom', RESULT)
-    ).rejects.toThrow('gateway down');
+    ).resolves.toBe('delivered');
+
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ err: boom, jobId: 'job-boom' }),
+      'confirm failed after delivery'
+    );
   });
 });

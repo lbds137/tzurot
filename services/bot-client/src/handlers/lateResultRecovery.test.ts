@@ -3,6 +3,8 @@
  * exercises it through handleJobResult and the real deliverJobResult).
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Client } from 'discord.js';
 import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
@@ -32,13 +34,6 @@ const mockReportQuotaFallbackRescue = vi.fn();
 vi.mock('../observability/ErrorChannelReporter.js', () => ({
   reportDeliveryFailure: (...args: unknown[]) => mockReportDeliveryFailure(...args),
   reportQuotaFallbackRescue: (...args: unknown[]) => mockReportQuotaFallbackRescue(...args),
-}));
-
-// The module must never confirm delivery; if it ever imports the gateway
-// module, this mock makes the call observable.
-const mockConfirmDelivery = vi.fn();
-vi.mock('../utils/gatewayServiceCalls.js', () => ({
-  confirmDelivery: (...args: unknown[]) => mockConfirmDelivery(...args),
 }));
 
 const ctx = {
@@ -83,13 +78,23 @@ describe('recoverLateResult', () => {
     } as unknown as LateResultRecoveryDeps;
   });
 
+  it('does not import the gateway service calls (only the caller confirms delivery)', () => {
+    // Tripwire: the module reports a disposition and deliverJobResult confirms.
+    // A confirm call inside it would double-confirm on 'delivered' and confirm
+    // over a loss on 'dropped'.
+    const source = readFileSync(
+      fileURLToPath(new URL('./lateResultRecovery.ts', import.meta.url)),
+      'utf8'
+    );
+    expect(source).not.toContain('gatewayServiceCalls');
+  });
+
   it('returns null and clears nothing when there is no marker', async () => {
     coordinator.getSyntheticTimeout.mockResolvedValue(null);
 
     expect(await recoverLateResult(deps, 'job-1', okResult)).toBeNull();
     expect(coordinator.clearSyntheticTimeout).not.toHaveBeenCalled();
     expect(responseSender.sendResponse).not.toHaveBeenCalled();
-    expect(mockConfirmDelivery).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -102,7 +107,6 @@ describe('recoverLateResult', () => {
     expect(responseSender.sendResponse).not.toHaveBeenCalled();
     expect(personalityService.loadPersonality).not.toHaveBeenCalled();
     expect(coordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-1');
-    expect(mockConfirmDelivery).not.toHaveBeenCalled();
   });
 
   it('personality unloadable -> dropped, marker cleared, error logged with reason', async () => {
@@ -115,7 +119,6 @@ describe('recoverLateResult', () => {
       expect.objectContaining({ jobId: 'job-1', reason: 'personality-unloadable' }),
       expect.stringContaining('NOT confirming')
     );
-    expect(mockConfirmDelivery).not.toHaveBeenCalled();
   });
 
   it('channel missing -> dropped, marker cleared, error logged with reason', async () => {
@@ -132,7 +135,6 @@ describe('recoverLateResult', () => {
       }),
       expect.stringContaining('NOT confirming')
     );
-    expect(mockConfirmDelivery).not.toHaveBeenCalled();
   });
 
   it('send throws -> dropped, marker cleared, reported, error logged with reason', async () => {
@@ -146,7 +148,6 @@ describe('recoverLateResult', () => {
       expect.objectContaining({ jobId: 'job-1', err: boom, reason: 'send-failed' }),
       expect.stringContaining('NOT confirming')
     );
-    expect(mockConfirmDelivery).not.toHaveBeenCalled();
   });
 
   it('send throws PartialDeliveryError -> delivered, marker cleared, reported, logged', async () => {
@@ -165,7 +166,6 @@ describe('recoverLateResult', () => {
       expect.objectContaining({ jobId: 'job-1', err: partial, reason: 'send-partial' }),
       expect.stringContaining('treating as delivered')
     );
-    expect(mockConfirmDelivery).not.toHaveBeenCalled();
   });
 
   it('success -> delivered; exact args cross the sendResponse seam; marker cleared', async () => {
@@ -186,6 +186,5 @@ describe('recoverLateResult', () => {
     expect(opts.isAutoResponse).toBe(false);
     expect(mockReportQuotaFallbackRescue).toHaveBeenCalledWith(okResult, 'lila');
     expect(coordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-1');
-    expect(mockConfirmDelivery).not.toHaveBeenCalled();
   });
 });

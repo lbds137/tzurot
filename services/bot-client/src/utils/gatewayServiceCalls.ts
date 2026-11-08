@@ -310,8 +310,10 @@ export async function generate(
 
 /**
  * Confirm a job result was delivered to Discord (PENDING_DELIVERY → DELIVERED).
- * Best-effort: logs on failure, never throws — the cleanup job eventually
- * removes unconfirmed results.
+ * Best-effort: logs on failure and never throws (the transport catches
+ * network/timeout errors and returns a failure result). An unconfirmed row
+ * stays PENDING_DELIVERY and is never reclaimed — the ai-worker cleanup job
+ * deletes only DELIVERED rows.
  */
 export async function confirmDelivery(jobId: string): Promise<void> {
   const result = await getServiceClient().aiConfirmDelivery(jobId);
