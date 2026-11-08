@@ -63,3 +63,7 @@ packages/embeddings/models/
 # byte-compares the committed files against generator output; prettier
 # would reformat the JSON/tables and permanently break that comparison.
 docs/reference/conformance/
+
+# Worker-dispatch spec staging (machine-local, excluded via .git/info/exclude,
+# which prettier does not read)
+.claude/dispatch/

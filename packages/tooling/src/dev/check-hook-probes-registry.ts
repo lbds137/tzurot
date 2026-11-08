@@ -67,6 +67,10 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     probe: '.claude/hooks/dispatch-spec-ledger-gate.probe.sh',
   },
   {
+    hook: '.claude/hooks/no-verify-guard.sh',
+    probe: '.claude/hooks/no-verify-guard.probe.sh',
+  },
+  {
     hook: '.claude/hooks/pr-body-ref-gate.sh',
     probe: '.claude/hooks/pr-body-ref-gate.probe.sh',
   },

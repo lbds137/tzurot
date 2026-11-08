@@ -1,7 +1,8 @@
 r"""The one shared "does this command invoke `git commit`" pattern.
 
 Imported by both commit-blocking hooks (develop-code-commit-guard.sh,
-board-commit-branch-gate.sh). The behavioral case table pinning
+board-commit-branch-gate.sh) and by no-verify-guard.sh, which also imports
+GIT_PUSH_RE. The behavioral case table pinning
 GIT_COMMIT_RE's verdicts lives in
 packages/tooling/src/dev/gitCommitPattern.test.ts, which imports this module
 through python3, so the tested object is the exact constant the hooks load.
@@ -32,6 +33,12 @@ Deliberate properties, each with the check that pins it:
   down — whose fail-open paths would then allow every commit. (Unverified
   by any automated check: CI runs 3.12, so nothing pins the 3.11 floor.)
 
+GIT_PUSH_RE (defined after GIT_COMMIT_RE) is the same pattern with ``push`` in
+place of ``commit``: the same ``(?i)``, the same deterministic flag-consuming
+group (so the same ReDoS-safe shape), and the same ``(?![-\w])`` tail, so
+``push-foo`` and ``pushd`` are not pushes. Its verdicts are pinned by the push
+rows in packages/tooling/src/dev/gitCommitPattern.test.ts.
+
 Two consumer contracts sit on this file's exact shape, beyond the pattern's
 meaning: board-commit-branch-gate.sh slices the literal 4-char ``(?i)``
 prefix off ``GIT_COMMIT_RE.pattern`` to embed the body in its ``BYPASS_RE``
@@ -44,3 +51,5 @@ spelling.
 import re
 
 GIT_COMMIT_RE = re.compile(r"(?i)\bgit(?:\s+-+[^-\s]\S*(?:\s+[^-\s]\S*)?)*\s+commit(?![-\w])")
+
+GIT_PUSH_RE = re.compile(r"(?i)\bgit(?:\s+-+[^-\s]\S*(?:\s+[^-\s]\S*)?)*\s+push(?![-\w])")

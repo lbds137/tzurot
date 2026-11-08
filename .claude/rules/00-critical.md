@@ -71,6 +71,8 @@ Routine `git add <files>` + `git commit` + `git push` + `gh pr create` to featur
 
 **Gate**: `pnpm test` and `pnpm quality` must be green before the commit-push-PR cycle runs. If either fails, fix it (or escalate if the failure is unclear) before commit; never commit a known-broken state intending to follow up.
 
+Never skip git hooks (`--no-verify`, `-n`, `HUSKY=0`, `core.hooksPath`): `.claude/hooks/no-verify-guard.sh` blocks it in agent sessions; an owner-approved exception prefixes that one invocation with `TZUROT_ALLOW_NO_VERIFY=1`.
+
 **This permission applies ONLY to feature branches.** Direct commits to `main` remain forbidden — open a PR instead.
 
 ### Direct doc commits to `develop` (narrow exception)

@@ -216,7 +216,7 @@ export CI=true
 # shellcheck disable=SC2086
 if ! pnpm turbo run build lint test $TURBO_FILTER $TURBO_ARGS; then
     echo "${RED}Pre-push checks failed!${NC}"
-    echo "Fix the issues before pushing, or use: git push --no-verify"
+    echo "Fix the issues before pushing."
     exit 1
 fi
 
@@ -227,7 +227,7 @@ echo "Running test file type checking..."
 # shellcheck disable=SC2086
 if ! pnpm turbo run typecheck:spec $TURBO_FILTER $TURBO_ARGS; then
     echo "${RED}Test file type checking failed!${NC}"
-    echo "Fix the type errors before pushing, or use: git push --no-verify"
+    echo "Fix the type errors before pushing."
     exit 1
 fi
 
