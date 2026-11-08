@@ -532,9 +532,31 @@ describe('MessageHandler', () => {
 
       expect(disposition).toBe('delivered');
 
-      // Both side effects are fire-and-forget.
+      // clearStale is fire-and-forget.
       await new Promise(resolve => setImmediate(resolve));
 
+      // The handler only clears the stale entry; the caller confirms.
+      expect(mockGatewayClient.confirmDelivery).not.toHaveBeenCalled();
+      expect(mockCoordinator.clearStale).toHaveBeenCalledWith('job-stale');
+    });
+
+    it('stale-discard confirms exactly once through the real deliverJobResult', async () => {
+      mockCoordinatorState.staleCheckNeeded = true;
+      mockCoordinator.ownsJob.mockReturnValueOnce(false);
+      mockCoordinator.isStale.mockResolvedValueOnce(true);
+
+      const disposition = await deliverJobResult(
+        {
+          handleJobResult: (id, r) => messageHandler.handleJobResult(id, r),
+          confirmDelivery: mockGatewayClient.confirmDelivery,
+        },
+        'job-stale',
+        { requestId: 'req-stale', success: true, content: 'x' } as LLMGenerationResult
+      );
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(disposition).toBe('delivered');
+      expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledTimes(1);
       expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-stale');
       expect(mockCoordinator.clearStale).toHaveBeenCalledWith('job-stale');
     });
@@ -742,6 +764,24 @@ describe('MessageHandler', () => {
         expect(await deliver('job-late', late)).toBe(expected);
         expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledTimes(confirms);
         expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
+      });
+
+      it('send throws PartialDeliveryError -> delivered, confirmed exactly once', async () => {
+        mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
+        mockPersonalityService.loadPersonality.mockResolvedValue(lila);
+        mockClient.channels.fetch.mockResolvedValue(typingChannel);
+        mockResponseSender.sendResponse.mockRejectedValue(
+          new PartialDeliveryError({
+            chunkMessageIds: ['m1'],
+            deliveredContent: 'part',
+            totalChunks: 2,
+            cause: new Error('boom'),
+          })
+        );
+
+        expect(await deliver('job-late', lateResult)).toBe('delivered');
+        expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledTimes(1);
+        expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-late');
       });
 
       it.each([

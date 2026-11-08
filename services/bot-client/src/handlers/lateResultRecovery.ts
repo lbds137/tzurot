@@ -16,6 +16,7 @@ import {
 import { buildResultMetadataPassthrough } from '../utils/resultMetadataPassthrough.js';
 import { fetchTypingChannel } from '../utils/fetchTypingChannel.js';
 import type { DiscordResponseSender } from '../services/DiscordResponseSender.js';
+import { PartialDeliveryError } from '../services/partialDelivery.js';
 import type { MultiTagCoordinator } from '../services/MultiTagCoordinator.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { JobResultDisposition } from '../services/deliverJobResult.js';
@@ -42,13 +43,15 @@ export interface LateResultRecoveryDeps {
  * always clears the marker so it doesn't linger.
  *
  * This function never confirms delivery; only the caller does, when it sees
- * 'delivered'. 'delivered' means the follow-up send succeeded, or the late
- * result was failed/empty (the user already received the synthetic timeout
- * message, so there is nothing real to deliver). 'dropped' means a real
- * late reply was lost (personality unloadable, channel missing, or the send
- * threw), so the gateway row stays PENDING_DELIVERY as an honest unconfirmed
- * record. Nothing reclaims PENDING_DELIVERY rows (the ai-worker cleanup
- * deletes only DELIVERED ones), so this trades a small row leak for a
+ * 'delivered'. 'delivered' means the follow-up send succeeded, the send
+ * partially succeeded (a PartialDeliveryError: some chunks reached the user,
+ * a user-visible outcome), or the late result was failed/empty (the user
+ * already received the synthetic timeout message, so there is nothing real
+ * to deliver). 'dropped' means a real late reply was lost (personality
+ * unloadable, channel missing, or the send threw with nothing delivered),
+ * so the gateway row stays PENDING_DELIVERY as an honest unconfirmed record.
+ * Nothing reclaims PENDING_DELIVERY rows (the ai-worker cleanup deletes only
+ * DELIVERED ones), so this trades a small row leak for a
  * visible loss signal, the same trade the unknown-job drop makes.
  *
  * A successful result is re-sent as a personality follow-up (prefixed with
@@ -134,6 +137,15 @@ export async function recoverLateResult(
       'Late result recovered and delivered as a follow-up'
     );
   } catch (err) {
+    if (err instanceof PartialDeliveryError) {
+      logger.error(
+        { err, jobId, reason: 'send-partial' },
+        'Late recovery: send failed after some chunks reached the user - treating as delivered'
+      );
+      reportDeliveryFailure(err, result, personality.name);
+      await finalize();
+      return 'delivered';
+    }
     logger.error(
       { err, jobId, reason: 'send-failed' },
       'Late recovery: follow-up send failed - dropping, NOT confirming'

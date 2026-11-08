@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Client } from 'discord.js';
 import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import { PartialDeliveryError } from '../services/partialDelivery.js';
 import { recoverLateResult, type LateResultRecoveryDeps } from './lateResultRecovery.js';
 
 const mockLogger = vi.hoisted(() => ({
@@ -144,6 +145,25 @@ describe('recoverLateResult', () => {
     expect(mockLogger.error).toHaveBeenCalledWith(
       expect.objectContaining({ jobId: 'job-1', err: boom, reason: 'send-failed' }),
       expect.stringContaining('NOT confirming')
+    );
+    expect(mockConfirmDelivery).not.toHaveBeenCalled();
+  });
+
+  it('send throws PartialDeliveryError -> delivered, marker cleared, reported, logged', async () => {
+    const partial = new PartialDeliveryError({
+      chunkMessageIds: ['m1'],
+      deliveredContent: 'part',
+      totalChunks: 2,
+      cause: new Error('boom'),
+    });
+    responseSender.sendResponse.mockRejectedValue(partial);
+
+    expect(await recoverLateResult(deps, 'job-1', okResult)).toBe('delivered');
+    expect(coordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-1');
+    expect(mockReportDeliveryFailure).toHaveBeenCalledWith(partial, okResult, 'lila');
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: 'job-1', err: partial, reason: 'send-partial' }),
+      expect.stringContaining('treating as delivered')
     );
     expect(mockConfirmDelivery).not.toHaveBeenCalled();
   });
