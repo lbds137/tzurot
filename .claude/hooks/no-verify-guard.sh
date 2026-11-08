@@ -30,8 +30,9 @@
 # redirect angle brackets, so `(git push --no-verify)` and
 # `--no-verify>/dev/null` are seen. Redirect forms (`2>&1`, `&>`), comments,
 # a bare `--` (pathspecs follow), brace expansions (`{a,b}`) and `${…}`,
-# `@{…}`, `$(…)`, backtick spans are blanked or cut before splitting so they neither end nor extend an
-# invocation; substitution bodies are scanned as strings of their own.
+# `@{…}`, `$(…)`, backtick spans are blanked or cut before splitting so they
+# neither end nor extend an invocation; substitution bodies are scanned as
+# strings of their own.
 #
 # A waived invocation prints `no-verify-guard: override used (git <kind>)` to
 # stderr and exits 0. A quoted value (`TZUROT_ALLOW_NO_VERIFY="1"`,
@@ -65,12 +66,15 @@
 #     `git rebase -x 'git commit -n'`, `git submodule foreach 'git push
 #     --no-verify'`.
 #   - OVER-arm: a separate-arg value that looks like the flag
-#     (`git commit -m -n`, `-F -n`) blocks.
+#     (`git commit -m -n`, `-F -n`, `-m -n5`) blocks.
+#   - a quoted flag passes: `git commit "-n"`, `git commit '--no-verify'`.
 #   - OVER-arm: an unquoted `echo git commit --no-verify` blocks (the text
 #     is indistinguishable from an invocation once quotes are stripped).
 #   - process substitution ends the argument span: `git commit -F <(echo x)
 #     -n` passes (its `(` reads as a separator).
 #   - git aliases are not resolved: `git ci -n` passes.
+#   - a flag built by brace expansion passes: `git commit {--no-,}verify`,
+#     `git commit -m x {-n,}`.
 #
 # Fixture check: run .claude/hooks/no-verify-guard.probe.sh after ANY edit to
 # this hook.
@@ -236,7 +240,8 @@ def prefix_assignments(orig_view, values, pstart, ptext):
 found = []
 for orig_view, values in indexed_views(cmd):
     view = blank_substitutions(COMMENT_RE.sub(blank, REDIRECT_RE.sub(blank, orig_view)))
-    view = BRACE_EXPANSION_RE.sub(blank, view)
+    # Filled with `_`, not spaces, so `{a,b}-notes.md` stays one word.
+    view = BRACE_EXPANSION_RE.sub(lambda m: "_" * len(m.group()), view)
 
     def segment_after(end):
         """Text from `end` to the next command separator: one invocation's args."""
