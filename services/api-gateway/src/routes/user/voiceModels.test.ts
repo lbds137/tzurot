@@ -146,6 +146,29 @@ describe('Voice Models Route', () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it('should return 500 instead of the undecryptable-key 401 when encryption is not configured', async () => {
+    const realEncryption = await vi.importActual<
+      typeof import('@tzurot/common-types/utils/encryption')
+    >('@tzurot/common-types/utils/encryption');
+
+    vi.stubEnv('API_KEY_ENCRYPTION_KEY', undefined);
+    vi.stubEnv('API_KEY_ENCRYPTION_KEY_PREVIOUS', undefined);
+
+    (mockPrisma.user.findFirst as any).mockResolvedValue({
+      id: 'user-uuid-123',
+      apiKeys: [{ iv: 'bad-iv', content: 'bad-content', tag: 'bad-tag' }],
+    });
+    vi.mocked(decryptApiKey).mockImplementationOnce(realEncryption.decryptApiKey);
+
+    const response = await request(app).get('/models');
+
+    expect(response.status).toBe(StatusCodes.INTERNAL_SERVER_ERROR);
+    expect(response.body.message).not.toBe(
+      "Your saved ElevenLabs key can't be read anymore. Set it again with /settings apikey set."
+    );
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it('should return error on ElevenLabs auth failure', async () => {
     mockFetch.mockResolvedValue({
       ok: false,
