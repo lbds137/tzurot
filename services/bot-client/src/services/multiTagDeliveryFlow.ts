@@ -228,15 +228,17 @@ export async function deliverGroup(entry: RuntimeEntry, deps: DeliveryFlowDeps):
   // Best-effort delivery confirmation (clears Redis stream entries).
   // Skip slots synthesized on safety-timeout (`status === 'timedout'`):
   // ai-worker never wrote a JobResult row for them, so confirmDelivery is a
-  // guaranteed 404. Their real confirmation happens via the late-result
-  // recovery path in MessageHandler if/when the result eventually lands.
+  // guaranteed 404. Their real confirmation happens in deliverJobResult, and
+  // only when late-result recovery (handlers/lateResultRecovery.ts) returns
+  // 'delivered' if/when the result eventually lands.
   //
   // Slots an earlier process already sent (`alreadyDelivered`) are NOT
   // skipped, despite looking like the same redundant-call class. The
   // slot-delivered marker is written inside the per-slot loop above, while
   // this fan-out runs after the whole loop and `deleteEntry` after that — so
   // a marker is not evidence the confirm for that slot ran, and skipping it
-  // could strand a genuine PENDING_DELIVERY row for the gateway cleanup job.
+  // could leave a genuinely delivered slot's row PENDING_DELIVERY, which
+  // nothing reclaims.
   await Promise.all(
     entry.slots
       .filter(slot => slot.status !== 'timedout')
