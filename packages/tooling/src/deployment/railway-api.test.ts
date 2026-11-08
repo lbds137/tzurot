@@ -14,6 +14,7 @@ import {
   redeployRailwayServiceReusingImage,
   redeployRailwayServiceReusingImageWithSource,
   getLiveDeploymentCommit,
+  getRailwayServiceWatchPatterns,
   RailwayRedeployRefusedError,
 } from './railway-api.js';
 
@@ -1314,6 +1315,92 @@ describe('railway-api', () => {
           env: 'dev',
         })
       ).rejects.toThrow(/unexpected shape/i);
+    });
+  });
+
+  describe('getRailwayServiceWatchPatterns', () => {
+    it('returns watchPatterns and sends environmentId and serviceId across the fetch seam', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            serviceInstance: {
+              watchPatterns: ['services/website/**', 'docs/legal/**', 'docs/commands.md'],
+            },
+          },
+        })
+      );
+
+      const patterns = await getRailwayServiceWatchPatterns({
+        environmentId: 'env-1',
+        serviceId: 'svc-website',
+        env: 'dev',
+      });
+
+      expect(patterns).toEqual(['services/website/**', 'docs/legal/**', 'docs/commands.md']);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const parsedBody = JSON.parse(init.body as string) as {
+        query: string;
+        variables: Record<string, unknown>;
+      };
+      expect(parsedBody.query).toContain('serviceInstance');
+      expect(parsedBody.query).toContain('watchPatterns');
+      expect(parsedBody.variables).toEqual({
+        environmentId: 'env-1',
+        serviceId: 'svc-website',
+      });
+    });
+
+    it('normalizes a null watchPatterns response from the API to an empty array', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            serviceInstance: {
+              watchPatterns: null,
+            },
+          },
+        })
+      );
+
+      const patterns = await getRailwayServiceWatchPatterns({
+        environmentId: 'env-1',
+        serviceId: 'svc-website',
+        env: 'dev',
+      });
+
+      expect(patterns).toEqual([]);
+    });
+
+    it('throws a shape error without echoing the raw body when serviceInstance.watchPatterns is malformed', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      const sentinelPayload = 'SENTINEL-RAW-WATCH-PATTERNS-PAYLOAD';
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            serviceInstance: {
+              watchPatterns: sentinelPayload,
+            },
+          },
+        })
+      );
+
+      let caught: unknown;
+      try {
+        await getRailwayServiceWatchPatterns({
+          environmentId: 'env-1',
+          serviceId: 'svc-website',
+          env: 'dev',
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(Error);
+      const inspected = util.inspect(caught, { depth: null });
+      expect(inspected).toMatch(/unexpected shape/i);
+      expect(inspected).not.toContain(sentinelPayload);
     });
   });
 });

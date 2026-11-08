@@ -26,6 +26,10 @@ vi.mock('../deployment/setup-railway-variables.js', () => ({
   setupRailwayVariables: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../deployment/watch-patterns.js', () => ({
+  runWatchPatternCheck: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('maintenance --drain-timeout validation', () => {
   let cli: ReturnType<typeof cac>;
 
@@ -214,5 +218,67 @@ describe('Railway-writing commands require an explicit --env', () => {
     await expect(
       runCli(['deploy:redeploy', '--env', 'staging', '--service', 'api-gateway'])
     ).rejects.toThrow('--env must be "dev" or "prod"');
+  });
+});
+
+describe('deploy:watch-check validation', () => {
+  let cli: ReturnType<typeof cac>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cli = cac('test');
+    registerDeployCommands(cli);
+  });
+
+  async function runWatchCheckCli(args: string[]): Promise<void> {
+    cli.parse(['node', 'test', 'deploy:watch-check', ...args], { run: false });
+    await (cli.runMatchedCommand() as Promise<void>);
+  }
+
+  it('rejects when --env is omitted', async () => {
+    const { runWatchPatternCheck } = await import('../deployment/watch-patterns.js');
+
+    await expect(runWatchCheckCli([])).rejects.toThrow('--env <dev|prod> is required');
+    expect(runWatchPatternCheck).not.toHaveBeenCalled();
+  });
+
+  it('rejects an --env that is neither dev nor prod', async () => {
+    const { runWatchPatternCheck } = await import('../deployment/watch-patterns.js');
+
+    await expect(runWatchCheckCli(['--env', 'staging'])).rejects.toThrow(
+      '--env must be "dev" or "prod"'
+    );
+    expect(runWatchPatternCheck).not.toHaveBeenCalled();
+  });
+
+  it('applies the default --service and --dockerfile when omitted', async () => {
+    const { runWatchPatternCheck } = await import('../deployment/watch-patterns.js');
+
+    await runWatchCheckCli(['--env', 'dev']);
+
+    expect(runWatchPatternCheck).toHaveBeenCalledWith({
+      env: 'dev',
+      service: 'tzurot-website',
+      dockerfile: 'services/website/Dockerfile',
+    });
+  });
+
+  it('forwards custom --service and --dockerfile values', async () => {
+    const { runWatchPatternCheck } = await import('../deployment/watch-patterns.js');
+
+    await runWatchCheckCli([
+      '--env',
+      'prod',
+      '--service',
+      'custom-svc',
+      '--dockerfile',
+      'services/custom/Dockerfile',
+    ]);
+
+    expect(runWatchPatternCheck).toHaveBeenCalledWith({
+      env: 'prod',
+      service: 'custom-svc',
+      dockerfile: 'services/custom/Dockerfile',
+    });
   });
 });
