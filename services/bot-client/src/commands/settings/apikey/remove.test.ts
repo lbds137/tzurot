@@ -36,7 +36,7 @@ vi.mock('../../../utils/gatewayClients.js', () => ({
 }));
 
 // Mock providers
-vi.mock('../../../utils/providers.js', () => ({
+vi.mock('@tzurot/common-types/utils/providerDisplayName', () => ({
   getProviderDisplayName: (provider: string) => {
     const names: Record<string, string> = {
       openrouter: 'OpenRouter',

@@ -22,9 +22,9 @@ import {
 } from '@tzurot/common-types/constants/uxVocabulary';
 import { formatDiscordTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { getProviderDisplayName } from '@tzurot/common-types/utils/providerDisplayName';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
-import { getProviderDisplayName } from '../../../utils/providers.js';
 import { buildBrowseListEmbed, ITEMS_PER_PAGE, pluralize } from '../../../utils/browse/index.js';
 
 const logger = createLogger('settings-apikey-browse');

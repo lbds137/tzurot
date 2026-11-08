@@ -1,9 +1,9 @@
 /**
- * Provider Utilities
- * Shared utilities for AI provider display and handling
+ * Provider display names
+ * Human-readable AI provider names, and the user-facing messages built from them
  */
 
-import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { AIProvider } from '../constants/ai.js';
 
 /**
  * Get human-readable display name for a provider
@@ -24,4 +24,9 @@ export function getProviderDisplayName(provider: AIProvider): string {
       return _exhaustive;
     }
   }
+}
+
+/** Sent when a user's stored BYOK API key exists but cannot be decrypted; the fix is re-entering it. */
+export function undecryptableApiKeyMessage(provider: AIProvider): string {
+  return `Your saved ${getProviderDisplayName(provider)} key can't be read anymore. Set it again with /settings apikey set.`;
 }

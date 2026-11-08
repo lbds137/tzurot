@@ -14,7 +14,7 @@ import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { API_KEY_FORMATS } from '@tzurot/common-types/constants/wallet';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { getProviderDisplayName } from '../../../utils/providers.js';
+import { getProviderDisplayName } from '@tzurot/common-types/utils/providerDisplayName';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { ApikeyCustomIds } from '../../../utils/customIds.js';
 import { replyError } from '../../../utils/dashboard/replyError.js';
