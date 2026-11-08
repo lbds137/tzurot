@@ -660,3 +660,51 @@ export async function getLiveDeploymentCommit(args: GetLiveDeploymentCommitArgs)
 
   return parsedMeta.data.commitHash;
 }
+
+const SERVICE_INSTANCE_WATCH_PATTERNS_QUERY = `
+  query ServiceInstanceWatchPatterns($environmentId: String!, $serviceId: String!) {
+    serviceInstance(environmentId: $environmentId, serviceId: $serviceId) {
+      watchPatterns
+    }
+  }
+`;
+
+const ServiceInstanceWatchPatternsResponseSchema = z
+  .object({
+    serviceInstance: z
+      .object({
+        watchPatterns: z
+          .array(z.string())
+          .nullable()
+          .transform(patterns => patterns ?? []),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+export interface GetRailwayServiceWatchPatternsArgs {
+  environmentId: string;
+  serviceId: string;
+  env: RailwayEnv;
+}
+
+/**
+ * Return `serviceInstance.watchPatterns` for a service in an environment
+ * (`null` from the API is normalized to `[]`).
+ */
+export async function getRailwayServiceWatchPatterns(
+  args: GetRailwayServiceWatchPatternsArgs
+): Promise<string[]> {
+  const rawData = await railwayGraphql<unknown>(
+    SERVICE_INSTANCE_WATCH_PATTERNS_QUERY,
+    { environmentId: args.environmentId, serviceId: args.serviceId },
+    args.env
+  );
+
+  const parsed = ServiceInstanceWatchPatternsResponseSchema.safeParse(rawData);
+  if (!parsed.success) {
+    throw unexpectedShapeError('service-instance-watch-patterns');
+  }
+
+  return parsed.data.serviceInstance.watchPatterns;
+}
