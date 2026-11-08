@@ -29,8 +29,8 @@ Deliberate properties, each with the check that pins it:
   develop-code-commit-guard.probe.sh, not the case table — a table of
   verdicts cannot see a performance regression.) ``(?>...)`` would fix it
   too and is NOT used: atomic groups need Python 3.11+, and on anything
-  older re.compile raises right here at import time, taking both hooks
-  down — whose fail-open paths would then allow every commit. (Unverified
+  older re.compile raises right here at import time, taking every importing
+  hook down — whose fail-open paths would then allow every commit. (Unverified
   by any automated check: CI runs 3.12, so nothing pins the 3.11 floor.)
 
 GIT_PUSH_RE (defined after GIT_COMMIT_RE) is the same pattern with ``push`` in

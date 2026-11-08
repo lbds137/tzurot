@@ -103,6 +103,8 @@ const PUSH_CASES: readonly (readonly [expected: boolean, input: string])[] = [
   [false, 'git pull'],
   [false, 'git commit -m push'],
   [false, 'echo pushing now'],
+  // `stash` is a subcommand, not a global flag: `stash push -n` is no git push.
+  [false, 'git stash push -n'],
 ];
 
 /** One python3 spawn evaluates the shared constant over every case. */
@@ -153,7 +155,7 @@ describe('git_commit.GIT_COMMIT_RE: single definition', () => {
   // fragment is commit-specific on purpose: the board gate's own ADD_RE
   // legitimately contains `\bgit(?:`, so that broader fragment cannot be the
   // marker here. It only catches a verbatim re-inline.
-  it('both hooks import the constant; neither inlines its own copy', () => {
+  it('every hook imports the constant; none inlines its own copy', () => {
     for (const file of HOOK_FILES) {
       const src = readFileSync(`${HOOKS_DIR}/${file}`, 'utf-8');
       expect(src, `${file}: expected the shared-lib import`).toContain(
