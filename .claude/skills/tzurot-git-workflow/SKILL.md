@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-11-02'
+lastUpdated: '2026-11-08'
 ---
 
 # Git Workflow Procedures
@@ -414,6 +414,8 @@ gh pr list --author "app/dependabot" --state open   # any auto-PRs to ride along
 The same guard checks every main-required status check against the job ids in `origin/main`'s `ci.yml` and prints a re-add WARNING for a develop-only context whose job this release carries to `main`. Apply that re-add to the main ruleset after the release merges, re-run the guard, and refresh `.github/rulesets/branch-protection.json` from live.
 
 `security:advisories` is the primary check. The ride-along candidate is a transitive or direct+transitive advisory with a fix — Dependabot can never PR one, so widen/add the `pnpm.overrides` entry, `pnpm install`, and verify the lockfile resolves the patched version (`05-tooling.md` § Security Advisories).
+
+**Before merging the release PR, run `pnpm ops deploy:watch-check --env prod` from the release head: `git switch develop && git pull --ff-only` first (read-only; it reads the local checkout's Dockerfile, develop's is the one about to ship, and it refuses uncommitted image inputs).** It fails when a `services/website/Dockerfile` COPY source isn't covered by the `tzurot-website` service's Railway watch patterns, which would let a website-affecting change ship without redeploying the site; fix the watch patterns in the Railway dashboard before the merge.
 
 **New user-content tables need a data-rights disposition before the cut.** Enumerate models added in the range — `git diff v<prev>..HEAD -- prisma/schema.prisma | grep '^+model '` — and for each one that stores user-derived content, confirm both an export path (`services/ai-worker/src/jobs/AccountExportAssembler.ts`) and an erasure path (`AccountEraserService.ts`, a retention sweep, or the `/history clear` cascade), or state in the release notes why it is excluded.
 
