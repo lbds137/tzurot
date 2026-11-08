@@ -1,13 +1,14 @@
 ---
 id: TASK-1022
 title: BYOK key decrypt failures still surface as 500s or a silent provider skip
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-09-18 23:44'
+created_date: 2026-09-18 23:44
+updated_date: '2026-11-08T08:39:00Z'
 labels:
-  - 'area:api-gateway'
-  - 'size:S'
-  - 'state:ready'
+  - area:api-gateway
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1018000
