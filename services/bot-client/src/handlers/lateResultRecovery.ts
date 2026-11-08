@@ -113,7 +113,7 @@ export async function recoverLateResult(
   if (channel === null) {
     logger.error(
       { jobId, channelId: ctx.channelId, reason: 'channel-missing' },
-      'Late recovery: channel missing or not a typing channel - dropping, NOT confirming'
+      'Late recovery: channel missing, not a typing channel, or fetch failed - dropping, NOT confirming'
     );
     await finalize();
     return 'dropped';

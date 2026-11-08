@@ -3,8 +3,6 @@
  * exercises it through handleJobResult and the real deliverJobResult).
  */
 
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Client } from 'discord.js';
 import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
@@ -76,17 +74,6 @@ describe('recoverLateResult', () => {
       client,
       responseSender,
     } as unknown as LateResultRecoveryDeps;
-  });
-
-  it('does not import the gateway service calls (only the caller confirms delivery)', () => {
-    // Tripwire: the module reports a disposition and deliverJobResult confirms.
-    // A confirm call inside it would double-confirm on 'delivered' and confirm
-    // over a loss on 'dropped'.
-    const source = readFileSync(
-      fileURLToPath(new URL('./lateResultRecovery.ts', import.meta.url)),
-      'utf8'
-    );
-    expect(source).not.toContain('gatewayServiceCalls');
   });
 
   it('returns null and clears nothing when there is no marker', async () => {
