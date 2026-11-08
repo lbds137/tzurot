@@ -24,7 +24,8 @@ import {
 import { acknowledgeMessageDuringMaintenance } from '../utils/maintenanceResponses.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
-import { fetchTypingChannel } from '../utils/fetchTypingChannel.js';
+import { recoverLateResult } from './lateResultRecovery.js';
+import type { JobResultDisposition } from '../services/deliverJobResult.js';
 import { type DiscordResponseSender } from '../services/DiscordResponseSender.js';
 import { type ConversationPersistence } from '../services/ConversationPersistence.js';
 import {
@@ -39,21 +40,7 @@ import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { messageJobContextToSlotContext } from './messageJobContextToSlotContext.js';
 import { PartialDeliveryError, settleErrorPathTurn } from '../services/partialDelivery.js';
 
-/** Notice prepended to a late-recovered reply so the user knows why it's late. */
-const LATE_RECOVERY_NOTICE = '-# ⏰ This reply took longer than expected to generate.\n\n';
-
 const logger = createLogger('MessageHandler');
-
-/**
- * What became of a job result handed to `handleJobResult`.
- *
- * `'delivered'` means the result reached a path that produced a user-visible
- * outcome, or one that owns its own delivery confirmation. `'dropped'` means
- * it was discarded with nothing shown to the user — the caller MUST NOT
- * confirm delivery for it, because a confirmed row records a reply the user
- * never received and nothing ever revisits `PENDING_DELIVERY` rows to notice.
- */
-export type JobResultDisposition = 'delivered' | 'dropped';
 
 /**
  * Message Handler - routes Discord messages using Chain of Responsibility
@@ -217,8 +204,20 @@ export class MessageHandler {
       // Before dropping: a multi-tag slot we already synthetic-timed-out may
       // have a recovery marker. If so, deliver the real result as a late
       // follow-up rather than silently dropping it.
-      if (await this.tryRecoverLateResult(jobId, result)) {
-        return 'delivered';
+      // A marker hit returns its own disposition ('delivered' or 'dropped');
+      // null means no marker, so the job is genuinely unknown and drops below.
+      const recovered = await recoverLateResult(
+        {
+          coordinator: this.coordinator,
+          personalityService: this.personalityService,
+          client: this.client,
+          responseSender: this.responseSender,
+        },
+        jobId,
+        result
+      );
+      if (recovered !== null) {
+        return recovered;
       }
       // Genuine loss: the reply was generated and paid for, and nobody will
       // ever see it. Reported as `'dropped'` so the caller leaves the gateway
@@ -240,118 +239,6 @@ export class MessageHandler {
 
     await this.handleMessageJobResult(jobId, result, jobContext);
     return 'delivered';
-  }
-
-  /**
-   * Late-result recovery for multi-tag slots that were synthetic-timed-out.
-   * Returns true if this jobId had a recovery marker (i.e. we own the outcome
-   * — delivered, or determined unrecoverable), false if it's a genuinely
-   * unknown job that should drop as before.
-   *
-   * On a marker hit we always confirm delivery + clear the marker so the
-   * gateway row can be reclaimed and the marker doesn't linger. A successful
-   * result is re-sent as a personality follow-up (prefixed with a "took
-   * longer than expected" notice); a failed/empty late result is dropped
-   * silently since the user already received the synthetic timeout message.
-   *
-   * Note: the follow-up is NOT persisted to conversation history — the marker
-   * deliberately carries minimal context (no personaId/userMessageTime) and
-   * this is a rare >18-min-job edge case. The user sees the reply; it just
-   * won't anchor a subsequent turn's memory. Acceptable for the recovery path.
-   */
-  private async tryRecoverLateResult(jobId: string, result: LLMGenerationResult): Promise<boolean> {
-    const ctx = await this.coordinator.getSyntheticTimeout(jobId);
-    if (ctx === null) {
-      return false; // not a synthetic-timeout job — let the caller drop it
-    }
-
-    // From here we own the outcome. Always confirm + clear (best-effort) so
-    // the gateway row is reclaimable and the marker doesn't outlive its
-    // usefulness. The user already received the synthetic timeout message for
-    // this job, so no branch below leaves them with nothing.
-    const finalize = async (): Promise<void> => {
-      // confirmDelivery is fire-and-forget: the row flip is best-effort and
-      // costs only an unreclaimed row if this call never lands.
-      // clearSyntheticTimeout is awaited so the recovery marker doesn't linger
-      // if we crash right after the follow-up send but before its TTL elapses.
-      void confirmDelivery(jobId).catch(err =>
-        logger.warn({ err, jobId }, 'late-recovery: confirmDelivery failed')
-      );
-      await this.coordinator.clearSyntheticTimeout(jobId);
-    };
-
-    // Failed/empty late result: the user already saw the synthetic timeout
-    // error — don't send a second (error) message. Just clean up.
-    if (
-      result.success === false ||
-      typeof result.content !== 'string' ||
-      result.content.length === 0
-    ) {
-      logger.info(
-        { jobId },
-        'Late result for synthetic-timed-out job was unusable — clearing marker, no follow-up'
-      );
-      await finalize();
-      return true;
-    }
-
-    const personality = await this.personalityService.loadPersonality(
-      ctx.personalitySlug,
-      ctx.recipientUserId
-    );
-    if (personality === null) {
-      logger.warn(
-        { jobId, slug: ctx.personalitySlug },
-        'Late recovery: personality no longer loadable — dropping follow-up'
-      );
-      await finalize();
-      return true;
-    }
-
-    const channel = await fetchTypingChannel(this.client, ctx.channelId);
-    if (channel === null) {
-      logger.warn(
-        { jobId, channelId: ctx.channelId },
-        'Late recovery: channel missing or not a typing channel — dropping follow-up'
-      );
-      await finalize();
-      return true;
-    }
-
-    reportQuotaFallbackRescue(result, personality.name);
-
-    try {
-      await this.responseSender.sendResponse({
-        content: LATE_RECOVERY_NOTICE + result.content,
-        personality,
-        channel,
-        guildId: ctx.guildId,
-        clientId: ctx.clientId,
-        recipientUserId: ctx.recipientUserId,
-        isAutoResponse: ctx.isAutoResponse,
-        ...buildResultMetadataPassthrough(result),
-      });
-      logger.info(
-        { jobId, personalityId: personality.id },
-        'Late result recovered and delivered as a follow-up'
-      );
-    } catch (err) {
-      logger.error({ err, jobId }, 'Late recovery: follow-up send failed');
-      // Send failure on an already-successful late result — the same
-      // always-pageable class as the two delivery catches below.
-      reportDeliveryFailure(err, result, personality.name);
-    }
-    // finalize() runs even when the send threw. confirmDelivery is an idempotent
-    // job_results status flip (PENDING_DELIVERY → DELIVERED); nothing retries a
-    // PENDING_DELIVERY row, and the ai-worker's cleanup reclaims only DELIVERED
-    // ones, so leaving it unconfirmed would strand the row rather than recover
-    // anything. Unlike the unknown-job branch in handleJobResult — which leaves
-    // the row unconfirmed precisely because the user got NOTHING — every path
-    // through here already delivered the synthetic timeout message for this job,
-    // so the confirm is not recording a loss as a success. We still finalize so
-    // the recovery marker clears rather than lingering until its TTL.
-    await finalize();
-    return true;
   }
 
   /**
