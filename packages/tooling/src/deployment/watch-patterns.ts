@@ -3,6 +3,7 @@
  * Railway service's configured `watchPatterns` via the public GraphQL API.
  */
 
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,6 +27,7 @@ export interface WatchPatternCheckOptions {
 const DEFAULT_REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 const PARSER_DIRECTIVE_PATTERN = /^#\s*(?:escape|syntax)\s*=/i;
+const HEREDOC_PATTERN = /(^|\s)<<-?\s*["']?[A-Za-z_]/;
 const UNSUPPORTED_LITERAL_CHARS = /[*?[\]{}!]/;
 
 type ClassifiedWatchPattern =
@@ -79,7 +81,8 @@ function splitContinuation(rawLine: string): { continues: boolean; body: string 
 
 /** Consume one line while a continuation is pending; returns the new pending text. */
 function continueLogicalLine(pending: string, rawLine: string, out: string[]): string | null {
-  if (rawLine.trim().startsWith('#')) {
+  const trimmed = rawLine.trim();
+  if (trimmed.length === 0 || trimmed.startsWith('#')) {
     return pending;
   }
   const { continues, body } = splitContinuation(rawLine);
@@ -142,7 +145,7 @@ function parseInstructionLine(rawLine: string): string[] {
     return [];
   }
 
-  if (trimmed.includes('<<')) {
+  if (HEREDOC_PATTERN.test(trimmed)) {
     throw new UsageError(`Unsupported heredoc instruction in Dockerfile: ${trimmed}`);
   }
 
@@ -181,7 +184,7 @@ function parseInstructionLine(rawLine: string): string[] {
  * that does not carry a `--from=` stage flag.
  *
  * Physical lines ending with `\` are joined into logical lines first (dropping
- * comment lines inside a continuation), `--flag=value` tokens (`--chown=`,
+ * blank and comment lines inside a continuation), `--flag=value` tokens (`--chown=`,
  * `--chmod=`) are stripped, comment lines are ignored, and all remaining
  * tokens on each `COPY` instruction except the final destination argument are
  * returned in order. Throws `UsageError` on Dockerfile or `COPY` shapes this
@@ -195,6 +198,14 @@ export function parseDockerfileCopySources(text: string): string[] {
 
 function classifyWatchPattern(rawPattern: string): ClassifiedWatchPattern {
   const normalized = rawPattern.startsWith('/') ? rawPattern.slice(1) : rawPattern;
+  if (
+    rawPattern !== rawPattern.trim() ||
+    normalized !== normalized.trim() ||
+    normalized.startsWith('#') ||
+    normalized.includes('\\')
+  ) {
+    return { kind: 'uncredited', raw: rawPattern };
+  }
   if (normalized === '**') {
     return { kind: 'all' };
   }
@@ -253,10 +264,12 @@ function uncreditedWatchPatterns(patterns: string[]): string[] {
  * - `<lit>` (with none of `* ? [ ] { } !` and no trailing `/`) covers a file
  *   source whose path equals `<lit>` exactly (not credited for directories).
  *
- * Every other pattern shape covers nothing. Railway documents watch paths as
- * gitignore-style patterns (`docs.railway.com/deployments/monorepo#watch-paths`);
- * that gitignore equivalence is from Railway's docs, not probed against
- * Railway (not verified).
+ * Patterns starting with `#`, containing `\`, or having leading or trailing
+ * whitespace (before or after the `/` strip) are classified `uncredited`, as is
+ * every other pattern shape. Railway documents watch paths as gitignore-style
+ * patterns (`docs.railway.com/deployments/monorepo#watch-paths`); that
+ * gitignore equivalence is from Railway's docs, not probed against Railway (not
+ * verified).
  */
 export function uncoveredSources(sources: CopySource[], patterns: string[]): string[] {
   const negated = patterns.filter(pattern => pattern.startsWith('!'));
@@ -301,14 +314,70 @@ function statCopySource(repoRoot: string, sourcePath: string): CopySource {
   return { path: cleanPath, isDir: stat.isDirectory() };
 }
 
+function resolveDockerfilePath(
+  repoRoot: string,
+  rawDockerfile: string
+): { cleanDockerfile: string; dockerfilePath: string } {
+  const stripped = stripTrailingSlash(rawDockerfile.trim());
+  if (path.isAbsolute(stripped)) {
+    throw new UsageError(
+      `--dockerfile "${rawDockerfile}" must be a repo-relative path inside the repository`
+    );
+  }
+  const dockerfilePath = path.resolve(repoRoot, stripped);
+  const cleanDockerfile = path.relative(repoRoot, dockerfilePath);
+  if (cleanDockerfile.length === 0 || cleanDockerfile.startsWith('..')) {
+    throw new UsageError(
+      `--dockerfile "${rawDockerfile}" must resolve inside the repository (${repoRoot})`
+    );
+  }
+  return { cleanDockerfile, dockerfilePath };
+}
+
+function parseDirtyPaths(porcelainOutput: string): string[] {
+  return porcelainOutput
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .map(line => {
+      const match = /^[MADRCU?!]{1,2}\s+(\S.*)$/.exec(line);
+      return match ? match[1] : line;
+    });
+}
+
+function verifyGitProvenance(repoRoot: string, imageInputPaths: string[]): string {
+  const branch = execFileSync('git', ['-C', repoRoot, 'rev-parse', '--abbrev-ref', 'HEAD'], {
+    encoding: 'utf-8',
+  }).trim();
+  const sha = execFileSync('git', ['-C', repoRoot, 'rev-parse', '--short', 'HEAD'], {
+    encoding: 'utf-8',
+  }).trim();
+  const statusOutput = execFileSync(
+    'git',
+    ['-C', repoRoot, 'status', '--porcelain', '--', ...imageInputPaths],
+    { encoding: 'utf-8' }
+  ).trim();
+  if (statusOutput.length > 0) {
+    const dirtyPaths = parseDirtyPaths(statusOutput);
+    throw new UsageError(
+      `uncommitted changes in image inputs; commit or stash them so the check reads the tree that deploys: ${dirtyPaths.join(', ')}`
+    );
+  }
+  return `${branch}@${sha}`;
+}
+
 /**
- * Parse `options.dockerfile`, stat each `COPY` source from the repo root, fetch
- * the live `watchPatterns` for `options.service` in `options.env`, and throw if
- * the Dockerfile itself or any `COPY` source is uncovered.
+ * Parse `options.dockerfile` (whose Docker build context must be the repo
+ * root), stat each `COPY` source from the repo root, verify the image inputs
+ * have no uncommitted changes in git, fetch the live `watchPatterns` for
+ * `options.service` in `options.env`, and throw if the Dockerfile itself or any
+ * `COPY` source is uncovered.
  */
 export async function runWatchPatternCheck(options: WatchPatternCheckOptions): Promise<void> {
-  const cleanDockerfile = stripTrailingSlash(options.dockerfile);
-  const dockerfilePath = path.resolve(DEFAULT_REPO_ROOT, cleanDockerfile);
+  const { cleanDockerfile, dockerfilePath } = resolveDockerfilePath(
+    DEFAULT_REPO_ROOT,
+    options.dockerfile
+  );
   let dockerfileText: string;
   try {
     dockerfileText = fs.readFileSync(dockerfilePath, 'utf-8');
@@ -324,6 +393,12 @@ export async function runWatchPatternCheck(options: WatchPatternCheckOptions): P
     { path: cleanDockerfile, isDir: false },
     ...rawSources.map(sourcePath => statCopySource(DEFAULT_REPO_ROOT, sourcePath)),
   ];
+
+  const gitRef = verifyGitProvenance(
+    DEFAULT_REPO_ROOT,
+    sources.map(source => source.path)
+  );
+  const provenance = `${gitRef} ${cleanDockerfile}`;
 
   const { environmentId, serviceId } = resolveRailwayIds(options.env, options.service);
   if (serviceId === undefined) {
@@ -343,7 +418,7 @@ export async function runWatchPatternCheck(options: WatchPatternCheckOptions): P
   if (patterns.length === 0) {
     console.log(
       chalk.cyan(
-        `ℹ️ No watchPatterns configured for ${options.service} (${options.env}) — every push deploys [${dockerfilePath}]`
+        `ℹ️ No watchPatterns configured for ${options.service} (${options.env}) — every push deploys [${provenance}]`
       )
     );
     return;
@@ -352,7 +427,7 @@ export async function runWatchPatternCheck(options: WatchPatternCheckOptions): P
   const uncovered = uncoveredSources(sources, patterns);
   if (uncovered.length > 0) {
     for (const missing of uncovered) {
-      console.error(chalk.red(`❌ Uncovered image input: ${missing} [${dockerfilePath}]`));
+      console.error(chalk.red(`❌ Uncovered image input: ${missing} [${provenance}]`));
     }
     const uncredited = uncreditedWatchPatterns(patterns);
     if (uncredited.length > 0) {
@@ -363,13 +438,13 @@ export async function runWatchPatternCheck(options: WatchPatternCheckOptions): P
       );
     }
     throw new Error(
-      `${uncovered.length} image input(s) not covered by ${options.service} watch patterns (${options.env}) [${dockerfilePath}]: ${uncovered.join(', ')}`
+      `${uncovered.length} image input(s) not covered by ${options.service} watch patterns (${options.env}) [${provenance}]: ${uncovered.join(', ')}`
     );
   }
 
   console.log(
     chalk.green(
-      `✅ All ${sources.length} image inputs (Dockerfile + COPY sources) are covered by ${options.service} watch patterns (${options.env}) [${dockerfilePath}]`
+      `✅ All ${sources.length} image inputs (Dockerfile + COPY sources) are covered by ${options.service} watch patterns (${options.env}) [${provenance}]`
     )
   );
 }
