@@ -1,6 +1,5 @@
 /**
- * The single first-person leak detector, shared by the memory-archive
- * summarizer, the recent-days digest validator, and the render-pilot metrics.
+ * The single first-person leak detector: import it rather than copying it.
  *
  * Detects first-person pronouns (singular and plural, with straight or curly
  * apostrophes) outside quoted spans, where quoted spans are recognised in four

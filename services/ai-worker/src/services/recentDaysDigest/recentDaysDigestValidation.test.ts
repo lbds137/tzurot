@@ -4,7 +4,6 @@ import {
   decideDigestLength,
   validateDigest,
 } from './recentDaysDigestValidation.js';
-import { hasFirstPerson } from '@tzurot/common-types/utils/firstPersonDetection';
 import { RECENT_DAYS_DIGEST } from '@tzurot/common-types/constants/recentDaysDigest';
 
 const EIGHT_WORDS = 'the quick brown fox jumps over the lazy dog today';
@@ -61,10 +60,9 @@ describe('decideDigestLength', () => {
 });
 
 describe('validateDigest', () => {
-  it('flags first_person via the imported hasFirstPerson', () => {
+  it('flags first_person through the shared detector', () => {
     const result = validateDigest('I promised to help Jules move.', []);
-    expect(result).toEqual({ ok: false, cls: 'first_person', detail: expect.any(String) });
-    expect(hasFirstPerson('I promised')).toBe(true);
+    expect(result).toEqual({ ok: false, cls: 'first_person', detail: 'I' });
   });
 
   it('the first_person detail is the matched token', () => {
