@@ -672,13 +672,9 @@ const SERVICE_INSTANCE_WATCH_PATTERNS_QUERY = `
 const ServiceInstanceWatchPatternsResponseSchema = z
   .object({
     serviceInstance: z
-      .object({
-        watchPatterns: z
-          .array(z.string())
-          .nullable()
-          .transform(patterns => patterns ?? []),
-      })
-      .passthrough(),
+      .object({ watchPatterns: z.array(z.string()).nullable() })
+      .passthrough()
+      .nullable(),
   })
   .passthrough();
 
@@ -690,7 +686,8 @@ export interface GetRailwayServiceWatchPatternsArgs {
 
 /**
  * Return `serviceInstance.watchPatterns` for a service in an environment
- * (`null` from the API is normalized to `[]`).
+ * (`null` `watchPatterns` from the API is normalized to `[]`; a `null`
+ * `serviceInstance` throws `UsageError`).
  */
 export async function getRailwayServiceWatchPatterns(
   args: GetRailwayServiceWatchPatternsArgs
@@ -706,5 +703,9 @@ export async function getRailwayServiceWatchPatterns(
     throw unexpectedShapeError('service-instance-watch-patterns');
   }
 
-  return parsed.data.serviceInstance.watchPatterns;
+  if (parsed.data.serviceInstance === null) {
+    throw new UsageError(`service has no instance in the ${args.env} environment`);
+  }
+
+  return parsed.data.serviceInstance.watchPatterns ?? [];
 }

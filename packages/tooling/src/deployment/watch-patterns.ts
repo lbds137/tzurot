@@ -146,7 +146,8 @@ function parseInstructionLine(rawLine: string): string[] {
     return [];
   }
 
-  if (HEREDOC_PATTERN.test(trimmed)) {
+  const withoutArithmetic = trimmed.replace(/\$\(\([^)]*\)\)/g, '');
+  if (HEREDOC_PATTERN.test(withoutArithmetic)) {
     throw new UsageError(`Unsupported heredoc instruction in Dockerfile: ${trimmed}`);
   }
 
@@ -289,19 +290,13 @@ export function uncoveredSources(sources: CopySource[], patterns: string[]): str
   }
 
   const classifiedPatterns = patterns.map(pattern => classifyWatchPattern(pattern));
-  const uncovered: string[] = [];
-
-  for (const source of sources) {
+  return sources.flatMap(source => {
     const cleanPath = stripTrailingSlash(source.path);
     const isCovered = classifiedPatterns.some(pattern =>
       isSourceCoveredByPattern(cleanPath, source.isDir, pattern)
     );
-    if (!isCovered) {
-      uncovered.push(cleanPath);
-    }
-  }
-
-  return uncovered;
+    return isCovered ? [] : [cleanPath];
+  });
 }
 
 function statCopySource(repoRoot: string, sourcePath: string): CopySource {
@@ -347,31 +342,38 @@ function resolveDockerfilePath(
   return { cleanDockerfile, dockerfilePath };
 }
 
+function gitInRepo(repoRoot: string, args: string[]): string {
+  return execFileSync('git', ['-C', repoRoot, ...args], { encoding: 'utf-8' });
+}
+
 function parseDirtyPaths(porcelainOutput: string): string[] {
-  return porcelainOutput
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(line => line.length > 0)
-    .map(line => {
-      const match = /^[MADRCU?!]{1,2}\s+(\S.*)$/.exec(line);
-      return match ? match[1] : line;
-    });
+  const fields = porcelainOutput.split('\0');
+  const dirtyPaths: string[] = [];
+  for (let i = 0; i < fields.length; i += 1) {
+    const entry = fields[i] ?? '';
+    if (entry.length > 0) {
+      const match = /^([MADRCU?! ]{1,2}) (.*)$/s.exec(entry);
+      dirtyPaths.push(match ? match[2] : entry);
+      if (match && /[RC]/.test(match[1])) {
+        i += 1;
+      }
+    }
+  }
+  return dirtyPaths;
 }
 
 function verifyGitProvenance(repoRoot: string, imageInputPaths: string[]): string {
-  const branch = execFileSync('git', ['-C', repoRoot, 'rev-parse', '--abbrev-ref', 'HEAD'], {
-    encoding: 'utf-8',
-  }).trim();
-  const sha = execFileSync('git', ['-C', repoRoot, 'rev-parse', '--short', 'HEAD'], {
-    encoding: 'utf-8',
-  }).trim();
-  const statusOutput = execFileSync(
-    'git',
-    ['-C', repoRoot, 'status', '--porcelain', '--', ...imageInputPaths],
-    { encoding: 'utf-8' }
-  ).trim();
-  if (statusOutput.length > 0) {
-    const dirtyPaths = parseDirtyPaths(statusOutput);
+  const branch = gitInRepo(repoRoot, ['rev-parse', '--abbrev-ref', 'HEAD']).trim();
+  const sha = gitInRepo(repoRoot, ['rev-parse', '--short', 'HEAD']).trim();
+  const statusOutput = gitInRepo(repoRoot, [
+    'status',
+    '--porcelain',
+    '-z',
+    '--',
+    ...imageInputPaths,
+  ]);
+  const dirtyPaths = parseDirtyPaths(statusOutput);
+  if (dirtyPaths.length > 0) {
     throw new UsageError(
       `uncommitted changes in image inputs; commit or stash them so the check reads the tree that deploys: ${dirtyPaths.join(', ')}`
     );
@@ -379,12 +381,40 @@ function verifyGitProvenance(repoRoot: string, imageInputPaths: string[]): strin
   return `${branch}@${sha}`;
 }
 
+function readQuietRefSha(repoRoot: string, ref: string): string | null {
+  try {
+    const sha = gitInRepo(repoRoot, ['rev-parse', '--verify', '--quiet', ref]).trim();
+    return sha.length > 0 ? sha : null;
+  } catch {
+    return null;
+  }
+}
+
+function verifyProdPublishedTree(repoRoot: string): void {
+  const headSha = gitInRepo(repoRoot, ['rev-parse', 'HEAD']).trim();
+  const originDevelopSha = readQuietRefSha(repoRoot, 'origin/develop');
+  const originMainSha = readQuietRefSha(repoRoot, 'origin/main');
+  if (headSha.length === 0 || (headSha !== originDevelopSha && headSha !== originMainSha)) {
+    throw new UsageError(
+      'a prod check must run on a checkout of origin/develop (pre-release) or origin/main; fetch and fast-forward first'
+    );
+  }
+}
+
+function collectDockerignorePaths(repoRoot: string, cleanDockerfile: string): string[] {
+  return [`${cleanDockerfile}.dockerignore`, '.dockerignore'].filter(relPath =>
+    fs.existsSync(path.resolve(repoRoot, relPath))
+  );
+}
+
 /**
  * Parse `options.dockerfile` (whose Docker build context must be the repo
- * root), verify the image inputs have no uncommitted changes in git, stat each
- * `COPY` source from the repo root, fetch the live `watchPatterns` for
- * `options.service` in `options.env`, and throw if the Dockerfile itself or any
- * `COPY` source is uncovered.
+ * root), collect existing `.dockerignore` files (`<dockerfile>.dockerignore`
+ * and `<repoRoot>/.dockerignore`), verify the image inputs have no uncommitted
+ * changes in git (and for `prod`, that `HEAD` matches `origin/develop` or
+ * `origin/main`), stat each `COPY` source from the repo root, fetch the live
+ * `watchPatterns` for `options.service` in `options.env`, and throw if any
+ * image input is uncovered.
  */
 export async function runWatchPatternCheck(options: WatchPatternCheckOptions): Promise<void> {
   const { cleanDockerfile, dockerfilePath } = resolveDockerfilePath(
@@ -400,14 +430,23 @@ export async function runWatchPatternCheck(options: WatchPatternCheckOptions): P
     }
     throw error;
   }
+  const dockerignorePaths = collectDockerignorePaths(DEFAULT_REPO_ROOT, cleanDockerfile);
   const rawSources = parseDockerfileCopySources(dockerfileText);
   const cleanSourcePaths = rawSources.map(sourcePath => stripTrailingSlash(sourcePath));
 
-  const gitRef = verifyGitProvenance(DEFAULT_REPO_ROOT, [cleanDockerfile, ...cleanSourcePaths]);
+  const gitRef = verifyGitProvenance(DEFAULT_REPO_ROOT, [
+    cleanDockerfile,
+    ...dockerignorePaths,
+    ...cleanSourcePaths,
+  ]);
+  if (options.env === 'prod') {
+    verifyProdPublishedTree(DEFAULT_REPO_ROOT);
+  }
   const provenance = `${gitRef} ${cleanDockerfile}`;
 
   const sources: CopySource[] = [
     { path: cleanDockerfile, isDir: false },
+    ...dockerignorePaths.map(ignorePath => ({ path: ignorePath, isDir: false })),
     ...cleanSourcePaths.map(sourcePath => statCopySource(DEFAULT_REPO_ROOT, sourcePath)),
   ];
 
@@ -429,7 +468,7 @@ export async function runWatchPatternCheck(options: WatchPatternCheckOptions): P
   if (patterns.length === 0) {
     console.log(
       chalk.cyan(
-        `ℹ️ No watchPatterns configured for ${options.service} (${options.env}) — every push deploys [${provenance}]`
+        `ℹ️ No watchPatterns configured for ${options.service} (${options.env}); Railway documents this as deploy-on-every-push (not verified by this guard) [${provenance}]`
       )
     );
     throw new Error(
@@ -457,7 +496,7 @@ export async function runWatchPatternCheck(options: WatchPatternCheckOptions): P
 
   console.log(
     chalk.green(
-      `✅ All ${sources.length} image inputs (Dockerfile + COPY sources) are covered by ${options.service} watch patterns (${options.env}) [${provenance}]`
+      `✅ All ${sources.length} image inputs (Dockerfile, .dockerignore files and COPY sources) are covered by ${options.service} watch patterns (${options.env}) [${provenance}]`
     )
   );
 }

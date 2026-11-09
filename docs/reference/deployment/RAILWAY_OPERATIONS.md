@@ -333,13 +333,13 @@ When a feature PR merges into `develop`, dev redeploys automatically. When a rel
 
 Each service has a **Watch Paths** config (Railway dashboard → service → Settings → "Watch Paths") — gitignore-style globs that decide which file changes trigger a redeploy of that service. **This config lives only in the Railway dashboard; it is not in the repo.** That makes it invisible to code review and easy to forget when the monorepo structure changes — so it's documented here. Recorded 2026-06-03 (verified against the dashboard). The `tzurot-website` row was recorded 2026-11-08 from the Railway API and is checked by `pnpm ops deploy:watch-check`.
 
-| Service          | Watch paths                                                                                                                                  |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bot-client`     | `packages/**`, `services/bot-client/**`, `pnpm-lock.yaml`, `package.json`, `pnpm-workspace.yaml`, `tsconfig.json`, `turbo.json`, `prisma/**` |
-| `api-gateway`    | `packages/**`, `services/api-gateway/**`, + same root files                                                                                  |
-| `ai-worker`      | `packages/**`, `services/ai-worker/**`, + same root files                                                                                    |
-| `voice-engine`   | `services/voice-engine/**` only (standalone Python/FastAPI service; no Node-workspace deps; Dockerfile path set explicitly)                  |
-| `tzurot-website` | `services/website/**`, `docs/legal/**`, `docs/guides/**`, `docs/commands.md`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`        |
+| Service          | Watch paths                                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bot-client`     | `packages/**`, `services/bot-client/**`, `pnpm-lock.yaml`, `package.json`, `pnpm-workspace.yaml`, `tsconfig.json`, `turbo.json`, `prisma/**`           |
+| `api-gateway`    | `packages/**`, `services/api-gateway/**`, + same root files                                                                                            |
+| `ai-worker`      | `packages/**`, `services/ai-worker/**`, + same root files                                                                                              |
+| `voice-engine`   | `services/voice-engine/**` only (standalone Python/FastAPI service; no Node-workspace deps; Dockerfile path set explicitly)                            |
+| `tzurot-website` | `services/website/**`, `docs/legal/**`, `docs/guides/**`, `docs/commands.md`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `.dockerignore` |
 
 **Design intent — `packages/**`is deliberately broad.** The three Node services watch _all_ workspace packages rather than enumerating their exact runtime deps. This trades occasional unnecessary redeploys (e.g. a`packages/tooling`change redeploys all three even though none use it at runtime) for **never running stale code**. Erring broad is the correct defensive posture: the alternative — enumerating exact per-service package deps — is fragile and is precisely what caused the bot-client`@tzurot/clients`crash class (a _missing_ dependency reference). Because`packages/**` is broad, **extracting a new workspace package needs no watch-path change\*\* — it's covered automatically.
 
