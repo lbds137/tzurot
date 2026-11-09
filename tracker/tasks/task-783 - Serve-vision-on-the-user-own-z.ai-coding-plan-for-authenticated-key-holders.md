@@ -31,4 +31,6 @@ Recommendation: yes — the plan is flat-rate, so the user's cost is quota rathe
 
 <!-- SECTION:NOTES:BEGIN -->
 Owner ruling 2026-11-09 (Lila, AskUserQuestion): YES, serve vision on the user's own zai-coding key when they hold no OpenRouter key, AND add one line to the key's setup copy saying images use it too. Build per the fix shape above; the copy line is part of the same unit.
+
+Owner ruling 2026-11-09, second (Lila, AskUserQuestion, on PR 2732's third claude-review pass): the own plan serves only the image walk (images the user sends now, describeImageWithFallback). Conversation-history images, resolved through resolveVisionConfig on the RAG path, keep the free system pool as before. That path has no free-floor fall-through, and the setup copy says "images you send". Existing z.ai key holders learn of the change through one release-note line (backlog/now.md deploy notes).
 <!-- SECTION:NOTES:END -->
