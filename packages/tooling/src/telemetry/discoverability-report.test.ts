@@ -111,6 +111,7 @@ function neverInvokedSection(markdown: string): string {
   const heading = '## Never invoked (in roster, zero rows in window)';
   const start = markdown.indexOf(heading);
   const end = markdown.indexOf('## Command breadth');
+  expect(start >= 0 && end > start).toBe(true);
   return markdown.slice(start, end);
 }
 
@@ -382,6 +383,11 @@ describe('discoverability-report', () => {
       );
       expect(result).toEqual(['alpha.run', 'config.llm.set', 'zeta']);
     });
+
+    it('deduplicates repeated roster paths', async () => {
+      const { neverInvokedCommands } = await import('./discoverability-report.js');
+      expect(neverInvokedCommands(['a', 'a'], [])).toEqual(['a']);
+    });
   });
 
   describe('never-invoked section', () => {
@@ -504,6 +510,7 @@ describe('discoverability-report', () => {
       await telemetryReport({ env: 'local', days: invalid as never });
 
       expect(createPrismaClient).not.toHaveBeenCalled();
+      expect(loadManifest).not.toHaveBeenCalled();
       expect(consoleErrorSpy).toHaveBeenCalled();
       expect(process.exitCode).toBe(1);
     });
