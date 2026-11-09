@@ -42,7 +42,13 @@ The rows below are one defect. They should be scoped together, not picked off.
       rather than silently opting out. (row: filed via PR #943)
 - [ ] **`tryResolveUserKey` has no negative-cache sentinel** — two rows filed
       separately (2026-04-27, 2026-06-17) describing the same missing
-      "no user key configured" state.
+      "no user key configured" state. 2026-11-09: PR 2732 (own-plan vision,
+      TASK-783) adds a second per-image caller. Every image an authenticated
+      user without an OpenRouter key sends now also runs
+      `tryResolveUserKey(userId, ZaiCoding)` once per walk, uncached when it
+      misses, so an ordinary successful walk goes from 1 wallet read to 2
+      (claude-review on 2732). That matches the archived rows' "a second
+      fallthrough path compounds it" promote trigger; the owner promotes.
 
 **Promote when**: any of the five above is picked up. They share a fix; taking
 one alone re-opens the others.

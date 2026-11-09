@@ -1,10 +1,10 @@
 ---
 id: TASK-783
 title: Serve vision on the user own z.ai coding plan for authenticated key-holders
-status: To Do
+status: Done
 assignee: []
 created_date: 2026-08-27 14:09
-updated_date: '2026-11-09T14:35:00Z'
+updated_date: '2026-11-09T22:32:00Z'
 labels:
   - area:ai-worker
   - size:S
