@@ -8,11 +8,8 @@
  * `DISCORD_INSTANCE_ORIGIN` at the config boundary and pass it in.
  */
 
-import {
-  escapeRegExpLiteral,
-  DISCORD_HOST_PATTERN,
-  MESSAGE_LINK_PATH_PATTERN,
-} from './discordInstanceOrigin.js';
+import { DISCORD_HOST_PATTERN, MESSAGE_LINK_PATH_PATTERN } from './discordInstanceOrigin.js';
+import { escapeRegExpLiteral } from './regexLiteral.js';
 
 /**
  * Parsed message link structure

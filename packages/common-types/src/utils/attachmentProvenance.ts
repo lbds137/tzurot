@@ -9,7 +9,7 @@
  * sanitizing it lives in one place both services import.
  */
 
-import { escapeRegExpLiteral } from './discordInstanceOrigin.js';
+import { escapeRegExpLiteral } from './regexLiteral.js';
 
 /**
  * Where an image on the image path actually came from, when it was not a
@@ -187,7 +187,8 @@ const HEADER_OPENER_RUN = new RegExp(
  * fullwidth `［` `］`, CJK corner and lenticular brackets, and so on — except
  * the four ASCII `(` `)` `{` `}`, which are kept because they are not
  * look-alikes of `[` `]` and are common in real filenames (`photo (1).jpg`).
- * CJK or fullwidth filenames therefore lose their brackets; that is accepted.
+ * That exclusion is ASCII-only, so the fullwidth `（` `）` (U+FF08/U+FF09) are
+ * stripped (pinned by the fullwidth-parentheses case). CJK or fullwidth filenames therefore lose their brackets; that is accepted.
  * Pinned by the look-alike, CJK, kept-four and byte-identical cases in this
  * module's colocated test file. Stripping before falling back keeps a name
  * made entirely of bracket characters (e.g. `[]` or `［］`) from passing an

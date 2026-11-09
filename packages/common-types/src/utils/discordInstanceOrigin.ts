@@ -10,6 +10,8 @@
  * function here treats `undefined` as "no instance configured."
  */
 
+import { escapeRegExpLiteral } from './regexLiteral.js';
+
 /**
  * Normalize a raw `DISCORD_INSTANCE_ORIGIN` value into a canonical origin
  * string (`scheme://hostname[:port]`, no trailing slash, no path/query/hash).
@@ -154,11 +156,6 @@ export function matchesInstanceCdnUrl(url: URL, origin: string | undefined): boo
     return false;
   }
   return DISCORD_INSTANCE_CDN_PATH_PREFIXES.some(prefix => url.pathname.startsWith(prefix));
-}
-
-/** Escape a literal string for safe embedding inside a `RegExp` source. */
-export function escapeRegExpLiteral(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 }
 
 /** Regex-source fragment matching Discord's own message-link hosts. */

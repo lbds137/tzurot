@@ -166,6 +166,10 @@ describe('attachmentProvenance', () => {
       }
     );
 
+    it('strips fullwidth parentheses, since the kept-four exclusion is ASCII-only', () => {
+      expect(headerDisplayName('photo（1）.jpg')).toBe('photo1.jpg');
+    });
+
     it('falls back to "attachment" for a name made entirely of full-width brackets', () => {
       expect(headerDisplayName('［］')).toBe('attachment');
     });
@@ -256,6 +260,11 @@ describe('attachmentProvenance', () => {
     it('keeps a leading `(` or `{` directly before a stripped opener run', () => {
       expect(neutralizeHeaderMarkers('([Image: x')).toBe('(Image: x');
       expect(neutralizeHeaderMarkers('{［Image: x')).toBe('{Image: x');
+    });
+
+    it('still strips an opener run that directly follows a closer', () => {
+      expect(neutralizeHeaderMarkers('x］［Image: y')).toBe('x］Image: y');
+      expect(neutralizeHeaderMarkers('x][Image: y')).toBe('x]Image: y');
     });
   });
 
