@@ -66,7 +66,7 @@ Railway deployment helpers (full procedure: `/tzurot-deployment`):
 | `pnpm ops deploy:redeploy --env prod --service api-gateway --dry-run`       | Preview a single-service redeploy (checks the API token is set; reads railway status; no API call)            |
 | `pnpm ops deploy:watch-check --env dev`                                     | Verify Railway watch patterns cover the Dockerfile and every `COPY` source (default service `tzurot-website`) |
 
-`deploy:watch-check` reads the local checkout, so run it from the branch about to deploy, synced with its remote (`develop` for `dev`; `develop` before the release PR merges for the prod preflight); it refuses uncommitted image inputs.
+`deploy:watch-check` reads the local checkout, so run it from the branch about to deploy, synced with its remote (`develop` for `dev`; `develop` before the release PR merges for the prod preflight); it refuses uncommitted image inputs, and `--env prod` requires `HEAD` to match `origin/develop` or `origin/main`.
 
 ## Dev Workflow Commands
 

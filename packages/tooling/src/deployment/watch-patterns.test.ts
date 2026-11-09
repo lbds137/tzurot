@@ -40,6 +40,7 @@ const FIXTURE_DOCKERFILE_PATH = path.join(REPO_ROOT, FIXTURE_DOCKERFILE_REL);
 
 const FIXTURE_WATCH_PATTERNS = [
   FIXTURE_DOCKERFILE_REL,
+  '.dockerignore',
   'package.json',
   'pnpm-lock.yaml',
   'pnpm-workspace.yaml',
@@ -66,6 +67,10 @@ describe('parseDockerfileCopySources', () => {
     ].join('\n');
 
     expect(parseDockerfileCopySources(dockerfile)).toEqual(['package.json']);
+  });
+
+  it('skips COPY --from=builder even when combined with an unsupported flag (--parents)', () => {
+    expect(parseDockerfileCopySources('COPY --from=builder --parents a ./')).toEqual([]);
   });
 
   it('strips --chown= and --chmod= flags while keeping source arguments', () => {
@@ -205,6 +210,7 @@ describe('parseDockerfileCopySources', () => {
 
   it('allows arithmetic bit-shift in a RUN instruction without treating it as a heredoc', () => {
     expect(parseDockerfileCopySources('RUN echo $((1<<4))')).toEqual([]);
+    expect(parseDockerfileCopySources('RUN echo $((x<<y))')).toEqual([]);
   });
 
   it('throws UsageError naming the offending line on an ADD instruction', () => {
@@ -501,6 +507,12 @@ describe('runWatchPatternCheck', () => {
       if (argv.includes('--short')) {
         return 'abc1234\n';
       }
+      if (
+        argv.includes('rev-parse') &&
+        (argv.includes('HEAD') || argv.includes('origin/develop'))
+      ) {
+        return 'abc1234567890abcdef1234567890abcdef12345\n';
+      }
       return '';
     });
     mockResolveIds.mockReturnValue({
@@ -544,8 +556,10 @@ describe('runWatchPatternCheck', () => {
         REPO_ROOT,
         'status',
         '--porcelain',
+        '-z',
         '--',
         FIXTURE_DOCKERFILE_REL,
+        '.dockerignore',
         'package.json',
         'pnpm-lock.yaml',
         'pnpm-workspace.yaml',
@@ -565,7 +579,90 @@ describe('runWatchPatternCheck', () => {
     const output = logSpy.mock.calls.flat().map(String).join('\n');
     expect(output).toContain('✅');
     expect(output).toContain(
-      `All 7 image inputs (Dockerfile + COPY sources) are covered by tzurot-website watch patterns (dev) [develop@abc1234 ${FIXTURE_DOCKERFILE_REL}]`
+      `All 8 image inputs (Dockerfile, .dockerignore files and COPY sources) are covered by tzurot-website watch patterns (dev) [develop@abc1234 ${FIXTURE_DOCKERFILE_REL}]`
+    );
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it('fails naming .dockerignore when root .dockerignore exists and no watch pattern covers it', async () => {
+    mockGetWatchPatterns.mockResolvedValue([
+      FIXTURE_DOCKERFILE_REL,
+      'package.json',
+      'pnpm-lock.yaml',
+      'pnpm-workspace.yaml',
+      'docs/legal/**',
+      'docs/guides/**',
+      'docs/commands.md',
+    ]);
+
+    await expect(
+      runWatchPatternCheck({
+        env: 'dev',
+        service: 'tzurot-website',
+        dockerfile: FIXTURE_DOCKERFILE_REL,
+      })
+    ).rejects.toThrow(/1 image input\(s\) not covered.*\.dockerignore/);
+
+    const errOutput = errorSpy.mock.calls.flat().map(String).join('\n');
+    expect(errOutput).toContain(
+      `❌ Uncovered image input: .dockerignore [develop@abc1234 ${FIXTURE_DOCKERFILE_REL}]`
+    );
+  });
+
+  it('includes both <dockerfile>.dockerignore and root .dockerignore when both exist on disk', async () => {
+    const perDockerfileIgnoreRel = `${FIXTURE_DOCKERFILE_REL}.dockerignore`;
+    const perDockerfileIgnoreAbs = `${FIXTURE_DOCKERFILE_PATH}.dockerignore`;
+    const rootIgnoreAbs = path.join(REPO_ROOT, '.dockerignore');
+    vi.spyOn(fs, 'existsSync').mockImplementation(
+      candidate => candidate === perDockerfileIgnoreAbs || candidate === rootIgnoreAbs
+    );
+
+    mockGetWatchPatterns.mockResolvedValue(FIXTURE_WATCH_PATTERNS);
+
+    await expect(
+      runWatchPatternCheck({
+        env: 'dev',
+        service: 'tzurot-website',
+        dockerfile: FIXTURE_DOCKERFILE_REL,
+      })
+    ).rejects.toThrow(perDockerfileIgnoreRel);
+
+    expect(mockExecFileSync).toHaveBeenNthCalledWith(
+      3,
+      'git',
+      [
+        '-C',
+        REPO_ROOT,
+        'status',
+        '--porcelain',
+        '-z',
+        '--',
+        FIXTURE_DOCKERFILE_REL,
+        perDockerfileIgnoreRel,
+        '.dockerignore',
+        'package.json',
+        'pnpm-lock.yaml',
+        'pnpm-workspace.yaml',
+        'docs/legal',
+        'docs/guides',
+        'docs/commands.md',
+      ],
+      { encoding: 'utf-8' }
+    );
+
+    logSpy.mockClear();
+    errorSpy.mockClear();
+    mockGetWatchPatterns.mockResolvedValue([...FIXTURE_WATCH_PATTERNS, perDockerfileIgnoreRel]);
+
+    await runWatchPatternCheck({
+      env: 'dev',
+      service: 'tzurot-website',
+      dockerfile: FIXTURE_DOCKERFILE_REL,
+    });
+
+    const output = logSpy.mock.calls.flat().map(String).join('\n');
+    expect(output).toContain(
+      `All 9 image inputs (Dockerfile, .dockerignore files and COPY sources) are covered by tzurot-website watch patterns (dev) [develop@abc1234 ${FIXTURE_DOCKERFILE_REL}]`
     );
     expect(errorSpy).not.toHaveBeenCalled();
   });
@@ -686,9 +783,9 @@ describe('runWatchPatternCheck', () => {
     );
 
     const output = logSpy.mock.calls.flat().map(String).join('\n');
-    expect(output).toContain('No watchPatterns configured for tzurot-website (dev)');
-    expect(output).toContain('every push deploys');
-    expect(output).toContain(`[develop@abc1234 ${FIXTURE_DOCKERFILE_REL}]`);
+    expect(output).toContain(
+      `ℹ️ No watchPatterns configured for tzurot-website (dev); Railway documents this as deploy-on-every-push (not verified by this guard) [develop@abc1234 ${FIXTURE_DOCKERFILE_REL}]`
+    );
     expect(errorSpy).not.toHaveBeenCalled();
   });
 
@@ -702,7 +799,7 @@ describe('runWatchPatternCheck', () => {
       if (argv.includes('--short')) {
         return 'abc1234\n';
       }
-      return ' D docs/dirty-and-missing\n';
+      return ' D docs/dirty-and-missing\0';
     });
 
     let caught: unknown;
@@ -729,8 +826,10 @@ describe('runWatchPatternCheck', () => {
         REPO_ROOT,
         'status',
         '--porcelain',
+        '-z',
         '--',
         FIXTURE_DOCKERFILE_REL,
+        '.dockerignore',
         'docs/dirty-and-missing',
       ],
       { encoding: 'utf-8' }
@@ -746,7 +845,7 @@ describe('runWatchPatternCheck', () => {
       if (argv.includes('--short')) {
         return 'abc1234\n';
       }
-      return ' M package.json\n?? docs/legal/PRIVACY_POLICY.md\n';
+      return ' M package.json\0?? docs/legal/PRIVACY_POLICY.md\0';
     });
 
     let caught: unknown;
@@ -768,6 +867,192 @@ describe('runWatchPatternCheck', () => {
     expect((caught as Error).message).toContain('docs/legal/PRIVACY_POLICY.md');
     expect(mockResolveIds).not.toHaveBeenCalled();
     expect(mockGetWatchPatterns).not.toHaveBeenCalled();
+  });
+
+  it('parses NUL-delimited git status --porcelain -z entries for a rename (reporting the new path and skipping the original path) and a path with a space', async () => {
+    mockExecFileSync.mockImplementation((_cmd: unknown, args: unknown) => {
+      const argv = args as string[];
+      if (argv.includes('--abbrev-ref')) {
+        return 'develop\n';
+      }
+      if (argv.includes('--short')) {
+        return 'abc1234\n';
+      }
+      return 'R  docs/legal/NEW_POLICY.md\0docs/legal/OLD_POLICY.md\0 M docs/guides/guide with space.md\0';
+    });
+
+    let caught: unknown;
+    try {
+      await runWatchPatternCheck({
+        env: 'dev',
+        service: 'tzurot-website',
+        dockerfile: FIXTURE_DOCKERFILE_REL,
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(UsageError);
+    expect((caught as Error).message).toBe(
+      'uncommitted changes in image inputs; commit or stash them so the check reads the tree that deploys: docs/legal/NEW_POLICY.md, docs/guides/guide with space.md'
+    );
+    expect((caught as Error).message).not.toContain('OLD_POLICY.md');
+  });
+
+  it('passes on prod when HEAD equals origin/develop and forwards rev-parse argv across execFileSync', async () => {
+    mockExecFileSync.mockImplementation((_cmd: unknown, args: unknown) => {
+      const argv = args as string[];
+      if (argv.includes('--abbrev-ref')) {
+        return 'develop\n';
+      }
+      if (argv.includes('--short')) {
+        return 'abc1234\n';
+      }
+      if (argv.includes('status')) {
+        return '';
+      }
+      if (argv[argv.length - 1] === 'HEAD') {
+        return 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n';
+      }
+      if (argv[argv.length - 1] === 'origin/develop') {
+        return 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n';
+      }
+      if (argv[argv.length - 1] === 'origin/main') {
+        throw new Error('fatal: Needed a single revision');
+      }
+      return '';
+    });
+
+    await runWatchPatternCheck({
+      env: 'prod',
+      service: 'tzurot-website',
+      dockerfile: FIXTURE_DOCKERFILE_REL,
+    });
+
+    expect(mockExecFileSync).toHaveBeenNthCalledWith(
+      4,
+      'git',
+      ['-C', REPO_ROOT, 'rev-parse', 'HEAD'],
+      { encoding: 'utf-8' }
+    );
+    expect(mockExecFileSync).toHaveBeenNthCalledWith(
+      5,
+      'git',
+      ['-C', REPO_ROOT, 'rev-parse', '--verify', '--quiet', 'origin/develop'],
+      { encoding: 'utf-8' }
+    );
+    expect(mockExecFileSync).toHaveBeenNthCalledWith(
+      6,
+      'git',
+      ['-C', REPO_ROOT, 'rev-parse', '--verify', '--quiet', 'origin/main'],
+      { encoding: 'utf-8' }
+    );
+  });
+
+  it('passes on prod when HEAD equals origin/main', async () => {
+    mockExecFileSync.mockImplementation((_cmd: unknown, args: unknown) => {
+      const argv = args as string[];
+      if (argv.includes('--abbrev-ref')) {
+        return 'main\n';
+      }
+      if (argv.includes('--short')) {
+        return 'cafebab\n';
+      }
+      if (argv.includes('status')) {
+        return '';
+      }
+      if (argv[argv.length - 1] === 'HEAD') {
+        return 'cafebabecafebabecafebabecafebabecafebabe\n';
+      }
+      if (argv[argv.length - 1] === 'origin/develop') {
+        return '1111111111111111111111111111111111111111\n';
+      }
+      if (argv[argv.length - 1] === 'origin/main') {
+        return 'cafebabecafebabecafebabecafebabecafebabe\n';
+      }
+      return '';
+    });
+
+    await runWatchPatternCheck({
+      env: 'prod',
+      service: 'tzurot-website',
+      dockerfile: FIXTURE_DOCKERFILE_REL,
+    });
+
+    const output = logSpy.mock.calls.flat().map(String).join('\n');
+    expect(output).toContain('✅');
+  });
+
+  it('throws UsageError on prod when HEAD equals neither origin/develop nor origin/main', async () => {
+    mockExecFileSync.mockImplementation((_cmd: unknown, args: unknown) => {
+      const argv = args as string[];
+      if (argv.includes('--abbrev-ref')) {
+        return 'feat/local\n';
+      }
+      if (argv.includes('--short')) {
+        return '9999999\n';
+      }
+      if (argv.includes('status')) {
+        return '';
+      }
+      if (argv[argv.length - 1] === 'HEAD') {
+        return '9999999999999999999999999999999999999999\n';
+      }
+      if (argv[argv.length - 1] === 'origin/develop') {
+        return '1111111111111111111111111111111111111111\n';
+      }
+      if (argv[argv.length - 1] === 'origin/main') {
+        throw new Error('fatal: Needed a single revision');
+      }
+      return '';
+    });
+
+    let caught: unknown;
+    try {
+      await runWatchPatternCheck({
+        env: 'prod',
+        service: 'tzurot-website',
+        dockerfile: FIXTURE_DOCKERFILE_REL,
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(UsageError);
+    expect((caught as Error).message).toBe(
+      'a prod check must run on a checkout of origin/develop (pre-release) or origin/main; fetch and fast-forward first'
+    );
+    expect(mockResolveIds).not.toHaveBeenCalled();
+    expect(mockGetWatchPatterns).not.toHaveBeenCalled();
+  });
+
+  it('passes on dev even when HEAD equals neither origin/develop nor origin/main', async () => {
+    mockExecFileSync.mockImplementation((_cmd: unknown, args: unknown) => {
+      const argv = args as string[];
+      if (argv.includes('--abbrev-ref')) {
+        return 'feat/local\n';
+      }
+      if (argv.includes('--short')) {
+        return '9999999\n';
+      }
+      if (argv.includes('status')) {
+        return '';
+      }
+      if (argv[argv.length - 1] === 'HEAD') {
+        return '9999999999999999999999999999999999999999\n';
+      }
+      return '1111111111111111111111111111111111111111\n';
+    });
+
+    await runWatchPatternCheck({
+      env: 'dev',
+      service: 'tzurot-website',
+      dockerfile: FIXTURE_DOCKERFILE_REL,
+    });
+
+    expect(mockExecFileSync).toHaveBeenCalledTimes(3);
+    const output = logSpy.mock.calls.flat().map(String).join('\n');
+    expect(output).toContain('✅');
   });
 
   it('refuses an absolute --dockerfile path with UsageError before reading from disk', async () => {
@@ -834,6 +1119,36 @@ describe('runWatchPatternCheck', () => {
     expect(caught).toBeInstanceOf(UsageError);
     expect((caught as Error).message).toContain('docs/does-not-exist-anywhere.md');
     expect(mockGetWatchPatterns).not.toHaveBeenCalled();
+  });
+
+  it('rethrows a non-ENOENT error (EACCES) from statSync unchanged', async () => {
+    const eacces = Object.assign(new Error('EACCES: permission denied, stat'), { code: 'EACCES' });
+    vi.spyOn(fs, 'statSync').mockImplementation(() => {
+      throw eacces;
+    });
+
+    await expect(
+      runWatchPatternCheck({
+        env: 'dev',
+        service: 'tzurot-website',
+        dockerfile: FIXTURE_DOCKERFILE_REL,
+      })
+    ).rejects.toBe(eacces);
+  });
+
+  it('rethrows a non-ENOENT error (EACCES) from Dockerfile readFileSync unchanged', async () => {
+    const eacces = Object.assign(new Error('EACCES: permission denied, open'), { code: 'EACCES' });
+    vi.spyOn(fs, 'readFileSync').mockImplementation(() => {
+      throw eacces;
+    });
+
+    await expect(
+      runWatchPatternCheck({
+        env: 'dev',
+        service: 'tzurot-website',
+        dockerfile: FIXTURE_DOCKERFILE_REL,
+      })
+    ).rejects.toBe(eacces);
   });
 
   it('throws when resolveRailwayIds returns no serviceId', async () => {
