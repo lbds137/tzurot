@@ -6,7 +6,7 @@
  * single user's command vocabulary spans. Never mutates, never emits a raw
  * user id.
  *
- * The report also left-joins the committed slash-command roster (the bot-client
+ * The report also left-joins the committed command roster (the bot-client
  * command manifest, read through `loadManifest`) so commands with zero rows in
  * the window, which `command_events` cannot show, are listed as never invoked.
  */
@@ -93,7 +93,12 @@ export interface ReportData {
 export function loadRosterPaths(): { paths: string[] } | { error: string } {
   try {
     const manifest = loadManifest();
-    return { paths: manifest.commands.flatMap(commandPaths) };
+    return {
+      paths: [
+        ...manifest.commands.flatMap(commandPaths),
+        ...(manifest.contextMenuCommands ?? []).map(c => c.name),
+      ],
+    };
   } catch (err) {
     return { error: err instanceof Error ? err.message : String(err) };
   }
@@ -201,12 +206,10 @@ function renderNeverInvoked(data: ReportData): string {
 }
 
 const LIMITATIONS_PARAGRAPH =
-  'The roster is the slash-command manifest committed in the checkout running ' +
+  'The roster is the command manifest committed in the checkout running ' +
   'this report, so when the target environment runs a different release, commands ' +
   'added or renamed since may be misreported in either direction. Invoked commands ' +
-  'no longer in the roster appear only in the per-command table. Context-menu ' +
-  'commands (e.g. message apps) are not in the roster, so a never-invoked one does ' +
-  'not appear in the never-invoked list.';
+  'no longer in the roster appear only in the per-command table.';
 
 /** Pure renderer: markdown from already-computed report data, no DB. */
 export function renderDiscoverabilityMarkdown(data: ReportData): string {
