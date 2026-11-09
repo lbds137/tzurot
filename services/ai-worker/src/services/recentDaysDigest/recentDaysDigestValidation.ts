@@ -3,21 +3,16 @@
  * character's own words, the length-outcome decision, and the combined
  * verdict a generated digest is judged by.
  *
- * First-person detection is IMPORTED from the memory-archive summarizer's
- * validator rather than copied — one leak detector, two callers.
+ * First-person detection is IMPORTED from common-types' shared detector
+ * rather than copied — one leak detector, shared by every caller.
  */
 
-import {
-  hasFirstPerson,
-  findFirstPersonToken,
-} from '../archiveSummary/archiveSummaryValidation.js';
+import { findFirstPersonToken } from '@tzurot/common-types/utils/firstPersonDetection';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import {
   RECENT_DAYS_DIGEST,
   type DigestFailureClass,
 } from '@tzurot/common-types/constants/recentDaysDigest';
-
-export { hasFirstPerson, findFirstPersonToken };
 
 export type DigestLengthState = 'within_soft' | 'over_soft' | 'overflow';
 

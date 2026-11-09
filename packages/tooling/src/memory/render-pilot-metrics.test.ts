@@ -7,7 +7,6 @@ import {
   parseSummaryJudgement,
   parseFactsJudgement,
   decideSummaryOutcome,
-  hasFirstPerson,
   countWords,
   exclamationsPer100Words,
   countEmoji,
@@ -17,6 +16,7 @@ import {
   type AnswerRecord,
   type VoiceRecord,
 } from './render-pilot-metrics.js';
+import { hasFirstPerson } from '@tzurot/common-types/utils/firstPersonDetection';
 
 describe('extractJsonBlock', () => {
   it('extracts a bare JSON object', () => {

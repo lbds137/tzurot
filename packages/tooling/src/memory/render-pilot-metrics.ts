@@ -211,12 +211,6 @@ export function decideSummaryOutcome(
   return { ...chosen, state: retryWon ? 'regenerated' : 'over_soft' };
 }
 
-/** Approximate first-person detector: `\b(I|I'm|I've|me|my)\b` outside double-quoted spans. */
-export function hasFirstPerson(text: string): boolean {
-  const withoutQuotes = text.replace(/"[^"]*"/g, '');
-  return /\b(I'll|I'd|I'm|I've|I|me|my|mine|myself)\b/.test(withoutQuotes);
-}
-
 // ---------------------------------------------------------------------------
 // Voice-probe text metrics (approximate, documented as such)
 // ---------------------------------------------------------------------------

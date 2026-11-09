@@ -42,7 +42,8 @@ import {
   ROUTE_ERROR_LOG_INTERVAL_MS,
 } from './constants.js';
 import { buildSummarizerPrompt, type SummarizerMessageInput } from './archiveSummaryPrompt.js';
-import { hasFirstPerson, decideLengthState } from './archiveSummaryValidation.js';
+import { decideLengthState } from './archiveSummaryValidation.js';
+import { hasFirstPerson } from '@tzurot/common-types/utils/firstPersonDetection';
 import {
   loadArchiveSummaryRow,
   writeArchiveSummarySuccess,

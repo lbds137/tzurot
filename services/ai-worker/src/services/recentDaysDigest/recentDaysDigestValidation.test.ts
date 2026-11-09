@@ -3,8 +3,8 @@ import {
   findQuotedNgram,
   decideDigestLength,
   validateDigest,
-  hasFirstPerson,
 } from './recentDaysDigestValidation.js';
+import { hasFirstPerson } from '@tzurot/common-types/utils/firstPersonDetection';
 import { RECENT_DAYS_DIGEST } from '@tzurot/common-types/constants/recentDaysDigest';
 
 const EIGHT_WORDS = 'the quick brown fox jumps over the lazy dog today';
