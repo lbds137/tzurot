@@ -148,6 +148,10 @@ const KEPT_ASCII_BRACKET_CLASS = '[(){}]';
 /**
  * Regex source (for a `u`-flag pattern) matching one bracket-class character:
  * any Unicode `Ps`/`Pe` character except the kept ASCII `(` `)` `{` `}`.
+ *
+ * Unpinned limit: bracket-shaped characters outside `Ps`/`Pe`, e.g. the math
+ * bracket pieces U+23A1 to U+23A6 (category `Sm`), pass through both
+ * sanitizers; this case is neither handled nor tested.
  */
 const HEADER_BRACKET_CLASS_SOURCE = `(?!${KEPT_ASCII_BRACKET_CLASS})[\\p{Ps}\\p{Pe}]`;
 
@@ -164,8 +168,9 @@ const BRACKET_CLASS_GLOBAL = new RegExp(HEADER_BRACKET_CLASS_SOURCE, 'gu');
  * A run of openers directly before `<Label>: `. The leading lookbehind
  * anchors the match at the start of a run, intended to keep a long bracket
  * run from being retried from every position (not verified by a committed
- * test; a one-off 200k-bracket probe ran in milliseconds). Label order is irrelevant:
- * the lookahead requires the colon and space right after the label.
+ * test; a one-off 200k-bracket probe ran in milliseconds). Label order is
+ * irrelevant: the lookahead requires the colon and space right after the
+ * label.
  */
 const HEADER_OPENER_RUN = new RegExp(
   `(?<!${HEADER_OPENER_SOURCE})(?:${HEADER_OPENER_SOURCE})+(?=(?:${HEADER_LABELS.map(escapeRegExpLiteral).join('|')}): )`,
@@ -188,16 +193,15 @@ const HEADER_OPENER_RUN = new RegExp(
  * the four ASCII `(` `)` `{` `}`, which are kept because they are not
  * look-alikes of `[` `]` and are common in real filenames (`photo (1).jpg`).
  * That exclusion is ASCII-only, so the fullwidth `（` `）` (U+FF08/U+FF09) are
- * stripped (pinned by the fullwidth-parentheses case). CJK or fullwidth filenames therefore lose their brackets; that is accepted.
+ * stripped (pinned by the fullwidth-parentheses case). CJK or fullwidth
+ * filenames therefore lose their brackets; that is accepted.
  * Pinned by the look-alike, CJK, kept-four and byte-identical cases in this
  * module's colocated test file. Stripping before falling back keeps a name
  * made entirely of bracket characters (e.g. `[]` or `［］`) from passing an
  * empty/undefined check and then stripping to an empty string, which would
  * render `[Image: ]` instead of `[Image: attachment]`.
  *
- * Unpinned limit: bracket-shaped characters outside `Ps`/`Pe`, e.g. the math
- * bracket pieces U+23A1 to U+23A6 (category `Sm`), pass through both
- * sanitizers; this case is neither handled nor tested.
+ * Class limits (characters outside `Ps`/`Pe`): see `HEADER_BRACKET_CLASS_SOURCE`.
  */
 export function headerDisplayName(name: string | undefined): string {
   const stripped = (name ?? '').replace(BRACKET_CLASS_GLOBAL, '');
@@ -223,12 +227,11 @@ export function headerDisplayName(name: string | undefined): string {
  * colocated test file.
  *
  * Unpinned limit: the colon and space after the label are matched as ASCII
- * only (a look-alike colon such as fullwidth U+FF1A is out of scope);
- * bracket-shaped characters outside `Ps`/`Pe`, e.g. the math bracket pieces
- * U+23A1 to U+23A6 (category `Sm`), pass through both sanitizers; and a
+ * only (a look-alike colon such as fullwidth U+FF1A is out of scope); and a
  * character between the opener and the label (a space, or a zero-width
  * character such as U+200B) means `neutralizeHeaderMarkers` does not defuse
- * the opener. None of these cases is handled or tested.
+ * the opener. Neither case is handled or tested. Class limits (characters
+ * outside `Ps`/`Pe`): see `HEADER_BRACKET_CLASS_SOURCE`.
  *
  * The cannot-mint claim for the ASCII form is pinned by the three
  * `neutralizes a forged header opener` cases in RAGUtils.test.ts, one per
