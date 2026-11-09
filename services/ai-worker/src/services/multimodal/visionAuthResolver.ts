@@ -9,17 +9,20 @@
  *
  * `resolveVisionConfig` returns a discriminated union:
  * - `{ kind: 'resolved', config }` — caller proceeds with the vision call,
- *   passing `config.model` through so the chosen model (which may be a forced
- *   free-tier downgrade) is honored rather than re-selected.
+ *   passing `config.model` through so the chosen model (which may be an
+ *   own-plan z.ai substitution or a forced free-tier downgrade) is honored
+ *   rather than re-selected.
  * - `{ kind: 'failFast', provider }` — caller MUST short-circuit. Only happens
  *   when even the free-model system fallback is unavailable (no system
  *   OpenRouter key configured).
  *
  * Policy: an authenticated user lacking a key for the vision provider does NOT
- * fail-fast; they downgrade to the free vision model
- * (`getFreeVisionFloor()`) on the system OpenRouter key. This is
- * the BROAD free-fallback behavior — it applies to ALL authenticated users who
- * can't auth the vision provider, not a specific provider's users.
+ * fail-fast. When they hold a z.ai coding-plan key and no OpenRouter key, the
+ * first such tier per image walk is served on `ZAI_FREE_TIER_MODEL` using their
+ * own z.ai key (`resolveOwnZaiPlanVision`). Otherwise (or once that per-walk
+ * claim is spent), they downgrade to the free vision model
+ * (`getFreeVisionFloor()`) on the system OpenRouter key — the BROAD
+ * free-fallback behavior (`resolveBroadFreeFallback`).
  *
  * On `failFast`, the fallback loop (`describeImageWithFallback`) renders the
  * `visionAuthFailFastDescription` "configure your key" placeholder per attachment
@@ -139,8 +142,13 @@ export interface ResolveVisionConfigOptions {
 }
 
 /**
- * Single-use gate for the system-key free-vision fallback's daily quota. The fallback LOOP
- * (`describeImageWithFallback`) resolves auth across multiple TIERS for ONE image, so the
+ * Per-walk one-shot tracker for a single image's vision tier walk. Carries the
+ * per-walk one-shots: the daily-quota consume for the system-key free-vision
+ * fallback, the memoized own-plan key lookup (`ownZaiPlanKey`), and the
+ * own-plan vision claim (`tryClaimOwnZaiVision`) so the user's own z.ai coding
+ * plan is claimed at most once per walk.
+ *
+ * The fallback LOOP (`describeImageWithFallback`) resolves auth across multiple TIERS for ONE image, so the
  * per-user daily cap (`VisionFallbackQuota`) is checked at most once per tracker — a
  * per-tier consume would multiply the charge WITHIN a single image's tier walk and defeat
  * the cap. Once consumed, subsequent `tryConsume()` calls return false without touching the
@@ -153,10 +161,14 @@ export interface ResolveVisionConfigOptions {
  */
 export interface VisionQuotaTracker {
   tryConsume(): Promise<boolean>;
+  tryClaimOwnZaiVision(): boolean;
+  ownZaiPlanKey(lookup: () => Promise<string | null>): Promise<string | null>;
 }
 
 export function createVisionQuotaTracker(userId: string | undefined): VisionQuotaTracker {
   let consumedThisRequest = false;
+  let claimedOwnZaiVision = false;
+  let ownZaiPlanKeyPromise: Promise<string | null> | undefined;
   return {
     async tryConsume(): Promise<boolean> {
       if (consumedThisRequest) {
@@ -177,11 +189,87 @@ export function createVisionQuotaTracker(userId: string | undefined): VisionQuot
       consumedThisRequest = true;
       return ok;
     },
+    tryClaimOwnZaiVision(): boolean {
+      if (claimedOwnZaiVision) {
+        return false;
+      }
+      claimedOwnZaiVision = true;
+      return true;
+    },
+    ownZaiPlanKey(lookup: () => Promise<string | null>): Promise<string | null> {
+      ownZaiPlanKeyPromise ??= lookup();
+      return ownZaiPlanKeyPromise;
+    },
+  };
+}
+
+async function lookupOwnZaiPlanKey(
+  userId: string,
+  apiKeyResolver: ApiKeyResolver
+): Promise<string | null> {
+  try {
+    if ((await apiKeyResolver.tryResolveUserKey(userId, AIProvider.OpenRouter)) !== null) {
+      return null;
+    }
+    const zaiKey = await apiKeyResolver.tryResolveUserKey(userId, AIProvider.ZaiCoding);
+    return zaiKey !== null && zaiKey.length > 0 ? zaiKey : null;
+  } catch (error) {
+    logger.debug(
+      { err: error, userId },
+      'Own-plan key lookup failed — keeping the broad free fallback'
+    );
+    return null;
+  }
+}
+
+/**
+ * Own-plan z.ai vision fallback for an authenticated user who lacks a key for
+ * `visionProvider`, holds no OpenRouter key, and holds a z.ai coding-plan key.
+ * The wallet lookups run once per walk via `quotaTracker.ownZaiPlanKey` and fail
+ * soft (`lookupOwnZaiPlanKey`); `quotaTracker.tryClaimOwnZaiVision()` runs last
+ * so a non-applicable tier does not spend the claim and the user's own z.ai key
+ * serves `ZAI_FREE_TIER_MODEL` at most once per walk. Returns `null` when not
+ * applicable so the caller continues to `resolveBroadFreeFallback`. No admission
+ * or fallback-quota consume runs here because this is the user's own spend
+ * (`own z.ai coding-plan vision — authenticated user lacking vision-provider key`).
+ */
+async function resolveOwnZaiPlanVision(
+  userId: string,
+  visionProvider: AIProvider,
+  apiKeyResolver: ApiKeyResolver,
+  quotaTracker: VisionQuotaTracker
+): Promise<VisionConfigResult | null> {
+  if (visionProvider === AIProvider.ZaiCoding) {
+    return null;
+  }
+  const zaiKey = await quotaTracker.ownZaiPlanKey(() =>
+    lookupOwnZaiPlanKey(userId, apiKeyResolver)
+  );
+  if (zaiKey === null) {
+    return null;
+  }
+  if (!quotaTracker.tryClaimOwnZaiVision()) {
+    return null;
+  }
+  logger.info(
+    { userId, model: ZAI_FREE_TIER_MODEL },
+    "Image description served on the user's own z.ai coding plan"
+  );
+  return {
+    kind: 'resolved',
+    config: {
+      apiKey: zaiKey,
+      provider: AIProvider.ZaiCoding,
+      model: ZAI_FREE_TIER_MODEL,
+      source: 'user',
+      isGuestMode: false,
+    },
   };
 }
 
 /**
- * BROAD FREE FALLBACK — authenticated user with no key for the vision provider.
+ * BROAD FREE FALLBACK — authenticated user with no key for the vision provider
+ * and no own-plan claim.
  * Downgrade to the free vision model on the system key instead of fail-fasting.
  * MUST force BOTH the free model AND its provider's key: `selectVisionModel`
  * returns the PAID fallback for authenticated users (isGuestMode=false), so
@@ -327,11 +415,14 @@ async function resolveZaiPiggybackVision(
  * 3. Genuine guest (or unknown user) — system key for the vision provider
  *    (fallback tiers force the free model — see the guest branch).
  * 4. Authenticated user with a vision-provider key — use it.
- * 5. BROAD FREE FALLBACK — authenticated user lacking a vision-provider key
- *    downgrades to the free vision model on the system OpenRouter key (instead
- *    of fail-fasting). Forces BOTH the free model AND its provider's system key
- *    so the system key never gets billed for a paid model.
- * 6. Fallback-of-fallback — if even the free-model system key is unavailable
+ * 5. Authenticated user with no OpenRouter key and a z.ai coding-plan key (once per
+ *    tracker) — serve `ZAI_FREE_TIER_MODEL` on the user's own z.ai key
+ *    (`resolveOwnZaiPlanVision`).
+ * 6. BROAD FREE FALLBACK — authenticated user lacking a vision-provider key and
+ *    with no own-plan claim downgrades to the free vision model on the system
+ *    OpenRouter key (instead of fail-fasting). Forces BOTH the free model AND its
+ *    provider's system key so the system key never gets billed for a paid model.
+ * 7. Fallback-of-fallback — if even the free-model system key is unavailable
  *    (no system OpenRouter key configured), `failFast` so the caller emits the
  *    "configure your key" placeholder against the ORIGINAL vision provider.
  *
@@ -341,7 +432,7 @@ async function resolveZaiPiggybackVision(
  * failure a same-provider tier-2 would retry the exact same credential and the
  * loop would provide zero resilience for the broken-key case it exists for.
  * Forcing per-provider resolution on fallback tiers routes an authenticated
- * user through their wallet key (or the broad free fallback) instead.
+ * user through their wallet key (or own-plan z.ai / the broad free fallback) instead.
  */
 export async function resolveVisionAuth(
   targetModel: string,
@@ -478,11 +569,15 @@ export async function resolveVisionAuth(
       };
     }
 
-    // Authenticated user with no key for the vision provider → broad free
-    // fallback (downgrade to the free vision model on the system key). Extracted
-    // to keep this function under the line limit; runs inside this try so its
-    // `resolveApiKey` throw still degrades to fail-fast via the catch below.
-    return await resolveBroadFreeFallback(userId, visionProvider, apiKeyResolver, quotaTracker);
+    // Authenticated user with no key for the vision provider → try their own
+    // z.ai coding-plan key (when they hold no OpenRouter key, once per walk),
+    // then fall back to the broad free fallback (free vision model on the
+    // system key). Runs inside this try so a `resolveApiKey` throw still
+    // degrades to fail-fast via the catch below.
+    return (
+      (await resolveOwnZaiPlanVision(userId, visionProvider, apiKeyResolver, quotaTracker)) ??
+      (await resolveBroadFreeFallback(userId, visionProvider, apiKeyResolver, quotaTracker))
+    );
   } catch (error) {
     // Fallback-of-fallback unavailable path: `resolveApiKey` throws when no key
     // (user or system) is available for the requested provider. For the

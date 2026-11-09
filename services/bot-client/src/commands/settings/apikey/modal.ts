@@ -107,11 +107,13 @@ async function handleSetKeySubmit(
           name: '💡 Next Steps',
           value:
             // z.ai keys don't take over routing by themselves — they apply only
-            // when a z.ai model serves the response (auto-promotion). Blanket
+            // when a z.ai model serves the response (auto-promotion), or for image
+            // descriptions when the user has no OpenRouter key. Blanket
             // "will now be used" copy misled a user into thinking every
             // response switched providers.
             (provider === AIProvider.ZaiCoding
-              ? 'Your key will be used whenever a z.ai model serves the response.\n'
+              ? 'Your key will be used whenever a z.ai model serves the response.\n' +
+                'If you have no OpenRouter key, it also describes the images you send.\n'
               : 'Your API key will now be used for AI responses.\n') +
             'Use `/settings apikey test` to verify it works.',
           inline: false,
