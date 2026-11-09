@@ -557,6 +557,7 @@ jobs:
       # everything after it, so `-- --coverage` ran the tier with coverage OFF and
       # the upload step below found no lcov.info.
       - name: Run component tests with coverage
+        id: component-tests
         run: pnpm test:component --coverage
         env:
           # Component tests use in-process PGLite and never dial out; this only
@@ -569,7 +570,9 @@ jobs:
       # The integration tier needs a REAL schema, and the cache-invalidation
       # trigger functions exist only in the migration files — Prisma's schema
       # diffing cannot see functions or triggers at all, so the migrations must
-      # actually run rather than a dumped schema being loaded.
+      # actually run rather than a dumped schema being loaded. Gated on install
+      # only: migrate deploy needs the installed Prisma CLI, not the generated
+      # client or the build.
       - name: Provision integration-tier schema
         id: provision-schema
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -584,7 +587,8 @@ jobs:
       # step is that gate. `!cancelled()` keeps a component-test failure from
       # hiding the contract tier's result, and the tier requires both the build
       # and schema steps to have succeeded, so a failed or skipped upstream step
-      # skips it and the failure reports once (a failed Prisma generate skips the build).
+      # skips it and the failure reports once (a failed Prisma generate skips
+      # the build).
       - name: Run integration + contract tiers
         if: ${{ !cancelled() && steps.build-packages.outcome == 'success' && steps.provision-schema.outcome == 'success' }}
         run: pnpm test:integration
@@ -593,10 +597,11 @@ jobs:
           REDIS_URL: redis://localhost:6379
           CI: true
 
-      # Skipped when no coverage file exists (component step skipped or crashed
-      # before writing it); the upstream failure already reports.
+      # Runs only after a successful component run, so a green run that wrote
+      # no lcov.info still fails loudly here (fail_ci_if_error), while a
+      # skipped or failed component run reports once upstream.
       - name: Upload component coverage to Codecov
-        if: ${{ !cancelled() && hashFiles('coverage/component/lcov.info') != '' }}
+        if: ${{ !cancelled() && steps.component-tests.outcome == 'success' }}
         uses: codecov/codecov-action@v7
         with:
           # PyPI install path: the default binary download verifies its GPG
