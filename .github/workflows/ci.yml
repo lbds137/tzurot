@@ -543,6 +543,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
+        id: install
         run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma client
@@ -556,6 +557,7 @@ jobs:
       # everything after it, so `-- --coverage` ran the tier with coverage OFF and
       # the upload step below found no lcov.info.
       - name: Run component tests with coverage
+        id: component-tests
         run: pnpm test:component --coverage
         env:
           # Component tests use in-process PGLite and never dial out; this only
@@ -571,7 +573,7 @@ jobs:
       # actually run rather than a dumped schema being loaded.
       - name: Provision integration-tier schema
         id: provision-schema
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npx prisma migrate deploy
         env:
           DATABASE_URL: postgresql://postgres:test_ci_password@localhost:5432/tzurot_test
@@ -579,10 +581,11 @@ jobs:
       # Real-dependency tiers: contract (*.contract.test.ts — the golden-fixture
       # envelope consumer + the BullMQ pair) + integration (*.integration.test.ts,
       # e.g. the vision-fallback loop over real Redis). The coverage topology's
-      # mechanism-presence check assumes
-      # these tiers execute + gate in CI; this step is that gate. `!cancelled()`
-      # keeps a component-test failure from hiding the contract tier's result; the
-      # build and schema outcomes skip it when either failed, which reports once.
+      # mechanism-presence check assumes these tiers execute + gate in CI; this
+      # step is that gate. `!cancelled()` keeps a component-test failure from
+      # hiding the contract tier's result, and the tier requires both the build
+      # and schema steps to have succeeded, so a failed or skipped upstream step
+      # skips it and the failure reports once.
       - name: Run integration + contract tiers
         if: ${{ !cancelled() && steps.build-packages.outcome == 'success' && steps.provision-schema.outcome == 'success' }}
         run: pnpm test:integration
@@ -591,8 +594,10 @@ jobs:
           REDIS_URL: redis://localhost:6379
           CI: true
 
+      # Skipped when the component step never ran: there is no coverage file to
+      # upload and the failure upstream already reports.
       - name: Upload component coverage to Codecov
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.component-tests.outcome != 'skipped' }}
         uses: codecov/codecov-action@v7
         with:
           # PyPI install path: the default binary download verifies its GPG
