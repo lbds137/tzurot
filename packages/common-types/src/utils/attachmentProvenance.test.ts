@@ -282,8 +282,12 @@ describe('attachmentProvenance', () => {
       expect(neutralizeHeaderMarkers('x][Image: y')).toBe('x]Image: y');
     });
 
-    it('leaves a kept low-9 quote before a label unchanged (not an opener)', () => {
-      expect(neutralizeHeaderMarkers('„Image: x')).toBe('„Image: x');
+    it.each([
+      ['U+201A', '‚'],
+      ['U+201E', '„'],
+      ['U+301D', '〝'],
+    ])('leaves a kept quote %s before a label unchanged (not an opener)', (_codePoint, q) => {
+      expect(neutralizeHeaderMarkers(`${q}Image: x`)).toBe(`${q}Image: x`);
     });
 
     it('defuses a look-alike opener before a multi-word label', () => {
