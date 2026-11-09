@@ -244,6 +244,19 @@ describe('attachmentProvenance', () => {
       expect(neutralizeHeaderMarkers('［[Image: x')).toBe('Image: x');
       expect(neutralizeHeaderMarkers('[[Image: x')).toBe('Image: x');
     });
+
+    it('leaves a multi-opener run not followed by a label unchanged', () => {
+      expect(neutralizeHeaderMarkers('［[note]')).toBe('［[note]');
+    });
+
+    it('leaves a closer directly before a label unchanged', () => {
+      expect(neutralizeHeaderMarkers('］Image: x')).toBe('］Image: x');
+    });
+
+    it('keeps a leading `(` or `{` directly before a stripped opener run', () => {
+      expect(neutralizeHeaderMarkers('([Image: x')).toBe('(Image: x');
+      expect(neutralizeHeaderMarkers('{［Image: x')).toBe('{Image: x');
+    });
   });
 
   describe('HEADER_LABELS', () => {
