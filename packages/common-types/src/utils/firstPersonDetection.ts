@@ -46,8 +46,8 @@ const STRAIGHT_SINGLE = new RegExp(
  *  Design trade-off, not a proven bound: a span whose real closing quote is
  *  missing can run on to a LATER quote that happens to sit at a closer
  *  boundary — a plural possessive such as `sisters'` — swallowing the text
- *  between. The validator prefers that rare over-strip to rejecting a good
- *  digest on every contraction inside dialogue. */
+ *  between. This detector prefers that rare over-strip to flagging a good
+ *  summary on every contraction inside dialogue. */
 export function stripQuotedSpans(text: string): string {
   return text
     .replace(/"[^"]*"|“[^“”]*”/g, '')
@@ -74,7 +74,7 @@ export function findFirstPersonToken(text: string): string | null {
 
 /**
  * Case-sensitive first-person leak detector, run on quote-stripped text.
- * Delegates to `findFirstPersonToken` so both callers share one regex.
+ * Delegates to `findFirstPersonToken` so every caller shares one regex.
  */
 export function hasFirstPerson(text: string): boolean {
   return findFirstPersonToken(text) !== null;
