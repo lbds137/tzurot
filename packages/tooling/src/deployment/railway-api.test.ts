@@ -1373,6 +1373,31 @@ describe('railway-api', () => {
       expect(patterns).toEqual([]);
     });
 
+    it('throws UsageError naming the environment when serviceInstance is null', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_PROD = SENTINEL_TOKEN_PROD;
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            serviceInstance: null,
+          },
+        })
+      );
+
+      let caught: unknown;
+      try {
+        await getRailwayServiceWatchPatterns({
+          environmentId: 'env-prod',
+          serviceId: 'svc-website',
+          env: 'prod',
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(UsageError);
+      expect((caught as Error).message).toBe('service has no instance in the prod environment');
+    });
+
     it('throws a shape error without echoing the raw body when serviceInstance.watchPatterns is malformed', async () => {
       process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       const sentinelPayload = 'SENTINEL-RAW-WATCH-PATTERNS-PAYLOAD';
