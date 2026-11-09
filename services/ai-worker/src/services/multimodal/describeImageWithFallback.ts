@@ -265,13 +265,12 @@ export function sinkFreeRouteFallbacks(tiers: string[]): string[] {
  * order would cost keyless users a guaranteed DB read.
  *
  * Accepted double-read: when tier 0 was OpenRouter-routed off the fast path, its own
- * `resolveVisionAuth` (and the memoized own-plan lookup) already asked the resolver for
- * this same (userId, OpenRouter) key, and for a keyless user that negative wasn't cached
- * — so this probe re-reads the DB once beyond the 4 per-tier + 2 one-time own-plan
- * lookups in that shape. Threading tier 0's auth result here would couple the walk to
- * resolver internals to save one SELECT on an already-failing multi-call path; pinned
- * by the wiring test's 4 + 2 + 1 = 7 call-count assertion (`visionFallbackChain.test.ts`,
- * scenario 5).
+ * `resolveVisionAuth` already asked the resolver for this same (userId, OpenRouter) key,
+ * and for a keyless user that negative wasn't cached — so this probe re-reads the DB once
+ * beyond the 4 per-tier + 1 one-time z.ai lookup in that shape. Threading tier 0's auth
+ * result here would couple the walk to resolver internals to save one SELECT on an
+ * already-failing multi-call path; pinned by the wiring test's 4 + 1 + 1 = 6 call-count
+ * assertion (`visionFallbackChain.test.ts`, scenario 5).
  */
 async function maybeReorderFallbacks(
   tiers: string[],
