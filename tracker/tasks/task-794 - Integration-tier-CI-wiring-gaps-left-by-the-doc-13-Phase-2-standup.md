@@ -1,13 +1,14 @@
 ---
 id: TASK-794
 title: Integration-tier CI wiring gaps left by the doc-13 Phase 2 standup
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-08-28 16:05'
+created_date: 2026-08-28 16:05
+updated_date: '2026-11-09T14:57:00Z'
 labels:
-  - 'area:testing'
-  - 'size:S'
-  - 'state:ready'
+  - area:testing
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 794000
@@ -28,3 +29,9 @@ Fix shape: give the migration step an id and gate the test step on that step out
 
 Acceptance: a failing migration step yields a skipped test step and one clear failure.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped in PR 2729 (merged 2026-11-09, develop dfe53af88): the integration tier now requires install/build/schema success; coverage upload requires a green component run. Acceptance probed in CI run 42632169982 (schema step failure -> tier skipped).
+<!-- SECTION:NOTES:END -->
