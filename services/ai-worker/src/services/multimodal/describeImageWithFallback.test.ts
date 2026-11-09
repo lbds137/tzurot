@@ -43,7 +43,11 @@ import {
 import { describeImage, selectVisionModel } from './VisionProcessor.js';
 import { buildFailureFallback, VisionModelError } from './visionDescribeGates.js';
 import { resolveVisionAuth, createVisionQuotaTracker } from './visionAuthResolver.js';
-import type { ResolveVisionConfigOptions, VisionConfigResult } from './visionAuthResolver.js';
+import type {
+  ResolveVisionConfigOptions,
+  VisionConfigResult,
+  VisionQuotaTracker,
+} from './visionAuthResolver.js';
 
 const FALLBACK_PAID_MODEL = 'openrouter/paid-floor';
 
@@ -205,7 +209,11 @@ beforeEach(() => {
   // Default: user has NO OpenRouter key — the pre-BYOK-ordering baseline.
   mockTryResolveUserKey.mockResolvedValue(null);
   // Default quota tracker — always allows.
-  mockCreateVisionQuotaTracker.mockReturnValue({ tryConsume: vi.fn().mockResolvedValue(true) });
+  mockCreateVisionQuotaTracker.mockReturnValue({
+    tryConsume: vi.fn().mockResolvedValue(true),
+    tryClaimOwnZaiVision: vi.fn().mockReturnValue(true),
+    ownZaiPlanKey: vi.fn().mockResolvedValue(null),
+  } satisfies VisionQuotaTracker);
   // Default: resolve auth to the tier's own model (exercises dedup-by-resolved-model realistically).
   mockResolveVisionAuth.mockImplementation(async tierModel => resolvedFor(tierModel));
   // Default buildFailureFallback: `[fallback:<category>/<source>]` — source-aware so the

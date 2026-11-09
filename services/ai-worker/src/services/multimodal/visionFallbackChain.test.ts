@@ -40,7 +40,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { processAttachments } from '../MultimodalProcessor.js';
 import type { ResolveVisionConfigOptions } from './visionAuthResolver.js';
 import type { ApiKeyResolver } from '../ApiKeyResolver.js';
-import { AIProvider } from '@tzurot/common-types/constants/ai';
+import {
+  AIProvider,
+  FREE_ROUTER_MODEL,
+  ZAI_FREE_TIER_MODEL,
+} from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
@@ -56,6 +60,7 @@ const {
   mockVisionCacheGetFailure,
   mockVisionCacheStoreFailure,
   mockVisionFallbackQuotaConsume,
+  mockZaiFreeTierFailureReactor,
 } = vi.hoisted(() => ({
   mockCreateChatModel: vi.fn(),
   mockParseApiError: vi.fn(),
@@ -65,6 +70,7 @@ const {
   mockVisionCacheGetFailure: vi.fn(),
   mockVisionCacheStoreFailure: vi.fn(),
   mockVisionFallbackQuotaConsume: vi.fn(),
+  mockZaiFreeTierFailureReactor: vi.fn(),
 }));
 
 // EXTERNAL BOUNDARY: the model/HTTP factory. `invoke` is driven per-test to make a tier
@@ -87,6 +93,7 @@ vi.mock('../../utils/apiErrorParser.js', () => ({
 // EXTERNAL BOUNDARY: redis (cache + quota + vision-support probe).
 vi.mock('../../redis.js', () => ({
   checkModelVisionSupport: mockCheckModelVisionSupport,
+  zaiFreeTierFailureReactor: (...args: unknown[]) => mockZaiFreeTierFailureReactor(...args),
   visionDescriptionCache: {
     tryAcquireInflight: vi.fn().mockResolvedValue(true),
     isInflight: vi.fn().mockResolvedValue(false),
@@ -218,6 +225,7 @@ describe('vision fallback chain (wiring / seam test)', () => {
     mockVisionCacheGetFailure.mockResolvedValue(null);
     mockVisionCacheStoreFailure.mockResolvedValue(undefined);
     mockVisionFallbackQuotaConsume.mockResolvedValue(true);
+    mockZaiFreeTierFailureReactor.mockResolvedValue(undefined);
 
     // Default classification: retryable rate-limit. Individual tests that need a different
     // category override this. Shape mirrors the real parseApiError return contract.
@@ -424,10 +432,12 @@ describe('vision fallback chain (wiring / seam test)', () => {
   // Keyless user + mixed free/paid fallback tail + failing primary: tier 0's REAL
   // resolveVisionAuth already asked tryResolveUserKey for (user, OpenRouter) and the
   // negative wasn't cached, then maybeReorderFallbacks probes the SAME pair once more.
-  // The exact call count is the pin: one resolution per composed tier + 1 reorder probe.
+  // The exact call count is the pin: 4 per-tier resolutions + 2 one-time own-plan
+  // lookups (memoized on the per-walk tracker: OpenRouter + ZaiCoding) + 1 reorder probe.
   // The chain here is four tiers — primary, the stamped free route, the paid floor (the
   // `fallbackVisionModel` setting, whose default IS the openrouter/auto alias), and the
-  // concrete terminal `composeVisionTiers` appends after a router-alias tail — so 4 + 1 = 5.
+  // concrete terminal `composeVisionTiers` appends after a router-alias tail — so
+  // 4 + 2 + 1 = 7.
   // If a future refactor threads tier 0's auth result into the probe, the probe term drops
   // out — update the acceptance comment in describeImageWithFallback.ts alongside this
   // assertion.
@@ -456,12 +466,62 @@ describe('vision fallback chain (wiring / seam test)', () => {
     expect(results).toHaveLength(1);
     expect(results[0].description.startsWith('[Image')).toBe(true);
 
-    // Every lookup targeted the same (user, OpenRouter) pair: all four composed tiers
-    // are OpenRouter-routed, and the probe asks for OpenRouter by construction.
-    for (const call of mockApiKeyResolver.tryResolveUserKey.mock.calls) {
+    // Exactly one lookup targets (user, ZaiCoding) for the memoized own-plan check;
+    // every other lookup targets (user, OpenRouter).
+    const zaiCalls = mockApiKeyResolver.tryResolveUserKey.mock.calls.filter(
+      call => call[1] === AIProvider.ZaiCoding
+    );
+    const otherCalls = mockApiKeyResolver.tryResolveUserKey.mock.calls.filter(
+      call => call[1] !== AIProvider.ZaiCoding
+    );
+    expect(zaiCalls).toEqual([['user-1', AIProvider.ZaiCoding]]);
+    for (const call of otherCalls) {
       expect(call).toEqual(['user-1', AIProvider.OpenRouter]);
     }
-    // THE PIN: 4 per-tier resolveVisionAuth lookups + exactly 1 reorder-probe lookup.
-    expect(mockApiKeyResolver.tryResolveUserKey).toHaveBeenCalledTimes(5);
+    // THE PIN: 4 per-tier resolveVisionAuth lookups + 2 one-time own-plan lookups + 1 reorder-probe lookup = 7.
+    expect(mockApiKeyResolver.tryResolveUserKey).toHaveBeenCalledTimes(7);
+  });
+
+  // SCENARIO 6 — authenticated user with a z.ai coding-plan key and no OpenRouter key:
+  // tier 1 claims the user's own z.ai plan (glm-5.3-flash on user-zai-key); when that
+  // fails with a non-terminate category, the per-walk one-shot is spent so tier 2 falls
+  // through to the free vision floor on the system key rather than collapsing onto flash
+  // again. Because the first attempt is source: 'user' and isGuestMode: false, the
+  // shared-plan z.ai failure reactor is not invoked.
+  it('authenticated z.ai-only user: first tier fails on glm-5.3-flash (own key), second tier succeeds on the free floor (system key), reactor not invoked', async () => {
+    mockApiKeyResolver.tryResolveUserKey.mockImplementation(
+      async (_uid: string, provider: AIProvider) =>
+        provider === AIProvider.ZaiCoding ? 'user-zai-key' : null
+    );
+    driveModels({
+      [ZAI_FREE_TIER_MODEL]: () => Promise.reject(new Error('429 rate limited on own z.ai plan')),
+      [FREE_ROUTER_MODEL]: () =>
+        Promise.resolve({ content: 'FREE FLOOR DESCRIPTION after own-plan failure' }),
+    });
+
+    const results = await processAttachments([imageAttachment], personality, {
+      isGuestMode: false,
+      visionAuth: buildVisionAuth(),
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      type: AttachmentType.Image,
+      description: 'FREE FLOOR DESCRIPTION after own-plan failure',
+      originalUrl: imageAttachment.url,
+    });
+
+    expect(mockCreateChatModel).toHaveBeenCalledTimes(2);
+    expect(mockCreateChatModel.mock.calls[0][0]).toMatchObject({
+      modelName: ZAI_FREE_TIER_MODEL,
+      apiKey: 'user-zai-key',
+      provider: AIProvider.ZaiCoding,
+    });
+    expect(mockCreateChatModel.mock.calls[1][0]).toMatchObject({
+      modelName: FREE_ROUTER_MODEL,
+      apiKey: 'system-key',
+      provider: AIProvider.OpenRouter,
+    });
+    expect(mockZaiFreeTierFailureReactor).not.toHaveBeenCalled();
   });
 });

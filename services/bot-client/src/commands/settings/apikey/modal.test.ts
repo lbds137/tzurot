@@ -220,6 +220,7 @@ describe('handleApikeyModalSubmit', () => {
       const embedData = vi.mocked(mockEditReply).mock.calls[0][0].embeds[0].data;
       const nextSteps = embedData.fields.find((f: { name: string }) => f.name === '💡 Next Steps');
       expect(nextSteps.value).toContain('whenever a z.ai model serves the response');
+      expect(nextSteps.value).toContain('it also describes the images you send');
       expect(nextSteps.value).not.toContain('will now be used for AI responses');
     });
 

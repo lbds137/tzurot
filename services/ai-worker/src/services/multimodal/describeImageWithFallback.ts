@@ -199,8 +199,9 @@ function appendConcreteTerminal(capped: string[], isGuestMode: boolean): string[
  * That concrete default is a PAID model, but composition emits model NAMES
  * only: per-tier auth resolution is what keeps a guest or a keyless user off it
  * (`resolveVisionAuth` forces the free floor on every non-primary guest tier,
- * and `resolveBroadFreeFallback` downgrades a keyless authenticated user onto
- * the free model on the system key). Pinned for this exact model by the
+ * and `resolveBroadFreeFallback` downgrades an authenticated user with no
+ * vision-provider key and no own-plan claim onto the free model on the system
+ * key). Pinned for this exact model by the
  * `visionAuthResolver.test.ts` cases `forces the free model for a GUEST on the
  * concrete vision fallback tier` and `downgrades the concrete vision fallback
  * to the free model on the system key for a keyless user`.
@@ -222,8 +223,9 @@ export function composeVisionTiers(
   // The floor is the paid model unless we KNOW this is a guest. Even a caller that
   // under-reports guest-ness here degrades safely: the paid floor is only a MODEL NAME at
   // this composition step; when the loop actually reaches it, resolveVisionAuth downgrades a
-  // keyless user onto the free model on the system key anyway (broad-free-fallback). So a
-  // "wrong" isGuestMode picks a floor model name that auth-time resolution converges to free.
+  // keyless user (no vision-provider key and no own-plan claim) onto the free model on the
+  // system key anyway (broad-free-fallback). So a "wrong" isGuestMode picks a floor model
+  // name that auth-time resolution converges to free.
   const floor = isGuestMode ? getFreeVisionFloor() : getSystemSetting('fallbackVisionModel');
   const ordered = [primaryModel, ...(personality.visionFallbackModels ?? []), floor];
   const seen = new Set<string>();
@@ -263,11 +265,13 @@ export function sinkFreeRouteFallbacks(tiers: string[]): string[] {
  * order would cost keyless users a guaranteed DB read.
  *
  * Accepted double-read: when tier 0 was OpenRouter-routed off the fast path, its own
- * `resolveVisionAuth` already asked the resolver for this same (userId, OpenRouter)
- * key, and for a keyless user that negative wasn't cached — so this probe re-reads the
- * DB once in that shape. Threading tier 0's auth result here would couple the walk to
+ * `resolveVisionAuth` (and the memoized own-plan lookup) already asked the resolver for
+ * this same (userId, OpenRouter) key, and for a keyless user that negative wasn't cached
+ * — so this probe re-reads the DB once beyond the 4 per-tier + 2 one-time own-plan
+ * lookups in that shape. Threading tier 0's auth result here would couple the walk to
  * resolver internals to save one SELECT on an already-failing multi-call path; pinned
- * by the wiring test's call-count assertion (`visionFallbackChain.test.ts`, scenario 5).
+ * by the wiring test's 4 + 2 + 1 = 7 call-count assertion (`visionFallbackChain.test.ts`,
+ * scenario 5).
  */
 async function maybeReorderFallbacks(
   tiers: string[],
