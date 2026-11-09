@@ -165,6 +165,7 @@ export interface ResolveVisionConfigOptions {
  */
 export interface VisionQuotaTracker {
   tryConsume(): Promise<boolean>;
+  hasOwnZaiClaim(): boolean;
   tryClaimOwnZaiVision(): boolean;
   /**
    * Memoizes the per-walk own-plan z.ai key lookup: the first `lookup` passed
@@ -197,6 +198,9 @@ export function createVisionQuotaTracker(userId: string | undefined): VisionQuot
       // already-denied user is pure waste (extra INCR+EXPIRE round-trips).
       consumedThisRequest = true;
       return ok;
+    },
+    hasOwnZaiClaim(): boolean {
+      return !claimedOwnZaiVision;
     },
     tryClaimOwnZaiVision(): boolean {
       if (claimedOwnZaiVision) {
@@ -257,6 +261,9 @@ async function resolveOwnZaiPlanVision(
   if (visionProvider === AIProvider.ZaiCoding) {
     return null;
   }
+  if (!quotaTracker.hasOwnZaiClaim()) {
+    return null;
+  }
   const zaiKey = await quotaTracker.ownZaiPlanKey(() =>
     lookupOwnZaiPlanKey(userId, apiKeyResolver)
   );
@@ -266,7 +273,7 @@ async function resolveOwnZaiPlanVision(
   if (!quotaTracker.tryClaimOwnZaiVision()) {
     return null;
   }
-  logger.info(
+  logger.debug(
     { userId, model: ZAI_FREE_TIER_MODEL },
     "Image description routed to the user's own z.ai coding plan"
   );
@@ -610,8 +617,10 @@ export async function resolveVisionAuth(
 /**
  * Resolve the API key + provider + model for the PRIMARY vision call atomically.
  * Computes the natural vision model via `selectVisionModel`, then delegates auth
- * resolution to `resolveVisionAuth`. (the fallback loop calls `resolveVisionAuth`
- * directly, once per tier, with that tier's model.)
+ * resolution to `resolveVisionAuth` with the own-plan claim pre-spent so history
+ * images keep the free system pool by owner ruling; only the image walk
+ * (`describeImageWithFallback`) may use the user's own plan. (the fallback loop
+ * calls `resolveVisionAuth` directly, once per tier, with that tier's model.)
  */
 export async function resolveVisionConfig(
   options: ResolveVisionConfigOptions
@@ -623,5 +632,9 @@ export async function resolveVisionConfig(
   const naturalModel = await selectVisionModel(options.personality, options.isGuestMode);
   // A fresh single-use tracker → identical to the old direct per-call quota consume.
   // The primary path IS the primary tier — the fast path is legitimate here.
-  return resolveVisionAuth(naturalModel, options, createVisionQuotaTracker(options.userId), true);
+  const tracker = createVisionQuotaTracker(options.userId);
+  // History images keep the free system pool by owner ruling; only the image
+  // walk (`describeImageWithFallback`) may use the user's own plan.
+  tracker.tryClaimOwnZaiVision();
+  return resolveVisionAuth(naturalModel, options, tracker, true);
 }

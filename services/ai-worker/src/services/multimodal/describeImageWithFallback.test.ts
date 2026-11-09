@@ -213,6 +213,7 @@ beforeEach(() => {
   // Default quota tracker — always allows.
   mockCreateVisionQuotaTracker.mockReturnValue({
     tryConsume: vi.fn().mockResolvedValue(true),
+    hasOwnZaiClaim: vi.fn().mockReturnValue(true),
     tryClaimOwnZaiVision: mockTryClaimOwnZaiVision,
     ownZaiPlanKey: vi.fn().mockResolvedValue(null),
   } satisfies VisionQuotaTracker);
