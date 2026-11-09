@@ -489,6 +489,11 @@ async function attemptTier(options: AttemptTierOptions): Promise<TierAttempt> {
     return { kind: 'skip' };
   }
   attempted.add(auth.config.model);
+  // Any flash attempt spends the walk's own-plan claim, so a later keyless tier
+  // falls to the free floor instead of re-resolving to flash and dedup-skipping.
+  if (isZaiFreeTierModel(auth.config.model)) {
+    quota.tryClaimOwnZaiVision();
+  }
 
   // `.catch` keeps the reactor fail-soft — the walk must proceed regardless.
   const onTierFailure = isPiggybackTierConfig(auth.config)
