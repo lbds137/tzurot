@@ -141,6 +141,27 @@ export function allSubcommands(cmd: ManifestCommand): { name: string; descriptio
   return out;
 }
 
+/**
+ * Telemetry command paths a command can be invoked as: the command name, then
+ * group, then subcommand, dot-joined. A command with no subcommands or groups
+ * is invoked as just its name.
+ */
+export function commandPaths(cmd: ManifestCommand): string[] {
+  const paths: string[] = [];
+  for (const opt of topLevelOptions(cmd)) {
+    if (isSubcommand(opt)) {
+      paths.push(`${cmd.name}.${opt.name}`);
+    } else if (isSubcommandGroup(opt)) {
+      for (const sub of opt.options ?? []) {
+        if (isSubcommand(sub)) {
+          paths.push(`${cmd.name}.${opt.name}.${sub.name}`);
+        }
+      }
+    }
+  }
+  return paths.length > 0 ? paths : [cmd.name];
+}
+
 /** All leaf options (with their owning subcommand path) across a command. */
 export interface LeafOptionRef {
   command: string;

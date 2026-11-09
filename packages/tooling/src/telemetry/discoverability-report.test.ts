@@ -1,7 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { createPrismaClient } from '@tzurot/common-types/services/prisma';
-import type { PerCommandRawRow, BreadthRawRow, HeaderRawRow } from './discoverability-report.js';
+import type {
+  PerCommandRawRow,
+  BreadthRawRow,
+  HeaderRawRow,
+  PerCommandStats,
+  ReportData,
+} from './discoverability-report.js';
+import { loadManifest } from '../dev/commandsAudit.js';
+import type { CommandManifest, ManifestCommand } from '../dev/commandsAuditCore.js';
 
 const mockDispose = vi.fn().mockResolvedValue(undefined);
 
@@ -32,6 +40,80 @@ vi.mock('node:fs', () => ({
   writeFileSync: vi.fn(),
 }));
 
+vi.mock('../dev/commandsAudit.js', () => ({ loadManifest: vi.fn() }));
+
+const HANDLERS = {
+  execute: true,
+  autocomplete: false,
+  selectMenu: false,
+  button: false,
+  modal: false,
+};
+
+function manifestCommand(
+  name: string,
+  options: ManifestCommand['data']['options'] = undefined
+): ManifestCommand {
+  return {
+    name,
+    description: `Description for ${name}`,
+    handlers: HANDLERS,
+    componentPrefixes: [],
+    data: { name, description: `Description for ${name}`, options },
+  };
+}
+
+const defaultManifest = {
+  helpCategories: [],
+  commands: [manifestCommand('ping')],
+} satisfies CommandManifest;
+
+const groupedManifest = {
+  helpCategories: [],
+  commands: [
+    manifestCommand('config', [
+      { type: 1, name: 'browse' },
+      { type: 2, name: 'llm', options: [{ type: 1, name: 'set' }] },
+    ]),
+    manifestCommand('ping'),
+  ],
+} satisfies CommandManifest;
+
+function stats(command: string): PerCommandStats {
+  return {
+    command,
+    invocations: 10,
+    distinctUsers: 5,
+    okCount: 10,
+    userErrorCount: 0,
+    systemErrorCount: 0,
+    otherCount: 0,
+    userErrorRatio: 0,
+    flagged: false,
+  };
+}
+
+function reportData(overrides: Partial<ReportData>): ReportData {
+  return {
+    days: 30,
+    env: 'local',
+    generatedAt: new Date('2026-08-25T12:00:00.000Z'),
+    header: { totalEvents: 0, distinctUsers: 0, distinctCommands: 0 },
+    perCommand: [],
+    breadthBuckets: [],
+    roster: { paths: [] },
+    ...overrides,
+  };
+}
+
+/** The text of the never-invoked section, bounded by its heading and the next. */
+function neverInvokedSection(markdown: string): string {
+  const heading = '## Never invoked (in roster, zero rows in window)';
+  const start = markdown.indexOf(heading);
+  const end = markdown.indexOf('## Command breadth');
+  return markdown.slice(start, end);
+}
+
 describe('discoverability-report', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
@@ -45,6 +127,7 @@ describe('discoverability-report', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-25T12:00:00.000Z'));
     vi.clearAllMocks();
+    vi.mocked(loadManifest).mockReturnValue(defaultManifest);
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     process.exitCode = undefined;
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -287,6 +370,103 @@ describe('discoverability-report', () => {
       expect(output).toContain('- Total invocations: 12');
       expect(output).toContain('- Distinct users: 4');
       expect(output).toContain('- Distinct commands: 3');
+    });
+  });
+
+  describe('neverInvokedCommands', () => {
+    it('returns the sorted roster paths absent from the per-command rows', async () => {
+      const { neverInvokedCommands } = await import('./discoverability-report.js');
+      const result = neverInvokedCommands(
+        ['zeta', 'config.llm.set', 'ping', 'alpha.run'],
+        [stats('ping'), stats('legacy.gone')]
+      );
+      expect(result).toEqual(['alpha.run', 'config.llm.set', 'zeta']);
+    });
+  });
+
+  describe('never-invoked section', () => {
+    it('lists only uninvoked roster paths, between Dark features and Command breadth', async () => {
+      const { renderDiscoverabilityMarkdown } = await import('./discoverability-report.js');
+      const md = renderDiscoverabilityMarkdown(
+        reportData({
+          perCommand: [stats('ping')],
+          roster: { paths: ['ping', 'memory.browse', 'config.llm.set'] },
+        })
+      );
+      const section = neverInvokedSection(md);
+      expect(section).toContain('- `config.llm.set`\n- `memory.browse`');
+      expect(section).not.toContain('`ping`');
+      expect(md.indexOf('## Dark features')).toBeLessThan(md.indexOf('## Never invoked'));
+      expect(md.indexOf('## Never invoked')).toBeLessThan(md.indexOf('## Command breadth'));
+    });
+
+    it('prints "None in this window." in the section when every roster path was invoked', async () => {
+      const { renderDiscoverabilityMarkdown } = await import('./discoverability-report.js');
+      const md = renderDiscoverabilityMarkdown(
+        reportData({ perCommand: [stats('ping')], roster: { paths: ['ping'] } })
+      );
+      expect(neverInvokedSection(md)).toContain('None in this window.');
+    });
+
+    it('prints the roster error when the roster could not be loaded', async () => {
+      const { renderDiscoverabilityMarkdown } = await import('./discoverability-report.js');
+      const md = renderDiscoverabilityMarkdown(reportData({ roster: { error: 'boom' } }));
+      expect(neverInvokedSection(md)).toContain('Roster unavailable: boom');
+    });
+
+    it('joins the manifest roster against the DB rows in telemetryReport', async () => {
+      vi.mocked(loadManifest).mockReturnValue(groupedManifest);
+      const perCommand: PerCommandRawRow[] = [
+        {
+          command: 'ping',
+          invocations: 10n,
+          distinct_users: 5n,
+          ok_count: 10n,
+          user_error_count: 0n,
+          system_error_count: 0n,
+        },
+      ];
+      mockQueryRaw
+        .mockResolvedValueOnce(perCommand)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(emptyHeader);
+
+      const { telemetryReport } = await import('./discoverability-report.js');
+      await telemetryReport({ env: 'local', days: 30 });
+
+      expect(loadManifest).toHaveBeenCalled();
+      const section = neverInvokedSection(consoleLogSpy.mock.calls.flat().join('\n'));
+      expect(section).toContain('- `config.browse`');
+      expect(section).toContain('- `config.llm.set`');
+      expect(section).not.toContain('`ping`');
+    });
+
+    it('still renders the DB report when the manifest cannot be loaded', async () => {
+      vi.mocked(loadManifest).mockImplementation(() => {
+        throw new Error('manifest missing');
+      });
+      const perCommand: PerCommandRawRow[] = [
+        {
+          command: 'ping',
+          invocations: 10n,
+          distinct_users: 5n,
+          ok_count: 10n,
+          user_error_count: 0n,
+          system_error_count: 0n,
+        },
+      ];
+      mockQueryRaw
+        .mockResolvedValueOnce(perCommand)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(emptyHeader);
+
+      const { telemetryReport } = await import('./discoverability-report.js');
+      await telemetryReport({ env: 'local', days: 30 });
+
+      const output = consoleLogSpy.mock.calls.flat().join('\n');
+      expect(output).toContain('## Per-command');
+      expect(output).toContain('| ping | 10 |');
+      expect(output).toContain('Roster unavailable: manifest missing');
     });
   });
 
