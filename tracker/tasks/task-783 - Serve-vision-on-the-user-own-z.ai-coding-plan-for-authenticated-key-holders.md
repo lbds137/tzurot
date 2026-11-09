@@ -4,11 +4,11 @@ title: Serve vision on the user own z.ai coding plan for authenticated key-holde
 status: To Do
 assignee: []
 created_date: 2026-08-27 14:09
-updated_date: '2026-11-09T14:11:00Z'
+updated_date: '2026-11-09T14:35:00Z'
 labels:
   - area:ai-worker
   - size:S
-  - state:owner
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 783000
@@ -26,3 +26,9 @@ Acceptance: a zai-key-holder without an OpenRouter key gets flash-described imag
 Owner question: may image descriptions draw on a user's own z.ai coding-plan quota when they hold no OpenRouter key, instead of the free pool?
 Recommendation: yes — the plan is flat-rate, so the user's cost is quota rather than money, and it replaces a pool failing 35-52% weekly; add one line to the key's setup copy saying images use it too.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner ruling 2026-11-09 (Lila, AskUserQuestion): YES, serve vision on the user's own zai-coding key when they hold no OpenRouter key, AND add one line to the key's setup copy saying images use it too. Build per the fix shape above; the copy line is part of the same unit.
+<!-- SECTION:NOTES:END -->
