@@ -569,6 +569,7 @@ jobs:
       # diffing cannot see functions or triggers at all, so the migrations must
       # actually run rather than a dumped schema being loaded.
       - name: Provision integration-tier schema
+        id: provision-schema
         if: ${{ !cancelled() }}
         run: npx prisma migrate deploy
         env:
@@ -579,9 +580,10 @@ jobs:
       # e.g. the vision-fallback loop over real Redis). The coverage topology's
       # mechanism-presence check assumes
       # these tiers execute + gate in CI; this step is that gate. `if: !cancelled()`
-      # so a component-test failure doesn't hide the contract tier's own result.
+      # so a component-test failure doesn't hide the contract tier's own result;
+      # skipped when the schema step failed, which reports once on its own.
       - name: Run integration + contract tiers
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.provision-schema.outcome == 'success' }}
         run: pnpm test:integration
         env:
           DATABASE_URL: postgresql://postgres:test_ci_password@localhost:5432/tzurot_test
