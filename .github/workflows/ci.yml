@@ -549,6 +549,7 @@ jobs:
         run: npx prisma generate
 
       - name: Build packages
+        id: build-packages
         run: pnpm --filter './packages/*' build
 
       # No `--` before the flag: pnpm forwards a literal `--` and vitest ignores
@@ -579,11 +580,11 @@ jobs:
       # envelope consumer + the BullMQ pair) + integration (*.integration.test.ts,
       # e.g. the vision-fallback loop over real Redis). The coverage topology's
       # mechanism-presence check assumes
-      # these tiers execute + gate in CI; this step is that gate. `if: !cancelled()`
-      # so a component-test failure doesn't hide the contract tier's own result;
-      # skipped when the schema step failed, which reports once on its own.
+      # these tiers execute + gate in CI; this step is that gate. `!cancelled()`
+      # keeps a component-test failure from hiding the contract tier's result; the
+      # build and schema outcomes skip it when either failed, which reports once.
       - name: Run integration + contract tiers
-        if: ${{ !cancelled() && steps.provision-schema.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.build-packages.outcome == 'success' && steps.provision-schema.outcome == 'success' }}
         run: pnpm test:integration
         env:
           DATABASE_URL: postgresql://postgres:test_ci_password@localhost:5432/tzurot_test
