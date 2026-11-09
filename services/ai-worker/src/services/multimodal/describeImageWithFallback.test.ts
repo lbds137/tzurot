@@ -187,6 +187,7 @@ const attachment: AttachmentMetadata = {
 } as AttachmentMetadata;
 
 const mockTryResolveUserKey = vi.fn();
+let mockTryClaimOwnZaiVision = vi.fn<() => boolean>();
 
 function makeAuthOptions(
   overrides: Partial<ResolveVisionConfigOptions> = {}
@@ -208,10 +209,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   // Default: user has NO OpenRouter key — the pre-BYOK-ordering baseline.
   mockTryResolveUserKey.mockResolvedValue(null);
+  mockTryClaimOwnZaiVision = vi.fn<() => boolean>().mockReturnValue(true);
   // Default quota tracker — always allows.
   mockCreateVisionQuotaTracker.mockReturnValue({
     tryConsume: vi.fn().mockResolvedValue(true),
-    tryClaimOwnZaiVision: vi.fn().mockReturnValue(true),
+    tryClaimOwnZaiVision: mockTryClaimOwnZaiVision,
     ownZaiPlanKey: vi.fn().mockResolvedValue(null),
   } satisfies VisionQuotaTracker);
   // Default: resolve auth to the tier's own model (exercises dedup-by-resolved-model realistically).
@@ -1097,6 +1099,45 @@ describe('describeImageWithFallback', () => {
     await describeImageWithFallback(attachment, personality, opts, { model: 'primary/model' });
 
     expect(mockCreateVisionQuotaTracker).toHaveBeenCalledTimes(2);
+  });
+
+  it('spends the own-plan vision claim once when a tier resolves to ZAI_FREE_TIER_MODEL', async () => {
+    const personality = makePersonality({ visionFallbackModels: [] });
+    mockResolveVisionAuth.mockResolvedValueOnce(resolvedFor(ZAI_FREE_TIER_MODEL));
+    mockDescribeImage.mockResolvedValueOnce('flash description');
+
+    await describeImageWithFallback(attachment, personality, makeAuthOptions({ personality }), {
+      model: 'primary/model',
+    });
+
+    expect(mockTryClaimOwnZaiVision).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not spend the own-plan vision claim when no tier is flash', async () => {
+    const personality = makePersonality({ visionFallbackModels: ['tier-a'] });
+    mockDescribeImage.mockResolvedValueOnce('primary description');
+
+    await describeImageWithFallback(attachment, personality, makeAuthOptions({ personality }), {
+      model: 'primary/model',
+    });
+
+    expect(mockTryClaimOwnZaiVision).not.toHaveBeenCalled();
+  });
+
+  it('does not raise the own-plan vision claim count for a dedup-skipped flash tier', async () => {
+    const personality = makePersonality({ visionFallbackModels: ['tier-a'] });
+    mockResolveVisionAuth.mockImplementation(async () => resolvedFor(ZAI_FREE_TIER_MODEL));
+    mockDescribeImage.mockRejectedValueOnce(
+      new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'rate limited')
+    );
+
+    await describeImageWithFallback(attachment, personality, makeAuthOptions({ personality }), {
+      model: 'primary/model',
+    });
+
+    expect(mockResolveVisionAuth).toHaveBeenCalledTimes(3);
+    expect(mockDescribeImage).toHaveBeenCalledTimes(1);
+    expect(mockTryClaimOwnZaiVision).toHaveBeenCalledTimes(1);
   });
 
   it('derives the primary model via selectVisionModel when describeOptions.model is omitted', async () => {

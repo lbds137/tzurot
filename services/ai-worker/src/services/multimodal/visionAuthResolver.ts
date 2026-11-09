@@ -214,12 +214,7 @@ export function createVisionQuotaTracker(userId: string | undefined): VisionQuot
 
 /**
  * Fail-soft lookup of the user's z.ai coding-plan key for {@link resolveOwnZaiPlanVision}.
- * No OpenRouter check is needed here: the own-plan arm is reached only on an
- * OpenRouter-routed tier right after `tryResolveUserKey(userId, AIProvider.OpenRouter)`
- * missed (`detectVisionProvider` returns only OpenRouter or ZaiCoding, and
- * `resolveOwnZaiPlanVision` returns early for ZaiCoding). Pinned by
- * `visionAuthResolver.test.ts`
- * (`'B, both keys: served on the OpenRouter key and never reaches the own-plan arm'`).
+ * See {@link resolveOwnZaiPlanVision} for why no OpenRouter check is needed here.
  */
 async function lookupOwnZaiPlanKey(
   userId: string,
@@ -273,7 +268,7 @@ async function resolveOwnZaiPlanVision(
   }
   logger.info(
     { userId, model: ZAI_FREE_TIER_MODEL },
-    "Image description served on the user's own z.ai coding plan"
+    "Image description routed to the user's own z.ai coding plan"
   );
   return {
     kind: 'resolved',

@@ -459,7 +459,7 @@ describe('resolveVisionConfig', () => {
       });
     });
 
-    it('E, the claim survives a ZaiCoding-routed tier', async () => {
+    it('E, the claim survives a ZaiCoding-routed tier and resolves to the broad free fallback', async () => {
       mockTryResolveUserKey.mockImplementation(async (_uid: string, provider: AIProvider) =>
         provider === AIProvider.OpenRouter ? 'user-or-key' : null
       );
@@ -472,7 +472,7 @@ describe('resolveVisionConfig', () => {
       } satisfies ApiKeyResolutionResult);
 
       const tracker = createVisionQuotaTracker('user-1');
-      await resolveVisionAuth(
+      const result = await resolveVisionAuth(
         'glm-4.6v',
         {
           personality,
@@ -486,6 +486,16 @@ describe('resolveVisionConfig', () => {
         false
       );
 
+      expect(result).toEqual({
+        kind: 'resolved',
+        config: {
+          apiKey: 'system-or-key',
+          provider: AIProvider.OpenRouter,
+          model: FREE_ROUTER_MODEL,
+          source: 'system',
+          isGuestMode: false,
+        },
+      } satisfies VisionConfigResult);
       expect(mockTryResolveUserKey).toHaveBeenCalledWith('user-1', AIProvider.ZaiCoding);
       expect(tracker.tryClaimOwnZaiVision()).toBe(true);
     });
