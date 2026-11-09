@@ -329,14 +329,19 @@ describe('resolveVisionConfig', () => {
         provider === AIProvider.ZaiCoding ? 'user-zai-key' : null
       );
 
-      const result = await resolveVisionConfig({
-        personality,
-        mainProvider: AIProvider.ZaiCoding,
-        mainApiKey: 'user-zai-key',
-        isGuestMode: false,
-        userId: 'user-1',
-        apiKeyResolver: mockResolver,
-      });
+      const result = await resolveVisionAuth(
+        'qwen/qwen3.5-397b-a17b',
+        {
+          personality,
+          mainProvider: AIProvider.ZaiCoding,
+          mainApiKey: 'user-zai-key',
+          isGuestMode: false,
+          userId: 'user-1',
+          apiKeyResolver: mockResolver,
+        },
+        createVisionQuotaTracker('user-1'),
+        false
+      );
 
       expect(mockTryResolveUserKey).toHaveBeenCalledWith('user-1', AIProvider.ZaiCoding);
       expect(mockTryResolveUserKey).toHaveBeenCalledWith('user-1', AIProvider.OpenRouter);
@@ -599,7 +604,40 @@ describe('resolveVisionConfig', () => {
         userId: 'user-1',
       } satisfies ApiKeyResolutionResult);
 
-      await resolveVisionConfig({
+      await resolveVisionAuth(
+        'qwen/qwen3.5-397b-a17b',
+        {
+          personality,
+          mainProvider: AIProvider.ZaiCoding,
+          mainApiKey: 'user-zai-key',
+          isGuestMode: false,
+          userId: 'user-1',
+          apiKeyResolver: mockResolver,
+        },
+        createVisionQuotaTracker('user-1'),
+        false
+      );
+
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        { err: lookupError, userId: 'user-1' },
+        'Own-plan key lookup failed — keeping the broad free fallback'
+      );
+    });
+
+    it('history images keep the free pool: resolveVisionConfig for a z.ai-only user resolves to the broad free fallback on the system key without looking up ZaiCoding', async () => {
+      mockSelectVisionModel.mockResolvedValue('qwen/qwen3.5-397b-a17b');
+      mockTryResolveUserKey.mockImplementation(async (_uid: string, provider: AIProvider) =>
+        provider === AIProvider.ZaiCoding ? 'user-zai-key' : null
+      );
+      mockResolveApiKey.mockResolvedValue({
+        apiKey: 'system-or-key',
+        source: 'system',
+        provider: AIProvider.OpenRouter,
+        isGuestMode: true,
+        userId: 'user-1',
+      } satisfies ApiKeyResolutionResult);
+
+      const result = await resolveVisionConfig({
         personality,
         mainProvider: AIProvider.ZaiCoding,
         mainApiKey: 'user-zai-key',
@@ -608,10 +646,59 @@ describe('resolveVisionConfig', () => {
         apiKeyResolver: mockResolver,
       });
 
-      expect(mockLoggerWarn).toHaveBeenCalledWith(
-        { err: lookupError, userId: 'user-1' },
-        'Own-plan key lookup failed — keeping the broad free fallback'
+      expect(result).toEqual({
+        kind: 'resolved',
+        config: {
+          apiKey: 'system-or-key',
+          provider: AIProvider.OpenRouter,
+          model: FREE_ROUTER_MODEL,
+          source: 'system',
+          isGuestMode: false,
+        },
+      } satisfies VisionConfigResult);
+      expect(mockTryResolveUserKey).not.toHaveBeenCalledWith('user-1', AIProvider.ZaiCoding);
+    });
+
+    it('skips the ZaiCoding wallet lookup in resolveVisionAuth when the tracker claim was already spent', async () => {
+      mockTryResolveUserKey.mockImplementation(async (_uid: string, provider: AIProvider) =>
+        provider === AIProvider.ZaiCoding ? 'user-zai-key' : null
       );
+      mockResolveApiKey.mockResolvedValue({
+        apiKey: 'system-or-key',
+        source: 'system',
+        provider: AIProvider.OpenRouter,
+        isGuestMode: true,
+        userId: 'user-1',
+      } satisfies ApiKeyResolutionResult);
+
+      const tracker = createVisionQuotaTracker('user-1');
+      expect(tracker.tryClaimOwnZaiVision()).toBe(true);
+
+      const result = await resolveVisionAuth(
+        'qwen/qwen3.5-397b-a17b',
+        {
+          personality,
+          mainProvider: AIProvider.ZaiCoding,
+          mainApiKey: 'user-zai-key',
+          isGuestMode: false,
+          userId: 'user-1',
+          apiKeyResolver: mockResolver,
+        },
+        tracker,
+        false
+      );
+
+      expect(result).toEqual({
+        kind: 'resolved',
+        config: {
+          apiKey: 'system-or-key',
+          provider: AIProvider.OpenRouter,
+          model: FREE_ROUTER_MODEL,
+          source: 'system',
+          isGuestMode: false,
+        },
+      } satisfies VisionConfigResult);
+      expect(mockTryResolveUserKey).not.toHaveBeenCalledWith('user-1', AIProvider.ZaiCoding);
     });
   });
 
@@ -1208,6 +1295,14 @@ describe('createVisionQuotaTracker', () => {
     expect(secondTracker.tryClaimOwnZaiVision()).toBe(true);
     expect(secondTracker.tryClaimOwnZaiVision()).toBe(false);
     expect(await secondTracker.tryConsume()).toBe(true);
+  });
+
+  it('hasOwnZaiClaim returns true before and false after tryClaimOwnZaiVision', () => {
+    const tracker = createVisionQuotaTracker('user-1');
+
+    expect(tracker.hasOwnZaiClaim()).toBe(true);
+    expect(tracker.tryClaimOwnZaiVision()).toBe(true);
+    expect(tracker.hasOwnZaiClaim()).toBe(false);
   });
 
   it('ownZaiPlanKey invokes lookup once and returns the stored promise on later calls', async () => {
