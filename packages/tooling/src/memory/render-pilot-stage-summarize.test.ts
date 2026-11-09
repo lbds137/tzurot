@@ -130,6 +130,28 @@ describe('render-pilot summarize/questions stages', () => {
     ]);
   });
 
+  // The pilot's former local regex had no plural forms, so this case pins the shared detector.
+  it('flags a plural-only first-person summary (we/our) with the shared production detector', async () => {
+    callChatCompletionMock.mockResolvedValue({
+      content: '{"summary": "We met at the cafe and talked about our plans."}',
+      promptTokens: 10,
+      completionTokens: 5,
+      latencyMs: 10,
+      attempts: 1,
+      reasoningBlocksStripped: 0,
+      finishReason: null,
+      provider: 'zai-coding',
+    } satisfies CompletionResult);
+    await runSummariesStage(ctx, baseOptions({ outDir: dir }), makeCorpus());
+
+    const result = readStageFile<{ summaries: { rowId: string; hasFirstPerson: boolean }[] }>(
+      stagePath(dir, 'nova', 'summaries')
+    );
+    expect(result?.summaries).toEqual([
+      expect.objectContaining({ rowId: 'm1', hasFirstPerson: true }),
+    ]);
+  });
+
   // Wiring pin: the summarizer call must forward options.glmProvider, not a
   // hardcoded value. Asserting only the default ('zai-coding') would also
   // pass against a hardcoded `provider: 'zai-coding'` — vary the option and

@@ -4,6 +4,7 @@
  */
 
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
+import { hasFirstPerson } from '@tzurot/common-types/utils/firstPersonDetection';
 import type { CorpusResult, CorpusRow } from './render-pilot-corpus.js';
 import {
   buildSummarizerUserMessage,
@@ -23,7 +24,6 @@ import {
   parseSummaryResponse,
   parseQuestionsResponse,
   decideSummaryOutcome,
-  hasFirstPerson,
   SUMMARY_SOFT_CAP_TOKENS,
   type SummaryRecord,
 } from './render-pilot-metrics.js';
