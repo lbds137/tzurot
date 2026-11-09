@@ -50,4 +50,6 @@ The shipped doc comments were scoped to match, in the same PR, rather than left 
 
 <!-- SECTION:NOTES:BEGIN -->
 Owner decision 2026-10-04 (AskUserQuestion, chose the recommendation): strip look-alike brackets by Unicode category Ps/Pe (fails safe; a CJK or fullwidth filename losing its brackets is accepted).
+
+Owner refinement 2026-11-09 (AskUserQuestion, chose the recommendation): Ps/Pe also contains ASCII `(` `)` `{` `}`, which are not look-alikes of the `[` `]` the header uses and appear in common filenames (`photo (1).jpg`). Keep those four; strip every other Ps/Pe character. Fullwidth and CJK brackets still go.
 <!-- SECTION:NOTES:END -->
