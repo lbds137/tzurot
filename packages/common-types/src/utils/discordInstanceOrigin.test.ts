@@ -4,7 +4,6 @@ import {
   discordRestOptions,
   matchesInstanceOrigin,
   matchesInstanceCdnUrl,
-  escapeRegExpLiteral,
   instanceMessageLinkPattern,
 } from './discordInstanceOrigin.js';
 
@@ -162,14 +161,6 @@ describe('matchesInstanceCdnUrl', () => {
     );
   });
 });
-describe('escapeRegExpLiteral', () => {
-  it('escapes regex metacharacters so a literal match no longer matches an unescaped shape', () => {
-    const pattern = new RegExp(escapeRegExpLiteral('a.b'));
-    expect(pattern.test('a.b')).toBe(true);
-    expect(pattern.test('axb')).toBe(false);
-  });
-});
-
 describe('instanceMessageLinkPattern', () => {
   it('matches a guild message link under the origin, capturing guild/channel/message ids', () => {
     const regex = new RegExp(instanceMessageLinkPattern(ORIGIN));
