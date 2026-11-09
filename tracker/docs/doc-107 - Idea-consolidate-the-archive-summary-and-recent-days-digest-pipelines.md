@@ -19,7 +19,7 @@ _Focus: one background-summarization shape with two content policies, instead of
 | --- | --- |
 | `ArchiveSummaryProcessor` + `archiveSummaryRound` | `recentDaysDigestSweep` + `recentDaysDigestGeneration` |
 | `archiveSummaryPrompt` | `recentDaysDigestPrompt` |
-| `archiveSummaryValidation` (first_person, quote stripper — already SHARED, imported by the digest) | `recentDaysDigestValidation` (quotation n-gram, overflow) |
+| `firstPersonDetection` in common-types (first_person, quote stripper — already SHARED by the archive, the digest and the render-pilot since PR 2734) | `recentDaysDigestValidation` (quotation n-gram, overflow) |
 | `archiveSummaryStore` (content-guarded raw-SQL writes) | `recentDaysDigestStore` (`requested_at IS NOT DISTINCT FROM` guard) |
 | `archiveSummaryUsageLog` | `recentDaysDigestUsageLog` |
 | `makeArchiveSummaryInvoker` | `makeRecentDaysDigestInvoker` |

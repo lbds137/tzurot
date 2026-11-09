@@ -52,4 +52,6 @@ The shipped doc comments were scoped to match, in the same PR, rather than left 
 Owner decision 2026-10-04 (AskUserQuestion, chose the recommendation): strip look-alike brackets by Unicode category Ps/Pe (fails safe; a CJK or fullwidth filename losing its brackets is accepted).
 
 Owner refinement 2026-11-09 (AskUserQuestion, chose the recommendation): Ps/Pe also contains ASCII `(` `)` `{` `}`, which are not look-alikes of the `[` `]` the header uses and appear in common filenames (`photo (1).jpg`). Keep those four; strip every other Ps/Pe character. Fullwidth and CJK brackets still go.
+
+Owner refinement 2026-11-09, second (AskUserQuestion, chose the recommendation; raised by claude-review on PR 2733): Ps/Pe also holds five quotation marks, U+201A and U+201E (low-9 quotes), U+301D, U+301E and U+301F (CJK double-prime quotes). Keep them too: they cannot open or close a [ ] header, and stripping them mangles quoted German, Polish or CJK filenames.
 <!-- SECTION:NOTES:END -->

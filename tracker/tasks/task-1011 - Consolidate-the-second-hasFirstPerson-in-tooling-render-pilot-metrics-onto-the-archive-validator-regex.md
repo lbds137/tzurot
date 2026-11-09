@@ -3,13 +3,14 @@ id: TASK-1011
 title: >-
   Consolidate the second hasFirstPerson in tooling render-pilot-metrics onto the
   archive validator regex
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-09-18 06:04'
+created_date: 2026-09-18 06:04
+updated_date: '2026-11-09T21:55:00Z'
 labels:
-  - 'area:tooling'
-  - 'size:S'
-  - 'state:ready'
+  - area:tooling
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1007000
