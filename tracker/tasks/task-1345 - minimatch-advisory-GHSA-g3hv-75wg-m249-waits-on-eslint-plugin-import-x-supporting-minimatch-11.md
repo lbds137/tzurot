@@ -3,9 +3,10 @@ id: TASK-1345
 title: >-
   minimatch advisory GHSA-g3hv-75wg-m249 waits on eslint-plugin-import-x
   supporting minimatch 11
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-03T12:30:00Z'
+updated_date: '2026-11-09T13:47:00Z'
 labels:
   - area:deps
   - size:S
@@ -28,3 +29,9 @@ Acceptance: pnpm ops security:advisories reports no minimatch advisory, and lint
 
 Promote when: eslint-plugin-import-x supports minimatch 11, or a patched 10.x lands (npm view eslint-plugin-import-x dependencies.minimatch).
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped in PR 2727 (f8d1309d9, 2026-11-09): eslint-plugin-import-x 4.18.0 declares minimatch ^11.0.1, override now forces 7-11.0.0 onto 11.0.5; lint green on all 27 tasks (forced, 0 cached). The advisory-close half of the acceptance moves to TASK-1371, which closes once the release reaches main (Dependabot reads the default branch).
+<!-- SECTION:NOTES:END -->
