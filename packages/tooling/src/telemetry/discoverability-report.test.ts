@@ -441,6 +441,34 @@ describe('discoverability-report', () => {
       expect(section).not.toContain('`ping`');
     });
 
+    it('includes context-menu commands in the roster by bare name', async () => {
+      vi.mocked(loadManifest).mockReturnValue({
+        ...groupedManifest,
+        contextMenuCommands: [{ name: 'Inspect Message' }, { name: 'View Reasoning' }],
+      } satisfies CommandManifest);
+      const perCommand: PerCommandRawRow[] = [
+        {
+          command: 'Inspect Message',
+          invocations: 4n,
+          distinct_users: 2n,
+          ok_count: 4n,
+          user_error_count: 0n,
+          system_error_count: 0n,
+        },
+      ];
+      mockQueryRaw
+        .mockResolvedValueOnce(perCommand)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(emptyHeader);
+
+      const { telemetryReport } = await import('./discoverability-report.js');
+      await telemetryReport({ env: 'local', days: 30 });
+
+      const section = neverInvokedSection(consoleLogSpy.mock.calls.flat().join('\n'));
+      expect(section).toContain('- `View Reasoning`');
+      expect(section).not.toContain('Inspect Message');
+    });
+
     it('still renders the DB report when the manifest cannot be loaded', async () => {
       vi.mocked(loadManifest).mockImplementation(() => {
         throw new Error('manifest missing');
