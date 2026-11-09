@@ -16,7 +16,6 @@ import {
   type AnswerRecord,
   type VoiceRecord,
 } from './render-pilot-metrics.js';
-import { hasFirstPerson } from '@tzurot/common-types/utils/firstPersonDetection';
 
 describe('extractJsonBlock', () => {
   it('extracts a bare JSON object', () => {
@@ -174,20 +173,6 @@ describe('decideSummaryOutcome', () => {
     expect(result.state).toBe('over_soft');
     expect(result.text).toBe(firstText);
     expect(result.text.length).toBe(firstText.length);
-  });
-});
-
-describe('hasFirstPerson', () => {
-  it('detects a bare first-person pronoun', () => {
-    expect(hasFirstPerson('I went to the store')).toBe(true);
-  });
-
-  it('ignores first-person pronouns inside double quotes', () => {
-    expect(hasFirstPerson('Nova said "I will be there" and smiled.')).toBe(false);
-  });
-
-  it('returns false with no first-person markers', () => {
-    expect(hasFirstPerson('Nova went to the store')).toBe(false);
   });
 });
 
