@@ -90,7 +90,7 @@ export interface ReportData {
 }
 
 /** Load the roster of invocable command paths; never throws. */
-export function loadRosterPaths(): { paths: string[] } | { error: string } {
+function loadRosterPaths(): { paths: string[] } | { error: string } {
   try {
     const manifest = loadManifest();
     return {
@@ -209,7 +209,9 @@ const LIMITATIONS_PARAGRAPH =
   'The roster is the command manifest committed in the checkout running ' +
   'this report, so when the target environment runs a different release, commands ' +
   'added or renamed since may be misreported in either direction. Invoked commands ' +
-  'no longer in the roster appear only in the per-command table.';
+  'no longer in the roster appear only in the per-command table. The roster is ' +
+  'read relative to the working directory, so run the report from the repo root ' +
+  '(as root `pnpm ops` does); elsewhere the section reports the roster as unavailable.';
 
 /** Pure renderer: markdown from already-computed report data, no DB. */
 export function renderDiscoverabilityMarkdown(data: ReportData): string {
@@ -294,8 +296,7 @@ async function queryReportData(
  * window. Read-only: SELECTs only, never mutates `command_events`.
  */
 export async function telemetryReport(options: TelemetryReportOptions): Promise<void> {
-  const roster = loadRosterPaths();
   await runTelemetryReport(options, async (prisma, env, days) =>
-    renderDiscoverabilityMarkdown(await queryReportData(prisma, env, days, roster))
+    renderDiscoverabilityMarkdown(await queryReportData(prisma, env, days, loadRosterPaths()))
   );
 }
