@@ -10,6 +10,7 @@ import {
   type ManifestCommand,
   allLeafOptions,
   allSubcommands,
+  commandPaths,
   groupByCategory,
   isLeafOption,
   isSubcommand,
@@ -78,6 +79,36 @@ describe('commandsAuditCore: allSubcommands', () => {
     ]);
     const names = allSubcommands(cmd).map(s => s.name);
     expect(names).toEqual(['browse', 'set']);
+  });
+});
+
+describe('commandsAuditCore: commandPaths', () => {
+  it('returns just the name for a bare command', () => {
+    expect(commandPaths(command('ping', undefined))).toEqual(['ping']);
+    expect(commandPaths(command('echo', [{ type: 3, name: 'text' }]))).toEqual(['echo']);
+  });
+
+  it('returns name.sub for top-level subcommands only', () => {
+    const cmd = command('memory', [
+      { type: 1, name: 'browse' },
+      { type: 1, name: 'search' },
+    ]);
+    expect(commandPaths(cmd)).toEqual(['memory.browse', 'memory.search']);
+  });
+
+  it('returns name.group.sub for grouped subcommands beside top-level ones', () => {
+    const cmd = command('config', [
+      { type: 1, name: 'browse' },
+      {
+        type: 2,
+        name: 'llm',
+        options: [
+          { type: 1, name: 'set' },
+          { type: 1, name: 'reset' },
+        ],
+      },
+    ]);
+    expect(commandPaths(cmd)).toEqual(['config.browse', 'config.llm.set', 'config.llm.reset']);
   });
 });
 
