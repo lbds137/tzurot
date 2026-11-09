@@ -5,8 +5,14 @@
  * get used, how many distinct users reach each one, and how broadly any
  * single user's command vocabulary spans. Never mutates, never emits a raw
  * user id.
+ *
+ * The report also left-joins the committed slash-command roster (the bot-client
+ * command manifest, read through `loadManifest`) so commands with zero rows in
+ * the window, which `command_events` cannot show, are listed as never invoked.
  */
 
+import { loadManifest } from '../dev/commandsAudit.js';
+import { commandPaths } from '../dev/commandsAuditCore.js';
 import type { Environment } from '../utils/env-runner.js';
 import {
   runTelemetryReport,
@@ -79,6 +85,27 @@ export interface ReportData {
   header: HeaderStats;
   perCommand: PerCommandStats[];
   breadthBuckets: BreadthBucket[];
+  /** Command paths from the committed manifest, or why they could not be loaded. */
+  roster: { paths: string[] } | { error: string };
+}
+
+/** Load the roster of invocable command paths; never throws. */
+export function loadRosterPaths(): { paths: string[] } | { error: string } {
+  try {
+    const manifest = loadManifest();
+    return { paths: manifest.commands.flatMap(commandPaths) };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** Roster paths with no row in the window, sorted and deduplicated. */
+export function neverInvokedCommands(
+  rosterPaths: string[],
+  perCommand: PerCommandStats[]
+): string[] {
+  const invoked = new Set(perCommand.map(row => row.command));
+  return [...new Set(rosterPaths.filter(path => !invoked.has(path)))].sort();
 }
 
 /** Bucket a single breadth value into one of the four fixed labels. */
@@ -162,11 +189,24 @@ function renderBreadthTable(buckets: BreadthBucket[]): string {
   return [header, ...lines].join('\n');
 }
 
+function renderNeverInvoked(data: ReportData): string {
+  if ('error' in data.roster) {
+    return `Roster unavailable: ${data.roster.error}`;
+  }
+  const missing = neverInvokedCommands(data.roster.paths, data.perCommand);
+  if (missing.length === 0) {
+    return 'None in this window.';
+  }
+  return missing.map(path => `- \`${path}\``).join('\n');
+}
+
 const LIMITATIONS_PARAGRAPH =
-  'A command never invoked in this window produces no row and is invisible to ' +
-  'this report — the darkest features are exactly the ones missing from it. ' +
-  'Cross-check the per-command table against the live command roster manually ' +
-  'until a roster join exists.';
+  'The roster is the slash-command manifest committed in the checkout running ' +
+  'this report, so when the target environment runs a different release, commands ' +
+  'added or renamed since may be misreported in either direction. Invoked commands ' +
+  'no longer in the roster appear only in the per-command table. Context-menu ' +
+  'commands (e.g. message apps) are not in the roster, so a never-invoked one does ' +
+  'not appear in the never-invoked list.';
 
 /** Pure renderer: markdown from already-computed report data, no DB. */
 export function renderDiscoverabilityMarkdown(data: ReportData): string {
@@ -179,6 +219,8 @@ export function renderDiscoverabilityMarkdown(data: ReportData): string {
     renderPerCommandTable(data.perCommand),
     '## Dark features (≤1 distinct user)',
     renderDarkFeatures(data.perCommand),
+    '## Never invoked (in roster, zero rows in window)',
+    renderNeverInvoked(data),
     '## Command breadth',
     renderBreadthTable(data.breadthBuckets),
     '## Limitations',
@@ -190,7 +232,8 @@ export function renderDiscoverabilityMarkdown(data: ReportData): string {
 async function queryReportData(
   prisma: PrismaQueryable,
   env: Environment,
-  days: number
+  days: number,
+  roster: ReportData['roster']
 ): Promise<ReportData> {
   const perCommandRaw = await prisma.$queryRaw<PerCommandRawRow[]>`
     SELECT command,
@@ -239,6 +282,7 @@ async function queryReportData(
     breadthBuckets: bucketBreadth(
       breadthRaw.map(row => ({ breadth: Number(row.breadth), userCount: Number(row.user_count) }))
     ),
+    roster,
   };
 }
 
@@ -247,7 +291,8 @@ async function queryReportData(
  * window. Read-only: SELECTs only, never mutates `command_events`.
  */
 export async function telemetryReport(options: TelemetryReportOptions): Promise<void> {
+  const roster = loadRosterPaths();
   await runTelemetryReport(options, async (prisma, env, days) =>
-    renderDiscoverabilityMarkdown(await queryReportData(prisma, env, days))
+    renderDiscoverabilityMarkdown(await queryReportData(prisma, env, days, roster))
   );
 }
