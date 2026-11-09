@@ -51,6 +51,8 @@ export interface CommandManifest {
   generatedNote?: string;
   helpCategories: string[];
   commands: ManifestCommand[];
+  /** Bare names; telemetry records the context-menu command name as-is. */
+  contextMenuCommands?: { name: string }[];
 }
 
 // ── Findings ─────────────────────────────────────────────────────────────────
