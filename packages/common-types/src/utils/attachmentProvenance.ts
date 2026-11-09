@@ -139,25 +139,31 @@ export function voiceHeaderLabel(attachment: { isSpoiler?: boolean }): string {
 }
 
 /**
- * Regex character-class source for the ASCII brackets deliberately kept (not
- * look-alikes of `[` `]`, common in filenames) — spliced into a negative
- * lookahead, not a plain list of characters.
+ * Regex character-class source for the `Ps`/`Pe` characters deliberately kept
+ * — spliced into a negative lookahead, not a plain list of characters. Two
+ * groups: the ASCII `(` `)` `{` `}` (not look-alikes of `[` `]`, common in
+ * filenames), and five quotation marks Unicode files under `Ps`/`Pe`: the
+ * low-9 quotes U+201A and U+201E (`Ps`), U+301D (`Ps`), and U+301E and U+301F
+ * (`Pe`). A quote cannot open or close a `[ ]` header, so stripping one buys
+ * nothing and mangles quoted German, Polish or CJK filenames. Pinned by the
+ * kept-quote cases in this module's colocated test file.
  */
-const KEPT_ASCII_BRACKET_CLASS = '[(){}]';
+const KEPT_CHARACTER_CLASS = '[(){}\\u201A\\u201E\\u301D\\u301E\\u301F]';
 
 /**
  * Regex source (for a `u`-flag pattern) matching one bracket-class character:
- * any Unicode `Ps`/`Pe` character except the kept ASCII `(` `)` `{` `}`.
+ * any Unicode `Ps`/`Pe` character except the kept set (`KEPT_CHARACTER_CLASS`:
+ * ASCII `(` `)` `{` `}` and five quotation marks).
  *
  * Unpinned limit: bracket-shaped characters outside `Ps`/`Pe`, e.g. the math
  * bracket pieces U+23A1 to U+23A6 (category `Sm`), pass through both
  * sanitizers; this case is neither handled nor tested.
  */
-const HEADER_BRACKET_CLASS_SOURCE = `(?!${KEPT_ASCII_BRACKET_CLASS})[\\p{Ps}\\p{Pe}]`;
+const HEADER_BRACKET_CLASS_SOURCE = `(?!${KEPT_CHARACTER_CLASS})[\\p{Ps}\\p{Pe}]`;
 
 /**
- * The opener half of the class: `Ps` minus the kept ASCII `(` and `{`.
- * It matches the same characters as `(?![({])\p{Ps}`, derived from the shared
+ * The opener half of the class: `Ps` minus the kept `Ps` members (ASCII `(`
+ * `{` and the quotes U+201A, U+201E, U+301D), derived from the shared
  * class (`HEADER_BRACKET_CLASS_SOURCE`) so the two halves cannot drift.
  */
 const HEADER_OPENER_SOURCE = `(?=\\p{Ps})${HEADER_BRACKET_CLASS_SOURCE}`;
@@ -190,9 +196,13 @@ const HEADER_OPENER_RUN = new RegExp(
  * The stripped class is every Unicode `Ps` (open punctuation) and `Pe` (close
  * punctuation) character (`HEADER_BRACKET_CLASS_SOURCE`): ASCII `[` `]`, the
  * fullwidth `［` `］`, CJK corner and lenticular brackets, and so on — except
- * the four ASCII `(` `)` `{` `}`, which are kept because they are not
- * look-alikes of `[` `]` and are common in real filenames (`photo (1).jpg`).
- * That exclusion is ASCII-only, so the fullwidth `（` `）` (U+FF08/U+FF09) are
+ * the kept set (`KEPT_CHARACTER_CLASS`): the four ASCII `(` `)` `{` `}`, which
+ * are not look-alikes of `[` `]` and are common in real filenames
+ * (`photo (1).jpg`), and five quotation marks Unicode files under `Ps`/`Pe`
+ * (U+201A, U+201E, U+301D, U+301E, U+301F), which cannot open or close a
+ * `[ ]` header, so stripping them would only mangle quoted German, Polish or
+ * CJK filenames (`„Bericht“.pdf`). The parenthesis/brace exclusion is
+ * ASCII-only, so the fullwidth `（` `）` (U+FF08/U+FF09) are
  * stripped (pinned by the fullwidth-parentheses case). CJK or fullwidth
  * filenames therefore lose their brackets; that is accepted.
  * Pinned by the look-alike, CJK, kept-four and byte-identical cases in this
@@ -218,13 +228,14 @@ export function headerDisplayName(name: string | undefined): string {
  * Match is case-SENSITIVE: a lowercase `[image: ` passes through, which is
  * acceptable only because the constraint keys on the exact-case form too.
  *
- * An opener is any Unicode `Ps` character except ASCII `(` and `{` (so `[`,
- * the fullwidth `［`, CJK `「` `【`, …), the same class `headerDisplayName`
- * strips minus its close half. A RUN of consecutive openers directly before
- * `<Label>: ` is removed whole, so `［[Image: x` and `[[Image: x` both become
- * `Image: x` rather than leaving a residual forge. Pinned by the look-alike,
- * `(`/`{`, lowercase, untouched-bracket and run-strip cases in this module's
- * colocated test file.
+ * An opener is any Unicode `Ps` character except the kept ASCII `(` `{` and
+ * the kept quotation marks U+201A, U+201E, U+301D (so `[`, the fullwidth `［`,
+ * CJK `「` `【`, …), the same class `headerDisplayName` strips minus its close
+ * half. A RUN of consecutive openers directly before `<Label>: ` is removed
+ * whole, so `［[Image: x` and `[[Image: x` both become `Image: x` rather than
+ * leaving a residual forge. Pinned by the look-alike, `(`/`{`, kept-quote,
+ * lowercase, untouched-bracket and run-strip cases in this module's colocated
+ * test file.
  *
  * Unpinned limit: the colon and space after the label are matched as ASCII
  * only (a look-alike colon such as fullwidth U+FF1A is out of scope); and a

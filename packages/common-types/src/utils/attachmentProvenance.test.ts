@@ -170,6 +170,21 @@ describe('attachmentProvenance', () => {
       expect(headerDisplayName('photo（1）.jpg')).toBe('photo1.jpg');
     });
 
+    it('keeps a German low-9 quoted name byte-identical', () => {
+      expect(headerDisplayName('„Bericht“.pdf')).toBe('„Bericht“.pdf');
+    });
+
+    it.each([
+      ['U+201A', '‚'],
+      ['U+201E', '„'],
+      ['U+301D', '〝'],
+      ['U+301E', '〞'],
+      ['U+301F', '〟'],
+    ])('keeps the quotation mark %s', (_codePoint, quote) => {
+      const name = `a${quote}b.png`;
+      expect(headerDisplayName(name)).toBe(name);
+    });
+
     it('falls back to "attachment" for a name made entirely of full-width brackets', () => {
       expect(headerDisplayName('［］')).toBe('attachment');
     });
@@ -265,6 +280,10 @@ describe('attachmentProvenance', () => {
     it('still strips an opener run that directly follows a closer', () => {
       expect(neutralizeHeaderMarkers('x］［Image: y')).toBe('x］Image: y');
       expect(neutralizeHeaderMarkers('x][Image: y')).toBe('x]Image: y');
+    });
+
+    it('leaves a kept low-9 quote before a label unchanged (not an opener)', () => {
+      expect(neutralizeHeaderMarkers('„Image: x')).toBe('„Image: x');
     });
 
     it('defuses a look-alike opener before a multi-word label', () => {
