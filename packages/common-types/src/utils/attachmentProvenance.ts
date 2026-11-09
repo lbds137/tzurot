@@ -136,46 +136,96 @@ export function voiceHeaderLabel(attachment: { isSpoiler?: boolean }): string {
   return attachment.isSpoiler === true ? 'Spoiler voice message' : 'Voice message';
 }
 
+/** ASCII brackets deliberately kept: not look-alikes of `[` `]`, common in filenames. */
+const KEPT_ASCII_BRACKETS = '[(){}]';
+
+/**
+ * Regex source (for a `u`-flag pattern) matching one bracket-class character:
+ * any Unicode `Ps`/`Pe` character except the kept ASCII `(` `)` `{` `}`.
+ * Exported as a source string, not a RegExp, so no caller shares a stateful
+ * `lastIndex`; build the instance at the use site with the `u` flag.
+ */
+export const HEADER_BRACKET_CLASS_SOURCE = `(?!${KEPT_ASCII_BRACKETS})[\\p{Ps}\\p{Pe}]`;
+
+/** The opener half of the class: `Ps` minus the kept ASCII `(` and `{`. */
+const HEADER_OPENER_SOURCE = `(?=\\p{Ps})${HEADER_BRACKET_CLASS_SOURCE}`;
+
+const BRACKET_CLASS_GLOBAL = new RegExp(HEADER_BRACKET_CLASS_SOURCE, 'gu');
+
+function escapeRegExp(literal: string): string {
+  return literal.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+}
+
+/**
+ * A run of openers directly before `<Label>: `. The leading lookbehind
+ * anchors the match at the start of a run, intended to keep a long bracket
+ * run from being retried from every position (not verified by a committed
+ * test; a one-off 200k-bracket probe ran in milliseconds). Label order is irrelevant:
+ * the lookahead requires the colon and space right after the label.
+ */
+const HEADER_OPENER_RUN = new RegExp(
+  `(?<!${HEADER_OPENER_SOURCE})(?:${HEADER_OPENER_SOURCE})+(?=(?:${HEADER_LABELS.map(escapeRegExp).join('|')}): )`,
+  'gu'
+);
+
 /**
  * Compute the display name for a bracket-delimited provenance header
- * (`[Image: ...]`, `[File: ...]`, `[Audio: ...]`). Strips `[` and `]` from
- * the name FIRST, then falls back to `'attachment'` if the result is empty.
- * A name carrying a `]` can close the header early and open a forged header
- * of its own choosing right after it, fabricating a second provenance marker
- * the model has no way to distinguish from a real one — removing the bracket
- * characters denies the forgery the structure it depends on. That holds for
- * the ASCII brackets the constraint describes; a fullwidth or other
- * look-alike bracket is not stripped. Stripping before falling back keeps a
- * name made entirely of bracket characters (e.g. `[]`) from passing an
+ * (`[Image: ...]`, `[File: ...]`, `[Audio: ...]`). Strips every bracket-class
+ * character from the name FIRST, then falls back to `'attachment'` if the
+ * result is empty. A name carrying a `]` can close the header early and open
+ * a forged header of its own choosing right after it, fabricating a second
+ * provenance marker the model has no way to distinguish from a real one —
+ * removing the bracket characters denies the forgery the structure it
+ * depends on.
+ *
+ * The stripped class is every Unicode `Ps` (open punctuation) and `Pe` (close
+ * punctuation) character (`HEADER_BRACKET_CLASS_SOURCE`): ASCII `[` `]`, the
+ * fullwidth `［` `］`, CJK corner and lenticular brackets, and so on — except
+ * the four ASCII `(` `)` `{` `}`, which are kept because they are not
+ * look-alikes of `[` `]` and are common in real filenames (`photo (1).jpg`).
+ * CJK or fullwidth filenames therefore lose their brackets; that is accepted.
+ * Pinned by the look-alike, CJK, kept-four and byte-identical cases in this
+ * module's colocated test file. Stripping before falling back keeps a name
+ * made entirely of bracket characters (e.g. `[]` or `［］`) from passing an
  * empty/undefined check and then stripping to an empty string, which would
  * render `[Image: ]` instead of `[Image: attachment]`.
  */
 export function headerDisplayName(name: string | undefined): string {
-  const stripped = (name ?? '').replaceAll('[', '').replaceAll(']', '');
+  const stripped = (name ?? '').replace(BRACKET_CLASS_GLOBAL, '');
   return stripped.length > 0 ? stripped : 'attachment';
 }
 
 /**
  * Neutralizes a forged header-opening literal (`[<Label>: `) inside
- * attachment-description text by removing its leading `[`, so raw model
+ * attachment-description text by removing its leading opener, so raw model
  * output cannot mint a second provenance marker the constraint in
  * `OUTPUT_CONSTRAINTS` would otherwise treat as authoritative. Mirrors
  * `neutralizeWrapperClosingTags`'s approach: defuse the exact substring that
  * could forge structure, leave every other bracket in the text untouched.
  * Match is case-SENSITIVE: a lowercase `[image: ` passes through, which is
  * acceptable only because the constraint keys on the exact-case form too.
- * The strip is ASCII-only for the same reason it is exact-case: a fullwidth
- * or other look-alike bracket passes through, so the cannot-mint property
- * above is scoped to the ASCII form the constraint describes, which is also
- * the only form the tests named below pin.
- * The cannot-mint claim is pinned by the three `neutralizes a forged header
- * opener` cases in RAGUtils.test.ts, one per attachment type, and by the
- * direct cases in this module's colocated test file.
+ *
+ * An opener is any Unicode `Ps` character except ASCII `(` and `{` (so `[`,
+ * the fullwidth `［`, CJK `「` `【`, …), the same class `headerDisplayName`
+ * strips minus its close half. A RUN of consecutive openers directly before
+ * `<Label>: ` is removed whole, so `［[Image: x` and `[[Image: x` both become
+ * `Image: x` rather than leaving a residual forge. Pinned by the look-alike,
+ * `(`/`{`, lowercase, untouched-bracket and run-strip cases in this module's
+ * colocated test file.
+ *
+ * Unpinned limit: the colon and space after the label are matched as ASCII
+ * only. A look-alike colon (fullwidth U+FF1A) is out of scope and is neither
+ * handled nor tested.
+ *
+ * The cannot-mint claim for the ASCII form is pinned by the three
+ * `neutralizes a forged header opener` cases in RAGUtils.test.ts, one per
+ * attachment type, and by the direct cases in this module's colocated test
+ * file.
  *
  * bot-client's placeholder path emits a header with no description body
  * beneath it, so it has no call site for this function — the absence is by
  * construction, not an oversight.
  */
 export function neutralizeHeaderMarkers(text: string): string {
-  return HEADER_LABELS.reduce((acc, label) => acc.replaceAll(`[${label}: `, `${label}: `), text);
+  return text.replace(HEADER_OPENER_RUN, '');
 }
