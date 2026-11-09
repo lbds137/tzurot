@@ -150,11 +150,13 @@ export interface ResolveVisionConfigOptions {
  * any flash attempt (`attemptTier`), so flash is tried at most once per walk
  * whichever path resolved it.
  *
- * The fallback LOOP (`describeImageWithFallback`) resolves auth across multiple TIERS for ONE image, so the
- * per-user daily cap (`VisionFallbackQuota`) is checked at most once per tracker — a
- * per-tier consume would multiply the charge WITHIN a single image's tier walk and defeat
- * the cap. Once consumed, subsequent `tryConsume()` calls return false without touching the
- * store. Fail-open on the underlying quota error (a Redis blip shouldn't block description).
+ * The fallback LOOP (`describeImageWithFallback`) resolves auth across multiple
+ * TIERS for ONE image, so the per-user daily cap (`VisionFallbackQuota`) is
+ * checked at most once per tracker — a per-tier consume would multiply the
+ * charge WITHIN a single image's tier walk and defeat the cap. Once consumed,
+ * subsequent `tryConsume()` calls return false without touching the store.
+ * Fail-open on the underlying quota error (a Redis blip shouldn't block
+ * description).
  *
  * The loop creates a FRESH tracker per attachment, so the quota meters **per image** (each
  * image that downgrades onto the system key spends one unit) — see `VisionFallbackQuota`'s
@@ -164,6 +166,11 @@ export interface ResolveVisionConfigOptions {
 export interface VisionQuotaTracker {
   tryConsume(): Promise<boolean>;
   tryClaimOwnZaiVision(): boolean;
+  /**
+   * Memoizes the per-walk own-plan z.ai key lookup: the first `lookup` passed
+   * wins for the whole walk, and `lookup` must not reject (the memo would hold
+   * the rejection for every subsequent call on this tracker).
+   */
   ownZaiPlanKey(lookup: () => Promise<string | null>): Promise<string | null>;
 }
 
@@ -205,18 +212,24 @@ export function createVisionQuotaTracker(userId: string | undefined): VisionQuot
   };
 }
 
+/**
+ * Fail-soft lookup of the user's z.ai coding-plan key for {@link resolveOwnZaiPlanVision}.
+ * No OpenRouter check is needed here: the own-plan arm is reached only on an
+ * OpenRouter-routed tier right after `tryResolveUserKey(userId, AIProvider.OpenRouter)`
+ * missed (`detectVisionProvider` returns only OpenRouter or ZaiCoding, and
+ * `resolveOwnZaiPlanVision` returns early for ZaiCoding). Pinned by
+ * `visionAuthResolver.test.ts`
+ * (`'B, both keys: served on the OpenRouter key and never reaches the own-plan arm'`).
+ */
 async function lookupOwnZaiPlanKey(
   userId: string,
   apiKeyResolver: ApiKeyResolver
 ): Promise<string | null> {
   try {
-    if ((await apiKeyResolver.tryResolveUserKey(userId, AIProvider.OpenRouter)) !== null) {
-      return null;
-    }
     const zaiKey = await apiKeyResolver.tryResolveUserKey(userId, AIProvider.ZaiCoding);
     return zaiKey !== null && zaiKey.length > 0 ? zaiKey : null;
   } catch (error) {
-    logger.debug(
+    logger.warn(
       { err: error, userId },
       'Own-plan key lookup failed — keeping the broad free fallback'
     );
@@ -226,11 +239,16 @@ async function lookupOwnZaiPlanKey(
 
 /**
  * Own-plan z.ai vision fallback for an authenticated user who lacks a key for
- * `visionProvider`, holds no OpenRouter key, and holds a z.ai coding-plan key.
- * The wallet lookups run once per walk via `quotaTracker.ownZaiPlanKey` and fail
- * soft (`lookupOwnZaiPlanKey`); `quotaTracker.tryClaimOwnZaiVision()` runs last
- * so a non-applicable tier does not spend the claim and the user's own z.ai key
- * serves `ZAI_FREE_TIER_MODEL` at most once per walk. Returns `null` when not
+ * `visionProvider` and holds a z.ai coding-plan key. No OpenRouter check is
+ * needed: `detectVisionProvider` returns only OpenRouter or ZaiCoding, and the
+ * ZaiCoding early return covers the other provider, so the lookup below is
+ * reached only on an OpenRouter-routed tier right after the user's OpenRouter
+ * key lookup missed (pinned by `visionAuthResolver.test.ts`
+ * `'B, both keys: served on the OpenRouter key and never reaches the own-plan arm'`).
+ * The z.ai wallet lookup runs once per walk via `quotaTracker.ownZaiPlanKey` and
+ * fails soft (`lookupOwnZaiPlanKey`); `quotaTracker.tryClaimOwnZaiVision()` runs
+ * last so a non-applicable tier does not spend the claim and the user's own z.ai
+ * key serves `ZAI_FREE_TIER_MODEL` at most once per walk. Returns `null` when not
  * applicable so the caller continues to `resolveBroadFreeFallback`. No admission
  * or fallback-quota consume runs here because this is the user's own spend
  * (`own z.ai coding-plan vision — authenticated user lacking vision-provider key`).

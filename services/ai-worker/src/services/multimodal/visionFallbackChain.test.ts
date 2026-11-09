@@ -439,12 +439,12 @@ describe('vision fallback chain (wiring / seam test)', () => {
   // Keyless user + mixed free/paid fallback tail + failing primary: tier 0's REAL
   // resolveVisionAuth already asked tryResolveUserKey for (user, OpenRouter) and the
   // negative wasn't cached, then maybeReorderFallbacks probes the SAME pair once more.
-  // The exact call count is the pin: 4 per-tier resolutions + 2 one-time own-plan
-  // lookups (memoized on the per-walk tracker: OpenRouter + ZaiCoding) + 1 reorder probe.
+  // The exact call count is the pin: 4 per-tier resolutions + 1 one-time z.ai lookup
+  // (memoized on the per-walk tracker: ZaiCoding) + 1 reorder probe.
   // The chain here is four tiers — primary, the stamped free route, the paid floor (the
   // `fallbackVisionModel` setting, whose default IS the openrouter/auto alias), and the
   // concrete terminal `composeVisionTiers` appends after a router-alias tail — so
-  // 4 + 2 + 1 = 7.
+  // 4 + 1 + 1 = 6.
   // If a future refactor threads tier 0's auth result into the probe, the probe term drops
   // out — update the acceptance comment in describeImageWithFallback.ts alongside this
   // assertion.
@@ -485,8 +485,8 @@ describe('vision fallback chain (wiring / seam test)', () => {
     for (const call of otherCalls) {
       expect(call).toEqual(['user-1', AIProvider.OpenRouter]);
     }
-    // THE PIN: 4 per-tier resolveVisionAuth lookups + 2 one-time own-plan lookups + 1 reorder-probe lookup = 7.
-    expect(mockApiKeyResolver.tryResolveUserKey).toHaveBeenCalledTimes(7);
+    // THE PIN: 4 per-tier resolveVisionAuth lookups + 1 one-time z.ai lookup + 1 reorder-probe lookup = 6.
+    expect(mockApiKeyResolver.tryResolveUserKey).toHaveBeenCalledTimes(6);
   });
 
   // SCENARIO 6 — authenticated user with a z.ai coding-plan key and no OpenRouter key:
