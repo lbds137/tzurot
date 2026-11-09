@@ -43,10 +43,17 @@ import type { ApiKeyResolver } from '../ApiKeyResolver.js';
 import {
   AIProvider,
   FREE_ROUTER_MODEL,
+  MODEL_DEFAULTS,
   ZAI_FREE_TIER_MODEL,
 } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettingsRegistry';
+import {
+  registerSystemSettings,
+  resetSystemSettingsRegistration,
+  type SystemSettingsService,
+} from '@tzurot/common-types/services/SystemSettingsService';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
@@ -523,5 +530,61 @@ describe('vision fallback chain (wiring / seam test)', () => {
       provider: AIProvider.OpenRouter,
     });
     expect(mockZaiFreeTierFailureReactor).not.toHaveBeenCalled();
+  });
+
+  // SCENARIO 7 — authenticated z.ai-only user whose primary vision tier (tier 0) is
+  // already glm-5.3-flash on a [flash, concrete paid floor] chain — the one shape where
+  // a dedup-skipped tier has no later tier to fall back on: tier 0 resolves directly
+  // through tryResolveUserKey(ZaiCoding) and spends the per-walk own-plan claim on
+  // attempt, so when flash 429s the keyless OpenRouter tier falls to the free vision
+  // floor on the system key instead of re-claiming flash and dedup-skipping.
+  it('authenticated z.ai-only user with flash as tier 0: flash attempt spends the own-plan claim so the next tier falls to the free floor', async () => {
+    registerSystemSettings({
+      get: (key: string) =>
+        key === 'fallbackVisionModel'
+          ? MODEL_DEFAULTS.VISION_FALLBACK
+          : SYSTEM_SETTINGS_FALLBACKS[key as keyof typeof SYSTEM_SETTINGS_FALLBACKS],
+    } as unknown as SystemSettingsService);
+    try {
+      const flashPrimaryPersonality: LoadedPersonality = {
+        ...personality,
+        visionModel: ZAI_FREE_TIER_MODEL,
+        visionFallbackModels: [],
+      };
+      mockApiKeyResolver.tryResolveUserKey.mockImplementation(
+        async (_uid: string, provider: AIProvider) =>
+          provider === AIProvider.ZaiCoding ? 'user-zai-key' : null
+      );
+      driveModels({
+        [ZAI_FREE_TIER_MODEL]: () => Promise.reject(new Error('429 rate limited on own-key flash')),
+        [FREE_ROUTER_MODEL]: () => Promise.resolve({ content: 'FREE FLOOR after own-key flash' }),
+      });
+
+      const results = await processAttachments([imageAttachment], flashPrimaryPersonality, {
+        isGuestMode: false,
+        visionAuth: { ...buildVisionAuth(), personality: flashPrimaryPersonality },
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]).toMatchObject({
+        type: AttachmentType.Image,
+        description: 'FREE FLOOR after own-key flash',
+        originalUrl: imageAttachment.url,
+      });
+
+      expect(mockCreateChatModel).toHaveBeenCalledTimes(2);
+      expect(mockCreateChatModel.mock.calls[0][0]).toMatchObject({
+        modelName: ZAI_FREE_TIER_MODEL,
+        apiKey: 'user-zai-key',
+        provider: AIProvider.ZaiCoding,
+      });
+      expect(mockCreateChatModel.mock.calls[1][0]).toMatchObject({
+        modelName: FREE_ROUTER_MODEL,
+        apiKey: 'system-key',
+        provider: AIProvider.OpenRouter,
+      });
+    } finally {
+      resetSystemSettingsRegistration();
+    }
   });
 });

@@ -146,7 +146,9 @@ export interface ResolveVisionConfigOptions {
  * per-walk one-shots: the daily-quota consume for the system-key free-vision
  * fallback, the memoized own-plan key lookup (`ownZaiPlanKey`), and the
  * own-plan vision claim (`tryClaimOwnZaiVision`) so the user's own z.ai coding
- * plan is claimed at most once per walk.
+ * plan is claimed at most once per walk; the walk loop also spends the claim on
+ * any flash attempt (`attemptTier`), so flash is tried at most once per walk
+ * whichever path resolved it.
  *
  * The fallback LOOP (`describeImageWithFallback`) resolves auth across multiple TIERS for ONE image, so the
  * per-user daily cap (`VisionFallbackQuota`) is checked at most once per tracker — a
