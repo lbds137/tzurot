@@ -26,6 +26,7 @@ import { splitMemoryContent } from '@tzurot/common-types/utils/memoryContentSpli
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ARCHIVE_SUMMARY_PROMPT_VERSION } from '@tzurot/common-types/constants/memoryArchive';
+import { hasFirstPerson } from '@tzurot/common-types/utils/firstPersonDetection';
 import { replacePromptPlaceholders } from '../../utils/promptPlaceholders.js';
 import {
   resolveSystemModelRoute,
@@ -43,7 +44,6 @@ import {
 } from './constants.js';
 import { buildSummarizerPrompt, type SummarizerMessageInput } from './archiveSummaryPrompt.js';
 import { decideLengthState } from './archiveSummaryValidation.js';
-import { hasFirstPerson } from '@tzurot/common-types/utils/firstPersonDetection';
 import {
   loadArchiveSummaryRow,
   writeArchiveSummarySuccess,
