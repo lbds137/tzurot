@@ -9,6 +9,8 @@
  * sanitizing it lives in one place both services import.
  */
 
+import { escapeRegExpLiteral } from './discordInstanceOrigin.js';
+
 /**
  * Where an image on the image path actually came from, when it was not a
  * file someone chose to upload. Absent is the ordinary case: a real upload.
@@ -136,25 +138,27 @@ export function voiceHeaderLabel(attachment: { isSpoiler?: boolean }): string {
   return attachment.isSpoiler === true ? 'Spoiler voice message' : 'Voice message';
 }
 
-/** ASCII brackets deliberately kept: not look-alikes of `[` `]`, common in filenames. */
-const KEPT_ASCII_BRACKETS = '[(){}]';
+/**
+ * Regex character-class source for the ASCII brackets deliberately kept (not
+ * look-alikes of `[` `]`, common in filenames) — spliced into a negative
+ * lookahead, not a plain list of characters.
+ */
+const KEPT_ASCII_BRACKET_CLASS = '[(){}]';
 
 /**
  * Regex source (for a `u`-flag pattern) matching one bracket-class character:
  * any Unicode `Ps`/`Pe` character except the kept ASCII `(` `)` `{` `}`.
- * Exported as a source string, not a RegExp, so no caller shares a stateful
- * `lastIndex`; build the instance at the use site with the `u` flag.
  */
-export const HEADER_BRACKET_CLASS_SOURCE = `(?!${KEPT_ASCII_BRACKETS})[\\p{Ps}\\p{Pe}]`;
+const HEADER_BRACKET_CLASS_SOURCE = `(?!${KEPT_ASCII_BRACKET_CLASS})[\\p{Ps}\\p{Pe}]`;
 
-/** The opener half of the class: `Ps` minus the kept ASCII `(` and `{`. */
+/**
+ * The opener half of the class: `Ps` minus the kept ASCII `(` and `{`.
+ * It matches the same characters as `(?![({])\p{Ps}`, derived from the shared
+ * class (`HEADER_BRACKET_CLASS_SOURCE`) so the two halves cannot drift.
+ */
 const HEADER_OPENER_SOURCE = `(?=\\p{Ps})${HEADER_BRACKET_CLASS_SOURCE}`;
 
 const BRACKET_CLASS_GLOBAL = new RegExp(HEADER_BRACKET_CLASS_SOURCE, 'gu');
-
-function escapeRegExp(literal: string): string {
-  return literal.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-}
 
 /**
  * A run of openers directly before `<Label>: `. The leading lookbehind
@@ -164,7 +168,7 @@ function escapeRegExp(literal: string): string {
  * the lookahead requires the colon and space right after the label.
  */
 const HEADER_OPENER_RUN = new RegExp(
-  `(?<!${HEADER_OPENER_SOURCE})(?:${HEADER_OPENER_SOURCE})+(?=(?:${HEADER_LABELS.map(escapeRegExp).join('|')}): )`,
+  `(?<!${HEADER_OPENER_SOURCE})(?:${HEADER_OPENER_SOURCE})+(?=(?:${HEADER_LABELS.map(escapeRegExpLiteral).join('|')}): )`,
   'gu'
 );
 
@@ -189,6 +193,10 @@ const HEADER_OPENER_RUN = new RegExp(
  * made entirely of bracket characters (e.g. `[]` or `［］`) from passing an
  * empty/undefined check and then stripping to an empty string, which would
  * render `[Image: ]` instead of `[Image: attachment]`.
+ *
+ * Unpinned limit: bracket-shaped characters outside `Ps`/`Pe`, e.g. the math
+ * bracket pieces U+23A1 to U+23A6 (category `Sm`), pass through both
+ * sanitizers; this case is neither handled nor tested.
  */
 export function headerDisplayName(name: string | undefined): string {
   const stripped = (name ?? '').replace(BRACKET_CLASS_GLOBAL, '');
@@ -214,8 +222,12 @@ export function headerDisplayName(name: string | undefined): string {
  * colocated test file.
  *
  * Unpinned limit: the colon and space after the label are matched as ASCII
- * only. A look-alike colon (fullwidth U+FF1A) is out of scope and is neither
- * handled nor tested.
+ * only (a look-alike colon such as fullwidth U+FF1A is out of scope);
+ * bracket-shaped characters outside `Ps`/`Pe`, e.g. the math bracket pieces
+ * U+23A1 to U+23A6 (category `Sm`), pass through both sanitizers; and a
+ * character between the opener and the label (a space, or a zero-width
+ * character such as U+200B) means `neutralizeHeaderMarkers` does not defuse
+ * the opener. None of these cases is handled or tested.
  *
  * The cannot-mint claim for the ASCII form is pinned by the three
  * `neutralizes a forged header opener` cases in RAGUtils.test.ts, one per
