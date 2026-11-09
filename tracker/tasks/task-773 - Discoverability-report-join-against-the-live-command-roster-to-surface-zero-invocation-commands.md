@@ -3,14 +3,14 @@ id: TASK-773
 title: >-
   Discoverability report: join against the live command roster to surface
   zero-invocation commands
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-08-25 19:54'
-updated_date: '2026-08-25 19:55'
+created_date: 2026-08-25 19:54
+updated_date: '2026-11-09T15:11:00Z'
 labels:
-  - 'area:tooling'
-  - 'size:S'
-  - 'state:ready'
+  - area:tooling
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 773000
