@@ -3,11 +3,12 @@ id: TASK-783
 title: Serve vision on the user own z.ai coding plan for authenticated key-holders
 status: To Do
 assignee: []
-created_date: '2026-08-27 14:09'
+created_date: 2026-08-27 14:09
+updated_date: '2026-11-09T14:11:00Z'
 labels:
-  - 'area:ai-worker'
-  - 'size:S'
-  - 'state:ready'
+  - area:ai-worker
+  - size:S
+  - state:owner
 dependencies: []
 priority: medium
 ordinal: 783000
@@ -21,4 +22,7 @@ Why: an authenticated user holding a zai-coding BYOK key but no OpenRouter key h
 Fix shape: in the authenticated arm of resolveVisionAuth, before the broad free fallback, try flash on the user own zai-coding key (their spend, no admission gate needed). Sibling of the guest vision piggyback unit that filed this task — reuse its tier/auth mechanics.
 
 Acceptance: a zai-key-holder without an OpenRouter key gets flash-described images on their own key; users with an OpenRouter vision key keep current behavior; seam test asserts the key/provider crossing.
+
+Owner question: may image descriptions draw on a user's own z.ai coding-plan quota when they hold no OpenRouter key, instead of the free pool?
+Recommendation: yes — the plan is flat-rate, so the user's cost is quota rather than money, and it replaces a pool failing 35-52% weekly; add one line to the key's setup copy saying images use it too.
 <!-- SECTION:DESCRIPTION:END -->

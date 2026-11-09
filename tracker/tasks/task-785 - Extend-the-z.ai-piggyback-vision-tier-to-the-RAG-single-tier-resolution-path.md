@@ -3,11 +3,12 @@ id: TASK-785
 title: Extend the z.ai piggyback vision tier to the RAG single-tier resolution path
 status: To Do
 assignee: []
-created_date: '2026-08-27 15:44'
+created_date: 2026-08-27 15:44
+updated_date: '2026-11-09T14:11:00Z'
 labels:
-  - 'area:ai-worker'
-  - 'size:S'
-  - 'state:ready'
+  - area:ai-worker
+  - size:S
+  - state:dependent
 dependencies: []
 priority: medium
 ordinal: 785000
@@ -22,3 +23,9 @@ Fix shape: either route the RAG vision calls through the fallback walk (describe
 
 Acceptance: a guest RAG-path vision call with an admitted request describes via the piggyback model; denial degrades to the free floor; seam test pins the crossing.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Dependent on TASK-35 (2026-11-09 drain check): TASK-35 routes the RAG-family vision calls through describeImageWithFallback, which is this task's option 1 and makes the guest piggyback prepend apply there with no second consult. Take option 1 inside TASK-35's unit, then verify this task's acceptance (admitted guest RAG call describes via piggyback, denial degrades to the free floor, seam test) and close both.
+<!-- SECTION:NOTES:END -->
