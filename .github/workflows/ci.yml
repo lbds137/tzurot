@@ -557,7 +557,6 @@ jobs:
       # everything after it, so `-- --coverage` ran the tier with coverage OFF and
       # the upload step below found no lcov.info.
       - name: Run component tests with coverage
-        id: component-tests
         run: pnpm test:component --coverage
         env:
           # Component tests use in-process PGLite and never dial out; this only
@@ -585,7 +584,7 @@ jobs:
       # step is that gate. `!cancelled()` keeps a component-test failure from
       # hiding the contract tier's result, and the tier requires both the build
       # and schema steps to have succeeded, so a failed or skipped upstream step
-      # skips it and the failure reports once.
+      # skips it and the failure reports once (a failed Prisma generate skips the build).
       - name: Run integration + contract tiers
         if: ${{ !cancelled() && steps.build-packages.outcome == 'success' && steps.provision-schema.outcome == 'success' }}
         run: pnpm test:integration
@@ -594,10 +593,10 @@ jobs:
           REDIS_URL: redis://localhost:6379
           CI: true
 
-      # Skipped when the component step never ran: there is no coverage file to
-      # upload and the failure upstream already reports.
+      # Skipped when no coverage file exists (component step skipped or crashed
+      # before writing it); the upstream failure already reports.
       - name: Upload component coverage to Codecov
-        if: ${{ !cancelled() && steps.component-tests.outcome != 'skipped' }}
+        if: ${{ !cancelled() && hashFiles('coverage/component/lcov.info') != '' }}
         uses: codecov/codecov-action@v7
         with:
           # PyPI install path: the default binary download verifies its GPG
