@@ -266,6 +266,12 @@ describe('attachmentProvenance', () => {
       expect(neutralizeHeaderMarkers('x］［Image: y')).toBe('x］Image: y');
       expect(neutralizeHeaderMarkers('x][Image: y')).toBe('x]Image: y');
     });
+
+    it('defuses a look-alike opener before a multi-word label', () => {
+      expect(neutralizeHeaderMarkers('【Spoiler voice message: x')).toBe(
+        'Spoiler voice message: x'
+      );
+    });
   });
 
   describe('HEADER_LABELS', () => {
