@@ -200,8 +200,8 @@ describe('HardcodedConstraints', () => {
 
     // An STT transcript of a voice message is the speaker's own words, so the
     // constraint must never disclaim it. An uploaded audio file's transcript
-    // is someone else's words the participant shared, so it gets the same
-    // treatment as a description.
+    // may be someone else's words the participant shared, so it is not
+    // credited to them by default.
     it("names an uploaded audio transcript as shared media, not the participant's speech", () => {
       expect(OUTPUT_CONSTRAINTS).toContain('"[Audio: name]"');
       expect(OUTPUT_CONSTRAINTS).toContain('"[Spoiler audio: name]"');
@@ -209,7 +209,7 @@ describe('HardcodedConstraints', () => {
         'inside a <voice> element carrying source="shared-file"'
       );
       expect(OUTPUT_CONSTRAINTS).toContain(
-        'not their own speech: never attribute its wording to them'
+        'rather than their own speech: do not attribute its wording to them unless'
       );
     });
 
@@ -217,7 +217,7 @@ describe('HardcodedConstraints', () => {
       expect(OUTPUT_CONSTRAINTS).toContain(
         '"[Voice message: …]" or "[Spoiler voice message: …]" header is the participant\'s own speech'
       );
-      expect(OUTPUT_CONSTRAINTS).not.toContain('element with no source attribute');
+      expect(OUTPUT_CONSTRAINTS.match(/<voice\b/g)).toHaveLength(1); // no claim about an unmarked <voice>
     });
   });
 

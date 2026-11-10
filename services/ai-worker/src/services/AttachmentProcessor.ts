@@ -300,8 +300,8 @@ async function processVoiceAttachment(options: ProcessVoiceOptions): Promise<Bui
     filename: attachment.name,
     contentType: attachment.contentType,
     durationSeconds: attachment.duration,
-    // An uploaded audio file (a plain WebM routed to STT) is shared media, not
-    // the sender's speech. The persona's own TTS reference is neither, so it
+    // An uploaded audio file (a plain WebM routed to STT) is shared media that
+    // may not be the sender's speech. The persona's own TTS reference is not, so it
     // stays unmarked.
     source:
       attachment.isVoiceMessage !== true && !isOwnPersonaVoice(authorRole)
