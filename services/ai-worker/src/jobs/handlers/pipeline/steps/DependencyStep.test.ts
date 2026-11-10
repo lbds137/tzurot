@@ -77,11 +77,13 @@ vi.mock('../../../../utils/imageToDataUrl.js', async importOriginal => {
   };
 });
 
-// The stub only implements the one method DependencyStep calls; `satisfies` ties it
-// to the real method's signature so a signature change breaks the compile.
+// The stub only implements the one method DependencyStep calls; the mock takes that
+// method's type, so its calls are checked against the real parameters.
 const makeWriter = () =>
   ({
-    persistTriggerDescriptions: vi.fn().mockResolvedValue(undefined),
+    persistTriggerDescriptions: vi
+      .fn<VisionDescriptionWriter['persistTriggerDescriptions']>()
+      .mockResolvedValue(undefined),
   }) satisfies Pick<VisionDescriptionWriter, 'persistTriggerDescriptions'>;
 
 // VisionDescriptionWriter is a class with a private `history` member the stub
