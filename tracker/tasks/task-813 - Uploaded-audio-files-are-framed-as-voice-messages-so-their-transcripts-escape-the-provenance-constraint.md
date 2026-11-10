@@ -5,11 +5,12 @@ title: >-
   the provenance constraint
 status: To Do
 assignee: []
-created_date: '2026-08-29 04:41'
+created_date: 2026-08-29 04:41
+updated_date: '2026-11-10T02:50:00Z'
 labels:
-  - 'area:ai-worker'
-  - 'size:S'
-  - 'state:ready'
+  - area:ai-worker
+  - state:ready
+  - size:M
 dependencies: []
 priority: medium
 ordinal: 813000
@@ -30,3 +31,13 @@ Second site (TASK-1116, PR 2548): in the reference/quote path (`AttachmentProces
 
 Acceptance: a character receiving an uploaded audio file does not credit the sender with the wording of the transcript, while a genuine voice message still reads as that person own speech; both states pinned by tests, and the voice-exclusion comment updated to match the narrowed reasoning.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Grounding 2026-11-09 (code reading, not runtime-confirmed): the fix shape premise "the header already carries the distinction" does NOT hold on the main trigger path. DependencyStep.fetchAudioResult (DependencyStep.ts:216-234) keeps url/name/content only, and the rebuild at DependencyStep.ts:446-455 sets no isVoiceMessage and no duration (AudioTranscriptionResult, packages/common-types/src/types/jobs.ts:325-343, carries no flag). So buildAudioAttachmentHeader (RAGUtils.ts:160-171) emits [Audio: name] for a GENUINE voice message too; [Voice message: Ns] appears only on the inline fallback (ConversationInputProcessor.ts:157). Option (a) alone would therefore disclaim real voice messages.
+
+Revised fix shape (size M): (1) carry isVoiceMessage + duration from the audio job (api-gateway jobChainOrchestrator.ts:45-58 knows the flag) through AudioTranscriptionResult into the DependencyStep rebuild, so voice messages get their [Voice message: Ns] header back; red-first seam test over the real DependencyStep -> RAGUtils chain; (2) narrow the provenance constraint to name the [Audio: name] / [Spoiler audio: name] transcript as shared media, moving the excludes-voice test (HardcodedConstraints.test.ts:201-207) with it; (3) quote path: a plain audio-only video/webm with a transcript renders <voice> (QuoteFormatter.ts:233-236) - add an uploaded-file marker the constraint names. Also correct the RAGUtils.ts:79-90 doc comment.
+
+Unrelated suspects from the same trace, filed separately: TASK-1378 (row content re-wrapped as a transcript), TASK-1379 (audio silently absent beside other preprocessed attachments). Uploaded mp3 in a QUOTE is never transcribed (jobChainOrchestrator.ts:255-270 transcribes only voice for references) - deliberate today, so not part of this unit.
+<!-- SECTION:NOTES:END -->
