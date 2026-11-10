@@ -105,6 +105,38 @@ describe('checkDevelopCi', () => {
     expect(result.message).toContain('in_progress run 20');
   });
 
+  it('reports an in-progress run with no probe job yet as a finding, not as unclassifiable (exit 1)', () => {
+    const result = checkDevelopCi(
+      fakeGh([
+        {
+          id: 20,
+          conclusion: null,
+          status: 'in_progress',
+          jobs: [{ name: 'changes', conclusion: 'success' }],
+        },
+      ])
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.message).toBe(
+      'in_progress run 20 sha 20aaaaaaa https://example.test/runs/20 (no verdict yet; board-only status unknown until lint resolves)'
+    );
+  });
+
+  it('reports an in-progress run whose probe job has a null conclusion (exit 1)', () => {
+    const result = checkDevelopCi(
+      fakeGh([
+        {
+          id: 20,
+          conclusion: null,
+          status: 'in_progress',
+          jobs: [{ name: 'lint', conclusion: null }],
+        },
+      ])
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.message).toContain('no verdict yet');
+  });
+
   it('steps over an in-progress board-only run to a completed success (exit 0)', () => {
     const result = checkDevelopCi(
       fakeGh([
