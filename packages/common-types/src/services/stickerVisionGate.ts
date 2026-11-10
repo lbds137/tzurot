@@ -9,7 +9,7 @@
  * ## Where the spend actually happens (the thing that is easy to get wrong)
  *
  * It is NOT in ai-worker's generation pipeline. **api-gateway queues the vision
- * work first**: `createJobChain` -> `categorizeAttachments` buckets anything
+ * work first**: `createJobChain` -> `planPreprocessing` buckets anything
  * `image/*` — including sticker-derived synthetic attachments — into
  * `ImageDescription` CHILD jobs, and BullMQ runs those to completion before the
  * parent generation job starts.
