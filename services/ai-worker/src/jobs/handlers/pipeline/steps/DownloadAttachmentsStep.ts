@@ -302,9 +302,9 @@ export class DownloadAttachmentsStep implements IPipelineStep {
     return {
       ...attachment,
       url: dataUrl,
-      // Preserve the Discord CDN URL for VisionDescriptionCache key stability.
-      // Overwrite any prior local-URL originalUrl; after this refactor the
-      // Discord URL flows end-to-end through api-gateway unchanged.
+      // Preserve the Discord CDN URL for VisionDescriptionCache key stability
+      // and DependencyStep's provenance join: an originalUrl set upstream is
+      // kept, otherwise the pre-download url becomes it.
       originalUrl: attachment.originalUrl ?? attachment.url,
       size: bytes,
     };
