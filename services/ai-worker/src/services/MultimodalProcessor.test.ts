@@ -861,6 +861,58 @@ describe('MultimodalProcessor', () => {
       expect(results[0].description).toMatch(/Audio transcription failed after \d+ attempts \(/);
     });
 
+    it('routes a voice-flagged image/* attachment to STT, not vision', async () => {
+      const attachments: AttachmentMetadata[] = [
+        {
+          url: 'https://cdn.discordapp.com/voice.png',
+          name: 'voice.png',
+          contentType: CONTENT_TYPES.IMAGE_PNG,
+          size: 2048,
+          isVoiceMessage: true,
+        },
+      ];
+
+      const results = await processAttachments(attachments, mockPersonality, {
+        isGuestMode: false,
+      });
+
+      expect(mockTranscribeAudio).toHaveBeenCalledTimes(1);
+      expect(mockModelInvoke).not.toHaveBeenCalled();
+      expect(mockDescribeImageWithFallback).not.toHaveBeenCalled();
+      expect(results[0]).toMatchObject({
+        type: AttachmentType.Audio,
+        description: 'Mocked transcription',
+      });
+    });
+
+    it('maps a failed voice-flagged image/* attachment to the Audio fallback wording', async () => {
+      const attachments: AttachmentMetadata[] = [
+        {
+          url: 'https://cdn.discordapp.com/voice.png',
+          name: 'voice.png',
+          contentType: CONTENT_TYPES.IMAGE_PNG,
+          size: 2048,
+          isVoiceMessage: true,
+        },
+      ];
+
+      mockTranscribeAudio.mockRejectedValue(new Error('Network error'));
+
+      const promise = processAttachments(attachments, mockPersonality, { isGuestMode: false });
+
+      await vi.runAllTimersAsync();
+
+      const results = await promise;
+
+      expect(mockTranscribeAudio).toHaveBeenCalledTimes(3);
+      expect(mockModelInvoke).not.toHaveBeenCalled();
+      expect(results[0]).toMatchObject({
+        type: AttachmentType.Audio,
+        originalUrl: 'https://cdn.discordapp.com/voice.png',
+      });
+      expect(results[0].description).toMatch(/Audio transcription failed after 3 attempts \(/);
+    });
+
     it('fast-fails a deterministic UnsupportedAudioFormatError instead of retrying', async () => {
       const attachments: AttachmentMetadata[] = [
         {

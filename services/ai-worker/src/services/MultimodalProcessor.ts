@@ -13,7 +13,7 @@
  */
 
 import { type AIProvider } from '@tzurot/common-types/constants/ai';
-import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
@@ -379,7 +379,9 @@ export async function processAttachments(
     }
 
     // Failed after all retries - provide fallback description with error category
-    const isImage = attachment?.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX) ?? false;
+    // Same classifier as the routing in processSingleAttachment, so a voice-flagged
+    // image/* attachment (routed to STT) fails with the transcription wording.
+    const isImage = attachment !== undefined && classifyForPreprocessing(attachment) === 'image';
     const errorCategory =
       result.error !== undefined ? parseApiError(result.error).category : 'unknown';
     const fallbackDescription = isImage

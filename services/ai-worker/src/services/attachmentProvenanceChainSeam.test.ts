@@ -1,24 +1,38 @@
 /**
  * Seam test: the attachment-provenance chain, every attachment kind × every path.
  *
- * One table, run through the REAL chain: `planPreprocessing` decides which
- * attachments get a child job (as api-gateway does), simulated child-job results
- * land in Redis for exactly those, then the real `DependencyStep` →
+ * One table, run through the real ai-worker chain: `planPreprocessing` decides
+ * which attachments get a child job (as api-gateway does), simulated child-job
+ * results land in Redis for exactly those, then the real `DependencyStep` →
  * `buildConversationContext` → `ConversationInputProcessor` (with the real
  * `ReferencedMessageFormatter` and `PromptBuilder`) → the real renderers. Only
  * the external boundaries are mocked: Redis, the vision model call, the STT call,
  * the attachment byte fetch, and the persona-lookup database.
  *
- * Each cell asserts two things about the assembled prompt text:
- * - visible: the attachment is named under the label its kind should carry;
+ * What is NOT real here, so a green cell does not vouch for it:
+ * - `DownloadAttachmentsStep` is skipped: originals are hand-shaped (`downloaded`)
+ *   as that step leaves them, not produced by it.
+ * - `referenceEnricher` is skipped: `isDeduplicated` is set by hand on the quote.
+ * - Enrichment and input processing run in guest mode with an empty `visionAuth`,
+ *   so the BYOK path is not exercised.
+ * - The sticker row depends on the stickers gate at its registry default; the
+ *   gate setting is not pinned.
+ *
+ * Each cell asserts about the assembled prompt text:
+ * - visible: the attachment is named under the label its kind should carry, and
+ *   the sibling photo's own marker rendered (so an empty render cannot pass);
  * - vocabulary: every bracket header label and every `source=` value in the text
- *   is one `OUTPUT_CONSTRAINTS` explains to the model.
+ *   is one `OUTPUT_CONSTRAINTS` explains to the model;
+ * - enrichment: the child-job / inline result text reached the prompt for kinds
+ *   that have a processor on that path, and is absent where none ran.
  *
  * A cell that is red on today's code is listed in KNOWN_RED with the task that
- * owns the defect, and runs as `it.fails` — the fix PR deletes its entry.
+ * owns the defect, and runs as an explicit pin: it asserts the sibling rendered
+ * and the expected output is absent. When the owning fix lands the pin goes red
+ * and the entry moves out of KNOWN_RED.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Job } from 'bullmq';
 import {
   JOB_PREFIXES,
@@ -145,6 +159,8 @@ interface Row {
   triggerHeader: string;
   /** The element opening the quote paths must name it with. */
   referenceElement: string;
+  /** Which processor's text the prompt should carry for it: STT, vision, or none (no processor exists). */
+  enrichment: 'transcript' | 'vision' | 'none';
 }
 
 const ROWS: Row[] = [
@@ -160,6 +176,7 @@ const ROWS: Row[] = [
     },
     triggerHeader: '[Voice message: 5.2s]',
     referenceElement: '<voice filename="voice-message.ogg" type="audio/ogg" duration="5.2s"',
+    enrichment: 'transcript',
   },
   {
     key: 'vencord-webm-voice',
@@ -173,6 +190,7 @@ const ROWS: Row[] = [
     },
     triggerHeader: '[Voice message: 3.5s]',
     referenceElement: '<voice filename="voice-message.webm" type="video/webm" duration="3.5s"',
+    enrichment: 'transcript',
   },
   {
     key: 'mp3',
@@ -180,6 +198,7 @@ const ROWS: Row[] = [
     triggerHeader: '[Audio: song.mp3]',
     // A quote keys voice on the voice flag alone, so a shared music file is a file there.
     referenceElement: '<file filename="song.mp3" type="audio/mpeg"/>',
+    enrichment: 'transcript',
   },
   {
     key: 'audio-only-webm',
@@ -191,6 +210,7 @@ const ROWS: Row[] = [
     },
     triggerHeader: '[Audio: recording.webm]',
     referenceElement: '<voice filename="recording.webm" type="video/webm" source="shared-file"',
+    enrichment: 'transcript',
   },
   {
     key: 'spoiler-image',
@@ -203,6 +223,7 @@ const ROWS: Row[] = [
     },
     triggerHeader: '[Spoiler image: SPOILER_cat.png]',
     referenceElement: '<image filename="SPOILER_cat.png" type="image/png" spoiler="true"',
+    enrichment: 'vision',
   },
   {
     key: 'sticker',
@@ -215,6 +236,7 @@ const ROWS: Row[] = [
     },
     triggerHeader: '[Sticker: wave]',
     referenceElement: '<image filename="wave" type="image/png" source="sticker"',
+    enrichment: 'vision',
   },
   {
     key: 'link-preview',
@@ -227,6 +249,7 @@ const ROWS: Row[] = [
     },
     triggerHeader: '[Link preview: embed-1-image.png]',
     referenceElement: '<image filename="embed-1-image.png" type="image/png" source="link-preview"',
+    enrichment: 'vision',
   },
   {
     key: 'pdf',
@@ -238,14 +261,16 @@ const ROWS: Row[] = [
     },
     triggerHeader: '[File: report.pdf]',
     referenceElement: '<file filename="report.pdf" type="application/pdf"/>',
+    enrichment: 'none',
   },
 ];
 
 /**
  * Every message also carries an ordinary photo. It is what makes the trigger
- * job path real: with no job-bearing sibling, a lone pdf or plain WebM produces
- * no child job, the preprocessed list stays empty, and the turn quietly takes
- * the inline path instead.
+ * job path real: with no job-bearing sibling, a lone pdf or plain WebM is
+ * expected to produce no child job and leave the turn on the inline path
+ * (not verified here: no cell sends a lone pdf or plain WebM). Its own marker
+ * doubles as the control that the harness rendered something.
  */
 const SIBLING: AttachmentMetadata = {
   url: cdn('photo.png'),
@@ -262,7 +287,7 @@ const COLUMNS = [
   'stored-replay',
 ] as const;
 type Column = (typeof COLUMNS)[number];
-type Assertion = 'visible' | 'vocabulary';
+type Assertion = 'visible' | 'vocabulary' | 'enrichment';
 
 /** Cells red on today's code, keyed `row|column|assertion`, valued by owning task. */
 const KNOWN_RED: Partial<Record<`${RowKey}|${Column}|${Assertion}`, string>> = {
@@ -272,6 +297,9 @@ const KNOWN_RED: Partial<Record<`${RowKey}|${Column}|${Assertion}`, string>> = {
   'audio-only-webm|trigger-job|visible': 'TASK-1395',
   // The deduped stub names a plain audio-only WebM as a <file> where the live quote renders shared-file voice.
   'audio-only-webm|deduped-reference|visible': 'TASK-1401',
+  // The same defects drop the transcript along with the attachment.
+  'audio-only-webm|trigger-job|enrichment': 'TASK-1395',
+  'audio-only-webm|deduped-reference|enrichment': 'TASK-1401',
 };
 
 /** The attachment as `DownloadAttachmentsStep` leaves it: bytes inline, CDN URL kept. */
@@ -396,7 +424,8 @@ async function runTurn(turn: TurnInputs): Promise<{
   } as unknown as PreparedContext;
   const context = buildConversationContext(jobContext, prepared, preprocessing, 'req');
 
-  // Production order: history enrichment runs before the references render.
+  // Mirrors the order read from the pipeline code (history enrichment before the
+  // references render); not verified here — no cell varies the order.
   await enrichRagHistory({
     prisma,
     context,
@@ -501,10 +530,21 @@ async function renderCell(row: Row, column: Column): Promise<string> {
  * text that `OUTPUT_CONSTRAINTS` does not name — empty when the model is told
  * how to read everything the text emits.
  */
+// A dedup stub opens with a bracketed notice that states its own meaning; the
+// vocabulary check is for labels the model must interpret from OUTPUT_CONSTRAINTS.
+// Every `[Referenced message — …]` variant in RenderableReference.ts shares this prefix.
+const SELF_DESCRIBING_NOTICES = ['Referenced message — '];
+
 function unexplainedVocabulary(text: string): string[] {
-  const labels = [...text.matchAll(/\[([A-Z][A-Za-z ]*?)(?=[:\]])/g)]
+  // Every capture is reported, whatever it starts with: a label counts as
+  // explained only when OUTPUT_CONSTRAINTS quotes it whole, as `"[Label:` or `"[Label]`.
+  const labels = [...text.matchAll(/\[([^\]:\n]+)(?=[:\]])/g)]
     .map(m => m[1])
-    .filter(label => !OUTPUT_CONSTRAINTS.includes(`"[${label}`))
+    .filter(label => !SELF_DESCRIBING_NOTICES.some(prefix => label.startsWith(prefix)))
+    .filter(
+      label =>
+        !OUTPUT_CONSTRAINTS.includes(`"[${label}:`) && !OUTPUT_CONSTRAINTS.includes(`"[${label}]`)
+    )
     .map(label => `header label "${label}"`);
   const sources = [...text.matchAll(/source="([^"]+)"/g)]
     .map(m => m[1])
@@ -519,8 +559,60 @@ function expectedMarker(row: Row, column: Column): string {
     : row.referenceElement;
 }
 
+/** The sibling photo's own marker: proof the harness rendered the message at all. */
+function siblingMarker(column: Column): string {
+  return column === 'trigger-job' || column === 'trigger-inline'
+    ? '[Image: photo.png]'
+    : '<image filename="photo.png"';
+}
+
+/** The processor-result text a row's attachment should carry into the prompt. */
+function enrichmentText(row: Row): string {
+  return row.enrichment === 'vision' ? visionOf(row.attachment) : transcriptOf(row.attachment);
+}
+
+/**
+ * Whether the processor's text reaches the prompt on this path. A pdf has no
+ * processor; a non-voice audio file on a quote gets no STT job (the reference
+ * plan gate), so its quote renders a bare `<file/>`.
+ */
+function enrichmentExpected(row: Row, column: Column): boolean {
+  if (row.enrichment === 'none') return false;
+  const onQuote = column !== 'trigger-job' && column !== 'trigger-inline';
+  return !(row.key === 'mp3' && onQuote);
+}
+
+describe('unexplainedVocabulary', () => {
+  it('reports a label OUTPUT_CONSTRAINTS never names', () => {
+    expect(unexplainedVocabulary('[Hologram: x]')).toEqual(['header label "Hologram"']);
+  });
+
+  it('reports a prefix of an explained label', () => {
+    expect(unexplainedVocabulary('[Voice]')).toEqual(['header label "Voice"']);
+  });
+
+  it('reports a label that starts lowercase or carries punctuation', () => {
+    expect(unexplainedVocabulary('[voice message (5.2s)]')).toEqual([
+      'header label "voice message (5.2s)"',
+    ]);
+  });
+
+  it('does not report an explained label', () => {
+    expect(unexplainedVocabulary('[Sticker: x]')).toEqual([]);
+  });
+
+  it('does not report a self-describing stub notice', () => {
+    expect(
+      unexplainedVocabulary(
+        '[Referenced message — full text in the chat log; its media is described here]'
+      )
+    ).toEqual([]);
+  });
+});
+
 describe('attachment-provenance chain seam', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.clearAllMocks();
     mocks.describeImage.mockImplementation((a: AttachmentMetadata) => Promise.resolve(visionOf(a)));
     mocks.transcribeAudio.mockImplementation((a: AttachmentMetadata) =>
@@ -530,29 +622,69 @@ describe('attachment-provenance chain seam', () => {
     mocks.fetchAudioBuffer.mockResolvedValue(hexToArrayBuffer(CHROMIUM_AUDIO_WEBM_PREFIX_HEX));
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   describe.each(ROWS)('$key', row => {
     describe.each(COLUMNS)('%s', column => {
-      // Each cell is written out as `it` or `it.fails` so the test linter sees
-      // its assertion inside a test block; the bodies are the same one line.
+      // Each cell is written out as a plain `it` (green or known-red pin) so the
+      // test linter sees its assertions inside a test block.
       const visibleOwner = KNOWN_RED[`${row.key}|${column}|visible`];
       if (visibleOwner === undefined) {
         it('visible', async () => {
-          expect(await renderCell(row, column)).toContain(expectedMarker(row, column));
+          const text = await renderCell(row, column);
+          expect(text).toContain(siblingMarker(column));
+          expect(text).toContain(expectedMarker(row, column));
         });
       } else {
-        it.fails(`visible — known red, owned by ${visibleOwner}`, async () => {
-          expect(await renderCell(row, column)).toContain(expectedMarker(row, column));
+        // Pin of today's defect: when the owning fix lands this goes red and the
+        // entry moves out of KNOWN_RED.
+        it(`visible — known red, owned by ${visibleOwner}`, async () => {
+          const text = await renderCell(row, column);
+          expect(text).toContain(siblingMarker(column));
+          expect(text).not.toContain(expectedMarker(row, column));
         });
       }
 
       const vocabularyOwner = KNOWN_RED[`${row.key}|${column}|vocabulary`];
       if (vocabularyOwner === undefined) {
         it('vocabulary', async () => {
-          expect(unexplainedVocabulary(await renderCell(row, column))).toEqual([]);
+          const text = await renderCell(row, column);
+          expect(text).toContain(siblingMarker(column));
+          expect(unexplainedVocabulary(text)).toEqual([]);
         });
       } else {
-        it.fails(`vocabulary — known red, owned by ${vocabularyOwner}`, async () => {
-          expect(unexplainedVocabulary(await renderCell(row, column))).toEqual([]);
+        // Pin of today's defect: when the owning fix lands this goes red and the
+        // entry moves out of KNOWN_RED.
+        it(`vocabulary — known red, owned by ${vocabularyOwner}`, async () => {
+          const text = await renderCell(row, column);
+          expect(text).toContain(siblingMarker(column));
+          expect(unexplainedVocabulary(text)).not.toEqual([]);
+        });
+      }
+
+      const enrichmentOwner = KNOWN_RED[`${row.key}|${column}|enrichment`];
+      if (enrichmentOwner === undefined) {
+        it('enrichment', async () => {
+          const text = await renderCell(row, column);
+          expect(text).toContain(siblingMarker(column));
+          expect(text).toContain(visionOf(SIBLING));
+          if (enrichmentExpected(row, column)) {
+            expect(text).toContain(enrichmentText(row));
+          } else {
+            expect(text).not.toContain(visionOf(row.attachment));
+            expect(text).not.toContain(transcriptOf(row.attachment));
+          }
+        });
+      } else {
+        // Pin of today's defect: when the owning fix lands this goes red and the
+        // entry moves out of KNOWN_RED.
+        it(`enrichment — known red, owned by ${enrichmentOwner}`, async () => {
+          const text = await renderCell(row, column);
+          expect(text).toContain(siblingMarker(column));
+          expect(text).toContain(visionOf(SIBLING));
+          expect(text).not.toContain(enrichmentText(row));
         });
       }
     });

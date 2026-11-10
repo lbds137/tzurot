@@ -25,6 +25,21 @@ vi.mock('@tzurot/common-types/services/stickerVisionGate', async () => {
   };
 });
 
+// Every module in this file's import graph shares one logger, so a test can
+// assert the fields of a log line the orchestrator emits.
+const mockLogger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: () => mockLogger };
+});
+
 vi.mock('../queue.js', () => ({
   flowProducer: {
     add: vi.fn(),
@@ -1205,6 +1220,10 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
         const flowCall = (flowProducer.add as any).mock.calls[0][0];
         expect(flowCall.children).toBeUndefined();
         expect(flowCall.data.dependencies).toBeUndefined();
+        expect(mockLogger.info).toHaveBeenCalledWith(
+          { requestId: 'req-ref-music-skip', referenceNumber: 1, skippedCount: 1 },
+          'Skipped audio transcription jobs for non-voice reference attachments'
+        );
       });
 
       it('still dispatches STT for a real voice message on a referenced message', async () => {
