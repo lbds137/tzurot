@@ -3,9 +3,10 @@ id: TASK-1383
 title: >-
   Audio header fallback labels a genuine voice message as [Audio: name], now
   read as maybe-not-their-speech
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-10T06:39:00Z'
+updated_date: '2026-11-10T13:34:00Z'
 labels:
   - area:ai-worker
   - size:S

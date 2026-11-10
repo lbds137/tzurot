@@ -1,10 +1,10 @@
 ---
 id: TASK-1381
 title: Log when DependencyStep's provenance join misses a context attachment
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-10T05:23:00Z'
-updated_date: '2026-11-10T05:23:00Z'
+updated_date: '2026-11-10T13:34:00Z'
 labels:
   - area:ai-worker
   - size:S

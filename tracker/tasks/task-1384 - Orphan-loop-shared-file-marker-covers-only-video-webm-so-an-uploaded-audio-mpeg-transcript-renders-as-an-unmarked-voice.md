@@ -3,9 +3,10 @@ id: TASK-1384
 title: >-
   Orphan-loop shared-file marker covers only video/webm, so an uploaded
   audio/mpeg transcript renders as an unmarked voice
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-10T07:34:00Z'
+updated_date: '2026-11-10T13:34:00Z'
 labels:
   - area:ai-worker
   - size:S
