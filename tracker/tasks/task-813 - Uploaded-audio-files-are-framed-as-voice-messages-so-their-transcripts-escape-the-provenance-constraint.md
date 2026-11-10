@@ -3,10 +3,10 @@ id: TASK-813
 title: >-
   Uploaded audio files are framed as voice messages, so their transcripts escape
   the provenance constraint
-status: To Do
+status: Done
 assignee: []
 created_date: 2026-08-29 04:41
-updated_date: '2026-11-10T05:23:00Z'
+updated_date: '2026-11-10T07:36:00Z'
 labels:
   - area:ai-worker
   - size:M
