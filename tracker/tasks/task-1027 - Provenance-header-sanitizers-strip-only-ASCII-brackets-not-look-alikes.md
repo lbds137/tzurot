@@ -1,14 +1,14 @@
 ---
 id: TASK-1027
-title: 'Provenance-header sanitizers strip only ASCII brackets, not look-alikes'
-status: To Do
+title: Provenance-header sanitizers strip only ASCII brackets, not look-alikes
+status: Done
 assignee: []
-created_date: '2026-09-20 19:57'
-updated_date: '2026-10-04 23:07'
+created_date: 2026-09-20 19:57
+updated_date: '2026-11-10T01:13:00Z'
 labels:
-  - 'area:common-types'
-  - 'size:S'
-  - 'state:ready'
+  - area:common-types
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1022000
