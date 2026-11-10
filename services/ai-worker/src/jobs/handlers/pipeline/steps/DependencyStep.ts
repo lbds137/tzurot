@@ -43,6 +43,42 @@ interface ImageInfo {
   sourceReferenceNumber?: number;
 }
 
+/**
+ * Put the trigger message's original attachment metadata back on the entries
+ * rebuilt from job results.
+ *
+ * A job result carries only the URL, the name and the description, so the
+ * rebuild synthesizes a placeholder content type and drops the provenance flags
+ * (spoiler, sticker, link preview, voice message, duration) the render headers
+ * key on. The original metadata is in the job context. Correlation is on the
+ * context attachment's `originalUrl`, falling back to its `url`: by the time
+ * this step runs, `DownloadAttachmentsStep` has already replaced each trigger
+ * attachment's `url` with a `data:` URL and moved the Discord CDN URL to
+ * `originalUrl`, which is the URL the job result reports. On a match only the
+ * metadata is replaced — `type`, `description` and `originalUrl` stay the
+ * result's own, and `metadata.url` keeps the result's CDN URL so a
+ * multi-megabyte data URL never rides into the processed entry. An entry with
+ * no match is returned as-is, and the list keeps its order and length.
+ */
+function restoreOriginalMetadata(
+  entries: ProcessedAttachment[],
+  originals: AttachmentMetadata[] | undefined
+): ProcessedAttachment[] {
+  if (originals === undefined || originals.length === 0) {
+    return entries;
+  }
+  return entries.map(entry => {
+    // `originalUrl` is the CDN URL once the download step has run; the plain
+    // `url` is the same CDN URL when nothing rewrote the attachment.
+    const original = originals.find(
+      candidate => (candidate.originalUrl ?? candidate.url) === entry.originalUrl
+    );
+    return original === undefined
+      ? entry
+      : { ...entry, metadata: { ...original, url: entry.metadata.url } };
+  });
+}
+
 export class DependencyStep implements IPipelineStep {
   readonly name = 'DependencyResolution';
 
@@ -105,7 +141,16 @@ export class DependencyStep implements IPipelineStep {
         redisService
       );
 
-      preprocessing = this.buildPreprocessingResults(audioTranscriptions, imageDescriptions);
+      const rebuilt = this.buildPreprocessingResults(audioTranscriptions, imageDescriptions);
+      // Joined before anything reads the list, so the prompt render and the
+      // persisted history copy both see the provenance flags.
+      preprocessing = {
+        ...rebuilt,
+        processedAttachments: restoreOriginalMetadata(
+          rebuilt.processedAttachments,
+          jobContext?.attachments
+        ),
+      };
     }
 
     // Process extended context attachments inline (not from dependency jobs)
