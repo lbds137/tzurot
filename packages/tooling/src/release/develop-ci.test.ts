@@ -130,6 +130,20 @@ describe('checkDevelopCi', () => {
     expect(result.message).toContain('startup_failure run 20');
   });
 
+  it.each(['cancelled', 'failure'])(
+    'does not step over a %s run whose lint job was skipped (exit 1)',
+    conclusion => {
+      const result = checkDevelopCi(
+        fakeGh([
+          { id: 30, conclusion, lint: 'skipped' },
+          { id: 20, conclusion: 'success' },
+        ])
+      );
+      expect(result.exitCode).toBe(1);
+      expect(result.message).toContain(`${conclusion} run 30`);
+    }
+  );
+
   it('exits 2 when every run in the window is board-only', () => {
     const result = checkDevelopCi(
       fakeGh([

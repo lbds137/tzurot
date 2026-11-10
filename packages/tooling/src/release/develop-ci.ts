@@ -73,7 +73,15 @@ export function checkDevelopCi(gh: GhRunner = defaultGh): DevelopCiResult {
   for (const run of runs) {
     const jobs = fetchJobs(gh, run.id);
     const probe = jobs.find(job => job.name === BOARD_ONLY_PROBE_JOB);
-    if (probe?.conclusion === 'skipped') continue;
+    // A probe `skipped` marks a board-only run only when the run itself did not
+    // end badly: a run cancelled (or failed) before `lint` started also leaves
+    // it `skipped`, because its `if` carries `!cancelled()`.
+    if (
+      probe?.conclusion === 'skipped' &&
+      (run.status !== 'completed' || run.conclusion === 'success')
+    ) {
+      continue;
+    }
     // Jobs exist but the probe is absent: not provably a code run, so refuse
     // to call it one. A run with zero jobs (startup_failure) falls through.
     if (jobs.length > 0 && probe === undefined) {

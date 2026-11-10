@@ -765,9 +765,10 @@ jobs:
   # caching for now — the trigger is rare enough that a cold build per firing
   # is cheaper than carrying cache plumbing.
   #
-  # Step-gated on the `changes` job (same pattern as unit-tests): a board-only
-  # develop push has no paths-filter base, so the filter diffs against main and
-  # would fire every leg. The job-level `!cancelled()` keeps a failed `changes`
+  # Step-gated on the `changes` job (same pattern as unit-tests): board-only
+  # pushes were observed building images in run 42825803001; the cause is
+  # inferred (paths-filter with no base appears to diff against main), not
+  # verified. The job-level `!cancelled()` keeps a failed `changes`
   # job from skipping the legs.
   docker-build-smoke:
     needs: changes
