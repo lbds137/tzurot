@@ -360,6 +360,7 @@ describe('buildStoredAttachments', () => {
         kind: 'voice',
         filename: 'plain.webm',
         contentType: 'video/webm',
+        source: 'shared-file',
         description: 'hello there',
       },
     ]);
@@ -397,6 +398,7 @@ describe('buildStoredAttachments', () => {
         kind: 'voice',
         filename: 'plain.webm',
         contentType: 'video/webm',
+        source: 'shared-file',
         description: 'hello there',
       },
     ]);

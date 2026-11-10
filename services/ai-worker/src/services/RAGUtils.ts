@@ -89,6 +89,12 @@ export function extractContentDescriptions(processedAttachments: ProcessedAttach
  * was read as separately-typed user text and the model would reply that no
  * voice content was received.
  *
+ * The `<voice_transcripts>` wrapper is shared by voice messages and uploaded
+ * audio files; the header carries the provenance. `[Voice message: Ns]` is the
+ * participant's own speech, while `[Audio: name]` / `[Spoiler audio: name]` is
+ * a file they shared, and `OUTPUT_CONSTRAINTS` names the `[Audio: name]` form
+ * as shared media.
+ *
  * Wrapper tags are NOT in `PROTECTED_TAGS` because `escapeXmlContent` runs over
  * the full message content at chat_log emit time — protecting them would also
  * escape OUR wrapper, destroying its effect. Instead, `neutralizeWrapperClosingTags`

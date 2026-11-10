@@ -798,6 +798,18 @@ describe('QuoteFormatter', () => {
       );
     });
 
+    it('renders source="shared-file" on a voice element marked as an uploaded file', () => {
+      expect(
+        renderAttachment({
+          kind: 'voice',
+          filename: 'song.webm',
+          contentType: 'video/webm',
+          source: 'shared-file',
+          description: 'la la la',
+        })
+      ).toBe('<voice filename="song.webm" type="video/webm" source="shared-file">la la la</voice>');
+    });
+
     it('renders no spoiler attribute for an ordinary, non-spoilered voice message', () => {
       const [built] = buildRenderableAttachments([voice], () => 'hi');
 
@@ -846,8 +858,18 @@ describe('QuoteFormatter', () => {
           kind: 'voice',
           filename: 'plain.webm',
           contentType: 'video/webm',
+          source: 'shared-file',
           description: 'hello there',
         });
+      });
+
+      it('marks the voice element as a shared file, unlike a flagged voice message', () => {
+        const [webm] = buildRenderableAttachments([plainWebm], () => 'hello there');
+        const [genuine] = buildRenderableAttachments([voice], () => 'hello there');
+
+        expect(webm.attachment).toMatchObject({ kind: 'voice', source: 'shared-file' });
+        expect(genuine.attachment).toMatchObject({ kind: 'voice' });
+        expect(genuine.attachment).not.toHaveProperty('source', 'shared-file');
       });
 
       it('stays a file when the describe callback returns undefined', () => {
