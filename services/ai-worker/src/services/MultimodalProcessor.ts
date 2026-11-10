@@ -17,6 +17,7 @@ import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/me
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { classifyForPreprocessing } from '@tzurot/common-types/utils/attachmentPreprocessingPlan';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { type AttachmentDescriptionAttribution } from '@tzurot/common-types/types/diagnostic';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
@@ -199,7 +200,9 @@ async function processSingleAttachment(
     model,
     visionAuth,
   } = options;
-  if (attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
+  // The gateway's classifier: audio-or-voice first, then image, else file.
+  const kind = classifyForPreprocessing(attachment);
+  if (kind === 'image') {
     // A shared asset is instance-funded on EVERY path, not just the one the
     // primary caller uses. Deciding it here — rather than at each
     // `processAttachments` call site — is deliberate: several callers omit the
@@ -269,10 +272,7 @@ async function processSingleAttachment(
       metadata: attachment,
       attribution,
     };
-  } else if (
-    attachment.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ||
-    attachment.isVoiceMessage === true
-  ) {
+  } else if (kind === 'audio') {
     return transcribeAudioAttachment(attachment, sttDispatch);
   }
 
