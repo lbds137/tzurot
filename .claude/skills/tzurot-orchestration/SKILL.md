@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit; and the cloud dispatch mode (one cloud unit beside one local unit). Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-10-28'
+lastUpdated: '2026-11-09'
 ---
 
 # Orchestrator Mode
@@ -400,7 +400,10 @@ a gap the worker will fill by guessing.
    output indistinguishable from a silent pass. Name every gate CI will run
    for the touched packages; in particular BOTH `typecheck` AND
    `typecheck:spec` where the package defines it (separate tsconfig — plain
-   `typecheck` misses test-file errors). Sequential, long timeouts, never in
+   `typecheck` misses test-file errors), and the format check,
+   `npx prettier --check <touched files>` — eslint does not enforce
+   formatting, CI runs `pnpm format:check`, and lint-staged rewrites an
+   unformatted transfer at commit. Sequential, long timeouts, never in
    parallel (`05-tooling.md` § Resource Constraints). The worker verification
    floor (`02-code-standards.md` § Testing Standards) applies even where this
    list omits a gate. A spec bound for a cross-lane headless worker inlines
