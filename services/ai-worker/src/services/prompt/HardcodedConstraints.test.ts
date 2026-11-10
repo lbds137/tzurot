@@ -204,9 +204,8 @@ describe('HardcodedConstraints', () => {
     // credited to them by default.
     it("names an uploaded audio transcript as shared media, not the participant's speech", () => {
       expect(OUTPUT_CONSTRAINTS).toContain('"[Audio: name]"');
-      expect(OUTPUT_CONSTRAINTS).toContain('"[Spoiler audio: name]"');
       expect(OUTPUT_CONSTRAINTS).toContain(
-        'inside a <voice> element carrying source="shared-file"'
+        'A transcript under an "[Audio: name]" or "[Spoiler audio: name]" header, or inside a <voice> element carrying source="shared-file"'
       );
       expect(OUTPUT_CONSTRAINTS).toContain(
         'rather than their own speech: do not attribute its wording to them unless'
@@ -218,7 +217,13 @@ describe('HardcodedConstraints', () => {
         '"[Voice message: …]" or "[Spoiler voice message: …]" header is the participant\'s own speech'
       );
       // The constraint makes no claim about an unmarked <voice> element.
-      expect(OUTPUT_CONSTRAINTS).not.toMatch(/<voice> element(?! carrying source="shared-file")/);
+      const mentions = [...OUTPUT_CONSTRAINTS.matchAll(/<voice\b/g)].map(m =>
+        OUTPUT_CONSTRAINTS.slice(m.index, m.index + 50)
+      );
+      expect(mentions.length).toBeGreaterThan(0);
+      for (const mention of mentions) {
+        expect(mention.startsWith('<voice> element carrying source="shared-file"')).toBe(true);
+      }
     });
   });
 

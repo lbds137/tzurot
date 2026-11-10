@@ -2325,6 +2325,56 @@ describe('ReferencedMessageFormatter', () => {
       expect(mockTranscribeAudio).not.toHaveBeenCalled();
     });
 
+    describe('ORPHAN audio entries and the shared-file marker', () => {
+      const formatOrphanAudio = async (
+        metadata: Partial<ProcessedAttachment['metadata']>
+      ): Promise<string> => {
+        const { formatted } = await formatter.formatReferencedMessages(
+          [refWithImage({ isDeduplicated: true, attachments: undefined, content: '' })],
+          mockPersonality,
+          false,
+          {
+            1: [
+              {
+                type: AttachmentType.Audio,
+                description: TRANSCRIPT_SENTINEL,
+                originalUrl: 'https://cdn.example.com/clip.webm',
+                metadata: {
+                  url: 'https://cdn.example.com/clip.webm',
+                  name: 'clip.webm',
+                  contentType: 'video/webm',
+                  size: 4000,
+                  ...metadata,
+                },
+              },
+            ],
+          }
+        );
+        return formatted;
+      };
+
+      it('marks a plain video/webm orphan with no voice flag as a shared file', async () => {
+        const formatted = await formatOrphanAudio({});
+
+        expect(formatted).toContain('source="shared-file"');
+        expect(formatted).toContain(TRANSCRIPT_SENTINEL);
+      });
+
+      it('does not mark the dependency-step placeholder (audio/unknown) as a shared file', async () => {
+        const formatted = await formatOrphanAudio({ contentType: 'audio/unknown' });
+
+        expect(formatted).not.toContain('source=');
+        expect(formatted).toContain(TRANSCRIPT_SENTINEL);
+      });
+
+      it('does not mark an orphan flagged isVoiceMessage as a shared file', async () => {
+        const formatted = await formatOrphanAudio({ isVoiceMessage: true });
+
+        expect(formatted).not.toContain('source=');
+        expect(formatted).toContain(TRANSCRIPT_SENTINEL);
+      });
+    });
+
     it('carries source="link-preview" through the ORPHAN loop of the deduped live path', async () => {
       // The orphan loop in `buildDedupedAttachments` is a separate construction
       // site from the correlated path above — it builds its own attachment
