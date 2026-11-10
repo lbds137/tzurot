@@ -6,11 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: 2026-08-29 04:41
-updated_date: '2026-11-10T02:50:00Z'
+updated_date: '2026-11-10T02:55:00Z'
 labels:
   - area:ai-worker
-  - state:ready
   - size:M
+  - state:dependent
 dependencies: []
 priority: medium
 ordinal: 813000
@@ -40,4 +40,6 @@ Grounding 2026-11-09 (code reading, not runtime-confirmed): the fix shape premis
 Revised fix shape (size M): (1) carry isVoiceMessage + duration from the audio job (api-gateway jobChainOrchestrator.ts:45-58 knows the flag) through AudioTranscriptionResult into the DependencyStep rebuild, so voice messages get their [Voice message: Ns] header back; red-first seam test over the real DependencyStep -> RAGUtils chain; (2) narrow the provenance constraint to name the [Audio: name] / [Spoiler audio: name] transcript as shared media, moving the excludes-voice test (HardcodedConstraints.test.ts:201-207) with it; (3) quote path: a plain audio-only video/webm with a transcript renders <voice> (QuoteFormatter.ts:233-236) - add an uploaded-file marker the constraint names. Also correct the RAGUtils.ts:79-90 doc comment.
 
 Unrelated suspects from the same trace, filed separately: TASK-1378 (row content re-wrapped as a transcript), TASK-1379 (audio silently absent beside other preprocessed attachments). Uploaded mp3 in a QUOTE is never transcribed (jobChainOrchestrator.ts:255-270 transcribes only voice for references) - deliberate today, so not part of this unit.
+
+CORRECTION same day: step (1) of the revised fix shape above (carry isVoiceMessage + duration through AudioTranscriptionResult) is superseded. The loss is a class across images and audio, filed as TASK-1380, fixed by a URL join in DependencyStep that copies the reference-path sibling (AttachmentProcessor.ts:520), with no job-result schema change. TASK-813 now depends on TASK-1380 and keeps steps (2) constraint narrowing and (3) quote-path webm marker.
 <!-- SECTION:NOTES:END -->
