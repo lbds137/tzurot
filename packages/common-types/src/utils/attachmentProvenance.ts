@@ -124,7 +124,8 @@ export function fileHeaderLabel(attachment: { isSpoiler?: boolean }): string {
  * The bracket header a non-voice audio attachment renders under: 'Spoiler
  * audio' when the poster hid it behind a spoiler, else 'Audio'. Voice
  * messages use `voiceHeaderLabel` instead — a voice message's header names
- * its duration, not a filename, so one attachment takes one or the other.
+ * its duration, or its file name when the duration is unknown, so one
+ * attachment takes one or the other.
  */
 export function audioHeaderLabel(attachment: { isSpoiler?: boolean }): string {
   return attachment.isSpoiler === true ? 'Spoiler audio' : 'Audio';

@@ -59,24 +59,51 @@ interface ImageInfo {
  * result's own, and `metadata.url` keeps the result's CDN URL so a
  * multi-megabyte data URL never rides into the processed entry. An entry with
  * no match is returned as-is, and the list keeps its order and length.
+ *
+ * The joined `metadata.size` is the size `DownloadAttachmentsStep` recorded: the
+ * downloaded (post-resize) byte count, or for an attachment that arrived as a
+ * data URL, its upstream size or a length-based estimate. It is not Discord's
+ * reported size.
+ *
+ * Every entry that finds no match is a miss, including all of them when the
+ * context carries no attachments or none survived the download. Misses are
+ * logged once per call with counts only (no URL or filename).
  */
 function restoreOriginalMetadata(
   entries: ProcessedAttachment[],
-  originals: AttachmentMetadata[] | undefined
+  originals: AttachmentMetadata[] | undefined,
+  jobId: string | undefined
 ): ProcessedAttachment[] {
-  if (originals === undefined || originals.length === 0) {
+  if (entries.length === 0) {
     return entries;
   }
-  return entries.map(entry => {
+  if (originals === undefined || originals.length === 0) {
+    logger.warn(
+      { jobId, unmatched: entries.length, contextCount: 0 },
+      'Provenance join missed context attachments; placeholder metadata kept'
+    );
+    return entries;
+  }
+  let unmatched = 0;
+  const joined = entries.map(entry => {
     // `originalUrl` is the CDN URL once the download step has run; the plain
     // `url` is the same CDN URL when nothing rewrote the attachment.
     const original = originals.find(
       candidate => (candidate.originalUrl ?? candidate.url) === entry.originalUrl
     );
-    return original === undefined
-      ? entry
-      : { ...entry, metadata: { ...original, url: entry.metadata.url } };
+    if (original === undefined) {
+      unmatched += 1;
+      return entry;
+    }
+    return { ...entry, metadata: { ...original, url: entry.metadata.url } };
   });
+  if (unmatched > 0) {
+    logger.warn(
+      { jobId, unmatched, contextCount: originals.length },
+      'Provenance join missed context attachments; placeholder metadata kept'
+    );
+  }
+  return joined;
 }
 
 export class DependencyStep implements IPipelineStep {
@@ -148,7 +175,8 @@ export class DependencyStep implements IPipelineStep {
         ...rebuilt,
         processedAttachments: restoreOriginalMetadata(
           rebuilt.processedAttachments,
-          jobContext?.attachments
+          jobContext?.attachments,
+          job.id
         ),
       };
     }

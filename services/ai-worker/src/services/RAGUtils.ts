@@ -91,9 +91,9 @@ export function extractContentDescriptions(processedAttachments: ProcessedAttach
  *
  * The `<voice_transcripts>` wrapper is shared by voice messages and uploaded
  * audio files; the header carries the provenance. `[Voice message: Ns]` is the
- * participant's own speech, while `[Audio: name]` / `[Spoiler audio: name]` is
- * a file they shared (also the fallback when a voice message lacks a positive
- * duration), and `OUTPUT_CONSTRAINTS` names the `[Audio: name]` form as shared media.
+ * participant's own speech (`[Voice message: name]` when the duration is
+ * unknown), while `[Audio: name]` / `[Spoiler audio: name]` is a file they
+ * shared, and `OUTPUT_CONSTRAINTS` names the `[Audio: name]` form as shared media.
  *
  * Wrapper tags are NOT in `PROTECTED_TAGS` because `escapeXmlContent` runs over
  * the full message content at chat_log emit time — protecting them would also
@@ -164,14 +164,18 @@ function formatProcessedAttachmentEntry(a: ProcessedAttachment): string {
 }
 
 function buildAudioAttachmentHeader(a: ProcessedAttachment): string {
-  if (
-    a.metadata.isVoiceMessage === true &&
-    a.metadata.duration !== undefined &&
-    a.metadata.duration !== null &&
-    a.metadata.duration > 0
-  ) {
+  if (a.metadata.isVoiceMessage === true) {
+    // A flagged voice message keeps the voice label on the flag alone; the
+    // file name stands in for the seconds when no positive duration exists.
     const header = voiceHeaderLabel(a.metadata);
-    return `[${header}: ${a.metadata.duration.toFixed(1)}s]`;
+    if (
+      a.metadata.duration !== undefined &&
+      a.metadata.duration !== null &&
+      a.metadata.duration > 0
+    ) {
+      return `[${header}: ${a.metadata.duration.toFixed(1)}s]`;
+    }
+    return `[${header}: ${headerDisplayName(a.metadata.name)}]`;
   }
   const name = headerDisplayName(a.metadata.name);
   const header = audioHeaderLabel(a.metadata);

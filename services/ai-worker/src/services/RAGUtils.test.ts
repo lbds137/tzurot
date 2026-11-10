@@ -253,7 +253,7 @@ describe('RAGUtils', () => {
       );
     });
 
-    it('should format voice message with zero duration as audio', () => {
+    it('should keep the voice label with the file name for a zero-duration voice message', () => {
       const attachments: ProcessedAttachment[] = [
         createAttachment(AttachmentType.Audio, 'Voice content', {
           isVoiceMessage: true,
@@ -264,11 +264,11 @@ describe('RAGUtils', () => {
 
       const result = buildAttachmentDescriptions(attachments);
       expect(result).toBe(
-        '[Audio: voice.ogg]\n<voice_transcripts><transcript>Voice content</transcript></voice_transcripts>'
+        '[Voice message: voice.ogg]\n<voice_transcripts><transcript>Voice content</transcript></voice_transcripts>'
       );
     });
 
-    it('should format voice message with null duration as audio', () => {
+    it('should keep the voice label with the file name for a null-duration voice message', () => {
       const attachments: ProcessedAttachment[] = [
         createAttachment(AttachmentType.Audio, 'Voice content', {
           isVoiceMessage: true,
@@ -279,7 +279,22 @@ describe('RAGUtils', () => {
 
       const result = buildAttachmentDescriptions(attachments);
       expect(result).toBe(
-        '[Audio: voice.ogg]\n<voice_transcripts><transcript>Voice content</transcript></voice_transcripts>'
+        '[Voice message: voice.ogg]\n<voice_transcripts><transcript>Voice content</transcript></voice_transcripts>'
+      );
+    });
+
+    it('keeps the spoiler voice label for a spoilered voice message with no duration', () => {
+      const attachments: ProcessedAttachment[] = [
+        createAttachment(AttachmentType.Audio, 'Voice content', {
+          isVoiceMessage: true,
+          isSpoiler: true,
+          name: 'voice.ogg',
+        }),
+      ];
+
+      const result = buildAttachmentDescriptions(attachments);
+      expect(result).toBe(
+        '[Spoiler voice message: voice.ogg]\n<voice_transcripts><transcript>Voice content</transcript></voice_transcripts>'
       );
     });
 
