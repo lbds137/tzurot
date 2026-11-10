@@ -12,6 +12,10 @@ import { type ProcessedAttachment } from './MultimodalProcessor.js';
 import { enrichmentKey } from './prompt/QuoteFormatter.js';
 import { type ResolvedPersona } from './reference/UserReferencePatterns.js';
 import { OWN_VOICE_DESCRIPTION } from './voice/ownVoiceGuard.js';
+import {
+  hexToArrayBuffer,
+  CHROMIUM_AUDIO_WEBM_PREFIX_HEX,
+} from '../test/mocks/fixtures/webmHeaders.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets
 const {
@@ -19,6 +23,7 @@ const {
   mockTranscribeAudio,
   mockFormatPromptTimestamp,
   mockBatchResolveByDiscordIds,
+  mockFetchAudioBuffer,
   mockLogger,
   mockChildLogger,
 } = vi.hoisted(() => {
@@ -32,6 +37,7 @@ const {
     mockTranscribeAudio: vi.fn(),
     mockFormatPromptTimestamp: vi.fn(),
     mockBatchResolveByDiscordIds: vi.fn(),
+    mockFetchAudioBuffer: vi.fn(),
     mockChildLogger: child,
     mockLogger: {
       info: vi.fn(),
@@ -47,6 +53,13 @@ const {
 vi.mock('./MultimodalProcessor.js', () => ({
   describeImage: mockDescribeImage,
   transcribeAudio: mockTranscribeAudio,
+}));
+
+// The plain-WebM sniff's only network seam. Mocked so the live path can see
+// audio-only bytes without a real download; the default rejects, which the
+// sniff treats as "keep the file stub", the same outcome as before this mock.
+vi.mock('./multimodal/AudioProcessor.js', () => ({
+  fetchAudioBuffer: (...args: unknown[]) => mockFetchAudioBuffer(...args),
 }));
 
 // Persona hydration's only database seam. Mocking the resolver rather than
@@ -98,6 +111,8 @@ describe('ReferencedMessageFormatter', () => {
     // Default: nobody resolves, so every quote renders its Discord identity —
     // the pre-hydration behaviour the rest of this file pins.
     mockBatchResolveByDiscordIds.mockResolvedValue(new Map<string, ResolvedPersona>());
+    mockFetchAudioBuffer.mockReset();
+    mockFetchAudioBuffer.mockRejectedValue(new Error('no network in unit tests'));
 
     formatter = new ReferencedMessageFormatter({} as PrismaClient);
     mockPersonality = {
@@ -1234,6 +1249,48 @@ describe('ReferencedMessageFormatter', () => {
   });
 
   describe('Voice message processing', () => {
+    it('renders source="shared-file" for an audio-only plain WebM on the full live path', async () => {
+      // A plain video/webm with no voice flag is sniffed: audio-only bytes route
+      // it to STT, and the rendered <voice> must carry the shared-file provenance
+      // that the persona-voice redaction and the constraint both key on.
+      mockFetchAudioBuffer.mockResolvedValueOnce(hexToArrayBuffer(CHROMIUM_AUDIO_WEBM_PREFIX_HEX));
+      mockTranscribeAudio.mockResolvedValueOnce({
+        text: 'uploaded audio words',
+        actualProvider: 'voice-engine',
+      });
+
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-123',
+          discordUserId: 'user-123',
+          authorUsername: 'testuser',
+          authorDisplayName: 'Test User',
+          content: '',
+          embeds: '',
+          timestamp: '2025-11-04T00:00:00Z',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
+          attachments: [
+            {
+              url: 'https://example.com/clip.webm',
+              contentType: 'video/webm',
+              name: 'clip.webm',
+              size: 4000,
+            },
+          ],
+        },
+      ];
+
+      const { formatted } = await formatter.formatReferencedMessages(references, mockPersonality);
+
+      expect(mockFetchAudioBuffer).toHaveBeenCalledWith('https://example.com/clip.webm');
+      expect(mockTranscribeAudio).toHaveBeenCalledTimes(1);
+      expect(formatted).toContain(
+        '<voice filename="clip.webm" type="video/webm" source="shared-file">uploaded audio words</voice>'
+      );
+    });
+
     it('should transcribe voice messages in parallel', async () => {
       // Prove concurrency directly rather than via wall-clock timing: count overlapping
       // transcribe callbacks. Both voice messages dispatch via Promise.allSettled, so peak
@@ -2210,6 +2267,62 @@ describe('ReferencedMessageFormatter', () => {
 
       expect(formatted).toContain('source="link-preview"');
       expect(mockDescribeImage).not.toHaveBeenCalled();
+    });
+
+    it('carries source="shared-file" through the DEDUPED live path for an audio-only plain WebM', async () => {
+      // The deduped sibling of the plain-WebM live case: the transcript was paid
+      // for upstream, so this path sniffs and transcribes nothing. The matched
+      // attachment row still classifies as a plain video/webm, so provenance
+      // comes from the same render step as the full path.
+      const { formatted } = await formatter.formatReferencedMessages(
+        [
+          {
+            referenceNumber: 1,
+            discordMessageId: 'msg-1',
+            discordUserId: 'user-1',
+            authorUsername: 'testuser',
+            authorDisplayName: 'Test User',
+            content: 'listen to this',
+            embeds: '',
+            timestamp: '2025-12-06T00:00:00Z',
+            locationContext: '',
+            isDeduplicated: true,
+            attachments: [
+              {
+                url: 'https://cdn.example.com/clip.webm',
+                contentType: 'video/webm',
+                name: 'clip.webm',
+                size: 4000,
+              },
+            ],
+          },
+        ],
+        mockPersonality,
+        false,
+        {
+          1: [
+            {
+              type: AttachmentType.Audio,
+              description: TRANSCRIPT_SENTINEL,
+              originalUrl: 'https://cdn.example.com/clip.webm',
+              metadata: {
+                url: 'https://cdn.example.com/clip.webm',
+                name: 'clip.webm',
+                contentType: 'audio/unknown',
+                size: 4000,
+              },
+            },
+          ],
+        }
+      );
+
+      expect(formatted).toContain(
+        '<voice filename="clip.webm" type="video/webm" source="shared-file">' +
+          TRANSCRIPT_SENTINEL +
+          '</voice>'
+      );
+      expect(mockFetchAudioBuffer).not.toHaveBeenCalled();
+      expect(mockTranscribeAudio).not.toHaveBeenCalled();
     });
 
     it('carries source="link-preview" through the ORPHAN loop of the deduped live path', async () => {

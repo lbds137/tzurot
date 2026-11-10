@@ -30,6 +30,8 @@ export const OWN_VOICE_DESCRIPTION =
  * enrichment changes.
  */
 export function redactOwnVoiceTranscript(attachment: RenderableVoice): RenderableVoice {
+  // `source` is deliberately not carried: it marks an uploaded audio FILE, and
+  // the persona's own TTS is never a shared file.
   return {
     kind: 'voice',
     filename: attachment.filename,
