@@ -70,11 +70,19 @@ export type RenderableImage = AttachmentIdentity & {
   source?: ImageSource;
 } & Enrichment<'undescribed' | 'expired' | 'unprocessed'>;
 
+/** Where a `<voice>` element's audio came from, when it was not a Discord voice message. */
+type VoiceSource = 'shared-file';
+
 /** A voice message, with its transcript when one arrived. */
 export type RenderableVoice = AttachmentIdentity & {
   kind: 'voice';
   /** Clip length in seconds, when known. */
   durationSeconds?: number;
+  /**
+   * Present only when the transcript is of an audio FILE the participant
+   * uploaded (not a Discord voice message); absent on a genuine voice message.
+   */
+  source?: VoiceSource;
 } & Enrichment<'untranscribed' | 'expired' | 'unprocessed'>;
 
 /** Any other attachment. Never carries enrichment — nothing describes a .zip. */
@@ -230,9 +238,16 @@ function renderableFor(
       // already routed to STT — the transcript IS the evidence it was
       // audio-only. This path is synchronous and does no byte sniffing of its
       // own, so a plain WebM with no description stays a file: no bytes were
-      // inspected here to say otherwise.
+      // inspected here to say otherwise. The element is marked as a shared
+      // file because the uploader did not record it as a voice message.
       if (att.contentType === CONTENT_TYPES.VIDEO_WEBM && description !== undefined) {
-        return { kind: 'voice', ...identity, durationSeconds: att.duration, description };
+        return {
+          kind: 'voice',
+          ...identity,
+          durationSeconds: att.duration,
+          source: 'shared-file',
+          description,
+        };
       }
       return { kind: 'file', ...identity };
   }
@@ -364,6 +379,7 @@ function contentWithoutDuplicateAttribution(opts: QuoteElementOptions): string |
  *     <image filename="embed-1-image.png" source="link-preview">a still from the video</image>
  *     <image filename="SPOILER_cat.png" spoiler="true">a cat</image>
  *     <voice filename="clip.ogg" duration="12s">hey, can you hear me</voice>
+ *     <voice filename="song.webm" type="video/webm" source="shared-file">la la la</voice>
  *     <voice filename="SPOILER_clip.ogg" duration="12s" spoiler="true">hey, can you hear me</voice>
  *     <file filename="report.pdf" type="application/pdf"/>
  *     <file filename="SPOILER_report.pdf" type="application/pdf" spoiler="true"/>
@@ -449,6 +465,7 @@ export function renderAttachment(att: RenderableAttachment): string {
         ['filename', att.filename],
         ['type', att.contentType],
         ['duration', att.durationSeconds !== undefined ? `${att.durationSeconds}s` : undefined],
+        ['source', att.source],
         ['spoiler', att.spoiler === true ? 'true' : undefined],
         ['status', att.status],
       ]);

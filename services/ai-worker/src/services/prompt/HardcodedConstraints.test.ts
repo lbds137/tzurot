@@ -198,12 +198,26 @@ describe('HardcodedConstraints', () => {
       );
     });
 
-    // An STT transcript's wording genuinely belongs to the speaker, so
-    // disclaiming it would suppress the model's ability to treat a spoken
-    // question as the user's own statement.
-    it("excludes voice transcripts — a transcript is the participant's own words, not a platform description of their media", () => {
-      expect(OUTPUT_CONSTRAINTS).not.toContain('[Voice message');
-      expect(OUTPUT_CONSTRAINTS).not.toContain('<voice>');
+    // An STT transcript of a voice message is the speaker's own words, so the
+    // constraint must never disclaim it. An uploaded audio file's transcript
+    // is someone else's words the participant shared, so it gets the same
+    // treatment as a description.
+    it("names an uploaded audio transcript as shared media, not the participant's speech", () => {
+      expect(OUTPUT_CONSTRAINTS).toContain('"[Audio: name]"');
+      expect(OUTPUT_CONSTRAINTS).toContain('"[Spoiler audio: name]"');
+      expect(OUTPUT_CONSTRAINTS).toContain(
+        'inside a <voice> element carrying source="shared-file"'
+      );
+      expect(OUTPUT_CONSTRAINTS).toContain(
+        'not their own speech: never attribute its wording to them'
+      );
+    });
+
+    it("keeps a genuine voice message's transcript as the participant's own speech", () => {
+      expect(OUTPUT_CONSTRAINTS).toContain(
+        '"[Voice message: …]" or "[Spoiler voice message: …]" header is the participant\'s own speech'
+      );
+      expect(OUTPUT_CONSTRAINTS).not.toContain('element with no source attribute');
     });
   });
 

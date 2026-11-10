@@ -358,6 +358,8 @@ describe('AttachmentProcessor', () => {
 
         expect(mockTranscribeAudio).toHaveBeenCalledTimes(1);
         expect(result[0].attachment).toMatchObject({ description: 'a human said this' });
+        // A genuine voice message is the participant's own speech: unmarked.
+        expect(result[0].attachment).not.toHaveProperty('source', 'shared-file');
       });
 
       it('still transcribes normally when authorRole is absent (legacy references, unchanged)', async () => {
@@ -1371,6 +1373,7 @@ describe('AttachmentProcessor', () => {
         filename: 'plain.webm',
         contentType: 'video/webm',
         durationSeconds: undefined,
+        source: 'shared-file',
         description: 'hello there',
       });
       expect(mockFetchAudioBuffer).toHaveBeenCalledTimes(1);
@@ -1421,6 +1424,7 @@ describe('AttachmentProcessor', () => {
           filename: 'plain.webm',
           contentType: 'video/webm',
           durationSeconds: undefined,
+          source: 'shared-file',
           description: 'hello there',
         },
       ]);
@@ -1503,6 +1507,7 @@ describe('AttachmentProcessor', () => {
         kind: 'voice',
         filename: 'plain.webm',
         contentType: 'video/webm',
+        source: 'shared-file',
         status: 'untranscribed',
       });
     });
@@ -1526,6 +1531,8 @@ describe('AttachmentProcessor', () => {
         contentType: 'video/webm',
         description: OWN_VOICE_DESCRIPTION,
       });
+      // The persona's own TTS is not someone else's recording.
+      expect(result[0].attachment).not.toHaveProperty('source', 'shared-file');
     });
 
     it('renders the plain file stub for an own-persona non-webm file, without fetching', async () => {
@@ -1580,6 +1587,7 @@ describe('AttachmentProcessor', () => {
         filename: 'plain.webm',
         contentType: 'video/webm',
         durationSeconds: undefined,
+        source: 'shared-file',
         description: 'transcribed for real',
       });
       expect(mockFetchAudioBuffer).toHaveBeenCalledTimes(1);
@@ -1646,6 +1654,7 @@ describe('AttachmentProcessor', () => {
         filename: 'plain.webm',
         contentType: 'video/webm',
         durationSeconds: undefined,
+        source: 'shared-file',
         description: 'Preprocessed transcript',
       });
       expect(mockFetchAudioBuffer).not.toHaveBeenCalled();
