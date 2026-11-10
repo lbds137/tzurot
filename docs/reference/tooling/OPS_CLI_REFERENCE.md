@@ -375,6 +375,7 @@ Cover the full release lifecycle: bump versions before the release PR, draft and
 | `pnpm ops release:range --from v3.0.0-beta.103`                      | Range starting from a specific tag (else auto-discovered via `git describe`)                                      |
 | `pnpm ops release:premigrate --dry-run`                              | Preview the prod migrations in the release range without applying                                                 |
 | `pnpm ops release:premigrate`                                        | Apply the release range's migrations to prod BEFORE merging the release PR (refuses destructive shapes)           |
+| `pnpm ops release:develop-ci`                                        | Preflight on develop's last non-board push CI run: 0 success, 1 finding, 2 none, 3 unclassifiable, 4 error        |
 | `pnpm ops release:publish 3.0.0-beta.155 --notes-file /tmp/notes.md` | Tag + publish the GitHub Release with correct latest/prerelease flags                                             |
 | `pnpm ops release:finalize`                                          | Rebase develop onto main after a release PR merges (step 6 of the git-workflow release flow). Interactive prompt. |
 | `pnpm ops release:finalize --yes`                                    | Skip the force-push confirmation prompt (required on non-TTY stdin)                                               |

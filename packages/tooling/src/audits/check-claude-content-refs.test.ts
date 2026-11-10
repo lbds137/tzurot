@@ -433,6 +433,7 @@ describe('findContentRefs (against real repo)', () => {
       'memory:backfill',
       'memory:cleanup',
       'release:bump',
+      'release:develop-ci',
       'release:draft-notes',
       'release:finalize',
       'release:premigrate',

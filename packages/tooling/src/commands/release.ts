@@ -115,6 +115,26 @@ export function registerReleaseCommands(cli: CAC): void {
 
   registerPublishCommand(cli);
   registerPremigrateCommand(cli);
+  registerDevelopCiCommand(cli);
+}
+
+/**
+ * Release-preflight: the last non-board develop push's CI run must have
+ * succeeded (a board-only tip's own run is skipped-green). Exit codes: 0 ok,
+ * 1 finding (failed, cancelled or in progress), 2 no code run in the window,
+ * 3 cannot classify a run, 4 tool error. Rationale in `develop-ci.ts`.
+ */
+function registerDevelopCiCommand(cli: CAC): void {
+  cli
+    .command(
+      'release:develop-ci',
+      "Check the CI run of develop's last non-board push succeeded (release preflight; exit 0 ok, 1 finding, 2 none, 3 cannot classify, 4 tool error)"
+    )
+    .example('pnpm ops release:develop-ci')
+    .action(async () => {
+      const { releaseDevelopCi } = await import('../release/develop-ci.js');
+      releaseDevelopCi();
+    });
 }
 
 /**
