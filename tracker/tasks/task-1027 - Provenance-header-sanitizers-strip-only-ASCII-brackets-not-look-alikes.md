@@ -54,4 +54,6 @@ Owner decision 2026-10-04 (AskUserQuestion, chose the recommendation): strip loo
 Owner refinement 2026-11-09 (AskUserQuestion, chose the recommendation): Ps/Pe also contains ASCII `(` `)` `{` `}`, which are not look-alikes of the `[` `]` the header uses and appear in common filenames (`photo (1).jpg`). Keep those four; strip every other Ps/Pe character. Fullwidth and CJK brackets still go.
 
 Owner refinement 2026-11-09, second (AskUserQuestion, chose the recommendation; raised by claude-review on PR 2733): Ps/Pe also holds five quotation marks, U+201A and U+201E (low-9 quotes), U+301D, U+301E and U+301F (CJK double-prime quotes). Keep them too: they cannot open or close a [ ] header, and stripping them mangles quoted German, Polish or CJK filenames.
+
+Owner ruling 2026-11-09, third (AskUserQuestion, chose the recommendation; from PR 2733's sixth review): U+276E and U+276F (heavy angle quotation mark ornaments) are STRIPPED. They are bracket-shaped dingbats, so the bracket rationale applies even though their names say quotation mark. U+2E42 (a true low-reversed-9 quote) falls under the keep-quotes ruling and is still stripped; TASK-1377 tracks it. PR 2733 merged at its review-round cap by owner choice.
 <!-- SECTION:NOTES:END -->
