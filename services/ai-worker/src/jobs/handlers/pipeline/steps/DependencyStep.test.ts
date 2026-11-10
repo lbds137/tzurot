@@ -20,6 +20,15 @@ import { DownloadAttachmentsStep } from './DownloadAttachmentsStep.js';
 import type { GenerationContext } from '../types.js';
 import type { VisionDescriptionWriter } from '../../../../services/context/visionDescriptionWriter.js';
 
+// One logger shared by every `createLogger` call, so a test can read the `warn`
+// calls the step emits (a fresh mock per call would leave nothing to assert on).
+const mockLogger = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+}));
+
 // Mock common-types logger
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -27,12 +36,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   );
   return {
     ...actual,
-    createLogger: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -1702,6 +1706,73 @@ describe('DependencyStep', () => {
       const rendered = render(result);
       expect(rendered).toContain('[Image: evil Voice message: 9s]');
       expect(rendered).not.toContain('[Voice message:');
+    });
+
+    const JOIN_MISS_MESSAGE =
+      'Provenance join missed context attachments; placeholder metadata kept';
+    const joinMissCalls = (): unknown[][] =>
+      mockLogger.warn.mock.calls.filter((call: unknown[]) => call[1] === JOIN_MISS_MESSAGE);
+
+    it('logs one counts-only warning when a rebuilt entry misses the context join', async () => {
+      mockGetJobResult.mockResolvedValueOnce(audioOf(VOICE_URL, 'voice-message.ogg', 'hi there'));
+      const job = createMockJob({
+        context: makeContext([
+          {
+            url: SPOILER_URL,
+            name: 'secret.png',
+            contentType: 'image/png',
+            size: 2048,
+            isSpoiler: true,
+          },
+        ]),
+        dependencies: [voiceDependency],
+      });
+
+      await step.process({ job, startTime: Date.now() });
+
+      const misses = joinMissCalls();
+      expect(misses).toHaveLength(1);
+      expect(misses).toEqual([
+        [{ jobId: job.id, unmatched: 1, contextCount: 1 }, JOIN_MISS_MESSAGE],
+      ]);
+      expect(JSON.stringify(misses)).not.toContain(VOICE_URL);
+    });
+
+    it('warns once with contextCount 0 when a rebuilt entry has no context attachments to join', async () => {
+      mockGetJobResult.mockResolvedValueOnce(audioOf(VOICE_URL, 'voice-message.ogg', 'hi there'));
+      const job = createMockJob({
+        context: makeContext(undefined),
+        dependencies: [voiceDependency],
+      });
+
+      await step.process({ job, startTime: Date.now() });
+
+      expect(joinMissCalls()).toEqual([
+        [{ jobId: job.id, unmatched: 1, contextCount: 0 }, JOIN_MISS_MESSAGE],
+      ]);
+    });
+
+    it('does not log the join miss when there are no rebuilt entries', async () => {
+      await step.process({
+        job: createMockJob({ context: makeContext(undefined), dependencies: [] }),
+        startTime: Date.now(),
+      });
+
+      expect(joinMissCalls()).toHaveLength(0);
+    });
+
+    it('does not log the join miss when every rebuilt entry matches a context attachment', async () => {
+      mockFullTriggerResults();
+
+      await step.process({
+        job: createMockJob({
+          context: makeContext(makeTriggerAttachments()),
+          dependencies: [imageDependency, voiceDependency, songDependency],
+        }),
+        startTime: Date.now(),
+      });
+
+      expect(joinMissCalls()).toHaveLength(0);
     });
   });
 });

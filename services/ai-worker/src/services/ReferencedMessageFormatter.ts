@@ -225,9 +225,12 @@ function buildDedupedAttachments(
           kind: 'voice',
           filename: entry.metadata.name,
           durationSeconds: entry.metadata.duration,
-          // Only a full attachment's metadata can say it is a plain upload: the
-          // dependency step's placeholder carries `audio/unknown`, so it stays
-          // unmarked. The persona's own voice is never a shared file.
+          // Reference audio reaching this loop comes from the dependency step's
+          // job results, which carry the `audio/unknown` placeholder, and the
+          // gateway queues reference transcription only for flagged voice
+          // messages, so this arm is defensive: it marks only a plain `video/webm`
+          // upload with no voice flag. The persona's own voice is never a shared
+          // file.
           source:
             entry.metadata.contentType === CONTENT_TYPES.VIDEO_WEBM &&
             entry.metadata.isVoiceMessage !== true &&

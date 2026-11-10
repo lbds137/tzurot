@@ -350,8 +350,9 @@ async function processVoiceAttachment(options: ProcessVoiceOptions): Promise<Bui
         url: attachment.url,
         duration: attachment.duration,
         sttProvider: sttDispatch?.provider ?? 'voice-engine',
+        sharedFile: sharedFile === true,
       },
-      'Transcribing voice message'
+      'Transcribing audio attachment'
     );
     const result = await withRetry(
       () => transcribeAudio(attachment, sttDispatch ?? { provider: 'voice-engine' }, prefetched),
