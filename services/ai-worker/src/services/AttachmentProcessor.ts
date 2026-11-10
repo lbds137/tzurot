@@ -288,7 +288,7 @@ interface ProcessVoiceOptions {
   prefetched?: ArrayBuffer;
 }
 
-/** Process voice message attachment */
+/** Process a voice message, or an uploaded audio-only file routed to STT. */
 async function processVoiceAttachment(options: ProcessVoiceOptions): Promise<BuiltAttachment> {
   const { attachment, referenceNumber, log, preprocessed, sttDispatch, authorRole, prefetched } =
     options;
@@ -305,7 +305,7 @@ async function processVoiceAttachment(options: ProcessVoiceOptions): Promise<Bui
     // stays unmarked.
     source:
       attachment.isVoiceMessage !== true && !isOwnPersonaVoice(authorRole)
-        ? ('shared-file' as const)
+        ? 'shared-file'
         : undefined,
     spoiler: attachmentSpoiler(attachment),
   } as const;

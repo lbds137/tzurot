@@ -217,7 +217,8 @@ describe('HardcodedConstraints', () => {
       expect(OUTPUT_CONSTRAINTS).toContain(
         '"[Voice message: …]" or "[Spoiler voice message: …]" header is the participant\'s own speech'
       );
-      expect(OUTPUT_CONSTRAINTS.match(/<voice\b/g)).toHaveLength(1); // no claim about an unmarked <voice>
+      // The constraint makes no claim about an unmarked <voice> element.
+      expect(OUTPUT_CONSTRAINTS).not.toMatch(/<voice> element(?! carrying source="shared-file")/);
     });
   });
 

@@ -73,7 +73,7 @@ export type RenderableImage = AttachmentIdentity & {
 /** Where a `<voice>` element's audio came from, when it was not a Discord voice message. */
 type VoiceSource = 'shared-file';
 
-/** A voice message, with its transcript when one arrived. */
+/** A voice message or an uploaded audio file, with its transcript when one arrived. */
 export type RenderableVoice = AttachmentIdentity & {
   kind: 'voice';
   /** Clip length in seconds, when known. */

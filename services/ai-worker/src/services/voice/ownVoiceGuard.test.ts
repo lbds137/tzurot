@@ -57,4 +57,24 @@ describe('redactOwnVoiceTranscript', () => {
 
     expect(result).toMatchObject({ spoiler: true, description: OWN_VOICE_DESCRIPTION });
   });
+
+  it('drops source="shared-file" — the persona\'s own TTS is never a shared file', () => {
+    const result = redactOwnVoiceTranscript({
+      kind: 'voice',
+      filename: 'plain.webm',
+      contentType: 'video/webm',
+      durationSeconds: 4,
+      source: 'shared-file',
+      description: 'a stale transcript of an uploaded file',
+    });
+
+    expect(result).not.toHaveProperty('source');
+    expect(result).toEqual({
+      kind: 'voice',
+      filename: 'plain.webm',
+      contentType: 'video/webm',
+      durationSeconds: 4,
+      description: OWN_VOICE_DESCRIPTION,
+    });
+  });
 });

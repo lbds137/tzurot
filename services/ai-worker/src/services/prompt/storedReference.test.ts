@@ -252,6 +252,41 @@ describe('buildStoredAttachments', () => {
     ]);
   });
 
+  it('redacts an own-persona plain webm to the own-voice description, with no source marker', () => {
+    // The replayed plain WebM would otherwise carry source="shared-file" from
+    // renderableFor; the own-persona redaction at the end of this adapter must
+    // drop it, and the stored transcript must not survive.
+    const rendered = buildStoredAttachments({
+      ...base,
+      authorRole: 'assistant',
+      attachments: [
+        {
+          url: 'https://cdn/own-persona.webm',
+          contentType: 'video/webm',
+          name: 'own-persona.webm',
+          duration: 4,
+        },
+      ],
+      attachmentEnrichment: [
+        {
+          url: 'https://cdn/own-persona.webm',
+          kind: 'voice',
+          description: 'a stale transcript of a plain webm',
+        },
+      ],
+    });
+
+    expect(rendered).toHaveLength(1);
+    expect(rendered[0]).not.toHaveProperty('source');
+    expect(rendered[0]).toEqual({
+      kind: 'voice',
+      filename: 'own-persona.webm',
+      contentType: 'video/webm',
+      durationSeconds: 4,
+      description: OWN_VOICE_DESCRIPTION,
+    });
+  });
+
   it('carries source="link-preview" through for a stored embed-preview image', () => {
     // Provenance is a producer flag on the stored `attachments` row, same as
     // the live path — a stored embed-preview attachment must not replay as an
