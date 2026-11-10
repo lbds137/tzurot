@@ -65,6 +65,10 @@ describe('board-only gating pin (release:develop-ci probe and heavy jobs)', () =
     expect(String(probe?.if)).toContain('needs.changes.outputs.board_only');
   });
 
+  it('the probe job has no name override, so its API display name equals its id', () => {
+    expect(loadJobs()[BOARD_ONLY_PROBE_JOB]).not.toHaveProperty('name');
+  });
+
   it.each([
     'build',
     'component-integration-tests',

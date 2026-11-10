@@ -82,6 +82,14 @@ export function checkDevelopCi(gh: GhRunner = defaultGh): DevelopCiResult {
     ) {
       continue;
     }
+    // An unfinished run is a finding whatever its jobs look like: a run in
+    // progress may not have created the probe job yet, so exit 3 would misfire.
+    if (run.status !== 'completed') {
+      return {
+        exitCode: 1,
+        message: `${describeRun(run, run.status)} (no verdict yet; board-only status unknown until ${BOARD_ONLY_PROBE_JOB} resolves)`,
+      };
+    }
     // Jobs exist but the probe is absent: not provably a code run, so refuse
     // to call it one. A run with zero jobs (startup_failure) falls through.
     if (jobs.length > 0 && probe === undefined) {
@@ -89,9 +97,6 @@ export function checkDevelopCi(gh: GhRunner = defaultGh): DevelopCiResult {
         exitCode: 3,
         message: `cannot classify: no ${BOARD_ONLY_PROBE_JOB} job in run ${run.id} — ci.yml probe job renamed?`,
       };
-    }
-    if (run.status !== 'completed') {
-      return { exitCode: 1, message: describeRun(run, run.status) };
     }
     const conclusion = run.conclusion ?? 'unknown';
     return {
