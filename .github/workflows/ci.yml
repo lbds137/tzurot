@@ -9,9 +9,14 @@ on:
   # triggering runs and nothing can start CI by hand. Adds no automatic runs.
   workflow_dispatch:
 
-# Cancel in-progress runs when new commits are pushed to same branch
+# Cancel in-progress runs when new commits are pushed to same branch. develop
+# groups per SHA instead, so a board-only commit pushed right after a code merge
+# cannot cancel that merge's post-merge run (the `changes` job below makes the
+# board-only run cheap); every other ref still cancels by branch. Code-vs-code
+# cancellation on develop is intentionally gone too: every post-merge run is a
+# deploy signal.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name }}
+  group: ${{ github.workflow }}-${{ github.ref_name == 'develop' && github.sha || github.ref_name }}
   cancel-in-progress: true
 
 # Minimal permissions for security
@@ -19,6 +24,55 @@ permissions:
   contents: read
 
 jobs:
+  # Classifies a develop push as board-only (tracker/**, backlog/**, BACKLOG.md,
+  # CURRENT.md). Heavy jobs skip on it rather than via `paths-ignore`: main's
+  # ruleset requires these contexts, so the run must exist and report skipped.
+  # Classification compares the trees at before..sha, not each commit, so a push
+  # that adds and reverts a code change is board-only on purpose (tree identical).
+  # Fails OPEN: anything unclear classifies as not board-only. If this job
+  # itself fails, dependents still run (they gate on !cancelled(), not success()).
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      board_only: ${{ steps.classify.outputs.board_only }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Only develop pushes are classified, and they need the full history
+          # so the before..sha diff resolves (same shallow-file race as the
+          # voice-engine-tests checkout). Other refs skip the classification
+          # and take the cheap shallow clone. The depths are strings: the
+          # numeric 0 is falsy in an expression, so `cond && 0 || 1` yields 1.
+          fetch-depth: ${{ github.ref == 'refs/heads/develop' && '0' || '1' }}
+
+      - name: Classify board-only push
+        id: classify
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          board_only=false
+          if [ "$EVENT_NAME" = "push" ] && [ "$REF" = "refs/heads/develop" ] \
+            && [ -n "$BEFORE" ] && ! printf '%s' "$BEFORE" | grep -qE '^0+$' \
+            && git cat-file -e "$BEFORE^{commit}" 2>/dev/null \
+            && files=$(git -c core.quotePath=false diff --no-renames --name-only "$BEFORE" "$GITHUB_SHA") \
+            && [ -n "$files" ]; then
+            count=$(printf '%s\n' "$files" | wc -l)
+            echo "Changed files: $count"
+            non_board=$(printf '%s\n' "$files" | grep -vE '^(tracker/|backlog/)|^(BACKLOG|CURRENT)\.md$' || true)
+            if [ -z "$non_board" ]; then
+              board_only=true
+            else
+              echo "Non-board paths (first 20):"
+              printf '%s\n' "$non_board" | head -n 20
+            fi
+          else
+            echo "Not a classifiable develop push; running full CI."
+          fi
+          echo "board_only=$board_only"
+          echo "board_only=$board_only" >> "$GITHUB_OUTPUT"
+
   fixup-check:
     # Block merge until review-cycle `fixup!` commits are autosquashed into
     # their target commits. Fails if any commit on the branch (since the
@@ -55,6 +109,8 @@ jobs:
           echo "No fixup/squash commits — branch is merge-ready."
 
   hook-posix-parse:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.board_only != 'true' }}
     # husky runs every lifecycle hook as `sh -e <hook>`, ignoring the shebang,
     # and /bin/sh is dash on ubuntu runners, so a bashism parses on a machine
     # whose /bin/sh is bash and kills the commit wherever it is dash. A job of
@@ -78,6 +134,8 @@ jobs:
           shellcheck -s sh $HOOKS
 
   lint:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.board_only != 'true' }}
     runs-on: ubuntu-latest
     # Job-scoped, not workflow-wide: only this job runs guard:workflow-sync,
     # which reads the branch's real PR base via `gh pr view` (this workflow is
@@ -306,6 +364,13 @@ jobs:
         run: pnpm ops test:audit --category=services
 
   unit-tests:
+    # Step-gated on the `changes` job, not job-gated on board_only: a job
+    # skipped by `if:` may not expand its matrix (not verified here), so the
+    # required `unit-tests (<cell>)` contexts could stay pending. Same sibling
+    # pattern as docker-build-smoke-ok's legs. The job-level `!cancelled()`
+    # replaces the implicit success() so a failed `changes` job cannot skip it.
+    needs: changes
+    if: ${{ !cancelled() }}
     name: unit-tests (${{ matrix.cell }})
     runs-on: ubuntu-latest
     strategy:
@@ -347,25 +412,31 @@ jobs:
             junit: ./packages/*/junit.xml
     steps:
       - uses: actions/checkout@v7
+        if: needs.changes.outputs.board_only != 'true'
         with:
           fetch-depth: 2
 
       - name: Setup pnpm
+        if: needs.changes.outputs.board_only != 'true'
         uses: pnpm/action-setup@v6.1.1
 
       - name: Setup Node.js
+        if: needs.changes.outputs.board_only != 'true'
         uses: actions/setup-node@v7
         with:
           node-version-file: '.node-version'
           cache: 'pnpm'
 
       - name: Install dependencies
+        if: needs.changes.outputs.board_only != 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma client
+        if: needs.changes.outputs.board_only != 'true'
         run: npx prisma generate
 
       - name: Clean build artifacts
+        if: needs.changes.outputs.board_only != 'true'
         run: find . -name "*.tsbuildinfo" -delete && find ./packages/*/dist -type d -exec rm -rf {} + 2>/dev/null || true
 
       # tooling's own dist is its product, not a ^build dependency, so the
@@ -373,7 +444,7 @@ jobs:
       # eslint.config.js imports it. Tests that resolve the real config need
       # it built (the enablement pin in no-message-metadata-rmw.test.ts does).
       - name: Build tooling dist
-        if: ${{ matrix.cell == 'tooling' }}
+        if: ${{ needs.changes.outputs.board_only != 'true' && matrix.cell == 'tooling' }}
         # turbo, not a bare --filter build: the clean step above wiped every
         # package's dist, and tooling's build imports common-types/clients
         # dist — turbo builds the whole ^build graph in dependency order.
@@ -382,10 +453,11 @@ jobs:
       - name: Run unit tests with coverage (cell scope)
         # turbo's test:coverage dependsOn ^build, so each cell builds exactly
         # the dependency graph its scope needs — no explicit build step.
+        if: needs.changes.outputs.board_only != 'true'
         run: pnpm turbo run test:coverage ${{ matrix.filter }}
 
       - name: Upload cell coverage to Codecov
-        if: ${{ !cancelled() && matrix.coverage != '' }}
+        if: ${{ needs.changes.outputs.board_only != 'true' && !cancelled() && matrix.coverage != '' }}
         uses: codecov/codecov-action@v7
         with:
           # PyPI install path: the default binary download verifies its GPG
@@ -400,7 +472,7 @@ jobs:
           verbose: true
 
       - name: Upload cell test results to Codecov
-        if: ${{ !cancelled() }}
+        if: ${{ needs.changes.outputs.board_only != 'true' && !cancelled() }}
         uses: codecov/codecov-action@v7
         with:
           use_pypi: true
@@ -413,7 +485,7 @@ jobs:
         # because the cell already builds most of the dependency graph — but it
         # IS extra weight beyond this cell's 9 packages; if 'packages' becomes
         # the outlier cell, this step is the first suspect.
-        if: ${{ matrix.cell == 'packages' }}
+        if: ${{ needs.changes.outputs.board_only != 'true' && matrix.cell == 'packages' }}
         run: pnpm run typecheck
 
   # Mutation-score ratchet (audit-class — see mutation-check.WHY.md). Stryker
@@ -421,6 +493,8 @@ jobs:
   # scores against .github/baselines/mutation-baseline.json and fails on a
   # drop below a package's floor (baseline − graceMargin).
   mutation-tests:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.board_only != 'true' }}
     runs-on: ubuntu-latest
     env:
       # The per-package stryker configs default to concurrency 2 (dev-machine
@@ -503,6 +577,8 @@ jobs:
   # that the real migrations are applied to (the cache-invalidation trigger
   # functions live only in the migration files).
   component-integration-tests:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.board_only != 'true' }}
     runs-on: ubuntu-latest
     services:
       redis:
@@ -615,10 +691,16 @@ jobs:
           fail_ci_if_error: true
           verbose: true
 
+  # Step-gated on the `changes` job (same pattern as unit-tests): a board-only
+  # develop push skips every step, and the job-level `!cancelled()` keeps a
+  # failed `changes` job from skipping the job itself.
   voice-engine-tests:
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        if: needs.changes.outputs.board_only != 'true'
         with:
           # Full history: paths-filter otherwise deepens a shallow clone on
           # the fly, and that fetch races GitHub's shallow-file bookkeeping
@@ -632,35 +714,36 @@ jobs:
       # each gated step below also runs on that event.
       - uses: dorny/paths-filter@v4
         id: filter
+        if: needs.changes.outputs.board_only != 'true'
         with:
           filters: |
             voice-engine:
               - 'services/voice-engine/**'
 
       - name: Setup Python
-        if: steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch'
+        if: needs.changes.outputs.board_only != 'true' && (steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch')
         uses: actions/setup-python@v7
         with:
           python-version-file: 'services/voice-engine/.python-version'
 
       - name: Install test dependencies
-        if: steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch'
+        if: needs.changes.outputs.board_only != 'true' && (steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch')
         run: pip install -r services/voice-engine/requirements-dev.txt
 
       - name: Run ruff linter
-        if: steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch'
+        if: needs.changes.outputs.board_only != 'true' && (steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch')
         run: cd services/voice-engine && ruff check .
 
       - name: Run mypy type checker
-        if: steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch'
+        if: needs.changes.outputs.board_only != 'true' && (steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch')
         run: cd services/voice-engine && mypy --strict server.py tests/
 
       - name: Run voice-engine tests
-        if: steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch'
+        if: needs.changes.outputs.board_only != 'true' && (steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch')
         run: cd services/voice-engine && python -m pytest tests/ -v --cov=server --cov-report=xml:coverage.xml
 
       - name: Upload voice-engine coverage to Codecov
-        if: ${{ !cancelled() && (steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch') }}
+        if: ${{ needs.changes.outputs.board_only != 'true' && !cancelled() && (steps.filter.outputs.voice-engine == 'true' || github.event_name == 'workflow_dispatch') }}
         uses: codecov/codecov-action@v7
         with:
           # PyPI install path: the default binary download verifies its GPG
@@ -681,7 +764,14 @@ jobs:
   # or its build-input config changes, so most PRs skip every leg. No layer
   # caching for now — the trigger is rare enough that a cold build per firing
   # is cheaper than carrying cache plumbing.
+  #
+  # Step-gated on the `changes` job (same pattern as unit-tests): a board-only
+  # develop push has no paths-filter base, so the filter diffs against main and
+  # would fire every leg. The job-level `!cancelled()` keeps a failed `changes`
+  # job from skipping the legs.
   docker-build-smoke:
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -712,6 +802,7 @@ jobs:
             tag_suffix: -rotzot
     steps:
       - uses: actions/checkout@v7
+        if: needs.changes.outputs.board_only != 'true'
         with:
           # Full history: paths-filter otherwise deepens a shallow clone on
           # the fly, and that fetch races GitHub's shallow-file bookkeeping
@@ -725,6 +816,7 @@ jobs:
       # each gated step below also runs on that event.
       - uses: dorny/paths-filter@v4
         id: filter
+        if: needs.changes.outputs.board_only != 'true'
         with:
           filters: |
             ai-worker:
@@ -762,14 +854,14 @@ jobs:
               - 'package.json'
 
       - name: Build image
-        if: steps.filter.outputs[matrix.service] == 'true' || github.event_name == 'workflow_dispatch'
+        if: needs.changes.outputs.board_only != 'true' && (steps.filter.outputs[matrix.service] == 'true' || github.event_name == 'workflow_dispatch')
         run: docker build ${{ matrix.context }} -f services/${{ matrix.service }}/Dockerfile ${{ matrix.args }} -t smoke/${{ matrix.service }}${{ matrix.tag_suffix }}:ci
 
       # The website legs go beyond build-success: serve the image and assert
       # the per-brand CONTENT (robots directives + the legal-page brand
       # substitution) — a build can succeed with either ternary branch flipped.
       - name: Verify served website content per brand
-        if: matrix.service == 'website' && (steps.filter.outputs[matrix.service] == 'true' || github.event_name == 'workflow_dispatch')
+        if: needs.changes.outputs.board_only != 'true' && matrix.service == 'website' && (steps.filter.outputs[matrix.service] == 'true' || github.event_name == 'workflow_dispatch')
         run: |
           docker run -d --rm --name website-smoke -p 8080:8080 smoke/${{ matrix.service }}${{ matrix.tag_suffix }}:ci
           # --retry-all-errors, not just --retry-connrefused: during nginx's
@@ -789,8 +881,9 @@ jobs:
   # Join job: one stable check name aggregating the matrix legs, so branch
   # protection can require "docker-build-smoke-ok" instead of four
   # matrix-suffixed contexts. A skipped leg still reports success (its build
-  # step was gated, the job itself passed), so this only fails when a fired
-  # build genuinely failed.
+  # step was gated, the job itself passed — including every leg of a
+  # board-only develop push, gated by the `changes` job), so this only fails
+  # when a fired build genuinely failed.
   docker-build-smoke-ok:
     runs-on: ubuntu-latest
     needs: docker-build-smoke
@@ -800,6 +893,8 @@ jobs:
         run: test "${{ needs.docker-build-smoke.result }}" = "success"
 
   build:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.board_only != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

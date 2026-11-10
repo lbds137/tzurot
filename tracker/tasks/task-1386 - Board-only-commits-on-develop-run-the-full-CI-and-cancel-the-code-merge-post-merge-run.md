@@ -22,5 +22,6 @@ Why: ci.yml:4-7 triggers on every push with no path filter, and ci.yml:13-15 can
 What: have buildCommitMessage (packages/tooling/src/dev/tracker-commit.ts:142) append [skip ci], or add a paths-ignore for tracker/ backlog/ docs/ root md on develop pushes (decide in the PR; [skip ci] covers only tool-made commits). Update .claude/skills/tzurot-git-workflow/SKILL.md:55.
 Saving: ~2,300 runner-s per board commit (Fable perf review 2026-11-10, item P1).
 Risk: backlog:lint and lines:check no longer run in CI on board SHAs; pre-push docs-only path runs both (.husky/pre-push:88-99).
-Acceptance: a board-only push to develop starts no CI run; a code push still does.
+Acceptance (revised 2026-11-10 at build): a board-only push to develop runs CI with every heavy job skipped and cancels no other develop run; a code push still runs in full. Not "no run": main's ruleset requires 13 CI contexts and the release PR head is develop's tip (usually a board commit), so paths-ignore or [skip ci] would leave those contexts unreported and block the release merge.
+Post-merge proof: on the first board push after merge, list check-runs for that SHA and confirm every main-required context (all six unit-tests cells included) is present and successful; then confirm the next code push runs in full.
 <!-- SECTION:DESCRIPTION:END -->

@@ -6,6 +6,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { parse as parseYaml } from 'yaml';
+import { BOARD_ONLY_PROBE_JOB } from '../release/develop-ci.js';
 import { parseWorkflowContexts, expandJobContexts } from './workflow-job-contexts.js';
 
 describe('parseWorkflowContexts', () => {
@@ -40,6 +42,18 @@ describe('parseWorkflowContexts', () => {
       'unit-tests (packages)',
     ]);
     expect(contexts.get('lint')).toEqual(['lint']);
+  });
+});
+
+describe('release:develop-ci probe pin', () => {
+  it('ci.yml keeps the probe job, gated on the changes board_only output', () => {
+    const path = fileURLToPath(new URL('../../../../.github/workflows/ci.yml', import.meta.url));
+    const doc = parseYaml(readFileSync(path, 'utf-8')) as {
+      jobs: Record<string, { if?: string; needs?: string | string[] }>;
+    };
+    const probe = doc.jobs[BOARD_ONLY_PROBE_JOB];
+    expect(probe).toBeDefined();
+    expect(String(probe?.if)).toContain('needs.changes.outputs.board_only');
   });
 });
 

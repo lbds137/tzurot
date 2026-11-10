@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-11-08'
+lastUpdated: '2026-11-10'
 ---
 
 # Git Workflow Procedures
@@ -52,7 +52,7 @@ test "$(git rev-parse HEAD)" = "$(git ls-remote origin "refs/heads/<branch>" | c
 ```
 
 - A commit-body line starting with `#` is dropped when git cleans the message in editor/strip mode (`-m` and `-F` keep it). Start such lines with a word ("PR #2466 …"); same for `#TASK` prefixes.
-- Board-only commits (`tracker/**`, `backlog/**`, `BACKLOG.md`, `CURRENT.md`) go through `pnpm ops tracker:commit --subject "<subject>"` when the shell is not on develop: it commits and pushes the board files dirty in the checkout that holds develop, stages only those paths, and refuses rather than moves files dirty in the current checkout, so edit them where develop is checked out.
+- Board-only commits (`tracker/**`, `backlog/**`, `BACKLOG.md`, `CURRENT.md`) go through `pnpm ops tracker:commit --subject "<subject>"` when the shell is not on develop: it commits and pushes the board files dirty in the checkout that holds develop, stages only those paths, and refuses rather than moves files dirty in the current checkout, so edit them where develop is checked out. A board-only push to develop runs CI with every heavy job skipped (the `changes` job in `ci.yml`), so it neither burns a full run nor cancels an in-flight develop run (the release preflight checks the last code commit's run); `backlog:lint` and `lines:check` still run in pre-push's docs-only branch.
 
 ### 3. Push
 
@@ -416,6 +416,8 @@ The same guard checks every main-required status check against the job ids in `o
 `security:advisories` is the primary check. The ride-along candidate is a transitive or direct+transitive advisory with a fix — Dependabot can never PR one, so widen/add the `pnpm.overrides` entry, `pnpm install`, and verify the lockfile resolves the patched version (`05-tooling.md` § Security Advisories).
 
 **Before merging the release PR, run `pnpm ops deploy:watch-check --env prod` from the release head: `git switch develop && git pull --ff-only` first (read-only; it reads the local checkout's Dockerfile, develop's is the one about to ship, and it refuses uncommitted image inputs).** It fails when a `services/website/Dockerfile` COPY source isn't covered by the `tzurot-website` service's Railway watch patterns, which would let a website-affecting change ship without redeploying the site; fix the watch patterns in the Railway dashboard before the merge.
+
+**When develop's tip is a board-only commit, its CI run is skipped-green, so before merging the release PR confirm the CI run for the last non-board develop push concluded `success`** (a red, cancelled or still-running code run hides behind the green board SHA): `pnpm ops release:develop-ci`. Exit 0 = success; 1 = finding (failed, cancelled or still-running code run; `gh run rerun` a cancelled one); 2 = no code run in the last 30 runs; 3 = cannot classify a run (ci.yml's `lint` probe job renamed?); 4 = tool error (gh or JSON).
 
 **New user-content tables need a data-rights disposition before the cut.** Enumerate models added in the range — `git diff v<prev>..HEAD -- prisma/schema.prisma | grep '^+model '` — and for each one that stores user-derived content, confirm both an export path (`services/ai-worker/src/jobs/AccountExportAssembler.ts`) and an erasure path (`AccountEraserService.ts`, a retention sweep, or the `/history clear` cascade), or state in the release notes why it is excluded.
 
