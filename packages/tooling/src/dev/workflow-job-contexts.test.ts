@@ -45,16 +45,52 @@ describe('parseWorkflowContexts', () => {
   });
 });
 
-describe('release:develop-ci probe pin', () => {
-  it('ci.yml keeps the probe job, gated on the changes board_only output', () => {
+describe('board-only gating pin (release:develop-ci probe and heavy jobs)', () => {
+  interface PinnedJob {
+    if?: string;
+    needs?: string | string[];
+    steps?: { if?: string }[];
+  }
+  const loadJobs = (): Record<string, PinnedJob> => {
     const path = fileURLToPath(new URL('../../../../.github/workflows/ci.yml', import.meta.url));
-    const doc = parseYaml(readFileSync(path, 'utf-8')) as {
-      jobs: Record<string, { if?: string; needs?: string | string[] }>;
-    };
-    const probe = doc.jobs[BOARD_ONLY_PROBE_JOB];
+    return (parseYaml(readFileSync(path, 'utf-8')) as { jobs: Record<string, PinnedJob> }).jobs;
+  };
+  const needsChanges = (job: PinnedJob | undefined): boolean =>
+    [job?.needs].flat().includes('changes');
+
+  it('ci.yml keeps the probe job, gated on changes and its board_only output', () => {
+    const probe = loadJobs()[BOARD_ONLY_PROBE_JOB];
     expect(probe).toBeDefined();
+    expect(needsChanges(probe)).toBe(true);
     expect(String(probe?.if)).toContain('needs.changes.outputs.board_only');
   });
+
+  it.each([
+    'build',
+    'component-integration-tests',
+    'mutation-tests',
+    'hook-posix-parse',
+    BOARD_ONLY_PROBE_JOB,
+  ])('job-gated heavy job %s needs changes and its if references board_only', id => {
+    const job = loadJobs()[id];
+    expect(job).toBeDefined();
+    expect(needsChanges(job)).toBe(true);
+    expect(String(job?.if)).toContain('needs.changes.outputs.board_only');
+  });
+
+  it.each(['unit-tests', 'docker-build-smoke', 'voice-engine-tests'])(
+    'step-gated job %s needs changes and every step if references board_only',
+    id => {
+      const job = loadJobs()[id];
+      expect(job).toBeDefined();
+      expect(needsChanges(job)).toBe(true);
+      const steps = job?.steps ?? [];
+      expect(steps.length).toBeGreaterThan(0);
+      for (const step of steps) {
+        expect(String(step.if)).toContain('needs.changes.outputs.board_only');
+      }
+    }
+  );
 });
 
 describe('expandJobContexts', () => {
