@@ -6,11 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: 2026-08-29 04:41
-updated_date: '2026-11-10T02:55:00Z'
+updated_date: '2026-11-10T05:23:00Z'
 labels:
   - area:ai-worker
   - size:M
-  - state:dependent
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 813000

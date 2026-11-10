@@ -3,9 +3,10 @@ id: TASK-1380
 title: >-
   Job-path rebuild drops attachment provenance: trigger spoiler, sticker,
   link-preview and voice headers never render
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-10T02:55:00Z'
+updated_date: '2026-11-10T05:23:00Z'
 labels:
   - area:ai-worker
   - size:M
