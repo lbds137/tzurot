@@ -8,7 +8,7 @@
 
 import { type AIProvider } from '@tzurot/common-types/constants/ai';
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
-import { AttachmentType } from '@tzurot/common-types/constants/media';
+import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   type ReferencedMessage,
@@ -225,6 +225,15 @@ function buildDedupedAttachments(
           kind: 'voice',
           filename: entry.metadata.name,
           durationSeconds: entry.metadata.duration,
+          // Only a full attachment's metadata can say it is a plain upload: the
+          // dependency step's placeholder carries `audio/unknown`, so it stays
+          // unmarked. The persona's own voice is never a shared file.
+          source:
+            entry.metadata.contentType === CONTENT_TYPES.VIDEO_WEBM &&
+            entry.metadata.isVoiceMessage !== true &&
+            !isOwnPersonaVoice(ref.authorRole)
+              ? 'shared-file'
+              : undefined,
           spoiler: attachmentSpoiler(entry.metadata),
           description: entry.description,
         },

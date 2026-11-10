@@ -284,14 +284,24 @@ interface ProcessVoiceOptions {
   preprocessed?: ProcessedAttachment;
   sttDispatch?: SttDispatch;
   authorRole?: ReferenceAuthorRole;
+  /** True when the audio arrived as a plain file upload rather than a Discord voice message; marks the transcript as shared media. */
+  sharedFile?: boolean;
   /** Bytes the plain-WebM sniff already fetched, passed through to `transcribeAudio` so they are not downloaded twice. */
   prefetched?: ArrayBuffer;
 }
 
 /** Process a voice message, or an uploaded audio-only file routed to STT. */
 async function processVoiceAttachment(options: ProcessVoiceOptions): Promise<BuiltAttachment> {
-  const { attachment, referenceNumber, log, preprocessed, sttDispatch, authorRole, prefetched } =
-    options;
+  const {
+    attachment,
+    referenceNumber,
+    log,
+    preprocessed,
+    sttDispatch,
+    authorRole,
+    sharedFile,
+    prefetched,
+  } = options;
   // Identity only — NOT a whole RenderableVoice. `kind` and the enrichment are
   // supplied per return site, because the type makes description and status
   // mutually exclusive and a pre-built object cannot commit to either arm.
@@ -301,12 +311,9 @@ async function processVoiceAttachment(options: ProcessVoiceOptions): Promise<Bui
     contentType: attachment.contentType,
     durationSeconds: attachment.duration,
     // An uploaded audio file (a plain WebM routed to STT) is shared media that
-    // may not be the sender's speech. The persona's own TTS reference is not, so it
-    // stays unmarked.
-    source:
-      attachment.isVoiceMessage !== true && !isOwnPersonaVoice(authorRole)
-        ? 'shared-file'
-        : undefined,
+    // may not be the sender's speech; the caller says so explicitly via
+    // `sharedFile`. The persona's own TTS reference is not, so it stays unmarked.
+    source: sharedFile === true && !isOwnPersonaVoice(authorRole) ? 'shared-file' : undefined,
     spoiler: attachmentSpoiler(attachment),
   } as const;
 
@@ -465,7 +472,7 @@ async function processPlainFileAttachment(
   // non-webm own-persona file still falls through to the plain stub below —
   // this short-circuit only applies to the audio-transcript path.
   if (isPlainWebm && isOwnPersonaVoice(authorRole)) {
-    return processVoiceAttachment(options);
+    return processVoiceAttachment({ ...options, sharedFile: true });
   }
 
   if (
@@ -474,7 +481,7 @@ async function processPlainFileAttachment(
     preprocessed.description !== '' &&
     preprocessed.type !== AttachmentType.File
   ) {
-    return processVoiceAttachment(options);
+    return processVoiceAttachment({ ...options, sharedFile: true });
   }
 
   // A File-typed preprocessed hit falls through to the sniff below rather
@@ -487,7 +494,7 @@ async function processPlainFileAttachment(
       { referenceNumber, byteLength: audioOnly.byteLength },
       'Plain WebM upload is audio-only; routing to STT'
     );
-    return processVoiceAttachment({ ...options, prefetched: audioOnly });
+    return processVoiceAttachment({ ...options, sharedFile: true, prefetched: audioOnly });
   }
 
   return {
