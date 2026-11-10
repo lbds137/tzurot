@@ -18,6 +18,7 @@ import { buildAttachmentDescriptions } from '../../../../services/RAGUtils.js';
 import { DependencyStep } from './DependencyStep.js';
 import { DownloadAttachmentsStep } from './DownloadAttachmentsStep.js';
 import type { GenerationContext } from '../types.js';
+import type { VisionDescriptionWriter } from '../../../../services/context/visionDescriptionWriter.js';
 
 // Mock common-types logger
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -75,6 +76,19 @@ vi.mock('../../../../utils/imageToDataUrl.js', async importOriginal => {
     downloadImageToDataUrl: (...args: unknown[]) => mockDownloadImageToDataUrl(...args),
   };
 });
+
+// The stub only implements the one method DependencyStep calls; `satisfies` ties it
+// to the real method's signature so a signature change breaks the compile.
+const makeWriter = () =>
+  ({
+    persistTriggerDescriptions: vi.fn().mockResolvedValue(undefined),
+  }) satisfies Pick<VisionDescriptionWriter, 'persistTriggerDescriptions'>;
+
+// VisionDescriptionWriter is a class with a private `history` member the stub
+// omits, so the stub is not structurally assignable to it; this is the single
+// cast from the stub to the constructor parameter type.
+const asWriter = (stub: ReturnType<typeof makeWriter>): VisionDescriptionWriter =>
+  stub as unknown as VisionDescriptionWriter;
 
 const TEST_PERSONALITY: LoadedPersonality = {
   id: 'personality-123',
@@ -394,10 +408,6 @@ describe('DependencyStep', () => {
   });
 
   describe('vision-description persistence', () => {
-    const makeWriter = () => ({
-      persistTriggerDescriptions: vi.fn().mockResolvedValue(undefined),
-    });
-
     it('persists trigger descriptions post-vision when attachments were processed', async () => {
       const imageResult: ImageDescriptionResult = {
         requestId: 'test-req',
@@ -406,7 +416,7 @@ describe('DependencyStep', () => {
       };
       mockGetJobResult.mockResolvedValueOnce(imageResult);
       const writer = makeWriter();
-      const stepWithWriter = new DependencyStep(undefined, writer as never);
+      const stepWithWriter = new DependencyStep(undefined, asWriter(writer));
 
       await stepWithWriter.process({
         job: createMockJob({
@@ -446,7 +456,7 @@ describe('DependencyStep', () => {
       };
       mockGetJobResult.mockResolvedValueOnce(audioResult);
       const writer = makeWriter();
-      const stepWithWriter = new DependencyStep(undefined, writer as never);
+      const stepWithWriter = new DependencyStep(undefined, asWriter(writer));
 
       await stepWithWriter.process({
         job: createMockJob({
@@ -487,7 +497,7 @@ describe('DependencyStep', () => {
       };
       mockGetJobResult.mockResolvedValueOnce(imageResult);
       const writer = makeWriter();
-      const stepWithWriter = new DependencyStep(undefined, writer as never);
+      const stepWithWriter = new DependencyStep(undefined, asWriter(writer));
 
       await stepWithWriter.process({
         job: createMockJob({
@@ -521,7 +531,7 @@ describe('DependencyStep', () => {
 
     it('does not invoke the writer when no trigger attachments were processed', async () => {
       const writer = makeWriter();
-      const stepWithWriter = new DependencyStep(undefined, writer as never);
+      const stepWithWriter = new DependencyStep(undefined, asWriter(writer));
 
       await stepWithWriter.process({
         job: createMockJob({ dependencies: [] }),
@@ -544,7 +554,7 @@ describe('DependencyStep', () => {
       };
       mockGetJobResult.mockResolvedValueOnce(imageResult);
       const writer = makeWriter();
-      const stepWithWriter = new DependencyStep(undefined, writer as never);
+      const stepWithWriter = new DependencyStep(undefined, asWriter(writer));
 
       const result = await stepWithWriter.process({
         job: createMockJob({
@@ -1348,6 +1358,7 @@ describe('DependencyStep', () => {
 
     const SPOILER_URL = 'https://cdn.example.com/attachments/1/2/SPOILER_secret.png';
     const STICKER_URL = 'https://cdn.example.com/stickers/3.png';
+    const PREVIEW_URL = 'https://cdn.example.com/embeds/6.png';
     const VOICE_URL = 'https://cdn.example.com/attachments/1/4/voice-message.ogg';
     const SONG_URL = 'https://cdn.example.com/attachments/1/5/song.mp3';
 
@@ -1367,6 +1378,15 @@ describe('DependencyStep', () => {
         contentType: 'image/png',
         size: 512,
         isSticker: true,
+      },
+      // bot-client's embed-preview producer (extractEmbedImages) sets no
+      // originalUrl, like the sticker above: the join falls back to `url`.
+      {
+        url: PREVIEW_URL,
+        name: 'embed-1-image.png',
+        contentType: 'image/png',
+        size: undefined,
+        isEmbedPreview: true,
       },
       {
         url: VOICE_URL,
@@ -1404,6 +1424,7 @@ describe('DependencyStep', () => {
         imageResult([
           { url: SPOILER_URL, description: 'A hidden picture' },
           { url: STICKER_URL, description: 'A waving figure' },
+          { url: PREVIEW_URL, description: 'A video still' },
         ])
       );
       mockGetJobResult.mockResolvedValueOnce(audioOf(VOICE_URL, 'voice-message.ogg', 'hi there'));
@@ -1424,12 +1445,14 @@ describe('DependencyStep', () => {
       const rendered = render(result);
 
       expect(rendered).toContain('[Spoiler image: secret.png]');
-      expect(rendered).toContain('[Sticker: ');
+      expect(rendered).toContain('[Sticker: wave]');
+      expect(rendered).not.toContain('[Sticker: 3.png]');
+      expect(rendered).toContain('[Link preview: embed-1-image.png]');
       expect(rendered).toContain('[Voice message: 5.2s]');
       expect(rendered).toContain('[Audio: song.mp3]');
     });
 
-    it('takes the voice header from the context attachment, not from the job result', async () => {
+    it('restores isVoiceMessage and duration from a context attachment with no originalUrl', async () => {
       mockGetJobResult.mockResolvedValueOnce(audioOf(VOICE_URL, 'voice-message.ogg', 'hi there'));
 
       const result = await step.process({
@@ -1556,7 +1579,9 @@ describe('DependencyStep', () => {
       const rendered = render(result);
 
       expect(rendered).toContain('[Spoiler image: secret.png]');
-      expect(rendered).toContain('[Sticker: ');
+      expect(rendered).toContain('[Sticker: wave]');
+      expect(rendered).not.toContain('[Sticker: 3.png]');
+      expect(rendered).toContain('[Link preview: embed-1-image.png]');
       expect(rendered).toContain('[Voice message: 5.2s]');
       expect(rendered).toContain('[Audio: song.mp3]');
       for (const entry of result.preprocessing?.processedAttachments ?? []) {
@@ -1628,8 +1653,8 @@ describe('DependencyStep', () => {
 
     it('hands the writer the joined metadata for the persisted history copy', async () => {
       mockFullTriggerResults();
-      const writer = { persistTriggerDescriptions: vi.fn().mockResolvedValue(undefined) };
-      const stepWithWriter = new DependencyStep(undefined, writer as never);
+      const writer = makeWriter();
+      const stepWithWriter = new DependencyStep(undefined, asWriter(writer));
 
       await stepWithWriter.process({
         job: createMockJob({
