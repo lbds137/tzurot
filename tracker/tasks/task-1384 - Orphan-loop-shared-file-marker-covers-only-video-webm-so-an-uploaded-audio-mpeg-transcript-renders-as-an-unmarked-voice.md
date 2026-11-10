@@ -24,3 +24,7 @@ What: gate on excluding the dependency-step placeholder (contentType audio/unkno
 
 Acceptance: an orphan audio/mpeg entry with no voice flag renders source=shared-file; the audio/unknown placeholder and flagged voice stay unmarked; tests pin all three.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Notes
+
+2026-11-10 premise correction (driver, while building): the orphan-loop half is OBSOLETE. preprocessing.referenceAttachments is built only by DependencyStep.buildPreprocessingResults from job results (contentType audio/unknown placeholder; restoreOriginalMetadata joins processedAttachments only), and the gateway queues reference STT jobs only for isVoiceMessage === true attachments (services/api-gateway/src/utils/jobChainOrchestrator.ts audioWorthTranscribing). An uploaded audio/mpeg on a referenced message is never transcribed, so it never reaches that loop. The MultimodalProcessor metadata: attachment premise (also used in PR 2737 review round 2) holds for trigger and extended-context processing, not for reference entries. The webm arm stays as a defensive branch with a comment saying so. The neutral transcription log wording ships with TASK-1381/1383.
