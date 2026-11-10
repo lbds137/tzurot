@@ -5,12 +5,13 @@ title: >-
   shape has no slot
 status: To Do
 assignee: []
-created_date: '2026-08-31 14:38'
+created_date: 2026-08-31 14:38
+updated_date: '2026-11-10T03:17:00Z'
 labels:
-  - 'area:ai-worker'
-  - 'area:common-types'
-  - 'size:S'
-  - 'state:ready'
+  - area:ai-worker
+  - area:common-types
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 842000
@@ -25,3 +26,9 @@ Fix shape: add an optional source field to attachmentEnrichmentSchema (Zod-decla
 
 Acceptance: an orphaned stored enrichment whose original attachment carried isEmbedPreview/isSticker renders with the matching source attribute; a test pins it; absent-field rows keep rendering unchanged.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Sibling instance (2026-11-09, TASK-1380 worker Step 3, by read): the ReferencedMessageFormatter deduped-orphan loop reads entry.metadata of a DependencyStep reference entry, so imageSource / attachmentSpoiler see the placeholder image/unknown metadata when no reference attachment row matches. Same missing-slot shape as this task; no original metadata is in hand there.
+<!-- SECTION:NOTES:END -->

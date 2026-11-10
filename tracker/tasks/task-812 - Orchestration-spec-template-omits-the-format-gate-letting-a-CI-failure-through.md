@@ -3,13 +3,14 @@ id: TASK-812
 title: >-
   Orchestration spec template omits the format gate, letting a CI failure
   through
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-08-29 04:09'
+created_date: 2026-08-29 04:09
+updated_date: '2026-11-10T03:17:00Z'
 labels:
-  - 'area:skills'
-  - 'size:S'
-  - 'state:ready'
+  - area:skills
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 812000
