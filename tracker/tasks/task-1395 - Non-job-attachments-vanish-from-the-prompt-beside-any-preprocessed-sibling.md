@@ -1,9 +1,10 @@
 ---
 id: TASK-1395
 title: Non-job attachments vanish from the prompt beside any preprocessed sibling
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-10T14:30:00Z'
+updated_date: '2026-11-11T04:39:00Z'
 labels:
   - area:ai-worker
   - size:M

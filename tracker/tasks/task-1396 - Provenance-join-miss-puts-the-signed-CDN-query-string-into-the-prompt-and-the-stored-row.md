@@ -3,9 +3,10 @@ id: TASK-1396
 title: >-
   Provenance join miss puts the signed CDN query string into the prompt and the
   stored row
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-10T14:30:00Z'
+updated_date: '2026-11-11T04:40:00Z'
 labels:
   - area:ai-worker
   - size:S

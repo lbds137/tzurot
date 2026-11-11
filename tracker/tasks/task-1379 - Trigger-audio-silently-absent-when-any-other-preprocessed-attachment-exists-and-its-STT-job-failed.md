@@ -3,9 +3,10 @@ id: TASK-1379
 title: >-
   Trigger audio silently absent when any other preprocessed attachment exists
   and its STT job failed
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-10T02:50:00Z'
+updated_date: '2026-11-11T04:40:00Z'
 labels:
   - area:ai-worker
   - size:S

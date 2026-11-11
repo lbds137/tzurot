@@ -13,7 +13,7 @@ Source: Fable read-only architecture review, 2026-11-10, at develop 5c6c4c474. C
 
 - **C1: enrichment is the spine and the attachment is the lookup.**
   - Child job results keep only the URL and text (`AudioTranscriptionJob.ts` ~158, `ImageDescriptionJob.ts` ~231/253/366, result type in `packages/common-types/src/types/jobs.ts` ~237).
-  - `DependencyStep.ts` (~488-547) rebuilds entries with `*/unknown`, `size: 0` and a URL-basename name, then re-joins metadata by URL (~72-107), for the trigger only.
+  - `buildPreprocessingResults` (`preprocessingResultsBuilder.ts`) rebuilds entries with `*/unknown`, `size: 0` and a URL-basename name; `restoreOriginalMetadata` (`triggerAttachmentMerge.ts`) re-joins metadata by URL against the pre-download originals, for the trigger only. Since PR 2741 (TASK-1395/1396/1379), `mergeTriggerAttachments` then yields one entry per original trigger attachment (job result, inline file, or named failure / "No speech detected" stub); references still re-join per result.
   - References re-join separately (`AttachmentProcessor.ts` ~276, `ReferencedMessageFormatter.ts` ~179), and so does the stored path (`storedReference.ts` ~141).
   - Produced: 1380, 1381, 1383, 1379, TASK-1395 and TASK-1396.
 - **C2: routing is decided in api-gateway, and ai-worker renderers assume it.**
@@ -34,8 +34,8 @@ There are ten model-facing renderers. `OUTPUT_CONSTRAINTS` (`HardcodedConstraint
 1. **Harness: TASK-1398.** A shared pure `planPreprocessing()` in common-types, plus one table-driven chain seam test (attachment kinds × trigger job / trigger inline / live reference / deduped reference / stored replay). It asserts that every attachment is visible and that every emitted label is named in `OUTPUT_CONSTRAINTS`.
 2. **Attachment-spined preprocessing (M).**
    - Child results echo `attachment: AttachmentMetadata` (type and Zod schema).
-   - DependencyStep iterates the original attachments (trigger and each reference). Each one's enrichment is either present or a named status. The key is `id`, with URL as the fallback.
-   - Delete `restoreOriginalMetadata`, the `*/unknown` placeholders, the basename name, and the all-or-nothing preprocessed branch in `ConversationInputProcessor.ts`.
+   - DependencyStep iterates the original attachments (trigger and each reference). Each one's enrichment is either present or a named status. The key is `id`, with URL as the fallback. The trigger half shipped in PR 2741 (URL-keyed, `triggerAttachmentMerge.ts`); references remain (see TASK-1404).
+   - Delete `restoreOriginalMetadata`, the `*/unknown` placeholders and the basename name once results echo their attachment. The all-or-nothing preprocessed branch in `ConversationInputProcessor.ts` is already complete since PR 2741.
    - Open check: whether sticker and embed producers set `id`.
    - In-flight jobs at deploy lack the field: fail them, or accept one deploy window. No shim.
 3. **One classification (M).**
@@ -50,4 +50,4 @@ There are ten model-facing renderers. `OUTPUT_CONSTRAINTS` (`HardcodedConstraint
 
 ## Members
 
-TASK-1395 (D1), TASK-1396 (D2), TASK-1397 (D3/D4), TASK-1398 (phase 1); open TASK-1378, TASK-1379, TASK-842; related TASK-1385 (log fields).
+Done: TASK-1398 (phase 1), TASK-1395 (D1), TASK-1396 (D2), TASK-1379 (PR 2741). Open: TASK-1397 (D3/D4), TASK-1378, TASK-842, TASK-1401, TASK-1403, TASK-1404, TASK-1406; related TASK-1385 (log fields).
