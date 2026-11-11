@@ -9,7 +9,6 @@
  */
 
 import { type AIProvider } from '@tzurot/common-types/constants/ai';
-import { AttachmentType } from '@tzurot/common-types/constants/media';
 import { REDIS_KEY_PREFIXES, JobType } from '@tzurot/common-types/constants/queue';
 import {
   type AudioTranscriptionResult,
@@ -26,35 +25,21 @@ import type {
   TriggerAttachmentDownload,
 } from '../types.js';
 import {
+  type AudioEmptyInfo,
   type AudioFailureInfo,
   mergeTriggerAttachments,
   restoreOriginalMetadata,
-  urlBasename,
 } from './triggerAttachmentMerge.js';
+import {
+  type AudioInfo,
+  buildPreprocessingResults,
+  type ImageInfo,
+} from './preprocessingResultsBuilder.js';
 import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
 import type { VisionDescriptionWriter } from '../../../../services/context/visionDescriptionWriter.js';
 import { processCrossProviderVisionImages } from './extendedContextVisionProcessor.js';
 
 const logger = createLogger('DependencyStep');
-
-/**
- * Audio info from transcription job
- */
-interface AudioInfo {
-  url: string;
-  name: string;
-  content: string;
-  sourceReferenceNumber?: number;
-}
-
-/**
- * Image info from description job
- */
-interface ImageInfo {
-  url: string;
-  description: string;
-  sourceReferenceNumber?: number;
-}
 
 export class DependencyStep implements IPipelineStep {
   readonly name = 'DependencyResolution';
@@ -112,10 +97,10 @@ export class DependencyStep implements IPipelineStep {
       );
 
       const { redisService } = await import('../../../../redis.js');
-      const { audioTranscriptions, imageDescriptions, audioFailures } =
+      const { audioTranscriptions, imageDescriptions, audioFailures, audioEmpties } =
         await this.fetchDependencyResults(dependencies, redisService);
 
-      const rebuilt = this.buildPreprocessingResults(audioTranscriptions, imageDescriptions);
+      const rebuilt = buildPreprocessingResults(audioTranscriptions, imageDescriptions);
       // The merge runs only when the job carries dependencies; a job with none
       // leaves the trigger to ConversationInputProcessor's inline branch,
       // unchanged. DownloadAttachmentsStep did not run (or found nothing) when
@@ -123,7 +108,7 @@ export class DependencyStep implements IPipelineStep {
       // both originals and downloads.
       const downloads: TriggerAttachmentDownload[] =
         context.triggerAttachmentDownloads ??
-        (jobContext?.attachments ?? []).map(attachment => ({
+        (jobContext.attachments ?? []).map(attachment => ({
           original: attachment,
           downloaded: attachment,
         }));
@@ -140,6 +125,7 @@ export class DependencyStep implements IPipelineStep {
           jobEntries: joined,
           downloads,
           audioFailures: audioFailures.filter(f => f.sourceReferenceNumber === undefined),
+          audioEmpties: audioEmpties.filter(e => e.sourceReferenceNumber === undefined),
           processInline: attachments =>
             this.processTriggerFilesInline(attachments, personality, auth, jobContext.userId),
           jobId: job.id,
@@ -229,10 +215,12 @@ export class DependencyStep implements IPipelineStep {
     audioTranscriptions: AudioInfo[];
     imageDescriptions: ImageInfo[];
     audioFailures: AudioFailureInfo[];
+    audioEmpties: AudioEmptyInfo[];
   }> {
     const audioTranscriptions: AudioInfo[] = [];
     const imageDescriptions: ImageInfo[] = [];
     const audioFailures: AudioFailureInfo[] = [];
+    const audioEmpties: AudioEmptyInfo[] = [];
 
     for (const dep of dependencies) {
       try {
@@ -243,6 +231,8 @@ export class DependencyStep implements IPipelineStep {
             audioTranscriptions.push(audio.audio);
           } else if (audio?.ok === false) {
             audioFailures.push(audio.failure);
+          } else if (audio?.ok === 'empty') {
+            audioEmpties.push(audio.empty);
           }
         } else if (dep.type === (JobType.ImageDescription as string)) {
           const images = await this.fetchImageResults(dep.jobId, key, redisService);
@@ -256,14 +246,19 @@ export class DependencyStep implements IPipelineStep {
       }
     }
 
-    return { audioTranscriptions, imageDescriptions, audioFailures };
+    return { audioTranscriptions, imageDescriptions, audioFailures, audioEmpties };
   }
 
   private async fetchAudioResult(
     jobId: string,
     key: string,
     redisService: { getJobResult: <T>(key: string) => Promise<T | null> }
-  ): Promise<{ ok: true; audio: AudioInfo } | { ok: false; failure: AudioFailureInfo } | null> {
+  ): Promise<
+    | { ok: true; audio: AudioInfo }
+    | { ok: false; failure: AudioFailureInfo }
+    | { ok: 'empty'; empty: AudioEmptyInfo }
+    | null
+  > {
     const result = await redisService.getJobResult<AudioTranscriptionResult>(key);
     if (result?.success === true && result.content !== undefined && result.content.length > 0) {
       logger.debug(
@@ -276,6 +271,18 @@ export class DependencyStep implements IPipelineStep {
           url: result.attachmentUrl ?? '',
           name: result.attachmentName ?? 'audio',
           content: result.content,
+          sourceReferenceNumber: result.sourceReferenceNumber,
+        },
+      };
+    }
+    if (result?.success === true) {
+      // Reached only when the non-empty arm above did not match, so the content
+      // is absent or empty: a successful job with no transcript is silence, not a failure.
+      logger.debug({ jobId, key }, 'Audio transcription returned an empty transcript');
+      return {
+        ok: 'empty',
+        empty: {
+          url: result.attachmentUrl ?? '',
           sourceReferenceNumber: result.sourceReferenceNumber,
         },
       };
@@ -495,65 +502,5 @@ export class DependencyStep implements IPipelineStep {
       },
       'Preprocessing results ready'
     );
-  }
-
-  /**
-   * Build preprocessing results from raw audio/image data
-   */
-  private buildPreprocessingResults(
-    audioTranscriptions: AudioInfo[],
-    imageDescriptions: ImageInfo[]
-  ): PreprocessingResults {
-    const directAttachments: ProcessedAttachment[] = [];
-    const referenceAttachments: Record<number, ProcessedAttachment[]> = {};
-
-    // Process images
-    for (const img of imageDescriptions) {
-      const attachment: ProcessedAttachment = {
-        type: AttachmentType.Image,
-        description: img.description,
-        originalUrl: img.url,
-        metadata: {
-          url: img.url,
-          name: urlBasename(img.url),
-          contentType: 'image/unknown',
-          size: 0,
-        },
-      };
-
-      if (img.sourceReferenceNumber !== undefined) {
-        referenceAttachments[img.sourceReferenceNumber] ??= [];
-        referenceAttachments[img.sourceReferenceNumber].push(attachment);
-      } else {
-        directAttachments.push(attachment);
-      }
-    }
-
-    // Process audio
-    for (const audio of audioTranscriptions) {
-      const attachment: ProcessedAttachment = {
-        type: AttachmentType.Audio,
-        description: audio.content,
-        originalUrl: audio.url,
-        metadata: {
-          url: audio.url,
-          name: audio.name,
-          contentType: 'audio/unknown',
-          size: 0,
-        },
-      };
-
-      if (audio.sourceReferenceNumber !== undefined) {
-        referenceAttachments[audio.sourceReferenceNumber] ??= [];
-        referenceAttachments[audio.sourceReferenceNumber].push(attachment);
-      } else {
-        directAttachments.push(attachment);
-      }
-    }
-
-    return {
-      processedAttachments: directAttachments,
-      referenceAttachments,
-    };
   }
 }
