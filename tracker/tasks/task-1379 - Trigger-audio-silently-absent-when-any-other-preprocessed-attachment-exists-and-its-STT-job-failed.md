@@ -25,4 +25,6 @@ Status: inferred from code reading during TASK-813 grounding (2026-11-09), not r
 Fix shape: either a per-attachment inline retry for the missing item, or a placeholder attachment (the untranscribed state the quote path already renders) so the model knows audio was sent.
 
 Acceptance: a trigger with a described image and a failed voice transcription still tells the model a voice message was sent; pinned by a test.
+
+Folded into TASK-1395's fix (2026-11-10). Owner ruling (Lila, via AskUserQuestion): the placeholder option, a failure notice with no inline retry; the voice label is kept.
 <!-- SECTION:DESCRIPTION:END -->
