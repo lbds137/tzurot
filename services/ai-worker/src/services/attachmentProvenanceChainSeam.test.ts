@@ -161,6 +161,12 @@ interface Row {
   referenceElement: string;
   /** Which processor's text the prompt should carry for it: STT, vision, or none (no processor exists). */
   enrichment: 'transcript' | 'vision' | 'none';
+  /**
+   * Whether that processor's text reaches the prompt on the quote paths. False
+   * where the reference plan's voice-only gate means no STT job for a quote
+   * (and for `none` rows, which have no processor at all).
+   */
+  enrichmentOnQuote: boolean;
 }
 
 const ROWS: Row[] = [
@@ -177,6 +183,7 @@ const ROWS: Row[] = [
     triggerHeader: '[Voice message: 5.2s]',
     referenceElement: '<voice filename="voice-message.ogg" type="audio/ogg" duration="5.2s"',
     enrichment: 'transcript',
+    enrichmentOnQuote: true,
   },
   {
     key: 'vencord-webm-voice',
@@ -191,6 +198,7 @@ const ROWS: Row[] = [
     triggerHeader: '[Voice message: 3.5s]',
     referenceElement: '<voice filename="voice-message.webm" type="video/webm" duration="3.5s"',
     enrichment: 'transcript',
+    enrichmentOnQuote: true,
   },
   {
     key: 'mp3',
@@ -199,6 +207,7 @@ const ROWS: Row[] = [
     // A quote keys voice on the voice flag alone, so a shared music file is a file there.
     referenceElement: '<file filename="song.mp3" type="audio/mpeg"/>',
     enrichment: 'transcript',
+    enrichmentOnQuote: false,
   },
   {
     key: 'audio-only-webm',
@@ -211,6 +220,7 @@ const ROWS: Row[] = [
     triggerHeader: '[Audio: recording.webm]',
     referenceElement: '<voice filename="recording.webm" type="video/webm" source="shared-file"',
     enrichment: 'transcript',
+    enrichmentOnQuote: true,
   },
   {
     key: 'spoiler-image',
@@ -224,6 +234,7 @@ const ROWS: Row[] = [
     triggerHeader: '[Spoiler image: SPOILER_cat.png]',
     referenceElement: '<image filename="SPOILER_cat.png" type="image/png" spoiler="true"',
     enrichment: 'vision',
+    enrichmentOnQuote: true,
   },
   {
     key: 'sticker',
@@ -237,6 +248,7 @@ const ROWS: Row[] = [
     triggerHeader: '[Sticker: wave]',
     referenceElement: '<image filename="wave" type="image/png" source="sticker"',
     enrichment: 'vision',
+    enrichmentOnQuote: true,
   },
   {
     key: 'link-preview',
@@ -250,6 +262,7 @@ const ROWS: Row[] = [
     triggerHeader: '[Link preview: embed-1-image.png]',
     referenceElement: '<image filename="embed-1-image.png" type="image/png" source="link-preview"',
     enrichment: 'vision',
+    enrichmentOnQuote: true,
   },
   {
     key: 'pdf',
@@ -262,6 +275,7 @@ const ROWS: Row[] = [
     triggerHeader: '[File: report.pdf]',
     referenceElement: '<file filename="report.pdf" type="application/pdf"/>',
     enrichment: 'none',
+    enrichmentOnQuote: false,
   },
 ];
 
@@ -289,8 +303,14 @@ const COLUMNS = [
 type Column = (typeof COLUMNS)[number];
 type Assertion = 'visible' | 'vocabulary' | 'enrichment';
 
-/** Cells red on today's code, keyed `row|column|assertion`, valued by owning task. */
-const KNOWN_RED: Partial<Record<`${RowKey}|${Column}|${Assertion}`, string>> = {
+/**
+ * Cells red on today's code, keyed `row|column|assertion`, valued by owning task.
+ * Only `visible` and `enrichment` can be pinned red; a vocabulary pin gets added
+ * with its first entry.
+ */
+const KNOWN_RED: Partial<
+  Record<`${RowKey}|${Column}|${Exclude<Assertion, 'vocabulary'>}`, string>
+> = {
   // A job-less attachment vanishes beside any preprocessed sibling: the
   // preprocessed branch in ConversationInputProcessor is all-or-nothing.
   'pdf|trigger-job|visible': 'TASK-1395',
@@ -579,7 +599,7 @@ function enrichmentText(row: Row): string {
 function enrichmentExpected(row: Row, column: Column): boolean {
   if (row.enrichment === 'none') return false;
   const onQuote = column !== 'trigger-job' && column !== 'trigger-inline';
-  return !(row.key === 'mp3' && onQuote);
+  return !onQuote || row.enrichmentOnQuote;
 }
 
 describe('unexplainedVocabulary', () => {
@@ -647,22 +667,11 @@ describe('attachment-provenance chain seam', () => {
         });
       }
 
-      const vocabularyOwner = KNOWN_RED[`${row.key}|${column}|vocabulary`];
-      if (vocabularyOwner === undefined) {
-        it('vocabulary', async () => {
-          const text = await renderCell(row, column);
-          expect(text).toContain(siblingMarker(column));
-          expect(unexplainedVocabulary(text)).toEqual([]);
-        });
-      } else {
-        // Pin of today's defect: when the owning fix lands this goes red and the
-        // entry moves out of KNOWN_RED.
-        it(`vocabulary — known red, owned by ${vocabularyOwner}`, async () => {
-          const text = await renderCell(row, column);
-          expect(text).toContain(siblingMarker(column));
-          expect(unexplainedVocabulary(text)).not.toEqual([]);
-        });
-      }
+      it('vocabulary', async () => {
+        const text = await renderCell(row, column);
+        expect(text).toContain(siblingMarker(column));
+        expect(unexplainedVocabulary(text)).toEqual([]);
+      });
 
       const enrichmentOwner = KNOWN_RED[`${row.key}|${column}|enrichment`];
       if (enrichmentOwner === undefined) {
