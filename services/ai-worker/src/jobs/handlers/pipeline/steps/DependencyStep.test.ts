@@ -1919,6 +1919,62 @@ describe('DependencyStep', () => {
         expect(rendered).toContain('[Voice message: 5.2s]');
         expect(rendered).toContain('Audio transcription failed (too_long)');
       });
+
+      it('renders a silent voice message (empty successful STT) as "No speech detected"', async () => {
+        mockGetJobResult.mockResolvedValueOnce(
+          imageResult([{ url: SPOILER_URL, description: 'A hidden picture' }])
+        );
+        mockGetJobResult.mockResolvedValueOnce({
+          requestId: 'test-req',
+          success: true,
+          content: '',
+          attachmentUrl: VOICE_URL,
+          attachmentName: 'voice-message.ogg',
+        } satisfies AudioTranscriptionResult);
+        const voice = makeRawTriggerAttachments()[3];
+
+        const result = await step.process({
+          job: createMockJob({
+            context: makeContext([asDownloaded(voice), asDownloaded(spoilerRaw())]),
+            dependencies: [imageDependency, voiceDependency],
+          }),
+          startTime: Date.now(),
+        });
+
+        const rendered = render(result);
+        expect(rendered).toContain('[Voice message: 5.2s]');
+        expect(rendered).toContain('No speech detected');
+        expect(rendered).not.toContain('failed');
+      });
+
+      it('keeps a reference-numbered STT failure out of the trigger even when its URL matches a trigger original', async () => {
+        mockGetJobResult.mockResolvedValueOnce(
+          imageResult([{ url: SPOILER_URL, description: 'A hidden picture' }])
+        );
+        mockGetJobResult.mockResolvedValueOnce({
+          requestId: 'test-req',
+          success: false,
+          failureReason: 'too_long',
+          attachmentUrl: VOICE_URL,
+          attachmentName: 'voice-message.ogg',
+          sourceReferenceNumber: 1,
+        } satisfies AudioTranscriptionResult);
+        const voice = makeRawTriggerAttachments()[3];
+
+        const result = await step.process({
+          job: createMockJob({
+            context: makeContext([asDownloaded(voice), asDownloaded(spoilerRaw())]),
+            dependencies: [imageDependency, voiceDependency],
+          }),
+          startTime: Date.now(),
+        });
+
+        // The trigger original has no result of its own, so it gets the generic
+        // no-result stub; the reference job's reason must not leak into it.
+        const rendered = render(result);
+        expect(rendered).toContain('Audio transcription failed (no result returned)');
+        expect(rendered).not.toContain('too_long');
+      });
     });
   });
 });

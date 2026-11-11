@@ -147,9 +147,10 @@ export class ConversationInputProcessor {
     const visionProvider = visionAuth?.visionProvider;
     const visionModel = visionAuth?.model;
     // Use pre-processed attachments from dependency jobs if available. When
-    // non-empty, the list holds exactly one entry per trigger attachment in
-    // message order (DependencyStep's merge, whenever the job carries
-    // dependencies), so it is complete on its own.
+    // non-empty, the list holds one entry per trigger attachment in message
+    // order, followed by any job results that matched no original
+    // (DependencyStep's merge, whenever the job carries dependencies), so it
+    // is complete on its own.
     let processedAttachments: ProcessedAttachment[] = [];
     if (context.preprocessedAttachments && context.preprocessedAttachments.length > 0) {
       processedAttachments = context.preprocessedAttachments;

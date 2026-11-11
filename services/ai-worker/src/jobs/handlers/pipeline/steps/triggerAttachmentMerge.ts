@@ -45,6 +45,15 @@ export interface AudioFailureInfo {
   sourceReferenceNumber?: number;
 }
 
+/** An STT child job that succeeded but produced an empty transcript. */
+export interface AudioEmptyInfo {
+  url: string;
+  sourceReferenceNumber?: number;
+}
+
+/** Description of a voice attachment whose transcript came back empty. */
+const EMPTY_TRANSCRIPT_DESCRIPTION = 'No speech detected';
+
 /**
  * The last path segment of a URL, without its query string (the query string of
  * a signed CDN URL, `?ex=&is=&hm=`, never survives). Falls back to a plain
@@ -74,24 +83,32 @@ export function urlBasename(url: string): string {
  * A job result carries only the URL, the name and the description, so the
  * rebuild synthesizes a placeholder content type and drops the provenance flags
  * (spoiler, sticker, link preview, voice message, duration) the render headers
- * key on. The original metadata is in the job context. Correlation is on the
- * context attachment's `originalUrl`, falling back to its `url`: by the time
- * this step runs, `DownloadAttachmentsStep` has already replaced each trigger
- * attachment's `url` with a `data:` URL and moved the Discord CDN URL to
- * `originalUrl`, which is the URL the job result reports. On a match only the
- * metadata is replaced — `type`, `description` and `originalUrl` stay the
- * result's own, and `metadata.url` keeps the result's CDN URL so a
- * multi-megabyte data URL never rides into the processed entry. An entry with
- * no match is returned as-is, and the list keeps its order and length.
+ * key on.
  *
- * The joined `metadata.size` is the size `DownloadAttachmentsStep` recorded: the
- * downloaded (post-resize) byte count, or for an attachment that arrived as a
- * data URL, its upstream size or a length-based estimate. It is not Discord's
- * reported size.
+ * `originals` is the PRE-download list (`GenerationContext.triggerAttachmentDownloads`
+ * originals): each one's `url` is the Discord CDN URL and it usually has no
+ * `originalUrl`. When that recorded list is absent, DependencyStep passes the
+ * job's own attachments instead, which are the downloaded copies: `url` is a
+ * `data:` URL and `originalUrl` holds the CDN URL.
  *
- * Every entry that finds no match is a miss, including all of them when the
- * context carries no attachments or none survived the download. Misses are
- * logged once per call with counts only (no URL or filename).
+ * Correlation is on the original's `originalUrl`, falling back to its `url`,
+ * compared with the result entry's `originalUrl` (the CDN URL the job
+ * reports). On a match only the metadata is replaced — `type`, `description`
+ * and `originalUrl` stay the result's own, and `metadata.url` keeps the
+ * result's CDN URL so a multi-megabyte data URL never rides into the processed
+ * entry. An entry with no match is returned as-is, and the list keeps its order
+ * and length.
+ *
+ * The joined `metadata.size` depends on the list: on the normal path it is the
+ * size Discord reported; on the fallback it is the size `DownloadAttachmentsStep`
+ * recorded (the downloaded, post-resize byte count, or for an attachment that
+ * arrived as a data URL its upstream size or a length-based estimate).
+ *
+ * Originals whose download failed are in the list, so a result for one of them
+ * still matches. A miss is therefore an entry whose URL no listed original
+ * carries, or any entry when the list is empty (no trigger attachments, or the
+ * recorded list absent and the job carrying none). Misses are logged once per
+ * call with counts only (no URL or filename).
  */
 export function restoreOriginalMetadata(
   entries: ProcessedAttachment[],
@@ -153,7 +170,7 @@ export function cdnUrlOf(original: AttachmentMetadata): string {
 export function buildFailureStub(
   original: AttachmentMetadata,
   kind: PreprocessingKind,
-  category: string
+  category: SttFailureReason | (typeof FAILURE_CATEGORY)[keyof typeof FAILURE_CATEGORY] | 'other'
 ): ProcessedAttachment {
   const cdn = cdnUrlOf(original);
   const stub = {
@@ -178,11 +195,28 @@ export function buildFailureStub(
   };
 }
 
+/**
+ * The user-visible entry for a voice attachment whose STT job succeeded but
+ * returned an empty transcript (silence). Metadata comes from the ORIGINAL, so
+ * the voice-message label and duration survive into the rendered header.
+ */
+export function buildEmptyTranscriptStub(original: AttachmentMetadata): ProcessedAttachment {
+  const cdn = cdnUrlOf(original);
+  return {
+    type: AttachmentType.Audio,
+    description: EMPTY_TRANSCRIPT_DESCRIPTION,
+    originalUrl: cdn,
+    metadata: { ...original, url: cdn },
+  };
+}
+
 interface MergeOptions {
   /** Entries rebuilt from child job results, already metadata-restored. */
   jobEntries: ProcessedAttachment[];
   downloads: TriggerAttachmentDownload[];
   audioFailures: AudioFailureInfo[];
+  /** STT jobs that succeeded with an empty transcript. Defaults to none. */
+  audioEmpties?: AudioEmptyInfo[];
   /** Processes `file`-kind attachments that no child job covers. */
   processInline: (attachments: AttachmentMetadata[]) => Promise<ProcessedAttachment[]>;
   jobId: string | undefined;
@@ -192,15 +226,17 @@ interface MergeOptions {
  * One processed entry per original trigger attachment, in original order.
  *
  * Per original, in precedence: a matching job entry; a matching failed STT
- * job; a failed download; inline processing for a `file`; otherwise a
- * "no result" stub. Stubs come only from originals, so an audio failure that
- * matches no original produces nothing. Job entries that match no original are
- * appended after the originals.
+ * job; a matching empty-transcript STT job; a failed download; inline
+ * processing for a `file`; otherwise a "no result" stub. Stubs come only from
+ * originals, so an audio failure or empty transcript that matches no original
+ * produces nothing. Job entries that match no original are appended after the
+ * originals (the caller's metadata join already logged them as unmatched).
  */
 export async function mergeTriggerAttachments(opts: MergeOptions): Promise<ProcessedAttachment[]> {
-  const { jobEntries, downloads, audioFailures, processInline, jobId } = opts;
+  const { jobEntries, downloads, audioFailures, audioEmpties = [], processInline, jobId } = opts;
   const used = new Set<ProcessedAttachment>();
   const usedFailures = new Set<AudioFailureInfo>();
+  const usedEmpties = new Set<AudioEmptyInfo>();
   const slots: (ProcessedAttachment | null)[] = [];
   const queue: { slot: number; original: AttachmentMetadata; downloaded: AttachmentMetadata }[] =
     [];
@@ -222,6 +258,12 @@ export async function mergeTriggerAttachments(opts: MergeOptions): Promise<Proce
       slots.push(buildFailureStub(original, kind, failure.failureReason ?? 'other'));
       return;
     }
+    const empty = audioEmpties.find(e => !usedEmpties.has(e) && e.url === key);
+    if (empty !== undefined) {
+      usedEmpties.add(empty);
+      slots.push(buildEmptyTranscriptStub(original));
+      return;
+    }
     if (downloaded === null) {
       slots.push(buildFailureStub(original, kind, FAILURE_CATEGORY.DOWNLOAD_FAILED));
       return;
@@ -239,12 +281,6 @@ export async function mergeTriggerAttachments(opts: MergeOptions): Promise<Proce
   }
 
   const orphans = jobEntries.filter(e => !used.has(e));
-  if (orphans.length > 0) {
-    logger.warn(
-      { jobId, orphaned: orphans.length },
-      'Trigger job results matched no original attachment; appended after the originals'
-    );
-  }
 
   return [...slots.filter((s): s is ProcessedAttachment => s !== null), ...orphans];
 }
@@ -259,7 +295,7 @@ async function fillInlineSlots(
   let threw = false;
   try {
     const processed = await processInline(queue.map(q => q.downloaded));
-    if (Array.isArray(processed) && processed.length === queue.length) {
+    if (processed.length === queue.length) {
       results = processed;
     }
   } catch (error) {
@@ -278,9 +314,11 @@ async function fillInlineSlots(
     // The CDN URL (or '' when the original itself was a data URL) replaces the
     // downloaded data URL so a multi-megabyte payload never rides into the
     // processed entry or the persisted history.
+    // Metadata comes from the original (not the downloaded copy the inline
+    // result carries), so the render flags match the other merge sources.
     slots[slot] =
       entry === undefined
         ? buildFailureStub(original, 'file', FAILURE_CATEGORY.INLINE_FAILED)
-        : { ...entry, originalUrl: cdn, metadata: { ...entry.metadata, url: cdn } };
+        : { ...entry, originalUrl: cdn, metadata: { ...original, url: cdn } };
   });
 }

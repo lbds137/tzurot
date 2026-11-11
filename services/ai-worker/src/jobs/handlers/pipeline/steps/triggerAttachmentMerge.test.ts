@@ -219,7 +219,26 @@ describe('triggerAttachmentMerge', () => {
       expect(buildAttachmentDescriptions(merged)).toContain('[Voice message:');
     });
 
-    it('appends a job entry that matches no original and logs a counts-only warning', async () => {
+    it('renders an empty-transcript STT success as "No speech detected" with the original flags', async () => {
+      const merged = await mergeTriggerAttachments({
+        jobEntries: [],
+        downloads: [ok(audio)],
+        audioFailures: [],
+        audioEmpties: [{ url: AUDIO_URL }],
+        processInline: noInline,
+        jobId: 'job-1',
+      });
+
+      expect(merged).toHaveLength(1);
+      expect(merged[0].type).toBe(AttachmentType.Audio);
+      expect(merged[0].description).toBe('No speech detected');
+      expect(merged[0].originalUrl).toBe(AUDIO_URL);
+      expect(merged[0].metadata.isVoiceMessage).toBe(true);
+      expect(merged[0].description).not.toContain('failed');
+      expect(buildAttachmentDescriptions(merged)).toContain('[Voice message:');
+    });
+
+    it('appends a job entry that matches no original without a second warning', async () => {
       const orphan = jobEntry(
         AttachmentType.Image,
         'https://cdn.example.com/attachments/9/9/x.png',
@@ -236,10 +255,8 @@ describe('triggerAttachmentMerge', () => {
 
       expect(merged).toHaveLength(2);
       expect(merged[1]).toBe(orphan);
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        { jobId: 'job-1', orphaned: 1 },
-        'Trigger job results matched no original attachment; appended after the originals'
-      );
+      // restoreOriginalMetadata already warns about unmatched entries.
+      expect(mockLogger.warn).not.toHaveBeenCalled();
     });
 
     it('produces nothing for an audio failure that matches no original', async () => {
