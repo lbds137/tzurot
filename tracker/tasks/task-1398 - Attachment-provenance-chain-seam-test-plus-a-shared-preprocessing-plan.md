@@ -1,9 +1,10 @@
 ---
 id: TASK-1398
 title: Attachment-provenance chain seam test plus a shared preprocessing plan
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-10T14:30:00Z'
+updated_date: '2026-11-11T02:02:00Z'
 labels:
   - area:ai-worker
   - size:M

@@ -17,7 +17,7 @@ Source: Fable read-only architecture review, 2026-11-10, at develop 5c6c4c474. C
   - References re-join separately (`AttachmentProcessor.ts` ~276, `ReferencedMessageFormatter.ts` ~179), and so does the stored path (`storedReference.ts` ~141).
   - Produced: 1380, 1381, 1383, 1379, TASK-1395 and TASK-1396.
 - **C2: routing is decided in api-gateway, and ai-worker renderers assume it.**
-  - The gateway decides with `categorizeAttachments` and `audioWorthTranscribing` (`jobChainOrchestrator.ts`).
+  - The gateway decides with `planPreprocessing` (`attachmentPreprocessingPlan.ts`, common-types; phase 1 moved it out of `jobChainOrchestrator.ts`), and the inline path now classifies through the same `classifyForPreprocessing`.
   - The inline path routes differently (`MultimodalProcessor.ts` ~264-304).
   - Produced: 1384's premise error and the unreachable `video/webm` orphan arm.
 - **C3: two classification rules.**
