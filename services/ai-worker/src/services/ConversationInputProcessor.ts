@@ -146,7 +146,10 @@ export class ConversationInputProcessor {
     const visionApiKey = visionAuth?.userApiKey ?? userApiKey;
     const visionProvider = visionAuth?.visionProvider;
     const visionModel = visionAuth?.model;
-    // Use pre-processed attachments from dependency jobs if available
+    // Use pre-processed attachments from dependency jobs if available. When
+    // non-empty, the list holds exactly one entry per trigger attachment in
+    // message order (DependencyStep's merge, whenever the job carries
+    // dependencies), so it is complete on its own.
     let processedAttachments: ProcessedAttachment[] = [];
     if (context.preprocessedAttachments && context.preprocessedAttachments.length > 0) {
       processedAttachments = context.preprocessedAttachments;
@@ -155,7 +158,9 @@ export class ConversationInputProcessor {
         'Using pre-processed attachments from dependency jobs'
       );
     } else if (context.attachments && context.attachments.length > 0) {
-      // Fallback: process attachments inline (shouldn't happen with job chain, but defensive)
+      // A job that carried no dependencies (no trigger attachment needed a child
+      // job, e.g. a lone pdf or plain WebM): DependencyStep leaves it to inline
+      // processing here.
       processedAttachments = await processAttachments(context.attachments, personality, {
         isGuestMode,
         userApiKey: visionApiKey,

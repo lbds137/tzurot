@@ -3,7 +3,9 @@
  *
  * Fetches and processes preprocessing results from dependency jobs
  * (audio transcriptions, image descriptions) from Redis.
- * Also processes extended context image attachments inline.
+ * Also processes extended context image attachments inline. When the job
+ * carries dependencies, the trigger's results are merged per original
+ * attachment (see triggerAttachmentMerge).
  */
 
 import { type AIProvider } from '@tzurot/common-types/constants/ai';
@@ -17,7 +19,18 @@ import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/disc
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ProcessedAttachment } from '../../../../services/MultimodalProcessor.js';
-import type { IPipelineStep, GenerationContext, PreprocessingResults } from '../types.js';
+import type {
+  IPipelineStep,
+  GenerationContext,
+  PreprocessingResults,
+  TriggerAttachmentDownload,
+} from '../types.js';
+import {
+  type AudioFailureInfo,
+  mergeTriggerAttachments,
+  restoreOriginalMetadata,
+  urlBasename,
+} from './triggerAttachmentMerge.js';
 import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
 import type { VisionDescriptionWriter } from '../../../../services/context/visionDescriptionWriter.js';
 import { processCrossProviderVisionImages } from './extendedContextVisionProcessor.js';
@@ -41,69 +54,6 @@ interface ImageInfo {
   url: string;
   description: string;
   sourceReferenceNumber?: number;
-}
-
-/**
- * Put the trigger message's original attachment metadata back on the entries
- * rebuilt from job results.
- *
- * A job result carries only the URL, the name and the description, so the
- * rebuild synthesizes a placeholder content type and drops the provenance flags
- * (spoiler, sticker, link preview, voice message, duration) the render headers
- * key on. The original metadata is in the job context. Correlation is on the
- * context attachment's `originalUrl`, falling back to its `url`: by the time
- * this step runs, `DownloadAttachmentsStep` has already replaced each trigger
- * attachment's `url` with a `data:` URL and moved the Discord CDN URL to
- * `originalUrl`, which is the URL the job result reports. On a match only the
- * metadata is replaced — `type`, `description` and `originalUrl` stay the
- * result's own, and `metadata.url` keeps the result's CDN URL so a
- * multi-megabyte data URL never rides into the processed entry. An entry with
- * no match is returned as-is, and the list keeps its order and length.
- *
- * The joined `metadata.size` is the size `DownloadAttachmentsStep` recorded: the
- * downloaded (post-resize) byte count, or for an attachment that arrived as a
- * data URL, its upstream size or a length-based estimate. It is not Discord's
- * reported size.
- *
- * Every entry that finds no match is a miss, including all of them when the
- * context carries no attachments or none survived the download. Misses are
- * logged once per call with counts only (no URL or filename).
- */
-function restoreOriginalMetadata(
-  entries: ProcessedAttachment[],
-  originals: AttachmentMetadata[] | undefined,
-  jobId: string | undefined
-): ProcessedAttachment[] {
-  if (entries.length === 0) {
-    return entries;
-  }
-  if (originals === undefined || originals.length === 0) {
-    logger.warn(
-      { jobId, unmatched: entries.length, contextCount: 0 },
-      'Provenance join missed context attachments; placeholder metadata kept'
-    );
-    return entries;
-  }
-  let unmatched = 0;
-  const joined = entries.map(entry => {
-    // `originalUrl` is the CDN URL once the download step has run; the plain
-    // `url` is the same CDN URL when nothing rewrote the attachment.
-    const original = originals.find(
-      candidate => (candidate.originalUrl ?? candidate.url) === entry.originalUrl
-    );
-    if (original === undefined) {
-      unmatched += 1;
-      return entry;
-    }
-    return { ...entry, metadata: { ...original, url: entry.metadata.url } };
-  });
-  if (unmatched > 0) {
-    logger.warn(
-      { jobId, unmatched, contextCount: originals.length },
-      'Provenance join missed context attachments; placeholder metadata kept'
-    );
-  }
-  return joined;
 }
 
 export class DependencyStep implements IPipelineStep {
@@ -152,7 +102,6 @@ export class DependencyStep implements IPipelineStep {
     // Build initial preprocessing results from dependency jobs
     let preprocessing: PreprocessingResults = {
       processedAttachments: [],
-      transcriptions: [],
       referenceAttachments: {},
     };
 
@@ -163,21 +112,38 @@ export class DependencyStep implements IPipelineStep {
       );
 
       const { redisService } = await import('../../../../redis.js');
-      const { audioTranscriptions, imageDescriptions } = await this.fetchDependencyResults(
-        dependencies,
-        redisService
-      );
+      const { audioTranscriptions, imageDescriptions, audioFailures } =
+        await this.fetchDependencyResults(dependencies, redisService);
 
       const rebuilt = this.buildPreprocessingResults(audioTranscriptions, imageDescriptions);
+      // The merge runs only when the job carries dependencies; a job with none
+      // leaves the trigger to ConversationInputProcessor's inline branch,
+      // unchanged. DownloadAttachmentsStep did not run (or found nothing) when
+      // the recorded list is absent, so the job's own attachments stand in as
+      // both originals and downloads.
+      const downloads: TriggerAttachmentDownload[] =
+        context.triggerAttachmentDownloads ??
+        (jobContext?.attachments ?? []).map(attachment => ({
+          original: attachment,
+          downloaded: attachment,
+        }));
       // Joined before anything reads the list, so the prompt render and the
       // persisted history copy both see the provenance flags.
+      const joined = restoreOriginalMetadata(
+        rebuilt.processedAttachments,
+        downloads.map(d => d.original),
+        job.id
+      );
       preprocessing = {
         ...rebuilt,
-        processedAttachments: restoreOriginalMetadata(
-          rebuilt.processedAttachments,
-          jobContext?.attachments,
-          job.id
-        ),
+        processedAttachments: await mergeTriggerAttachments({
+          jobEntries: joined,
+          downloads,
+          audioFailures: audioFailures.filter(f => f.sourceReferenceNumber === undefined),
+          processInline: attachments =>
+            this.processTriggerFilesInline(attachments, personality, auth, jobContext.userId),
+          jobId: job.id,
+        }),
       };
     }
 
@@ -259,17 +225,24 @@ export class DependencyStep implements IPipelineStep {
   private async fetchDependencyResults(
     dependencies: { jobId: string; type: string; resultKey?: string }[],
     redisService: { getJobResult: <T>(key: string) => Promise<T | null> }
-  ): Promise<{ audioTranscriptions: AudioInfo[]; imageDescriptions: ImageInfo[] }> {
+  ): Promise<{
+    audioTranscriptions: AudioInfo[];
+    imageDescriptions: ImageInfo[];
+    audioFailures: AudioFailureInfo[];
+  }> {
     const audioTranscriptions: AudioInfo[] = [];
     const imageDescriptions: ImageInfo[] = [];
+    const audioFailures: AudioFailureInfo[] = [];
 
     for (const dep of dependencies) {
       try {
         const key = dep.resultKey?.substring(REDIS_KEY_PREFIXES.JOB_RESULT.length) ?? dep.jobId;
         if (dep.type === (JobType.AudioTranscription as string)) {
           const audio = await this.fetchAudioResult(dep.jobId, key, redisService);
-          if (audio) {
-            audioTranscriptions.push(audio);
+          if (audio?.ok === true) {
+            audioTranscriptions.push(audio.audio);
+          } else if (audio?.ok === false) {
+            audioFailures.push(audio.failure);
           }
         } else if (dep.type === (JobType.ImageDescription as string)) {
           const images = await this.fetchImageResults(dep.jobId, key, redisService);
@@ -283,14 +256,14 @@ export class DependencyStep implements IPipelineStep {
       }
     }
 
-    return { audioTranscriptions, imageDescriptions };
+    return { audioTranscriptions, imageDescriptions, audioFailures };
   }
 
   private async fetchAudioResult(
     jobId: string,
     key: string,
     redisService: { getJobResult: <T>(key: string) => Promise<T | null> }
-  ): Promise<AudioInfo | null> {
+  ): Promise<{ ok: true; audio: AudioInfo } | { ok: false; failure: AudioFailureInfo } | null> {
     const result = await redisService.getJobResult<AudioTranscriptionResult>(key);
     if (result?.success === true && result.content !== undefined && result.content.length > 0) {
       logger.debug(
@@ -298,14 +271,56 @@ export class DependencyStep implements IPipelineStep {
         'Retrieved audio transcription'
       );
       return {
-        url: result.attachmentUrl ?? '',
-        name: result.attachmentName ?? 'audio',
-        content: result.content,
-        sourceReferenceNumber: result.sourceReferenceNumber,
+        ok: true,
+        audio: {
+          url: result.attachmentUrl ?? '',
+          name: result.attachmentName ?? 'audio',
+          content: result.content,
+          sourceReferenceNumber: result.sourceReferenceNumber,
+        },
+      };
+    }
+    if (result?.success === false) {
+      logger.warn(
+        { jobId, key, failureReason: result.failureReason },
+        'Audio transcription job failed'
+      );
+      return {
+        ok: false,
+        failure: {
+          url: result.attachmentUrl ?? '',
+          failureReason: result.failureReason,
+          sourceReferenceNumber: result.sourceReferenceNumber,
+        },
       };
     }
     logger.warn({ jobId, key }, 'Audio transcription job failed or has no result');
     return null;
+  }
+
+  /**
+   * Process `file`-kind trigger attachments inline. Only those reach it (no
+   * vision call), so the main key is correct; it stubs unsupported types and
+   * sniffs a plain WebM for audio exactly as the lone inline path does.
+   */
+  private async processTriggerFilesInline(
+    attachments: AttachmentMetadata[],
+    personality: GenerationContext['job']['data']['personality'],
+    auth: GenerationContext['auth'],
+    userId: string
+  ): Promise<ProcessedAttachment[]> {
+    // Lazy import for the same circular-dependency reason as
+    // processExtendedContextAttachments.
+    const { processAttachments, deriveApiKeySource } =
+      await import('../../../../services/MultimodalProcessor.js');
+    const isGuestMode = auth?.isGuestMode ?? false;
+    const userApiKey = auth?.apiKey;
+    return processAttachments(attachments, personality, {
+      isGuestMode,
+      userApiKey,
+      sttDispatch: auth?.sttDispatch,
+      loggingContext: { userId, apiKeySource: deriveApiKeySource(isGuestMode, userApiKey) },
+    });
   }
 
   private async fetchImageResults(
@@ -500,7 +515,7 @@ export class DependencyStep implements IPipelineStep {
         originalUrl: img.url,
         metadata: {
           url: img.url,
-          name: img.url.split('/').pop() ?? 'image',
+          name: urlBasename(img.url),
           contentType: 'image/unknown',
           size: 0,
         },
@@ -538,9 +553,6 @@ export class DependencyStep implements IPipelineStep {
 
     return {
       processedAttachments: directAttachments,
-      transcriptions: audioTranscriptions
-        .filter(a => a.sourceReferenceNumber === undefined)
-        .map(a => a.content),
       referenceAttachments,
     };
   }

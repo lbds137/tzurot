@@ -171,7 +171,6 @@ describe('DependencyStep', () => {
 
       expect(result.preprocessing).toEqual({
         processedAttachments: [],
-        transcriptions: [],
         referenceAttachments: {},
       });
     });
@@ -186,7 +185,6 @@ describe('DependencyStep', () => {
 
       expect(result.preprocessing).toEqual({
         processedAttachments: [],
-        transcriptions: [],
         referenceAttachments: {},
       });
     });
@@ -223,7 +221,6 @@ describe('DependencyStep', () => {
       expect(result.preprocessing?.processedAttachments[0].description).toBe(
         'Transcribed text here'
       );
-      expect(result.preprocessing?.transcriptions).toContain('Transcribed text here');
     });
 
     it('should process image description dependency', async () => {
@@ -356,7 +353,6 @@ describe('DependencyStep', () => {
       const result = await step.process(context);
 
       expect(result.preprocessing?.processedAttachments).toHaveLength(0);
-      expect(result.preprocessing?.transcriptions).toHaveLength(0);
     });
 
     it('should handle Redis fetch error gracefully', async () => {
@@ -1595,7 +1591,7 @@ describe('DependencyStep', () => {
       }
     });
 
-    it('leaves an entry that matches no context attachment in its rebuilt shape, in order', async () => {
+    it('appends an entry that matches no context attachment after the originals, in its rebuilt shape', async () => {
       const matched = asDownloaded({
         url: SPOILER_URL,
         name: 'secret.png',
@@ -1620,15 +1616,15 @@ describe('DependencyStep', () => {
 
       const entries = result.preprocessing?.processedAttachments ?? [];
       expect(entries).toHaveLength(2);
-      expect(entries[0].description).toBe('An orphan');
-      expect(entries[0].metadata).toEqual({
+      expect(entries[0].description).toBe('A hidden picture');
+      expect(entries[0].metadata).toEqual({ ...matched, url: SPOILER_URL });
+      expect(entries[1].description).toBe('An orphan');
+      expect(entries[1].metadata).toEqual({
         url: 'https://cdn.example.com/attachments/9/9/orphan.png',
         name: 'orphan.png',
         contentType: 'image/unknown',
         size: 0,
       });
-      expect(entries[1].description).toBe('A hidden picture');
-      expect(entries[1].metadata).toEqual({ ...matched, url: SPOILER_URL });
     });
 
     it('leaves entries in their rebuilt shape when the context carries no attachments', async () => {
@@ -1773,6 +1769,156 @@ describe('DependencyStep', () => {
       });
 
       expect(joinMissCalls()).toHaveLength(0);
+    });
+
+    describe('per-original merge', () => {
+      const PDF_URL = 'https://cdn.example.com/attachments/1/7/report.pdf';
+      const spoilerRaw = (): AttachmentMetadata => ({
+        url: SPOILER_URL,
+        originalUrl: SPOILER_URL,
+        name: 'secret.png',
+        contentType: 'image/png',
+        size: 2048,
+        isSpoiler: true,
+      });
+      const pdfRaw = (): AttachmentMetadata => ({
+        url: PDF_URL,
+        originalUrl: PDF_URL,
+        name: 'report.pdf',
+        contentType: 'application/pdf',
+        size: 9000,
+      });
+      const pdfInlineEntry = () => ({
+        type: AttachmentType.File,
+        description: 'Attachment type application/pdf is not supported — content not analyzed',
+        originalUrl: DATA_URL,
+        metadata: asDownloaded(pdfRaw()),
+      });
+
+      it('hands the writer the pdf entry beside the image, with the CDN URL and in order', async () => {
+        mockGetJobResult.mockResolvedValueOnce(
+          imageResult([{ url: SPOILER_URL, description: 'A hidden picture' }])
+        );
+        mockProcessAttachments.mockResolvedValueOnce([pdfInlineEntry()]);
+        const writer = makeWriter();
+        const stepWithWriter = new DependencyStep(undefined, asWriter(writer));
+
+        await stepWithWriter.process({
+          job: createMockJob({
+            context: makeContext([asDownloaded(spoilerRaw()), asDownloaded(pdfRaw())]),
+            dependencies: [imageDependency],
+          }),
+          startTime: Date.now(),
+        });
+
+        expect(mockProcessAttachments.mock.calls[0][0]).toEqual([asDownloaded(pdfRaw())]);
+        const call = writer.persistTriggerDescriptions.mock.calls[0][0];
+        expect(call.processedAttachments.map(a => a.type)).toEqual([
+          AttachmentType.Image,
+          AttachmentType.File,
+        ]);
+        expect(call.processedAttachments[1].originalUrl).toBe(PDF_URL);
+        expect(call.processedAttachments[1].metadata.url).toBe(PDF_URL);
+        expect(call.processedAttachments[1].metadata.url).not.toContain('data:');
+      });
+
+      it('names an orphan image after its path basename, never its signed query string', async () => {
+        const orphanUrl = 'https://cdn.example.com/attachments/9/9/cat.png?ex=1&is=2&hm=3';
+        mockGetJobResult.mockResolvedValueOnce(
+          imageResult([
+            { url: SPOILER_URL, description: 'A hidden picture' },
+            { url: orphanUrl, description: 'A cat' },
+          ])
+        );
+
+        const result = await step.process({
+          job: createMockJob({
+            context: makeContext([asDownloaded(spoilerRaw())]),
+            dependencies: [imageDependency],
+          }),
+          startTime: Date.now(),
+        });
+
+        const entries = result.preprocessing?.processedAttachments ?? [];
+        expect(entries).toHaveLength(2);
+        expect(entries[1].description).toBe('A cat');
+        expect(entries[1].metadata.name).toBe('cat.png');
+        expect(render(result)).not.toContain('?ex=');
+      });
+
+      it('renders the pdf entry in the prompt text', async () => {
+        mockGetJobResult.mockResolvedValueOnce(
+          imageResult([{ url: SPOILER_URL, description: 'A hidden picture' }])
+        );
+        mockProcessAttachments.mockResolvedValueOnce([pdfInlineEntry()]);
+
+        const result = await step.process({
+          job: createMockJob({
+            context: makeContext([asDownloaded(spoilerRaw()), asDownloaded(pdfRaw())]),
+            dependencies: [imageDependency],
+          }),
+          startTime: Date.now(),
+        });
+
+        expect(render(result)).toContain('[File: report.pdf]');
+      });
+
+      it('keeps a voice message whose download failed, through the real DownloadAttachmentsStep', async () => {
+        mockDownloadImageToDataUrl.mockImplementation((url: string) =>
+          url === VOICE_URL
+            ? Promise.reject(new Error('cdn gone'))
+            : Promise.resolve({ dataUrl: DATA_URL, bytes: 4 })
+        );
+        mockGetJobResult.mockResolvedValueOnce(
+          imageResult([{ url: SPOILER_URL, description: 'A hidden picture' }])
+        );
+        mockGetJobResult.mockResolvedValueOnce(audioOf(VOICE_URL, 'voice-message.ogg', 'hi there'));
+        const voice = makeRawTriggerAttachments()[3];
+        const job = createMockJob({
+          context: makeContext([voice, spoilerRaw()]),
+          dependencies: [imageDependency, voiceDependency],
+        });
+        job.timestamp = Date.now();
+
+        const downloaded = await new DownloadAttachmentsStep(0).process({
+          job,
+          startTime: Date.now(),
+        });
+        const result = await step.process(downloaded);
+
+        const rendered = render(result);
+        expect(rendered).toContain('[Voice message: 5.2s]');
+        expect(rendered).toContain('hi there');
+        const entries = result.preprocessing?.processedAttachments ?? [];
+        expect(entries[0].metadata.name).toBe('voice-message.ogg');
+        expect(entries[0].metadata.isVoiceMessage).toBe(true);
+      });
+
+      it('renders a failed STT job with its failure reason beside a succeeded image', async () => {
+        mockGetJobResult.mockResolvedValueOnce(
+          imageResult([{ url: SPOILER_URL, description: 'A hidden picture' }])
+        );
+        mockGetJobResult.mockResolvedValueOnce({
+          requestId: 'test-req',
+          success: false,
+          failureReason: 'too_long',
+          attachmentUrl: VOICE_URL,
+          attachmentName: 'voice-message.ogg',
+        } satisfies AudioTranscriptionResult);
+        const voice = makeRawTriggerAttachments()[3];
+
+        const result = await step.process({
+          job: createMockJob({
+            context: makeContext([asDownloaded(voice), asDownloaded(spoilerRaw())]),
+            dependencies: [imageDependency, voiceDependency],
+          }),
+          startTime: Date.now(),
+        });
+
+        const rendered = render(result);
+        expect(rendered).toContain('[Voice message: 5.2s]');
+        expect(rendered).toContain('Audio transcription failed (too_long)');
+      });
     });
   });
 });

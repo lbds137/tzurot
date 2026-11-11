@@ -21,7 +21,9 @@
  * 3. Fetch bytes with a per-attachment timeout and size cap.
  * 4. Resize large images (≥ MAX_IMAGE_SIZE) in-memory.
  * 5. Rewrite `attachment.url` to a `data:` URL; preserve original CDN URL as
- *    `originalUrl` for VisionDescriptionCache cache keys.
+ *    `originalUrl` for VisionDescriptionCache cache keys. The trigger
+ *    attachments and their outcomes (failures included) are also recorded on
+ *    the pipeline context as `triggerAttachmentDownloads`.
  *
  * Failure behavior: per-attachment failures are logged with structured fields
  * and aggregated. The step throws ONLY when all attachments fail AND the
@@ -223,25 +225,42 @@ export class DownloadAttachmentsStep implements IPipelineStep {
       job.data.context.extendedContextAttachments = extendedResult.successes;
     }
 
-    return context;
+    // The job payload keeps successes only (its readers expect downloaded
+    // bytes), while the pipeline context keeps every original so DependencyStep
+    // can account for a failed download.
+    return {
+      ...context,
+      triggerAttachmentDownloads: triggerAttachments.map((original, i) => ({
+        original,
+        downloaded: triggerResult.downloads[i] ?? null,
+      })),
+    };
   }
 
   private async downloadAll(
     attachments: AttachmentMetadata[],
     label: 'trigger' | 'extended',
     jobId: string | undefined
-  ): Promise<{ successes: AttachmentMetadata[]; failures: string[] }> {
+  ): Promise<{
+    successes: AttachmentMetadata[];
+    failures: string[];
+    /** Index-aligned with the input: the downloaded copy, or null when it failed. */
+    downloads: (AttachmentMetadata | null)[];
+  }> {
     const results = await Promise.allSettled(
       attachments.map(attachment => this.downloadOne(attachment, jobId))
     );
 
     const failures: string[] = [];
     const successes: AttachmentMetadata[] = [];
+    const downloads: (AttachmentMetadata | null)[] = [];
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
       if (result.status === 'fulfilled') {
         successes.push(result.value);
+        downloads.push(result.value);
       } else {
+        downloads.push(null);
         const message =
           result.reason instanceof Error ? result.reason.message : String(result.reason);
         // Prefix with the array label so the eventual aggregated error tells
@@ -251,7 +270,7 @@ export class DownloadAttachmentsStep implements IPipelineStep {
       }
     }
 
-    return { successes, failures };
+    return { successes, failures, downloads };
   }
 
   private async downloadOne(

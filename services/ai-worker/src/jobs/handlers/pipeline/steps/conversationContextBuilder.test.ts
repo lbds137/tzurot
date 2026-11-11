@@ -81,7 +81,6 @@ describe('buildConversationContext', () => {
           metadata: { url: 'https://example.com/image.png', contentType: 'image/png' },
         },
       ],
-      transcriptions: [],
       referenceAttachments: {},
     };
 
@@ -96,7 +95,6 @@ describe('buildConversationContext', () => {
     const prepared = createMinimalPreparedContext();
     const preprocessing: PreprocessingResults = {
       processedAttachments: [],
-      transcriptions: [],
       referenceAttachments: {},
     };
 
