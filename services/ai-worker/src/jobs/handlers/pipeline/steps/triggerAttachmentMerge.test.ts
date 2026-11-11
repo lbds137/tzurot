@@ -254,6 +254,80 @@ describe('triggerAttachmentMerge', () => {
       expect(merged).toEqual([]);
     });
 
+    it('consumes each audio failure once, so a second original with no failure gets the no-result stub', async () => {
+      const secondAudio: AttachmentMetadata = {
+        ...audio,
+        url: 'https://cdn.example.com/attachments/1/9/second.ogg',
+        name: 'second.ogg',
+      };
+
+      const merged = await mergeTriggerAttachments({
+        jobEntries: [],
+        downloads: [ok(audio), ok(secondAudio)],
+        audioFailures: [{ url: AUDIO_URL, failureReason: 'too_long' }],
+        processInline: noInline,
+        jobId: 'job-1',
+      });
+
+      expect(merged[0].description).toBe('Audio transcription failed (too_long)');
+      expect(merged[1].description).toBe('Audio transcription failed (no result returned)');
+      expect(merged[1].originalUrl).toBe(secondAudio.url);
+    });
+
+    it('consumes a failure for only one of two originals that share its URL', async () => {
+      const merged = await mergeTriggerAttachments({
+        jobEntries: [],
+        downloads: [ok(audio), ok({ ...audio })],
+        audioFailures: [{ url: AUDIO_URL, failureReason: 'too_long' }],
+        processInline: noInline,
+        jobId: 'job-1',
+      });
+
+      expect(merged[0].description).toBe('Audio transcription failed (too_long)');
+      expect(merged[1].description).toBe('Audio transcription failed (no result returned)');
+    });
+
+    it('never copies a data-URL original into a no-result stub', async () => {
+      const dataPhoto: AttachmentMetadata = { ...photo, url: DATA_URL };
+
+      const merged = await mergeTriggerAttachments({
+        jobEntries: [],
+        downloads: [{ original: dataPhoto, downloaded: dataPhoto }],
+        audioFailures: [],
+        processInline: noInline,
+        jobId: 'job-1',
+      });
+
+      expect(merged[0].description).toBe('Image processing failed (no result returned)');
+      expect(merged[0].originalUrl).toBe('');
+      expect(merged[0].metadata.url).toBe('');
+      expect(JSON.stringify(merged[0])).not.toContain('data:');
+    });
+
+    it('never copies a data-URL original into an inline file entry', async () => {
+      const dataPdf: AttachmentMetadata = { ...pdf, url: DATA_URL };
+      noInline.mockResolvedValueOnce([
+        {
+          type: AttachmentType.File,
+          description: 'not supported',
+          originalUrl: DATA_URL,
+          metadata: { ...dataPdf },
+        },
+      ]);
+
+      const merged = await mergeTriggerAttachments({
+        jobEntries: [],
+        downloads: [{ original: dataPdf, downloaded: dataPdf }],
+        audioFailures: [],
+        processInline: noInline,
+        jobId: 'job-1',
+      });
+
+      expect(merged[0].originalUrl).toBe('');
+      expect(merged[0].metadata.url).toBe('');
+      expect(JSON.stringify(merged[0])).not.toContain('data:');
+    });
+
     it('stubs the file slots when inline processing throws', async () => {
       noInline.mockRejectedValueOnce(new Error('boom'));
 
@@ -301,6 +375,10 @@ describe('triggerAttachmentMerge', () => {
 
     it('falls back to the plain split for a string that is not a URL', () => {
       expect(urlBasename('not a url/dog.png')).toBe('dog.png');
+    });
+
+    it('returns "image" for a data URL instead of its payload', () => {
+      expect(urlBasename('data:image/png;base64,AAAA')).toBe('image');
     });
 
     it('falls back to "image" when nothing is left', () => {
