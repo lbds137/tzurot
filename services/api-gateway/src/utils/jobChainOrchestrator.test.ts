@@ -33,12 +33,10 @@ const mockLogger = vi.hoisted(() => ({
   warn: vi.fn(),
   error: vi.fn(),
 }));
-vi.mock('@tzurot/common-types/utils/logger', async () => {
-  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
-    '@tzurot/common-types/utils/logger'
-  );
-  return { ...actual, createLogger: () => mockLogger };
-});
+// The module's only export is createLogger, so nothing remains to pass through.
+vi.mock('@tzurot/common-types/utils/logger', () => ({
+  createLogger: () => mockLogger,
+}));
 
 vi.mock('../queue.js', () => ({
   flowProducer: {

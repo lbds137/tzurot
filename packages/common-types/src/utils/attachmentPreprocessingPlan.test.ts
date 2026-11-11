@@ -42,7 +42,7 @@ describe('planPreprocessing', () => {
   const pdf = att({ name: 'report.pdf', contentType: 'application/pdf' });
 
   it('buckets trigger attachments, keeping non-voice audio when no referenceNumber is set', () => {
-    expect(planPreprocessing([voice, mp3, png, pdf], {})).toEqual({
+    expect(planPreprocessing([voice, mp3, png, pdf])).toEqual({
       audio: [voice, mp3],
       images: [png],
       files: [pdf],
@@ -64,7 +64,7 @@ describe('planPreprocessing', () => {
   });
 
   it('returns empty buckets for no attachments', () => {
-    expect(planPreprocessing([], {})).toEqual({
+    expect(planPreprocessing([])).toEqual({
       audio: [],
       images: [],
       files: [],

@@ -37,6 +37,10 @@ export function classifyForPreprocessing(attachment: AttachmentMetadata): Prepro
 export interface PreprocessingPlan {
   audio: AttachmentMetadata[];
   images: AttachmentMetadata[];
+  /**
+   * Everything that is neither audio nor image. No consumer reads it yet; it is
+   * the bucket the job-less-attachment fix (TASK-1395) is expected to consume.
+   */
   files: AttachmentMetadata[];
   /** Non-voice audio dropped from `audio` because it sits on a referenced message. */
   skippedNonVoiceReferenceAudio: number;
@@ -63,7 +67,7 @@ export interface PreprocessingPlan {
  */
 export function planPreprocessing(
   attachments: AttachmentMetadata[],
-  opts: { referenceNumber?: number }
+  opts: { referenceNumber?: number } = {}
 ): PreprocessingPlan {
   const plan: PreprocessingPlan = {
     audio: [],
