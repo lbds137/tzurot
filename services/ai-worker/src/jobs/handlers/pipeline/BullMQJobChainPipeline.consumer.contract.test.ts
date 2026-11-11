@@ -20,6 +20,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { Job } from 'bullmq';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import {
   llmGenerationJobDataSchema,
@@ -51,7 +52,11 @@ interface FixtureFlow {
   data: unknown;
   children?: {
     name: string;
-    data: { sourceReferenceNumber?: number; attachment?: { url: string; name?: string } };
+    data: {
+      sourceReferenceNumber?: number;
+      attachment?: { url: string; name?: string };
+      attachments?: { url: string; name?: string }[];
+    };
     opts?: { jobId?: string };
   }[];
 }
@@ -123,18 +128,24 @@ describe('BullMQ job-chain contract — consumer pipeline over PGLite', () => {
       // namespace prefix (redisService re-adds it) — mirror via the shared
       // constant so a prefix rename shows up here as a compile-time reference.
       const storeKey = (dep.resultKey ?? '').substring(REDIS_KEY_PREFIXES.JOB_RESULT.length);
+      // Results carry the attachment the producer queued, so the consumer's
+      // per-original merge joins them.
       if (dep.type === 'image-description') {
+        const queued = child?.data.attachments ?? [];
         jobResults.set(storeKey, {
           success: true,
-          descriptions: [{ url: 'https://cdn.example/some-photo.png', description: 'a photo' }],
+          descriptions:
+            queued.length > 0
+              ? queued.map(a => ({ url: a.url, description: 'a photo' }))
+              : [{ url: 'https://cdn.example/some-photo.png', description: 'a photo' }],
           sourceReferenceNumber,
         });
       } else {
         jobResults.set(storeKey, {
           success: true,
           content: 'a transcript',
-          attachmentUrl: 'https://cdn.example/some-voice.ogg',
-          attachmentName: 'some-voice.ogg',
+          attachmentUrl: child?.data.attachment?.url ?? 'https://cdn.example/some-voice.ogg',
+          attachmentName: child?.data.attachment?.name ?? 'some-voice.ogg',
           sourceReferenceNumber,
         });
       }
@@ -188,11 +199,15 @@ describe('BullMQ job-chain contract — consumer pipeline over PGLite', () => {
     const ctx = await runFrontPipeline(data);
 
     // Direct results (no sourceReferenceNumber) route to processedAttachments
-    // + transcriptions — never to a reference bucket. The most common
-    // attachment path, distinct from the referenced-message path above.
+    // (the audio entry carries the transcript) — never to a reference bucket.
+    // The most common attachment path, distinct from the referenced-message
+    // path above.
     expect(ctx.preprocessing?.processedAttachments).toHaveLength(2);
     expect(ctx.preprocessing?.referenceAttachments).toEqual({});
-    expect(ctx.preprocessing?.transcriptions).toEqual(['a transcript']);
+    expect(
+      ctx.preprocessing?.processedAttachments.find(a => a.type === AttachmentType.Audio)
+        ?.description
+    ).toBe('a transcript');
     expect(ctx.preparedContext).toBeDefined();
   });
 });

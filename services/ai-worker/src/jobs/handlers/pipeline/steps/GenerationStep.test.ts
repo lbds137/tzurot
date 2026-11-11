@@ -882,7 +882,6 @@ describe('GenerationStep', () => {
               },
             },
           ],
-          transcriptions: [],
           referenceAttachments: {},
         },
       };

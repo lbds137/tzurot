@@ -11,6 +11,7 @@ import type { AIProvider } from '@tzurot/common-types/constants/ai';
 import type { ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
 import type { AudioProviderId } from '@tzurot/common-types/types/audio-provider';
 import type { LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
+import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import type {
   CrossChannelHistoryGroupEntry,
@@ -170,14 +171,20 @@ export interface ResolvedAuth {
   inheritedQuotaCategory?: QuotaFallbackCategory;
 }
 
+/** One trigger attachment as DownloadAttachmentsStep received it, with its download outcome. */
+export interface TriggerAttachmentDownload {
+  /** The attachment before download: `url` is still the CDN URL. */
+  original: AttachmentMetadata;
+  /** The downloaded copy (`url` is a data URL, CDN URL in `originalUrl`), or null when its download failed. */
+  downloaded: AttachmentMetadata | null;
+}
+
 /**
  * Preprocessing results from dependency jobs
  */
 export interface PreprocessingResults {
   /** Processed attachments from direct message */
   processedAttachments: ProcessedAttachment[];
-  /** Audio transcriptions (direct only, for backward compat) */
-  transcriptions: string[];
   /** Attachments from referenced messages, keyed by reference number */
   referenceAttachments: Record<number, ProcessedAttachment[]>;
   /** Processed attachments from extended context (inline processing) */
@@ -255,6 +262,17 @@ export interface GenerationContext {
    * layer READS it (pre-hop checks) and threads it into attempts. Undefined only
    * before GenerationStep runs (tests/legacy). */
   llmDeadline?: number;
+
+  /**
+   * The trigger message's attachments in message order, as DownloadAttachmentsStep
+   * received them after the sticker gate, each with its download outcome. Set by
+   * DownloadAttachmentsStep; read by DependencyStep, which renders exactly one
+   * entry per original. Worker-internal pipeline state, deliberately not on the
+   * job payload. Undefined when DownloadAttachmentsStep did not run (a test that
+   * starts mid-pipeline) or found no attachments: DependencyStep then treats
+   * `job.data.context.attachments` as both the originals and their downloads.
+   */
+  triggerAttachmentDownloads?: TriggerAttachmentDownload[];
 
   /** Preprocessing results from dependency jobs (set by DependencyStep) */
   preprocessing?: PreprocessingResults;

@@ -38,8 +38,11 @@ export interface PreprocessingPlan {
   audio: AttachmentMetadata[];
   images: AttachmentMetadata[];
   /**
-   * Everything that is neither audio nor image. No consumer reads it yet; it is
-   * the bucket the job-less-attachment fix (TASK-1395) is expected to consume.
+   * Everything that is neither audio nor image. Nothing consumes it: the gateway
+   * queues no job for it, and ai-worker re-derives job-less-ness per attachment
+   * with `classifyForPreprocessing` (DependencyStep's per-original merge
+   * processes `file` attachments inline). Kept so the plan partitions every
+   * attachment.
    */
   files: AttachmentMetadata[];
   /** Non-voice audio dropped from `audio` because it sits on a referenced message. */

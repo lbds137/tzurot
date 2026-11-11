@@ -311,14 +311,9 @@ type Assertion = 'visible' | 'vocabulary' | 'enrichment';
 const KNOWN_RED: Partial<
   Record<`${RowKey}|${Column}|${Exclude<Assertion, 'vocabulary'>}`, string>
 > = {
-  // A job-less attachment vanishes beside any preprocessed sibling: the
-  // preprocessed branch in ConversationInputProcessor is all-or-nothing.
-  'pdf|trigger-job|visible': 'TASK-1395',
-  'audio-only-webm|trigger-job|visible': 'TASK-1395',
   // The deduped stub names a plain audio-only WebM as a <file> where the live quote renders shared-file voice.
   'audio-only-webm|deduped-reference|visible': 'TASK-1401',
-  // The same defects drop the transcript along with the attachment.
-  'audio-only-webm|trigger-job|enrichment': 'TASK-1395',
+  // The same defect drops the transcript along with the attachment.
   'audio-only-webm|deduped-reference|enrichment': 'TASK-1401',
 };
 
@@ -644,6 +639,39 @@ describe('attachment-provenance chain seam', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  describe('failed child job', () => {
+    it('names a voice message whose STT job failed, beside its succeeded sibling', async () => {
+      const voice = ROWS.find(row => row.key === 'voice')!.attachment;
+      const message = [voice, SIBLING];
+      const results = new Map<string, unknown>();
+      mocks.getJobResult.mockImplementation((key: string) =>
+        Promise.resolve(results.get(key) ?? null)
+      );
+      const dependencies = simulateChildJobs(message, results);
+      const audioJob = dependencies.find(d => d.type === JobType.AudioTranscription)!;
+      results.set(`${USER_ID}:${audioJob.jobId}`, {
+        requestId: 'req-audio-0',
+        success: false,
+        failureReason: 'too_long',
+        attachmentUrl: voice.url,
+        attachmentName: voice.name,
+      } satisfies AudioTranscriptionResult);
+
+      const { inputs } = await runTurn({
+        triggerAttachments: message.map(downloaded),
+        dependencies,
+        history: [],
+      });
+      const text = renderTrigger(inputs);
+
+      expect(text).toContain(siblingMarker('trigger-job'));
+      expect(text).toContain(visionOf(SIBLING));
+      expect(text).toContain('[Voice message: 5.2s]');
+      expect(text).toContain('Audio transcription failed (too_long)');
+      expect(unexplainedVocabulary(text)).toEqual([]);
+    });
   });
 
   describe.each(ROWS)('$key', row => {

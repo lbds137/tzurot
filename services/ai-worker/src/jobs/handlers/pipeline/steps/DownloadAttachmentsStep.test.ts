@@ -356,6 +356,37 @@ describe('DownloadAttachmentsStep', () => {
     expect(job.data.context!.attachments![0].name).toBe('good.png');
   });
 
+  it('records every trigger original with its outcome on the context, while the job keeps successes only', async () => {
+    fetchAttachmentBytesMock.mockImplementation(async (url: string) => {
+      if (url.includes('good.png')) return Buffer.from('ok');
+      throw new Error('ECONNRESET');
+    });
+    const bad = {
+      url: 'https://cdn.discordapp.com/bad.png',
+      contentType: 'image/png',
+      name: 'bad.png',
+    };
+    const good = {
+      url: 'https://cdn.discordapp.com/good.png',
+      contentType: 'image/png',
+      name: 'good.png',
+    };
+    const job = createJob([bad, good]);
+
+    const result = await step.process(createContext(job));
+
+    expect(result.triggerAttachmentDownloads).toHaveLength(2);
+    expect(result.triggerAttachmentDownloads![0]).toEqual({ original: bad, downloaded: null });
+    expect(result.triggerAttachmentDownloads![1].original).toEqual(good);
+    expect(result.triggerAttachmentDownloads![1].downloaded).toMatchObject({
+      name: 'good.png',
+      originalUrl: good.url,
+      url: expect.stringContaining('data:'),
+    });
+    expect(job.data.context!.attachments).toHaveLength(1);
+    expect(job.data.context!.attachments![0].name).toBe('good.png');
+  });
+
   it('logs failures from both groups when each group has a failure (cross-group aggregation)', async () => {
     // Pins the outer Promise.all + downloadAll-never-throws contract: when
     // both trigger AND extended groups have failures, both are logged rather
