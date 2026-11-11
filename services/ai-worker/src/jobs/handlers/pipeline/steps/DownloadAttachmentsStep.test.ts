@@ -372,12 +372,16 @@ describe('DownloadAttachmentsStep', () => {
       name: 'good.png',
     };
     const job = createJob([bad, good]);
+    const inputGood = job.data.context!.attachments![1];
 
     const result = await step.process(createContext(job));
 
     expect(result.triggerAttachmentDownloads).toHaveLength(2);
     expect(result.triggerAttachmentDownloads![0]).toEqual({ original: bad, downloaded: null });
     expect(result.triggerAttachmentDownloads![1].original).toEqual(good);
+    // The recorded original is the untouched input object, not a rewritten copy.
+    expect(result.triggerAttachmentDownloads![1].original).toBe(inputGood);
+    expect(inputGood.url).toBe('https://cdn.discordapp.com/good.png');
     expect(result.triggerAttachmentDownloads![1].downloaded).toMatchObject({
       name: 'good.png',
       originalUrl: good.url,

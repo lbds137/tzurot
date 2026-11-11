@@ -20,6 +20,7 @@ import {
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ProcessedAttachment } from '../../../../services/MultimodalProcessor.js';
 import type { TriggerAttachmentDownload } from '../types.js';
+import { isDataUrl } from '../../../../utils/attachmentFetch.js';
 
 // Keeps the log attribution of the moved provenance warning under DependencyStep.
 const logger = createLogger('DependencyStep');
@@ -50,6 +51,10 @@ export interface AudioFailureInfo {
  * split on `/` when the string is not a parseable URL, then to `'image'`.
  */
 export function urlBasename(url: string): string {
+  // A data URL has no filename; its "path" is the payload.
+  if (isDataUrl(url)) {
+    return 'image';
+  }
   try {
     const segment = new URL(url).pathname.split('/').pop();
     if (segment !== undefined && segment.length > 0) {
@@ -126,6 +131,17 @@ export function restoreOriginalMetadata(
 }
 
 /**
+ * The Discord CDN URL an original attachment is recorded under in a stub or an
+ * inline entry. An original that already arrived as a `data:` URL (passed
+ * through by `DownloadAttachmentsStep`) has no CDN URL, so this returns `''`
+ * rather than letting a multi-megabyte payload reach the persisted history.
+ */
+export function cdnUrlOf(original: AttachmentMetadata): string {
+  const url = original.originalUrl ?? original.url;
+  return isDataUrl(url) ? '' : url;
+}
+
+/**
  * The user-visible notice for a trigger attachment that could not be processed.
  *
  * Wording mirrors MultimodalProcessor's retry-failure fallback minus the attempt
@@ -139,7 +155,7 @@ export function buildFailureStub(
   kind: PreprocessingKind,
   category: string
 ): ProcessedAttachment {
-  const cdn = original.originalUrl ?? original.url;
+  const cdn = cdnUrlOf(original);
   const stub = {
     image: {
       type: AttachmentType.Image,
@@ -184,6 +200,7 @@ interface MergeOptions {
 export async function mergeTriggerAttachments(opts: MergeOptions): Promise<ProcessedAttachment[]> {
   const { jobEntries, downloads, audioFailures, processInline, jobId } = opts;
   const used = new Set<ProcessedAttachment>();
+  const usedFailures = new Set<AudioFailureInfo>();
   const slots: (ProcessedAttachment | null)[] = [];
   const queue: { slot: number; original: AttachmentMetadata; downloaded: AttachmentMetadata }[] =
     [];
@@ -199,8 +216,9 @@ export async function mergeTriggerAttachments(opts: MergeOptions): Promise<Proce
       slots.push(entry);
       return;
     }
-    const failure = audioFailures.find(f => f.url === key);
+    const failure = audioFailures.find(f => !usedFailures.has(f) && f.url === key);
     if (failure !== undefined) {
+      usedFailures.add(failure);
       slots.push(buildFailureStub(original, kind, failure.failureReason ?? 'other'));
       return;
     }
@@ -255,10 +273,11 @@ async function fillInlineSlots(
     logger.warn({ jobId, count: queue.length }, 'Inline processing of trigger files failed');
   }
   queue.forEach(({ slot, original }, i) => {
-    const cdn = original.originalUrl ?? original.url;
+    const cdn = cdnUrlOf(original);
     const entry = results?.[i];
-    // The CDN URL replaces the data URL so a multi-megabyte payload never rides
-    // into the processed entry or the persisted history.
+    // The CDN URL (or '' when the original itself was a data URL) replaces the
+    // downloaded data URL so a multi-megabyte payload never rides into the
+    // processed entry or the persisted history.
     slots[slot] =
       entry === undefined
         ? buildFailureStub(original, 'file', FAILURE_CATEGORY.INLINE_FAILED)
