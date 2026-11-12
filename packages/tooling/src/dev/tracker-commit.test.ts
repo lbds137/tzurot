@@ -750,7 +750,9 @@ describe('default runner (no injected runGit)', () => {
   });
 });
 
-describe('trackerCommit — real git repository', () => {
+// Real git operations run per test and take ~8-10s each under suite load, so
+// this suite pins 20s per test instead of the 5s default.
+describe('trackerCommit — real git repository', { timeout: 20_000 }, () => {
   let realExecFileSync: typeof execFileSync;
   let tmpRoot: string;
   let originDir: string;
