@@ -381,6 +381,30 @@ describe('DiagnosticRecorders', () => {
       expect(call.cacheDiscount).toBeUndefined();
     });
 
+    it('records cachedWriteTokens from input_token_details.cache_creation beside the read counter', () => {
+      const mockCollector = { recordLlmResponse: vi.fn() };
+      const metadata: ParsedResponseMetadata = {
+        usageMetadata: {
+          input_tokens: 6426,
+          output_tokens: 1,
+          input_token_details: { cache_read: 5154, cache_creation: 1272 },
+        },
+        responseMetadata: { finish_reason: 'stop' },
+      };
+
+      recordLlmResponseDiagnostic({
+        collector: mockCollector as never,
+        rawContent: 'response',
+        modelName: 'model',
+        metadata,
+        routedModel: undefined,
+      });
+
+      const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
+      expect(call.cachedPromptTokens).toBe(5154);
+      expect(call.cachedWriteTokens).toBe(1272);
+    });
+
     it('should record the routedModel it was given, alongside the requested model', () => {
       // modelUsed is what we ASKED for; routedModel is threaded in from the
       // caller (readRoutedModel over the raw response), NOT recomputed from

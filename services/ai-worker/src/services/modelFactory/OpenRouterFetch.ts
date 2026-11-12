@@ -2,7 +2,8 @@
  * OpenRouter custom fetch wrapper.
  *
  * Two responsibilities:
- * 1. REQUEST: Inject OpenRouter-specific params (transforms, route, verbosity)
+ * 1. REQUEST: Inject OpenRouter-specific params (transforms, route, verbosity,
+ *    cache_control)
  *    that aren't first-class options on LangChain's ChatOpenAI but are part of
  *    OpenRouter's request body schema.
  * 2. RESPONSE: Best-effort recovery of usable content from 400-class JSON
@@ -39,7 +40,28 @@ export interface OpenRouterExtraParams {
   transforms?: string[];
   route?: 'fallback';
   verbosity?: 'low' | 'medium' | 'high';
+  /** Top-level automatic prompt-caching directive (anthropic-family ids only). */
+  cacheControl?: { type: 'ephemeral'; ttl: '1h' };
 }
+
+/**
+ * Top-level prompt-caching directive for OpenRouter's automatic prompt caching.
+ *
+ * Injected as the request ROOT's `cache_control` (sibling of `model`) — the
+ * automatic-caching form, not Anthropic's per-message breakpoints. The TTL
+ * lives here, not at the injection site. OpenRouter's docs scope automatic
+ * caching to Anthropic/Vertex/Azure/Bedrock providers, so the caller gates on
+ * the `anthropic/` model-id prefix (ModelFactory.buildOpenRouterModel); the
+ * 1h tier prices cache writes at 2x and reads at 0.1x standard input.
+ * Doc-sourced — runtime confirmation is the first cached call's write-side
+ * token count in the logs.
+ */
+export const OPENROUTER_PROMPT_CACHE_CONTROL = {
+  /** Anthropic-style ephemeral cache entry. */
+  type: 'ephemeral',
+  /** Cache entry lifetime — selects the 1-hour pricing tier. */
+  ttl: '1h',
+} as const;
 
 /**
  * Inject OpenRouter-specific parameters into the request body.
@@ -62,6 +84,9 @@ function injectOpenRouterParams(
     if (extraParams.verbosity !== undefined) {
       body.verbosity = extraParams.verbosity;
     }
+    if (extraParams.cacheControl !== undefined) {
+      body.cache_control = extraParams.cacheControl;
+    }
 
     const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.href : '[Request]';
     logger.info(
@@ -77,7 +102,8 @@ function injectOpenRouterParams(
     // Body isn't a JSON-parseable string. LangChain's ChatOpenAI always passes
     // a string body today, so this should never fire — but if a future LangChain
     // version uses Uint8Array / ReadableStream / etc., we'd silently skip
-    // OpenRouter param injection (transforms/route/verbosity) without this debug
+    // OpenRouter param injection (transforms/route/verbosity/cache_control)
+    // without this debug
     // breadcrumb. Logged at debug rather than warn because the fallback (passing
     // body through unchanged) is correct; this is purely an observability hook.
     logger.debug(

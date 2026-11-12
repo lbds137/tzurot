@@ -478,6 +478,29 @@ describe('buildCacheObservability', () => {
     expect(fields).not.toHaveProperty('history');
   });
 
+  it('carries cachedWriteTokens onto the log line beside cachedPromptTokens, with no write-side ratio', () => {
+    const info = vi.fn();
+    const logger = { info } as unknown as Logger;
+    const args = inputs({ cacheReadTokens: 300, cacheWriteTokens: 1200, inputTokens: 1500 });
+
+    logGeneratedResponse(logger, {
+      charCount: 42,
+      personalityName: 'Ada',
+      modelName: 'test-model',
+      exclamationsPer1kChars: 12.34,
+      completionTokens: 57,
+      ...args,
+    });
+
+    const [fields] = info.mock.calls[0] as [Record<string, unknown>, string];
+    expect(fields).toMatchObject({
+      cachedPromptTokens: 300,
+      cachedWriteTokens: 1200,
+    });
+    // Writes carry no derived ratio — the raw count is the observable.
+    expect(fields).not.toHaveProperty('cacheWriteRatio');
+  });
+
   it('carries no prompt text in any emitted field', () => {
     const fields = buildCacheObservability(inputs({ cacheReadTokens: 10, inputTokens: 100 }));
 

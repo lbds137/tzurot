@@ -306,6 +306,13 @@ export interface DiagnosticLlmResponse {
    * reported no cache activity; 0 = a real report of a cold prefix.
    */
   cachedPromptTokens?: number;
+  /**
+   * Input tokens spent WRITING to the provider's prefix cache on this call
+   * (`usage.prompt_tokens_details.cache_write_tokens`, via LangChain's
+   * `usage_metadata.input_token_details.cache_creation`). Undefined = the
+   * provider reported no cache write on this call.
+   */
+  cachedWriteTokens?: number;
   /** OpenRouter's `usage.cache_discount` billing adjustment (negative = savings) */
   cacheDiscount?: number;
   /**

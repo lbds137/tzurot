@@ -111,9 +111,18 @@ export interface LlmResponseData {
    * (`usage.prompt_tokens_details.cached_tokens`, via LangChain's
    * `usage_metadata.input_token_details.cache_read`). Undefined when the
    * provider reported no cache activity; 0 is a real report of a cold prefix.
-   * This is the epic's primary caching measurement.
+   * This is the epic's primary caching measurement. The write-side mirror is
+   * `cachedWriteTokens` below.
    */
   cachedPromptTokens?: number;
+  /**
+   * Input tokens spent WRITING to the provider's prefix cache on this call
+   * (`usage.prompt_tokens_details.cache_write_tokens`, via LangChain's
+   * `usage_metadata.input_token_details.cache_creation`). Populated on the
+   * call that fills or refreshes the cache; undefined when the provider
+   * reported no write.
+   */
+  cachedWriteTokens?: number;
   /**
    * OpenRouter's `usage.cache_discount` billing adjustment (negative =
    * cache-read savings). OpenRouter-only; z.ai reports cache activity via
