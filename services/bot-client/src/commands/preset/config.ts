@@ -48,6 +48,8 @@ export function flattenPresetData(data: PresetData): FlattenedPresetData {
     top_a: data.params.top_a?.toString() ?? '',
     // Thinking param (canonical level)
     thinking: data.params.thinking ?? '',
+    // Stored params the form cannot represent ride along untouched
+    nonFormParamKeys: extractNonFormParamKeys(data.params),
     // Context window (model-coupled, stays in LlmConfig)
     contextWindowTokens: String(data.contextWindowTokens),
     // Model context info (display-only, not editable)
@@ -79,35 +81,95 @@ export const NUMERIC_PARAMS = [
 
 type NumericParamKey = (typeof NUMERIC_PARAMS)[number];
 
-/** Parse numeric params from flat data, dropping empty or unparseable entries */
-function parseNumericParams(flat: Partial<FlattenedPresetData>): {
-  values: Partial<Record<NumericParamKey, number>>;
-} {
+/** Numeric params the schema pins to whole numbers (z.number().int()); fractional values are blocked by the validator and dropped by the parser */
+export const INTEGER_PARAMS: readonly NumericParamKey[] = ['top_k', 'max_tokens', 'seed'];
+
+/** Param keys the dashboard form owns; every other stored param key passes through edits untouched */
+const FORM_OWNED_PARAM_KEYS: ReadonlySet<string> = new Set<string>([...NUMERIC_PARAMS, 'thinking']);
+
+/**
+ * Strict decimal form value: optional sign, digits with an optional single
+ * fractional part. Rejects hex, exponent notation, thousands separators and
+ * trailing garbage ('0.7abc' fails here where parseFloat would silently
+ * accept it, and the rejected exponent form keeps non-finite results out).
+ */
+const STRICT_DECIMAL_RE = /^[+-]?\d+(?:\.\d+)?$/;
+
+/**
+ * Parse a form string as a strict decimal number.
+ * Undefined when the value is blank after trimming or is not a plain decimal —
+ * the same rule the save validator applies, so validation and persistence agree.
+ */
+export function parseStrictParamNumber(value: string | undefined): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || !STRICT_DECIMAL_RE.test(trimmed)) {
+    return undefined;
+  }
+  return parseFloat(trimmed);
+}
+
+/**
+ * True when input names a canonical thinking level (lowercase match against
+ * THINKING_LEVELS — the same parity behavior the parser applies). Shared by
+ * the parser and the save validator so the accepted set cannot drift.
+ */
+export function isThinkingLevel(input: string): boolean {
+  const lowered = input.toLowerCase();
+  return THINKING_LEVELS.some(level => level === lowered);
+}
+
+/**
+ * Stored params the dashboard form cannot show (e.g. logit_bias, transforms,
+ * verbosity): everything in `params` minus the form-owned keys. The rebuilt
+ * advancedParameters object carries form fields only, so without this
+ * passthrough a dashboard edit would drop these keys via the gateway's
+ * wholesale replace. Values arrive schema-shaped: the gateway stores `params`
+ * validated against AdvancedParamsSchema.
+ */
+function extractNonFormParamKeys(params: PresetData['params']): AdvancedParams {
+  return Object.fromEntries(
+    Object.entries(params).filter(([key]) => !FORM_OWNED_PARAM_KEYS.has(key))
+  );
+}
+
+/** Parse numeric params from flat data, dropping blank, unparseable or non-integer-where-required entries */
+function parseNumericParams(
+  flat: Partial<FlattenedPresetData>
+): Partial<Record<NumericParamKey, number>> {
   const values: Partial<Record<NumericParamKey, number>> = {};
   for (const param of NUMERIC_PARAMS) {
-    const value = flat[param];
-    if (value !== undefined && value.length > 0) {
-      const num = parseFloat(value);
-      if (!isNaN(num)) {
-        values[param] = num;
-      }
+    const num = parseStrictParamNumber(flat[param]);
+    if (num === undefined) {
+      continue;
     }
+    if (INTEGER_PARAMS.includes(param) && !Number.isInteger(num)) {
+      continue;
+    }
+    values[param] = num;
   }
-  return { values };
+  return values;
 }
 
 /**
  * Parse the thinking level from flat form data.
  *
- * An unrecognized level parses to `null` (the field is left unset) rather than
- * erroring — the same lenience the retired effort field had. `THINKING_LEVELS`
- * is imported so the modal's accepted values and the schema enum cannot drift.
+ * The save validator blocks unrecognized levels before the payload is built;
+ * the `null` return here is defense in depth for callers that reach the
+ * payload builder without passing through validation (the level is left
+ * unset rather than erroring). `THINKING_LEVELS` is imported so the modal's
+ * accepted values and the schema enum cannot drift.
  */
 function parseThinkingLevel(flat: Partial<FlattenedPresetData>): ThinkingLevel | null {
-  if (flat.thinking === undefined || flat.thinking.length === 0) {
+  if (flat.thinking === undefined || flat.thinking.trim().length === 0) {
     return null;
   }
-  const input = flat.thinking.toLowerCase();
+  const input = flat.thinking.trim().toLowerCase();
+  if (!isThinkingLevel(input)) {
+    return null;
+  }
   return THINKING_LEVELS.find(level => level === input) ?? null;
 }
 
@@ -127,10 +189,13 @@ function parseOptionalInt(value: string | undefined): number | undefined {
  * numeric/thinking field, so any such key present means the params were part
  * of this edit — the object is sent even when every value is empty or
  * unparseable, so the gateway's wholesale replace clears params the user
- * removed. `null` means no params field was part of the payload at all (the
- * create seed path and other synthetic callers); the gateway leaves stored
- * params untouched then. Pinned by the blank-clears and untouched-no-op tests
- * in config.test.ts.
+ * removed. Stored params the form cannot represent (`nonFormParamKeys`) ride
+ * along unchanged, merged before the parsed form values — the key sets are
+ * disjoint (pinned by the disjointness test in config.test.ts), so no form
+ * value can be shadowed. `null` means no params field was part of the payload
+ * at all (the create seed path and other synthetic callers); the gateway
+ * leaves stored params untouched then. Pinned by the blank-clears and
+ * untouched-no-op tests in config.test.ts.
  */
 function buildAdvancedParameters(flat: Partial<FlattenedPresetData>): AdvancedParams | null {
   const anyParamPresent =
@@ -139,10 +204,10 @@ function buildAdvancedParameters(flat: Partial<FlattenedPresetData>): AdvancedPa
     return null;
   }
 
-  const { values: samplingParams } = parseNumericParams(flat);
+  const samplingParams = parseNumericParams(flat);
   const thinking = parseThinkingLevel(flat);
 
-  const advancedParameters: AdvancedParams = { ...samplingParams };
+  const advancedParameters: AdvancedParams = { ...flat.nonFormParamKeys, ...samplingParams };
   if (thinking !== null) {
     advancedParameters.thinking = thinking;
   }
