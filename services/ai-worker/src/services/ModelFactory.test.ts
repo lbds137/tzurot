@@ -577,6 +577,48 @@ describe('ModelFactory', () => {
       expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
     });
 
+    // Prompt-caching gate: build the model, run its custom fetch against a
+    // mocked transport, and read the body the fetch would send — the same
+    // seam the production request takes.
+    async function captureInjectedBody(config: ModelConfig): Promise<Record<string, unknown>> {
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: { fetch?: (url: string, init?: RequestInit) => Promise<Response> };
+      };
+      const fetchFn = callArgs?.configuration?.fetch;
+      expect(fetchFn).toBeInstanceOf(Function);
+
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValue(new Response(JSON.stringify({ choices: [] }), { status: 200 }));
+
+      await fetchFn!('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        body: JSON.stringify({ model: config.modelName, messages: [] }),
+      });
+
+      const init = fetchSpy.mock.calls[0]?.[1] as RequestInit;
+      return JSON.parse(init.body as string) as Record<string, unknown>;
+    }
+
+    it('injects top-level cache_control for an anthropic-family model id (automatic prompt caching)', async () => {
+      const parsed = await captureInjectedBody({ modelName: 'anthropic/claude-sonnet-4' });
+      expect(parsed.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+      // Sibling of `model` at the request root
+      expect(parsed.model).toBe('anthropic/claude-sonnet-4');
+    });
+
+    it('injects no cache_control for a non-anthropic OpenRouter id (openai family)', async () => {
+      const parsed = await captureInjectedBody({ modelName: 'openai/gpt-5.1' });
+      expect(parsed).not.toHaveProperty('cache_control');
+    });
+
+    it('injects no cache_control for a non-anthropic OpenRouter id (google family)', async () => {
+      const parsed = await captureInjectedBody({ modelName: 'google/gemini-2.5-pro' });
+      expect(parsed).not.toHaveProperty('cache_control');
+    });
+
     it('should pass all advanced parameters together', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
@@ -1086,6 +1128,25 @@ describe('ModelFactory', () => {
 
       const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
       expect(callArgs.modelName).toBe('glm-5.3-flash');
+    });
+
+    it('gives z.ai-direct models no OpenRouter custom fetch (no cache_control path at all)', () => {
+      // The z.ai-direct client builds its own ChatOpenAI without the OpenRouter
+      // fetch, so param injection — cache_control included — never runs on that
+      // route regardless of model id.
+      const config: ModelConfig = {
+        modelName: 'z-ai/glm-5.3-flash',
+        provider: AIProvider.ZaiCoding,
+        apiKey: 'zai-key',
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as {
+        configuration?: { baseURL?: string; fetch?: unknown };
+      };
+      expect(callArgs.configuration?.baseURL).toBe('https://api.z.ai/api/coding/paas/v4');
+      expect(callArgs.configuration?.fetch).toBeUndefined();
     });
 
     it('strips a mixed-case prefix and preserves the casing of the id tail', () => {

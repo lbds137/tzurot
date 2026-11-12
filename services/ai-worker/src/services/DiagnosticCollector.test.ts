@@ -574,6 +574,7 @@ describe('DiagnosticCollector', () => {
         promptTokens: 6426,
         completionTokens: 1,
         cachedPromptTokens: 6272,
+        cachedWriteTokens: 154,
         cacheDiscount: -0.0123,
         modelUsed: 'glm-4.7',
         routedModel: 'z-ai/glm-4.7',
@@ -582,6 +583,8 @@ describe('DiagnosticCollector', () => {
       const payload = collector.finalize();
 
       expect(payload.llmResponse.cachedPromptTokens).toBe(6272);
+      // The write-side mirror must survive the same field-by-field copy.
+      expect(payload.llmResponse.cachedWriteTokens).toBe(154);
       expect(payload.llmResponse.cacheDiscount).toBe(-0.0123);
       expect(payload.llmResponse.routedModel).toBe('z-ai/glm-4.7');
     });
@@ -592,12 +595,14 @@ describe('DiagnosticCollector', () => {
       // path is where an empty-response diagnosis actually needs the field.
       collector.recordPartialLlmResponse({
         finishReason: 'error',
+        cachedWriteTokens: 88,
         modelUsed: 'openrouter/auto',
         routedModel: 'qwen/qwen-2.5-vl-72b-instruct',
       });
 
       const payload = collector.finalize();
 
+      expect(payload.llmResponse.cachedWriteTokens).toBe(88);
       expect(payload.llmResponse.modelUsed).toBe('openrouter/auto');
       expect(payload.llmResponse.routedModel).toBe('qwen/qwen-2.5-vl-72b-instruct');
     });

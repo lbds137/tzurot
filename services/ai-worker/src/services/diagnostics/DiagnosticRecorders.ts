@@ -31,10 +31,12 @@ export interface ParsedResponseMetadata {
      * LangChain's normalization of the provider's `prompt_tokens_details`.
      * `cache_read` carries `cached_tokens` — prompt tokens served from the
      * provider's prefix cache. Populated on both OpenRouter and z.ai-direct
-     * responses whenever the provider reports cache activity.
+     * responses whenever the provider reports cache activity. `cache_creation`
+     * is the write-side mirror: input tokens spent filling the cache.
      */
     input_token_details?: {
       cache_read?: number;
+      cache_creation?: number;
     };
   };
   responseMetadata?: {
@@ -300,6 +302,7 @@ export function recordLlmResponseDiagnostic(opts: LlmResponseDiagnosticOptions):
     promptTokens: metadata.usageMetadata?.input_tokens ?? 0,
     completionTokens: metadata.usageMetadata?.output_tokens ?? 0,
     cachedPromptTokens: metadata.usageMetadata?.input_token_details?.cache_read,
+    cachedWriteTokens: metadata.usageMetadata?.input_token_details?.cache_creation,
     cacheDiscount: metadata.responseMetadata?.openrouter?.cacheDiscount,
     modelUsed: modelName,
     routedModel,

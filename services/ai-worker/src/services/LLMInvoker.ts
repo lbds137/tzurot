@@ -649,7 +649,7 @@ export class LLMInvoker {
           input_tokens?: number;
           output_tokens?: number;
           total_tokens?: number;
-          input_token_details?: { cache_read?: number };
+          input_token_details?: { cache_read?: number; cache_creation?: number };
         };
       }
     ).usage_metadata;
@@ -660,6 +660,7 @@ export class LLMInvoker {
       logContext.completionTokens = usage.output_tokens;
       logContext.totalTokens = usage.total_tokens;
       logContext.cachedPromptTokens = usage.input_token_details?.cache_read;
+      logContext.cachedWriteTokens = usage.input_token_details?.cache_creation;
     }
 
     if (finishReason === FINISH_REASONS.LENGTH) {
