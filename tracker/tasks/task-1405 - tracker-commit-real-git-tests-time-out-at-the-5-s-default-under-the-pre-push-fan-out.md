@@ -3,9 +3,10 @@ id: TASK-1405
 title: >-
   tracker-commit real-git tests time out at the 5 s default under the pre-push
   fan-out
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-11T04:27:00Z'
+updated_date: '2026-11-12T18:26:00Z'
 labels:
   - area:tooling
   - size:S
