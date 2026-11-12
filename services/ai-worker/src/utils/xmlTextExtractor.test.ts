@@ -96,6 +96,28 @@ Line three</content>`;
     expect(result).toContain('5 < 10 & 10 > 5');
   });
 
+  it('preserves numeric- and boolean-looking tag text verbatim', () => {
+    // parseTagValue stays false so search text keeps ids and codes exactly as
+    // written: leading zeros, exponents, hex and boolean words are never rewritten.
+    const xml =
+      '<root><a>007</a><b>1e3</b><c>0x1A</c><d>123abc</d><e>9007199254740993</e><f>true</f></root>';
+    const result = extractXmlTextContent(xml);
+    expect(result).toBe('007\n1e3\n0x1A\n123abc\n9007199254740993\ntrue');
+  });
+
+  it("concatenates a mixed-content element's text fragments, after its children", () => {
+    // Pinned quirk: `#text` fragments join trimmed with no separator, and the
+    // child's text precedes the parent's `#text` — that ordering is
+    // parser-internal, so a reorder on a fast-xml-parser upgrade is expected
+    // churn here, not a regression. Production embed XML never reaches this
+    // shape — every embed emitter wraps text in leaf elements (verified
+    // against the emitters as of this change; not test-pinned) — so the
+    // quirk is guarded here rather than fixed in the extractor.
+    const xml = '<root><g>id <h>x</h> 007</g></root>';
+    const result = extractXmlTextContent(xml);
+    expect(result).toBe('x\nid007');
+  });
+
   it('should return empty string on malformed XML', () => {
     // fast-xml-parser is lenient, but severely broken input should not throw
     const result = extractXmlTextContent('<<<>>>');
