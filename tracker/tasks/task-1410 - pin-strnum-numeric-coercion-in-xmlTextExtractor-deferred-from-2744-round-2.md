@@ -3,9 +3,10 @@ id: TASK-1410
 title: >-
   Pin strnum numeric coercion of bare tag values in xmlTextExtractor
   (deferred from PR #2744 round 2)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-12T19:39:13Z'
+updated_date: '2026-11-12T21:38:00Z'
 labels:
   - area:ai-worker
   - size:S
