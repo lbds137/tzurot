@@ -39,8 +39,6 @@
 
 - **Optional needs-smoke (owner):** one prod batch run, e.g. `/memory facts` → Select several → Lock 2 — confirm view and the result stack render. Status: not run.
 - **#2646 egress probe:** first prod boot logs the probe verdict in bot-client (ok/unavailable expected); an owner webhook alert only on a ≥300 s Retry-After 429.
-- **Advisories:** the 7 vite/@vitest/mocker default-branch alerts should close once GitHub rescans `main` (develop's lockfile resolves vite 8.3.4 / mocker 4.1.12); `pnpm ops security:advisories` still listed them right after the merge — re-check, then TASK-1278 Done.
-- **#2649 live:** #2656 (claude-code-action → main) merged 2026-10-25 22:39Z and shipped in beta.240's range; TASK-1233 Done once confirmed.
 
 ## 🧪 beta.238 watch (observability only — no needs-smoke items)
 
@@ -49,7 +47,6 @@
 ## 🧪 beta.237 watch (observability only — no needs-smoke items)
 
 - **#2626 prompt v2 (NOW LIVE ON PROD):** watch ai-worker `overflow`/`dead` and `lengthState`/`regenerated` rates (safety keep-list vs the length caps — overflow/dead is the path that loses the summary). Dev rehearsal baseline: 206 hot rows → 201 done@v2, 4 overflow strike-1, 1 re-dead `no_template`, 0 overflow deaths. Expect auto-promotion to report every candidate `notReady` until the release-day sweep re-covers (expected, no demotion). Release-day data point (10-17 backfill, 1,534 rows): zero overflow deaths, overflow-failed ~2.5% ≈ dev's 1.9%, first-person/parse pools collapsed (21→6, 19→10 incl. v1 leftovers).
-- ~~**Release-day backfill (TASK-1227 close-out)**~~ **RESOLVED 2026-10-17 ~16:20 EDT — drain clean, TASK-1227 Done.** 1,534/1,534 first-touch at v2: done 1,442 (94.0%; 97.2% excl. the 50-row `no_template` floor = dev parity), **zero genuine deaths** (dead pool 50, all `no_template`, all on the fallback arm), all 11 v1 strike-dead rows left the dead pool. Failed@v2 42 (overflow-weighted ~2.5% ≈ dev's 1.9%; unchanged across the 15-min settle window; failures re-admit organically at retrieval per MEM-ARCH-022, fallback arm renders either way). Record: docs/local/emily-eval/rec2-followup.md § Final outcome.
 - **#2622 render fallback:** `excerptNotes` share in the render telemetry vs the ~13% no-summary share — the character side should now be present on every parseable, non-chunk, non-empty own-note render (chunk rows, unparseable rows and empty or quote-only assistant halves get no excerpt by design).
 - **Carried from beta.236:** #2592's job time budget — the first real trigger logs `LLM job budget exhausted before …` in ai-worker (silence = no job reached the 720s budget); #2601's debug capture — grep prod bot-client logs for `guildInfoAmbiguousRoles`, unblocks TASK-705 phase 2 + the `debug:` cleanup PR.
 
@@ -92,8 +89,6 @@
 Backlog ~427 open (2026-08-29 digest). **Themed batches, 3–5 same-area size:S per PR (owner call 2026-08-28).** Pre-grounded remainder: 199 solo; held for owner: 527 · 540 · 559 · 531; TASK-599 = the batched owner-decision pass. Query, don't browse: `pnpm tracker task list -s "To Do" -l state:ready -l size:S --plain` (the `-s "To Do"` is load-bearing).
 
 **Carry-forwards (one shape — a check that can't distinguish measured-fine from didn't-measure):** publish the command, never the hand-restated number; negative-control a FIX by running it; a probe that swallows stderr certifies broken code green.
-
-**Structural sweep (this session): nothing new needs structure.** Recurrences all landed on existing rails: commitlint trips (documented most-tripped rules), the branch-gate compound-command timing (each gate's own message carries the split fix), the head-SIGPIPE (lossy-pipe rule, self-caught).
 
 ## 🧵 Standing threads (durable)
 
