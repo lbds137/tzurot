@@ -1,6 +1,6 @@
 {
   "name": "@tzurot/bot-client",
-  "version": "3.0.0-beta.242",
+  "version": "3.0.0-beta.243",
   "private": true,
   "type": "module",
   "description": "Discord client service for Tzurot bot",
