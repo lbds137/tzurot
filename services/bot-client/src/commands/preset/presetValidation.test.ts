@@ -116,6 +116,65 @@ describe('presetConfigValidator', () => {
         expect(result.isValid).toBe(true);
         expect(result.errors.filter(e => e.field === 'sampling parameters')).toHaveLength(0);
       });
+
+      it('should pass when the field is whitespace-only (blank clears)', () => {
+        const config = createTestConfig({ temperature: '   ' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(true);
+        expect(result.errors.filter(e => e.field === 'sampling parameters')).toHaveLength(0);
+      });
+
+      it("should pass when the value has surrounding whitespace (' 0.7')", () => {
+        const config = createTestConfig({ temperature: ' 0.7' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(true);
+        expect(result.errors.filter(e => e.field === 'sampling parameters')).toHaveLength(0);
+      });
+
+      it("should error on trailing garbage ('0.7abc')", () => {
+        const config = createTestConfig({ temperature: '0.7abc' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.field === 'sampling parameters')).toBe(true);
+      });
+
+      it("should error on a comma decimal ('1,5')", () => {
+        const config = createTestConfig({ temperature: '1,5' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.field === 'sampling parameters')).toBe(true);
+      });
+
+      it("should error on exponent notation ('1e999', the Infinity parse)", () => {
+        const config = createTestConfig({ temperature: '1e999' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.field === 'sampling parameters')).toBe(true);
+      });
+
+      it('should error when an integer param gets a fractional value (top_k 40.5)', () => {
+        const config = createTestConfig({ top_k: '40.5' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.field === 'sampling parameters')).toBe(true);
+        expect(result.errors.find(e => e.field === 'sampling parameters')?.message).toContain(
+          'whole numbers'
+        );
+      });
+
+      it('should pass when an integer param gets a whole value (top_k 40)', () => {
+        const config = createTestConfig({ top_k: '40' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(true);
+        expect(result.errors.filter(e => e.field === 'sampling parameters')).toHaveLength(0);
+      });
     });
 
     describe('unrecognized thinking level', () => {
@@ -141,6 +200,22 @@ describe('presetConfigValidator', () => {
 
       it('should pass when the level is blank (blank clears by design)', () => {
         const config = createTestConfig({ thinking: '' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(true);
+        expect(result.errors.filter(e => e.field === 'thinking')).toHaveLength(0);
+      });
+
+      it('should pass when the level is whitespace-only (blank clears)', () => {
+        const config = createTestConfig({ thinking: '  ' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(true);
+        expect(result.errors.filter(e => e.field === 'thinking')).toHaveLength(0);
+      });
+
+      it("should pass when the level has leading whitespace (' high')", () => {
+        const config = createTestConfig({ thinking: ' high' });
         const result = presetConfigValidator.validate(config);
 
         expect(result.isValid).toBe(true);
@@ -288,6 +363,16 @@ describe('presetConfigValidator', () => {
       it('should not warn when the thinking level is an empty string', () => {
         const config = createTestConfig({
           thinking: '',
+          max_tokens: '4096',
+        });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.warnings.filter(w => w.field === 'thinking / max_tokens')).toHaveLength(0);
+      });
+
+      it('should not warn when the thinking level is whitespace-only', () => {
+        const config = createTestConfig({
+          thinking: '  ',
           max_tokens: '4096',
         });
         const result = presetConfigValidator.validate(config);

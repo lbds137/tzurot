@@ -7,6 +7,8 @@ import {
   flattenPresetData,
   unflattenPresetData,
   PRESET_DASHBOARD_CONFIG,
+  NUMERIC_PARAMS,
+  INTEGER_PARAMS,
   type PresetData,
   type FlattenedPresetData,
 } from './config.js';
@@ -157,6 +159,56 @@ describe('flattenPresetData', () => {
     expect(result.top_p).toBe('');
     expect(result.frequency_penalty).toBe('');
     expect(result.thinking).toBe('');
+  });
+
+  it('should carry non-form params into nonFormParamKeys (form keys excluded)', () => {
+    const preset: PresetData = {
+      id: 'preset-123',
+      name: 'My Preset',
+      description: null,
+      model: 'anthropic/claude-sonnet-4',
+      provider: 'openrouter',
+      isGlobal: false,
+      isOwned: true,
+      permissions: { canEdit: true, canDelete: true },
+      contextWindowTokens: 8192,
+      params: {
+        temperature: 0.7,
+        thinking: 'high',
+        verbosity: 'high',
+        logit_bias: { token1: -5 },
+        response_format: { type: 'json_object' },
+        transforms: ['middle-out'],
+        route: 'fallback',
+      },
+    };
+
+    const result = flattenPresetData(preset);
+
+    expect(result.nonFormParamKeys).toEqual({
+      verbosity: 'high',
+      logit_bias: { token1: -5 },
+      response_format: { type: 'json_object' },
+      transforms: ['middle-out'],
+      route: 'fallback',
+    });
+  });
+
+  it('should leave nonFormParamKeys empty when no non-form params are stored', () => {
+    const preset: PresetData = {
+      id: 'preset-123',
+      name: 'My Preset',
+      description: null,
+      model: 'anthropic/claude-sonnet-4',
+      provider: 'openrouter',
+      isGlobal: false,
+      isOwned: true,
+      permissions: { canEdit: true, canDelete: true },
+      contextWindowTokens: 8192,
+      params: { temperature: 0.7 },
+    };
+
+    expect(flattenPresetData(preset).nonFormParamKeys).toEqual({});
   });
 
   it('should pass requiresZaiKey through for the dashboard badge', () => {
@@ -402,6 +454,119 @@ describe('unflattenPresetData — blanked params clear (wholesale replace)', () 
 
     expect(result.advancedParameters).toBeUndefined();
     expect(Object.hasOwn(result, 'advancedParameters')).toBe(false);
+  });
+
+  it('form-owned keys and non-form passthrough keys are disjoint', () => {
+    // The merge spreads nonFormParamKeys BEFORE the parsed form values, so a
+    // collision would silently shadow a parsed value; the type system cannot
+    // see the key sets, so pin the disjointness here. This list mirrors the
+    // non-form members of AdvancedParamsSchema (everything except the numeric
+    // sampling keys and thinking).
+    const formOwnedKeys: string[] = [...NUMERIC_PARAMS, 'thinking'];
+    const nonFormKeys = ['logit_bias', 'response_format', 'transforms', 'route', 'verbosity'];
+
+    expect(formOwnedKeys.filter(key => nonFormKeys.includes(key))).toEqual([]);
+    expect(INTEGER_PARAMS.every(key => formOwnedKeys.includes(key))).toBe(true);
+  });
+});
+
+describe('unflattenPresetData — non-form param passthrough', () => {
+  const verbosityPreset: PresetData = {
+    id: 'preset-123',
+    name: 'My Preset',
+    description: null,
+    model: 'anthropic/claude-sonnet-4',
+    provider: 'openrouter',
+    isGlobal: false,
+    isOwned: true,
+    permissions: { canEdit: true, canDelete: true },
+    contextWindowTokens: 8192,
+    params: { temperature: 0.7, verbosity: 'high' },
+  };
+
+  it('an identity edit of a preset whose params include verbosity preserves it', () => {
+    const result = unflattenPresetData(flattenPresetData(verbosityPreset));
+
+    expect(result.advancedParameters).toEqual({ temperature: 0.7, verbosity: 'high' });
+  });
+
+  it('a stored non-form key survives a param blanking edit', () => {
+    const flat = flattenPresetData(verbosityPreset);
+    flat.temperature = '';
+
+    const result = unflattenPresetData(flat);
+
+    expect(result.advancedParameters).toEqual({ verbosity: 'high' });
+  });
+
+  it('the clone path carries the source passthrough (unflatten over session data)', () => {
+    // dashboardButtons clone flow calls unflattenPresetData(sourceData) with
+    // the session's flattened data — the same seam this pins.
+    const flat = flattenPresetData(verbosityPreset);
+    flat.top_k = '40';
+
+    const result = unflattenPresetData(flat);
+
+    expect(result.advancedParameters).toEqual({ verbosity: 'high', top_k: 40, temperature: 0.7 });
+  });
+});
+
+describe('unflattenPresetData — strict numeric parsing', () => {
+  it("' 0.7' parses as 0.7 (trim before parse)", () => {
+    const flat: Partial<FlattenedPresetData> = { temperature: ' 0.7' };
+
+    expect(unflattenPresetData(flat).advancedParameters).toEqual({ temperature: 0.7 });
+  });
+
+  it('a whitespace-only numeric value is treated as blank (clears)', () => {
+    const flat: Partial<FlattenedPresetData> = { temperature: '   ' };
+
+    expect(unflattenPresetData(flat).advancedParameters).toEqual({});
+  });
+
+  it("'0.7abc' is dropped but the object still sends (wholesale replace clears)", () => {
+    const flat: Partial<FlattenedPresetData> = { temperature: '0.7abc' };
+
+    expect(unflattenPresetData(flat).advancedParameters).toEqual({});
+  });
+
+  it("'1,5' is dropped (thousands separator / comma decimal)", () => {
+    const flat: Partial<FlattenedPresetData> = { temperature: '1,5' };
+
+    expect(unflattenPresetData(flat).advancedParameters).toEqual({});
+  });
+
+  it("'1e999' is dropped (exponent form rejected, no Infinity)", () => {
+    const flat: Partial<FlattenedPresetData> = { temperature: '1e999' };
+
+    expect(unflattenPresetData(flat).advancedParameters).toEqual({});
+  });
+
+  it("'40.5' on an integer param is dropped", () => {
+    const flat: Partial<FlattenedPresetData> = { top_k: '40.5' };
+
+    expect(unflattenPresetData(flat).advancedParameters).toEqual({});
+  });
+
+  it("'40' on an integer param parses (top_k)", () => {
+    const flat: Partial<FlattenedPresetData> = { top_k: '40' };
+
+    expect(unflattenPresetData(flat).advancedParameters).toEqual({ top_k: 40 });
+  });
+});
+
+describe('unflattenPresetData — thinking level parsing', () => {
+  it("' high' parses as high (trim before match)", () => {
+    const flat: Partial<FlattenedPresetData> = { thinking: ' high' };
+
+    const advParams = unflattenPresetData(flat).advancedParameters as Record<string, unknown>;
+    expect(advParams.thinking).toBe('high');
+  });
+
+  it('a whitespace-only thinking value is treated as blank (clears)', () => {
+    const flat: Partial<FlattenedPresetData> = { thinking: '  ' };
+
+    expect(unflattenPresetData(flat).advancedParameters).toEqual({});
   });
 });
 

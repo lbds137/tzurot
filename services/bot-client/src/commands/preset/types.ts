@@ -5,7 +5,7 @@
  * Extracted to avoid circular dependencies between config.ts and presetSections.ts.
  */
 
-import type { ThinkingLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
+import type { AdvancedParams, ThinkingLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import type { EntityPermissions } from '@tzurot/common-types/utils/permissions';
 import type { BrowseContext } from '../../utils/dashboard/types.js';
 
@@ -50,6 +50,16 @@ export interface PresetData {
     top_a?: number;
     /** Canonical thinking level; absent means "provider default". */
     thinking?: ThinkingLevel;
+    /** Adjust token probabilities (-100..100 per token key) */
+    logit_bias?: Record<string, number>;
+    /** Structured-output control */
+    response_format?: { type: 'text' | 'json_object' };
+    /** Prompt transforms (e.g. 'middle-out' for long contexts) */
+    transforms?: string[];
+    /** Provider routing strategy */
+    route?: 'fallback';
+    /** Response verbosity level */
+    verbosity?: 'low' | 'medium' | 'high';
   };
 }
 
@@ -84,6 +94,13 @@ export interface FlattenedPresetData {
   top_a: string;
   // Thinking param (canonical level; empty string = provider default)
   thinking: string;
+  /**
+   * Stored params the form cannot represent (e.g. logit_bias, transforms,
+   * verbosity), carried unchanged through an edit so the gateway's wholesale
+   * replace does not drop them. Populated from the API detail's `params`;
+   * absent on synthetic flat data with no params payload.
+   */
+  nonFormParamKeys?: AdvancedParams;
   // Context window (model-coupled, stays in LlmConfig)
   contextWindowTokens: string;
   /** Model's full context window (display-only, not editable) */

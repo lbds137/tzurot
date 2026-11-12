@@ -11,25 +11,21 @@
 
 import { ConfigValidator } from '../../utils/configValidation.js';
 import { THINKING_LEVELS } from '@tzurot/common-types/schemas/llmAdvancedParams';
-import { NUMERIC_PARAMS, type FlattenedPresetData } from './config.js';
-
-/**
- * Parse numeric string value, returning undefined if empty or invalid
- */
-function parseNum(value: string | undefined): number | undefined {
-  if (value === undefined || value.length === 0) {
-    return undefined;
-  }
-  const num = parseFloat(value);
-  return isNaN(num) ? undefined : num;
-}
+import {
+  INTEGER_PARAMS,
+  NUMERIC_PARAMS,
+  isThinkingLevel,
+  parseStrictParamNumber,
+  type FlattenedPresetData,
+} from './config.js';
 
 /**
  * Validator for LLM preset configurations.
  *
  * Error rules (block save):
  * - min_p + top_a conflict: Both achieve similar goals, use one
- * - Non-numeric sampling parameter: Values must parse as plain numbers
+ * - Non-numeric sampling parameter: Values must be plain decimal numbers
+ *   (whole numbers for top_k, max_tokens and seed)
  * - Unrecognized thinking level: Must be one of THINKING_LEVELS (or blank)
  *
  * Warning rules (allow save, display caution):
@@ -46,8 +42,8 @@ export const presetConfigValidator = new ConfigValidator<FlattenedPresetData>()
   .addError(
     'min_p / top_a',
     c => {
-      const minP = parseNum(c.min_p);
-      const topA = parseNum(c.top_a);
+      const minP = parseStrictParamNumber(c.min_p);
+      const topA = parseStrictParamNumber(c.top_a);
       return minP !== undefined && minP > 0 && topA !== undefined && topA > 0;
     },
     'Use min_p OR top_a, not both. They achieve the same goal (dynamic probability filtering) differently.'
@@ -58,20 +54,26 @@ export const presetConfigValidator = new ConfigValidator<FlattenedPresetData>()
     c =>
       NUMERIC_PARAMS.some(f => {
         const value = c[f];
-        return value !== undefined && value.length > 0 && isNaN(parseFloat(value));
+        if (value === undefined || value.trim().length === 0) {
+          return false;
+        }
+        const num = parseStrictParamNumber(value);
+        if (num === undefined) {
+          return true;
+        }
+        return INTEGER_PARAMS.includes(f) && !Number.isInteger(num);
       }),
-    'Sampling parameters must be plain numbers (e.g. temperature: 0.7, top_k: 40, seed: 42). Leave a field empty to remove that parameter.'
+    'Sampling parameters must be plain numbers (e.g. temperature: 0.7, seed: 42); top_k, max_tokens and seed must be whole numbers. Leave a field empty to remove that parameter.'
   )
 
   .addError(
     'thinking',
     c => {
       const value = c.thinking;
-      if (value === undefined || value.length === 0) {
+      if (value === undefined || value.trim().length === 0) {
         return false;
       }
-      const input = value.toLowerCase();
-      return !THINKING_LEVELS.some(level => level === input);
+      return !isThinkingLevel(value.trim());
     },
     `Thinking level must be one of: ${THINKING_LEVELS.join(', ')}. Leave the field empty to take the provider default.`
   )
@@ -83,8 +85,8 @@ export const presetConfigValidator = new ConfigValidator<FlattenedPresetData>()
   .addWarning(
     'temperature / top_p',
     c => {
-      const temp = parseNum(c.temperature);
-      const topP = parseNum(c.top_p);
+      const temp = parseStrictParamNumber(c.temperature);
+      const topP = parseStrictParamNumber(c.top_p);
       return temp !== undefined && temp < 0.5 && topP !== undefined && topP < 0.8;
     },
     'Low temperature + low top_p makes output very predictable and repetitive. Consider increasing one.'
@@ -93,7 +95,7 @@ export const presetConfigValidator = new ConfigValidator<FlattenedPresetData>()
   .addWarning(
     'temperature',
     c => {
-      const temp = parseNum(c.temperature);
+      const temp = parseStrictParamNumber(c.temperature);
       return temp !== undefined && temp > 1.5;
     },
     'Temperature >1.5 often produces incoherent or nonsensical output. Use with caution.'
@@ -102,9 +104,9 @@ export const presetConfigValidator = new ConfigValidator<FlattenedPresetData>()
   .addWarning(
     'penalties',
     c => {
-      const repPenalty = parseNum(c.repetition_penalty);
-      const freqPenalty = parseNum(c.frequency_penalty);
-      const presPenalty = parseNum(c.presence_penalty);
+      const repPenalty = parseStrictParamNumber(c.repetition_penalty);
+      const freqPenalty = parseStrictParamNumber(c.frequency_penalty);
+      const presPenalty = parseStrictParamNumber(c.presence_penalty);
       // Check if using repetition_penalty AND (frequency or presence penalty)
       return (
         repPenalty !== undefined &&
@@ -119,7 +121,7 @@ export const presetConfigValidator = new ConfigValidator<FlattenedPresetData>()
   .addWarning(
     'repetition_penalty',
     c => {
-      const repPenalty = parseNum(c.repetition_penalty);
+      const repPenalty = parseStrictParamNumber(c.repetition_penalty);
       return repPenalty !== undefined && repPenalty > 1.5;
     },
     'Repetition penalty >1.5 may break grammar by penalizing common words like "the" and "a".'
@@ -128,7 +130,7 @@ export const presetConfigValidator = new ConfigValidator<FlattenedPresetData>()
   .addWarning(
     'max_tokens',
     c => {
-      const maxTokens = parseNum(c.max_tokens);
+      const maxTokens = parseStrictParamNumber(c.max_tokens);
       return maxTokens !== undefined && maxTokens < 100;
     },
     'Max tokens <100 severely limits response length. Most responses need at least 500 tokens.'
@@ -138,8 +140,8 @@ export const presetConfigValidator = new ConfigValidator<FlattenedPresetData>()
     'thinking / max_tokens',
     c => {
       const thinking = c.thinking;
-      const maxTokens = parseNum(c.max_tokens);
-      return thinking !== undefined && thinking.length > 0 && maxTokens !== undefined;
+      const maxTokens = parseStrictParamNumber(c.max_tokens);
+      return thinking !== undefined && thinking.trim().length > 0 && maxTokens !== undefined;
     },
     'Thinking level and max_tokens are both set. An explicit max_tokens wins, so the thinking level will not scale the token budget — remove max_tokens to get level-based scaling.'
   );
