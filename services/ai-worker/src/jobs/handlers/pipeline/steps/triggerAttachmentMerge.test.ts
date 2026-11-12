@@ -166,6 +166,7 @@ describe('triggerAttachmentMerge', () => {
 
       expect(merged[0].type).toBe(AttachmentType.Image);
       expect(merged[0].description).toBe('Image processing failed (no result returned)');
+      expect(merged[0].processingFailed).toBe(true);
     });
 
     it('stubs an original whose download failed', async () => {
@@ -363,6 +364,7 @@ describe('triggerAttachmentMerge', () => {
 
       expect(merged[0].type).toBe(AttachmentType.File);
       expect(merged[0].description).toBe('File could not be processed (processing failed)');
+      expect(merged[0].processingFailed).toBe(true);
       expect(mockLogger.warn).toHaveBeenCalledWith(
         { err: expect.any(Error), jobId: 'job-1', count: 1 },
         'Inline processing of trigger files threw'

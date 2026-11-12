@@ -165,7 +165,10 @@ export function cdnUrlOf(original: AttachmentMetadata): string {
  * count, which is not in hand here. A failed image or audio job gets no inline
  * retry, by owner decision; this is the one function to swap if that decision
  * changes. Metadata comes from the ORIGINAL, so voice-message and duration
- * flags survive into the rendered header.
+ * flags survive into the rendered header. The notice renders outside the
+ * voice-transcript wrapper (the render rule lives in RAGUtils's
+ * formatProcessedAttachmentEntry, pinned by its failure-render tests), so the
+ * wording must stay recognizably non-speech.
  */
 export function buildFailureStub(
   original: AttachmentMetadata,

@@ -788,6 +788,7 @@ describe('MultimodalProcessor', () => {
       // Fallback now includes attempt count and error category
       expect(results[0].description).toMatch(/Image processing failed after \d+ attempts \(/);
       expect(results[0].description).toContain('transient');
+      expect(results[0].processingFailed).toBe(true);
       expect(mockModelInvoke).toHaveBeenCalledTimes(3);
     });
 
