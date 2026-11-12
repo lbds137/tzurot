@@ -630,7 +630,9 @@ describe('performRemoval', () => {
   });
 });
 
-describe('checkNoUnpushedRemotes against a real git repo', () => {
+const REAL_GIT_TIMEOUT_MS = 20_000;
+
+describe('checkNoUnpushedRemotes against a real git repo', { timeout: REAL_GIT_TIMEOUT_MS }, () => {
   let tmpDir: string;
   let workDir: string;
 
@@ -652,7 +654,7 @@ describe('checkNoUnpushedRemotes against a real git repo', () => {
     real.execFileSync('git', ['config', 'user.name', 't'], { cwd: workDir, env });
     real.execFileSync('git', ['commit', '--allow-empty', '-m', 'a'], { cwd: workDir, env });
     real.execFileSync('git', ['push', '-u', 'origin', 'main'], { cwd: workDir, env });
-  });
+  }, REAL_GIT_TIMEOUT_MS);
 
   afterEach(() => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
