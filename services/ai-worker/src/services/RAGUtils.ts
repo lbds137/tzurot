@@ -159,7 +159,8 @@ function formatProcessedAttachmentEntry(a: ProcessedAttachment): string {
     const header = buildAudioAttachmentHeader(a);
     if (a.processingFailed === true) {
       // A failure notice is not speech; wrapping it in the transcript tags
-      // persists it as if the user said it. Render the header over the bare
+      // renders (and so persists) it as if the user said it — the writer
+      // stores this render verbatim. Render the header over the bare
       // notice instead.
       return `${header}\n${neutralizeHeaderMarkers(a.description)}`;
     }
