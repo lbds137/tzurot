@@ -14,6 +14,8 @@ const logger = createLogger('xmlTextExtractor');
 const parser = new XMLParser({
   ignoreAttributes: true, // We only need text content for search, not attribute values
   trimValues: true,
+  // Verbatim text for search: numeric-looking ids/codes (007, hex, zip) must not be rewritten
+  parseTagValue: false,
 });
 
 /**
@@ -22,9 +24,6 @@ const parser = new XMLParser({
 function collectTextValues(node: unknown): string[] {
   if (typeof node === 'string') {
     return node.trim().length > 0 ? [node.trim()] : [];
-  }
-  if (typeof node === 'number' || typeof node === 'boolean') {
-    return [String(node)];
   }
   if (Array.isArray(node)) {
     return node.flatMap(item => collectTextValues(item));
@@ -43,7 +42,9 @@ function collectTextValues(node: unknown): string[] {
  * CodeQL flags as incomplete multi-character sanitization.
  *
  * @param xml - XML string to extract text from
- * @returns Plain text content with each text node on its own line
+ * @returns Plain text content: each element's text on its own line; a mixed-content
+ *   element's text fragments concatenate trimmed with no separator and are emitted
+ *   after its child elements' text
  */
 export function extractXmlTextContent(xml: string): string {
   if (xml.trim().length === 0) {
@@ -55,7 +56,7 @@ export function extractXmlTextContent(xml: string): string {
     const parsed = parser.parse(xml);
     const values = collectTextValues(parsed);
 
-    return values.filter(line => line.length > 0).join('\n');
+    return values.join('\n');
   } catch (error) {
     logger.warn(
       { err: error, xmlLength: xml.length, xmlPreview: contentPreview(xml, 200) },
