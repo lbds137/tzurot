@@ -630,18 +630,21 @@ describe('performRemoval', () => {
   });
 });
 
+// Clone+push fixture; same 20s rationale as tracker-commit.test.ts.
 const REAL_GIT_TIMEOUT_MS = 20_000;
 
 describe('checkNoUnpushedRemotes against a real git repo', { timeout: REAL_GIT_TIMEOUT_MS }, () => {
   let tmpDir: string;
   let workDir: string;
 
+  const HERMETIC_GIT_ENV = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' } as const;
+
   beforeEach(async () => {
     const real = await vi.importActual<typeof import('node:child_process')>('node:child_process');
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-transfer-fixture-'));
     const remoteDir = path.join(tmpDir, 'remote.git');
     workDir = path.join(tmpDir, 'work');
-    const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+    const env = { ...process.env, ...HERMETIC_GIT_ENV };
     real.execFileSync('git', ['-c', 'init.defaultBranch=main', 'init', '--bare', remoteDir], {
       cwd: tmpDir,
       env,
@@ -657,12 +660,12 @@ describe('checkNoUnpushedRemotes against a real git repo', { timeout: REAL_GIT_T
   }, REAL_GIT_TIMEOUT_MS);
 
   afterEach(() => {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+    if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it('returns null when pushed, refuses when a commit is unpushed, and returns null again once pushed', async () => {
     const real = await vi.importActual<typeof import('node:child_process')>('node:child_process');
-    const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+    const env = { ...process.env, ...HERMETIC_GIT_ENV };
     const runGit = (args: string[], cwd?: string): string =>
       real.execFileSync('git', args, { cwd, encoding: 'utf-8', env }) as string;
     const ctx: TransferContext = {
