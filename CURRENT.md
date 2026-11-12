@@ -8,6 +8,10 @@
 
 ## 🧪 Next release watch (merged to develop, not yet in prod)
 
+- **(needs-smoke, owner, after beta.243 deploys) multi-attachment trigger render (#2741, #2742):** send a trigger message with 2+ attachments (DM or guild, either) — each attachment renders exactly once, in message order; a failed attachment posts its notice OUTSIDE the voice-transcript wrapper.
+- **(needs-smoke, owner, after beta.243 deploys) audio transcript label (#2737):** upload an audio file to a trigger — the transcript block reads as shared media, not speech-to-text output.
+- **Watch — provenance joins (#2736, #2738):** the queue path restores trigger-attachment provenance and logs join misses instead of dropping them; a `join miss`-class line in ai-worker logs is the signal, silence is healthy.
+- **Watch — advisory closure (beta.243 merge):** alert 199 (minimatch, TASK-1371) and the fast-xml-parser LOW (override #2744) both close when beta.243 lands on `main` — verify with `pnpm ops security:advisories`, flip TASK-1371 Done.
 - **Watch — system-model truncation warn (#2715, TASK-798):** `System model response is likely truncated` now fires for every background caller at its cap. A burst tagged `appTitleSuffix: 'ArchiveSummary'` (cap 512) or the digest is expected, since how often those reach their caps is unmeasured; an `Extraction` or `RosterBlurb` hit means the 32768/8192 cap is too low. The length finish-reason branch is unverified on z.ai-direct.
 
 ## 🧪 beta.242 watch (shipped 2026-11-03; no needs-smoke)
