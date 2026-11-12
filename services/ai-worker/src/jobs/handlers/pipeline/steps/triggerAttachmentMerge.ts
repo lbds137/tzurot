@@ -192,6 +192,7 @@ export function buildFailureStub(
     description: stub.description,
     originalUrl: cdn,
     metadata: { ...original, url: cdn },
+    processingFailed: true,
   };
 }
 

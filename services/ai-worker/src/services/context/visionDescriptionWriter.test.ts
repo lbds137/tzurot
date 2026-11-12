@@ -139,6 +139,32 @@ describe('VisionDescriptionWriter', () => {
     expect(occurrences(stored, SPOKEN_WORDS)).toBe(1);
   });
 
+  it('persists a failed audio entry as header plus notice with no transcript wrapper', async () => {
+    // The builder renders a processingFailed audio entry outside the
+    // <voice_transcripts> wrapper; the writer must carry that shape through
+    // verbatim so the notice never persists as spoken words.
+    const failedAudio: ProcessedAttachment = {
+      ...voiceAttachment,
+      description: 'Audio transcription failed (too_long)',
+      processingFailed: true,
+    };
+    const history = makeHistory();
+    const writer = new VisionDescriptionWriter(history as never);
+
+    await writer.persistTriggerDescriptions({
+      jobId: 'j1',
+      message: '',
+      rawMessageContent: '',
+      jobContext: makeContext(),
+      personalityId: 'pers-1',
+      processedAttachments: [failedAudio],
+    });
+
+    const stored = history.updateLastUserMessage.mock.calls[0][3] as string;
+    expect(stored).toBe('[Audio: voice-message.ogg]\nAudio transcription failed (too_long)');
+    expect(stored).not.toContain('<transcript');
+  });
+
   it('keeps the message prefix when the user typed text alongside an audio attachment', async () => {
     const history = makeHistory();
     const writer = new VisionDescriptionWriter(history as never);
