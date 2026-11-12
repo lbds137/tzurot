@@ -45,6 +45,8 @@ export interface ProcessedAttachment {
   metadata: AttachmentMetadata;
   /** Which vision model produced `description`; null for placeholders and non-image attachments. */
   attribution?: AttachmentDescriptionAttribution | null;
+  /** The description is a processing-failure notice, not content: the audio render skips the voice-transcript wrapper for it. */
+  processingFailed?: boolean;
 }
 
 /**
@@ -402,6 +404,7 @@ export async function processAttachments(
       description: fallbackDescription,
       originalUrl: attachment?.url ?? '',
       metadata: attachment,
+      processingFailed: true,
     };
   });
 

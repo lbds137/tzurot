@@ -137,6 +137,7 @@ describe('triggerAttachmentMerge', () => {
       expect(merged).toHaveLength(1);
       expect(merged[0].type).toBe(AttachmentType.Audio);
       expect(merged[0].description).toBe('Audio transcription failed (too_long)');
+      expect(merged[0].processingFailed).toBe(true);
       expect(merged[0].metadata.isVoiceMessage).toBe(true);
       expect(merged[0].metadata.duration).toBe(5.2);
       expect(merged[0].metadata.url).toBe(AUDIO_URL);
@@ -235,7 +236,11 @@ describe('triggerAttachmentMerge', () => {
       expect(merged[0].originalUrl).toBe(AUDIO_URL);
       expect(merged[0].metadata.isVoiceMessage).toBe(true);
       expect(merged[0].description).not.toContain('failed');
+      // 'No speech detected' is a pinned SUCCESS entry — it must stay wrapped,
+      // so processingFailed stays unset.
+      expect(merged[0].processingFailed).toBeUndefined();
       expect(buildAttachmentDescriptions(merged)).toContain('[Voice message:');
+      expect(buildAttachmentDescriptions(merged)).toContain('<voice_transcripts>');
     });
 
     it('appends a job entry that matches no original without a second warning', async () => {

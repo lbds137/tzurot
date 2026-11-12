@@ -356,6 +356,38 @@ describe('RAGUtils', () => {
       );
     });
 
+    it('renders a failed voice message as header plus notice with no transcript wrapper', () => {
+      // A failure notice is not speech — wrapping it would persist it inside
+      // <voice_transcripts> as if the user said it.
+      const failed: ProcessedAttachment = {
+        ...createAttachment(AttachmentType.Audio, 'Audio transcription failed (download_failed)', {
+          isVoiceMessage: true,
+          duration: 5.2,
+        }),
+        processingFailed: true,
+      };
+
+      const result = buildAttachmentDescriptions([failed]);
+      expect(result).toBe('[Voice message: 5.2s]\nAudio transcription failed (download_failed)');
+      expect(result).not.toContain('voice_transcripts');
+      expect(result).not.toContain('<transcript');
+    });
+
+    it('renders a failed shared audio file as header plus notice with no transcript wrapper', () => {
+      const failed: ProcessedAttachment = {
+        ...createAttachment(AttachmentType.Audio, 'Audio transcription failed (too_long)', {
+          name: 'podcast.mp3',
+          isVoiceMessage: false,
+        }),
+        processingFailed: true,
+      };
+
+      const result = buildAttachmentDescriptions([failed]);
+      expect(result).toBe('[Audio: podcast.mp3]\nAudio transcription failed (too_long)');
+      expect(result).not.toContain('voice_transcripts');
+      expect(result).not.toContain('<transcript');
+    });
+
     it('should format multiple attachments separated by double newlines', () => {
       const attachments: ProcessedAttachment[] = [
         createAttachment(AttachmentType.Image, 'First image', { name: 'first.png' }),

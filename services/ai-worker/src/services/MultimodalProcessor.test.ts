@@ -859,6 +859,8 @@ describe('MultimodalProcessor', () => {
       });
       // Fallback includes error category
       expect(results[0].description).toMatch(/Audio transcription failed after \d+ attempts \(/);
+      // The notice is flagged so the audio render skips the transcript wrapper
+      expect(results[0].processingFailed).toBe(true);
     });
 
     it('routes a voice-flagged image/* attachment to STT, not vision', async () => {

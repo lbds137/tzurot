@@ -95,6 +95,11 @@ export function extractContentDescriptions(processedAttachments: ProcessedAttach
  * unknown), while `[Audio: name]` / `[Spoiler audio: name]` is a file they
  * shared, and `OUTPUT_CONSTRAINTS` names the `[Audio: name]` form as shared media.
  *
+ * One exception: an audio entry carrying `processingFailed: true` holds a
+ * processing-failure notice, not spoken words, so it renders under the same
+ * header with NO wrapper — the notice must not persist as if the user said it.
+ * Pinned by the failure cases in `RAGUtils.test.ts`.
+ *
  * Wrapper tags are NOT in `PROTECTED_TAGS` because `escapeXmlContent` runs over
  * the full message content at chat_log emit time — protecting them would also
  * escape OUR wrapper, destroying its effect. Instead, `neutralizeWrapperClosingTags`
@@ -152,6 +157,12 @@ function formatProcessedAttachmentEntry(a: ProcessedAttachment): string {
   }
   if (a.type === AttachmentType.Audio) {
     const header = buildAudioAttachmentHeader(a);
+    if (a.processingFailed === true) {
+      // A failure notice is not speech; wrapping it in the transcript tags
+      // persists it as if the user said it. Render the header over the bare
+      // notice instead. Pinned by the failure cases in RAGUtils.test.ts.
+      return `${header}\n${neutralizeHeaderMarkers(a.description)}`;
+    }
     const safeTranscript = neutralizeWrapperClosingTags(neutralizeHeaderMarkers(a.description));
     return `${header}\n<voice_transcripts><transcript>${safeTranscript}</transcript></voice_transcripts>`;
   }
