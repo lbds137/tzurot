@@ -388,6 +388,59 @@ describe('RAGUtils', () => {
       expect(result).not.toContain('<transcript');
     });
 
+    it('renders a mixed list with the failure bare and the success still wrapped', () => {
+      // Per-entry flag: the failed entry renders unwrapped while its successful
+      // sibling in the SAME list keeps the voice-transcript wrapper.
+      const failed: ProcessedAttachment = {
+        ...createAttachment(AttachmentType.Audio, 'Audio transcription failed (too_long)', {
+          isVoiceMessage: true,
+          duration: 5.2,
+        }),
+        processingFailed: true,
+      };
+      const success: ProcessedAttachment = createAttachment(AttachmentType.Audio, 'hello there', {
+        isVoiceMessage: true,
+        duration: 4.0,
+      });
+
+      const result = buildAttachmentDescriptions([failed, success]);
+
+      expect(result).toBe(
+        '[Voice message: 5.2s]\nAudio transcription failed (too_long)\n\n' +
+          '[Voice message: 4.0s]\n<voice_transcripts><transcript>hello there</transcript></voice_transcripts>'
+      );
+    });
+
+    it('renders failed spoilered audio entries bare under their Spoiler headers', () => {
+      // Both spoiler header variants take the failure branch: the notice stays
+      // bare (no transcript wrapper) under the Spoiler label too.
+      const failedFile: ProcessedAttachment = {
+        ...createAttachment(AttachmentType.Audio, 'Audio transcription failed (too_long)', {
+          name: 'SPOILER_podcast.mp3',
+          isVoiceMessage: false,
+          isSpoiler: true,
+        }),
+        processingFailed: true,
+      };
+      const failedVoice: ProcessedAttachment = {
+        ...createAttachment(AttachmentType.Audio, 'Audio transcription failed (too_long)', {
+          isVoiceMessage: true,
+          duration: 5.5,
+          isSpoiler: true,
+        }),
+        processingFailed: true,
+      };
+
+      const result = buildAttachmentDescriptions([failedFile, failedVoice]);
+
+      expect(result).toBe(
+        '[Spoiler audio: SPOILER_podcast.mp3]\nAudio transcription failed (too_long)\n\n' +
+          '[Spoiler voice message: 5.5s]\nAudio transcription failed (too_long)'
+      );
+      expect(result).not.toContain('voice_transcripts');
+      expect(result).not.toContain('<transcript');
+    });
+
     it('should format multiple attachments separated by double newlines', () => {
       const attachments: ProcessedAttachment[] = [
         createAttachment(AttachmentType.Image, 'First image', { name: 'first.png' }),
