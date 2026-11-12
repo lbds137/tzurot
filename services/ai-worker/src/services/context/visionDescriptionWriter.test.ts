@@ -139,7 +139,7 @@ describe('VisionDescriptionWriter', () => {
     expect(occurrences(stored, SPOKEN_WORDS)).toBe(1);
   });
 
-  it('persists a failed audio entry as header plus notice with no transcript wrapper', async () => {
+  it('persists a failed shared-audio entry as header plus notice with no transcript wrapper', async () => {
     // The builder renders a processingFailed audio entry outside the
     // <voice_transcripts> wrapper; the writer must carry that shape through
     // verbatim so the notice never persists as spoken words.

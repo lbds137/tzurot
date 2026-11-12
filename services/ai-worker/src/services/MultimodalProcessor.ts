@@ -45,7 +45,11 @@ export interface ProcessedAttachment {
   metadata: AttachmentMetadata;
   /** Which vision model produced `description`; null for placeholders and non-image attachments. */
   attribution?: AttachmentDescriptionAttribution | null;
-  /** The description is a processing-failure notice, not content. Set for every failure kind (audio, image, file); currently read only by the audio render, which skips the voice-transcript wrapper for it. */
+  /**
+   * The description is a processing-failure notice, not content. Set for
+   * every failure kind (audio, image, file); currently read only by the
+   * audio render, which skips the voice-transcript wrapper for it.
+   */
   processingFailed?: boolean;
 }
 
