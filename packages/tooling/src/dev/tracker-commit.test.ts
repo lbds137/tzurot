@@ -753,7 +753,9 @@ describe('default runner (no injected runGit)', () => {
 // Real git operations are observed to take ~8-10s per test under a loaded
 // full run, so this suite pins 20s per test, and pins its beforeEach
 // setup hook — which does comparable git work — at 20s as well.
-describe('trackerCommit — real git repository', { timeout: 20_000 }, () => {
+const REAL_GIT_TIMEOUT_MS = 20_000;
+
+describe('trackerCommit — real git repository', { timeout: REAL_GIT_TIMEOUT_MS }, () => {
   let realExecFileSync: typeof execFileSync;
   let tmpRoot: string;
   let originDir: string;
@@ -767,6 +769,8 @@ describe('trackerCommit — real git repository', { timeout: 20_000 }, () => {
     delete env.GIT_WORK_TREE;
     delete env.GIT_INDEX_FILE;
     delete env.GIT_PREFIX;
+    env.GIT_CONFIG_GLOBAL = '/dev/null';
+    env.GIT_CONFIG_NOSYSTEM = '1';
     return env;
   }
 
@@ -818,10 +822,10 @@ describe('trackerCommit — real git repository', { timeout: 20_000 }, () => {
 
     repoCwd = cloneDir;
     runGit = (args: string[], cwd?: string): string => gitIn(cwd ?? repoCwd, args);
-  }, 20_000);
+  }, REAL_GIT_TIMEOUT_MS);
 
   afterEach(() => {
-    rmSync(tmpRoot, { recursive: true, force: true });
+    if (tmpRoot) rmSync(tmpRoot, { recursive: true, force: true });
   });
 
   it('refuses fresh when develop is ahead with an unrelated local commit, naming 1 commit and leaving origin unchanged', () => {
