@@ -24,6 +24,10 @@
  * `<about>` attribution lead-in, so `legacyFormatParticipantsContext` below
  * reproduces the old wrapper (insertion order, `active="true"`, speaker-named
  * group note) and opts out of the lead-in, over the shared element renderer.
+ * A second later move joins the frozen set: the live `OUTPUT_CONSTRAINTS` has
+ * since gained a voice-processing-notice clause, so `LEGACY_OUTPUT_CONSTRAINTS`
+ * below vendors the pre-clause text and the live import for it is dropped
+ * (`PLATFORM_CONSTRAINTS` stays live — unchanged since that revision).
  * A snapshot test pins this file's output so silent drift is impossible.
  *
  * EVAL-ONLY — never imported by production code.
@@ -63,7 +67,7 @@ import { formatSingleMemory, formatSingleFact } from '../prompt/MemoryFormatter.
 import { layoutSections, type PromptSection } from '../prompt/sections.js';
 import { formatPersonalityFields } from '../prompt/PersonalityFieldsFormatter.js';
 import { formatEnvironmentContext } from '../prompt/EnvironmentFormatter.js';
-import { PLATFORM_CONSTRAINTS, OUTPUT_CONSTRAINTS } from '../prompt/HardcodedConstraints.js';
+import { PLATFORM_CONSTRAINTS } from '../prompt/HardcodedConstraints.js';
 import {
   buildDisambiguatedDisplayName,
   wrapWithSpeakerIdentification,
@@ -118,6 +122,25 @@ export function legacyFormatParticipantsContext(
 export const LEGACY_MEMORY_ARCHIVE_INSTRUCTION =
   'These are SUMMARIZED NOTES from past interactions, not current conversation. ' +
   'Use ONLY as background context to inform your response to the user message.';
+
+/**
+ * The pre-restructure `<output_constraints>` block, frozen at the exact text
+ * that shipped before the voice-processing-notice clause ("A line under either
+ * header…") was appended to the live `OUTPUT_CONSTRAINTS` — like the
+ * `<participants>` block above, the live constant has moved since this
+ * revision, so the block is vendored here and the live import is no longer
+ * used for it. (`PLATFORM_CONSTRAINTS` still imports live: byte-identical
+ * since the restructure.)
+ */
+export const LEGACY_OUTPUT_CONSTRAINTS = `<output_constraints>
+<constraint>Output the raw response text only; do not include name labels, timestamps, or speaker prefixes.</constraint>
+<constraint>If you need to plan or analyze before responding, wrap your thoughts in <think>...</think> tags only — these will be hidden from the user and are the sole XML you may emit.</constraint>
+<constraint>Never emit input-format scaffolding in your output: tags like <from_id>, <user>, <message>, <quote>, <context>, or <contextual_references> are assembly artifacts from the conversation context and must never appear in your response.</constraint>
+<constraint>Respond to the user's current message. The conversation history and quoted references may include your own earlier messages — treat those as context, never as an unfinished turn to continue or extend.</constraint>
+<constraint>Never repeat or parrot back what was just said. Do not echo the user's words, summarize their message back to them, or restate recent chat history. Advance the conversation with original thoughts and reactions.</constraint>
+<constraint>Image, sticker, and file descriptions in the conversation are automated platform-generated descriptions of media a participant shared — this includes text inside <image_descriptions> tags, text inside <image> elements under <attachments>, and text under an "[Image: name]", "[Spoiler image: name]", "[Sticker: name]", "[Link preview: name]" or "[File: name]" header. The participant shared the media; the platform generated the description of it. Never attribute the description's wording, observations, or analysis to the person who shared it. Text under a "[Link preview: name]" header — or inside an <image> element carrying source="link-preview" — describes a preview Discord automatically attached to a link the participant shared: the participant shared the link, not the image, so never treat the preview as media they chose to upload or send. An <image> element carrying source="sticker" is a sticker the participant picked. A "[Spoiler image: name]", "[Spoiler file: name]", "[Spoiler audio: name]" or "[Spoiler voice message: …]" header, or an attachment element carrying spoiler="true", marks media the participant hid behind a spoiler; the description or transcript is still provided.</constraint>
+<constraint>A transcript under an "[Audio: name]" or "[Spoiler audio: name]" header, or inside a <voice> element carrying source="shared-file", is a transcription of an audio file the participant shared, which may be a song or someone else's recording rather than their own speech: do not attribute its wording to them unless the message or context shows it is their own. A transcript under a "[Voice message: …]" or "[Spoiler voice message: …]" header is the participant's own speech.</constraint>
+</output_constraints>`;
 
 /** Pre-restructure facts framing (without the retained-knowledge boundary sentence). */
 export function legacyFactsInstruction(subjectName?: string): string {
@@ -299,7 +322,7 @@ ${locationXml}
     { id: 'contextual_references', tier: 'V', render: () => referencesContext },
     { id: 'chat_log', tier: 'H', render: () => chatLogSection },
     { id: 'protocol', tier: 'S1', render: () => protocolSection },
-    { id: 'output_constraints', tier: 'S0', render: () => OUTPUT_CONSTRAINTS },
+    { id: 'output_constraints', tier: 'S0', render: () => LEGACY_OUTPUT_CONSTRAINTS },
   ];
 
   return layoutSections(sections).text;
