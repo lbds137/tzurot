@@ -26,6 +26,8 @@ import { runChecks } from '../dev/commandsAuditChecks.js';
 import type { AuditToolEntry } from './audit-tool-registry.js';
 import { parseSummary } from './summary.js';
 
+const HERMETIC_GIT_ENV = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' } as const;
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_ROOT = resolve(__dirname, '../../test-fixtures/audit-canaries');
 const REPO_ROOT = resolve(__dirname, '../../../..');
@@ -298,7 +300,11 @@ describe('audit-canary: mutation:check', () => {
   });
 });
 
-describe('audit-canary: dev:stale-debug', () => {
+// Real git fixture (init/config/commits) plus the tool's own log/blame
+// plumbing; observed suite cost is well under the 5s default today, pinned
+// for the same loaded-run contention as the other real-git suites.
+const REAL_GIT_TIMEOUT_MS = 20_000;
+describe('audit-canary: dev:stale-debug', { timeout: REAL_GIT_TIMEOUT_MS }, () => {
   it('flags a backdated debug commit whose scaffolding survives at HEAD', async () => {
     // This canary exercises the REAL git plumbing (log/numstat/blame) against
     // a throwaway repo, because the tool's subject is git history — a static
@@ -315,7 +321,7 @@ describe('audit-canary: dev:stale-debug', () => {
       execFileSync('git', args, {
         cwd: tmp,
         stdio: 'pipe',
-        env: { ...process.env, ...env },
+        env: { ...process.env, ...HERMETIC_GIT_ENV, ...env },
       });
     };
 
@@ -365,11 +371,16 @@ describe('audit-canary: dev:stale-debug', () => {
       execFileSync('git', args, {
         cwd: tmp,
         stdio: 'pipe',
-        env: { ...process.env, ...env },
+        env: { ...process.env, ...HERMETIC_GIT_ENV, ...env },
       });
     };
     const gitOut = (args: string[]): string =>
-      execFileSync('git', args, { cwd: tmp, stdio: 'pipe', encoding: 'utf-8' }).trim();
+      execFileSync('git', args, {
+        cwd: tmp,
+        stdio: 'pipe',
+        encoding: 'utf-8',
+        env: { ...process.env, ...HERMETIC_GIT_ENV },
+      }).trim();
 
     try {
       git(['init', '--initial-branch=main']);
