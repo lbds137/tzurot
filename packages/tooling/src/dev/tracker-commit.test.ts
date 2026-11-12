@@ -750,8 +750,9 @@ describe('default runner (no injected runGit)', () => {
   });
 });
 
-// Real git operations run per test and take ~8-10s each under suite load, so
-// this suite pins 20s per test instead of the 5s default.
+// Real git operations are observed to take ~8-10s per test under a loaded
+// full run, so this suite pins 20s per test, and pins its beforeEach
+// setup hook — which does comparable git work — at 20s as well.
 describe('trackerCommit — real git repository', { timeout: 20_000 }, () => {
   let realExecFileSync: typeof execFileSync;
   let tmpRoot: string;
@@ -817,7 +818,7 @@ describe('trackerCommit — real git repository', { timeout: 20_000 }, () => {
 
     repoCwd = cloneDir;
     runGit = (args: string[], cwd?: string): string => gitIn(cwd ?? repoCwd, args);
-  });
+  }, 20_000);
 
   afterEach(() => {
     rmSync(tmpRoot, { recursive: true, force: true });
