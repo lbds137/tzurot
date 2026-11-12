@@ -160,7 +160,7 @@ function formatProcessedAttachmentEntry(a: ProcessedAttachment): string {
     if (a.processingFailed === true) {
       // A failure notice is not speech; wrapping it in the transcript tags
       // persists it as if the user said it. Render the header over the bare
-      // notice instead. Pinned by the failure cases in RAGUtils.test.ts.
+      // notice instead.
       return `${header}\n${neutralizeHeaderMarkers(a.description)}`;
     }
     const safeTranscript = neutralizeWrapperClosingTags(neutralizeHeaderMarkers(a.description));
