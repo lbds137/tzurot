@@ -3,9 +3,10 @@ id: TASK-1403
 title: >-
   Failure notices persist into history inside voice_transcripts and read as
   speech on replay
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-11T03:23:00Z'
+updated_date: '2026-11-12T14:28:00Z'
 labels:
   - area:ai-worker
   - size:S
