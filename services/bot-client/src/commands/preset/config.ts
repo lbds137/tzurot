@@ -64,7 +64,7 @@ const OMIT_WHEN_EMPTY_FIELDS = ['name', 'provider', 'model'] as const;
 const NULL_WHEN_EMPTY_FIELDS = ['description'] as const;
 
 /** Numeric sampling/output params; FlattenedPresetData holds them as form strings */
-const NUMERIC_PARAMS = [
+export const NUMERIC_PARAMS = [
   'temperature',
   'top_p',
   'top_k',
@@ -79,24 +79,21 @@ const NUMERIC_PARAMS = [
 
 type NumericParamKey = (typeof NUMERIC_PARAMS)[number];
 
-/** Parse numeric params from flat data */
+/** Parse numeric params from flat data, dropping empty or unparseable entries */
 function parseNumericParams(flat: Partial<FlattenedPresetData>): {
   values: Partial<Record<NumericParamKey, number>>;
-  hasAny: boolean;
 } {
   const values: Partial<Record<NumericParamKey, number>> = {};
-  let hasAny = false;
   for (const param of NUMERIC_PARAMS) {
     const value = flat[param];
     if (value !== undefined && value.length > 0) {
       const num = parseFloat(value);
       if (!isNaN(num)) {
         values[param] = num;
-        hasAny = true;
       }
     }
   }
-  return { values, hasAny };
+  return { values };
 }
 
 /**
@@ -123,17 +120,33 @@ function parseOptionalInt(value: string | undefined): number | undefined {
   return isNaN(num) ? undefined : num;
 }
 
-/** Build advancedParameters object from flattened data */
+/**
+ * Build advancedParameters object from flattened data.
+ *
+ * Gate on PRESENCE, not on parsed values: a dashboard edit submits every
+ * numeric/thinking field, so any such key present means the params were part
+ * of this edit — the object is sent even when every value is empty or
+ * unparseable, so the gateway's wholesale replace clears params the user
+ * removed. `null` means no params field was part of the payload at all (the
+ * create seed path and other synthetic callers); the gateway leaves stored
+ * params untouched then. Pinned by the blank-clears and untouched-no-op tests
+ * in config.test.ts.
+ */
 function buildAdvancedParameters(flat: Partial<FlattenedPresetData>): AdvancedParams | null {
-  const { values: samplingParams, hasAny: hasSampling } = parseNumericParams(flat);
+  const anyParamPresent =
+    NUMERIC_PARAMS.some(param => flat[param] !== undefined) || flat.thinking !== undefined;
+  if (!anyParamPresent) {
+    return null;
+  }
+
+  const { values: samplingParams } = parseNumericParams(flat);
   const thinking = parseThinkingLevel(flat);
 
   const advancedParameters: AdvancedParams = { ...samplingParams };
   if (thinking !== null) {
     advancedParameters.thinking = thinking;
   }
-  const hasAdvanced = hasSampling || thinking !== null;
-  return hasAdvanced ? advancedParameters : null;
+  return advancedParameters;
 }
 
 /** Convert flattened form data back to API update payload */

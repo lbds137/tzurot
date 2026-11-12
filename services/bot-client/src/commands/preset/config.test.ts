@@ -272,18 +272,19 @@ describe('unflattenPresetData', () => {
     expect(advParams.thinking).toBe('off');
   });
 
-  it('should handle invalid thinking level values', () => {
+  it('should send an empty object for an unrecognized thinking level (key present)', () => {
     const flat: Partial<FlattenedPresetData> = {
       thinking: 'invalid',
     };
 
     const result = unflattenPresetData(flat);
 
-    // An unrecognized level should not be included
-    expect(result.advancedParameters).toBeUndefined();
+    // The thinking key was submitted, so the object is still sent (wholesale
+    // replace clears); the unparseable level itself is dropped.
+    expect(result.advancedParameters).toEqual({});
   });
 
-  it('should ignore empty string values', () => {
+  it('should send an empty object when numeric params are blanked', () => {
     const flat: Partial<FlattenedPresetData> = {
       name: '',
       temperature: '',
@@ -293,17 +294,17 @@ describe('unflattenPresetData', () => {
     const result = unflattenPresetData(flat);
 
     expect(result.name).toBeUndefined();
-    expect(result.advancedParameters).toBeUndefined();
+    expect(result.advancedParameters).toEqual({});
   });
 
-  it('should ignore invalid numeric values', () => {
+  it('should drop unparseable numeric values but still send the object', () => {
     const flat: Partial<FlattenedPresetData> = {
       temperature: 'not-a-number',
     };
 
     const result = unflattenPresetData(flat);
 
-    expect(result.advancedParameters).toBeUndefined();
+    expect(result.advancedParameters).toEqual({});
   });
 
   it('should handle mixed valid and invalid values', () => {
@@ -341,6 +342,66 @@ describe('unflattenPresetData', () => {
     const result = unflattenPresetData(flat);
 
     expect(result.contextWindowTokens).toBeUndefined();
+  });
+});
+
+describe('unflattenPresetData — blanked params clear (wholesale replace)', () => {
+  const basePreset: PresetData = {
+    id: 'preset-123',
+    name: 'My Preset',
+    description: null,
+    model: 'anthropic/claude-sonnet-4',
+    provider: 'openrouter',
+    isGlobal: false,
+    isOwned: true,
+    permissions: { canEdit: true, canDelete: true },
+    contextWindowTokens: 8192,
+    params: {},
+  };
+
+  it('blanking the only advanced param sends advancedParameters: {}', () => {
+    const flat: Partial<FlattenedPresetData> = { temperature: '' };
+
+    expect(unflattenPresetData(flat).advancedParameters).toEqual({});
+  });
+
+  it('blanking one of several numeric params keeps only the survivors', () => {
+    const flat: Partial<FlattenedPresetData> = {
+      temperature: '0.7',
+      top_p: '',
+      top_k: '40',
+    };
+
+    expect(unflattenPresetData(flat).advancedParameters).toEqual({ temperature: 0.7, top_k: 40 });
+  });
+
+  it('an identity edit round-trips the stored params unchanged (no-op under replace)', () => {
+    const preset: PresetData = { ...basePreset, params: { temperature: 0.7, thinking: 'high' } };
+
+    const result = unflattenPresetData(flattenPresetData(preset));
+
+    expect(result.advancedParameters).toEqual({ temperature: 0.7, thinking: 'high' });
+  });
+
+  it('a no-params identity edit still sends advancedParameters: {} (no observable change)', () => {
+    const result = unflattenPresetData(flattenPresetData(basePreset));
+
+    expect(result.advancedParameters).toEqual({});
+  });
+
+  it('blanking a set thinking level clears it while numeric survivors ride along', () => {
+    const flat: Partial<FlattenedPresetData> = { temperature: '0.7', thinking: '' };
+
+    expect(unflattenPresetData(flat).advancedParameters).toEqual({ temperature: 0.7 });
+  });
+
+  it('the create seed path omits advancedParameters entirely', () => {
+    const flat: Partial<FlattenedPresetData> = { name: 'Seed Preset', model: 'gpt-4' };
+
+    const result = unflattenPresetData(flat);
+
+    expect(result.advancedParameters).toBeUndefined();
+    expect(Object.hasOwn(result, 'advancedParameters')).toBe(false);
   });
 });
 

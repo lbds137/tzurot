@@ -81,6 +81,72 @@ describe('presetConfigValidator', () => {
         expect(result.errors.filter(e => e.field === 'min_p / top_a')).toHaveLength(0);
       });
     });
+
+    describe('non-numeric sampling parameter', () => {
+      it('should error when temperature is not a number', () => {
+        const config = createTestConfig({ temperature: 'abc' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.field === 'sampling parameters')).toBe(true);
+        expect(result.errors.find(e => e.field === 'sampling parameters')?.message).toContain(
+          'must be plain numbers'
+        );
+      });
+
+      it('should error for a non-numeric value in any covered field', () => {
+        const config = createTestConfig({ seed: 'oops' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.errors.some(e => e.field === 'sampling parameters')).toBe(true);
+      });
+
+      it('should pass when the value parses as a number', () => {
+        const config = createTestConfig({ temperature: '0.7' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(true);
+        expect(result.errors.filter(e => e.field === 'sampling parameters')).toHaveLength(0);
+      });
+
+      it('should pass when the field is blank (blank clears)', () => {
+        const config = createTestConfig({ temperature: '' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(true);
+        expect(result.errors.filter(e => e.field === 'sampling parameters')).toHaveLength(0);
+      });
+    });
+
+    describe('unrecognized thinking level', () => {
+      it('should error when the level is not one of THINKING_LEVELS', () => {
+        const config = createTestConfig({ thinking: 'invalid' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.field === 'thinking')).toBe(true);
+        expect(result.errors.find(e => e.field === 'thinking')?.message).toContain(
+          'must be one of'
+        );
+        expect(result.errors.find(e => e.field === 'thinking')?.message).toContain('xhigh');
+      });
+
+      it('should pass when the level is valid (case-insensitive, like the parser)', () => {
+        const config = createTestConfig({ thinking: 'HIGH' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(true);
+        expect(result.errors.filter(e => e.field === 'thinking')).toHaveLength(0);
+      });
+
+      it('should pass when the level is blank (blank clears by design)', () => {
+        const config = createTestConfig({ thinking: '' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(true);
+        expect(result.errors.filter(e => e.field === 'thinking')).toHaveLength(0);
+      });
+    });
   });
 
   describe('warning rules', () => {

@@ -10,7 +10,8 @@
  */
 
 import { ConfigValidator } from '../../utils/configValidation.js';
-import type { FlattenedPresetData } from './config.js';
+import { THINKING_LEVELS } from '@tzurot/common-types/schemas/llmAdvancedParams';
+import { NUMERIC_PARAMS, type FlattenedPresetData } from './config.js';
 
 /**
  * Parse numeric string value, returning undefined if empty or invalid
@@ -28,6 +29,8 @@ function parseNum(value: string | undefined): number | undefined {
  *
  * Error rules (block save):
  * - min_p + top_a conflict: Both achieve similar goals, use one
+ * - Non-numeric sampling parameter: Values must parse as plain numbers
+ * - Unrecognized thinking level: Must be one of THINKING_LEVELS (or blank)
  *
  * Warning rules (allow save, display caution):
  * - Low temperature + low top_p: May produce repetitive output
@@ -48,6 +51,29 @@ export const presetConfigValidator = new ConfigValidator<FlattenedPresetData>()
       return minP !== undefined && minP > 0 && topA !== undefined && topA > 0;
     },
     'Use min_p OR top_a, not both. They achieve the same goal (dynamic probability filtering) differently.'
+  )
+
+  .addError(
+    'sampling parameters',
+    c =>
+      NUMERIC_PARAMS.some(f => {
+        const value = c[f];
+        return value !== undefined && value.length > 0 && isNaN(parseFloat(value));
+      }),
+    'Sampling parameters must be plain numbers (e.g. temperature: 0.7, top_k: 40, seed: 42). Leave a field empty to remove that parameter.'
+  )
+
+  .addError(
+    'thinking',
+    c => {
+      const value = c.thinking;
+      if (value === undefined || value.length === 0) {
+        return false;
+      }
+      const input = value.toLowerCase();
+      return !THINKING_LEVELS.some(level => level === input);
+    },
+    `Thinking level must be one of: ${THINKING_LEVELS.join(', ')}. Leave the field empty to take the provider default.`
   )
 
   // =========================================
