@@ -304,6 +304,7 @@ describe('audit-canary: mutation:check', () => {
 // plumbing; observed suite cost is well under the 5s default today, pinned
 // for the same loaded-run contention as the other real-git suites.
 const REAL_GIT_TIMEOUT_MS = 20_000;
+
 describe('audit-canary: dev:stale-debug', { timeout: REAL_GIT_TIMEOUT_MS }, () => {
   it('flags a backdated debug commit whose scaffolding survives at HEAD', async () => {
     // This canary exercises the REAL git plumbing (log/numstat/blame) against
@@ -324,6 +325,13 @@ describe('audit-canary: dev:stale-debug', { timeout: REAL_GIT_TIMEOUT_MS }, () =
         env: { ...process.env, ...HERMETIC_GIT_ENV, ...env },
       });
     };
+
+    // The tool under test spawns its own git (log/diff-tree/blame) without an
+    // env argument, so those subprocesses inherit the worker's env (Node's
+    // default when `env` is unset) — stub the isolation into it for the
+    // duration of the test, keeping the real default runner under test.
+    vi.stubEnv('GIT_CONFIG_GLOBAL', '/dev/null');
+    vi.stubEnv('GIT_CONFIG_NOSYSTEM', '1');
 
     try {
       git(['init', '--initial-branch=main']);
@@ -357,6 +365,7 @@ describe('audit-canary: dev:stale-debug', { timeout: REAL_GIT_TIMEOUT_MS }, () =
       expect(result.liveCommits[0].survivingFiles[0].file).toBe('probe.ts');
     } finally {
       await rm(tmp, { recursive: true, force: true });
+      vi.unstubAllEnvs();
     }
   });
 
@@ -374,6 +383,9 @@ describe('audit-canary: dev:stale-debug', { timeout: REAL_GIT_TIMEOUT_MS }, () =
         env: { ...process.env, ...HERMETIC_GIT_ENV, ...env },
       });
     };
+    // Same isolation for the tool's own git subprocesses (see the test above).
+    vi.stubEnv('GIT_CONFIG_GLOBAL', '/dev/null');
+    vi.stubEnv('GIT_CONFIG_NOSYSTEM', '1');
     const gitOut = (args: string[]): string =>
       execFileSync('git', args, {
         cwd: tmp,
@@ -418,6 +430,7 @@ describe('audit-canary: dev:stale-debug', { timeout: REAL_GIT_TIMEOUT_MS }, () =
       expect(result.ignoredRetireValues).toEqual([]);
     } finally {
       await rm(tmp, { recursive: true, force: true });
+      vi.unstubAllEnvs();
     }
   });
 });
