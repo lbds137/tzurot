@@ -165,6 +165,30 @@ describe('VisionDescriptionWriter', () => {
     expect(stored).not.toContain('<transcript');
   });
 
+  it('persists a failed voice message with its [Voice message: Ns] header at the persist seam', async () => {
+    const failedVoice: ProcessedAttachment = {
+      ...voiceAttachment,
+      metadata: { ...voiceAttachment.metadata, isVoiceMessage: true, duration: 5.2 },
+      description: 'Audio transcription failed (too_long)',
+      processingFailed: true,
+    };
+    const history = makeHistory();
+    const writer = new VisionDescriptionWriter(history as never);
+
+    await writer.persistTriggerDescriptions({
+      jobId: 'j1',
+      message: '',
+      rawMessageContent: '',
+      jobContext: makeContext(),
+      personalityId: 'pers-1',
+      processedAttachments: [failedVoice],
+    });
+
+    const stored = history.updateLastUserMessage.mock.calls[0][3] as string;
+    expect(stored).toBe('[Voice message: 5.2s]\nAudio transcription failed (too_long)');
+    expect(stored).not.toContain('<transcript');
+  });
+
   it('keeps the message prefix when the user typed text alongside an audio attachment', async () => {
     const history = makeHistory();
     const writer = new VisionDescriptionWriter(history as never);

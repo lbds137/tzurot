@@ -1918,6 +1918,8 @@ describe('DependencyStep', () => {
         const rendered = render(result);
         expect(rendered).toContain('[Voice message: 5.2s]');
         expect(rendered).toContain('Audio transcription failed (too_long)');
+        expect(rendered).not.toContain('<transcript');
+        expect(rendered).not.toContain('<voice_transcripts');
       });
 
       it('renders a silent voice message (empty successful STT) as "No speech detected"', async () => {
@@ -1973,6 +1975,8 @@ describe('DependencyStep', () => {
         // no-result stub; the reference job's reason must not leak into it.
         const rendered = render(result);
         expect(rendered).toContain('Audio transcription failed (no result returned)');
+        expect(rendered).not.toContain('<transcript');
+        expect(rendered).not.toContain('<voice_transcripts');
         expect(rendered).not.toContain('too_long');
       });
     });
