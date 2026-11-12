@@ -1021,6 +1021,58 @@ describe('LLMInvoker', () => {
         });
       });
 
+      it('logs cachedWriteTokens beside cachedPromptTokens when the provider reports a cache write', async () => {
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
+            content: 'Truncated response',
+            response_metadata: { finish_reason: 'length' },
+            usage_metadata: {
+              input_tokens: 220,
+              output_tokens: 5,
+              total_tokens: 225,
+              input_token_details: { cache_read: 80, cache_creation: 120 },
+            },
+          })
+        );
+
+        await invoker.invokeWithRetry({
+          model: mockModel,
+          messages: [new HumanMessage('Hello')],
+          modelName: 'test-model',
+        });
+
+        const lengthLog = mockLoggerWarn.mock.calls.find(call =>
+          (call[1] as string)?.includes('token limit')
+        );
+        expect(lengthLog?.[0]).toMatchObject({
+          cachedPromptTokens: 80,
+          cachedWriteTokens: 120,
+        });
+      });
+
+      it('leaves cachedWriteTokens undefined (no throw) when input_token_details is absent', async () => {
+        const mockModel = mockChatModel(
+          vi.fn().mockResolvedValue({
+            content: 'Truncated response',
+            response_metadata: { finish_reason: 'length' },
+            usage_metadata: { input_tokens: 100, output_tokens: 5, total_tokens: 105 },
+          })
+        );
+
+        await invoker.invokeWithRetry({
+          model: mockModel,
+          messages: [new HumanMessage('Hello')],
+          modelName: 'test-model',
+        });
+
+        const lengthLog = mockLoggerWarn.mock.calls.find(call =>
+          (call[1] as string)?.includes('token limit')
+        );
+        const logContext = lengthLog?.[0] as Record<string, unknown>;
+        expect('cachedWriteTokens' in logContext).toBe(true);
+        expect(logContext.cachedWriteTokens).toBeUndefined();
+      });
+
       it('ignores response_metadata.usage (the system_fingerprint-gated dead path)', async () => {
         const mockModel = mockChatModel(
           vi.fn().mockResolvedValue({

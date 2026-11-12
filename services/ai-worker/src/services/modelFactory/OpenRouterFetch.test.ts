@@ -458,6 +458,76 @@ describe('OpenRouterFetch', () => {
     expect(capturedBody).toBe(nonJsonBody);
   });
 
+  it('injects cache_control at the request ROOT (sibling of model) when extraParams carries it', async () => {
+    const customFetch = createOpenRouterFetch({
+      cacheControl: { type: 'ephemeral', ttl: '1h' },
+    });
+
+    const requestBody = { model: 'anthropic/claude-sonnet-4', messages: [] };
+    let capturedBody: string | undefined;
+    globalThis.fetch = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string;
+      return Promise.resolve(mockResponse({ choices: [] }, 200));
+    });
+
+    await customFetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+    });
+
+    expect(capturedBody).toBeDefined();
+    const parsed = JSON.parse(capturedBody!) as Record<string, unknown>;
+    expect(parsed.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+    // Sibling of `model`, not per-message
+    expect(parsed.model).toBe('anthropic/claude-sonnet-4');
+  });
+
+  it('omits cache_control from the body when extraParams does not carry it (gate lives upstream)', async () => {
+    const customFetch = createOpenRouterFetch({
+      transforms: ['middle-out'],
+    });
+
+    let capturedBody: string | undefined;
+    globalThis.fetch = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string;
+      return Promise.resolve(mockResponse({ choices: [] }, 200));
+    });
+
+    await customFetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'openai/gpt-5.1', messages: [] }),
+    });
+
+    const parsed = JSON.parse(capturedBody!) as Record<string, unknown>;
+    expect(parsed).not.toHaveProperty('cache_control');
+    // The 4th key composes: existing injection still runs
+    expect(parsed.transforms).toEqual(['middle-out']);
+  });
+
+  it('skips cache_control silently on a non-JSON body (same fail-open breadcrumb as the other keys)', async () => {
+    const customFetch = createOpenRouterFetch({
+      cacheControl: { type: 'ephemeral', ttl: '1h' },
+    });
+
+    let capturedBody: unknown;
+    globalThis.fetch = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body;
+      return Promise.resolve(mockResponse({ choices: [] }, 200));
+    });
+
+    const nonJsonBody = 'this is not json';
+    await customFetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      body: nonJsonBody,
+    });
+
+    expect(capturedBody).toBe(nonJsonBody);
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      expect.objectContaining({ bodyType: 'String' }),
+      'injectOpenRouterParams: body is not JSON-parseable, skipping param injection'
+    );
+  });
+
   describe('200 with an error body and no choices', () => {
     it('synthesizes an error status from body.error.code, round-tripping the body minus flagged_input', async () => {
       const customFetch = createFetch();

@@ -22,6 +22,7 @@ import { isReasoningModel } from '../utils/reasoningModelUtils.js';
 import type { AdvancedParams, ThinkingLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import {
   createOpenRouterFetch,
+  OPENROUTER_PROMPT_CACHE_CONTROL,
   type OpenRouterExtraParams,
 } from './modelFactory/OpenRouterFetch.js';
 import { buildThinkingKwargs } from './modelFactory/thinkingTranslation.js';
@@ -361,6 +362,17 @@ interface SharedChatModelParams {
   hasModelKwargs: boolean;
 }
 
+/**
+ * OpenRouter model ids carry the vendor prefix verbatim on the wire, so the
+ * anthropic-family gate is a plain prefix test on the id — not our internal
+ * AIProvider enum. OpenRouter's docs scope automatic prompt caching to
+ * Anthropic/Vertex/Azure/Bedrock providers (doc-sourced; runtime confirmation
+ * is the first cached call's logs).
+ */
+function isAnthropicFamilyModelId(modelName: string): boolean {
+  return modelName.startsWith('anthropic/');
+}
+
 function buildOpenRouterModel(
   modelName: string,
   modelConfig: ModelConfig,
@@ -375,6 +387,9 @@ function buildOpenRouterModel(
   }
 
   const extraParams = buildOpenRouterExtraParams(modelConfig);
+  if (isAnthropicFamilyModelId(modelName)) {
+    extraParams.cacheControl = OPENROUTER_PROMPT_CACHE_CONTROL;
+  }
   const hasExtraParams = Object.keys(extraParams).length > 0;
   const hasReasoning =
     modelConfig.thinking !== undefined && modelConfig.supportsReasoning !== false;

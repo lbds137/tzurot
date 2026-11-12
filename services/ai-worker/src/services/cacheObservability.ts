@@ -191,6 +191,8 @@ export interface CacheObservabilityInputs {
   triggerMessageId?: string;
   /** Provider-reported `cache_read` input tokens, when present. */
   cacheReadTokens?: number;
+  /** Provider-reported cache-write input tokens (the call that filled the cache), when present. */
+  cacheWriteTokens?: number;
   /** Provider-reported total input tokens, when present. */
   inputTokens?: number;
   /** Injectable clock for tests; defaults to `Date.now()`. */
@@ -328,6 +330,7 @@ export function logGeneratedResponse(logger: Logger, inputs: GeneratedResponseLo
       modelName,
       promptTokens: observability.inputTokens,
       cachedPromptTokens: observability.cacheReadTokens,
+      cachedWriteTokens: observability.cacheWriteTokens,
       ...buildCacheObservability(observability),
     },
     'Generated response'

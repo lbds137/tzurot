@@ -152,6 +152,11 @@ export async function invokeModelAndClean(
   // than repeating the optional chain, which would otherwise count as two
   // separate branch points for the `complexity` lint rule.
   const completionTokens = usageMetadata?.output_tokens;
+  // Same branch-point economy for the cache counters: ONE optional chain
+  // serves both the read and write counts, where two inline chains would cost
+  // four branch points and tip the function over the complexity ceiling.
+  const inputTokenDetails: { cache_read?: number; cache_creation?: number } =
+    usageMetadata?.input_token_details ?? {};
 
   // Read off the raw response rather than the parsed metadata: parseResponseMetadata
   // returns a narrowly-typed ParsedResponseMetadata that does not declare model_name.
@@ -242,7 +247,8 @@ export async function invokeModelAndClean(
     shippedHistoryCount: historyMessages?.length ?? 0,
     history: context.rawConversationHistory,
     triggerMessageId: context.triggerMessageId,
-    cacheReadTokens: usageMetadata?.input_token_details?.cache_read,
+    cacheReadTokens: inputTokenDetails.cache_read,
+    cacheWriteTokens: inputTokenDetails.cache_creation,
     inputTokens: usageMetadata?.input_tokens,
   });
 
