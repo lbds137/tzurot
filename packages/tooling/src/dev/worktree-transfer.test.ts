@@ -634,7 +634,7 @@ describe('performRemoval', () => {
 const REAL_GIT_TIMEOUT_MS = 20_000;
 
 describe('checkNoUnpushedRemotes against a real git repo', { timeout: REAL_GIT_TIMEOUT_MS }, () => {
-  let tmpDir: string;
+  let tmpDir: string | undefined;
   let workDir: string;
 
   const HERMETIC_GIT_ENV = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' } as const;
@@ -661,6 +661,7 @@ describe('checkNoUnpushedRemotes against a real git repo', { timeout: REAL_GIT_T
 
   afterEach(() => {
     if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
+    tmpDir = undefined;
   });
 
   it('returns null when pushed, refuses when a commit is unpushed, and returns null again once pushed', async () => {

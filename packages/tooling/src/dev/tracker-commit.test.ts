@@ -757,7 +757,7 @@ const REAL_GIT_TIMEOUT_MS = 20_000;
 
 describe('trackerCommit — real git repository', { timeout: REAL_GIT_TIMEOUT_MS }, () => {
   let realExecFileSync: typeof execFileSync;
-  let tmpRoot: string;
+  let tmpRoot: string | undefined;
   let originDir: string;
   let cloneDir: string;
   let repoCwd: string;
@@ -826,6 +826,7 @@ describe('trackerCommit — real git repository', { timeout: REAL_GIT_TIMEOUT_MS
 
   afterEach(() => {
     if (tmpRoot) rmSync(tmpRoot, { recursive: true, force: true });
+    tmpRoot = undefined;
   });
 
   it('refuses fresh when develop is ahead with an unrelated local commit, naming 1 commit and leaving origin unchanged', () => {
@@ -1015,7 +1016,7 @@ describe('trackerCommit — real git repository', { timeout: REAL_GIT_TIMEOUT_MS
   });
 
   it('commits a dirty file from the clone when another checkout holds develop, and refuses stranded-board-files naming the clone path when the worktree has a dirty tracker file', () => {
-    const wtDir = join(tmpRoot, 'wt');
+    const wtDir = join(tmpRoot!, 'wt');
     gitIn(cloneDir, ['worktree', 'add', wtDir, '-b', 'feature']);
     repoCwd = wtDir;
 
