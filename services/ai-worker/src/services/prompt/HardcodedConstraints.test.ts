@@ -214,7 +214,7 @@ describe('HardcodedConstraints', () => {
 
     it("keeps a genuine voice message's transcript as the participant's own speech", () => {
       expect(OUTPUT_CONSTRAINTS).toContain(
-        '"[Voice message: …]" or "[Spoiler voice message: …]" header is the participant\'s own speech. A line under either header that is not wrapped in <voice_transcripts> is a processing notice, not the participant\'s speech.'
+        '"[Voice message: …]" or "[Spoiler voice message: …]" header is the participant\'s own speech. A line under any of these headers that is not wrapped in <voice_transcripts> is a processing notice, not the participant\'s speech.'
       );
       // The constraint makes no claim about an unmarked <voice> element.
       const mentions = [...OUTPUT_CONSTRAINTS.matchAll(/<voice\b/g)].map(m =>
