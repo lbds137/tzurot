@@ -3,7 +3,7 @@ id: TASK-1417
 title: >-
   PR 2747 round-3 fixup: doc block order, ttl type, Cache Write 0 probe,
   family-check alignment
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-13T02:20:00Z'
 labels:
