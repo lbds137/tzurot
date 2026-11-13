@@ -37,6 +37,15 @@ export interface ModelConfig extends ConvertedLlmParams {
    * When undefined, reasoning params are passed through (backward compatible).
    */
   supportsReasoning?: boolean;
+  /**
+   * Conversation-only opt-in for OpenRouter automatic prompt caching (the
+   * 1h tier bills cache writes at 2x input). Set by the conversation-turn
+   * path (modelInvocation.ts) where turns are multi-call and a cache pays
+   * for itself; one-shot callers (vision description, system-model calls)
+   * leave it unset so unique prompts pay no write premium. ModelFactory
+   * additionally gates the injection on the anthropic-family model id.
+   */
+  promptCaching?: boolean;
 }
 
 /**

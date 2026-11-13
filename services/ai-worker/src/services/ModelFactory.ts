@@ -365,12 +365,14 @@ interface SharedChatModelParams {
 /**
  * OpenRouter model ids carry the vendor prefix verbatim on the wire, so the
  * anthropic-family gate is a plain prefix test on the id — not our internal
- * AIProvider enum. OpenRouter's docs scope automatic prompt caching to
+ * AIProvider enum. The prefix test is case-insensitive on a lowercased COPY
+ * (same shape as the z.ai sibling `toZaiWireModelId`); the id itself is never
+ * rewritten. OpenRouter's docs scope automatic prompt caching to
  * Anthropic/Vertex/Azure/Bedrock providers (doc-sourced; runtime confirmation
  * is the first cached call's logs).
  */
 function isAnthropicFamilyModelId(modelName: string): boolean {
-  return modelName.startsWith('anthropic/');
+  return modelName.toLowerCase().startsWith('anthropic/');
 }
 
 function buildOpenRouterModel(
@@ -387,7 +389,11 @@ function buildOpenRouterModel(
   }
 
   const extraParams = buildOpenRouterExtraParams(modelConfig);
-  if (isAnthropicFamilyModelId(modelName)) {
+  // Conversation-only opt-in: one-shot callers (vision description, system
+  // calls) leave `promptCaching` unset, so their mostly-unique prompts pay no
+  // 1h-tier cache-write premium. The family gate stays as belt and suspenders
+  // even though the flag is only set on conversation configs.
+  if (modelConfig.promptCaching === true && isAnthropicFamilyModelId(modelName)) {
     extraParams.cacheControl = OPENROUTER_PROMPT_CACHE_CONTROL;
   }
   const hasExtraParams = Object.keys(extraParams).length > 0;

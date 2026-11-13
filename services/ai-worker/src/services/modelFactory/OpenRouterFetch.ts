@@ -103,9 +103,9 @@ function injectOpenRouterParams(
     // a string body today, so this should never fire — but if a future LangChain
     // version uses Uint8Array / ReadableStream / etc., we'd silently skip
     // OpenRouter param injection (transforms/route/verbosity/cache_control)
-    // without this debug
-    // breadcrumb. Logged at debug rather than warn because the fallback (passing
-    // body through unchanged) is correct; this is purely an observability hook.
+    // without this debug breadcrumb. Logged at debug rather than warn because
+    // the fallback (passing body through unchanged) is correct; this is purely
+    // an observability hook.
     logger.debug(
       {
         err,

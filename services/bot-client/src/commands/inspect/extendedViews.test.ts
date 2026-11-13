@@ -559,6 +559,33 @@ describe('buildCacheView', () => {
     expect(text).not.toContain('no cache reporting');
   });
 
+  it('renders the cache write count when the provider reported one', () => {
+    const payload = createMockPayload({
+      llmResponse: {
+        ...createMockPayload().llmResponse,
+        promptTokens: 1000,
+        cachedPromptTokens: 100,
+        cachedWriteTokens: 900,
+      },
+    });
+
+    const text = describeOf(buildCacheView(payload, 'req-1', OWNER_CTX));
+    expect(text).toContain('**Cache Write:** 900');
+  });
+
+  it('renders the explanatory line when the provider reported no cache write', () => {
+    const payload = createMockPayload({
+      llmResponse: {
+        ...createMockPayload().llmResponse,
+        promptTokens: 1000,
+        cachedPromptTokens: 100,
+      },
+    });
+
+    const text = describeOf(buildCacheView(payload, 'req-1', OWNER_CTX));
+    expect(text).toContain('**Cache Write:** _no cache write reported');
+  });
+
   it('degrades to an explanatory line when the log predates section tracking', () => {
     const payload = createMockPayload({
       llmResponse: {
