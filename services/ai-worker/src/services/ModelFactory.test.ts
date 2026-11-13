@@ -639,6 +639,33 @@ describe('ModelFactory', () => {
       expect(parsed.model).toBe('ANTHROPIC/claude-sonnet-4');
     });
 
+    it('threads a config sessionId through to the request-root session_id when the gate fires', async () => {
+      const parsed = await captureInjectedBody({
+        modelName: 'anthropic/claude-sonnet-4',
+        promptCaching: true,
+        sessionId: 'channel-123',
+      });
+      expect(parsed.session_id).toBe('channel-123');
+    });
+
+    it('injects no session_id when the config carries none even with the flag', async () => {
+      const parsed = await captureInjectedBody({
+        modelName: 'anthropic/claude-sonnet-4',
+        promptCaching: true,
+      });
+      expect(parsed).not.toHaveProperty('session_id');
+    });
+
+    it('injects no session_id for a non-anthropic id even with flag + sessionId (gate binds both)', async () => {
+      const parsed = await captureInjectedBody({
+        modelName: 'openai/gpt-5.1',
+        promptCaching: true,
+        sessionId: 'channel-123',
+      });
+      expect(parsed).not.toHaveProperty('session_id');
+      expect(parsed).not.toHaveProperty('cache_control');
+    });
+
     it('injects no cache_control for a google family id even with the flag (family gate still binds)', async () => {
       const parsed = await captureInjectedBody({
         modelName: 'google/gemini-2.5-pro',

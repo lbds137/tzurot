@@ -10,7 +10,7 @@
 import { type BaseMessage } from '@langchain/core/messages';
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
+import { contentDigest, contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { contentToText } from '../utils/baseMessageContent.js';
 import { readRoutedModel } from './multimodal/readRoutedModel.js';
 import { type LLMInvoker } from './LLMInvoker.js';
@@ -53,6 +53,16 @@ export interface ModelInvocationDeps {
   llmInvoker: LLMInvoker;
   responsePostProcessor: ResponsePostProcessor;
   inputProcessor: ConversationInputProcessor;
+}
+
+/**
+ * The session_id wire value for a turn: contentDigest of the channel id, or
+ * undefined when the turn carries no channel id (no session_id is injected —
+ * the same wire shape as before hashing). A helper so the caller's branch
+ * count is unchanged.
+ */
+function wireSessionId(channelId: string | undefined): string | undefined {
+  return channelId !== undefined ? contentDigest(channelId) : undefined;
 }
 
 /** Invoke the model and clean up the response */
@@ -111,6 +121,17 @@ export async function invokeModelAndClean(
   const { model, modelName, expectsRawResponse } = deps.llmInvoker.getModel({
     ...buildModelSamplingConfig({ personality, userApiKey, retryConfig, supportsReasoning }),
     promptCaching: true,
+    // Conversation-scoped stickiness id for OpenRouter prompt caching
+    // (request-root `session_id` when the ModelFactory caching gate fires).
+    // The channel id is the stable per-conversation id already in hand: in
+    // Discord a thread's messages carry the thread id AS the channel id, so
+    // this scopes per-thread where threads exist and per-channel otherwise.
+    // Shipped HASHED (see wireSessionId) — stable per channel, avoids sending
+    // a raw Discord snowflake upstream, keeps endpoint grouping stable across
+    // deploys. The digest only selects the provider endpoint; it never feeds
+    // sampling or prompts (see ConversationContext.requestId's doc for the
+    // sibling rule).
+    sessionId: wireSessionId(context.channelId),
   });
 
   // Calculate attachment counts for timeout

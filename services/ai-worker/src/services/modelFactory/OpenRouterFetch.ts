@@ -3,7 +3,7 @@
  *
  * Two responsibilities:
  * 1. REQUEST: Inject OpenRouter-specific params (transforms, route, verbosity,
- *    cache_control)
+ *    cache_control, session_id)
  *    that aren't first-class options on LangChain's ChatOpenAI but are part of
  *    OpenRouter's request body schema.
  * 2. RESPONSE: Best-effort recovery of usable content from 400-class JSON
@@ -42,6 +42,14 @@ export interface OpenRouterExtraParams {
   verbosity?: 'low' | 'medium' | 'high';
   /** Top-level automatic prompt-caching directive (anthropic-family ids only). */
   cacheControl?: { type: 'ephemeral'; ttl?: '5m' | '1h' };
+  /**
+   * Conversation-scoped stickiness id sent as the request root's `session_id`.
+   * OpenRouter's provider routing otherwise hashes the first system + first
+   * non-system message, which churns per turn on this pipeline; an explicit id
+   * pins the conversation to one endpoint so the cache can read. Carried only
+   * when the prompt-caching gate fires (ModelFactory).
+   */
+  sessionId?: string;
 }
 
 /**
@@ -63,6 +71,73 @@ export const OPENROUTER_PROMPT_CACHE_CONTROL = {
    * OpenRouter defaults to the 5-minute tier. */
   ttl: '1h',
 } as const;
+
+/**
+ * Attach an explicit per-block `cache_control` breakpoint to the SYSTEM
+ * message (LangChain ships it as `body.messages[0]` — see
+ * `buildInvocationMessages`, which puts the system prompt first).
+ *
+ * Role-guarded: the breakpoint applies only when `messages[0]` is a
+ * `system` or `developer` message. A `promptCaching` caller with no system
+ * prompt would otherwise cache-mark its first USER message — caching a
+ * prefix that changes every turn and can never read. Any other first role
+ * leaves the body untouched.
+ *
+ * OpenRouter's automatic mode holds ONE breakpoint that advances forward as
+ * the conversation grows, so the stable system prefix alone never forms a
+ * cacheable block boundary. An explicit breakpoint on the system block makes
+ * that prefix its own cache entry, keeping reads robust to variance in the
+ * messages AFTER the system prefix (which churn per turn on this pipeline);
+ * the verified prod cause — provider-affinity hash churn — is addressed
+ * separately by `session_id`. This runs BESIDE the root `cache_control`
+ * (which declares the TTL tier), giving two breakpoints total — under
+ * Anthropic's max of 4.
+ *
+ * Shapes handled: string content becomes a one-block text array carrying the
+ * breakpoint; array content gets the breakpoint attached to its LAST text
+ * block (OpenRouter/Anthropic cache the longest prefix ending at the marked
+ * block). An array with no text block is left untouched — there is no text to
+ * carry the breakpoint, and that shape does not occur on the conversation
+ * path, where the system prompt is plain text. Pinned by
+ * `OpenRouterFetch.test.ts` § "explicit system-block breakpoint + session id".
+ */
+function attachSystemBlockBreakpoint(
+  body: Record<string, unknown>,
+  cacheControl: OpenRouterExtraParams['cacheControl']
+): void {
+  const messages: unknown[] = Array.isArray(body.messages) ? (body.messages as unknown[]) : [];
+  if (messages.length === 0) {
+    return;
+  }
+  const first: unknown = messages[0];
+  if (typeof first !== 'object' || first === null) {
+    return;
+  }
+  const system = first as Record<string, unknown>;
+  const role: unknown = system.role;
+  if (role !== 'system' && role !== 'developer') {
+    return;
+  }
+  if (typeof system.content === 'string') {
+    system.content = [{ type: 'text', text: system.content, cache_control: { ...cacheControl } }];
+    return;
+  }
+  if (!Array.isArray(system.content)) {
+    return;
+  }
+  const blocks: unknown[] = system.content as unknown[];
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const block: unknown = blocks[i];
+    if (
+      typeof block === 'object' &&
+      block !== null &&
+      (block as Record<string, unknown>).type === 'text'
+    ) {
+      (block as Record<string, unknown>).cache_control = { ...cacheControl };
+      return;
+    }
+  }
+}
 
 /**
  * Inject OpenRouter-specific parameters into the request body.
@@ -87,6 +162,10 @@ function injectOpenRouterParams(
     }
     if (extraParams.cacheControl !== undefined) {
       body.cache_control = extraParams.cacheControl;
+      attachSystemBlockBreakpoint(body, extraParams.cacheControl);
+    }
+    if (extraParams.sessionId !== undefined) {
+      body.session_id = extraParams.sessionId;
     }
 
     const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.href : '[Request]';

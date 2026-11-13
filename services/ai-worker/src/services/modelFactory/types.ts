@@ -46,6 +46,21 @@ export interface ModelConfig extends ConvertedLlmParams {
    * additionally gates the injection on the anthropic-family model id.
    */
   promptCaching?: boolean;
+  /**
+   * Conversation-scoped stickiness id forwarded as OpenRouter's `session_id`
+   * request-root field when the prompt-caching gate fires. OpenRouter pins a
+   * conversation to one provider endpoint by hashing the first system and
+   * first non-system message; on this pipeline the cross-channel message and
+   * serialized history churn between turns, so the hash lands on a different
+   * endpoint and the cache never reads. Supplying an explicit stable id
+   * replaces the hash. Consumed only on the OpenRouter path (other providers
+   * never build extraParams from it). Set by modelInvocation.ts to the
+   * contentDigest of the context's channel id — the HASHED value ships on the
+   * wire, never the raw Discord snowflake. In Discord a thread's messages
+   * carry the thread id as the channel id, so this is conversation-scoped in
+   * both shapes.
+   */
+  sessionId?: string;
 }
 
 /**
