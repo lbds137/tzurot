@@ -342,7 +342,9 @@ describe('Preset Dashboard Buttons', () => {
     });
   });
 
-  // Helper to create a full preset API response
+  // Helper to create a full preset payload; the null numerics are fixture
+  // data exercising the flatten null-tolerance branch, not API output — the
+  // gateway's schema-validated detail cannot emit null.
   const createMockPresetResponse = (overrides?: Record<string, unknown>) => ({
     id: 'preset-123',
     name: 'Test Preset',
