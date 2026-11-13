@@ -5,7 +5,7 @@
  * Extracted to avoid circular dependencies between config.ts and presetSections.ts.
  */
 
-import type { AdvancedParams, ThinkingLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
+import type { AdvancedParams } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import type { EntityPermissions } from '@tzurot/common-types/utils/permissions';
 import type { BrowseContext } from '../../utils/dashboard/types.js';
 
@@ -37,30 +37,8 @@ export interface PresetData {
    * them without one. Drives the "requires z.ai key" dashboard badge.
    */
   requiresZaiKey?: boolean;
-  params: {
-    temperature?: number;
-    top_p?: number;
-    top_k?: number;
-    max_tokens?: number;
-    seed?: number;
-    frequency_penalty?: number;
-    presence_penalty?: number;
-    repetition_penalty?: number;
-    min_p?: number;
-    top_a?: number;
-    /** Canonical thinking level; absent means "provider default". */
-    thinking?: ThinkingLevel;
-    /** Adjust token probabilities (-100..100 per token key) */
-    logit_bias?: Record<string, number>;
-    /** Structured-output control */
-    response_format?: { type: 'text' | 'json_object' };
-    /** Prompt transforms (e.g. 'middle-out' for long contexts) */
-    transforms?: string[];
-    /** Provider routing strategy */
-    route?: 'fallback';
-    /** Response verbosity level */
-    verbosity?: 'low' | 'medium' | 'high';
-  };
+  /** Advanced parameters, exactly the AdvancedParamsSchema shape */
+  params: AdvancedParams;
 }
 
 /**
@@ -100,7 +78,7 @@ export interface FlattenedPresetData {
    * replace does not drop them. Populated from the API detail's `params`;
    * absent on synthetic flat data with no params payload.
    */
-  nonFormParamKeys?: AdvancedParams;
+  nonFormParams?: AdvancedParams;
   // Context window (model-coupled, stays in LlmConfig)
   contextWindowTokens: string;
   /** Model's full context window (display-only, not editable) */
