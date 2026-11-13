@@ -212,31 +212,73 @@ function parseThinkingLevel(flat: Partial<FlattenedPresetData>): ThinkingLevel |
   return THINKING_LEVELS.find(level => level === input) ?? null;
 }
 
-/** Parse optional integer field, returning undefined if invalid */
+/**
+ * Parse the context-window field as a strict whole number: undefined when
+ * blank, not a plain decimal, or fractional. Parses through the same strict
+ * rule as the sampling fields, so '40 tokens', '1e5' and '12.9' are rejected
+ * instead of silently truncating to 40, 1 and 12.
+ */
 function parseOptionalInt(value: string | undefined): number | undefined {
-  if (value === undefined || value.length === 0) {
+  const num = parseStrictParamNumber(value);
+  if (num === undefined || !Number.isInteger(num)) {
     return undefined;
   }
-  const num = parseInt(value, 10);
-  return isNaN(num) ? undefined : num;
+  return num;
+}
+
+/**
+ * The absent-to-'' rule flatten applies to every form-owned param value, so
+ * the dirty comparison sees the same shape on both sides: a key absent from
+ * synthetic partial data and an empty-string form value are the same state,
+ * not a change.
+ */
+function formParamValue(flat: Partial<FlattenedPresetData>, key: string): string {
+  const value = flat[key];
+  return typeof value === 'string' ? value : '';
+}
+
+/**
+ * True when at least one form-owned param value (the numeric keys plus
+ * thinking — FORM_OWNED_PARAM_KEYS) differs between the submitted flat data
+ * and the PRE-edit flattened snapshot. Comparison is on the flattened form
+ * strings, both sides through the same absent-to-'' normalization.
+ */
+function paramsDirty(
+  flat: Partial<FlattenedPresetData>,
+  preEditFlat: Partial<FlattenedPresetData>
+): boolean {
+  return [...FORM_OWNED_PARAM_KEYS].some(
+    key => formParamValue(flat, key) !== formParamValue(preEditFlat, key)
+  );
 }
 
 /**
  * Build advancedParameters object from flattened data.
  *
- * Gate on PRESENCE, not on parsed values: a dashboard edit submits every
- * numeric/thinking field, so any such key present means the params were part
- * of this edit — the object is sent even when every value is empty or
- * unparseable, so the gateway's wholesale replace clears params the user
- * removed. Stored params the form cannot represent (`nonFormParams`) ride
- * along unchanged, merged before the parsed form values — the key sets are
- * disjoint (pinned by the disjointness test in config.test.ts), so no form
- * value can be shadowed. `null` means no params field was part of the payload
- * at all (the create seed path and other synthetic callers); the gateway
- * leaves stored params untouched then. Pinned by the blank-clears and
- * untouched-no-op tests in config.test.ts.
+ * With a PRE-edit snapshot (`preEditFlat`), gate on CHANGE: the key is built
+ * only when at least one form-owned param value differs from the snapshot, so
+ * a dashboard edit that touched no param omits advancedParameters entirely and
+ * the gateway's wholesale replace cannot wipe a stored blob the form could not
+ * parse into the detail view. Without a snapshot (the clone path, the create
+ * seed path and other synthetic callers), gate on PRESENCE, not on parsed
+ * values: a dashboard edit submits every numeric/thinking field, so any such
+ * key present means the params were part of this edit — the object is sent
+ * even when every value is empty or unparseable, so the gateway's wholesale
+ * replace clears params the user removed. Stored params the form cannot
+ * represent (`nonFormParams`) ride along whenever the key is built, merged
+ * before the parsed form values — the key sets are disjoint (pinned by the
+ * disjointness test in config.test.ts), so no form value can be shadowed.
+ * `null` means no params field is part of the payload; the gateway leaves
+ * stored params untouched then. Pinned by the blank-clears and dirty-gate
+ * tests in config.test.ts.
  */
-function buildAdvancedParameters(flat: Partial<FlattenedPresetData>): AdvancedParams | null {
+function buildAdvancedParameters(
+  flat: Partial<FlattenedPresetData>,
+  preEditFlat?: Partial<FlattenedPresetData>
+): AdvancedParams | null {
+  if (preEditFlat !== undefined && !paramsDirty(flat, preEditFlat)) {
+    return null;
+  }
   const anyParamPresent =
     NUMERIC_PARAMS.some(param => flat[param] !== undefined) || flat.thinking !== undefined;
   if (!anyParamPresent) {
@@ -253,8 +295,20 @@ function buildAdvancedParameters(flat: Partial<FlattenedPresetData>): AdvancedPa
   return advancedParameters;
 }
 
-/** Convert flattened form data back to API update payload */
-export function unflattenPresetData(flat: Partial<FlattenedPresetData>): LlmConfigUpdateInput {
+/**
+ * Convert flattened form data back to API update payload.
+ *
+ * `preEditFlat` is the PRE-edit flattened snapshot, passed by callers that
+ * have one (the dashboard save path passes the session's own flat): with it,
+ * advancedParameters is included only when a form-owned param value actually
+ * changed, so an edit that never touched params cannot erase stored params it
+ * never showed. Callers without a snapshot (clone, seed) keep the presence
+ * gate — params present in the flat data are sent.
+ */
+export function unflattenPresetData(
+  flat: Partial<FlattenedPresetData>,
+  preEditFlat?: Partial<FlattenedPresetData>
+): LlmConfigUpdateInput {
   const result: LlmConfigUpdateInput = {};
 
   // Basic fields — empty string preserves the existing value (field omitted)
@@ -280,7 +334,7 @@ export function unflattenPresetData(flat: Partial<FlattenedPresetData>): LlmConf
   }
 
   // Build advancedParameters
-  const advancedParameters = buildAdvancedParameters(flat);
+  const advancedParameters = buildAdvancedParameters(flat, preEditFlat);
   if (advancedParameters !== null) {
     result.advancedParameters = advancedParameters;
   }
@@ -297,7 +351,6 @@ import {
   reasoningSection,
 } from './presetSections.js';
 
-// Re-export for tests
 // --- Dashboard Config ---
 
 export const PRESET_DASHBOARD_CONFIG: DashboardConfig<FlattenedPresetData> = {

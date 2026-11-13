@@ -222,6 +222,64 @@ describe('presetConfigValidator', () => {
         expect(result.errors.filter(e => e.field === 'thinking')).toHaveLength(0);
       });
     });
+
+    describe('context window tokens', () => {
+      it("should error on trailing garbage ('40 tokens')", () => {
+        const config = createTestConfig({ contextWindowTokens: '40 tokens' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.field === 'context window tokens')).toBe(true);
+        expect(result.errors.find(e => e.field === 'context window tokens')?.message).toContain(
+          'whole number'
+        );
+      });
+
+      it("should error on exponent notation ('1e5')", () => {
+        const config = createTestConfig({ contextWindowTokens: '1e5' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.errors.some(e => e.field === 'context window tokens')).toBe(true);
+      });
+
+      it("should error on a fractional value ('12.9')", () => {
+        const config = createTestConfig({ contextWindowTokens: '12.9' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.errors.some(e => e.field === 'context window tokens')).toBe(true);
+      });
+
+      it("should error on non-numeric text ('abc')", () => {
+        const config = createTestConfig({ contextWindowTokens: 'abc' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.errors.some(e => e.field === 'context window tokens')).toBe(true);
+      });
+
+      it('should pass when the value is a whole number', () => {
+        const config = createTestConfig({ contextWindowTokens: '131072' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(true);
+        expect(result.errors.filter(e => e.field === 'context window tokens')).toHaveLength(0);
+      });
+
+      it('should pass when the field is blank', () => {
+        const config = createTestConfig({ contextWindowTokens: '' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(true);
+        expect(result.errors.filter(e => e.field === 'context window tokens')).toHaveLength(0);
+      });
+
+      it("should pass with surrounding whitespace (' 131072 ')", () => {
+        const config = createTestConfig({ contextWindowTokens: ' 131072 ' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.isValid).toBe(true);
+        expect(result.errors.filter(e => e.field === 'context window tokens')).toHaveLength(0);
+      });
+    });
   });
 
   describe('warning rules', () => {
