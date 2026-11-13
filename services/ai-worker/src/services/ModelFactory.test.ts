@@ -639,13 +639,11 @@ describe('ModelFactory', () => {
       expect(parsed.model).toBe('ANTHROPIC/claude-sonnet-4');
     });
 
-    it('injects no cache_control for a non-anthropic OpenRouter id (openai family)', async () => {
-      const parsed = await captureInjectedBody({ modelName: 'openai/gpt-5.1' });
-      expect(parsed).not.toHaveProperty('cache_control');
-    });
-
-    it('injects no cache_control for a non-anthropic OpenRouter id (google family)', async () => {
-      const parsed = await captureInjectedBody({ modelName: 'google/gemini-2.5-pro' });
+    it('injects no cache_control for a google family id even with the flag (family gate still binds)', async () => {
+      const parsed = await captureInjectedBody({
+        modelName: 'google/gemini-2.5-pro',
+        promptCaching: true,
+      });
       expect(parsed).not.toHaveProperty('cache_control');
     });
 

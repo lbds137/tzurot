@@ -62,6 +62,9 @@ export function getModelCacheKey(modelConfig: ModelConfig): string {
     // Thinking - the canonical level drives the reasoning param in modelKwargs
     cacheVal(modelConfig.thinking),
     cacheVal(modelConfig.supportsReasoning),
+    // Prompt caching - the conversation opt-in that drives cache_control
+    // injection; a different flag value must get a different instance
+    cacheVal(modelConfig.promptCaching),
     // OpenRouter
     cacheArr(modelConfig.transforms),
     cacheVal(modelConfig.route),
