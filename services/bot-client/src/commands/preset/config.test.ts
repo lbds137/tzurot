@@ -13,6 +13,8 @@ import {
   type FlattenedPresetData,
 } from './config.js';
 import { SectionStatus } from '../../utils/dashboard/types.js';
+import { presetConfigValidator } from './presetValidation.js';
+import { canProceed } from '../../utils/configValidation.js';
 
 describe('flattenPresetData', () => {
   it('should flatten basic preset data', () => {
@@ -161,7 +163,7 @@ describe('flattenPresetData', () => {
     expect(result.thinking).toBe('');
   });
 
-  it('should carry non-form params into nonFormParamKeys (form keys excluded)', () => {
+  it('should carry non-form params into nonFormParams (form keys excluded)', () => {
     const preset: PresetData = {
       id: 'preset-123',
       name: 'My Preset',
@@ -185,7 +187,7 @@ describe('flattenPresetData', () => {
 
     const result = flattenPresetData(preset);
 
-    expect(result.nonFormParamKeys).toEqual({
+    expect(result.nonFormParams).toEqual({
       verbosity: 'high',
       logit_bias: { token1: -5 },
       response_format: { type: 'json_object' },
@@ -194,7 +196,7 @@ describe('flattenPresetData', () => {
     });
   });
 
-  it('should leave nonFormParamKeys empty when no non-form params are stored', () => {
+  it('should leave nonFormParams empty when no non-form params are stored', () => {
     const preset: PresetData = {
       id: 'preset-123',
       name: 'My Preset',
@@ -208,7 +210,7 @@ describe('flattenPresetData', () => {
       params: { temperature: 0.7 },
     };
 
-    expect(flattenPresetData(preset).nonFormParamKeys).toEqual({});
+    expect(flattenPresetData(preset).nonFormParams).toEqual({});
   });
 
   it('should pass requiresZaiKey through for the dashboard badge', () => {
@@ -231,6 +233,54 @@ describe('flattenPresetData', () => {
     // Absent on the source → absent on the flattened data (no badge).
     const { requiresZaiKey: _omit, ...withoutFlag } = preset;
     expect(flattenPresetData(withoutFlag).requiresZaiKey).toBeUndefined();
+  });
+});
+
+describe('flattenPresetData — exponent-form round trip', () => {
+  const exponentPreset: PresetData = {
+    id: 'preset-123',
+    name: 'Tiny And Big',
+    description: null,
+    model: 'anthropic/claude-sonnet-4',
+    provider: 'openrouter',
+    isGlobal: false,
+    isOwned: true,
+    permissions: { canEdit: true, canDelete: true },
+    contextWindowTokens: 8192,
+    params: { min_p: 5e-7, seed: 1e21 },
+  };
+
+  it('flatten writes plain decimal strings for exponent-form stored values', () => {
+    const result = flattenPresetData(exponentPreset);
+
+    expect(result.min_p).toBe('0.0000005');
+    expect(result.seed).toBe('1000000000000000000000');
+  });
+
+  it('the flattened form validates with no edits (tiny decimal + big integer)', () => {
+    // Number#toString emits exponent notation for these magnitudes; the form
+    // strings must stay inside what the strict parser accepts, or every save
+    // (name-only edits included) would fail on fields the user never touched.
+    const flat = flattenPresetData(exponentPreset);
+
+    const result = presetConfigValidator.validate(flat);
+
+    expect(canProceed(result)).toBe(true);
+  });
+
+  it('a JSON null numeric param flattens to the blank form value and validates', () => {
+    // API detail payloads carry null for absent params even though the type
+    // says undefined; flatten must treat it exactly like absent, or the save
+    // path throws on fields the user never touched.
+    const nullPreset: PresetData = {
+      ...exponentPreset,
+      params: { min_p: null as unknown as number },
+    };
+
+    const flat = flattenPresetData(nullPreset);
+
+    expect(flat.min_p).toBe('');
+    expect(canProceed(presetConfigValidator.validate(flat))).toBe(true);
   });
 });
 
@@ -457,7 +507,7 @@ describe('unflattenPresetData — blanked params clear (wholesale replace)', () 
   });
 
   it('form-owned keys and non-form passthrough keys are disjoint', () => {
-    // The merge spreads nonFormParamKeys BEFORE the parsed form values, so a
+    // The merge spreads nonFormParams BEFORE the parsed form values, so a
     // collision would silently shadow a parsed value; the type system cannot
     // see the key sets, so pin the disjointness here. This list mirrors the
     // non-form members of AdvancedParamsSchema (everything except the numeric
@@ -552,6 +602,54 @@ describe('unflattenPresetData — strict numeric parsing', () => {
     const flat: Partial<FlattenedPresetData> = { top_k: '40' };
 
     expect(unflattenPresetData(flat).advancedParameters).toEqual({ top_k: 40 });
+  });
+
+  it("'.9' parses as 0.9 (leading-point shorthand)", () => {
+    const flat: Partial<FlattenedPresetData> = { temperature: '.9' };
+
+    expect(unflattenPresetData(flat).advancedParameters).toEqual({ temperature: 0.9 });
+  });
+
+  it("'.9' passes validation on temperature", () => {
+    const result = presetConfigValidator.validate({ temperature: '.9' } as FlattenedPresetData);
+
+    expect(canProceed(result)).toBe(true);
+  });
+
+  it("'5.' parses as 5 on an integer param (top_k)", () => {
+    const flat: Partial<FlattenedPresetData> = { top_k: '5.' };
+
+    expect(unflattenPresetData(flat).advancedParameters).toEqual({ top_k: 5 });
+  });
+
+  it("'5.' passes validation on an integer param (top_k)", () => {
+    const result = presetConfigValidator.validate({ top_k: '5.' } as FlattenedPresetData);
+
+    expect(canProceed(result)).toBe(true);
+  });
+
+  it("'5.5.5' is dropped (second point is garbage)", () => {
+    const flat: Partial<FlattenedPresetData> = { temperature: '5.5.5' };
+
+    expect(unflattenPresetData(flat).advancedParameters).toEqual({});
+  });
+
+  it("'5.5.5' blocks validation", () => {
+    const result = presetConfigValidator.validate({ temperature: '5.5.5' } as FlattenedPresetData);
+
+    expect(canProceed(result)).toBe(false);
+  });
+
+  it("'.e5' is dropped (no digits around the point)", () => {
+    const flat: Partial<FlattenedPresetData> = { temperature: '.e5' };
+
+    expect(unflattenPresetData(flat).advancedParameters).toEqual({});
+  });
+
+  it("'.e5' blocks validation", () => {
+    const result = presetConfigValidator.validate({ temperature: '.e5' } as FlattenedPresetData);
+
+    expect(canProceed(result)).toBe(false);
   });
 });
 

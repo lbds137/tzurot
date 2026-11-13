@@ -20,9 +20,44 @@ import type { PresetData, FlattenedPresetData } from './types.js';
 export type { PresetData, FlattenedPresetData } from './types.js';
 
 /**
+ * Exact plain-decimal string for a finite number: `String(n)` with any
+ * exponent notation expanded digit-by-digit. Never `toFixed` (it rounds) —
+ * the digits come from `String(n)` itself, so no precision is lost.
+ * `5e-7` → '0.0000005', `1e+21` → '1000000000000000000000'.
+ * Undefined (absent param) flattens to the blank form value.
+ */
+function toPlainDecimalString(value: number | undefined): string {
+  // API detail payloads carry JSON null for absent params even though the
+  // type says undefined — match the null tolerance of the optional chain.
+  if (value === undefined || value === null) {
+    return '';
+  }
+  const s = value.toString();
+  if (!s.includes('e') && !s.includes('E')) {
+    return s;
+  }
+  const [mantissa, exponent] = s.split(/[eE]/);
+  const exp = Number(exponent);
+  const negative = mantissa.startsWith('-');
+  const unsigned = mantissa.replace(/^[+-]/, '');
+  const digits = unsigned.replace('.', '');
+  // Position of the decimal point relative to the start of `digits`.
+  const point = unsigned.includes('.') ? unsigned.indexOf('.') : unsigned.length;
+  const pointIndex = point + exp;
+  let out: string;
+  if (pointIndex <= 0) {
+    out = `0.${'0'.repeat(-pointIndex)}${digits}`;
+  } else if (pointIndex >= digits.length) {
+    out = digits + '0'.repeat(pointIndex - digits.length);
+  } else {
+    out = `${digits.slice(0, pointIndex)}.${digits.slice(pointIndex)}`;
+  }
+  return negative ? `-${out}` : out;
+}
+
+/**
  * Convert API response to flattened form data
  */
-// eslint-disable-next-line complexity -- Inherent complexity from mapping ~20 optional fields from nested API response to flat form data. No conditional logic, just null coalescing and type conversion.
 export function flattenPresetData(data: PresetData): FlattenedPresetData {
   return {
     id: data.id,
@@ -34,22 +69,22 @@ export function flattenPresetData(data: PresetData): FlattenedPresetData {
     isOwned: data.isOwned,
     canEdit: data.permissions.canEdit,
     canDelete: data.permissions.canDelete,
-    // Sampling params
-    temperature: data.params.temperature?.toString() ?? '',
-    top_p: data.params.top_p?.toString() ?? '',
-    top_k: data.params.top_k?.toString() ?? '',
-    max_tokens: data.params.max_tokens?.toString() ?? '',
-    seed: data.params.seed?.toString() ?? '',
+    // Sampling params — plain decimals, so the strict parser accepts them back
+    temperature: toPlainDecimalString(data.params.temperature),
+    top_p: toPlainDecimalString(data.params.top_p),
+    top_k: toPlainDecimalString(data.params.top_k),
+    max_tokens: toPlainDecimalString(data.params.max_tokens),
+    seed: toPlainDecimalString(data.params.seed),
     // Penalty params
-    frequency_penalty: data.params.frequency_penalty?.toString() ?? '',
-    presence_penalty: data.params.presence_penalty?.toString() ?? '',
-    repetition_penalty: data.params.repetition_penalty?.toString() ?? '',
-    min_p: data.params.min_p?.toString() ?? '',
-    top_a: data.params.top_a?.toString() ?? '',
+    frequency_penalty: toPlainDecimalString(data.params.frequency_penalty),
+    presence_penalty: toPlainDecimalString(data.params.presence_penalty),
+    repetition_penalty: toPlainDecimalString(data.params.repetition_penalty),
+    min_p: toPlainDecimalString(data.params.min_p),
+    top_a: toPlainDecimalString(data.params.top_a),
     // Thinking param (canonical level)
     thinking: data.params.thinking ?? '',
     // Stored params the form cannot represent ride along untouched
-    nonFormParamKeys: extractNonFormParamKeys(data.params),
+    nonFormParams: extractNonFormParams(data.params),
     // Context window (model-coupled, stays in LlmConfig)
     contextWindowTokens: String(data.contextWindowTokens),
     // Model context info (display-only, not editable)
@@ -88,12 +123,14 @@ export const INTEGER_PARAMS: readonly NumericParamKey[] = ['top_k', 'max_tokens'
 const FORM_OWNED_PARAM_KEYS: ReadonlySet<string> = new Set<string>([...NUMERIC_PARAMS, 'thinking']);
 
 /**
- * Strict decimal form value: optional sign, digits with an optional single
- * fractional part. Rejects hex, exponent notation, thousands separators and
- * trailing garbage ('0.7abc' fails here where parseFloat would silently
- * accept it, and the rejected exponent form keeps non-finite results out).
+ * Strict decimal form value: optional sign, then digits with an optional
+ * single fractional part — either side of the point may be short ('.9', '5.'),
+ * matching the shorthand parseFloat historically accepted. Rejects hex,
+ * exponent notation, thousands separators and trailing garbage ('0.7abc'
+ * fails here where parseFloat would silently accept it, and the rejected
+ * exponent form keeps non-finite results out).
  */
-const STRICT_DECIMAL_RE = /^[+-]?\d+(?:\.\d+)?$/;
+const STRICT_DECIMAL_RE = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
 
 /**
  * Parse a form string as a strict decimal number.
@@ -129,7 +166,7 @@ export function isThinkingLevel(input: string): boolean {
  * wholesale replace. Values arrive schema-shaped: the gateway stores `params`
  * validated against AdvancedParamsSchema.
  */
-function extractNonFormParamKeys(params: PresetData['params']): AdvancedParams {
+function extractNonFormParams(params: PresetData['params']): AdvancedParams {
   return Object.fromEntries(
     Object.entries(params).filter(([key]) => !FORM_OWNED_PARAM_KEYS.has(key))
   );
@@ -167,9 +204,6 @@ function parseThinkingLevel(flat: Partial<FlattenedPresetData>): ThinkingLevel |
     return null;
   }
   const input = flat.thinking.trim().toLowerCase();
-  if (!isThinkingLevel(input)) {
-    return null;
-  }
   return THINKING_LEVELS.find(level => level === input) ?? null;
 }
 
@@ -189,7 +223,7 @@ function parseOptionalInt(value: string | undefined): number | undefined {
  * numeric/thinking field, so any such key present means the params were part
  * of this edit — the object is sent even when every value is empty or
  * unparseable, so the gateway's wholesale replace clears params the user
- * removed. Stored params the form cannot represent (`nonFormParamKeys`) ride
+ * removed. Stored params the form cannot represent (`nonFormParams`) ride
  * along unchanged, merged before the parsed form values — the key sets are
  * disjoint (pinned by the disjointness test in config.test.ts), so no form
  * value can be shadowed. `null` means no params field was part of the payload
@@ -207,7 +241,7 @@ function buildAdvancedParameters(flat: Partial<FlattenedPresetData>): AdvancedPa
   const samplingParams = parseNumericParams(flat);
   const thinking = parseThinkingLevel(flat);
 
-  const advancedParameters: AdvancedParams = { ...flat.nonFormParamKeys, ...samplingParams };
+  const advancedParameters: AdvancedParams = { ...flat.nonFormParams, ...samplingParams };
   if (thinking !== null) {
     advancedParameters.thinking = thinking;
   }
