@@ -1,7 +1,7 @@
 ---
 id: TASK-1408
 title: Preset editor cannot clear a sampling parameter (temperature and friends)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-12T17:13:00Z'
 labels:
