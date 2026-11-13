@@ -273,6 +273,19 @@ function buildModelField(
 }
 
 /**
+ * Mirrors the extended view's family gate: the worker's injection gate scopes
+ * OUR `cache_control` to the REQUESTED anthropic family (`modelUsed`), so a
+ * reported cache write is only an expected signal there. On other families a
+ * present 0 is the installed LangChain mapper's passthrough of the provider's
+ * `prompt_tokens_details.cache_write_tokens: 0` (its `!= null` guard admits
+ * zero), not a real measurement.
+ * Local predicate: cross-service imports are forbidden.
+ */
+function isAnthropicFamilyResponse(llmResponse: DiagnosticPayload['llmResponse']): boolean {
+  return llmResponse.modelUsed !== undefined && /^anthropic\//i.test(llmResponse.modelUsed);
+}
+
+/**
  * Build the Response field with finish-reason emoji decoration and a LOW
  * completion-tokens warning.
  */
@@ -302,10 +315,14 @@ function buildResponseField(
     lines.push(`**Cached Tokens:** ${llmResponse.cachedPromptTokens}${hitPercent}`);
   }
   // Provider-reported cache-write count (the 1h caching tier's 2x-rate
-  // tokens). Absent = the provider reported no cache write; 0 = provider
-  // reported no new write. Same omit-when-absent shape as the
-  // Cached Tokens line above.
-  if (llmResponse.cachedWriteTokens !== undefined) {
+  // tokens). Three-case shape: any family + nonzero renders (a real
+  // provider report); anthropic + 0 renders (our tier's report);
+  // non-anthropic + 0 omits (the LangChain mapper's passthrough of the
+  // provider's cache_write_tokens: 0, not a signal we asked for anything).
+  if (
+    llmResponse.cachedWriteTokens !== undefined &&
+    (llmResponse.cachedWriteTokens > 0 || isAnthropicFamilyResponse(llmResponse))
+  ) {
     lines.push(`**Cache Write:** ${llmResponse.cachedWriteTokens}`);
   }
   if (estimatedCost !== null && estimatedCost !== undefined) {

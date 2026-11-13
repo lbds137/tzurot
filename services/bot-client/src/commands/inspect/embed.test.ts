@@ -552,6 +552,7 @@ describe('buildDiagnosticEmbed', () => {
 
   it('shows Cache Write when the provider reported a cache write', () => {
     const payload = createMockPayload();
+    payload.llmResponse.modelUsed = 'anthropic/claude-sonnet-4';
     payload.llmResponse.cachedWriteTokens = 620;
 
     const embed = buildDiagnosticEmbed(payload);
@@ -567,6 +568,44 @@ describe('buildDiagnosticEmbed', () => {
     const fields = embed.toJSON().fields ?? [];
     const responseField = fields.find(f => f.name.includes('Response'));
     expect(responseField?.value).not.toContain('Cache Write');
+  });
+
+  it('omits the passthrough Cache Write 0 on a non-anthropic family response', () => {
+    const payload = createMockPayload();
+    payload.llmResponse.modelUsed = 'z-ai/glm-4.7';
+    payload.llmResponse.cachedWriteTokens = 0;
+
+    const embed = buildDiagnosticEmbed(payload);
+    const fields = embed.toJSON().fields ?? [];
+    const responseField = fields.find(f => f.name.includes('Response'));
+    // The installed LangChain mapper admits 0 through its `!= null` guard, so
+    // non-caching providers surface a meaningless `Cache Write: 0` here unless
+    // the line drops the zero off the families we never asked to cache.
+    expect(responseField?.value).not.toContain('Cache Write');
+  });
+
+  it('renders a nonzero Cache Write on a non-anthropic family response (real provider report)', () => {
+    const payload = createMockPayload();
+    payload.llmResponse.modelUsed = 'z-ai/glm-4.7';
+    payload.llmResponse.cachedWriteTokens = 48;
+
+    const embed = buildDiagnosticEmbed(payload);
+    const fields = embed.toJSON().fields ?? [];
+    const responseField = fields.find(f => f.name.includes('Response'));
+    // Provider-side implicit caching can report real writes off the anthropic
+    // family; hiding measured data would diverge from the extended view.
+    expect(responseField?.value).toContain('**Cache Write:** 48');
+  });
+
+  it('keeps Cache Write 0 on an anthropic-family response (a real measurement there)', () => {
+    const payload = createMockPayload();
+    payload.llmResponse.modelUsed = 'anthropic/claude-sonnet-4';
+    payload.llmResponse.cachedWriteTokens = 0;
+
+    const embed = buildDiagnosticEmbed(payload);
+    const fields = embed.toJSON().fields ?? [];
+    const responseField = fields.find(f => f.name.includes('Response'));
+    expect(responseField?.value).toContain('**Cache Write:** 0');
   });
 
   it('should include the reasoning field when a thinking level is present', () => {

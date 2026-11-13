@@ -583,8 +583,8 @@ describe('buildCacheView', () => {
     });
 
     const text = describeOf(buildCacheView(payload, 'req-1', OWNER_CTX));
-    // A write cannot happen off the anthropic family, so the explanation
-    // would be noise on this traffic.
+    // We only request cache writes on the anthropic family, so the
+    // explanation would be noise on this traffic.
     expect(text).not.toContain('**Cache Write:**');
   });
 
@@ -602,13 +602,32 @@ describe('buildCacheView', () => {
     expect(text).toContain('**Cache Write:** _no cache write reported');
   });
 
-  it('keys the absent-write explanation on the ROUTED family when one is reported', () => {
+  it('ignores the ROUTED family: an anthropic routed model on a non-anthropic request omits the explanation', () => {
     const payload = createMockPayload({
       llmResponse: {
         ...createMockPayload().llmResponse,
         promptTokens: 1000,
         cachedPromptTokens: 100,
+        modelUsed: 'openrouter/auto',
         routedModel: 'anthropic/claude-sonnet-4',
+      },
+    });
+
+    const text = describeOf(buildCacheView(payload, 'req-1', OWNER_CTX));
+    // Aligned with the worker's injection gate, which keys on the REQUESTED
+    // id — openrouter/auto got no cache_control injection, so the absent
+    // write is not an unexplained miss on our expectation.
+    expect(text).not.toContain('**Cache Write:**');
+  });
+
+  it('keys the explanation on modelUsed even when a non-anthropic routedModel is present', () => {
+    const payload = createMockPayload({
+      llmResponse: {
+        ...createMockPayload().llmResponse,
+        promptTokens: 1000,
+        cachedPromptTokens: 100,
+        modelUsed: 'anthropic/claude-sonnet-4',
+        routedModel: 'z-ai/glm-4.7',
       },
     });
 
