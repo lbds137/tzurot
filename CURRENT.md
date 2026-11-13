@@ -1,16 +1,20 @@
 # Current
 
-> **Session handoff 2026-11-12 19:09 (glm-5.3-flash, z.ai lane)**: HER RULING 19:02 EST (via Deck): finish the release regardless of usage — the caching fix must go **LIVE IN PROD**; no 88% stop; stop new work once prod is confirmed. beta.243 SHIPPED (below). beta.244 train: PR 2746 (TASK-1408) r1 f85f74c20 CI green; r2 review: 1 Medium (exponent-form flatten blocks saves) + 2 Low + 3 nits — fix spec ready (`docs/local/dispatch/spec-1408-r2.md`), dispatch queued serially behind the 2747 worker. PR 2747 (prompt caching) CI green on 33790e301; r1 review: 1 Medium (one-shot vision/system calls would pay the 2x write premium → conversation-only opt-in chosen) + 6 Low — worker in flight on `spec-b244-caching-r1.md`. TASK-1413 filed (LLMInvoker 398/400). Then both merges → release train (bump, notes, release PR → HER EXPLICIT merge ask) → confirm prod → pause until Sun 11-15 Anthropic reset. TASK-1412 (scoped vitest), TASK-1411 (close-the-train) ready. Owner queue: TASK-1402, 1404, 1358. Stale agent worktrees (agent-1395-redo, agent-a6f4e95b1981a7222, agent-a738fbd1457ccb351): two-check before removal at a boundary.
+> **Session handoff 2026-11-12 23:44 (glm-5.3-flash, z.ai lane)**: beta.244 SHIPPED 04:37Z on her explicit yes (PR 2749, merge `47d633e10`; tag+release published `latest`, 243 demoted; develop finalized `352ad906e`; TASK-1419 filed+pushed — slow pre-push hooks, her ask). REMAINING: prod confirm = first anthropic-family conversation turn's `cachedWriteTokens` in ai-worker prod logs (grep by message TEXT; caching arms itself — hardcoded `promptCaching: true` `modelInvocation.ts:113`, NO config flip); then STOP NEW WORK → pause to Sun 11-15 01:00. Also owed: next-release plan draft (skill § 10), backlog sweep of shipped entries. TASK-1414 = day-1 write/read ratio check (rollback = code change + redeploy). Post-pause queue: TASK-1418, 1416, 1415, 1411, 1374, 1412; owner TASK-1402/1404/1358.
 
-> **Version**: v3.0.0-beta.243 — "ai-worker attachment pipeline hardening and release guardrails" — SHIPPED 2026-11-12 22:27Z (release PR #2745 after her merge approval; GitHub refused the rebase-merge at ~139+ commits, main fast-forwarded to develop `be0e8a5ca`, finalize no-op; tagged `latest`, beta.242 demoted). 32 PRs / 21 runtime / 296 files; no migrations. Holistic review: nothing blocks. Notes: `docs/local/dispatch/release-notes-beta243-draft.md`; body: `pr-beta243-body.md`. Smoke batch presented (2 needs-smoke + 4 carried).
+> **Version**: v3.0.0-beta.244 — "prompt caching + preset param fixes" — SHIPPED 2026-11-13 04:37Z (PR #2749 after her merge approval; tagged `latest`, beta.243 demoted; develop finalized `352ad906e`). 3 PRs / 2 runtime (#2747+#2748 caching, #2746 preset) + bump/board; no migrations; holistic review: nothing blocks. Body: `docs/local/dispatch/pr-release-b244.md`.
 >
-> **Previous**: v3.0.0-beta.242 — "bot-client hardening and the Machloket e2e tier" (33 PRs / 18 runtime / 238 files; 2026-11-03 12:24Z).
+> **Previous**: v3.0.0-beta.243 — "ai-worker attachment pipeline hardening and release guardrails" (32 PRs / 21 runtime / 296 files; 2026-11-12 22:27Z) · v3.0.0-beta.242 (33 PRs / 18 runtime / 238 files; 2026-11-03 12:24Z).
+
+## 🧪 beta.244 watch (shipped to main 2026-11-13 04:37Z; prod deploy settling)
+
+- **Watch — caching day-1 (TASK-1414):** caching arms on EVERY anthropic-family conversation turn (BYOK included) from the first post-deploy call — no config flip (`modelInvocation.ts:113`). Confirm = the turn's `cachedWriteTokens` line in ai-worker prod logs (grep by message text); then TASK-1414's write/read ratio decides keep vs rollback, and rollback is a code change + redeploy.
+- **No needs-smoke:** the preset clear/garbage/dirty-gate paths are test-pinned end to end (23 checks + the dashboard-flow regressions); the `/inspect` Cache Write line appears on the first inspected cached turn.
 
 ## 🧪 beta.243 watch (shipped to main 2026-11-12; deploys in flight)
 
 - **(needs-smoke, owner) multi-attachment trigger render (#2741, #2742):** send a trigger message with 2+ attachments (DM or guild, either) — each attachment renders exactly once, in message order; a failed attachment posts its notice OUTSIDE the voice-transcript wrapper.
 - **(needs-smoke, owner) audio transcript label (#2737):** upload an audio file to a trigger — the transcript block reads as shared media, not speech-to-text output.
-- **Watch — advisory closure (TASK-1371):** at publish (22:3x) BOTH alerts still showed open — Dependabot re-scan lag; the tree resolves clean (fast-xml-parser 5.12.0, minimatch 11.0.5). Verify with `pnpm ops security:advisories` (expect both gone), flip TASK-1371 Done.
 - **Watch — provenance joins (#2736, #2738):** the queue path restores trigger-attachment provenance and logs join misses instead of dropping them; a `join miss`-class line in ai-worker logs is the signal, silence is healthy.
 - **Watch — system-model truncation warn (#2715, TASK-798):** `System model response is likely truncated` now fires for every background caller at its cap. A burst tagged `appTitleSuffix: 'ArchiveSummary'` (cap 512) or the digest is expected, since how often those reach their caps is unmeasured; an `Extraction` or `RosterBlurb` hit means the 32768/8192 cap is too low. The length finish-reason branch is unverified on z.ai-direct.
 - **Follow-up named by the holistic review — TASK-1374 (vision negative cache keys on (model, attachment), not key; first pull after this soaks).**
@@ -22,7 +26,6 @@
 - **Check — stored summaries render (#2689):** a prod read on 11-01 found 39 rows with a stored summary not rendering (`failed` or `dead`), all recalled. After deploy, confirm a real affected row renders its summary; not runtime-confirmed yet. Count script: `docs/local/glm-audit/stranded-summaries.mjs` (read-only; its count will not fall, because the rows keep their status).
 - **Expected — `summaryNotes` telemetry rises (#2689):** notes from `failed`, `dead` and `pending` rows now count as summary notes. A small step up is not a regression.
 - **Watch — one NSFW prompt per multi-tag message (#2690):** logs should show one `Interaction blocked - user not NSFW verified` per message. The all-denied log now comes from logger `MultiTagCoordinatorHelpers`, so a saved Railway filter on the old name needs updating.
-- **Watch — Dependabot alert 199 (minimatch, dev tooling only):** fixed on develop by #2727 (import-x 4.18.0 accepts 11; override to 11.0.5). It closes when the next release lands on `main`. Verify with `pnpm ops security:advisories` (TASK-1371).
 
 ## 🧪 beta.241 watch (shipped 2026-10-27; no needs-smoke)
 
@@ -35,11 +38,6 @@
 - **Watch — LangChain minor bumps (#2658: @langchain/core 1.2→1.3, @langchain/openai 1.6→1.7):** the first prod AI replies after deploy are the check; an error spike in ai-worker logs = roll back. No smoke asked.
 - **Watch — #2662 fallthrough footer:** visible only when a coding-plan call falls through to OpenRouter; first occurrence in prod shows the suffix.
 - **Advisories: CLOSED** — `pnpm ops security:advisories` reports none open after the beta.240 merge (2026-10-26).
-
-## 🧪 beta.239 watch (observability; one optional needs-smoke)
-
-- **Optional needs-smoke (owner):** one prod batch run, e.g. `/memory facts` → Select several → Lock 2 — confirm view and the result stack render. Status: not run.
-- **#2646 egress probe:** first prod boot logs the probe verdict in bot-client (ok/unavailable expected); an owner webhook alert only on a ≥300 s Retry-After 429.
 
 ## 🧪 beta.238 watch (observability only — no needs-smoke items)
 
