@@ -11,7 +11,11 @@
  * `completion`, `request`, `image`, `web_search` and `internal_reasoning` —
  * there is no cached-prompt-token rate in it, so the catalog supplies no
  * price to apply to them. Every prompt token, cached or not, is priced
- * here at the full `prompt` rate.
+ * here at the full `prompt` rate. The same holds for cache WRITES
+ * (`cachedWriteTokens`): OpenRouter's automatic-caching 1h tier bills a
+ * cache write at 2x the input rate (doc-sourced), a rate the catalog does
+ * not carry either, so a cache-filling call's estimate under-reads by the
+ * write premium.
  *
  * The provider gate is the diagnostic ROW's `provider` column
  * (`AIProvider`): the provider that SERVED the call, written by the

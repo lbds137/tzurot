@@ -100,10 +100,18 @@ export async function invokeModelAndClean(
       ? await checkModelReasoningSupport(personality.model)
       : undefined;
 
-  // Get model with all LLM sampling parameters (retry config overrides for duplicate detection)
-  const { model, modelName, expectsRawResponse } = deps.llmInvoker.getModel(
-    buildModelSamplingConfig({ personality, userApiKey, retryConfig, supportsReasoning })
-  );
+  // Get model with all LLM sampling parameters (retry config overrides for duplicate detection).
+  // This is the only caller that opts into OpenRouter prompt caching: conversation
+  // turns are multi-call against a shared, growing prompt, so the 1h-tier cache
+  // write pays for itself. One-shot paths (vision description, system-model calls)
+  // build their configs elsewhere and never set the flag, so they pay no write
+  // premium — ModelFactory injects `cache_control` only when the flag is set AND
+  // the model id is anthropic-family. The spread keeps this config a distinct
+  // object from anything a one-shot caller could build.
+  const { model, modelName, expectsRawResponse } = deps.llmInvoker.getModel({
+    ...buildModelSamplingConfig({ personality, userApiKey, retryConfig, supportsReasoning }),
+    promptCaching: true,
+  });
 
   // Calculate attachment counts for timeout
   const { imageCount, audioCount } = countMediaAttachments(context.attachments);

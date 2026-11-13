@@ -550,6 +550,25 @@ describe('buildDiagnosticEmbed', () => {
     expect(responseField?.value).not.toContain('Cached Tokens');
   });
 
+  it('shows Cache Write when the provider reported a cache write', () => {
+    const payload = createMockPayload();
+    payload.llmResponse.cachedWriteTokens = 620;
+
+    const embed = buildDiagnosticEmbed(payload);
+    const fields = embed.toJSON().fields ?? [];
+    const responseField = fields.find(f => f.name.includes('Response'));
+    expect(responseField?.value).toContain('**Cache Write:** 620');
+  });
+
+  it('omits Cache Write when the provider reported no cache write (same shape as Cached Tokens)', () => {
+    const payload = createMockPayload();
+
+    const embed = buildDiagnosticEmbed(payload);
+    const fields = embed.toJSON().fields ?? [];
+    const responseField = fields.find(f => f.name.includes('Response'));
+    expect(responseField?.value).not.toContain('Cache Write');
+  });
+
   it('should include the reasoning field when a thinking level is present', () => {
     const payload = createMockPayload();
     payload.llmConfig.allParams = { thinking: 'high' };

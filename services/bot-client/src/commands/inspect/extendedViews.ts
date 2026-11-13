@@ -320,10 +320,12 @@ function bar(pct: number): string {
  * `cachedPromptTokens` absent means the provider reported no cache activity at
  * all (old logs predate the field); 0 is a real cold-prefix report, so the two
  * cases render differently. Hit % is omitted when promptTokens is 0 — same
- * divide-by-zero guard the summary embed applies.
+ * divide-by-zero guard the summary embed applies. `cachedWriteTokens` mirrors
+ * that split for writes: absent renders the explanatory line, 0 is a real
+ * nothing-new-written report.
  */
 function renderCacheHeader(llmResponse: DiagnosticPayload['llmResponse']): string[] {
-  const { promptTokens, cachedPromptTokens, cacheDiscount } = llmResponse;
+  const { promptTokens, cachedPromptTokens, cachedWriteTokens, cacheDiscount } = llmResponse;
   const lines = [`**Prompt tokens:** ${promptTokens.toLocaleString()}`];
 
   if (cachedPromptTokens === undefined) {
@@ -342,6 +344,12 @@ function renderCacheHeader(llmResponse: DiagnosticPayload['llmResponse']): strin
     if (hitPct !== null) {
       lines.push('```', `Hit ${bar(hitPct)} ${hitPct.toFixed(0).padStart(3)}%`, '```');
     }
+  }
+
+  if (cachedWriteTokens === undefined) {
+    lines.push('**Cache Write:** _no cache write reported by the provider on this request_');
+  } else {
+    lines.push(`**Cache Write:** ${cachedWriteTokens.toLocaleString()}`);
   }
 
   if (cacheDiscount !== undefined) {

@@ -602,11 +602,41 @@ describe('ModelFactory', () => {
       return JSON.parse(init.body as string) as Record<string, unknown>;
     }
 
-    it('injects top-level cache_control for an anthropic-family model id (automatic prompt caching)', async () => {
-      const parsed = await captureInjectedBody({ modelName: 'anthropic/claude-sonnet-4' });
+    // Conversation opt-in: injection needs the `promptCaching` flag AND the
+    // anthropic-family id. A flagged config here is the shape
+    // modelInvocation.ts builds for conversation turns; the no-flag configs
+    // are the shape vision/system one-shot callers (VisionProcessor,
+    // systemModelCall) build when they call createChatModel directly.
+    it('injects top-level cache_control for an anthropic id with the conversation opt-in flag', async () => {
+      const parsed = await captureInjectedBody({
+        modelName: 'anthropic/claude-sonnet-4',
+        promptCaching: true,
+      });
       expect(parsed.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
-      // Sibling of `model` at the request root
+      // Sibling of `model` at the request root, id sent verbatim
       expect(parsed.model).toBe('anthropic/claude-sonnet-4');
+    });
+
+    it('injects no cache_control for an anthropic id WITHOUT the flag (vision/system one-shot shape)', async () => {
+      const parsed = await captureInjectedBody({ modelName: 'anthropic/claude-sonnet-4' });
+      expect(parsed).not.toHaveProperty('cache_control');
+    });
+
+    it('injects no cache_control for a non-anthropic id even with the flag (family gate still binds)', async () => {
+      const parsed = await captureInjectedBody({
+        modelName: 'openai/gpt-5.1',
+        promptCaching: true,
+      });
+      expect(parsed).not.toHaveProperty('cache_control');
+    });
+
+    it('injects cache_control for a mixed-case anthropic prefix with the flag (family check tolerates case, id sent verbatim)', async () => {
+      const parsed = await captureInjectedBody({
+        modelName: 'ANTHROPIC/claude-sonnet-4',
+        promptCaching: true,
+      });
+      expect(parsed.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+      expect(parsed.model).toBe('ANTHROPIC/claude-sonnet-4');
     });
 
     it('injects no cache_control for a non-anthropic OpenRouter id (openai family)', async () => {
