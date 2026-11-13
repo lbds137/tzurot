@@ -8,7 +8,7 @@
 
 ## 🧪 beta.244 watch (shipped to main 2026-11-13 04:37Z; prod deploy settling)
 
-- **Watch — caching day-1 (TASK-1414):** caching arms on EVERY anthropic-family conversation turn (BYOK included) from the first post-deploy call — no config flip (`modelInvocation.ts:113`). Confirm = the turn's `cachedWriteTokens` line in ai-worker prod logs (grep by message text); then TASK-1414's write/read ratio decides keep vs rollback, and rollback is a code change + redeploy.
+- **Watch — caching day-1 (TASK-1414):** caching arms on EVERY anthropic-family conversation turn (BYOK included) from the first post-deploy call — no config flip (`modelInvocation.ts:113`). **CONFIRMED 2026-11-13 04:44:13Z**: `cachedWriteTokens=60576` on the first post-deploy anthropic turn (Emily / `anthropic/claude-opus-5.5`, `ConversationalRAGService`; `cachedPromptTokens=0`, `cacheHitRatio=0` — expected on a first call). TASK-1414's write/read ratio stays open for day-1+ data; rollback is a code change + redeploy.
 - **No needs-smoke:** the preset clear/garbage/dirty-gate paths are test-pinned end to end (23 checks + the dashboard-flow regressions); the `/inspect` Cache Write line appears on the first inspected cached turn.
 
 ## 🧪 beta.243 watch (shipped to main 2026-11-12; deploys in flight)
