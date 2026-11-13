@@ -148,8 +148,13 @@ async function handleSectionModalSubmit(
       return;
     }
 
-    // Convert to API format
-    const updatePayload = unflattenPresetData(extracted.merged);
+    // Convert to API format. The session's own flat is the pre-edit baseline —
+    // the merged object is that flat plus this modal's values — so the dirty
+    // gate can omit advancedParameters when no form-owned param changed and
+    // the gateway leaves the stored blob (including keys this form cannot
+    // show) untouched. A null session means no baseline exists; the payload
+    // then falls back to the presence gate.
+    const updatePayload = unflattenPresetData(extracted.merged, session?.data);
 
     // Determine if this is a global preset (from session data)
     const isGlobal = session?.data.isGlobal ?? false;

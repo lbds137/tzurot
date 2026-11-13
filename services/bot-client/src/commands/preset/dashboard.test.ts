@@ -12,7 +12,7 @@ import {
 } from './dashboard.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
-import type { PresetData } from './config.js';
+import { flattenPresetData, type PresetData } from './config.js';
 import { GatewayApiError } from '@tzurot/clients';
 
 /**
@@ -542,6 +542,51 @@ describe('handleModalSubmit', () => {
       content: expect.stringContaining('may still be applying'),
       flags: MessageFlags.Ephemeral,
     });
+  });
+
+  it('a name-only edit omits advancedParameters when the stored blob could not be parsed', async () => {
+    // The unparseable-blob fallback shape: the stored params JSONB fails the
+    // schema, the detail carries params: {}, and the flattened session shows
+    // every form-owned field blank. Renaming must not send advancedParameters
+    // — the gateway's wholesale replace would then erase the stored blob.
+    mockParseDashboardCustomId.mockReturnValue({
+      entityType: 'preset',
+      action: 'modal',
+      entityId: 'preset-123',
+      sectionId: 'identity',
+    });
+    mockSessionManagerGet.mockResolvedValue({
+      data: flattenPresetData({ ...mockPresetData, params: {} }),
+    });
+    mockExtractModalValues.mockReturnValueOnce({ name: 'Renamed Preset' });
+    mockUpdatePreset.mockResolvedValue(asMutation(mockPresetData));
+
+    await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));
+
+    expect(mockUpdatePreset).toHaveBeenCalled();
+    const payload = mockUpdatePreset.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(payload.name).toBe('Renamed Preset');
+    expect(Object.hasOwn(payload, 'advancedParameters')).toBe(false);
+  });
+
+  it('an edit that changes a param value still sends advancedParameters', async () => {
+    mockParseDashboardCustomId.mockReturnValue({
+      entityType: 'preset',
+      action: 'modal',
+      entityId: 'preset-123',
+      sectionId: 'sampling',
+    });
+    mockSessionManagerGet.mockResolvedValue({
+      data: flattenPresetData({ ...mockPresetData, params: {} }),
+    });
+    mockExtractModalValues.mockReturnValueOnce({ temperature: '0.9' });
+    mockUpdatePreset.mockResolvedValue(asMutation(mockPresetData));
+
+    await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::sampling'));
+
+    expect(mockUpdatePreset).toHaveBeenCalled();
+    const payload = mockUpdatePreset.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(payload.advancedParameters).toEqual({ temperature: 0.9 });
   });
 });
 

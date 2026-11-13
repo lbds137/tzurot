@@ -467,6 +467,30 @@ describe('unflattenPresetData', () => {
 
     expect(result.contextWindowTokens).toBeUndefined();
   });
+
+  it("should drop contextWindowTokens '40 tokens' (no parseInt truncation)", () => {
+    const flat: Partial<FlattenedPresetData> = { contextWindowTokens: '40 tokens' };
+
+    expect(unflattenPresetData(flat).contextWindowTokens).toBeUndefined();
+  });
+
+  it("should drop contextWindowTokens '1e5' (exponent form rejected)", () => {
+    const flat: Partial<FlattenedPresetData> = { contextWindowTokens: '1e5' };
+
+    expect(unflattenPresetData(flat).contextWindowTokens).toBeUndefined();
+  });
+
+  it("should drop contextWindowTokens '12.9' (fractional)", () => {
+    const flat: Partial<FlattenedPresetData> = { contextWindowTokens: '12.9' };
+
+    expect(unflattenPresetData(flat).contextWindowTokens).toBeUndefined();
+  });
+
+  it("should parse contextWindowTokens ' 131072 ' (trim before parse)", () => {
+    const flat: Partial<FlattenedPresetData> = { contextWindowTokens: ' 131072 ' };
+
+    expect(unflattenPresetData(flat).contextWindowTokens).toBe(131072);
+  });
 });
 
 describe('unflattenPresetData — blanked params clear (wholesale replace)', () => {
@@ -499,7 +523,7 @@ describe('unflattenPresetData — blanked params clear (wholesale replace)', () 
     expect(unflattenPresetData(flat).advancedParameters).toEqual({ temperature: 0.7, top_k: 40 });
   });
 
-  it('an identity edit round-trips the stored params unchanged (no-op under replace)', () => {
+  it('an identity edit without a pre-edit snapshot still sends the stored params (presence gate)', () => {
     const preset: PresetData = { ...basePreset, params: { temperature: 0.7, thinking: 'high' } };
 
     const result = unflattenPresetData(flattenPresetData(preset));
@@ -507,10 +531,23 @@ describe('unflattenPresetData — blanked params clear (wholesale replace)', () 
     expect(result.advancedParameters).toEqual({ temperature: 0.7, thinking: 'high' });
   });
 
-  it('a no-params identity edit still sends advancedParameters: {} (no observable change)', () => {
-    const result = unflattenPresetData(flattenPresetData(basePreset));
+  it('an identity edit with the pre-edit snapshot omits advancedParameters entirely', () => {
+    const preset: PresetData = { ...basePreset, params: { temperature: 0.7, thinking: 'high' } };
+    const flat = flattenPresetData(preset);
 
-    expect(result.advancedParameters).toEqual({});
+    const result = unflattenPresetData(flat, flat);
+
+    expect(result.advancedParameters).toBeUndefined();
+    expect(Object.hasOwn(result, 'advancedParameters')).toBe(false);
+  });
+
+  it('a no-params identity edit with the pre-edit snapshot omits advancedParameters (no observable change)', () => {
+    const flat = flattenPresetData(basePreset);
+
+    const result = unflattenPresetData(flat, flat);
+
+    expect(result.advancedParameters).toBeUndefined();
+    expect(Object.hasOwn(result, 'advancedParameters')).toBe(false);
   });
 
   it('blanking a set thinking level clears it while numeric survivors ride along', () => {
@@ -617,6 +654,87 @@ describe('unflattenPresetData — non-form param passthrough', () => {
     const result = unflattenPresetData(flat);
 
     expect(result.advancedParameters).toEqual({ verbosity: 'high', top_k: 40, temperature: 0.7 });
+  });
+});
+
+describe('unflattenPresetData — dirty gate (pre-edit snapshot)', () => {
+  // The unparseable-blob fallback shape: the gateway detail could not parse
+  // the stored params, so the form shows every form-owned field blank.
+  const blobFallbackPreset: PresetData = {
+    id: 'preset-123',
+    name: 'My Preset',
+    description: null,
+    model: 'anthropic/claude-sonnet-4',
+    provider: 'openrouter',
+    isGlobal: false,
+    isOwned: true,
+    permissions: { canEdit: true, canDelete: true },
+    contextWindowTokens: 8192,
+    params: {},
+  };
+
+  it('a name-only edit over the blank-form baseline omits advancedParameters', () => {
+    const preEdit = flattenPresetData(blobFallbackPreset);
+    const edited: Partial<FlattenedPresetData> = { ...preEdit, name: 'Renamed' };
+
+    const result = unflattenPresetData(edited, preEdit);
+
+    expect(result.name).toBe('Renamed');
+    expect(result.advancedParameters).toBeUndefined();
+    expect(Object.hasOwn(result, 'advancedParameters')).toBe(false);
+  });
+
+  it('an edit that changes one param value sends advancedParameters', () => {
+    const preEdit = flattenPresetData(blobFallbackPreset);
+    const edited: Partial<FlattenedPresetData> = { ...preEdit, temperature: '0.9' };
+
+    const result = unflattenPresetData(edited, preEdit);
+
+    expect(result.advancedParameters).toEqual({ temperature: 0.9 });
+  });
+
+  it('blanking a filled value is a change (wholesale replace still clears)', () => {
+    const stored: PresetData = { ...blobFallbackPreset, params: { temperature: 0.7 } };
+    const preEdit = flattenPresetData(stored);
+    const edited: Partial<FlattenedPresetData> = { ...preEdit, temperature: '' };
+
+    const result = unflattenPresetData(edited, preEdit);
+
+    expect(result.advancedParameters).toEqual({});
+  });
+
+  it('an absent pre-edit key and an empty-string form value are equal (no false change)', () => {
+    const preEdit: Partial<FlattenedPresetData> = { name: 'My Preset' };
+
+    const result = unflattenPresetData(flattenPresetData(blobFallbackPreset), preEdit);
+
+    expect(result.advancedParameters).toBeUndefined();
+    expect(Object.hasOwn(result, 'advancedParameters')).toBe(false);
+  });
+
+  it('a contextWindowTokens-only change still omits advancedParameters (not a form-owned param)', () => {
+    const preEdit = flattenPresetData(blobFallbackPreset);
+    const edited: Partial<FlattenedPresetData> = { ...preEdit, contextWindowTokens: '16384' };
+
+    const result = unflattenPresetData(edited, preEdit);
+
+    expect(result.contextWindowTokens).toBe(16384);
+    expect(result.advancedParameters).toBeUndefined();
+  });
+
+  it('non-form passthrough rides only when the gate includes the key', () => {
+    const stored: PresetData = { ...blobFallbackPreset, params: { verbosity: 'high' } };
+    const preEdit = flattenPresetData(stored);
+
+    // Identity edit: key omitted, so verbosity is not re-sent either — the
+    // stored blob (verbosity included) is left untouched by the gateway.
+    const identity = unflattenPresetData(preEdit, preEdit);
+    expect(Object.hasOwn(identity, 'advancedParameters')).toBe(false);
+
+    // A param change includes the key, and verbosity rides along.
+    const edited: Partial<FlattenedPresetData> = { ...preEdit, temperature: '0.9' };
+    const changed = unflattenPresetData(edited, preEdit);
+    expect(changed.advancedParameters).toEqual({ verbosity: 'high', temperature: 0.9 });
   });
 });
 
