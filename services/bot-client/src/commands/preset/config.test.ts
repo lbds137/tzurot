@@ -13,6 +13,10 @@ import {
   type FlattenedPresetData,
 } from './config.js';
 import { SectionStatus } from '../../utils/dashboard/types.js';
+import {
+  type AdvancedParams,
+  AdvancedParamsSchema,
+} from '@tzurot/common-types/schemas/llmAdvancedParams';
 import { presetConfigValidator } from './presetValidation.js';
 import { canProceed } from '../../utils/configValidation.js';
 
@@ -257,6 +261,22 @@ describe('flattenPresetData — exponent-form round trip', () => {
     expect(result.seed).toBe('1000000000000000000000');
   });
 
+  it.each([
+    { param: 'min_p', value: 1.5e-7, expected: '0.00000015' },
+    { param: 'frequency_penalty', value: -5e-7, expected: '-0.0000005' },
+    { param: 'seed', value: 1.2345e21, expected: '1234500000000000000000' },
+  ] as const)(
+    'flattens exponent-form $param ($value) to the plain decimal $expected',
+    ({ param, value, expected }) => {
+      const preset: PresetData = {
+        ...exponentPreset,
+        params: { [param]: value } as PresetData['params'],
+      };
+
+      expect(flattenPresetData(preset)[param]).toBe(expected);
+    }
+  );
+
   it('the flattened form validates with no edits (tiny decimal + big integer)', () => {
     // Number#toString emits exponent notation for these magnitudes; the form
     // strings must stay inside what the strict parser accepts, or every save
@@ -269,9 +289,11 @@ describe('flattenPresetData — exponent-form round trip', () => {
   });
 
   it('a JSON null numeric param flattens to the blank form value and validates', () => {
-    // API detail payloads carry null for absent params even though the type
-    // says undefined; flatten must treat it exactly like absent, or the save
-    // path throws on fields the user never touched.
+    // The gateway's schema-validated detail cannot emit null (optional ≠
+    // nullable, whole-blob fallback), so this pins the defensive branch:
+    // flatten must treat null exactly like absent, or any null that reaches
+    // it through session/fixture data makes the save path throw on fields
+    // the user never touched.
     const nullPreset: PresetData = {
       ...exponentPreset,
       params: { min_p: null as unknown as number },
@@ -506,17 +528,54 @@ describe('unflattenPresetData — blanked params clear (wholesale replace)', () 
     expect(Object.hasOwn(result, 'advancedParameters')).toBe(false);
   });
 
-  it('form-owned keys and non-form passthrough keys are disjoint', () => {
+  it('form-owned keys and non-form passthrough keys are disjoint (schema-derived)', () => {
     // The merge spreads nonFormParams BEFORE the parsed form values, so a
     // collision would silently shadow a parsed value; the type system cannot
-    // see the key sets, so pin the disjointness here. This list mirrors the
-    // non-form members of AdvancedParamsSchema (everything except the numeric
-    // sampling keys and thinking).
-    const formOwnedKeys: string[] = [...NUMERIC_PARAMS, 'thinking'];
-    const nonFormKeys = ['logit_bias', 'response_format', 'transforms', 'route', 'verbosity'];
+    // see the key sets, so pin the disjointness here — derived from the
+    // schema itself, so the test fails when AdvancedParamsSchema changes
+    // rather than mirroring a hand-written list.
+    // One sample value per schema key; the Record<keyof AdvancedParams, _>
+    // annotation makes a schema change a compile error on this literal.
+    const SAMPLE_VALUES: Record<keyof AdvancedParams, unknown> = {
+      temperature: 0.7,
+      top_p: 0.9,
+      top_k: 40,
+      frequency_penalty: 0.5,
+      presence_penalty: 0.3,
+      repetition_penalty: 1.1,
+      min_p: 0.1,
+      top_a: 0.2,
+      seed: 42,
+      thinking: 'high',
+      max_tokens: 4096,
+      logit_bias: { token1: -5 },
+      response_format: { type: 'json_object' },
+      transforms: ['middle-out'],
+      route: 'fallback',
+      verbosity: 'high',
+    };
 
-    expect(formOwnedKeys.filter(key => nonFormKeys.includes(key))).toEqual([]);
-    expect(INTEGER_PARAMS.every(key => formOwnedKeys.includes(key))).toBe(true);
+    const schemaKeys = Object.keys(AdvancedParamsSchema.shape);
+    const formOwnedKeys = new Set<string>([...NUMERIC_PARAMS, 'thinking']);
+
+    // Every schema key carries a sample value, so the flattened fixture is
+    // fully populated and no key silently vanishes.
+    expect(schemaKeys.filter(key => !(key in SAMPLE_VALUES))).toEqual([]);
+
+    const fullParams = Object.fromEntries(
+      schemaKeys.map(key => [key, SAMPLE_VALUES[key as keyof AdvancedParams]])
+    ) as AdvancedParams;
+    const preset: PresetData = { ...basePreset, params: fullParams };
+    const flat = flattenPresetData(preset);
+
+    // (i) no form-owned key leaks into nonFormParams
+    expect(Object.keys(flat.nonFormParams ?? {}).filter(key => formOwnedKeys.has(key))).toEqual([]);
+    // (ii) nonFormParams' key set equals exactly the schema's non-form members
+    expect(Object.keys(flat.nonFormParams ?? {}).sort()).toEqual(
+      schemaKeys.filter(key => !formOwnedKeys.has(key)).sort()
+    );
+
+    expect(INTEGER_PARAMS.every(key => formOwnedKeys.has(key))).toBe(true);
   });
 });
 
