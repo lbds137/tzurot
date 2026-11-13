@@ -395,6 +395,16 @@ function buildOpenRouterModel(
   // even though the flag is only set on conversation configs.
   if (modelConfig.promptCaching === true && isAnthropicFamilyModelId(modelName)) {
     extraParams.cacheControl = OPENROUTER_PROMPT_CACHE_CONTROL;
+    // Same gate carries the stickiness id: OpenRouter otherwise hashes the
+    // first system + first non-system message to pick a provider endpoint,
+    // and that hash churns per turn on this pipeline, landing on different
+    // endpoints where the cached prefix never reads. The id is conversation-
+    // scoped (modelInvocation threads contentDigest(context.channelId), not
+    // the raw snowflake), so it pins one conversation to one endpoint
+    // without cross-conversation coupling.
+    if (modelConfig.sessionId !== undefined) {
+      extraParams.sessionId = modelConfig.sessionId;
+    }
   }
   const hasExtraParams = Object.keys(extraParams).length > 0;
   const hasReasoning =

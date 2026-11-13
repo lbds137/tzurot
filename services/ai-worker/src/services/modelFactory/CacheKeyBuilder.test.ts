@@ -181,6 +181,27 @@ describe('getModelCacheKey', () => {
     expect(getModelCacheKey(config1)).toBe(getModelCacheKey(config2));
   });
 
+  it('should differentiate by sessionId', () => {
+    // The stickiness id is baked into the instance's fetch closure at
+    // construction (ModelFactory → extraParams.sessionId → createOpenRouterFetch),
+    // so two conversations differing only in sessionId must not share a cached
+    // instance — the second would send the first conversation's id upstream.
+    const config1: ModelConfig = { modelName: 'model-1', promptCaching: true, sessionId: 'chan-1' };
+    const config2: ModelConfig = { modelName: 'model-1', promptCaching: true, sessionId: 'chan-2' };
+
+    expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
+  });
+
+  it('should generate the same key for an undefined sessionId and an absent one', () => {
+    // Non-caching configs (one-shot paths) carry no sessionId in any form —
+    // explicit-undefined and absent must key identically so their key shape
+    // stays what it was before the sessionId row existed.
+    const config1: ModelConfig = { modelName: 'model-1', sessionId: undefined };
+    const config2: ModelConfig = { modelName: 'model-1' };
+
+    expect(getModelCacheKey(config1)).toBe(getModelCacheKey(config2));
+  });
+
   it('should differentiate by per-request provider override', () => {
     // Same model name, different provider override — must NOT share a cached
     // ChatOpenAI instance because the configured baseURL differs (OpenRouter
