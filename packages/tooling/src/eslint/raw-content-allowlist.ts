@@ -59,7 +59,6 @@ export const RAW_CONTENT_ALLOWLIST: Readonly<Record<string, number>> = {
   'services/bot-client/src/commands/persona/override/set.ts': 4,
   'services/bot-client/src/commands/persona/view.ts': 1,
   'services/bot-client/src/commands/preset/browse.ts': 1,
-  'services/bot-client/src/commands/preset/config.ts': 1,
   'services/bot-client/src/commands/preset/edit.ts': 4,
   'services/bot-client/src/commands/preset/global/globalPresetHelpers.ts': 2,
   'services/bot-client/src/commands/preset/import.ts': 3,
