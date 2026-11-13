@@ -27,6 +27,8 @@ import {
  * - Non-numeric sampling parameter: Values must be plain decimal numbers
  *   (whole numbers for top_k, max_tokens and seed)
  * - Unrecognized thinking level: Must be one of THINKING_LEVELS (or blank)
+ * - Non-integer context window: contextWindowTokens must be a plain whole
+ *   number (the same strict-decimal rule the sampling fields apply)
  *
  * Warning rules (allow save, display caution):
  * - Low temperature + low top_p: May produce repetitive output
@@ -76,6 +78,19 @@ export const presetConfigValidator = new ConfigValidator<FlattenedPresetData>()
       return !isThinkingLevel(value.trim());
     },
     `Thinking level must be one of: ${THINKING_LEVELS.join(', ')}. Leave the field empty to take the provider default.`
+  )
+
+  .addError(
+    'context window tokens',
+    c => {
+      const value = c.contextWindowTokens;
+      if (value === undefined || value.trim().length === 0) {
+        return false;
+      }
+      const num = parseStrictParamNumber(value);
+      return num === undefined || !Number.isInteger(num);
+    },
+    'Context window tokens must be a whole number (e.g. 131072). Leave the field empty to keep the current value.'
   )
 
   // =========================================
