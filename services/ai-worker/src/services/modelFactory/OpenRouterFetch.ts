@@ -41,7 +41,7 @@ export interface OpenRouterExtraParams {
   route?: 'fallback';
   verbosity?: 'low' | 'medium' | 'high';
   /** Top-level automatic prompt-caching directive (anthropic-family ids only). */
-  cacheControl?: { type: 'ephemeral'; ttl: '1h' };
+  cacheControl?: { type: 'ephemeral'; ttl?: '5m' | '1h' };
 }
 
 /**
@@ -59,7 +59,8 @@ export interface OpenRouterExtraParams {
 export const OPENROUTER_PROMPT_CACHE_CONTROL = {
   /** Anthropic-style ephemeral cache entry. */
   type: 'ephemeral',
-  /** Cache entry lifetime — selects the 1-hour pricing tier. */
+  /** Cache entry lifetime — '1h' selects the 1-hour pricing tier; omitted,
+   * OpenRouter defaults to the 5-minute tier. */
   ttl: '1h',
 } as const;
 
