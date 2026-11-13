@@ -315,6 +315,20 @@ function bar(pct: number): string {
 }
 
 /**
+ * Mirrors the worker's injection gate, which scopes OUR `cache_control` to the
+ * REQUESTED anthropic family — so we only request cache writes there, and
+ * only there is an absent write report explanatory. Keyed on `modelUsed` (the
+ * id we asked for): `routedModel` is what the provider reported serving, and
+ * a router alias serving an anthropic model does not mean `cache_control` was
+ * injected. Provider-side implicit caching can still report writes on other
+ * families — this predicate scopes our own expectation, not what is possible.
+ * Local predicate: cross-service imports are forbidden.
+ */
+function isAnthropicFamilyResponse(llmResponse: DiagnosticPayload['llmResponse']): boolean {
+  return llmResponse.modelUsed !== undefined && /^anthropic\//i.test(llmResponse.modelUsed);
+}
+
+/**
  * Cached / total header lines plus the hit bar.
  *
  * `cachedPromptTokens` absent means the provider reported no cache activity at
@@ -322,22 +336,9 @@ function bar(pct: number): string {
  * hits, so the two cases render differently. Hit % is omitted when
  * promptTokens is 0 — same divide-by-zero guard the summary embed applies.
  * `cachedWriteTokens` mirrors that split for writes: absent renders the
- * explanatory line on anthropic-family responses only (a write is possible
- * only there); 0 means the provider reported no new write.
+ * explanatory line on anthropic-family responses only (we only request cache
+ * writes there); 0 means the provider reported no new write.
  */
-/**
- * A cache WRITE is only possible on an anthropic-family model id — the
- * injection gate on the worker side scopes `cache_control` to that family —
- * so an absent write report is explanatory only where a write was possible.
- * Local predicate: cross-service imports are forbidden. `routedModel` (what
- * the provider reported serving) wins when present; `modelUsed` (what we
- * asked for) is the fallback.
- */
-function isAnthropicFamilyResponse(llmResponse: DiagnosticPayload['llmResponse']): boolean {
-  const servedModel = llmResponse.routedModel ?? llmResponse.modelUsed;
-  return servedModel !== undefined && /^anthropic\//i.test(servedModel);
-}
-
 function renderCacheHeader(llmResponse: DiagnosticPayload['llmResponse']): string[] {
   const { promptTokens, cachedPromptTokens, cachedWriteTokens, cacheDiscount } = llmResponse;
   const lines = [`**Prompt tokens:** ${promptTokens.toLocaleString()}`];

@@ -41,6 +41,14 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 });
 
 import { createOpenRouterFetch } from './OpenRouterFetch.js';
+import type { OpenRouterExtraParams } from './OpenRouterFetch.js';
+
+// Compile-time pin for the graduated rollback lever: dropping `ttl` must
+// typecheck, so a mid-incident rollback can be the one-line
+// `OPENROUTER_PROMPT_CACHE_CONTROL` -> `{ type: 'ephemeral' }`. OpenRouter's
+// default for ttl-less ephemeral is the 5-minute tier.
+const rollbackCacheControl: OpenRouterExtraParams['cacheControl'] = { type: 'ephemeral' };
+void rollbackCacheControl;
 
 describe('OpenRouterFetch', () => {
   let originalFetch: typeof globalThis.fetch;
