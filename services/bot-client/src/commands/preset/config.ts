@@ -26,9 +26,13 @@ export type { PresetData, FlattenedPresetData } from './types.js';
  * `5e-7` → '0.0000005', `1e+21` → '1000000000000000000000'.
  * Undefined (absent param) flattens to the blank form value.
  */
-function toPlainDecimalString(value: number | undefined): string {
-  // API detail payloads carry JSON null for absent params even though the
-  // type says undefined — match the null tolerance of the optional chain.
+function toPlainDecimalString(value: number | null | undefined): string {
+  // The gateway's schema-validated detail payload cannot emit null: every
+  // numeric field in AdvancedParamsSchema is `.optional()`, not `.nullable()`,
+  // so a stored null fails the whole blob parse and the detail carries
+  // `params: {}` instead. The null tolerance here is defensive — it guards
+  // session and fixture data that skipped that validation — and matches the
+  // tolerance of the optional chain.
   if (value === undefined || value === null) {
     return '';
   }
@@ -150,8 +154,9 @@ export function parseStrictParamNumber(value: string | undefined): number | unde
 
 /**
  * True when input names a canonical thinking level (lowercase match against
- * THINKING_LEVELS — the same parity behavior the parser applies). Shared by
- * the parser and the save validator so the accepted set cannot drift.
+ * THINKING_LEVELS). Consumed by the save validator; the parser matches
+ * THINKING_LEVELS directly instead of routing through this predicate, so the
+ * accepted set is shared via the enum constant itself.
  */
 export function isThinkingLevel(input: string): boolean {
   const lowered = input.toLowerCase();
