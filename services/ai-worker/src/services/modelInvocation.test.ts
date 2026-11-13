@@ -18,6 +18,7 @@ import type { ResponsePostProcessor } from './ResponsePostProcessor.js';
 import type { ConversationInputProcessor } from './ConversationInputProcessor.js';
 import type { ConversationContext, ModelInvocationOptions } from './ConversationalRAGTypes.js';
 import { invokeModelAndClean, type ModelInvocationDeps } from './modelInvocation.js';
+import { contentDigest } from '@tzurot/common-types/utils/logContentPreview';
 
 /** Independent reference digest — not the implementation's own helper. */
 function expectedHash(text: string): string {
@@ -198,6 +199,21 @@ describe('invokeModelAndClean', () => {
     // the caching flag, so dropping it silently disables prompt caching in
     // prod while every mock-return-value test stays green.
     expect(mockGetModel).toHaveBeenCalledWith(expect.objectContaining({ promptCaching: true }));
+  });
+
+  it('threads the conversation-scoped sessionId (contentDigest of the channel id) into the getModel config', async () => {
+    await invokeModelAndClean(deps, baseOpts);
+
+    // OpenRouter's provider stickiness otherwise hashes the first two messages,
+    // which churn per turn; this id pins the conversation to one endpoint. The
+    // fixture context carries channelId 'channel-1', shipped HASHED — the raw
+    // Discord snowflake never reaches OpenRouter.
+    expect(mockGetModel).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: contentDigest('channel-1') })
+    );
+    expect(mockGetModel).not.toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'channel-1' })
+    );
   });
 
   it('forwards cache_creation from usage_metadata into the cache-observability log', async () => {

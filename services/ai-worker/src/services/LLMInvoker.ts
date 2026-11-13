@@ -24,6 +24,7 @@ import {
 } from '@tzurot/common-types/constants/finishReasons';
 import { RETRY_CONFIG, TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import { calculateJobTimeout } from '@tzurot/common-types/utils/timeout';
 import {
   createChatModel,
@@ -70,6 +71,25 @@ const logger = createLogger('LLMInvoker');
  * Tune in either direction once we have prod logs of actual reset windows.
  */
 const DEFAULT_RATE_LIMIT_COOLDOWN_MS = 15 * 60 * 1000;
+
+/**
+ * Cap on the per-invoker memoized model-instance cache. With `sessionId` now
+ * part of the cache key (CacheKeyBuilder), one entry exists per conversation
+ * carrying a stickiness id, so the cache grows with conversation traffic —
+ * LRU eviction bounds it instead of letting it grow for the process lifetime.
+ */
+const MODEL_CACHE_MAX = 500;
+
+/**
+ * TTL for a memoized model instance — 4 hours, far outliving the observed
+ * conversation-turn gap (≤ ~10 min). An evicted entry costs only a rebuilt
+ * instance on the next call: `createChatModel` is constructor-only work, no
+ * I/O, so expiry degrades gracefully to a one-time rebuild.
+ */
+const MODEL_CACHE_TTL_MS = 4 * 60 * 60 * 1000;
+
+/** Both bounds passed to the cache as one object — see the constants above. */
+const MODEL_CACHE_OPTIONS = { maxSize: MODEL_CACHE_MAX, ttl: MODEL_CACHE_TTL_MS };
 
 /**
  * Default reset timestamp for a 429 whose response didn't include a usable
@@ -147,7 +167,13 @@ interface InvokeWithRetryOptions {
 }
 
 export class LLMInvoker {
-  private models = new Map<string, ChatModelResult>();
+  /**
+   * Memoized model instances keyed by `getModelCacheKey` — bounded by
+   * {@link MODEL_CACHE_MAX} entries and {@link MODEL_CACHE_TTL_MS} expiry
+   * (a process-lifetime `Map` would grow unbounded now that the key includes
+   * the per-conversation `sessionId`).
+   */
+  private models = new TTLCache<ChatModelResult>(MODEL_CACHE_OPTIONS);
 
   /**
    * Get or create a chat model for a specific configuration.
@@ -158,15 +184,10 @@ export class LLMInvoker {
    */
   getModel(config: ModelConfig): ChatModelResult {
     const cacheKey = getModelCacheKey(config);
-
-    if (!this.models.has(cacheKey)) {
-      this.models.set(cacheKey, createChatModel(config));
-    }
-
-    const model = this.models.get(cacheKey);
-    if (model === undefined) {
-      throw new Error(`Model not found for cache key: ${cacheKey}`);
-    }
+    // Cache miss (get → null) builds and memoizes the instance; a hit returns
+    // it and refreshes its TTL (TTLCache ages entries from set time).
+    const model = this.models.get(cacheKey) ?? createChatModel(config);
+    this.models.set(cacheKey, model);
     return model;
   }
 

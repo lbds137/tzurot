@@ -536,6 +536,191 @@ describe('OpenRouterFetch', () => {
     );
   });
 
+  describe('explicit system-block breakpoint + session id', () => {
+    /** POST a chat-completions body through a fetch built from extraParams, capture the parsed wire body. */
+    async function postAndCapture(
+      extraParams: OpenRouterExtraParams,
+      requestBody: Record<string, unknown>
+    ): Promise<Record<string, unknown>> {
+      const customFetch = createOpenRouterFetch(extraParams);
+      let capturedBody: string | undefined;
+      globalThis.fetch = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+        capturedBody = init?.body as string;
+        return Promise.resolve(mockResponse({ choices: [] }, 200));
+      });
+
+      await customFetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        body: JSON.stringify(requestBody),
+      });
+
+      expect(capturedBody).toBeDefined();
+      return JSON.parse(capturedBody!) as Record<string, unknown>;
+    }
+
+    type TextBlock = { type: string; text: string; cache_control?: Record<string, unknown> };
+
+    it('wraps a string-content system message into a one-block array carrying cache_control', async () => {
+      const parsed = await postAndCapture(
+        { cacheControl: { type: 'ephemeral', ttl: '1h' } },
+        {
+          model: 'anthropic/claude-sonnet-4',
+          messages: [
+            { role: 'system', content: 'You are a test bot' },
+            { role: 'user', content: 'hi' },
+          ],
+        }
+      );
+
+      const system = (parsed.messages as Array<{ content: unknown }>)[0];
+      expect(system.content).toEqual([
+        {
+          type: 'text',
+          text: 'You are a test bot',
+          cache_control: { type: 'ephemeral', ttl: '1h' },
+        },
+      ]);
+      // Later messages are untouched
+      expect((parsed.messages as Array<{ content: unknown }>)[1].content).toBe('hi');
+    });
+
+    it('attaches cache_control to the LAST text block of an array-content system message', async () => {
+      const parsed = await postAndCapture(
+        { cacheControl: { type: 'ephemeral', ttl: '1h' } },
+        {
+          model: 'anthropic/claude-sonnet-4',
+          messages: [
+            {
+              role: 'system',
+              content: [
+                { type: 'text', text: 'first section' },
+                { type: 'text', text: 'second section' },
+              ],
+            },
+          ],
+        }
+      );
+
+      const blocks = (parsed.messages as Array<{ content: TextBlock[] }>)[0].content as TextBlock[];
+      expect(blocks[0]).toEqual({ type: 'text', text: 'first section' });
+      expect(blocks[1]).toEqual({
+        type: 'text',
+        text: 'second section',
+        cache_control: { type: 'ephemeral', ttl: '1h' },
+      });
+    });
+
+    it('keeps the root cache_control alongside the per-block breakpoint (two breakpoints total)', async () => {
+      const parsed = await postAndCapture(
+        { cacheControl: { type: 'ephemeral', ttl: '1h' } },
+        {
+          model: 'anthropic/claude-sonnet-4',
+          messages: [{ role: 'system', content: 'You are a test bot' }],
+        }
+      );
+
+      expect(parsed.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+      const blocks = (parsed.messages as Array<{ content: TextBlock[] }>)[0].content as TextBlock[];
+      expect(blocks[0].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+    });
+
+    it('leaves a string-content system message untouched when no cacheControl is set', async () => {
+      const parsed = await postAndCapture(
+        { transforms: ['middle-out'] },
+        {
+          model: 'anthropic/claude-sonnet-4',
+          messages: [{ role: 'system', content: 'You are a test bot' }],
+        }
+      );
+
+      expect((parsed.messages as Array<{ content: unknown }>)[0].content).toBe(
+        'You are a test bot'
+      );
+      expect(parsed).not.toHaveProperty('session_id');
+    });
+
+    it('skips the wrap when messages is empty (no system block to mark)', async () => {
+      const parsed = await postAndCapture(
+        { cacheControl: { type: 'ephemeral', ttl: '1h' } },
+        { model: 'anthropic/claude-sonnet-4', messages: [] }
+      );
+
+      expect(parsed.messages).toEqual([]);
+      // The root directive still injects
+      expect(parsed.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+    });
+
+    it('sends session_id at the request root when extraParams carries it', async () => {
+      const parsed = await postAndCapture(
+        { cacheControl: { type: 'ephemeral', ttl: '1h' }, sessionId: 'channel-123' },
+        {
+          model: 'anthropic/claude-sonnet-4',
+          messages: [{ role: 'system', content: 'You are a test bot' }],
+        }
+      );
+
+      expect(parsed.session_id).toBe('channel-123');
+      // Sibling of `model`, not a message field
+      expect(parsed.model).toBe('anthropic/claude-sonnet-4');
+    });
+
+    it('omits session_id when extraParams does not carry it (gate lives upstream)', async () => {
+      const parsed = await postAndCapture(
+        { cacheControl: { type: 'ephemeral', ttl: '1h' } },
+        {
+          model: 'anthropic/claude-sonnet-4',
+          messages: [{ role: 'system', content: 'You are a test bot' }],
+        }
+      );
+
+      expect(parsed).not.toHaveProperty('session_id');
+    });
+
+    it('does not wrap when the first message is a USER message (no system prompt on the path)', async () => {
+      // A promptCaching caller with no system prompt must not get its first
+      // user message cache-marked — that prefix changes every turn and could
+      // never produce a read.
+      const parsed = await postAndCapture(
+        { cacheControl: { type: 'ephemeral', ttl: '1h' } },
+        {
+          model: 'anthropic/claude-sonnet-4',
+          messages: [
+            { role: 'user', content: 'hi there' },
+            { role: 'assistant', content: 'hello' },
+          ],
+        }
+      );
+
+      expect((parsed.messages as Array<{ content: unknown }>)[0].content).toBe('hi there');
+      // No cache_control anywhere in the message array
+      expect(JSON.stringify(parsed.messages)).not.toContain('cache_control');
+      // The root directive still injects — only the per-block wrap is skipped
+      expect(parsed.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+    });
+
+    it('wraps a developer-role first message like a system one', async () => {
+      const parsed = await postAndCapture(
+        { cacheControl: { type: 'ephemeral', ttl: '1h' } },
+        {
+          model: 'anthropic/claude-sonnet-4',
+          messages: [
+            { role: 'developer', content: 'Instructions for the model' },
+            { role: 'user', content: 'hi' },
+          ],
+        }
+      );
+
+      const first = (parsed.messages as Array<{ content: unknown }>)[0];
+      expect(first.content).toEqual([
+        {
+          type: 'text',
+          text: 'Instructions for the model',
+          cache_control: { type: 'ephemeral', ttl: '1h' },
+        },
+      ]);
+    });
+  });
+
   describe('200 with an error body and no choices', () => {
     it('synthesizes an error status from body.error.code, round-tripping the body minus flagged_input', async () => {
       const customFetch = createFetch();

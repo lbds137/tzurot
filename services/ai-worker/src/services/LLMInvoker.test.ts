@@ -10,7 +10,8 @@ import { parseApiError } from '../utils/apiErrorParser.js';
 import { classifyQuotaFailure } from './quotaFallback.js';
 import { type BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { type BaseChatModel } from '@langchain/core/language_models/chat_models';
-import type { ChatModelResult } from './modelFactory/types.js';
+import { createChatModel, getModelCacheKey } from './ModelFactory.js';
+import type { ChatModelResult, ModelConfig } from './modelFactory/types.js';
 import {
   ApiErrorType,
   ApiErrorCategory,
@@ -19,6 +20,42 @@ import {
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { TimeoutError } from '@tzurot/common-types/utils/errors';
 import { generateFromInvokeMock } from '@tzurot/test-utils/invokeMockChatModel';
+
+// Hoisted before the module mocks so both the './ModelFactory.js' mock factory
+// and the sessionId-isolation regression test below reference the SAME stub
+// implementations — the test swaps the real implementations in and restores
+// these stubs afterwards.
+const { mockChatOpenAI, stubCreateChatModel, stubGetModelCacheKey } = vi.hoisted(() => {
+  const stubCreateChatModel = (config?: { modelName?: string }) => {
+    const invoke = vi.fn().mockResolvedValue({ content: 'Test response' });
+    return {
+      model: {
+        invoke,
+        generate: vi.fn(async (messages: unknown[], options?: unknown) => ({
+          generations: [[{ text: '', message: await invoke(messages[0], options) }]],
+        })),
+      } as any,
+      modelName: config?.modelName || 'openrouter/anthropic/claude-sonnet-4.5',
+      expectsRawResponse: true,
+    };
+  };
+  const stubGetModelCacheKey = (config: {
+    modelName?: string;
+    apiKey?: string;
+    temperature?: number;
+  }) =>
+    `${config?.modelName || 'default'}_${config?.apiKey || 'default'}_${config?.temperature ?? 'none'}`;
+  return { mockChatOpenAI: vi.fn(), stubCreateChatModel, stubGetModelCacheKey };
+});
+
+// Real ModelFactory code runs in the sessionId-isolation regression test below
+// (real CacheKeyBuilder + real createOpenRouterFetch wiring); `ChatOpenAI` is
+// mocked so construction never reaches the network and the test can read
+// `configuration.fetch` off the constructor call — the same seam
+// ModelFactory.test.ts uses for its captureInjectedBody helper.
+vi.mock('@langchain/openai', () => ({
+  ChatOpenAI: mockChatOpenAI,
+}));
 
 /** Build a mock chat model whose PRODUCTION seam is `generate` (what
  *  `invokeModelGuarded` calls) while the test keeps driving and asserting the
@@ -50,29 +87,15 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
-// Mock ModelFactory
+// Mock ModelFactory — the stubs are the hoisted ones above, so the
+// sessionId-isolation regression test can swap the REAL implementations in
+// for its body and restore these exactly.
 vi.mock('./ModelFactory.js', () => ({
-  createChatModel: vi.fn(({ modelName }) => {
-    const invoke = vi.fn().mockResolvedValue({ content: 'Test response' });
-    return {
-      model: {
-        invoke,
-        generate: vi.fn(async (messages: unknown[], options?: unknown) => ({
-          generations: [[{ text: '', message: await invoke(messages[0], options) }]],
-        })),
-      } as any,
-      modelName: modelName || 'openrouter/anthropic/claude-sonnet-4.5',
-      // Mirrors the OpenRouter builder, which is what this stub stands in for.
-      // `satisfies` rather than a bare literal so the next ChatModelResult
-      // field breaks this fixture at compile time — the `as any` above is what
-      // lets it compile at all, since the model stub is not a real
-      // BaseChatModel. Type-only reference, so the vi.mock hoist is unaffected.
-      expectsRawResponse: true,
-    } satisfies ChatModelResult;
-  }),
-  getModelCacheKey: vi.fn(({ modelName, apiKey, temperature }) => {
-    return `${modelName || 'default'}_${apiKey || 'default'}_${temperature ?? 'none'}`;
-  }),
+  // Mirrors the OpenRouter builder, which is what this stub stands in for.
+  // The `as any` inside the stub is what lets it compile at all, since the
+  // model stub is not a real BaseChatModel.
+  createChatModel: vi.fn(stubCreateChatModel),
+  getModelCacheKey: vi.fn(stubGetModelCacheKey),
 }));
 
 // Spy on withRetry to verify options passed from LLMInvoker
@@ -194,6 +217,100 @@ describe('LLMInvoker', () => {
 
       expect(result).toBeDefined();
       expect(result.modelName).toBe('test-model');
+    });
+  });
+
+  describe('getModel — sessionId cache isolation (real ModelFactory path)', () => {
+    /**
+     * Runs the REAL `getModelCacheKey` (CacheKeyBuilder) and the REAL
+     * `createChatModel` through `invoker.getModel`, so the regression covers
+     * the production memoization seam end to end — the other suites here mock
+     * `getModel` (modelInvocation.test.ts) or stub both factory functions,
+     * and are seam-blind to a cache key that collides on `sessionId`. The
+     * wire half reads each constructed client's `configuration.fetch` (the
+     * closure the sessionId is baked into) and captures the body it would
+     * send — the same capture pattern ModelFactory.test.ts uses.
+     */
+    it('gives two configs differing only in sessionId distinct instances with distinct wire session_id values', async () => {
+      const actual = await vi.importActual<typeof import('./ModelFactory.js')>('./ModelFactory.js');
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      );
+
+      try {
+        vi.mocked(createChatModel).mockImplementation(actual.createChatModel);
+        vi.mocked(getModelCacheKey).mockImplementation(actual.getModelCacheKey);
+
+        const base: ModelConfig = {
+          modelName: 'anthropic/claude-sonnet-4',
+          apiKey: 'byok-key-1234567890',
+          promptCaching: true,
+        };
+        // Two conversations that differ ONLY in the stickiness id — everything
+        // else about the configs is byte-identical, so a cache key omitting
+        // sessionId would collide and hand conversation B conversation A's
+        // cached client.
+        const configA: ModelConfig = { ...base, sessionId: 'chan-A' };
+        const configB: ModelConfig = { ...base, sessionId: 'chan-B' };
+
+        const resultA: ChatModelResult = invoker.getModel(configA);
+        const resultB: ChatModelResult = invoker.getModel(configB);
+
+        // Instance half: distinct cached clients, not the first conversation's
+        // instance reused.
+        expect(resultA).not.toBe(resultB);
+        expect(resultA.model).not.toBe(resultB.model);
+        // And memoization still works WITHIN one sessionId.
+        expect(invoker.getModel(configA)).toBe(resultA);
+
+        // Wire half: each instance's fetch closure carries its own session_id.
+        expect(mockChatOpenAI).toHaveBeenCalledTimes(2);
+        const fetchFor = (
+          callIndex: number
+        ): ((url: string, init?: RequestInit) => Promise<Response>) => {
+          const callArgs = mockChatOpenAI.mock.calls[callIndex]?.[0] as {
+            configuration?: { fetch?: (url: string, init?: RequestInit) => Promise<Response> };
+          };
+          const fetchFn = callArgs?.configuration?.fetch;
+          expect(fetchFn).toBeInstanceOf(Function);
+          return fetchFn!;
+        };
+
+        const wireSessionId = async (
+          fetchFn: (url: string, init?: RequestInit) => Promise<Response>
+        ): Promise<unknown> => {
+          const before = fetchSpy.mock.calls.length;
+          await fetchFn('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            body: JSON.stringify({
+              model: 'anthropic/claude-sonnet-4',
+              messages: [{ role: 'system', content: 'sys' }],
+            }),
+          });
+          const init = fetchSpy.mock.calls[before]?.[1] as RequestInit;
+          const parsed = JSON.parse(init.body as string) as Record<string, unknown>;
+          return parsed.session_id;
+        };
+
+        const sessionIdA = await wireSessionId(fetchFor(0));
+        const sessionIdB = await wireSessionId(fetchFor(1));
+
+        expect(sessionIdA).toBe('chan-A');
+        expect(sessionIdB).toBe('chan-B');
+      } finally {
+        // Restore the module-mock stubs so the other suites keep their seam
+        // (explicitly, rather than relying on restoreAllMocks semantics for
+        // constructor-passed vi.fn implementations).
+        vi.mocked(createChatModel).mockReset();
+        vi.mocked(createChatModel).mockImplementation(stubCreateChatModel);
+        vi.mocked(getModelCacheKey).mockReset();
+        vi.mocked(getModelCacheKey).mockImplementation(stubGetModelCacheKey);
+        fetchSpy.mockRestore();
+        mockChatOpenAI.mockClear();
+      }
     });
   });
 

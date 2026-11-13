@@ -65,6 +65,13 @@ export function getModelCacheKey(modelConfig: ModelConfig): string {
     // Prompt caching - the conversation opt-in that drives cache_control
     // injection; a different flag value must get a different instance
     cacheVal(modelConfig.promptCaching),
+    // Per-conversation stickiness id (OpenRouter `session_id`): ModelFactory
+    // bakes it into the instance's fetch closure at construction, so a cached
+    // instance built for one conversation would send ITS sessionId for every
+    // later conversation sharing the key — each sessionId must get its own
+    // instance. cacheVal(undefined) → '-', so configs without a sessionId
+    // (one-shot paths) keep today's key shape.
+    cacheVal(modelConfig.sessionId),
     // OpenRouter
     cacheArr(modelConfig.transforms),
     cacheVal(modelConfig.route),
