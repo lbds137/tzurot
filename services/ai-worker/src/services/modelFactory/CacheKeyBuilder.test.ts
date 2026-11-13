@@ -162,6 +162,25 @@ describe('getModelCacheKey', () => {
     expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
   });
 
+  it('should differentiate by promptCaching', () => {
+    // Two configs differing ONLY in the caching flag must not share a cached
+    // model instance: the flag drives cache_control injection, so the shared
+    // instance would silently attach (or drop) it for the other caller.
+    const config1: ModelConfig = { modelName: 'model-1' };
+    const config2: ModelConfig = { modelName: 'model-1', promptCaching: true };
+
+    expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
+  });
+
+  it('should generate the same key for configs whose promptCaching flag matches', () => {
+    // Control for the flag test above: same-flag configs (the shape every
+    // conversation caller builds) still share one cached instance.
+    const config1: ModelConfig = { modelName: 'model-1', promptCaching: true };
+    const config2: ModelConfig = { modelName: 'model-1', promptCaching: true };
+
+    expect(getModelCacheKey(config1)).toBe(getModelCacheKey(config2));
+  });
+
   it('should differentiate by per-request provider override', () => {
     // Same model name, different provider override — must NOT share a cached
     // ChatOpenAI instance because the configured baseURL differs (OpenRouter

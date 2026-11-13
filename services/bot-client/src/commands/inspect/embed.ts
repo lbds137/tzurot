@@ -292,7 +292,8 @@ function buildResponseField(
     `**Completion Tokens:** ${llmResponse.completionTokens}${lowTokenWarning}`,
   ];
   // Provider-reported prefix-cache hit. Absent = provider reported no cache
-  // activity (old logs predate the field); 0 = a real cold-prefix report.
+  // activity (old logs predate the field); 0 = provider reported no cache
+  // hits.
   if (llmResponse.cachedPromptTokens !== undefined) {
     const hitPercent =
       llmResponse.promptTokens > 0
@@ -301,8 +302,8 @@ function buildResponseField(
     lines.push(`**Cached Tokens:** ${llmResponse.cachedPromptTokens}${hitPercent}`);
   }
   // Provider-reported cache-write count (the 1h caching tier's 2x-rate
-  // tokens). Absent = the provider reported no cache write; 0 = nothing new
-  // was written (a fully cached prefix). Same omit-when-absent shape as the
+  // tokens). Absent = the provider reported no cache write; 0 = provider
+  // reported no new write. Same omit-when-absent shape as the
   // Cached Tokens line above.
   if (llmResponse.cachedWriteTokens !== undefined) {
     lines.push(`**Cache Write:** ${llmResponse.cachedWriteTokens}`);

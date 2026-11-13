@@ -303,7 +303,7 @@ export interface DiagnosticLlmResponse {
   /**
    * Prompt tokens served from the provider's prefix cache
    * (`usage.prompt_tokens_details.cached_tokens`). Undefined = provider
-   * reported no cache activity; 0 = a real report of a cold prefix.
+   * reported no cache activity; 0 = provider reported no cache read.
    */
   cachedPromptTokens?: number;
   /**

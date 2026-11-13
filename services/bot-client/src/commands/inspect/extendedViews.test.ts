@@ -546,7 +546,7 @@ describe('buildCacheView', () => {
     expect(text).not.toContain('Cache discount');
   });
 
-  it('renders a zero-cache report as a real cold prefix, not as missing data', () => {
+  it('renders a zero-cache report as a reported count, not as missing data', () => {
     const payload = createMockPayload({
       llmResponse: {
         ...createMockPayload().llmResponse,
@@ -573,12 +573,42 @@ describe('buildCacheView', () => {
     expect(text).toContain('**Cache Write:** 900');
   });
 
-  it('renders the explanatory line when the provider reported no cache write', () => {
+  it('omits the cache-write line for a non-anthropic response with no write reported', () => {
     const payload = createMockPayload({
       llmResponse: {
         ...createMockPayload().llmResponse,
         promptTokens: 1000,
         cachedPromptTokens: 100,
+      },
+    });
+
+    const text = describeOf(buildCacheView(payload, 'req-1', OWNER_CTX));
+    // A write cannot happen off the anthropic family, so the explanation
+    // would be noise on this traffic.
+    expect(text).not.toContain('**Cache Write:**');
+  });
+
+  it('keeps the explanatory line for an anthropic-family response with no write reported', () => {
+    const payload = createMockPayload({
+      llmResponse: {
+        ...createMockPayload().llmResponse,
+        promptTokens: 1000,
+        cachedPromptTokens: 100,
+        modelUsed: 'anthropic/claude-sonnet-4',
+      },
+    });
+
+    const text = describeOf(buildCacheView(payload, 'req-1', OWNER_CTX));
+    expect(text).toContain('**Cache Write:** _no cache write reported');
+  });
+
+  it('keys the absent-write explanation on the ROUTED family when one is reported', () => {
+    const payload = createMockPayload({
+      llmResponse: {
+        ...createMockPayload().llmResponse,
+        promptTokens: 1000,
+        cachedPromptTokens: 100,
+        routedModel: 'anthropic/claude-sonnet-4',
       },
     });
 
