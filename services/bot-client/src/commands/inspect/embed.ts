@@ -300,6 +300,13 @@ function buildResponseField(
         : '';
     lines.push(`**Cached Tokens:** ${llmResponse.cachedPromptTokens}${hitPercent}`);
   }
+  // Provider-reported cache-write count (the 1h caching tier's 2x-rate
+  // tokens). Absent = the provider reported no cache write; 0 = nothing new
+  // was written (a fully cached prefix). Same omit-when-absent shape as the
+  // Cached Tokens line above.
+  if (llmResponse.cachedWriteTokens !== undefined) {
+    lines.push(`**Cache Write:** ${llmResponse.cachedWriteTokens}`);
+  }
   if (estimatedCost !== null && estimatedCost !== undefined) {
     lines.push(`**Est. cost:** ${formatEstimatedCost(estimatedCost)}`);
   }
