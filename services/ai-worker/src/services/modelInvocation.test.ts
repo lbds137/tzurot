@@ -24,10 +24,26 @@ function expectedHash(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex').slice(0, 12);
 }
 
-const { mockLoggerInfo, mockLoggerDebug } = vi.hoisted(() => ({
+const { mockLoggerInfo, mockLoggerDebug, mockLogGeneratedResponse } = vi.hoisted(() => ({
   mockLoggerInfo: vi.fn(),
   mockLoggerDebug: vi.fn(),
+  mockLogGeneratedResponse: vi.fn(),
 }));
+
+// Capture the observability-log call args while DELEGATING to the real
+// implementation, so the existing 'Generated response' log-field tests keep
+// running against the real emitters.
+vi.mock('./cacheObservability.js', async () => {
+  const actual =
+    await vi.importActual<typeof import('./cacheObservability.js')>('./cacheObservability.js');
+  return {
+    ...actual,
+    logGeneratedResponse: (...args: Parameters<typeof actual.logGeneratedResponse>) => {
+      mockLogGeneratedResponse(...args);
+      return actual.logGeneratedResponse(...args);
+    },
+  };
+});
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -172,6 +188,36 @@ describe('invokeModelAndClean', () => {
 
     expect(mockInvokeWithRetry).toHaveBeenCalledWith(
       expect.objectContaining({ llmDeadline: 1_234_567 })
+    );
+  });
+
+  it('opts the conversation path into prompt caching at the getModel seam', async () => {
+    await invokeModelAndClean(deps, baseOpts);
+
+    // The enabling line: this config spread is the ONLY production setter of
+    // the caching flag, so dropping it silently disables prompt caching in
+    // prod while every mock-return-value test stays green.
+    expect(mockGetModel).toHaveBeenCalledWith(expect.objectContaining({ promptCaching: true }));
+  });
+
+  it('forwards cache_creation from usage_metadata into the cache-observability log', async () => {
+    mockInvokeWithRetry.mockResolvedValue(
+      new AIMessage({
+        content: 'raw model output',
+        usage_metadata: {
+          input_tokens: 100,
+          output_tokens: 57,
+          total_tokens: 157,
+          input_token_details: { cache_read: 12, cache_creation: 4217 },
+        },
+      })
+    );
+
+    await invokeModelAndClean(deps, baseOpts);
+
+    expect(mockLogGeneratedResponse).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ cacheReadTokens: 12, cacheWriteTokens: 4217 })
     );
   });
 

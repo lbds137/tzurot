@@ -318,12 +318,26 @@ function bar(pct: number): string {
  * Cached / total header lines plus the hit bar.
  *
  * `cachedPromptTokens` absent means the provider reported no cache activity at
- * all (old logs predate the field); 0 is a real cold-prefix report, so the two
- * cases render differently. Hit % is omitted when promptTokens is 0 — same
- * divide-by-zero guard the summary embed applies. `cachedWriteTokens` mirrors
- * that split for writes: absent renders the explanatory line, 0 is a real
- * nothing-new-written report.
+ * all (old logs predate the field); 0 means the provider reported no cache
+ * hits, so the two cases render differently. Hit % is omitted when
+ * promptTokens is 0 — same divide-by-zero guard the summary embed applies.
+ * `cachedWriteTokens` mirrors that split for writes: absent renders the
+ * explanatory line on anthropic-family responses only (a write is possible
+ * only there); 0 means the provider reported no new write.
  */
+/**
+ * A cache WRITE is only possible on an anthropic-family model id — the
+ * injection gate on the worker side scopes `cache_control` to that family —
+ * so an absent write report is explanatory only where a write was possible.
+ * Local predicate: cross-service imports are forbidden. `routedModel` (what
+ * the provider reported serving) wins when present; `modelUsed` (what we
+ * asked for) is the fallback.
+ */
+function isAnthropicFamilyResponse(llmResponse: DiagnosticPayload['llmResponse']): boolean {
+  const servedModel = llmResponse.routedModel ?? llmResponse.modelUsed;
+  return servedModel !== undefined && /^anthropic\//i.test(servedModel);
+}
+
 function renderCacheHeader(llmResponse: DiagnosticPayload['llmResponse']): string[] {
   const { promptTokens, cachedPromptTokens, cachedWriteTokens, cacheDiscount } = llmResponse;
   const lines = [`**Prompt tokens:** ${promptTokens.toLocaleString()}`];
@@ -347,7 +361,9 @@ function renderCacheHeader(llmResponse: DiagnosticPayload['llmResponse']): strin
   }
 
   if (cachedWriteTokens === undefined) {
-    lines.push('**Cache Write:** _no cache write reported by the provider on this request_');
+    if (isAnthropicFamilyResponse(llmResponse)) {
+      lines.push('**Cache Write:** _no cache write reported by the provider on this request_');
+    }
   } else {
     lines.push(`**Cache Write:** ${cachedWriteTokens.toLocaleString()}`);
   }

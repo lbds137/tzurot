@@ -110,7 +110,7 @@ export interface LlmResponseData {
    * Prompt tokens served from the provider's prefix cache
    * (`usage.prompt_tokens_details.cached_tokens`, via LangChain's
    * `usage_metadata.input_token_details.cache_read`). Undefined when the
-   * provider reported no cache activity; 0 is a real report of a cold prefix.
+   * provider reported no cache activity; 0 = provider reported no cache read.
    * This is the epic's primary caching measurement. The write-side mirror is
    * `cachedWriteTokens` below.
    */
