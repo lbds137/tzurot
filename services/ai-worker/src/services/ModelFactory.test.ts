@@ -595,7 +595,13 @@ describe('ModelFactory', () => {
 
       await fetchFn!('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
-        body: JSON.stringify({ model: config.modelName, messages: [] }),
+        body: JSON.stringify({
+          model: config.modelName,
+          messages: [
+            { role: 'system', content: 'You are a helpful character.' },
+            { role: 'user', content: 'Hello' },
+          ],
+        }),
       });
 
       const init = fetchSpy.mock.calls[0]?.[1] as RequestInit;
@@ -607,19 +613,24 @@ describe('ModelFactory', () => {
     // modelInvocation.ts builds for conversation turns; the no-flag configs
     // are the shape vision/system one-shot callers (VisionProcessor,
     // systemModelCall) build when they call createChatModel directly.
-    it('injects top-level cache_control for an anthropic id with the conversation opt-in flag', async () => {
+    it('marks the system message with a per-block cache_control (no root directive) for an anthropic id with the conversation opt-in flag', async () => {
       const parsed = await captureInjectedBody({
         modelName: 'anthropic/claude-sonnet-4',
         promptCaching: true,
       });
-      expect(parsed.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
-      // Sibling of `model` at the request root, id sent verbatim
+      const messages = parsed.messages as { content: { cache_control?: unknown }[] | string }[];
+      expect((messages[0]?.content as { cache_control?: unknown }[])[0]?.cache_control).toEqual({
+        type: 'ephemeral',
+        ttl: '1h',
+      });
+      expect(parsed).not.toHaveProperty('cache_control');
+      // Model id is sent verbatim
       expect(parsed.model).toBe('anthropic/claude-sonnet-4');
     });
 
     it('injects no cache_control for an anthropic id WITHOUT the flag (vision/system one-shot shape)', async () => {
       const parsed = await captureInjectedBody({ modelName: 'anthropic/claude-sonnet-4' });
-      expect(parsed).not.toHaveProperty('cache_control');
+      expect(JSON.stringify(parsed)).not.toContain('cache_control');
     });
 
     it('injects no cache_control for a non-anthropic id even with the flag (family gate still binds)', async () => {
@@ -627,15 +638,17 @@ describe('ModelFactory', () => {
         modelName: 'openai/gpt-5.1',
         promptCaching: true,
       });
-      expect(parsed).not.toHaveProperty('cache_control');
+      expect(JSON.stringify(parsed)).not.toContain('cache_control');
     });
 
-    it('injects cache_control for a mixed-case anthropic prefix with the flag (family check tolerates case, id sent verbatim)', async () => {
+    it('marks the system message for a mixed-case anthropic prefix with the flag (family check tolerates case, id sent verbatim)', async () => {
       const parsed = await captureInjectedBody({
         modelName: 'ANTHROPIC/claude-sonnet-4',
         promptCaching: true,
       });
-      expect(parsed.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+      const messages = parsed.messages as { content: { cache_control?: unknown }[] }[];
+      expect(messages[0]?.content[0]?.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+      expect(parsed).not.toHaveProperty('cache_control');
       expect(parsed.model).toBe('ANTHROPIC/claude-sonnet-4');
     });
 
@@ -663,7 +676,7 @@ describe('ModelFactory', () => {
         sessionId: 'channel-123',
       });
       expect(parsed).not.toHaveProperty('session_id');
-      expect(parsed).not.toHaveProperty('cache_control');
+      expect(JSON.stringify(parsed)).not.toContain('cache_control');
     });
 
     it('injects no cache_control for a google family id even with the flag (family gate still binds)', async () => {
@@ -671,7 +684,7 @@ describe('ModelFactory', () => {
         modelName: 'google/gemini-2.5-pro',
         promptCaching: true,
       });
-      expect(parsed).not.toHaveProperty('cache_control');
+      expect(JSON.stringify(parsed)).not.toContain('cache_control');
     });
 
     it('should pass all advanced parameters together', () => {
