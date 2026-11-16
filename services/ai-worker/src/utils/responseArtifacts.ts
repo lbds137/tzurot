@@ -352,11 +352,100 @@ export function stripResponseArtifacts(content: string, personalityName: string)
 // shared `g` instance would reintroduce the hazard the builder's doc names.
 const ID_TAG_PATTERN = new RegExp(`[ \\t]{0,3}${buildHeaderIdTagPattern().source}`, 'gi');
 
+type FenceMarker = '```' | '~~~';
+
+/** The fence marker a line opens or closes with, or null for a non-fence line. */
+function fenceMarkerOf(line: string): FenceMarker | null {
+  const trimmed = line.trimStart();
+  if (trimmed.startsWith('```')) {
+    return '```';
+  }
+  return trimmed.startsWith('~~~') ? '~~~' : null;
+}
+
+/** A marker opens a fence when none is open and closes it only when it matches the opener. */
+function nextFenceState(open: FenceMarker | null, marker: FenceMarker): FenceMarker | null {
+  if (open === null) {
+    return marker;
+  }
+  return open === marker ? null : open;
+}
+
 /**
- * Strip the real-message form's own vocabulary out of model output: LEADING
- * header-shaped lines (iteratively — stacked echoes count per line), and
- * platform id tags anywhere. Both are echo-dynamics
- * hygiene — every write-direction slip that survives teaches the channel the
+ * Cut a regurgitated OTHER-speaker turn (or several) that precedes the
+ * character's own restamped header: the model repeats the triggering human
+ * message under that human's header, then opens its real reply under its own
+ * header. The leading-header loop alone would remove only the first header
+ * line and leave the echoed body as the character's speech.
+ *
+ * Trigger: the content (leading whitespace ignored) starts with a whole-line
+ * header that is NOT the character's own. Cut point: the first line outside a
+ * fenced code block where the character's own header begins; everything up to
+ * and including that header line goes. Intervening other-speaker header lines
+ * are cut with the rest.
+ *
+ * Guard — the cut is skipped (content returned unchanged, `skipped: 'blank'`
+ * reported) only when the text after the self header is blank. There is
+ * deliberately no proportion guard: the trigger is structural (a whole-line
+ * other-speaker header, then the character's own header line outside a fence),
+ * and a ratio check reproduced the bug for a long echoed message followed by a
+ * short reply. The echoed turn is not matched against the triggering user's
+ * name either: in group channels the model may echo any recent speaker. A
+ * leading other-speaker header with no later self header is not a regurgitated
+ * turn and is left to the loop.
+ *
+ * Fences: a line whose trimmed start is ``` or ~~~ opens a fence, and only the
+ * same marker closes it; a self header inside a fence is not a cut point.
+ *
+ * Residual: `leadingSelfHeaderLineMatcher` matches the name as a prefix followed
+ * by a space, so a leading header from a speaker whose name starts with the
+ * character's name plus a space (character `Anna`, speaker `Anna Belle`) counts
+ * as self. The cut then does not fire and the leading-header loop runs instead,
+ * which fails safe.
+ *
+ * Pinned by the 'regurgitated-turn cut' cases in responseArtifacts.test.ts and,
+ * composed with the real post-processor, in responseStripSeam.test.ts.
+ */
+function cutRegurgitatedLeadingTurns(
+  content: string,
+  personalityName: string
+): { content: string; cutChars: number; skipped?: 'blank' } {
+  const unchanged = { content, cutChars: 0 };
+  const start = content.length - content.trimStart().length;
+  const fromStart = content.slice(start);
+  const selfHeaderMatcher = leadingSelfHeaderLineMatcher(personalityName);
+  if (!leadingHeaderLineMatcher().test(fromStart) || selfHeaderMatcher.test(fromStart)) {
+    return unchanged;
+  }
+
+  let fenceMarker: FenceMarker | null = null;
+  let lineStart = content.indexOf('\n', start) + 1;
+  while (lineStart > 0 && lineStart < content.length) {
+    const line = content.slice(lineStart, content.indexOf('\n', lineStart) + 1 || undefined);
+    const marker = fenceMarkerOf(line);
+    if (marker !== null) {
+      fenceMarker = nextFenceState(fenceMarker, marker);
+    } else if (fenceMarker === null) {
+      const selfHeader = selfHeaderMatcher.exec(line);
+      if (selfHeader !== null) {
+        const candidate = content.slice(lineStart + selfHeader[0].length);
+        if (candidate.trim().length === 0) {
+          return { ...unchanged, skipped: 'blank' };
+        }
+        return { content: candidate, cutChars: content.length - candidate.length };
+      }
+    }
+    lineStart += line.length;
+  }
+  return unchanged;
+}
+
+/**
+ * Strip the real-message form's own vocabulary out of model output: a
+ * regurgitated other-speaker turn ahead of the character's own header (see
+ * `cutRegurgitatedLeadingTurns`), LEADING header-shaped lines (iteratively —
+ * stacked echoes count per line), and platform id tags anywhere. All three are
+ * echo-dynamics hygiene — every write-direction slip that survives teaches the channel the
  * header format it is meant to learn only to READ.
  *
  * Flag-gated by the caller (`ResponsePostProcessor`), never here: flag-off the
@@ -368,6 +457,13 @@ export function stripRealMessageEchoArtifacts(
   telemetry: HeaderSpoofTelemetry,
   personalityName: string
 ): string {
+  // Cut a regurgitated other-speaker turn before the self header, if any.
+  const {
+    content: afterCut,
+    cutChars: regurgitatedTurnCutChars,
+    skipped: regurgitatedTurnCutSkipped,
+  } = cutRegurgitatedLeadingTurns(content, personalityName);
+
   // Iterative, not single-shot: a model regurgitating several recent turns
   // verbatim stacks multiple header-shaped lines at the start, and a
   // single-pass strip would leave the remaining stacked header lines in the
@@ -384,7 +480,7 @@ export function stripRealMessageEchoArtifacts(
   // restamping its own header — see `leadingSelfHeaderLineMatcher`. Both
   // increment the same counter, so the compound shape shows up in the
   // existing telemetry rather than hiding behind it.
-  let withoutHeader = content;
+  let withoutHeader = afterCut;
   let headerLinesStripped = 0;
   for (;;) {
     const matchers = [leadingHeaderLineMatcher(), leadingSelfHeaderLineMatcher(personalityName)];
@@ -414,13 +510,20 @@ export function stripRealMessageEchoArtifacts(
     return '';
   });
 
-  if (headerLinesStripped > 0 || idTagsStripped > 0) {
+  if (
+    headerLinesStripped > 0 ||
+    idTagsStripped > 0 ||
+    regurgitatedTurnCutChars > 0 ||
+    regurgitatedTurnCutSkipped !== undefined
+  ) {
     logger.warn(
       {
         channelId: telemetry.channelId,
         requestId: telemetry.requestId,
         headerLinesStripped,
         idTagsStripped,
+        ...(regurgitatedTurnCutChars > 0 && { regurgitatedTurnCutChars }),
+        ...(regurgitatedTurnCutSkipped !== undefined && { regurgitatedTurnCutSkipped }),
       },
       'Stripped real-message platform vocabulary from model output'
     );

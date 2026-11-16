@@ -1146,4 +1146,124 @@ describe('stripRealMessageEchoArtifacts', () => {
       expect(stripRealMessageEchoArtifacts(content, {}, 'Lilith')).toBe('Damien.');
     });
   });
+
+  describe('regurgitated-turn cut', () => {
+    const NAME = 'Lila Elyona';
+    const OTHER_HEADER = '[audient — 2026-11-14 (Sat) 14:02]';
+    const SELF_HEADER = '[Lila Elyona — 2026-11-14 (Sat) 14:07]';
+    const HUMAN_BODY = [
+      'I finally got the build working at the end of day yesterday.',
+      'It took three tries before the cache stopped fighting me.',
+      'Anyway, curious what you think about the next step.',
+    ].join('\n\n');
+    const REPLY = [
+      'Three tries is honestly not bad for that cache.',
+      'The next step is wiring the seam test through the real composition.',
+      'After that the telemetry follows almost for free.',
+      'Tell me if anything else fights you.',
+    ].join('\n\n');
+
+    function cutFields(): Record<string, unknown> {
+      return (mockLogger.warn.mock.calls[0] as [Record<string, unknown>, string])[0];
+    }
+
+    it('cuts the echoed human turn and the restamped self header, leaving only the reply', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n${SELF_HEADER}\n${REPLY}`;
+
+      const result = stripRealMessageEchoArtifacts(
+        content,
+        { channelId: 'c', requestId: 'r' },
+        NAME
+      );
+
+      expect(result).toBe(REPLY);
+      expect(cutFields().regurgitatedTurnCutChars).toBe(content.length - REPLY.length);
+    });
+
+    it('cuts several echoed other-speaker turns before the self header', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n[Bob — 2026-11-14 (Sat) 14:04]\nBob says something else entirely.\n\n${SELF_HEADER}\n${REPLY}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(REPLY);
+    });
+
+    it('KEEP: an other-speaker header with no later self header loses only the header line', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(HUMAN_BODY);
+      expect(cutFields()).not.toHaveProperty('regurgitatedTurnCutChars');
+    });
+
+    it('KEEP: a self header appearing only inside a fenced block is not a cut point', () => {
+      const rest = `${HUMAN_BODY}\n\n\`\`\`\n${SELF_HEADER}\n${REPLY}\n\`\`\`\n\nAnd that is the format.`;
+      const content = `${OTHER_HEADER}\n${rest}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(rest);
+      expect(cutFields()).not.toHaveProperty('regurgitatedTurnCutChars');
+    });
+
+    it('cuts a long echoed body followed by a short reply (no proportion guard)', () => {
+      const hugeBody = 'long echoed filler. '.repeat(200);
+      const content = `${OTHER_HEADER}\n${hugeBody}\n\n${SELF_HEADER}\nok.`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe('ok.');
+    });
+
+    it('GUARD: no cut when only whitespace follows the self header, and the refusal is logged', () => {
+      // The whitespace tail is long, so only the blank-remainder guard can
+      // stop the cut.
+      const rest = `${HUMAN_BODY}\n\n${SELF_HEADER}\n${' '.repeat(500)}`;
+      const content = `${OTHER_HEADER}\n${rest}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(rest);
+      expect(cutFields()).not.toHaveProperty('regurgitatedTurnCutChars');
+      expect(cutFields().regurgitatedTurnCutSkipped).toBe('blank');
+    });
+
+    it('cuts when blank lines and spaces precede the other-speaker header', () => {
+      const content = `\n\n  ${OTHER_HEADER}\n${HUMAN_BODY}\n\n${SELF_HEADER}\n${REPLY}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(REPLY);
+    });
+
+    it('cuts CRLF content down to the reply', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n${SELF_HEADER}\n${REPLY}`.replace(
+        /\n/g,
+        '\r\n'
+      );
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(REPLY.replace(/\n/g, '\r\n'));
+    });
+
+    it('cuts at a self header carrying decorated preamble', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n*sighs* — ${SELF_HEADER}\n${REPLY}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(REPLY);
+    });
+
+    it('KEEP: an unbalanced backtick fence in the echoed body keeps the later self header from being a cut point', () => {
+      const rest = `${HUMAN_BODY}\n\n\`\`\`\nunclosed code\n\n${SELF_HEADER}\n${REPLY}`;
+      const content = `${OTHER_HEADER}\n${rest}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(rest);
+      expect(cutFields()).not.toHaveProperty('regurgitatedTurnCutChars');
+    });
+
+    it('KEEP: a self header inside a tilde-fenced block is not a cut point', () => {
+      const rest = `${HUMAN_BODY}\n\n~~~\n${SELF_HEADER}\n${REPLY}\n~~~\n\nAnd that is the format.`;
+      const content = `${OTHER_HEADER}\n${rest}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(rest);
+      expect(cutFields()).not.toHaveProperty('regurgitatedTurnCutChars');
+    });
+
+    it('KEEP: content that starts with the character own header takes the existing self-strip path', () => {
+      // A later restamp has non-blank text after it, so only the
+      // own-header-start exclusion keeps this reply intact.
+      const tail = `${REPLY}\n\n${SELF_HEADER}\nA later restamp inside the reply stays. ${REPLY} ${REPLY} ${REPLY}`;
+      const content = `${SELF_HEADER}\n${tail}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(tail);
+      expect(cutFields()).not.toHaveProperty('regurgitatedTurnCutChars');
+    });
+  });
 });
