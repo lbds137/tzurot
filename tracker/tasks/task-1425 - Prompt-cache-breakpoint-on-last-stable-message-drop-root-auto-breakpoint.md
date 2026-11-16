@@ -1,9 +1,10 @@
 ---
 id: TASK-1425
 title: 'Prompt cache: breakpoint on last stable message, drop root auto-breakpoint'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-16T19:48:00Z'
+updated_date: '2026-11-16T20:48:00Z'
 labels:
   - area:ai-worker
   - size:M
