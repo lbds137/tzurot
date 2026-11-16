@@ -1,9 +1,10 @@
 ---
 id: TASK-1420
 title: 'Prompt caching reads zero: add explicit system-block cache breakpoint'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-13T05:00:00Z'
+updated_date: '2026-11-16T19:48:00Z'
 labels:
   - area:ai-worker
   - size:M
