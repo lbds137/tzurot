@@ -1,9 +1,10 @@
 ---
 id: TASK-1418
-title: 'Modal submit on an expired session wipes params of other sections'
-status: To Do
+title: Modal submit on an expired session wipes params of other sections
+status: Done
 assignee: []
 created_date: '2026-11-13T04:15:00Z'
+updated_date: '2026-11-16T22:14:00Z'
 labels:
   - area:bot-client
   - size:S
