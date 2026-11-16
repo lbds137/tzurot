@@ -14,6 +14,7 @@ import {
   AIProvider,
   AI_DEFAULTS,
   AI_ENDPOINTS,
+  isAnthropicFamilyModelId,
   toZaiWireModelId,
 } from '@tzurot/common-types/constants/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -364,18 +365,13 @@ interface SharedChatModelParams {
 
 /**
  * OpenRouter model ids carry the vendor prefix verbatim on the wire, so the
- * anthropic-family gate is a plain prefix test on the id — not our internal
- * AIProvider enum. The prefix test is case-insensitive on a lowercased COPY
- * (same shape as the z.ai sibling `toZaiWireModelId`); the id itself is never
- * rewritten. Explicit per-block cache breakpoints (system, messages[1], the
- * message before the final one) go only to anthropic-family ids; the per-turn
- * final message is never marked because its volatile block (memories, facts,
- * datetime) shrinks once it becomes history.
+ * anthropic-family gate (`isAnthropicFamilyModelId`, common-types) is a plain
+ * prefix test on the id — not our internal AIProvider enum. Explicit
+ * per-block cache breakpoints (system, messages[1], the message before the
+ * final one) go only to anthropic-family ids; the per-turn final message is
+ * never marked because its volatile block (memories, facts, datetime) shrinks
+ * once it becomes history.
  */
-function isAnthropicFamilyModelId(modelName: string): boolean {
-  return modelName.toLowerCase().startsWith('anthropic/');
-}
-
 function buildOpenRouterModel(
   modelName: string,
   modelConfig: ModelConfig,

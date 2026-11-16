@@ -364,6 +364,7 @@ describe('buildDiagnosticEmbed', () => {
       promptPricePerMillion: 3,
       completionPricePerMillion: 15,
       source: 'openrouter-list',
+      cache: null,
     };
 
     it('adds an Est. cost line to the Response field when a cost is provided', () => {
@@ -372,6 +373,48 @@ describe('buildDiagnosticEmbed', () => {
       const fields = embed.toJSON().fields ?? [];
       const responseField = fields.find(f => f.name.includes('Response'));
       expect(responseField?.value).toContain('**Est. cost:** $0.0030');
+    });
+
+    it('passes the cache-token flag to the cost line: no cache tokens renders the short caveat', () => {
+      const payload = createMockPayload();
+      payload.llmResponse.cachedPromptTokens = 0;
+      payload.llmResponse.cachedWriteTokens = 0;
+      const embed = buildDiagnosticEmbed(payload, cost);
+      const responseField = (embed.toJSON().fields ?? []).find(f => f.name.includes('Response'));
+      expect(responseField?.value).toContain('**Est. cost:** $0.0030 (OpenRouter list price)');
+    });
+
+    it('passes the cache-token flag to the cost line: cache tokens keep the full-price caveat', () => {
+      const payload = createMockPayload();
+      payload.llmResponse.cachedPromptTokens = 500;
+      const embed = buildDiagnosticEmbed(payload, cost);
+      const responseField = (embed.toJSON().fields ?? []).find(f => f.name.includes('Response'));
+      expect(responseField?.value).toContain('cached prompt tokens counted at full price');
+    });
+
+    it('L4 the longest cache-aware cost line keeps the whole Response field within the 1024-char field budget', () => {
+      const payload = createMockPayload();
+      payload.llmResponse.cachedPromptTokens = 9_999_999;
+      payload.llmResponse.cachedWriteTokens = 9_999_999;
+      const longest: EstimatedCost = {
+        ...cost,
+        totalUsd: 123.4567,
+        cache: {
+          readTokens: 9_999_999,
+          writeTokens: 9_999_999,
+          uncachedPromptUsd: 1,
+          readUsd: 1,
+          writeUsd: 1,
+          writeTtl: '1h',
+          noCacheTotalUsd: 987.6543,
+        },
+      };
+      const embed = buildDiagnosticEmbed(payload, longest);
+      const responseField = (embed.toJSON().fields ?? []).find(f => f.name.includes('Response'));
+      expect(responseField?.value).toContain(
+        '$123.4567 (OpenRouter list price; cache saved $864.1976)'
+      );
+      expect(responseField?.value.length).toBeLessThanOrEqual(1024);
     });
 
     it('renders the Response field byte-identical to the no-cost case when estimatedCost is undefined', () => {

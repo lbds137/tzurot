@@ -27,6 +27,7 @@
  * extraction without touching HTTP bytes.
  */
 
+import { PROMPT_CACHE_TTL } from '@tzurot/common-types/constants/ai';
 import { MAX_ERROR_MESSAGE_LENGTH } from '@tzurot/common-types/constants/error';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { extractApiReasoningContent } from '../../utils/thinkingExtraction.js';
@@ -67,9 +68,9 @@ export interface OpenRouterExtraParams {
 export const OPENROUTER_PROMPT_CACHE_CONTROL = {
   /** Anthropic-style ephemeral cache entry. */
   type: 'ephemeral',
-  /** Cache entry lifetime — '1h' selects the 1-hour pricing tier; omitted,
-   * OpenRouter defaults to the 5-minute tier. */
-  ttl: '1h',
+  /** Cache entry lifetime — `PROMPT_CACHE_TTL` ('1h') selects the 1-hour pricing
+   * tier; omitted, OpenRouter defaults to the 5-minute tier. */
+  ttl: PROMPT_CACHE_TTL,
 } as const;
 
 /**
