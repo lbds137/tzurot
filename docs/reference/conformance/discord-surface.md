@@ -2355,7 +2355,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/persona/view.ts | MessageFlags.Ephemeral | 1 |
 | services/bot-client/src/commands/preset/browse.ts | MessageFlags.Ephemeral | 1 |
 | services/bot-client/src/commands/preset/create.ts | MessageFlags.Ephemeral | 1 |
-| services/bot-client/src/commands/preset/dashboard.ts | MessageFlags.Ephemeral | 5 |
+| services/bot-client/src/commands/preset/dashboard.ts | MessageFlags.Ephemeral | 6 |
 | services/bot-client/src/commands/preset/dashboardButtons.ts | MessageFlags.Ephemeral | 5 |
 | services/bot-client/src/commands/preset/import.ts | MessageFlags.Ephemeral | 1 |
 | services/bot-client/src/commands/settings/apikey/modal.ts | MessageFlags.Ephemeral | 1 |
@@ -2496,7 +2496,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/preset/browse.ts | followUp | 1 |
 | services/bot-client/src/commands/preset/create.ts | deferReply | 1 |
 | services/bot-client/src/commands/preset/create.ts | editReply | 1 |
-| services/bot-client/src/commands/preset/dashboard.ts | followUp | 4 |
+| services/bot-client/src/commands/preset/dashboard.ts | followUp | 5 |
 | services/bot-client/src/commands/preset/dashboard.ts | reply | 1 |
 | services/bot-client/src/commands/preset/dashboardButtons.ts | editReply | 1 |
 | services/bot-client/src/commands/preset/dashboardButtons.ts | followUp | 5 |
@@ -2944,9 +2944,9 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/preset/create.ts | components | 1 |
 | services/bot-client/src/commands/preset/create.ts | embeds | 1 |
 | services/bot-client/src/commands/preset/create.ts | flags | 1 |
-| services/bot-client/src/commands/preset/dashboard.ts | content | 2 |
+| services/bot-client/src/commands/preset/dashboard.ts | content | 3 |
 | services/bot-client/src/commands/preset/dashboard.ts | embeds | 3 |
-| services/bot-client/src/commands/preset/dashboard.ts | flags | 5 |
+| services/bot-client/src/commands/preset/dashboard.ts | flags | 6 |
 | services/bot-client/src/commands/preset/dashboardButtons.ts | components | 1 |
 | services/bot-client/src/commands/preset/dashboardButtons.ts | content | 4 |
 | services/bot-client/src/commands/preset/dashboardButtons.ts | embeds | 2 |
@@ -3131,4 +3131,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 2 |
 
-Total: 3061 entries across 7098 sites.
+Total: 3061 entries across 7102 sites.
