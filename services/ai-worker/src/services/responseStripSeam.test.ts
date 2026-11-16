@@ -169,6 +169,32 @@ describe.each([true, false])(
       });
     });
 
+    describe('regurgitated other-speaker turn before the self header', () => {
+      const USER_MESSAGE =
+        'I finally got the build working at the end of the day yesterday.\n\nIt took three tries before the cache stopped fighting me.\n\nAnyway, curious what you think about the next step.';
+      // The echoed body drops one word ("the") — an exact-prefix echo match
+      // misses it, so only the header-bounded cut can remove it.
+      const ECHOED_BODY =
+        'I finally got the build working at the end of day yesterday.\n\nIt took three tries before the cache stopped fighting me.\n\nAnyway, curious what you think about the next step.';
+      const REPLY =
+        'Three tries is honestly not bad for that cache.\n\nThe next step is wiring the seam test through the real composition.\n\nAfter that the telemetry follows almost for free.';
+      const FIXTURE = `[Vlad — 2026-11-14 (Sat) 14:02]\n${ECHOED_BODY}\n\n[Lilith — 2026-11-14 (Sat) 14:07]\n${REPLY}`;
+
+      function runWithUserMessage(content: string): string {
+        return processor.processResponse(content, undefined, undefined, {
+          personalityName: 'Lilith',
+          userName: 'Vlad',
+          userMessage: USER_MESSAGE,
+          realMessagesEnabled,
+        }).cleanedContent;
+      }
+
+      it('flag-on cuts to the reply; flag-off leaves the content exactly as it arrived', () => {
+        const result = runWithUserMessage(FIXTURE);
+        expect(result).toBe(realMessagesEnabled ? REPLY : FIXTURE);
+      });
+    });
+
     describe('KEEP-CASES (TASK-923): a same-line bracketed em-dash aside naming no personality', () => {
       it("flag-on and flag-off: a same-line bracketed em-dash aside ('laughs — really') survives the name-agnostic matcher", () => {
         const fixture = '[laughs — really] Anyway, no.';
