@@ -14,16 +14,16 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 ---
 
-### 🚢 Next Release — beta.244 (theme: prompt caching on the OpenRouter/Anthropic path + the preset temperature fix; a deliberately small train)
+### 🚢 Next Release — beta.246 (theme: prompt-cache prefix fix + its follow-ups, and the open prod-correctness fixes)
 
-_Drafted at the beta.243 cut (2026-11-12). beta.243 shipped 32 PRs / 21 runtime / 296 files (#2745; rebase-merge refused at ~139+ commits, main fast-forwarded to develop `be0e8a5ca`, finalize no-op, tagged latest, beta.242 demoted). Smoke batch: 2 needs-smoke + 4 carried, in CURRENT.md's beta.243 watch._
+_Drafted 2026-11-16 after beta.245 (shipped 11-13, main `b33a7b7b7`). Scope per Lila 11-16: "the newly filed tasks included in the prod release, along with any other higher priority stuff that should go out soon" — this deliberately widens the ~2-3 runtime-PR close-the-train size to ~7; backstops (~10 runtime / ~250 files) still stand._
 
-- **In already**: (empty — the train opens with the caching unit)
-- **Waiting on**: the OpenRouter/Anthropic prompt-caching fix — `cache_control` as the fourth OpenRouterExtraParams key riding `injectOpenRouterParams` (ModelFactory/OpenRouterFetch seam, proven), gated on anthropic-family model ids, TTL=1h (her pick; 2x writes / 0.1x reads), write-side usage observability added — plus TASK-1408 (preset temperature-clear: the gateway REPLACES `advancedParameters` wholesale at `LlmConfigService.ts:362-363`; fix is bot-client-only, ~10-15 lines; remaining read = what the dashboard modal submits).
-- **Explicitly NOT in**: TASK-1374 (vision negative-cache key-scoping — first follow-up after beta.243 soaks; holistic review named it) · TASK-1411 (close-the-train enforcement — her ruling 11-12; lands as its own tooling/skill PR, not a release rider) · per-preset TTL (needs ModelConfig + CacheKeyBuilder + schema + dashboard — a much bigger unit) · caching Phase 3 (still gated on the doc-17 reading).
-- **Deploy notes**: no migrations planned. Caching changes routing posture: top-level `cache_control` is documented for Anthropic/Vertex/Azure/Bedrock providers only, hence the family gate; sticky routing pins a conversation to one provider for ~60 min (deliberate). First cached call should show write-side usage — that observability is part of the unit's acceptance.
-- **Cut when**: both units land — the train should stay ~2-3 runtime PRs (the close-the-train working agreement applies from the first drafted notes); backstops stand (~10 runtime / ~250 files).
-- **vNext+1 sketch**: TASK-1374 key-scoping · TASK-1411 enforcement · doc-17 reading → caching Phase 3.
+- **In already**: #2755 TASK-1425 cache breakpoints on the last stable message (dev acceptance passed: hit ratio 0.69, 1h TTL held across 410 s).
+- **Waiting on**, in dispatch order: TASK-1422 (high — character parrots the triggering human turn; strip fix in `responseArtifacts.ts`) · TASK-1418 (preset modal submit on an expired session wipes other sections' params) · TASK-1428 (inspect cost line prices cache reads/writes at their own rates + "saved $X"; her ruling) · TASK-1427 (Both slot choice on `/preset override set`/`clear`; her ruling) · TASK-1374 (vision negative cache shares key-bound failures across key holders) · TASK-1426 + TASK-1421 as one caching-residue PR.
+- **Explicitly NOT in**: TASK-1411 (close-the-train enforcement — tooling, its own PR) · TASK-1416 (low, detection consolidation) · TASK-1415 (observable) · tooling-only highs TASK-598/1387/1389 (non-runtime, ship any time) · TASK-1039/1346/671 (owner-gated or design-sized) · caching Phase 3 (doc-17 reading).
+- **Deploy notes**: no migrations planned (re-check at cut). Prod acceptance for #2755: a same-model turn pair on an Anthropic-family model shows `cachedPromptTokens` ≈ prompt minus the per-turn block, with a small `cachedWriteTokens` (prod example before: 98,487 prompt / 10,365 cached / 88,118 written every turn).
+- **Cut when**: every waiting-on unit is merged to develop; the release PR merge needs her explicit yes.
+- **vNext+1 sketch**: TASK-1411 enforcement · TASK-1416 · doc-17 reading → caching Phase 3.
 
 ### 🎯 Current Focus (max 3)
 
