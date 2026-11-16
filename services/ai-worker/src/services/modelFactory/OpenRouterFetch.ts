@@ -87,12 +87,16 @@ export const OPENROUTER_PROMPT_CACHE_CONTROL = {
  * (memories, facts, datetime), which shrinks once it becomes history, so a
  * cache write there is never read back. For that reason no root-level
  * `cache_control` is sent either — OpenRouter's automatic mode places its
- * breakpoint at the end of the request, i.e. on that final message. Confirmed
- * by a live probe against OpenRouter (TASK-1425 description), not doc-sourced:
- * explicit marks on these indices read the prior prefix on later turns, while
- * the root-directive shape wrote the whole request every turn. The TTL rides
- * on each block's own copy of the directive. At most three blocks are marked,
- * under Anthropic's max of 4.
+ * breakpoint at the end of the request, i.e. on that final message. Observed
+ * in a probe against OpenRouter (not pinned by a test): with these marks,
+ * later turns read the prefix through the previous turn's `[length - 2]` mark,
+ * including when 25 and 60 messages arrived between the two turns; the
+ * root-directive shape rewrote the request every turn. Anthropic documents a
+ * lookback of roughly 20 blocks before each breakpoint — if busy-channel
+ * cache hit ratios drop, check that limit first. The TTL rides on each
+ * block's own copy of the directive. At most three blocks are marked, under
+ * Anthropic's max of 4. Returns the number of blocks marked (0 on every early
+ * return).
  *
  * Role-guarded: nothing is marked unless `messages[0]` is a `system` or
  * `developer` message. A `promptCaching` caller with no system prompt would
@@ -109,25 +113,29 @@ export const OPENROUTER_PROMPT_CACHE_CONTROL = {
 function attachCacheBreakpoints(
   body: Record<string, unknown>,
   cacheControl: OpenRouterExtraParams['cacheControl']
-): void {
+): number {
   const messages: unknown[] = Array.isArray(body.messages) ? (body.messages as unknown[]) : [];
   if (messages.length === 0) {
-    return;
+    return 0;
   }
   const first: unknown = messages[0];
   if (typeof first !== 'object' || first === null) {
-    return;
+    return 0;
   }
   const role: unknown = (first as Record<string, unknown>).role;
   if (role !== 'system' && role !== 'developer') {
-    return;
+    return 0;
   }
   const targets = new Set(
     [0, 1, messages.length - 2].filter(index => index >= 0 && index < messages.length - 1)
   );
+  let marked = 0;
   for (const index of targets) {
-    markMessageBlock(messages[index], cacheControl);
+    if (markMessageBlock(messages[index], cacheControl)) {
+      marked++;
+    }
   }
+  return marked;
 }
 
 /**
@@ -192,8 +200,9 @@ function injectOpenRouterParams(
     if (extraParams.verbosity !== undefined) {
       body.verbosity = extraParams.verbosity;
     }
+    let cacheBreakpoints: number | undefined;
     if (extraParams.cacheControl !== undefined) {
-      attachCacheBreakpoints(body, extraParams.cacheControl);
+      cacheBreakpoints = attachCacheBreakpoints(body, extraParams.cacheControl);
     }
     if (extraParams.sessionId !== undefined) {
       body.session_id = extraParams.sessionId;
@@ -204,6 +213,7 @@ function injectOpenRouterParams(
       {
         url: urlStr,
         injectedParams: extraParams,
+        ...(cacheBreakpoints !== undefined && { cacheBreakpoints }),
       },
       'Custom fetch injecting OpenRouter params'
     );
