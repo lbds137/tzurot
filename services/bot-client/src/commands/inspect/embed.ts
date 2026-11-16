@@ -10,7 +10,7 @@ import {
   toInertCodeSpan,
 } from '@tzurot/common-types/constants/discord';
 import { FINISH_REASONS } from '@tzurot/common-types/constants/finishReasons';
-import { isRouterAliasModel } from '@tzurot/common-types/constants/ai';
+import { isAnthropicFamilyModelId, isRouterAliasModel } from '@tzurot/common-types/constants/ai';
 import { type DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
 import type { EstimatedCost } from '@tzurot/common-types/schemas/api/diagnostic';
 import { formatEstimatedCost } from './costLine.js';
@@ -273,19 +273,6 @@ function buildModelField(
 }
 
 /**
- * Mirrors the extended view's family gate: the worker's injection gate scopes
- * OUR `cache_control` to the REQUESTED anthropic family (`modelUsed`), so a
- * reported cache write is only an expected signal there. On other families a
- * present 0 is the installed LangChain mapper's passthrough of the provider's
- * `prompt_tokens_details.cache_write_tokens: 0` (its `!= null` guard admits
- * zero), not a real measurement.
- * Local predicate: cross-service imports are forbidden.
- */
-function isAnthropicFamilyResponse(llmResponse: DiagnosticPayload['llmResponse']): boolean {
-  return llmResponse.modelUsed !== undefined && /^anthropic\//i.test(llmResponse.modelUsed);
-}
-
-/**
  * Build the Response field with finish-reason emoji decoration and a LOW
  * completion-tokens warning.
  */
@@ -319,14 +306,22 @@ function buildResponseField(
   // provider report); anthropic + 0 renders (our tier's report);
   // non-anthropic + 0 omits (the LangChain mapper's passthrough of the
   // provider's cache_write_tokens: 0, not a signal we asked for anything).
+  // Mirrors the extended view's family gate: the worker's injection gate scopes
+  // OUR `cache_control` to the REQUESTED anthropic family (`modelUsed`), so a
+  // reported cache write is only an expected signal there. On other families a
+  // present 0 is the installed LangChain mapper's passthrough of the provider's
+  // `prompt_tokens_details.cache_write_tokens: 0` (its `!= null` guard admits
+  // zero), not a real measurement.
   if (
     llmResponse.cachedWriteTokens !== undefined &&
-    (llmResponse.cachedWriteTokens > 0 || isAnthropicFamilyResponse(llmResponse))
+    (llmResponse.cachedWriteTokens > 0 || isAnthropicFamilyModelId(llmResponse.modelUsed ?? ''))
   ) {
     lines.push(`**Cache Write:** ${llmResponse.cachedWriteTokens}`);
   }
   if (estimatedCost !== null && estimatedCost !== undefined) {
-    lines.push(`**Est. cost:** ${formatEstimatedCost(estimatedCost)}`);
+    const hadCacheTokens =
+      (llmResponse.cachedPromptTokens ?? 0) > 0 || (llmResponse.cachedWriteTokens ?? 0) > 0;
+    lines.push(`**Est. cost:** ${formatEstimatedCost(estimatedCost, hadCacheTokens)}`);
   }
   return {
     name: '📤 Response',

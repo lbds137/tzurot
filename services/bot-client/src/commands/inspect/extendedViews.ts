@@ -6,6 +6,7 @@ import {
   sanitizeModelIdForDisplay,
   toInertCodeSpan,
 } from '@tzurot/common-types/constants/discord';
+import { isAnthropicFamilyModelId } from '@tzurot/common-types/constants/ai';
 import { UX_SENTINELS } from '@tzurot/common-types/constants/uxVocabulary';
 import type {
   DiagnosticPayload,
@@ -315,20 +316,6 @@ function bar(pct: number): string {
 }
 
 /**
- * Mirrors the worker's injection gate, which scopes OUR `cache_control` to the
- * REQUESTED anthropic family — so we only request cache writes there, and
- * only there is an absent write report explanatory. Keyed on `modelUsed` (the
- * id we asked for): `routedModel` is what the provider reported serving, and
- * a router alias serving an anthropic model does not mean `cache_control` was
- * injected. Provider-side implicit caching can still report writes on other
- * families — this predicate scopes our own expectation, not what is possible.
- * Local predicate: cross-service imports are forbidden.
- */
-function isAnthropicFamilyResponse(llmResponse: DiagnosticPayload['llmResponse']): boolean {
-  return llmResponse.modelUsed !== undefined && /^anthropic\//i.test(llmResponse.modelUsed);
-}
-
-/**
  * Cached / total header lines plus the hit bar.
  *
  * `cachedPromptTokens` absent means the provider reported no cache activity at
@@ -362,7 +349,15 @@ function renderCacheHeader(llmResponse: DiagnosticPayload['llmResponse']): strin
   }
 
   if (cachedWriteTokens === undefined) {
-    if (isAnthropicFamilyResponse(llmResponse)) {
+    // Mirrors the worker's injection gate, which scopes OUR `cache_control` to
+    // the REQUESTED anthropic family — so we only request cache writes there,
+    // and only there is an absent write report explanatory. Keyed on `modelUsed`
+    // (the id we asked for): `routedModel` is what the provider reported
+    // serving, and a router alias serving an anthropic model does not mean
+    // `cache_control` was injected. Provider-side implicit caching can still
+    // report writes on other families — this gate scopes our own expectation,
+    // not what is possible.
+    if (isAnthropicFamilyModelId(llmResponse.modelUsed ?? '')) {
       lines.push('**Cache Write:** _no cache write reported by the provider on this request_');
     }
   } else {

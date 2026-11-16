@@ -53,7 +53,10 @@ export type DiagnosticLog = z.infer<typeof DiagnosticLogSchema>;
 
 /**
  * Estimated USD cost of a diagnostic log's LLM call, priced off the
- * OpenRouter model catalog's list price at read time. See
+ * OpenRouter model catalog's list price at read time. Cache reads, cache
+ * writes and uncached prompt tokens are priced at their own catalog rates
+ * when `cache` is non-null; when `cache` is null every prompt token is priced
+ * at the prompt rate. See
  * `services/api-gateway/src/services/diagnosticCost.ts` for the full
  * computation and its caveats.
  */
@@ -65,6 +68,35 @@ export const EstimatedCostSchema = z.object({
   promptPricePerMillion: z.number(),
   completionPricePerMillion: z.number(),
   source: z.literal('openrouter-list'),
+  /**
+   * Cache-aware breakdown of `promptUsd`. `null` = no cache-aware pricing was
+   * possible or needed (no cache tokens on the row, a needed cache price
+   * missing from the catalog, or inconsistent counts); the totals then price
+   * every prompt token at the prompt rate. A missing key also parses as
+   * `null` (`.default(null)`): an older gateway that predates this field
+   * would otherwise fail the whole `/inspect` response during a rolling deploy.
+   * The breakdown fields beyond `noCacheTotalUsd` have no reader yet; they are
+   * kept on purpose for a future breakdown view.
+   */
+  cache: z
+    .object({
+      /** Prompt tokens served from cache. */
+      readTokens: z.number(),
+      /** Prompt tokens written to cache. */
+      writeTokens: z.number(),
+      /** USD for prompt tokens that were neither cache reads nor writes. */
+      uncachedPromptUsd: z.number(),
+      /** USD for cache reads. */
+      readUsd: z.number(),
+      /** USD for cache writes. */
+      writeUsd: z.number(),
+      /** TTL tier whose write price applies (reported even when there were no writes). */
+      writeTtl: z.enum(['5m', '1h']),
+      /** Total USD had the same tokens gone through no cache at all. */
+      noCacheTotalUsd: z.number(),
+    })
+    .nullable()
+    .default(null),
 });
 
 export type EstimatedCost = z.infer<typeof EstimatedCostSchema>;
@@ -78,7 +110,8 @@ export type EstimatedCost = z.infer<typeof EstimatedCostSchema>;
  * non-OpenRouter provider, the model missing from the catalog, an unpriced
  * entry, no cache wired at the route, or a `data` payload carrying no
  * pricable `llmResponse`). It is always an estimate at list
- * price, never a billed amount.
+ * price, never a billed amount. Its `cache` block is part of the schema so
+ * bot-client's parse keeps it (Zod strips unlisted keys).
  */
 export const DiagnosticLogResponseSchema = z.object({
   log: DiagnosticLogSchema,
