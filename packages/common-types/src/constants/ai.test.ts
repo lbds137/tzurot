@@ -14,6 +14,7 @@ import {
   GUEST_MODE,
   buildModelInfoUrl,
   isZaiCodingPlanModel,
+  isAnthropicFamilyModelId,
   stripZaiPrefix,
   toZaiWireModelId,
   toZaiOpenRouterFallthroughId,
@@ -26,6 +27,18 @@ import {
   DEFAULT_MODEL_SLOT,
   MODEL_SLOT_LABELS,
 } from './ai.js';
+
+describe('isAnthropicFamilyModelId', () => {
+  it('accepts the anthropic/ prefix case-insensitively', () => {
+    expect(isAnthropicFamilyModelId('anthropic/claude-haiku-5.5')).toBe(true);
+    expect(isAnthropicFamilyModelId('Anthropic/x')).toBe(true);
+  });
+
+  it('rejects other vendors and router aliases', () => {
+    expect(isAnthropicFamilyModelId('openrouter/auto')).toBe(false);
+    expect(isAnthropicFamilyModelId('z-ai/glm-5.3')).toBe(false);
+  });
+});
 
 describe('isFreeModel', () => {
   it('should return true for models ending with :free', () => {

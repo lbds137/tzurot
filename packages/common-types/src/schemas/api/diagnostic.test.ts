@@ -114,6 +114,7 @@ describe('DiagnosticLogResponseSchema', () => {
       promptPricePerMillion: 3,
       completionPricePerMillion: 15,
       source: 'openrouter-list',
+      cache: null,
     };
     expect(
       DiagnosticLogResponseSchema.safeParse({ log: validLogShape(), estimatedCost }).success
@@ -143,6 +144,7 @@ describe('DiagnosticLogResponseSchema', () => {
       promptPricePerMillion: 1,
       completionPricePerMillion: 2,
       source: 'openrouter-list',
+      cache: null,
     };
     const result = DiagnosticLogResponseSchema.safeParse({
       log: validLogShape(),
@@ -152,6 +154,68 @@ describe('DiagnosticLogResponseSchema', () => {
     if (result.success) {
       expect(result.data.estimatedCost?.model).toBe(sentinelModel);
     }
+  });
+});
+
+describe('DiagnosticLogResponseSchema cache block', () => {
+  it('KEEPS the cache breakdown through the parse (an unlisted key would be stripped)', () => {
+    const cache = {
+      readTokens: 9334,
+      writeTokens: 77,
+      uncachedPromptUsd: 0.00042,
+      readUsd: 0.0000933,
+      writeUsd: 0.0000154,
+      writeTtl: '1h' as const,
+      noCacheTotalUsd: 0.0014673,
+    };
+    const result = DiagnosticLogResponseSchema.safeParse({
+      log: validLogShape(),
+      estimatedCost: {
+        model: 'anthropic/claude-haiku-5.5',
+        promptUsd: 0.0005,
+        completionUsd: 0.000106,
+        totalUsd: 0.000635,
+        promptPricePerMillion: 0.1,
+        completionPricePerMillion: 0.5,
+        source: 'openrouter-list',
+        cache,
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.estimatedCost?.cache).toEqual(cache);
+    }
+  });
+
+  it('parses a missing cache key as null (an older gateway omits it) and rejects an unknown writeTtl', () => {
+    const base = {
+      model: 'm',
+      promptUsd: 0,
+      completionUsd: 0,
+      totalUsd: 0,
+      promptPricePerMillion: 1,
+      completionPricePerMillion: 1,
+      source: 'openrouter-list',
+    };
+    const missing = EstimatedCostSchema.safeParse(base);
+    expect(missing.success).toBe(true);
+    if (missing.success) {
+      expect(missing.data.cache).toBeNull();
+    }
+    expect(
+      EstimatedCostSchema.safeParse({
+        ...base,
+        cache: {
+          readTokens: 1,
+          writeTokens: 0,
+          uncachedPromptUsd: 0,
+          readUsd: 0,
+          writeUsd: 0,
+          writeTtl: '2h',
+          noCacheTotalUsd: 0,
+        },
+      }).success
+    ).toBe(false);
   });
 });
 
@@ -165,6 +229,7 @@ describe('EstimatedCostSchema', () => {
       promptPricePerMillion: 0,
       completionPricePerMillion: 0,
       source: 'openrouter-list',
+      cache: null,
     };
     expect(EstimatedCostSchema.safeParse(free).success).toBe(true);
   });
@@ -178,6 +243,7 @@ describe('EstimatedCostSchema', () => {
       promptPricePerMillion: 1,
       completionPricePerMillion: 1,
       source: 'manual',
+      cache: null,
     };
     expect(EstimatedCostSchema.safeParse(bad).success).toBe(false);
   });

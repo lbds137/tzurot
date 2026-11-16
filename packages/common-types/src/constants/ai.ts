@@ -310,6 +310,26 @@ export const MODEL_SLOTS = ['text', 'vision'] as const;
 export type ModelSlot = (typeof MODEL_SLOTS)[number];
 
 /**
+ * Prompt-cache TTL our anthropic-family requests send on every cache
+ * breakpoint. Read by ai-worker's cache directive (what we ask OpenRouter for)
+ * and by api-gateway's cost estimate (which cache-write price applies). The
+ * TTL is not recorded on a diagnostic row, so a historic row is priced at
+ * whatever this constant is NOW.
+ */
+export const PROMPT_CACHE_TTL = '1h' as const;
+
+/**
+ * Whether a model id is anthropic-family: the gate for sending the cache TTL
+ * (`PROMPT_CACHE_TTL`) on cache breakpoints. ai-worker's ModelFactory and
+ * api-gateway's cost estimate both read it, so the TTL the request asked for
+ * and the write price the estimate applies share one definition. The prefix
+ * test is case-insensitive on a lowercased copy; the id is never rewritten.
+ */
+export function isAnthropicFamilyModelId(modelName: string): boolean {
+  return modelName.toLowerCase().startsWith('anthropic/');
+}
+
+/**
  * The `ModelModality` values as a runtime list (not verified exhaustive against
  * OpenRouter's catalog). Single source of truth for the `/models` route's
  * `inputModality`/`outputModality` query enum, replacing a locally-duplicated

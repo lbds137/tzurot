@@ -46,14 +46,54 @@ export interface OpenRouterModelPricing {
   prompt: string;
   /** Cost per completion token */
   completion: string;
-  /** Cost per request */
-  request: string;
-  /** Cost per image */
-  image: string;
-  /** Cost for web search */
-  web_search: string;
-  /** Cost for internal reasoning */
-  internal_reasoning: string;
+  /** Cost per request (absent on models that do not price it) */
+  request?: string;
+  /** Cost per image (absent on models that do not price it) */
+  image?: string;
+  /** Cost for web search (absent on models that do not price it) */
+  web_search?: string;
+  /** Cost for internal reasoning (absent on models that do not price it) */
+  internal_reasoning?: string;
+  /** Cost per cache-READ prompt token (absent on models without prompt caching) */
+  input_cache_read?: string;
+  /**
+   * Cost per cache-WRITE prompt token at the default (5-minute TTL) rate;
+   * absent where the model has no separate write price. Per OpenRouter's
+   * docs summary, not verified here.
+   */
+  input_cache_write?: string;
+  /**
+   * Cost per cache-WRITE prompt token at the 1-hour TTL rate; absent where
+   * the model has no 1-hour tier. Per OpenRouter's docs summary, not
+   * verified here.
+   */
+  input_cache_write_1h?: string;
+  /**
+   * Prompt-size price tiers. Per OpenRouter's docs an entry applies when total
+   * prompt tokens are strictly greater than its `min_prompt_tokens`, and price
+   * keys absent from an entry inherit the base price.
+   */
+  overrides?: OpenRouterPricingOverride[];
+}
+
+/**
+ * One prompt-size tier of `OpenRouterModelPricing.overrides`. The live catalog
+ * may carry condition keys other than `min_prompt_tokens`; consumers must
+ * ignore an entry carrying a condition they do not understand.
+ */
+export interface OpenRouterPricingOverride {
+  /** The tier applies when total prompt tokens are strictly greater than this */
+  min_prompt_tokens?: number;
+  /** Tier cost per prompt token */
+  prompt?: string;
+  /** Tier cost per completion token */
+  completion?: string;
+  /** Tier cost per cache-READ prompt token */
+  input_cache_read?: string;
+  /** Tier cost per cache-WRITE prompt token (default 5-minute TTL rate) */
+  input_cache_write?: string;
+  /** Tier cost per cache-WRITE prompt token (1-hour TTL rate) */
+  input_cache_write_1h?: string;
 }
 
 /**
