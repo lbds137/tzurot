@@ -367,9 +367,10 @@ interface SharedChatModelParams {
  * anthropic-family gate is a plain prefix test on the id — not our internal
  * AIProvider enum. The prefix test is case-insensitive on a lowercased COPY
  * (same shape as the z.ai sibling `toZaiWireModelId`); the id itself is never
- * rewritten. OpenRouter's docs scope automatic prompt caching to
- * Anthropic/Vertex/Azure/Bedrock providers (doc-sourced; runtime confirmation
- * is the first cached call's logs).
+ * rewritten. Explicit per-block cache breakpoints (system, messages[1], the
+ * message before the final one) go only to anthropic-family ids; the per-turn
+ * final message is never marked because its volatile block (memories, facts,
+ * datetime) shrinks once it becomes history.
  */
 function isAnthropicFamilyModelId(modelName: string): boolean {
   return modelName.toLowerCase().startsWith('anthropic/');

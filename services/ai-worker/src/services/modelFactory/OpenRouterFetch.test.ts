@@ -466,12 +466,18 @@ describe('OpenRouterFetch', () => {
     expect(capturedBody).toBe(nonJsonBody);
   });
 
-  it('injects cache_control at the request ROOT (sibling of model) when extraParams carries it', async () => {
+  it('sends NO request-root cache_control when extraParams carries it (breakpoints are per-block)', async () => {
     const customFetch = createOpenRouterFetch({
       cacheControl: { type: 'ephemeral', ttl: '1h' },
     });
 
-    const requestBody = { model: 'anthropic/claude-sonnet-4', messages: [] };
+    const requestBody = {
+      model: 'anthropic/claude-sonnet-4',
+      messages: [
+        { role: 'system', content: 'sys' },
+        { role: 'user', content: 'hi' },
+      ],
+    };
     let capturedBody: string | undefined;
     globalThis.fetch = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
       capturedBody = init?.body as string;
@@ -485,8 +491,9 @@ describe('OpenRouterFetch', () => {
 
     expect(capturedBody).toBeDefined();
     const parsed = JSON.parse(capturedBody!) as Record<string, unknown>;
-    expect(parsed.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
-    // Sibling of `model`, not per-message
+    expect(parsed).not.toHaveProperty('cache_control');
+    const system = (parsed.messages as Array<{ content: Array<Record<string, unknown>> }>)[0];
+    expect(system.content[0].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
     expect(parsed.model).toBe('anthropic/claude-sonnet-4');
   });
 
@@ -536,7 +543,7 @@ describe('OpenRouterFetch', () => {
     );
   });
 
-  describe('explicit system-block breakpoint + session id', () => {
+  describe('explicit cache breakpoints + session id', () => {
     /** POST a chat-completions body through a fetch built from extraParams, capture the parsed wire body. */
     async function postAndCapture(
       extraParams: OpenRouterExtraParams,
@@ -597,6 +604,7 @@ describe('OpenRouterFetch', () => {
                 { type: 'text', text: 'second section' },
               ],
             },
+            { role: 'user', content: 'hi' },
           ],
         }
       );
@@ -610,18 +618,159 @@ describe('OpenRouterFetch', () => {
       });
     });
 
-    it('keeps the root cache_control alongside the per-block breakpoint (two breakpoints total)', async () => {
-      const parsed = await postAndCapture(
-        { cacheControl: { type: 'ephemeral', ttl: '1h' } },
-        {
-          model: 'anthropic/claude-sonnet-4',
-          messages: [{ role: 'system', content: 'You are a test bot' }],
-        }
+    /** Which message indices carry a cache_control block mark. */
+    function markedIndices(parsed: Record<string, unknown>): number[] {
+      return (parsed.messages as Array<{ content: unknown }>).flatMap((message, index) =>
+        JSON.stringify(message.content).includes('cache_control') ? [index] : []
       );
+    }
 
-      expect(parsed.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
-      const blocks = (parsed.messages as Array<{ content: TextBlock[] }>)[0].content as TextBlock[];
-      expect(blocks[0].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+    const CC = { cacheControl: { type: 'ephemeral', ttl: '1h' } } as const;
+
+    it('first turn [system, user]: marks only the system message, no root directive', async () => {
+      const parsed = await postAndCapture(CC, {
+        model: 'anthropic/claude-sonnet-4',
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'current' },
+        ],
+      });
+
+      expect(markedIndices(parsed)).toEqual([0]);
+      expect((parsed.messages as Array<{ content: unknown }>)[1].content).toBe('current');
+      expect(parsed).not.toHaveProperty('cache_control');
+    });
+
+    it('[system, crossChannel, user]: marks [0] and [1], never the final message', async () => {
+      const parsed = await postAndCapture(CC, {
+        model: 'anthropic/claude-sonnet-4',
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: '<prior_conversations>x</prior_conversations>' },
+          { role: 'user', content: 'current' },
+        ],
+      });
+
+      expect(markedIndices(parsed)).toEqual([0, 1]);
+      expect((parsed.messages as Array<{ content: unknown }>)[2].content).toBe('current');
+      expect(parsed).not.toHaveProperty('cache_control');
+    });
+
+    it('[system, cc, u1, a1, u2]: marks exactly [0], [1] and [3]', async () => {
+      const parsed = await postAndCapture(CC, {
+        model: 'anthropic/claude-sonnet-4',
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'cc' },
+          { role: 'user', content: 'u1' },
+          { role: 'assistant', content: 'a1' },
+          { role: 'user', content: 'u2' },
+        ],
+      });
+
+      expect(markedIndices(parsed)).toEqual([0, 1, 3]);
+      const messages = parsed.messages as Array<{ content: unknown }>;
+      expect(messages[2].content).toBe('u1');
+      expect(messages[4].content).toBe('u2');
+      expect(parsed).not.toHaveProperty('cache_control');
+    });
+
+    it('[system, u1, a1, u2]: marks [0], [1] and [2] ([1] and length-2 are distinct)', async () => {
+      const parsed = await postAndCapture(CC, {
+        model: 'anthropic/claude-sonnet-4',
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'u1' },
+          { role: 'assistant', content: 'a1' },
+          { role: 'user', content: 'u2' },
+        ],
+      });
+
+      expect(markedIndices(parsed)).toEqual([0, 1, 2]);
+    });
+
+    it('skips a target whose text is empty while marking the others', async () => {
+      const parsed = await postAndCapture(CC, {
+        model: 'anthropic/claude-sonnet-4',
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'u1' },
+          { role: 'assistant', content: '' },
+          { role: 'user', content: 'u2' },
+        ],
+      });
+
+      expect(markedIndices(parsed)).toEqual([0, 1]);
+      expect((parsed.messages as Array<{ content: unknown }>)[2].content).toBe('');
+    });
+
+    it('skips an array-content target whose last text block is empty (no search further back)', async () => {
+      const parsed = await postAndCapture(CC, {
+        model: 'anthropic/claude-sonnet-4',
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'u1' },
+          {
+            role: 'assistant',
+            content: [
+              { type: 'text', text: 'earlier' },
+              { type: 'text', text: '' },
+            ],
+          },
+          { role: 'user', content: 'u2' },
+        ],
+      });
+
+      expect(markedIndices(parsed)).toEqual([0, 1]);
+    });
+
+    it('marks the LAST text block of an assistant target with array content', async () => {
+      const parsed = await postAndCapture(CC, {
+        model: 'anthropic/claude-sonnet-4',
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'u1' },
+          {
+            role: 'assistant',
+            content: [
+              { type: 'text', text: 'part one' },
+              { type: 'text', text: 'part two' },
+            ],
+          },
+          { role: 'user', content: 'u2' },
+        ],
+      });
+
+      const blocks = (parsed.messages as Array<{ content: TextBlock[] }>)[2].content;
+      expect(blocks[0]).toEqual({ type: 'text', text: 'part one' });
+      expect(blocks[1]).toEqual({
+        type: 'text',
+        text: 'part two',
+        cache_control: { type: 'ephemeral', ttl: '1h' },
+      });
+    });
+
+    it('skips a target with no text block but still marks the others', async () => {
+      const parsed = await postAndCapture(CC, {
+        model: 'anthropic/claude-sonnet-4',
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'u1' },
+          { role: 'assistant', content: [{ type: 'image_url', image_url: { url: 'x' } }] },
+          { role: 'user', content: 'u2' },
+        ],
+      });
+
+      expect(markedIndices(parsed)).toEqual([0, 1]);
+    });
+
+    it('never marks the only message of a one-message request (the final message is excluded)', async () => {
+      const parsed = await postAndCapture(CC, {
+        model: 'anthropic/claude-sonnet-4',
+        messages: [{ role: 'system', content: 'sys' }],
+      });
+
+      expect(markedIndices(parsed)).toEqual([]);
     });
 
     it('leaves a string-content system message untouched when no cacheControl is set', async () => {
@@ -646,8 +795,7 @@ describe('OpenRouterFetch', () => {
       );
 
       expect(parsed.messages).toEqual([]);
-      // The root directive still injects
-      expect(parsed.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+      expect(parsed).not.toHaveProperty('cache_control');
     });
 
     it('sends session_id at the request root when extraParams carries it', async () => {
@@ -655,7 +803,10 @@ describe('OpenRouterFetch', () => {
         { cacheControl: { type: 'ephemeral', ttl: '1h' }, sessionId: 'channel-123' },
         {
           model: 'anthropic/claude-sonnet-4',
-          messages: [{ role: 'system', content: 'You are a test bot' }],
+          messages: [
+            { role: 'system', content: 'You are a test bot' },
+            { role: 'user', content: 'hi' },
+          ],
         }
       );
 
@@ -694,8 +845,7 @@ describe('OpenRouterFetch', () => {
       expect((parsed.messages as Array<{ content: unknown }>)[0].content).toBe('hi there');
       // No cache_control anywhere in the message array
       expect(JSON.stringify(parsed.messages)).not.toContain('cache_control');
-      // The root directive still injects — only the per-block wrap is skipped
-      expect(parsed.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+      expect(parsed).not.toHaveProperty('cache_control');
     });
 
     it('wraps a developer-role first message like a system one', async () => {

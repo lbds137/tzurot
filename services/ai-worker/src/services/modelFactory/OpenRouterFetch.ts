@@ -40,7 +40,11 @@ export interface OpenRouterExtraParams {
   transforms?: string[];
   route?: 'fallback';
   verbosity?: 'low' | 'medium' | 'high';
-  /** Top-level automatic prompt-caching directive (anthropic-family ids only). */
+  /**
+   * Prompt-caching directive (anthropic-family ids only). Applied as explicit
+   * per-block breakpoints on selected messages (`attachCacheBreakpoints`),
+   * never as a request-root `cache_control`.
+   */
   cacheControl?: { type: 'ephemeral'; ttl?: '5m' | '1h' };
   /**
    * Conversation-scoped stickiness id sent as the request root's `session_id`.
@@ -53,16 +57,12 @@ export interface OpenRouterExtraParams {
 }
 
 /**
- * Top-level prompt-caching directive for OpenRouter's automatic prompt caching.
- *
- * Injected as the request ROOT's `cache_control` (sibling of `model`) — the
- * automatic-caching form, not Anthropic's per-message breakpoints. The TTL
- * lives here, not at the injection site. OpenRouter's docs scope automatic
- * caching to Anthropic/Vertex/Azure/Bedrock providers, so the caller gates on
- * the `anthropic/` model-id prefix (ModelFactory.buildOpenRouterModel); the
- * 1h tier prices cache writes at 2x and reads at 0.1x standard input.
- * Doc-sourced — runtime confirmation is the first cached call's write-side
- * token count in the logs.
+ * Prompt-caching directive copied onto each explicit per-block breakpoint
+ * (`attachCacheBreakpoints`); it is not sent as a request-root `cache_control`.
+ * The TTL lives here, not at the injection site, and rides on every marked
+ * block. The caller gates on the `anthropic/` model-id prefix
+ * (ModelFactory.buildOpenRouterModel); the 1h tier prices cache writes at 2x
+ * and reads at 0.1x standard input.
  */
 export const OPENROUTER_PROMPT_CACHE_CONTROL = {
   /** Anthropic-style ephemeral cache entry. */
@@ -73,35 +73,40 @@ export const OPENROUTER_PROMPT_CACHE_CONTROL = {
 } as const;
 
 /**
- * Attach an explicit per-block `cache_control` breakpoint to the SYSTEM
- * message (LangChain ships it as `body.messages[0]` — see
- * `buildInvocationMessages`, which puts the system prompt first).
+ * Attach explicit per-block `cache_control` breakpoints to up to three
+ * messages of `body.messages` (wire order is `[system, crossChannel?,
+ * ...history, current]` — see `buildInvocationMessages`). Targets, in order:
  *
- * Role-guarded: the breakpoint applies only when `messages[0]` is a
- * `system` or `developer` message. A `promptCaching` caller with no system
- * prompt would otherwise cache-mark its first USER message — caching a
- * prefix that changes every turn and can never read. Any other first role
- * leaves the body untouched.
+ * - `[0]` the stable system prompt;
+ * - `[1]` the cross-channel `<prior_conversations>` block when present, else
+ *   the oldest history head — stable between history eviction steps;
+ * - `[length - 2]` the last stable message, so the next turn's lookback reads
+ *   through it.
  *
- * OpenRouter's automatic mode holds ONE breakpoint that advances forward as
- * the conversation grows, so the stable system prefix alone never forms a
- * cacheable block boundary. An explicit breakpoint on the system block makes
- * that prefix its own cache entry, keeping reads robust to variance in the
- * messages AFTER the system prefix (which churn per turn on this pipeline);
- * the verified prod cause — provider-affinity hash churn — is addressed
- * separately by `session_id`. This runs BESIDE the root `cache_control`
- * (which declares the TTL tier), giving two breakpoints total — under
- * Anthropic's max of 4.
+ * The FINAL message is never marked: it carries the per-turn volatile block
+ * (memories, facts, datetime), which shrinks once it becomes history, so a
+ * cache write there is never read back. For that reason no root-level
+ * `cache_control` is sent either — OpenRouter's automatic mode places its
+ * breakpoint at the end of the request, i.e. on that final message. Confirmed
+ * by a live probe against OpenRouter (TASK-1425 description), not doc-sourced:
+ * explicit marks on these indices read the prior prefix on later turns, while
+ * the root-directive shape wrote the whole request every turn. The TTL rides
+ * on each block's own copy of the directive. At most three blocks are marked,
+ * under Anthropic's max of 4.
  *
- * Shapes handled: string content becomes a one-block text array carrying the
- * breakpoint; array content gets the breakpoint attached to its LAST text
- * block (OpenRouter/Anthropic cache the longest prefix ending at the marked
- * block). An array with no text block is left untouched — there is no text to
- * carry the breakpoint, and that shape does not occur on the conversation
- * path, where the system prompt is plain text. Pinned by
- * `OpenRouterFetch.test.ts` § "explicit system-block breakpoint + session id".
+ * Role-guarded: nothing is marked unless `messages[0]` is a `system` or
+ * `developer` message. A `promptCaching` caller with no system prompt would
+ * otherwise cache-mark churning USER messages that can never read.
+ *
+ * Per target (`markMessageBlock`): string content becomes a one-block text
+ * array carrying the breakpoint; array content gets it on its LAST text
+ * block (Anthropic caches the longest prefix ending at the marked block). A
+ * target with no text block, non-string/non-array content, or an empty text
+ * (Anthropic rejects `cache_control` on an empty text block) is skipped while
+ * the other targets are still marked. Pinned by `OpenRouterFetch.test.ts`
+ * § "explicit cache breakpoints + session id".
  */
-function attachSystemBlockBreakpoint(
+function attachCacheBreakpoints(
   body: Record<string, unknown>,
   cacheControl: OpenRouterExtraParams['cacheControl']
 ): void {
@@ -113,19 +118,41 @@ function attachSystemBlockBreakpoint(
   if (typeof first !== 'object' || first === null) {
     return;
   }
-  const system = first as Record<string, unknown>;
-  const role: unknown = system.role;
+  const role: unknown = (first as Record<string, unknown>).role;
   if (role !== 'system' && role !== 'developer') {
     return;
   }
-  if (typeof system.content === 'string') {
-    system.content = [{ type: 'text', text: system.content, cache_control: { ...cacheControl } }];
-    return;
+  const targets = new Set(
+    [0, 1, messages.length - 2].filter(index => index >= 0 && index < messages.length - 1)
+  );
+  for (const index of targets) {
+    markMessageBlock(messages[index], cacheControl);
   }
-  if (!Array.isArray(system.content)) {
-    return;
+}
+
+/**
+ * Put a `cache_control` copy on one message's text, returning whether a block
+ * was marked. See `attachCacheBreakpoints` for the shape rules.
+ */
+function markMessageBlock(
+  message: unknown,
+  cacheControl: OpenRouterExtraParams['cacheControl']
+): boolean {
+  if (typeof message !== 'object' || message === null) {
+    return false;
   }
-  const blocks: unknown[] = system.content as unknown[];
+  const target = message as Record<string, unknown>;
+  if (typeof target.content === 'string') {
+    if (target.content === '') {
+      return false;
+    }
+    target.content = [{ type: 'text', text: target.content, cache_control: { ...cacheControl } }];
+    return true;
+  }
+  if (!Array.isArray(target.content)) {
+    return false;
+  }
+  const blocks: unknown[] = target.content as unknown[];
   for (let i = blocks.length - 1; i >= 0; i--) {
     const block: unknown = blocks[i];
     if (
@@ -133,10 +160,15 @@ function attachSystemBlockBreakpoint(
       block !== null &&
       (block as Record<string, unknown>).type === 'text'
     ) {
-      (block as Record<string, unknown>).cache_control = { ...cacheControl };
-      return;
+      const textBlock = block as Record<string, unknown>;
+      if (typeof textBlock.text !== 'string' || textBlock.text === '') {
+        return false;
+      }
+      textBlock.cache_control = { ...cacheControl };
+      return true;
     }
   }
+  return false;
 }
 
 /**
@@ -161,8 +193,7 @@ function injectOpenRouterParams(
       body.verbosity = extraParams.verbosity;
     }
     if (extraParams.cacheControl !== undefined) {
-      body.cache_control = extraParams.cacheControl;
-      attachSystemBlockBreakpoint(body, extraParams.cacheControl);
+      attachCacheBreakpoints(body, extraParams.cacheControl);
     }
     if (extraParams.sessionId !== undefined) {
       body.session_id = extraParams.sessionId;
