@@ -22,6 +22,7 @@ import {
   parseDashboardCustomId,
   isDashboardInteraction,
   handleSharedBackButton,
+  DASHBOARD_MESSAGES,
 } from '../../utils/dashboard/index.js';
 import { handleDashboardSectionSelect } from '../../utils/dashboard/genericSelectMenuHandler.js';
 import { refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
@@ -95,6 +96,29 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
 }
 
 /**
+ * Build the modal-submit baseline for an expired session by refetching the preset.
+ * Returns null after telling the user when the preset no longer exists (no save follows).
+ * A failed fetch throws into the caller's save-error handling.
+ */
+async function refetchModalBaseline(
+  interaction: ModalSubmitInteraction,
+  entityId: string,
+  sectionId: string,
+  userClient: ReturnType<typeof clientsFor>['userClient']
+): Promise<FlattenedPresetData | null> {
+  logger.warn({ entityId, sectionId }, 'Session not found for modal submit');
+  const fresh = await fetchPreset(entityId, userClient);
+  if (fresh === null) {
+    await interaction.followUp({
+      content: DASHBOARD_MESSAGES.NOT_FOUND('Preset'),
+      flags: MessageFlags.Ephemeral,
+    });
+    return null;
+  }
+  return flattenPresetData(fresh);
+}
+
+/**
  * Handle section modal submission - update preset field
  */
 async function handleSectionModalSubmit(
@@ -111,22 +135,32 @@ async function handleSectionModalSubmit(
     entityId
   );
 
-  if (session === null) {
-    logger.warn({ entityId, sectionId }, 'Session not found for modal submit');
-  }
-
-  // Extract and merge modal values with session data
-  const extracted = extractAndMergeSectionValues(
-    interaction,
-    PRESET_DASHBOARD_CONFIG,
-    sectionId,
-    session?.data ?? {}
-  );
-  if (extracted === null) {
-    return;
-  }
+  const { userClient, ownerClient } = clientsFor(interaction);
 
   try {
+    // The pre-edit flat the modal values merge onto. An expired session has no
+    // cached flat, so the preset is refetched: merging onto `{}` would send
+    // advancedParameters built from this section alone, which the gateway
+    // replaces wholesale.
+    const baseline =
+      session !== null
+        ? session.data
+        : await refetchModalBaseline(interaction, entityId, sectionId, userClient);
+    if (baseline === null) {
+      return;
+    }
+
+    // Extract and merge modal values with the baseline
+    const extracted = extractAndMergeSectionValues(
+      interaction,
+      PRESET_DASHBOARD_CONFIG,
+      sectionId,
+      baseline
+    );
+    if (extracted === null) {
+      return;
+    }
+
     // Validate the merged configuration before saving
     const validationResult = presetConfigValidator.validate(
       extracted.merged as FlattenedPresetData
@@ -148,19 +182,17 @@ async function handleSectionModalSubmit(
       return;
     }
 
-    // Convert to API format. The session's own flat is the pre-edit baseline —
-    // the merged object is that flat plus this modal's values — so the dirty
-    // gate can omit advancedParameters when no form-owned param changed and
-    // the gateway leaves the stored blob (including keys this form cannot
-    // show) untouched. A null session means no baseline exists; the payload
-    // then falls back to the presence gate.
-    const updatePayload = unflattenPresetData(extracted.merged, session?.data);
+    // Convert to API format. The baseline (the session's flat, or the refetched
+    // preset's flat when the session expired) is the pre-edit state — the merged
+    // object is that flat plus this modal's values — so the dirty gate can omit
+    // advancedParameters when no form-owned param changed and the gateway leaves
+    // the stored blob (including keys this form cannot show) untouched.
+    const updatePayload = unflattenPresetData(extracted.merged, baseline);
 
-    // Determine if this is a global preset (from session data)
-    const isGlobal = session?.data.isGlobal ?? false;
+    // Determine if this is a global preset (from the baseline)
+    const isGlobal = baseline.isGlobal;
 
     // Update preset via appropriate API
-    const { userClient, ownerClient } = clientsFor(interaction);
     const { preset: updatedPreset, warnings: gatewayWarnings } = isGlobal
       ? await updateGlobalPreset(entityId, updatePayload, ownerClient)
       : await updatePreset(entityId, updatePayload, userClient);
