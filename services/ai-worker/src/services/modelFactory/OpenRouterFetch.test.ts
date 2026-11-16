@@ -675,6 +675,56 @@ describe('OpenRouterFetch', () => {
       expect(parsed).not.toHaveProperty('cache_control');
     });
 
+    it('logs the number of marked blocks as cacheBreakpoints when cacheControl is set', async () => {
+      await postAndCapture(CC, {
+        model: 'anthropic/claude-sonnet-4',
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'cc' },
+          { role: 'user', content: 'u1' },
+          { role: 'assistant', content: 'a1' },
+          { role: 'user', content: 'u2' },
+        ],
+      });
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ cacheBreakpoints: 3 }),
+        'Custom fetch injecting OpenRouter params'
+      );
+    });
+
+    it('omits cacheBreakpoints from the log when cacheControl is not set', async () => {
+      await postAndCapture(
+        { transforms: ['middle-out'] },
+        {
+          model: 'anthropic/claude-sonnet-4',
+          messages: [{ role: 'system', content: 'sys' }],
+        }
+      );
+
+      const fields = mockLogger.info.mock.calls.find(
+        call => call[1] === 'Custom fetch injecting OpenRouter params'
+      )?.[0] as Record<string, unknown>;
+      expect(fields).toBeDefined();
+      expect(fields).not.toHaveProperty('cacheBreakpoints');
+    });
+
+    it('marks nothing when messages[0] is a user message, whatever the length', async () => {
+      const parsed = await postAndCapture(CC, {
+        model: 'anthropic/claude-sonnet-4',
+        messages: [
+          { role: 'user', content: 'u1' },
+          { role: 'assistant', content: 'a1' },
+          { role: 'user', content: 'u2' },
+          { role: 'assistant', content: 'a2' },
+          { role: 'user', content: 'u3' },
+        ],
+      });
+
+      expect(markedIndices(parsed)).toEqual([]);
+      expect(parsed).not.toHaveProperty('cache_control');
+    });
+
     it('[system, u1, a1, u2]: marks [0], [1] and [2] ([1] and length-2 are distinct)', async () => {
       const parsed = await postAndCapture(CC, {
         model: 'anthropic/claude-sonnet-4',
