@@ -3,9 +3,10 @@ id: TASK-1422
 title: >-
   AI character parrots triggering human message when rawContent emits two
   [Speaker — timestamp] turns
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-14T17:04:00Z'
+updated_date: '2026-11-16T22:17:00Z'
 labels:
   - area:ai-worker
   - size:S
