@@ -7,7 +7,7 @@
   },
   "totals": {
     "entries": 3061,
-    "sites": 7098
+    "sites": 7102
   },
   "entries": [
     {
@@ -13934,7 +13934,7 @@
       "category": "flags",
       "file": "services/bot-client/src/commands/preset/dashboard.ts",
       "symbol": "MessageFlags.Ephemeral",
-      "count": 5
+      "count": 6
     },
     {
       "category": "flags",
@@ -14720,7 +14720,7 @@
       "category": "interaction-acks",
       "file": "services/bot-client/src/commands/preset/dashboard.ts",
       "symbol": "followUp",
-      "count": 4
+      "count": 5
     },
     {
       "category": "interaction-acks",
@@ -17348,7 +17348,7 @@
       "category": "message-options",
       "file": "services/bot-client/src/commands/preset/dashboard.ts",
       "symbol": "content",
-      "count": 2
+      "count": 3
     },
     {
       "category": "message-options",
@@ -17360,7 +17360,7 @@
       "category": "message-options",
       "file": "services/bot-client/src/commands/preset/dashboard.ts",
       "symbol": "flags",
-      "count": 5
+      "count": 6
     },
     {
       "category": "message-options",

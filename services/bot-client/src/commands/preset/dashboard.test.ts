@@ -11,7 +11,7 @@ import {
   isPresetDashboardInteraction,
 } from './dashboard.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
-import { formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
+import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import { flattenPresetData, type PresetData } from './config.js';
 import { GatewayApiError } from '@tzurot/clients';
 
@@ -587,6 +587,118 @@ describe('handleModalSubmit', () => {
     expect(mockUpdatePreset).toHaveBeenCalled();
     const payload = mockUpdatePreset.mock.calls[0]?.[1] as Record<string, unknown>;
     expect(payload.advancedParameters).toEqual({ temperature: 0.9 });
+  });
+
+  describe('expired session (null session)', () => {
+    function mockSamplingSubmit() {
+      mockParseDashboardCustomId.mockReturnValue({
+        entityType: 'preset',
+        action: 'modal',
+        entityId: 'preset-123',
+        sectionId: 'sampling',
+      });
+      mockSessionManagerGet.mockResolvedValue(null);
+    }
+
+    it('saves against the refetched preset so other sections and penalties/thinking survive', async () => {
+      mockSamplingSubmit();
+      mockFetchPreset.mockResolvedValue({
+        ...mockPresetData,
+        params: { temperature: 0.7, top_p: 0.8, frequency_penalty: 0.3, thinking: 'high' },
+      });
+      mockExtractModalValues.mockReturnValueOnce({ temperature: '0.9' });
+      mockUpdatePreset.mockResolvedValue(asMutation(mockPresetData));
+
+      await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::sampling'));
+
+      expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', TEST_USER);
+      expect(mockUpdatePreset).toHaveBeenCalledWith('preset-123', expect.any(Object), TEST_USER);
+      const payload = mockUpdatePreset.mock.calls[0]?.[1] as Record<string, unknown>;
+      expect(payload.advancedParameters).toEqual({
+        temperature: 0.9,
+        top_p: 0.8,
+        frequency_penalty: 0.3,
+        thinking: 'high',
+      });
+      // No session existed, so none is created or updated by the save.
+      expect(mockSessionManagerUpdate).not.toHaveBeenCalled();
+    });
+
+    it('a name-only edit on the refetched preset omits advancedParameters (baseline reaches the dirty gate)', async () => {
+      mockParseDashboardCustomId.mockReturnValue({
+        entityType: 'preset',
+        action: 'modal',
+        entityId: 'preset-123',
+        sectionId: 'identity',
+      });
+      mockSessionManagerGet.mockResolvedValue(null);
+      mockFetchPreset.mockResolvedValue({ ...mockPresetData, params: {} });
+      mockExtractModalValues.mockReturnValueOnce({ name: 'Renamed Preset' });
+      mockUpdatePreset.mockResolvedValue(asMutation(mockPresetData));
+
+      await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));
+
+      const payload = mockUpdatePreset.mock.calls[0]?.[1] as Record<string, unknown>;
+      expect(payload.name).toBe('Renamed Preset');
+      expect(Object.hasOwn(payload, 'advancedParameters')).toBe(false);
+    });
+
+    it('routes a refetched GLOBAL preset through the owner endpoint', async () => {
+      mockSamplingSubmit();
+      mockFetchPreset.mockResolvedValue({ ...mockPresetData, isGlobal: true });
+      mockExtractModalValues.mockReturnValueOnce({ temperature: '0.9' });
+      mockUpdateGlobalPreset.mockResolvedValue(asMutation(mockPresetData));
+
+      await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::sampling'));
+
+      expect(mockUpdateGlobalPreset).toHaveBeenCalledWith(
+        'preset-123',
+        expect.any(Object),
+        TEST_OWNER_CLIENT
+      );
+      expect(mockUpdatePreset).not.toHaveBeenCalled();
+    });
+
+    it('follows up with not-found and sends no update when the refetch finds nothing', async () => {
+      mockSamplingSubmit();
+      mockFetchPreset.mockResolvedValue(null);
+
+      await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::sampling'));
+
+      expect(mockUpdatePreset).not.toHaveBeenCalled();
+      expect(mockUpdateGlobalPreset).not.toHaveBeenCalled();
+      expect(mockModalFollowUp).toHaveBeenCalledWith({
+        content: DASHBOARD_MESSAGES.NOT_FOUND('Preset'),
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+
+    it('surfaces a refetch failure through the save-error follow-up and sends no update', async () => {
+      mockSamplingSubmit();
+      mockFetchPreset.mockRejectedValue(new Error('Network error'));
+
+      await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::sampling'));
+
+      expect(mockUpdatePreset).not.toHaveBeenCalled();
+      expect(mockModalFollowUp).toHaveBeenCalledWith({
+        content: '❌ Failed to update preset. Please try again.',
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+
+    it('does not refetch when the session exists', async () => {
+      mockSamplingSubmit();
+      mockSessionManagerGet.mockResolvedValue({
+        data: flattenPresetData({ ...mockPresetData, params: {} }),
+      });
+      mockExtractModalValues.mockReturnValueOnce({ temperature: '0.9' });
+      mockUpdatePreset.mockResolvedValue(asMutation(mockPresetData));
+
+      await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::sampling'));
+
+      expect(mockFetchPreset).not.toHaveBeenCalled();
+      expect(mockUpdatePreset).toHaveBeenCalled();
+    });
   });
 });
 
