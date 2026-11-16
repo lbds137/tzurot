@@ -38,7 +38,7 @@ export interface ModelConfig extends ConvertedLlmParams {
    */
   supportsReasoning?: boolean;
   /**
-   * Conversation-only opt-in for OpenRouter automatic prompt caching (the
+   * Conversation-only opt-in for OpenRouter prompt caching via explicit breakpoints (the
    * 1h tier bills cache writes at 2x input). Set by the conversation-turn
    * path (modelInvocation.ts) where turns are multi-call and a cache pays
    * for itself; one-shot callers (vision description, system-model calls)
