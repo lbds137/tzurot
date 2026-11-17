@@ -406,12 +406,13 @@ export const MODEL_SLOT_LABELS = {
  * {@link CONFIG_SLOT_OPTION_CHOICES} be a constant.
  */
 export const CONFIG_SLOT_OPTION_DESCRIPTION =
-  'Which slot to target: Chat (default) or Vision (image)';
+  'Which slot to target: Chat (default), Vision (image), or Both';
 
 /**
  * The `slot` option's choice list, built from {@link MODEL_SLOT_LABELS} so the
  * label a user PICKS is the same string the confirmation embed echoes back.
- * Every setter command spreads this rather than repeating the pair inline.
+ * This is the base Chat/Vision pair that {@link CONFIG_SLOT_OPTION_CHOICES_WITH_BOTH}
+ * extends; every slot option today spreads the WITH_BOTH list rather than this one.
  *
  * The encoded values stay `text`/`vision` — the gateway's `?slot=` wire
  * contract — and only the names are user-facing.
@@ -422,12 +423,14 @@ export const CONFIG_SLOT_OPTION_CHOICES = [
 ] as const satisfies readonly { name: string; value: ModelSlot }[];
 
 /**
- * {@link CONFIG_SLOT_OPTION_CHOICES} plus a `Both` choice — for the default
- * SETTERS only (user default set/clear, global default, global free-default),
- * where one command may target text AND vision. The override sites keep the
- * base list: an override pins one slot per character. `both` is a request
- * alias ({@link toModelSlotOrBoth}), never a {@link ModelSlot} — the gateway
- * expands it into two writes with the vision gate running FIRST.
+ * {@link CONFIG_SLOT_OPTION_CHOICES} plus a `Both` choice — for the commands
+ * where one invocation may target text AND vision: the default SETTERS (user
+ * default set/clear, global default, global free-default) and the per-character
+ * override set/clear. A character carries separate Chat and Vision overrides,
+ * so `Both` pins/clears the pair in one call. `both` is a request alias
+ * ({@link toModelSlotOrBoth}), never a {@link ModelSlot} — on a set the gateway
+ * writes both slots with the vision gate running FIRST (a text-only preset
+ * refuses the whole request); on a clear it maps to `all`.
  */
 export const CONFIG_SLOT_OPTION_CHOICES_WITH_BOTH = [
   ...CONFIG_SLOT_OPTION_CHOICES,

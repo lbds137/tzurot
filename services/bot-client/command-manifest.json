@@ -2076,7 +2076,7 @@
                       }
                     ],
                     "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision (image)",
+                    "description": "Which slot to target: Chat (default), Vision (image), or Both",
                     "required": false
                   }
                 ]
@@ -2103,7 +2103,7 @@
                       }
                     ],
                     "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision (image)",
+                    "description": "Which slot to target: Chat (default), Vision (image), or Both",
                     "required": false
                   }
                 ]
@@ -2144,7 +2144,7 @@
                       }
                     ],
                     "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision (image)",
+                    "description": "Which slot to target: Chat (default), Vision (image), or Both",
                     "required": false
                   }
                 ]
@@ -2178,7 +2178,7 @@
                       }
                     ],
                     "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision (image)",
+                    "description": "Which slot to target: Chat (default), Vision (image), or Both",
                     "required": false
                   }
                 ]
@@ -2225,10 +2225,14 @@
                       {
                         "name": "Vision",
                         "value": "vision"
+                      },
+                      {
+                        "name": "Both",
+                        "value": "both"
                       }
                     ],
                     "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision (image)",
+                    "description": "Which slot to target: Chat (default), Vision (image), or Both",
                     "required": false
                   }
                 ]
@@ -2255,10 +2259,14 @@
                       {
                         "name": "Vision",
                         "value": "vision"
+                      },
+                      {
+                        "name": "Both",
+                        "value": "both"
                       }
                     ],
                     "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision (image)",
+                    "description": "Which slot to target: Chat (default), Vision (image), or Both",
                     "required": false
                   }
                 ]

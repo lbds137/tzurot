@@ -173,7 +173,7 @@ describe('Preset Command', () => {
       expect(presetCommand.componentPrefixes).toEqual(['settings-preset-override']);
     });
 
-    it('offers the Both choice on the four default-group slot options only (not override)', () => {
+    it('offers the Both choice on the default-group and override-group slot options', () => {
       const json = presetCommand.data.toJSON();
       const groups = (json.options ?? []).filter((opt: { type: number }) => opt.type === 2);
 
@@ -197,10 +197,10 @@ describe('Preset Command', () => {
       expect(slotChoicesOf('default', 'clear')).toEqual(['text', 'vision', 'both']);
       expect(slotChoicesOf('global', 'default')).toEqual(['text', 'vision', 'both']);
       expect(slotChoicesOf('global', 'free-default')).toEqual(['text', 'vision', 'both']);
-      // Override sites pin ONE slot per character — the Both alias must not
-      // leak there (owner ruling: default + global groups only).
-      expect(slotChoicesOf('override', 'set')).toEqual(['text', 'vision']);
-      expect(slotChoicesOf('override', 'clear')).toEqual(['text', 'vision']);
+      // Override sites offer it too (owner ruling): `override set`
+      // pins Chat AND Vision in one call; `override clear` clears both slots.
+      expect(slotChoicesOf('override', 'set')).toEqual(['text', 'vision', 'both']);
+      expect(slotChoicesOf('override', 'clear')).toEqual(['text', 'vision', 'both']);
     });
   });
 

@@ -428,9 +428,12 @@ export const userConfigRoutes = {
     path: '/model-override',
     id: 'setModelOverride',
     input: SetModelOverrideSchema,
-    // The slot the override occupies (text|vision); defaults text. The gateway
-    // capability-gates the vision slot (its model must support image input).
-    query: { slot: z.enum(MODEL_SLOTS).optional() },
+    // The slot the override occupies (text|vision), or `both` to pin text AND
+    // vision in one request; defaults text. The gateway capability-gates the
+    // vision slot (and thus the both alias) BEFORE any write.
+    // A `both` set returns the Chat-slot summary (`override.slot: 'text'`), because
+    // the same config sits on both slots.
+    query: { slot: z.enum([...MODEL_SLOTS, 'both']).optional() },
     output: SetModelOverrideResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
