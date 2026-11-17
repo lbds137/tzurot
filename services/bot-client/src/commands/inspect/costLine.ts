@@ -54,7 +54,7 @@ function cacheCaveat(cache: NonNullable<EstimatedCost['cache']>, totalUsd: numbe
   if (delta < -noise) {
     return `OpenRouter list price; cache writes added ${amount(-delta)}`;
   }
-  return 'OpenRouter list price, cache-aware';
+  return 'OpenRouter list price; cache-aware';
 }
 
 /**

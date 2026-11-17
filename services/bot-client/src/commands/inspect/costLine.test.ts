@@ -159,7 +159,7 @@ describe('formatEstimatedCost — cache-aware', () => {
 
   it('prints the plain cache-aware caveat when the cache changed nothing', () => {
     expect(fmt(makeCost({ totalUsd: 0.002, cache: { ...CACHE, noCacheTotalUsd: 0.002 } }))).toBe(
-      '$0.0020 (OpenRouter list price, cache-aware)'
+      '$0.0020 (OpenRouter list price; cache-aware)'
     );
   });
 
@@ -171,11 +171,11 @@ describe('formatEstimatedCost — cache-aware', () => {
     const noCacheTotalUsd = totalUsd + 2.7755575615628914e-17;
     expect(noCacheTotalUsd - totalUsd).toBeGreaterThan(0);
     expect(fmt(makeCost({ totalUsd, cache: { ...CACHE, noCacheTotalUsd } }))).toBe(
-      '$0.1358 (OpenRouter list price, cache-aware)'
+      '$0.1358 (OpenRouter list price; cache-aware)'
     );
     expect(
       fmt(makeCost({ totalUsd: noCacheTotalUsd, cache: { ...CACHE, noCacheTotalUsd: totalUsd } }))
-    ).toBe('$0.1358 (OpenRouter list price, cache-aware)');
+    ).toBe('$0.1358 (OpenRouter list price; cache-aware)');
   });
 
   it('shows the NET delta on a mixed turn: reads save more than writes cost', () => {
