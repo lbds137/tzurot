@@ -264,7 +264,8 @@ export class ResponsePostProcessor {
       ? stripRealMessageEchoArtifacts(
           unwrappedContent,
           context.telemetry ?? {},
-          context.personalityName
+          context.personalityName,
+          context.userMessage
         )
       : unwrappedContent;
     let cleanedContent = stripResponseArtifacts(echoStripped, context.personalityName);
