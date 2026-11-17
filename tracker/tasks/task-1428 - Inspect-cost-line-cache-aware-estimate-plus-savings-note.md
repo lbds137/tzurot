@@ -1,9 +1,10 @@
 ---
 id: TASK-1428
 title: 'Inspect cost line: cache-aware estimate plus savings note'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-16T20:44:00Z'
+updated_date: '2026-11-17T02:22:00Z'
 labels:
   - area:api-gateway
   - size:M
