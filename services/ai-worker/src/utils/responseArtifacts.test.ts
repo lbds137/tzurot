@@ -23,6 +23,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 
 import {
   ARTIFACT_TAG_NAMES,
+  echoWordOverlap,
   stripResponseArtifacts,
   stripUserMessageEcho,
   normalizeForEchoMatch,
@@ -1232,6 +1233,18 @@ describe('stripRealMessageEchoArtifacts', () => {
       );
 
       expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(REPLY.replace(/\n/g, '\r\n'));
+      expect(cutFields().regurgitatedTurnCutTurns).toBe(1);
+    });
+
+    it('a CRLF cut logs a defined overlap of 1 when the cut body is the user message', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n${SELF_HEADER}\n${REPLY}`.replace(
+        /\n/g,
+        '\r\n'
+      );
+
+      stripRealMessageEchoArtifacts(content, { channelId: 'c', requestId: 'r' }, NAME, HUMAN_BODY);
+
+      expect(cutFields().regurgitatedTurnEchoOverlap).toBe(1);
     });
 
     it('cuts at a self header carrying decorated preamble', () => {
@@ -1264,6 +1277,266 @@ describe('stripRealMessageEchoArtifacts', () => {
 
       expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(tail);
       expect(cutFields()).not.toHaveProperty('regurgitatedTurnCutChars');
+    });
+
+    it('telemetry reports overlap 1 when the cut body is the user message (pure echo)', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n${SELF_HEADER}\n${REPLY}`;
+
+      stripRealMessageEchoArtifacts(content, { channelId: 'c', requestId: 'r' }, NAME, HUMAN_BODY);
+
+      expect(cutFields().regurgitatedTurnEchoOverlap).toBe(1);
+    });
+
+    it('telemetry reports overlap 0 when the cut shares no words with the user message', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n${SELF_HEADER}\n${REPLY}`;
+
+      stripRealMessageEchoArtifacts(content, {}, NAME, 'zzzz qqqq wwww');
+
+      expect(cutFields().regurgitatedTurnEchoOverlap).toBe(0);
+    });
+
+    it('the overlap field is absent when no user message is given', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n${SELF_HEADER}\n${REPLY}`;
+
+      stripRealMessageEchoArtifacts(content, {}, NAME);
+
+      expect(cutFields()).not.toHaveProperty('regurgitatedTurnEchoOverlap');
+    });
+
+    it('the overlap reads the object form of userMessage ({ content }), the same text the echo strip reads', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n${SELF_HEADER}\n${REPLY}`;
+
+      stripRealMessageEchoArtifacts(content, { channelId: 'c', requestId: 'r' }, NAME, {
+        content: HUMAN_BODY,
+      });
+
+      expect(cutFields().regurgitatedTurnEchoOverlap).toBe(1);
+    });
+
+    it('an object-form userMessage with empty content omits the overlap field', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n${SELF_HEADER}\n${REPLY}`;
+
+      stripRealMessageEchoArtifacts(content, {}, NAME, { content: '' });
+
+      expect(cutFields()).not.toHaveProperty('regurgitatedTurnEchoOverlap');
+    });
+
+    it('echoWordOverlap ignores header-shaped lines in the cut', () => {
+      // Header words (bob, the date, the time) would pull the ratio down if counted.
+      expect(
+        echoWordOverlap('[Bob — 2026-11-14 (Sat) 14:04]\nhello there friend', 'hello there')
+      ).toBe(0.67);
+      expect(echoWordOverlap('[Bob — 2026-11-14 (Sat) 14:04]', 'hello there')).toBeUndefined();
+    });
+
+    it('echoWordOverlap drops a CRLF header line so body words in the message score 1', () => {
+      expect(
+        echoWordOverlap(`${OTHER_HEADER}\r\nhello there friend\r\n`, 'hello there friend')
+      ).toBe(1);
+    });
+
+    it('echoWordOverlap is undefined for an empty cut', () => {
+      expect(echoWordOverlap('', 'hello there')).toBeUndefined();
+    });
+
+    it('echoWordOverlap is the shared distinct-word share, rounded to 2 decimals', () => {
+      expect(echoWordOverlap('alpha beta gamma delta', 'alpha beta epsilon')).toBe(0.5);
+      expect(echoWordOverlap('one two three', 'two')).toBe(0.33);
+    });
+
+    it('a remainder that is only header lines is blank, and the output is what it was before the cut', () => {
+      const content =
+        '[Bob — 2026-11-14 (Sat) 14:01]\nbody\n\n[Lila — 2026-11-14 (Sat) 14:02]\n[Bob — 2026-11-14 (Sat) 14:03]';
+
+      const result = stripRealMessageEchoArtifacts(
+        content,
+        { channelId: 'c', requestId: 'r' },
+        'Lila'
+      );
+
+      expect(result).toBe(
+        'body\n\n[Lila — 2026-11-14 (Sat) 14:02]\n[Bob — 2026-11-14 (Sat) 14:03]'
+      );
+      expect(cutFields().regurgitatedTurnCutSkipped).toBe('blank');
+      expect(cutFields()).not.toHaveProperty('regurgitatedTurnCutChars');
+      expect(cutFields().headerLinesStripped).toBe(1);
+    });
+
+    it('a leading header whose name starts with the character name (Anna Belle for Anna) is treated as self, so the cut does not fire', () => {
+      const content =
+        '[Anna Belle — 2026-11-14 (Sat) 14:01]\nHuman body text here.\n\n[Anna — 2026-11-14 (Sat) 14:02]\nThe reply.';
+
+      const result = stripRealMessageEchoArtifacts(content, {}, 'Anna');
+
+      expect(result).toBe('Human body text here.\n\n[Anna — 2026-11-14 (Sat) 14:02]\nThe reply.');
+      expect(cutFields()).not.toHaveProperty('regurgitatedTurnCutChars');
+    });
+
+    it('a self header at EOF with no trailing newline is a blank remainder', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n${SELF_HEADER}`;
+
+      const result = stripRealMessageEchoArtifacts(
+        content,
+        { channelId: 'c', requestId: 'r' },
+        NAME
+      );
+
+      expect(cutFields().regurgitatedTurnCutSkipped).toBe('blank');
+      expect(cutFields()).not.toHaveProperty('regurgitatedTurnCutChars');
+      expect(result).toBe(`${HUMAN_BODY}\n\n${SELF_HEADER}`);
+    });
+
+    it('a model-written first paragraph under another speaker header is cut with the echo', () => {
+      const content = `${OTHER_HEADER}\nMy own first paragraph, mis-stamped.\n\n${SELF_HEADER}\nMy real second paragraph.`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe('My real second paragraph.');
+    });
+
+    it('a four-backtick fence is not closed by a three-backtick line, so a self header inside it is not a cut point', () => {
+      const rest = `${HUMAN_BODY}\n\n\`\`\`\`\n\`\`\`\n${SELF_HEADER}\n\`\`\`\`\n${REPLY}`;
+      const content = `${OTHER_HEADER}\n${rest}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(rest);
+      expect(cutFields()).not.toHaveProperty('regurgitatedTurnCutChars');
+    });
+
+    it('a tilde fence is closed by a longer tilde run, so a self header after it is a cut point', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n~~~\ncode\n~~~~\n\n${SELF_HEADER}\n${REPLY}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(REPLY);
+    });
+
+    it('a two-turn cut logs regurgitatedTurnCutTurns 2', () => {
+      const content = `[Bob — 2026-11-14 (Sat) 14:04]\n${HUMAN_BODY}\n\n[Carol — 2026-11-14 (Sat) 14:05]\nCarol adds more.\n\n${SELF_HEADER}\n${REPLY}`;
+
+      stripRealMessageEchoArtifacts(content, { channelId: 'c', requestId: 'r' }, NAME);
+
+      expect(cutFields().regurgitatedTurnCutTurns).toBe(2);
+    });
+
+    it('a single-turn cut logs regurgitatedTurnCutTurns 1', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n${SELF_HEADER}\n${REPLY}`;
+
+      stripRealMessageEchoArtifacts(content, { channelId: 'c', requestId: 'r' }, NAME);
+
+      expect(cutFields().regurgitatedTurnCutTurns).toBe(1);
+    });
+
+    it('overlap ignores punctuation, so `there,` and `friend.` match `there` and `friend`', () => {
+      expect(echoWordOverlap('hello there, friend.', 'Hello there friend?')).toBe(1);
+    });
+
+    it('combining marks stay inside their word, so pointed words differing in one letter share nothing', () => {
+      // Split at the marks, these would share the bare letter ב and score 0.5.
+      expect(echoWordOverlap('בָּא', 'בָּה')).toBe(0);
+    });
+
+    it('a header-only cut text has no words, so the overlap is undefined and the field is omitted', () => {
+      const content = `${OTHER_HEADER}\n${SELF_HEADER}\n${REPLY}`;
+
+      const result = stripRealMessageEchoArtifacts(
+        content,
+        { channelId: 'c', requestId: 'r' },
+        NAME,
+        HUMAN_BODY
+      );
+
+      expect(result).toBe(REPLY);
+      expect(cutFields().regurgitatedTurnCutChars).toBeGreaterThan(0);
+      expect(cutFields()).not.toHaveProperty('regurgitatedTurnEchoOverlap');
+    });
+
+    it('the blank-guard skip path omits the overlap field even when a user message is given', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n${SELF_HEADER}`;
+
+      stripRealMessageEchoArtifacts(content, { channelId: 'c', requestId: 'r' }, NAME, HUMAN_BODY);
+
+      expect(cutFields().regurgitatedTurnCutSkipped).toBe('blank');
+      expect(cutFields()).not.toHaveProperty('regurgitatedTurnEchoOverlap');
+    });
+
+    it('inside an open backtick fence, a ```ts line does not close it, so a self header after it is content', () => {
+      const rest = `${HUMAN_BODY}\n\n\`\`\`\nconst a = 1;\n\`\`\`ts\n${SELF_HEADER}\n${REPLY}\n\`\`\``;
+      const content = `${OTHER_HEADER}\n${rest}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(rest);
+      expect(cutFields()).not.toHaveProperty('regurgitatedTurnCutChars');
+    });
+
+    it('a fence opened with an info string is closed by a bare fence line, so a self header after the close is a cut point', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n\`\`\`ts\nconst a = 1;\n\`\`\`\n\n${SELF_HEADER}\n${REPLY}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(REPLY);
+    });
+
+    it('a tilde line inside a backtick fence is content, so a self header after it stays inside the fence', () => {
+      const rest = `${HUMAN_BODY}\n\n\`\`\`\n~~~\n${SELF_HEADER}\n${REPLY}\n\`\`\``;
+      const content = `${OTHER_HEADER}\n${rest}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(rest);
+      expect(cutFields()).not.toHaveProperty('regurgitatedTurnCutChars');
+    });
+
+    it('an inline triple-backtick span at a line start is not a fence, so a later self header is a cut point', () => {
+      const rest = `${HUMAN_BODY}\n\n\`\`\`code\`\`\` more text\n${SELF_HEADER}\n${REPLY}`;
+      const content = `${OTHER_HEADER}\n${rest}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(REPLY);
+      expect(cutFields().regurgitatedTurnCutChars).toBe(content.length - REPLY.length);
+    });
+
+    it('a self header quoted inside a real fenced block after an inline span is content, not a cut point', () => {
+      const inlineSpan = `\`\`\`code\`\`\` more text`;
+      const quotedBlock = `\`\`\`\n${SELF_HEADER}\nquoted header inside a real block\n\`\`\``;
+      const rest = `${HUMAN_BODY}\n\n${inlineSpan}\n\n${quotedBlock}\n\nAnd that is the format.`;
+      const content = `${OTHER_HEADER}\n${rest}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(rest);
+      expect(cutFields()).not.toHaveProperty('regurgitatedTurnCutChars');
+    });
+
+    it('a self header after a real fenced block that follows an inline span is a cut point', () => {
+      const inlineSpan = `\`\`\`code\`\`\` more text`;
+      const quotedBlock = `\`\`\`\n${SELF_HEADER}\nquoted header inside a real block\n\`\`\``;
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n${inlineSpan}\n\n${quotedBlock}\n\n${SELF_HEADER}\n${REPLY}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(REPLY);
+    });
+
+    it('a fence line indented four spaces is not a fence, so a later self header is a cut point', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n    \`\`\`\n${SELF_HEADER}\n${REPLY}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(REPLY);
+    });
+
+    it('a self header indented four spaces (an indented code block) after an echoed turn is still a cut point', () => {
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n    ${SELF_HEADER}\n${REPLY}`;
+
+      expect(stripRealMessageEchoArtifacts(content, {}, NAME)).toBe(REPLY);
+    });
+
+    it('an indented other-speaker header in the echoed turn counts as a turn', () => {
+      const indented = '    [Carol — 2026-11-14 (Sat) 14:05]';
+      const content = `${OTHER_HEADER}\n${indented}\n${HUMAN_BODY}\n\n${SELF_HEADER}\n${REPLY}`;
+
+      stripRealMessageEchoArtifacts(content, { channelId: 'c', requestId: 'r' }, NAME);
+
+      expect(cutFields().regurgitatedTurnCutTurns).toBe(2);
+    });
+
+    it('a header quoted inside a fence in the echoed turn is content, so a single-turn cut logs regurgitatedTurnCutTurns 1', () => {
+      const quoted = '```\n[Carol — 2026-11-14 (Sat) 14:05]\n```';
+      const content = `${OTHER_HEADER}\n${HUMAN_BODY}\n\n${quoted}\n\n${SELF_HEADER}\n${REPLY}`;
+
+      stripRealMessageEchoArtifacts(content, { channelId: 'c', requestId: 'r' }, NAME);
+
+      expect(cutFields().regurgitatedTurnCutChars).toBeGreaterThan(0);
+      expect(cutFields().regurgitatedTurnCutTurns).toBe(1);
+    });
+
+    it('composed and decomposed forms of the same word match, so a decomposed cut overlaps a composed user message fully', () => {
+      // Cut is NFD (e + combining acute); user text is NFC (precomposed é).
+      expect(echoWordOverlap('cafe\u0301', 'caf\u00e9')).toBe(1);
     });
   });
 });
