@@ -115,31 +115,50 @@ function isUsablePrice(price: number | undefined): price is number {
   return price !== undefined && Number.isFinite(price) && price >= 0;
 }
 
-/** Parse a raw catalog price (a per-token USD string); `undefined` when absent or unusable. */
-function parseUsablePrice(raw: unknown): number | undefined {
-  if (typeof raw !== 'string' && typeof raw !== 'number') {
-    return undefined;
-  }
-  const parsed = typeof raw === 'number' ? raw : parseFloat(raw);
-  return isUsablePrice(parsed) ? parsed : undefined;
-}
+/** A catalog number string: optional sign, decimal digits, optional fraction and exponent. */
+const DECIMAL_NUMBER_PATTERN = /^[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i;
 
 /**
- * True for any string `Number()` parses to a finite value. The live catalog
- * sends decimal strings ("0.000001"); hex and exponent forms would also pass,
- * and a negative such as the router's "-1" must stay price-shaped. "eu" is not.
+ * The single parser for catalog numbers. Passes: finite numbers, and strings
+ * whose trim is a decimal or exponent form (`"0.1"`, `"+.5"`, `"1."`, `"1E-6"`)
+ * with a finite value. Does not pass (`undefined`): blank or whitespace-only
+ * strings, trailing text (`"0.1abc"`, which `parseFloat` would read as 0.1),
+ * hex, binary and octal strings (`"0x1"`, `"0b11"`, `"0o7"`), and non-finite
+ * values.
  */
-function isNumericString(value: unknown): boolean {
-  return typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value));
+function parseFiniteNumber(raw: unknown): number | undefined {
+  if (typeof raw === 'number') {
+    return Number.isFinite(raw) ? raw : undefined;
+  }
+  if (typeof raw !== 'string') {
+    return undefined;
+  }
+  const trimmed = raw.trim();
+  if (!DECIMAL_NUMBER_PATTERN.test(trimmed)) {
+    return undefined;
+  }
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+/** Parse a raw per-token USD price (string or number); `undefined` when absent or unusable. */
+function parseUsablePrice(raw: unknown): number | undefined {
+  const parsed = parseFiniteNumber(raw);
+  return isUsablePrice(parsed) ? parsed : undefined;
 }
 
 /**
  * The override entry's threshold when it is a tier we understand and
  * `promptTokens` is strictly above it; `undefined` otherwise. A key is a
  * condition when it is `min_*` / `max_*` or its value is not price-shaped
- * (a number, a numeric string, or null); the only understood condition is
- * `min_prompt_tokens` (a finite number). Any other condition is one we cannot
- * evaluate, so the entry is ignored rather than applied unconditionally.
+ * (null, or a value `parseFiniteNumber` reads as a finite number). A `-1`
+ * value is price-shaped and "eu" is not; shape only classifies a key as price
+ * or condition, and `parseUsablePrice` still rejects a `-1` as a price. A
+ * non-finite number (NaN, Infinity) is not price-shaped, so it is a condition
+ * and voids the entry. The only understood condition is `min_prompt_tokens` (a
+ * finite, non-negative number or numeric string); an unparseable or negative
+ * threshold is logged at debug and ignored. Any other condition is one we
+ * cannot evaluate, so the entry is ignored rather than applied unconditionally.
  * Every remaining key is a price: those in `PRICE_KEYS` overlay, the rest
  * (`image`, `audio`, `discount`, ...) are ignored without voiding the entry.
  */
@@ -148,25 +167,31 @@ function matchedTierThreshold(entry: unknown, promptTokens: number): number | un
     return undefined;
   }
   const record = entry as Record<string, unknown>;
-  const threshold = record[TIER_CONDITION_KEY];
+  const rawThreshold = record[TIER_CONDITION_KEY];
   const unknownConditions = Object.keys(record).filter(key => {
     if (key === TIER_CONDITION_KEY) {
       return false;
     }
     const value = record[key];
     return (
-      CONDITION_KEY_PATTERN.test(key) ||
-      !(value === null || typeof value === 'number' || isNumericString(value))
+      CONDITION_KEY_PATTERN.test(key) || !(value === null || parseFiniteNumber(value) !== undefined)
     );
   });
   if (unknownConditions.length > 0) {
     logger.debug(
-      { ignoredKeys: unknownConditions, threshold },
+      { ignoredKeys: unknownConditions, threshold: rawThreshold },
       'Ignored pricing override with an unknown condition'
     );
     return undefined;
   }
-  if (typeof threshold !== 'number' || !Number.isFinite(threshold)) {
+  const threshold = parseFiniteNumber(rawThreshold);
+  if (threshold === undefined || threshold < 0) {
+    if (rawThreshold !== undefined) {
+      logger.debug(
+        { threshold: rawThreshold },
+        'Ignored pricing override with an unparseable threshold'
+      );
+    }
     return undefined;
   }
   return promptTokens > threshold ? threshold : undefined;
