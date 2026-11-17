@@ -1,9 +1,10 @@
 ---
 id: TASK-1427
 title: Add Both slot choice to /preset override set and clear
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-16T20:37:00Z'
+updated_date: '2026-11-17T15:26:00Z'
 labels:
   - area:bot-client
   - size:M
