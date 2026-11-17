@@ -1,9 +1,10 @@
 ---
 id: TASK-1421
 title: 'PR 2750 round-2 residue: cache-key scoping + claim pins'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-13T10:00:00Z'
+updated_date: '2026-11-17T19:39:00Z'
 labels:
   - area:ai-worker
   - size:S

@@ -19,10 +19,11 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 _Drafted 2026-11-16 after beta.245 (shipped 11-13, main `b33a7b7b7`). Scope per Lila 11-16: "the newly filed tasks included in the prod release, along with any other higher priority stuff that should go out soon" — this deliberately widens the ~2-3 runtime-PR close-the-train size to ~7; backstops (~10 runtime / ~250 files) still stand._
 
 - **In already**: #2755 TASK-1425 cache breakpoints on the last stable message (dev acceptance passed: hit ratio 0.69, 1h TTL held across 410 s).
-- **Merged into the train**: TASK-1422 (#2756), TASK-1418 (#2757), TASK-1428 (#2758), TASK-1427 (#2759).
-- **Waiting on**, in dispatch order: TASK-1426 + TASK-1421 as one caching-residue PR · TASK-1429 (regurgitated-turn cut follow-ups from #2756 round 2: echo-similarity telemetry + claim pins) · TASK-1432 (#2758 round-4 follow-up: string tier threshold, one price parser, caveat punctuation; her pick 11-16).
+- **Merged into the train**: TASK-1422 (#2756), TASK-1418 (#2757), TASK-1428 (#2758), TASK-1427 (#2759), TASK-1426 + TASK-1421 (#2760).
+- **Waiting on**, in dispatch order: TASK-1429 (regurgitated-turn cut follow-ups from #2756 round 2: echo-similarity telemetry + claim pins) · TASK-1432 (#2758 round-4 follow-up: string tier threshold, one price parser, caveat punctuation; her pick 11-16).
 - **Dropped 11-16 (her pick)**: TASK-1374 closed obsolete (no live path reads a cached key-bound failure; prod 10-23..11-16: 568 rate_limit stores, 0 short-TTL skips); split into TASK-1433 (medium, revoked z.ai key retried per image) and TASK-1434 (low, dead writes + test-only default), neither in this train.
 - **Explicitly NOT in**: TASK-1411 (close-the-train enforcement — tooling, its own PR) · TASK-1416 (low, detection consolidation) · TASK-1415 (observable) · tooling-only highs TASK-598/1387/1389 (non-runtime, ship any time) · TASK-1039/1346/671 (owner-gated or design-sized) · caching Phase 3 (doc-17 reading).
+- **Before the cut**: Dependabot grouped PR #2752 (astro 7.4.4 → 7.4.11, closes alerts #201/#202) is red on `unit-tests (packages)`; fix and merge it.
 - **Deploy notes**: no migrations planned (re-check at cut). Prod acceptance for #2755: a same-model turn pair on an Anthropic-family model shows `cachedPromptTokens` ≈ prompt minus the per-turn block, with a small `cachedWriteTokens` (prod example before: 98,487 prompt / 10,365 cached / 88,118 written every turn).
 - **Cut when**: every waiting-on unit is merged to develop; the release PR merge needs her explicit yes.
 - **vNext+1 sketch**: TASK-1411 enforcement · TASK-1416 · doc-17 reading → caching Phase 3.
