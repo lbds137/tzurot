@@ -39,6 +39,7 @@ import {
   PROMPT_TIMESTAMP_BRACKET_PATTERN,
   PROMPT_TIMESTAMP_BRACKET_SOURCE,
 } from './promptTimestampShapes.js';
+import { fenceMarkerOf, nextFenceState, type FenceMarker } from './markdownFences.js';
 
 const logger = createLogger('ResponseArtifacts');
 
@@ -233,7 +234,8 @@ function buildArtifactPatterns(personalityName: string): ArtifactStep[] {
     // V-tier blocks sit in the user message, directly adjacent to the current turn — the
     // echo-probability position.
     patternStep(new RegExp(`<\\/(?:${PROMPT_TEMPLATE_ORPHAN_TAGS.join('|')})>`, 'gi')),
-    // Trailing <reactions> block: LLM mimics history metadata. ReDoS: leading `\s{0,64}` bounded (unbounded `\s*` before literal retries at every position).
+    // Trailing <reactions> block: LLM mimics history metadata. ReDoS: leading `\s{0,64}` is
+    // bounded (an unbounded `\s*` before a literal retries at every position).
     patternStep(/\s{0,64}<reactions>[\s\S]*?<\/reactions>\s*$/i),
     // Generic trailing closing tag, opener-aware — see `stripOrphanTrailingCloser`.
     stripOrphanTrailingCloser,
@@ -352,25 +354,6 @@ export function stripResponseArtifacts(content: string, personalityName: string)
 // shared `g` instance would reintroduce the hazard the builder's doc names.
 const ID_TAG_PATTERN = new RegExp(`[ \\t]{0,3}${buildHeaderIdTagPattern().source}`, 'gi');
 
-type FenceMarker = '```' | '~~~';
-
-/** The fence marker a line opens or closes with, or null for a non-fence line. */
-function fenceMarkerOf(line: string): FenceMarker | null {
-  const trimmed = line.trimStart();
-  if (trimmed.startsWith('```')) {
-    return '```';
-  }
-  return trimmed.startsWith('~~~') ? '~~~' : null;
-}
-
-/** A marker opens a fence when none is open and closes it only when it matches the opener. */
-function nextFenceState(open: FenceMarker | null, marker: FenceMarker): FenceMarker | null {
-  if (open === null) {
-    return marker;
-  }
-  return open === marker ? null : open;
-}
-
 /**
  * Cut a regurgitated OTHER-speaker turn (or several) that precedes the
  * character's own restamped header: the model repeats the triggering human
@@ -385,23 +368,48 @@ function nextFenceState(open: FenceMarker | null, marker: FenceMarker): FenceMar
  * are cut with the rest.
  *
  * Guard — the cut is skipped (content returned unchanged, `skipped: 'blank'`
- * reported) only when the text after the self header is blank. There is
- * deliberately no proportion guard: the trigger is structural (a whole-line
- * other-speaker header, then the character's own header line outside a fence),
- * and a ratio check reproduced the bug for a long echoed message followed by a
- * short reply. The echoed turn is not matched against the triggering user's
- * name either: in group channels the model may echo any recent speaker. A
- * leading other-speaker header with no later self header is not a regurgitated
- * turn and is left to the loop.
+ * reported) only when the text after the self header is blank once leading
+ * header-shaped lines are stripped, so a remainder that is only header lines
+ * (`[Bob — t3]` and nothing else) counts as blank. There is deliberately no
+ * proportion guard: the trigger is structural (a whole-line other-speaker
+ * header, then the character's own header line outside a fence), and a ratio
+ * check reproduced the bug for a long echoed message followed by a short reply.
+ * The echoed turn is not matched against the triggering user's name either: in
+ * group channels the model may echo any recent speaker. A leading other-speaker
+ * header with no later self header is not a regurgitated turn and is left to the
+ * loop.
  *
- * Fences: a line whose trimmed start is ``` or ~~~ opens a fence, and only the
- * same marker closes it; a self header inside a fence is not a cut point.
+ * Fences: a line that is at most three spaces then a run of three or more
+ * backticks or tildes opens a fence, with or without an info string (four spaces
+ * or a leading tab make it indented code, not a fence). A backtick run whose
+ * remainder holds a backtick is not a fence line, so an inline span at a line
+ * start is text. An open fence closes only on a BARE line (nothing but whitespace
+ * after the run) of the same character in a run at least as long as its opener: a
+ * four-backtick fence holds a three-backtick line as content, and a fence line
+ * with an info string (```` ```ts ````) inside a fence is content. A self header
+ * inside a fence is not a cut point.
  *
- * Residual: `leadingSelfHeaderLineMatcher` matches the name as a prefix followed
- * by a space, so a leading header from a speaker whose name starts with the
- * character's name plus a space (character `Anna`, speaker `Anna Belle`) counts
- * as self. The cut then does not fire and the leading-header loop runs instead,
- * which fails safe.
+ * Residuals:
+ * - Indented code blocks are not fences: a self header indented as code is still a
+ *   cut point. Pinned by 'a self header indented four spaces (an indented code block)
+ *   after an echoed turn is still a cut point' in responseArtifacts.test.ts.
+ * - `leadingSelfHeaderLineMatcher` matches the name as a prefix followed by a
+ *   space, so a leading header from a speaker whose name starts with the
+ *   character's name plus a space (character `Anna`, speaker `Anna Belle`) counts
+ *   as self. The cut then does not fire: the output is what it was before the cut
+ *   existed (the leading-header loop strips the leading `Anna Belle` header only).
+ *   Pinned by 'a leading header whose name starts with the character name (Anna Belle
+ *   for Anna) is treated as self, so the cut does not fire' in responseArtifacts.test.ts.
+ * - Accepted: a model that mis-stamps its own first paragraph under another
+ *   speaker's header and then restamps its own header loses that paragraph. The
+ *   shape is unobserved; pinned by 'a model-written first paragraph under another speaker
+ *   header is cut with the echo' in responseArtifacts.test.ts.
+ *
+ * `cutText` is the removed text BEFORE the self header line (the echoed
+ * other-speaker turns, headers included); the self header line itself is
+ * excluded so a decorated self-header preamble never reaches the telemetry.
+ * `cutChars` counts the whole removal including the self header line. Cut lines
+ * count only in `regurgitatedTurnCutChars`, never in `headerLinesStripped`.
  *
  * Pinned by the 'regurgitated-turn cut' cases in responseArtifacts.test.ts and,
  * composed with the real post-processor, in responseStripSeam.test.ts.
@@ -409,7 +417,14 @@ function nextFenceState(open: FenceMarker | null, marker: FenceMarker): FenceMar
 function cutRegurgitatedLeadingTurns(
   content: string,
   personalityName: string
-): { content: string; cutChars: number; skipped?: 'blank' } {
+): {
+  content: string;
+  cutChars: number;
+  cutText?: string;
+  skipped?: 'blank';
+  /** The leading-header strip of `content` after the cut, computed by the blank guard. */
+  headerStrip?: { text: string; count: number };
+} {
   const unchanged = { content, cutChars: 0 };
   const start = content.length - content.trimStart().length;
   const fromStart = content.slice(start);
@@ -429,15 +444,131 @@ function cutRegurgitatedLeadingTurns(
       const selfHeader = selfHeaderMatcher.exec(line);
       if (selfHeader !== null) {
         const candidate = content.slice(lineStart + selfHeader[0].length);
-        if (candidate.trim().length === 0) {
+        const headerStrip = stripLeadingHeaderLines(candidate, personalityName);
+        if (headerStrip.text.trim().length === 0) {
           return { ...unchanged, skipped: 'blank' };
         }
-        return { content: candidate, cutChars: content.length - candidate.length };
+        return {
+          content: candidate,
+          cutChars: content.length - candidate.length,
+          cutText: content.slice(0, lineStart),
+          headerStrip,
+        };
       }
     }
     lineStart += line.length;
   }
   return unchanged;
+}
+
+/**
+ * Strip LEADING header-shaped lines from `text`, iteratively: stacked echoed
+ * headers count one per line. Two matchers per pass: the whole-line header shape
+ * first, then the compound case where the model prefixes decorated preamble
+ * before restamping its own header (see `leadingSelfHeaderLineMatcher`). Both
+ * increment the same count, so the compound shape shows up in the existing
+ * telemetry rather than hiding behind it. Each pass removes at least one
+ * character, so the loop terminates.
+ */
+function stripLeadingHeaderLines(
+  text: string,
+  personalityName: string
+): { text: string; count: number } {
+  let remaining = text;
+  let count = 0;
+  const matchers = [leadingHeaderLineMatcher(), leadingSelfHeaderLineMatcher(personalityName)];
+  for (;;) {
+    let matchedThisPass = false;
+    for (const matcher of matchers) {
+      const next = remaining.replace(matcher, '');
+      if (next !== remaining) {
+        remaining = next;
+        count += 1;
+        matchedThisPass = true;
+        break;
+      }
+    }
+    if (!matchedThisPass) {
+      break;
+    }
+  }
+  return { text: remaining, count };
+}
+
+/**
+ * The number of other-speaker header lines in `text` outside fenced code blocks,
+ * for the `regurgitatedTurnCutTurns` telemetry: one per other-speaker turn the cut
+ * removed. Fences are tracked with the same `fenceMarkerOf` / `nextFenceState` walk
+ * as `cutRegurgitatedLeadingTurns`, so a header quoted inside a fence is content
+ * and is not counted. A header line indented as code (4+ spaces or a tab) is still
+ * counted, matching the indented-code residual of the cut.
+ */
+function countTurnHeaderLines(cutText: string): number {
+  const headerMatcher = leadingHeaderLineMatcher();
+  let fenceMarker: FenceMarker | null = null;
+  let count = 0;
+  for (const line of cutText.split(/\r?\n/)) {
+    const marker = fenceMarkerOf(line);
+    if (marker !== null) {
+      fenceMarker = nextFenceState(fenceMarker, marker);
+    } else if (fenceMarker === null && headerMatcher.test(line)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+/**
+ * Share of the cut's distinct words that also appear in the user's message, for
+ * the `regurgitatedTurnEchoOverlap` telemetry. 1.0 means every cut word is in the
+ * user's text (a pure echo); a low value means the cut removed text the user did
+ * not write, the signal that would promote a content guard. Header-shaped lines
+ * are dropped first so a header never counts. Punctuation and symbols are word
+ * breaks, so `there,` and `there` match; combining marks (Hebrew niqqud) stay
+ * part of their word. Composed and decomposed forms of the same text (`é` as one code
+ * point or as `e` plus a combining mark) match: both sides are NFC-normalized before
+ * comparison. That makes this overlap more lenient than the echo strip it measures:
+ * the strip (`findEchoCutIndex`) compares characters as they are, so a decomposed
+ * echo the strip would not match can still score here (code-reading claim, not
+ * runtime-verified). The header filter is not fence-aware: a header quoted inside a
+ * fence is dropped from the word set, deliberately.
+ *
+ * Caveat: the overlap compares against the CURRENT user message only, so a
+ * multi-turn cut or an echo of another speaker scores low while still being an
+ * echo. Read the overlap only on single-turn cuts (`regurgitatedTurnCutTurns === 1`).
+ *
+ * Returns undefined when the cut has no words, so the telemetry field is omitted
+ * rather than reporting a 0 that reads as "no overlap". Only leading Discord mentions
+ * are stripped, so a mention later in the cut becomes a numeric word that matches only
+ * when the user message carries the same mention.
+ *
+ * @internal Exported for testing
+ */
+export function echoWordOverlap(cut: string, userMessage: string): number | undefined {
+  const headerMatcher = leadingHeaderLineMatcher();
+  const bodyText = cut
+    .split(/\r?\n/)
+    .filter(line => !headerMatcher.test(line))
+    .join('\n');
+  const wordSet = (text: string): Set<string> =>
+    new Set(
+      normalizeForEchoMatch(text.normalize('NFC'))
+        .replace(/[^\p{L}\p{M}\p{N}\s]/gu, ' ')
+        .split(/\s+/)
+        .filter(w => w.length > 0)
+    );
+  const cutWords = wordSet(bodyText);
+  if (cutWords.size === 0) {
+    return undefined;
+  }
+  const userWords = wordSet(userMessage);
+  let shared = 0;
+  for (const word of cutWords) {
+    if (userWords.has(word)) {
+      shared += 1;
+    }
+  }
+  return Math.round((shared / cutWords.size) * 100) / 100;
 }
 
 /**
@@ -451,17 +582,26 @@ function cutRegurgitatedLeadingTurns(
  * Flag-gated by the caller (`ResponsePostProcessor`), never here: flag-off the
  * model never saw a header or a tag, so these strips would be pure
  * false-positive risk.
+ *
+ * `userMessage` (optional) is used only for the `regurgitatedTurnEchoOverlap`
+ * telemetry on a fired cut; without it that field is omitted. Cut lines count
+ * only in `regurgitatedTurnCutChars`, never in `headerLinesStripped`.
+ * `regurgitatedTurnCutTurns` counts the other-speaker header lines the cut removed.
+ * The overlap caveat in `echoWordOverlap` applies: read it only where the turn count is 1.
  */
 export function stripRealMessageEchoArtifacts(
   content: string,
   telemetry: HeaderSpoofTelemetry,
-  personalityName: string
+  personalityName: string,
+  userMessage?: MessageContent
 ): string {
   // Cut a regurgitated other-speaker turn before the self header, if any.
   const {
     content: afterCut,
     cutChars: regurgitatedTurnCutChars,
+    cutText,
     skipped: regurgitatedTurnCutSkipped,
+    headerStrip,
   } = cutRegurgitatedLeadingTurns(content, personalityName);
 
   // Iterative, not single-shot: a model regurgitating several recent turns
@@ -469,35 +609,12 @@ export function stripRealMessageEchoArtifacts(
   // single-pass strip would leave the remaining stacked header lines in the
   // reply — the generic artifact pass's leading-bracket step does not take
   // a header-shaped bracket (it strips only prompt-timestamp interiors, see
-  // promptTimestampShapes.ts), so nothing downstream would catch what a
-  // single pass here missed. Pinned by the 'strips STACKED leading
-  // header-shaped lines iteratively, counting each' case in
-  // responseArtifacts.test.ts. Each pass removes at least one character, so
-  // the loop terminates.
-  //
-  // Two matchers per iteration: the whole-line header shape first, then the
-  // compound case where the model prefixes decorated preamble before
-  // restamping its own header — see `leadingSelfHeaderLineMatcher`. Both
-  // increment the same counter, so the compound shape shows up in the
-  // existing telemetry rather than hiding behind it.
-  let withoutHeader = afterCut;
-  let headerLinesStripped = 0;
-  for (;;) {
-    const matchers = [leadingHeaderLineMatcher(), leadingSelfHeaderLineMatcher(personalityName)];
-    let matchedThisPass = false;
-    for (const matcher of matchers) {
-      const next = withoutHeader.replace(matcher, '');
-      if (next !== withoutHeader) {
-        withoutHeader = next;
-        headerLinesStripped += 1;
-        matchedThisPass = true;
-        break;
-      }
-    }
-    if (!matchedThisPass) {
-      break;
-    }
-  }
+  // promptTimestampShapes.ts). The iteration lives in `stripLeadingHeaderLines`;
+  // pinned by the 'strips STACKED leading header-shaped lines iteratively,
+  // counting each' case in responseArtifacts.test.ts. When the cut fired, its
+  // blank guard already ran that strip over the same text, so reuse the result.
+  const { text: withoutHeader, count: headerLinesStripped } =
+    headerStrip ?? stripLeadingHeaderLines(afterCut, personalityName);
 
   // Deliberately NOT run through `replaceOutsideCodeMarkup`: the tag is
   // platform syntax with no legitimate use inside a character's reply,
@@ -516,14 +633,20 @@ export function stripRealMessageEchoArtifacts(
     regurgitatedTurnCutChars > 0 ||
     regurgitatedTurnCutSkipped !== undefined
   ) {
+    // Only the number is logged, never the cut text or the user message.
+    const userText = extractUserText(userMessage);
+    const regurgitatedTurnEchoOverlap =
+      cutText !== undefined && userText.length > 0 ? echoWordOverlap(cutText, userText) : undefined;
+    const regurgitatedTurnCutTurns = cutText === undefined ? 0 : countTurnHeaderLines(cutText);
     logger.warn(
       {
         channelId: telemetry.channelId,
         requestId: telemetry.requestId,
         headerLinesStripped,
         idTagsStripped,
-        ...(regurgitatedTurnCutChars > 0 && { regurgitatedTurnCutChars }),
+        ...(regurgitatedTurnCutChars > 0 && { regurgitatedTurnCutChars, regurgitatedTurnCutTurns }),
         ...(regurgitatedTurnCutSkipped !== undefined && { regurgitatedTurnCutSkipped }),
+        ...(regurgitatedTurnEchoOverlap !== undefined && { regurgitatedTurnEchoOverlap }),
       },
       'Stripped real-message platform vocabulary from model output'
     );

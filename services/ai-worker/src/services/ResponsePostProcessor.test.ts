@@ -320,10 +320,36 @@ describe('ResponsePostProcessor', () => {
           channelId: 'chan-1',
           requestId: 'req-1',
         },
-        'TestBot'
+        'TestBot',
+        undefined
       );
       expect(mockStripResponseArtifacts).toHaveBeenCalledWith('echo-cleaned', 'TestBot');
       expect(result.cleanedContent).toBe('echo-cleaned');
+    });
+
+    it('realMessagesEnabled: true — context.userMessage crosses to stripRealMessageEchoArtifacts as the 4th argument', () => {
+      const raw = 'Hello there!';
+      const userMessage = { content: 'hello there, I have a question for you' };
+      mockRemoveDuplicateResponse.mockReturnValue(raw);
+      mockExtractThinkingBlocks.mockReturnValue({ thinkingContent: null, visibleContent: raw });
+      mockStripRealMessageEchoArtifacts.mockReturnValue(raw);
+      mockStripResponseArtifacts.mockImplementation((content: string) => content);
+      mockStripUserMessageEcho.mockImplementation((content: string) => content);
+      mockReplacePromptPlaceholders.mockImplementation((content: string) => content);
+
+      processor.processResponse('raw', undefined, undefined, {
+        ...defaultContext,
+        realMessagesEnabled: true,
+        telemetry: { channelId: 'chan-1', requestId: 'req-1' },
+        userMessage,
+      });
+
+      expect(mockStripRealMessageEchoArtifacts).toHaveBeenCalledWith(
+        raw,
+        { channelId: 'chan-1', requestId: 'req-1' },
+        'TestBot',
+        userMessage
+      );
     });
 
     it('should thread context.userMessage through to stripUserMessageEcho', () => {
