@@ -55,8 +55,9 @@ export interface ModelConfig extends ConvertedLlmParams {
    * endpoint and the cache never reads. Supplying an explicit stable id
    * replaces the hash. Consumed only on the OpenRouter path (other providers
    * never build extraParams from it). Set by modelInvocation.ts to the
-   * contentDigest of the context's channel id — the HASHED value ships on the
-   * wire, never the raw Discord snowflake. In Discord a thread's messages
+   * contentDigest of the context's channel id. The digest avoids shipping the
+   * raw Discord snowflake; it is pseudonymization, not a secrecy boundary (the
+   * same channel always hashes the same). In Discord a thread's messages
    * carry the thread id as the channel id, so this is conversation-scoped in
    * both shapes.
    */

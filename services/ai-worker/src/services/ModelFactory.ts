@@ -14,11 +14,9 @@ import {
   AIProvider,
   AI_DEFAULTS,
   AI_ENDPOINTS,
-  isAnthropicFamilyModelId,
   toZaiWireModelId,
 } from '@tzurot/common-types/constants/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { isReasoningModel } from '../utils/reasoningModelUtils.js';
 import type { AdvancedParams, ThinkingLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import {
@@ -27,6 +25,8 @@ import {
   type OpenRouterExtraParams,
 } from './modelFactory/OpenRouterFetch.js';
 import { buildThinkingKwargs } from './modelFactory/thinkingTranslation.js';
+import { resolveModelName, resolveProvider } from './modelFactory/modelResolution.js';
+import { promptCacheGateFires } from './modelFactory/promptCacheGate.js';
 
 // Re-export extracted modules for backward compatibility
 export { getModelCacheKey } from './modelFactory/CacheKeyBuilder.js';
@@ -171,15 +171,6 @@ function applyZaiDirectAllowlist(
   }
 
   return { frequencyPenalty, presencePenalty };
-}
-
-/**
- * Validate and normalize model name
- */
-function validateModelName(requestedModel: string | undefined): string {
-  return requestedModel !== undefined && requestedModel.length > 0
-    ? requestedModel
-    : getSystemSetting('fallbackTextModel');
 }
 
 import type { ModelConfig, ChatModelResult } from './modelFactory/types.js';
@@ -366,11 +357,13 @@ interface SharedChatModelParams {
 /**
  * OpenRouter model ids carry the vendor prefix verbatim on the wire, so the
  * anthropic-family gate (`isAnthropicFamilyModelId`, common-types) is a plain
- * prefix test on the id — not our internal AIProvider enum. Explicit
- * per-block cache breakpoints (system, messages[1], the message before the
- * final one) go only to anthropic-family ids; the per-turn final message is
- * never marked because its volatile block (memories, facts, datetime) shrinks
- * once it becomes history.
+ * prefix test on the id — not our internal AIProvider enum. Which blocks get
+ * an explicit `cache_control` breakpoint is described once, in
+ * `attachCacheBreakpoints` (modelFactory/OpenRouterFetch.ts). OpenRouter
+ * applies `cache_control` caching only for the providers that support it,
+ * per OpenRouter's prompt-caching docs (https://openrouter.ai/docs/features/prompt-caching):
+ * Anthropic, plus the Vertex, Azure and Bedrock routes of Anthropic models.
+ * That is why the gate is family-scoped.
  */
 function buildOpenRouterModel(
   modelName: string,
@@ -390,7 +383,13 @@ function buildOpenRouterModel(
   // calls) leave `promptCaching` unset, so their mostly-unique prompts pay no
   // 1h-tier cache-write premium. The family gate stays as belt and suspenders
   // even though the flag is only set on conversation configs.
-  if (modelConfig.promptCaching === true && isAnthropicFamilyModelId(modelName)) {
+  if (
+    promptCacheGateFires({
+      provider: AIProvider.OpenRouter,
+      promptCaching: modelConfig.promptCaching,
+      modelName,
+    })
+  ) {
     extraParams.cacheControl = OPENROUTER_PROMPT_CACHE_CONTROL;
     // Same gate carries the stickiness id: OpenRouter otherwise hashes the
     // first system + first non-system message to pick a provider endpoint,
@@ -537,8 +536,8 @@ function buildZaiCodingModel(
  * dispatches.
  */
 export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult {
-  const provider = modelConfig.provider ?? config.AI_PROVIDER;
-  const modelName = validateModelName(modelConfig.modelName);
+  const provider = resolveProvider(modelConfig.provider);
+  const modelName = resolveModelName(modelConfig.modelName);
 
   const maxTokens = getEffectiveMaxTokens(modelName, modelConfig.maxTokens, modelConfig.thinking);
   const modelKwargs = buildModelKwargs(modelConfig, provider);

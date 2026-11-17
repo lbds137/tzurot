@@ -24,6 +24,8 @@ import {
 } from './RAGUtils.js';
 import { checkModelReasoningSupport } from '../redis.js';
 import { deriveCacheKeyId } from './RateLimitCache.js';
+import { promptCacheGateFires } from './modelFactory/promptCacheGate.js';
+import { resolveModelName, resolveProvider } from './modelFactory/modelResolution.js';
 import { interveningShippedText, logGeneratedResponse } from './cacheObservability.js';
 import { exclamationsPer1kChars } from './registerMetrics.js';
 import {
@@ -34,6 +36,7 @@ import {
 } from './diagnostics/DiagnosticRecorders.js';
 import type { DiagnosticCollector } from './DiagnosticCollector.js';
 import type { ModelInvocationOptions, ModelInvocationResult } from './ConversationalRAGTypes.js';
+import type { ModelConfig } from './modelFactory/types.js';
 
 // The log NAME stays 'ConversationalRAGService' although the module moved:
 // `logGeneratedResponse`'s contract is to emit through the CALLER's logger so
@@ -115,10 +118,10 @@ export async function invokeModelAndClean(
   // turns are multi-call against a shared, growing prompt, so the 1h-tier cache
   // write pays for itself. One-shot paths (vision description, system-model calls)
   // build their configs elsewhere and never set the flag, so they pay no write
-  // premium — ModelFactory injects `cache_control` only when the flag is set AND
-  // the model id is anthropic-family. The spread keeps this config a distinct
-  // object from anything a one-shot caller could build.
-  const { model, modelName, expectsRawResponse } = deps.llmInvoker.getModel({
+  // premium — ModelFactory injects `cache_control` only when
+  // `promptCacheGateFires` holds (OpenRouter, the flag, an anthropic-family id). The spread
+  // keeps this config a distinct object from anything a one-shot caller could build.
+  const modelCallConfig = {
     ...buildModelSamplingConfig({ personality, userApiKey, retryConfig, supportsReasoning }),
     promptCaching: true,
     // Conversation-scoped stickiness id for OpenRouter prompt caching
@@ -126,13 +129,17 @@ export async function invokeModelAndClean(
     // The channel id is the stable per-conversation id already in hand: in
     // Discord a thread's messages carry the thread id AS the channel id, so
     // this scopes per-thread where threads exist and per-channel otherwise.
-    // Shipped HASHED (see wireSessionId) — stable per channel, avoids sending
-    // a raw Discord snowflake upstream, keeps endpoint grouping stable across
-    // deploys. The digest only selects the provider endpoint; it never feeds
-    // sampling or prompts (see ConversationContext.requestId's doc for the
-    // sibling rule).
+    // Shipped HASHED (see wireSessionId): the digest avoids shipping the raw
+    // Discord id; it is pseudonymization, not a secrecy boundary (the same
+    // channel always hashes the same). Stable per channel, it keeps endpoint
+    // grouping stable across deploys. The session id is per CHANNEL, so it
+    // spans personalities and users in that channel on purpose: affinity only
+    // picks the provider endpoint, and prefixes stay separate per system
+    // prompt. The digest never feeds sampling or prompts (see
+    // ConversationContext.requestId's doc for the sibling rule).
     sessionId: wireSessionId(context.channelId),
-  });
+  } satisfies ModelConfig;
+  const { model, modelName, expectsRawResponse } = deps.llmInvoker.getModel(modelCallConfig);
 
   // Calculate attachment counts for timeout
   const { imageCount, audioCount } = countMediaAttachments(context.attachments);
@@ -268,6 +275,16 @@ export async function invokeModelAndClean(
     modelName,
     exclamationsPer1kChars: exclamationsPer1kChars(cleanedContent),
     completionTokens,
+    // Same inputs the factory gates on (the personality's requested model and
+    // provider, not getModel's wire id). buildModelSamplingConfig always sets
+    // `provider` (validateAIProvider never returns undefined), so resolveProvider's
+    // env fallback is for the optional type only. That holds as of validateAIProvider's
+    // current fallback to OpenRouter (utils/providerValidation.ts); no test here pins it.
+    promptCacheGate: promptCacheGateFires({
+      provider: resolveProvider(modelCallConfig.provider),
+      promptCaching: modelCallConfig.promptCaching,
+      modelName: resolveModelName(modelCallConfig.modelName),
+    }),
     systemPromptText: contentToText(systemPrompt.content),
     systemPromptSections,
     serializedHistory,
