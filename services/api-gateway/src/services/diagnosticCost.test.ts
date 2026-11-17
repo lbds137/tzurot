@@ -197,6 +197,76 @@ describe('estimateDiagnosticCost', () => {
     expect(result).toBeNull();
   });
 
+  it('returns null when the prompt price has trailing text ("0.1abc" is not a number)', async () => {
+    const cache = makeCache([makeModel({ pricing: { ...makeModel().pricing, prompt: '0.1abc' } })]);
+    const result = await estimateDiagnosticCost(
+      cache,
+      AIProvider.OpenRouter,
+      makePayload(),
+      'req-1'
+    );
+    expect(result).toBeNull();
+  });
+
+  it('resolves an exponent-form price string to its parsed value, not null', async () => {
+    const cache = makeCache([makeModel({ pricing: { ...makeModel().pricing, prompt: '1e-6' } })]);
+    const result = await estimateDiagnosticCost(
+      cache,
+      AIProvider.OpenRouter,
+      makePayload({ promptTokens: 1_000, completionTokens: 0 }),
+      'req-1'
+    );
+    expect(result).not.toBeNull();
+    expect(result?.promptPricePerMillion).toBeCloseTo(1, 9);
+    expect(result?.promptUsd).toBeCloseTo(0.001, 12);
+  });
+
+  it('treats a whitespace-only price string as unusable (null estimate, not 0)', async () => {
+    const cache = makeCache([makeModel({ pricing: { ...makeModel().pricing, prompt: '  ' } })]);
+    const result = await estimateDiagnosticCost(
+      cache,
+      AIProvider.OpenRouter,
+      makePayload(),
+      'req-1'
+    );
+    expect(result).toBeNull();
+  });
+
+  it.each(['0x1', '0b11', '0o7'])(
+    'treats the non-decimal price string %s as not a number (null estimate)',
+    async price => {
+      const cache = makeCache([
+        makeModel({ pricing: { ...makeModel().pricing, prompt: price, completion: '0' } }),
+      ]);
+      const result = await estimateDiagnosticCost(
+        cache,
+        AIProvider.OpenRouter,
+        makePayload({ promptTokens: 1_000, completionTokens: 0 }),
+        'req-1'
+      );
+      expect(result).toBeNull();
+    }
+  );
+
+  it('parses signed, leading-dot, trailing-dot, uppercase exponent and padded prices', async () => {
+    const priceFor = (prompt: string) =>
+      estimateDiagnosticCost(
+        makeCache([makeModel({ pricing: { ...makeModel().pricing, prompt, completion: '0' } })]),
+        AIProvider.OpenRouter,
+        makePayload({ promptTokens: 1_000, completionTokens: 0 }),
+        'req-1'
+      );
+    const signed = await priceFor('+0.000001');
+    const leadingDot = await priceFor('.5');
+    const trailingDot = await priceFor('1.');
+    const exponent = await priceFor('1E-6');
+    expect(signed?.promptPricePerMillion).toBeCloseTo(1, 9);
+    expect(leadingDot?.promptPricePerMillion).toBeCloseTo(500_000, 3);
+    expect(trailingDot?.promptPricePerMillion).toBeCloseTo(1_000_000, 3);
+    expect(exponent?.promptPricePerMillion).toBeCloseTo(1, 9);
+    expect((await priceFor(' 0.1 '))?.promptPricePerMillion).toBeCloseTo(100_000, 3);
+  });
+
   it('returns null when the prompt price is non-finite (Infinity)', async () => {
     const cache = makeCache([
       makeModel({ pricing: { ...makeModel().pricing, prompt: 'Infinity' } }),
@@ -549,6 +619,30 @@ describe('cache-aware pricing', () => {
     expect(resolveTierPricing(pricing, 1_000).prompt).toBe('1');
   });
 
+  it('applies a numeric-string min_prompt_tokens threshold only above it', () => {
+    const pricing = {
+      prompt: '1',
+      completion: '2',
+      overrides: [{ min_prompt_tokens: '100000', prompt: '5' }],
+    } as unknown as OpenRouterModelPricing;
+    expect(resolveTierPricing(pricing, 150_000).prompt).toBe('5');
+    expect(resolveTierPricing(pricing, 50_000).prompt).toBe('1');
+  });
+
+  it('ignores an override entry whose min_prompt_tokens is a non-numeric string', () => {
+    mockLogger.debug.mockClear();
+    const pricing = {
+      prompt: '1',
+      completion: '2',
+      overrides: [{ min_prompt_tokens: 'abc', prompt: '5' }],
+    } as unknown as OpenRouterModelPricing;
+    expect(resolveTierPricing(pricing, 150_000).prompt).toBe('1');
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      { threshold: 'abc' },
+      'Ignored pricing override with an unparseable threshold'
+    );
+  });
+
   it('ignores non-object override entries without failing the lookup', () => {
     const pricing = {
       prompt: '1',
@@ -663,6 +757,124 @@ describe('cache-aware pricing', () => {
       expect(result?.totalUsd).toBeCloseTo(1_000 * 1e-7 + 100 * 5e-7, 12);
     }
   );
+
+  it('applies a string min_prompt_tokens threshold strictly: equal to it keeps the base price', () => {
+    const pricing = {
+      prompt: '0.0000001',
+      completion: '0.0000005',
+      overrides: [{ min_prompt_tokens: '100000', prompt: '0.0000005' }],
+    } as unknown as OpenRouterModelPricing;
+    expect(resolveTierPricing(pricing, 100_000).prompt).toBe('0.0000001');
+    expect(resolveTierPricing(pricing, 100_001).prompt).toBe('0.0000005');
+  });
+
+  it('voids an override entry carrying a NaN number on a non-price key and logs the unknown condition', () => {
+    mockLogger.debug.mockClear();
+    const pricing = {
+      prompt: '1',
+      completion: '2',
+      overrides: [{ min_prompt_tokens: 100_000, prompt: '5', image: Number.NaN }],
+    } as unknown as OpenRouterModelPricing;
+    expect(resolveTierPricing(pricing, 150_000).prompt).toBe('1');
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      expect.objectContaining({ ignoredKeys: ['image'] }),
+      'Ignored pricing override with an unknown condition'
+    );
+  });
+
+  it('voids an override entry carrying an Infinity number on a non-price key', () => {
+    mockLogger.debug.mockClear();
+    const pricing = {
+      prompt: '1',
+      completion: '2',
+      overrides: [{ min_prompt_tokens: 100_000, prompt: '5', image: Number.POSITIVE_INFINITY }],
+    } as unknown as OpenRouterModelPricing;
+    expect(resolveTierPricing(pricing, 150_000).prompt).toBe('1');
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      expect.objectContaining({ ignoredKeys: ['image'] }),
+      'Ignored pricing override with an unknown condition'
+    );
+  });
+
+  it('applies the tier when a non-price key holds the string -1', () => {
+    const pricing = {
+      prompt: '1',
+      completion: '2',
+      overrides: [{ min_prompt_tokens: 100_000, prompt: '5', image: '-1' }],
+    } as unknown as OpenRouterModelPricing;
+    expect(resolveTierPricing(pricing, 150_000).prompt).toBe('5');
+  });
+
+  it('emits no unparseable-threshold line for an entry without min_prompt_tokens', () => {
+    mockLogger.debug.mockClear();
+    const pricing = {
+      prompt: '1',
+      completion: '2',
+      overrides: [{ prompt: '5' }],
+    } as unknown as OpenRouterModelPricing;
+    expect(resolveTierPricing(pricing, 150_000).prompt).toBe('1');
+    expect(mockLogger.debug).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'Ignored pricing override with an unparseable threshold'
+    );
+  });
+
+  it('ignores a null min_prompt_tokens threshold, keeps the base price, and logs it as unparseable', async () => {
+    mockLogger.debug.mockClear();
+    const result = await estimate(
+      'openai/some-model',
+      {
+        prompt: '0.000001',
+        completion: '0.000002',
+        overrides: [{ min_prompt_tokens: null, prompt: '0.000005' }],
+      } as unknown as OpenRouterModelPricing,
+      { promptTokens: 150_000, completionTokens: 10 }
+    );
+    expect(result?.promptPricePerMillion).toBeCloseTo(1, 9);
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      { threshold: null },
+      'Ignored pricing override with an unparseable threshold'
+    );
+  });
+
+  it.each([-1, '-1'])(
+    'ignores a negative min_prompt_tokens threshold (%j) at 150000 tokens and logs it',
+    async threshold => {
+      mockLogger.debug.mockClear();
+      const result = await estimate(
+        'openai/some-model',
+        {
+          prompt: '0.000001',
+          completion: '0.000002',
+          overrides: [{ min_prompt_tokens: threshold, prompt: '0.000005' }],
+        } as unknown as OpenRouterModelPricing,
+        { promptTokens: 150_000, completionTokens: 10 }
+      );
+      expect(result?.promptPricePerMillion).toBeCloseTo(1, 9);
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        { threshold },
+        'Ignored pricing override with an unparseable threshold'
+      );
+    }
+  );
+
+  it('ignores a hex min_prompt_tokens threshold, keeps the base price, and logs it', async () => {
+    mockLogger.debug.mockClear();
+    const result = await estimate(
+      'openai/some-model',
+      {
+        prompt: '0.000001',
+        completion: '0.000002',
+        overrides: [{ min_prompt_tokens: '0x10', prompt: '0.000005' }],
+      } as unknown as OpenRouterModelPricing,
+      { promptTokens: 150_000, completionTokens: 10 }
+    );
+    expect(result?.promptPricePerMillion).toBeCloseTo(1, 9);
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      { threshold: '0x10' },
+      'Ignored pricing override with an unparseable threshold'
+    );
+  });
 });
 
 describe('cache-aware pricing edge cases', () => {
