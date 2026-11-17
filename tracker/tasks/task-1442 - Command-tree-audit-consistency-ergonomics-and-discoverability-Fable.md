@@ -1,9 +1,10 @@
 ---
 id: TASK-1442
 title: 'Command-tree audit: consistency, ergonomics and discoverability (Fable)'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17T20:29:00Z'
+updated_date: '2026-11-17T20:38:00Z'
 labels:
   - area:bot-client
   - size:M
@@ -22,7 +23,9 @@ What: a Fable 5.2 audit of the command tree (docs/commands.md and services/bot-c
 
 Addendum (Lila 11-17): reorganizing which settings sit on which page is in scope; for settings that are user-overridable, the UX patterns (grouping, order, labels, landing view) should match the admin dashboard as closely as possible — admin has more entries only because not everything is overridable.
 
-Round 1 report: docs/local/command-tree-audit.md (gitignored). Round 2 (page-by-page comparison vs admin) pending.
+Round 1 report: docs/local/command-tree-audit.md (gitignored). Round 2 (page-by-page comparison vs admin) done: dashboards already share admin's pages via buildCascadePages; no setting moves pages.
+
+Dispositions (Lila 11-17): text, cross-link and display fixes plus /voice replies -> TASK-1443, after beta.246. Command-shape unification and option renames (findings 8, 12): ruled out for now by her pick (renames break users' habits); reopen only on her ask. Unified per-character effective-values card (L): deferred, promote if TASK-1443's links prove insufficient.
 
 Acceptance: the findings report exists, every recommendation has a disposition, and the user-facing calls go to Lila.
 <!-- SECTION:DESCRIPTION:END -->
