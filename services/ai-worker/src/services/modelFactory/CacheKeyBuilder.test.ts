@@ -7,7 +7,7 @@
  * Moved from ModelFactory.test.ts to colocate with the extracted module.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock @tzurot/common-types
 vi.mock('@tzurot/common-types/config/config', async () => {
@@ -61,6 +61,10 @@ describe('getModelCacheKey', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    resetSystemSettingsRegistration();
   });
 
   it('should include all parameters in cache key', () => {
@@ -162,34 +166,90 @@ describe('getModelCacheKey', () => {
     expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
   });
 
-  it('should differentiate by promptCaching', () => {
+  it('should differentiate by promptCaching when the caching gate fires', () => {
     // Two configs differing ONLY in the caching flag must not share a cached
-    // model instance: the flag drives cache_control injection, so the shared
-    // instance would silently attach (or drop) it for the other caller.
-    const config1: ModelConfig = { modelName: 'model-1' };
-    const config2: ModelConfig = { modelName: 'model-1', promptCaching: true };
+    // model instance: on an anthropic OpenRouter model the flag drives
+    // cache_control injection, so the shared instance would silently attach
+    // (or drop) it for the other caller.
+    const config1: ModelConfig = { modelName: 'anthropic/claude-sonnet-4' };
+    const config2: ModelConfig = { modelName: 'anthropic/claude-sonnet-4', promptCaching: true };
 
     expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
+  });
+
+  it('keys a non-anthropic model identically whatever its promptCaching flag', () => {
+    // The factory reads promptCaching only through the gate, so off-gate the
+    // flag changes nothing: a GLM conversation call and a one-shot GLM call
+    // with the same params share one cached instance.
+    const base: ModelConfig = { modelName: 'z-ai/glm-5.3' };
+
+    expect(getModelCacheKey({ ...base, promptCaching: true })).toBe(getModelCacheKey(base));
   });
 
   it('should generate the same key for configs whose promptCaching flag matches', () => {
     // Control for the flag test above: same-flag configs (the shape every
-    // conversation caller builds) still share one cached instance.
-    const config1: ModelConfig = { modelName: 'model-1', promptCaching: true };
-    const config2: ModelConfig = { modelName: 'model-1', promptCaching: true };
+    // conversation caller builds) still share one cached instance. Uses an
+    // anthropic id on OpenRouter with no sessionId, so the gate fires and the
+    // key is the same-key twin of the gate-fired sessionId differ case.
+    const config1: ModelConfig = { modelName: 'anthropic/claude-sonnet-4', promptCaching: true };
+    const config2: ModelConfig = { modelName: 'anthropic/claude-sonnet-4', promptCaching: true };
 
     expect(getModelCacheKey(config1)).toBe(getModelCacheKey(config2));
   });
 
-  it('should differentiate by sessionId', () => {
+  it('should differentiate by sessionId when the caching gate fires', () => {
     // The stickiness id is baked into the instance's fetch closure at
     // construction (ModelFactory → extraParams.sessionId → createOpenRouterFetch),
     // so two conversations differing only in sessionId must not share a cached
     // instance — the second would send the first conversation's id upstream.
-    const config1: ModelConfig = { modelName: 'model-1', promptCaching: true, sessionId: 'chan-1' };
-    const config2: ModelConfig = { modelName: 'model-1', promptCaching: true, sessionId: 'chan-2' };
+    const base: ModelConfig = { modelName: 'anthropic/claude-sonnet-4', promptCaching: true };
 
-    expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
+    expect(getModelCacheKey({ ...base, sessionId: 'a' })).not.toBe(
+      getModelCacheKey({ ...base, sessionId: 'b' })
+    );
+  });
+
+  it('keys a non-anthropic model identically whatever its sessionId', () => {
+    const base: ModelConfig = { modelName: 'z-ai/glm-5.3', promptCaching: true };
+    const key = getModelCacheKey(base);
+
+    expect(getModelCacheKey({ ...base, sessionId: 'a' })).toBe(key);
+    expect(getModelCacheKey({ ...base, sessionId: 'b' })).toBe(key);
+  });
+
+  it('keys an anthropic model identically across sessionIds when promptCaching is unset', () => {
+    const base: ModelConfig = { modelName: 'anthropic/claude-sonnet-4' };
+    const key = getModelCacheKey(base);
+
+    expect(getModelCacheKey({ ...base, sessionId: 'a' })).toBe(key);
+    expect(getModelCacheKey({ ...base, sessionId: 'b' })).toBe(key);
+  });
+
+  it('keys an anthropic model identically across sessionIds on a non-OpenRouter provider', () => {
+    // The caching gate requires the OpenRouter provider (promptCacheGateFires),
+    // so an anthropic id with promptCaching on zai-coding does not split by sessionId.
+    const base: ModelConfig = {
+      modelName: 'anthropic/claude-sonnet-4',
+      promptCaching: true,
+      provider: AIProvider.ZaiCoding,
+    };
+    const key = getModelCacheKey(base);
+
+    expect(getModelCacheKey({ ...base, sessionId: 'a' })).toBe(key);
+    expect(getModelCacheKey({ ...base, sessionId: 'b' })).toBe(key);
+  });
+
+  it('gates an empty modelName on the fallback setting, so sessionId still splits the key', () => {
+    // The factory resolves '' to fallbackTextModel; the key must gate on that
+    // same id, or an anthropic fallback would share one instance across channels.
+    registerSystemSettings({
+      get: (key: string) => (key === 'fallbackTextModel' ? 'anthropic/claude-sonnet-4' : undefined),
+    } as unknown as SystemSettingsService);
+    const base: ModelConfig = { modelName: '', promptCaching: true };
+
+    expect(getModelCacheKey({ ...base, sessionId: 'a' })).not.toBe(
+      getModelCacheKey({ ...base, sessionId: 'b' })
+    );
   });
 
   it('should generate the same key for an undefined sessionId and an absent one', () => {

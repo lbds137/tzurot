@@ -87,17 +87,18 @@ export const OPENROUTER_PROMPT_CACHE_CONTROL = {
  * The FINAL message is never marked: it carries the per-turn volatile block
  * (memories, facts, datetime), which shrinks once it becomes history, so a
  * cache write there is never read back. For that reason no root-level
- * `cache_control` is sent either — OpenRouter's automatic mode places its
- * breakpoint at the end of the request, i.e. on that final message. Observed
- * in a probe against OpenRouter (not pinned by a test): with these marks,
- * later turns read the prefix through the previous turn's `[length - 2]` mark,
- * including when 25 and 60 messages arrived between the two turns; the
- * root-directive shape rewrote the request every turn. Anthropic documents a
- * lookback of roughly 20 blocks before each breakpoint — if busy-channel
- * cache hit ratios drop, check that limit first. The TTL rides on each
- * block's own copy of the directive. At most three blocks are marked, under
- * Anthropic's max of 4. Returns the number of blocks marked (0 on every early
- * return).
+ * `cache_control` is sent either. OpenRouter's prompt-caching docs
+ * (https://openrouter.ai/docs/features/prompt-caching) describe its automatic
+ * mode as placing the breakpoint at the end of the request, i.e. on that final
+ * message. Observed in a probe against OpenRouter (not pinned by a test): with
+ * these marks, later turns read the prefix through the previous turn's
+ * `[length - 2]` mark, including when 25 and 60 messages arrived between the
+ * two turns; the root-directive shape rewrote the request every turn.
+ * Anthropic documents a lookback of roughly 20 blocks before each breakpoint —
+ * if busy-channel cache hit ratios drop, check that limit first. The TTL rides
+ * on each block's own copy of the directive. At most three blocks are marked,
+ * under Anthropic's max of 4. Returns the number of blocks marked (0 on every
+ * early return).
  *
  * Role-guarded: nothing is marked unless `messages[0]` is a `system` or
  * `developer` message. A `promptCaching` caller with no system prompt would
@@ -106,9 +107,11 @@ export const OPENROUTER_PROMPT_CACHE_CONTROL = {
  * Per target (`markMessageBlock`): string content becomes a one-block text
  * array carrying the breakpoint; array content gets it on its LAST text
  * block (Anthropic caches the longest prefix ending at the marked block). A
- * target with no text block, non-string/non-array content, or an empty text
- * (Anthropic rejects `cache_control` on an empty text block) is skipped while
- * the other targets are still marked. Pinned by `OpenRouterFetch.test.ts`
+ * target with no text block, non-string/non-array content, or an empty text is
+ * skipped while the other targets are still marked. The empty-text skip exists
+ * because an empty string would otherwise be wrapped into a new, empty text
+ * block that caches nothing (Anthropic's API also refuses empty text blocks;
+ * not probed here). Pinned by `OpenRouterFetch.test.ts`
  * § "explicit cache breakpoints + session id".
  */
 function attachCacheBreakpoints(

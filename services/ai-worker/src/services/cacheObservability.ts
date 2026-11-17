@@ -303,6 +303,14 @@ export interface GeneratedResponseLogInputs extends CacheObservabilityInputs {
   exclamationsPer1kChars: number;
   /** Provider-reported completion (output) token count for this generation. */
   completionTokens: number | undefined;
+  /**
+   * True when the ModelFactory caching gate fired for this call
+   * (`promptCacheGateFires`: OpenRouter provider, `promptCaching`, and an
+   * anthropic-family id). Read beside `cachedPromptTokens`: true with a zero
+   * or low cache read is "gate fired, cache still missed"; false is "gate did
+   * not fire", so no cache was ever requested.
+   */
+  promptCacheGate: boolean;
 }
 
 /**
@@ -319,6 +327,7 @@ export function logGeneratedResponse(logger: Logger, inputs: GeneratedResponseLo
     modelName,
     exclamationsPer1kChars,
     completionTokens,
+    promptCacheGate,
     ...observability
   } = inputs;
   logger.info(
@@ -328,6 +337,7 @@ export function logGeneratedResponse(logger: Logger, inputs: GeneratedResponseLo
       completionTokens,
       personalityName,
       modelName,
+      promptCacheGate,
       promptTokens: observability.inputTokens,
       cachedPromptTokens: observability.cacheReadTokens,
       cachedWriteTokens: observability.cacheWriteTokens,

@@ -119,6 +119,23 @@ describe('TTLCache', () => {
       // Note: LRU tracks access for eviction, but TTL is from set time
       expect(cache.get('key1')).toBeNull(); // Expired after 6 seconds total
     });
+
+    it('reads expiry from the injected clock, not the fake timers', () => {
+      // Non-zero base: lru-cache treats a start of 0 as unset. The clock moves
+      // without the timers; each move is followed by a 1 ms timer advance so
+      // lru-cache's cached reading (its ttlResolution timer) refreshes.
+      let clock = 10_000;
+      const cache = new TTLCache<string>({ ttl: 5000, now: () => clock });
+      cache.set('key1', 'value1');
+
+      clock = 14_000; // 4 s after set, still within TTL
+      vi.advanceTimersByTime(1);
+      expect(cache.get('key1')).toBe('value1');
+
+      clock = 16_000; // 6 s after set, past TTL
+      vi.advanceTimersByTime(1);
+      expect(cache.get('key1')).toBeNull();
+    });
   });
 
   describe('LRU eviction', () => {

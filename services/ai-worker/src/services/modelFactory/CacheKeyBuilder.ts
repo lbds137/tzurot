@@ -5,11 +5,9 @@
  * to ensure correct behavior for each user's configuration.
  */
 
-import { getConfig } from '@tzurot/common-types/config/config';
 import type { ModelConfig } from './types.js';
-import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
-
-const config = getConfig();
+import { resolveModelName, resolveProvider } from './modelResolution.js';
+import { promptCacheGateFires } from './promptCacheGate.js';
 
 /** Serialize a value for cache key, using '-' for undefined/null */
 function cacheVal<T>(value: T | undefined | null, defaultVal?: T): string {
@@ -33,10 +31,16 @@ export function getModelCacheKey(modelConfig: ModelConfig): string {
   // requests routed to different providers (e.g. zai-coding vs openrouter)
   // for the same model name don't share a cached ChatOpenAI instance with
   // the wrong baseURL.
-  const provider = modelConfig.provider ?? config.AI_PROVIDER;
+  const provider = resolveProvider(modelConfig.provider);
 
-  // Resolve model name with fallback chain
-  const modelName = modelConfig.modelName ?? (getSystemSetting('fallbackTextModel') || 'default');
+  // Same resolution the factory uses, so the caching gate below sees the id
+  // the factory gates on (an empty modelName resolves to the fallback setting).
+  const modelName = resolveModelName(modelConfig.modelName);
+  const cachingGateFires = promptCacheGateFires({
+    provider,
+    promptCaching: modelConfig.promptCaching,
+    modelName,
+  });
 
   // Use API key prefix for cache isolation (different keys = different instances)
   const apiKey = modelConfig.apiKey;
@@ -62,16 +66,17 @@ export function getModelCacheKey(modelConfig: ModelConfig): string {
     // Thinking - the canonical level drives the reasoning param in modelKwargs
     cacheVal(modelConfig.thinking),
     cacheVal(modelConfig.supportsReasoning),
-    // Prompt caching - the conversation opt-in that drives cache_control
-    // injection; a different flag value must get a different instance
-    cacheVal(modelConfig.promptCaching),
+    // Prompt caching - the gate result, not the raw flag: the factory reads
+    // promptCaching only through promptCacheGateFires, so the flag changes the
+    // instance only when the gate fires. A GLM conversation call and a one-shot
+    // GLM call with the same params share one instance.
+    cacheVal(cachingGateFires),
     // Per-conversation stickiness id (OpenRouter `session_id`): ModelFactory
-    // bakes it into the instance's fetch closure at construction, so a cached
-    // instance built for one conversation would send ITS sessionId for every
-    // later conversation sharing the key — each sessionId must get its own
-    // instance. cacheVal(undefined) → '-', so configs without a sessionId
-    // (one-shot paths) keep today's key shape.
-    cacheVal(modelConfig.sessionId),
+    // bakes it into the instance's fetch closure only when
+    // promptCacheGateFires is true, so only then must each sessionId get its
+    // own instance. Elsewhere the row stays '-' and a GLM/Gemini/GPT
+    // conversation shares one instance across channels.
+    cacheVal(cachingGateFires ? modelConfig.sessionId : undefined),
     // OpenRouter
     cacheArr(modelConfig.transforms),
     cacheVal(modelConfig.route),
