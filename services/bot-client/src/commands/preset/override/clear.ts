@@ -25,11 +25,12 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
   const userId = context.user.id;
   const options = presetOverrideClearOptions(context.interaction);
   const personalityId = options.character();
-  // No slot → clear BOTH slots (`all`); an explicit slot clears just that one.
-  // A vision override is a separate FK from the text override, so a no-slot
-  // clear has to target both or it silently leaves the other in place.
+  // No slot, or the explicit `both` choice → clear BOTH slots (`all`); an
+  // explicit text|vision clears just that one. A vision override is a separate
+  // FK from the text override, so a no-slot clear has to target both or it
+  // silently leaves the other in place.
   const slotOption = options.slot();
-  const slot = slotOption !== null ? toModelSlot(slotOption) : 'all';
+  const slot = slotOption === null || slotOption === 'both' ? 'all' : toModelSlot(slotOption);
 
   if (isAutocompleteErrorSentinel(personalityId)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });

@@ -13,7 +13,7 @@
 
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { hasActiveChatCapableKey } from '@tzurot/common-types/constants/ai';
+import { hasActiveChatCapableKey, type ModelSlot } from '@tzurot/common-types/constants/ai';
 import {
   type ModelOverrideSummary,
   type UserDefaultConfig,
@@ -51,6 +51,29 @@ import type { RouteDeps } from '../routeDeps.js';
 import { pruneEmptyPersonalityConfig } from './pruneEmptyPersonalityConfig.js';
 
 const logger = createLogger('user-model-override');
+
+/**
+ * Maps the requested slot to the FK columns a set writes: `both` pins the text
+ * AND vision columns, `vision` only the vision column, `text` only the text one.
+ * The column names are parameters because the override row and the user-default
+ * row name them differently.
+ *
+ * Exported for direct unit testing of the column mapping.
+ */
+export function slotFkData<K extends string>(
+  slot: ModelSlot | 'both',
+  configId: string,
+  columns: { text: K; vision: K }
+): Partial<Record<K, string>> {
+  // TS widens a computed key of generic type to `{ [x: string]: string }`, which
+  // does not assign to the keyed return type; the cast is confined to this helper
+  // so every call site's Prisma `data` stays cast-free and column-checked.
+  const data =
+    slot === 'both'
+      ? { [columns.text]: configId, [columns.vision]: configId }
+      : { [slot === 'vision' ? columns.vision : columns.text]: configId };
+  return data as Partial<Record<K, string>>;
+}
 
 /** GET /api/user/model-override — list all user model overrides */
 export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
@@ -114,16 +137,17 @@ export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
 
 /** PUT /api/user/model-override — set model override for a personality */
 export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
-  const { prisma, modelCache } = deps;
+  const { prisma, modelCache, llmConfigCacheInvalidation } = deps;
   const capabilities = new ModelCapabilityService(modelCache);
   return withManifestInput(
     userRoutes.setModelOverride,
     async (req: ProvisionedRequest, res: Response, { query }) => {
       const discordUserId = req.userId;
 
-      // The slot (chat vs vision) is the request's choice, not a config property;
-      // `?slot=` defaults to text. The vision slot is capability-gated below.
-      const slot = parseModelSlotQuery(res, query);
+      // The slot (chat vs vision, or the `both` request alias pinning both slots
+      // in one call) is the request's choice, not a config property; `?slot=`
+      // defaults to text. The vision side is capability-gated below.
+      const slot = parseModelSlotQueryAllowBoth(res, query);
       if (slot === null) {
         return;
       }
@@ -151,12 +175,21 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
       // personality) row. The vision slot is capability-gated: its model must be
       // confirmed vision-capable (unknown/unresolvable capability → 400, fail
       // closed). With no model cache wired (local dev) an OpenRouter-only model
-      // can't be resolved and 400s here; prod always has the cache.
+      // can't be resolved and 400s here; prod always has the cache. The `both`
+      // alias runs the SAME gate FIRST and writes both FK columns in one upsert —
+      // a text-only preset refuses the whole request, never half-applies.
       const isVision = slot === 'vision';
-      if (isVision && !(await ensureVisionCapableModel(res, modelCache, llmConfig.model))) {
+      const isBoth = slot === 'both';
+      if (
+        (isVision || isBoth) &&
+        !(await ensureVisionCapableModel(res, modelCache, llmConfig.model))
+      ) {
         return;
       }
-      const fkData = isVision ? { visionConfigId: configId } : { llmConfigId: configId };
+      const fkData = slotFkData(slot, configId, {
+        text: 'llmConfigId',
+        vision: 'visionConfigId',
+      });
 
       const override = await prisma.userPersonalityConfig.upsert({
         where: {
@@ -178,6 +211,8 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
       // Re-resolves the vision slot's capability that ensureVisionCapableModel
       // already checked on the write-gate — harmless while resolution is a warm
       // in-memory cache hit; revisit if it ever grows a network round-trip.
+      // For `both` the summary is the text one: the config is the same on both
+      // slots, so the Chat summary describes the whole pin.
       const result = await buildOverrideSummary(
         override,
         isVision ? 'vision' : 'text',
@@ -191,9 +226,17 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
           personalityName: personality.name,
           configId,
           configName: llmConfig.name,
-          slot: isVision ? 'vision' : 'text',
+          slot,
         },
         'Set override'
+      );
+
+      await tryInvalidateCache(
+        llmConfigCacheInvalidation?.invalidateUserLlmConfig.bind(
+          llmConfigCacheInvalidation,
+          discordUserId
+        ),
+        { discordUserId }
       );
 
       sendCustomSuccess(res, { override: result }, StatusCodes.OK);
@@ -291,11 +334,10 @@ export const handleSetDefaultModelConfig = (deps: RouteDeps): RequestHandler => 
       }
       await prisma.user.update({
         where: { id: userId },
-        data: isBoth
-          ? { defaultLlmConfigId: configId, defaultVisionConfigId: configId }
-          : isVision
-            ? { defaultVisionConfigId: configId }
-            : { defaultLlmConfigId: configId },
+        data: slotFkData(slot, configId, {
+          text: 'defaultLlmConfigId',
+          vision: 'defaultVisionConfigId',
+        }),
       });
 
       const result: UserDefaultConfig = {
@@ -417,7 +459,7 @@ export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler =
 
 /** DELETE /api/user/model-override/:personalityId — remove model override for a personality */
 export const handleDeleteModelOverride = (deps: RouteDeps): RequestHandler => {
-  const { prisma } = deps;
+  const { prisma, llmConfigCacheInvalidation } = deps;
   return withManifestInput(
     userRoutes.deleteModelOverride,
     async (req: ProvisionedRequest, res: Response, { query, params }) => {
@@ -469,6 +511,14 @@ export const handleDeleteModelOverride = (deps: RouteDeps): RequestHandler => {
       logger.info(
         { discordUserId, personalityId, personalityName: override.personality.name, slot },
         'Removed override'
+      );
+
+      await tryInvalidateCache(
+        llmConfigCacheInvalidation?.invalidateUserLlmConfig.bind(
+          llmConfigCacheInvalidation,
+          discordUserId
+        ),
+        { discordUserId }
       );
 
       sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);

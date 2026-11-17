@@ -28,7 +28,6 @@ import {
 } from 'discord.js';
 import { SELECTOR_DESCRIPTION } from '@tzurot/common-types/constants/uxVocabulary';
 import {
-  CONFIG_SLOT_OPTION_CHOICES,
   CONFIG_SLOT_OPTION_CHOICES_WITH_BOTH,
   CONFIG_SLOT_OPTION_DESCRIPTION,
 } from '@tzurot/common-types/constants/ai';
@@ -452,7 +451,7 @@ export default defineCommand({
                 .setName('slot')
                 .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices(...CONFIG_SLOT_OPTION_CHOICES)
+                .addChoices(...CONFIG_SLOT_OPTION_CHOICES_WITH_BOTH)
             )
         )
         .addSubcommand(subcommand =>
@@ -471,7 +470,7 @@ export default defineCommand({
                 .setName('slot')
                 .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices(...CONFIG_SLOT_OPTION_CHOICES)
+                .addChoices(...CONFIG_SLOT_OPTION_CHOICES_WITH_BOTH)
             )
         )
     ),

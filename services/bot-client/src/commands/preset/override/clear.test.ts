@@ -132,6 +132,20 @@ describe('Preset Clear Handler', () => {
       });
     });
 
+    it('clears BOTH slots when slot=both is chosen explicitly', async () => {
+      stub.deleteModelOverride.mockResolvedValue(makeOk({ deleted: true }));
+
+      await handleClear(createMockContext('personality-123', 'both'));
+
+      // `both` is a request alias, not a gateway slot: it maps to the `all`
+      // sentinel, exactly like a no-slot clear.
+      expect(stub.deleteModelOverride).toHaveBeenCalledWith('personality-123', { slot: 'all' });
+      expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
+        '🔄 Preset Override Removed',
+        'The character will now use its default preset for all slots.'
+      );
+    });
+
     it('should show info message when no override was set (all-slot arm)', async () => {
       stub.deleteModelOverride.mockResolvedValue(makeOk({ deleted: true, wasSet: false }));
 

@@ -87,6 +87,7 @@ import {
   handleListModelOverrides,
   handleSetDefaultModelConfig,
   handleSetModelOverride,
+  slotFkData,
 } from './model-override.js';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
@@ -563,6 +564,173 @@ describe('/user/model-override routes', () => {
       );
       expect(mockPrisma.userPersonalityConfig.upsert).not.toHaveBeenCalled();
     });
+
+    it('pins BOTH slots in one upsert when ?slot=both and the model is vision-capable', async () => {
+      mockPrisma.personality.findFirst.mockResolvedValue({
+        id: '11111111-1111-4111-a111-111111111111',
+        name: 'Lilith',
+      });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'GPT-4o',
+        model: 'openai/gpt-4o',
+      });
+      mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({
+        personalityId: '11111111-1111-4111-a111-111111111111',
+        personality: { name: 'Lilith' },
+        llmConfigId: '22222222-2222-4222-a222-222222222222',
+        llmConfig: { name: 'GPT-4o', model: 'openai/gpt-4o' },
+        visionConfigId: '22222222-2222-4222-a222-222222222222',
+        visionConfig: { name: 'GPT-4o', model: 'openai/gpt-4o' },
+      });
+
+      const modelCache = {
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
+        getModelById: vi.fn(async (id: string) =>
+          id === 'openai/gpt-4o' ? { supportsVision: true } : null
+        ),
+      } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
+
+      const mockInvalidation = {
+        invalidateUserLlmConfig: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const handler = buildHandler(handleSetModelOverride, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+        modelCache,
+        llmConfigCacheInvalidation:
+          mockInvalidation as unknown as import('@tzurot/cache-invalidation').LlmConfigCacheInvalidationService,
+      });
+      const { req, res } = createMockReqRes(
+        {
+          personalityId: '11111111-1111-4111-a111-111111111111',
+          configId: '22222222-2222-4222-a222-222222222222',
+        },
+        {},
+        { slot: 'both' }
+      );
+
+      await handler(req, res);
+
+      expect(mockInvalidation.invalidateUserLlmConfig).toHaveBeenCalledWith('discord-user-123');
+      // One upsert whose create AND update carry BOTH FK columns — the both alias
+      // is a single request pinning text AND vision, not two sequential writes.
+      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            llmConfigId: '22222222-2222-4222-a222-222222222222',
+            visionConfigId: '22222222-2222-4222-a222-222222222222',
+          }),
+          update: {
+            llmConfigId: '22222222-2222-4222-a222-222222222222',
+            visionConfigId: '22222222-2222-4222-a222-222222222222',
+          },
+        })
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      // The response summary is the text one (same config on both slots).
+      expect(res.json).toHaveBeenCalledWith({
+        override: expect.objectContaining({
+          personalityId: '11111111-1111-4111-a111-111111111111',
+          configId: '22222222-2222-4222-a222-222222222222',
+          slot: 'text',
+          supportsVision: true,
+        }),
+      });
+    });
+
+    it('publishes the LLM-config cache invalidation for the Discord user after a set', async () => {
+      mockPrisma.personality.findFirst.mockResolvedValue({
+        id: '11111111-1111-4111-a111-111111111111',
+        name: 'Lilith',
+      });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'Test Config',
+        model: 'z-ai/glm-4.7',
+      });
+      mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({
+        personalityId: '11111111-1111-4111-a111-111111111111',
+        personality: { name: 'Lilith' },
+        llmConfigId: '22222222-2222-4222-a222-222222222222',
+        llmConfig: { name: 'Test Config', model: 'z-ai/glm-4.7' },
+        visionConfigId: null,
+        visionConfig: null,
+      });
+      const mockInvalidation = {
+        invalidateUserLlmConfig: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const handler = buildHandler(handleSetModelOverride, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation:
+          mockInvalidation as unknown as import('@tzurot/cache-invalidation').LlmConfigCacheInvalidationService,
+      });
+      const { req, res } = createMockReqRes({
+        personalityId: '11111111-1111-4111-a111-111111111111',
+        configId: '22222222-2222-4222-a222-222222222222',
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockInvalidation.invalidateUserLlmConfig).toHaveBeenCalledWith('discord-user-123');
+    });
+
+    it('refuses ?slot=both with a text-only model and writes NOTHING (no half-apply)', async () => {
+      mockPrisma.personality.findFirst.mockResolvedValue({
+        id: '11111111-1111-4111-a111-111111111111',
+        name: 'Lilith',
+      });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'GLM',
+        model: 'z-ai/glm-4.7',
+      });
+
+      const modelCache = {
+        supportsReasoning: vi.fn().mockResolvedValue(undefined),
+        getModelById: vi.fn(async (id: string) =>
+          id === 'z-ai/glm-4.7' ? { supportsVision: false } : null
+        ),
+      } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
+      const mockInvalidation = {
+        invalidateUserLlmConfig: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const handler = buildHandler(handleSetModelOverride, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+        modelCache,
+        llmConfigCacheInvalidation:
+          mockInvalidation as unknown as import('@tzurot/cache-invalidation').LlmConfigCacheInvalidationService,
+      });
+      const { req, res } = createMockReqRes(
+        {
+          personalityId: '11111111-1111-4111-a111-111111111111',
+          configId: '22222222-2222-4222-a222-222222222222',
+        },
+        {},
+        { slot: 'both' }
+      );
+
+      await handler(req, res);
+
+      // Nothing was written, so nothing is published either.
+      expect(mockInvalidation.invalidateUserLlmConfig).not.toHaveBeenCalled();
+      // The vision gate runs BEFORE the write: a text-only preset gets one clear
+      // refusal and neither slot is touched.
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('vision'),
+        })
+      );
+      expect(mockPrisma.userPersonalityConfig.upsert).not.toHaveBeenCalled();
+    });
   });
 
   describe('DELETE /api/user/model-override/:personalityId', () => {
@@ -595,10 +763,15 @@ describe('/user/model-override routes', () => {
 
     it('should return 200 (idempotent) when override not found', async () => {
       mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+      const mockInvalidation = {
+        invalidateUserLlmConfig: vi.fn().mockResolvedValue(undefined),
+      };
 
       const handler = buildHandler(handleDeleteModelOverride, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation:
+          mockInvalidation as unknown as import('@tzurot/cache-invalidation').LlmConfigCacheInvalidationService,
       });
       const { req, res } = createMockReqRes(
         {},
@@ -611,6 +784,8 @@ describe('/user/model-override routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ deleted: true, wasSet: false })
       );
+      // Nothing changed, so there is nothing to invalidate.
+      expect(mockInvalidation.invalidateUserLlmConfig).not.toHaveBeenCalled();
     });
 
     it('should return 200 (idempotent) when no model override is set', async () => {
@@ -619,10 +794,15 @@ describe('/user/model-override routes', () => {
         llmConfigId: null,
         personality: { name: 'Lilith' },
       });
+      const mockInvalidation = {
+        invalidateUserLlmConfig: vi.fn().mockResolvedValue(undefined),
+      };
 
       const handler = buildHandler(handleDeleteModelOverride, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation:
+          mockInvalidation as unknown as import('@tzurot/cache-invalidation').LlmConfigCacheInvalidationService,
       });
       const { req, res } = createMockReqRes(
         {},
@@ -635,6 +815,8 @@ describe('/user/model-override routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ deleted: true, wasSet: false })
       );
+      // The row exists but no slot was set: nothing changed, nothing to invalidate.
+      expect(mockInvalidation.invalidateUserLlmConfig).not.toHaveBeenCalled();
     });
 
     it('should remove override by setting llmConfigId to null', async () => {
@@ -666,6 +848,59 @@ describe('/user/model-override routes', () => {
         })
       );
     });
+
+    it.each([
+      {
+        label: 'absent (defaults to text)',
+        query: {},
+        llmConfigId: 'cfg-text',
+        visionConfigId: null,
+      },
+      {
+        label: 'all',
+        query: { slot: 'all' },
+        llmConfigId: 'cfg-text',
+        visionConfigId: 'cfg-vision',
+      },
+      { label: 'text', query: { slot: 'text' }, llmConfigId: 'cfg-text', visionConfigId: null },
+      {
+        label: 'vision',
+        query: { slot: 'vision' },
+        llmConfigId: null,
+        visionConfigId: 'cfg-vision',
+      },
+    ])(
+      'publishes the LLM-config cache invalidation for the Discord user after a removal (slot $label)',
+      async ({ query, llmConfigId, visionConfigId }) => {
+        mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue({
+          id: 'override-1',
+          llmConfigId,
+          visionConfigId,
+          personality: { name: 'Lilith' },
+        });
+        const mockInvalidation = {
+          invalidateUserLlmConfig: vi.fn().mockResolvedValue(undefined),
+        };
+
+        const handler = buildHandler(handleDeleteModelOverride, {
+          ...stubRouteResolvers(),
+          prisma: mockPrisma as unknown as PrismaClient,
+          llmConfigCacheInvalidation:
+            mockInvalidation as unknown as import('@tzurot/cache-invalidation').LlmConfigCacheInvalidationService,
+        });
+        const { req, res } = createMockReqRes(
+          {},
+          { personalityId: '11111111-1111-4111-a111-111111111111' },
+          query
+        );
+
+        await handler(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(200);
+        expect(mockPrisma.userPersonalityConfig.update).toHaveBeenCalled();
+        expect(mockInvalidation.invalidateUserLlmConfig).toHaveBeenCalledWith('discord-user-123');
+      }
+    );
   });
 
   describe('GET /api/user/model-override/default', () => {
@@ -1655,6 +1890,34 @@ describe('/user/model-override routes', () => {
         data: { llmConfigId: null, visionConfigId: null },
       });
       expect(res.status).toHaveBeenCalledWith(200);
+    });
+  });
+
+  describe('slotFkData', () => {
+    const cases = [
+      { label: 'override columns', text: 'llmConfigId', vision: 'visionConfigId' },
+      {
+        label: 'user-default columns',
+        text: 'defaultLlmConfigId',
+        vision: 'defaultVisionConfigId',
+      },
+    ] as const;
+
+    describe.each(cases)('$label', ({ text, vision }) => {
+      it('text writes exactly the text column', () => {
+        expect(slotFkData('text', 'cfg-1', { text, vision })).toEqual({ [text]: 'cfg-1' });
+      });
+
+      it('vision writes exactly the vision column', () => {
+        expect(slotFkData('vision', 'cfg-1', { text, vision })).toEqual({ [vision]: 'cfg-1' });
+      });
+
+      it('both writes exactly both columns', () => {
+        expect(slotFkData('both', 'cfg-1', { text, vision })).toEqual({
+          [text]: 'cfg-1',
+          [vision]: 'cfg-1',
+        });
+      });
     });
   });
 });
