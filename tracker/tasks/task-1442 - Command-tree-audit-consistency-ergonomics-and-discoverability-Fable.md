@@ -20,5 +20,9 @@ Why: Lila 11-17 — users struggle to find settings. Two kinds of per-user overr
 
 What: a Fable 5.2 audit of the command tree (docs/commands.md and services/bot-client/src/commands) for naming consistency, ergonomics and discoverability, with concrete recommendations. Findings land in docs/local and are turned into tasks.
 
+Addendum (Lila 11-17): reorganizing which settings sit on which page is in scope; for settings that are user-overridable, the UX patterns (grouping, order, labels, landing view) should match the admin dashboard as closely as possible — admin has more entries only because not everything is overridable.
+
+Round 1 report: docs/local/command-tree-audit.md (gitignored). Round 2 (page-by-page comparison vs admin) pending.
+
 Acceptance: the findings report exists, every recommendation has a disposition, and the user-facing calls go to Lila.
 <!-- SECTION:DESCRIPTION:END -->
