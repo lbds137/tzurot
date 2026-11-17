@@ -4,11 +4,7 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import {
-  DEFAULT_MODEL_SLOT,
-  toModelSlot,
-  MODEL_SLOT_LABELS,
-} from '@tzurot/common-types/constants/ai';
+import { toModelSlotOrBoth, MODEL_SLOT_LABELS } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { presetOverrideSetOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -32,10 +28,11 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
   const options = presetOverrideSetOptions(context.interaction);
   const personalityId = options.character();
   const configId = options.preset();
-  // The slot (text = chat default, or vision) decides which FK the override
-  // writes; the gateway capability-gates the vision slot. Without sending it a
+  // The slot (text = chat default, vision, or the `both` alias pinning both
+  // slots in one request) decides which FK(s) the override writes; the gateway
+  // capability-gates the vision side BEFORE writing. Without sending it a
   // vision override silently lands in the text slot — mirror clear, which sends it.
-  const slot = toModelSlot(options.slot() ?? DEFAULT_MODEL_SLOT);
+  const slot = toModelSlotOrBoth(options.slot());
 
   if (isAutocompleteErrorSentinel(personalityId)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
@@ -71,11 +68,17 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
 
     const data = result.data;
 
+    // `both` names both slots — the gateway pinned text AND vision in one call.
+    const slotPhrase =
+      slot === 'both'
+        ? `${MODEL_SLOT_LABELS.text} and ${MODEL_SLOT_LABELS.vision}`
+        : MODEL_SLOT_LABELS[slot];
+
     const embed = new EmbedBuilder()
       .setTitle('✅ Preset Override Set')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
-        `**${data.override.personalityName}** will now use the **${data.override.configName}** preset for ${MODEL_SLOT_LABELS[slot]} messages.`
+        `**${data.override.personalityName}** will now use the **${data.override.configName}** preset for ${slotPhrase} messages.`
       )
       .setFooter({ text: 'Use /preset override clear to remove this override' })
       .setTimestamp();

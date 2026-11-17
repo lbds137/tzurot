@@ -180,6 +180,35 @@ describe('Me Preset Set Handler', () => {
       expect(embedData.description).toContain('for Chat messages');
     });
 
+    it('sends slot:both and names BOTH slots in the confirmation', async () => {
+      stub.listWalletKeys.mockResolvedValue(
+        makeOk({ keys: [{ provider: 'openrouter', isActive: true }] })
+      );
+      stub.setModelOverride.mockResolvedValue(
+        makeOk({
+          override: {
+            personalityId: 'personality-1',
+            personalityName: 'Test Bot',
+            configId: 'both-config',
+            configName: 'Gemini Both',
+          },
+        })
+      );
+
+      await handleSet(createMockContext('personality-1', 'both-config', 'both'));
+
+      // The `both` alias must reach the gateway verbatim (one call pins text AND
+      // vision); it is not floored to the text slot.
+      expect(stub.setModelOverride).toHaveBeenCalledWith(
+        { personalityId: 'personality-1', configId: 'both-config' },
+        { slot: 'both' }
+      );
+      const embedData = (
+        mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] }
+      ).embeds[0].toJSON();
+      expect(embedData.description).toContain('for Chat and Vision messages');
+    });
+
     it('should block guest mode users from using premium models', async () => {
       stub.listWalletKeys.mockResolvedValue(makeOk({ keys: [] }));
       stub.listUserLlmConfigs.mockResolvedValue(
@@ -250,6 +279,25 @@ describe('Me Preset Set Handler', () => {
       expect(mockEditReply).toHaveBeenCalledWith({
         content: '❌ Personality not found',
       });
+    });
+
+    it('renders the failure and no success embed when slot both fails', async () => {
+      stub.listWalletKeys.mockResolvedValue(
+        makeOk({ keys: [{ provider: 'openrouter', isActive: true }] })
+      );
+      stub.setModelOverride.mockResolvedValue(makeErr(404, 'Personality not found'));
+
+      await handleSet(createMockContext('personality-1', 'config-1', 'both'));
+
+      expect(stub.setModelOverride).toHaveBeenCalledWith(
+        { personalityId: 'personality-1', configId: 'config-1' },
+        { slot: 'both' }
+      );
+      expect(mockEditReply).toHaveBeenCalledTimes(1);
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: '❌ Personality not found',
+      });
+      expect(JSON.stringify(mockEditReply.mock.calls)).not.toContain('Preset Override Set');
     });
 
     it('should handle generic errors', async () => {
