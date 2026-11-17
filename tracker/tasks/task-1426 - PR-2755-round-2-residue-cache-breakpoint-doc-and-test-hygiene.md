@@ -1,9 +1,10 @@
 ---
 id: TASK-1426
 title: 'PR 2755 round-2 residue: cache-breakpoint doc and test hygiene'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-16T20:31:00Z'
+updated_date: '2026-11-17T19:39:00Z'
 labels:
   - area:ai-worker
   - size:S
