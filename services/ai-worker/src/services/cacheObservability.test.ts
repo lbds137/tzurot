@@ -454,6 +454,7 @@ describe('buildCacheObservability', () => {
       modelName: 'test-model',
       exclamationsPer1kChars: 12.34,
       completionTokens: 57,
+      promptCacheGate: true,
       ...args,
     });
 
@@ -466,6 +467,7 @@ describe('buildCacheObservability', () => {
       modelName: 'test-model',
       exclamationsPer1kChars: 12.34,
       completionTokens: 57,
+      promptCacheGate: true,
       // The grepped pair keeps its historical names and values.
       promptTokens: 1200,
       cachedPromptTokens: 300,
@@ -489,6 +491,7 @@ describe('buildCacheObservability', () => {
       modelName: 'test-model',
       exclamationsPer1kChars: 12.34,
       completionTokens: 57,
+      promptCacheGate: true,
       ...args,
     });
 

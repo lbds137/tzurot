@@ -618,11 +618,22 @@ describe('OpenRouterFetch', () => {
       });
     });
 
-    /** Which message indices carry a cache_control block mark. */
+    /**
+     * Which message indices carry a cache_control block mark: a content block
+     * that is an object with an OWN `cache_control` property. A text that
+     * merely contains the literal string is not a mark.
+     */
     function markedIndices(parsed: Record<string, unknown>): number[] {
-      return (parsed.messages as Array<{ content: unknown }>).flatMap((message, index) =>
-        JSON.stringify(message.content).includes('cache_control') ? [index] : []
-      );
+      return (parsed.messages as unknown[]).flatMap((message, index) => {
+        const content = (message as { content?: unknown } | null)?.content;
+        const marked =
+          Array.isArray(content) &&
+          content.some(
+            block =>
+              typeof block === 'object' && block !== null && Object.hasOwn(block, 'cache_control')
+          );
+        return marked ? [index] : [];
+      });
     }
 
     const CC = { cacheControl: { type: 'ephemeral', ttl: '1h' } } as const;
@@ -846,6 +857,36 @@ describe('OpenRouterFetch', () => {
 
       expect(parsed.messages).toEqual([]);
       expect(parsed).not.toHaveProperty('cache_control');
+    });
+
+    it('a text that merely mentions cache_control is not a mark', async () => {
+      const parsed = await postAndCapture(CC, {
+        model: 'anthropic/claude-sonnet-4',
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'u1' },
+          { role: 'user', content: 'the literal cache_control here, with no mark' },
+        ],
+      });
+
+      expect(markedIndices(parsed)).toEqual([0, 1]);
+    });
+
+    it('skips a non-object entry at a target index and still marks the others', async () => {
+      const parsed = await postAndCapture(CC, {
+        model: 'anthropic/claude-sonnet-4',
+        messages: [
+          { role: 'system', content: 'sys' },
+          null,
+          { role: 'user', content: 'u1' },
+          { role: 'user', content: 'current' },
+        ],
+      });
+
+      const messages = parsed.messages as unknown[];
+      expect(markedIndices(parsed)).toEqual([0, 2]);
+      expect(messages[1]).toBeNull();
+      expect(messages[3]).toEqual({ role: 'user', content: 'current' });
     });
 
     it('sends session_id at the request root when extraParams carries it', async () => {

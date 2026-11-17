@@ -88,9 +88,6 @@ const MODEL_CACHE_MAX = 500;
  */
 const MODEL_CACHE_TTL_MS = 4 * 60 * 60 * 1000;
 
-/** Both bounds passed to the cache as one object — see the constants above. */
-const MODEL_CACHE_OPTIONS = { maxSize: MODEL_CACHE_MAX, ttl: MODEL_CACHE_TTL_MS };
-
 /**
  * Default reset timestamp for a 429 whose response didn't include a usable
  * `X-RateLimit-Reset` header. Returns `null` if the category doesn't qualify
@@ -170,10 +167,14 @@ export class LLMInvoker {
   /**
    * Memoized model instances keyed by `getModelCacheKey` — bounded by
    * {@link MODEL_CACHE_MAX} entries and {@link MODEL_CACHE_TTL_MS} expiry
-   * (a process-lifetime `Map` would grow unbounded now that the key includes
-   * the per-conversation `sessionId`).
+   * (a process-lifetime `Map` would grow unbounded now that gate-firing keys
+   * (OpenRouter, `promptCaching`, an anthropic-family id) include the
+   * per-conversation `sessionId`).
    */
-  private models = new TTLCache<ChatModelResult>(MODEL_CACHE_OPTIONS);
+  private models = new TTLCache<ChatModelResult>({
+    maxSize: MODEL_CACHE_MAX,
+    ttl: MODEL_CACHE_TTL_MS,
+  });
 
   /**
    * Get or create a chat model for a specific configuration.
@@ -184,8 +185,9 @@ export class LLMInvoker {
    */
   getModel(config: ModelConfig): ChatModelResult {
     const cacheKey = getModelCacheKey(config);
-    // Cache miss (get → null) builds and memoizes the instance; a hit returns
-    // it and refreshes its TTL (TTLCache ages entries from set time).
+    // Every call re-sets the entry. TTLCache sets `updateAgeOnGet: false`, so a
+    // plain get does not extend a hit's age; the re-set is what restarts the
+    // TTL, which keeps an instance in use alive past MODEL_CACHE_TTL_MS.
     const model = this.models.get(cacheKey) ?? createChatModel(config);
     this.models.set(cacheKey, model);
     return model;

@@ -20,6 +20,7 @@ import {
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { TimeoutError } from '@tzurot/common-types/utils/errors';
 import { generateFromInvokeMock } from '@tzurot/test-utils/invokeMockChatModel';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 
 // Hoisted before the module mocks so both the './ModelFactory.js' mock factory
 // and the sessionId-isolation regression test below reference the SAME stub
@@ -37,7 +38,7 @@ const { mockChatOpenAI, stubCreateChatModel, stubGetModelCacheKey } = vi.hoisted
       } as any,
       modelName: config?.modelName || 'openrouter/anthropic/claude-sonnet-4.5',
       expectsRawResponse: true,
-    };
+    } satisfies ChatModelResult;
   };
   const stubGetModelCacheKey = (config: {
     modelName?: string;
@@ -218,6 +219,46 @@ describe('LLMInvoker', () => {
       expect(result).toBeDefined();
       expect(result.modelName).toBe('test-model');
     });
+
+    it('restarts an entry TTL only through getModel re-setting it on a hit', () => {
+      // TTLCache sets updateAgeOnGet: false, so a plain get does not extend an
+      // entry's age; the re-set in getModel does. The clock is injected because
+      // lru-cache reads performance.now() at module load, which fake timers do
+      // not advance. lru-cache also caches the injected reading until its
+      // ttlResolution timer fires, so each clock move is followed by a 1 ms
+      // advance of the (faked) timers to let the next read sample the clock.
+      // The base is non-zero: lru-cache treats a start of 0 as "unset" and never
+      // expires such an entry.
+      vi.useFakeTimers();
+      try {
+        const TTL = 1000;
+        const T0 = 10 * TTL;
+        let clock = T0;
+        const moveClockTo = (ms: number): void => {
+          clock = ms;
+          vi.advanceTimersByTime(1);
+        };
+        const cache = new TTLCache<ChatModelResult>({ ttl: TTL, maxSize: 10, now: () => clock });
+        (invoker as unknown as { models: TTLCache<ChatModelResult> }).models = cache;
+        const configA = { modelName: 'model-a' };
+        const configB = { modelName: 'model-b' };
+
+        const firstA = invoker.getModel(configA); // built and set at T0
+        const firstB = invoker.getModel(configB); // built and set at T0, never hit again
+        expect(createChatModel).toHaveBeenCalledTimes(2);
+
+        moveClockTo(T0 + TTL - 1);
+        expect(invoker.getModel(configA)).toBe(firstA); // hit: re-set at T0+TTL-1
+
+        // A is TTL-1 past its refresh (still live); B is 2*TTL-2 past its set (expired).
+        moveClockTo(T0 + 2 * TTL - 2);
+        expect(invoker.getModel(configA)).toBe(firstA);
+        expect(invoker.getModel(configB)).not.toBe(firstB);
+        expect(createChatModel).toHaveBeenCalledTimes(3);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe('getModel — sessionId cache isolation (real ModelFactory path)', () => {
@@ -304,6 +345,60 @@ describe('LLMInvoker', () => {
         // Restore the module-mock stubs so the other suites keep their seam
         // (explicitly, rather than relying on restoreAllMocks semantics for
         // constructor-passed vi.fn implementations).
+        vi.mocked(createChatModel).mockReset();
+        vi.mocked(createChatModel).mockImplementation(stubCreateChatModel);
+        vi.mocked(getModelCacheKey).mockReset();
+        vi.mocked(getModelCacheKey).mockImplementation(stubGetModelCacheKey);
+        fetchSpy.mockRestore();
+        mockChatOpenAI.mockClear();
+      }
+    });
+
+    it('shares one instance across sessionIds when the gate is off, no session_id', async () => {
+      const actual = await vi.importActual<typeof import('./ModelFactory.js')>('./ModelFactory.js');
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      );
+
+      try {
+        vi.mocked(createChatModel).mockImplementation(actual.createChatModel);
+        vi.mocked(getModelCacheKey).mockImplementation(actual.getModelCacheKey);
+
+        // Non-anthropic id: promptCacheGateFires is false, so the sessionId must
+        // neither split the cache key nor reach the wire body.
+        const base: ModelConfig = {
+          modelName: 'z-ai/glm-5.3',
+          apiKey: 'byok-key-1234567890',
+          promptCaching: true,
+        };
+        const configA: ModelConfig = { ...base, sessionId: 'chan-A' };
+        const configB: ModelConfig = { ...base, sessionId: 'chan-B' };
+
+        const resultA: ChatModelResult = invoker.getModel(configA);
+        const resultB: ChatModelResult = invoker.getModel(configB);
+
+        expect(resultB).toBe(resultA);
+        expect(mockChatOpenAI).toHaveBeenCalledTimes(1);
+
+        const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+          configuration?: { fetch?: (url: string, init?: RequestInit) => Promise<Response> };
+        };
+        const fetchFn = callArgs?.configuration?.fetch;
+        expect(fetchFn).toBeInstanceOf(Function);
+        await fetchFn!('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          body: JSON.stringify({
+            model: 'z-ai/glm-5.3',
+            messages: [{ role: 'system', content: 'sys' }],
+          }),
+        });
+        const init = fetchSpy.mock.calls[0]?.[1] as RequestInit;
+        const parsed = JSON.parse(init.body as string) as Record<string, unknown>;
+        expect(parsed).not.toHaveProperty('session_id');
+      } finally {
         vi.mocked(createChatModel).mockReset();
         vi.mocked(createChatModel).mockImplementation(stubCreateChatModel);
         vi.mocked(getModelCacheKey).mockReset();

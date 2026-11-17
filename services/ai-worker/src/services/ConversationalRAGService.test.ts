@@ -2579,5 +2579,44 @@ describe('ConversationalRAGService', () => {
       expect(logged).not.toHaveProperty('secondsSinceLastChannelGeneration');
       expect(logged).not.toHaveProperty('cacheHitRatio');
     });
+
+    it('sets promptCacheGate true when the personality model is anthropic-family', async () => {
+      // The gate reads the personality's requested model, not getModel's wire
+      // id: the default getModel mock returns 'test-model', so a gate fed the
+      // wire name would read false here.
+      primeBudget(`${ENTRY_OLD}\n${ENTRY_NEW}`);
+
+      await service.generateResponse(
+        createMockPersonality({ model: 'anthropic/claude-sonnet-4' }),
+        'Test message',
+        createMockContext()
+      );
+
+      expect(generatedResponseLog()?.promptCacheGate).toBe(true);
+    });
+
+    it('sets promptCacheGate false when the resolved model is not anthropic-family', async () => {
+      primeBudget(`${ENTRY_OLD}\n${ENTRY_NEW}`);
+
+      await service.generateResponse(createMockPersonality(), 'Test message', createMockContext());
+
+      // The mock's default model is 'test-model' — outside the anthropic/ family.
+      expect(generatedResponseLog()?.promptCacheGate).toBe(false);
+    });
+
+    it('sets promptCacheGate false on zai-coding even for an anthropic-family id', async () => {
+      primeBudget(`${ENTRY_OLD}\n${ENTRY_NEW}`);
+
+      await service.generateResponse(
+        createMockPersonality({
+          provider: AIProvider.ZaiCoding,
+          model: 'anthropic/claude-sonnet-4',
+        }),
+        'Test message',
+        createMockContext()
+      );
+
+      expect(generatedResponseLog()?.promptCacheGate).toBe(false);
+    });
   });
 });
