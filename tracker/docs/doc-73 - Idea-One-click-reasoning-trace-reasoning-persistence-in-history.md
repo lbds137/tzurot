@@ -28,7 +28,7 @@ Three parts, filed together because they share the reasoning-trace surface:
    check (reasoning may reference other channel members' messages), and
    sync-table impact (conversation history is ephemeral/not synced — verify).
 
-3. **The /inspect diagnostic window** (`llm_diagnostic_logs`, currently 24h
+3. **The /inspect diagnostic window** (`llm_diagnostic_logs`, currently 7 days
    cleanup in CleanupDiagnosticLogs): owner floated widening to ~7d, decision
    deliberately open ("idk"). If part 2 ships, the trace itself no longer
    needs /inspect's window — /inspect stays the deep-diagnostic surface
@@ -117,7 +117,7 @@ this command is pure routing.
 ### Part 3 decision — keep the /inspect window at 24h
 
 Once part 2 ships, the trace outlives /inspect on its own row, so the only
-things the 24h window still bounds are the deep diagnostics (prompt assembly,
+things the 7-day window still bounds are the deep diagnostics (prompt assembly,
 timings, token budget) — triage material that goes stale in hours anyway.
 Widening to 7d would 25× a mostly-prompt payload store to make durable a thing
 part 2 already made durable. **Closed: no widening.**
@@ -155,7 +155,7 @@ design keeps its value for the tail.
 ### PR split
 
 - **PR 1 (size S)** — the context-menu command per the part-1 spec. Ships
-  alone; useful from day one against the 24h diagnostic window.
+  alone; useful from day one against the 7-day diagnostic window.
 - **PR 2 (size M)** — persistence: additive migration (nullable
   `thinking_content` + null-semantics doc comment; build session loads
   `/tzurot-db-vector` for the migration procedure), internal-endpoint schema +
