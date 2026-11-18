@@ -159,7 +159,7 @@ export class PersonalityChatManager {
       extendedContext: extendedContextSettings,
       botUserId,
     });
-    const { context, personaId, messageContent } = buildResult;
+    const { context, personaId, messageContent, triggerMessage, triggerEmbedsXml } = buildResult;
 
     // References are NOT persisted bot-client-side: the worker re-derives them
     // from `rawReferencedMessages` in the envelope. (The previous
@@ -175,11 +175,12 @@ export class PersonalityChatManager {
     // "something's slow, try again" dead-end the user otherwise hits).
     try {
       await this.persistence.saveUserMessage({
-        message,
+        message: triggerMessage,
         personality,
         personaId,
         messageContent,
         attachments: context.attachments,
+        embedsXml: triggerEmbedsXml,
       });
     } catch (err) {
       logger.error(

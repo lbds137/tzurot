@@ -405,6 +405,36 @@ describe('ConversationPersistence', () => {
       );
     });
 
+    it('uses the pre-parsed embedsXml from the caller without calling buildMessageContent again', async () => {
+      const { buildMessageContent } = await import('../utils/MessageContentBuilder.js');
+      vi.mocked(buildMessageContent).mockClear();
+
+      const builderEmbedsXml = ['<embed>\n<title>From Builder</title>\n</embed>'];
+      const mockMessage = createMockMessage({
+        id: 'discord-msg-preparsed-embed',
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+        embeds: [{ data: { title: 'From Builder' } }],
+      });
+
+      await persistence.saveUserMessage({
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        messageContent: 'https://x.com/post',
+        embedsXml: builderEmbedsXml,
+      });
+
+      expect(buildMessageContent).not.toHaveBeenCalled();
+      expect(persistUserMessageViaGateway).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messageMetadata: { embedsXml: builderEmbedsXml },
+        })
+      );
+      const persistCall = vi.mocked(persistUserMessageViaGateway).mock.calls[0][0];
+      expect(persistCall.messageMetadata?.embedsXml).toBe(builderEmbedsXml);
+    });
+
     it('should not call buildMessageContent for messages without embeds', async () => {
       const { buildMessageContent } = await import('../utils/MessageContentBuilder.js');
       vi.mocked(buildMessageContent).mockClear();

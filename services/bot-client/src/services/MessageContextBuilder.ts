@@ -58,6 +58,16 @@ interface ContextBuildResult {
   personaName: string | null;
   /** Message content with Discord links replaced by [Reference N] */
   messageContent: string;
+  /**
+   * The trigger message to persist; the refetched one when extraction ran,
+   * otherwise the original.
+   */
+  triggerMessage: Message;
+  /**
+   * Embed XML extracted from the trigger message, present whenever the single
+   * `buildMessageContent` call produced any (including weigh-in).
+   */
+  triggerEmbedsXml?: string[];
 }
 
 /** Result of fetching extended context from Discord */
@@ -354,13 +364,18 @@ export class MessageContextBuilder {
     // Include messageMetadata so referenced messages can be formatted at prompt time
     // tokenCount rides along but no longer drives any budget decision — the worker
     // measures the rendered entry (measureHistoryEntryTokens); see the field's own doc
-    // Extract attachments using unified buildMessageContent
-    // This ensures forwarded message snapshot attachments are included (DRY principle)
-    // Voice transcripts are handled upstream (passed in via content parameter)
-    const { attachments: allAttachments } = await buildMessageContent(message, {
-      includeEmbeds: false, // Embeds parsed by reference extraction, not needed here
-      includeAttachments: false, // We only need attachment metadata, not text descriptions
-    });
+    // Extract attachments (including embed preview images and forwarded snapshot
+    // attachments) and embed XML in a single pass on the trigger message (the
+    // refetched one when reference extraction ran, otherwise the original).
+    // Voice transcripts are handled upstream (passed in via content parameter).
+    const triggerMessage = refsAndMentions.refreshedMessage ?? message;
+    const { attachments: allAttachments, embedsXml: triggerEmbedsXml } = await buildMessageContent(
+      triggerMessage,
+      {
+        includeEmbeds: true, // Parse trigger embeds once for both the envelope and persistence
+        includeAttachments: false, // We only need attachment metadata, not text descriptions
+      }
+    );
 
     // Raw-envelope assembly inputs: the Discord-origin source the worker's
     // ContextAssembler re-derives the whole message context from. Always built.
@@ -370,6 +385,12 @@ export class MessageContextBuilder {
       rawMentionedRoles: refsAndMentions.rawMentionedRoles,
       rawAuthorDisplayName: displayName,
       rawActiveGuildMemberInfo: guildMemberInfo,
+      rawMessageEmbedsXml:
+        refsAndMentions.refreshedMessage !== undefined &&
+        triggerEmbedsXml !== undefined &&
+        triggerEmbedsXml.length > 0
+          ? triggerEmbedsXml
+          : undefined,
     });
 
     // Thin envelope is the only payload shape: kind:'envelope' carries none of
@@ -422,6 +443,8 @@ export class MessageContextBuilder {
       personaId,
       personaName,
       messageContent,
+      triggerMessage,
+      triggerEmbedsXml,
     };
   }
 }

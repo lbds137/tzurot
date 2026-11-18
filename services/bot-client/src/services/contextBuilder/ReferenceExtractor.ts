@@ -25,6 +25,11 @@ const logger = createLogger('MessageContextBuilder');
 export interface ReferencesAndMentionsResult {
   messageContent: string;
   /**
+   * The trigger message as refetched after the embed-processing wait. Absent
+   * when reference extraction was skipped (weigh-in mode).
+   */
+  refreshedMessage?: Message;
+  /**
    * Raw-envelope fields: pre-enrichment reference snapshots plus the
    * guild-cache-resolved channel and role mention data the worker needs to
    * re-run content rewriting.
@@ -77,7 +82,7 @@ export async function extractReferencesAndMentions(
     conversationHistoryTimestamps,
   });
 
-  const { updatedContent, rawReferences } =
+  const { updatedContent, rawReferences, refreshedMessage } =
     await referenceExtractor.extractReferencesWithReplacement(message, content);
 
   if (rawReferences.length > 0) {
@@ -105,6 +110,7 @@ export async function extractReferencesAndMentions(
 
   return {
     messageContent,
+    refreshedMessage,
     ...rawEnvelopeFields,
   };
 }

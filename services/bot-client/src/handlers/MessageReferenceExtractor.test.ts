@@ -85,6 +85,53 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
       expect(references).toEqual([]);
     });
 
+    it('returns the refetched message alongside rawReferences and updatedContent', async () => {
+      const refetchedMessage = createMockMessage({
+        id: 'msg-refetched',
+        content: 'https://x.com/user/status/1',
+      });
+      const mockChannel = createConfiguredChannel({
+        messages: {
+          fetch: vi.fn().mockResolvedValue(refetchedMessage),
+        },
+      });
+      const originalMessage = createMockMessage({
+        id: 'msg-refetched',
+        content: 'https://x.com/user/status/1',
+        reference: null,
+        channel: mockChannel,
+      });
+
+      const result = await extractor.extractReferencesWithReplacement(originalMessage);
+
+      expect(result.refreshedMessage).toBe(refetchedMessage);
+    });
+
+    it('fetches the trigger message with force: true so Discord is reached instead of the local cache', async () => {
+      const refetchedMessage = createMockMessage({
+        id: 'msg-force-refetch',
+        content: 'https://x.com/user/status/1',
+      });
+      const mockChannel = createConfiguredChannel({
+        messages: {
+          fetch: vi.fn().mockResolvedValue(refetchedMessage),
+        },
+      });
+      const originalMessage = createMockMessage({
+        id: 'msg-force-refetch',
+        content: 'https://x.com/user/status/1',
+        reference: null,
+        channel: mockChannel,
+      });
+
+      await extractor.extractReferencesWithReplacement(originalMessage);
+
+      expect(mockChannel.messages.fetch).toHaveBeenCalledWith({
+        message: 'msg-force-refetch',
+        force: true,
+      });
+    });
+
     it('should extract and format reply references', async () => {
       const referencedMessage = createMockMessage({
         id: 'referenced-123',

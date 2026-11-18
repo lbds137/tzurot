@@ -251,6 +251,15 @@ describe('buildRawAssemblyInputs', () => {
     expect(raw?.rawMentionedRoles?.[0].roleName).toBe('mods');
   });
 
+  it('sets rawMessageEmbedsXml on the envelope when provided in refs', () => {
+    const embedsXml = ['<embed type="rich"><title>Unfurled Link</title></embed>'];
+    const raw = buildRawAssemblyInputs(makeMessage([], 'https://x.com/post'), undefined, {
+      rawMessageEmbedsXml: embedsXml,
+    });
+
+    expect(raw.rawMessageEmbedsXml).toEqual(embedsXml);
+  });
+
   it('captures Discord ground truth: empty content + dedicated routing transcript for voice', () => {
     mockGetVoiceTranscript.mockReturnValue('the spoken words');
 

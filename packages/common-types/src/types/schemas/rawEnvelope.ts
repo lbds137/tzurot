@@ -69,6 +69,12 @@ export const rawAssemblyInputsSchema = z.object({
    */
   rawMessageContent: z.string(),
   /**
+   * The trigger message's embeds as embed-XML strings, from the message as
+   * refetched after the embed-processing wait; absent when the trigger has no
+   * embeds or no refetch ran (weigh-in).
+   */
+  rawMessageEmbedsXml: z.array(z.string()).optional(),
+  /**
    * The bot-side STT transcript produced for routing (mention detection in
    * spoken text). TELEMETRY-ONLY: assembly ignores it — the prompt's
    * transcript comes from the worker's own transcription via the

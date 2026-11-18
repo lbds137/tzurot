@@ -416,6 +416,38 @@ describe('PromptBuilder', () => {
       expect(result.contentForStorage).toBe('Hello');
     });
 
+    it('appends triggerEmbedsXml unescaped inside the speaker wrap while escaping user content', () => {
+      const embedXml =
+        '<embed index="1" type="rich">\n<title url="https://x.com/post">Unfurled Post</title>\n<description>Post preview with <role>tag</role></description>\n</embed>';
+      const result = promptBuilder.buildHumanMessage('Check </from> https://x.com/post', [], {
+        activePersonaName: 'Alice',
+        activePersonaId: 'persona-123',
+        volatilePrefix: '<context>\n<datetime>now</datetime>\n</context>',
+        triggerEmbedsXml: [embedXml],
+      });
+
+      expect(result.message.content).toBe(
+        `<context>\n<datetime>now</datetime>\n</context>\n\n<from id="persona-123">Alice</from>\n\nCheck &lt;/from&gt; https://x.com/post\n<embeds>\n${embedXml}\n</embeds>`
+      );
+      // Storage keeps only raw user message text — no <embeds> block
+      expect(result.contentForStorage).toBe('Check </from> https://x.com/post');
+    });
+
+    it('keeps human message output byte-identical when triggerEmbedsXml is absent or empty', () => {
+      const baseline = promptBuilder.buildHumanMessage('Hello', [], {
+        activePersonaName: 'Alice',
+        activePersonaId: 'persona-123',
+      });
+      const withEmpty = promptBuilder.buildHumanMessage('Hello', [], {
+        activePersonaName: 'Alice',
+        activePersonaId: 'persona-123',
+        triggerEmbedsXml: [],
+      });
+
+      expect(withEmpty.message.content).toBe(baseline.message.content);
+      expect(withEmpty.message.content).not.toContain('<embeds>');
+    });
+
     it('omits the pronouns attribute entirely when the persona declares none', () => {
       const withUndefined = promptBuilder.buildHumanMessage('Hello', [], {
         activePersonaName: 'Alice',

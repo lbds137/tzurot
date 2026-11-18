@@ -38,6 +38,8 @@ interface ReferenceExtractionResult {
    * and chronologically within each depth.
    */
   rawReferences: ReferencedMessage[];
+  /** The trigger message as refetched after the embed-processing wait. */
+  refreshedMessage: Message;
 }
 
 /**
@@ -196,6 +198,7 @@ export class MessageReferenceExtractor {
     return {
       updatedContent: formattedResult.updatedContent,
       rawReferences: formattedResult.rawReferences,
+      refreshedMessage: updatedMessage,
     };
   }
 
@@ -212,7 +215,7 @@ export class MessageReferenceExtractor {
         message.channel.messages !== undefined &&
         message.channel.messages !== null
       ) {
-        return await message.channel.messages.fetch(message.id);
+        return await message.channel.messages.fetch({ message: message.id, force: true });
       }
       return message;
     } catch (error) {

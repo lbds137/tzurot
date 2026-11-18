@@ -6,6 +6,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AIMessage, SystemMessage, HumanMessage } from '@langchain/core/messages';
 import { ContentBudgetManager, activeSpeakerPronouns } from './ContentBudgetManager.js';
 import { ContextWindowManager as RealContextWindowManager } from './context/ContextWindowManager.js';
+import { PromptBuilder as RealPromptBuilder } from './PromptBuilder.js';
+import { buildConversationContext } from '../jobs/handlers/pipeline/steps/conversationContextBuilder.js';
 import { formatSingleMemory, getMemoryWrapperOverheadText } from './prompt/MemoryFormatter.js';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import type { PromptBuilder } from './PromptBuilder.js';
@@ -385,6 +387,64 @@ describe('ContentBudgetManager', () => {
           (call[2] as { activePersonaPronouns?: string }).activePersonaPronouns
         ).toBeUndefined();
       }
+    });
+
+    it('passes triggerEmbedsXml to BOTH buildHumanMessage calls (pre-pass and final)', () => {
+      const embeds = ['<embed index="1" type="rich"><title>X Post</title></embed>'];
+      const options = createBaseOptions();
+      options.context.triggerEmbedsXml = embeds;
+
+      budgetManager.allocate(options, budgetManager.preselectHistory(options));
+
+      const humanCalls = vi.mocked(mockPromptBuilder.buildHumanMessage).mock.calls;
+      expect(humanCalls).toHaveLength(2);
+      expect(humanCalls[0][2]).toEqual(expect.objectContaining({ triggerEmbedsXml: embeds }));
+      expect(humanCalls[1][2]).toEqual(expect.objectContaining({ triggerEmbedsXml: embeds }));
+    });
+
+    it('renders rawAssemblyInputs.rawMessageEmbedsXml into both the pre-pass and final human message (seam)', () => {
+      const embedXml =
+        '<embed index="1" type="rich"><title url="https://x.com/post">Unfurled Tweet</title></embed>';
+      const conversationContext = buildConversationContext(
+        {
+          kind: 'envelope',
+          userId: 'user-123',
+          channelId: 'channel-123',
+          activePersonaId: 'persona-alice',
+          activePersonaName: 'Alice',
+          rawAssemblyInputs: {
+            rawMessageContent: 'https://x.com/post',
+            rawMessageEmbedsXml: [embedXml],
+          },
+        },
+        {
+          conversationHistory: [],
+          rawConversationHistory: [],
+          participants: [],
+        },
+        undefined,
+        'req-seam-1'
+      );
+
+      const realManager = new ContentBudgetManager(
+        new RealPromptBuilder(),
+        mockContextWindowManager
+      );
+      const options: BudgetAllocationOptions = {
+        ...createBaseOptions(),
+        context: conversationContext,
+        userMessage: 'https://x.com/post',
+      };
+
+      const preselected = realManager.preselectHistory(options);
+      const finalResult = realManager.allocate(options, preselected);
+
+      const prepassContent = String(preselected.currentMessage.content);
+      const finalContent = String(finalResult.currentMessage.content);
+      const expectedTurn = `<from id="persona-alice">Alice</from>\n\nhttps://x.com/post\n<embeds>\n${embedXml}\n</embeds>`;
+
+      expect(prepassContent).toContain(expectedTurn);
+      expect(finalContent).toContain(expectedTurn);
     });
 
     it('should pass referenced messages to system prompt builder', () => {

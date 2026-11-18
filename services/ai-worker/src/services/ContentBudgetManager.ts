@@ -354,6 +354,7 @@ export class ContentBudgetManager {
         activePersonaPronouns: activeSpeakerPronouns(participantPersonas, context.activePersonaId),
         discordUsername: context.discordUsername,
         personalityName: processedPersonality.name,
+        triggerEmbedsXml: context.triggerEmbedsXml,
       }
     );
     // Flag-on: the system message's `chat_log` section must render EMPTY
@@ -477,6 +478,7 @@ export class ContentBudgetManager {
         activePersonaPronouns: activeSpeakerPronouns(participantPersonas, context.activePersonaId),
         discordUsername: context.discordUsername,
         personalityName: processedPersonality.name,
+        triggerEmbedsXml: context.triggerEmbedsXml,
       }
     );
 
