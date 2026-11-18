@@ -2044,13 +2044,23 @@ describe('index navigation through the router (landing, Index button, jump selec
       expect(components[0].toJSON().components[0].custom_id).toBe('test-settings::jump::entity-1');
     });
 
-    it('a 3-page dashboard opens on page 1 with the Index button on its pagination row', async () => {
+    it('a 3-page dashboard opens on the index, and jumping to page 1 renders the pagination row with the Index button', async () => {
       const interaction = await open(THREE_PAGES);
+
+      expect(storedSessionData().view).toBe('index');
+      expect(title(interaction.editReply)).toBe('Test Settings · Index');
+      const components = interaction.editReply.mock.calls[0][0].components;
+      expect(components).toHaveLength(1);
+      expect(components[0].toJSON().components[0].custom_id).toBe('test-settings::jump::entity-1');
+
+      mockSessionManager.get.mockReturnValue({ data: storedSessionData() });
+      const jump = component('test-settings::jump::entity-1', ['p0']);
+      await handleSettingsSelectMenu(jump as never, THREE_PAGES);
 
       expect(storedSessionData().view).toBe('overview');
       expect(storedSessionData().page).toBe(0);
-      expect(title(interaction.editReply)).toBe('Test Settings · Alpha');
-      const rows = interaction.editReply.mock.calls[0][0].components;
+      expect(title(jump.editReply)).toBe('Test Settings · Alpha');
+      const rows = jump.editReply.mock.calls[0][0].components;
       const labels = rows[1].toJSON().components.map((c: { label?: string }) => c.label);
       expect(labels).toEqual(['Prev', '1/3', 'Next', 'Index']);
     });

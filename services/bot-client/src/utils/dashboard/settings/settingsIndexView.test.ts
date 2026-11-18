@@ -21,6 +21,9 @@ import {
 } from './types.js';
 import { EXTENDED_CONTEXT_SETTINGS } from './settingsConfig.js';
 import { ADMIN_SETTINGS_CONFIG } from '../../../commands/admin/settings.js';
+import { CHANNEL_SETTINGS_CONFIG } from '../../../commands/channel/settings.js';
+import { CHARACTER_OVERRIDES_CONFIG } from '../../../commands/character/overrides.js';
+import { CHARACTER_SETTINGS_CONFIG } from '../../../commands/character/settings.js';
 import { USER_DEFAULTS_CONFIG } from '../../../commands/settings/defaults/edit.js';
 
 const pagesOf = (count: number): SettingsPage[] =>
@@ -197,20 +200,23 @@ describe('settingsIndexView', () => {
 
   describe('landing threshold', () => {
     it(`lands a dashboard of ${INDEX_LANDING_MIN_PAGES}+ pages on the index`, () => {
-      expect(INDEX_LANDING_MIN_PAGES).toBe(4);
-      expect(resolveLandingView(configWithPages(pagesOf(4)))).toBe(DashboardView.INDEX);
+      expect(INDEX_LANDING_MIN_PAGES).toBe(2);
+      expect(resolveLandingView(configWithPages(pagesOf(2)))).toBe(DashboardView.INDEX);
+      expect(resolveLandingView(configWithPages(pagesOf(3)))).toBe(DashboardView.INDEX);
       expect(resolveLandingView(configWithPages(pagesOf(11)))).toBe(DashboardView.INDEX);
     });
 
-    it('opens a dashboard of 3 pages or fewer, or a flat one, on the overview', () => {
-      expect(resolveLandingView(configWithPages(pagesOf(3)))).toBe(DashboardView.OVERVIEW);
+    it('opens a 1-page or flat dashboard on the overview', () => {
       expect(resolveLandingView(configWithPages(pagesOf(1)))).toBe(DashboardView.OVERVIEW);
       expect(resolveLandingView(configWithPages())).toBe(DashboardView.OVERVIEW);
     });
 
-    it('the real dashboards: admin (11 pages) lands on the index, user defaults (3) on page 1', () => {
+    it('the real dashboards: admin (11 pages) and the 3-page cascade dashboards all land on the index', () => {
       expect(resolveLandingView(ADMIN_SETTINGS_CONFIG)).toBe(DashboardView.INDEX);
-      expect(resolveLandingView(USER_DEFAULTS_CONFIG)).toBe(DashboardView.OVERVIEW);
+      expect(resolveLandingView(USER_DEFAULTS_CONFIG)).toBe(DashboardView.INDEX);
+      expect(resolveLandingView(CHARACTER_SETTINGS_CONFIG)).toBe(DashboardView.INDEX);
+      expect(resolveLandingView(CHARACTER_OVERRIDES_CONFIG)).toBe(DashboardView.INDEX);
+      expect(resolveLandingView(CHANNEL_SETTINGS_CONFIG)).toBe(DashboardView.INDEX);
     });
   });
 
