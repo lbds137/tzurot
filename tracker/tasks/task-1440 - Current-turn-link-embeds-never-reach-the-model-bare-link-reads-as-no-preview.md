@@ -1,7 +1,7 @@
 ---
 id: TASK-1440
 title: Current-turn link embeds never reach the model (bare link reads as no preview)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17T20:09:00Z'
 labels:
