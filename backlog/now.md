@@ -14,19 +14,16 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 ---
 
-### 🚢 Next Release — beta.246 (theme: prompt-cache prefix fix + its follow-ups, and the open prod-correctness fixes)
+### 🚢 Next Release — beta.247 (theme: burst coalescing in activated channels + cache observability)
 
-_Drafted 2026-11-16 after beta.245 (shipped 11-13, main `b33a7b7b7`). Scope per Lila 11-16: "the newly filed tasks included in the prod release, along with any other higher priority stuff that should go out soon" — this deliberately widens the ~2-3 runtime-PR close-the-train size to ~7; backstops (~10 runtime / ~250 files) still stand._
+_Drafted 2026-11-18 after beta.246 (shipped 13:21Z, PR 2768; 13 runtime PRs, 151 files; the beta.246 prod acceptance checks live in CURRENT.md § beta.246 watch)._
 
-- **In already**: #2755 TASK-1425 cache breakpoints on the last stable message (dev acceptance passed: hit ratio 0.69, 1h TTL held across 410 s).
-- **Merged into the train**: TASK-1422 (#2756), TASK-1418 (#2757), TASK-1428 (#2758), TASK-1427 (#2759), TASK-1426 + TASK-1421 (#2760), TASK-1432 (#2762), TASK-1429 (#2761), TASK-1441 (#2763), TASK-1440 (#2764), TASK-1446 (#2767); dev-deps group (#2766, recreated from #2753).
-- **Waiting on**: nothing but the item below.
-- **Dropped 11-16 (her pick)**: TASK-1374 closed obsolete (no live path reads a cached key-bound failure; prod 10-23..11-16: 568 rate_limit stores, 0 short-TTL skips); split into TASK-1433 (medium, revoked z.ai key retried per image) and TASK-1434 (low, dead writes + test-only default), neither in this train.
-- **Explicitly NOT in**: TASK-1411 (close-the-train enforcement — tooling, its own PR) · TASK-1416 (low, detection consolidation) · TASK-1415 (observable) · tooling-only highs TASK-598/1387/1389 (non-runtime, ship any time) · TASK-1039/1346/671 (owner-gated or design-sized) · caching Phase 3 (doc-17 reading).
-- **Before the cut**: the Dependabot production group, recreated as #2765 (from #2752; astro 7.4.4 → 7.4.11, closes alerts #201/#202), is red on `unit-tests (packages)`: `astro check` crashes because pnpm resolves `@emnapi/runtime@2.0.0-beta.2` as a peer while `@emnapi/core` stays 1.11.3. Fix with a `pnpm.overrides` pin to 1.11.3, then merge.
-- **Deploy notes**: no migrations planned (re-check at cut). Release-notes line for TASK-1440 (Lila 11-18 AUQ "Keep images"): a bare link's preview image now goes to vision on the first reply, so every message with an unfurled link costs one more vision call; the trigger is also refetched from Discord's REST API (force: true), one extra GET per non-weigh-in trigger. Prod acceptance for TASK-1440: a bare-link trigger renders its embed on the FIRST reply. Prod acceptance for #2755: a same-model turn pair on an Anthropic-family model shows `cachedPromptTokens` ≈ prompt minus the per-turn block, with a small `cachedWriteTokens` (prod example before: 98,487 prompt / 10,365 cached / 88,118 written every turn).
-- **Cut when**: every waiting-on unit is merged to develop; the release PR merge needs her explicit yes.
-- **vNext+1 sketch (beta.247)**: FIRST: doc-66 burst coalescing, "latest wins" per (channel, personality) (Lila 11-18 AUQ: first unit of beta.247, not this train) · TASK-1411 enforcement · TASK-1416 · doc-17 reading → caching Phase 3.
+- **In already**: nothing yet.
+- **Waiting on**: doc-66 burst coalescing, "latest wins" per (channel, personality) (Lila 11-18 AUQ: the FIRST unit of beta.247; a burst of short messages in an activated channel gets one reply to the latest instead of one per message) · TASK-1450 (cache tokens into `usage_logs`, plus the two stale 24h schema comments; makes the cache hit rate durable rather than Railway-log-only) · TASK-1443 (settings discoverability fixes from the command-tree audit, filed "after beta.246").
+- **Explicitly NOT in**: TASK-1411 (close-the-train enforcement; tooling, ships any time) · TASK-1416 (low, detection consolidation) · TASK-1415 (observable) · review residue TASK-1451/1452/1453 (low; drain) · TASK-1433 (medium, revoked z.ai key retried per image; a rider if a unit lands early) · TASK-1039/1346/671 (owner-gated or design-sized) · caching Phase 3 (doc-17 reading).
+- **Deploy notes**: doc-66 changes user-visible reply behavior in activated channels; its semantics get her confirmation before build (00-critical § Before Code Changes). TASK-1450 adds columns, so a migration: premigrate before the release merge.
+- **Cut when**: the three waiting-on units are merged to develop; backstops ~10 runtime PRs / ~250 files (`pnpm ops release:range`; 0 at drafting). The release PR merge needs her explicit yes.
+- **vNext+1 sketch (beta.248)**: doc-17 reading → caching Phase 3 · TASK-1411 · TASK-1416.
 
 ### 🎯 Current Focus (max 3)
 
