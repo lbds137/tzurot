@@ -15,6 +15,7 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type MessageContent } from '@tzurot/common-types/types/ai';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { buildHistoryEntryIndex } from '../jobs/utils/conversationUtils.js';
 import { logAndThrow } from '../utils/errorHandling.js';
 import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
 import { LLMInvoker } from './LLMInvoker.js';
@@ -47,6 +48,7 @@ import type {
   RAGResponse,
   GenerateResponseOptions,
   DeferredMemoryData,
+  SkippedDeferredMemoryData,
 } from './ConversationalRAGTypes.js';
 import { persistBuiltReferences } from './context/referencePersistence.js';
 import { loadPersonasAndResolveReferences } from './personaReferenceLoader.js';
@@ -365,6 +367,16 @@ export class ConversationalRAGService {
         });
       }
 
+      const skippedDeferredMemories =
+        options.skipMemoryStorage === true && !summonIncognito
+          ? await this.buildSkippedDeferredMemories(
+              personality.id,
+              context,
+              finalContent,
+              modelResult.thinkingContent
+            )
+          : undefined;
+
       // Step 7: Build and return response
       return {
         content: finalContent,
@@ -379,12 +391,124 @@ export class ConversationalRAGService {
         freshModeEnabled,
         incognitoModeActive,
         deferredMemoryData,
+        skippedDeferredMemories,
         thinkingContent: modelResult.thinkingContent,
         onlyThinkingProduced: modelResult.onlyThinkingProduced,
       };
     } catch (error) {
       logAndThrow(logger, `[RAG] Error generating response for ${personality.name}`, error);
     }
+  }
+
+  /**
+   * Build deferred memory data for each skipped activation trigger coalesced into
+   * this follow-up turn. Resolves each skipped trigger's text from
+   * `context.rawConversationHistory` via `buildHistoryEntryIndex` and checks
+   * incognito per skipped author independently of the primary author.
+   */
+  private async buildSkippedDeferredMemories(
+    personalityId: string,
+    context: ConversationContext,
+    responseContent: string,
+    thinkingContent: string | undefined
+  ): Promise<SkippedDeferredMemoryData[] | undefined> {
+    if (context.skippedMessages === undefined || context.skippedMessages.length === 0) {
+      return undefined;
+    }
+
+    // No local cap here: both wire schemas (generate request + job envelope)
+    // already bound skippedMessages at COALESCING.MAX_SKIPPED_MESSAGES.
+
+    const historyIndex = buildHistoryEntryIndex(context.rawConversationHistory ?? []);
+    const result: SkippedDeferredMemoryData[] = [];
+    let droppedCount = 0;
+
+    for (const skipped of context.skippedMessages) {
+      const historyEntry = historyIndex.get(skipped.messageId);
+      const skippedContent = historyEntry?.content.trim() ?? '';
+      if (skippedContent.length === 0 || historyEntry === undefined) {
+        droppedCount++;
+        continue;
+      }
+
+      try {
+        // Ownership guard: the history row keyed by this messageId must be the
+        // skipped author's own user turn — same persona that resolves for that
+        // author. A collided id or an assistant row must never be attributed to
+        // this author's memory.
+        const persona = await this.memoryRetriever.resolvePersonaForMemory(
+          skipped.authorId,
+          personalityId
+        );
+        if (
+          historyEntry.role !== 'user' ||
+          persona === null ||
+          historyEntry.personaId !== persona.personaId
+        ) {
+          droppedCount++;
+          continue;
+        }
+
+        const isSkippedIncognito = await redisService.isIncognitoActive(
+          skipped.authorId,
+          personalityId
+        );
+        if (isSkippedIncognito) {
+          logger.info(
+            { userId: skipped.authorId, personalityId, messageId: skipped.messageId },
+            'Incognito mode active for skipped author - skipping LTM storage'
+          );
+          continue;
+        }
+
+        const skippedContext: ConversationContext = {
+          ...context,
+          userId: skipped.authorId,
+          triggerMessageId: skipped.messageId,
+        };
+        const deferredData = await this.memoryPersistence.buildDeferredMemoryData({
+          context: skippedContext,
+          personalityId,
+          contentForStorage: historyEntry.content,
+          responseContent,
+          referencedMessagesTextForSearch: undefined,
+          thinkingContent,
+        });
+        if (deferredData !== null) {
+          result.push({
+            messageId: skipped.messageId,
+            authorId: skipped.authorId,
+            deferredData,
+          });
+        }
+      } catch (error) {
+        droppedCount++;
+        logger.error(
+          {
+            err: error,
+            personalityId,
+            channelId: context.channelId,
+            skippedMessageId: skipped.messageId,
+            skippedAuthorId: skipped.authorId,
+          },
+          'Failed to build skipped-author deferred memory - continuing with remaining interactions'
+        );
+      }
+    }
+
+    if (droppedCount > 0) {
+      logger.warn(
+        {
+          personalityId,
+          channelId: context.channelId,
+          droppedCount,
+          totalSkipped: context.skippedMessages.length,
+        },
+        'Dropped skipped activation messages missing from or mismatched in conversation history window'
+      );
+    }
+
+    return result.length > 0 ? result : undefined;
   }
 
   /**

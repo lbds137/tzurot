@@ -14,7 +14,10 @@ import type {
   ReferencedMessage,
   StoredReferencedMessage,
 } from '@tzurot/common-types/types/schemas/message';
-import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import type {
+  LoadedPersonality,
+  SkippedMessage,
+} from '@tzurot/common-types/types/schemas/personality';
 import type { SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import type { SummonAnonymity } from '@tzurot/common-types/types/summon-anonymity';
 import type { StructuredHistoryEntry } from '../jobs/utils/conversationTypes.js';
@@ -148,6 +151,12 @@ export interface ConversationContext {
    * their source turn (deletion propagation; response ids aren't known at
    * capture time since bot-client sends after generation). */
   triggerMessageId?: string;
+  /**
+   * Skipped activation triggers coalesced into this follow-up turn. Each entry
+   * produces an additional deferred-memory interaction attributed to its own
+   * author and resolved against `rawConversationHistory` by `messageId`.
+   */
+  skippedMessages?: SkippedMessage[];
   /** Weigh-in mode: read-the-room framing (controls framing, not anonymity). */
   isWeighIn?: boolean;
   /**
@@ -260,12 +269,31 @@ export interface RAGResponse {
    */
   deferredMemoryData?: DeferredMemoryData;
   /**
+   * Per-skipped-author deferred memory interactions for activation triggers
+   * coalesced into this turn. Stored alongside `deferredMemoryData` after the
+   * response passes validation, with per-item error containment.
+   */
+  skippedDeferredMemories?: SkippedDeferredMemoryData[];
+  /**
    * Extracted thinking/reasoning content from <think> tags.
    * Only present if the model included thinking blocks in its response.
    */
   thinkingContent?: string;
   /** Model produced only analytical/reasoning content without roleplay — caller should retry */
   onlyThinkingProduced?: boolean;
+}
+
+/**
+ * Deferred memory interaction for a skipped activation message coalesced into a
+ * follow-up generation turn.
+ */
+export interface SkippedDeferredMemoryData {
+  /** Discord message snowflake of the skipped trigger */
+  messageId: string;
+  /** Discord user ID of the skipped trigger's author */
+  authorId: string;
+  /** Deferred memory payload built for this skipped author */
+  deferredData: DeferredMemoryData;
 }
 
 /**

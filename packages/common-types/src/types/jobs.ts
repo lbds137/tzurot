@@ -20,6 +20,7 @@ import {
   type LLMGenerationResult,
   type GuildMemberInfo,
   type RawAssemblyInputs,
+  type SkippedMessage,
   loadedPersonalitySchema,
   mentionedPersonaSchema,
   referencedChannelSchema,
@@ -29,9 +30,11 @@ import {
   guildMemberInfoSchema,
   crossChannelHistoryGroupSchema,
   rawAssemblyInputsSchema,
+  skippedMessageSchema,
   CONFIG_SOURCE_IDS,
   type ConfigSourceId,
 } from './schemas/index.js';
+import { COALESCING } from '../constants/message.js';
 import { JobType, JobStatus } from '../constants/queue.js';
 import { DiscordSnowflakeSchema, RetentionNoticeKindSchema } from '../schemas/api/internal.js';
 import type { SttProvider } from './sttProvider.js';
@@ -114,6 +117,12 @@ export interface JobContext {
    * job without it.
    */
   rawAssemblyInputs?: RawAssemblyInputs;
+  /**
+   * Skipped activation-trigger messages coalesced into this generation job
+   * under the latest-wins hold. The worker stores one deferred-memory
+   * interaction per skipped message for its own author.
+   */
+  skippedMessages?: SkippedMessage[];
 }
 
 /**
@@ -409,6 +418,7 @@ const jobContextBaseSchema = z.object({
   crossChannelHistory: z.array(crossChannelHistoryGroupSchema).optional(),
   isVoiceMessage: z.boolean().optional(),
   rawAssemblyInputs: rawAssemblyInputsSchema.optional(),
+  skippedMessages: z.array(skippedMessageSchema).max(COALESCING.MAX_SKIPPED_MESSAGES).optional(),
 });
 
 /**

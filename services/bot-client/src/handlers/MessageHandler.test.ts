@@ -122,6 +122,7 @@ const mockCoordinator = {
   // Late-result recovery: default to "no marker" so unknown jobs drop as before.
   getSyntheticTimeout: vi.fn().mockResolvedValue(null),
   clearSyntheticTimeout: vi.fn().mockResolvedValue(undefined),
+  releaseHold: vi.fn().mockResolvedValue(undefined),
   get staleCheckNeeded() {
     return mockCoordinatorState.staleCheckNeeded;
   },
@@ -696,6 +697,48 @@ describe('MessageHandler', () => {
       const disposition = await messageHandler.handleJobResult(jobId, result);
 
       expect(disposition).toBe('delivered');
+    });
+
+    it('offers the completed jobId to coordinator.releaseHold after single-personality delivery (success and error paths)', async () => {
+      const baseContext = {
+        kind: 'message' as const,
+        channel: { id: 'channel-fast' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
+        message: { id: 'msg-fast', author: { id: 'user-1' } } as Message,
+        personality: { id: 'pers-fast', name: 'FastBot' },
+        personaId: 'persona-fast',
+        userMessageContent: 'Fast trigger',
+        userMessageTime: new Date('2025-11-14T12:00:00Z'),
+      };
+
+      mockJobTracker.getContext.mockReturnValueOnce(baseContext);
+      mockSlotDelivery.deliverSuccess.mockResolvedValueOnce({ chunkMessageIds: ['d-1'] });
+      await messageHandler.handleJobResult('job-fast-ok', {
+        requestId: 'req-fast-ok',
+        success: true,
+        content: 'Fast reply',
+      } as LLMGenerationResult);
+
+      expect(mockCoordinator.releaseHold).toHaveBeenCalledWith(
+        'channel-fast',
+        'pers-fast',
+        'job-fast-ok'
+      );
+
+      mockCoordinator.releaseHold.mockClear();
+      mockJobTracker.getContext.mockReturnValueOnce(baseContext);
+      await messageHandler.handleJobResult('job-fast-err', {
+        requestId: 'req-fast-err',
+        success: false,
+        error: 'worker failed',
+      } as LLMGenerationResult);
+
+      expect(mockCoordinator.releaseHold).toHaveBeenCalledWith(
+        'channel-fast',
+        'pers-fast',
+        'job-fast-err'
+      );
     });
   });
 

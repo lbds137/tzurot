@@ -50,7 +50,7 @@ export const handleAiGenerate = (deps: RouteDeps): RequestHandler =>
     // retired), while the HTTP schema keeps it optional for construction-site
     // ergonomics. Narrow here so a producer that forgot the discriminant gets
     // a clean 400 instead of an opaque enqueue failure.
-    const { kind } = request.context;
+    const { kind, skippedMessages, ...contextRest } = request.context;
     if (kind !== 'envelope') {
       logger.warn({ requestId }, "Rejected generate request without context.kind 'envelope'");
       return sendError(
@@ -61,7 +61,20 @@ export const handleAiGenerate = (deps: RouteDeps): RequestHandler =>
         )
       );
     }
-    const jobContext = { ...request.context, kind };
+    // skippedMessages is kept out of the spread so an empty array is omitted
+    // from the envelope entirely rather than carried as an empty list.
+    const jobContext = {
+      ...contextRest,
+      kind,
+      ...(skippedMessages !== undefined && skippedMessages.length > 0 ? { skippedMessages } : {}),
+    };
+
+    if (skippedMessages && skippedMessages.length > 0) {
+      logger.info(
+        { requestId, skippedMessagesCount: skippedMessages.length },
+        'Request includes coalesced skipped messages'
+      );
+    }
 
     if (request.context.referencedMessages && request.context.referencedMessages.length > 0) {
       logger.info(

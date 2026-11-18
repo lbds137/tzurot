@@ -424,6 +424,129 @@ describe('PersonalityChatManager', () => {
       expect(result.kind).toBe('submitted');
       expect(vi.mocked(generate)).toHaveBeenCalled();
     });
+
+    it('skips saveUserMessage when skipUserMessageSave is true and forwards non-empty skippedMessages to generate', async () => {
+      const personality = createMockPersonality();
+      const skipped = [
+        { messageId: 'msg-skip-1', authorId: 'user-1' },
+        { messageId: 'msg-skip-2', authorId: 'user-2' },
+      ];
+
+      const result = await manager.submitChatJob({
+        message: createMockMessage(),
+        personality,
+        content: 'Survivor',
+        skipUserMessageSave: true,
+        skippedMessages: skipped,
+      });
+
+      expect(result.kind).toBe('submitted');
+      expect(mockPersistence.saveUserMessage).not.toHaveBeenCalled();
+      expect(vi.mocked(generate)).toHaveBeenCalledWith(
+        personality,
+        expect.objectContaining({
+          triggerMessageId: 'message-123',
+          skippedMessages: skipped,
+        })
+      );
+    });
+
+    it('omits skippedMessages from the generate payload when the array is empty', async () => {
+      const personality = createMockPersonality();
+
+      await manager.submitChatJob({
+        message: createMockMessage(),
+        personality,
+        content: 'Survivor without skips',
+        skipUserMessageSave: true,
+        skippedMessages: [],
+      });
+
+      const passedContext = vi.mocked(generate).mock.calls[0]?.[1];
+      expect(passedContext?.skippedMessages).toBeUndefined();
+    });
+
+    it('saveUserMessage persists the user row without calling generate and honors denial gates', async () => {
+      const message = createMockMessage();
+      const personality = createMockPersonality();
+
+      const saved = await manager.saveUserMessage({
+        message,
+        personality,
+        content: 'Held trigger',
+      });
+
+      expect(saved).toEqual({ kind: 'saved' });
+      expect(mockPersistence.saveUserMessage).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(generate)).not.toHaveBeenCalled();
+
+      mockPersistence.saveUserMessage.mockClear();
+      mockDenylistCache.isPersonalityDenied.mockReturnValueOnce(true);
+
+      const denied = await manager.saveUserMessage({
+        message,
+        personality,
+        content: 'Denied held trigger',
+      });
+
+      expect(denied.kind).toBe('denied');
+      expect(mockPersistence.saveUserMessage).not.toHaveBeenCalled();
+    });
+
+    it('passes the exact same row fields to persistence.saveUserMessage on the hold-time saveUserMessage path as on the normal submitChatJob persist path', async () => {
+      const originalMessage = createMockMessage();
+      const triggerMessage = {
+        ...createMockMessage(),
+        id: 'message-unfurled',
+      } as unknown as Message;
+      const personality = createMockPersonality();
+      const attachments = [
+        { url: 'https://x/voice.ogg', contentType: 'audio/ogg', name: 'voice.ogg', size: 42 },
+      ];
+      const triggerEmbedsXml = ['<embed>\n<title>Shared Row</title>\n</embed>'];
+      const buildOutput = {
+        context: { attachments, referencedMessages: [], conversationHistory: [] },
+        personaId: 'persona-parity',
+        messageContent: 'Parity content',
+        triggerMessage,
+        triggerEmbedsXml,
+        referencedMessages: [],
+        conversationHistory: [],
+      };
+
+      mockContextBuilder.buildContext
+        .mockResolvedValueOnce(buildOutput)
+        .mockResolvedValueOnce(buildOutput);
+
+      const holdResult = await manager.saveUserMessage({
+        message: originalMessage,
+        personality,
+        content: 'Parity content',
+      });
+      const submitResult = await manager.submitChatJob({
+        message: originalMessage,
+        personality,
+        content: 'Parity content',
+      });
+
+      expect(holdResult).toEqual({ kind: 'saved' });
+      expect(submitResult.kind).toBe('submitted');
+      expect(mockPersistence.saveUserMessage).toHaveBeenCalledTimes(2);
+
+      const expectedRow = {
+        message: triggerMessage,
+        personality,
+        personaId: 'persona-parity',
+        messageContent: 'Parity content',
+        attachments,
+        embedsXml: triggerEmbedsXml,
+      };
+      expect(mockPersistence.saveUserMessage).toHaveBeenNthCalledWith(1, expectedRow);
+      expect(mockPersistence.saveUserMessage).toHaveBeenNthCalledWith(2, expectedRow);
+      expect(mockPersistence.saveUserMessage.mock.calls[0][0]).toEqual(
+        mockPersistence.saveUserMessage.mock.calls[1][0]
+      );
+    });
   });
 
   describe('submitChatJob - NSFW edge cases', () => {

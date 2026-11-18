@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { handleAiGenerate } from './generate.js';
+import { COALESCING } from '@tzurot/common-types/constants/message';
 import { JobStatus, JOB_PREFIXES } from '@tzurot/common-types/constants/queue';
 import type { RouteDeps } from '../routeDeps.js';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
@@ -276,6 +277,67 @@ describe('POST /api/internal/ai/generate', () => {
 
       expect(mockCreateJobChain).toHaveBeenCalledTimes(1);
       expect(mockDedupCache.release).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('coalesced skippedMessages passthrough', () => {
+    it('validates and forwards non-empty skippedMessages to createJobChain and normalizes an empty array to undefined', async () => {
+      const skipped = [
+        { messageId: 'msg-1', authorId: 'user-1' },
+        { messageId: 'msg-2', authorId: 'user-2' },
+      ];
+      const response = await request(app)
+        .post('/generate')
+        .send({
+          ...validBody,
+          context: {
+            ...validBody.context,
+            skippedMessages: skipped,
+          },
+        });
+
+      expect(response.status).toBe(202);
+      expect(mockCreateJobChain).toHaveBeenCalledWith(
+        expect.objectContaining({
+          context: expect.objectContaining({
+            skippedMessages: skipped,
+          }),
+        })
+      );
+
+      mockCreateJobChain.mockClear();
+      const emptyResponse = await request(app)
+        .post('/generate')
+        .send({
+          ...validBody,
+          context: {
+            ...validBody.context,
+            skippedMessages: [],
+          },
+        });
+      expect(emptyResponse.status).toBe(202);
+      const passedContext = mockCreateJobChain.mock.calls[0]?.[0]?.context;
+      expect(passedContext?.skippedMessages).toBeUndefined();
+    });
+
+    it('rejects skippedMessages exceeding COALESCING.MAX_SKIPPED_MESSAGES with 400', async () => {
+      const overCap = Array.from({ length: COALESCING.MAX_SKIPPED_MESSAGES + 1 }, (_, i) => ({
+        messageId: `msg-${i}`,
+        authorId: `user-${i}`,
+      }));
+
+      const response = await request(app)
+        .post('/generate')
+        .send({
+          ...validBody,
+          context: {
+            ...validBody.context,
+            skippedMessages: overCap,
+          },
+        });
+
+      expect(response.status).toBe(400);
+      expect(mockCreateJobChain).not.toHaveBeenCalled();
     });
   });
 });

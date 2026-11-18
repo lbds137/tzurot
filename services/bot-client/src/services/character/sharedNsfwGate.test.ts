@@ -19,11 +19,8 @@ import {
 } from '../../utils/nsfwVerification.js';
 import { createSharedNsfwGate, runNsfwGate } from './sharedNsfwGate.js';
 import { PersonalityChatManager, type SubmitChatJobResult } from './PersonalityChatManager.js';
-import {
-  MultiTagCoordinator,
-  type MultiTagCoordinatorDeps,
-  type StartFanOutInput,
-} from '../MultiTagCoordinator.js';
+import { MultiTagCoordinator, type MultiTagCoordinatorDeps } from '../MultiTagCoordinator.js';
+import type { StartFanOutInput } from '../multiTagCoordinatorHelpers.js';
 import type { ResolvedSlot } from '../SlotResolver.js';
 
 interface UserClientStub {

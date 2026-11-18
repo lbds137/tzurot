@@ -1000,7 +1000,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/handlers/CommandHandler.ts | replied | 1 |
 | services/bot-client/src/handlers/CommandHandler.ts | user | 1 |
 | services/bot-client/src/handlers/MessageHandler.ts | author | 1 |
-| services/bot-client/src/handlers/MessageHandler.ts | id | 7 |
+| services/bot-client/src/handlers/MessageHandler.ts | id | 8 |
 | services/bot-client/src/handlers/MessageHandler.ts | send | 1 |
 | services/bot-client/src/handlers/MessageHandler.ts | tag | 1 |
 | services/bot-client/src/handlers/MessageHandler.ts | type | 2 |
@@ -1172,6 +1172,9 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/services/ArchivePromotionScheduler.ts | setDescription | 2 |
 | services/bot-client/src/services/ArchivePromotionScheduler.ts | setTimestamp | 2 |
 | services/bot-client/src/services/ArchivePromotionScheduler.ts | setTitle | 2 |
+| services/bot-client/src/services/CoalescingHoldRegistry.ts | author | 1 |
+| services/bot-client/src/services/CoalescingHoldRegistry.ts | createdTimestamp | 6 |
+| services/bot-client/src/services/CoalescingHoldRegistry.ts | id | 10 |
 | services/bot-client/src/services/ConversationPersistence.ts | channel | 3 |
 | services/bot-client/src/services/ConversationPersistence.ts | createdAt | 1 |
 | services/bot-client/src/services/ConversationPersistence.ts | embeds | 1 |
@@ -1252,7 +1255,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/services/MultiTagCoordinator.ts | author | 1 |
 | services/bot-client/src/services/MultiTagCoordinator.ts | client | 1 |
 | services/bot-client/src/services/MultiTagCoordinator.ts | guildId | 1 |
-| services/bot-client/src/services/MultiTagCoordinator.ts | id | 14 |
+| services/bot-client/src/services/MultiTagCoordinator.ts | id | 13 |
 | services/bot-client/src/services/MultiTagCoordinator.ts | user | 1 |
 | services/bot-client/src/services/MultiTagRecovery.ts | client | 1 |
 | services/bot-client/src/services/MultiTagRecovery.ts | fetch | 1 |
@@ -1351,12 +1354,12 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/services/channelFetcher/messageTypeFilters.ts | reference | 1 |
 | services/bot-client/src/services/channelFetcher/messageTypeFilters.ts | type | 2 |
 | services/bot-client/src/services/character/PersonalityChatManager.ts | author | 5 |
-| services/bot-client/src/services/character/PersonalityChatManager.ts | channel | 2 |
-| services/bot-client/src/services/character/PersonalityChatManager.ts | client | 1 |
+| services/bot-client/src/services/character/PersonalityChatManager.ts | channel | 5 |
+| services/bot-client/src/services/character/PersonalityChatManager.ts | client | 2 |
 | services/bot-client/src/services/character/PersonalityChatManager.ts | guildId | 1 |
-| services/bot-client/src/services/character/PersonalityChatManager.ts | id | 9 |
+| services/bot-client/src/services/character/PersonalityChatManager.ts | id | 10 |
 | services/bot-client/src/services/character/PersonalityChatManager.ts | type | 1 |
-| services/bot-client/src/services/character/PersonalityChatManager.ts | user | 1 |
+| services/bot-client/src/services/character/PersonalityChatManager.ts | user | 2 |
 | services/bot-client/src/services/character/characterTurn.ts | client | 4 |
 | services/bot-client/src/services/character/characterTurn.ts | createdAt | 2 |
 | services/bot-client/src/services/character/characterTurn.ts | deferred | 1 |
@@ -1379,6 +1382,9 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/services/character/slashChatGates.ts | id | 3 |
 | services/bot-client/src/services/character/slashChatGates.ts | type | 1 |
 | services/bot-client/src/services/character/tagPool.ts | escapeMarkdown | 1 |
+| services/bot-client/src/services/coalescingHoldability.ts | author | 2 |
+| services/bot-client/src/services/coalescingHoldability.ts | createdTimestamp | 2 |
+| services/bot-client/src/services/coalescingHoldability.ts | id | 4 |
 | services/bot-client/src/services/contextBuilder/GuildMemberResolver.ts | author | 1 |
 | services/bot-client/src/services/contextBuilder/GuildMemberResolver.ts | cache | 1 |
 | services/bot-client/src/services/contextBuilder/GuildMemberResolver.ts | displayHexColor | 2 |
@@ -1406,7 +1412,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/services/contextBuilder/blockDeniedChecker.ts | guildId | 1 |
 | services/bot-client/src/services/dmWorkerReadyGate.ts | isReady | 1 |
 | services/bot-client/src/services/dmWorkerReadyGate.ts | once | 1 |
-| services/bot-client/src/services/multiTagCoordinatorHelpers.ts | id | 1 |
+| services/bot-client/src/services/multiTagCoordinatorHelpers.ts | id | 2 |
 | services/bot-client/src/services/multiTagDeliveryFlow.ts | client | 1 |
 | services/bot-client/src/services/multiTagDeliveryFlow.ts | guildId | 1 |
 | services/bot-client/src/services/multiTagDeliveryFlow.ts | id | 5 |
@@ -3133,4 +3139,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 2 |
 
-Total: 3063 entries across 7104 sites.
+Total: 3069 entries across 7136 sites.
