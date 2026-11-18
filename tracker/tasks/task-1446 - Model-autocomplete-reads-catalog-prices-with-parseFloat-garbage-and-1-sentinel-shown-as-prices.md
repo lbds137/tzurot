@@ -23,4 +23,6 @@ Why: services/api-gateway/src/services/OpenRouterModelCache.ts:397-398 (toAutoco
 What: export parseUsablePrice (or move it to a small shared api-gateway module) and use it in toAutocompleteOption; decide what an unusable price displays (0 vs unknown, a user-visible choice: ask Lila if it changes the rendered text).
 
 Acceptance: autocomplete and the diagnostic estimate agree on every catalog string; tests pin "0.1abc", "-1" and a decimal price through toAutocompleteOption.
+
+In beta.246 per Lila 11-17 ("sure, we can include that in the release").
 <!-- SECTION:DESCRIPTION:END -->
