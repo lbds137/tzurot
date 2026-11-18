@@ -353,6 +353,60 @@ describe('PersonalityChatManager', () => {
       expect(call.referencedMessages).toBeUndefined();
     });
 
+    it('passes the triggerMessage from buildContext to saveUserMessage', async () => {
+      const originalMessage = createMockMessage();
+      const triggerMessage = {
+        ...createMockMessage(),
+        embeds: [{ toJSON: () => ({ title: 'Unfurled' }) }],
+      } as unknown as Message;
+
+      mockContextBuilder.buildContext.mockResolvedValueOnce({
+        context: { attachments: [], referencedMessages: [], conversationHistory: [] },
+        personaId: 'persona-1',
+        messageContent: 'https://x.com/post',
+        triggerMessage,
+      });
+
+      await manager.submitChatJob({
+        message: originalMessage,
+        personality: createMockPersonality(),
+        content: 'https://x.com/post',
+      });
+
+      expect(mockPersistence.saveUserMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: triggerMessage,
+        })
+      );
+      expect(mockPersistence.saveUserMessage.mock.calls[0][0].message).not.toBe(originalMessage);
+    });
+
+    it('passes triggerEmbedsXml from buildContext to saveUserMessage as embedsXml', async () => {
+      const triggerMessage = createMockMessage();
+      const triggerEmbedsXml = ['<embed>\n<title>Unfurled</title>\n</embed>'];
+
+      mockContextBuilder.buildContext.mockResolvedValueOnce({
+        context: { attachments: [], referencedMessages: [], conversationHistory: [] },
+        personaId: 'persona-1',
+        messageContent: 'https://x.com/post',
+        triggerMessage,
+        triggerEmbedsXml,
+      });
+
+      await manager.submitChatJob({
+        message: triggerMessage,
+        personality: createMockPersonality(),
+        content: 'https://x.com/post',
+      });
+
+      expect(mockPersistence.saveUserMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embedsXml: triggerEmbedsXml,
+        })
+      );
+      expect(mockPersistence.saveUserMessage.mock.calls[0][0].embedsXml).toBe(triggerEmbedsXml);
+    });
+
     it('continues to generate when the trigger-message persist fails (non-fatal)', async () => {
       // A transient gateway/DB timeout persisting the trigger message must NOT
       // block generation — the user still gets a response; only the history row

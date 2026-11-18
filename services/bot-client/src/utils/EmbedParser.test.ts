@@ -466,6 +466,16 @@ describe('EmbedParser', () => {
       expect((result.match(/&lt;\/embeds&gt;/g) ?? []).length).toBe(2);
     });
 
+    it('escapes <, >, and & in a field value', () => {
+      const result = EmbedParser.parseEmbed(
+        {
+          fields: [{ name: 'Field', value: 'a < b & b > c' }],
+        } as APIEmbed,
+        0
+      );
+      expect(result).toContain('<field name="Field">a &lt; b &amp; b &gt; c</field>');
+    });
+
     it('escapes the footer text', () => {
       const result = EmbedParser.parseEmbed({ footer: { text: BREAKOUT } } as APIEmbed, 0);
       expect(result).toContain(ESCAPED);

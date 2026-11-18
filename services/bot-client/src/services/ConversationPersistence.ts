@@ -53,6 +53,12 @@ interface SaveUserMessageOptions {
     duration?: number;
     waveform?: string;
   }[];
+  /**
+   * Pre-parsed embed XML from the context builder's single `buildMessageContent`
+   * pass. When provided, `saveUserMessage` uses it directly instead of
+   * re-running `buildMessageContent`.
+   */
+  embedsXml?: string[];
 }
 
 /**
@@ -181,10 +187,11 @@ export class ConversationPersistence {
     // Extract embed XML for any message carrying embeds so it survives the DB
     // round-trip. Without this, a message's embeds (forwarded snapshots OR a
     // regular link-embed) are lost once the message ages out of the Discord
-    // API fetch window, and the history renders blank. The embed is present at
-    // persist time regardless of forwarding, so the gate is purely "has embeds."
-    let embedsXml: string[] | undefined;
-    if (message.embeds.length > 0) {
+    // API fetch window, and the history renders blank. When the caller already
+    // ran `buildMessageContent` (PersonalityChatManager), use its `embedsXml`
+    // directly instead of parsing a second time.
+    let embedsXml = options.embedsXml;
+    if (embedsXml === undefined && message.embeds.length > 0) {
       const buildResult = await buildMessageContent(message, {
         includeEmbeds: true,
         includeAttachments: false,

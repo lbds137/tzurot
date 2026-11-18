@@ -6,8 +6,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageContextBuilder } from './MessageContextBuilder.js';
 import { redisService } from '../redis.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
-import { Collection } from 'discord.js';
-import type { Message, Attachment, Guild, GuildMember, TextChannel, User } from 'discord.js';
+import { Collection, MessageReferenceType } from 'discord.js';
+import type {
+  Message,
+  Attachment,
+  Guild,
+  GuildMember,
+  MessageSnapshot,
+  Sticker,
+  TextChannel,
+  User,
+} from 'discord.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import type { ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -272,6 +281,186 @@ describe('MessageContextBuilder', () => {
       expect(raw?.knownChannelEnvironments?.['999888777666555444']).toMatchObject({
         type: 'guild',
       });
+    });
+
+    it('ships rawMessageEmbedsXml from the refetched message when the original message had no embeds', async () => {
+      // Original message has no embeds when MESSAGE_CREATE arrives; after the
+      // embed-processing delay, the refetched message carries the unfurled link embed.
+      (mockMessage as any).embeds = [];
+      const refreshedMessage = {
+        ...mockMessage,
+        embeds: [
+          {
+            toJSON: () => ({
+              title: 'Unfurled X Post',
+              description: 'Post body from x.com',
+              url: 'https://x.com/user/status/42',
+            }),
+          },
+        ],
+      } as unknown as Message;
+
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        rawReferences: [],
+        updatedContent: 'https://x.com/user/status/42',
+        refreshedMessage,
+      });
+      mockResolveAllMentions.mockReturnValue({
+        processedContent: 'https://x.com/user/status/42',
+        mentionedUsers: [],
+        mentionedChannels: [],
+        mentionedRoles: [],
+      });
+
+      const result = await builder.buildContext(
+        mockMessage,
+        mockPersonality,
+        'https://x.com/user/status/42'
+      );
+
+      expect(result.triggerMessage).toBe(refreshedMessage);
+      const embedsXml = result.context.rawAssemblyInputs?.rawMessageEmbedsXml;
+      expect(embedsXml).toBeDefined();
+      expect(embedsXml).toHaveLength(1);
+      expect(embedsXml?.[0]).toContain(
+        '<title url="https://x.com/user/status/42">Unfurled X Post</title>'
+      );
+      expect(embedsXml?.[0]).toContain('<description>Post body from x.com</description>');
+    });
+
+    it('extracts embed preview images into context.attachments from the refetched message when the original had no embeds', async () => {
+      (mockMessage as any).embeds = [];
+      const embedPayload = {
+        title: 'Unfurled Link With Preview',
+        image: { url: 'https://cdn.discordapp.com/embeds/preview.png' },
+      };
+      const refreshedMessage = {
+        ...mockMessage,
+        embeds: [
+          {
+            ...embedPayload,
+            toJSON: () => embedPayload,
+          },
+        ],
+      } as unknown as Message;
+
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        rawReferences: [],
+        updatedContent: 'https://x.com/user/status/99',
+        refreshedMessage,
+      });
+      mockResolveAllMentions.mockReturnValue({
+        processedContent: 'https://x.com/user/status/99',
+        mentionedUsers: [],
+        mentionedChannels: [],
+        mentionedRoles: [],
+      });
+
+      const result = await builder.buildContext(
+        mockMessage,
+        mockPersonality,
+        'https://x.com/user/status/99'
+      );
+
+      expect(result.context.attachments).toEqual([
+        {
+          url: 'https://cdn.discordapp.com/embeds/preview.png',
+          contentType: 'image/png',
+          name: 'embed-1-image.png',
+          isEmbedPreview: true,
+          size: undefined,
+        },
+      ]);
+    });
+
+    it('ships a forwarded trigger snapshot embed in rawMessageEmbedsXml', async () => {
+      const snapshotEmbed = {
+        title: 'Forwarded Snapshot Embed',
+        description: 'Snapshot embed description',
+      };
+      const messageSnapshots = new Collection<string, MessageSnapshot>([
+        [
+          'snap-1',
+          {
+            content: 'Forwarded message text',
+            embeds: [{ ...snapshotEmbed, toJSON: () => snapshotEmbed }],
+            attachments: new Collection<string, Attachment>(),
+            stickers: new Collection<string, Sticker>(),
+            poll: null,
+          } as unknown as MessageSnapshot,
+        ],
+      ]);
+      const forwardedTrigger = {
+        ...mockMessage,
+        content: '',
+        embeds: [],
+        reference: { type: MessageReferenceType.Forward, messageId: 'orig-msg-1' },
+        messageSnapshots,
+      } as unknown as Message;
+
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        rawReferences: [],
+        updatedContent: 'Forwarded message text',
+        refreshedMessage: forwardedTrigger,
+      });
+      mockResolveAllMentions.mockReturnValue({
+        processedContent: 'Forwarded message text',
+        mentionedUsers: [],
+        mentionedChannels: [],
+        mentionedRoles: [],
+      });
+
+      const result = await builder.buildContext(
+        forwardedTrigger,
+        mockPersonality,
+        'Forwarded message text'
+      );
+
+      const embedsXml = result.context.rawAssemblyInputs?.rawMessageEmbedsXml;
+      expect(embedsXml).toEqual([
+        '<embed>\n<title>Forwarded Snapshot Embed</title>\n<description>Snapshot embed description</description>\n</embed>',
+      ]);
+      expect(result.triggerEmbedsXml).toEqual(embedsXml);
+    });
+
+    it('omits rawMessageEmbedsXml in weigh-in mode even when the trigger message has embeds', async () => {
+      // Weigh-in skips reference extraction (no refetch runs), so no
+      // rawMessageEmbedsXml may ship on the envelope.
+      (mockMessage as any).embeds = [
+        {
+          toJSON: () => ({
+            title: 'Should Not Ship In Weigh-In',
+            description: 'Anchor embed',
+          }),
+        },
+      ];
+
+      const result = await builder.buildContext(mockMessage, mockPersonality, 'Weigh in', {
+        isWeighInMode: true,
+      });
+
+      expect(result.context.rawAssemblyInputs?.rawMessageEmbedsXml).toBeUndefined();
+      expect(result.triggerMessage).toBe(mockMessage);
+    });
+
+    it('returns triggerEmbedsXml on ContextBuildResult whenever the trigger message has embeds (including weigh-in)', async () => {
+      (mockMessage as any).embeds = [
+        {
+          toJSON: () => ({
+            title: 'Weigh-In Embed For Persistence',
+            description: 'Anchor embed persisted to history',
+          }),
+        },
+      ];
+
+      const result = await builder.buildContext(mockMessage, mockPersonality, 'Weigh in', {
+        isWeighInMode: true,
+      });
+
+      expect(result.triggerEmbedsXml).toEqual([
+        '<embed>\n<title>Weigh-In Embed For Persistence</title>\n<description>Anchor embed persisted to history</description>\n</embed>',
+      ]);
+      expect(result.context.rawAssemblyInputs?.rawMessageEmbedsXml).toBeUndefined();
     });
 
     it("ships a thin kind:'envelope' payload (omits all 7 re-derivable fields)", async () => {

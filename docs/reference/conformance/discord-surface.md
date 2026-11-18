@@ -3084,6 +3084,8 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/batchDelete.ts | filter | 1 |
 | services/bot-client/src/commands/memory/batchDelete.ts | time | 1 |
 | services/bot-client/src/handlers/CommandHandler.ts | Collection | 2 |
+| services/bot-client/src/handlers/MessageReferenceExtractor.ts | force | 1 |
+| services/bot-client/src/handlers/MessageReferenceExtractor.ts | message | 1 |
 | services/bot-client/src/index.ts | Client | 1 |
 | services/bot-client/src/index.ts | intents | 1 |
 | services/bot-client/src/index.ts | partials | 1 |
@@ -3131,4 +3133,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 2 |
 
-Total: 3061 entries across 7102 sites.
+Total: 3063 entries across 7104 sites.
