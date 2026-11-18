@@ -70,7 +70,7 @@ interface CreateDashboardOptions {
 /**
  * Create and display a new settings dashboard, on its landing view: the page
  * index for a dashboard of INDEX_LANDING_MIN_PAGES pages or more, otherwise
- * page 1 of the overview (settingsIndexView owns the threshold).
+ * the overview (settingsIndexView owns the threshold).
  */
 export async function createSettingsDashboard(
   interaction: ChatInputCommandInteraction,

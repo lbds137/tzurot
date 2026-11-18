@@ -31,6 +31,25 @@ import {
 } from '../../utils/dashboard/settings/settingsConfig.js';
 
 /**
+ * Jump from the index to a page on the most recently stored session,
+ * through the real router; returns that page's editReply payload.
+ */
+async function jumpTo(pageId: string) {
+  const stored = mockSessionManager.set.mock.calls.at(-1)?.[0];
+  mockSessionManager.get.mockReturnValue({ data: stored.data });
+  const jump = {
+    customId: 'channel-settings::jump::channel-123',
+    user: { id: stored.data.userId },
+    values: [pageId],
+    deferUpdate: vi.fn().mockResolvedValue(undefined),
+    editReply: vi.fn().mockResolvedValue(undefined),
+    followUp: vi.fn().mockResolvedValue(undefined),
+  };
+  await handleChannelSettingsSelectMenu(jump as never);
+  return jump.editReply.mock.calls[0][0];
+}
+
+/**
  * Press Next on the dashboard the most recently stored session describes,
  * through the real router; returns the next page's editReply payload.
  */
@@ -329,17 +348,29 @@ describe('Channel Settings Dashboard', () => {
       expect(editReplyCall.embeds).toHaveLength(1);
 
       const embedJson = editReplyCall.embeds[0].toJSON();
-      // 3 concern pages is under the index-landing threshold: opens on page 1.
-      expect(embedJson.title).toBe('Channel Settings · Memory');
+      // 3 concern pages meets the index-landing threshold (2+): opens on the index.
+      expect(embedJson.title).toBe('Channel Settings · Index');
+      expect(editReplyCall.components).toHaveLength(2);
+      expect(editReplyCall.components[0].toJSON().components[0].custom_id).toBe(
+        'channel-settings::jump::channel-123'
+      );
+      expect(editReplyCall.components[1].toJSON().components[0].label).toBe('Reset all');
     });
 
-    it('every page renders select, Prev / N/3 / Next / Index, and its own Reset page row', async () => {
+    it('opens on the index (jump select + Reset all), and every page renders select, Prev / N/3 / Next / Index, and its own Reset page row', async () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
       await handleChannelSettings(context);
 
-      const page1 = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const landingCall = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(landingCall.components).toHaveLength(2);
+      expect(landingCall.components[0].toJSON().components[0].custom_id).toBe(
+        'channel-settings::jump::channel-123'
+      );
+      expect(landingCall.components[1].toJSON().components[0].label).toBe('Reset all');
+
+      const page1 = await jumpTo('memory');
       const pages = [
         page1,
         await pressNext(mockSessionManager),
@@ -381,10 +412,10 @@ describe('Channel Settings Dashboard', () => {
 
       await handleChannelSettings(context);
 
-      const editReplyCall = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const page1 = await jumpTo('memory');
       const page2 = await pressNext(mockSessionManager);
       const page3 = await pressNext(mockSessionManager);
-      const pageEmbeds = [editReplyCall, page2, page3].map(p => p.embeds[0].toJSON());
+      const pageEmbeds = [page1, page2, page3].map(p => p.embeds[0].toJSON());
       expect(pageEmbeds.map(e => e.title)).toEqual([
         'Channel Settings · Memory',
         'Channel Settings · Context & Display',
@@ -503,9 +534,9 @@ describe('Channel Settings Dashboard', () => {
       // own override removed — the admin tier it overrode.
       expect(maxMessages.parentValue).toBe(75);
 
-      // Max Messages lives on page 2 (Context & Display); match its exact name —
-      // a substring match would also hit Cross-Channel Max Messages.
-      const embedJson = (await pressNext(mockSessionManager)).embeds[0].toJSON();
+      // Max Messages lives on page 2 (Context & Display); jump to it and match
+      // its exact name — a substring match would also hit Cross-Channel Max Messages.
+      const embedJson = (await jumpTo('context-display')).embeds[0].toJSON();
 
       const maxMsgField = embedJson.fields.find(
         (f: { name: string }) => f.name === '💬 Max Messages'
@@ -596,13 +627,18 @@ describe('Channel Settings Dashboard', () => {
       return interaction.editReply.mock.calls[0][0];
     }
 
-    it('keeps the No character activated note on every overview and hub render (open, Next, drill in and Back, Index)', async () => {
+    it('keeps the No character activated note on every overview and hub render (open on hub, jump to page 1, Next to page 2, drill in and Back, Index)', async () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue({ settings: {} });
 
       await handleChannelSettings(context);
 
-      const page1 = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      // Opening render is the hub (index view).
+      const hub = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(hub.embeds[0].toJSON().description).toContain('No character activated');
+
+      // Jump from the hub to page 1 (Memory overview), then Next to page 2.
+      const page1 = await jumpTo('memory');
       expect(page1.embeds[0].toJSON().description).toContain('No character activated');
 
       const page2 = await pressNext(mockSessionManager);
@@ -631,13 +667,16 @@ describe('Channel Settings Dashboard', () => {
       expect(indexRender.embeds[0].toJSON().description).toContain('No character activated');
     });
 
-    it('never shows the note when a character is activated (open and Next)', async () => {
+    it('never shows the note when a character is activated (open on hub, jump to page 1, and Next to page 2)', async () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
       await handleChannelSettings(context);
 
-      const page1 = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const hub = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(hub.embeds[0].toJSON().description).not.toContain('No character activated');
+
+      const page1 = await jumpTo('memory');
       expect(page1.embeds[0].toJSON().description).not.toContain('No character activated');
 
       const page2 = await pressNext(mockSessionManager);
