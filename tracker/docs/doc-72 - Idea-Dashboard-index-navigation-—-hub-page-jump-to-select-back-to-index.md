@@ -127,6 +127,11 @@ the server default, which answered as an Anthropic model).
   on page 1. Every page of every paged dashboard carries an Index button that
   opens the hub. Only dashboards of 4+ pages (today, admin's 11) LAND on the
   hub.
+  - **REVERSED 2026-11-17 (Lila, TASK-1441):** every dashboard of 2+ pages
+    now lands on the hub, so the user-defaults, character, character-override
+    and channel dashboards open the way admin does. Reason: she wants the
+    admin format applied consistently across all the settings dashboards; a
+    1-page or flat dashboard still opens on its page.
 - **Admin reset, "Not on admin":** Reset all appears only on hubs whose scope
   holds the user's own overrides: user defaults, character settings, character
   overrides and channel settings. The admin hub gets no Reset all, and admin
