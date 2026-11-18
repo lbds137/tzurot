@@ -26,7 +26,7 @@ _Drafted 2026-11-16 after beta.245 (shipped 11-13, main `b33a7b7b7`). Scope per 
 - **Before the cut**: Dependabot grouped PR #2752 (astro 7.4.4 → 7.4.11, closes alerts #201/#202) is red on `unit-tests (packages)`; fix and merge it.
 - **Deploy notes**: no migrations planned (re-check at cut). Prod acceptance for #2755: a same-model turn pair on an Anthropic-family model shows `cachedPromptTokens` ≈ prompt minus the per-turn block, with a small `cachedWriteTokens` (prod example before: 98,487 prompt / 10,365 cached / 88,118 written every turn).
 - **Cut when**: every waiting-on unit is merged to develop; the release PR merge needs her explicit yes.
-- **vNext+1 sketch**: TASK-1411 enforcement · TASK-1416 · doc-17 reading → caching Phase 3.
+- **vNext+1 sketch (beta.247)**: FIRST: doc-66 burst coalescing, "latest wins" per (channel, personality) (Lila 11-18 AUQ: first unit of beta.247, not this train) · TASK-1411 enforcement · TASK-1416 · doc-17 reading → caching Phase 3.
 
 ### 🎯 Current Focus (max 3)
 
