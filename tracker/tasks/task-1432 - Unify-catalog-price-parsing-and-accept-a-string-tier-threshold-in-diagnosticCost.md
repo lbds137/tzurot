@@ -3,7 +3,7 @@ id: TASK-1432
 title: >-
   Unify catalog price parsing and accept a string tier threshold in
   diagnosticCost
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17T02:22:00Z'
 labels:
