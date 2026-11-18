@@ -106,7 +106,8 @@ the server default, which answered as an Anthropic model).
   absorbed by the hub.
 - The Index button goes in an existing row.
 - Back from a setting returns to the page it was opened from.
-- Dashboards of 3 pages or fewer don't LAND on the hub.
+- Dashboards of 3 pages or fewer don't LAND on the hub. (Superseded
+  2026-11-17: see REVERSED under Owner rulings below.)
 - Build inside the settings machinery. The browse surfaces (143-item character
   browse) need their own design, such as a filter or a letter bucket, and no
   generic paged-index framework is built now.
