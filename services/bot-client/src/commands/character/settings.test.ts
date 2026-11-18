@@ -12,6 +12,7 @@ import {
   handleSettings,
   handleCharacterSettingsButton,
   handleCharacterSettingsModal,
+  handleCharacterSettingsSelectMenu,
   isCharacterSettingsInteraction,
 } from './settings.js';
 import type { EnvConfig } from '@tzurot/common-types/config/config';
@@ -188,6 +189,21 @@ describe('Character Settings Dashboard', () => {
   });
 
   describe('handleSettings', () => {
+    async function jumpTo(pageId: string) {
+      const stored = mockSessionManager.set.mock.calls.at(-1)?.[0];
+      mockSessionManager.get.mockReturnValue({ data: stored.data });
+      const jump = {
+        customId: 'character-settings::jump::personality-123',
+        user: { id: stored.data.userId },
+        values: [pageId],
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
+      };
+      await handleCharacterSettingsSelectMenu(jump as never);
+      return jump.editReply.mock.calls[0][0];
+    }
+
     it('should display settings dashboard embed', async () => {
       const context = createMockContext();
       stub.getPersonality.mockResolvedValue({ ok: true, data: mockPersonality });
@@ -216,8 +232,8 @@ describe('Character Settings Dashboard', () => {
       expect(editReplyCall.embeds).toHaveLength(1);
 
       const embedJson = editReplyCall.embeds[0].toJSON();
-      // 3 concern pages is under the index-landing threshold: opens on page 1.
-      expect(embedJson.title).toBe('Character Settings · Memory');
+      // 3 concern pages meets the index-landing threshold (2+): opens on the index.
+      expect(embedJson.title).toBe('Character Settings · Index');
     });
 
     it('should include character name in embed description', async () => {
@@ -233,18 +249,27 @@ describe('Character Settings Dashboard', () => {
       expect(embedJson.description).toContain('Aurora');
     });
 
-    it('opens on page 1 (Memory, 9 settings) with Prev / 1/3 / Next / Index', async () => {
+    it('opens on the index (jump select + Reset all), and jumping to page 1 (Memory, 9 settings) renders Prev / 1/3 / Next / Index', async () => {
       const context = createMockContext();
       stub.getPersonality.mockResolvedValue({ ok: true, data: mockPersonality });
       stub.resolvePersonalityCascade.mockResolvedValue({ ok: true, data: mockResolvedOverrides });
 
       await handleSettings(context, mockConfig);
 
-      const editReplyCall = context.editReply.mock.calls[0][0];
-      const embedJson = editReplyCall.embeds[0].toJSON();
+      const landingCall = context.editReply.mock.calls[0][0];
+      expect(landingCall.embeds[0].toJSON().title).toBe('Character Settings · Index');
+      expect(landingCall.embeds[0].toJSON().fields ?? []).toHaveLength(0);
+      expect(landingCall.components).toHaveLength(2);
+      expect(landingCall.components[0].toJSON().components[0].custom_id).toBe(
+        'character-settings::jump::personality-123'
+      );
+      expect(landingCall.components[1].toJSON().components[0].label).toBe('Reset all');
 
+      const page1Call = await jumpTo('memory');
+      const embedJson = page1Call.embeds[0].toJSON();
+      expect(embedJson.title).toBe('Character Settings · Memory');
       expect(embedJson.fields).toHaveLength(MEMORY_SETTINGS.length);
-      const labels = editReplyCall.components[1]
+      const labels = page1Call.components[1]
         .toJSON()
         .components.map((c: { label?: string }) => c.label);
       expect(labels).toEqual(['Prev', '1/3', 'Next', 'Index']);
@@ -268,20 +293,11 @@ describe('Character Settings Dashboard', () => {
 
       await handleSettings(context, mockConfig);
 
-      // Max Messages lives on page 2 (Context & Display): press Next through
+      // Max Messages lives on page 2 (Context & Display): jump to it through
       // the real router, then match the field by its exact name — a substring
       // match would also hit Cross-Channel Max Messages.
-      const stored = mockSessionManager.set.mock.calls.at(-1)?.[0];
-      mockSessionManager.get.mockReturnValue({ data: stored.data });
-      const next = {
-        customId: 'character-settings::page::personality-123::next',
-        user: { id: 'user-456' },
-        deferUpdate: vi.fn().mockResolvedValue(undefined),
-        editReply: vi.fn().mockResolvedValue(undefined),
-        followUp: vi.fn().mockResolvedValue(undefined),
-      };
-      await handleCharacterSettingsButton(next as unknown as ButtonInteraction);
-      const embedJson = next.editReply.mock.calls[0][0].embeds[0].toJSON();
+      const page2Call = await jumpTo('context-display');
+      const embedJson = page2Call.embeds[0].toJSON();
       expect(embedJson.title).toBe('Character Settings · Context & Display');
       const maxMessagesField = embedJson.fields?.find(
         (f: { name: string }) => f.name === '💬 Max Messages'

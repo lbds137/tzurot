@@ -30,11 +30,11 @@ import {
 import { buildResetAllRow } from './settingsButtonBuilders.js';
 
 /**
- * A paged dashboard with at least this many pages opens on the index; one
- * with fewer opens on page 1, where the Index button keeps the index one tap
- * away. A hub in front of three pages or fewer is ceremony.
+ * A paged dashboard of 2 or more pages opens on the index; a 1-page or flat
+ * dashboard opens on the overview, because an index over a single page has
+ * nothing to choose between.
  */
-export const INDEX_LANDING_MIN_PAGES = 4;
+export const INDEX_LANDING_MIN_PAGES = 2;
 
 /** The view a freshly opened dashboard lands on. Flat configs have no pages, so never the index. */
 export function resolveLandingView(config: SettingsDashboardConfig): DashboardView {

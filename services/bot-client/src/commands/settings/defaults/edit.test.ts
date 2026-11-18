@@ -185,6 +185,21 @@ describe('User Default Settings Dashboard', () => {
   });
 
   describe('handleDefaultsEdit', () => {
+    async function jumpTo(pageId: string) {
+      const stored = mockSessionManager.set.mock.calls.at(-1)?.[0];
+      mockSessionManager.get.mockReturnValue({ data: stored.data });
+      const jump = {
+        customId: 'user-defaults-settings::jump::user-456',
+        user: { id: stored.data.userId },
+        values: [pageId],
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
+      };
+      await handleUserDefaultsSelectMenu(jump as never);
+      return jump.editReply.mock.calls[0][0];
+    }
+
     it('should display settings dashboard embed', async () => {
       const context = createMockContext();
       stub.resolveUserDefaults.mockResolvedValue({ ok: true, data: mockResolveDefaultsResponse });
@@ -200,7 +215,7 @@ describe('User Default Settings Dashboard', () => {
       );
     });
 
-    it('should include "Your Default Settings" title in embed', async () => {
+    it('should include "Your Default Settings" index title in embed', async () => {
       const context = createMockContext();
       stub.resolveUserDefaults.mockResolvedValue({ ok: true, data: mockResolveDefaultsResponse });
 
@@ -210,18 +225,24 @@ describe('User Default Settings Dashboard', () => {
       expect(editReplyCall.embeds).toHaveLength(1);
 
       const embedJson = editReplyCall.embeds[0].toJSON();
-      expect(embedJson.title).toBe('Your Default Settings · Memory');
+      expect(embedJson.title).toBe('Your Default Settings · Index');
     });
 
-    it('opens on the Memory page with its 9 settings (paged overview)', async () => {
+    it('opens on the index, and jumping to page 1 opens the Memory page with its 9 settings', async () => {
       const context = createMockContext();
 
       await handleDefaultsEdit(context);
 
-      const editReplyCall = context.editReply.mock.calls[0][0];
-      const embedJson = editReplyCall.embeds[0].toJSON();
+      const landingCall = context.editReply.mock.calls[0][0];
+      const landingEmbed = landingCall.embeds[0].toJSON();
+      expect(landingEmbed.title).toBe('Your Default Settings · Index');
+      expect(landingEmbed.fields ?? []).toHaveLength(0);
+
+      const page1Call = await jumpTo('memory');
+      const embedJson = page1Call.embeds[0].toJSON();
 
       // D14 page 1 = Memory (9 settings); Context & Display and Voice follow.
+      expect(embedJson.title).toBe('Your Default Settings · Memory');
       expect(embedJson.fields).toHaveLength(9);
       expect(embedJson.fields.map((f: { name: string }) => f.name)).toEqual(
         expect.arrayContaining([
@@ -239,19 +260,26 @@ describe('User Default Settings Dashboard', () => {
       expect(embedJson.footer.text).toContain('Page 1/3 · Memory');
     });
 
-    it('should include select menu, pagination row, and Reset page, with the Index button (3 pages opens on page 1)', async () => {
+    it('opens on the index (jump select + Reset all), and page 1 includes select menu, pagination row, and Reset page', async () => {
       const context = createMockContext();
       stub.resolveUserDefaults.mockResolvedValue({ ok: true, data: mockResolveDefaultsResponse });
 
       await handleDefaultsEdit(context);
 
-      const editReplyCall = context.editReply.mock.calls[0][0];
-      expect(editReplyCall.components).toHaveLength(3);
-      const labels = editReplyCall.components[1]
+      const landingCall = context.editReply.mock.calls[0][0];
+      expect(landingCall.components).toHaveLength(2);
+      expect(landingCall.components[0].toJSON().components[0].custom_id).toBe(
+        'user-defaults-settings::jump::user-456'
+      );
+      expect(landingCall.components[1].toJSON().components[0].label).toBe('Reset all');
+
+      const page1Call = await jumpTo('memory');
+      expect(page1Call.components).toHaveLength(3);
+      const labels = page1Call.components[1]
         .toJSON()
         .components.map((c: { label?: string }) => c.label);
       expect(labels).toEqual(['Prev', '1/3', 'Next', 'Index']);
-      const resetRow = editReplyCall.components[2].toJSON().components;
+      const resetRow = page1Call.components[2].toJSON().components;
       expect(resetRow).toHaveLength(1);
       expect(resetRow[0].label).toBe('Reset page');
     });
@@ -310,8 +338,8 @@ describe('User Default Settings Dashboard', () => {
 
     it('should correctly map user overrides to localValue', async () => {
       const context = createMockContext();
-      // Override a MEMORY-page setting — the overview opens on page 1, and
-      // only its fields render.
+      // Override a MEMORY-page setting — the dashboard opens on the index, so
+      // jump to page 1 (Memory) where its fields render.
       stub.resolveUserDefaults.mockResolvedValue({
         ok: true,
         data: {
@@ -324,9 +352,9 @@ describe('User Default Settings Dashboard', () => {
 
       await handleDefaultsEdit(context);
 
-      // Dashboard should display with override indicator
-      const editReplyCall = context.editReply.mock.calls[0][0];
-      const embedJson = editReplyCall.embeds[0].toJSON();
+      // Dashboard should display with override indicator on the Memory page
+      const page1Call = await jumpTo('memory');
+      const embedJson = page1Call.embeds[0].toJSON();
       const memoryLimitField = embedJson.fields.find((f: { name: string }) =>
         f.name.includes('Memory Limit')
       );
