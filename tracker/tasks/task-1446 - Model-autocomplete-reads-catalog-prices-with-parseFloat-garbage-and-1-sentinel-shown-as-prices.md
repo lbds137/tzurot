@@ -3,7 +3,7 @@ id: TASK-1446
 title: >-
   Model autocomplete reads catalog prices with parseFloat (garbage shown as a
   price, unreadable shown as free)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17T23:52:00Z'
 labels:
