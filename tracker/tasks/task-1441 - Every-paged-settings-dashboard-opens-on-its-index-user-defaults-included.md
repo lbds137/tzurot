@@ -1,7 +1,7 @@
 ---
 id: TASK-1441
 title: Every paged settings dashboard opens on its index (user defaults included)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17T20:29:00Z'
 labels:
