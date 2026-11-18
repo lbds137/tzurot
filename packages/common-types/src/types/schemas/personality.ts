@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import { COALESCING } from '../../constants/message.js';
 import {
   discordEnvironmentSchema,
   attachmentMetadataSchema,
@@ -209,6 +210,19 @@ export const referencedChannelSchema = z.object({
   guildId: z.string().optional(),
 });
 
+/**
+ * One skipped activation-trigger message coalesced into a survivor generation job.
+ * Carries the Discord message ID (to resolve the already-persisted history row)
+ * and the Discord user ID of that message's author (for per-author incognito
+ * evaluation and to record one deferred-memory interaction per skipped message).
+ */
+export const skippedMessageSchema = z.object({
+  messageId: z.string().min(1),
+  authorId: z.string().min(1),
+});
+
+export type SkippedMessage = z.infer<typeof skippedMessageSchema>;
+
 // guildMemberInfoSchema lives in discord.ts (Discord member data; also needed
 // by rawEnvelope.ts, which personality.ts imports — defining it here would
 // create a schema-module cycle).
@@ -272,6 +286,8 @@ export const requestContextSchema = z.object({
   // Optional here like `kind`; the job-schema layer (llmGenerationContextSchema)
   // rejects a generation job without it.
   rawAssemblyInputs: rawAssemblyInputsSchema.optional(),
+  // Skipped activation-trigger messages coalesced into this survivor generation job
+  skippedMessages: z.array(skippedMessageSchema).max(COALESCING.MAX_SKIPPED_MESSAGES).optional(),
 });
 
 // Infer TypeScript types from schemas

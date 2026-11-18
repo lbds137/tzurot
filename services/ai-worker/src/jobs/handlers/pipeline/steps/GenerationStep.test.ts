@@ -2361,6 +2361,48 @@ describe('GenerationStep', () => {
         expect(result.result?.content).toBe('Hello! Memory storage will fail.');
         expect(mockRAGService.storeDeferredMemory).toHaveBeenCalledOnce();
       });
+
+      it('stores no deferred or skipped memories when retries are exhausted on empty content', async () => {
+        const ragResponse: RAGResponse = {
+          content: '',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+          deferredMemoryData: {
+            contentForEmbedding: 'User message content',
+            responseContent: '',
+            personaId: 'persona-123',
+          },
+          skippedDeferredMemories: [
+            {
+              messageId: 'msg-skip-1',
+              authorId: 'user-skip-1',
+              deferredData: {
+                contentForEmbedding: 'Skipped trigger text',
+                responseContent: '',
+                personaId: 'persona-123',
+              },
+            },
+          ],
+        };
+
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfigForMemory,
+          auth: baseAuthForMemory,
+          preparedContext: basePreparedContextForMemory,
+        };
+
+        const result = await step.process(context);
+
+        // Exhausted-empty → failure result, and neither the primary nor the
+        // skipped stores fire (both sit below the empty-content early return).
+        expect(result.result?.success).toBe(false);
+        expect(mockRAGService.storeDeferredMemory).not.toHaveBeenCalled();
+      });
     });
 
     describe('auto-promotion retry-with-fallback', () => {
@@ -2662,6 +2704,136 @@ describe('GenerationStep', () => {
             model: 'z-ai/glm-5.1',
           }),
         });
+      });
+    });
+
+    describe('coalesced skipped-author deferred memory storage', () => {
+      it('stores one deferred memory interaction per skipped message alongside the primary author, and isolates per-item errors', async () => {
+        const primaryDeferred = {
+          contentForEmbedding: 'survivor trigger',
+          responseContent: 'Coalesced reply',
+          personaId: 'persona-survivor',
+        };
+        const skipped1 = {
+          messageId: 'msg-skip-1',
+          authorId: 'user-skip-1',
+          deferredData: {
+            contentForEmbedding: 'skipped 1 text',
+            responseContent: 'Coalesced reply',
+            personaId: 'persona-skip-1',
+          },
+        };
+        const skipped2 = {
+          messageId: 'msg-skip-2',
+          authorId: 'user-skip-2',
+          deferredData: {
+            contentForEmbedding: 'skipped 2 text',
+            responseContent: 'Coalesced reply',
+            personaId: 'persona-skip-2',
+          },
+        };
+
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValueOnce({
+          content: 'Coalesced reply',
+          retrievedMemories: 1,
+          tokensIn: 50,
+          tokensOut: 25,
+          incognitoModeActive: false,
+          deferredMemoryData: primaryDeferred,
+          skippedDeferredMemories: [skipped1, skipped2],
+        });
+
+        // First skipped store throws; second skipped store must still execute and job must succeed
+        vi.mocked(mockRAGService.storeDeferredMemory)
+          .mockResolvedValueOnce(undefined)
+          .mockRejectedValueOnce(new Error('DB write hiccup on skipped 1'))
+          .mockResolvedValueOnce(undefined);
+
+        const jobData = createValidJobData();
+        jobData.context.triggerMessageId = 'msg-survivor';
+        jobData.context.skippedMessages = [
+          { messageId: 'msg-skip-1', authorId: 'user-skip-1' },
+          { messageId: 'msg-skip-2', authorId: 'user-skip-2' },
+        ];
+
+        const out = await step.process({
+          job: createMockJob(jobData),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: basePreparedContext,
+        });
+
+        expect(out.result?.success).toBe(true);
+        expect(mockRAGService.storeDeferredMemory).toHaveBeenCalledTimes(3);
+        expect(mockRAGService.storeDeferredMemory).toHaveBeenNthCalledWith(
+          1,
+          baseConfig.effectivePersonality,
+          expect.objectContaining({
+            userId: jobData.context.userId,
+            triggerMessageId: 'msg-survivor',
+          }),
+          primaryDeferred
+        );
+        expect(mockRAGService.storeDeferredMemory).toHaveBeenNthCalledWith(
+          2,
+          baseConfig.effectivePersonality,
+          expect.objectContaining({
+            userId: 'user-skip-1',
+            triggerMessageId: 'msg-skip-1',
+          }),
+          skipped1.deferredData
+        );
+        expect(mockRAGService.storeDeferredMemory).toHaveBeenNthCalledWith(
+          3,
+          baseConfig.effectivePersonality,
+          expect.objectContaining({
+            userId: 'user-skip-2',
+            triggerMessageId: 'msg-skip-2',
+          }),
+          skipped2.deferredData
+        );
+      });
+
+      it('stores non-incognito skipped-author deferred memories even when the primary author is in incognito', async () => {
+        const skippedPublic = {
+          messageId: 'msg-skip-public',
+          authorId: 'user-skip-public',
+          deferredData: {
+            contentForEmbedding: 'public skipped text',
+            responseContent: 'Coalesced reply',
+            personaId: 'persona-skip-public',
+          },
+        };
+
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValueOnce({
+          content: 'Coalesced reply',
+          retrievedMemories: 0,
+          tokensIn: 40,
+          tokensOut: 20,
+          incognitoModeActive: true,
+          deferredMemoryData: undefined,
+          skippedDeferredMemories: [skippedPublic],
+        });
+
+        const out = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: basePreparedContext,
+        });
+
+        expect(out.result?.success).toBe(true);
+        expect(mockRAGService.storeDeferredMemory).toHaveBeenCalledTimes(1);
+        expect(mockRAGService.storeDeferredMemory).toHaveBeenCalledWith(
+          baseConfig.effectivePersonality,
+          expect.objectContaining({
+            userId: 'user-skip-public',
+            triggerMessageId: 'msg-skip-public',
+          }),
+          skippedPublic.deferredData
+        );
       });
     });
   });

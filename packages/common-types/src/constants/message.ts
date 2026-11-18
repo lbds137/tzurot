@@ -149,6 +149,24 @@ export const MULTI_TAG = {
 } as const;
 
 /**
+ * Activation-chatter coalescing limits (latest-wins hold per channel and personality).
+ */
+export const COALESCING = {
+  /**
+   * Maximum number of skipped activation triggers carried on a released survivor
+   * payload for per-author deferred memory formation; oldest entries are dropped
+   * first when a burst exceeds this cap.
+   */
+  MAX_SKIPPED_MESSAGES: 10,
+  /**
+   * Maximum duration (ms) a coalescing hold waits for the in-flight generation to
+   * finish before force-releasing the held survivor; matches JobTracker's typing
+   * cutoff order of magnitude rather than the orphan sweep.
+   */
+  HOLD_DEADLINE_MS: 10 * 60 * 1000,
+} as const;
+
+/**
  * Sentinel stored as message content when a message has no usable text
  * (e.g. attachment-only messages, or a forward whose snapshot extraction
  * yielded nothing). Persistence writes this; recovery treats it as empty so

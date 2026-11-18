@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 3063,
-    "sites": 7104
+    "entries": 3069,
+    "sites": 7136
   },
   "entries": [
     {
@@ -5924,7 +5924,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/handlers/MessageHandler.ts",
       "symbol": "id",
-      "count": 7
+      "count": 8
     },
     {
       "category": "client-methods",
@@ -6954,6 +6954,24 @@
     },
     {
       "category": "client-methods",
+      "file": "services/bot-client/src/services/CoalescingHoldRegistry.ts",
+      "symbol": "author",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/CoalescingHoldRegistry.ts",
+      "symbol": "createdTimestamp",
+      "count": 6
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/CoalescingHoldRegistry.ts",
+      "symbol": "id",
+      "count": 10
+    },
+    {
+      "category": "client-methods",
       "file": "services/bot-client/src/services/ConversationPersistence.ts",
       "symbol": "channel",
       "count": 3
@@ -7436,7 +7454,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/services/MultiTagCoordinator.ts",
       "symbol": "id",
-      "count": 14
+      "count": 13
     },
     {
       "category": "client-methods",
@@ -8030,13 +8048,13 @@
       "category": "client-methods",
       "file": "services/bot-client/src/services/character/PersonalityChatManager.ts",
       "symbol": "channel",
-      "count": 2
+      "count": 5
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/services/character/PersonalityChatManager.ts",
       "symbol": "client",
-      "count": 1
+      "count": 2
     },
     {
       "category": "client-methods",
@@ -8048,7 +8066,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/services/character/PersonalityChatManager.ts",
       "symbol": "id",
-      "count": 9
+      "count": 10
     },
     {
       "category": "client-methods",
@@ -8060,7 +8078,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/services/character/PersonalityChatManager.ts",
       "symbol": "user",
-      "count": 1
+      "count": 2
     },
     {
       "category": "client-methods",
@@ -8193,6 +8211,24 @@
       "file": "services/bot-client/src/services/character/tagPool.ts",
       "symbol": "escapeMarkdown",
       "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/coalescingHoldability.ts",
+      "symbol": "author",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/coalescingHoldability.ts",
+      "symbol": "createdTimestamp",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/coalescingHoldability.ts",
+      "symbol": "id",
+      "count": 4
     },
     {
       "category": "client-methods",
@@ -8360,7 +8396,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/services/multiTagCoordinatorHelpers.ts",
       "symbol": "id",
-      "count": 1
+      "count": 2
     },
     {
       "category": "client-methods",

@@ -30,11 +30,9 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { Message } from 'discord.js';
 import type { Queue } from 'bullmq';
 import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
 import { MULTI_TAG } from '@tzurot/common-types/constants/message';
-import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { PersonalityChatManager } from './character/PersonalityChatManager.js';
@@ -45,6 +43,7 @@ import type { SlotDeliveryService } from './SlotDeliveryService.js';
 import type { MultiTagPersistence, SyntheticTimeoutContext } from './MultiTagPersistence.js';
 import { type ResolvedSlot } from './SlotResolver.js';
 import { recoverRealResultsAtDeadline } from './multiTagRecoveryHelpers.js';
+import { CoalescingHoldRegistry } from './CoalescingHoldRegistry.js';
 
 const logger = createLogger('MultiTagCoordinator');
 
@@ -52,48 +51,23 @@ const logger = createLogger('MultiTagCoordinator');
 // `toSnapshot` projections live in a sibling file so this orchestrator
 // stays under the `max-lines` cap and the projections are unit-testable
 // independently.
-export type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
+export type { RuntimeEntry } from './multiTagCoordinatorHelpers.js';
 import {
   buildSyntheticErrorResult,
+  degradeToPerSlotOrdering,
   logAllDeniedDecision,
   partitionSlotSubmissions,
   shouldSuppressAllFailedNotice,
   toSnapshot,
   type RuntimeEntry,
-  type RuntimeSlot,
   type SlotOutcome,
+  type StartFanOutInput,
 } from './multiTagCoordinatorHelpers.js';
 import {
   deliverGroup,
   deliverAllFailedNotice,
   deliverErroredOutcomes,
 } from './multiTagDeliveryFlow.js';
-
-/** Input shape for startFanOut — what PersonalityTriggerProcessor builds. */
-export interface StartFanOutInput {
-  message: Message;
-  channel: TypingChannel;
-  /** Slots already resolved (deduped, ordered, capped) by SlotResolver. */
-  slots: ResolvedSlot[];
-  /** Raw effective content to pass to each slot's AI submission. */
-  content: string;
-  /**
-   * `true` if the resolver's cap dropped at least one tagged personality
-   * (more unique candidates than the per-message `maxTags` cap below).
-   * Surfaced as a one-line notice
-   * after the slot-delivery burst so users see why fewer characters
-   * responded than they tagged. Dedup-driven shrinkage (same character
-   * tagged twice) doesn't count — caller decides.
-   */
-  truncated: boolean;
-  /**
-   * The cap that produced `slots` — the admin-configured
-   * `multiTagMaxCharacters`, read once by the caller for this message.
-   * Carried (rather than re-read at delivery) so the truncation notice quotes
-   * the number the resolver actually applied.
-   */
-  maxTags: number;
-}
 
 export interface MultiTagCoordinatorDeps {
   chatManager: PersonalityChatManager;
@@ -140,8 +114,13 @@ export class MultiTagCoordinator {
    * this — recovery marks the pre-restart jobIds stale.
    */
   private hasMarkedStale = false;
+  private readonly holdRegistry: CoalescingHoldRegistry;
 
-  constructor(private readonly deps: MultiTagCoordinatorDeps) {}
+  constructor(private readonly deps: MultiTagCoordinatorDeps) {
+    this.holdRegistry = new CoalescingHoldRegistry(deps.chatManager, async input =>
+      this.startFanOut(input)
+    );
+  }
 
   /**
    * Submit AI jobs for every slot, persist coordinator state, and arm the
@@ -262,7 +241,17 @@ export class MultiTagCoordinator {
     try {
       await this.deps.persistence.putEntry(toSnapshot(entry));
     } catch (err) {
-      this.degradeToPerSlotOrdering(entry, runtimeSlots, timeoutHandle, userMessageTime, err);
+      degradeToPerSlotOrdering({
+        entry,
+        runtimeSlots,
+        timeoutHandle,
+        userMessageTime,
+        err,
+        entries: this.entries,
+        jobToGroup: this.jobToGroup,
+        orderingService: this.deps.orderingService,
+        holdRegistry: this.holdRegistry,
+      });
       return;
     }
 
@@ -447,55 +436,17 @@ export class MultiTagCoordinator {
     this.entries.clear();
     this.jobToGroup.clear();
     this.flushingGroups.clear();
-  }
-
-  /**
-   * Roll back the in-memory ownership written before the persistence
-   * attempt and fall back to per-slot ordering registration. Called only
-   * from `startFanOut` when `putEntry` throws — extracted to keep
-   * `startFanOut` itself under the function-length cap.
-   *
-   * Cross-message ordering survives (each slot's jobId is registered
-   * individually); intra-fan-out slot order is lost. The BullMQ jobs
-   * are already submitted and can't be cancelled from here.
-   *
-   * **Why this doesn't touch `flushingGroups`**: `flushingGroups` is
-   * only populated by `flushEntry` (the re-entry guard for the
-   * deliver-burst path). `startFanOut` never adds to it, so the rollback
-   * has nothing to clean up there.
-   */
-  private degradeToPerSlotOrdering(
-    entry: RuntimeEntry,
-    runtimeSlots: RuntimeSlot[],
-    timeoutHandle: NodeJS.Timeout,
-    userMessageTime: Date,
-    err: unknown
-  ): void {
-    clearTimeout(timeoutHandle);
-    this.entries.delete(entry.groupId);
-    for (const slot of runtimeSlots) {
-      this.jobToGroup.delete(slot.jobId);
-    }
-    logger.error(
-      {
-        err,
-        groupId: entry.groupId,
-        sourceMessageId: entry.sourceMessageId,
-        slotCount: runtimeSlots.length,
-      },
-      'Failed to persist multi-tag entry; degrading to per-slot ordered delivery'
-    );
-    for (const slot of runtimeSlots) {
-      this.deps.orderingService.registerJob(entry.channel.id, slot.jobId, userMessageTime);
-    }
+    this.holdRegistry.clear();
   }
 
   /**
    * Submit one slot's AI job through the chat manager. Returns a `SlotOutcome`
-   * discriminated union: `'submitted'` with tracking details, `'denied'` on a
-   * genuine refusal (denylist / NSFW / channel gate), or `'errored'` (with a
-   * synthetic error result) when submission throws (transient infra failure,
-   * e.g. a gateway write-timeout persisting the trigger message).
+   * discriminated union: `'submitted'` with tracking details, `'held'` when an
+   * activation trigger coalesces into an in-flight generation's hold slot,
+   * `'denied'` on a genuine refusal (denylist / NSFW / channel gate), or
+   * `'errored'` (with a synthetic error result) when submission throws
+   * (transient infra failure, e.g. a gateway write-timeout persisting the
+   * trigger message).
    */
   private async submitSlot(
     input: StartFanOutInput,
@@ -503,13 +454,10 @@ export class MultiTagCoordinator {
     nsfwGate: NsfwGate
   ): Promise<SlotOutcome> {
     try {
-      const result = await this.deps.chatManager.submitChatJob({
-        message: input.message,
-        personality: resolved.personality,
-        content: input.content,
-        isAutoResponse: resolved.isAutoResponse,
-        nsfwGate,
-      });
+      const result = await this.holdRegistry.submitOrHoldSlot(input, resolved, nsfwGate);
+      if (result.kind === 'held') {
+        return { kind: 'held', personality: resolved.personality };
+      }
       if (result.kind !== 'submitted') {
         logger.debug(
           {
@@ -589,6 +537,9 @@ export class MultiTagCoordinator {
       return;
     }
     this.flushingGroups.add(entry.groupId);
+    // Set inside the deliverFn callback so the finally below can tell a real
+    // delivery from a handleResult that threw or returned without delivering.
+    let delivered = false;
     try {
       logger.info(
         {
@@ -614,9 +565,28 @@ export class MultiTagCoordinator {
         entry.groupId,
         syntheticResult,
         entry.userMessageTime,
-        async () => deliverGroup(entry, this.deps)
+        async () => {
+          delivered = true;
+          await this.holdRegistry.deliverAndRelease(entry, async () =>
+            deliverGroup(entry, this.deps)
+          );
+        }
       );
     } finally {
+      // Delivery-contingent hold release first: if the ordering service threw
+      // before running deliverFn, or returned without delivering, the pairs'
+      // holds would otherwise sit silently up to HOLD_DEADLINE_MS. Gated on
+      // the flag because the ordering service may buffer deliverFn past
+      // handleResult's return; a jobId-filtered release on a cycle that moved
+      // on is a no-op, so a later real delivery stays safe.
+      if (!delivered) {
+        void this.holdRegistry.releaseEntrySlots(entry).catch((err: unknown) => {
+          logger.error(
+            { err, groupId: entry.groupId },
+            'Hold release after undelivered flush threw unexpectedly'
+          );
+        });
+      }
       // Unconditional in-memory teardown. Runs whether `handleResult`
       // delivered the group successfully, threw before invoking deliverFn,
       // or returned without delivering (e.g., ordering service rejected
@@ -708,5 +678,19 @@ export class MultiTagCoordinator {
   /** Clear a synthetic-timeout marker after a late result is handled. Proxy. */
   async clearSyntheticTimeout(jobId: string): Promise<void> {
     await this.deps.persistence.clearSyntheticTimeout(jobId);
+  }
+
+  /**
+   * Release any coalescing hold waiting on `completedJobId` for `(channelId, personalityId)`.
+   * Proxy for the single-personality delivery path (`MessageHandler.handleMessageJobResult`)
+   * so a fast result that bypassed coordinator ownership still releases its hold on delivery
+   * instead of waiting out `HOLD_DEADLINE_MS`. No-op when no matching hold entry exists.
+   */
+  async releaseHold(
+    channelId: string,
+    personalityId: string,
+    completedJobId: string
+  ): Promise<void> {
+    await this.holdRegistry.release(channelId, personalityId, completedJobId);
   }
 }

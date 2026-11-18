@@ -15,8 +15,11 @@
  */
 
 import type { Message } from 'discord.js';
-import { isTypingChannel } from '@tzurot/common-types/types/discord-types';
-import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { isTypingChannel, type TypingChannel } from '@tzurot/common-types/types/discord-types';
+import {
+  type LoadedPersonality,
+  type SkippedMessage,
+} from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { generate } from '../../utils/gatewayServiceCalls.js';
@@ -48,7 +51,21 @@ export interface SubmitChatJobInput {
    * a caller must pass a gate built for this same `message`.
    */
   nsfwGate?: NsfwGate;
+  /**
+   * When true, skips saving the user message row inside submitChatJob because
+   * the coalescing hold registry already persisted the row at hold time.
+   * Defaults to false so existing callers keep the save-before-generate behavior.
+   */
+  skipUserMessageSave?: boolean;
+  /**
+   * Skipped activation-trigger messages coalesced into this survivor generation job.
+   * Forwarded to the gateway only when non-empty.
+   */
+  skippedMessages?: SkippedMessage[];
 }
+
+export type SaveUserMessageResult =
+  { kind: 'saved' } | Extract<SubmitChatJobResult, { kind: 'denied' }>;
 
 export type SubmitChatJobResult =
   | {
@@ -91,7 +108,7 @@ export class PersonalityChatManager {
     message: Message,
     personality: LoadedPersonality,
     nsfwGate?: NsfwGate
-  ): Promise<SubmitChatJobResult | null> {
+  ): Promise<Extract<SubmitChatJobResult, { kind: 'denied' }> | null> {
     if (
       this.denylistCache !== undefined &&
       !isBotOwner(message.author.id) &&
@@ -117,23 +134,110 @@ export class PersonalityChatManager {
   }
 
   /**
+   * Shared pre-flight gates for both trigger paths: denylist/NSFW gates, then
+   * the typing-channel check. Returns the denial to propagate, or the narrowed
+   * typing channel to proceed with.
+   */
+  private async runPreflightGates(
+    message: Message,
+    personality: LoadedPersonality,
+    nsfwGate?: NsfwGate
+  ): Promise<
+    { kind: 'ok'; channel: TypingChannel } | Extract<SubmitChatJobResult, { kind: 'denied' }>
+  > {
+    const denied = await this.runGates(message, personality, nsfwGate);
+    if (denied !== null) {
+      return denied;
+    }
+
+    if (!isTypingChannel(message.channel)) {
+      logger.warn(
+        { channelType: message.channel.type },
+        'Unsupported channel type for AI interactions'
+      );
+      return { kind: 'denied', reason: 'unsupported-channel' };
+    }
+
+    return { kind: 'ok', channel: message.channel };
+  }
+
+  /**
+   * Best-effort persistence of a trigger user message row.
+   *
+   * References are NOT persisted bot-client-side: the worker re-derives them
+   * from `rawReferencedMessages` in the envelope. A transient gateway/DB failure
+   * persisting the trigger message must NOT block generation or hold tracking.
+   */
+  private async persistTriggerMessage(
+    message: Message,
+    personality: LoadedPersonality,
+    buildResult: Awaited<ReturnType<MessageContextBuilder['buildContext']>>
+  ): Promise<void> {
+    const { context, personaId, messageContent, triggerMessage, triggerEmbedsXml } = buildResult;
+    try {
+      await this.persistence.saveUserMessage({
+        message: triggerMessage,
+        personality,
+        personaId,
+        messageContent,
+        attachments: context.attachments,
+        embedsXml: triggerEmbedsXml,
+      });
+    } catch (err) {
+      logger.error(
+        { err, personalityId: personality.id, messageId: message.id },
+        'Trigger-message persist failed; continuing to generate (history row may be missing)'
+      );
+    }
+  }
+
+  /**
+   * Persist a trigger user message row without submitting a generation job.
+   *
+   * Used by the activation coalescing hold so a held trigger's user row lands in
+   * conversation history immediately at hold time while the released survivor
+   * later calls submitChatJob with `skipUserMessageSave: true`. Applies the same
+   * pre-save gates (denylist, NSFW, typing-channel) as submitChatJob so a denied
+   * trigger is never persisted or held.
+   */
+  async saveUserMessage(
+    input: Pick<SubmitChatJobInput, 'message' | 'personality' | 'content' | 'nsfwGate'>
+  ): Promise<SaveUserMessageResult> {
+    const { message, personality, content, nsfwGate } = input;
+
+    const preflight = await this.runPreflightGates(message, personality, nsfwGate);
+    if (preflight.kind === 'denied') {
+      return preflight;
+    }
+
+    const botUserId = message.client.user?.id;
+    const buildResult = await this.contextBuilder.buildContext(message, personality, content, {
+      botUserId,
+    });
+    await this.persistTriggerMessage(message, personality, buildResult);
+    return { kind: 'saved' };
+  }
+
+  /**
    * Submit a chat job for an @mention / reply / auto-response.
    *
    * Returns 'submitted' with a ready-to-track context, or 'denied' with a
    * specific reason if a gate (denylist, NSFW, channel type) refused.
    */
   async submitChatJob(input: SubmitChatJobInput): Promise<SubmitChatJobResult> {
-    const { message, personality, content, isAutoResponse, nsfwGate } = input;
-    const { channel } = message;
+    const {
+      message,
+      personality,
+      content,
+      isAutoResponse,
+      nsfwGate,
+      skipUserMessageSave,
+      skippedMessages,
+    } = input;
 
-    const denied = await this.runGates(message, personality, nsfwGate);
-    if (denied !== null) {
-      return denied;
-    }
-
-    if (!isTypingChannel(channel)) {
-      logger.warn({ channelType: channel.type }, 'Unsupported channel type for AI interactions');
-      return { kind: 'denied', reason: 'unsupported-channel' };
+    const preflight = await this.runPreflightGates(message, personality, nsfwGate);
+    if (preflight.kind === 'denied') {
+      return preflight;
     }
 
     const { userClient } = clientsForUser(message.author);
@@ -159,41 +263,20 @@ export class PersonalityChatManager {
       extendedContext: extendedContextSettings,
       botUserId,
     });
-    const { context, personaId, messageContent, triggerMessage, triggerEmbedsXml } = buildResult;
+    const { context, personaId, messageContent } = buildResult;
 
-    // References are NOT persisted bot-client-side: the worker re-derives them
-    // from `rawReferencedMessages` in the envelope. (The previous
-    // `referencedMessages: context.referencedMessages` arg was a no-op — that
-    // field is never populated on the thin envelope.)
-    //
-    // Best-effort: a transient gateway/DB failure persisting the trigger message
-    // (conversation-history durability) must NOT block generation. The worker's
-    // context is already built above and shipped in the envelope, and
-    // triggerMessageId is only a Redis dedup key downstream — never a DB read of
-    // this row — so generation does not depend on the persist. Losing one history
-    // row on a rare transient timeout beats failing the whole response (the
-    // "something's slow, try again" dead-end the user otherwise hits).
-    try {
-      await this.persistence.saveUserMessage({
-        message: triggerMessage,
-        personality,
-        personaId,
-        messageContent,
-        attachments: context.attachments,
-        embedsXml: triggerEmbedsXml,
-      });
-    } catch (err) {
-      logger.error(
-        { err, personalityId: personality.id, messageId: message.id },
-        'Trigger-message persist failed; continuing to generate (history row may be missing)'
-      );
+    if (skipUserMessageSave !== true) {
+      await this.persistTriggerMessage(message, personality, buildResult);
     }
 
     const userMessageTime = new Date();
+    const nonEmptySkipped =
+      skippedMessages !== undefined && skippedMessages.length > 0 ? skippedMessages : undefined;
 
     const { jobId } = await generate(personality, {
       ...context,
       triggerMessageId: message.id,
+      ...(nonEmptySkipped !== undefined ? { skippedMessages: nonEmptySkipped } : {}),
     });
 
     logger.info(
@@ -206,7 +289,7 @@ export class PersonalityChatManager {
 
     const trackingContext: MessageJobContext = {
       kind: 'message',
-      channel,
+      channel: preflight.channel,
       guildId: message.guildId,
       clientId: botUserId,
       userMessageTime,

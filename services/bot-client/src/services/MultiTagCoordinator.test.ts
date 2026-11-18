@@ -15,10 +15,10 @@ import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import {
   MultiTagCoordinator,
-  type StartFanOutInput,
   type MultiTagCoordinatorDeps,
   type RuntimeEntry,
 } from './MultiTagCoordinator.js';
+import type { StartFanOutInput } from './multiTagCoordinatorHelpers.js';
 import type { ResolvedSlot } from './SlotResolver.js';
 import { SlotDeliveryService } from './SlotDeliveryService.js';
 import { ResponseOrderingService } from './ResponseOrderingService.js';
@@ -60,6 +60,11 @@ function buildResolvedSlot(personality: LoadedPersonality): ResolvedSlot {
   };
 }
 
+// Ascending Discord-style createdTimestamp per constructed message — the
+// coalescing hold's latest-wins comparison reads it (fake timers freeze
+// Date.now, hence the counter).
+let messageTimestampCounter = 0;
+
 function buildMessage(overrides: Partial<Message> = {}): Message {
   return {
     id: 'msg-source',
@@ -67,6 +72,7 @@ function buildMessage(overrides: Partial<Message> = {}): Message {
     guildId: 'guild-1',
     client: { user: { id: 'bot-1' } },
     reply: vi.fn(),
+    createdTimestamp: 1_700_000_000_000 + ++messageTimestampCounter,
     ...overrides,
   } as unknown as Message;
 }
@@ -82,6 +88,7 @@ function buildChannel(): TypingChannel {
 describe('MultiTagCoordinator', () => {
   let chatManager: {
     submitChatJob: ReturnType<typeof vi.fn>;
+    saveUserMessage: ReturnType<typeof vi.fn>;
   };
   let jobTracker: {
     trackJob: ReturnType<typeof vi.fn>;
@@ -116,7 +123,10 @@ describe('MultiTagCoordinator', () => {
     vi.clearAllMocks();
     vi.mocked(confirmDelivery).mockResolvedValue(undefined);
     vi.mocked(setDmSessionPersonality).mockResolvedValue(undefined);
-    chatManager = { submitChatJob: vi.fn() };
+    chatManager = {
+      submitChatJob: vi.fn(),
+      saveUserMessage: vi.fn().mockResolvedValue({ kind: 'saved' }),
+    };
     jobTracker = { trackJob: vi.fn(), completeJob: vi.fn() };
     orderingService = {
       registerJob: vi.fn(),
@@ -256,6 +266,33 @@ describe('MultiTagCoordinator', () => {
       expect(jobTracker.trackJob).toHaveBeenCalledTimes(1);
       expect(coordinator.ownsJob('job-Alice')).toBe(true);
       expect(coordinator.ownsJob('job-Bob')).toBe(false);
+    });
+
+    it('releases coalescing holds when entry persistence fails and delivery degrades per-slot', async () => {
+      const a = buildPersonality('Alice');
+      const activation = {
+        ...buildResolvedSlot(a),
+        source: 'activation' as const,
+        isAutoResponse: true,
+      };
+
+      // Fan-out 1: Alice's activation trigger creates a hold cycle for the
+      // pair, then entry persistence fails → degrade → releaseEntrySlots
+      // drops that cycle (its awaitedJobId is this fan-out's own job).
+      persistence.putEntry.mockRejectedValueOnce(new Error('redis down'));
+      const first = fanOut([activation], { jobIdsBySlotIndex: ['job-1'] });
+      await coordinator.startFanOut(first.input);
+      await vi.advanceTimersByTimeAsync(0);
+
+      // Fan-out 2: the pair is idle again — the degraded cycle's hold was
+      // released, so the next activation trigger submits immediately instead
+      // of being held behind the in-flight generation.
+      chatManager.submitChatJob.mockClear();
+      const second = fanOut([activation]);
+      await coordinator.startFanOut(second.input);
+
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+      expect(chatManager.saveUserMessage).not.toHaveBeenCalled();
     });
 
     it('sends the unavailable notice (characters) when every slot is genuinely denied', async () => {
@@ -1146,6 +1183,473 @@ describe('MultiTagCoordinator', () => {
 
       // Group flushed immediately via deliverGroup → deliverSuccess called
       expect(slotDelivery.deliverSuccess).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('activation chatter coalescing (PURPOSE canary)', () => {
+    function buildActivationSlot(personality: LoadedPersonality): ResolvedSlot {
+      return {
+        personality,
+        source: 'activation',
+        isAutoResponse: true,
+      };
+    }
+
+    function buildTriggerMessage(id: string, authorId: string): Message {
+      return buildMessage({ id, author: { id: authorId } } as unknown as Partial<Message>);
+    }
+
+    it('holds plain activation triggers against an in-flight generation, saves their rows at hold time, and releases a single survivor with skippedMessages and skipUserMessageSave: true', async () => {
+      const alice = buildPersonality('Alice');
+      const channel = buildChannel();
+      let jobSeq = 0;
+      chatManager.submitChatJob.mockImplementation(async ({ personality, message }) => ({
+        kind: 'submitted',
+        jobId: `job-${++jobSeq}-${message.id}`,
+        trackingContext: {
+          kind: 'message',
+          channel,
+          guildId: 'guild-1',
+          clientId: 'bot-1',
+          personality,
+          personaId: `persona-${personality.name}`,
+          userMessageTime: new Date(),
+          userMessageContent: 'hi',
+          message,
+        },
+      }));
+
+      const msg1 = buildTriggerMessage('m1', 'u1');
+      const msg2 = buildTriggerMessage('m2', 'u2');
+      const msg3 = buildTriggerMessage('m3', 'u3');
+      const msg4 = buildTriggerMessage('m4', 'u1');
+
+      await coordinator.startFanOut({
+        message: msg1,
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'first trigger',
+        truncated: false,
+        maxTags: 5,
+      });
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+
+      // Three rapid plain activation triggers arrive while job-1-m1 is in flight
+      await coordinator.startFanOut({
+        message: msg2,
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'second trigger',
+        truncated: false,
+        maxTags: 5,
+      });
+      await coordinator.startFanOut({
+        message: msg3,
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'third trigger',
+        truncated: false,
+        maxTags: 5,
+      });
+      await coordinator.startFanOut({
+        message: msg4,
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'fourth trigger (survivor)',
+        truncated: false,
+        maxTags: 5,
+      });
+
+      // (a) No second job submit before release; each held message persisted its user row immediately
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+      expect(chatManager.saveUserMessage).toHaveBeenCalledTimes(3);
+      expect(vi.mocked(msg2.reply)).not.toHaveBeenCalled();
+      expect(vi.mocked(msg3.reply)).not.toHaveBeenCalled();
+      expect(vi.mocked(msg4.reply)).not.toHaveBeenCalled();
+
+      // Deliver job-1-m1 → releases the coalesced hold
+      await coordinator.handleJobResult('job-1-m1', {
+        requestId: 'req-1',
+        success: true,
+        content: 'Reply to first trigger',
+      });
+      // The survivor fan-out is detached from the release — drain its chain
+      await vi.advanceTimersByTimeAsync(0);
+
+      // (b) Exactly one follow-up submit whose payload carries skippedMessages naming m2 and m3
+      // (c) Survivor m4 passes skipUserMessageSave: true
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+      expect(chatManager.submitChatJob.mock.calls[1][0]).toMatchObject({
+        message: msg4,
+        personality: alice,
+        content: 'fourth trigger (survivor)',
+        skipUserMessageSave: true,
+        skippedMessages: [
+          { messageId: 'm2', authorId: 'u2' },
+          { messageId: 'm3', authorId: 'u3' },
+        ],
+      });
+      expect(coordinator.ownsJob('job-2-m4')).toBe(true);
+    });
+
+    it('releases the held survivor only AFTER slotDelivery (post-persistDeliveredTurn) completes', async () => {
+      const alice = buildPersonality('Alice');
+      const channel = buildChannel();
+      let jobSeq = 0;
+      chatManager.submitChatJob.mockImplementation(async ({ personality, message }) => ({
+        kind: 'submitted',
+        jobId: `job-${++jobSeq}-${message.id}`,
+        trackingContext: {
+          kind: 'message',
+          channel,
+          guildId: 'guild-1',
+          clientId: 'bot-1',
+          personality,
+          personaId: `persona-${personality.name}`,
+          userMessageTime: new Date(),
+          userMessageContent: 'hi',
+          message,
+        },
+      }));
+
+      let resolveDelivery!: (val: { chunkMessageIds: string[] }) => void;
+      slotDelivery.deliverSuccess.mockImplementationOnce(
+        () =>
+          new Promise<{ chunkMessageIds: string[] }>(resolve => {
+            resolveDelivery = resolve;
+          })
+      );
+
+      await coordinator.startFanOut({
+        message: buildTriggerMessage('m1', 'u1'),
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'first',
+        truncated: false,
+        maxTags: 5,
+      });
+      await coordinator.startFanOut({
+        message: buildTriggerMessage('m2', 'u2'),
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'second',
+        truncated: false,
+        maxTags: 5,
+      });
+
+      const flushPromise = coordinator.handleJobResult('job-1-m1', {
+        requestId: 'req-1',
+        success: true,
+        content: 'Reply 1',
+      });
+
+      // While deliverSuccess (which runs persistDeliveredTurn) is still in flight, survivor has NOT submitted
+      await Promise.resolve();
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+
+      resolveDelivery({ chunkMessageIds: ['discord-1'] });
+      await flushPromise;
+      // The survivor fan-out is detached from the release — drain its chain
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+    });
+
+    it('delivers the next buffered result without waiting for the detached survivor submission', async () => {
+      const alice = buildPersonality('Alice');
+      const bob = buildPersonality('Bob');
+      const channel = buildChannel();
+      let jobSeq = 0;
+      chatManager.submitChatJob.mockImplementation(async ({ personality, message }) => ({
+        kind: 'submitted',
+        jobId: `job-${++jobSeq}-${message.id}`,
+        trackingContext: {
+          kind: 'message',
+          channel,
+          guildId: 'guild-1',
+          clientId: 'bot-1',
+          personality,
+          personaId: `persona-${personality.name}`,
+          userMessageTime: new Date(),
+          userMessageContent: 'hi',
+          message,
+        },
+      }));
+
+      // Serialize the channel's ordering loop like the real OrderingService:
+      // each result's delivery waits for the previous one on the channel.
+      let deliveryChain: Promise<void> = Promise.resolve();
+      orderingService.handleResult.mockImplementation(
+        async (_chId, _jobId, _result, _time, deliverFn) => {
+          const run = deliveryChain.then(() => deliverFn());
+          deliveryChain = run.catch(() => {});
+          await run;
+        }
+      );
+
+      await coordinator.startFanOut({
+        message: buildTriggerMessage('m1', 'u1'),
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'first',
+        truncated: false,
+        maxTags: 5,
+      });
+      // Held behind job-1-m1
+      await coordinator.startFanOut({
+        message: buildTriggerMessage('m2', 'u2'),
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'second (survivor)',
+        truncated: false,
+        maxTags: 5,
+      });
+      // A second, independent result on the same channel
+      await coordinator.startFanOut({
+        message: buildTriggerMessage('m3', 'u3'),
+        channel,
+        slots: [buildActivationSlot(bob)],
+        content: 'bob trigger',
+        truncated: false,
+        maxTags: 5,
+      });
+
+      // job-1-m1's delivery is manually held open
+      let resolveFirstDelivery!: (val: { chunkMessageIds: string[] }) => void;
+      slotDelivery.deliverSuccess.mockImplementationOnce(
+        () =>
+          new Promise<{ chunkMessageIds: string[] }>(resolve => {
+            resolveFirstDelivery = resolve;
+          })
+      );
+      void coordinator.handleJobResult('job-1-m1', {
+        requestId: 'req-1',
+        success: true,
+        content: 'Reply 1',
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      // Bob's result queues behind job-1-m1's delivery on the channel
+      void coordinator.handleJobResult('job-2-m3', {
+        requestId: 'req-2',
+        success: true,
+        content: 'Reply 3',
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(slotDelivery.deliverSuccess).toHaveBeenCalledTimes(1);
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+
+      // The survivor's submission (m2) is a deferred, still-pending promise
+      let resolveSurvivorSubmit!: (value: unknown) => void;
+      chatManager.submitChatJob.mockImplementationOnce(
+        () => new Promise(resolve => (resolveSurvivorSubmit = resolve))
+      );
+
+      // Completing job-1-m1's delivery releases the survivor (detached) and
+      // then unblocks Bob's buffered delivery.
+      resolveFirstDelivery({ chunkMessageIds: ['discord-1'] });
+      // Drain the release + detached fan-out + ordering-chain hops without
+      // resolving the survivor's pending submitChatJob promise.
+      for (let i = 0; i < 50; i++) {
+        await Promise.resolve();
+      }
+      await vi.advanceTimersByTimeAsync(0);
+
+      // Bob's delivery ran WITHOUT the survivor's submitChatJob resolving
+      expect(slotDelivery.deliverSuccess).toHaveBeenCalledTimes(2);
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(3);
+
+      resolveSurvivorSubmit({
+        kind: 'submitted',
+        jobId: 'job-4-m2',
+        trackingContext: {
+          kind: 'message',
+          channel,
+          userMessageTime: new Date(),
+        },
+      });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    it('releases coalesced holds when the ordering service rejects without delivering', async () => {
+      const alice = buildPersonality('Alice');
+      const channel = buildChannel();
+      let jobSeq = 0;
+      chatManager.submitChatJob.mockImplementation(async ({ personality, message }) => ({
+        kind: 'submitted',
+        jobId: `job-${++jobSeq}-${message.id}`,
+        trackingContext: {
+          kind: 'message',
+          channel,
+          guildId: 'guild-1',
+          clientId: 'bot-1',
+          personality,
+          personaId: `persona-${personality.name}`,
+          userMessageTime: new Date(),
+          userMessageContent: 'hi',
+          message,
+        },
+      }));
+
+      await coordinator.startFanOut({
+        message: buildTriggerMessage('m1', 'u1'),
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'first',
+        truncated: false,
+        maxTags: 5,
+      });
+      await coordinator.startFanOut({
+        message: buildTriggerMessage('m2', 'u2'),
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'second (survivor)',
+        truncated: false,
+        maxTags: 5,
+      });
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+
+      orderingService.handleResult.mockRejectedValueOnce(new Error('ordering down'));
+      await expect(
+        coordinator.handleJobResult('job-1-m1', {
+          requestId: 'req-1',
+          success: true,
+          content: 'Reply 1',
+        })
+      ).rejects.toThrow('ordering down');
+
+      // No timer advance toward the deadline: the undelivered flush must
+      // release the hold directly. Only microtask drains here.
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(0);
+      await Promise.resolve();
+
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+      expect(chatManager.submitChatJob.mock.calls[1][0]).toMatchObject({
+        content: 'second (survivor)',
+        skipUserMessageSave: true,
+      });
+    });
+
+    it('releases the held survivor when the awaited job terminates with an error', async () => {
+      const alice = buildPersonality('Alice');
+      const channel = buildChannel();
+      let jobSeq = 0;
+      chatManager.submitChatJob.mockImplementation(async ({ personality, message }) => ({
+        kind: 'submitted',
+        jobId: `job-${++jobSeq}-${message.id}`,
+        trackingContext: {
+          kind: 'message',
+          channel,
+          guildId: 'guild-1',
+          clientId: 'bot-1',
+          personality,
+          personaId: `persona-${personality.name}`,
+          userMessageTime: new Date(),
+          userMessageContent: 'hi',
+          message,
+        },
+      }));
+
+      await coordinator.startFanOut({
+        message: buildTriggerMessage('m1', 'u1'),
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'first',
+        truncated: false,
+        maxTags: 5,
+      });
+      await coordinator.startFanOut({
+        message: buildTriggerMessage('m2', 'u2'),
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'second',
+        truncated: false,
+        maxTags: 5,
+      });
+
+      await coordinator.handleJobResult('job-1-m1', {
+        requestId: 'req-1',
+        success: false,
+        error: 'provider error',
+      });
+      // The survivor fan-out is detached from the release — drain its chain
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(slotDelivery.deliverError).toHaveBeenCalledOnce();
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+      expect(chatManager.submitChatJob.mock.calls[1][0]).toMatchObject({
+        content: 'second',
+        skipUserMessageSave: true,
+      });
+    });
+
+    it('releases an active hold on the single-personality fast-path delivery (releaseHold) without waiting for the deadline, while a non-matching jobId is a no-op', async () => {
+      const alice = buildPersonality('Alice');
+      const channel = buildChannel();
+      let jobSeq = 0;
+      chatManager.submitChatJob.mockImplementation(async ({ personality, message }) => ({
+        kind: 'submitted',
+        jobId: `job-${++jobSeq}-${message.id}`,
+        trackingContext: {
+          kind: 'message',
+          channel,
+          guildId: 'guild-1',
+          clientId: 'bot-1',
+          personality,
+          personaId: `persona-${personality.name}`,
+          userMessageTime: new Date(),
+          userMessageContent: 'hi',
+          message,
+        },
+      }));
+
+      await coordinator.startFanOut({
+        message: buildTriggerMessage('m1', 'u1'),
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'first',
+        truncated: false,
+        maxTags: 5,
+      });
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+
+      // Non-matching jobId on the single-personality release path is a no-op:
+      // the hold entry for (channel-1, id-Alice) remains active.
+      await coordinator.releaseHold(channel.id, alice.id, 'job-other');
+      await coordinator.startFanOut({
+        message: buildTriggerMessage('m2', 'u2'),
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'held behind m1',
+        truncated: false,
+        maxTags: 5,
+      });
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+      expect(chatManager.saveUserMessage).toHaveBeenCalledTimes(1);
+
+      // Matching jobId releases the hold immediately without advancing timers to HOLD_DEADLINE_MS:
+      // survivor m2 submits into cycle 2 (job-2-m2).
+      await coordinator.releaseHold(channel.id, alice.id, 'job-1-m1');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+      expect(chatManager.submitChatJob.mock.calls[1][0]).toMatchObject({
+        content: 'held behind m1',
+        skipUserMessageSave: true,
+      });
+
+      // Matching jobId for cycle 2 with no held trigger removes the entry immediately
+      // without advancing timers to the deadline: the next trigger submits idle.
+      await coordinator.releaseHold(channel.id, alice.id, 'job-2-m2');
+      await coordinator.startFanOut({
+        message: buildTriggerMessage('m3', 'u3'),
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'idle again',
+        truncated: false,
+        maxTags: 5,
+      });
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(3);
+      expect(chatManager.saveUserMessage).toHaveBeenCalledTimes(1);
     });
   });
 });
