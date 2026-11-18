@@ -20,10 +20,14 @@ import {
   type ModelModality,
 } from '@tzurot/common-types/types/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { parseFiniteNumber } from './catalogNumber.js';
 
 const logger = createLogger('OpenRouterModelCache');
 
 const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
+
+// Negative means "no concrete price" (displayed as Variable); unreadable must not become 0 (0/0 is badged FREE).
+const NO_CONCRETE_PRICE_PER_MILLION = -1_000_000;
 
 /**
  * A 200 carrying no models. Distinct from a fetch failure so the generic
@@ -393,9 +397,8 @@ export class OpenRouterModelCache {
    * Transform raw OpenRouter model to simplified autocomplete format
    */
   private toAutocompleteOption(model: OpenRouterModel): ModelAutocompleteOption {
-    // Convert string prices to numbers (per million tokens)
-    const promptPrice = parseFloat(model.pricing.prompt) * 1_000_000;
-    const completionPrice = parseFloat(model.pricing.completion) * 1_000_000;
+    const promptPrice = parseFiniteNumber(model.pricing.prompt);
+    const completionPrice = parseFiniteNumber(model.pricing.completion);
 
     return {
       id: model.id,
@@ -405,8 +408,10 @@ export class OpenRouterModelCache {
       supportsImageGeneration: model.architecture.output_modalities.includes('image'),
       supportsAudioInput: model.architecture.input_modalities.includes('audio'),
       supportsAudioOutput: model.architecture.output_modalities.includes('audio'),
-      promptPricePerMillion: isNaN(promptPrice) ? 0 : promptPrice,
-      completionPricePerMillion: isNaN(completionPrice) ? 0 : completionPrice,
+      promptPricePerMillion:
+        promptPrice === undefined ? NO_CONCRETE_PRICE_PER_MILLION : promptPrice * 1_000_000,
+      completionPricePerMillion:
+        completionPrice === undefined ? NO_CONCRETE_PRICE_PER_MILLION : completionPrice * 1_000_000,
       created: model.created,
       // Meta-routers (openrouter/auto, fusion, …) report a null top-provider
       // context length — their effective context depends on what they route to.
