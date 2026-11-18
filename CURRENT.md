@@ -1,15 +1,16 @@
 # Current
 
-> **Session handoff 2026-11-13 07:05 EST (glm-5.3-flash, z.ai lane)**: beta.245 SHIPPED 12:05Z (PR 2751 on her Deck-routed yes; merge `b33a7b7b7`; tag+release published `latest`, 244 demoted; develop finalized SHA-aligned). REMAINING: prod confirm = a same-model turn pair with `cachedPromptTokens` ≈ system-prompt size (~60k) and `cacheHitRatio` > 0 in ai-worker prod logs (grep by message TEXT; the fix arms itself, no config flip) → report Deck → then STOP NEW WORK → pause to Sun 11-15 01:00 (her 19:02 ruling). TASK-1414 data collection: same-model turns only (the Opus→Haiku switch mid-window was deliberate, cost-driven). TASK-1421 = round-2 review residue (cache-key scoping etc.). Post-pause queue: TASK-1418, 1416, 1415, 1411, 1374, 1412, 1421; owner TASK-1402/1404/1358. Owed after pause: next-release plan draft (skill § 10), backlog sweep of shipped entries.
+> **Session handoff 2026-11-18 08:25 EST (Opus 5.5, Anthropic lane)**: beta.246 SHIPPED 13:21Z (PR 2768 on her AUQ yes; develop finalized SHA-aligned `a115b8f5d`; release published `latest`, 245 demoted). REMAINING: #2754 (claude-code-action → main) merge on green per her AUQ yes, then `release:finalize`; the two prod acceptance checks below; beta.247 plan in `backlog/now.md` (doc-66 burst coalescing first).
 
-> **Version**: v3.0.0-beta.245 — "caching reads" — SHIPPED 2026-11-13 12:05Z (PR #2751 on her explicit yes via Deck; tagged `latest`, beta.244 demoted; develop finalized `b33a7b7b7`). 1 PR / 1 runtime (#2750 TASK-1420) + bump/board; no migrations; holistic release review: nothing blocks. Body: `docs/local/dispatch/pr-release-b245.md`.
+> **Version**: v3.0.0-beta.246 — "prompt-cache prefix fix + prod-correctness fixes" — SHIPPED 2026-11-18 13:21Z. 13 PRs / 13 runtime / 151 files (#2755–#2767); no migrations; holistic release review: no blocking findings. Body: `docs/local/dispatch/pr-release-b246.md`.
 >
-> **Previous**: v3.0.0-beta.244 — "prompt caching + preset param fixes" (3 PRs / 2 runtime; 2026-11-13 04:37Z) · v3.0.0-beta.243 — "ai-worker attachment pipeline hardening and release guardrails" (32 PRs / 21 runtime / 296 files; 2026-11-12 22:27Z) · v3.0.0-beta.242 (33 PRs / 18 runtime / 238 files; 2026-11-03 12:24Z).
+> **Previous**: v3.0.0-beta.245 — "caching reads" (1 PR; 2026-11-13 12:05Z) · v3.0.0-beta.244 — "prompt caching + preset param fixes" (3 PRs / 2 runtime; 2026-11-13 04:37Z) · v3.0.0-beta.243 — "ai-worker attachment pipeline hardening and release guardrails" (32 PRs / 21 runtime / 296 files; 2026-11-12 22:27Z) · v3.0.0-beta.242 (33 PRs / 18 runtime / 238 files; 2026-11-03 12:24Z).
 
-## 🧪 beta.245 watch (shipped to main 2026-11-13 12:05Z; prod deploy settling)
+## 🧪 beta.246 watch (shipped to main 2026-11-18 13:21Z; prod deploy settling)
 
-- **Watch — caching read-back (the release's whole point; TASK-1414):** from the first post-deploy anthropic conversation turn every request carries `session_id` (contentDigest of the channel id) and the role-guarded system-block breakpoint. **Success signal: a same-model turn pair logs `cachedPromptTokens` near the system prompt size (~60k) with `cacheHitRatio` well above 0** — reads, not just writes. If misses persist, TASK-1421's observability flags (`sessionIdInjected`/`systemBreakpoint`) are the first lever (separates "gate didn't fire" from "affinity applied but still missed"). Data collection same-model only per her 11-12 directive; the beta.244 day-1 write check (CONFIRMED 04:44Z, `cachedWriteTokens=60576`) is superseded by this fix.
-- **No needs-smoke:** the fix is test-pinned at every seam (fetch body, cache key, real-getModel memoization, modelInvocation threading) + 2 review rounds; the release review verified the cross-PR seams.
+- **Watch — cache prefix (#2755):** a same-model turn pair on an Anthropic-family model logs `cachedPromptTokens` ≈ prompt minus the per-turn block, with a small `cachedWriteTokens` (before: 98,487 prompt / 10,365 cached / 88,118 written every turn).
+- **Watch — trigger link embeds (#2764):** a bare-link trigger renders its embed on the FIRST reply; the refetch fallback (`Could not refetch message`, debug level) is code-read only.
+- **No needs-smoke:** both fail soft; per-PR CI + reviews + the holistic release review cover the rest.
 
 ## 🧪 beta.243 watch (shipped to main 2026-11-12; deploys in flight)
 
