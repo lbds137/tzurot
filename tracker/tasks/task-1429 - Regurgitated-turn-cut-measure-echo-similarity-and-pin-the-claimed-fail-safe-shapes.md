@@ -3,7 +3,7 @@ id: TASK-1429
 title: >-
   Regurgitated-turn cut: measure echo similarity and pin the claimed fail-safe
   shapes
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-16T22:06:00Z'
 labels:
