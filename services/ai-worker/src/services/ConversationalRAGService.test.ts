@@ -1210,6 +1210,299 @@ describe('ConversationalRAGService', () => {
       expect(result.deferredMemoryData).toBeUndefined();
       expect(getLongTermMemoryServiceMock().storeInteraction).not.toHaveBeenCalled();
     });
+
+    it('builds skippedDeferredMemories per skipped author from rawConversationHistory and drops missing history rows without failing', async () => {
+      getMemoryRetrieverMock().resolvePersonaForMemory.mockImplementation(
+        async (userId: string) => ({
+          personaId: `persona-for-${userId}`,
+          freshModeEnabled: false,
+        })
+      );
+
+      const personality = createMockPersonality();
+      const context = createMockContext({
+        userId: 'user-survivor',
+        triggerMessageId: 'msg-survivor',
+        skippedMessages: [
+          { messageId: 'msg-skip-1', authorId: 'user-skip-1' },
+          { messageId: 'msg-missing', authorId: 'user-missing' },
+          { messageId: 'msg-skip-2', authorId: 'user-skip-2' },
+        ],
+        rawConversationHistory: [
+          {
+            role: 'user',
+            content: 'First skipped activation message',
+            discordMessageId: ['msg-skip-1'],
+            personaId: 'persona-for-user-skip-1',
+          },
+          {
+            role: 'user',
+            content: 'Second skipped activation message',
+            discordMessageId: ['msg-skip-2'],
+            personaId: 'persona-for-user-skip-2',
+          },
+        ],
+      });
+
+      const result = await service.generateResponse(personality, 'Survivor message', context, {
+        skipMemoryStorage: true,
+      });
+
+      expect(result.deferredMemoryData).toMatchObject({
+        personaId: 'persona-for-user-survivor',
+        contentForEmbedding: 'content for storage',
+        responseContent: 'AI response',
+      });
+      expect(result.skippedDeferredMemories).toEqual([
+        {
+          messageId: 'msg-skip-1',
+          authorId: 'user-skip-1',
+          deferredData: {
+            personaId: 'persona-for-user-skip-1',
+            contentForEmbedding: 'First skipped activation message',
+            responseContent: 'AI response',
+          },
+        },
+        {
+          messageId: 'msg-skip-2',
+          authorId: 'user-skip-2',
+          deferredData: {
+            personaId: 'persona-for-user-skip-2',
+            contentForEmbedding: 'Second skipped activation message',
+            responseContent: 'AI response',
+          },
+        },
+      ]);
+    });
+
+    it('checks incognito per skipped author independently of primary author incognito', async () => {
+      const { redisService } = await import('../redis.js');
+      // Primary author and user-skip-incog are in incognito; user-skip-public is NOT
+      vi.mocked(redisService.isIncognitoActive).mockImplementation(
+        async (userId: string) => userId === 'user-primary-incog' || userId === 'user-skip-incog'
+      );
+
+      getMemoryRetrieverMock().resolvePersonaForMemory.mockImplementation(
+        async (userId: string) => ({
+          personaId: `persona-for-${userId}`,
+          freshModeEnabled: false,
+        })
+      );
+
+      const personality = createMockPersonality();
+      const context = createMockContext({
+        userId: 'user-primary-incog',
+        triggerMessageId: 'msg-survivor',
+        skippedMessages: [
+          { messageId: 'msg-skip-incog', authorId: 'user-skip-incog' },
+          { messageId: 'msg-skip-public', authorId: 'user-skip-public' },
+        ],
+        rawConversationHistory: [
+          {
+            role: 'user',
+            content: 'Incognito skipped text',
+            discordMessageId: ['msg-skip-incog'],
+            personaId: 'persona-for-user-skip-incog',
+          },
+          {
+            role: 'user',
+            content: 'Public skipped text',
+            discordMessageId: ['msg-skip-public'],
+            personaId: 'persona-for-user-skip-public',
+          },
+        ],
+      });
+
+      const result = await service.generateResponse(personality, 'Survivor text', context, {
+        skipMemoryStorage: true,
+      });
+
+      // Primary author was in incognito -> no primary deferredMemoryData
+      expect(result.incognitoModeActive).toBe(true);
+      expect(result.deferredMemoryData).toBeUndefined();
+      // Non-incognito skipped author still gets deferred memory built; incognito skipped author is excluded
+      expect(result.skippedDeferredMemories).toEqual([
+        {
+          messageId: 'msg-skip-public',
+          authorId: 'user-skip-public',
+          deferredData: {
+            personaId: 'persona-for-user-skip-public',
+            contentForEmbedding: 'Public skipped text',
+            responseContent: 'AI response',
+          },
+        },
+      ]);
+
+      vi.mocked(redisService.isIncognitoActive).mockResolvedValue(false);
+    });
+
+    it('drops a skipped message whose history row belongs to a different persona (ownership guard)', async () => {
+      const { redisService } = await import('../redis.js');
+      vi.mocked(redisService.isIncognitoActive).mockResolvedValue(false);
+
+      getMemoryRetrieverMock().resolvePersonaForMemory.mockImplementation(
+        async (userId: string) => ({
+          personaId: `persona-for-${userId}`,
+          freshModeEnabled: false,
+        })
+      );
+
+      const personality = createMockPersonality();
+      const context = createMockContext({
+        userId: 'user-survivor',
+        triggerMessageId: 'msg-survivor',
+        skippedMessages: [
+          { messageId: 'msg-skip-good', authorId: 'user-skip-good' },
+          {
+            messageId: 'msg-skip-collided',
+            authorId: 'user-skip-other',
+          },
+        ],
+        rawConversationHistory: [
+          {
+            role: 'user',
+            content: 'A good skipped trigger text',
+            discordMessageId: ['msg-skip-good'],
+            personaId: 'persona-for-user-skip-good',
+          },
+          {
+            // Row resolves by id but carries a DIFFERENT persona than the one
+            // resolved for user-skip-other — must not be attributed to them.
+            role: 'user',
+            content: 'Someone else collided text',
+            discordMessageId: ['msg-skip-collided'],
+            personaId: 'persona-for-someone-else',
+          },
+        ],
+      });
+
+      const result = await service.generateResponse(personality, 'Survivor text', context, {
+        skipMemoryStorage: true,
+      });
+
+      expect(result.skippedDeferredMemories).toEqual([
+        {
+          messageId: 'msg-skip-good',
+          authorId: 'user-skip-good',
+          deferredData: {
+            personaId: 'persona-for-user-skip-good',
+            contentForEmbedding: 'A good skipped trigger text',
+            responseContent: 'AI response',
+          },
+        },
+      ]);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personalityId: personality.id,
+          droppedCount: 1,
+          totalSkipped: 2,
+        }),
+        expect.any(String)
+      );
+
+      vi.mocked(redisService.isIncognitoActive).mockResolvedValue(false);
+    });
+
+    it('isolates per-item rejections during skipped-memory build, dropping failing items with a counts-only log while returning the generation response and surviving items', async () => {
+      const { redisService } = await import('../redis.js');
+      vi.mocked(redisService.isIncognitoActive).mockImplementation(async (userId: string) => {
+        if (userId === 'user-skip-redis-err') {
+          throw new Error('Redis connection blip');
+        }
+        return false;
+      });
+
+      getMemoryRetrieverMock().resolvePersonaForMemory.mockImplementation(
+        async (userId: string) => {
+          if (userId === 'user-skip-db-err') {
+            throw new Error('DB persona lookup blip');
+          }
+          return {
+            personaId: `persona-for-${userId}`,
+            freshModeEnabled: false,
+          };
+        }
+      );
+
+      const personality = createMockPersonality();
+      const context = createMockContext({
+        userId: 'user-survivor',
+        triggerMessageId: 'msg-survivor',
+        skippedMessages: [
+          { messageId: 'msg-skip-redis-err', authorId: 'user-skip-redis-err' },
+          { messageId: 'msg-skip-ok', authorId: 'user-skip-ok' },
+          { messageId: 'msg-skip-db-err', authorId: 'user-skip-db-err' },
+        ],
+        rawConversationHistory: [
+          {
+            role: 'user',
+            content: 'Skipped message with Redis incognito failure',
+            discordMessageId: ['msg-skip-redis-err'],
+            personaId: 'persona-for-user-skip-redis-err',
+          },
+          {
+            role: 'user',
+            content: 'Surviving skipped message',
+            discordMessageId: ['msg-skip-ok'],
+            personaId: 'persona-for-user-skip-ok',
+          },
+          {
+            role: 'user',
+            content: 'Skipped message with DB persona resolve failure',
+            discordMessageId: ['msg-skip-db-err'],
+            personaId: 'persona-for-user-skip-db-err',
+          },
+        ],
+      });
+
+      const result = await service.generateResponse(personality, 'Survivor text', context, {
+        skipMemoryStorage: true,
+      });
+
+      expect(result.content).toBe('AI response');
+      expect(result.deferredMemoryData).toMatchObject({
+        personaId: 'persona-for-user-survivor',
+        contentForEmbedding: 'content for storage',
+        responseContent: 'AI response',
+      });
+      expect(result.skippedDeferredMemories).toEqual([
+        {
+          messageId: 'msg-skip-ok',
+          authorId: 'user-skip-ok',
+          deferredData: {
+            personaId: 'persona-for-user-skip-ok',
+            contentForEmbedding: 'Surviving skipped message',
+            responseContent: 'AI response',
+          },
+        },
+      ]);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personalityId: personality.id,
+          skippedMessageId: 'msg-skip-redis-err',
+          skippedAuthorId: 'user-skip-redis-err',
+        }),
+        expect.any(String)
+      );
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personalityId: personality.id,
+          skippedMessageId: 'msg-skip-db-err',
+          skippedAuthorId: 'user-skip-db-err',
+        }),
+        expect.any(String)
+      );
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personalityId: personality.id,
+          droppedCount: 2,
+          totalSkipped: 3,
+        }),
+        expect.any(String)
+      );
+
+      vi.mocked(redisService.isIncognitoActive).mockResolvedValue(false);
+    });
   });
 
   describe('storeDeferredMemory', () => {

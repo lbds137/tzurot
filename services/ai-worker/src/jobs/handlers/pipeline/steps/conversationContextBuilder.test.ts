@@ -55,6 +55,19 @@ describe('buildConversationContext', () => {
     expect(result.triggerMessageId).toBe('810000000000000042');
   });
 
+  it('forwards skippedMessages from the job context for coalesced activation turns', () => {
+    const skippedMessages = [
+      { messageId: '810000000000000010', authorId: 'user-a' },
+      { messageId: '810000000000000011', authorId: 'user-b' },
+    ];
+    const jobContext = { ...createMinimalJobContext(), skippedMessages };
+    const prepared = createMinimalPreparedContext();
+
+    const result = buildConversationContext(jobContext, prepared, undefined, TEST_REQUEST_ID);
+
+    expect(result.skippedMessages).toEqual(skippedMessages);
+  });
+
   it('forwards rawAssemblyInputs.rawMessageEmbedsXml as triggerEmbedsXml', () => {
     const embeds = ['<embed type="rich"><title>Unfurled</title></embed>'];
     const jobContext = {

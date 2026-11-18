@@ -43,6 +43,7 @@ import {
   shapesExportResultSchema,
 } from './shapes-import.js';
 import { accountExportJobDataSchema } from './account-export.js';
+import { COALESCING } from '../constants/message.js';
 import { JobType, JobStatus } from '../constants/queue.js';
 import {
   MINIMAL_CONTEXT,
@@ -798,6 +799,70 @@ describe('BullMQ Job Contract Tests', () => {
 
       const resultObject = llmGenerationJobDataSchema.safeParse(jobWithObject);
       expect(resultObject.success).toBe(true);
+    });
+
+    it('accepts and preserves skippedMessages up to COALESCING.MAX_SKIPPED_MESSAGES and rejects overflow or empty ids', () => {
+      const baseJob: LLMGenerationJobData = {
+        requestId: 'req-coalesced',
+        jobType: JobType.LLMGeneration,
+        responseDestination: { type: 'discord', channelId: 'channel-123' },
+        personality: {
+          id: 'personality-123',
+          name: 'TestPersonality',
+          displayName: 'Test Personality',
+          slug: 'test',
+          ownerId: 'owner-uuid-test',
+          systemPrompt: 'You are a helpful assistant',
+          model: 'gpt-4',
+          provider: 'openrouter',
+          temperature: 0.7,
+          maxTokens: 2000,
+          contextWindowTokens: 8192,
+          characterInfo: 'A helpful test personality',
+          personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
+        },
+        message: 'Survivor message',
+        context: {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'Survivor message' },
+          userId: 'user-3',
+          skippedMessages: [
+            { messageId: 'msg-1', authorId: 'user-1' },
+            { messageId: 'msg-2', authorId: 'user-2' },
+          ],
+        },
+      };
+
+      const parsed = llmGenerationJobDataSchema.safeParse(baseJob);
+      expect(parsed.success).toBe(true);
+      if (parsed.success) {
+        expect(parsed.data.context.skippedMessages).toEqual([
+          { messageId: 'msg-1', authorId: 'user-1' },
+          { messageId: 'msg-2', authorId: 'user-2' },
+        ]);
+      }
+
+      const overCap = Array.from({ length: COALESCING.MAX_SKIPPED_MESSAGES + 1 }, (_, i) => ({
+        messageId: `msg-${i}`,
+        authorId: `user-${i}`,
+      }));
+      expect(
+        llmGenerationJobDataSchema.safeParse({
+          ...baseJob,
+          context: { ...baseJob.context, skippedMessages: overCap },
+        }).success
+      ).toBe(false);
+
+      expect(
+        llmGenerationJobDataSchema.safeParse({
+          ...baseJob,
+          context: {
+            ...baseJob.context,
+            skippedMessages: [{ messageId: '', authorId: 'user-1' }],
+          },
+        }).success
+      ).toBe(false);
     });
   });
 

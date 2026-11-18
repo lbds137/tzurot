@@ -255,62 +255,66 @@ export class MessageHandler {
   ): Promise<void> {
     const slotContext = messageJobContextToSlotContext(jobContext);
 
-    // Handle explicit failure from ai-worker (success: false)
-    if (result.success === false) {
-      logger.error(
-        { jobId, error: result.error, errorInfo: result.errorInfo },
-        'Job failed with error from ai-worker'
-      );
-      reportJobError(result, jobContext.personality.name);
-      await this.slotDelivery.deliverError(buildErrorContent(result), result, slotContext);
-      return;
-    }
-
-    // BOUNDARY VALIDATION: validate result has usable content before delivery.
-    if (
-      result.content === undefined ||
-      result.content === null ||
-      result.content.length === 0 ||
-      typeof result.content !== 'string'
-    ) {
-      logger.error(
-        {
-          jobId,
-          hasContent: result.content !== undefined && result.content !== null,
-          contentType: typeof result.content,
-        },
-        'Job result missing or invalid content field'
-      );
-      // A "successful" result that cannot be delivered is a bug, not an
-      // expected outcome — same owner-visibility class as the success:false
-      // branch above (category resolves to 'unknown' here, never deny-listed).
-      reportJobError(result, jobContext.personality.name);
-      await this.slotDelivery.deliverError(buildErrorContent(result), result, slotContext);
-      return;
-    }
-
-    reportQuotaFallbackRescue(result, jobContext.personality.name);
-
     try {
-      const { chunkMessageIds } = await this.slotDelivery.deliverSuccess(
-        result as LLMGenerationResult & { success: true },
-        slotContext
-      );
-      logger.info(
-        { jobId, chunks: chunkMessageIds.length },
-        'Async job result delivered successfully'
-      );
-    } catch (error) {
-      logger.error({ err: error, jobId }, 'Error handling job result');
-      reportDeliveryFailure(error, result, jobContext.personality.name);
-      const errorContent = buildErrorContent(result);
-      // A mid-stream send failure carries a PartialDeliveryError with the
-      // chunks already on Discord — route it through the partial-aware
-      // error path so the turn's single persisted row includes them, rather
-      // than losing the delivered text under the 3-arg `deliverError` path.
-      await (error instanceof PartialDeliveryError
-        ? this.slotDelivery.deliverErrorAfterPartial(error, errorContent, result, slotContext)
-        : this.slotDelivery.deliverError(errorContent, result, slotContext));
+      // Handle explicit failure from ai-worker (success: false)
+      if (result.success === false) {
+        logger.error(
+          { jobId, error: result.error, errorInfo: result.errorInfo },
+          'Job failed with error from ai-worker'
+        );
+        reportJobError(result, jobContext.personality.name);
+        await this.slotDelivery.deliverError(buildErrorContent(result), result, slotContext);
+        return;
+      }
+
+      // BOUNDARY VALIDATION: validate result has usable content before delivery.
+      if (
+        result.content === undefined ||
+        result.content === null ||
+        result.content.length === 0 ||
+        typeof result.content !== 'string'
+      ) {
+        logger.error(
+          {
+            jobId,
+            hasContent: result.content !== undefined && result.content !== null,
+            contentType: typeof result.content,
+          },
+          'Job result missing or invalid content field'
+        );
+        // A "successful" result that cannot be delivered is a bug, not an
+        // expected outcome — same owner-visibility class as the success:false
+        // branch above (category resolves to 'unknown' here, never deny-listed).
+        reportJobError(result, jobContext.personality.name);
+        await this.slotDelivery.deliverError(buildErrorContent(result), result, slotContext);
+        return;
+      }
+
+      reportQuotaFallbackRescue(result, jobContext.personality.name);
+
+      try {
+        const { chunkMessageIds } = await this.slotDelivery.deliverSuccess(
+          result as LLMGenerationResult & { success: true },
+          slotContext
+        );
+        logger.info(
+          { jobId, chunks: chunkMessageIds.length },
+          'Async job result delivered successfully'
+        );
+      } catch (error) {
+        logger.error({ err: error, jobId }, 'Error handling job result');
+        reportDeliveryFailure(error, result, jobContext.personality.name);
+        const errorContent = buildErrorContent(result);
+        // A mid-stream send failure carries a PartialDeliveryError with the
+        // chunks already on Discord — route it through the partial-aware
+        // error path so the turn's single persisted row includes them, rather
+        // than losing the delivered text under the 3-arg `deliverError` path.
+        await (error instanceof PartialDeliveryError
+          ? this.slotDelivery.deliverErrorAfterPartial(error, errorContent, result, slotContext)
+          : this.slotDelivery.deliverError(errorContent, result, slotContext));
+      }
+    } finally {
+      await this.coordinator.releaseHold(jobContext.channel.id, jobContext.personality.id, jobId);
     }
   }
 

@@ -13,10 +13,15 @@ import {
 } from '@tzurot/common-types/constants/error';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type MessageContent } from '@tzurot/common-types/types/ai';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type FreeTierRequestQuota } from '../../../../services/FreeTierRequestQuota.js';
 import { createDiagnosticCollectorForRequest } from '../../../../services/diagnostics/personalityOwnerResolver.js';
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
+import type {
+  ConversationContext,
+  SkippedDeferredMemoryData,
+} from '../../../../services/ConversationalRAGTypes.js';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 import { type EmbeddingServiceInterface } from '../../../../utils/duplicateDetection.js';
 import { routesAttemptedByPrimary, runWithAutoPromotionFallback } from './autoPromotionFallback.js';
@@ -58,6 +63,49 @@ function deriveFallbackFromProvider(
   return effectiveProviderUsed !== undefined && effectiveProviderUsed !== configuredProvider
     ? configuredProvider
     : undefined;
+}
+
+/**
+ * Store per-skipped-author deferred memory interactions for coalesced activation
+ * triggers. Each interaction is independently guarded so one failure logs and
+ * does not abort remaining skipped interactions or fail the generation job.
+ */
+async function storeSkippedDeferredMemories(
+  ragService: ConversationalRAGService,
+  personality: LoadedPersonality,
+  conversationContext: ConversationContext,
+  skippedDeferredMemories: SkippedDeferredMemoryData[] | undefined,
+  jobId: string | undefined
+): Promise<void> {
+  if (skippedDeferredMemories === undefined || skippedDeferredMemories.length === 0) {
+    return;
+  }
+  for (const item of skippedDeferredMemories) {
+    try {
+      // Only `userId` and `triggerMessageId` are author-scoped overrides on the
+      // spread context (the skipped author's `personaId` lives on `item.deferredData`);
+      // the remaining `conversationContext` fields are conversation-scoped.
+      await ragService.storeDeferredMemory(
+        personality,
+        {
+          ...conversationContext,
+          userId: item.authorId,
+          triggerMessageId: item.messageId,
+        },
+        item.deferredData
+      );
+    } catch (error) {
+      logger.error(
+        {
+          jobId,
+          err: error,
+          skippedMessageId: item.messageId,
+          skippedAuthorId: item.authorId,
+        },
+        'Failed to store skipped-author deferred memory - continuing with remaining interactions'
+      );
+    }
+  }
 }
 
 export class GenerationStep implements IPipelineStep {
@@ -233,26 +281,6 @@ export class GenerationStep implements IPipelineStep {
       // metadata.providerUsed) and the diagnostic row both record this value.
       const servedProvider = effectiveProviderUsed ?? provider;
 
-      // Store memory ONCE after retry loop completes with a valid response.
-      // This prevents duplicate memories when retries occur (the fix for the
-      // "swiss cheese" duplicate memory bug - see memory:cleanup command).
-      // Wrapped in try-catch: memory storage failure shouldn't fail the job
-      // since the user already has their validated response.
-      if (response.deferredMemoryData !== undefined && response.incognitoModeActive !== true) {
-        try {
-          await this.ragService.storeDeferredMemory(
-            effectivePersonality,
-            conversationContext,
-            response.deferredMemoryData
-          );
-        } catch (error) {
-          logger.error(
-            { jobId: job.id, err: error },
-            'Failed to store deferred memory - continuing without memory storage'
-          );
-        }
-      }
-
       const processingTimeMs = Date.now() - startTime;
       logger.info(
         {
@@ -340,6 +368,37 @@ export class GenerationStep implements IPipelineStep {
 
       // Success-path diagnostic store happens in LLMGenerationHandler
       // (post-pipeline). Error-path stores remain inline above.
+
+      // Memory storage sits BELOW the exhausted-empty early return: an
+      // exhausted run has no AI reply to bind memories to, so storing here
+      // would write LTM rows whose response side is empty. Store memory ONCE
+      // after retry loop completes with a valid response. This prevents
+      // duplicate memories when retries occur (the fix for the "swiss cheese"
+      // duplicate memory bug - see memory:cleanup command). Wrapped in
+      // try-catch: memory storage failure shouldn't fail the job since the
+      // user already has their validated response.
+      if (response.deferredMemoryData !== undefined && response.incognitoModeActive !== true) {
+        try {
+          await this.ragService.storeDeferredMemory(
+            effectivePersonality,
+            conversationContext,
+            response.deferredMemoryData
+          );
+        } catch (error) {
+          logger.error(
+            { jobId: job.id, err: error },
+            'Failed to store deferred memory - continuing without memory storage'
+          );
+        }
+      }
+
+      await storeSkippedDeferredMemories(
+        this.ragService,
+        effectivePersonality,
+        conversationContext,
+        response.skippedDeferredMemories,
+        job.id
+      );
 
       return {
         ...context,

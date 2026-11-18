@@ -22,7 +22,7 @@ import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { SlotDeliveryContext } from './SlotDeliveryService.js';
 import type { CoordinatorEntrySnapshot } from './MultiTagPersistence.js';
-import type { SlotSource } from './SlotResolver.js';
+import type { ResolvedSlot, SlotSource } from './SlotResolver.js';
 import type { SubmitChatJobResult } from './character/PersonalityChatManager.js';
 
 const logger = createLogger('MultiTagCoordinatorHelpers');
@@ -75,6 +75,32 @@ export interface RuntimeEntry {
    * The admin-configured cap this fan-out was resolved under. Stamped at
    * resolution time and persisted, so the truncation notice quotes the cap
    * that actually applied even if an admin changes the setting mid-flight.
+   */
+  maxTags: number;
+}
+
+/** Input shape for startFanOut — what PersonalityTriggerProcessor builds. */
+export interface StartFanOutInput {
+  message: Message;
+  channel: TypingChannel;
+  /** Slots already resolved (deduped, ordered, capped) by SlotResolver. */
+  slots: ResolvedSlot[];
+  /** Raw effective content to pass to each slot's AI submission. */
+  content: string;
+  /**
+   * `true` if the resolver's cap dropped at least one tagged personality
+   * (more unique candidates than the per-message `maxTags` cap below).
+   * Surfaced as a one-line notice
+   * after the slot-delivery burst so users see why fewer characters
+   * responded than they tagged. Dedup-driven shrinkage (same character
+   * tagged twice) doesn't count — caller decides.
+   */
+  truncated: boolean;
+  /**
+   * The cap that produced `slots` — the admin-configured
+   * `multiTagMaxCharacters`, read once by the caller for this message.
+   * Carried (rather than re-read at delivery) so the truncation notice quotes
+   * the number the resolver actually applied.
    */
   maxTags: number;
 }
@@ -171,6 +197,9 @@ export function toSnapshot(entry: RuntimeEntry): CoordinatorEntrySnapshot {
  * an anonymous string.
  *
  * - `'submitted'` — a live job to coordinate.
+ * - `'held'` — an activation trigger coalesced into an in-flight generation's
+ *   hold slot; its user row is already saved and its follow-up submits on
+ *   release, so the current fan-out stays silent for this slot.
  * - `'denied'` — a genuine refusal: the character can't respond (denylisted,
  *   NSFW-gated, or restricted here). The input was understood; the character
  *   simply isn't available. Rendered as a single system notice when the whole
@@ -195,6 +224,10 @@ export type SlotOutcome =
       personaId: string;
       source: SlotSource;
       isAutoResponse: boolean;
+    }
+  | {
+      kind: 'held';
+      personality: LoadedPersonality;
     }
   | {
       kind: 'denied';
@@ -269,9 +302,15 @@ export function partitionSlotSubmissions(slotSubmissions: SlotOutcome[]): {
 }
 
 /**
- * Whether the all-failed notice is suppressed — i.e. every submission was
- * denied, and every denial wants silence:
+ * Whether the all-failed notice is suppressed — judged on the non-held
+ * submissions only:
  *
+ * - every slot held: nothing was denied, and every held slot's response still
+ *   arrives on its release — full silence.
+ * - held beside only silent denials (MUTE-silent or nsfw-blocked): the held
+ *   slots' responses arrive later, and the denials want silence anyway.
+ * - held beside an overt BLOCK denial: the notice STAYS — the denial is real
+ *   and the generic copy is accurate for it; the held slot does not hide it.
  * - MUTE-silent: MUTE's contract is "ignore but keep in context", so posting
  *   the unavailable notice would announce the exact denial MUTE exists to
  *   hide. Full silence is the feature.
@@ -280,35 +319,90 @@ export function partitionSlotSubmissions(slotSubmissions: SlotOutcome[]): {
  *   than the generic copy, which names denylist/private/restricted instead,
  *   so a user who just verified would read it as a moderation block.
  *
- * Mixed batches with any BLOCK denial that is not nsfw-blocked keep the
- * notice: the generic copy is accurate for them. Any errored outcome keeps
- * the notice/delivery path (the errored characters speak in their own voice
- * via `deliverAllFailedNotice`); an empty batch never suppresses. Pinned by
- * the `shouldSuppressAllFailedNotice` table in
+ * Any errored outcome keeps the notice/delivery path (the errored characters
+ * speak in their own voice via `deliverAllFailedNotice`); an empty batch never
+ * suppresses. Pinned by the `shouldSuppressAllFailedNotice` table in
  * multiTagCoordinatorHelpers.test.ts.
  */
 export function shouldSuppressAllFailedNotice(
   slotSubmissions: SlotOutcome[],
   erroredOutcomes: ErroredSlotOutcome[]
 ): boolean {
+  const nonHeld = slotSubmissions.filter(o => o.kind !== 'held');
   return (
     erroredOutcomes.length === 0 &&
     slotSubmissions.length > 0 &&
-    slotSubmissions.every(
-      o => o.kind === 'denied' && (o.silent === true || o.reason === 'nsfw-blocked')
-    )
+    (nonHeld.length === 0 ||
+      nonHeld.every(o => o.kind === 'denied' && (o.silent === true || o.reason === 'nsfw-blocked')))
   );
 }
 
 /**
+ * Roll back the in-memory ownership written before the persistence
+ * attempt and fall back to per-slot ordering registration. Called only
+ * from `startFanOut` when `putEntry` throws — extracted (from the
+ * coordinator) to keep both files under the `max-lines` cap.
+ *
+ * Cross-message ordering survives (each slot's jobId is registered
+ * individually); intra-fan-out slot order is lost. The BullMQ jobs
+ * are already submitted and can't be cancelled from here.
+ *
+ * **Why this doesn't touch `flushingGroups`**: `flushingGroups` is
+ * only populated by `flushEntry` (the re-entry guard for the
+ * deliver-burst path). `startFanOut` never adds to it, so the rollback
+ * has nothing to clean up there.
+ */
+export function degradeToPerSlotOrdering(opts: {
+  entry: RuntimeEntry;
+  runtimeSlots: RuntimeSlot[];
+  timeoutHandle: NodeJS.Timeout;
+  userMessageTime: Date;
+  err: unknown;
+  entries: Map<string, RuntimeEntry>;
+  jobToGroup: Map<string, string>;
+  orderingService: {
+    registerJob(channelId: string, jobId: string, userMessageTime: Date): unknown;
+  };
+  holdRegistry: { releaseEntrySlots(entry: RuntimeEntry): Promise<void> };
+}): void {
+  clearTimeout(opts.timeoutHandle);
+  opts.entries.delete(opts.entry.groupId);
+  for (const slot of opts.runtimeSlots) {
+    opts.jobToGroup.delete(slot.jobId);
+  }
+  logger.error(
+    {
+      err: opts.err,
+      groupId: opts.entry.groupId,
+      sourceMessageId: opts.entry.sourceMessageId,
+      slotCount: opts.runtimeSlots.length,
+    },
+    'Failed to persist multi-tag entry; degrading to per-slot ordered delivery'
+  );
+  for (const slot of opts.runtimeSlots) {
+    opts.orderingService.registerJob(opts.entry.channel.id, slot.jobId, opts.userMessageTime);
+  }
+  void opts.holdRegistry.releaseEntrySlots(opts.entry).catch((err: unknown) => {
+    logger.error(
+      { err, groupId: opts.entry.groupId, sourceMessageId: opts.entry.sourceMessageId },
+      'Hold release after degrade threw unexpectedly'
+    );
+  });
+}
+
+/**
  * Log the all-denied suppression decision and per-reason denial counts for
- * an all-failed multi-tag batch.
+ * an all-failed multi-tag batch. Skipped entirely when any slot is held —
+ * its outcome arrives on release, so this is not an all-denied batch.
  */
 export function logAllDeniedDecision(
   sourceMessageId: string,
   slotSubmissions: SlotOutcome[],
   suppressNotice: boolean
 ): void {
+  if (slotSubmissions.some(o => o.kind === 'held')) {
+    return;
+  }
   logger.info(
     {
       sourceMessageId,

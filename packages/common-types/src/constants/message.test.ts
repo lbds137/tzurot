@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { MULTI_TAG, NO_TEXT_CONTENT_PLACEHOLDER } from './message.js';
+import { COALESCING, MULTI_TAG, NO_TEXT_CONTENT_PLACEHOLDER } from './message.js';
 import { TIMEOUTS } from './timing.js';
 
 describe('MULTI_TAG timing invariants', () => {
@@ -52,5 +52,13 @@ describe('NO_TEXT_CONTENT_PLACEHOLDER', () => {
     // string. The recovery guard compares against it to re-heal them, so the
     // value must not drift — changing it orphans every poisoned row from recovery.
     expect(NO_TEXT_CONTENT_PLACEHOLDER).toBe('[no text content]');
+  });
+});
+
+describe('COALESCING invariants', () => {
+  it('bounds skipped messages per coalesced generation and sets a short release deadline below the coordinator timeout', () => {
+    expect(COALESCING.MAX_SKIPPED_MESSAGES).toBe(10);
+    expect(COALESCING.HOLD_DEADLINE_MS).toBeGreaterThan(0);
+    expect(COALESCING.HOLD_DEADLINE_MS).toBeLessThan(MULTI_TAG.COORDINATOR_TIMEOUT_MS);
   });
 });

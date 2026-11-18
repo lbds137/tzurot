@@ -32,6 +32,8 @@ export {
   referencedChannelSchema,
   type RequestContext,
   requestContextSchema,
+  type SkippedMessage,
+  skippedMessageSchema,
 } from './personality.js';
 
 export {

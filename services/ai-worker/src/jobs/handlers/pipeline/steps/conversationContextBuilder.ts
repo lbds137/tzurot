@@ -51,6 +51,7 @@ export function buildConversationContext(
     sessionId: jobContext.sessionId,
     isProxyMessage: jobContext.isProxyMessage,
     triggerMessageId: jobContext.triggerMessageId,
+    skippedMessages: jobContext.skippedMessages,
     isWeighIn: jobContext.isWeighIn,
     summonAnonymity,
     activePersonaId: jobContext.activePersonaId,

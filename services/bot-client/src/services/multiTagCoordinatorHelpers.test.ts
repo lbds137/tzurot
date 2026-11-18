@@ -317,6 +317,15 @@ describe('partitionSlotSubmissions', () => {
     expect(runtimeSlots).toEqual([]);
     expect(erroredOutcomes).toEqual([]);
   });
+
+  it('skips held outcomes without consuming a dense index or marking as errored', () => {
+    const { runtimeSlots, erroredOutcomes } = partitionSlotSubmissions([
+      { kind: 'held', personality: buildPersonality('HeldAlice') },
+      submitted('Bob'),
+    ]);
+    expect(runtimeSlots.map(s => [s.slotIndex, s.jobId])).toEqual([[0, 'job-Bob']]);
+    expect(erroredOutcomes).toEqual([]);
+  });
 });
 
 describe('shouldSuppressAllFailedNotice', () => {
@@ -335,6 +344,10 @@ describe('shouldSuppressAllFailedNotice', () => {
   const mute = (name: string): SlotOutcome => denied(name, 'denylisted', true);
   const block = (name: string): SlotOutcome => denied(name, 'denylisted');
   const nsfw = (name: string): SlotOutcome => denied(name, 'nsfw-blocked');
+  const held = (name: string): SlotOutcome => ({
+    kind: 'held',
+    personality: buildPersonality(name),
+  });
   const errored: ErroredSlotOutcome = {
     personality: buildPersonality('Boom'),
     isAutoResponse: true,
@@ -342,6 +355,12 @@ describe('shouldSuppressAllFailedNotice', () => {
   };
 
   it.each([
+    {
+      name: 'every outcome is held (coalesced activation slot)',
+      submissions: [held('Alice')],
+      erroredOutcomes: [],
+      expected: true,
+    },
     {
       name: 'every denial is MUTE-silent',
       submissions: [mute('Alice'), mute('Bob')],
@@ -359,6 +378,30 @@ describe('shouldSuppressAllFailedNotice', () => {
       submissions: [mute('Alice'), nsfw('Bob')],
       erroredOutcomes: [],
       expected: true,
+    },
+    {
+      name: 'a held slot beside a MUTE-silent denial',
+      submissions: [held('Alice'), mute('Bob')],
+      erroredOutcomes: [],
+      expected: true,
+    },
+    {
+      name: 'a held slot beside an nsfw-blocked denial',
+      submissions: [held('Alice'), nsfw('Bob')],
+      erroredOutcomes: [],
+      expected: true,
+    },
+    {
+      name: 'a held slot beside an overt denylisted BLOCK denial',
+      submissions: [held('Alice'), block('Bob')],
+      erroredOutcomes: [],
+      expected: false,
+    },
+    {
+      name: 'a held slot beside a MUTE-silent and an overt denylisted BLOCK denial',
+      submissions: [held('Alice'), mute('Bob'), block('Carol')],
+      erroredOutcomes: [],
+      expected: false,
     },
     {
       name: 'one overt denylisted BLOCK beside an nsfw-blocked denial',
@@ -414,5 +457,14 @@ describe('logAllDeniedDecision', () => {
       },
       'All multi-tag slots denied — suppression decision'
     );
+  });
+
+  it('does not log an all-denied decision when every slot was held by coalescing', () => {
+    logAllDeniedDecision(
+      'msg-held',
+      [{ kind: 'held', personality: buildPersonality('Alice') }],
+      true
+    );
+    expect(loggerMock.info).not.toHaveBeenCalled();
   });
 });
