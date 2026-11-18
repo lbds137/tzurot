@@ -55,6 +55,22 @@ describe('buildConversationContext', () => {
     expect(result.triggerMessageId).toBe('810000000000000042');
   });
 
+  it('forwards rawAssemblyInputs.rawMessageEmbedsXml as triggerEmbedsXml', () => {
+    const embeds = ['<embed type="rich"><title>Unfurled</title></embed>'];
+    const jobContext = {
+      ...createMinimalJobContext(),
+      rawAssemblyInputs: {
+        rawMessageContent: 'https://x.com/post',
+        rawMessageEmbedsXml: embeds,
+      },
+    };
+    const prepared = createMinimalPreparedContext();
+
+    const result = buildConversationContext(jobContext, prepared, undefined, TEST_REQUEST_ID);
+
+    expect(result.triggerEmbedsXml).toEqual(embeds);
+  });
+
   it('forwards the requestId that travels beside the job context', () => {
     // The correlation seam: requestId lives on the job payload's top level, not
     // inside its context, so this hop is the only thing that puts it where the

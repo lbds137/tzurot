@@ -247,7 +247,7 @@ export function formatImageSection(msg: StructuredHistoryEntry): string {
 }
 
 /** Format embeds section for XML output */
-export function formatEmbedsSection(msg: StructuredHistoryEntry): string {
+export function formatEmbedsSection(msg: Pick<StructuredHistoryEntry, 'messageMetadata'>): string {
   if (msg.messageMetadata?.embedsXml === undefined) {
     return '';
   }

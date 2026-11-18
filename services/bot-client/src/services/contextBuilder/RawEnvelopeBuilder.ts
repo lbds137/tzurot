@@ -196,6 +196,11 @@ export function buildRawAssemblyInputs(
     rawAuthorDisplayName?: string;
     /** The triggering user's guild member info (raw form of activePersonaGuildInfo). */
     rawActiveGuildMemberInfo?: GuildMemberInfo;
+    /**
+     * The trigger message's embeds as embed-XML strings, from the message as
+     * refetched after the embed-processing wait.
+     */
+    rawMessageEmbedsXml?: string[];
   }
 ): RawAssemblyInputs {
   return {
@@ -211,6 +216,7 @@ export function buildRawAssemblyInputs(
       message,
       getEffectiveContentForPrompt(message)
     ),
+    rawMessageEmbedsXml: refs?.rawMessageEmbedsXml,
     rawRoutingTranscript: VoiceMessageProcessor.getVoiceTranscript(message),
     rawAuthorDisplayName: refs?.rawAuthorDisplayName,
     // No clone needed (unlike the participant guild map): this scalar is a

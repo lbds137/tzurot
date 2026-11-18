@@ -11,6 +11,19 @@ describe('rawAssemblyInputsSchema — guild/attachment raw forms', () => {
       expect(result.data.rawParticipantGuildInfo).toBeUndefined();
       expect(result.data.rawExtendedContextImageAttachments).toBeUndefined();
       expect(result.data.rawActiveGuildMemberInfo).toBeUndefined();
+      expect(result.data.rawMessageEmbedsXml).toBeUndefined();
+    }
+  });
+
+  it('accepts rawMessageEmbedsXml and preserves it through a parse', () => {
+    const embeds = ['<embed index="1" type="rich"><title>Unfurled Link</title></embed>'];
+    const result = rawAssemblyInputsSchema.safeParse({
+      ...base,
+      rawMessageEmbedsXml: embeds,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.rawMessageEmbedsXml).toEqual(embeds);
     }
   });
 

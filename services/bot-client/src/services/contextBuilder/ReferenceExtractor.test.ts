@@ -146,8 +146,28 @@ describe('extractReferencesAndMentions', () => {
 
     expect(result.messageContent).toBe('Hello world');
     expect(result.rawReferencedMessages).toBeUndefined();
+    expect(result.refreshedMessage).toBeUndefined();
     expect(mockExtractReferences).not.toHaveBeenCalled();
     expect(mockResolveAllMentions).not.toHaveBeenCalled();
+  });
+
+  it('passes refreshedMessage through from MessageReferenceExtractor in normal mode', async () => {
+    const refreshedMessage = createMockMessage({ id: 'refetched-1' } as Partial<Message>);
+    mockExtractReferences.mockResolvedValue({
+      rawReferences: [],
+      updatedContent: 'https://x.com/post',
+      refreshedMessage,
+    });
+
+    const result = await extractReferencesAndMentions({
+      mentionResolver: mockMentionResolver as unknown as MentionResolver,
+      message: createMockMessage({ id: 'original-1' } as Partial<Message>),
+      content: 'https://x.com/post',
+      history: [],
+      maxReferences: 50,
+    });
+
+    expect(result.refreshedMessage).toBe(refreshedMessage);
   });
 
   it('should extract references and resolve mentions in normal mode', async () => {

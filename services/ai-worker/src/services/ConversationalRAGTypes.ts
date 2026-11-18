@@ -210,6 +210,13 @@ export interface ConversationContext {
   participants?: ParticipantPersona[];
   /** Attachments from triggering message */
   attachments?: AttachmentMetadata[];
+  /**
+   * The trigger message's embeds as embed-XML strings, forwarded from
+   * `jobContext.rawAssemblyInputs.rawMessageEmbedsXml` by
+   * `buildConversationContext` so `ContentBudgetManager` can pass them to both
+   * `PromptBuilder.buildHumanMessage` calls (pre-pass measurement and final).
+   */
+  triggerEmbedsXml?: string[];
   /** Pre-processed attachments (vision descriptions) from triggering message */
   preprocessedAttachments?: ProcessedAttachment[];
   /** Pre-processed attachments from referenced messages */

@@ -64,6 +64,7 @@ export function buildConversationContext(
     nonHistoryOldestTimestamp: preparedContext.nonHistoryOldestTimestamp,
     participants: preparedContext.participants,
     attachments: jobContext.attachments,
+    triggerEmbedsXml: jobContext.rawAssemblyInputs?.rawMessageEmbedsXml,
     preprocessedAttachments:
       preprocessing && preprocessing.processedAttachments.length > 0
         ? preprocessing.processedAttachments

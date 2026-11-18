@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 3061,
-    "sites": 7102
+    "entries": 3063,
+    "sites": 7104
   },
   "entries": [
     {
@@ -18129,6 +18129,18 @@
       "file": "services/bot-client/src/handlers/CommandHandler.ts",
       "symbol": "Collection",
       "count": 2
+    },
+    {
+      "category": "unclassified",
+      "file": "services/bot-client/src/handlers/MessageReferenceExtractor.ts",
+      "symbol": "force",
+      "count": 1
+    },
+    {
+      "category": "unclassified",
+      "file": "services/bot-client/src/handlers/MessageReferenceExtractor.ts",
+      "symbol": "message",
+      "count": 1
     },
     {
       "category": "unclassified",

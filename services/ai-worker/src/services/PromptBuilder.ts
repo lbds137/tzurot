@@ -20,6 +20,7 @@ import type {
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import { formatParticipantsContext } from './prompt/ParticipantFormatter.js';
 import { extractCharacterParticipants } from '../jobs/utils/participantUtils.js';
+import { formatEmbedsSection } from '../jobs/utils/xmlMetadataFormatters.js';
 import { formatMemoriesContextWithStats, formatFactsContext } from './prompt/MemoryFormatter.js';
 import { dropFactsCoveredByArchive } from './prompt/dropFactsCoveredByArchive.js';
 import { layoutSections, type PromptSection, type SectionDescription } from './prompt/sections.js';
@@ -171,6 +172,12 @@ export class PromptBuilder {
       discordUsername?: string;
       /** Personality name for collision detection */
       personalityName?: string;
+      /**
+       * The trigger message's embeds as embed-XML strings, appended unescaped
+       * to the escaped user content before speaker wrapping (same trust and
+       * `<embeds>` rendering as history entries).
+       */
+      triggerEmbedsXml?: string[];
     }
   ): { message: HumanMessage; contentForStorage: string } {
     const {
@@ -180,6 +187,7 @@ export class PromptBuilder {
       activePersonaPronouns,
       discordUsername,
       personalityName,
+      triggerEmbedsXml,
     } = options ?? {};
 
     // Build message content with attachments
@@ -204,8 +212,10 @@ export class PromptBuilder {
     const contentForStorage = messageContent;
 
     // Escape the user's content; the volatile prefix is system-generated XML
-    // and is prepended AFTER the wrap, un-escaped.
-    const safeUserContent = escapeXmlContent(messageContent);
+    // and is prepended AFTER the wrap, un-escaped. Trigger embeds (already
+    // formatted by EmbedParser) append to the escaped text BEFORE the speaker
+    // wrap so they stay unescaped inside `<from>` just like history `<embeds>`.
+    const safeUserContent = `${escapeXmlContent(messageContent)}${formatEmbedsSection({ messageMetadata: { embedsXml: triggerEmbedsXml } })}`;
 
     // Add speaker identification around the user's turn only
     let turnContent = safeUserContent;
