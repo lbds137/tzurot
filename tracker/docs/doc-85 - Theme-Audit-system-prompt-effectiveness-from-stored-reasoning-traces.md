@@ -43,7 +43,7 @@ interchangeable:
 1. the model produced no trace (**~5% of generations**),
 2. the row is a user turn (only assistant rows carry one),
 3. the row predates trace persistence,
-4. reads fall back to the 24h diagnostic log.
+4. reads fall back to the 7-day diagnostic log.
 
 Case 3 is the one that will distort an early audit: the corpus is only as deep
 as trace persistence is old, which may be well short of 30 days. **Measure the
