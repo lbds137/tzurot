@@ -418,6 +418,59 @@ describe('OpenRouterModelCache', () => {
 
       expect(results[0].supportsImageGeneration).toBe(true);
     });
+
+    describe('catalog price parsing', () => {
+      async function priceOption(prompt: string, completion: string) {
+        const model: OpenRouterModel = {
+          ...sampleTextModel,
+          pricing: {
+            ...sampleTextModel.pricing,
+            prompt,
+            completion,
+          },
+        };
+        (mockRedis.get as ReturnType<typeof vi.fn>).mockResolvedValue(JSON.stringify([model]));
+        return cache.getModelById(model.id);
+      }
+
+      it('scales a valid decimal catalog price ("0.000001") to 1 per million', async () => {
+        const option = await priceOption('0.000001', '0.000001');
+        expect(option?.promptPricePerMillion).toBe(1);
+        expect(option?.completionPricePerMillion).toBe(1);
+      });
+
+      it('preserves a negative catalog price ("-1") as negative (-1_000_000)', async () => {
+        const option = await priceOption('-1', '-1');
+        expect(option?.promptPricePerMillion).toBe(-1_000_000);
+        expect(option?.completionPricePerMillion).toBe(-1_000_000);
+        expect(option?.promptPricePerMillion).toBeLessThan(0);
+        expect(option?.completionPricePerMillion).toBeLessThan(0);
+      });
+
+      it('maps a price with trailing junk ("0.1abc") to the negative sentinel (-1_000_000)', async () => {
+        const option = await priceOption('0.1abc', '0.1abc');
+        expect(option?.promptPricePerMillion).toBe(-1_000_000);
+        expect(option?.completionPricePerMillion).toBe(-1_000_000);
+      });
+
+      it('maps an unreadable price ("abc") to the negative sentinel (-1_000_000), not 0', async () => {
+        const option = await priceOption('abc', 'abc');
+        expect(option?.promptPricePerMillion).toBe(-1_000_000);
+        expect(option?.completionPricePerMillion).toBe(-1_000_000);
+      });
+
+      it('maps a zero price ("0") to 0', async () => {
+        const option = await priceOption('0', '0');
+        expect(option?.promptPricePerMillion).toBe(0);
+        expect(option?.completionPricePerMillion).toBe(0);
+      });
+
+      it('maps only the unreadable side to the negative sentinel when prompt is "0" and completion is "abc" (not 0/0)', async () => {
+        const option = await priceOption('0', 'abc');
+        expect(option?.promptPricePerMillion).toBe(0);
+        expect(option?.completionPricePerMillion).toBe(-1_000_000);
+      });
+    });
   });
 
   describe('convenience methods', () => {
