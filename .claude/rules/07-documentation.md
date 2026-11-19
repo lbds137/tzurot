@@ -25,7 +25,7 @@ Each layer points down. No upward references. No duplicated content.
 - Research note (distilled AI insights **with a public audience** — see "Audience check" below) → `docs/research/`
 - Local working notes without a public audience → `docs/local/` (gitignored)
 - Steam Deck dev-environment guides → `docs/steam-deck/`
-- Work tracking → root `CURRENT.md` and `BACKLOG.md` (the load manifest), curated files under `backlog/**/*.md`, the small-item pool in `tracker/` (query via `pnpm tracker`)
+- Work tracking → root `CURRENT.md`, curated files under `backlog/**/*.md`, the small-item pool in the `tracker/` store (query via `pnpm tracker`)
 - Shared machine memory → `~/Documents/claude-memory` (per-user context, preferences, time-bound state; shared by every session on this machine, not git-tracked)
 
 ## Audience check (public repo)

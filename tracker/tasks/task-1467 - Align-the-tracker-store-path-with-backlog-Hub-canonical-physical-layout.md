@@ -16,7 +16,7 @@ ordinal: 1467000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Why: the fleet standard (Lila AUQ 11-19, via Deck) pins backlog.md via SYG_TRACKING_SURFACE, and the seyag reference keeps the store at backlog/ with config.yml; the Hub may key on the physical path. Tzurot adopted the semantics (pin landed, BACKLOG.md manifest retired, claiming via assignee) but the store stays at tracker/ — recorded as deliberate in 06-backlog.md.
+Why: the fleet standard (Lila AUQ 11-19, via Deck) pins backlog.md via SYG_TRACKING_SURFACE, and the seyag reference keeps the store at backlog/ with config.yml; the Hub may key on the physical path. Tzurot adopted the semantics (pin landed, BACKLOG.md manifest retired, claiming via assignee) but the store stays at tracker/ — recorded as deliberate in 06-backlog.md. The opt-in hedge moved here from 06-backlog.md: SYG_TRACKING_SURFACE=backlog-md is set in settings, and no repo or pinned-CLI code reads it (plugin consumers unverified); the planning dir holds backlog/, and renaming 1200+ store files buys nothing the pin does not.
 
 What: move planning files out of backlog/ (now.md, active-epic.md, cold/, cadence-ledger.json), git mv tracker/* to backlog/ (+ config.yml), update the tracker wiring, backlogLint/backlogDigest paths, tracker-commit BOARD_PATH_RE, pre-push, guards, hooks, rules and skills pointers, and tell Deck to re-index the Hub.
 

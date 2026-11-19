@@ -67,7 +67,7 @@
 #
 # Path exclusions: tracker/, backlog/, docs/, .claude/, .husky/, and ALL *.md
 # files. Markdown is prose that legitimately DESCRIBES these phrasings
-# (CLAUDE.md, CURRENT.md, BACKLOG.md, READMEs — this hook's own source too);
+# (CLAUDE.md, CURRENT.md, READMEs — this hook's own source too);
 # the guarded surface is claims entering CODE. `.husky/` joins `.claude/` for
 # the same reason and was added after this guard flagged the comment in
 # `.husky/pre-commit` that describes what it looks for — hook-config surfaces

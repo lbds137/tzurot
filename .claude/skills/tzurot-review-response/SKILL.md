@@ -1,7 +1,7 @@
 ---
 name: tzurot-review-response
 description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → decided when engineering-only, ASK when it carries a product/UX, user-visible, schema, spend, data-rights, or security dimension, changes an existing test assertion, or changes an async boundary or external contract), check reviewer-vs-agent signal conflict, batch-present the four sections, step back at ~3 automated rounds (rule of thumb), and hard-cap at ~6 — hand off to a fresh context or the owner. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
-lastUpdated: '2026-10-28'
+lastUpdated: '2026-11-19'
 ---
 
 # Review-Response Iteration
@@ -107,7 +107,7 @@ Procedure: `seyag:review-response § 5a. Hard cap at ~6 rounds: hand off, don't 
 Lists and extension procedure: `seyag:review-response § Edit-shape whitelist`. Tzurot bindings:
 
 - **Test-only addition**: touching `knownGaps`/baseline files is excluded (`00-critical.md` § Test Coverage Baseline forbids widening those).
-- **Documentation-only addition** covers `BACKLOG.md`, `backlog/**/*.md`, release notes, `CHANGELOG.md`, `README.md`, and anything under `docs/`; it still excludes `.claude/rules/*.md` and `.claude/skills/*/SKILL.md`.
+- **Documentation-only addition** covers `backlog/**/*.md`, release notes, `CHANGELOG.md`, `README.md`, and anything under `docs/`; it still excludes `.claude/rules/*.md` and `.claude/skills/*/SKILL.md`.
 - A `backlog/**/*.md` addition to a file the PR hasn't touched is still a trivial-shape edit.
 
 ## Relationship to the rules

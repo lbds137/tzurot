@@ -106,7 +106,7 @@ Note what relocation actually bought: it did **not** reduce work — the rows st
 
 ## The objection any answer must clear
 
-**The markdown backlog is loaded into agent context at session start.** `backlog/now.md` + `active-epic.md` + `references.md` + `BACKLOG.md` + `CURRENT.md` = 246 lines / 44 KB, read every session. That is *why* this substrate was chosen, and it is not a small thing.
+**The markdown backlog is loaded into agent context at session start.** `backlog/now.md` + `active-epic.md` + `references.md` + `BACKLOG.md` + `CURRENT.md` = 246 lines / 44 KB, read every session. That is *why* this substrate was chosen, and it is not a small thing. (Historical: the `BACKLOG.md` manifest named here was retired 2026-11-19 when the fleet standardized on the backlog.md store — see `.claude/rules/06-backlog.md`.)
 
 Mitigations exist (a generated digest committed into the hot file; `gh issue list` at session start) but each has a cost, and a design that quietly degrades session-start context trades a visible problem for an invisible one. **This leads the council brief rather than being buried.**
 

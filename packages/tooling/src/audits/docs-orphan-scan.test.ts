@@ -63,7 +63,7 @@ describe('scanDocsOrphans', () => {
       {
         'docs/reference/parent-index.md': 'Details live in [child](./child-details.md).',
         'docs/reference/child-details.md': '# Child',
-        'BACKLOG.md': 'Track parent-index cleanup.',
+        'CURRENT.md': 'Track parent-index cleanup.',
       },
       async repoRoot => {
         expect(scanDocsOrphans(repoRoot).orphans).toEqual([]);

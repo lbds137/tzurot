@@ -39,7 +39,7 @@ describe('isNonRuntimeFile', () => {
   });
 
   it('excludes root-level markdown files', () => {
-    expect(isNonRuntimeFile('BACKLOG.md')).toBe(true);
+    expect(isNonRuntimeFile('CLAUDE.md')).toBe(true);
     expect(isNonRuntimeFile('CURRENT.md')).toBe(true);
     expect(isNonRuntimeFile('README.md')).toBe(true);
   });
