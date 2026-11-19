@@ -169,7 +169,7 @@ if (useThinking && Number.isInteger(budgetTokens)) {
 
 ## Actionable Items
 
-See BACKLOG.md Icebox section for:
+See the `backlog/cold/` theme queue for:
 
 - Character Card Import (V2/V3 PNG metadata)
 - Lorebooks / Sticky Context

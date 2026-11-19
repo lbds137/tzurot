@@ -134,6 +134,5 @@ These docs remain in the project root for visibility:
 - `README.md` - Project overview and quick start
 - `CLAUDE.md` - Claude Code instructions
 - `CURRENT.md` - Current work status and session context
-- `BACKLOG.md` - Project backlog and priorities
 
 **Version History:** See [GitHub Releases](https://github.com/lbds137/tzurot/releases)

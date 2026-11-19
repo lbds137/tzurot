@@ -68,18 +68,12 @@ const PROPOSALS_GLOB = 'docs/proposals/backlog';
 // mode this catches is "proposal exists but nothing mentions it" — not
 // "proposal isn't mentioned in a specific file." A link from
 // docs/research/, docs/incidents/, or docs/README.md all count as "this
-// proposal is tracked somewhere a human will see it." `CURRENT.md` and
-// `BACKLOG.md` are both root-level work-tracking files per CLAUDE.md;
-// either can legitimately host a proposal link. `tracker/docs` holds the
+// proposal is tracked somewhere a human will see it." `CURRENT.md` is the
+// root-level work-tracking file per CLAUDE.md; it can legitimately host a
+// proposal link. `tracker/docs` holds the
 // theme/idea docs (the themes/ideas→docs migration) — most proposals are
 // linked from their owning theme, so the doc store is a first-class root.
-export const SEARCH_ROOTS = [
-  'backlog',
-  'docs',
-  'tracker/docs',
-  'CURRENT.md',
-  'BACKLOG.md',
-] as const;
+export const SEARCH_ROOTS = ['backlog', 'docs', 'tracker/docs', 'CURRENT.md'] as const;
 // `docs/local/` is gitignored, so a mention there does not exist in CI.
 const EXCLUDED_PREFIXES = ['docs/proposals/', 'docs/local/'];
 
@@ -282,7 +276,7 @@ export async function checkProposalOrphans(
   if (totalFindings === 0) {
     console.log(`✅ All ${totalProposals} proposals have at least one inbound link.`);
     console.log(
-      `   Searched: backlog/**/*.md, docs/**/*.md (excluding docs/proposals/ and docs/local/), tracker/docs/**/*.md, CURRENT.md, BACKLOG.md\n`
+      `   Searched: backlog/**/*.md, docs/**/*.md (excluding docs/proposals/ and docs/local/), tracker/docs/**/*.md, CURRENT.md\n`
     );
     return;
   }
@@ -310,7 +304,7 @@ kebab-case slug — e.g., \`memory.md\` → \`memory-and-context-redesign.md\`.
     console.log(`
 A proposal is "orphan" when nothing under \`backlog/**/*.md\`,
 \`docs/**/*.md\` (excluding \`docs/proposals/\` and \`docs/local/\`),
-\`tracker/docs/**/*.md\`, \`CURRENT.md\`, or \`BACKLOG.md\` mentions its basename.
+\`tracker/docs/**/*.md\`, or \`CURRENT.md\` mentions its basename.
 
 Fix one of:
   - Link the proposal from its owning theme/idea doc or a backlog file (most common)

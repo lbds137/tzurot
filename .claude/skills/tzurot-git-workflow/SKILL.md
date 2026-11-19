@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-11-10'
+lastUpdated: '2026-11-19'
 ---
 
 # Git Workflow Procedures
@@ -52,7 +52,7 @@ test "$(git rev-parse HEAD)" = "$(git ls-remote origin "refs/heads/<branch>" | c
 ```
 
 - A commit-body line starting with `#` is dropped when git cleans the message in editor/strip mode (`-m` and `-F` keep it). Start such lines with a word ("PR #2466 …"); same for `#TASK` prefixes.
-- Board-only commits (`tracker/**`, `backlog/**`, `BACKLOG.md`, `CURRENT.md`) go through `pnpm ops tracker:commit --subject "<subject>"` when the shell is not on develop: it commits and pushes the board files dirty in the checkout that holds develop, stages only those paths, and refuses rather than moves files dirty in the current checkout, so edit them where develop is checked out. A board-only push to develop runs CI with every heavy job skipped (the `changes` job in `ci.yml`), so it neither burns a full run nor cancels an in-flight develop run (code pushes to develop no longer cancel each other either: each post-merge run is a deploy signal; the release preflight checks the last code commit's run); `backlog:lint`, `lines:check` and `guard:proposal-links` still run in pre-push's docs-only branch.
+- Board-only commits (`tracker/**`, `backlog/**`, `CURRENT.md`) go through `pnpm ops tracker:commit --subject "<subject>"` when the shell is not on develop: it commits and pushes the board files dirty in the checkout that holds develop, stages only those paths, and refuses rather than moves files dirty in the current checkout, so edit them where develop is checked out. A board-only push to develop runs CI with every heavy job skipped (the `changes` job in `ci.yml`), so it neither burns a full run nor cancels an in-flight develop run (code pushes to develop no longer cancel each other either: each post-merge run is a deploy signal; the release preflight checks the last code commit's run); `backlog:lint`, `lines:check` and `guard:proposal-links` still run in pre-push's docs-only branch.
 
 ### 3. Push
 

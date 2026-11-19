@@ -25,3 +25,5 @@ Nothing checks this. Verified during the round: no tooling references the shared
 
 **Promote when**: a review catches a third `BACKLOG.md` ↔ rule contradiction (reviews run on every PR, so this fires without anyone remembering), or the drain work reaches a rule-out batch and edits these surfaces anyway. The earlier trigger on this entry — "the next edit to any rule `BACKLOG.md` restates" — was itself the opportunistic shape this PR's admission bar rejects, filed an hour after shipping the prohibition; replaced rather than kept.
 
+**Archived (obsolete) — PR 2772 round-2 review**: premise gone — the manifest this entry guarded parity with is retired by that PR; the single canonical topology lives in `.claude/rules/06-backlog.md`, with no second copy left to drift.
+

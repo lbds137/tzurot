@@ -196,7 +196,7 @@ dilutes the holistic release-review's second look. **Count merged PRs, not
 commits**: rebase-only merging makes those diverge badly enough to change the
 answer. **Runtime is everything except `packages/{tooling,test-utils,test-factories}`,
 `.claude/`, `docs/`, `backlog/`, `tracker/`, `.github/`, `.husky/`, and root
-markdown files (`CURRENT.md`, `BACKLOG.md`, `README.md`, ...)** — stated as an
+markdown files (`CURRENT.md`, `README.md`, ...)** — stated as an
 exclusion because most workspace packages are runtime `dependencies` of a
 deployed service, so an allowlist under-counts by default and a new package
 joins the wrong side silently. `pnpm ops release:range` derives the count

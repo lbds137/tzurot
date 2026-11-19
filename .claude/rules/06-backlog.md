@@ -2,11 +2,13 @@
 
 ## Structure
 
-`BACKLOG.md` is the load manifest (HOT/COLD surfaces, filing tree). `tracker/` is queried on demand, never loaded wholesale; `backlog/cold/` is grep-on-demand; `CURRENT.md` is owned by `/tzurot-docs`.
+- **One store: `tracker/`** — a backlog.md-format store run by the pinned CLI (`pnpm tracker`), queried on demand, never loaded wholesale. The store stays at `tracker/`, not `backlog/` (TASK-1467 owns the physical alignment, owner-gated).
+- **Planning surfaces.** HOT — `backlog/now.md` (production issues · release · focus · quick wins · untriaged) and `backlog/active-epic.md`, read at session start; COLD — `backlog/cold/`, grep-on-demand; theme/idea content lives in `tracker/docs/` (`doc-N`), `backlog/cold/queue.md` is its ordered index, and `pnpm tracker doc search|view|create` queries it; `CURRENT.md` is owned by `/tzurot-docs`.
+- This section is the canonical backlog topology.
 
 ## The tracker store (small items)
 
-Commands: `BACKLOG.md` § The tracker store.
+Managed by the CLI: `task list -s "To Do" --search <term> --plain` (by text) · `-s "To Do" -l area:<x> --plain` (by area) · `-s "To Do" -l size:S --plain` · `-s "To Do" --priority high --plain` · `task view <id> --plain` · `task create 'Title' -d $'Why: ...' -l area:<x>` · `task edit <id> -s Done` (finish at ship). **Multi-session claiming**: `-a <session-name> -s "In Progress"` in the same CLI pass that starts the work, released at unit end (clear `-a`, back to `-s "To Do"` — an abandoned claim returns to To Do) — the store keeps the queue; role files keep progress.
 
 `--search` is fuzzy over title AND body: high recall, low precision (one term returned ~130 tasks, mostly noise; a nonsense string returns 0). An EMPTY result is real evidence of absence and can back a "we don't have X" claim alongside the other vocabulary variants. A non-empty count means nothing until the hits are read; never report "N tasks match".
 
@@ -84,4 +86,15 @@ Session-end gates (additions and removals): `/tzurot-docs` § Session End Proced
 
 ## Triage Rules — where does a new item go?
 
-Filing decision-tree: `BACKLOG.md` § Where does a new item go?
+After the admission bar:
+
+1. Active production bug → `now.md` 🚨
+2. Working it this week → `now.md` 🎯 (≤3)
+3. Small (<~2hr), independent, and imminent → `now.md` ⚡ Quick Wins (≤5)
+4. Small and everything else → tracker task
+5. Active-epic slice → `active-epic.md` (per-PR slice detail → the epic's tracker doc)
+6. A paragraph-scoped feature → tracker idea doc (`doc create 'Idea: …'`)
+7. A multi-phase initiative → tracker theme doc (`'Theme: …'`) + a `cold/queue.md` bullet
+8. Mid-session untriaged → `now.md` 📥 (≤10), route later
+
+Granularity ladder: one-sentence → task · paragraph → idea doc · epic → theme doc + queue bullet. Tags on backlog markdown: 🏗️ `[LIFT]` · ✨ `[FEAT]` · 🐛 `[FIX]` · 🧹 `[CHORE]` (tracker tasks use `area:*` labels instead).

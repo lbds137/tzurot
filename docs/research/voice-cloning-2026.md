@@ -198,7 +198,7 @@ An earlier (now-superseded) architectural assumption suggested Mistral's silent-
 
 ## References
 
-- Backlog: BACKLOG.md → Future Themes → Voice Engine
+- Backlog: `backlog/cold/` theme queue → Voice Engine
 - Pocket TTS GitHub: https://github.com/kyutai-labs/pocket-tts
 - Parakeet TDT HuggingFace: https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3
 - NeuTTS Air GitHub: https://github.com/neuphonic/neutts

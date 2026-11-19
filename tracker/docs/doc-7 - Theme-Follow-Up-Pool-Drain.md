@@ -147,7 +147,7 @@ and prints them at commit/push (`packages/tooling/src/dev/check-deferred-refs.ts
 — but only tasks. Pointing it also at the tracker doc store (`tracker/docs/`) would
 make a filed batch surface when someone touches a file it names.
 
-- [ ] Detail + tradeoffs in `doc-48` (Idea: BACKLOG.md ↔ 06-backlog.md content parity has no guard) (option 3) — same domain, tracked there
+- [ ] Detail + tradeoffs in the retired doc-48 idea (BACKLOG.md ↔ 06-backlog.md content parity had no guard; archived obsolete — the manifest it guarded is retired and the canonical topology lives in `.claude/rules/06-backlog.md`) (option 3) — same domain
 
 **Honest qualification** measured the same day: the admission bar's premise is
 "nobody greps a several-hundred-row table before unrelated work," and

@@ -2,7 +2,7 @@
  * Tracker Commit
  *
  * Lands dirty tracker and board files (`tracker/**`, `backlog/**`,
- * `BACKLOG.md`, `CURRENT.md`) on `develop` and pushes them to `origin` from
+ * `CURRENT.md`) on `develop` and pushes them to `origin` from
  * any checkout — whether `develop` is checked out in the current working tree,
  * in a sibling worktree, or in no worktree at all.
  *
@@ -38,10 +38,12 @@ export const TRACKER_COMMIT_PUSH_TIMEOUT_MS = 600_000;
 export const TRACKER_COMMIT_MAX_BUFFER = 64 * 1024 * 1024;
 
 /**
- * Board roots matching `.claude/hooks/board-commit-branch-gate.sh` for
- * `tracker/**`, `backlog/**`, `BACKLOG.md`, and `CURRENT.md`.
+ * Board roots matching `.claude/hooks/board-commit-branch-gate.sh`'s
+ * board-path shape for `tracker/**`, `backlog/**`, and `CURRENT.md`, except
+ * that the hook intentionally still carries a dead `BACKLOG` alternative
+ * (classifier-gated file, owner-gated sweep) while this regex dropped it.
  */
-const BOARD_PATH_RE = /^(?:\.\/)?(?:(?:tracker|backlog)(?:\/|$)|(?:BACKLOG|CURRENT)\.md$)/;
+const BOARD_PATH_RE = /^(?:\.\/)?(?:(?:tracker|backlog)(?:\/|$)|CURRENT\.md$)/;
 
 const DEVELOP_REF = 'refs/heads/develop';
 
@@ -98,7 +100,7 @@ function refuse(check: TrackerCommitCheckName, reason: string): TrackerCommitRes
 
 /**
  * True when `filePath` is in the board allowlist (`tracker/**`, `backlog/**`,
- * `BACKLOG.md`, `CURRENT.md`).
+ * `CURRENT.md`).
  * @internal Exported for testing
  */
 export function isBoardPath(filePath: string): boolean {

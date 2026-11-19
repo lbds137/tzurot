@@ -4,7 +4,7 @@
 
 Discord bot with AI personas. TypeScript monorepo on Railway.
 
-> **Session Start**: the session-start hook already injects [CURRENT.md](CURRENT.md) — do NOT Read it again (a second load costs ~10k tokens on every later call) → read [BACKLOG.md](BACKLOG.md) → Continue or pull next task
+> **Session Start**: the session-start hook already injects [CURRENT.md](CURRENT.md) — do NOT Read it again (a second load costs ~10k tokens on every later call) → read [backlog/now.md](backlog/now.md) and [backlog/active-epic.md](backlog/active-epic.md) and run `pnpm ops backlog:digest` → Continue or pull next task
 
 ## Commands
 

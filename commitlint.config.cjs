@@ -3,7 +3,7 @@ const path = require('path');
 
 // Static scopes for root-level concerns (not workspace packages)
 const staticScopes = [
-  'backlog', // Work tracking (backlog/*.md, BACKLOG.md, CURRENT.md)
+  'backlog', // Work tracking (backlog/*.md, tracker/, CURRENT.md)
   'ci', // CI/CD configuration (.github/)
   'deps', // Dependency updates
   'docs', // General documentation

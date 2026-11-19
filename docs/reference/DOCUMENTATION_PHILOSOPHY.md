@@ -46,7 +46,7 @@ Features that are good ideas but not currently scheduled.
 - **Deleted when implemented** (after extracting learnings to feature docs)
 - May be deleted outright if abandoned
 
-> **Note**: The project does **not** use a `docs/proposals/active/` directory. Active work is tracked in the HOT backlog surface (`backlog/now.md` 🎯 Current Focus, `backlog/active-epic.md`; `BACKLOG.md` is the load manifest). Proposals stay in `docs/proposals/backlog/` until they're either implemented (and deleted) or promoted into the hot backlog.
+> **Note**: The project does **not** use a `docs/proposals/active/` directory. Active work is tracked in the HOT backlog surface (`backlog/now.md` 🎯 Current Focus, `backlog/active-epic.md`) and the `tracker/` store (`.claude/rules/06-backlog.md` is the canonical topology). Proposals stay in `docs/proposals/backlog/` until they're either implemented (and deleted) or promoted into the hot backlog.
 
 ### Research Notes
 
@@ -54,7 +54,7 @@ Distilled insights from AI consultations (TL;DR format).
 
 - Lives in `docs/research/`
 - 2-5KB each (not raw transcripts)
-- Links to actionable BACKLOG items
+- Links to actionable items in `tracker/` or `backlog/`
 - Placement is also an audience decision (this is a public repo): research
   written for users or contributors is tracked here; working material written
   for the operator lives in `docs/local/` (gitignored). See the "Audience
@@ -125,7 +125,7 @@ Is this documentation about...
   → NO ↓
 
 [Active work in progress?]
-  → YES → Track in BACKLOG.md (🎯 Current Focus or 🏗 Active Epic)
+  → YES → Track in the backlog surfaces (`backlog/now.md` 🎯 or 🏗 `active-epic.md`)
   → NO ↓
 
 [Future idea (not scheduled)?]

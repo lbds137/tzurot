@@ -168,7 +168,7 @@ const LINKS_README = [
   '## Development',
   '',
   'see [Quick Start](#quick-start) and [Development](#development) above.',
-  'see [BACKLOG.md](BACKLOG.md) and [docs](docs/steam-deck/).',
+  'see [CURRENT.md](CURRENT.md) and [docs](docs/steam-deck/).',
 ].join('\n');
 
 const FENCE_HEADING_FIXTURE = [
@@ -413,7 +413,7 @@ describe('extractHeadingSlugs', () => {
 
 describe('checkLinks', () => {
   const pathExists = (relPath: string): boolean =>
-    relPath === 'BACKLOG.md' || relPath === 'docs/steam-deck/';
+    relPath === 'CURRENT.md' || relPath === 'docs/steam-deck/';
 
   it('is clean against real link targets that all resolve', () => {
     expect(checkLinks(LINKS_README, pathExists)).toEqual([]);

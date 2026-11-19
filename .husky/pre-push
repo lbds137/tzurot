@@ -97,8 +97,8 @@ elif [ -z "$CODE_FILES" ] && [ -z "$PYTHON_FILES" ]; then
         exit 1
     fi
     # CI's lint job (this guard's only other runner) is skipped on board-only
-    # develop pushes, and the guard reads backlog/, tracker/docs/, CURRENT.md
-    # and BACKLOG.md, so a board edit can orphan a proposal link unseen.
+    # develop pushes, and the guard reads backlog/, tracker/docs/, CURRENT.md,
+    # so a board edit can orphan a proposal link unseen.
     if ! pnpm ops guard:proposal-links; then
         echo "${RED}Proposal-link guard failed!${NC}"
         echo "Every docs/proposals/backlog/*.md needs an inbound link; restore or add it before pushing"

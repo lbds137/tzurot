@@ -3,8 +3,8 @@
  *
  * The session-start briefing over the tracker store: a ~60-line generated
  * summary of the open-task pool that replaces loading a 40KB+ markdown table
- * into every session. Run via `pnpm ops backlog:digest` (BACKLOG.md names it
- * as part of the session-start load).
+ * into every session. Run via `pnpm ops backlog:digest` (the session-start
+ * workflow in `.claude/rules/06-backlog.md` names it as part of the load).
  *
  * Four surfaces, in priority order:
  *  - **By area** — per-`area:*`-label counts (a multi-area task counts in each

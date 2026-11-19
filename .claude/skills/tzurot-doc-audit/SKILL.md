@@ -1,7 +1,7 @@
 ---
 name: tzurot-doc-audit
 description: 'Documentation freshness audit. Invoke with /tzurot-doc-audit to review docs, rules, and skills for staleness, items in the wrong layer, missing-tool drift, and always-loaded passages that no longer earn their context cost. The shared auto-memory audit is `harness:doc-audit` § Step 2.'
-lastUpdated: '2026-09-27'
+lastUpdated: '2026-11-19'
 ---
 
 # Documentation Audit Procedure
@@ -57,22 +57,22 @@ Stamp it when done: `pnpm ops cadence:mark memory-prune`, then commit
 - [ ] Reference subdirectory table matches actual subdirectories
 - [ ] Root-level documentation section references correct filenames
 
-> Note: this project uses `BACKLOG.md` (root load manifest) + `backlog/` (HOT `now.md`/`active-epic.md` + COLD `cold/`) for active work tracking, not `docs/proposals/active/` — that directory does not exist by design. If you see references to it in any doc, they're stale and should be removed.
+> Note: this project tracks active work in `backlog/` (HOT `now.md`/`active-epic.md` + COLD `cold/`) plus the `tracker/` backlog.md store (`.claude/rules/06-backlog.md` is the canonical topology), not `docs/proposals/active/` — that directory does not exist by design. If a doc still routes work through it — or through the retired root `BACKLOG.md` manifest — that's a LIVE pointer and is stale and should be removed; prose recording the retirement itself is expected.
 
 ### 2. Rules Files (`.claude/rules/`)
 
-| File                      | Check                                                                                                                           |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `00-critical.md`          | Security rules still reflect current patterns? Post-mortem table current?                                                       |
-| `01-architecture.md`      | Service boundaries match dependency-cruiser rules? Anti-patterns table current?                                                 |
-| `02-code-standards.md`    | ESLint limits match `eslint.config.js`? Testing patterns current?                                                               |
-| `03-database.md`          | Protected indexes list current? (The cache TTL table lives in `durability-tiers.md` — § Existing cache implementations.)        |
-| `04-discord.md`           | Shared utilities table lists all browse/dashboard helpers?                                                                      |
-| `05-tooling.md`           | All `pnpm ops` commands listed? `pnpm quality` description accurate?                                                            |
-| `06-backlog.md`           | `BACKLOG.md` HOT/COLD table matches the actual `backlog/` layout; granularity ladder intact? 06-backlog staleness rules intact? |
-| `07-documentation.md`     | Placement table covers all `docs/reference/` subdirs? Lifecycle rules current?                                                  |
-| `09-interaction-style.md` | Interaction guidance still reflects current feedback (no premature-stopping, etc.)?                                             |
-| `10-working-posture.md`   | Each posture still names a trigger → behavior? Cross-references to rules/skills resolve?                                        |
+| File                      | Check                                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `00-critical.md`          | Security rules still reflect current patterns? Post-mortem table current?                                                |
+| `01-architecture.md`      | Service boundaries match dependency-cruiser rules? Anti-patterns table current?                                          |
+| `02-code-standards.md`    | ESLint limits match `eslint.config.js`? Testing patterns current?                                                        |
+| `03-database.md`          | Protected indexes list current? (The cache TTL table lives in `durability-tiers.md` — § Existing cache implementations.) |
+| `04-discord.md`           | Shared utilities table lists all browse/dashboard helpers?                                                               |
+| `05-tooling.md`           | All `pnpm ops` commands listed? `pnpm quality` description accurate?                                                     |
+| `06-backlog.md`           | Surfaces match the actual `backlog/` + `tracker/` layout; granularity ladder intact? Staleness rules intact?             |
+| `07-documentation.md`     | Placement table covers all `docs/reference/` subdirs? Lifecycle rules current?                                           |
+| `09-interaction-style.md` | Interaction guidance still reflects current feedback (no premature-stopping, etc.)?                                      |
+| `10-working-posture.md`   | Each posture still names a trigger → behavior? Cross-references to rules/skills resolve?                                 |
 
 **How to verify 05-tooling.md:**
 
@@ -187,7 +187,7 @@ owner restoring one line is cheaper than the corpus keeping ten.
 - [ ] All `proposals/active/` items are actually being worked on (check `backlog/now.md` Current Focus)
 - [ ] No completed features still have active proposals (should be deleted)
 - [ ] Backlog proposals still relevant (not implemented, not abandoned)
-- [ ] `pnpm ops guard:proposal-links` is green (no orphan proposals — every `docs/proposals/backlog/*.md` has an inbound link from `backlog/`, `docs/`, `CURRENT.md`, or `BACKLOG.md`). This is structurally enforced in CI; running it during the doc audit catches a local drift before CI does.
+- [ ] `pnpm ops guard:proposal-links` is green (no orphan proposals — every `docs/proposals/backlog/*.md` has an inbound link from `backlog/`, `docs/`, `tracker/docs/`, or `CURRENT.md`). This is structurally enforced in CI; running it during the doc audit catches a local drift before CI does.
 
 ### 6. Research Notes
 
@@ -243,14 +243,14 @@ Verify docs don't reference files that have been renamed or removed:
 
 ```bash
 # Check for references to deprecated root tracking files
-grep -r 'CURRENT_WORK\|ROADMAP' docs/ .claude/ --include='*.md' -l
+grep -r 'CURRENT_WORK\|ROADMAP\|BACKLOG\.md' docs/ .claude/ --include='*.md' -l
 
-# Canonical names: CURRENT.md, BACKLOG.md
-# Any hits for CURRENT_WORK.md or ROADMAP.md are stale and must be updated
+# Canonical names: CURRENT.md, backlog/ + tracker/ (06-backlog.md)
+# Hits are candidates: update LIVE pointers (text still routing work through them); prose recording the retirement stays
 ```
 
 - [ ] No references to `CURRENT_WORK.md` (renamed to `CURRENT.md`)
-- [ ] No references to `ROADMAP.md` (renamed to `BACKLOG.md`)
+- [ ] No LIVE pointers to `ROADMAP.md` or `BACKLOG.md` (both retired — prose recording the retirement is expected)
 - [ ] Spot-check that linked `.md` files in docs actually exist
 
 ### 13. Cross-Reference Checks
