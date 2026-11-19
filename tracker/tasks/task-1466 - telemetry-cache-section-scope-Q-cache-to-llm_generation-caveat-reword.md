@@ -1,9 +1,10 @@
 ---
 id: TASK-1466
 title: 'telemetry cache section: scope Q-cache to llm_generation + caveat reword'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-19T18:04:00Z'
+updated_date: '2026-11-19T20:25:00Z'
 labels:
   - area:tooling
   - size:S
