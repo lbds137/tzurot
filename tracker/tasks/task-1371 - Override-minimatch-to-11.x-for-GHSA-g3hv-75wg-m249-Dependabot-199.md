@@ -1,10 +1,10 @@
 ---
 id: TASK-1371
 title: Override minimatch to 11.x for GHSA-g3hv-75wg-m249 (Dependabot 199)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-09T00:38:00Z'
-updated_date: '2026-11-09T13:47:00Z'
+updated_date: '2026-11-19T03:52:00Z'
 labels:
   - area:deps
   - size:S
