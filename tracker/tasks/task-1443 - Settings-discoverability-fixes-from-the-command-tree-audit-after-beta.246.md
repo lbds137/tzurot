@@ -1,9 +1,11 @@
 ---
 id: TASK-1443
 title: Settings discoverability fixes from the command-tree audit (after beta.246)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - tzurot
 created_date: '2026-11-17T20:38:00Z'
+updated_date: '2026-11-19T21:21:00Z'
 labels:
   - area:bot-client
   - size:M
