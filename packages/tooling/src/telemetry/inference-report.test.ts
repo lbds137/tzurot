@@ -372,7 +372,7 @@ describe('inference-report', () => {
       );
       const output = consoleLogSpy.mock.calls.flat().join('\n');
       expect(output).toContain(
-        'Cache write totals come from the same read-reporting rows (`cache_read_tokens IS NOT NULL`); a row reporting only writes is excluded from the section.'
+        'Cache write totals come from the same read-reporting rows (`cache_read_tokens IS NOT NULL`); a row reporting only writes is excluded from the write total but still counts toward `Requests`.'
       );
     });
 
@@ -411,6 +411,16 @@ describe('inference-report', () => {
       );
       expect(cacheSql).toContain(
         'COUNT(*) FILTER (WHERE cache_read_tokens > 0) AS cache_hit_calls'
+      );
+      expect(cacheSql).toContain(") AND request_type = 'llm_generation'");
+      expect((mockQueryRaw.mock.calls[0][0] as readonly string[]).join('?')).not.toContain(
+        'request_type'
+      );
+      expect((mockQueryRaw.mock.calls[2][0] as readonly string[]).join('?')).not.toContain(
+        'request_type'
+      );
+      expect((mockQueryRaw.mock.calls[3][0] as readonly string[]).join('?')).not.toContain(
+        'request_type'
       );
     });
 
@@ -461,7 +471,7 @@ describe('inference-report', () => {
       expect(output).toContain(
         'Cache hit rate unavailable: this database predates the cache-token columns (run the migration).'
       );
-      expect(output).not.toContain('No cache rows in this window.');
+      expect(output).not.toContain('No chat rows in this window.');
     });
 
     it('degrades to the unavailable caption without throwing when the cache query fails with a Prisma P2010-wrapped 42703 error', async () => {
@@ -489,7 +499,7 @@ describe('inference-report', () => {
       expect(output).toContain(
         'Cache hit rate unavailable: this database predates the cache-token columns (run the migration).'
       );
-      expect(output).not.toContain('No cache rows in this window.');
+      expect(output).not.toContain('No chat rows in this window.');
     });
 
     it('rethrows when the cache query rejects with a non-42703 error', async () => {

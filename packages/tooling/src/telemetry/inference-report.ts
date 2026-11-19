@@ -184,8 +184,11 @@ function isMissingColumnError(err: unknown): boolean {
 
 /**
  * Query all four report sections over `usage_logs` for the given trailing
- * window, isolating the cache hit-rate query so pre-migration schemas degrade
- * that section to `null`. SELECT-only; never mutates.
+ * window, isolating the cache hit-rate query so pre-migration schemas
+ * degrade that section to `null`. The cache query reads chat
+ * `llm_generation` rows only; `Requests` there is the chat population,
+ * pre-migration chat rows included until they age out of the window.
+ * SELECT-only; never mutates.
  */
 async function queryReportData(
   prisma: PrismaQueryable,
@@ -230,7 +233,7 @@ async function queryReportData(
              SUM(cache_read_tokens) FILTER (WHERE cache_read_tokens IS NOT NULL AND tokens_in > 0) AS cache_read_tokens_for_share,
              SUM(cache_write_tokens) FILTER (WHERE cache_read_tokens IS NOT NULL) AS cache_write_tokens
       FROM usage_logs
-      WHERE created_at >= now() - (interval '1 day' * ${days})
+      WHERE created_at >= now() - (interval '1 day' * ${days}) AND request_type = 'llm_generation'
       GROUP BY provider, model
       ORDER BY (SUM(tokens_in) + SUM(tokens_out)) DESC
     `;
