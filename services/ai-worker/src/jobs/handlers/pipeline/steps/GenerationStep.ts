@@ -412,6 +412,8 @@ export class GenerationStep implements IPipelineStep {
             retrievedMemories: response.retrievedMemories,
             tokensIn: response.tokensIn,
             tokensOut: response.tokensOut,
+            cacheReadTokens: response.cacheReadTokens,
+            cacheWriteTokens: response.cacheWriteTokens,
             processingTimeMs,
             modelUsed: response.modelUsed,
             routedModel: response.routedModel,

@@ -285,6 +285,30 @@ describe('GenerationStep', () => {
       expect(unrouted.result?.metadata?.routedModel).toBeUndefined();
     });
 
+    it('forwards cacheReadTokens and cacheWriteTokens from the RAG response into the result metadata', async () => {
+      const context: GenerationContext = {
+        job: createMockJob(),
+        startTime: Date.now(),
+        config: baseConfig,
+        auth: baseAuth,
+        preparedContext: basePreparedContext,
+      };
+
+      vi.mocked(mockRAGService.generateResponse).mockResolvedValue({
+        content: 'ok',
+        modelUsed: 'anthropic/claude-sonnet-4',
+        cacheReadTokens: 12,
+        cacheWriteTokens: 4217,
+      });
+
+      const result = await step.process(context);
+
+      expect(result.result?.metadata).toMatchObject({
+        cacheReadTokens: 12,
+        cacheWriteTokens: 4217,
+      });
+    });
+
     // The llmDeadline test fakes timers inside its body; this restores them even
     // when one of its assertions fails, so fake timers never leak into siblings.
     afterEach(() => {

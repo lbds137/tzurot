@@ -217,9 +217,22 @@ model UsageLog {
   /// rows predating the column, or a since-deleted personality (FK is
   /// SetNull — unlike conversation/memory rows, a usage row is the OWNER's
   /// cost record and must survive character deletion).
-  personalityId String?      @map("personality_id") @db.Uuid
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  personality   Personality? @relation(fields: [personalityId], references: [id], onDelete: SetNull)
+  personalityId    String?      @map("personality_id") @db.Uuid
+  /// Not-measured marker: NULL = the provider did not report cache tokens for
+  /// this call (never zero); rows predating the column and write sites with no
+  /// cache detail in scope are NULL; populated from
+  /// usage_metadata.input_token_details.cache_read on the llm_generation path
+  /// (0 = the provider reported zero cache hits). Reads guard with != null.
+  cacheReadTokens  Int?         @map("cache_read_tokens")
+  /// Not-measured marker: NULL = the provider did not report cache tokens for
+  /// this call (never zero); rows predating the column and write sites with no
+  /// cache detail in scope are NULL; populated from
+  /// usage_metadata.input_token_details.cache_creation on the llm_generation
+  /// path (0 = the provider reported zero cache writes). Reads guard with
+  /// != null.
+  cacheWriteTokens Int?         @map("cache_write_tokens")
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  personality      Personality? @relation(fields: [personalityId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([createdAt])
@@ -796,7 +809,8 @@ model ConversationHistory {
   /// the model produced no trace (~5% of generations), when the row is a user
   /// turn (only assistant rows carry one), or when the row predates trace
   /// persistence. Reads guard with a null/empty check and fall back to the
-  /// 24h diagnostic log. Never UPDATEd after creation — see 03-database.md
+  /// 7-day diagnostic log (CleanupDiagnosticLogs.ts RETENTION_HOURS = 7 * 24).
+  /// Never UPDATEd after creation — see 03-database.md
   /// § Sync-Tracked Tables before adding a later write.
   thinkingContent  String?        @map("thinking_content")
   /// Soft delete timestamp - message excluded from context when set
@@ -1165,7 +1179,7 @@ model JobResult {
 }
 
 /// "Flight recorder" for LLM requests - captures full pipeline data for debugging.
-/// Ephemeral: auto-deleted after 24 hours via BullMQ cleanup job.
+/// Ephemeral: auto-deleted after 7 days via BullMQ cleanup job (CleanupDiagnosticLogs.ts RETENTION_HOURS = 7 * 24).
 /// NOTE: Uses @default(uuid()) instead of deterministic UUIDs since this is
 /// debug data that doesn't sync between environments.
 model LlmDiagnosticLog {

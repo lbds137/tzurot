@@ -237,6 +237,24 @@ describe('invokeModelAndClean', () => {
     );
   });
 
+  it('returns cacheReadTokens and cacheWriteTokens from usage_metadata.input_token_details', async () => {
+    mockInvokeWithRetry.mockResolvedValue(
+      new AIMessage({
+        content: 'raw model output',
+        usage_metadata: {
+          input_tokens: 100,
+          output_tokens: 57,
+          total_tokens: 157,
+          input_token_details: { cache_read: 12, cache_creation: 4217 },
+        },
+      })
+    );
+
+    const result = await invokeModelAndClean(deps, baseOpts);
+
+    expect(result).toMatchObject({ cacheReadTokens: 12, cacheWriteTokens: 4217 });
+  });
+
   it('returns the post-processor cleaned content and model metadata', async () => {
     const result = await invokeModelAndClean(deps, baseOpts);
 

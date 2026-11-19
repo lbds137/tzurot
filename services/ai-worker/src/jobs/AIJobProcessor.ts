@@ -66,6 +66,21 @@ export function deriveByok(isGuestMode: boolean | undefined): boolean | null {
   return isGuestMode === undefined ? null : !isGuestMode;
 }
 
+/** The `usage_logs` cache-token columns are `Int?`; a value outside signed 32-bit int must not be able to drop the usage row, which carries the cost record. */
+const CACHE_TOKEN_INT32_MAX = 2147483647;
+
+/**
+ * Coerce a provider-reported cache-token count to a non-negative 32-bit safe
+ * integer or null so malformed metadata values do not reject the usage row.
+ */
+const safeCacheTokenCount = (value: unknown): number | null =>
+  typeof value === 'number' &&
+  Number.isSafeInteger(value) &&
+  value >= 0 &&
+  value <= CACHE_TOKEN_INT32_MAX
+    ? value
+    : null;
+
 /** Options for constructing AIJobProcessor */
 interface AIJobProcessorOptions {
   /** Required: Prisma client for database operations */
@@ -419,13 +434,15 @@ export class AIJobProcessor {
     // never fail the user's response.
     await this.stampFirstDeliberateUse(userInternalId);
 
+    const metadata = result.metadata ?? {};
+
     // Use provider from API key resolution (reliable) or fallback to openrouter
-    const modelUsed = result.metadata?.modelUsed ?? personality.model;
-    const provider = result.metadata?.providerUsed ?? 'openrouter';
+    const modelUsed = metadata.modelUsed ?? personality.model;
+    const provider = metadata.providerUsed ?? 'openrouter';
 
     // Get input/output tokens from LLM response metadata
-    const tokensIn = result.metadata?.tokensIn ?? 0;
-    const tokensOut = result.metadata?.tokensOut ?? 0;
+    const tokensIn = metadata.tokensIn ?? 0;
+    const tokensOut = metadata.tokensOut ?? 0;
 
     // Simple retry logic - try up to 3 times with exponential backoff
     const maxRetries = 3;
@@ -442,10 +459,12 @@ export class AIJobProcessor {
             model: modelUsed,
             tokensIn,
             tokensOut,
+            cacheReadTokens: safeCacheTokenCount(metadata.cacheReadTokens),
+            cacheWriteTokens: safeCacheTokenCount(metadata.cacheWriteTokens),
             requestType: 'llm_generation',
             createdAt,
-            latencyMs: result.metadata?.processingTimeMs ?? null,
-            byok: deriveByok(result.metadata?.isGuestMode),
+            latencyMs: metadata.processingTimeMs ?? null,
+            byok: deriveByok(metadata.isGuestMode),
             personalityId: personality.id,
           },
         });

@@ -761,6 +761,95 @@ describe('AIJobProcessor', () => {
       });
     });
 
+    it('carries cacheReadTokens and cacheWriteTokens from result.metadata into usageLog.create', async () => {
+      mockProcessJob.mockResolvedValueOnce({
+        requestId: 'req-llm-123',
+        success: true,
+        content: 'AI response',
+        metadata: {
+          tokensIn: 100,
+          tokensOut: 50,
+          cacheReadTokens: 80,
+          cacheWriteTokens: 20,
+          modelUsed: 'test-model',
+          providerUsed: 'openrouter',
+        },
+      });
+
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+      await processor.processJob(job);
+
+      expect(mockPrisma.usageLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          cacheReadTokens: 80,
+          cacheWriteTokens: 20,
+        }),
+      });
+    });
+
+    it('leaves cacheReadTokens and cacheWriteTokens null (never 0) when metadata carries no cache detail', async () => {
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+      await processor.processJob(job);
+
+      expect(mockPrisma.usageLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          cacheReadTokens: null,
+          cacheWriteTokens: null,
+        }),
+      });
+    });
+
+    it('coerces non-integer, negative, or >int32 cache token counts to null without dropping valid siblings', async () => {
+      mockProcessJob
+        .mockResolvedValueOnce({
+          requestId: 'req-llm-123',
+          success: true,
+          content: 'AI response',
+          metadata: {
+            tokensIn: 100,
+            tokensOut: 50,
+            cacheReadTokens: 1.5,
+            cacheWriteTokens: -5,
+            modelUsed: 'test-model',
+            providerUsed: 'openrouter',
+          },
+        })
+        .mockResolvedValueOnce({
+          requestId: 'req-llm-123',
+          success: true,
+          content: 'AI response',
+          metadata: {
+            tokensIn: 100,
+            tokensOut: 50,
+            cacheReadTokens: 3000000000,
+            cacheWriteTokens: 40,
+            modelUsed: 'test-model',
+            providerUsed: 'openrouter',
+          },
+        });
+
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+      await processor.processJob(job);
+      await processor.processJob(job);
+
+      expect(mockPrisma.usageLog.create).toHaveBeenNthCalledWith(1, {
+        data: expect.objectContaining({
+          tokensIn: 100,
+          tokensOut: 50,
+          cacheReadTokens: null,
+          cacheWriteTokens: null,
+        }),
+      });
+      expect(mockPrisma.usageLog.create).toHaveBeenNthCalledWith(2, {
+        data: expect.objectContaining({
+          tokensIn: 100,
+          tokensOut: 50,
+          cacheReadTokens: null,
+          cacheWriteTokens: 40,
+        }),
+      });
+    });
+
     it('attributes the usage row to the generating personality', async () => {
       const job = createMockJob(baseLLMJobData, 'llm-job-123');
       await processor.processJob(job);
