@@ -11,9 +11,8 @@
  *
  * Widening the return type of a gateway check is the structural fix for
  * the silent-fail-closed anti-pattern (a transient gateway failure
- * looking identical to "user definitively lacks the entitlement"). See
- * `BACKLOG.md` for the autocomplete-cache callsites that should still
- * adopt this pattern.
+ * looking identical to "user definitively lacks the entitlement"); any
+ * gateway pre-flight check that can transiently fail should widen too.
  */
 export type ApiCheck<T> = { kind: 'ok'; value: T } | { kind: 'error'; error: string };
 
