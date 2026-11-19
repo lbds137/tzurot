@@ -23,4 +23,11 @@ What: add nullable cache_read_tokens and cache_write_tokens columns to usage_log
 Riders in the same PR (same file): two schema.prisma comments still say the diagnostic log lasts 24 hours (the thinking_content comment "24h diagnostic log" and model LlmDiagnosticLog "auto-deleted after 24 hours"); the job keeps 7 days. Fix both.
 
 Acceptance: a migration (additive) plus a writer test asserting what crosses into the usage row; telemetry:inference prints the per-model hit rate for a date range; one prod week of rows reproduces the log-derived rate within a few points.
+
+Shipped: PR 2770 (merged 11-19, dev migrated same day). First three acceptance clauses met; the fourth (one prod week vs the log-derived rate) is the reason this task stays OPEN. Acceptance-plan notes for that comparison:
+- Accounting: usage rows record only the FINAL attempt of a multi-attempt generation (pre-existing writer behavior the cache columns inherit); the log baseline counts every Generated-response line, retries included — a few-point drift from the retry fraction is not a writer bug.
+- Reported vs Requests: a large gap conflates omitted zeros AND non-chat writers sharing the model pair (round-6 review finding, PR 2770 residue; fast-follow PR scopes Q-cache to llm_generation). Read the gap accordingly until that lands.
+- readShare assumes tokens_in includes cached reads (true for OpenAI-compatible prompt_tokens; unverified per-provider) — any row showing cache_read_tokens > tokens_in is this, not a writer bug.
+- Baseline: 31% of calls with any hit, ~17% read share, n=26, all z.ai implicit caching (11-19 log sweep).
+- Live evidence 11-19: PRE-migrate dev probe — the cache-query failure surfaces as a P2010 wrap carrying raw SQLSTATE 42703 + the column name; the unavailable caption rendered and other sections printed (a typed-P2022 mapping was hypothesized in review and falsified). POST-migrate dev dry run — the Q-cache FILTER-clause SQL ran clean on the migrated schema; all-null caption + em dashes rendered; Reported 0 until post-migrate chat rows accumulate.
 <!-- SECTION:DESCRIPTION:END -->
