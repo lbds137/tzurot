@@ -304,6 +304,8 @@ export async function invokeModelAndClean(
     routedModel,
     tokensIn: usageMetadata?.input_tokens,
     tokensOut: completionTokens,
+    cacheReadTokens: inputTokenDetails.cache_read,
+    cacheWriteTokens: inputTokenDetails.cache_creation,
     thinkingContent: thinkingContent ?? undefined,
     onlyThinkingProduced,
   };

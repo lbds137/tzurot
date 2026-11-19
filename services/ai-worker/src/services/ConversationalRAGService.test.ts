@@ -525,6 +525,24 @@ describe('ConversationalRAGService', () => {
 
       expect(result.routedModel).toBe('anthropic/claude-x');
     });
+
+    it('carries cacheReadTokens and cacheWriteTokens from the model invocation through to the RAG response', async () => {
+      getLLMInvokerMock().invokeWithRetry.mockResolvedValue({
+        content: 'AI response',
+        usage_metadata: {
+          input_tokens: 100,
+          output_tokens: 50,
+          input_token_details: { cache_read: 12, cache_creation: 4217 },
+        },
+      });
+
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      const result = await service.generateResponse(personality, 'Test', context);
+
+      expect(result).toMatchObject({ cacheReadTokens: 12, cacheWriteTokens: 4217 });
+    });
   });
 
   describe('real messages (PR 2.3) — the invokeModelAndClean seam', () => {

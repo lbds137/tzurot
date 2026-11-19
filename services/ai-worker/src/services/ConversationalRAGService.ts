@@ -383,6 +383,8 @@ export class ConversationalRAGService {
         retrievedMemories: budgetResult.relevantMemories.length,
         tokensIn: modelResult.tokensIn,
         tokensOut: modelResult.tokensOut,
+        cacheReadTokens: modelResult.cacheReadTokens,
+        cacheWriteTokens: modelResult.cacheWriteTokens,
         attachmentDescriptions: buildAttachmentDescriptions(inputs.processedAttachments),
         referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
         modelUsed: modelResult.modelName,
