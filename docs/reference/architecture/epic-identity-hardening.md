@@ -10,7 +10,7 @@
 >
 > **Type**: Living document. Update after each phase with outcomes, design
 > decisions, and next-phase entry points. This is the source of truth for
-> epic-level narrative — BACKLOG.md tracks structure, this tracks rationale.
+> epic-level narrative — the backlog surfaces (`backlog/`, `tracker/`) track structure, this tracks rationale.
 
 ## Why this epic exists
 
@@ -161,7 +161,7 @@ Shipped in a single migration (`20260416164756_identity_epic_phase_5_db_invarian
 
 Empirical pre-flight verified both envs clean across all three invariants (0 null defaults, 0 dangling refs, 0 duplicate names) across 227 users / 234 personas.
 
-**Deferred — NOT NULL on `User.defaultPersonaId`**: initial Phase 5 draft proposed this, but `getOrCreateUserShell` intentionally creates users with null default (persona backfills on first bot-client interaction). Making it NOT NULL requires redesigning shell creation atomically with a placeholder persona, plus extending `runMaintenanceTasks` to rename the placeholder when the real username arrives. That's its own ~150-250 LOC change — Phase 5b tracked in `BACKLOG.md` Inbox.
+**Deferred — NOT NULL on `User.defaultPersonaId`**: initial Phase 5 draft proposed this, but `getOrCreateUserShell` intentionally creates users with null default (persona backfills on first bot-client interaction). Making it NOT NULL requires redesigning shell creation atomically with a placeholder persona, plus extending `runMaintenanceTasks` to rename the placeholder when the real username arrives. That's its own ~150-250 LOC change — Phase 5b tracked as TASK-1471.
 
 ### Phase 6 — Integration test coverage for refactor class (~2 days)
 
@@ -306,15 +306,13 @@ Phase 3 doesn't need defense-in-depth for that case.
 
 ## Related backlog items
 
-See `BACKLOG.md` Icebox/Inbox for:
-
 - Singleton-hazard guard for `UserService` cache (if ever promoted to
-  singleton, revisit the shell-path cache omission)
+  singleton, revisit the shell-path cache omission) — TASK-1472
 - `ForeignKeyReconciler.reconcileFkColumn` cross-swap edge case when
   `comparison === 'same' && devValue !== prodValue` — dormant before
   PR #813, reactivated for `default_persona_id` / `default_llm_config_id`.
   Low-likelihood but worth tracking before Phase 5 tightens the FK
-  (Inbox entry, 2026-04-16).
+  — TASK-1473 (Inbox entry, 2026-04-16).
 - Post-Phase-6 ADR: "integration-test-coverage pattern for refactor
   regressions" — document the testing pattern that emerges from Phase 6
   so future refactors get the same safety net

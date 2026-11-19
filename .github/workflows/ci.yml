@@ -24,7 +24,7 @@ permissions:
   contents: read
 
 jobs:
-  # Classifies a develop push as board-only (tracker/**, backlog/**, BACKLOG.md,
+  # Classifies a develop push as board-only (tracker/**, backlog/**,
   # CURRENT.md). Heavy jobs skip on it rather than via `paths-ignore`: main's
   # ruleset requires these contexts, so the run must exist and report skipped.
   # Classification compares the trees at before..sha, not each commit, so a push
@@ -60,7 +60,7 @@ jobs:
             && [ -n "$files" ]; then
             count=$(printf '%s\n' "$files" | wc -l)
             echo "Changed files: $count"
-            non_board=$(printf '%s\n' "$files" | grep -vE '^(tracker/|backlog/)|^(BACKLOG|CURRENT)\.md$' || true)
+            non_board=$(printf '%s\n' "$files" | grep -vE '^(tracker/|backlog/)|^CURRENT\.md$' || true)
             if [ -z "$non_board" ]; then
               board_only=true
             else

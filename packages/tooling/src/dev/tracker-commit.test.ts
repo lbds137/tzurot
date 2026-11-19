@@ -57,7 +57,7 @@ describe('trackerCommit — current checkout holds develop', () => {
     const porcelain = [
       'M  tracker/tasks/task-1332 - Board commit command.md',
       ' M backlog/now.md',
-      'M  BACKLOG.md',
+      'M  backlog/cold/queue.md',
       'M  CURRENT.md',
       ' M src/foo.ts',
       '?? docs/other.md',
@@ -72,10 +72,10 @@ describe('trackerCommit — current checkout holds develop', () => {
       [`${MAIN_TREE}::merge-base --is-ancestor origin/develop develop`]: () => '',
       [`${MAIN_TREE}::rev-list --count origin/develop..develop`]: () => '0\n',
       [`${MAIN_TREE}::status --porcelain -z`]: () => porcelain,
-      [`${MAIN_TREE}::add -- tracker/tasks/task-1332 - Board commit command.md backlog/now.md BACKLOG.md CURRENT.md`]:
+      [`${MAIN_TREE}::add -- tracker/tasks/task-1332 - Board commit command.md backlog/now.md backlog/cold/queue.md CURRENT.md`]:
         () => '',
       [`${MAIN_TREE}::commit`]: () => '',
-      [`${MAIN_TREE}::reset -q -- tracker/tasks/task-1332 - Board commit command.md backlog/now.md BACKLOG.md CURRENT.md`]:
+      [`${MAIN_TREE}::reset -q -- tracker/tasks/task-1332 - Board commit command.md backlog/now.md backlog/cold/queue.md CURRENT.md`]:
         () => '',
       [`${MAIN_TREE}::push origin develop`]: () => '',
     });
@@ -92,9 +92,9 @@ describe('trackerCommit — current checkout holds develop', () => {
       `${MAIN_TREE}::merge-base --is-ancestor origin/develop develop`,
       `${MAIN_TREE}::rev-list --count origin/develop..develop`,
       `${MAIN_TREE}::status --porcelain -z`,
-      `${MAIN_TREE}::add -- tracker/tasks/task-1332 - Board commit command.md backlog/now.md BACKLOG.md CURRENT.md`,
+      `${MAIN_TREE}::add -- tracker/tasks/task-1332 - Board commit command.md backlog/now.md backlog/cold/queue.md CURRENT.md`,
       `${MAIN_TREE}::commit -m <message>`,
-      `${MAIN_TREE}::reset -q -- tracker/tasks/task-1332 - Board commit command.md backlog/now.md BACKLOG.md CURRENT.md`,
+      `${MAIN_TREE}::reset -q -- tracker/tasks/task-1332 - Board commit command.md backlog/now.md backlog/cold/queue.md CURRENT.md`,
       `${MAIN_TREE}::push origin develop`,
     ]);
 
@@ -104,7 +104,7 @@ describe('trackerCommit — current checkout holds develop', () => {
       '--',
       'tracker/tasks/task-1332 - Board commit command.md',
       'backlog/now.md',
-      'BACKLOG.md',
+      'backlog/cold/queue.md',
       'CURRENT.md',
     ]);
     expect(addCallArgs).not.toContain('src/foo.ts');
@@ -639,13 +639,14 @@ describe('trackerCommit — pre-write check refusals', () => {
         [`${MAIN_TREE}::rev-parse --verify --quiet refs/heads/develop`]: () => 'aaa111\n',
         [`${MAIN_TREE}::merge-base --is-ancestor origin/develop develop`]: () => '',
         [`${MAIN_TREE}::rev-list --count origin/develop..develop`]: () => '0\n',
-        [`${MAIN_TREE}::status --porcelain -z`]: () => `${xy} CURRENT.md\0M  BACKLOG.md\0`,
+        [`${MAIN_TREE}::status --porcelain -z`]: () => `${xy} CURRENT.md\0M  backlog/now.md\0`,
       });
 
       const result = trackerCommit({ subject: SUBJECT, runGit, log: vi.fn() });
 
       expect(result).toMatchObject({ ok: false, check: 'unmerged' });
       expect(result.ok === false && result.reason).toContain('CURRENT.md');
+      expect(result.ok === false && result.reason).not.toContain('backlog/now.md');
     }
   });
 
@@ -680,11 +681,11 @@ describe('trackerCommit — pre-write check refusals', () => {
 });
 
 describe('isBoardPath and parsePorcelainZEntries', () => {
-  it('matches tracker/**, backlog/**, BACKLOG.md, and CURRENT.md only', () => {
+  it('matches tracker/**, backlog/**, and CURRENT.md only', () => {
     expect(isBoardPath('tracker/tasks/task-1 - Foo.md')).toBe(true);
     expect(isBoardPath('backlog/now.md')).toBe(true);
     expect(isBoardPath('backlog/cadence-ledger.json')).toBe(true);
-    expect(isBoardPath('BACKLOG.md')).toBe(true);
+    expect(isBoardPath('BACKLOG.md')).toBe(false);
     expect(isBoardPath('CURRENT.md')).toBe(true);
     expect(isBoardPath('src/foo.ts')).toBe(false);
     expect(isBoardPath('docs/README.md')).toBe(false);

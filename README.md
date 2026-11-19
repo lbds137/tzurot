@@ -182,7 +182,7 @@ Tzurot is fully managed via Discord slash commands. For the complete reference (
 
 ### 📋 Planned
 
-Planned work is not maintained here — it lives on the board ([BACKLOG.md](BACKLOG.md)) and lands in the [GitHub Releases](https://github.com/lbds137/tzurot/releases) notes when it ships.
+Planned work is not maintained here — the current focus lives in [`backlog/now.md`](backlog/now.md) and future themes in [`backlog/cold/queue.md`](backlog/cold/queue.md); shipped work lands in the [GitHub Releases](https://github.com/lbds137/tzurot/releases) notes.
 
 ## Development
 
@@ -257,7 +257,6 @@ provisioning commands are in `vitest.integration.config.ts`, and
 ### Project Status & Planning
 
 - **[CURRENT.md](CURRENT.md)** — Current session status and active work
-- **[BACKLOG.md](BACKLOG.md)** — Project backlog and priorities
 - **[GitHub Releases](https://github.com/lbds137/tzurot/releases)** — Version history and changelogs
 
 ### Architecture & Design

@@ -173,7 +173,7 @@ const PROVISIONED_USER_ROUTE_RULES = [
     selector:
       "CallExpression[callee.property.name=/^(findFirst|findUnique|findMany|count|delete|deleteMany|update|updateMany)$/][callee.object.property.name='user'] Property[key.name='where'] ObjectExpression Property[key.name='discordId']",
     message:
-      'Route handlers under `requireProvisionedUser` must not query the users table by discordId — the middleware has already attached the internal UUID to `req.provisionedUserId`. Use `resolveProvisionedUserId(req, userService)` instead. See epic-identity-hardening.md Phase 5c/6 and BACKLOG.md (Phase 5c work items). If you have a legitimate cross-user lookup (e.g., admin routes under requireOwnerAuth), add an eslint-disable with a concrete justification.',
+      'Route handlers under `requireProvisionedUser` must not query the users table by discordId — the middleware has already attached the internal UUID to `req.provisionedUserId`. Use `resolveProvisionedUserId(req, userService)` instead. See epic-identity-hardening.md Phase 5c/6 (work items in the tracker). If you have a legitimate cross-user lookup (e.g., admin routes under requireOwnerAuth), add an eslint-disable with a concrete justification.',
   },
   {
     // Ban direct `new UserService(prisma)` in route files. PR #883 harmonized

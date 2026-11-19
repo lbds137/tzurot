@@ -77,7 +77,7 @@ Never skip git hooks (`--no-verify`, `-n`, `HUSKY=0`, `core.hooksPath`): `.claud
 
 ### Direct doc commits to `develop` (narrow exception)
 
-**Allowed on `develop` directly:** `BACKLOG.md`, `backlog/**/*.md`, `backlog/cadence-ledger.json`, `tracker/**/*.md` (post-merge updates, task filing/triage, status changes); `CURRENT.md` (session status / handoff notes); new or edited files under `docs/`; release-notes / changelog edits.
+**Allowed on `develop` directly:** `backlog/**/*.md`, `backlog/cadence-ledger.json`, `tracker/**/*.md` (post-merge updates, task filing/triage, status changes); `CURRENT.md` (session status / handoff notes); new or edited files under `docs/`; release-notes / changelog edits.
 
 **Still requires a PR:** any code change (`*.ts`, `*.tsx`, `*.py`, `*.js`, etc.); schema or migration files (`prisma/`, `*.sql`); `.claude/rules/*.md` and `.claude/skills/*/SKILL.md` (load-bearing — review-gated); `.claude/hooks/*`; anything touching `.env`, secrets, or CI config (`.github/`); a single doc change >300 lines.
 

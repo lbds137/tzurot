@@ -1,7 +1,7 @@
 ---
 name: tzurot-docs
 description: 'Session workflow procedures. Invoke with /tzurot-docs for session start/end, CURRENT.md and backlog management.'
-lastUpdated: '2026-10-05'
+lastUpdated: '2026-11-19'
 ---
 
 # Documentation & Session Workflow
@@ -19,7 +19,7 @@ This section previously carried its own shorter copy, which fell three steps beh
 1. Update `CURRENT.md` with progress
 2. **Enforce the CURRENT.md cap**: current-state sections + the last **2** session retrospectives only — delete older "Last Session" sections (git preserves them). CURRENT.md is the first file read every session; it once grew to 662 lines (5× the whole hot backlog) before this cap existed.
 3. If task incomplete, note blockers in Scratchpad
-4. **Board bookkeeping**: mark shipped tracker tasks Done; remove shipped items from `backlog/now.md` (and any `cold/` file that tracked them). Capture new items per the filing decision-tree (`BACKLOG.md`); `now.md` › 📥 Untriaged only for mid-session parking. Keep the caps: Current Focus ≤ 3, Quick Wins ≤ 5, Untriaged ≤ 10.
+4. **Board bookkeeping**: mark shipped tracker tasks Done; remove shipped items from `backlog/now.md` (and any `cold/` file that tracked them). Capture new items per the filing decision-tree (`.claude/rules/06-backlog.md` § Triage Rules); `now.md` › 📥 Untriaged only for mid-session parking. Keep the caps: Current Focus ≤ 3, Quick Wins ≤ 5, Untriaged ≤ 10.
 5. **Run both BACKLOG gates**:
    - **Additions gate**: a session is NOT done until every promised backlog addition is written to its promised destination — re-read the plan's "Backlog Additions Required" section and verify each item exists (`pnpm tracker task list --search <term> --plain` for tasks; the file for markdown entries). Write any missing ones first.
    - **Removals gate**: a session is ALSO not done until every item that shipped during the session is closed out. List the PRs merged during the session; for each, search the tracker (`--search` by title/topic), `pnpm tracker doc search`, AND grep `backlog/` (recursive — includes `cold/`) against the session's PR titles and scope terms — mark any matching entry Done / **remove it** (this gate most often gets skipped, producing backlog rot; removal is for _shipped_ or _genuinely obsolete_ items only — never time-based pruning). **When a merged PR completes a PHASE (or the last slice) of a theme doc, grep the doc id — `grep -rn 'doc-N' backlog/ tracker/docs/` — and rewrite every hit's status words** (a PR-title grep never matches a roadmap line that names the epic by id, so a shipped phase stays marked queued until someone re-reads the board against git). For any entry annotated "PROMOTED to Current Focus" or similar, re-verify the fix actually shipped; if yes, remove. Remove any entry whose fix-shape points to code that no longer needs fixing (grep the file to confirm) — the "genuinely obsolete" path, not time-based pruning. **Did every rule-out decided this session actually get committed?** Name each item ruled out this session and confirm its commit exists — a decision that stayed in chat removed nothing.
@@ -32,7 +32,6 @@ This section previously carried its own shorter copy, which fell three steps beh
 | File                     | Purpose                                           | Update When                             |
 | ------------------------ | ------------------------------------------------- | --------------------------------------- |
 | `CURRENT.md`             | Active session — what's happening NOW             | Start/end session, task done            |
-| `BACKLOG.md`             | Load manifest + filing decision-tree              | When the structure changes              |
 | `backlog/now.md`         | HOT: prod issues / focus / quick-wins / untriaged | New ideas, triage, completion           |
 | `backlog/active-epic.md` | HOT: current epic roadmap + phase                 | Phase progress                          |
 | `backlog/cold/*`         | COLD: theme queue + epic log                      | Grep-on-demand; route + update          |
@@ -71,7 +70,7 @@ _Error logs, decisions, API snippets._
 
 ## Backlog Structure
 
-HOT (loaded every session) / tracker store (queried) / COLD (grep-on-demand). See `BACKLOG.md` (root, the load manifest) for the canonical topology, the filing decision-tree, and the **granularity-ladder** filing rule (multi-phase epic → tracker theme doc + `cold/queue.md` bullet; paragraph idea → tracker idea doc via `pnpm tracker doc create`; one-sentence follow-up → tracker task via `pnpm tracker task create`). The **staleness principle** (aging escalates priority; items are never deleted by calendar — only when done or genuinely obsolete) is `.claude/rules/06-backlog.md` § Staleness.
+HOT (loaded every session) / tracker store (queried) / COLD (grep-on-demand). See `.claude/rules/06-backlog.md` for the canonical topology, the filing decision-tree, and the **granularity-ladder** filing rule (multi-phase epic → tracker theme doc + `cold/queue.md` bullet; paragraph idea → tracker idea doc via `pnpm tracker doc create`; one-sentence follow-up → tracker task via `pnpm tracker task create`). The **staleness principle** (aging escalates priority; items are never deleted by calendar — only when done or genuinely obsolete) is `.claude/rules/06-backlog.md` § Staleness.
 
 ## Promoting a theme to Active Epic
 
@@ -117,7 +116,7 @@ For doc placement, naming, and lifecycle rules, see `.claude/rules/07-documentat
 ## References
 
 - Current session: `CURRENT.md`
-- All work items: `BACKLOG.md` (manifest) → `backlog/now.md` + `backlog/active-epic.md` (HOT) → `backlog/cold/*` (COLD)
+- All work items: `backlog/now.md` + `backlog/active-epic.md` (HOT) → `backlog/cold/*` (COLD) → `tracker/` (the store, queried)
 - Documentation standards: `.claude/rules/07-documentation.md`
 - Documentation audit: `.claude/skills/tzurot-doc-audit/SKILL.md`
 

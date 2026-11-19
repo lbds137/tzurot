@@ -93,17 +93,16 @@ describe('findProposalOrphans', () => {
     });
   });
 
-  it('accepts inbound link from BACKLOG.md at repo root', async () => {
-    // BACKLOG.md is the index pointing into backlog/*.md per CLAUDE.md's
-    // "Work tracking" entry; a proposal link there should rescue the proposal
-    // just like CURRENT.md does.
+  it('ignores a retired root manifest (BACKLOG.md) at repo root', async () => {
+    // BACKLOG.md was retired as the load manifest; a link there no longer
+    // rescues a proposal — CURRENT.md remains the only root-level rescuer.
     await withTempRepo(root => {
       scaffold(root, {
         'docs/proposals/backlog/foo-proposal.md': '# Foo',
         'BACKLOG.md': 'See [foo-proposal](docs/proposals/backlog/foo-proposal.md) in the queue.',
       });
       const result = findProposalOrphans(root);
-      expect(result.orphans).toEqual([]);
+      expect(result.orphans).toEqual(['docs/proposals/backlog/foo-proposal.md']);
     });
   });
 
@@ -393,7 +392,7 @@ describe('checkProposalOrphans (CLI entry point, non-summary path)', () => {
         // Help paragraph naming the search roots
         expect(allOutput).toMatch(/backlog\/\*\*\/\*\.md/);
         expect(allOutput).toContain('CURRENT.md');
-        expect(allOutput).toContain('BACKLOG.md');
+        expect(allOutput).not.toContain('BACKLOG.md');
         expect(exitSpy).toHaveBeenCalledWith(1);
       } finally {
         consoleSpy.mockRestore();

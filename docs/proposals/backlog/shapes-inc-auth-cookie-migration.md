@@ -6,7 +6,7 @@
 >
 > **Trigger**: shapes.inc has migrated its auth library from `@auth0/nextjs-auth0` to [Better Auth](https://better-auth.com/). Our `ShapesDataFetcher` reassembles a 3-part rolling `appSession` pair that no longer exists.
 >
-> **Backlog entry**: see 📥 Inbox in `BACKLOG.md`.
+> **Backlog entry**: doc-118.
 
 ---
 

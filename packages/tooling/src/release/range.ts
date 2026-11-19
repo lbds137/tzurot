@@ -53,7 +53,7 @@ const NON_RUNTIME_PREFIXES = [
 
 /**
  * A file is non-runtime if it falls under one of `NON_RUNTIME_PREFIXES`,
- * or is a root-level markdown file (`BACKLOG.md`, `CURRENT.md`,
+ * or is a root-level markdown file (`CURRENT.md`,
  * `README.md`, ...). Everything else — including root `package.json` /
  * `pnpm-lock.yaml`, which affect every deployed service's build — counts
  * as runtime.
