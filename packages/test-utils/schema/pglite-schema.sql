@@ -80,6 +80,8 @@ CREATE TABLE "usage_logs" (
     "latency_ms" INTEGER,
     "byok" BOOLEAN,
     "personality_id" UUID,
+    "cache_read_tokens" INTEGER,
+    "cache_write_tokens" INTEGER,
 
     CONSTRAINT "usage_logs_pkey" PRIMARY KEY ("id")
 );

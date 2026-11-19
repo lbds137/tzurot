@@ -246,6 +246,8 @@ export interface RAGResponse {
   retrievedMemories?: number;
   tokensIn?: number;
   tokensOut?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
   attachmentDescriptions?: string;
   referencedMessagesDescriptions?: string;
   modelUsed?: string;
@@ -530,6 +532,8 @@ export interface ModelInvocationResult {
   routedModel?: string;
   tokensIn?: number;
   tokensOut?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
   /** Extracted thinking/reasoning content from <think> tags, if present */
   thinkingContent?: string;
   /** Model produced only analytical/reasoning content without roleplay — caller should retry */

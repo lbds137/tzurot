@@ -83,6 +83,10 @@ const generationPayloadSchema = z.object({
       tokensIn: z.number().optional(),
       /** Output/completion tokens consumed */
       tokensOut: z.number().optional(),
+      /** Cached prompt tokens read from the provider prefix cache (absent when provider did not report) */
+      cacheReadTokens: z.number().optional(),
+      /** Prompt tokens written to the provider prefix cache (absent when provider did not report) */
+      cacheWriteTokens: z.number().optional(),
       processingTimeMs: z.number().optional(),
       modelUsed: z.string().optional(),
       /**
