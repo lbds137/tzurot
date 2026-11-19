@@ -98,10 +98,10 @@ function renderPerModelTable(rows: PerModelStats[]): string {
   return [header, ...lines].join('\n');
 }
 
-const EMPTY_CACHE_CAPTION = 'No cache rows in this window.';
+const EMPTY_CACHE_CAPTION = 'No chat rows in this window.';
 
 const ALL_NULL_CACHE_CAPTION =
-  'No cache token data reported in this window (`cache_read_tokens` is NULL for all rows).';
+  'No cache token data reported in this window (`cache_read_tokens` is NULL for all chat rows).';
 
 const UNAVAILABLE_CACHE_CAPTION =
   'Cache hit rate unavailable: this database predates the cache-token columns (run the migration).';
@@ -120,7 +120,7 @@ function renderCacheHitTable(rows: CacheHitStats[]): string {
 }
 
 function renderCacheHitSection(rows: CacheHitStats[] | null): string[] {
-  const heading = '## Cache hit rate';
+  const heading = '## Cache hit rate (chat `llm_generation` rows)';
   if (rows === null) {
     return [heading, UNAVAILABLE_CACHE_CAPTION];
   }
@@ -175,14 +175,22 @@ const LIMITATIONS_PARAGRAPH =
   'timing and are excluded from the latency columns above. Measured latency ' +
   'spans the whole generation pipeline (auth, retrieval, memory persistence), ' +
   'not just the model call, so cross-model comparisons carry some ' +
-  'model-independent overhead. Cache tokens share the same limit — only chat ' +
-  '`llm_generation` rows populate them; other writers and pre-migration rows ' +
-  'are NULL and are excluded from the hit-rate denominators. Cache write ' +
+  'model-independent overhead. Cache tokens are chat-path only — the section ' +
+  'reads `llm_generation` rows, so other writers sit outside it entirely; chat ' +
+  'rows written before the cache columns existed still count toward `Requests` ' +
+  'with NULL cache data until they age out of the window. Cache write ' +
   'totals come from the same read-reporting rows (`cache_read_tokens IS NOT NULL`); ' +
-  'a row reporting only writes is excluded from the section. Providers that ' +
+  'a row reporting only writes is excluded from the write total but still ' +
+  'counts toward `Requests`. Providers that ' +
   'omit zero cache counts on a miss are indistinguishable from unreported ' +
   'rows — compare the `Reported` column to `Requests` when reading the ' +
-  'hit-call share; a large gap means omitted zeros, not a writer bug.';
+  'hit-call share; a large gap means omitted zeros or pre-migration chat rows, ' +
+  'not a writer bug. The ' +
+  'read share assumes `tokens_in` already includes the cached reads (the ' +
+  'OpenAI-compatible `prompt_tokens` convention); a provider path reporting ' +
+  'input tokens without them would read high — a `Read share` above ' +
+  '100% is the definite sign, and the per-row tell (`cache_read_tokens > ' +
+  'tokens_in`) needs SQL to check.';
 
 /** Pure renderer: markdown from already-computed report data, no DB. */
 export function renderInferenceMarkdown(data: InferenceReportData): string {
