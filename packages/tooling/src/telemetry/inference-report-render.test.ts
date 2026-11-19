@@ -184,17 +184,18 @@ describe('renderInferenceMarkdown', () => {
     );
     expect(output).toContain('## Cache hit rate');
     expect(output).toContain('No cache token data reported in this window');
-    expect(output).not.toContain('No cache rows in this window.');
+    expect(output).not.toContain('No chat rows in this window.');
     expect(output).toContain('| openrouter | glm-4.6 | 8 | 0 | 0 | — | 800 | — | — | — |');
   });
 
   it('renders the zero-rows caption instead of the all-NULL caption when cacheHitRate is empty', () => {
     const output = renderInferenceMarkdown(baseData({ cacheHitRate: [] }));
     expect(output).toContain('## Cache hit rate');
-    expect(output).toContain('No cache rows in this window.');
+    expect(output).toContain('## Cache hit rate (chat `llm_generation` rows)');
+    expect(output).toContain('No chat rows in this window.');
     expect(output).not.toContain('No cache token data reported in this window');
     expect(output).toContain(
-      'Cache tokens share the same limit — only chat `llm_generation` rows populate them; other writers and pre-migration rows are NULL and are excluded from the hit-rate denominators.'
+      'Cache tokens are chat-path only — the section reads `llm_generation` rows, so other writers sit outside it entirely; chat rows written before the cache columns existed still count toward `Requests` with NULL cache data until they age out of the window.'
     );
   });
 
@@ -204,17 +205,24 @@ describe('renderInferenceMarkdown', () => {
     expect(output).toContain(
       'Cache hit rate unavailable: this database predates the cache-token columns (run the migration).'
     );
-    expect(output).not.toContain('No cache rows in this window.');
+    expect(output).not.toContain('No chat rows in this window.');
     expect(output).not.toContain('No cache token data reported in this window');
     expect(output).toContain(
-      'Cache write totals come from the same read-reporting rows (`cache_read_tokens IS NOT NULL`); a row reporting only writes is excluded from the section.'
+      'Cache write totals come from the same read-reporting rows (`cache_read_tokens IS NOT NULL`); a row reporting only writes is excluded from the write total but still counts toward `Requests`.'
     );
   });
 
   it('documents that omitted zero cache counts on a miss shrink Reported relative to Requests', () => {
     const output = renderInferenceMarkdown(baseData());
     expect(output).toContain(
-      'Providers that omit zero cache counts on a miss are indistinguishable from unreported rows — compare the `Reported` column to `Requests` when reading the hit-call share; a large gap means omitted zeros, not a writer bug.'
+      'Providers that omit zero cache counts on a miss are indistinguishable from unreported rows — compare the `Reported` column to `Requests` when reading the hit-call share; a large gap means omitted zeros or pre-migration chat rows, not a writer bug.'
+    );
+  });
+
+  it('documents that readShare assumes tokens_in already includes cached reads', () => {
+    const output = renderInferenceMarkdown(baseData());
+    expect(output).toContain(
+      'The read share assumes `tokens_in` already includes the cached reads (the OpenAI-compatible `prompt_tokens` convention); a provider path reporting input tokens without them would read high — a `Read share` above 100% is the definite sign, and the per-row tell (`cache_read_tokens > tokens_in`) needs SQL to check.'
     );
   });
 });
