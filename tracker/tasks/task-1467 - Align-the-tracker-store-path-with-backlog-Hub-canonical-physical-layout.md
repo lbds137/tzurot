@@ -24,7 +24,7 @@ Promote when: the Hub requires the physical backlog/ path, or Tzurot adopts upst
 
 Owner question: should the tracker store physically move to backlog/ (seyag-canonical layout), or does the settings pin + recorded deviation satisfy the fleet standard?
 
-Recommendation: keep tracker/ — the pin declares the surface, the format already matches, and the rename churns 1200+ files plus the tracker wiring for no semantic gain — unless the Hub proves path-sensitive.
+Recommendation: keep tracker/ — the pin declares the surface, the format already matches, and the rename churns 1200+ files plus the tracker wiring for no semantic gain. Evidence (Deck, 11-19): the Hub is NOT path-sensitive — `lib/fleet_brief.py:204-230` (`_resolve_backlog_store`) reads `backlog.config.yml` → `backlog_directory` first (ours: `'tracker'`, `backlog.config.yml:17`), then `backlog/config.yml`, then `tracker/tasks`; our planning `backlog/` dir has no config.yml so it is never mistaken for a store.
 
 Acceptance: store at backlog/ with config.yml; pnpm tracker, backlog:lint, backlog:digest, tracker:commit all green; Hub sees one store; zero BACKLOG.md references anywhere.
 <!-- SECTION:DESCRIPTION:END -->
