@@ -172,15 +172,24 @@ const HEADER_OPENER_SOURCE = `(?=\\p{Ps})${HEADER_BRACKET_CLASS_SOURCE}`;
 const BRACKET_CLASS_GLOBAL = new RegExp(HEADER_BRACKET_CLASS_SOURCE, 'gu');
 
 /**
- * A run of openers directly before `<Label>: `. The leading lookbehind
- * anchors the match at the start of a run, intended to keep a long bracket
- * run from being retried from every position (not verified by a committed
- * test; a one-off 200k-bracket probe ran in milliseconds). Label order is
- * irrelevant: the lookahead requires the colon and space right after the
- * label.
+ * A run of openers, each optionally followed by `Cf` format characters
+ * (zero-width space, word joiner, BOM, …), directly before `<Label>: `; the
+ * format characters are consumed with the run, wherever they sit inside it.
+ * `Cf` also covers bidi controls, the ZWJ and the soft hyphen; they are removed
+ * only as part of a run that precedes a label.
+ * The leading lookbehind (an opener plus any format characters) anchors the
+ * match at the start of a run, which keeps a long bracket run from being
+ * retried from every position. The opener
+ * lookahead in front of it confines that variable-length backward scan to
+ * opener positions, so a long format-character run costs linear time; pinned
+ * by the linear-time cases in this module's colocated test file (a long
+ * format-character run, alternating openers and format characters, an opener
+ * followed by a long format-character run, and a 200k plain bracket run).
+ * Label order is irrelevant: the lookahead requires the colon and space right
+ * after the label.
  */
 const HEADER_OPENER_RUN = new RegExp(
-  `(?<!${HEADER_OPENER_SOURCE})(?:${HEADER_OPENER_SOURCE})+(?=(?:${HEADER_LABELS.map(escapeRegExpLiteral).join('|')}): )`,
+  `(?=${HEADER_OPENER_SOURCE})(?<!${HEADER_OPENER_SOURCE}\\p{Cf}*)(?:${HEADER_OPENER_SOURCE}\\p{Cf}*)+(?=(?:${HEADER_LABELS.map(escapeRegExpLiteral).join('|')}): )`,
   'gu'
 );
 
@@ -238,11 +247,18 @@ export function headerDisplayName(name: string | undefined): string {
  * lowercase, untouched-bracket and run-strip cases in this module's colocated
  * test file.
  *
- * Unpinned limit: the colon and space after the label are matched as ASCII
- * only (a look-alike colon such as fullwidth U+FF1A is out of scope); and a
- * character between the opener and the label (a space, or a zero-width
- * character such as U+200B) means `neutralizeHeaderMarkers` does not defuse
- * the opener. Neither case is handled or tested. Class limits (characters
+ * Format characters (`Cf`, e.g. U+200B, U+2060, U+FEFF) between the opener run
+ * and the label are removed with the run, so a zero-width character cannot
+ * hide the label from the match; pinned by the format-character cases in this
+ * module's colocated test file.
+ *
+ * Unpinned limit: three cases still pass through undefused, none handled or
+ * tested: a look-alike colon (fullwidth U+FF1A; the colon and space after the
+ * label are matched as ASCII only); a non-format character between the opener
+ * and the label, including a space and invisible non-`Cf` characters such as
+ * U+034F (combining grapheme joiner), U+FE0F (variation selector) and U+3164
+ * (Hangul filler); and a `Cf` character inside the label or between the label
+ * and the colon. Tracked as TASK-1485. Class limits (characters
  * outside `Ps`/`Pe`): see `HEADER_BRACKET_CLASS_SOURCE`.
  *
  * The cannot-mint claim for the ASCII form is pinned by the three
