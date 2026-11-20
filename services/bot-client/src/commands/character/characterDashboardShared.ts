@@ -31,7 +31,7 @@ export interface CharacterDashboardSpec {
   /** Which cascade the dashboard shows — feeds the source-indicator badges. */
   sourceTier: 'user-personality' | 'personality';
   /** The one genuine divergence: which cascade endpoint backs this view. The
-   *  optional trailing channelId carries the invoking channel so channel-aware
+   *  trailing channelId (undefined outside a channel) carries the invoking channel so channel-aware
    *  resolvers can scope the resolution; channel-blind resolvers ignore it. */
   resolveCascade: (
     userClient: UserClient,
