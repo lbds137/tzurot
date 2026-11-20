@@ -41,6 +41,7 @@ const TEST_USER_ID = 'discord-user-123';
 const mockSession = {} as never;
 const mockInteraction = {
   user: { id: TEST_USER_ID },
+  channelId: 'channel-77',
 } as never;
 
 const fullResolvedCascade = {
@@ -131,7 +132,8 @@ describe('createSettingsUpdateHandler', () => {
     const handler = createSettingsUpdateHandler(TEST_ENTITY_ID, TEST_CONFIG);
     await handler(mockInteraction, mockSession, 'maxMessages', 50);
 
-    expect(mockResolveFn).toHaveBeenCalledWith(stubUserClient, TEST_ENTITY_ID);
+    // The re-resolve threads the interaction's invoking channel through.
+    expect(mockResolveFn).toHaveBeenCalledWith(stubUserClient, TEST_ENTITY_ID, 'channel-77');
   });
 
   it('returns error when mapSettingToApiUpdate returns null (unknown setting)', async () => {
@@ -208,7 +210,7 @@ describe('createSettingsResetHandler', () => {
       maxMessages: null,
       maxAge: null,
     });
-    expect(mockResolveFn).toHaveBeenCalledWith(stubUserClient, TEST_ENTITY_ID);
+    expect(mockResolveFn).toHaveBeenCalledWith(stubUserClient, TEST_ENTITY_ID, 'channel-77');
     expect(result.success).toBe(true);
     expect(result.newData?.maxMessages.localValue).toBe(25);
   });

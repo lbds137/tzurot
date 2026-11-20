@@ -6,6 +6,7 @@ import {
   ClonedVoicesSummarySchema,
   ResolvedSttViewSchema,
   ResolvedTtsViewSchema,
+  VoiceResponseModeViewSchema,
 } from './voice-resolution.js';
 
 describe('voice-resolution schemas', () => {
@@ -130,8 +131,98 @@ describe('voice-resolution schemas', () => {
           totalVoices: 5,
           previewSlugs: ['alice', 'bob', 'carol'],
         },
+        voiceEnabled: false,
+        voiceResponseMode: {
+          value: 'always',
+          source: 'hardcoded',
+        },
       });
       expect(parsed.stt.source).toBe('tts-derived');
+      expect(parsed.voiceEnabled).toBe(false);
+      expect(parsed.voiceResponseMode).toEqual({ value: 'always', source: 'hardcoded' });
     });
+
+    it('rejects a payload missing voiceEnabled or voiceResponseMode', () => {
+      const base = {
+        personalityName: 'Test Character',
+        tts: {
+          configId: null,
+          configName: null,
+          provider: 'self-hosted',
+          source: 'hardcoded',
+        },
+        stt: { provider: 'voice-engine', source: 'hardcoded' },
+        voices: { tzurotCount: 0, totalVoices: 0, previewSlugs: [] },
+      };
+      expect(() => GetVoiceResolutionResponseSchema.parse(base)).toThrow();
+      expect(() =>
+        GetVoiceResolutionResponseSchema.parse({ ...base, voiceEnabled: true })
+      ).toThrow();
+    });
+
+    it('rejects an unknown voiceResponseMode source tier', () => {
+      expect(() =>
+        GetVoiceResolutionResponseSchema.parse({
+          personalityName: 'Test Character',
+          voiceEnabled: true,
+          voiceResponseMode: { value: 'always', source: 'tts-derived' },
+          tts: {
+            configId: null,
+            configName: null,
+            provider: 'self-hosted',
+            source: 'hardcoded',
+          },
+          stt: { provider: 'voice-engine', source: 'hardcoded' },
+          voices: { tzurotCount: 0, totalVoices: 0, previewSlugs: [] },
+        })
+      ).toThrow();
+    });
+
+    it('rejects an unknown voiceResponseMode value', () => {
+      expect(() =>
+        GetVoiceResolutionResponseSchema.parse({
+          personalityName: 'Test Character',
+          voiceEnabled: true,
+          voiceResponseMode: { value: 'sometimes', source: 'hardcoded' },
+          tts: {
+            configId: null,
+            configName: null,
+            provider: 'self-hosted',
+            source: 'hardcoded',
+          },
+          stt: { provider: 'voice-engine', source: 'hardcoded' },
+          voices: { tzurotCount: 0, totalVoices: 0, previewSlugs: [] },
+        })
+      ).toThrow();
+    });
+  });
+});
+
+describe('VoiceResponseModeViewSchema', () => {
+  it('accepts a value with its cascade source', () => {
+    const view = { value: 'voice-only', source: 'user-personality' };
+    expect(VoiceResponseModeViewSchema.parse(view)).toEqual(view);
+  });
+
+  it.each(['always', 'voice-only', 'never'])('accepts mode %s', value => {
+    expect(VoiceResponseModeViewSchema.safeParse({ value, source: 'hardcoded' }).success).toBe(
+      true
+    );
+  });
+
+  it('rejects an unknown mode', () => {
+    expect(
+      VoiceResponseModeViewSchema.safeParse({ value: 'sometimes', source: 'hardcoded' }).success
+    ).toBe(false);
+  });
+
+  it('rejects an unknown source', () => {
+    expect(
+      VoiceResponseModeViewSchema.safeParse({ value: 'always', source: 'tts-derived' }).success
+    ).toBe(false);
+  });
+
+  it('rejects a missing source', () => {
+    expect(VoiceResponseModeViewSchema.safeParse({ value: 'always' }).success).toBe(false);
   });
 });

@@ -49,10 +49,14 @@ export interface SettingUpdateConfig {
     entityId: string,
     body: ConfigOverrides
   ) => Promise<GatewayResult<unknown>>;
-  /** Re-resolve the cascade via a typed-client method bound at config time */
+  /** Re-resolve the cascade via a typed-client method bound at config time.
+   *  The optional trailing channelId carries the invoking channel so
+   *  channel-aware resolvers can scope the re-resolve; channel-blind
+   *  implementations ignore it. */
   resolveFn: (
     userClient: UserClient,
-    entityId: string
+    entityId: string,
+    channelId: string | undefined
   ) => Promise<GatewayResult<ResolvedConfigOverrides>>;
   /** Source tier to treat as "local" when converting the resolved cascade */
   sourceTier: ConfigOverrideSource;
@@ -114,8 +118,15 @@ async function applyCascadePatch(
       return { success: false, error: result.error };
     }
 
-    // Re-resolve cascade to get updated effective values
-    const cascadeResult = await config.resolveFn(userClient, entityId);
+    // Re-resolve cascade to get updated effective values, scoped to the
+    // invoking channel where the resolver is channel-aware. (channelId is
+    // null outside a guild/DM context — normalized so the query param is
+    // simply omitted.)
+    const cascadeResult = await config.resolveFn(
+      userClient,
+      entityId,
+      interaction.channelId ?? undefined
+    );
 
     if (!cascadeResult.ok) {
       return { success: false, error: 'Failed to fetch updated settings' };

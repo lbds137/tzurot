@@ -6,7 +6,7 @@
  * - /channel activate <character> - Activate a character in the current channel
  * - /channel deactivate - Deactivate the character from the current channel
  * - /channel browse - Browse activated channels with search and filtering
- * - /channel settings - Open extended context settings dashboard
+ * - /channel settings - Open the settings dashboard for this channel
  *
  * This command uses deferralMode: 'ephemeral' which means:
  * - The framework calls deferReply({ ephemeral: true }) before execute()
@@ -124,7 +124,7 @@ export default defineCommand({
   deferralMode: 'ephemeral',
   data: new SlashCommandBuilder()
     .setName('channel')
-    .setDescription('Manage automatic character responses in channels')
+    .setDescription('Manage automatic character responses and channel settings')
     .addSubcommand(subcommand =>
       subcommand
         .setName('activate')
@@ -159,9 +159,7 @@ export default defineCommand({
         )
     )
     .addSubcommand(subcommand =>
-      subcommand
-        .setName('settings')
-        .setDescription('Open extended context settings dashboard for this channel')
+      subcommand.setName('settings').setDescription('Open the settings dashboard for this channel')
     ),
   execute,
   autocomplete,

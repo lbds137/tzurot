@@ -148,10 +148,13 @@ async function showGettingStarted(
         inline: false,
       },
       {
-        name: '🎭 Make it yours',
+        name: '🎨 Customize',
         value:
           '• `/character create` — build your own character\n' +
-          '• `/persona edit` — tell characters who *you* are',
+          '• `/persona edit` — tell characters who *you* are\n' +
+          "• `/character overrides` — tune a character's memory, context, and voice replies for you\n" +
+          '• `/settings defaults` — your defaults across every character\n' +
+          '• `/voice replies` — choose when a character replies with voice',
         inline: false,
       },
       {
@@ -437,7 +440,8 @@ const AUTOCOMPLETE_NAME_LIMIT = 100;
  * the exact thing they want help with — mirroring Discord's own slash-command
  * picker. A freeform value that doesn't resolve lands on the "Unknown command"
  * path, so steering users to real paths here is the whole point. Matches the
- * typed query as a case-insensitive substring of the path, sorted
+ * typed query as a case-insensitive substring of the path OR the leaf's
+ * description (so "voice" finds commands whose names don't say voice), sorted
  * alphabetically, capped at Discord's choice limit. The choice value is the
  * path itself so `resolveHelpTarget` resolves it directly.
  */
@@ -457,7 +461,12 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
     const query = focused.value.toLowerCase();
     const choices = [...commands.values()]
       .flatMap(flattenCommandLeaves)
-      .filter(leaf => query.length === 0 || leaf.path.toLowerCase().includes(query))
+      .filter(
+        leaf =>
+          query.length === 0 ||
+          leaf.path.toLowerCase().includes(query) ||
+          leaf.description.toLowerCase().includes(query)
+      )
       .sort((a, b) => a.path.localeCompare(b.path))
       .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES)
       .map(leaf => ({

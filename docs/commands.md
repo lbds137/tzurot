@@ -27,7 +27,8 @@ TTS + STT provider selection and cloned-voice library lifecycle. Per-character T
 
 | Command  | Subcommands                    | Purpose                                                                                                            |
 | -------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `/voice` | `view <character>`             | Resolved TTS + STT for a character (with cascade source)                                                           |
+| `/voice` | `view <character>`             | Voice settings for a character: reply mode, TTS + STT in use (with cascade source)                                 |
+|          | `replies <character> <mode>`   | Choose when a character replies with voice (for you); `/voice view` shows the resolved result                      |
 |          | `tts browse set clear default` | Per-character + user-default TTS provider config; **Select several** in browse clears a batch of overrides at once |
 |          | `stt set clear`                | Transcription provider preference (user-scoped)                                                                    |
 |          | `voices browse delete purge`   | Cloned-voice library lifecycle                                                                                     |
@@ -42,7 +43,7 @@ TTS + STT provider selection and cloned-voice library lifecycle. Per-character T
 |            | `export` `import` `template`                | Preset portability (JSON)                                                                                                                  |
 |            | `global` (`default` `free-default`)         | System-wide defaults (owner only); `slot: Both` targets text + vision                                                                      |
 | `/models`  | `browse` `view`                             | Browse and inspect available AI models (by capability)                                                                                     |
-| `/channel` | `activate` `deactivate` `browse` `settings` | Channel auto-response management                                                                                                           |
+| `/channel` | `activate` `deactivate` `browse` `settings` | Channel auto-response management and channel-wide settings                                                                                 |
 
 ## Memory & History
 
@@ -72,6 +73,18 @@ TTS + STT provider selection and cloned-voice library lifecycle. Per-character T
 | `/help`          | `commands [command]` `getting-started`              | Command browser (index or per-command detail) and the in-Discord onboarding screen                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 > **Settings dashboards: Reset page / Reset all**: on `/settings defaults edit`, `/character settings`, `/character overrides`, `/channel settings`, and `/admin settings`, every page whose settings all have an Auto state carries a ♻️ Reset page button (disabled when nothing on the page is set at that level) that, after a confirm naming how many settings go back to Auto, clears them in one save. The Index hub of the first four dashboards also carries ♻️ Reset all for every setting the dashboard shows. `/admin settings` has Reset page on its Memory, Context & Display and Voice pages (cleared values fall back to the built-in defaults) and no Reset all; its System pages have no reset yet. Channel settings' old "Reset to defaults" button is replaced by these.
+
+> **Settings tiers**: the behaviour settings (Memory · Context & Display · Voice) exist at five tiers, lower tiers applying unless a higher one overrides them:
+>
+> | Tier                                | Where                                                           | Who can set it                  |
+> | ----------------------------------- | --------------------------------------------------------------- | ------------------------------- |
+> | Bot-wide                            | `/admin settings edit`                                          | Bot owner                       |
+> | Per character (applies to everyone) | `/character settings`                                           | The character's creator         |
+> | Per channel                         | `/channel settings`                                             | Manage Messages in that channel |
+> | You, every character                | `/settings defaults edit`                                       | You                             |
+> | You, one character                  | `/character overrides` (and `/voice replies` for voice replies) | You                             |
+>
+> Every dashboard labels where each value comes from; `/voice view` shows the voice side for one character, including whether its creator has enabled voice at all.
 
 ## Administration (owner only)
 

@@ -210,6 +210,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/character/browse.ts | user | 5 |
 | services/bot-client/src/commands/character/browse.ts | values | 1 |
 | services/bot-client/src/commands/character/browseHelpers.ts | escapeMarkdown | 2 |
+| services/bot-client/src/commands/character/characterDashboardShared.ts | channelId | 1 |
 | services/bot-client/src/commands/character/characterDashboardShared.ts | id | 1 |
 | services/bot-client/src/commands/character/create.ts | channelId | 1 |
 | services/bot-client/src/commands/character/create.ts | id | 5 |
@@ -792,6 +793,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/settings/data/export.ts | setTitle | 2 |
 | services/bot-client/src/commands/settings/data/export.ts | time | 1 |
 | services/bot-client/src/commands/settings/defaults/edit.ts | customId | 3 |
+| services/bot-client/src/commands/settings/defaults/edit.ts | escapeMarkdown | 1 |
 | services/bot-client/src/commands/settings/defaults/edit.ts | id | 2 |
 | services/bot-client/src/commands/settings/defaults/edit.ts | replied | 1 |
 | services/bot-client/src/commands/settings/defaults/edit.ts | user | 1 |
@@ -913,14 +915,18 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/viewReasoning.ts | setType | 1 |
 | services/bot-client/src/commands/viewReasoning.ts | targetId | 4 |
 | services/bot-client/src/commands/viewReasoning.ts | user | 2 |
+| services/bot-client/src/commands/voice/index.ts | addChoices | 1 |
 | services/bot-client/src/commands/voice/index.ts | customId | 10 |
 | services/bot-client/src/commands/voice/index.ts | getFocused | 2 |
 | services/bot-client/src/commands/voice/index.ts | getSubcommandGroup | 1 |
 | services/bot-client/src/commands/voice/index.ts | name | 2 |
 | services/bot-client/src/commands/voice/index.ts | options | 3 |
-| services/bot-client/src/commands/voice/index.ts | setDescription | 3 |
-| services/bot-client/src/commands/voice/index.ts | setName | 3 |
-| services/bot-client/src/commands/voice/index.ts | setRequired | 1 |
+| services/bot-client/src/commands/voice/index.ts | setDescription | 6 |
+| services/bot-client/src/commands/voice/index.ts | setName | 6 |
+| services/bot-client/src/commands/voice/index.ts | setRequired | 3 |
+| services/bot-client/src/commands/voice/replies.ts | channelId | 1 |
+| services/bot-client/src/commands/voice/replies.ts | escapeMarkdown | 1 |
+| services/bot-client/src/commands/voice/replies.ts | id | 1 |
 | services/bot-client/src/commands/voice/stt/clear.ts | id | 1 |
 | services/bot-client/src/commands/voice/stt/clear.ts | setColor | 2 |
 | services/bot-client/src/commands/voice/stt/clear.ts | setDescription | 2 |
@@ -964,6 +970,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/voice/tts/subcommandBuilder.ts | setDescription | 9 |
 | services/bot-client/src/commands/voice/tts/subcommandBuilder.ts | setName | 9 |
 | services/bot-client/src/commands/voice/tts/subcommandBuilder.ts | setRequired | 4 |
+| services/bot-client/src/commands/voice/view.ts | channelId | 1 |
 | services/bot-client/src/commands/voice/view.ts | escapeMarkdown | 1 |
 | services/bot-client/src/commands/voice/view.ts | id | 1 |
 | services/bot-client/src/commands/voice/voices/browse.ts | addFields | 2 |
@@ -1731,6 +1738,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/dashboard/settings/settingsModalSubmit.ts | user | 1 |
 | services/bot-client/src/utils/dashboard/settings/settingsNavigationHandlers.ts | values | 1 |
 | services/bot-client/src/utils/dashboard/settings/settingsResetFlow.ts | escapeMarkdown | 2 |
+| services/bot-client/src/utils/dashboard/settings/settingsUpdateFactory.ts | channelId | 1 |
 | services/bot-client/src/utils/dashboard/settings/settingsUpdateFactory.ts | id | 1 |
 | services/bot-client/src/utils/dashboard/settings/settingsUpdateFactory.ts | user | 1 |
 | services/bot-client/src/utils/dashboard/sharedBackButtonHandler.ts | id | 4 |
@@ -2069,10 +2077,12 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/shapes/index.ts | value | 1 |
 | services/bot-client/src/commands/viewReasoning.ts | ContextMenuCommandBuilder | 1 |
 | services/bot-client/src/commands/voice/index.ts | SlashCommandBuilder | 1 |
-| services/bot-client/src/commands/voice/index.ts | addStringOption | 1 |
-| services/bot-client/src/commands/voice/index.ts | addSubcommand | 1 |
+| services/bot-client/src/commands/voice/index.ts | addStringOption | 3 |
+| services/bot-client/src/commands/voice/index.ts | addSubcommand | 2 |
 | services/bot-client/src/commands/voice/index.ts | addSubcommandGroup | 3 |
-| services/bot-client/src/commands/voice/index.ts | setAutocomplete | 1 |
+| services/bot-client/src/commands/voice/index.ts | name | 1 |
+| services/bot-client/src/commands/voice/index.ts | setAutocomplete | 2 |
+| services/bot-client/src/commands/voice/index.ts | value | 1 |
 | services/bot-client/src/commands/voice/stt/subcommandBuilder.ts | addStringOption | 1 |
 | services/bot-client/src/commands/voice/stt/subcommandBuilder.ts | addSubcommand | 2 |
 | services/bot-client/src/commands/voice/stt/subcommandBuilder.ts | name | 1 |
@@ -3089,6 +3099,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/memory/batchDelete.ts | componentType | 1 |
 | services/bot-client/src/commands/memory/batchDelete.ts | filter | 1 |
 | services/bot-client/src/commands/memory/batchDelete.ts | time | 1 |
+| services/bot-client/src/commands/settings/defaults/edit.ts | maskedLink | 1 |
 | services/bot-client/src/handlers/CommandHandler.ts | Collection | 2 |
 | services/bot-client/src/handlers/MessageReferenceExtractor.ts | force | 1 |
 | services/bot-client/src/handlers/MessageReferenceExtractor.ts | message | 1 |
@@ -3139,4 +3150,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 2 |
 
-Total: 3069 entries across 7136 sites.
+Total: 3080 entries across 7159 sites.

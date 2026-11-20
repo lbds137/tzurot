@@ -230,7 +230,7 @@ export default defineCommand({
             )
         )
         .addSubcommand(subcommand =>
-          subcommand.setName('view').setDescription('Show your current timezone')
+          subcommand.setName('view').setDescription('View your current timezone')
         )
     )
     // API key subcommand group
@@ -282,7 +282,7 @@ export default defineCommand({
     .addSubcommandGroup(group =>
       group
         .setName('defaults')
-        .setDescription('Manage your global default settings')
+        .setDescription('Manage your default settings')
         .addSubcommand(subcommand =>
           subcommand.setName('edit').setDescription('Open your default settings dashboard')
         )

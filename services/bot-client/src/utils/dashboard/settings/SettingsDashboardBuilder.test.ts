@@ -186,7 +186,7 @@ describe('SettingsDashboardBuilder', () => {
       expect(hintIndex).toBeGreaterThan(scopeIndex);
     });
 
-    it("prefers session.descriptionNote over the config's when both are set", () => {
+    it("combines session.descriptionNote with the config's when both are set", () => {
       const config: SettingsDashboardConfig = {
         ...createTestConfig(),
         descriptionNote: 'CONFIG_NOTE',
@@ -196,7 +196,9 @@ describe('SettingsDashboardBuilder', () => {
       const description = buildOverviewEmbed(config, session).toJSON().description ?? '';
 
       expect(description).toContain('SESSION_NOTE');
-      expect(description).not.toContain('CONFIG_NOTE');
+      expect(description).toContain('CONFIG_NOTE');
+      // Session note (per-invocation context) renders ahead of the static one.
+      expect(description.indexOf('SESSION_NOTE')).toBeLessThan(description.indexOf('CONFIG_NOTE'));
     });
 
     it('passes session.entityName to scopeNote', () => {
@@ -338,7 +340,7 @@ describe('SettingsDashboardBuilder', () => {
       const fields = getEmbedFields(embed);
       const maxMessagesField = fields.find(f => f.name?.includes('Max Messages'));
 
-      expect(maxMessagesField?.value).toContain('Override');
+      expect(maxMessagesField?.value).toContain('Set here');
     });
 
     it('should show auto status when inheriting', () => {
@@ -567,7 +569,7 @@ describe('SettingsDashboardBuilder', () => {
       const fields = getEmbedFields(embed);
       const status = fields.find(f => f.name === 'Status');
 
-      expect(status?.value).toContain('Override');
+      expect(status?.value).toContain('Set here');
     });
 
     it('should show entity name in footer', () => {
