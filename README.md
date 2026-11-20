@@ -155,7 +155,7 @@ A modern, scalable Discord bot with customizable AI characters, powered by a mic
 - **Model Indicators**: Footer shows which AI model produced each response (toggleable per-user/per-character)
 - **BYOK (Bring Your Own Key)**: Users provide their own LLM + voice provider keys via `/settings apikey`
 - **Guest Mode**: Free model + self-hosted voice access for users without keys
-- **Channel Activation**: Characters can auto-respond to all messages in a channel
+- **Channel Activation**: Characters can auto-respond to messages in a channel; a burst sent while one is still replying gets a single reply to the newest message
 - **NSFW Verification**: Age verification via Discord's native age-gated channels
 - **DM Chat**: Chat with characters in DMs by replying to bot messages
 - **Data Rights**: `/settings data export` (full account export) and `/settings data delete` (account erasure), per the [Privacy Policy](https://tzurot.org/privacy)

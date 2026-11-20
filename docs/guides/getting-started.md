@@ -18,8 +18,10 @@ Characters respond when you talk to them:
   character. Replying to one of its messages continues the conversation.
 - **Browse who's available** with `/character browse`.
 - **Dedicated channels**: a moderator can run `/channel activate` to make a
-  character respond to every message in a channel, no mention needed
-  (`/channel deactivate` turns it off).
+  character respond to messages in a channel, no mention needed
+  (`/channel deactivate` turns it off). If several messages arrive while it
+  is still replying, it answers once, to the newest; the others stay in the
+  conversation.
 
 Multiple characters can share a channel and weigh in on the same
 conversation.
