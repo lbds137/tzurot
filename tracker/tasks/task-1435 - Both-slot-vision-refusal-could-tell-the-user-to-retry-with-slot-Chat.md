@@ -7,7 +7,7 @@ created_date: '2026-11-17T13:18:00Z'
 labels:
   - area:bot-client
   - size:S
-  - state:owner
+  - state:ready
 dependencies: []
 priority: low
 ordinal: 1435000
@@ -24,4 +24,5 @@ Owner question: Should a refused Both request add a hint to retry with slot Chat
 Recommendation: Yes, one sentence appended to the existing refusal on all Both sites. It turns a dead end into a one-step fix.
 
 Acceptance: every Both-capable setter shows the hint on a vision-gate refusal; single-slot vision refusals unchanged; tests pin both.
+Owner ruling (2026-11-20, AUQ): yes, append the retry-with-slot-Chat hint on every Both refusal site (the recommendation).
 <!-- SECTION:DESCRIPTION:END -->

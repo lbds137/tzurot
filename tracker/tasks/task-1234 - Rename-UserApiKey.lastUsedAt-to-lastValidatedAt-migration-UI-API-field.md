@@ -9,7 +9,7 @@ labels:
   - 'area:api-gateway'
   - 'area:db'
   - 'size:M'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 1222000
@@ -23,4 +23,5 @@ Why: PR #2623 review round 3 finding 5. The column now strictly means last-valid
 Owner question: is the naming drift worth a schema migration and an API field rename, or does the UI label plus the schema doc comment cover it?
 
 Recommendation: keep the name - the migration + API-visible field change buys clarity for one internal table; the schema comment and the UI label already state the semantics. Revisit only if another lastUsedAt consumer appears.
+Owner ruling (2026-11-20, AUQ): RENAME to lastValidatedAt (against the keep-the-name recommendation): migration + UI + API field rename.
 <!-- SECTION:DESCRIPTION:END -->
