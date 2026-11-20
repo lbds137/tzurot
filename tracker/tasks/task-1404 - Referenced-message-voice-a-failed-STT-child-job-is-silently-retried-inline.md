@@ -4,10 +4,11 @@ title: 'Referenced-message voice: a failed STT child job is silently retried inl
 status: To Do
 assignee: []
 created_date: '2026-11-11T04:09:00Z'
+updated_date: '2026-11-20T06:39:00Z'
 labels:
   - area:ai-worker
   - size:S
-  - state:owner
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1385000
@@ -22,3 +23,9 @@ Acceptance: a test with a failed reference STT job shows no transcribeAudio call
 Owner question: should the no-inline-retry ruling for failed trigger media also apply to quoted (referenced) voice messages?
 Recommendation: yes - same spend logic (the job already retried), and the untranscribed state already renders honestly.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner ruling 2026-11-20 (AskUserQuestion): yes, the no-inline-retry ruling also covers quoted (referenced) voice messages.
+<!-- SECTION:NOTES:END -->

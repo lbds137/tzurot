@@ -4,11 +4,11 @@ title: ai-worker silently demotes a user with an undecryptable BYOK key to guest
 status: To Do
 assignee: []
 created_date: '2026-11-08T05:47:00Z'
-updated_date: '2026-11-20T05:58:00Z'
+updated_date: '2026-11-20T06:39:00Z'
 labels:
   - area:ai-worker
   - size:M
-  - state:owner
+  - state:ready
 dependencies: []
 priority: high
 ordinal: 60
@@ -31,4 +31,6 @@ Acceptance: real-specimen test (corrupted GCM tag) pins the chosen user-visible 
 
 <!-- SECTION:NOTES:BEGIN -->
 11-19 pass: Medium -> High (user-visible silent downgrade). Awaiting the owner decision in the Owner question line.
+
+Owner ruling 2026-11-20 (AskUserQuestion): fail with the re-enter-your-key copy (no silent free-model downgrade).
 <!-- SECTION:NOTES:END -->
