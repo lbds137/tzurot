@@ -30,10 +30,13 @@ export interface CharacterDashboardSpec {
   dashboardConfig: SettingsDashboardConfig;
   /** Which cascade the dashboard shows — feeds the source-indicator badges. */
   sourceTier: 'user-personality' | 'personality';
-  /** The one genuine divergence: which cascade endpoint backs this view. */
+  /** The one genuine divergence: which cascade endpoint backs this view. The
+   *  optional trailing channelId carries the invoking channel so channel-aware
+   *  resolvers can scope the resolution; channel-blind resolvers ignore it. */
   resolveCascade: (
     userClient: UserClient,
-    personalityId: string
+    personalityId: string,
+    channelId: string | undefined
   ) => Promise<{ ok: true; data: ResolvedConfigOverrides } | GatewayResultFailure>;
   /** Error-copy noun — narrowed so a future caller can't typo it silently. */
   noun: 'overrides' | 'settings';
@@ -73,7 +76,13 @@ export async function openCharacterCascadeDashboard(
 
     const personality = result.data.personality;
 
-    const cascadeResult = await resolveCascade(userClient, personality.id);
+    const cascadeResult = await resolveCascade(
+      userClient,
+      personality.id,
+      // Null outside a guild/DM context — normalized so the query param is
+      // simply omitted.
+      context.interaction.channelId ?? undefined
+    );
 
     if (!cascadeResult.ok) {
       // Log the raw failure detail; the user copy is classified by kind

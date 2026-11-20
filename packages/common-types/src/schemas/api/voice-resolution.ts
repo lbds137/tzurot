@@ -12,6 +12,8 @@
  */
 
 import { z } from 'zod';
+import { ConfigOverrideSourceSchema } from './configOverrides.js';
+import { VOICE_RESPONSE_MODES } from '../../constants/voice.js';
 import { STT_PROVIDERS, STT_RESOLUTION_SOURCES } from '../../types/sttProvider.js';
 
 const SttProviderSchema = z.enum(STT_PROVIDERS);
@@ -65,11 +67,23 @@ export type ClonedVoicesSummary = z.infer<typeof ClonedVoicesSummarySchema>;
 // GET /user/voice-resolution?personalityId=X
 // ============================================================================
 
+/** The resolved Voice Response Mode value plus the cascade tier that supplied it. */
+export const VoiceResponseModeViewSchema = z.object({
+  value: z.enum(VOICE_RESPONSE_MODES),
+  source: ConfigOverrideSourceSchema,
+});
+
+export type VoiceResponseModeView = z.infer<typeof VoiceResponseModeViewSchema>;
+
 export const GetVoiceResolutionResponseSchema = z.object({
   /** Display name of the resolved character. Surfaces in the dashboard
    *  title so the view reads as character-scoped instead of looking like
    *  global settings. */
   personalityName: z.string(),
+  /** The character's creator-only voice toggle (prisma Personality.voiceEnabled). */
+  voiceEnabled: z.boolean(),
+  /** Resolved Voice Response Mode with its cascade source. */
+  voiceResponseMode: VoiceResponseModeViewSchema,
   tts: ResolvedTtsViewSchema,
   stt: ResolvedSttViewSchema,
   voices: ClonedVoicesSummarySchema,

@@ -60,10 +60,12 @@ describe('handleVoiceView', () => {
     stub.getVoiceResolution.mockReset();
   });
 
-  it('calls userClient.getVoiceResolution with the picked personalityId', async () => {
+  it('calls userClient.getVoiceResolution with the picked personalityId and the invoking channel', async () => {
     stub.getVoiceResolution.mockResolvedValue(
       makeOk({
         personalityName: 'Test Character',
+        voiceEnabled: true,
+        voiceResponseMode: { value: 'always', source: 'hardcoded' },
         tts: {
           configId: 'cfg-1',
           configName: 'kyutai',
@@ -77,7 +79,10 @@ describe('handleVoiceView', () => {
 
     await handleVoiceView(makeContext() as never);
 
-    expect(stub.getVoiceResolution).toHaveBeenCalledWith({ personalityId: 'personality-uuid-1' });
+    expect(stub.getVoiceResolution).toHaveBeenCalledWith({
+      personalityId: 'personality-uuid-1',
+      channelId: undefined,
+    });
   });
 
   it('renders an embed scoped to the resolved character (title + TTS + STT)', async () => {
@@ -88,6 +93,8 @@ describe('handleVoiceView', () => {
     stub.getVoiceResolution.mockResolvedValue(
       makeOk({
         personalityName: 'Lila',
+        voiceEnabled: true,
+        voiceResponseMode: { value: 'always', source: 'hardcoded' },
         tts: {
           configId: 'cfg-1',
           configName: 'mistral-config',
@@ -136,6 +143,8 @@ describe('handleVoiceView', () => {
       stub.getVoiceResolution.mockResolvedValue(
         makeOk({
           personalityName: 'Char',
+          voiceEnabled: false,
+          voiceResponseMode: { value: 'never', source: 'user-personality' },
           tts: {
             configId: null,
             configName: null,
@@ -158,6 +167,83 @@ describe('handleVoiceView', () => {
       expect(sttField?.value).not.toContain('undefined');
     }
   );
+
+  describe('Voice replies + voice-enabled fields', () => {
+    const makePayload = (
+      voiceResponseMode: { value: string; source: string },
+      voiceEnabled: boolean
+    ) =>
+      makeOk({
+        personalityName: 'Char',
+        voiceEnabled,
+        voiceResponseMode,
+        tts: {
+          configId: null,
+          configName: null,
+          provider: 'self-hosted',
+          source: 'hardcoded' as const,
+        },
+        stt: { provider: 'voice-engine', source: 'hardcoded' as const },
+        voices: { tzurotCount: 0, totalVoices: 0, previewSlugs: [] },
+      });
+
+    const renderFields = async (payload: ReturnType<typeof makeOk>) => {
+      stub.getVoiceResolution.mockResolvedValue(payload);
+      const context = makeContext();
+      await handleVoiceView(context as never);
+      const reply = context.editReply.mock.calls[0]?.[0];
+      return (reply.embeds[0].toJSON().fields ?? []) as { name: string; value: string }[];
+    };
+
+    it('renders a Voice replies field with the resolved mode + source + the command that changes it', async () => {
+      const fields = await renderFields(
+        makePayload({ value: 'always', source: 'hardcoded' }, true)
+      );
+
+      const field = fields.find(f => f.name.includes('Voice replies'));
+      expect(field).toBeDefined();
+      expect(field?.value).toContain('Always');
+      expect(field?.value).toContain('built-in default');
+      expect(field?.value).toContain('/voice replies');
+    });
+
+    it('renders a voice-enabled field, ✅ or ❌, naming the creator as the setter', async () => {
+      const enabled = await renderFields(
+        makePayload({ value: 'always', source: 'hardcoded' }, true)
+      );
+      const disabled = await renderFields(
+        makePayload({ value: 'always', source: 'hardcoded' }, false)
+      );
+
+      const enabledField = enabled.find(f => f.name.includes('Character voice'));
+      const disabledField = disabled.find(f => f.name.includes('Character voice'));
+      expect(enabledField?.value).toContain('✅ Enabled');
+      expect(enabledField?.value).toContain('creator');
+      expect(disabledField?.value).toContain('❌ Disabled');
+    });
+
+    it.each([
+      { value: 'always', source: 'hardcoded', expected: 'built-in default' },
+      {
+        value: 'voice-only',
+        source: 'user-personality',
+        expected: 'your override for this character',
+      },
+      { value: 'never', source: 'channel', expected: "this channel's setting" },
+      { value: 'voice-only', source: 'user-default', expected: 'your default for every character' },
+      { value: 'always', source: 'admin', expected: 'bot-wide setting' },
+      { value: 'never', source: 'personality', expected: "the character's default" },
+    ] as const)(
+      'renders the exact cascade-source label for voiceResponseMode source=$source',
+      async ({ value, source, expected }) => {
+        // Pins every branch of the voice-mode source-label mapping to its exact
+        // string — a dropped `case` arm or a reworded label fails the row.
+        const fields = await renderFields(makePayload({ value, source }, true));
+        const field = fields.find(f => f.name.includes('Voice replies'));
+        expect(field?.value).toContain(expected);
+      }
+    );
+  });
 
   it('reports gateway error', async () => {
     stub.getVoiceResolution.mockResolvedValue(makeErr(500, 'oops'));

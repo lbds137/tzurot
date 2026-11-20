@@ -327,7 +327,9 @@ export default defineCommand({
     .addSubcommand(subcommand =>
       subcommand
         .setName('settings')
-        .setDescription('Open character settings dashboard (owner only)')
+        .setDescription(
+          'Open character settings dashboard (character creator only; applies to everyone)'
+        )
         .addStringOption(option =>
           option
             .setName('character')
@@ -339,7 +341,7 @@ export default defineCommand({
     .addSubcommand(subcommand =>
       subcommand
         .setName('overrides')
-        .setDescription('Manage your personal overrides for a character')
+        .setDescription('Your overrides for a character: voice replies, memory, context & display')
         .addStringOption(option =>
           option
             .setName('character')

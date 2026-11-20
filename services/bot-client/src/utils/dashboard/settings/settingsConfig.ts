@@ -2,17 +2,24 @@
  * Settings Configuration
  *
  * Defines the available settings for the settings dashboard.
- * Shared across /admin settings, /channel context, and /character settings.
+ * Shared across /admin settings, /channel settings, /character settings,
+ * /character overrides, and /settings defaults.
  *
  * Settings are grouped by category:
- * - EXTENDED_CONTEXT_SETTINGS: Message count, age, image limits
+ * - EXTENDED_CONTEXT_SETTINGS: message count, age, image limits
  * - MEMORY_SETTINGS: LTM and cross-channel history behavior
+ * - DISPLAY_SETTINGS: model footer indicator
+ * - VOICE_SETTINGS: transcription (admin tier) + voice response mode
  */
 
 import { SettingType, type SettingDefinition } from './types.js';
 
+/** Standing voice-enabled note shared verbatim by the user-facing cascade configs. */
+export const VOICE_ENABLED_DESCRIPTION_NOTE =
+  "🔊 Voice replies also need the character's voice enabled by its creator — `/voice view` shows whether it is.";
+
 /**
- * Extended context settings definitions
+ * Dashboard settings definitions
  */
 export const EXTENDED_CONTEXT_SETTINGS: SettingDefinition[] = [
   {

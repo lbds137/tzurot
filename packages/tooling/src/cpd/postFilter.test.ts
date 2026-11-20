@@ -46,6 +46,36 @@ describe('classifyLine', () => {
   it('classifies `if (await call())` as structural — control flow wins over call shape', () => {
     expect(classifyLine('if (await checkSomething()) {')).toBe('structural');
   });
+
+  it.each([
+    [`import { createLogger } from '@tzurot/common-types/utils/logger';`, 'import'],
+    [
+      `import type { DeferredCommandContext } from '../../utils/commandContext/types.js';`,
+      'import',
+    ],
+    [`import { type EnvConfig } from '@tzurot/common-types/config/config';`, 'import'],
+    [`import chalk from 'chalk';`, 'import'],
+    [`import './browse.js';`, 'import'],
+    [`import {`, 'import'],
+    [`export { renderSpec } from '../../ux/render/render.js';`, 'import'],
+    [`export * from './modeLabels.js';`, 'import'],
+    [`export type { SettingsDashboardConfig } from './types.js';`, 'import'],
+    [`  import { CATALOG } from '../../ux/catalog/catalog.js';`, 'import'],
+  ] as const)('classifies %s as %s (module boundary)', (line, expected) => {
+    expect(classifyLine(line)).toBe(expected);
+  });
+
+  it.each([
+    [`export const DEFAULT_LIMIT = 10;`, 'noise'],
+    [`export function buildPayload(opts: Opts) {`, 'noise'],
+    [`export type SettingsView = 'full' | 'compact';`, 'noise'],
+    [`export default createHandler();`, 'noise'],
+  ] as const)(
+    'does NOT classify declaration export %s as import (falls through as before)',
+    (line, expected) => {
+      expect(classifyLine(line)).toBe(expected);
+    }
+  );
 });
 
 describe('classifyFragment', () => {
@@ -96,6 +126,52 @@ describe('classifyFragment', () => {
     `;
     expect(classifyFragment(fragment, 0.8).isCallDominant).toBe(false);
     expect(classifyFragment(fragment, 0.6).isCallDominant).toBe(true);
+  });
+
+  it('flags an import-dominated fragment as import-dominant (not real duplication)', () => {
+    // Mirrors the persona/default.ts ↔ voice/replies.ts clone: a shared import
+    // block plus one trailing const line.
+    const fragment = `
+      import { CATALOG } from '../../ux/catalog/catalog.js';
+      import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+      import { renderSpec } from '../../ux/render/render.js';
+      import {
+        AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+        isAutocompleteErrorSentinel,
+      } from '../../utils/apiCheck.js';
+      import { clientsFor } from '../../utils/gatewayClients.js';
+      import { createLogger } from '@tzurot/common-types/utils/logger';
+      import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+      const logger = createLogger('module-name');
+    `;
+    const result = classifyFragment(fragment);
+    expect(result.importLines).toBe(7);
+    expect(result.importRatio).toBeGreaterThanOrEqual(0.8);
+    expect(result.isImportDominant).toBe(true);
+    expect(result.isCallDominant).toBe(false);
+  });
+
+  it('keeps a mixed fragment with real call lines counted (not import-dominant)', () => {
+    const fragment = `
+      import { renderSpec } from '../../ux/render/render.js';
+      import { clientsFor } from '../../utils/gatewayClients.js';
+      await clientsFor(guildId).personas.update(id, body);
+      renderSpec(embed, layout);
+      await persistSelection(res, opts);
+    `;
+    const result = classifyFragment(fragment);
+    expect(result.isImportDominant).toBe(false);
+    expect(result.isCallDominant).toBe(true);
+  });
+
+  it('handles an all-noise fragment for the import ratio without dividing by zero', () => {
+    const fragment = `
+      })
+      }
+    `;
+    const result = classifyFragment(fragment);
+    expect(result.importRatio).toBe(0);
+    expect(result.isImportDominant).toBe(false);
   });
 });
 
@@ -148,6 +224,27 @@ describe('filterReport', () => {
     );
 
     expect(result.rawCount).toBe(2);
+    expect(result.filteredCount).toBe(1);
+    expect(result.excludedCount).toBe(1);
+    expect(result.filteredLines).toBe(15);
+  });
+
+  it('excludes import-dominant clones from the filtered count', () => {
+    const result = filterReport(
+      baseReport([
+        // Import-dominant (shared import block + one const) — excluded
+        {
+          fragment: `import { clientsFor } from '../../utils/gatewayClients.js';\nimport { CATALOG } from '../../ux/catalog/catalog.js';\nimport { renderSpec } from '../../ux/render/render.js';\nimport { classifyGatewayFailure } from '../../ux/catalog/classify.js';\nconst logger = createLogger('x');`,
+          lines: 13,
+        },
+        // Logic — kept
+        {
+          fragment: `if (x === null) return;\nthrow new Error('bad');`,
+          lines: 15,
+        },
+      ])
+    );
+
     expect(result.filteredCount).toBe(1);
     expect(result.excludedCount).toBe(1);
     expect(result.filteredLines).toBe(15);

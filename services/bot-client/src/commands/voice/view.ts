@@ -1,8 +1,9 @@
 /**
  * Voice View Handler
  * Handles /voice view <character> — character-scoped dashboard showing the
- * resolved TTS provider and STT provider for the picked character. Single
- * round-trip via /user/voice-resolution.
+ * resolved Voice Response Mode, the character's voice-enabled flag, and the
+ * resolved TTS and STT providers for the picked character. Single round-trip
+ * via /user/voice-resolution.
  *
  * Cascade labels are written so each line reads as "the setting resolved
  * FOR THIS CHARACTER" — even when the resolved value falls through to a
@@ -17,6 +18,7 @@ import { escapeMarkdown } from 'discord.js';
 import { entityTitle } from '@tzurot/common-types/constants/uxVocabulary';
 import { voiceViewOptions } from '@tzurot/common-types/generated/commandOptions';
 import { type TtsResolutionSource } from '@tzurot/common-types/schemas/api/voice-resolution';
+import { voiceModeSourceLabel, voiceModeValueLabel } from './modeLabels.js';
 import {
   sttProviderDisplayName,
   isSttProvider,
@@ -88,7 +90,10 @@ export async function handleVoiceView(context: DeferredCommandContext): Promise<
 
   try {
     const { userClient } = clientsFor(context.interaction);
-    const result = await userClient.getVoiceResolution({ personalityId });
+    const result = await userClient.getVoiceResolution({
+      personalityId,
+      channelId: context.interaction.channelId ?? undefined,
+    });
 
     if (!result.ok) {
       logger.warn({ userId, personalityId, status: result.status }, 'Failed to resolve voice view');
@@ -103,7 +108,7 @@ export async function handleVoiceView(context: DeferredCommandContext): Promise<
       return;
     }
 
-    const { personalityName, tts, stt } = result.data;
+    const { personalityName, voiceEnabled, voiceResponseMode, tts, stt } = result.data;
 
     const ttsLine =
       tts.configName !== null
@@ -115,10 +120,23 @@ export async function handleVoiceView(context: DeferredCommandContext): Promise<
       : stt.provider;
     const sttLine = `**${sttProviderLabel}** _(${sttSourceLabel(stt.source)})_`;
 
+    const voiceRepliesLine =
+      `**${voiceModeValueLabel(voiceResponseMode.value)}** _(${voiceModeSourceLabel(voiceResponseMode.source)})_` +
+      '\nChange it: `/voice replies`';
+
+    const voiceEnabledLine = voiceEnabled
+      ? "✅ Enabled — set by the character's creator"
+      : "❌ Disabled — set by the character's creator";
+
     const { embed } = buildEntityDetailCard({
       // 🎤 is the single voice-entity glyph (§2.1) — 🎙️ collapses onto it.
       title: entityTitle('voice', `Voice Settings for ${escapeMarkdown(personalityName)}`),
       fields: [
+        { name: '💬 Voice replies', value: voiceRepliesLine },
+        {
+          name: '🔈 Character voice',
+          value: `${voiceEnabledLine}\nSet from the character edit dashboard's voice toggle (creator only)`,
+        },
         { name: '🔊 TTS (speaks as character)', value: ttsLine },
         { name: '🎤 STT (transcribes your voice)', value: sttLine },
       ],
@@ -131,6 +149,9 @@ export async function handleVoiceView(context: DeferredCommandContext): Promise<
       {
         userId,
         personalityId,
+        voiceEnabled,
+        voiceResponseMode: voiceResponseMode.value,
+        voiceResponseModeSource: voiceResponseMode.source,
         ttsProvider: tts.provider,
         ttsSource: tts.source,
         sttProvider: stt.provider,

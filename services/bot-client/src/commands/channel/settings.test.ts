@@ -406,7 +406,7 @@ describe('Channel Settings Dashboard', () => {
       expect(embedJson.description).toContain('<#channel-123>');
     });
 
-    it('should include all 14 settings fields across its 3 pages (extended context + memory + display + voice)', async () => {
+    it('should include all 14 settings fields across its 3 pages (context & display + memory + voice)', async () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
@@ -422,7 +422,7 @@ describe('Channel Settings Dashboard', () => {
         'Channel Settings · Voice',
       ]);
 
-      // Both extended context and memory settings are shown at channel tier
+      // Both context-limit and memory settings are shown at channel tier
       const fieldNames = pageEmbeds.flatMap(e => e.fields.map((f: { name: string }) => f.name));
       expect(fieldNames).toHaveLength(14);
       expect(fieldNames).toEqual(
@@ -543,7 +543,7 @@ describe('Channel Settings Dashboard', () => {
       );
       expect(maxMsgField).toBeDefined();
       expect(maxMsgField.value).toContain('25');
-      expect(maxMsgField.value).toContain('Override');
+      expect(maxMsgField.value).toContain('Set here');
 
       // Fields with no channel override still show the Auto indicator — the
       // channel-scoped resolve changes which tiers feed the value, not how an

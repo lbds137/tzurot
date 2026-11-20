@@ -679,3 +679,11 @@ export const voiceVoicesDeleteOptions = defineTypedOptions({
 export const voiceViewOptions = defineTypedOptions({
   character: { type: 'string', required: true },
 });
+
+/**
+ * /voice replies <character, mode>
+ */
+export const voiceRepliesOptions = defineTypedOptions({
+  character: { type: 'string', required: true },
+  mode: { type: 'string', required: true },
+});

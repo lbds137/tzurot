@@ -39,6 +39,6 @@ export function buildVoiceSttSubcommandGroup(
         )
     )
     .addSubcommand(subcommand =>
-      subcommand.setName('clear').setDescription('Remove your transcription provider preference')
+      subcommand.setName('clear').setDescription('Clear your transcription provider preference')
     );
 }

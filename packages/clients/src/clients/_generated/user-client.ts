@@ -1626,8 +1626,8 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async getVoiceResolution(options: { personalityId: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getVoiceResolution.output>>> {
-    const fullPath = '/api/user/voice-resolution' + buildQueryString([['personalityId', options.personalityId]]);
+  async getVoiceResolution(options: { personalityId: string; channelId?: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getVoiceResolution.output>>> {
+    const fullPath = '/api/user/voice-resolution' + buildQueryString([['personalityId', options.personalityId], ['channelId', options.channelId]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,

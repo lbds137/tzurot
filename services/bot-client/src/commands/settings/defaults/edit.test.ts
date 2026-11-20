@@ -37,6 +37,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 const stub = {
   resolveUserDefaults: vi.fn(),
   updateUserDefaults: vi.fn(),
+  getDefaultModelConfig: vi.fn(),
 };
 
 vi.mock('../../../utils/gatewayClients.js', () => ({
@@ -182,6 +183,11 @@ describe('User Default Settings Dashboard', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // The open path reads the default model preset for the note line.
+    stub.getDefaultModelConfig.mockResolvedValue({
+      ok: true,
+      data: { default: { configId: 'cfg-1', configName: 'mistral-default' } },
+    });
   });
 
   describe('handleDefaultsEdit', () => {
@@ -207,12 +213,56 @@ describe('User Default Settings Dashboard', () => {
       await handleDefaultsEdit(context);
 
       expect(stub.resolveUserDefaults).toHaveBeenCalled();
+      expect(stub.getDefaultModelConfig).toHaveBeenCalledWith({ slot: 'text' });
       expect(context.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           embeds: expect.any(Array),
           components: expect.any(Array),
         })
       );
+    });
+
+    it('renders the Model preset note line from the default-preset read, alongside the static note', async () => {
+      const context = createMockContext();
+      stub.resolveUserDefaults.mockResolvedValue({ ok: true, data: mockResolveDefaultsResponse });
+      stub.getDefaultModelConfig.mockResolvedValue({
+        ok: true,
+        data: { default: { configId: 'cfg-1', configName: 'mistral-default' } },
+      });
+
+      await handleDefaultsEdit(context);
+
+      const embedJson = context.editReply.mock.calls[0][0].embeds[0].toJSON();
+      const description = embedJson.description ?? '';
+      expect(description).toContain('Model preset: **mistral-default**');
+      expect(description).toContain('/preset default set');
+      // The config's static voice note is combined, not masked.
+      expect(description).toContain('voice enabled by its creator');
+    });
+
+    it('renders the no-preset note when the default slot is empty', async () => {
+      const context = createMockContext();
+      stub.resolveUserDefaults.mockResolvedValue({ ok: true, data: mockResolveDefaultsResponse });
+      stub.getDefaultModelConfig.mockResolvedValue({
+        ok: true,
+        data: { default: { configId: null, configName: null } },
+      });
+
+      await handleDefaultsEdit(context);
+
+      const embedJson = context.editReply.mock.calls[0][0].embeds[0].toJSON();
+      expect(embedJson.description).toContain('Model preset: none set');
+    });
+
+    it('omits the preset note (but still opens) when the preset read fails', async () => {
+      const context = createMockContext();
+      stub.resolveUserDefaults.mockResolvedValue({ ok: true, data: mockResolveDefaultsResponse });
+      stub.getDefaultModelConfig.mockResolvedValue({ ok: false, error: 'boom', status: 500 });
+
+      await handleDefaultsEdit(context);
+
+      const embedJson = context.editReply.mock.calls[0][0].embeds[0].toJSON();
+      expect(embedJson.description).not.toContain('Model preset');
     });
 
     it('should include "Your Default Settings" index title in embed', async () => {
