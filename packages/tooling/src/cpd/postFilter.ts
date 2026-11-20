@@ -119,12 +119,28 @@ export interface FragmentClassification {
   noiseLines: number;
   /** Ratio of call-shape to call+structural lines (ignoring noise). */
   callRatio: number;
-  /** Ratio of import-shape to call+structural+import lines (ignoring noise). */
+  /** Ratio of import-shape lines to ALL non-blank lines (noise included). */
   importRatio: number;
   /** Whether this fragment is considered "call-dominant" (≥ threshold). */
   isCallDominant: boolean;
   /** Whether this fragment is considered "import-dominant" (≥ threshold). */
   isImportDominant: boolean;
+}
+
+/** Matches a completed module specifier: `from '…'` / `from "…"`, or a
+ *  side-effect `import '…'`. A statement-opening line carrying one is complete
+ *  on that line. */
+const IMPORT_COMPLETE_PATTERN = /\bfrom\s+['"][^'"]*['"]|^\s*import\s+['"]/;
+
+/** True when a line opens an import/re-export statement it does not finish:
+ *  it matches the import shape, has an unclosed `{`, and no module specifier. */
+function opensMultiLineImport(line: string): boolean {
+  return (
+    IMPORT_PATTERN.test(line) &&
+    !IMPORT_COMPLETE_PATTERN.test(line) &&
+    line.includes('{') &&
+    !line.includes('}')
+  );
 }
 
 /**
@@ -141,9 +157,13 @@ export interface FragmentClassification {
  * with mostly helper-call shape). A fragment with 3 call lines and 2
  * structural lines does NOT — at 60% call ratio, the logic is significant
  * enough that the fragment represents real shared structure rather than
- * just helper-call uniformity. The same bar applies to the import ratio:
- * a fragment of 13 import lines plus one `const` line is excluded, while a
- * fragment where imports and real logic are comparably sized is kept.
+ * just helper-call uniformity. The same bar applies to the import ratio, but
+ * its denominator is every non-blank line (noise included): a fragment of 13
+ * import lines plus one `const` line is excluded, while imports followed by a
+ * long literal or other non-import tail is kept. Lines inside a multi-line
+ * import statement (from the opening line through the one carrying the
+ * `from '…'` specifier or the closing brace) count as import lines, so a wrapped import block is
+ * not diluted into noise.
  */
 export function classifyFragment(fragment: string, threshold = 0.8): FragmentClassification {
   const lines = fragment.split('\n').filter(l => l.trim().length > 0);
@@ -151,8 +171,17 @@ export function classifyFragment(fragment: string, threshold = 0.8): FragmentCla
   let structuralLines = 0;
   let importLines = 0;
   let noiseLines = 0;
+  let insideImport = false;
   for (const line of lines) {
+    if (insideImport) {
+      importLines++;
+      // The specifier list ends at its closing brace: a local `export { a, b };`
+      // carries no `from`, and must not swallow the rest of the fragment.
+      insideImport = !(IMPORT_COMPLETE_PATTERN.test(line) || line.includes('}'));
+      continue;
+    }
     const cls = classifyLine(line);
+    if (cls === 'import') insideImport = opensMultiLineImport(line);
     if (cls === 'call') callLines++;
     else if (cls === 'structural') structuralLines++;
     else if (cls === 'import') importLines++;
@@ -160,8 +189,7 @@ export function classifyFragment(fragment: string, threshold = 0.8): FragmentCla
   }
   const classifiable = callLines + structuralLines;
   const callRatio = classifiable > 0 ? callLines / classifiable : 0;
-  const importClassifiable = classifiable + importLines;
-  const importRatio = importClassifiable > 0 ? importLines / importClassifiable : 0;
+  const importRatio = lines.length > 0 ? importLines / lines.length : 0;
   return {
     totalLines: lines.length,
     callLines,
@@ -171,7 +199,7 @@ export function classifyFragment(fragment: string, threshold = 0.8): FragmentCla
     callRatio,
     importRatio,
     isCallDominant: classifiable > 0 && callRatio >= threshold,
-    isImportDominant: importClassifiable > 0 && importRatio >= threshold,
+    isImportDominant: lines.length > 0 && importRatio >= threshold,
   };
 }
 
@@ -257,8 +285,12 @@ export const JSCPD_REPORT_PATH = 'reports/jscpd/jscpd-report.json';
  * - v2 — added import-dominance exclusion: `import`/re-export module-boundary
  *   lines classify as `'import'`, and a fragment whose import ratio meets the
  *   threshold is excluded alongside call-dominant fragments.
+ * - v3 — import ratio is measured over all non-blank lines (noise included),
+ *   and lines inside a multi-line import statement count as import lines, so a
+ *   short import header on a long literal/data tail no longer reads as
+ *   import-dominant.
  */
-export const FILTER_IMPL_VERSION = 2;
+export const FILTER_IMPL_VERSION = 3;
 
 /** Load jscpd report JSON from the given path. Defaults to JSCPD_REPORT_PATH.
  *
