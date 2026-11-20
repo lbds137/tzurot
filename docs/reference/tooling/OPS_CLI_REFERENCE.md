@@ -283,7 +283,7 @@ Quick codebase state for AI session startup:
 - CI status (pass/fail/pending)
 - Uncommitted changes summary
 - CURRENT.md excerpt
-- Next `backlog/now.md` items
+- Next-items and current-work sections (currently empty: the code reads the retired `ROADMAP.md` / `CURRENT_WORK.md`, TASK-493)
 - Pending migrations (optional)
 
 **Session save/load:** Captures state to `.claude-session.json` for continuity across sessions.
