@@ -85,6 +85,32 @@ describe('handleVoiceView', () => {
     });
   });
 
+  it('forwards the invoking channel id to getVoiceResolution when the interaction has one', async () => {
+    stub.getVoiceResolution.mockResolvedValue(
+      makeOk({
+        personalityName: 'Test Character',
+        voiceEnabled: true,
+        voiceResponseMode: { value: 'always', source: 'hardcoded' },
+        tts: {
+          configId: 'cfg-1',
+          configName: 'kyutai',
+          provider: 'self-hosted',
+          source: 'free-default',
+        },
+        stt: { provider: 'voice-engine', source: 'hardcoded' },
+        voices: { tzurotCount: 0, totalVoices: 0, previewSlugs: [] },
+      })
+    );
+    const context = { ...makeContext(), interaction: { channelId: 'channel-123' } as never };
+
+    await handleVoiceView(context as never);
+
+    expect(stub.getVoiceResolution).toHaveBeenCalledWith({
+      personalityId: 'personality-uuid-1',
+      channelId: 'channel-123',
+    });
+  });
+
   it('renders an embed scoped to the resolved character (title + TTS + STT)', async () => {
     // Pin the character-scoping signal that was missing before the overhaul:
     // the embed title MUST name the character so the view doesn't read like

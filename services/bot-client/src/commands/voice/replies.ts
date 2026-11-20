@@ -12,7 +12,7 @@
 
 import { escapeMarkdown } from 'discord.js';
 import { voiceRepliesOptions } from '@tzurot/common-types/generated/commandOptions';
-import { VOICE_RESPONSE_MODES } from '@tzurot/common-types/constants/voice';
+import { VOICE_RESPONSE_MODES, type VoiceResponseMode } from '@tzurot/common-types/constants/voice';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
@@ -36,12 +36,9 @@ const renderFailure = (input: unknown): string =>
     classifyGatewayFailure(input, VOICE_REPLIES_RESOURCE, { failedAction: 'set voice replies' })
   );
 
-/** The Voice Response Mode values the subcommand's choices offer (canonical set). */
-const VOICE_MODES = VOICE_RESPONSE_MODES;
-type VoiceMode = (typeof VOICE_MODES)[number];
-
-function isVoiceMode(value: string): value is VoiceMode {
-  return (VOICE_MODES as readonly string[]).includes(value);
+/** Narrows to the Voice Response Mode values the subcommand's choices offer (canonical set). */
+function isVoiceMode(value: string): value is VoiceResponseMode {
+  return (VOICE_RESPONSE_MODES as readonly string[]).includes(value);
 }
 
 /** Handle /voice replies */
@@ -65,7 +62,7 @@ export async function handleVoiceReplies(context: DeferredCommandContext): Promi
     });
     return;
   }
-  const mode: VoiceMode = rawMode;
+  const mode: VoiceResponseMode = rawMode;
 
   try {
     const { userClient } = clientsFor(context.interaction);
@@ -84,10 +81,12 @@ export async function handleVoiceReplies(context: DeferredCommandContext): Promi
       return;
     }
 
-    // Confirm with the freshly resolved mode + source. The read is
-    // channel-scoped, but the freshly written user-personality tier wins the
-    // resolution. (channelId is null outside a guild/DM context — normalized
-    // to undefined so the query param is simply omitted.)
+    // Confirm with the resolved mode + source. The read is channel-scoped;
+    // the read-back is expected to show the just-written user-personality
+    // tier. The gateway's cascade cache is invalidated asynchronously via
+    // pub/sub, so a just-cached entry could in principle lag (not verified by
+    // a test). (channelId is null outside a guild/DM context — normalized to
+    // undefined so the query param is simply omitted.)
     const channelId = context.interaction.channelId ?? undefined;
     const resolution = await userClient.getVoiceResolution({ personalityId, channelId });
 

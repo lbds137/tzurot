@@ -1,18 +1,18 @@
 {
   "version": 1,
-  "lastUpdated": "2026-11-20T03:18:20.644Z",
-  "filteredLines": 1686,
-  "filteredCount": 112,
+  "lastUpdated": "2026-11-20T06:04:15.406Z",
+  "filteredLines": 1646,
+  "filteredCount": 110,
   "rawDedupedLines": 1734,
   "rawCount": 126,
   "threshold": 0.8,
   "graceMargin": 10,
-  "notes": "Filtered = jscpd clones minus fragments where >=80% of classifiable lines are call-expression shape (helper-call-shape uniformity) or import/export module-boundary shape (import-statement uniformity = shared dependency, not copied logic; FILTER_IMPL_VERSION 2). See docs/reference/CPD_CAMPAIGN_AUDIT.md for the campaign close-out audit and the rationale for accepting structural-skeleton duplication as design intent. The ratchet enforces filteredLines + graceMargin; raw jscpd output stays informational. NOTE: filteredLines uses sum-of-per-clone-lines (counts overlap multiply); rawDedupedLines is jscpd's deduplicated count (each line counted once even if part of multiple clones). The two are not directly comparable — filtered may exceed rawDeduped on small clone sets due to the counting-method difference, not because the filter made things worse.",
+  "notes": "Filtered = jscpd clones minus fragments where >=80% of classifiable lines are call-expression shape (helper-call-shape uniformity), or >=80% of all non-blank lines are import/export module-boundary shape, wrapped import statements included (import-statement uniformity = shared dependency, not copied logic; FILTER_IMPL_VERSION 3). See docs/reference/CPD_CAMPAIGN_AUDIT.md for the campaign close-out audit and the rationale for accepting structural-skeleton duplication as design intent. The ratchet enforces filteredLines + graceMargin; raw jscpd output stays informational. NOTE: filteredLines uses sum-of-per-clone-lines (counts overlap multiply); rawDedupedLines is jscpd's deduplicated count (each line counted once even if part of multiple clones). The two are not directly comparable — filtered may exceed rawDeduped on small clone sets due to the counting-method difference, not because the filter made things worse.",
   "meta": {
     "toolVersion": "cpd-check/1.0",
-    "configHash": "65a1f123b857",
+    "configHash": "1768123dd3c8",
     "nodeVersion": "v24.21.0",
     "generatedFromSha": "72517b72eac5d02448cd149a42ad2e37a03fbe9d",
-    "generatedAt": "2026-11-20T03:18:20.643Z"
+    "generatedAt": "2026-11-20T06:04:15.405Z"
   }
 }
