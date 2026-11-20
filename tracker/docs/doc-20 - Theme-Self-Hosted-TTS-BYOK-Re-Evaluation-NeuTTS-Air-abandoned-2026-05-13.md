@@ -252,5 +252,9 @@ Higgs Audio v2 tokenizer (unchecked, per Deck).
 codec with the attribution destination noted; (2) a timing probe of the int8
 variant on our host shape (the card has no CPU number — on CPU Railway the probe
 is cheap; under the GPU-compute option the probe moves to whatever host we would
-rent). Then the normal posture applies: add as an engine alongside, never replace
-Mistral BYOK primary / Pocket TTS fallback.
+rent). Posture ruling (Lila 2026-11-19, via Deck): the add-alongside rule applies
+only to EXTERNAL APIs — at most ONE self-hosted TTS and ONE self-hosted STT model
+run on Railway at any given moment; adopting a new local engine keeps its code
+path but makes it the configured hosted model (a config switch), never a
+per-user selector with several loaded, because several hosted models drive up the
+Railway bill. Mistral BYOK stays the primary; Pocket TTS the fallback.
