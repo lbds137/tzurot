@@ -6,12 +6,13 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-10T14:23:00Z'
+updated_date: '2026-11-20T05:58:00Z'
 labels:
   - area:ci
   - size:S
   - state:ready
 dependencies: []
-priority: high
+priority: medium
 ordinal: 1370000
 ---
 
@@ -23,3 +24,9 @@ What: set base: develop on both filter steps (decide main-push behaviour for rel
 Saving: ~525 runner-s per affected run (Fable perf review 2026-11-10, item P2).
 Acceptance: a first push of a branch touching no Dockerfile or build-input config skips every docker leg.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+11-19 pass: High -> Medium. A CI runner-seconds saving, not breakage; still open (no base: on the ci.yml paths-filter steps, checked on develop).
+<!-- SECTION:NOTES:END -->

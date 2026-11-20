@@ -5,14 +5,15 @@ title: >-
   paths end in it)
 status: To Do
 assignee: []
-created_date: '2026-09-27 19:05'
+created_date: 2026-09-27 19:05
+updated_date: '2026-11-20T05:58:00Z'
 labels:
-  - 'area:ai-worker'
-  - 'size:M'
-  - 'state:ready'
+  - area:ai-worker
+  - size:M
+  - state:ready
 dependencies: []
-priority: medium
-ordinal: 1124000
+priority: high
+ordinal: 100
 ---
 
 ## Description
@@ -24,3 +25,9 @@ What: decide the safe URL shape for logs (for example host plus the attachment i
 
 Acceptance: no log field carries a raw attachment URL; lint flags a new one.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+11-19 pass: Medium -> High (data risk: the repo logging rule forbids user-supplied filenames in logs).
+<!-- SECTION:NOTES:END -->

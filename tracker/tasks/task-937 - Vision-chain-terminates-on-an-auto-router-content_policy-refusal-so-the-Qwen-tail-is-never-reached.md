@@ -5,15 +5,15 @@ title: >-
   tail is never reached
 status: To Do
 assignee: []
-created_date: '2026-09-12 03:35'
-updated_date: '2026-09-12 05:37'
+created_date: 2026-09-12 03:35
+updated_date: 2026-09-12 05:37
 labels:
-  - 'area:ai-worker'
-  - 'size:S'
-  - 'state:observable'
+  - area:ai-worker
+  - size:S
+  - state:observable
 dependencies: []
 priority: high
-ordinal: 935000
+ordinal: 70
 ---
 
 ## Description
