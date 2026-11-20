@@ -41,7 +41,9 @@ const logger = createLogger('user-voice-resolution');
 const MAX_PREVIEW_SLUGS = 5;
 
 /**
- * GET /api/user/voice-resolution?personalityId=X — aggregate TTS+STT+voices summary
+ * GET /api/user/voice-resolution?personalityId=X[&channelId=Y] — aggregate summary:
+ * personality name + voiceEnabled, resolved voiceResponseMode (channel-scoped when
+ * channelId is given), TTS, STT and the cloned-voices summary
  *
  * Per-process resolver instances. Cache lifetime ~5 min; mutating endpoints
  * publish invalidation events but the gateway doesn't subscribe to them
