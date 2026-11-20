@@ -2,21 +2,17 @@
 
 > **Session handoff 2026-11-20 08:45 EST (Opus 5.5, Anthropic lane)**: beta.247 SHIPPED (below). The prioritization pass's 16 owner decisions are all answered and recorded on their tasks (rulings dated 2026-11-20; against-recommendation picks: TASK-1234 rename, TASK-1356 redesign, both now `state:ready`). TASK-1454's git 2.55 premise was contradicted by a live probe (its proposed argv reorder empties the range: do NOT apply it); TASK-1414's ratio check now rides TASK-1450's one-week read. Unreleased on develop: nothing since the tag except tracker/CURRENT bookkeeping.
 
-> **Version**: v3.0.0-beta.247 — "burst coalescing, settings discoverability, cache telemetry" — SHIPPED 2026-11-20 13:39Z (PR 2774). 5 PRs / 4 runtime / 204 files (#2769–#2773); one additive migration (`20261119130928_usage_log_cache_tokens`, premigrated to prod before the merge); holistic release review: no blocking findings. Notes: `docs/local/dispatch/notes-beta247.md`.
->
-> **Previous**: v3.0.0-beta.246 — "prompt-cache prefix fix + prod-correctness fixes" (13 PRs / 13 runtime / 151 files; 2026-11-18 13:21Z) · v3.0.0-beta.245 — "caching reads" (1 PR; 2026-11-13 12:05Z) · v3.0.0-beta.244 — "prompt caching + preset param fixes" (3 PRs / 2 runtime; 2026-11-13 04:37Z) · v3.0.0-beta.243 — "ai-worker attachment pipeline hardening and release guardrails" (32 PRs / 21 runtime / 296 files; 2026-11-12 22:27Z) · v3.0.0-beta.242 (33 PRs / 18 runtime / 238 files; 2026-11-03 12:24Z).
+> **Version**: v3.0.0-beta.247 — "burst coalescing, settings discoverability, cache telemetry" — SHIPPED 2026-11-20 13:39Z (PR 2774). 5 PRs / 4 runtime / 204 files (#2769–#2773); one additive migration (`20261119130928_usage_log_cache_tokens`, premigrated to prod before the merge); holistic release review: no blocking findings. Notes: `docs/local/dispatch/notes-beta247.md`. **Previous**: v3.0.0-beta.246 — "prompt-cache prefix fix + prod-correctness fixes" (13 PRs / 13 runtime / 151 files; 2026-11-18 13:21Z) · v3.0.0-beta.245 — "caching reads" (1 PR; 2026-11-13 12:05Z) · v3.0.0-beta.244 — "prompt caching + preset param fixes" (3 PRs / 2 runtime; 2026-11-13 04:37Z) · v3.0.0-beta.243 — "ai-worker attachment pipeline hardening and release guardrails" (32 PRs / 21 runtime / 296 files; 2026-11-12 22:27Z) · v3.0.0-beta.242 (33 PRs / 18 runtime / 238 files; 2026-11-03 12:24Z).
 
-## 🧪 beta.247 watch (shipped to main 2026-11-20 13:39Z; prod deploy settling)
+## 🧪 beta.247 watch (shipped to main 2026-11-20 13:39Z; #2773's `/voice replies`, `/voice view` fields and channel-aware `/character overrides` are high tier: CI + reviews cover)
 
 - **Needs-smoke — coalescing (#2769, Discord-truth):** in an activated channel, send 3 quick plain-text messages while the character is still replying → ONE reply, to the newest; an image sent mid-burst still gets its own reply; an @mention mid-burst is answered 1:1. Status: not yet run.
 - **Watch — cache tokens (#2770/#2771, TASK-1450):** one week of prod rows, then `pnpm ops telemetry:inference --env prod` for the hit rate; the same read settles TASK-1414's write/read ratio.
-- **High tier (CI + reviews cover):** `/voice replies`, `/voice view` fields, channel-aware `/character overrides` (#2773).
 
-## 🧪 beta.246 watch (shipped to main 2026-11-18 13:21Z; prod deploy settling)
+## 🧪 beta.246 watch (shipped to main 2026-11-18 13:21Z; no needs-smoke: both fail soft, CI + reviews cover the rest)
 
 - **Watch — cache prefix (#2755):** a same-model turn pair on an Anthropic-family model logs `cachedPromptTokens` ≈ prompt minus the per-turn block, with a small `cachedWriteTokens` (before: 98,487 prompt / 10,365 cached / 88,118 written every turn). **Rechecked 11-19:** 15h of prod Generated-response lines (26 generations) — zero Anthropic-family traffic, so the prefix check has no qualifying pair yet; the GLM side is healthy (31% of calls took cache reads, ~17% read share, n=26, z.ai implicit caching, all `promptCacheGate=false`). Recheck after a claude-family pair appears.
 - **Watch — trigger link embeds (#2764):** a bare-link trigger renders its embed on the FIRST reply; the refetch fallback (`Could not refetch message`, debug level) is code-read only. Not yet observed (Discord-truth; needs her eyes or a log signature).
-- **No needs-smoke:** both fail soft; per-PR CI + reviews + the holistic release review cover the rest.
 
 ## 🧪 beta.243 watch (shipped to main 2026-11-12; deploys in flight)
 
