@@ -9,7 +9,7 @@ created_date: '2026-11-10T22:29:00Z'
 labels:
   - area:ai-worker
   - size:L
-  - state:dependent
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1383000
@@ -31,4 +31,5 @@ Recommendation: after the provenance loose ends close — build the out-of-chara
 
 Acceptance: an out-of-character refusal from the primary model is never delivered; the fallback model answers instead; she has run her chosen characters on Claude and ruled on the result.
 Owner ruling (2026-11-20, AUQ): after the attachment-provenance loose ends (TASK-1395 family) close; refusal check first, measured on GLM traffic, before any Claude spend.
+Owner ruling (2026-11-20 ~18:50 EST, AUQ via Deck; supersedes the "before any Claude spend" clause above): run a Claude character EVAL FIRST, after the Sun 11-22 week reset. Shape: replay ~20 recent real turns from her favourite characters (Emily included), taken from the diagnostic log (7-day retention, CleanupDiagnosticLogs.ts, so pull them early), on Sonnet 5.5 and Haiku 5.5 with 2-3 system-prompt variants, against GLM 5.3 Flash; she rates them blind (seyag:eval shape: pre-register arms, sample and decision rule). Funded from the $50 Anthropic Console reserve (deck-platform lanes/credit-reserve.toml), est. ~$5 of model calls. Her context: Emily read cold on Anthropic; 11-13 side-by-side (Haiku substituted a milder act despite a permitting prompt and facts in context). Outcome decides whether the refusal check and Claude route get built; a no-go parks this task on evidence.
 <!-- SECTION:DESCRIPTION:END -->
