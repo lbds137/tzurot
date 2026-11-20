@@ -14,16 +14,16 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 ---
 
-### 🚢 Next Release — beta.247 (theme: burst coalescing in activated channels + cache observability)
+### 🚢 Next Release — beta.248 (theme: beta.247 follow-ups + owner-ruled fixes)
 
-_Drafted 2026-11-18 after beta.246 (shipped 13:21Z, PR 2768; 13 runtime PRs, 151 files; the beta.246 prod acceptance checks live in CURRENT.md § beta.246 watch)._
+_Drafted 2026-11-20 after beta.247 (shipped 13:39Z, PR 2774; 4 runtime PRs, 204 files; prod checks in CURRENT.md § beta.247 watch)._
 
-- **In already**: doc-66 burst coalescing, "latest wins" per (channel, personality) (PR #2769, merged 11-19; rulings in doc-66) · TASK-1450 cache tokens into `usage_logs` + telemetry hit rate (PR #2770, merged 11-19; dev migrated; task stays open for the one-week prod-row check).
-- **Waiting on**: TASK-1443 (settings discoverability fixes from the command-tree audit, filed "after beta.246") — IN FLIGHT 11-19, spec `docs/local/dispatch/task-1443-spec.md`.
-- **Explicitly NOT in**: TASK-1411 (close-the-train enforcement; tooling, ships any time) · TASK-1416 (low, detection consolidation) · TASK-1415 (observable) · review residue TASK-1451/1452/1453 (low; drain) · TASK-1433 (medium, revoked z.ai key retried per image; a rider if a unit lands early) · TASK-1039/1346/671 (owner-gated or design-sized) · caching Phase 3 (doc-17 reading).
-- **Deploy notes**: doc-66 changes user-visible reply behavior in activated channels; semantics CONFIRMED 11-18 (AUQ "Activated chatter only": explicit @mentions and replies stay 1:1; memory stays per message; ruling in doc-66). TASK-1450 adds columns, so a migration: premigrate before the release merge.
-- **Cut when**: the three waiting-on units are merged to develop; backstops ~10 runtime PRs / ~250 files (`pnpm ops release:range`; 0 at drafting). The release PR merge needs her explicit yes.
-- **vNext+1 sketch (beta.248)**: doc-17 reading → caching Phase 3 · TASK-1411 · TASK-1416.
+- **In already**: (none)
+- **Waiting on**: TASK-1479 (medium, visibility check on the voice-resolution personality lookup; the beta.247 review flagged it because the response grew) · TASK-1477 (medium, `/voice replies` confirms from the write, plus its two untested branches) · the owner-ruled small UX fixes TASK-1435 (Both-refusal retry hint) and TASK-1327 (omit the GUILD deny-edit scope inputs) · TASK-1483 (docs: voice-then-text burst).
+- **Explicitly NOT in**: TASK-1234 (rename, owner-ruled 11-20 but carries a migration + API change: its own train) · TASK-1356 (BYOK rotation redesign, security-critical, design first) · TASK-1474 (process PR, ships any time) · TASK-1411/1416 · caching Phase 3 (doc-17 reading) · TASK-1347/1174 (owner-approved 11-20; design- or ops-sized, scheduled separately).
+- **Deploy notes**: none yet (no migration planned).
+- **Cut when**: the waiting-on units are merged; backstops ~10 runtime PRs / ~250 files (`pnpm ops release:range`; 0 at drafting). The release PR merge needs her explicit yes.
+- **vNext+1 sketch (beta.249)**: TASK-1234 rename (migration) · doc-17 reading → caching Phase 3.
 
 ### 🎯 Current Focus (max 3)
 
