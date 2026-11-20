@@ -50,7 +50,7 @@ export interface SettingUpdateConfig {
     body: ConfigOverrides
   ) => Promise<GatewayResult<unknown>>;
   /** Re-resolve the cascade via a typed-client method bound at config time.
-   *  The optional trailing channelId carries the invoking channel so
+   *  The trailing channelId (undefined outside a channel) carries the invoking channel so
    *  channel-aware resolvers can scope the re-resolve; channel-blind
    *  implementations ignore it. */
   resolveFn: (

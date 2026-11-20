@@ -153,7 +153,7 @@ async function showGettingStarted(
           '• `/character create` — build your own character\n' +
           '• `/persona edit` — tell characters who *you* are\n' +
           "• `/character overrides` — tune a character's memory, context, and voice replies for you\n" +
-          '• `/settings defaults` — your defaults across every character\n' +
+          '• `/settings defaults edit` — your defaults across every character\n' +
           '• `/voice replies` — choose when a character replies with voice',
         inline: false,
       },
