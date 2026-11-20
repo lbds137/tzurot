@@ -22,3 +22,4 @@ Round-2 review finding on the prompt-caching PR: with the 1h tier, every turn wr
 ## Notes
 
 - 11-13 (PR 2750): beta.245 ships `session_id` and the explicit system breakpoint TOGETHER — the ratio shows whether reads land, not which mechanism landed them; do not remove the "redundant" half on ratio data alone (round-1 review finding, dispositioned in the 2750 body). Measure SAME-MODEL turns only per the owner directive 11-12 (the Opus→Haiku switch mid-window was deliberate — cost, not signal).
+- 11-20: the 24h trigger has long fired, but the check was never run from logs. From beta.247, usage_logs carries `cache_read_tokens`/`cache_write_tokens` (PR 2770, TASK-1450), so the ratio becomes one query instead of a log pull: run it as part of TASK-1450's one-week prod check (`pnpm ops telemetry:inference --env prod`, write vs read per model, same-model turns only per the note above), then apply this task's lever decision. Stays observable until that read.
