@@ -9,7 +9,7 @@ created_date: '2026-11-08T03:28:00Z'
 labels:
   - area:tooling
   - size:M
-  - state:owner
+  - state:ready
 dependencies: []
 priority: low
 ordinal: 1339000
@@ -26,4 +26,5 @@ Acceptance: no rotation step leaves a running process unable to decrypt a row an
 
 Owner question: is a minutes-long, self-healing BYOK decrypt failure once per 180-day rotation worth a rotation redesign?
 Recommendation: no, leave as is — rotations run with you present, the failure self-heals within one deploy, and the fix adds a key slot to security-critical code.
+Owner ruling (2026-11-20, AUQ): YES, redesign the rotation (against the leave-as-is recommendation): new key decrypt-only on both services before either encrypts with it.
 <!-- SECTION:DESCRIPTION:END -->
