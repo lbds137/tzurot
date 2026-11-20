@@ -257,4 +257,8 @@ only to EXTERNAL APIs — at most ONE self-hosted TTS and ONE self-hosted STT mo
 run on Railway at any given moment; adopting a new local engine keeps its code
 path but makes it the configured hosted model (a config switch), never a
 per-user selector with several loaded, because several hosted models drive up the
-Railway bill. Mistral BYOK stays the primary; Pocket TTS the fallback.
+Railway bill. Refinement (same ruling thread): the one hosted slot always holds
+the BEST model available — by OUR measurement (quality + CPU latency on the host
+shape), never by vendor-card claims; today that is Pocket TTS, and a candidate
+that measures better (Reverb-TTS if it clears the gates above) takes the slot by
+config switch, its code path kept. Mistral BYOK stays the external-API primary.
