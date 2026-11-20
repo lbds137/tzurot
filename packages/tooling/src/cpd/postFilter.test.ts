@@ -145,7 +145,7 @@ describe('classifyFragment', () => {
       const logger = createLogger('module-name');
     `;
     const result = classifyFragment(fragment);
-    expect(result.importLines).toBe(7);
+    expect(result.importLines).toBe(10);
     expect(result.importRatio).toBeGreaterThanOrEqual(0.8);
     expect(result.isImportDominant).toBe(true);
     expect(result.isCallDominant).toBe(false);
@@ -162,6 +162,48 @@ describe('classifyFragment', () => {
     const result = classifyFragment(fragment);
     expect(result.isImportDominant).toBe(false);
     expect(result.isCallDominant).toBe(true);
+  });
+
+  it('keeps a block of wrapped multi-line imports import-dominant', () => {
+    const fragment = `
+      import {
+        AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+        isAutocompleteErrorSentinel,
+        type Foo,
+      } from '../../utils/apiCheck.js';
+      import {
+        alpha,
+        beta,
+        gamma,
+      } from '../../utils/other.js';
+      import type {
+        DeferredCommandContext,
+        OtherContext,
+        ThirdContext,
+      } from '../../utils/commandContext/types.js';
+    `;
+    const result = classifyFragment(fragment);
+    expect(result.importLines).toBe(15);
+    expect(result.importRatio).toBe(1);
+    expect(result.isImportDominant).toBe(true);
+  });
+
+  it('does not treat a short import header on a long literal tail as import-dominant', () => {
+    const header = Array.from({ length: 5 }, (_, i) => `import { m${i} } from './m${i}.js';`);
+    const tail = Array.from({ length: 30 }, (_, i) => `  key${i}: 'value',`);
+    const result = classifyFragment([...header, 'const table = {', ...tail, '};'].join('\n'));
+    expect(result.importLines).toBe(5);
+    expect(result.importRatio).toBeLessThan(0.8);
+    expect(result.isImportDominant).toBe(false);
+  });
+
+  it('closes a local export list at its brace instead of swallowing the tail', () => {
+    // `export { a, b };` has no `from`; only the brace can end the statement.
+    const exportList = ['export {', '  alpha,', '  beta,', '};'];
+    const tail = Array.from({ length: 30 }, (_, i) => `  key${i}: 'value',`);
+    const result = classifyFragment([...exportList, 'const table = {', ...tail, '};'].join('\n'));
+    expect(result.importLines).toBe(4);
+    expect(result.isImportDominant).toBe(false);
   });
 
   it('handles an all-noise fragment for the import ratio without dividing by zero', () => {
