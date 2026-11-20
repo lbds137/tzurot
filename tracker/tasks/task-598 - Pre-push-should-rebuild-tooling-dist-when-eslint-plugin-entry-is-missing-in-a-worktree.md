@@ -5,15 +5,15 @@ title: >-
   worktree
 status: To Do
 assignee: []
-created_date: '2026-08-14 00:40'
-updated_date: '2026-09-01 22:15'
+created_date: 2026-08-14 00:40
+updated_date: 2026-09-01 22:15
 labels:
-  - 'area:tooling'
-  - 'size:S'
-  - 'state:observable'
+  - area:tooling
+  - size:S
+  - state:observable
 dependencies: []
 priority: high
-ordinal: 598000
+ordinal: 80
 ---
 
 ## Description

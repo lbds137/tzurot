@@ -5,14 +5,14 @@ status: In Progress
 assignee:
   - tzurot
 created_date: '2026-11-17T20:38:00Z'
-updated_date: '2026-11-19T21:21:00Z'
+updated_date: '2026-11-20T05:58:00Z'
 labels:
   - area:bot-client
   - size:M
   - state:ready
 dependencies: []
-priority: medium
-ordinal: 1443000
+priority: high
+ordinal: 10
 ---
 
 ## Description

@@ -1,9 +1,10 @@
 ---
 id: TASK-1389
 title: tracker-commit.test.ts real-git tests time out under machine load
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-10T14:24:00Z'
+updated_date: '2026-11-20T05:58:00Z'
 labels:
   - area:tooling
   - size:S
@@ -20,3 +21,9 @@ Why: 14.8 s unloaded vs 144.8 s with 7 of 34 tests timing out at the 5 s default
 What: raise the real-git describe timeout (precedent payloadKeys.test.ts:12) and set GIT_CONFIG_GLOBAL=/dev/null + GIT_CONFIG_NOSYSTEM=1 in cleanGitEnv; measure unloaded time before/after.
 Acceptance: file passes under load; PR states measured times (Fable perf review 2026-11-10, item P4).
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped: PR 2743, b483768f0 (2026-11-12): REAL_GIT_TIMEOUT_MS=20s suite pin + hermetic cleanGitEnv (GIT_CONFIG_GLOBAL=/dev/null, GIT_CONFIG_NOSYSTEM=1). Verified on origin/develop (packages/tooling/src/dev/tracker-commit.test.ts:757,773). Closed in the 11-19 prioritization pass.
+<!-- SECTION:NOTES:END -->

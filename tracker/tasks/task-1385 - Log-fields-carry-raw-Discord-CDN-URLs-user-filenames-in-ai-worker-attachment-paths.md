@@ -6,12 +6,13 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-10T12:02:00Z'
+updated_date: '2026-11-20T05:58:00Z'
 labels:
   - area:ai-worker
   - size:M
   - state:ready
 dependencies: []
-priority: medium
+priority: high
 ordinal: 1368000
 ---
 
@@ -24,3 +25,9 @@ What: route the url fields through urlPrefix (or drop them where requestId/jobId
 
 Acceptance: no logger call in the swept paths logs a full attachment URL; a test or lint rule pins the class.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+11-19 pass: Medium -> High (same data-risk class as TASK-1131).
+<!-- SECTION:NOTES:END -->

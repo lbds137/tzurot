@@ -5,15 +5,15 @@ title: >-
   same-channel history beyond the recent turns
 status: To Do
 assignee: []
-created_date: '2026-09-21 19:49'
-updated_date: '2026-09-24 16:08'
+created_date: 2026-09-21 19:49
+updated_date: 2026-09-24 16:08
 labels:
-  - 'area:ai-worker'
-  - 'size:M'
-  - 'state:observable'
+  - area:ai-worker
+  - size:M
+  - state:observable
 dependencies: []
 priority: high
-ordinal: 1033000
+ordinal: 40
 ---
 
 ## Description

@@ -6,13 +6,14 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-09T21:55:00Z'
+updated_date: '2026-11-20T05:58:00Z'
 labels:
   - area:common-types
   - size:S
   - state:ready
 dependencies: []
-priority: medium
-ordinal: 1358000
+priority: high
+ordinal: 90
 ---
 
 ## Description
@@ -22,3 +23,9 @@ Why: neutralizeHeaderMarkers in packages/common-types/src/utils/attachmentProven
 Fix shape: allow optional \p{Cf} characters between the opener run and the label in the lookahead and strip them with the run; or remove \p{Cf} from the description text before the neutralizer runs. Pin it with a test (fullwidth opener, U+200B, Image: x defused), and drop the limit sentence from the doc.
 Acceptance: the zero-width case is defused and tested; the doc no longer lists it as a limit; existing tests stay green.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+11-19 pass: Medium -> High (prompt-injection defence bypass).
+<!-- SECTION:NOTES:END -->

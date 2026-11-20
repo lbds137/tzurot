@@ -4,13 +4,14 @@ title: ai-worker silently demotes a user with an undecryptable BYOK key to guest
 status: To Do
 assignee: []
 created_date: '2026-11-08T05:47:00Z'
+updated_date: '2026-11-20T05:58:00Z'
 labels:
   - area:ai-worker
   - size:M
   - state:owner
 dependencies: []
-priority: medium
-ordinal: 1342000
+priority: high
+ordinal: 60
 ---
 
 ## Description
@@ -25,3 +26,9 @@ Recommendation: fail with the re-enter copy — silent downgrade is the same con
 
 Acceptance: real-specimen test (corrupted GCM tag) pins the chosen user-visible answer; a misconfiguration test (env vars deleted) pins the rethrow; neither caches a guest result.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+11-19 pass: Medium -> High (user-visible silent downgrade). Awaiting the owner decision in the Owner question line.
+<!-- SECTION:NOTES:END -->

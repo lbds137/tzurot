@@ -5,15 +5,15 @@ title: >-
   exhausted
 status: To Do
 assignee: []
-created_date: '2026-09-03 21:41'
-updated_date: '2026-09-04 10:04'
+created_date: 2026-09-03 21:41
+updated_date: 2026-09-04 10:04
 labels:
-  - 'area:ai-worker'
-  - 'size:M'
-  - 'state:observable'
+  - area:ai-worker
+  - size:M
+  - state:observable
 dependencies: []
 priority: high
-ordinal: 878000
+ordinal: 30
 ---
 
 ## Description
