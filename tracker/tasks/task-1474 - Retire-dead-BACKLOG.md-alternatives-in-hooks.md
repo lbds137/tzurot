@@ -4,12 +4,13 @@ title: Retire dead BACKLOG.md alternatives in hooks
 status: To Do
 assignee: []
 created_date: '2026-11-20T04:02:00Z'
+updated_date: '2026-11-20T05:54:00Z'
 labels:
   - area:hooks
   - size:S
   - state:owner
 dependencies: []
-priority: low
+priority: medium
 ordinal: 1474000
 ---
 
