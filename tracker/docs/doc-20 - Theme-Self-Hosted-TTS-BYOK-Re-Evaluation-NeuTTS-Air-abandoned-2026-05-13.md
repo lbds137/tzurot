@@ -211,3 +211,46 @@ license, or speed.
 
 Do not fold it into the VoxCPM2-first bake-off — that bake-off is scored on
 cloning fidelity, which Soprano would score zero on by design.
+
+## Candidate: Reverb-TTS (Software Mansion AI Labs, released 2026-11-19)
+
+Relayed by Deck 2026-11-19 (Lila asked for the pass-on). Source: the Hugging Face
+model card `software-mansion/Reverb-TTS`, read via the HF connector; code at
+`github.com/software-mansion-labs/Reverb-TTS`. All numbers below are the vendor's
+card claims, unverified by any run of ours.
+
+Fits this theme on the GPU path: the 2026-05-13 probe concluded CPU-only cloning is
+structurally unachievable and meaningful improvement needs rented GPU compute —
+Reverb-TTS is a zero-shot cloning engine whose published speed numbers are
+GPU/Apple-silicon only.
+
+- Zero-shot voice cloning from 3-10 s of clean reference audio plus its exact
+  transcript; no fine-tuning. Also 16 preset voices.
+- 7 languages only: en, de, fr, es, it, pl, pt — other languages/scripts give
+  unpredictable output. (Our user base skews en/pl — both covered.)
+- 297M params, pruned+distilled from k2-fsa/OmniVoice (613M), DPO post-trained;
+  Higgs Audio v2 tokenizer codec.
+- Card claims lowest WER on the Open TTS Leaderboard MiniMax set (~1.0%); SIM-o
+  0.817 (OmniVoice 0.833, Chatterbox 0.715).
+- Speed (vendor, GPU/Apple-silicon only — NO CPU figure on the card): RTX 5090
+  batch 32 = 164.9x real time; M4 Pro 12-21x; iPhone 17 20.6x.
+- `pip install reverb-tts`; safetensors fp32 1.19 GB / fp16 594 MB / int8 307 MB
+  (default) / int4 191 MB. ExecuTorch programs for MLX, Vulkan, Qualcomm QNN;
+  browser via ruNNtime (WebGPU).
+- Text must be normalized to spoken form (numbers, dates, units); the pip package
+  does it via their Verbalis library, other runtimes do not.
+- No emotion/style control apart from the reference clip; reference recording
+  conditions carry over.
+
+**License**: code Apache 2.0; WEIGHTS CC BY-NC 4.0. Lila ruled 2026-11-19 (via
+Deck, session acb38aab): "Tzurot is non commercial so that's not a problem" — NC
+weights are not a blocker. Still open: attribution mechanics (BY-NC requires
+credit — note where it goes), and the licenses of the base OmniVoice and the
+Higgs Audio v2 tokenizer (unchecked, per Deck).
+
+**Remaining gates before any adoption**: (1) license read of OmniVoice + Higgs
+codec with the attribution destination noted; (2) a timing probe of the int8
+variant on our host shape (the card has no CPU number — on CPU Railway the probe
+is cheap; under the GPU-compute option the probe moves to whatever host we would
+rent). Then the normal posture applies: add as an engine alongside, never replace
+Mistral BYOK primary / Pocket TTS fallback.
