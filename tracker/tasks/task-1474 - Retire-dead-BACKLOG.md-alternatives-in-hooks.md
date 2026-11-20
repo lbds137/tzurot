@@ -8,7 +8,7 @@ updated_date: '2026-11-20T05:54:00Z'
 labels:
   - area:hooks
   - size:S
-  - state:owner
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1474000
@@ -26,4 +26,5 @@ Acceptance: no BACKLOG.md alternative remains in .claude/hooks or .husky scripts
 Owner question: remove the dead BACKLOG.md alternatives from the three hooks now that the manifest is retired?
 
 Recommendation: yes — dead branches in load-bearing hooks mislead the next editor, and the probe registry makes the removal verifiable.
+Owner ruling (2026-11-20, AUQ): yes, remove the dead BACKLOG.md alternatives (the recommendation). Same PR: drop the "(TASK-1467 owns the physical alignment, owner-gated)" parenthetical in `.claude/rules/06-backlog.md` § Structure; TASK-1467 was ruled out 11-20 (keep tracker/).
 <!-- SECTION:DESCRIPTION:END -->

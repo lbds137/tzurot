@@ -7,7 +7,7 @@ created_date: '2026-11-19T21:23:00Z'
 labels:
   - area:repo
   - size:L
-  - state:owner
+  - state:ready
 dependencies: []
 priority: low
 ordinal: 1467000
@@ -27,4 +27,5 @@ Owner question: should the tracker store physically move to backlog/ (seyag-cano
 Recommendation: keep tracker/ — the pin declares the surface, the format already matches, and the rename churns 1200+ files plus the tracker wiring for no semantic gain. Evidence (Deck, 11-19): the Hub is NOT path-sensitive — `lib/fleet_brief.py:204-230` (`_resolve_backlog_store`) reads `backlog.config.yml` → `backlog_directory` first (ours: `'tracker'`, `backlog.config.yml:17`), then `backlog/config.yml`, then `tracker/tasks`; our planning `backlog/` dir has no config.yml so it is never mistaken for a store.
 
 Acceptance: store at backlog/ with config.yml; pnpm tracker, backlog:lint, backlog:digest, tracker:commit all green; Hub sees one store; zero BACKLOG.md references anywhere.
+Owner ruling (2026-11-20, AUQ): keep tracker/ (the recommendation); the physical move is ruled out: the settings pin declares the surface and the Hub reads backlog_directory.
 <!-- SECTION:DESCRIPTION:END -->
