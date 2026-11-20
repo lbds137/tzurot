@@ -3,12 +3,12 @@
 ## Structure
 
 - **One store: `tracker/`** — a backlog.md-format store run by the pinned CLI (`pnpm tracker`), queried on demand, never loaded wholesale. The store stays at `tracker/`, not `backlog/` (TASK-1467 owns the physical alignment, owner-gated).
-- **Planning surfaces.** HOT — `backlog/now.md` (production issues · release · focus · quick wins · untriaged) and `backlog/active-epic.md`, read at session start; COLD — `backlog/cold/`, grep-on-demand; theme/idea content lives in `tracker/docs/` (`doc-N`), `backlog/cold/queue.md` is its ordered index, and `pnpm tracker doc search|view|create` queries it; `CURRENT.md` is owned by `/tzurot-docs`.
+- **Planning surfaces.** HOT — `backlog/now.md` (🚨 production issues, fixed before features · 🚢 next release · focus · quick wins · untriaged) and `backlog/active-epic.md`, read at session start; COLD — `backlog/cold/`, grep-on-demand; theme/idea content lives in `tracker/docs/` (`doc-N`), `backlog/cold/queue.md` is its ordered index, and `pnpm tracker doc search|view|create` queries it; `CURRENT.md` is owned by `/tzurot-docs`.
 - This section is the canonical backlog topology.
 
 ## The tracker store (small items)
 
-Managed by the CLI: `task list -s "To Do" --search <term> --plain` (by text) · `-s "To Do" -l area:<x> --plain` (by area) · `-s "To Do" -l size:S --plain` · `-s "To Do" --priority high --plain` · `task view <id> --plain` · `task create 'Title' -d $'Why: ...' -l area:<x>` · `task edit <id> -s Done` (finish at ship). **Multi-session claiming**: `-a <session-name> -s "In Progress"` in the same CLI pass that starts the work, released at unit end (clear `-a`, back to `-s "To Do"` — an abandoned claim returns to To Do) — the store keeps the queue; role files keep progress.
+Managed by the CLI: `task list -s "To Do" --search <term> --plain` (by text) · `-s "To Do" -l area:<x> --plain` (by area) · `-s "To Do" -l size:S --plain` · `-s "To Do" --priority high --plain` · `task view <id> --plain` · `task create 'Title' -d $'Why: ...' -l area:<x>` · `task edit <id> -s Done` (finish at ship). **Multi-session claiming**: `-a <session-name> -s "In Progress"` in the same CLI pass that starts the work; at ship, `-a "" -s Done`; on abandon or hand-off, `-a "" -s "To Do"` — the store keeps the queue.
 
 `--search` is fuzzy over title AND body: high recall, low precision (one term returned ~130 tasks, mostly noise; a nonsense string returns 0). An EMPTY result is real evidence of absence and can back a "we don't have X" claim alongside the other vocabulary variants. A non-empty count means nothing until the hits are read; never report "N tasks match".
 
@@ -91,7 +91,7 @@ After the admission bar:
 1. Active production bug → `now.md` 🚨
 2. Working it this week → `now.md` 🎯 (≤3)
 3. Small (<~2hr), independent, and imminent → `now.md` ⚡ Quick Wins (≤5)
-4. Small and everything else → tracker task
+4. Small and everything else → tracker task (low-priority residue of process work → the PR's `## Residue` instead, § The process-residue default)
 5. Active-epic slice → `active-epic.md` (per-PR slice detail → the epic's tracker doc)
 6. A paragraph-scoped feature → tracker idea doc (`doc create 'Idea: …'`)
 7. A multi-phase initiative → tracker theme doc (`'Theme: …'`) + a `cold/queue.md` bullet

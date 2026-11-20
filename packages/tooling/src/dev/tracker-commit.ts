@@ -38,10 +38,9 @@ export const TRACKER_COMMIT_PUSH_TIMEOUT_MS = 600_000;
 export const TRACKER_COMMIT_MAX_BUFFER = 64 * 1024 * 1024;
 
 /**
- * Board roots matching `.claude/hooks/board-commit-branch-gate.sh`'s
- * board-path shape for `tracker/**`, `backlog/**`, and `CURRENT.md`, except
- * that the hook intentionally still carries a dead `BACKLOG` alternative
- * (classifier-gated file, owner-gated sweep) while this regex dropped it.
+ * Board roots: `tracker/**`, `backlog/**`, and `CURRENT.md`. Mirrors the
+ * board-path shape in `.claude/hooks/board-commit-branch-gate.sh`, except
+ * that the hook still carries a dead `BACKLOG` alternative (TASK-1474).
  */
 const BOARD_PATH_RE = /^(?:\.\/)?(?:(?:tracker|backlog)(?:\/|$)|CURRENT\.md$)/;
 
