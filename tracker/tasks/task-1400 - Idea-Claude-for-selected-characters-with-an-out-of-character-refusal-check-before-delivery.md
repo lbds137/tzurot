@@ -9,7 +9,7 @@ created_date: '2026-11-10T22:29:00Z'
 labels:
   - area:ai-worker
   - size:L
-  - state:owner
+  - state:dependent
 dependencies: []
 priority: medium
 ordinal: 1383000
@@ -30,4 +30,5 @@ Owner question: Pick up the Claude-for-selected-characters experiment (refusal c
 Recommendation: after the provenance loose ends close — build the out-of-character refusal check first and measure it on GLM traffic before any Claude spend, so the guard exists before the first Claude reply reaches her.
 
 Acceptance: an out-of-character refusal from the primary model is never delivered; the fallback model answers instead; she has run her chosen characters on Claude and ruled on the result.
+Owner ruling (2026-11-20, AUQ): after the attachment-provenance loose ends (TASK-1395 family) close; refusal check first, measured on GLM traffic, before any Claude spend.
 <!-- SECTION:DESCRIPTION:END -->

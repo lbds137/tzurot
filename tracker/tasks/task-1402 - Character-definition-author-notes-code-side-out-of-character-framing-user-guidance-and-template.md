@@ -9,7 +9,7 @@ created_date: '2026-11-11T03:13:00Z'
 labels:
   - area:ai-worker
   - size:M
-  - state:owner
+  - state:dependent
 dependencies: []
 priority: medium
 ordinal: 1385000
@@ -26,4 +26,5 @@ Acceptance: a prompt-assembly test shows a bracketed note framed as out-of-chara
 
 Owner question: when should this be built?
 Recommendation: after the attachment-provenance loose ends (TASK-1395 family) - it is a new feature, and the 11-04 ruling puts loose ends first.
+Owner ruling (2026-11-20, AUQ): after the attachment-provenance loose ends (TASK-1395 family) close.
 <!-- SECTION:DESCRIPTION:END -->

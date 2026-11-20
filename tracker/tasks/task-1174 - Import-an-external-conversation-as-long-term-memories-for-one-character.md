@@ -8,7 +8,7 @@ updated_date: '2026-10-12 22:45'
 labels:
   - 'area:tooling'
   - 'size:M'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 1165000
@@ -30,6 +30,7 @@ Privacy: the source file is private and explicit in places; it stays outside the
 Acceptance: a dry run on dev prints the pair count and date range; an apply writes that many rows; a re-run writes 0; a recall test in dev surfaces an imported memory.
 Verification is load-bearing (owner, via Characters 2026-10-04): the external copy is deleted only after this passes and the owner says so. The command ships a --verify read-back (read-only transaction) that checks, per environment: (a) rows tagged with this import equal the pair count in the file; (b) each row content equals the formatted pair rebuilt from the file text byte for byte; (c) each createdAt equals its prompt timestamp to the millisecond; (d) personalityId is lilith-tzel-shani and personaId is the owner persona. It prints a per-check pass/fail plus mismatching pair indexes (never content). Run on dev after apply and again on prod after the prod apply; send the result lines to the Characters session, which cross-checks against the file before anyone reports verified to the owner.
 Schedule: whenever convenient (owner). Blocked until the Characters session delivers the source file (pending a Chats-session check of two edited prompts). Dev apply first; prod apply only on the owner explicit go at apply time.
+Owner ruling (2026-11-20, AUQ): yes, run the import on dev with --verify, then apply to prod (the prod apply gets its own confirm at run time).
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Implementation Notes

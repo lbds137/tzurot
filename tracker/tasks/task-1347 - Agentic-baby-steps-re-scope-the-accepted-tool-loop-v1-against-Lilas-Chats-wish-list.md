@@ -9,7 +9,7 @@ created_date: '2026-11-03T20:10:00Z'
 labels:
   - area:ai-worker
   - size:L
-  - state:owner
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1330000
@@ -31,4 +31,5 @@ Recommendation: yes - every wish-list item needs the loop first, and recall_memo
 Owner answer (2026-11-04, via Deck): NOT NOW - no new epics until she says; nothing tag-scoped or agentic-retrieval gets built until then. Sequencing is loose-ends first. Promote when she gives an explicit go.
 
 Acceptance: the design doc v1 scope is updated with the wish-list ranking; Phase 0 specced.
+Owner ruling (2026-11-20, AUQ): yes, start Phase 0 and the loop with recall_memories as the first tool; connector ranking later.
 <!-- SECTION:DESCRIPTION:END -->
