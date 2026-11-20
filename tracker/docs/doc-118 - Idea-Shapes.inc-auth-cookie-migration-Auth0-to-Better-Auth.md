@@ -12,7 +12,10 @@ shapes.inc migrated its auth library from `@auth0/nextjs-auth0` to Better Auth, 
 exists. Untouched since intake (2026-04-22). The recent shapes-cookie work (401
 re-authenticate on an undecryptable cookie) is the residual failure handling, not the
 migration. This idea replaces the pointer the retired `BACKLOG.md` Inbox carried
-(PR 2772 review).
+(PR 2772 review). Note: TASK-259 (Shapes.inc resume-from-page for mid-job cookie
+expiry) is the residual failure-handling work on the current cookie shape — a
+different work item from this migration; see also TASK-267 for the shapes voice
+import seam.
 
 ## What
 
