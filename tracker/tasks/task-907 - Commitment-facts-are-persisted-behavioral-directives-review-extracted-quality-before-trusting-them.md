@@ -5,11 +5,12 @@ title: >-
   before trusting them
 status: To Do
 assignee: []
-created_date: '2026-09-07 15:55'
+created_date: 2026-09-07 15:55
+updated_date: '2026-11-20T06:39:00Z'
 labels:
-  - 'area:ai-worker'
-  - 'size:S'
-  - 'state:owner'
+  - area:ai-worker
+  - size:S
+  - state:observable
 dependencies: []
 priority: medium
 ordinal: 905000
@@ -27,3 +28,9 @@ Promote when: the first commitment-tagged facts appear in dev (after the extract
 <!-- SECTION:DESCRIPTION:END -->
 
 Boundary case to look for in the review (claude-review round 3 on the PR): a vague, open-ended assistant statement such as "I will always be here for you" sits between a standing decision (durable, extract) and an unfalsifiable relationship platitude (should not be reified as a permanent fact). The prompt's three worked examples are all concrete and instantiable, so the model has no anchor for the vague case; if the real rows show it leaning the wrong way, a fourth worked example or a boundary sentence in the exclusion bullet is the fix.
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner ruling 2026-11-20 (AskUserQuestion): review the first real extracted-promise rows in dev before deciding on any guard; the render switch stays off until then.
+<!-- SECTION:NOTES:END -->
