@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { AI_DEFAULTS } from '../../constants/ai.js';
 import {
   ConfigOverridesSchema,
+  ConfigOverrideSourceSchema,
   HARDCODED_CONFIG_DEFAULTS,
   type ConfigOverrides,
   ResolvedConfigOverridesSchema,
@@ -579,5 +580,18 @@ describe('shouldScopeHistoryToPersonality', () => {
 
   it.each(cases)('mode=%s isDm=%s -> scoped=%s', (mode, isDm, expected) => {
     expect(shouldScopeHistoryToPersonality(mode, isDm)).toBe(expected);
+  });
+});
+
+describe('ConfigOverrideSourceSchema', () => {
+  it.each(['hardcoded', 'admin', 'personality', 'channel', 'user-default', 'user-personality'])(
+    'accepts cascade source %s',
+    source => {
+      expect(ConfigOverrideSourceSchema.parse(source)).toBe(source);
+    }
+  );
+
+  it.each(['tts-derived', 'admin-default', ''])('rejects unknown source %j', source => {
+    expect(ConfigOverrideSourceSchema.safeParse(source).success).toBe(false);
   });
 });

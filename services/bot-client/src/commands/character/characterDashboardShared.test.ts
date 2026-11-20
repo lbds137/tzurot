@@ -64,7 +64,9 @@ describe('openCharacterCascadeDashboard', () => {
       logger,
     });
 
-    expect(resolveCascade).toHaveBeenCalledWith(expect.anything(), 'pers-1');
+    // The invoking channel rides the callback (undefined here — the mock
+    // interaction carries none); the real DeferredCommandContext supplies it.
+    expect(resolveCascade).toHaveBeenCalledWith(expect.anything(), 'pers-1', undefined);
     expect(mockConvert).toHaveBeenCalledWith({ some: 'cascade' }, 'user-personality');
     expect(mockCreateDashboard).toHaveBeenCalledWith(
       context.interaction,

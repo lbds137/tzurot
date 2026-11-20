@@ -180,10 +180,10 @@ export interface SettingsDashboardSession {
   lastRejectedInput?: { settingId: string; value: string };
   /**
    * Per-invocation note set when the dashboard opens (e.g. channel settings
-   * in a channel with no activated character). The interaction routers
-   * re-render with the BASE config, so a note carried only on an open-time
-   * config copy would vanish on the first interaction; every render reads
-   * this ahead of `config.descriptionNote`.
+   * in a channel with no activated character, or the open-time Model preset
+   * line). The interaction routers re-render with the BASE config, so a note
+   * carried only on an open-time config copy would vanish on the first
+   * interaction; every render combines this with `config.descriptionNote`.
    */
   descriptionNote?: string;
   /** User ID who owns this session */

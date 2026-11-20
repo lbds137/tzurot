@@ -12,10 +12,13 @@
  *
  * This module classifies each clone fragment as either:
  * - **call-dominant** (helper call sites; not real duplication)
+ * - **import-dominant** (import/re-export module-boundary statements —
+ *   convention-imposed module overlap, not copied logic)
  * - **logic** (actual duplicated business logic; real debt)
  *
- * The filtered count excludes call-dominant fragments and is the metric
- * used by the CI ratchet. The raw jscpd count remains informational.
+ * The filtered count excludes call-dominant and import-dominant fragments
+ * and is the metric used by the CI ratchet. The raw jscpd count remains
+ * informational.
  *
  * Why a line-pattern heuristic, not a full AST parser:
  *   jscpd fragments often start/end mid-expression (e.g. `}),\n }, opts);`)
@@ -52,11 +55,18 @@ interface JscpdReport {
 }
 
 /** Classification of a single line within a fragment. */
-type LineClass = 'call' | 'structural' | 'noise';
+type LineClass = 'call' | 'structural' | 'import' | 'noise';
 
 /** Matches a line that begins with a function/method call expression.
  *  Covers: `foo()`, `foo.bar()`, `await foo()`, `!(await foo())`, etc. */
 const CALL_PATTERN = /^\s*(?:!?\(?await\s+)?[\w$][\w$.]*\s*\(/;
+
+/** Matches a module-boundary line: an `import` statement in any form (default,
+ *  named, `import type`, side-effect `import './x.js'`) or a re-export
+ *  (`export { … }`, `export * [as ns] from`, `export type { … }`).
+ *  Declaration exports (`export const|function|class|interface|type X =`) are
+ *  deliberately NOT matched — they are business-logic shape, not module wiring. */
+const IMPORT_PATTERN = /^\s*(?:import\b|export\s+(?:type\s+\{|\*|\{))/;
 
 /** Matches control-flow keywords anywhere in a line.
  *  These are unambiguous logic signals regardless of position. */
@@ -80,13 +90,15 @@ const NOISE_PATTERN = /^[\s})(,;[\]]*$/;
  * - `'noise'` otherwise (continuation lines, object-literal field syntax,
  *   stray punctuation — anything we can't confidently classify)
  *
- * Order matters: structural is checked before call because a line like
- * `if (await maybeCall()) {` should classify as structural (it's logic),
- * not as a call site.
+ * Order matters: import is checked before structural (an import line is
+ * module wiring, never control flow), and structural is checked before call
+ * because a line like `if (await maybeCall()) {` should classify as
+ * structural (it's logic), not as a call site.
  */
 export function classifyLine(line: string): LineClass {
   const trimmed = line.trim();
   if (NOISE_PATTERN.test(trimmed)) return 'noise';
+  if (IMPORT_PATTERN.test(line)) return 'import';
   if (CONTROL_FLOW_PATTERN.test(trimmed)) return 'structural';
   if (DECLARATION_PATTERN.test(line)) return 'structural';
   if (CALL_PATTERN.test(trimmed)) return 'call';
@@ -101,46 +113,65 @@ export interface FragmentClassification {
   callLines: number;
   /** Lines classified as structural/business logic. */
   structuralLines: number;
+  /** Lines classified as import/export module-boundary statements. */
+  importLines: number;
   /** Lines classified as noise (continuation/punctuation). */
   noiseLines: number;
   /** Ratio of call-shape to call+structural lines (ignoring noise). */
   callRatio: number;
+  /** Ratio of import-shape to call+structural+import lines (ignoring noise). */
+  importRatio: number;
   /** Whether this fragment is considered "call-dominant" (≥ threshold). */
   isCallDominant: boolean;
+  /** Whether this fragment is considered "import-dominant" (≥ threshold). */
+  isImportDominant: boolean;
 }
 
 /**
  * Classify a clone fragment. A fragment is call-dominant when, among the
  * lines we can confidently classify, calls outnumber structural lines at
- * or above the threshold.
+ * or above the threshold. A fragment is import-dominant when import/export
+ * module-boundary lines dominate the same way — import-statement uniformity
+ * is convention-imposed module overlap (two files importing the same set of
+ * shared modules), not copied logic, so it is excluded for the same reason
+ * call-shape uniformity is.
  *
  * The default threshold of 0.8 means a fragment with 4 call lines and 1
  * structural line counts as call-dominant (real but minor logic mixed in
  * with mostly helper-call shape). A fragment with 3 call lines and 2
  * structural lines does NOT — at 60% call ratio, the logic is significant
  * enough that the fragment represents real shared structure rather than
- * just helper-call uniformity.
+ * just helper-call uniformity. The same bar applies to the import ratio:
+ * a fragment of 13 import lines plus one `const` line is excluded, while a
+ * fragment where imports and real logic are comparably sized is kept.
  */
 export function classifyFragment(fragment: string, threshold = 0.8): FragmentClassification {
   const lines = fragment.split('\n').filter(l => l.trim().length > 0);
   let callLines = 0;
   let structuralLines = 0;
+  let importLines = 0;
   let noiseLines = 0;
   for (const line of lines) {
     const cls = classifyLine(line);
     if (cls === 'call') callLines++;
     else if (cls === 'structural') structuralLines++;
+    else if (cls === 'import') importLines++;
     else noiseLines++;
   }
   const classifiable = callLines + structuralLines;
   const callRatio = classifiable > 0 ? callLines / classifiable : 0;
+  const importClassifiable = classifiable + importLines;
+  const importRatio = importClassifiable > 0 ? importLines / importClassifiable : 0;
   return {
     totalLines: lines.length,
     callLines,
     structuralLines,
+    importLines,
     noiseLines,
     callRatio,
+    importRatio,
     isCallDominant: classifiable > 0 && callRatio >= threshold,
+    isImportDominant: importClassifiable > 0 && importRatio >= threshold,
   };
 }
 
@@ -150,11 +181,11 @@ export interface FilterResult {
   rawCount: number;
   /** Raw duplicated-lines from jscpd output. */
   rawLines: number;
-  /** Filtered count: clones minus call-dominant fragments. */
+  /** Filtered count: clones minus call-dominant and import-dominant fragments. */
   filteredCount: number;
-  /** Filtered duplicated-lines: sum of lines from non-call-dominant fragments. */
+  /** Filtered duplicated-lines: sum of lines from remaining fragments. */
   filteredLines: number;
-  /** How many clones were excluded as call-dominant. */
+  /** How many clones were excluded as call-dominant or import-dominant. */
   excludedCount: number;
   /** Breakdown of the file pairs producing the remaining (filtered) clones. */
   remainingByPair: { pair: string; clones: number; lines: number }[];
@@ -163,10 +194,10 @@ export interface FilterResult {
 /**
  * Run the post-filter against a parsed jscpd report.
  *
- * @param threshold Call-ratio threshold for "call-dominant" classification
- *   (default 0.8 per GLM's recommendation). Lower → more inclusive (more
- *   clones filtered out); higher → stricter (only the most call-saturated
- *   fragments excluded).
+ * @param threshold Ratio threshold for "call-dominant" and "import-dominant"
+ *   classification (default 0.8 per GLM's recommendation). Lower → more
+ *   inclusive (more clones filtered out); higher → stricter (only the most
+ *   call/import-saturated fragments excluded).
  */
 export function filterReport(report: JscpdReport, threshold = 0.8): FilterResult {
   const rawCount = report.statistics.total.clones;
@@ -181,8 +212,8 @@ export function filterReport(report: JscpdReport, threshold = 0.8): FilterResult
   const pairAgg = new Map<string, { clones: number; lines: number }>();
 
   for (const dup of report.duplicates) {
-    const { isCallDominant } = classifyFragment(dup.fragment, threshold);
-    if (isCallDominant) {
+    const { isCallDominant, isImportDominant } = classifyFragment(dup.fragment, threshold);
+    if (isCallDominant || isImportDominant) {
       excludedCount++;
       continue;
     }
@@ -220,10 +251,14 @@ export const JSCPD_REPORT_PATH = 'reports/jscpd/jscpd-report.json';
  * meta `configHash` so a heuristic change invalidates existing baselines
  * and forces an explicit refresh via `cpd:update-baseline`.
  *
- * History: v1 — initial heuristic (count call-expression-shape lines,
- * compare ratio against threshold; see `classifyFragment` above).
+ * History:
+ * - v1 — initial heuristic (count call-expression-shape lines, compare ratio
+ *   against threshold; see `classifyFragment` above).
+ * - v2 — added import-dominance exclusion: `import`/re-export module-boundary
+ *   lines classify as `'import'`, and a fragment whose import ratio meets the
+ *   threshold is excluded alongside call-dominant fragments.
  */
-export const FILTER_IMPL_VERSION = 1;
+export const FILTER_IMPL_VERSION = 2;
 
 /** Load jscpd report JSON from the given path. Defaults to JSCPD_REPORT_PATH.
  *

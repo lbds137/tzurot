@@ -135,7 +135,7 @@ function formatSettingValue(
   if (isPlainSetting(config, setting)) {
     status = null;
   } else if (hasLocalOverride) {
-    status = '🔵 Override';
+    status = '🔵 Set here';
   } else if (source === 'hardcoded') {
     status = '⚪ Auto (default)';
   } else {
@@ -171,11 +171,10 @@ function resolvePageChrome(
 /**
  * Compose the description lines every dashboard view renders above its own
  * content: the escaped entity name, the base description (custom or the
- * legacy extended-context default naming the entity), and the required
- * `scopeNote` statement. Shared by the overview (which appends its "select a
- * setting" instruction after this) and the index (which appends its page
- * list and hint instead) so neither view can omit the scope disclosure
- * `scopeNote` exists to guarantee.
+ * default naming the entity), and the required `scopeNote` statement. Shared
+ * by the overview (which appends its "select a setting" instruction after
+ * this) and the index (which appends its page list and hint instead) so
+ * neither view can omit the scope disclosure `scopeNote` exists to guarantee.
  */
 export function buildDescriptionPreamble(
   config: SettingsDashboardConfig,
@@ -187,21 +186,29 @@ export function buildDescriptionPreamble(
   // dashboard. Same escape form as the reset-confirmation embed.
   const safeName = escapeMarkdown(session.entityName, { maskedLink: true });
   const baseDescription =
-    config.overviewDescription ?? `Configure extended context settings for **${safeName}**.`;
+    config.overviewDescription ?? `Configure the settings for **${safeName}**.`;
   return { safeName, text: `${baseDescription}\n${config.scopeNote(safeName)}` };
 }
 
 /**
  * The note appended to the overview and index descriptions: the session's
- * open-time note ahead of the config's static one. The routers re-render with
- * the base config, so a per-invocation note has to ride the session to
- * survive past the opening render.
+ * open-time note and the config's static one, COMBINED when both exist (a
+ * session note is per-invocation context, a config note is standing guidance
+ * — neither should mask the other). The routers re-render with the base
+ * config, so a per-invocation note has to ride the session to survive past
+ * the opening render.
  */
 export function resolveDescriptionNote(
   config: SettingsDashboardConfig,
   session: SettingsDashboardSession
 ): string | undefined {
-  return session.descriptionNote ?? config.descriptionNote;
+  const notes = [session.descriptionNote, config.descriptionNote].filter(
+    (n): n is string => n !== undefined && n.length > 0
+  );
+  if (notes.length === 0) {
+    return undefined;
+  }
+  return notes.join('\n\n');
 }
 
 /**

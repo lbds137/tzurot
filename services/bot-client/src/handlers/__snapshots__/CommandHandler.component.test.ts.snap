@@ -408,7 +408,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 1,
   },
   {
-    "description": "Open extended context settings dashboard for this channel",
+    "description": "Open the settings dashboard for this channel",
     "description_localizations": undefined,
     "name": "settings",
     "name_localizations": undefined,
@@ -791,7 +791,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 1,
   },
   {
-    "description": "Open character settings dashboard (owner only)",
+    "description": "Open character settings dashboard (character creator only; applies to everyone)",
     "description_localizations": undefined,
     "name": "settings",
     "name_localizations": undefined,
@@ -812,7 +812,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 1,
   },
   {
-    "description": "Manage your personal overrides for a character",
+    "description": "Your overrides for a character: voice replies, memory, context & display",
     "description_localizations": undefined,
     "name": "overrides",
     "name_localizations": undefined,
@@ -1824,7 +1824,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 1,
   },
   {
-    "description": "Delete ALL memories for a character (requires typed confirmation)",
+    "description": "Purge ALL memories for a character (requires typed confirmation)",
     "description_localizations": undefined,
     "name": "purge",
     "name_localizations": undefined,
@@ -2977,7 +2977,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "type": 1,
       },
       {
-        "description": "Show your current timezone",
+        "description": "View your current timezone",
         "description_localizations": undefined,
         "name": "view",
         "name_localizations": undefined,
@@ -3131,7 +3131,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 2,
   },
   {
-    "description": "Manage your global default settings",
+    "description": "Manage your default settings",
     "description_localizations": undefined,
     "name": "defaults",
     "name_localizations": undefined,
@@ -3280,7 +3280,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
 exports[`CommandHandler (component) > command structure snapshots > has a stable option structure for every registered command > voice-command-options 1`] = `
 [
   {
-    "description": "Show resolved TTS + STT + voices for a character",
+    "description": "Voice settings for a character: reply mode, TTS + STT in use",
     "description_localizations": undefined,
     "name": "view",
     "name_localizations": undefined,
@@ -3293,6 +3293,55 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "max_length": undefined,
         "min_length": undefined,
         "name": "character",
+        "name_localizations": undefined,
+        "required": true,
+        "type": 3,
+      },
+    ],
+    "type": 1,
+  },
+  {
+    "description": "Choose when a character replies with voice (for you)",
+    "description_localizations": undefined,
+    "name": "replies",
+    "name_localizations": undefined,
+    "options": [
+      {
+        "autocomplete": true,
+        "choices": undefined,
+        "description": "Which character",
+        "description_localizations": undefined,
+        "max_length": undefined,
+        "min_length": undefined,
+        "name": "character",
+        "name_localizations": undefined,
+        "required": true,
+        "type": 3,
+      },
+      {
+        "autocomplete": undefined,
+        "choices": [
+          {
+            "name": "Always",
+            "name_localizations": undefined,
+            "value": "always",
+          },
+          {
+            "name": "Only when you send voice",
+            "name_localizations": undefined,
+            "value": "voice-only",
+          },
+          {
+            "name": "Never",
+            "name_localizations": undefined,
+            "value": "never",
+          },
+        ],
+        "description": "When the character replies with voice",
+        "description_localizations": undefined,
+        "max_length": undefined,
+        "min_length": undefined,
+        "name": "mode",
         "name_localizations": undefined,
         "required": true,
         "type": 3,
@@ -3369,7 +3418,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "type": 1,
       },
       {
-        "description": "Set (or clear) your global default TTS config",
+        "description": "Set (or clear) your default TTS config",
         "description_localizations": undefined,
         "name": "default",
         "name_localizations": undefined,
@@ -3436,7 +3485,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "type": 1,
       },
       {
-        "description": "Remove your transcription provider preference",
+        "description": "Clear your transcription provider preference",
         "description_localizations": undefined,
         "name": "clear",
         "name_localizations": undefined,

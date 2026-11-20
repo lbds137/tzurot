@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 3069,
-    "sites": 7136
+    "entries": 3080,
+    "sites": 7159
   },
   "entries": [
     {
@@ -1179,6 +1179,12 @@
       "file": "services/bot-client/src/commands/character/browseHelpers.ts",
       "symbol": "escapeMarkdown",
       "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/character/characterDashboardShared.ts",
+      "symbol": "channelId",
+      "count": 1
     },
     {
       "category": "client-methods",
@@ -4675,6 +4681,12 @@
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/settings/defaults/edit.ts",
+      "symbol": "escapeMarkdown",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/settings/defaults/edit.ts",
       "symbol": "id",
       "count": 2
     },
@@ -5401,6 +5413,12 @@
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/voice/index.ts",
+      "symbol": "addChoices",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/voice/index.ts",
       "symbol": "customId",
       "count": 10
     },
@@ -5432,18 +5450,36 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/voice/index.ts",
       "symbol": "setDescription",
-      "count": 3
+      "count": 6
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/voice/index.ts",
       "symbol": "setName",
-      "count": 3
+      "count": 6
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/voice/index.ts",
       "symbol": "setRequired",
+      "count": 3
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/voice/replies.ts",
+      "symbol": "channelId",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/voice/replies.ts",
+      "symbol": "escapeMarkdown",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/voice/replies.ts",
+      "symbol": "id",
       "count": 1
     },
     {
@@ -5703,6 +5739,12 @@
       "file": "services/bot-client/src/commands/voice/tts/subcommandBuilder.ts",
       "symbol": "setRequired",
       "count": 4
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/voice/view.ts",
+      "symbol": "channelId",
+      "count": 1
     },
     {
       "category": "client-methods",
@@ -10309,6 +10351,12 @@
     {
       "category": "client-methods",
       "file": "services/bot-client/src/utils/dashboard/settings/settingsUpdateFactory.ts",
+      "symbol": "channelId",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/dashboard/settings/settingsUpdateFactory.ts",
       "symbol": "id",
       "count": 1
     },
@@ -12308,13 +12356,13 @@
       "category": "command-options",
       "file": "services/bot-client/src/commands/voice/index.ts",
       "symbol": "addStringOption",
-      "count": 1
+      "count": 3
     },
     {
       "category": "command-options",
       "file": "services/bot-client/src/commands/voice/index.ts",
       "symbol": "addSubcommand",
-      "count": 1
+      "count": 2
     },
     {
       "category": "command-options",
@@ -12325,7 +12373,19 @@
     {
       "category": "command-options",
       "file": "services/bot-client/src/commands/voice/index.ts",
+      "symbol": "name",
+      "count": 1
+    },
+    {
+      "category": "command-options",
+      "file": "services/bot-client/src/commands/voice/index.ts",
       "symbol": "setAutocomplete",
+      "count": 2
+    },
+    {
+      "category": "command-options",
+      "file": "services/bot-client/src/commands/voice/index.ts",
+      "symbol": "value",
       "count": 1
     },
     {
@@ -18158,6 +18218,12 @@
       "category": "unclassified",
       "file": "services/bot-client/src/commands/memory/batchDelete.ts",
       "symbol": "time",
+      "count": 1
+    },
+    {
+      "category": "unclassified",
+      "file": "services/bot-client/src/commands/settings/defaults/edit.ts",
+      "symbol": "maskedLink",
       "count": 1
     },
     {

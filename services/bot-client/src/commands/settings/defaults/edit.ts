@@ -12,10 +12,11 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import type {
-  ButtonInteraction,
-  StringSelectMenuInteraction,
-  ModalSubmitInteraction,
+import {
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
+  type ModalSubmitInteraction,
+  escapeMarkdown,
 } from 'discord.js';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
@@ -42,6 +43,7 @@ import {
   buildFallbackSettingsData,
   convertResolveDefaultsResponse,
 } from '../../../utils/dashboard/settings/index.js';
+import { VOICE_ENABLED_DESCRIPTION_NOTE } from '../../../utils/dashboard/settings/settingsConfig.js';
 
 const logger = createLogger('user-defaults-settings');
 
@@ -68,8 +70,11 @@ export const USER_DEFAULTS_CONFIG: SettingsDashboardConfig = {
   settings: CASCADE_PAGES.settings,
   pages: CASCADE_PAGES.pages,
   resetAll: true,
+  overviewDescription:
+    'Your defaults for every character — Memory, Context & Display, and Voice pages.',
   scopeNote: () =>
     '👤 Applies only to your conversations, with every character. Your per-character overrides still win.',
+  descriptionNote: VOICE_ENABLED_DESCRIPTION_NOTE,
 };
 
 /**
@@ -82,7 +87,10 @@ export async function handleDefaultsEdit(context: DeferredCommandContext): Promi
 
   try {
     const { userClient } = clientsFor(context.interaction);
-    const data = await fetchAndConvertSettingsData(userClient);
+    const [data, presetNote] = await Promise.all([
+      fetchAndConvertSettingsData(userClient),
+      fetchPresetNote(userClient),
+    ]);
 
     await createSettingsDashboard(context.interaction, {
       config: USER_DEFAULTS_CONFIG,
@@ -90,6 +98,7 @@ export async function handleDefaultsEdit(context: DeferredCommandContext): Promi
       entityId: userId,
       entityName: 'Your Default Settings',
       userId,
+      descriptionNote: presetNote,
     });
 
     logger.info({ userId }, 'Dashboard opened');
@@ -169,6 +178,26 @@ async function fetchAndConvertSettingsData(userClient: UserClient): Promise<Sett
 
   const { resolved, userOverrides } = convertResolveDefaultsResponse(result.data);
   return buildCascadeSettingsData(resolved, userOverrides, 'user-default');
+}
+
+/**
+ * The Model preset line for the note slot: which preset the user's default
+ * slot holds, read from the same GET `/preset default` reads. The dashboard
+ * itself is read-only for presets, so the note points at the command that
+ * changes it. Undefined on a failed read — the dashboard renders without it.
+ */
+async function fetchPresetNote(userClient: UserClient): Promise<string | undefined> {
+  const result = await userClient.getDefaultModelConfig({ slot: 'text' });
+
+  if (!result.ok) {
+    logger.warn({ error: result.error }, 'Failed to fetch default model preset');
+    return undefined;
+  }
+
+  const { configName } = result.data.default;
+  return configName === null
+    ? 'Model preset: none set — `/preset default set` picks one for every character.'
+    : `Model preset: **${escapeMarkdown(configName, { maskedLink: true })}** (your default) — change it: \`/preset default set\`.`;
 }
 
 /**

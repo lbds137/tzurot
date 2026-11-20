@@ -7,7 +7,7 @@
  * - /memory browse [personality] - Browse memories with pagination
  * - /memory search <query> [personality] [limit] - Semantic search of memories
  * - /memory delete <personality> [timeframe] - Batch delete memories (skips locked)
- * - /memory purge <personality> - Delete ALL memories for personality (typed confirmation)
+ * - /memory purge <personality> - Purge ALL memories for personality (typed confirmation)
  * - /memory fresh enable <personality> <duration> - Disable LTM retrieval (memories kept, not used)
  * - /memory fresh disable <personality> - Re-enable LTM retrieval
  * - /memory fresh status [personality] - Overview of active fresh sessions
@@ -247,7 +247,7 @@ export default defineCommand({
     .addSubcommand(subcommand =>
       subcommand
         .setName('purge')
-        .setDescription('Delete ALL memories for a character (requires typed confirmation)')
+        .setDescription('Purge ALL memories for a character (requires typed confirmation)')
         .addStringOption(option =>
           option
             .setName('character')

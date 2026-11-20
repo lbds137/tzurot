@@ -141,7 +141,7 @@ describe('settingsIndexView', () => {
         session({ entityName: 'Global Settings' })
       ).toJSON();
       const description = embed.description ?? '';
-      expect(description).toContain('Configure extended context settings for **Global Settings**.');
+      expect(description).toContain('Configure the settings for **Global Settings**.');
       expect(description).not.toContain('Editing **Global Settings**');
       expect(description).toContain('Pick a page from the menu below.');
     });
@@ -166,14 +166,16 @@ describe('settingsIndexView', () => {
       expect(embed.description ?? '').toContain('DESCRIPTION_NOTE_SENTINEL');
     });
 
-    it("prefers session.descriptionNote over the config's when both are set", () => {
+    it("combines session.descriptionNote with the config's when both are set", () => {
       const embed = buildIndexEmbed(
         configWithPages(pagesOf(4), { descriptionNote: 'CONFIG_NOTE' }),
         session({ descriptionNote: 'SESSION_NOTE' })
       ).toJSON();
       const description = embed.description ?? '';
       expect(description).toContain('SESSION_NOTE');
-      expect(description).not.toContain('CONFIG_NOTE');
+      expect(description).toContain('CONFIG_NOTE');
+      // Session note (per-invocation context) renders ahead of the static one.
+      expect(description.indexOf('SESSION_NOTE')).toBeLessThan(description.indexOf('CONFIG_NOTE'));
     });
 
     it('renders 2 rows (jump + Reset all) when the config opts in, 1 row without', () => {

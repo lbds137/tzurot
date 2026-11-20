@@ -282,7 +282,7 @@
     {
       "name": "channel",
       "category": "Channel",
-      "description": "Manage automatic character responses in channels",
+      "description": "Manage automatic character responses and channel settings",
       "handlers": {
         "execute": true,
         "autocomplete": true,
@@ -347,12 +347,12 @@
           {
             "type": 1,
             "name": "settings",
-            "description": "Open extended context settings dashboard for this channel",
+            "description": "Open the settings dashboard for this channel",
             "options": []
           }
         ],
         "name": "channel",
-        "description": "Manage automatic character responses in channels",
+        "description": "Manage automatic character responses and channel settings",
         "type": 1
       }
     },
@@ -629,7 +629,7 @@
           {
             "type": 1,
             "name": "settings",
-            "description": "Open character settings dashboard (owner only)",
+            "description": "Open character settings dashboard (character creator only; applies to everyone)",
             "options": [
               {
                 "autocomplete": true,
@@ -643,7 +643,7 @@
           {
             "type": 1,
             "name": "overrides",
-            "description": "Manage your personal overrides for a character",
+            "description": "Your overrides for a character: voice replies, memory, context & display",
             "options": [
               {
                 "autocomplete": true,
@@ -1463,7 +1463,7 @@
           {
             "type": 1,
             "name": "purge",
-            "description": "Delete ALL memories for a character (requires typed confirmation)",
+            "description": "Purge ALL memories for a character (requires typed confirmation)",
             "options": [
               {
                 "autocomplete": true,
@@ -2369,7 +2369,7 @@
               {
                 "type": 1,
                 "name": "view",
-                "description": "Show your current timezone",
+                "description": "View your current timezone",
                 "options": []
               }
             ]
@@ -2483,7 +2483,7 @@
           {
             "type": 2,
             "name": "defaults",
-            "description": "Manage your global default settings",
+            "description": "Manage your default settings",
             "options": [
               {
                 "type": 1,
@@ -2611,7 +2611,7 @@
     {
       "name": "voice",
       "category": "Voice",
-      "description": "Voice configuration: TTS + STT providers + cloned voices",
+      "description": "Voice settings: when characters reply with voice, TTS + STT providers, cloned voices",
       "handlers": {
         "execute": true,
         "autocomplete": true,
@@ -2628,13 +2628,47 @@
           {
             "type": 1,
             "name": "view",
-            "description": "Show resolved TTS + STT + voices for a character",
+            "description": "Voice settings for a character: reply mode, TTS + STT in use",
             "options": [
               {
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
                 "description": "Which character",
+                "required": true
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "replies",
+            "description": "Choose when a character replies with voice (for you)",
+            "options": [
+              {
+                "autocomplete": true,
+                "type": 3,
+                "name": "character",
+                "description": "Which character",
+                "required": true
+              },
+              {
+                "type": 3,
+                "choices": [
+                  {
+                    "name": "Always",
+                    "value": "always"
+                  },
+                  {
+                    "name": "Only when you send voice",
+                    "value": "voice-only"
+                  },
+                  {
+                    "name": "Never",
+                    "value": "never"
+                  }
+                ],
+                "name": "mode",
+                "description": "When the character replies with voice",
                 "required": true
               }
             ]
@@ -2688,7 +2722,7 @@
               {
                 "type": 1,
                 "name": "default",
-                "description": "Set (or clear) your global default TTS config",
+                "description": "Set (or clear) your default TTS config",
                 "options": [
                   {
                     "autocomplete": true,
@@ -2736,7 +2770,7 @@
               {
                 "type": 1,
                 "name": "clear",
-                "description": "Remove your transcription provider preference",
+                "description": "Clear your transcription provider preference",
                 "options": []
               }
             ]
@@ -2776,7 +2810,7 @@
           }
         ],
         "name": "voice",
-        "description": "Voice configuration: TTS + STT providers + cloned voices",
+        "description": "Voice settings: when characters reply with voice, TTS + STT providers, cloned voices",
         "type": 1
       }
     }

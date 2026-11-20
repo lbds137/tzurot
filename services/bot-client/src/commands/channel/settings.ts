@@ -49,6 +49,7 @@ import {
   buildClearBody,
   buildCascadeSettingsData,
 } from '../../utils/dashboard/settings/index.js';
+import { VOICE_ENABLED_DESCRIPTION_NOTE } from '../../utils/dashboard/settings/settingsConfig.js';
 
 const logger = createLogger('channel-settings');
 
@@ -63,9 +64,9 @@ const ENTITY_TYPE = 'channel-settings';
 const CASCADE_PAGES = buildCascadePages(VOICE_CASCADE_SETTINGS);
 
 /**
- * Dashboard configuration for channel context settings.
- * Includes both extended context and memory settings — all are now wirable
- * via the channel tier of the config cascade — on the shared concern pages.
+ * Dashboard configuration for channel settings.
+ * The memory, context & display, and voice settings on the shared concern
+ * pages, writable via the channel tier of the config cascade.
  */
 export const CHANNEL_SETTINGS_CONFIG: SettingsDashboardConfig = {
   level: 'channel',
@@ -79,13 +80,14 @@ export const CHANNEL_SETTINGS_CONFIG: SettingsDashboardConfig = {
   // message still resolves, as Reset all.
   resetAll: true,
   legacyBareResetMeansAll: true,
+  overviewDescription: "This channel's settings — Memory, Context & Display, and Voice pages.",
   scopeNote: () =>
     "📍 Applies to members in this channel who haven't set their own value. Personal settings override these.",
+  descriptionNote: VOICE_ENABLED_DESCRIPTION_NOTE,
 };
 
 /** Shown on every render when the channel has no activated character. */
-const NO_CHARACTER_NOTE =
-  'ℹ️ No character activated — character-level defaults not included in cascade.';
+const NO_CHARACTER_NOTE = 'ℹ️ No character activated here — character-level defaults do not apply.';
 
 /**
  * Handle /channel settings command - shows interactive dashboard

@@ -211,7 +211,11 @@ describe('Character Overrides Dashboard', () => {
       await handleOverrides(context, mockConfig);
 
       expect(stub.getPersonality).toHaveBeenCalledWith('aurora');
-      expect(stub.resolveCascade).toHaveBeenCalledWith('personality-123');
+      // The invoking channel crosses the resolve call, so channel-tier values
+      // show where they apply.
+      expect(stub.resolveCascade).toHaveBeenCalledWith('personality-123', {
+        channelId: 'channel-789',
+      });
       expect(context.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           embeds: expect.any(Array),
@@ -282,7 +286,7 @@ describe('Character Overrides Dashboard', () => {
       const maxMessagesField = embedJson.fields?.find(
         (f: { name: string }) => f.name === '💬 Max Messages'
       );
-      expect(maxMessagesField?.value).toContain('Override');
+      expect(maxMessagesField?.value).toContain('Set here');
     });
 
     it('should handle character not found', async () => {
@@ -496,6 +500,7 @@ describe('Character Overrides Dashboard', () => {
       const interaction = {
         customId: 'character-overrides::set::personality-123::crossChannelHistoryEnabled:true',
         user: { id: 'user-456', username: 'testuser' },
+        channelId: 'channel-999',
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
@@ -535,6 +540,10 @@ describe('Character Overrides Dashboard', () => {
 
       expect(stub.updatePersonalityOverrides).toHaveBeenCalledWith('personality-123', {
         crossChannelHistoryEnabled: true,
+      });
+      // The update path's re-resolve also carries the invoking channel.
+      expect(stub.resolveCascade).toHaveBeenCalledWith('personality-123', {
+        channelId: 'channel-999',
       });
     });
   });

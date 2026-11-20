@@ -22,6 +22,7 @@ import {
   VOICE_CASCADE_SETTINGS,
   buildCascadePages,
 } from '../../utils/dashboard/settings/index.js';
+import { VOICE_ENABLED_DESCRIPTION_NOTE } from '../../utils/dashboard/settings/settingsConfig.js';
 import {
   createSettingsResetHandler,
   createSettingsUpdateHandler,
@@ -52,8 +53,10 @@ export const CHARACTER_SETTINGS_CONFIG: SettingsDashboardConfig = {
   settings: CASCADE_PAGES.settings,
   pages: CASCADE_PAGES.pages,
   resetAll: true,
+  overviewDescription: "This character's defaults — Memory, Context & Display, and Voice pages.",
   scopeNote: name =>
     `🎭 Applies to everyone talking to **${name}**. Channel settings and each user's own settings override these.`,
+  descriptionNote: VOICE_ENABLED_DESCRIPTION_NOTE,
 };
 
 /**

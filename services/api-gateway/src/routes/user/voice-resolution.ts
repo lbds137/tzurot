@@ -3,9 +3,10 @@
  *
  * Aggregate read endpoint backing the `/voice view` dashboard. Returns the
  * resolved TTS provider for a personality, the resolved STT provider for
- * the user, and a cloned-voice summary in a single round-trip.
+ * the user, a cloned-voice summary, the character's voice-enabled flag, and
+ * the resolved Voice Response Mode in a single round-trip.
  *
- *   GET /api/user/voice-resolution?personalityId=X
+ *   GET /api/user/voice-resolution?personalityId=X[&channelId=Y]
  *
  * STT resolution uses {@link SttResolver} directly — speaker-bound cascade
  * (override → tts-derived → voice-engine), no per-personality dimension.
@@ -47,7 +48,7 @@ const MAX_PREVIEW_SLUGS = 5;
  * here, so cache lifetime is the TTL.
  */
 export const handleGetVoiceResolution = (deps: RouteDeps): RequestHandler => {
-  const { prisma } = deps;
+  const { prisma, cascadeResolver } = deps;
   const ttsResolver = new TtsConfigResolver(prisma);
   const sttResolver = new SttResolver(prisma);
   return withManifestInput(
@@ -56,13 +57,13 @@ export const handleGetVoiceResolution = (deps: RouteDeps): RequestHandler => {
       const discordUserId = req.userId;
       const userId = resolveProvisionedUserId(req);
 
-      const { personalityId } = query;
+      const { personalityId, channelId } = query;
 
       // Independent existence checks — issue them in parallel.
       const [personality, userExists] = await Promise.all([
         prisma.personality.findFirst({
           where: { id: personalityId },
-          select: { id: true, name: true },
+          select: { id: true, name: true, voiceEnabled: true },
         }),
         prisma.user.findUnique({
           where: { id: userId },
@@ -76,13 +77,26 @@ export const handleGetVoiceResolution = (deps: RouteDeps): RequestHandler => {
         return sendError(res, ErrorResponses.notFound('User'));
       }
 
-      // TTS resolution — defer to the cached resolver.
       const personalityForResolver: LoadedTtsPersonality = { id: personality.id };
-      const ttsResolution = await ttsResolver.resolveConfig(
-        discordUserId,
-        personalityId,
-        personalityForResolver
-      );
+
+      // Independent reads — issue them in parallel.
+      const [resolved, ttsResolution, sttResult, keysResult] = await Promise.all([
+        // Voice Response Mode resolves through the same cascade resolver the
+        // config-overrides resolve handler uses; channelId, when present,
+        // narrows the resolution to the invoking channel's tier.
+        cascadeResolver.resolveOverrides(discordUserId, personalityId, channelId),
+        // TTS resolution — defer to the cached resolver.
+        ttsResolver.resolveConfig(discordUserId, personalityId, personalityForResolver),
+        // STT resolution — user-scoped (no personalityId argument).
+        sttResolver.resolveProvider(discordUserId),
+        // Cloned-voice summary — only if the user has at least one BYOK key.
+        // No keys → summary is "0 voices" (avoids surfacing a 404).
+        resolveAudioProviderKeys(prisma, discordUserId),
+      ]);
+      const voiceResponseMode = {
+        value: resolved.voiceResponseMode,
+        source: resolved.sources.voiceResponseMode,
+      };
 
       const ttsView: ResolvedTtsView = {
         // resolver surfaces configName but not configId at the top level
@@ -92,18 +106,13 @@ export const handleGetVoiceResolution = (deps: RouteDeps): RequestHandler => {
         source: ttsResolution.source,
       };
 
-      // STT resolution — user-scoped (no personalityId argument).
-      const sttResult = await sttResolver.resolveProvider(discordUserId);
       const sttView: ResolvedSttView = sttResult;
 
-      // Cloned-voice summary — only if the user has at least one BYOK key.
-      // No keys → summary is "0 voices" (avoids surfacing a 404).
       let voicesSummary: ClonedVoicesSummary = {
         tzurotCount: 0,
         totalVoices: 0,
         previewSlugs: [],
       };
-      const keysResult = await resolveAudioProviderKeys(prisma, discordUserId);
       if ('keys' in keysResult && keysResult.keys.size > 0) {
         const { voices, totalVoicesByProvider } = await fetchAllTzurotVoices(keysResult.keys);
         const totalVoices = Array.from(totalVoicesByProvider.values()).reduce((a, b) => a + b, 0);
@@ -116,6 +125,8 @@ export const handleGetVoiceResolution = (deps: RouteDeps): RequestHandler => {
 
       const response: GetVoiceResolutionResponse = {
         personalityName: personality.name,
+        voiceEnabled: personality.voiceEnabled,
+        voiceResponseMode,
         tts: ttsView,
         stt: sttView,
         voices: voicesSummary,
@@ -125,6 +136,9 @@ export const handleGetVoiceResolution = (deps: RouteDeps): RequestHandler => {
         {
           discordUserId,
           personalityId,
+          voiceEnabled: personality.voiceEnabled,
+          voiceResponseMode: voiceResponseMode.value,
+          voiceResponseModeSource: voiceResponseMode.source,
           ttsProvider: ttsView.provider,
           ttsSource: ttsView.source,
           sttProvider: sttView.provider,

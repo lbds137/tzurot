@@ -10,7 +10,7 @@
  */
 
 import { z } from 'zod';
-import { GATEWAY_TIMEOUTS } from '@tzurot/common-types/constants/discord';
+import { DISCORD_SNOWFLAKE, GATEWAY_TIMEOUTS } from '@tzurot/common-types/constants/discord';
 import { VALIDATION_TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import {
   ActivateChannelRequestSchema,
@@ -332,8 +332,13 @@ export const userResourceRoutes = {
     id: 'getVoiceResolution',
     // The manifest is the ONLY validation layer for this query — the gateway
     // handler reads `query.personalityId` from withManifestInput's parsed
-    // output directly, with no local re-parse.
-    query: { personalityId: z.string().uuid() },
+    // output directly, with no local re-parse. channelId, when present,
+    // narrows the Voice Response Mode resolution to the invoking channel's
+    // cascade tier (template: resolveCascade's query shape).
+    query: {
+      personalityId: z.string().uuid(),
+      channelId: z.string().regex(DISCORD_SNOWFLAKE.PATTERN).optional(),
+    },
     output: GetVoiceResolutionResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },

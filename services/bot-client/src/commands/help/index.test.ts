@@ -200,6 +200,14 @@ describe('Help Command', () => {
       expect(allText).toContain('/chat');
       expect(allText).toContain('/character browse');
       expect(allText).toContain('/persona edit');
+      // The Customize field bridges to the per-user setting surfaces.
+      const customizeField = json.fields.find((f: { name: string }) =>
+        f.name.includes('Customize')
+      );
+      expect(customizeField).toBeDefined();
+      expect(customizeField.value).toContain('/character overrides');
+      expect(customizeField.value).toContain('/settings defaults');
+      expect(customizeField.value).toContain('/voice replies');
       expect(allText).toContain('tzurot.org/docs/getting-started');
     });
 
@@ -609,6 +617,24 @@ describe('Help Command', () => {
       expect(respond).toHaveBeenCalledWith([
         { name: '/help — Show all available commands', value: 'help' },
       ]);
+    });
+
+    it('matches leaf descriptions too, not only paths', async () => {
+      // "transcribe" appears in no command path — only the STT leaf's
+      // description carries it, so this pins the description clause.
+      const withStt: CmdSpec[] = [
+        {
+          name: 'voice',
+          description: 'Voice settings',
+          subcommands: [{ name: 'stt', description: 'Pick who transcribes your voice messages' }],
+        },
+      ];
+      const { interaction, respond } = createAutocompleteInteraction(
+        'transcribe',
+        buildCommands(withStt)
+      );
+      await autocomplete?.(interaction);
+      expect(respondedValues(respond)).toEqual(['voice stt']);
     });
 
     it('returns every leaf (alphabetical) for an empty query', async () => {

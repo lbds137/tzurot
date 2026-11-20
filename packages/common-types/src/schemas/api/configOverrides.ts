@@ -10,6 +10,7 @@
 
 import { z } from 'zod';
 import { AI_DEFAULTS } from '../../constants/ai.js';
+import { VOICE_RESPONSE_MODES, type VoiceResponseMode } from '../../constants/voice.js';
 
 // ============================================================================
 // Config Overrides Schema (JSONB column shape)
@@ -68,7 +69,7 @@ export const ConfigOverridesSchema = z
     /** Whether to show the model indicator footer on AI responses */
     showModelFooter: z.boolean().optional(),
     /** Voice response mode: 'always' = every response, 'voice-only' = when user sends voice, 'never' = disabled */
-    voiceResponseMode: z.enum(['always', 'voice-only', 'never']).optional(),
+    voiceResponseMode: z.enum(VOICE_RESPONSE_MODES).optional(),
     /** Whether to auto-transcribe voice messages (runtime control; VOICE_ENGINE_URL remains infrastructure config) */
     voiceTranscriptionEnabled: z.boolean().optional(),
     /** Scopes in which conversation history is shared across personalities in the same channel:
@@ -244,7 +245,7 @@ export interface ResolvedConfigOverrides {
   sameChannelVerbatimExchanges: number;
   shareLtmAcrossPersonalities: boolean;
   showModelFooter: boolean;
-  voiceResponseMode: 'always' | 'voice-only' | 'never';
+  voiceResponseMode: VoiceResponseMode;
   voiceTranscriptionEnabled: boolean;
   shareHistoryAcrossPersonalities: ShareHistoryAcrossPersonalitiesMode;
 
@@ -259,7 +260,7 @@ export interface ResolvedConfigOverrides {
 // Runtime schemas for resolved + raw config-overrides API endpoints
 // ============================================================================
 
-const ConfigOverrideSourceSchema = z.enum([
+export const ConfigOverrideSourceSchema = z.enum([
   'hardcoded',
   'admin',
   'personality',

@@ -53,7 +53,7 @@ export function buildVoiceTtsSubcommandGroup(
     .addSubcommand(subcommand =>
       subcommand
         .setName('default')
-        .setDescription('Set (or clear) your global default TTS config')
+        .setDescription('Set (or clear) your default TTS config')
         .addStringOption(option =>
           option
             .setName('tts')

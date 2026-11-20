@@ -22,6 +22,7 @@ import {
   VOICE_CASCADE_SETTINGS,
   buildCascadePages,
 } from '../../utils/dashboard/settings/index.js';
+import { VOICE_ENABLED_DESCRIPTION_NOTE } from '../../utils/dashboard/settings/settingsConfig.js';
 import {
   createSettingsResetHandler,
   createSettingsUpdateHandler,
@@ -52,8 +53,11 @@ export const CHARACTER_OVERRIDES_CONFIG: SettingsDashboardConfig = {
   settings: CASCADE_PAGES.settings,
   pages: CASCADE_PAGES.pages,
   resetAll: true,
+  overviewDescription:
+    'Your overrides for this character — Memory, Context & Display, and Voice pages.',
   scopeNote: name =>
     `👤 Applies only to your conversations with **${name}**. Nothing overrides these.`,
+  descriptionNote: VOICE_ENABLED_DESCRIPTION_NOTE,
 };
 
 /**
@@ -69,8 +73,9 @@ export async function handleOverrides(
   await openCharacterCascadeDashboard(context, options.character(), {
     dashboardConfig: CHARACTER_OVERRIDES_CONFIG,
     sourceTier: 'user-personality',
-    // Full user-personality cascade — any user's own override tier.
-    resolveCascade: (uc, id) => uc.resolveCascade(id),
+    // Full user-personality cascade — any user's own override tier — scoped
+    // to the invoking channel so channel-tier values show where they apply.
+    resolveCascade: (uc, id, channelId) => uc.resolveCascade(id, { channelId }),
     noun: 'overrides',
     logger,
   });
@@ -79,7 +84,7 @@ export async function handleOverrides(
 /** Config for the character overrides update handler (full user-personality cascade) */
 const CHARACTER_OVERRIDES_UPDATE_CONFIG: SettingUpdateConfig = {
   patchFn: (uc, id, body) => uc.updatePersonalityOverrides(id, body),
-  resolveFn: (uc, id) => uc.resolveCascade(id),
+  resolveFn: (uc, id, channelId) => uc.resolveCascade(id, { channelId }),
   sourceTier: 'user-personality',
   logContext: '[Character Overrides]',
 };

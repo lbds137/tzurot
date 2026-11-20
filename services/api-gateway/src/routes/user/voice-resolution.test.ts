@@ -33,6 +33,7 @@ vi.mock('./voices.js', () => ({
 
 const mockResolveConfig = vi.fn();
 const mockResolveStt = vi.fn();
+const mockResolveOverrides = vi.fn();
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
@@ -85,16 +86,33 @@ const mockPrisma = {
 
 /** Build one bare handler with the mock deps — the shape mounts.ts registers. */
 function buildHandler(handler: (deps: RouteDeps) => RequestHandler) {
-  return asRouteHandler(handler({ ...stubRouteResolvers(), prisma: mockPrisma as never }));
+  const resolvers = stubRouteResolvers();
+  // Route the cascade-resolver seam through the test-local mock so the
+  // Voice Response Mode resolution is assertable.
+  const cascadeResolver = {
+    ...resolvers.cascadeResolver,
+    resolveOverrides: mockResolveOverrides,
+  } as unknown as RouteDeps['cascadeResolver'];
+  const deps: RouteDeps = { ...resolvers, cascadeResolver, prisma: mockPrisma as never };
+  return { handler: asRouteHandler(handler(deps)) };
 }
 
 describe('user/voice-resolution route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default cascade resolution: hardcoded tier supplies the voice mode.
+    mockResolveOverrides.mockResolvedValue({
+      voiceResponseMode: 'always',
+      sources: { voiceResponseMode: 'hardcoded' },
+    });
   });
 
   it('returns the resolved tts/stt/voices payload on the happy path', async () => {
-    mockPrisma.personality.findFirst.mockResolvedValue({ id: VALID_PERSONALITY_ID, name: 'Alice' });
+    mockPrisma.personality.findFirst.mockResolvedValue({
+      id: VALID_PERSONALITY_ID,
+      name: 'Alice',
+      voiceEnabled: true,
+    });
     mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-1' });
     mockResolveConfig.mockResolvedValue({
       config: { provider: 'mistral' },
@@ -114,7 +132,7 @@ describe('user/voice-resolution route', () => {
       warnings: [],
     });
 
-    const handler = buildHandler(handleGetVoiceResolution);
+    const { handler } = buildHandler(handleGetVoiceResolution);
     const { res, json, status } = makeMockRes();
 
     await handler(makeMockReq({ personalityId: VALID_PERSONALITY_ID }), res);
@@ -122,6 +140,8 @@ describe('user/voice-resolution route', () => {
     expect(status).toHaveBeenCalledWith(StatusCodes.OK);
     expect(json).toHaveBeenCalledWith(
       expect.objectContaining({
+        voiceEnabled: true,
+        voiceResponseMode: { value: 'always', source: 'hardcoded' },
         tts: expect.objectContaining({ provider: 'mistral', source: 'user-default' }),
         stt: expect.objectContaining({ provider: 'mistral', source: 'tts-derived' }),
         voices: expect.objectContaining({
@@ -133,8 +153,64 @@ describe('user/voice-resolution route', () => {
     );
   });
 
+  it('resolves Voice Response Mode through the cascade resolver, honoring channelId', async () => {
+    mockPrisma.personality.findFirst.mockResolvedValue({
+      id: VALID_PERSONALITY_ID,
+      name: 'Alice',
+      voiceEnabled: false,
+    });
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-1' });
+    mockResolveOverrides.mockResolvedValue({
+      voiceResponseMode: 'voice-only',
+      sources: { voiceResponseMode: 'channel' },
+    });
+
+    const { handler } = buildHandler(handleGetVoiceResolution);
+    const { res, json } = makeMockRes();
+
+    await handler(
+      makeMockReq({ personalityId: VALID_PERSONALITY_ID, channelId: '222222222222222222' }),
+      res
+    );
+
+    expect(mockResolveOverrides).toHaveBeenCalledWith(
+      '111111111111111111',
+      VALID_PERSONALITY_ID,
+      '222222222222222222'
+    );
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        voiceEnabled: false,
+        voiceResponseMode: { value: 'voice-only', source: 'channel' },
+      })
+    );
+  });
+
+  it('rejects a non-snowflake channelId before the handler (manifest query validation)', async () => {
+    // The manifest is the ONLY validation layer for this query — the def's
+    // channelId regex runs in withManifestInput, so a malformed id 400s
+    // without touching Prisma.
+    const { handler } = buildHandler(handleGetVoiceResolution);
+    const { res, json, status } = makeMockRes();
+
+    await handler(
+      makeMockReq({ personalityId: VALID_PERSONALITY_ID, channelId: 'not-a-snowflake' }),
+      res
+    );
+
+    expect(status).toHaveBeenCalledWith(StatusCodes.BAD_REQUEST);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('channelId') })
+    );
+    expect(mockPrisma.personality.findFirst).not.toHaveBeenCalled();
+  });
+
   it('STT resolution is delegated to SttResolver (returns whatever it returns)', async () => {
-    mockPrisma.personality.findFirst.mockResolvedValue({ id: VALID_PERSONALITY_ID, name: 'Alice' });
+    mockPrisma.personality.findFirst.mockResolvedValue({
+      id: VALID_PERSONALITY_ID,
+      name: 'Alice',
+      voiceEnabled: true,
+    });
     mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-1' });
     mockResolveConfig.mockResolvedValue({
       config: { provider: 'self-hosted' },
@@ -143,7 +219,7 @@ describe('user/voice-resolution route', () => {
     mockResolveStt.mockResolvedValue({ provider: 'voice-engine', source: 'hardcoded' });
     mockResolveAudioProviderKeys.mockResolvedValue({ keys: new Map() });
 
-    const handler = buildHandler(handleGetVoiceResolution);
+    const { handler } = buildHandler(handleGetVoiceResolution);
     const { res, json } = makeMockRes();
 
     await handler(makeMockReq({ personalityId: VALID_PERSONALITY_ID }), res);
@@ -157,7 +233,11 @@ describe('user/voice-resolution route', () => {
   });
 
   it('returns empty voice summary when user has no audio provider keys', async () => {
-    mockPrisma.personality.findFirst.mockResolvedValue({ id: VALID_PERSONALITY_ID, name: 'Alice' });
+    mockPrisma.personality.findFirst.mockResolvedValue({
+      id: VALID_PERSONALITY_ID,
+      name: 'Alice',
+      voiceEnabled: true,
+    });
     mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-1' });
     mockResolveConfig.mockResolvedValue({
       config: { provider: 'self-hosted' },
@@ -166,7 +246,7 @@ describe('user/voice-resolution route', () => {
     mockResolveStt.mockResolvedValue({ provider: 'voice-engine', source: 'hardcoded' });
     mockResolveAudioProviderKeys.mockResolvedValue({ keys: new Map() });
 
-    const handler = buildHandler(handleGetVoiceResolution);
+    const { handler } = buildHandler(handleGetVoiceResolution);
     const { res, json } = makeMockRes();
 
     await handler(makeMockReq({ personalityId: VALID_PERSONALITY_ID }), res);
@@ -182,7 +262,7 @@ describe('user/voice-resolution route', () => {
   it('returns 404 when personality is missing', async () => {
     mockPrisma.personality.findFirst.mockResolvedValue(null);
 
-    const handler = buildHandler(handleGetVoiceResolution);
+    const { handler } = buildHandler(handleGetVoiceResolution);
     const { res, status } = makeMockRes();
 
     await handler(makeMockReq({ personalityId: VALID_PERSONALITY_ID }), res);
@@ -191,7 +271,7 @@ describe('user/voice-resolution route', () => {
   });
 
   it('rejects non-uuid personalityId via Zod', async () => {
-    const handler = buildHandler(handleGetVoiceResolution);
+    const { handler } = buildHandler(handleGetVoiceResolution);
     const { res, status } = makeMockRes();
 
     await handler(makeMockReq({ personalityId: 'not-a-uuid' }), res);

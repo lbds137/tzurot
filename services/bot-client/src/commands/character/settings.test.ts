@@ -303,8 +303,8 @@ describe('Character Settings Dashboard', () => {
         (f: { name: string }) => f.name === '💬 Max Messages'
       );
 
-      // personality source should show as Override (localValue extracted)
-      expect(maxMessagesField?.value).toContain('Override');
+      // personality source should show as Set here (localValue extracted)
+      expect(maxMessagesField?.value).toContain('Set here');
     });
 
     it('should handle character not found', async () => {

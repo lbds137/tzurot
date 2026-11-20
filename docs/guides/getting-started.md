@@ -56,6 +56,15 @@ them to know about you. `/persona edit` fills yours out, `/persona create`
 makes alternates, and `/persona override set` presents a different persona to
 a specific character.
 
+## Make it yours
+
+- `/character overrides` tunes one character for you: memory, context &
+  display, and whether it replies with voice (or `/voice replies` for just
+  that last part).
+- `/settings defaults edit` sets the same behaviours across every character.
+- `/voice view` shows a character's voice settings — reply mode, the TTS and
+  transcription providers in use — and where each value comes from.
+
 ## Memory
 
 Characters remember what matters across conversations, and the memory is
@@ -78,9 +87,11 @@ yours to inspect:
   file, or quote or forward one, and it gets transcribed and answered like
   text.
 - **Hear them back**: characters can reply with speech. `/character voice set`
-  enrolls a cloned voice for a character from reference audio; `/voice`
-  configures which text-to-speech and transcription providers are used and
-  manages your cloned-voice library.
+  enrolls a cloned voice for a character from reference audio; `/voice replies`
+  chooses when a character replies with voice (note: the character's creator
+  also has to enable voice for it — `/voice view` shows whether it is);
+  `/voice` configures which text-to-speech and transcription providers are
+  used and manages your cloned-voice library.
 - Voice runs on self-hosted infrastructure by default — no key needed — or
   through Mistral / ElevenLabs with your own key.
 

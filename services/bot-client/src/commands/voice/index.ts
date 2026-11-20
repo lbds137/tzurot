@@ -6,7 +6,8 @@
  * - /voice tts browse|set|clear|default — TTS provider config (per-character overrides + user-default)
  * - /voice stt set|clear — transcription provider preference (user-scoped; STT is speaker-bound)
  * - /voice voices browse|delete|purge — cloned-voice lifecycle
- * - /voice view <character> — unified TTS+STT+voices dashboard
+ * - /voice replies <character> <mode> — when the character replies with voice (per-character)
+ * - /voice view <character> — unified voice settings dashboard (reply mode + TTS + STT)
  */
 
 import {
@@ -17,6 +18,7 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { SELECTOR_DESCRIPTION } from '@tzurot/common-types/constants/uxVocabulary';
+import { VOICE_RESPONSE_MODES } from '@tzurot/common-types/constants/voice';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
@@ -47,6 +49,10 @@ import { handleSttClear } from './stt/clear.js';
 
 // View handler
 import { handleVoiceView } from './view.js';
+
+// Replies handler (per-character Voice Response Mode write path)
+import { handleVoiceReplies } from './replies.js';
+import { voiceModeValueLabel } from './modeLabels.js';
 
 // Voices handlers
 import {
@@ -114,10 +120,14 @@ async function execute(context: SafeCommandContext): Promise<void> {
     return;
   }
 
-  // No subcommand group → top-level subcommand (currently only `view`)
+  // No subcommand group → top-level subcommand (`view`, `replies`)
   const subcommand = context.getSubcommand();
   if (subcommand === 'view') {
     await handleVoiceView(deferredCtx);
+    return;
+  }
+  if (subcommand === 'replies') {
+    await handleVoiceReplies(deferredCtx);
     return;
   }
 
@@ -205,17 +215,43 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
 export default defineCommand({
   data: new SlashCommandBuilder()
     .setName('voice')
-    .setDescription('Voice configuration: TTS + STT providers + cloned voices')
+    .setDescription(
+      'Voice settings: when characters reply with voice, TTS + STT providers, cloned voices'
+    )
     .addSubcommand(subcommand =>
       subcommand
         .setName('view')
-        .setDescription('Show resolved TTS + STT + voices for a character')
+        .setDescription('Voice settings for a character: reply mode, TTS + STT in use')
         .addStringOption(option =>
           option
             .setName('character')
             .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('replies')
+        .setDescription('Choose when a character replies with voice (for you)')
+        .addStringOption(option =>
+          option
+            .setName('character')
+            .setDescription(SELECTOR_DESCRIPTION.character)
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+          option
+            .setName('mode')
+            .setDescription('When the character replies with voice')
+            .setRequired(true)
+            .addChoices(
+              ...VOICE_RESPONSE_MODES.map(mode => ({
+                name: voiceModeValueLabel(mode),
+                value: mode,
+              }))
+            )
         )
     )
     .addSubcommandGroup(buildVoiceTtsSubcommandGroup)
