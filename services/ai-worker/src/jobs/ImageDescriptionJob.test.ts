@@ -62,6 +62,17 @@ vi.mock('../redis.js', () => ({
   checkModelVisionSupport: (...args: unknown[]) => mockCheckModelVisionSupport(...args),
 }));
 
+// Shared logger spies (hoisted so they exist when the module under test calls createLogger).
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: () => mockLogger };
+});
+
 // Import the mocked modules
 import { describeImage } from '../services/MultimodalProcessor.js';
 import { withRetry } from '../utils/retry.js';
@@ -339,6 +350,48 @@ describe('ImageDescriptionJob', () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain('All images failed processing');
       expect(result.error).toContain('Details:'); // Enhanced error includes failure details
+    });
+
+    it('reports a failed attachment by URL shape in the log and the returned error, never the raw URL', async () => {
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-image-shape',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://cdn.discordapp.com/attachments/111/222/SENTINEL_FILE.png?hm=SENTINEL_HM',
+            name: 'SENTINEL_FILE.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: mockPersonality,
+        context: { userId: 'user-123', channelId: 'channel-456' },
+        responseDestination: { type: 'discord', channelId: 'channel-456' },
+      };
+      const job = {
+        id: 'image-test-req-image-shape',
+        data: jobData,
+      } as Job<ImageDescriptionJobData>;
+      mockWithRetry.mockRejectedValue(new Error('Vision model timeout after 3 attempts'));
+
+      const result = await processImageDescriptionJob(job);
+
+      const shape = 'cdn.discordapp.com/attachments/111/222';
+      expect(result.error).toContain(`${shape}: Vision model timeout`);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          failureDetails: expect.stringContaining(`${shape}: Vision model timeout`),
+        }),
+        'All image descriptions failed'
+      );
+      const logged = JSON.stringify([
+        ...mockLogger.error.mock.calls,
+        ...mockLogger.warn.mock.calls,
+      ]);
+      for (const sentinel of ['SENTINEL_FILE', 'SENTINEL_HM']) {
+        expect(logged).not.toContain(sentinel);
+        expect(result.error).not.toContain(sentinel);
+      }
     });
 
     it('should reject invalid attachment type (audio instead of image)', async () => {

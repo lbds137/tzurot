@@ -475,7 +475,7 @@ export default tseslint.config(
       // (type-aware: string receivers only) or a raw `.text()` response body
       // must not reach a log call's fields or an Error message. User content
       // goes through contentPreview (log fields only) or contentDigest;
-      // id/token/URL prefixes through idPrefix/urlPrefix; a raw filename read
+      // id/token prefixes through idPrefix, URLs through attachmentUrlShape; a raw filename read
       // (an attachment/file `.name`) through filenameShape — log fields, and
       // (outside packages/tooling) Error messages, extension only there
       // (packages/common-types/src/utils/logContentPreview.ts).

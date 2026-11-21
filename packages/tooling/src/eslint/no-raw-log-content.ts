@@ -36,10 +36,10 @@
  * only. At an Error sink a `contentPreview(...)` call is itself a finding
  * (`previewInError`): a preview belongs in one log field, while an Error
  * message rides `.message` into every `logger.error({ err })` that handles it.
- * The non-content prefix helpers `idPrefix` / `urlPrefix` need no exemption —
- * they are not `.slice` / `.substring` calls, so an id or URL prefix routed
- * through them is never a finding — and deliberately get none: a response
- * body passed into one (`urlPrefix(body, n)`) is still Pattern B.
+ * The non-content prefix helper `idPrefix` needs no exemption — it is not a
+ * `.slice` / `.substring` call, so an id prefix routed through it is never a
+ * finding — and deliberately gets none: a response body passed into it
+ * (`idPrefix(body, n)`) is still Pattern B.
  *
  * Option `{ errorSinks?: boolean }` (default `true`): `false` skips every
  * Error-constructor sink — no truncation, `.text()` body or preview check runs
@@ -74,6 +74,28 @@
  * filename passed into any call whose result is logged is flagged even when
  * the callee never logs it — wrap it at that call.
  *
+ * Pattern D — RAW ATTACHMENT URL READ, at both sinks: a non-computed read of
+ * `url` / `proxyURL` / `proxy_url` / `originalUrl` off an "attachment-ish"
+ * object — Pattern C's file-ish names plus `img` / `image` / `audio` and names
+ * ending in `Image` / `Audio` (case-sensitive). A Discord CDN attachment URL
+ * ends in the user-supplied filename, and a truncation of it can still carry
+ * it: the sanctioned route is `attachmentUrlShape(url)` (a Discord
+ * attachment's host + channel and attachment ids, else the host alone), exempt
+ * at both sinks. A URL read inside any other call (`String(attachment.url)`)
+ * is still flagged. The receiver-name gate is what keeps
+ * `link.url`, `config.url` and Express `req.originalUrl` out. Reported as
+ * `rawAttachmentUrl` at a log sink and `rawAttachmentUrlInError` at an Error
+ * sink (`errorSinks: false` skips the Error-sink half, as for every pattern). The one-hop
+ * const and destructuring mechanisms apply as in Pattern C, except that inside a
+ * hopped const's initializer whose declarator id is a destructuring pattern, a
+ * URL passed as a call ARGUMENT is skipped (the logged identifier is a selected
+ * field of the call's result, not its input: `const { bytes } = await
+ * fetchBytes(attachment.url)`). A plain-identifier const keeps every call
+ * argument flagged (`const label = String(attachment.url)`, `const u =
+ * trimUrl(attachment.url, 40)`): the identifier carries the whole result. A URL held in a
+ * bare identifier with no attachment-ish source in the same file (a parameter
+ * named `fetchUrl`, a field of `entry`) is invisible.
+ *
  * What the rule cannot see (by design — the reach is per-file, per-sink).
  * Each limit is pinned as a passing case in `no-raw-log-content.test.ts`:
  *   - cross-function flow: a helper that returns `text.slice(0, n)`, or a
@@ -84,9 +106,15 @@
  *   - log-call arguments after the first (the pino message string);
  *   - truncation through other helpers (`truncateText(s, n)`), which are
  *     not `.slice` / `.substring` calls;
- *   - a filename read through a COMPUTED member (`attachments[0].name`);
+ *   - a filename or URL read through a COMPUTED member (`attachments[0].name`);
  *   - a filename destructured from a function PARAMETER
- *     (`({ name }: Attachment) => ...`) rather than a `const` declarator.
+ *     (`({ name }: Attachment) => ...`) rather than a `const` declarator;
+ *   - a URL passed into a call inside a destructured const, even when the
+ *     selected field is derived from the URL
+ *     (`const { pathname } = parseUrl(attachment.url)`): the call-argument
+ *     skip cannot tell a field of the result from a field of the input;
+ *   - the same skip reaches the whole argument subtree, so a URL nested
+ *     deeper (`const { a } = outer(inner(attachment.url))`) is skipped too.
  *
  * Receiver typing: when the file has no type program (the rule enabled in a
  * block without `projectService`), every `.slice(0, n)` / `.substring(0, n)`
@@ -95,6 +123,16 @@
 
 import type { Rule, Scope } from 'eslint';
 import { type MessageId, MESSAGES } from './no-raw-log-content-messages.js';
+import {
+  type AstNode,
+  fileIshObjectName,
+  isAttachmentIshName,
+  isAttachmentUrlProp,
+  isAttachmentUrlRead,
+  isFilenameProp,
+  isFileIshName,
+  isFilenameRead,
+} from './no-raw-log-content-reads.js';
 
 /** Pino-style log methods; the receiver name is deliberately NOT matched. */
 const LOG_METHODS = new Set(['info', 'warn', 'error', 'debug', 'trace', 'fatal']);
@@ -111,16 +149,17 @@ const PREVIEW_CALLEE = 'contentPreview';
 /** The filename gate (extension + length, never the stem): exempt at every sink. */
 const FILENAME_SHAPE_CALLEE = 'filenameShape';
 
-/** Non-computed property names that read a filename off a file-ish object. */
-const FILENAME_PROPS = new Set(['name', 'filename', 'fileName', 'originalName']);
+/** The attachment-URL gate (Discord host + ids, else host only): exempt at every sink. */
+const URL_SHAPE_CALLEE = 'attachmentUrlShape';
 
-/** What one kind of sink reports for a raw truncation, a `contentPreview` call, and a raw filename read. */
+/** What one kind of sink reports for a raw truncation, a `contentPreview` call, and raw filename / URL reads. */
 interface SinkPolicy {
   truncation: MessageId;
   /** `null` when `contentPreview` is sanctioned at this sink (its subtree is skipped). */
   preview: MessageId | null;
   /** `null` when a filename read is out of scope at this sink (Error sinks). */
   filename: MessageId | null;
+  attachmentUrl: MessageId;
 }
 
 /** The rule's one option; `errorSinks: false` skips every Error-constructor sink. */
@@ -132,18 +171,14 @@ const LOG_SINK: SinkPolicy = {
   truncation: 'rawTruncation',
   preview: null,
   filename: 'rawFilename',
+  attachmentUrl: 'rawAttachmentUrl',
 };
 const ERROR_SINK: SinkPolicy = {
   truncation: 'rawTruncationInError',
   preview: 'previewInError',
   filename: 'rawFilenameInError',
+  attachmentUrl: 'rawAttachmentUrlInError',
 };
-
-interface AstNode {
-  type: string;
-  parent?: AstNode;
-  [key: string]: unknown;
-}
 
 /** The TypeChecker surface the receiver check uses (structural, no runtime import). */
 interface TypeLike {
@@ -182,6 +217,22 @@ interface WalkState {
   hops: number;
   sink: SinkPolicy;
   out: Finding[];
+  /**
+   * True while inside the initializer of a hopped const whose declarator id is
+   * a destructuring pattern: the logged identifier is a selected field of the
+   * initializer's result, not the result itself.
+   */
+  patternHop?: boolean;
+  /**
+   * Set while walking the arguments of a call inside a pattern-destructured
+   * hopped const: an attachment URL passed INTO a call there (`const { bytes }
+   * = await download(attachment.url)`) is the call's input, not what the logged
+   * field carries, so Pattern D skips it. A URL read on the call's own callee
+   * chain (`attachment.url.split('/').pop()`) is still flagged, and so is a URL
+   * passed into a call whose whole result is held in a plain const
+   * (`const label = String(attachment.url)`).
+   */
+  skipUrl?: boolean;
 }
 
 function calleeName(node: AstNode): string | undefined {
@@ -234,47 +285,6 @@ function isTextBodyInit(init: AstNode | null | undefined): boolean {
     calleeName(call) === 'text' &&
     (call.arguments as AstNode[]).length === 0
   );
-}
-
-/**
- * The name that decides whether an object is "file-ish": an Identifier's own
- * name, or — for a non-computed member chain (`msg.attachment`) — its last
- * property name. A computed object (`attachments[0]`) has no such name.
- */
-function fileIshObjectName(node: AstNode): string | undefined {
-  if (node.type === 'Identifier') {
-    return node.name as string;
-  }
-  if (node.type === 'MemberExpression' && node.computed !== true) {
-    const property = node.property as AstNode;
-    return property.type === 'Identifier' ? (property.name as string) : undefined;
-  }
-  return undefined;
-}
-
-/** `attachment`, `att`, `file`, `upload`, or a name ending in `Attachment`/`File` (case-sensitive). */
-function isFileIshName(name: string): boolean {
-  return (
-    name === 'attachment' ||
-    name === 'att' ||
-    name === 'file' ||
-    name === 'upload' ||
-    name.endsWith('Attachment') ||
-    name.endsWith('File')
-  );
-}
-
-/** `attachment.name`, `att.filename`, `msg.attachment.name` — a filename read off a file-ish object. */
-function isFilenameRead(node: AstNode): boolean {
-  if (node.type !== 'MemberExpression' || node.computed === true) {
-    return false;
-  }
-  const property = node.property as AstNode;
-  if (property.type !== 'Identifier' || !FILENAME_PROPS.has(property.name as string)) {
-    return false;
-  }
-  const objectName = fileIshObjectName(node.object as AstNode);
-  return objectName !== undefined && isFileIshName(objectName);
 }
 
 /** `new Error(...)`, `new GatewayError(...)`, `new errors.FooError(...)`. */
@@ -336,7 +346,7 @@ function resolveVariable(context: Rule.RuleContext, identifier: AstNode): Scope.
 function variableInit(
   env: WalkEnv,
   identifier: AstNode
-): { init: AstNode | null | undefined; kind: string | undefined } | null {
+): { init: AstNode | null | undefined; kind: string | undefined; isPattern: boolean } | null {
   const def = resolveVariable(env.context, identifier)?.defs[0];
   if (def?.type !== 'Variable') {
     return null;
@@ -344,6 +354,9 @@ function variableInit(
   return {
     init: (def.node as { init?: AstNode | null }).init,
     kind: (def.parent as { kind?: string }).kind,
+    isPattern: ['ObjectPattern', 'ArrayPattern'].includes(
+      (def.node as unknown as { id: AstNode }).id.type
+    ),
   };
 }
 
@@ -357,13 +370,17 @@ function isStringReceiver(env: WalkEnv, receiver: AstNode): boolean {
   return env.checker.isTypeAssignableTo(type, env.checker.getStringType());
 }
 
-/** True when a filename read at a log sink is reported here; anything else walks on as before. */
+/** True when a filename or attachment-URL read is reported here; anything else walks on as before. */
 function collectMemberExpression(node: AstNode, state: WalkState): boolean {
-  if (state.sink.filename === null || !isFilenameRead(node)) {
-    return false;
+  if (state.sink.filename !== null && isFilenameRead(node)) {
+    state.out.push({ node, messageId: state.sink.filename });
+    return true;
   }
-  state.out.push({ node, messageId: state.sink.filename });
-  return true;
+  if (state.skipUrl !== true && isAttachmentUrlRead(node)) {
+    state.out.push({ node, messageId: state.sink.attachmentUrl });
+    return true;
+  }
+  return false;
 }
 
 /** Walk a sink subtree collecting findings into `state.out`. */
@@ -378,11 +395,23 @@ function collect(env: WalkEnv, node: AstNode, state: WalkState): void {
     collectIdentifier(env, node, state);
     return;
   }
+  collectChildren(env, node, state);
+}
+
+/** Walks every value child of `node`; inside a pattern-destructured hopped const, call arguments are walked with `skipUrl`. */
+function collectChildren(env: WalkEnv, node: AstNode, state: WalkState): void {
   for (const key of valueKeys(node, env.visitorKeys)) {
     const child = node[key] as AstNode | (AstNode | null)[] | null | undefined;
+    const childState =
+      node.type === 'CallExpression' &&
+      key === 'arguments' &&
+      state.hops === 0 &&
+      state.patternHop === true
+        ? { ...state, skipUrl: true }
+        : state;
     for (const item of Array.isArray(child) ? child : [child]) {
       if (item !== null && item !== undefined && typeof item.type === 'string') {
-        collect(env, item, state);
+        collect(env, item, childState);
       }
     }
   }
@@ -397,7 +426,7 @@ function collect(env: WalkEnv, node: AstNode, state: WalkState): void {
  */
 function collectCall(env: WalkEnv, node: AstNode, state: WalkState): boolean {
   const name = calleeName(node);
-  if (name === DIGEST_CALLEE || name === FILENAME_SHAPE_CALLEE) {
+  if (name === DIGEST_CALLEE || name === FILENAME_SHAPE_CALLEE || name === URL_SHAPE_CALLEE) {
     return true;
   }
   if (name === PREVIEW_CALLEE) {
@@ -419,14 +448,20 @@ function collectCall(env: WalkEnv, node: AstNode, state: WalkState): boolean {
 
 /**
  * `const { name } = attachment;` — resolves an identifier back to the
- * declarator's `init` when it was destructured from a filename-prop key
- * (`name` / `filename` / `fileName` / `originalName`, plain or via an
- * `AssignmentPattern` default) matching this identifier's own name. Returns
- * `null` when the identifier isn't such a destructured binding at all — a
- * plain `const` (`const n = file.name`) or a function-parameter pattern
+ * declarator's `init` when it was destructured from a key accepted by the
+ * `isProp` predicate (plain or via an `AssignmentPattern` default) and the
+ * bound name is this identifier's own. The predicate picks the prop family:
+ * `isFilenameProp` (`name` / `filename` / `fileName` / `originalName`) or
+ * `isAttachmentUrlProp` (the URL props). Returns `null` when the identifier
+ * isn't such a destructured binding at all — a plain `const`
+ * (`const n = file.name`) or a function-parameter pattern
  * (`({ name }: Attachment) => ...`, not a `VariableDeclarator`) don't match.
  */
-function destructuredFilenameSource(env: WalkEnv, identifier: AstNode): AstNode | null {
+function destructuredPropSource(
+  env: WalkEnv,
+  identifier: AstNode,
+  isProp: (name: string) => boolean
+): AstNode | null {
   const def = resolveVariable(env.context, identifier)?.defs[0];
   if (def?.type !== 'Variable') {
     return null;
@@ -446,7 +481,7 @@ function destructuredFilenameSource(env: WalkEnv, identifier: AstNode): AstNode 
       return false;
     }
     const key = property.key as AstNode;
-    if (key.type !== 'Identifier' || !FILENAME_PROPS.has(key.name as string)) {
+    if (key.type !== 'Identifier' || !isProp(key.name as string)) {
       return false;
     }
     let value = property.value as AstNode;
@@ -458,15 +493,32 @@ function destructuredFilenameSource(env: WalkEnv, identifier: AstNode): AstNode 
   return matched ? declaratorInit : null;
 }
 
+/** Reports an identifier destructured from a file-ish source's filename prop or an attachment-ish source's URL prop. */
+function collectDestructuredRead(env: WalkEnv, node: AstNode, state: WalkState): boolean {
+  const filenameSource = destructuredPropSource(env, node, isFilenameProp);
+  if (filenameSource !== null && state.sink.filename !== null) {
+    const objectName = fileIshObjectName(filenameSource);
+    if (objectName !== undefined && isFileIshName(objectName)) {
+      state.out.push({ node, messageId: state.sink.filename });
+      return true;
+    }
+  }
+  const urlSource =
+    state.skipUrl === true ? null : destructuredPropSource(env, node, isAttachmentUrlProp);
+  if (urlSource !== null) {
+    const objectName = fileIshObjectName(urlSource);
+    if (objectName !== undefined && isAttachmentIshName(objectName)) {
+      state.out.push({ node, messageId: state.sink.attachmentUrl });
+      return true;
+    }
+  }
+  return false;
+}
+
 /** A `.text()` body is a finding; a `const` is entered once (the one hop). */
 function collectIdentifier(env: WalkEnv, node: AstNode, state: WalkState): void {
-  const destructuredSource = state.hops > 0 ? destructuredFilenameSource(env, node) : null;
-  if (destructuredSource !== null) {
-    const objectName = fileIshObjectName(destructuredSource);
-    if (objectName !== undefined && isFileIshName(objectName) && state.sink.filename !== null) {
-      state.out.push({ node, messageId: state.sink.filename });
-      return;
-    }
+  if (state.hops > 0 && collectDestructuredRead(env, node, state)) {
+    return;
   }
   const binding = variableInit(env, node);
   if (binding === null) {
@@ -482,7 +534,11 @@ function collectIdentifier(env: WalkEnv, node: AstNode, state: WalkState): void 
     binding.init !== null &&
     binding.init !== undefined
   ) {
-    collect(env, binding.init, { ...state, hops: state.hops - 1 });
+    collect(env, binding.init, {
+      ...state,
+      hops: state.hops - 1,
+      patternHop: binding.isPattern,
+    });
   }
 }
 
@@ -491,7 +547,7 @@ const rule: Rule.RuleModule = {
     type: 'problem',
     docs: {
       description:
-        'Disallow raw string truncation, raw response bodies, or raw filename reads reaching log fields and Error messages, and contentPreview reaching Error messages — route content through contentPreview (log fields only), contentDigest, or filenameShape (filenames; only its extension in an Error message)',
+        'Disallow raw string truncation, raw response bodies, or raw filename or attachment-URL reads reaching log fields and Error messages, and contentPreview reaching Error messages — route content through contentPreview (log fields only), contentDigest, filenameShape (filenames; only its extension in an Error message) or attachmentUrlShape (attachment URLs)',
       recommended: true,
     },
     messages: MESSAGES,

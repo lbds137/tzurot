@@ -22,6 +22,7 @@ import {
   UnsupportedAudioFormatError,
 } from '@tzurot/common-types/utils/errors';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { attachmentUrlShape } from '@tzurot/common-types/utils/logContentPreview';
 import { withRetry, RetryError } from '../../utils/retry.js';
 import { validateAttachmentUrl, isDataUrl } from '../../utils/attachmentFetch.js';
 import {
@@ -76,7 +77,7 @@ export async function fetchAudioBuffer(url: string): Promise<ArrayBuffer> {
   const fetchTimeout = setTimeout(() => controller.abort(), TIMEOUTS.AUDIO_FETCH);
 
   try {
-    logger.debug({ url: fetchUrl }, 'Fetching audio');
+    logger.debug({ urlShape: attachmentUrlShape(fetchUrl) }, 'Fetching audio');
     const response = await fetch(fetchUrl, { signal: controller.signal });
 
     if (!response.ok) {
@@ -389,7 +390,10 @@ async function lookupCachedTranscript(attachment: AttachmentMetadata): Promise<s
       return null;
     }
     logger.info(
-      { originalUrl: attachment.originalUrl, transcriptLength: cachedTranscript.length },
+      {
+        urlShape: attachmentUrlShape(attachment.originalUrl),
+        transcriptLength: cachedTranscript.length,
+      },
       'Using cached voice transcript from Redis'
     );
     return cachedTranscript;

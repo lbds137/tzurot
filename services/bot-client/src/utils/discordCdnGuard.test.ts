@@ -61,6 +61,22 @@ describe('validateDiscordCdnUrl', () => {
     );
   });
 
+  it('logs the host only, never the URL path, filename or query', () => {
+    const logger = mockLogger();
+    validateDiscordCdnUrl(
+      'https://evil.example.com/attachments/1/2/SENTINEL_FILENAME.png?hm=SENTINEL_QUERY',
+      logger
+    );
+    const warn = vi.mocked(logger.warn);
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ host: 'evil.example.com' }),
+      expect.any(String)
+    );
+    const logged = JSON.stringify(warn.mock.calls);
+    expect(logged).not.toContain('SENTINEL_FILENAME');
+    expect(logged).not.toContain('SENTINEL_QUERY');
+  });
+
   it('does not log when host is valid', () => {
     const logger = mockLogger();
     validateDiscordCdnUrl('https://cdn.discordapp.com/x.png', logger);
