@@ -287,9 +287,19 @@ one same-file `const`); Pattern B, a `.text()` response body. Anything inside
 inside `contentPreview` (dev-gated behind `LOG_CONTENT_PREVIEWS`) is exempt in
 a log field only — a `contentPreview` call inside an `Error` message is itself
 flagged, because the message rides `.message` into every `logger.error({ err })`
-that handles it. `.length` reads carry no content. Identifier and URL prefixes
-go through `idPrefix` / `urlPrefix`, which are not truncation calls and so
-never flag.
+that handles it. `.length` reads carry no content. Identifier prefixes
+go through `idPrefix`, which is not a truncation call and so never flags.
+
+Two more patterns read user-supplied names off attachment-like objects, at both
+sinks. Pattern C: a filename read (`attachment.name` / `.filename` /
+`.fileName` / `.originalName`) — route it through `filenameShape`. Pattern D: an
+attachment URL read (`attachment.url` / `.proxyURL` / `.proxy_url` /
+`.originalUrl`, also off `img` / `image` / `audio` receivers) — a Discord CDN
+URL ends in the filename and a truncation can still carry it, so a URL read
+inside any other call still flags; route it through `attachmentUrlShape` (a Discord
+attachment's host + channel and attachment ids, else the host alone). Both helpers live in
+`@tzurot/common-types/utils/logContentPreview`; the receiver-name gate and its
+limits are in the rule's docblock.
 
 **Option** `{ errorSinks?: boolean }` (default `true`): `false` skips every
 `Error`-constructor sink (no truncation, body, or preview check there) while

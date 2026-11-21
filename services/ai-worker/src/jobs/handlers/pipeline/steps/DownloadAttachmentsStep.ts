@@ -39,7 +39,7 @@ import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsSe
 import { keepStickersIf } from '@tzurot/common-types/services/stickerVisionGate';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { filenameShape } from '@tzurot/common-types/utils/logContentPreview';
+import { attachmentUrlShape, filenameShape } from '@tzurot/common-types/utils/logContentPreview';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 import {
   JobPayloadTooLargeError,
@@ -312,7 +312,7 @@ export class DownloadAttachmentsStep implements IPipelineStep {
       {
         jobId,
         file: filenameShape(attachment.name),
-        originalUrl: attachment.url,
+        urlShape: attachmentUrlShape(attachment.url),
         finalBytes: bytes,
       },
       'Attachment downloaded'

@@ -21,7 +21,7 @@ import {
   isTooLongError,
   isUnsupportedFormatError,
 } from '@tzurot/common-types/utils/errors';
-import { urlPrefix } from '@tzurot/common-types/utils/logContentPreview';
+import { attachmentUrlShape } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { voiceTranscriptCache } from '../redis.js';
 import {
@@ -402,7 +402,7 @@ export class VoiceTranscriptionService {
       if (voiceAttachment !== undefined && voiceAttachment !== null) {
         await voiceTranscriptCache.store(voiceAttachment.originalUrl, response.content);
         logger.debug(
-          { urlPreview: urlPrefix(voiceAttachment.url, 50) },
+          { urlShape: attachmentUrlShape(voiceAttachment.url) },
           'Cached transcript for attachment'
         );
       }

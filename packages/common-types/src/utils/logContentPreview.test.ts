@@ -9,8 +9,8 @@ import {
   contentPreview,
   contentDigest,
   idPrefix,
-  urlPrefix,
   filenameShape,
+  attachmentUrlShape,
 } from './logContentPreview.js';
 
 const setConfig = (NODE_ENV: string, LOG_CONTENT_PREVIEWS: boolean): void => {
@@ -176,21 +176,145 @@ describe('idPrefix', () => {
   });
 });
 
-describe('urlPrefix', () => {
-  it('returns the first n characters of a URL', () => {
-    setConfig('production', false);
-    expect(urlPrefix('https://example.com/path/to/resource.png', 20)).toBe('https://example.com/');
+describe('attachmentUrlShape', () => {
+  it('keeps a Discord attachment as host + channel/attachment ids, dropping filename, query and fragment', () => {
+    expect(
+      attachmentUrlShape(
+        'https://cdn.discordapp.com/attachments/123/456/photo.png?ex=1&hm=abc#frag'
+      )
+    ).toBe('cdn.discordapp.com/attachments/123/456');
   });
 
-  it('returns the whole value when the URL is shorter than n', () => {
-    setConfig('production', false);
-    expect(urlPrefix('https://short.io', 100)).toBe('https://short.io');
+  it('never returns any part of a filename with dots and spaces', () => {
+    const shape = attachmentUrlShape(
+      'https://cdn.discordapp.com/attachments/123/456/my%20secret.diary.v2.txt?ex=1'
+    );
+    expect(shape).toBe('cdn.discordapp.com/attachments/123/456');
+    expect(shape).not.toContain('secret');
+    expect(shape).not.toContain('diary');
   });
 
-  it('returns the prefix even when content previews are disabled', () => {
-    setConfig('production', false);
-    expect(contentPreviewsEnabled()).toBe(false);
-    expect(urlPrefix('https://example.com/path/to/resource.png', 20)).toBe('https://example.com/');
+  it('drops a filename that sits behind a trailing slash', () => {
+    const shape = attachmentUrlShape(
+      'https://cdn.discordapp.com/attachments/123/456/SENTINEL_TRAIL.png/'
+    );
+    expect(shape).toBe('cdn.discordapp.com/attachments/123/456');
+    expect(shape).not.toContain('SENTINEL_TRAIL');
+  });
+
+  it('drops extra segments after the filename', () => {
+    const shape = attachmentUrlShape(
+      'https://cdn.discordapp.com/attachments/123/456/SENTINEL_NAME.png/SENTINEL_EXTRA/more'
+    );
+    expect(shape).toBe('cdn.discordapp.com/attachments/123/456');
+    expect(shape).not.toContain('SENTINEL');
+  });
+
+  it('never returns a percent-encoded filename', () => {
+    const shape = attachmentUrlShape(
+      'https://cdn.discordapp.com/attachments/123/456/SENTINEL%20ENC%2Fname.png'
+    );
+    expect(shape).toBe('cdn.discordapp.com/attachments/123/456');
+    expect(shape).not.toContain('SENTINEL');
+    expect(shape).not.toContain('%');
+  });
+
+  it('drops a signed query and a fragment', () => {
+    const shape = attachmentUrlShape(
+      'https://cdn.discordapp.com/attachments/123/456/SENTINEL_FILE.png?ex=SENTINEL_EX&hm=SENTINEL_HM#SENTINEL_FRAG'
+    );
+    expect(shape).toBe('cdn.discordapp.com/attachments/123/456');
+    expect(shape).not.toContain('SENTINEL');
+  });
+
+  it('keeps the attachment ids for media.discordapp.net', () => {
+    const shape = attachmentUrlShape(
+      'https://media.discordapp.net/attachments/123/456/SENTINEL_MEDIA.png?width=10'
+    );
+    expect(shape).toBe('media.discordapp.net/attachments/123/456');
+    expect(shape).not.toContain('SENTINEL');
+  });
+
+  it('returns only the host for a non-Discord host with a deep path', () => {
+    const shape = attachmentUrlShape(
+      'https://files.example.test/SENTINEL_DIR/SENTINEL_SUB/SENTINEL_NAME.png?token=SENTINEL_TOKEN'
+    );
+    expect(shape).toBe('files.example.test');
+    expect(shape).not.toContain('SENTINEL');
+  });
+
+  it('returns only the host for a Discord CDN URL off the attachments route', () => {
+    const shape = attachmentUrlShape(
+      'https://cdn.discordapp.com/avatars/123/SENTINEL_AVATAR.png?size=64'
+    );
+    expect(shape).toBe('cdn.discordapp.com');
+    expect(shape).not.toContain('SENTINEL');
+  });
+
+  it('returns only the host when the attachments route has non-numeric ids', () => {
+    const shape = attachmentUrlShape(
+      'https://cdn.discordapp.com/attachments/SENTINEL_CHAN/456/name.png'
+    );
+    expect(shape).toBe('cdn.discordapp.com');
+    expect(shape).not.toContain('SENTINEL');
+  });
+
+  it('keeps the route name and ids for an ephemeral-attachments URL, dropping filename and query', () => {
+    const shape = attachmentUrlShape(
+      'https://cdn.discordapp.com/ephemeral-attachments/123/456/SENTINEL_EPH.png?ex=SENTINEL_EX&hm=SENTINEL_HM'
+    );
+    expect(shape).toBe('cdn.discordapp.com/ephemeral-attachments/123/456');
+    expect(shape).not.toContain('SENTINEL');
+  });
+
+  it('returns only the host when the ephemeral-attachments route has non-numeric ids', () => {
+    const shape = attachmentUrlShape(
+      'https://cdn.discordapp.com/ephemeral-attachments/SENTINEL_CHAN/456/name.png'
+    );
+    expect(shape).toBe('cdn.discordapp.com');
+    expect(shape).not.toContain('SENTINEL');
+  });
+
+  it('returns a fixed token for an IPv4 literal host, never the address', () => {
+    const shape = attachmentUrlShape('http://203.0.113.5/SENTINEL_IP.png');
+    expect(shape).toBe('[ip-host]');
+    expect(shape).not.toContain('203');
+  });
+
+  it('returns a fixed token for an IPv4 literal host with a port', () => {
+    const shape = attachmentUrlShape('http://203.0.113.5:8080/SENTINEL_IP.png');
+    expect(shape).toBe('[ip-host]');
+    expect(shape).not.toContain('203');
+    expect(shape).not.toContain('8080');
+  });
+
+  it('returns a fixed token for a bracketed IPv6 literal host, never the address', () => {
+    const shape = attachmentUrlShape('http://[2001:db8::1]/SENTINEL_IP.png');
+    expect(shape).toBe('[ip-host]');
+    expect(shape).not.toContain('2001');
+  });
+
+  it('returns the host alone for a path with one segment', () => {
+    expect(attachmentUrlShape('https://example.com/only.png')).toBe('example.com');
+  });
+
+  it('returns the host alone for a bare-host URL', () => {
+    expect(attachmentUrlShape('https://example.com/')).toBe('example.com');
+  });
+
+  it('returns a fixed token for a data: URL, never the payload', () => {
+    expect(attachmentUrlShape('data:image/png;base64,AAAA')).toBe('[unparsable-url]');
+  });
+
+  it('returns a fixed token for an unparsable string, never the raw input', () => {
+    const shape = attachmentUrlShape('not a url secret.png');
+    expect(shape).toBe('[unparsable-url]');
+    expect(shape).not.toContain('secret');
+  });
+
+  it('returns undefined for undefined and null, like filenameShape', () => {
+    expect(attachmentUrlShape(undefined)).toBeUndefined();
+    expect(attachmentUrlShape(null)).toBeUndefined();
   });
 });
 

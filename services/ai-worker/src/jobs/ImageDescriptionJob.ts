@@ -16,7 +16,7 @@ import {
   imageDescriptionJobDataSchema,
 } from '@tzurot/common-types/types/jobs';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { filenameShape } from '@tzurot/common-types/utils/logContentPreview';
+import { attachmentUrlShape, filenameShape } from '@tzurot/common-types/utils/logContentPreview';
 import { describeImage } from '../services/MultimodalProcessor.js';
 import { describeImageWithFallback } from '../services/multimodal/describeImageWithFallback.js';
 import { withRetry } from '../utils/retry.js';
@@ -255,7 +255,7 @@ async function processSingleImage(options: ProcessSingleImageOptions): Promise<I
     return { url: attachment.url, description: result.value, success: true };
   } catch (error) {
     logger.warn(
-      { url: attachment.url, err: error },
+      { urlShape: attachmentUrlShape(attachment.url), err: error },
       'Image description failed after retries - continuing with other images'
     );
     return {
@@ -277,7 +277,7 @@ function buildAllFailedResult(
 ): ImageDescriptionResult {
   const failureDetails = results
     .filter(r => !r.success)
-    .map(r => `${r.url}: ${r.error}`)
+    .map(r => `${attachmentUrlShape(r.url)}: ${r.error}`)
     .join('; ');
 
   logger.error({ requestId, totalImages, failureDetails }, 'All image descriptions failed');

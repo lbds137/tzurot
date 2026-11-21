@@ -249,6 +249,28 @@ describe('VisionProcessor', () => {
         expect(mockDownloadImageToDataUrl).not.toHaveBeenCalled();
       });
 
+      it('logs the remote image URL as its shape, never the filename or signed query', async () => {
+        const personality = createMockPersonality({ visionModel: 'gpt-4-vision-preview' });
+        // Download failure leaves the remote URL as the vision source, the only path that logs one.
+        mockDownloadImageToDataUrl.mockRejectedValueOnce(new Error('host blocked our egress'));
+
+        await describeImage(
+          {
+            ...mockAttachment,
+            url: 'https://cdn.discordapp.com/attachments/111/222/SENTINEL_FILE.png?hm=SENTINEL_HM',
+          },
+          personality
+        );
+
+        expect(mockLogger.info).toHaveBeenCalledWith(
+          expect.objectContaining({ urlShape: 'cdn.discordapp.com/attachments/111/222' }),
+          'Invoking vision model'
+        );
+        const logged = JSON.stringify(mockLogger.info.mock.calls);
+        expect(logged).not.toContain('SENTINEL_FILE');
+        expect(logged).not.toContain('SENTINEL_HM');
+      });
+
       it('falls back to the provider URL when the worker download fails', async () => {
         const personality = createMockPersonality({ visionModel: 'gpt-4-vision-preview' });
         mockDownloadImageToDataUrl.mockRejectedValueOnce(new Error('host blocked our egress'));

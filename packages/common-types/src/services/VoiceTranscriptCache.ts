@@ -11,7 +11,7 @@ import type { Redis } from 'ioredis';
 import { createLogger } from '../utils/logger.js';
 import { deriveAttachmentCacheKey } from '../utils/attachmentCacheKey.js';
 import { REDIS_KEY_PREFIXES, INTERVALS } from '../constants/index.js';
-import { urlPrefix } from '../utils/logContentPreview.js';
+import { attachmentUrlShape } from '../utils/logContentPreview.js';
 
 const logger = createLogger('VoiceTranscriptCache');
 
@@ -44,7 +44,7 @@ export class VoiceTranscriptCache {
       // ioredis uses lowercase method names: setex instead of setEx
       await this.redis.setex(this.keyFor(attachmentUrl), ttlSeconds, transcript);
       logger.debug(
-        { urlPreview: urlPrefix(attachmentUrl, 50) },
+        { urlShape: attachmentUrlShape(attachmentUrl) },
         '[VoiceTranscriptCache] Stored transcript'
       );
     } catch (error) {
@@ -63,14 +63,14 @@ export class VoiceTranscriptCache {
 
       if (transcript !== null && transcript.length > 0) {
         logger.debug(
-          { urlPreview: urlPrefix(attachmentUrl, 50) },
+          { urlShape: attachmentUrlShape(attachmentUrl) },
           '[VoiceTranscriptCache] Cache HIT'
         );
         return transcript;
       }
 
       logger.debug(
-        { urlPreview: urlPrefix(attachmentUrl, 50) },
+        { urlShape: attachmentUrlShape(attachmentUrl) },
         '[VoiceTranscriptCache] Cache MISS'
       );
       return null;
