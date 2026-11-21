@@ -3,10 +3,10 @@ id: TASK-1131
 title: >-
   Attachment URLs in log fields carry the user-supplied filename (Discord CDN
   paths end in it)
-status: To Do
+status: Done
 assignee: []
 created_date: 2026-09-27 19:05
-updated_date: '2026-11-20T05:58:00Z'
+updated_date: '2026-11-21T12:30:00Z'
 labels:
   - area:ai-worker
   - size:M
