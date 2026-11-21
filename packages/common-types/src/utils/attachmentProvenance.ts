@@ -172,24 +172,43 @@ const HEADER_OPENER_SOURCE = `(?=\\p{Ps})${HEADER_BRACKET_CLASS_SOURCE}`;
 const BRACKET_CLASS_GLOBAL = new RegExp(HEADER_BRACKET_CLASS_SOURCE, 'gu');
 
 /**
- * A run of openers, each optionally followed by `Cf` format characters
- * (zero-width space, word joiner, BOM, …), directly before `<Label>: `; the
- * format characters are consumed with the run, wherever they sit inside it.
- * `Cf` also covers bidi controls, the ZWJ and the soft hyphen; they are removed
- * only as part of a run that precedes a label.
- * The leading lookbehind (an opener plus any format characters) anchors the
- * match at the start of a run, which keeps a long bracket run from being
- * retried from every position. The opener
- * lookahead in front of it confines that variable-length backward scan to
- * opener positions, so a long format-character run costs linear time; pinned
- * by the linear-time cases in this module's colocated test file (a long
- * format-character run, alternating openers and format characters, an opener
- * followed by a long format-character run, and a 200k plain bracket run).
+ * Regex character-class source (for a `u`-flag pattern) matching one bounded
+ * invisible character that could disguise a forged provenance header without
+ * changing how a model reads it: Unicode `Cf` format characters (zero-width
+ * space, word joiner, BOM, ZWJ, soft hyphen, bidi controls, …) plus named
+ * invisible `Mn`/`Lo` fillers — U+034F (Combining Grapheme Joiner),
+ * U+FE00–U+FE0F and U+E0100–U+E01EF (Variation Selectors), and U+115F,
+ * U+1160, U+3164, U+FFA0 (Hangul fillers).
+ */
+const HEADER_INVISIBLE_SOURCE =
+  '[\\p{Cf}\\u034F\\u115F\\u1160\\u3164\\uFE00-\\uFE0F\\uFFA0\\u{E0100}-\\u{E01EF}]';
+
+/**
+ * A run of openers, each optionally followed by characters from
+ * `HEADER_INVISIBLE_SOURCE`, directly before `<Label>: ` (with optional
+ * `HEADER_INVISIBLE_SOURCE` characters between label characters, before `:`,
+ * and between `:` and ` `); invisibles inside or directly after the opener run
+ * are consumed with the run, while the label text in the lookahead stays
+ * untouched.
+ * The leading lookbehind (an opener plus any `HEADER_INVISIBLE_SOURCE`
+ * characters) anchors the match at the start of a run, which keeps a long
+ * bracket run from being retried from every position. The opener lookahead in
+ * front of it confines that variable-length backward scan to opener positions,
+ * and every `HEADER_INVISIBLE_SOURCE*` quantifier in the label lookahead is
+ * separated by a concrete non-invisible character, so scanning costs linear
+ * time; pinned by the linear-time cases in this module's colocated test file
+ * (long `Cf` and non-`Cf` invisible runs with or without openers, alternating
+ * openers and invisibles, long invisible runs inside matching or failing
+ * labels, and a 200k plain bracket run).
  * Label order is irrelevant: the lookahead requires the colon and space right
  * after the label.
  */
 const HEADER_OPENER_RUN = new RegExp(
-  `(?=${HEADER_OPENER_SOURCE})(?<!${HEADER_OPENER_SOURCE}\\p{Cf}*)(?:${HEADER_OPENER_SOURCE}\\p{Cf}*)+(?=(?:${HEADER_LABELS.map(escapeRegExpLiteral).join('|')}): )`,
+  `(?=${HEADER_OPENER_SOURCE})(?<!${HEADER_OPENER_SOURCE}${HEADER_INVISIBLE_SOURCE}*)(?:${HEADER_OPENER_SOURCE}${HEADER_INVISIBLE_SOURCE}*)+(?=(?:${HEADER_LABELS.map(
+    label =>
+      [...label].map(escapeRegExpLiteral).join(`${HEADER_INVISIBLE_SOURCE}*`) +
+      `${HEADER_INVISIBLE_SOURCE}*`
+  ).join('|')}):${HEADER_INVISIBLE_SOURCE}* )`,
   'gu'
 );
 
@@ -247,19 +266,23 @@ export function headerDisplayName(name: string | undefined): string {
  * lowercase, untouched-bracket and run-strip cases in this module's colocated
  * test file.
  *
- * Format characters (`Cf`, e.g. U+200B, U+2060, U+FEFF) between the opener run
- * and the label are removed with the run, so a zero-width character cannot
- * hide the label from the match; pinned by the format-character cases in this
- * module's colocated test file.
+ * Invisible characters (`HEADER_INVISIBLE_SOURCE`: Unicode `Cf` format
+ * characters such as U+200B, U+2060, U+FEFF, plus named `Mn`/`Lo` fillers
+ * U+034F, U+FE00–U+FE0F, U+E0100–U+E01EF, U+115F, U+1160, U+3164, U+FFA0)
+ * inside or between the opener run and the label are removed with the opener
+ * run, and the label lookahead tolerates them between label characters,
+ * between the label and `:`, and between `:` and ` ` while leaving the label
+ * text itself untouched; pinned by the format-character and non-`Cf` invisible
+ * cases in this module's colocated test file.
  *
- * Unpinned limit: three cases still pass through undefused, none handled or
- * tested: a look-alike colon (fullwidth U+FF1A; the colon and space after the
- * label are matched as ASCII only); a non-format character between the opener
- * and the label, including a space and invisible non-`Cf` characters such as
- * U+034F (combining grapheme joiner), U+FE0F (variation selector) and U+3164
- * (Hangul filler); and a `Cf` character inside the label or between the label
- * and the colon. Tracked as TASK-1485. Class limits (characters
- * outside `Ps`/`Pe`): see `HEADER_BRACKET_CLASS_SOURCE`.
+ * Unpinned limit: cases that still pass through undefused, neither handled nor
+ * tested: look-alike colons such as fullwidth U+FF1A or a non-ASCII space
+ * after `:` (the colon and space after the label are matched as ASCII only);
+ * invisible or blank characters outside `HEADER_INVISIBLE_SOURCE` such as
+ * Braille Pattern Blank U+2800 or other combining marks; homoglyph letters
+ * inside the label; and bracket-shaped characters outside `Ps`/`Pe` (see
+ * `HEADER_BRACKET_CLASS_SOURCE`). Visible separators such as an ASCII space
+ * between the opener and the label also pass through (pinned unchanged).
  *
  * The cannot-mint claim for the ASCII form is pinned by the three
  * `neutralizes a forged header opener` cases in RAGUtils.test.ts, one per
