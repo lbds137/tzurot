@@ -4,7 +4,7 @@ title: ai-worker silently demotes a user with an undecryptable BYOK key to guest
 status: To Do
 assignee: []
 created_date: '2026-11-08T05:47:00Z'
-updated_date: '2026-11-20T06:39:00Z'
+updated_date: '2026-11-21T00:27:00Z'
 labels:
   - area:ai-worker
   - size:M
@@ -33,4 +33,6 @@ Acceptance: real-specimen test (corrupted GCM tag) pins the chosen user-visible 
 11-19 pass: Medium -> High (user-visible silent downgrade). Awaiting the owner decision in the Owner question line.
 
 Owner ruling 2026-11-20 (AskUserQuestion): fail with the re-enter-your-key copy (no silent free-model downgrade).
+
+Owner ruling 2026-11-20 (AskUserQuestion): the re-enter-your-key copy renders PLAINLY in Discord, not inside the error spoiler, in the TASK-1359 PR (new errorInfo.userActionMessage; spec .claude/dispatch/credit-1359-r1.md).
 <!-- SECTION:NOTES:END -->
