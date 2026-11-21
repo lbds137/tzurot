@@ -3,9 +3,11 @@ id: TASK-1488
 title: >-
   ai-worker silently demotes every BYOK user to guest when
   API_KEY_ENCRYPTION_KEY is unset
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - tzurot-main
 created_date: '2026-11-21T02:38:00Z'
+updated_date: '2026-11-21T12:39:00Z'
 labels:
   - area:ai-worker
   - size:S
