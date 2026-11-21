@@ -1,5 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Redis } from 'ioredis';
+
+const debugMock = vi.hoisted(() => vi.fn());
+vi.mock('../utils/logger.js', () => ({
+  createLogger: () => ({ debug: debugMock, info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+}));
+
 import { VoiceTranscriptCache } from './VoiceTranscriptCache.js';
 import { REDIS_KEY_PREFIXES, INTERVALS } from '../constants/index.js';
 
@@ -33,6 +39,7 @@ describe('VoiceTranscriptCache', () => {
   let cache: VoiceTranscriptCache;
 
   beforeEach(() => {
+    debugMock.mockClear();
     stub = makeRedisStub();
     cache = new VoiceTranscriptCache(stub.redis);
   });
@@ -79,5 +86,22 @@ describe('VoiceTranscriptCache', () => {
   it('returns null (not the empty string) for an empty cached value', async () => {
     await cache.store(base, '');
     expect(await cache.get(base)).toBeNull();
+  });
+
+  it('logs the attachment URL as its shape, never the filename or signed query', async () => {
+    const raw = 'https://cdn.discordapp.com/attachments/111/222/SENTINEL_FILE.ogg?hm=SENTINEL_HM';
+    await cache.store(raw, 'hello');
+    await cache.get(raw);
+    await cache.get(
+      'https://cdn.discordapp.com/attachments/111/333/SENTINEL_FILE.ogg?hm=SENTINEL_HM'
+    );
+    expect(debugMock).toHaveBeenCalledTimes(3);
+    expect(debugMock).toHaveBeenCalledWith(
+      expect.objectContaining({ urlShape: 'cdn.discordapp.com/attachments/111/222' }),
+      expect.any(String)
+    );
+    const logged = JSON.stringify(debugMock.mock.calls);
+    expect(logged).not.toContain('SENTINEL_FILE');
+    expect(logged).not.toContain('SENTINEL_HM');
   });
 });

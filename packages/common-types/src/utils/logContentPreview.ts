@@ -4,13 +4,14 @@
  * vision-description text by default. Lengths and digests stay always-on;
  * only the raw-text preview is gated behind `LOG_CONTENT_PREVIEWS`, and only
  * in development — see `contentPreviewsEnabled`. This module also holds the
- * two non-content prefix helpers (`idPrefix`, `urlPrefix`) — the
+ * non-content prefix helper (`idPrefix`) — the
  * `@tzurot/no-raw-log-content` lint rule makes this module the sanctioned
  * route for a truncated value into a log field. `filenameShape` is the
  * sanctioned route for a user-supplied filename (an attachment's `.name`):
  * a filename is content, so only its extension and length are safe to log.
  */
 
+import { isIP } from 'node:net';
 import { getConfig } from '../config/config.js';
 import { sha256Hex } from './sha256Hex.js';
 import { truncateByCodePoints } from './codePointTruncation.js';
@@ -76,13 +77,73 @@ export function idPrefix(id: string, n = 8): string {
   return id.substring(0, n);
 }
 
+/** What `attachmentUrlShape` returns for an input `new URL()` rejects; never any part of the input. */
+const UNPARSABLE_URL_SHAPE = '[unparsable-url]';
+
+/** The Discord hosts whose `/attachments/<channel>/<id>/<filename>` route carries ids worth logging. */
+const DISCORD_ATTACHMENT_HOSTS = new Set(['cdn.discordapp.com', 'media.discordapp.net']);
+
 /**
- * The first `n` characters of a URL, so a cache or attachment log line can be
- * correlated with its source without logging the full URL. NOT a content
- * gate. Pinned by the `urlPrefix` describe in `logContentPreview.test.ts`.
+ * `/attachments/` or `/ephemeral-attachments/`, then `<channel id>/<attachment id>/<anything>`.
+ * Only the three captures are ever used: the route name comes from this fixed
+ * alternation, never from input text beyond it.
  */
-export function urlPrefix(url: string, n: number): string {
-  return url.substring(0, n);
+const DISCORD_ATTACHMENT_PATH = /^\/(attachments|ephemeral-attachments)\/(\d+)\/(\d+)\/.+$/;
+
+/** What `attachmentUrlShape` returns for an IP-literal host; never the address. */
+const IP_HOST_SHAPE = '[ip-host]';
+
+/**
+ * Reduces an attachment URL to the only parts safe to log. A Discord CDN
+ * attachment URL ends in the user-supplied filename
+ * (`cdn.discordapp.com/attachments/<channel>/<id>/<filename>?ex=...`), so the
+ * filename is user content and a plain truncation of the URL can still
+ * carry it.
+ *
+ * - `cdn.discordapp.com` / `media.discordapp.net` with a
+ *   `/attachments/<digits>/<digits>/<anything>` path returns
+ *   `<host>/attachments/<channel>/<id>`, rebuilt from the captures alone, so
+ *   nothing after them (filename, extra segments, query, fragment) can reach
+ *   the output. `/ephemeral-attachments/<digits>/<digits>/<anything>` is
+ *   handled the same way and keeps its route name. Unverified against a live
+ *   URL: slash-command option uploads are believed to be served from the
+ *   ephemeral route.
+ * - An IPv4 or IPv6 literal host (with or without a port) returns the fixed
+ *   token `[ip-host]`: an IP address is never-log data.
+ * - Any other parsable URL with a host, including a Discord host off those
+ *   routes, returns the host alone: an arbitrary path can carry user text.
+ * - Input that `new URL()` rejects, and a hostless URL such as `data:`,
+ *   returns the fixed token `[unparsable-url]`, never any part of the raw string.
+ *
+ * Returns `undefined` for `undefined`/`null` input, matching `filenameShape`
+ * so pino omits the field entirely rather than logging a literal `null`.
+ *
+ * Pinned by the `attachmentUrlShape` describe in `logContentPreview.test.ts`.
+ */
+export function attachmentUrlShape(url: string | undefined | null): string | undefined {
+  if (url === undefined || url === null) {
+    return undefined;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return UNPARSABLE_URL_SHAPE;
+  }
+  if (parsed.host === '') {
+    return UNPARSABLE_URL_SHAPE;
+  }
+  // `.hostname` brackets an IPv6 literal; `isIP` wants it bare.
+  if (isIP(parsed.hostname.replace(/^\[|\]$/g, '')) !== 0) {
+    return IP_HOST_SHAPE;
+  }
+  if (DISCORD_ATTACHMENT_HOSTS.has(parsed.host)) {
+    const match = DISCORD_ATTACHMENT_PATH.exec(parsed.pathname);
+    if (match !== null) {
+      return `${parsed.host}/${match[1]}/${match[2]}/${match[3]}`;
+    }
+  }
+  return parsed.host;
 }
 
 /** The shape a filename reduces to when it's safe to log: extension and length only, never the stem. */

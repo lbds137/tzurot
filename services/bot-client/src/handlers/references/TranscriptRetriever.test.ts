@@ -18,19 +18,20 @@ vi.mock('../../redis.js', () => ({
   },
 }));
 
-// Mock logger
+// Mock logger (shared fns so a test can assert the emitted records)
+const logMocks = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: vi.fn(() => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    })),
+    createLogger: vi.fn(() => logMocks),
   };
 });
 
@@ -103,6 +104,48 @@ describe('TranscriptRetriever', () => {
       const result = await retriever.retrieveTranscript('msg-123', 'https://example.com/voice.ogg');
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('log records', () => {
+    const rawUrl =
+      'https://cdn.discordapp.com/attachments/111/222/SENTINEL_FILE.ogg?hm=SENTINEL_HM';
+    const shape = 'cdn.discordapp.com/attachments/111/222';
+
+    it.each([
+      [
+        'hit',
+        'info',
+        (): void => {
+          mockVoiceTranscriptCache.get.mockResolvedValue('text');
+        },
+      ],
+      [
+        'miss',
+        'debug',
+        (): void => {
+          mockVoiceTranscriptCache.get.mockResolvedValue(null);
+        },
+      ],
+      [
+        'error',
+        'warn',
+        (): void => {
+          mockVoiceTranscriptCache.get.mockRejectedValue(new Error('x'));
+        },
+      ],
+    ] as const)('logs the URL as its shape on a cache %s', async (_label, level, arrange) => {
+      arrange();
+
+      await retriever.retrieveTranscript('msg-123', rawUrl);
+
+      expect(logMocks[level]).toHaveBeenCalledWith(
+        expect.objectContaining({ urlShape: shape }),
+        expect.any(String)
+      );
+      const logged = JSON.stringify(logMocks[level].mock.calls);
+      expect(logged).not.toContain('SENTINEL_FILE');
+      expect(logged).not.toContain('SENTINEL_HM');
     });
   });
 });

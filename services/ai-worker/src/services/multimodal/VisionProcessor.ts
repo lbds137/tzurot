@@ -19,7 +19,7 @@ import {
   type LoadedPersonality,
   type VisionTierParams,
 } from '@tzurot/common-types/types/schemas/personality';
-import { contentPreview } from '@tzurot/common-types/utils/logContentPreview';
+import { attachmentUrlShape, contentPreview } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { getFreeVisionFloor } from '../freeFloors.js';
@@ -302,10 +302,11 @@ async function invokeVisionModel(
 
   // Redact data URLs in logs: a materialized image is a 1-2 MiB base64 string.
   // Emitting that at info level saturates log aggregators and buries other
-  // messages. Remote URLs are log-safe (short, useful forensically).
-  const logUrl = isDataUrl(sourceUrl) ? '<data-url>' : imageUrl;
+  // messages. A remote URL ends in the user-supplied filename, so it logs as
+  // its shape (Discord host + channel/attachment ids, else the host), never raw.
+  const logUrl = isDataUrl(sourceUrl) ? '<data-url>' : attachmentUrlShape(imageUrl);
 
-  logger.info({ url: logUrl, modelName }, 'Invoking vision model');
+  logger.info({ urlShape: logUrl, modelName }, 'Invoking vision model');
 
   messages.push(
     new HumanMessage({

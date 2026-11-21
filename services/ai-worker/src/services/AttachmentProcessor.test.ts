@@ -1237,12 +1237,43 @@ describe('AttachmentProcessor', () => {
 
       expect(mockLogger.child).toHaveBeenCalledWith({ requestId: 'req-image' });
       expect(mockChildLogger.error).toHaveBeenCalledWith(
-        expect.objectContaining({ referenceNumber: 1, url: 'https://example.com/broken.png' }),
+        expect.objectContaining({ referenceNumber: 1, urlShape: 'example.com' }),
         'Image processing failed'
       );
       // The unbound module logger must not carry the line — an uncorrelated copy
       // is the state this change exists to remove.
       expect(mockLogger.error).not.toHaveBeenCalled();
+    });
+
+    it('logs a Discord CDN attachment URL as its shape: no filename, no signed query', async () => {
+      mockDescribeImage.mockRejectedValue(new Error('Vision API failed'));
+      const options = imageOptions('req-leak');
+
+      const promise = processAttachmentsParallel({
+        ...options,
+        attachments: [
+          {
+            url: 'https://cdn.discordapp.com/attachments/111/222/secret%20diary.png?ex=1&hm=abc',
+            contentType: 'image/png',
+            name: 'secret diary.png',
+            size: 1000,
+          },
+        ],
+      });
+      await vi.runAllTimersAsync();
+      await promise;
+
+      expect(mockChildLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ urlShape: 'cdn.discordapp.com/attachments/111/222' }),
+        'Image processing failed'
+      );
+      const allLogged = JSON.stringify([
+        ...mockChildLogger.error.mock.calls,
+        ...mockChildLogger.info.mock.calls,
+        ...mockChildLogger.debug.mock.calls,
+      ]);
+      expect(allLogged).not.toContain('secret');
+      expect(allLogged).not.toContain('hm=abc');
     });
 
     it('emits the voice failure through the bound logger', async () => {
@@ -1269,7 +1300,7 @@ describe('AttachmentProcessor', () => {
 
       expect(mockLogger.child).toHaveBeenCalledWith({ requestId: 'req-voice' });
       expect(mockChildLogger.error).toHaveBeenCalledWith(
-        expect.objectContaining({ referenceNumber: 2, url: 'https://example.com/voice.ogg' }),
+        expect.objectContaining({ referenceNumber: 2, urlShape: 'example.com' }),
         'Voice transcription failed'
       );
       expect(mockLogger.error).not.toHaveBeenCalled();
@@ -1303,7 +1334,7 @@ describe('AttachmentProcessor', () => {
 
       expect(mockLogger.child).toHaveBeenCalledWith({ requestId: 'req-fanout' });
       expect(mockChildLogger.error).toHaveBeenCalledWith(
-        expect.objectContaining({ referenceNumber: 1, url: 'https://example.com/broken.png' }),
+        expect.objectContaining({ referenceNumber: 1, urlShape: 'example.com' }),
         'Unexpected error in attachment processing'
       );
       expect(mockLogger.error).not.toHaveBeenCalled();
@@ -1334,7 +1365,7 @@ describe('AttachmentProcessor', () => {
 
       expect(mockLogger.child).not.toHaveBeenCalled();
       expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.objectContaining({ referenceNumber: 1, url: 'https://example.com/broken.png' }),
+        expect.objectContaining({ referenceNumber: 1, urlShape: 'example.com' }),
         'Image processing failed'
       );
       expect(mockChildLogger.error).not.toHaveBeenCalled();

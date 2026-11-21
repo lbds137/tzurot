@@ -17,7 +17,7 @@ import {
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { filenameShape } from '@tzurot/common-types/utils/logContentPreview';
+import { attachmentUrlShape, filenameShape } from '@tzurot/common-types/utils/logContentPreview';
 import { imageSource, attachmentSpoiler } from '@tzurot/common-types/utils/attachmentProvenance';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
 import type { VisionLoggingContext } from './multimodal/VisionProcessor.js';
@@ -219,7 +219,11 @@ export async function processAttachmentsParallel(
       continue;
     }
     log.error(
-      { err: outcome.error, url: outcome.attachment.url, referenceNumber },
+      {
+        err: outcome.error,
+        urlShape: attachmentUrlShape(outcome.attachment.url),
+        referenceNumber,
+      },
       'Unexpected error in attachment processing'
     );
     rendered.push({
@@ -316,15 +320,13 @@ async function processVoiceAttachment(options: ProcessVoiceOptions): Promise<Bui
     source: sharedFile === true && !isOwnPersonaVoice(authorRole) ? 'shared-file' : undefined,
     spoiler: attachmentSpoiler(attachment),
   } as const;
+  const urlShape = attachmentUrlShape(attachment.url);
 
   // Own-persona voice: skip BOTH the preprocessed short-circuit below AND the
   // STT call — a preprocessed transcript here could be a cache hit computed
   // before this guard existed, which is still our own TTS transcript.
   if (isOwnPersonaVoice(authorRole)) {
-    log.debug(
-      { referenceNumber, url: attachment.url },
-      "Skipping STT for the persona's own voice reference"
-    );
+    log.debug({ referenceNumber, urlShape }, "Skipping STT for the persona's own voice reference");
     return { url: attachment.url, attachment: { ...identity, description: OWN_VOICE_DESCRIPTION } };
   }
 
@@ -336,7 +338,7 @@ async function processVoiceAttachment(options: ProcessVoiceOptions): Promise<Bui
     preprocessed.description !== '' &&
     preprocessed.type !== AttachmentType.File
   ) {
-    log.debug({ referenceNumber, url: attachment.url }, 'Using preprocessed voice transcription');
+    log.debug({ referenceNumber, urlShape }, 'Using preprocessed voice transcription');
     return {
       url: attachment.url,
       attachment: { ...identity, description: preprocessed.description },
@@ -347,7 +349,7 @@ async function processVoiceAttachment(options: ProcessVoiceOptions): Promise<Bui
     log.info(
       {
         referenceNumber,
-        url: attachment.url,
+        urlShape,
         duration: attachment.duration,
         sttProvider: sttDispatch?.provider ?? 'voice-engine',
         sharedFile: sharedFile === true,
@@ -369,7 +371,7 @@ async function processVoiceAttachment(options: ProcessVoiceOptions): Promise<Bui
     );
     return { url: attachment.url, attachment: { ...identity, description: result.value.text } };
   } catch (error) {
-    log.error({ err: error, referenceNumber, url: attachment.url }, 'Voice transcription failed');
+    log.error({ err: error, referenceNumber, urlShape }, 'Voice transcription failed');
     return { url: attachment.url, attachment: { ...identity, status: 'untranscribed' } };
   }
 }
@@ -398,9 +400,10 @@ async function processImageAttachment(options: ProcessImageOptions): Promise<Bui
     source: imageSource(attachment),
     spoiler: attachmentSpoiler(attachment),
   } as const;
+  const urlShape = attachmentUrlShape(attachment.url);
 
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {
-    log.debug({ referenceNumber, url: attachment.url }, 'Using preprocessed image description');
+    log.debug({ referenceNumber, urlShape }, 'Using preprocessed image description');
     return {
       url: attachment.url,
       attachment: { ...identity, description: preprocessed.description },
@@ -411,7 +414,7 @@ async function processImageAttachment(options: ProcessImageOptions): Promise<Bui
     log.info(
       {
         referenceNumber,
-        url: attachment.url,
+        urlShape,
         file: filenameShape(attachment.name),
         hasUserApiKey: userApiKey !== undefined,
       },
@@ -433,7 +436,7 @@ async function processImageAttachment(options: ProcessImageOptions): Promise<Bui
     );
     return { url: attachment.url, attachment: { ...identity, description: result.value } };
   } catch (error) {
-    log.error({ err: error, referenceNumber, url: attachment.url }, 'Image processing failed');
+    log.error({ err: error, referenceNumber, urlShape }, 'Image processing failed');
     return { url: attachment.url, attachment: { ...identity, status: 'undescribed' } };
   }
 }

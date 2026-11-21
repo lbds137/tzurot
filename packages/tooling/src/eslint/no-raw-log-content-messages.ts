@@ -12,20 +12,23 @@ export type MessageId =
   | 'rawResponseBody'
   | 'previewInError'
   | 'rawFilename'
-  | 'rawFilenameInError';
+  | 'rawFilenameInError'
+  | 'rawAttachmentUrl'
+  | 'rawAttachmentUrlInError';
 
 export const MESSAGES: Record<MessageId, string> = {
   rawTruncation:
     'Raw string truncation reaching a log field. User content goes through ' +
     'contentPreview(text, n) (dev-gated) or contentDigest(text) ' +
-    '(@tzurot/common-types/utils/logContentPreview); an identifier or URL prefix ' +
-    'goes through idPrefix(id) / urlPrefix(url, n) so the intent is named.',
+    '(@tzurot/common-types/utils/logContentPreview); an identifier prefix ' +
+    'goes through idPrefix(id) so the intent is named, and a URL through ' +
+    'attachmentUrlShape(url), which reduces a non-Discord URL to its host.',
   rawTruncationInError:
     'Raw string truncation reaching an Error message, which rides `err` into log ' +
     'lines. Put the length and contentDigest(text) ' +
     '(@tzurot/common-types/utils/logContentPreview) in the message, never a preview; ' +
-    'an identifier or URL prefix goes through idPrefix(id) / urlPrefix(url, n) so ' +
-    'the intent is named.',
+    'an identifier prefix goes through idPrefix(id) so the intent is named, and a ' +
+    'URL through attachmentUrlShape(url), which reduces a non-Discord URL to its host.',
   previewInError:
     'contentPreview reaching an Error message. A preview belongs in a log field ' +
     'only; an Error message rides `err` into every log line that handles it. Put ' +
@@ -43,4 +46,14 @@ export const MESSAGES: Record<MessageId, string> = {
     "lines. Don't put the filename in the message; use " +
     'filenameShape(name)?.extension (@tzurot/common-types/utils/logContentPreview) or ' +
     'omit it.',
+  rawAttachmentUrl:
+    'Raw attachment URL reaching a log field. A Discord CDN attachment URL ends in ' +
+    'the user-supplied filename, and a truncated URL can still include it: log ' +
+    'attachmentUrlShape(url) (@tzurot/common-types/utils/logContentPreview) — host and ' +
+    'channel/attachment ids for a Discord attachment, else the host alone — or drop the field where requestId / jobId ' +
+    'already identifies the request.',
+  rawAttachmentUrlInError:
+    'Raw attachment URL reaching an Error message, which rides `err` into log lines. ' +
+    'The URL ends in the user-supplied filename: use attachmentUrlShape(url) ' +
+    '(@tzurot/common-types/utils/logContentPreview) or omit it.',
 };

@@ -28,7 +28,8 @@ export type DiscordCdnGuardResult =
  * @param url The attachment URL (typically `attachment.url` from a Discord
  *   interaction option).
  * @param logger Optional logger; when provided, an `unexpected-host` rejection
- *   logs a warn-level entry with the URL+host for incident triage.
+ *   logs a warn-level entry with the host (never the URL: its path ends in the
+ *   user-supplied filename) for incident triage.
  * @param instanceOrigin The configured self-hosted instance origin, if any.
  *   Defaults to the live config's `DISCORD_INSTANCE_ORIGIN` so call sites
  *   don't need to thread it manually; tests can pass it explicitly.
@@ -53,7 +54,7 @@ export function validateDiscordCdnUrl(
   const hostname = parsed.hostname;
   if (!DISCORD_CDN_HOSTS.includes(hostname)) {
     if (logger !== undefined) {
-      logger.warn({ url, host: hostname }, 'Unexpected attachment URL host');
+      logger.warn({ host: hostname }, 'Unexpected attachment URL host');
     }
     return { ok: false, reason: 'unexpected-host', rawHost: hostname };
   }

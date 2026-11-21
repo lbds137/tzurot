@@ -8,6 +8,7 @@
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { attachmentUrlShape } from '@tzurot/common-types/utils/logContentPreview';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { HARDCODED_CONFIG_DEFAULTS } from '@tzurot/common-types/schemas/api/configOverrides';
 import type { StructuredHistoryEntry } from '../../../utils/conversationTypes.js';
@@ -42,7 +43,7 @@ export async function reTranscribeExtendedContextVoice(
     return result.text.length > 0 ? result.text : null;
   } catch (err) {
     logger.warn(
-      { err, originalUrl: attachment.originalUrl ?? attachment.url },
+      { err, urlShape: attachmentUrlShape(attachment.originalUrl ?? attachment.url) },
       'Extended-context voice re-transcription failed; keeping the message transcript-less'
     );
     return null;

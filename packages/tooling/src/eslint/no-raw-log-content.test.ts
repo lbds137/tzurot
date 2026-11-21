@@ -19,15 +19,16 @@ const PRELUDE = [
   'declare function contentPreview(t: string | undefined, n: number): string | undefined;',
   'declare function contentDigest(t: string): string;',
   'declare function idPrefix(id: string, n?: number): string;',
-  'declare function urlPrefix(url: string, n: number): string;',
+  'declare function trimUrl(url: string, n: number): string;',
+  'declare function attachmentUrlShape(u: string | undefined | null): string | undefined;',
   'declare function filenameShape(n: string | undefined | null): { extension: string | undefined; nameLength: number } | undefined;',
   'declare const text: string;',
   'declare const ids: string[];',
   'declare const LIMIT: number;',
   'declare const response: { status: number; text(): Promise<string> };',
   'declare const err: Error;',
-  'declare const attachment: { name: string; filename?: string; fileName?: string; originalName?: string; id: string; contentType: string };',
-  'declare const att: { filename: string };',
+  'declare const attachment: { url: string; proxyURL: string; proxy_url: string; originalUrl?: string; name: string; filename?: string; fileName?: string; originalName?: string; id: string; contentType: string };',
+  'declare const att: { filename: string; url: string };',
   'declare const file: { name: string };',
   'declare const firstFile: { name: string };',
   'declare const upload: { originalName: string };',
@@ -35,7 +36,13 @@ const PRELUDE = [
   'declare const msg: { attachment: { name: string } };',
   'declare const personality: { name: string };',
   'declare const profile: { name: string };',
-  'declare const attachments: { name: string }[];',
+  'declare const attachments: { name: string; url: string }[];',
+  'declare const img: { url: string };',
+  'declare const audio: { url: string };',
+  'declare const outcome: { attachment: { url: string } };',
+  'declare const link: { url: string };',
+  'declare const req: { originalUrl: string; url: string };',
+  'declare const config: { url: string };',
   '',
 ].join('\n');
 
@@ -94,10 +101,12 @@ const PRELUDE_LINES = PRELUDE.split('\n').length - 1;
 beforeAll(() => void findings('export {};'), 30_000);
 
 describe('rule metadata', () => {
-  it('is a problem rule with all six message ids', () => {
+  it('is a problem rule with all eight message ids', () => {
     expect(rule.meta?.type).toBe('problem');
     expect(Object.keys(rule.meta?.messages ?? {}).sort()).toEqual([
       'previewInError',
+      'rawAttachmentUrl',
+      'rawAttachmentUrlInError',
       'rawFilename',
       'rawFilenameInError',
       'rawResponseBody',
@@ -115,6 +124,8 @@ describe('rule metadata', () => {
     expect(rule.meta?.messages?.previewInError).toContain('contentDigest');
     expect(rule.meta?.messages?.rawFilename).toContain('filenameShape');
     expect(rule.meta?.messages?.rawFilenameInError).toContain('filenameShape');
+    expect(rule.meta?.messages?.rawAttachmentUrl).toContain('attachmentUrlShape');
+    expect(rule.meta?.messages?.rawAttachmentUrlInError).toContain('attachmentUrlShape');
   });
 });
 
@@ -214,11 +225,11 @@ describe('Pattern A — not flagged (valid)', () => {
     expect(findings(`logger.info({ d: contentDigest(text.slice(0, 100)) }, 'm');`)).toEqual([]);
   });
 
-  it('passes the migrated id/token/URL helper shapes', () => {
+  it('passes the migrated id/token helper shapes and an arbitrary helper over a plain identifier', () => {
     expect(
       findings(
         `declare const personaId: string; declare const token: string;\n` +
-          'logger.info({ personaId: idPrefix(personaId), token: `${idPrefix(token, 12)}…`, u: urlPrefix(text, 50) });'
+          'logger.info({ personaId: idPrefix(personaId), token: `${idPrefix(token, 12)}…`, u: trimUrl(text, 50) });'
       )
     ).toEqual([]);
   });
@@ -296,11 +307,11 @@ describe('Pattern B — raw .text() response body (invalid)', () => {
     ).toEqual(['rawTruncationInError']);
   });
 
-  it('flags a body passed through a prefix helper — idPrefix/urlPrefix are not exempt', () => {
+  it('flags a body passed through a prefix helper — idPrefix/trimUrl are not exempt', () => {
     expect(
       findings(
         `async function f(): Promise<void> {\n  const body = await response.text();\n` +
-          `  logger.warn({ p: urlPrefix(body, 200) }, 'failed');\n}`
+          `  logger.warn({ p: trimUrl(body, 200) }, 'failed');\n}`
       )
     ).toEqual(['rawResponseBody']);
   });
@@ -519,6 +530,162 @@ describe('Pattern C — not flagged (valid)', () => {
   });
 });
 
+describe('Pattern D — raw attachment URL read reaching a log field (invalid)', () => {
+  it('flags attachment.url in a log field', () => {
+    expect(findings(`logger.info({ url: attachment.url }, 'm');`)).toEqual(['rawAttachmentUrl']);
+  });
+
+  it('flags each URL-bearing property name', () => {
+    expect(findings(`logger.info({ u: attachment.proxyURL }, 'm');`)).toEqual(['rawAttachmentUrl']);
+    expect(findings(`logger.info({ u: attachment.proxy_url }, 'm');`)).toEqual([
+      'rawAttachmentUrl',
+    ]);
+    expect(findings(`logger.info({ u: attachment.originalUrl }, 'm');`)).toEqual([
+      'rawAttachmentUrl',
+    ]);
+  });
+
+  it('flags url off the media-ish names img and audio', () => {
+    expect(findings(`logger.info({ url: img.url }, 'm');`)).toEqual(['rawAttachmentUrl']);
+    expect(findings(`logger.info({ url: audio.url }, 'm');`)).toEqual(['rawAttachmentUrl']);
+  });
+
+  it('flags the end of a member chain, optional chaining and a ?? default', () => {
+    expect(findings(`logger.info({ url: outcome.attachment.url }, 'm');`)).toEqual([
+      'rawAttachmentUrl',
+    ]);
+    expect(findings(`logger.info({ u: attachment?.url ?? '' }, 'm');`)).toEqual([
+      'rawAttachmentUrl',
+    ]);
+  });
+
+  it('flags a plain const one-hop and a destructured shorthand hop', () => {
+    expect(findings(`const u = attachment.url;\nlogger.warn({ u }, 'm');`)).toEqual([
+      'rawAttachmentUrl',
+    ]);
+    expect(findings(`const { url } = attachment;\nlogger.info({ url }, 'm');`)).toEqual([
+      'rawAttachmentUrl',
+    ]);
+  });
+
+  it('flags a URL interpolated into a template literal field', () => {
+    expect(findings('logger.info({ label: `${att.url}: failed` }, "m");')).toEqual([
+      'rawAttachmentUrl',
+    ]);
+  });
+
+  it('still flags a URL read inside trimUrl: a prefix of a CDN URL can reach the filename', () => {
+    expect(findings(`logger.info({ u: trimUrl(attachment.url, 40) }, 'm');`)).toEqual([
+      'rawAttachmentUrl',
+    ]);
+  });
+
+  it('still flags a URL passed into trimUrl inside a hopped const', () => {
+    expect(findings(`const u = trimUrl(attachment.url, 40);\nlogger.info({ u }, 'm');`)).toEqual([
+      'rawAttachmentUrl',
+    ]);
+  });
+
+  it('flags a raw read at an Error sink with the Error-specific message', () => {
+    expect(findings('throw new Error(`fetch failed: ${attachment.url}`);')).toEqual([
+      'rawAttachmentUrlInError',
+    ]);
+  });
+
+  it('flags String(url) held in a plain const: the identifier carries the URL itself', () => {
+    expect(findings(`const label = String(attachment.url);\nlogger.info({ label }, 'm');`)).toEqual(
+      ['rawAttachmentUrl']
+    );
+  });
+
+  it('flags an identity wrapper held in a plain const', () => {
+    expect(
+      findings(
+        `declare function identity(u: string): string;\n` +
+          `const label = identity(attachment.url);\nlogger.info({ label }, 'm');`
+      )
+    ).toEqual(['rawAttachmentUrl']);
+  });
+
+  it('flags a renamed destructured URL prop', () => {
+    expect(findings(`const { url: source } = attachment;\nlogger.info({ source }, 'm');`)).toEqual([
+      'rawAttachmentUrl',
+    ]);
+  });
+
+  it('still flags a const hop that derives from the URL through a method call', () => {
+    expect(
+      findings(`const tail = attachment.url.split('/').pop();\nlogger.info({ tail }, 'm');`)
+    ).toEqual(['rawAttachmentUrl']);
+  });
+
+  it('still flags a URL passed into a call directly at the sink', () => {
+    expect(findings(`logger.info({ r: String(attachment.url) }, 'm');`)).toEqual([
+      'rawAttachmentUrl',
+    ]);
+  });
+
+  it('flags a URL passed to a NewExpression inside a destructured const (not in the call exemption)', () => {
+    expect(
+      findings(`const { pathname } = new URL(attachment.url);\nlogger.info({ pathname }, 'm');`)
+    ).toEqual(['rawAttachmentUrl']);
+  });
+});
+
+describe('Pattern D — not flagged (valid)', () => {
+  it('passes a read wrapped in attachmentUrlShape', () => {
+    expect(findings(`logger.info({ url: attachmentUrlShape(attachment.url) }, 'm');`)).toEqual([]);
+    expect(findings('throw new Error(`x ${attachmentUrlShape(att.url)}`);')).toEqual([]);
+  });
+
+  it('passes a const hop whose initializer only passes the URL into a call (a download result)', () => {
+    expect(
+      findings(
+        `declare function fetchBytes(u: string): Promise<{ bytes: number }>;\n` +
+          `async function f(): Promise<void> {\n  const { bytes } = await fetchBytes(attachment.url);\n` +
+          `  logger.debug({ finalBytes: bytes }, 'm');\n}`
+      )
+    ).toEqual([]);
+  });
+
+  it('passes url reads off non-attachment objects', () => {
+    expect(findings(`logger.info({ url: link.url }, 'm');`)).toEqual([]);
+    expect(findings(`logger.info({ url: config.url }, 'm');`)).toEqual([]);
+  });
+
+  it('passes an Express-style req.originalUrl and req.url (not attachment-ish)', () => {
+    expect(findings(`logger.info({ path: req.originalUrl, u: req.url }, 'm');`)).toEqual([]);
+  });
+
+  it('passes id and content type fields beside the shape', () => {
+    expect(
+      findings(`logger.info({ id: attachment.id, type: attachment.contentType }, 'm');`)
+    ).toEqual([]);
+  });
+
+  it('cannot see a URL read through a computed member (documented limit)', () => {
+    expect(findings(`logger.info({ u: attachments[0].url }, 'm');`)).toEqual([]);
+  });
+
+  it('cannot see a URL-derived field selected from a call inside a destructured const (documented limit)', () => {
+    expect(
+      findings(
+        `declare function parseUrl(u: string): { pathname: string };\n` +
+          `const { pathname } = parseUrl(attachment.url);\nlogger.info({ pathname }, 'm');`
+      )
+    ).toEqual([]);
+  });
+
+  it('cannot see a URL buried in a nested call inside a destructured const (known limit)', () => {
+    expect(
+      findings(
+        `declare function outer(x: unknown): { a: string };\ndeclare function inner(u: string): string;\n` +
+          `const { a } = outer(inner(attachment.url));\nlogger.info({ a }, 'm');`
+      )
+    ).toEqual([]);
+  });
+});
+
 describe('errorSinks option', () => {
   // One log-sink truncation, then an Error carrying all three Error-sink shapes.
   const BOTH_SINKS =
@@ -555,6 +722,18 @@ describe('errorSinks option', () => {
         { errorSinks: false }
       ).map(m => m.messageId)
     ).toEqual(['rawResponseBody']);
+  });
+
+  it('with errorSinks: false, skips an attachment URL in an Error but flags it in a log field', () => {
+    const code =
+      "logger.info({ u: attachment.url }, 'm');\nthrow new Error(`bad ${attachment.url}`);";
+    expect(lintTyped(code).map(m => m.messageId)).toEqual([
+      'rawAttachmentUrl',
+      'rawAttachmentUrlInError',
+    ]);
+    expect(lintTyped(code, { errorSinks: false }).map(m => m.messageId)).toEqual([
+      'rawAttachmentUrl',
+    ]);
   });
 
   it('rejects an unknown option key (schema additionalProperties: false)', () => {

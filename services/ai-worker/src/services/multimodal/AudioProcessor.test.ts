@@ -18,6 +18,17 @@ import {
   CHROMIUM_AUDIO_WEBM_PREFIX_HEX,
 } from '../../test/mocks/fixtures/webmHeaders.js';
 
+// Shared logger spies (hoisted so they exist when the module under test calls createLogger).
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: () => mockLogger };
+});
+
 // Create mock functions
 const mockVoiceTranscriptCacheGet = vi.fn().mockResolvedValue(null);
 const mockVoiceEngineTranscribe = vi.fn();
@@ -130,6 +141,31 @@ describe('AudioProcessor', () => {
 
         expect(mockVoiceTranscriptCacheGet).not.toHaveBeenCalled();
         expect(global.fetch).toHaveBeenCalled();
+      });
+
+      it('logs the fetched audio URL as its shape, never the filename or signed query', async () => {
+        const attachment: AttachmentMetadata = {
+          url: 'https://cdn.discordapp.com/attachments/111/222/SENTINEL_FILE.ogg?hm=SENTINEL_HM',
+          name: 'audio.ogg',
+          contentType: CONTENT_TYPES.AUDIO_OGG,
+          size: 1024,
+        };
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'transcribed' });
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
+        (global.fetch as any).mockResolvedValue({
+          ok: true,
+          arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
+        });
+
+        await transcribeAudio(attachment, { provider: 'voice-engine' });
+
+        expect(mockLogger.debug).toHaveBeenCalledWith(
+          { urlShape: 'cdn.discordapp.com/attachments/111/222' },
+          'Fetching audio'
+        );
+        const logged = JSON.stringify(mockLogger.debug.mock.calls);
+        expect(logged).not.toContain('SENTINEL_FILE');
+        expect(logged).not.toContain('SENTINEL_HM');
       });
 
       it('should skip cache when originalUrl is empty string', async () => {
