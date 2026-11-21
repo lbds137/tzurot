@@ -11,7 +11,9 @@ import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { SttResolver, LlmConfigResolver } from '@tzurot/config-resolver';
 import {
+  EncryptionMisconfiguredError,
   NoApiKeyAvailableError,
+  UndecryptableApiKeyError,
   type ApiKeyResolver,
 } from '../../../../services/ApiKeyResolver.js';
 import { ProviderRouter } from '../../../../services/ProviderRouter.js';
@@ -329,8 +331,12 @@ export class AuthStep implements IPipelineStep {
             // is compact debug — no stack, no err object.
             logger.debug({ userId, provider: id }, failNote);
           } else {
-            // Unexpected resolution failure (DB down, decryption error) — keep
-            // the stack; this one IS an incident.
+            // Unexpected resolution failure (DB down, an undecryptable or
+            // misconfigured key) — keep the stack; this one IS an incident.
+            // Deliberately tolerated for AUDIO keys even when the stored key is
+            // unreadable: the text turn still works and voice degrades to the
+            // self-hosted engine, unlike the LLM key where silence demoted the
+            // user's model tier.
             logger.warn({ err: error, userId }, failNote);
           }
           return { id, result: undefined };
@@ -460,8 +466,18 @@ export class AuthStep implements IPipelineStep {
 
       return buildPostRouteLlmAuth(route, effectivePersonality, guest);
     } catch (error) {
-      // Resolution failure is unexpected (normal guest mode is signaled via
-      // isGuestMode=true, not by throwing). Recover by falling back to guest.
+      // A stored key that will not decrypt (or a broken encryption env) must
+      // fail the job, not demote the user to free models: the handler renders
+      // the re-enter copy / a loud error instead.
+      if (
+        error instanceof UndecryptableApiKeyError ||
+        error instanceof EncryptionMisconfiguredError
+      ) {
+        throw error;
+      }
+      // Any other resolution failure is unexpected (normal guest mode is
+      // signaled via isGuestMode=true, not by throwing). Recover by falling
+      // back to guest.
       logger.error({ err: error, userId }, 'Failed to resolve API key, falling back to guest mode');
       return this.guestModeFallback(effectivePersonality, userId, requestId);
     }
