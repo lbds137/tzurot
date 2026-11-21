@@ -7,7 +7,7 @@ created_date: '2026-11-21T19:23:00Z'
 labels:
   - area:bot-client
   - size:M
-  - state:ready
+  - state:observable
 dependencies: []
 priority: high
 ordinal: 1499000
@@ -26,4 +26,6 @@ Log read 2026-11-21 (prod bot-client, single host b136112bdf7a, so the multi-rep
 - msg3 1573780612135919737: trigger 19:22:17.39. "Held activation trigger behind in-flight generation" at 19:22:20.04 with awaitedJobId=null, i.e. behind msg2's entry, created before msg2's job existed. Released on completion of llm-63b6 at 19:22:24.66 (skippedCount=0), its own job llm-423d replied.
 Observed: the hold decision is logged 2.6s after the trigger (after history fetch, link resolution and the reference crawl), not at trigger time. Inference (not yet confirmed in code): msg1's in-flight window ended at 19:22:18.21, before msg2's hold check ran, so msg2 saw no entry and became a new in-flight generation; the hold therefore only catches messages whose context build finishes before the in-flight job completes. A fast model (3s) makes the window nearly empty. Fix direction to evaluate: decide holdability and register or join the in-flight entry at trigger resolution, before context building.
 Intended count (Lila ruling 2026-11-21): TWO replies. The in-flight reply to msg1 completes, msg2 is skipped, one survivor reply goes to msg3. Never cancel or discard an in-flight generation. The regression test and the re-smoke assert two; the beta.247 smoke text (CURRENT.md) saying ONE reply was wrong and needs correcting.
+
+Fix merged to develop 2026-11-21 in PR #2780 (061686496): confirmed root cause in code+logs — msg2 (19:22:16.068Z) and msg3 (19:22:17.391Z) BOTH saw msg1's in-flight entry immediately and entered saveUserMessage, which awaited INTERVALS.EMBED_PROCESSING_DELAY (2.5s) before setting entry.newest. When msg1 delivered at 19:22:18.629Z, entry.newest was still null so releaseCycle deleted the entry; 130ms later msg2 saw undefined and submitted reply #2, and msg3 held behind msg2 for reply #3. CoalescingHoldRegistry now tracks pendingSaves synchronously before awaiting saveUserMessage and drains them under a bounded 15s cutoff on release; red-first regression tests added in CoalescingHoldRegistry.test.ts and MultiTagCoordinator.test.ts. Remaining acceptance: prod re-smoke after the next release deploys.
 <!-- SECTION:DESCRIPTION:END -->
