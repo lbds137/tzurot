@@ -12,6 +12,7 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { encryptApiKey } from '@tzurot/common-types/utils/encryption';
 import { undecryptableApiKeyMessage } from '@tzurot/common-types/utils/providerDisplayName';
 import {
+  ApiKeyLookupError,
   ApiKeyResolver,
   EncryptionMisconfiguredError,
   UndecryptableApiKeyError,
@@ -133,15 +134,63 @@ describe('ApiKeyResolver — undecryptable stored key', () => {
     await expect(attempt).rejects.toBeInstanceOf(EncryptionMisconfiguredError);
   });
 
-  it('keeps the guest fallback when the Prisma read fails (unchanged behaviour)', async () => {
-    findFirst.mockRejectedValue(new Error('connection reset'));
+  describe('when the Prisma read fails', () => {
+    const dbFailure = new Error('connection reset');
 
-    const result = await resolver.resolveApiKey('user-1', AIProvider.OpenRouter);
+    it('resolveApiKey rejects with ApiKeyLookupError (cause kept), not a guest result', async () => {
+      findFirst.mockRejectedValue(dbFailure);
 
-    expect(result).toMatchObject({
-      apiKey: 'system-openrouter-key',
-      source: 'system',
-      isGuestMode: true,
+      const attempt = resolver.resolveApiKey('user-1', AIProvider.OpenRouter);
+
+      await expect(attempt).rejects.toBeInstanceOf(ApiKeyLookupError);
+      await expect(attempt).rejects.toMatchObject({ cause: dbFailure });
+    });
+
+    it('resolveApiKey never caches the failure: a second call re-reads the DB', async () => {
+      findFirst.mockRejectedValue(dbFailure);
+
+      await expect(resolver.resolveApiKey('user-1', AIProvider.OpenRouter)).rejects.toBeInstanceOf(
+        ApiKeyLookupError
+      );
+      await expect(resolver.resolveApiKey('user-1', AIProvider.OpenRouter)).rejects.toBeInstanceOf(
+        ApiKeyLookupError
+      );
+
+      expect(findFirst).toHaveBeenCalledTimes(2);
+    });
+
+    it('tryResolveUserKey rejects with ApiKeyLookupError, not null, and re-reads on the next call', async () => {
+      findFirst.mockRejectedValue(dbFailure);
+
+      await expect(
+        resolver.tryResolveUserKey('user-1', AIProvider.ZaiCoding)
+      ).rejects.toBeInstanceOf(ApiKeyLookupError);
+      await expect(
+        resolver.tryResolveUserKey('user-1', AIProvider.ZaiCoding)
+      ).rejects.toBeInstanceOf(ApiKeyLookupError);
+
+      expect(findFirst).toHaveBeenCalledTimes(2);
+    });
+
+    it('recovers once the DB is back, serving the real user key', async () => {
+      findFirst.mockRejectedValueOnce(dbFailure);
+      findFirst.mockResolvedValue(encryptApiKey('sk-or-real-specimen'));
+
+      await expect(resolver.resolveApiKey('user-1', AIProvider.OpenRouter)).rejects.toBeInstanceOf(
+        ApiKeyLookupError
+      );
+      const result = await resolver.resolveApiKey('user-1', AIProvider.OpenRouter);
+
+      expect(result).toMatchObject({ apiKey: 'sk-or-real-specimen', source: 'user' });
+    });
+
+    it('is not the undecryptable re-enter copy: the stored key is fine', async () => {
+      findFirst.mockRejectedValue(dbFailure);
+
+      const attempt = resolver.resolveApiKey('user-1', AIProvider.OpenRouter);
+
+      await expect(attempt).rejects.not.toBeInstanceOf(UndecryptableApiKeyError);
+      await expect(attempt).rejects.not.toThrow(undecryptableApiKeyMessage(AIProvider.OpenRouter));
     });
   });
 });

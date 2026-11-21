@@ -43,6 +43,7 @@ import {
 } from '@tzurot/common-types/constants/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
+  ApiKeyLookupError,
   UndecryptableApiKeyError,
   type ApiKeyResolutionResult,
   type ApiKeyResolver,
@@ -257,22 +258,22 @@ export class ProviderRouter {
       );
       return null;
     }
-    // A probe, not the routed key: an undecryptable z.ai row reads as absent ONLY
-    // when the user's own OpenRouter key will serve the reply. With no OpenRouter
-    // key of their own (guest mode), the z.ai key was their route, so the error
-    // propagates rather than silently demoting them to free models.
-    // EncryptionMisconfiguredError (and anything else) always propagates.
+    // A probe, not the routed key: an undecryptable z.ai row, or a failed z.ai key
+    // read, reads as absent ONLY when the user's own OpenRouter key will serve the
+    // reply. With no OpenRouter key of their own (guest mode), the z.ai key was
+    // their route, so the error propagates rather than silently demoting them to
+    // free models. EncryptionMisconfiguredError (and anything else) always propagates.
     let userZaiKey: string | null;
     try {
       userZaiKey = await this.apiKeyResolver.tryResolveUserKey(userId, AIProvider.ZaiCoding);
     } catch (err) {
-      if (!(err instanceof UndecryptableApiKeyError)) {
+      if (!(err instanceof UndecryptableApiKeyError || err instanceof ApiKeyLookupError)) {
         throw err;
       }
-      // The guest check is a probe too: if it throws (no system key, or the user's
-      // own OpenRouter row will not decrypt), the z.ai error is the one that matters.
-      // When both rows are bad, the user sees the z.ai re-enter copy first and the
-      // OpenRouter one on their next message after fixing z.ai.
+      // The guest check is a probe too: if it throws (no system key, a failed
+      // OpenRouter key read, or the user's own OpenRouter row will not decrypt),
+      // the z.ai error is the one that matters. When both rows are bad, the user
+      // sees the z.ai error first and the OpenRouter one on their next message.
       let orResult: ApiKeyResolutionResult;
       try {
         orResult = await this.apiKeyResolver.resolveApiKey(userId, AIProvider.OpenRouter);
@@ -282,9 +283,17 @@ export class ProviderRouter {
       if (orResult.isGuestMode) {
         throw err;
       }
+      const lookupFailed = err instanceof ApiKeyLookupError;
       logger.warn(
-        { userId, configuredModel, reason: 'undecryptable-key', err },
-        'Auto-promotion skipped: stored z.ai-coding key will not decrypt'
+        {
+          userId,
+          configuredModel,
+          reason: lookupFailed ? 'key-read-failed' : 'undecryptable-key',
+          err,
+        },
+        lookupFailed
+          ? 'Auto-promotion skipped: z.ai-coding key read failed'
+          : 'Auto-promotion skipped: stored z.ai-coding key will not decrypt'
       );
       return null;
     }

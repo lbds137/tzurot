@@ -104,6 +104,28 @@ export class EncryptionMisconfiguredError extends Error {
 }
 
 /**
+ * Thrown when the stored-key READ itself fails (a Prisma/DB error), so the
+ * resolver cannot tell whether the user has a key. Distinct from "the query
+ * returned no row", which is a confirmed absence: this one is TRANSIENT, the
+ * stored key is not known to be bad, and it must neither read as "no key"
+ * (guest/system fallback) nor as the re-enter copy. Never cached, so the next
+ * call re-reads. The job fails with a transient server error (see `LLMGenerationHandler`).
+ *
+ * The resolver cannot tell a keyless user from a BYOK user without the read, so
+ * a user who would have been served as a guest also gets this transient error on
+ * a blip; that is the accepted cost of never silently demoting a BYOK user.
+ */
+export class ApiKeyLookupError extends Error {
+  readonly provider: AIProvider;
+
+  constructor(provider: AIProvider, options?: { cause?: unknown }) {
+    super(`Failed to look up the stored ${provider} API key`, options);
+    this.name = 'ApiKeyLookupError';
+    this.provider = provider;
+  }
+}
+
+/**
  * Cache entry for API keys (to avoid repeated DB lookups)
  *
  * Note: Cache is local to each ai-worker instance. When users update/remove
@@ -155,6 +177,7 @@ export class ApiKeyResolver {
    * @throws UndecryptableApiKeyError if the user's stored key will not decrypt
    *   (never cached, so the next call re-reads the row)
    * @throws EncryptionMisconfiguredError if the service's encryption env is unusable
+   * @throws ApiKeyLookupError if the stored-key read failed (transient; never cached)
    */
   async resolveApiKey(
     userId: string | undefined,
@@ -256,8 +279,9 @@ export class ApiKeyResolver {
    * something or throws.
    *
    * A stored key that exists but will not decrypt THROWS (UndecryptableApiKeyError
-   * / EncryptionMisconfiguredError) rather than returning null: null reads as
-   * "no key" and would silently reroute the user.
+   * / EncryptionMisconfiguredError), and so does a failed read (ApiKeyLookupError),
+   * rather than returning null: null reads as "no key" and would silently reroute
+   * the user.
    */
   async tryResolveUserKey(
     userId: string | undefined,
@@ -314,9 +338,14 @@ export class ApiKeyResolver {
   /**
    * Get and decrypt a user's API key from the database.
    *
-   * Returns `null` when the user has no active key, or when the Prisma read
-   * fails (logged; callers fall back to the system key as before). A row that
-   * will not decrypt throws — see the error classes above.
+   * Returns `null` only when the query CONFIRMED the user has no active key.
+   * A failed Prisma read throws {@link ApiKeyLookupError} (a lookup failure is
+   * not an absence), and a row that will not decrypt throws too — see the error
+   * classes above. Nothing here is cached, so every throw re-reads next call.
+   *
+   * A failed read keeps one resolver-side log, at warn: some callers swallow the
+   * error and log only at warn/debug, so this line is the one trace that carries
+   * the Prisma error. Callers that fail the job log it at error themselves.
    */
   private async getUserApiKey(userId: string, provider: AIProvider): Promise<string | null> {
     let userApiKey;
@@ -334,8 +363,8 @@ export class ApiKeyResolver {
         },
       });
     } catch (error) {
-      logger.error({ err: error, userId, provider }, 'Failed to retrieve user API key');
-      return null;
+      logger.warn({ err: error, userId, provider }, 'Failed to retrieve user API key');
+      throw new ApiKeyLookupError(provider, { cause: error });
     }
 
     if (userApiKey === null) {

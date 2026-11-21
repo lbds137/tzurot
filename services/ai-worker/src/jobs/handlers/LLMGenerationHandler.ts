@@ -38,7 +38,11 @@ import type {
   SttResolver,
 } from '@tzurot/config-resolver';
 import { VisionDescriptionWriter } from '../../services/context/visionDescriptionWriter.js';
-import { UndecryptableApiKeyError, type ApiKeyResolver } from '../../services/ApiKeyResolver.js';
+import {
+  ApiKeyLookupError,
+  UndecryptableApiKeyError,
+  type ApiKeyResolver,
+} from '../../services/ApiKeyResolver.js';
 import {
   creditExhaustionCache,
   rateLimitCache,
@@ -75,6 +79,9 @@ const logger = createLogger('LLMGenerationHandler');
  * copy as `userActionMessage` (bot-client renders it plainly, outside the
  * spoiler); the copy is built from the approved function, never `error.message`,
  * and `technicalMessage` is omitted since it would only repeat it in the spoiler.
+ * A failed stored-key READ is a transient SERVER_ERROR:
+ * the key was never seen, so neither the re-enter copy nor guest mode applies.
+ * TRANSIENT is a label; `shouldRetry` stays false and resending is the user's lever (TASK-1497).
  * A failed DownloadAttachments step is MEDIA_NOT_FOUND; anything else is UNKNOWN
  * with the technical message in the spoiler.
  */
@@ -84,11 +91,20 @@ function classifyPipelineFailure(
   technicalMessage: string
 ): {
   category: ApiErrorCategory;
+  type: ApiErrorType;
   errorInfoMessages: { technicalMessage?: string; userActionMessage?: string };
 } {
+  if (error instanceof ApiKeyLookupError) {
+    return {
+      category: ApiErrorCategory.SERVER_ERROR,
+      type: ApiErrorType.TRANSIENT,
+      errorInfoMessages: { technicalMessage },
+    };
+  }
   if (error instanceof UndecryptableApiKeyError) {
     return {
       category: ApiErrorCategory.AUTHENTICATION,
+      type: ApiErrorType.PERMANENT,
       errorInfoMessages: { userActionMessage: undecryptableApiKeyMessage(error.provider) },
     };
   }
@@ -97,6 +113,7 @@ function classifyPipelineFailure(
       failedStep === 'DownloadAttachments'
         ? ApiErrorCategory.MEDIA_NOT_FOUND
         : ApiErrorCategory.UNKNOWN,
+    type: ApiErrorType.PERMANENT,
     errorInfoMessages: { technicalMessage },
   };
 }
@@ -140,9 +157,12 @@ function classifyPipelineFailure(
  * - Errors are caught and converted to error results with `success: false`
  * - Error results include `failedStep` and `lastSuccessfulStep` for debugging
  * - These are "soft failures" - the job completes but reports an error to the client
+ * - A failed stored-key read (`ApiKeyLookupError`) is no exception: it soft-fails as a
+ *   transient SERVER_ERROR, so the user can resend (whether BullMQ retries LLM jobs at
+ *   all is TASK-1497's question)
  *
  * This design ensures:
- * - BullMQ retries are only used for transient infrastructure failures (validation errors)
+ * - Thrown exceptions (validation errors) are the only path to the BullMQ failed queue
  * - Application-level errors (API rate limits, model unavailable) return error messages to users
  * - Debugging information is always available in the error result metadata
  */
@@ -313,7 +333,7 @@ export class LLMGenerationHandler {
 
       // Classification rules: see `classifyPipelineFailure`.
       const technicalMessage = error instanceof Error ? error.message : String(error);
-      const { category, errorInfoMessages } = classifyPipelineFailure(
+      const { category, type, errorInfoMessages } = classifyPipelineFailure(
         error,
         currentStepName,
         technicalMessage
@@ -327,7 +347,7 @@ export class LLMGenerationHandler {
         error: technicalMessage,
         personalityErrorMessage: job.data.personality.errorMessage,
         errorInfo: {
-          type: ApiErrorType.PERMANENT,
+          type,
           category,
           userMessage: USER_ERROR_MESSAGES[category],
           ...errorInfoMessages,

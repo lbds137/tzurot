@@ -39,6 +39,7 @@ import {
 import { selectVisionModel } from './VisionProcessor.js';
 import { buildFailureFallback } from './visionDescribeGates.js';
 import {
+  ApiKeyLookupError,
   EncryptionMisconfiguredError,
   UndecryptableApiKeyError,
   type ApiKeyResolver,
@@ -1018,6 +1019,129 @@ describe('resolveVisionConfig', () => {
         { err: misconfigured, userId: 'user-1', visionProvider: AIProvider.OpenRouter },
         expect.stringContaining('encryption misconfiguration')
       );
+    });
+  });
+
+  describe('failed stored-key lookup (ApiKeyLookupError) degrades to the system key', () => {
+    const visionOptions = {
+      personality,
+      mainProvider: AIProvider.ZaiCoding,
+      mainApiKey: 'user-zai-key',
+      isGuestMode: false,
+      userId: 'user-1',
+      apiKeyResolver: mockResolver,
+    };
+    const lookupError = new ApiKeyLookupError(AIProvider.OpenRouter, {
+      cause: new Error('connection reset'),
+    });
+    const systemOpenRouterKey = {
+      apiKey: 'system-or-key',
+      source: 'system',
+      provider: AIProvider.OpenRouter,
+      isGuestMode: true,
+      userId: undefined,
+    } satisfies ApiKeyResolutionResult;
+    const freeOnSystemKey = {
+      kind: 'resolved',
+      config: {
+        apiKey: 'system-or-key',
+        provider: AIProvider.OpenRouter,
+        model: FREE_ROUTER_MODEL,
+        source: 'system',
+        isGuestMode: false,
+      },
+    } satisfies VisionConfigResult;
+
+    it('a failed authenticated probe resolves the free model on the system key and warns about the read', async () => {
+      mockSelectVisionModel.mockResolvedValue('qwen/qwen3.5-397b-a17b');
+      mockTryResolveUserKey.mockRejectedValue(lookupError);
+      // The user-scoped read fails again (the real resolver never caches a throw);
+      // only the system read (no userId) resolves.
+      mockResolveApiKey.mockImplementation(async (uid: string | undefined) => {
+        if (uid !== undefined) {
+          throw lookupError;
+        }
+        return systemOpenRouterKey;
+      });
+
+      const result = await resolveVisionConfig(visionOptions);
+
+      expect(result).toEqual(freeOnSystemKey);
+      expect(mockResolveApiKey).toHaveBeenCalledWith(undefined, AIProvider.OpenRouter);
+      expect(mockTryConsume).toHaveBeenCalledWith('user-1');
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        expect.objectContaining({ err: lookupError, userId: 'user-1' }),
+        expect.stringContaining('read failed')
+      );
+    });
+
+    it('a failed user read in the broad free fallback takes the system key and still consumes the quota', async () => {
+      mockSelectVisionModel.mockResolvedValue('qwen/qwen3.5-397b-a17b');
+      mockTryResolveUserKey.mockResolvedValue(null); // probe confirms no vision key; no own z.ai key
+      mockResolveApiKey.mockImplementation(async (uid: string | undefined) => {
+        if (uid !== undefined) {
+          throw lookupError;
+        }
+        return systemOpenRouterKey;
+      });
+
+      const result = await resolveVisionConfig(visionOptions);
+
+      expect(result).toEqual(freeOnSystemKey);
+      expect(mockResolveApiKey).toHaveBeenNthCalledWith(1, 'user-1', AIProvider.OpenRouter);
+      expect(mockResolveApiKey).toHaveBeenNthCalledWith(2, undefined, AIProvider.OpenRouter);
+      expect(mockTryConsume).toHaveBeenCalledWith('user-1');
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        expect.objectContaining({ err: lookupError, userId: 'user-1' }),
+        expect.stringContaining('read failed')
+      );
+    });
+
+    it('the guest branch retries on the system key when the user-scoped read fails', async () => {
+      mockSelectVisionModel.mockResolvedValue(FREE_ROUTER_MODEL);
+      mockResolveApiKey.mockImplementation(async (uid: string | undefined) => {
+        if (uid !== undefined) {
+          throw lookupError;
+        }
+        return systemOpenRouterKey;
+      });
+
+      const result = await resolveVisionConfig({
+        ...visionOptions,
+        mainApiKey: 'system-zai-key',
+        isGuestMode: true,
+      });
+
+      expect(result).toEqual({
+        kind: 'resolved',
+        config: {
+          apiKey: 'system-or-key',
+          provider: AIProvider.OpenRouter,
+          model: FREE_ROUTER_MODEL,
+          source: 'system',
+          isGuestMode: true,
+        },
+      } satisfies VisionConfigResult);
+      expect(mockResolveApiKey).toHaveBeenNthCalledWith(1, 'user-1', AIProvider.OpenRouter);
+      expect(mockResolveApiKey).toHaveBeenNthCalledWith(2, undefined, AIProvider.OpenRouter);
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        expect.objectContaining({ err: lookupError, userId: 'user-1' }),
+        expect.stringContaining('read failed')
+      );
+    });
+
+    it('a non-lookup throw in the guest branch still propagates to the fail-fast catch', async () => {
+      mockSelectVisionModel.mockResolvedValue(FREE_ROUTER_MODEL);
+      mockResolveApiKey.mockRejectedValue(new Error('Redis blip'));
+
+      const result = await resolveVisionConfig({
+        ...visionOptions,
+        mainApiKey: 'system-zai-key',
+        isGuestMode: true,
+      });
+
+      expect(result).toEqual({ kind: 'failFast', provider: AIProvider.OpenRouter });
+      expect(mockResolveApiKey).toHaveBeenCalledTimes(1);
     });
   });
 
