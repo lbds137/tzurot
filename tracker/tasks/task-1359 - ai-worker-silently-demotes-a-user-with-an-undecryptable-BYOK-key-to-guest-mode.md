@@ -35,4 +35,6 @@ Acceptance: real-specimen test (corrupted GCM tag) pins the chosen user-visible 
 Owner ruling 2026-11-20 (AskUserQuestion): fail with the re-enter-your-key copy (no silent free-model downgrade).
 
 Owner ruling 2026-11-20 (AskUserQuestion): the re-enter-your-key copy renders PLAINLY in Discord, not inside the error spoiler, in the TASK-1359 PR (new errorInfo.userActionMessage; spec .claude/dispatch/credit-1359-r1.md).
+
+Owner ruling 2026-11-20 (AskUserQuestion, PR #2776 review round 1): the hard failure applies only to the key the reply is routed on (explicit z.ai preset, main provider key). Secondary probes (z.ai auto-promotion, the vision-provider key) treat an undecryptable row as absent and log a warning, so the reply runs on the user's own working key; never a silent drop to free models for the text reply.
 <!-- SECTION:NOTES:END -->
