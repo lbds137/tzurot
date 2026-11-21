@@ -18,7 +18,7 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 _Drafted 2026-11-20 after beta.247 (shipped 13:39Z, PR 2774; 4 runtime PRs, 204 files; prod checks in CURRENT.md § beta.247 watch)._
 
-- **In already**: (none)
+- **In already**: PR #2780 (TASK-1499 coalescing pending-save drain — prod re-smoke after release), plus the credit-run fixes on `develop` (#2775 TASK-1375, #2776 TASK-1359, TASK-1385+1131, TASK-1488, TASK-1486).
 - **Waiting on**: TASK-1479 (medium, visibility check on the voice-resolution personality lookup; the beta.247 review flagged it because the response grew) · TASK-1477 (medium, `/voice replies` confirms from the write, plus its two untested branches) · the owner-ruled small UX fixes TASK-1435 (Both-refusal retry hint) and TASK-1327 (omit the GUILD deny-edit scope inputs) · TASK-1483 (docs: voice-then-text burst).
 - **Explicitly NOT in**: TASK-1234 (rename, owner-ruled 11-20 but carries a migration + API change: its own train) · TASK-1356 (BYOK rotation redesign, security-critical, design first) · TASK-1474 (process PR, ships any time) · TASK-1411/1416 · caching Phase 3 (doc-17 reading) · TASK-1347/1174 (owner-approved 11-20; design- or ops-sized, scheduled separately).
 - **Deploy notes**: none yet (no migration planned).

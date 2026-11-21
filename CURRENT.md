@@ -6,7 +6,7 @@
 
 ## 🧪 beta.247 watch (shipped to main 2026-11-20 13:39Z; #2773's `/voice replies`, `/voice view` fields and channel-aware `/character overrides` are high tier: CI + reviews cover)
 
-- **Needs-smoke — coalescing (#2769, Discord-truth):** in an activated channel, send 3 quick plain-text messages while the character is still replying → TWO replies: the in-flight one, plus ONE survivor reply to the newest (Lila 2026-11-21: never cancel an in-flight generation); an image sent mid-burst still gets its own reply; an @mention mid-burst is answered 1:1. Status: FAILED 2026-11-21 (3 messages → 3 replies; the hold check runs after the ~2.5s context build, so a fast reply finishes before the next message checks) → TASK-1499 (high), first after the Sun 11-22 reset.
+- **Needs-smoke — coalescing (#2769, Discord-truth):** in an activated channel, send 3 quick plain-text messages while the character is still replying → TWO replies: the in-flight one, plus ONE survivor reply to the newest (Lila 2026-11-21: never cancel an in-flight generation); an image sent mid-burst still gets its own reply; an @mention mid-burst is answered 1:1. Status: FAILED 2026-11-21 (3 messages → 3 replies: `saveUserMessage`'s 2.5s `EMBED_PROCESSING_DELAY` left `entry.newest === null` when `msg1` delivered, so `releaseCycle` deleted the entry); **fix merged to `develop` in PR #2780** (`TASK-1499`, now `state:observable`, awaiting next release deploy for prod re-smoke).
 - **Watch — cache tokens (#2770/#2771, TASK-1450):** one week of prod rows, then `pnpm ops telemetry:inference --env prod` for the hit rate; the same read settles TASK-1414's write/read ratio.
 
 ## 🧪 beta.246 watch (shipped to main 2026-11-18 13:21Z; no needs-smoke: both fail soft, CI + reviews cover the rest)
