@@ -262,3 +262,26 @@ the BEST model available — by OUR measurement (quality + CPU latency on the ho
 shape), never by vendor-card claims; today that is Pocket TTS, and a candidate
 that measures better (Reverb-TTS if it clears the gates above) takes the slot by
 config switch, its code path kept. Mistral BYOK stays the external-API primary.
+
+## Direction: GPU voice hosting off Railway (deferred, Lila 2026-11-20)
+
+Context: a Discord user recommended Fish Audio S2 Pro self-hosted on a GPU as
+"good, not ElevenLabs-level" and pointed at serverless GPU hosts (Modal,
+Runware). Their unverified report: Modal's starter credit (~$30) covers a
+small model, costing cents. Railway offers no GPU hosting (as of 2026-11-20,
+not re-checked); the owner's preference is everything in one place, but not
+waiting on Railway.
+
+Owner direction: **for later.** If voice models move to an external GPU host,
+retire the Railway `voice-engine` service instead of running both: it is a
+large RAM and cost line, and its cold start is already a latency factor
+(TASK-191), so a serverless GPU cold start is not a new class of cost.
+
+When picked up, measure before deciding (one-unit probe): deploy the best GPU
+cloning candidate (Fish Audio S2 Pro first) on one serverless host, then
+record cold-start latency, warm per-reply latency, cost per reply and monthly
+idle cost. Compare those against voice-engine's Railway bill and cold start.
+The shape it fits: one more `TtsProvider` adapter (an HTTP provider beside
+Mistral), plus STT on the same host or a BYOK STT, then the voice-engine
+retirement. Promote when the owner reopens voice quality, or when the Railway
+voice-engine bill or cold start becomes the pain point.
