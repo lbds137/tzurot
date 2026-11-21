@@ -11,7 +11,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Job } from 'bullmq';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
-import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
+import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
+import { undecryptableApiKeyMessage } from '@tzurot/common-types/utils/providerDisplayName';
 import { JobType, JobStatus, REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
@@ -19,7 +20,12 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { LLMGenerationHandler } from './LLMGenerationHandler.js';
 import { DownloadAttachmentsStep } from './pipeline/steps/DownloadAttachmentsStep.js';
 import { DependencyStep } from './pipeline/steps/DependencyStep.js';
-import type { ApiKeyResolver, ApiKeyResolutionResult } from '../../services/ApiKeyResolver.js';
+import {
+  EncryptionMisconfiguredError,
+  UndecryptableApiKeyError,
+  type ApiKeyResolver,
+  type ApiKeyResolutionResult,
+} from '../../services/ApiKeyResolver.js';
 
 // Mock the redis module (dynamic import)
 vi.mock('../../redis.js', () => ({
@@ -876,6 +882,65 @@ describe('LLMGenerationHandler', () => {
         } finally {
           stepSpy.mockRestore();
         }
+      });
+
+      it('fails the job with the re-enter copy when the stored BYOK key is undecryptable', async () => {
+        const mockApiKeyResolver = createMockApiKeyResolver();
+        const handlerWithResolver = new LLMGenerationHandler(
+          mockRAGService as any,
+          mockPrisma,
+          mockApiKeyResolver
+        );
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockRejectedValue(
+          new UndecryptableApiKeyError(AIProvider.OpenRouter)
+        );
+        const job = {
+          id: 'job-undecryptable-key',
+          data: createValidJobData(),
+        } as Job<LLMGenerationJobData>;
+
+        const result = await handlerWithResolver.processJob(job);
+
+        const copy = undecryptableApiKeyMessage(AIProvider.OpenRouter);
+        expect(result.success).toBe(false);
+        // No silent guest demotion: generation never ran on a free model.
+        expect(mockRAGService.generateResponse).not.toHaveBeenCalled();
+        expect(result.errorInfo).toMatchObject({
+          category: ApiErrorCategory.AUTHENTICATION,
+          type: ApiErrorType.PERMANENT,
+          shouldRetry: false,
+          userMessage: copy,
+          // technicalMessage is the field bot-client's buildErrorContent renders
+          // into the Discord reply on BOTH its personality and default branches.
+          technicalMessage: copy,
+        });
+        expect(result.metadata?.failedStep).toBe('AuthResolution');
+      });
+
+      it('does not render a misconfigured-encryption failure as the user copy', async () => {
+        const mockApiKeyResolver = createMockApiKeyResolver();
+        const handlerWithResolver = new LLMGenerationHandler(
+          mockRAGService as any,
+          mockPrisma,
+          mockApiKeyResolver
+        );
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockRejectedValue(
+          new EncryptionMisconfiguredError({
+            cause: new Error('API_KEY_ENCRYPTION_KEY environment variable is required'),
+          })
+        );
+        const job = {
+          id: 'job-encryption-misconfigured',
+          data: createValidJobData(),
+        } as Job<LLMGenerationJobData>;
+
+        const result = await handlerWithResolver.processJob(job);
+
+        expect(result.success).toBe(false);
+        expect(mockRAGService.generateResponse).not.toHaveBeenCalled();
+        expect(result.errorInfo?.category).toBe(ApiErrorCategory.UNKNOWN);
+        expect(result.errorInfo?.technicalMessage).toContain('API_KEY_ENCRYPTION_KEY');
+        expect(result.errorInfo?.technicalMessage).not.toContain("can't be read anymore");
       });
 
       it('should always include errorInfo on failure results so bot-client can render spoiler-tag details', async () => {

@@ -30,6 +30,7 @@ import { type AttachmentDescriptionAttribution } from '@tzurot/common-types/type
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { getFreeVisionFloor } from '../freeFloors.js';
+import { EncryptionMisconfiguredError } from '../ApiKeyResolver.js';
 import { zaiFreeTierFailureReactor } from '../../redis.js';
 import { describeImage, selectVisionModel, type DescribeImageOptions } from './VisionProcessor.js';
 import {
@@ -355,6 +356,13 @@ async function userHasOpenRouterKey(authOptions: ResolveVisionConfigOptions): Pr
     );
     return key !== null;
   } catch (error) {
+    if (error instanceof EncryptionMisconfiguredError) {
+      logger.error(
+        { err: error, userId: authOptions.userId },
+        'OpenRouter key probe hit a server encryption misconfiguration — keeping the default vision tier order'
+      );
+      return false;
+    }
     logger.debug(
       { err: error, userId: authOptions.userId },
       'OpenRouter key probe failed — keeping the default vision tier order'

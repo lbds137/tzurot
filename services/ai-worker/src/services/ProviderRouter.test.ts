@@ -15,7 +15,14 @@ import {
   detectVisionProvider,
   effectiveVisionModelName,
 } from './ProviderRouter.js';
-import type { ApiKeyResolver, ApiKeyResolutionResult } from './ApiKeyResolver.js';
+import {
+  EncryptionMisconfiguredError,
+  UndecryptableApiKeyError,
+  type ApiKeyResolver,
+  type ApiKeyResolutionResult,
+} from './ApiKeyResolver.js';
+
+const { mockLoggerWarn } = vi.hoisted(() => ({ mockLoggerWarn: vi.fn() }));
 
 // Mock logger via the shared common-types mock pattern
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -27,7 +34,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
     createLogger: () => ({
       debug: vi.fn(),
       info: vi.fn(),
-      warn: vi.fn(),
+      warn: mockLoggerWarn,
       error: vi.fn(),
     }),
   };
@@ -40,6 +47,7 @@ describe('ProviderRouter', () => {
   let router: ProviderRouter;
 
   beforeEach(() => {
+    mockLoggerWarn.mockClear();
     mockResolveApiKey = vi.fn();
     mockTryResolveUserKey = vi.fn();
     mockApiKeyResolver = {
@@ -138,6 +146,19 @@ describe('ProviderRouter', () => {
       const route = await router.resolveRoute(AIProvider.ZaiCoding, 'glm-4.7', 'user-123');
 
       expect(route.isGuestMode).toBe(false);
+    });
+  });
+
+  describe('zai-coding with an undecryptable stored key (routed key must fail)', () => {
+    it('propagates UndecryptableApiKeyError instead of falling through to OpenRouter', async () => {
+      mockTryResolveUserKey.mockRejectedValue(new UndecryptableApiKeyError(AIProvider.ZaiCoding));
+
+      await expect(
+        router.resolveRoute(AIProvider.ZaiCoding, 'glm-4.7', 'user-123')
+      ).rejects.toBeInstanceOf(UndecryptableApiKeyError);
+
+      expect(mockTryResolveUserKey).toHaveBeenCalledWith('user-123', AIProvider.ZaiCoding);
+      expect(mockResolveApiKey).not.toHaveBeenCalled();
     });
   });
 
@@ -267,6 +288,79 @@ describe('ProviderRouter', () => {
   });
 
   describe('OpenRouter z-ai/ auto-promotion', () => {
+    it('treats an undecryptable z.ai probe key as absent: OpenRouter passthrough plus a warning', async () => {
+      const probeError = new UndecryptableApiKeyError(AIProvider.ZaiCoding);
+      mockTryResolveUserKey.mockRejectedValue(probeError);
+      mockResolveApiKey.mockResolvedValue({
+        apiKey: 'sk-or-user-key',
+        source: 'user',
+        provider: AIProvider.OpenRouter,
+        userId: 'user-123',
+        isGuestMode: false,
+      } satisfies ApiKeyResolutionResult);
+
+      const route = await router.resolveRoute(AIProvider.OpenRouter, 'z-ai/glm-5.1', 'user-123');
+
+      expect(mockTryResolveUserKey).toHaveBeenCalledWith('user-123', AIProvider.ZaiCoding);
+      expect(mockResolveApiKey).toHaveBeenCalledWith('user-123', AIProvider.OpenRouter);
+      expect(route).toEqual({
+        effectiveProvider: AIProvider.OpenRouter,
+        effectiveModel: 'z-ai/glm-5.1',
+        apiKey: 'sk-or-user-key',
+        isGuestMode: false,
+        fallthroughTriggered: false,
+        wasAutoPromoted: false,
+      } satisfies typeof route);
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        {
+          userId: 'user-123',
+          configuredModel: 'z-ai/glm-5.1',
+          reason: 'undecryptable-key',
+          err: probeError,
+        },
+        'Auto-promotion skipped: stored z.ai-coding key will not decrypt'
+      );
+    });
+
+    it('rethrows the undecryptable z.ai error when the user has no OpenRouter key of their own (guest mode)', async () => {
+      mockTryResolveUserKey.mockRejectedValue(new UndecryptableApiKeyError(AIProvider.ZaiCoding));
+      mockResolveApiKey.mockResolvedValue({
+        apiKey: 'sk-or-system-key',
+        source: 'system',
+        provider: AIProvider.OpenRouter,
+        isGuestMode: true,
+      } satisfies ApiKeyResolutionResult);
+
+      await expect(
+        router.resolveRoute(AIProvider.OpenRouter, 'z-ai/glm-5.1', 'user-123')
+      ).rejects.toBeInstanceOf(UndecryptableApiKeyError);
+
+      expect(mockResolveApiKey).toHaveBeenCalledWith('user-123', AIProvider.OpenRouter);
+      expect(mockLoggerWarn).not.toHaveBeenCalled();
+    });
+
+    it('rethrows the ORIGINAL z.ai error when the OpenRouter guest check itself throws', async () => {
+      const zaiError = new UndecryptableApiKeyError(AIProvider.ZaiCoding);
+      mockTryResolveUserKey.mockRejectedValue(zaiError);
+      mockResolveApiKey.mockRejectedValue(new UndecryptableApiKeyError(AIProvider.OpenRouter));
+
+      const attempt = router.resolveRoute(AIProvider.OpenRouter, 'z-ai/glm-5.1', 'user-123');
+
+      await expect(attempt).rejects.toBe(zaiError);
+      await expect(attempt).rejects.toMatchObject({ provider: AIProvider.ZaiCoding });
+    });
+
+    it('never swallows EncryptionMisconfiguredError from the z.ai probe', async () => {
+      mockTryResolveUserKey.mockRejectedValue(new EncryptionMisconfiguredError());
+
+      await expect(
+        router.resolveRoute(AIProvider.OpenRouter, 'z-ai/glm-5.1', 'user-123')
+      ).rejects.toBeInstanceOf(EncryptionMisconfiguredError);
+
+      expect(mockTryResolveUserKey).toHaveBeenCalledWith('user-123', AIProvider.ZaiCoding);
+      expect(mockLoggerWarn).not.toHaveBeenCalled();
+    });
+
     it('should promote z-ai/glm-5.1 to z.ai-direct when user has zai-coding key', async () => {
       // The single-preset UX: user has one preset configured for OpenRouter
       // (the broadly-compatible default) with model z-ai/glm-5.1, AND has a

@@ -37,7 +37,7 @@ import type {
   SttResolver,
 } from '@tzurot/config-resolver';
 import { VisionDescriptionWriter } from '../../services/context/visionDescriptionWriter.js';
-import { type ApiKeyResolver } from '../../services/ApiKeyResolver.js';
+import { UndecryptableApiKeyError, type ApiKeyResolver } from '../../services/ApiKeyResolver.js';
 import {
   creditExhaustionCache,
   rateLimitCache,
@@ -284,10 +284,16 @@ export class LLMGenerationHandler {
       // broke. Map known
       // failed-step values to their user-facing categories; everything else
       // surfaces as UNKNOWN with the technical message in the spoiler.
-      const category =
-        currentStepName === 'DownloadAttachments'
-          ? ApiErrorCategory.MEDIA_NOT_FOUND
-          : ApiErrorCategory.UNKNOWN;
+      // An unreadable stored BYOK key is AUTHENTICATION with the re-enter copy.
+      // bot-client renders `technicalMessage` on both its personality and
+      // default branches (`userMessage` is not read there), so the copy rides it.
+      const undecryptable = error instanceof UndecryptableApiKeyError;
+      let category = ApiErrorCategory.UNKNOWN;
+      if (undecryptable) {
+        category = ApiErrorCategory.AUTHENTICATION;
+      } else if (currentStepName === 'DownloadAttachments') {
+        category = ApiErrorCategory.MEDIA_NOT_FOUND;
+      }
       const technicalMessage = error instanceof Error ? error.message : String(error);
 
       // Return error result with step information for debugging
@@ -300,7 +306,7 @@ export class LLMGenerationHandler {
         errorInfo: {
           type: ApiErrorType.PERMANENT,
           category,
-          userMessage: USER_ERROR_MESSAGES[category],
+          userMessage: undecryptable ? technicalMessage : USER_ERROR_MESSAGES[category],
           technicalMessage,
           referenceId: job.id ?? randomUUID(),
           shouldRetry: false,

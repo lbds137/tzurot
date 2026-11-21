@@ -16,7 +16,9 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { AuthStep } from './AuthStep.js';
 import type { GenerationContext, ResolvedConfig } from '../types.js';
 import {
+  EncryptionMisconfiguredError,
   NoApiKeyAvailableError,
+  UndecryptableApiKeyError,
   type ApiKeyResolver,
   type ApiKeyResolutionResult,
 } from '../../../../services/ApiKeyResolver.js';
@@ -237,6 +239,27 @@ describe('AuthStep', () => {
       expect(result.auth?.isGuestMode).toBe(true);
       // Should override model to guest default
       expect(result.config?.effectivePersonality.model).toBe(FREE_ROUTER_MODEL);
+    });
+
+    it.each([
+      ['an undecryptable stored key', new UndecryptableApiKeyError(AIProvider.OpenRouter)],
+      [
+        'a misconfigured encryption env',
+        new EncryptionMisconfiguredError({ cause: new Error('API_KEY_ENCRYPTION_KEY missing') }),
+      ],
+    ])('should fail the step (no guest demotion) on %s', async (_label, error) => {
+      vi.mocked(mockApiKeyResolver.resolveApiKey).mockRejectedValue(error);
+      vi.mocked(mockConfigResolver.getFreeDefaultConfig).mockResolvedValue(null);
+
+      step = new AuthStep(mockApiKeyResolver, mockConfigResolver);
+
+      const context: GenerationContext = {
+        job: createMockJob(),
+        startTime: Date.now(),
+        config: { effectivePersonality: TEST_PERSONALITY, configSource: 'personality' },
+      };
+
+      await expect(step.process(context)).rejects.toBe(error);
     });
 
     it('should fall back to guest mode when resolver throws', async () => {

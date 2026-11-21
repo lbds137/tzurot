@@ -19,8 +19,9 @@ import { getConfig } from '@tzurot/common-types/config/config';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { INTERVALS } from '@tzurot/common-types/constants/timing';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
-import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
+import { decryptApiKey, isEncryptionConfigured } from '@tzurot/common-types/utils/encryption';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { undecryptableApiKeyMessage } from '@tzurot/common-types/utils/providerDisplayName';
 import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 
 const logger = createLogger('ApiKeyResolver');
@@ -55,13 +56,50 @@ export interface ApiKeyResolutionResult {
  * fallback. This is an EXPECTED outcome for BYOK-only providers (Mistral,
  * z.ai coding, ElevenLabs without an operator key): callers treat it as
  * control flow (fall back to another provider) rather than as an incident,
- * so it must be distinguishable from a genuine resolution failure such as a
- * DB outage or a decryption error.
+ * so it must be distinguishable from a genuine resolution failure such as an
+ * {@link UndecryptableApiKeyError} or an {@link EncryptionMisconfiguredError}.
  */
 export class NoApiKeyAvailableError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'NoApiKeyAvailableError';
+  }
+}
+
+/**
+ * Thrown when a user's stored BYOK key exists but will not decrypt while the
+ * service's encryption config is healthy (a corrupt or foreign-key row). The
+ * message IS the user-facing re-enter copy; the generation pipeline fails the
+ * job with it instead of silently demoting the user to guest mode.
+ */
+export class UndecryptableApiKeyError extends Error {
+  readonly provider: AIProvider;
+
+  constructor(provider: AIProvider, options?: { cause?: unknown }) {
+    super(undecryptableApiKeyMessage(provider), options);
+    this.name = 'UndecryptableApiKeyError';
+    this.provider = provider;
+  }
+}
+
+/**
+ * Thrown when a stored row fails to decrypt AND `isEncryptionConfigured()` is
+ * false — the SERVICE's encryption env is malformed, or set differently from the
+ * key injected into this resolver. A deploy bug, not a user problem.
+ * `isEncryptionConfigured()` is also false when `API_KEY_ENCRYPTION_KEY_PREVIOUS`
+ * is set but malformed during a rotation window, so that classifies here too
+ * (a real deploy fault).
+ * A fully UNSET key is NOT covered here: the resolver then holds an empty key,
+ * skips the user lookup and serves guest mode, so this error is never thrown.
+ * That gap is tracked as TASK-1488.
+ * Keeps the underlying message (which names the env var) and must never be
+ * rendered as the user's re-enter copy or absorbed into guest mode.
+ */
+export class EncryptionMisconfiguredError extends Error {
+  constructor(options?: { cause?: unknown }) {
+    const cause = options?.cause;
+    super(cause instanceof Error ? cause.message : 'Encryption is not configured', options);
+    this.name = 'EncryptionMisconfiguredError';
   }
 }
 
@@ -116,6 +154,9 @@ export class ApiKeyResolver {
    * @param provider - The AI provider (openrouter, openai, etc.)
    * @returns The resolved API key and its source
    * @throws NoApiKeyAvailableError if no key is configured anywhere for the provider
+   * @throws UndecryptableApiKeyError if the user's stored key will not decrypt
+   *   (never cached, so the next call re-reads the row)
+   * @throws EncryptionMisconfiguredError if the service's encryption env is unusable
    */
   async resolveApiKey(
     userId: string | undefined,
@@ -214,6 +255,10 @@ export class ApiKeyResolver {
    * (e.g., ProviderRouter deciding whether to route z.ai-direct or fall through
    * to OpenRouter) — distinct from `resolveApiKey` which always returns
    * something or throws.
+   *
+   * A stored key that exists but will not decrypt THROWS (UndecryptableApiKeyError
+   * / EncryptionMisconfiguredError) rather than returning null: null reads as
+   * "no key" and would silently reroute the user.
    */
   async tryResolveUserKey(
     userId: string | undefined,
@@ -280,11 +325,16 @@ export class ApiKeyResolver {
   }
 
   /**
-   * Get and decrypt a user's API key from the database
+   * Get and decrypt a user's API key from the database.
+   *
+   * Returns `null` when the user has no active key, or when the Prisma read
+   * fails (logged; callers fall back to the system key as before). A row that
+   * will not decrypt throws — see the error classes above.
    */
   private async getUserApiKey(userId: string, provider: AIProvider): Promise<string | null> {
+    let userApiKey;
     try {
-      const userApiKey = await this.prisma.userApiKey.findFirst({
+      userApiKey = await this.prisma.userApiKey.findFirst({
         where: {
           user: { discordId: userId },
           provider: provider,
@@ -296,11 +346,16 @@ export class ApiKeyResolver {
           tag: true,
         },
       });
+    } catch (error) {
+      logger.error({ err: error, userId, provider }, 'Failed to retrieve user API key');
+      return null;
+    }
 
-      if (userApiKey === null) {
-        return null;
-      }
+    if (userApiKey === null) {
+      return null;
+    }
 
+    try {
       // Decrypt the key (uses encryption key from environment via getEncryptionKey())
       return decryptApiKey({
         iv: userApiKey.iv,
@@ -308,8 +363,14 @@ export class ApiKeyResolver {
         tag: userApiKey.tag,
       });
     } catch (error) {
-      logger.error({ err: error, userId, provider }, 'Failed to retrieve/decrypt user API key');
-      return null;
+      // The constructor's key (this.encryptionKey) and the env can disagree; the
+      // env check below is what decides the error class, not the injected key.
+      if (!isEncryptionConfigured()) {
+        logger.error({ err: error, userId, provider }, 'Encryption is not configured');
+        throw new EncryptionMisconfiguredError({ cause: error });
+      }
+      logger.warn({ err: error, userId, provider }, 'Stored user API key failed to decrypt');
+      throw new UndecryptableApiKeyError(provider, { cause: error });
     }
   }
 
