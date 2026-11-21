@@ -25,4 +25,6 @@ Privacy: her personal photos go only to non-Chinese-hosted endpoints (memory: pe
 Acceptance: a result doc with the pre-registered decision rule applied, and a recommendation on whether glimpse joins the vision catalog or replaces the fallback.
 
 Image set (owner discussion 2026-11-20): clearly adult NSFW only. Leave out ABDL-themed and youthful-styled anime art: OpenRouter's image screen (docs: "This request contains prohibited content.") judges appearance, a false positive risks an account flag, and the eval gains nothing from those images. Log OpenRouter blocks (403 or prohibited-content error) separately from model refusals.
+
+NSFW source (owner 2026-11-21): the owner-approved Drive albums are recorded in the gitignored local note `docs/local/dispatch/task-1491-source.md`. Filter to image files (the albums mix in videos) and screen each image before it is sent.
 <!-- SECTION:DESCRIPTION:END -->
