@@ -94,8 +94,8 @@ interface ImageJobAuth {
  * Any throw (notably when no key exists anywhere at all) degrades to `false` — today's
  * behavior — rather than failing the job; a guest-mode misclassification only costs the
  * piggyback tier's eligibility, not correctness. A stored OpenRouter row that will not
- * decrypt (`UndecryptableApiKeyError`) now also throws here, so that user is treated as
- * authenticated and loses only guest piggyback eligibility.
+ * decrypt (`UndecryptableApiKeyError`) or a failed key read (`ApiKeyLookupError`) also
+ * throws here, so that user is treated as authenticated and loses only guest piggyback eligibility.
  */
 async function resolveGuestMode(apiKeyResolver: ApiKeyResolver, userId: string): Promise<boolean> {
   try {

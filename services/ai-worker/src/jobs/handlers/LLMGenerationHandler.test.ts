@@ -25,6 +25,7 @@ import { LLMGenerationHandler } from './LLMGenerationHandler.js';
 import { DownloadAttachmentsStep } from './pipeline/steps/DownloadAttachmentsStep.js';
 import { DependencyStep } from './pipeline/steps/DependencyStep.js';
 import {
+  ApiKeyLookupError,
   EncryptionMisconfiguredError,
   UndecryptableApiKeyError,
   type ApiKeyResolver,
@@ -947,6 +948,40 @@ describe('LLMGenerationHandler', () => {
         expect(result.errorInfo?.technicalMessage).toContain('API_KEY_ENCRYPTION_KEY');
         expect(result.errorInfo?.technicalMessage).not.toContain("can't be read anymore");
         expect(result.errorInfo?.userActionMessage).toBeUndefined();
+      });
+
+      describe('a failed stored-key lookup (ApiKeyLookupError)', () => {
+        function buildLookupFailureHandler(): LLMGenerationHandler {
+          const mockApiKeyResolver = createMockApiKeyResolver();
+          vi.mocked(mockApiKeyResolver.resolveApiKey).mockRejectedValue(
+            new ApiKeyLookupError(AIProvider.OpenRouter, { cause: new Error('connection reset') })
+          );
+          return new LLMGenerationHandler(mockRAGService as any, mockPrisma, mockApiKeyResolver);
+        }
+
+        it('soft-fails as a transient server error, never throwing, a guest or the re-enter copy', async () => {
+          // opts.attempts: 0 documents the production job shape (flowProducer.add, TASK-1497); the
+          // handler's result does not depend on it.
+          const job = {
+            id: 'job-lookup-failure',
+            attemptsMade: 0,
+            opts: { attempts: 0 },
+            data: createValidJobData(),
+          } as Job<LLMGenerationJobData>;
+
+          const result = await buildLookupFailureHandler().processJob(job);
+
+          expect(result.success).toBe(false);
+          expect(mockRAGService.generateResponse).not.toHaveBeenCalled();
+          expect(result.errorInfo).toMatchObject({
+            category: ApiErrorCategory.SERVER_ERROR,
+            type: ApiErrorType.TRANSIENT,
+            shouldRetry: false,
+            userMessage: USER_ERROR_MESSAGES[ApiErrorCategory.SERVER_ERROR],
+          });
+          expect(result.errorInfo?.userActionMessage).toBeUndefined();
+          expect(result.errorInfo?.technicalMessage).not.toContain("can't be read anymore");
+        });
       });
 
       it('should always include errorInfo on failure results so bot-client can render spoiler-tag details', async () => {

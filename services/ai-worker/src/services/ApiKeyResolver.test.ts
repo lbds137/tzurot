@@ -4,6 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import {
+  ApiKeyLookupError,
   ApiKeyResolver,
   NoApiKeyAvailableError,
   UndecryptableApiKeyError,
@@ -199,18 +200,12 @@ describe('ApiKeyResolver', () => {
       }
     });
 
-    it('should fall back to system key with guest mode on database error', async () => {
+    it('should reject with ApiKeyLookupError (never a guest result) on database error', async () => {
       mockPrisma.userApiKey.findFirst.mockRejectedValue(new Error('DB error'));
 
-      const result = await resolver.resolveApiKey('user-123', AIProvider.OpenRouter);
-
-      expect(result).toEqual({
-        apiKey: 'system-openrouter-key',
-        source: 'system',
-        provider: AIProvider.OpenRouter,
-        userId: 'user-123',
-        isGuestMode: true, // Guest mode - restricted to free models
-      });
+      await expect(
+        resolver.resolveApiKey('user-123', AIProvider.OpenRouter)
+      ).rejects.toBeInstanceOf(ApiKeyLookupError);
     });
   });
 
