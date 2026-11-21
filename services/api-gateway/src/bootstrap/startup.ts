@@ -7,6 +7,7 @@
 import { access, mkdir, readdir } from 'fs/promises';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { HealthStatus } from '@tzurot/common-types/constants/service';
+import { isEncryptionConfigured } from '@tzurot/common-types/utils/encryption';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('api-gateway');
@@ -21,12 +22,21 @@ const AVATAR_STORAGE_PATH = envConfig.AVATAR_STORAGE_PATH;
 export function validateByokConfiguration(): void {
   const encryptionKey = envConfig.API_KEY_ENCRYPTION_KEY;
 
+  // The env schema already maps '' to undefined and rejects malformed keys, so the
+  // empty/length/hex checks below are defence in depth for non-schema callers.
   if (encryptionKey === undefined || encryptionKey.length === 0) {
+    // Deployed only: a local run legitimately has no BYOK key (the local .env omits it).
+    if (envConfig.RAILWAY_ENVIRONMENT_NAME !== undefined) {
+      throw new Error(
+        `API_KEY_ENCRYPTION_KEY is not set (RAILWAY_ENVIRONMENT_NAME="${envConfig.RAILWAY_ENVIRONMENT_NAME}"). ` +
+          "Without it stored BYOK keys cannot be decrypted, so every BYOK user's requests would fail. " +
+          'Set API_KEY_ENCRYPTION_KEY on this Railway service.'
+      );
+    }
     logger.warn(
       { component: 'BYOK' },
-      '[Gateway] API_KEY_ENCRYPTION_KEY not configured - BYOK is DISABLED. ' +
-        'Users will NOT be able to store their own API keys. ' +
-        'All requests will use system API keys from environment variables. ' +
+      '[Gateway] API_KEY_ENCRYPTION_KEY not configured - stored BYOK keys cannot be decrypted. ' +
+        'Requests from users with a stored key will fail; users without a key use system API keys from environment variables. ' +
         'To enable BYOK, set API_KEY_ENCRYPTION_KEY to a 64-character hex string (32 bytes).'
     );
     return;
@@ -41,6 +51,17 @@ export function validateByokConfiguration(): void {
 
   if (!/^[0-9a-fA-F]+$/.test(encryptionKey)) {
     throw new Error('Invalid API_KEY_ENCRYPTION_KEY: must contain only hexadecimal characters');
+  }
+
+  // The primary key is well formed; a rotation-window API_KEY_ENCRYPTION_KEY_PREVIOUS
+  // (not in the config schema) can still be malformed, which breaks decryption too.
+  if (envConfig.RAILWAY_ENVIRONMENT_NAME !== undefined && !isEncryptionConfigured()) {
+    throw new Error(
+      'API_KEY_ENCRYPTION_KEY or API_KEY_ENCRYPTION_KEY_PREVIOUS is malformed ' +
+        `(RAILWAY_ENVIRONMENT_NAME="${envConfig.RAILWAY_ENVIRONMENT_NAME}"). ` +
+        "Stored BYOK keys cannot be decrypted, so every BYOK user's requests would fail. " +
+        'Fix the variable on this Railway service.'
+    );
   }
 
   logger.info('BYOK encryption key validated - user API key storage is ENABLED');

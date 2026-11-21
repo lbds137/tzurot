@@ -2,15 +2,23 @@
  * Tests for ApiKeyResolver service
  */
 
-import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import {
   ApiKeyResolver,
   NoApiKeyAvailableError,
   UndecryptableApiKeyError,
 } from './ApiKeyResolver.js';
+import { snapshotEncryptionEnv } from './test-utils.js';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
+
+const mockLogger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
 
 // Mock the common-types module
 vi.mock('@tzurot/common-types/config/config', async () => {
@@ -20,7 +28,6 @@ vi.mock('@tzurot/common-types/config/config', async () => {
   return {
     ...actual,
     getConfig: () => ({
-      API_KEY_ENCRYPTION_KEY: 'test-encryption-key-32-bytes-long!',
       OPENROUTER_API_KEY: 'system-openrouter-key',
       ELEVENLABS_API_KEY: 'system-elevenlabs-key',
     }),
@@ -57,16 +64,21 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   );
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 
 describe('ApiKeyResolver', () => {
+  const restoreEncryptionEnv = snapshotEncryptionEnv();
+  const VALID_KEY_HEX = 'ab'.repeat(32);
+
+  beforeEach(() => {
+    process.env.API_KEY_ENCRYPTION_KEY = VALID_KEY_HEX;
+    delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+  });
+
+  afterEach(restoreEncryptionEnv);
+
   let mockPrisma: {
     userApiKey: {
       findFirst: Mock;
@@ -86,7 +98,6 @@ describe('ApiKeyResolver', () => {
 
     resolver = new ApiKeyResolver(
       mockPrisma as unknown as PrismaClient,
-      'test-encryption-key-32-bytes-long!',
       // `now: () => Date.now()` makes TTLCache's TTL respect vi.useFakeTimers
       // (lru-cache's default `performance.now()` is NOT mocked by fake timers).
       { cacheTtlMs: 1000, now: () => Date.now() } // Short TTL for testing
@@ -418,14 +429,16 @@ describe('ApiKeyResolver', () => {
       expect(mockPrisma.userApiKey.findFirst).not.toHaveBeenCalled();
     });
 
-    it('should return null when encryption is not configured', async () => {
-      const noEncryptionResolver = new ApiKeyResolver(mockPrisma as unknown as PrismaClient, '');
+    it('should still look up the user row (and return null when none) with the env key unset', async () => {
+      delete process.env.API_KEY_ENCRYPTION_KEY;
+      const noEncryptionResolver = new ApiKeyResolver(mockPrisma as unknown as PrismaClient);
+      mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
 
       const result = await noEncryptionResolver.tryResolveUserKey('user-123', AIProvider.ZaiCoding);
 
       expect(result).toBeNull();
-      // Should NOT hit the DB — encryption-disabled short-circuit.
-      expect(mockPrisma.userApiKey.findFirst).not.toHaveBeenCalled();
+      // No short-circuit: an empty key must not hide a stored BYOK row.
+      expect(mockPrisma.userApiKey.findFirst).toHaveBeenCalledTimes(1);
     });
 
     it('should return user key from cache when source is "user"', async () => {
@@ -498,16 +511,15 @@ describe('ApiKeyResolver', () => {
   });
 
   describe('encryption key not configured', () => {
-    it('should use system key with guest mode when encryption key not provided', async () => {
-      const resolverNoEncryption = new ApiKeyResolver(
-        mockPrisma as unknown as PrismaClient,
-        '' // Empty encryption key
-      );
+    it('should use system key with guest mode when encryption key not provided and the user has no row', async () => {
+      delete process.env.API_KEY_ENCRYPTION_KEY;
+      const resolverNoEncryption = new ApiKeyResolver(mockPrisma as unknown as PrismaClient);
+      mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
 
       const result = await resolverNoEncryption.resolveApiKey('user-123', AIProvider.OpenRouter);
 
-      // Should not try to get user key when encryption is disabled
-      expect(mockPrisma.userApiKey.findFirst).not.toHaveBeenCalled();
+      // The lookup always runs now; no row means guest, as before
+      expect(mockPrisma.userApiKey.findFirst).toHaveBeenCalledTimes(1);
       expect(result).toEqual({
         apiKey: 'system-openrouter-key',
         source: 'system',
@@ -515,6 +527,28 @@ describe('ApiKeyResolver', () => {
         userId: 'user-123',
         isGuestMode: true, // Guest mode - restricted to free models
       });
+    });
+
+    it('should not warn at construction when the env encryption key is set', () => {
+      mockLogger.warn.mockClear();
+      new ApiKeyResolver(mockPrisma as unknown as PrismaClient);
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it('should warn at construction when the env encryption key is unset', () => {
+      delete process.env.API_KEY_ENCRYPTION_KEY;
+
+      mockLogger.warn.mockClear();
+      new ApiKeyResolver(mockPrisma as unknown as PrismaClient);
+
+      expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        { component: 'ApiKeyResolver' },
+        expect.stringContaining(
+          'API_KEY_ENCRYPTION_KEY (or API_KEY_ENCRYPTION_KEY_PREVIOUS) missing or malformed'
+        )
+      );
     });
   });
 });
