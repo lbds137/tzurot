@@ -31,55 +31,28 @@ import type {
 } from './character/PersonalityChatManager.js';
 import type { NsfwGate } from './character/sharedNsfwGate.js';
 import {
+  buildReleaseCyclePlan,
+  buildSubmitChatJobInput,
+  clearEntryTimers,
+  createCoalescingHoldEntry,
+  DEFAULT_SAVE_DRAIN_TIMEOUT_MS,
   isHoldableActivationSlot,
-  mergeSkippedForSurvivor,
-  pushToSkippedLists,
+  mergeLostPayloads,
+  recordHeldTriggerInEntry,
+  startBoundedPendingSaveDrain,
+  type BeginSurvivorCycleOpts,
+  type CoalescingHoldEntry,
+  type CoalescingReleaseReason,
   type HeldTriggerContext,
+  type LostSkippedPayload,
+  type PendingSurvivorRelease,
 } from './coalescingHoldability.js';
 import type { RuntimeEntry, StartFanOutInput } from './multiTagCoordinatorHelpers.js';
 import type { ResolvedSlot } from './SlotResolver.js';
 
 const logger = createLogger('CoalescingHoldRegistry');
 
-/** In-memory coalescing hold state for one (channelId, personalityId) pair. */
-export interface CoalescingHoldEntry {
-  channelId: string;
-  personalityId: string;
-  awaitedJobId: string | null;
-  newest: HeldTriggerContext | null;
-  skipped: SkippedMessage[];
-  /**
-   * Full in-memory context ({input, resolved}) per skipped trigger, aligned
-   * with `skipped` and capped identically. Never serialized to the wire (the
-   * wire payload stays id-only `skipped`): it lets a failed survivor
-   * submission promote the newest skipped trigger instead of dropping the
-   * held rows.
-   */
-  skippedContexts: HeldTriggerContext[];
-  createdAt: number;
-  deadlineTimer: NodeJS.Timeout;
-  cycleId: number;
-  /**
-   * Discord createdTimestamp of the released survivor this in-flight cycle was
-   * created for, stamped at release so a trigger whose save resolves after the
-   * release can be recognized as older than the answer already owed: one
-   * strictly older goes straight to skipped instead of becoming this cycle's
-   * newest and answering before the survivor. Undefined on a cycle started
-   * from an idle pair (no survivor yet).
-   */
-  survivorCreatedTimestamp?: number;
-}
-
 export type SubmitOrHoldResult = SubmitChatJobResult | { kind: 'held' };
-
-interface PendingSurvivorRelease {
-  cycleId: number;
-  /** The survivor this handoff belongs to — step 1 consumes only for it. */
-  survivorMessageId: string;
-  skippedMessages: SkippedMessage[];
-  /** Full in-memory contexts backing `skippedMessages`, for survivor promotion. */
-  skippedContexts: HeldTriggerContext[];
-}
 
 export type CoalescingChatManagerPort = Pick<
   PersonalityChatManager,
@@ -102,11 +75,13 @@ export class CoalescingHoldRegistry {
    */
   private readonly pendingReleases = new Map<string, PendingSurvivorRelease>();
   private nextCycleId = 0;
+  private clearEpoch = 0;
 
   constructor(
     private readonly chatManager: CoalescingChatManagerPort,
     private readonly onReleaseFanOut: (input: StartFanOutInput) => Promise<void>,
-    private readonly holdDeadlineMs: number = COALESCING.HOLD_DEADLINE_MS
+    private readonly holdDeadlineMs: number = COALESCING.HOLD_DEADLINE_MS,
+    private readonly saveDrainTimeoutMs: number = DEFAULT_SAVE_DRAIN_TIMEOUT_MS
   ) {}
 
   private keyFor(channelId: string, personalityId: string): string {
@@ -128,13 +103,7 @@ export class CoalescingHoldRegistry {
     nsfwGate: NsfwGate
   ): Promise<SubmitOrHoldResult> {
     if (resolved.source !== 'activation') {
-      return this.chatManager.submitChatJob({
-        message: input.message,
-        personality: resolved.personality,
-        content: input.content,
-        isAutoResponse: resolved.isAutoResponse,
-        nsfwGate,
-      });
+      return this.chatManager.submitChatJob(buildSubmitChatJobInput(input, resolved, nsfwGate));
     }
 
     const channelId = input.channel.id;
@@ -148,7 +117,10 @@ export class CoalescingHoldRegistry {
     // so its own row would never persist). It falls through to the normal
     // hold path; the real survivor still finds its handoff here.
     const releaseContext = this.pendingReleases.get(key);
-    if (releaseContext?.survivorMessageId === input.message.id) {
+    if (
+      releaseContext?.survivorMessageId === input.message.id &&
+      this.entries.get(key)?.cycleId === releaseContext.cycleId
+    ) {
       this.pendingReleases.delete(key);
       return this.submitInFlightCycle(releaseContext.cycleId, input, resolved, nsfwGate, {
         skipUserMessageSave: true,
@@ -162,13 +134,7 @@ export class CoalescingHoldRegistry {
 
     // 2. Attachment-bearing trigger while an entry exists: normal immediate submit, hold untouched
     if (!holdable && existing !== undefined) {
-      return this.chatManager.submitChatJob({
-        message: input.message,
-        personality: resolved.personality,
-        content: input.content,
-        isAutoResponse: resolved.isAutoResponse,
-        nsfwGate,
-      });
+      return this.chatManager.submitChatJob(buildSubmitChatJobInput(input, resolved, nsfwGate));
     }
 
     // 3. Idle pair: start a new in-flight cycle and submit normally
@@ -178,65 +144,69 @@ export class CoalescingHoldRegistry {
     }
 
     // 4. Holdable plain/voice activation trigger while an entry exists:
-    // run gates + save user row immediately, then update newest / skipped
-    const saveResult = await this.chatManager.saveUserMessage({
-      message: input.message,
-      personality: resolved.personality,
-      content: input.content,
-      nsfwGate,
+    // register a pending-save marker synchronously BEFORE awaiting saveUserMessage
+    // so a release arriving during the ~2.5s embed-processing delay waits for
+    // this trigger to settle and coalesce rather than tearing down the entry.
+    let finishPendingSave!: () => void;
+    const saveDone = new Promise<void>(resolve => {
+      finishPendingSave = resolve;
     });
-    if (saveResult.kind === 'denied') {
-      return saveResult;
-    }
+    existing.pendingSaves.add(saveDone);
+    const epochAtArrival = this.clearEpoch;
 
-    // Re-read entry after the async save: if the in-flight job released while
-    // saveUserMessage was awaiting, and no new entry took its place, submit now
-    // with skipUserMessageSave: true so the trigger is never stranded.
-    const current = this.entries.get(key);
-    if (current === undefined) {
-      const freshEntry = this.createInFlightEntry(channelId, personalityId);
-      return this.submitInFlightCycle(freshEntry.cycleId, input, resolved, nsfwGate, {
-        skipUserMessageSave: true,
+    try {
+      const saveResult = await this.chatManager.saveUserMessage({
+        message: input.message,
+        personality: resolved.personality,
+        content: input.content,
+        nsfwGate,
       });
-    }
-
-    if (current.newest !== null) {
-      // Latest-wins by Discord timestamps, not by resolve order: whoever's
-      // saveUserMessage resolves last is not necessarily the newest message.
-      // On an exact tie the incumbent stays newest; an arriving older message
-      // takes the incumbent's place on the skipped list instead.
-      const arrivingNewer =
-        input.message.createdTimestamp > current.newest.input.message.createdTimestamp;
-      const displaced = arrivingNewer ? current.newest : { input, resolved };
-      pushToSkippedLists(current, displaced);
-      if (arrivingNewer) {
-        current.newest = { input, resolved };
+      if (saveResult.kind === 'denied') {
+        return saveResult;
       }
-    } else if (
-      current.survivorCreatedTimestamp !== undefined &&
-      input.message.createdTimestamp < current.survivorCreatedTimestamp
-    ) {
-      // Strictly older than the survivor whose release created this cycle:
-      // it would answer BEFORE the survivor if it became this cycle's newest,
-      // so straight to skipped. Exact ties become newest — save-resolution
-      // order already orders them.
-      pushToSkippedLists(current, { input, resolved });
-    } else {
-      current.newest = { input, resolved };
+
+      // Check clearEpoch BEFORE reading or mutating any entry: if clear() ran
+      // during the await (graceful shutdown) and a new entry was later created
+      // under the same key, this stale save must not mutate it or spawn a cycle.
+      if (this.clearEpoch !== epochAtArrival) {
+        return { kind: 'held' };
+      }
+
+      const current = this.entries.get(key);
+      if (current !== undefined) {
+        // Policy: any save finishing before a draining cycle finalizes joins
+        // that closing cycle; any save still in flight at finalization carries
+        // onto the successor cycle in beginSurvivorCycle.
+        recordHeldTriggerInEntry(current, { input, resolved });
+
+        logger.info(
+          {
+            channelId,
+            personalityId,
+            awaitedJobId: current.awaitedJobId,
+            newestMessageId: input.message.id,
+            skippedCount: current.skipped.length,
+          },
+          'Held activation trigger behind in-flight generation'
+        );
+
+        return { kind: 'held' };
+      }
+    } finally {
+      existing.pendingSaves.delete(saveDone);
+      if (this.clearEpoch === epochAtArrival) {
+        this.entries.get(key)?.pendingSaves.delete(saveDone);
+      }
+      finishPendingSave();
     }
 
-    logger.info(
-      {
-        channelId,
-        personalityId,
-        awaitedJobId: current.awaitedJobId,
-        newestMessageId: input.message.id,
-        skippedCount: current.skipped.length,
-      },
-      'Held activation trigger behind in-flight generation'
-    );
-
-    return { kind: 'held' };
+    // Fallback: no active entry remained after the async save (e.g. a drain
+    // cutoff forced finalization to idle while this save was stalled) — submit
+    // now with skipUserMessageSave: true so the trigger is never stranded.
+    const freshEntry = this.createInFlightEntry(channelId, personalityId);
+    return this.submitInFlightCycle(freshEntry.cycleId, input, resolved, nsfwGate, {
+      skipUserMessageSave: true,
+    });
   }
 
   /**
@@ -285,9 +255,10 @@ export class CoalescingHoldRegistry {
    * Clear all hold timers and drop all in-memory entries (used on shutdown).
    */
   clear(): void {
+    this.clearEpoch += 1;
     const droppedEntryCount = this.entries.size;
     for (const entry of this.entries.values()) {
-      clearTimeout(entry.deadlineTimer);
+      clearEntryTimers(entry);
     }
     this.entries.clear();
     this.pendingReleases.clear();
@@ -296,11 +267,15 @@ export class CoalescingHoldRegistry {
     }
   }
 
-  private createInFlightEntry(channelId: string, personalityId: string): CoalescingHoldEntry {
+  private createInFlightEntry(
+    channelId: string,
+    personalityId: string,
+    carriedPendingSaves?: ReadonlySet<Promise<void>>
+  ): CoalescingHoldEntry {
     const key = this.keyFor(channelId, personalityId);
     const existing = this.entries.get(key);
     if (existing !== undefined) {
-      clearTimeout(existing.deadlineTimer);
+      clearEntryTimers(existing);
     }
     const cycleId = ++this.nextCycleId;
     const deadlineTimer = setTimeout(() => {
@@ -312,17 +287,13 @@ export class CoalescingHoldRegistry {
       });
     }, this.holdDeadlineMs);
 
-    const entry: CoalescingHoldEntry = {
+    const entry = createCoalescingHoldEntry({
       channelId,
       personalityId,
-      awaitedJobId: null,
-      newest: null,
-      skipped: [],
-      skippedContexts: [],
-      createdAt: Date.now(),
-      deadlineTimer,
       cycleId,
-    };
+      deadlineTimer,
+      carriedPendingSaves,
+    });
     this.entries.set(key, entry);
     return entry;
   }
@@ -355,17 +326,12 @@ export class CoalescingHoldRegistry {
       }
     };
     try {
-      const nonEmptySkipped =
-        skippedList !== undefined && skippedList.length > 0 ? skippedList : undefined;
-      const result = await this.chatManager.submitChatJob({
-        message: input.message,
-        personality: resolved.personality,
-        content: input.content,
-        isAutoResponse: resolved.isAutoResponse,
-        nsfwGate,
-        ...(releaseOpts?.skipUserMessageSave === true ? { skipUserMessageSave: true } : {}),
-        ...(nonEmptySkipped !== undefined ? { skippedMessages: nonEmptySkipped } : {}),
-      });
+      const result = await this.chatManager.submitChatJob(
+        buildSubmitChatJobInput(input, resolved, nsfwGate, {
+          skipUserMessageSave: releaseOpts?.skipUserMessageSave,
+          skippedMessages: skippedList,
+        })
+      );
       if (result.kind === 'submitted') {
         const current = this.entries.get(key);
         if (current?.cycleId === cycleId) {
@@ -392,8 +358,8 @@ export class CoalescingHoldRegistry {
     channelId: string,
     personalityId: string,
     cycleId: number,
-    reason: 'completion' | 'deadline' | 'submit-denied' | 'submit-error',
-    lost?: { skippedCount: number; skippedContexts: HeldTriggerContext[] }
+    reason: CoalescingReleaseReason,
+    lost?: LostSkippedPayload
   ): Promise<void> {
     const key = this.keyFor(channelId, personalityId);
     const entry = this.entries.get(key);
@@ -401,74 +367,98 @@ export class CoalescingHoldRegistry {
       return Promise.resolve();
     }
 
-    clearTimeout(entry.deadlineTimer);
-
-    if (entry.newest === null) {
-      const lostContexts = lost?.skippedContexts ?? [];
-      // Survivor-submission failure (submit-denied/submit-error): promote the
-      // newest skipped trigger (highest createdTimestamp) to survivor — its
-      // full context resubmits through a fresh cycle carrying the remaining
-      // skipped — instead of dropping the held rows. The contexts are
-      // in-memory only; the resubmitted wire payload stays id-only.
-      if (lostContexts.length > 0) {
-        const sorted = [...lostContexts].sort(
-          (a, b) => b.input.message.createdTimestamp - a.input.message.createdTimestamp
-        );
-        const promoted = sorted[0];
-        const remaining = sorted.slice(1);
-        logger.info(
-          {
-            channelId,
-            personalityId,
-            promotedMessageId: promoted.input.message.id,
-            remainingCount: remaining.length,
-            reason,
-          },
-          'Promoting newest skipped trigger after failed survivor submission'
-        );
-        this.beginSurvivorCycle({
-          channelId,
-          personalityId,
-          survivor: promoted,
-          skipped: remaining.map(c => ({
-            messageId: c.input.message.id,
-            authorId: c.input.message.author.id,
-          })),
-          skippedContexts: remaining,
-          previousJobId: null,
-          reason,
-          holdStartedAt: entry.createdAt,
-        });
-        return Promise.resolve();
+    if (entry.drainingRelease) {
+      // Preserve failure metadata if submit-denied/submit-error arrives after
+      // another trigger (e.g. deadline) already started draining this cycle.
+      if (lost !== undefined) {
+        entry.pendingReleaseLost = mergeLostPayloads(entry.pendingReleaseLost, lost);
+        entry.pendingReleaseReason = reason;
       }
-      // No promotable context: counts-only warn (ids/content never logged) —
-      // the skipped rows are lost with the cycle.
-      const lostCount = lost?.skippedCount ?? 0;
-      if ((reason === 'submit-denied' || reason === 'submit-error') && lostCount > 0) {
-        logger.warn(
-          { channelId, personalityId, skippedCount: lostCount, reason },
-          'Dropping skipped coalesced triggers: survivor submission did not go through'
-        );
-      }
-      this.entries.delete(key);
       return Promise.resolve();
     }
 
-    const { skipped, skippedContexts } = mergeSkippedForSurvivor(
-      entry,
-      lost?.skippedContexts ?? []
-    );
+    clearTimeout(entry.deadlineTimer);
+
+    if (entry.pendingSaves.size > 0) {
+      entry.drainingRelease = true;
+      entry.pendingReleaseReason = reason;
+      entry.pendingReleaseLost = mergeLostPayloads(undefined, lost);
+      startBoundedPendingSaveDrain({
+        entry,
+        saveDrainTimeoutMs: this.saveDrainTimeoutMs,
+        getCurrent: () => this.entries.get(key),
+        onFinalize: current =>
+          this.finalizeReleaseCycle(
+            current,
+            current.pendingReleaseReason ?? 'completion',
+            current.pendingReleaseLost
+          ),
+        onError: (err, failedEntry) => {
+          logger.error(
+            { err, channelId: failedEntry.channelId, personalityId: failedEntry.personalityId },
+            'Coalescing pending-save drain threw unexpectedly'
+          );
+          if (this.entries.get(key)?.cycleId === failedEntry.cycleId) {
+            clearEntryTimers(failedEntry);
+            this.entries.delete(key);
+          }
+        },
+      });
+      return Promise.resolve();
+    }
+
+    this.finalizeReleaseCycle(entry, reason, lost);
+    return Promise.resolve();
+  }
+
+  private finalizeReleaseCycle(
+    entry: CoalescingHoldEntry,
+    reason: CoalescingReleaseReason,
+    lost?: LostSkippedPayload
+  ): void {
+    const { channelId, personalityId } = entry;
+    const key = this.keyFor(channelId, personalityId);
+    const plan = buildReleaseCyclePlan(entry, lost);
+
+    if (plan.kind === 'idle') {
+      // No promotable context: counts-only warn (ids/content never logged) —
+      // the skipped rows are lost with the cycle.
+      if ((reason === 'submit-denied' || reason === 'submit-error') && plan.lostCount > 0) {
+        logger.warn(
+          { channelId, personalityId, skippedCount: plan.lostCount, reason },
+          'Dropping skipped coalesced triggers: survivor submission did not go through'
+        );
+      }
+      if (this.pendingReleases.get(key)?.cycleId === entry.cycleId) {
+        this.pendingReleases.delete(key);
+      }
+      this.entries.delete(key);
+      return;
+    }
+
+    if (plan.promoted) {
+      logger.info(
+        {
+          channelId,
+          personalityId,
+          promotedMessageId: plan.survivor.input.message.id,
+          remainingCount: plan.skipped.length,
+          reason,
+        },
+        'Promoting newest skipped trigger after failed survivor submission'
+      );
+    }
+
     this.beginSurvivorCycle({
       channelId,
       personalityId,
-      survivor: entry.newest,
-      skipped,
-      skippedContexts,
-      previousJobId: entry.awaitedJobId,
+      survivor: plan.survivor,
+      skipped: plan.skipped,
+      skippedContexts: plan.skippedContexts,
+      previousJobId: plan.previousJobId,
       reason,
       holdStartedAt: entry.createdAt,
     });
-    return Promise.resolve();
   }
 
   /**
@@ -477,16 +467,7 @@ export class CoalescingHoldRegistry {
    * detached fan-out. Shared by the release path and the failed-survivor
    * promotion path (whose remaining skipped contexts derive their wire ids).
    */
-  private beginSurvivorCycle(opts: {
-    channelId: string;
-    personalityId: string;
-    survivor: HeldTriggerContext;
-    skipped: SkippedMessage[];
-    skippedContexts: HeldTriggerContext[];
-    previousJobId: string | null;
-    reason: 'completion' | 'deadline' | 'submit-denied' | 'submit-error';
-    holdStartedAt: number;
-  }): void {
+  private beginSurvivorCycle(opts: BeginSurvivorCycleOpts): void {
     const {
       channelId,
       personalityId,
@@ -498,8 +479,13 @@ export class CoalescingHoldRegistry {
       holdStartedAt,
     } = opts;
     const key = this.keyFor(channelId, personalityId);
-    // Transition the old entry into the new in-flight entry for the survivor
-    const nextEntry = this.createInFlightEntry(channelId, personalityId);
+    // Transition the old entry into the new in-flight entry for the survivor,
+    // carrying any saves still awaiting so the successor waits for them too.
+    const nextEntry = this.createInFlightEntry(
+      channelId,
+      personalityId,
+      this.entries.get(key)?.pendingSaves
+    );
     nextEntry.survivorCreatedTimestamp = survivor.input.message.createdTimestamp;
     const handoff: PendingSurvivorRelease = {
       cycleId: nextEntry.cycleId,

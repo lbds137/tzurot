@@ -595,7 +595,7 @@ describe('CoalescingHoldRegistry', () => {
     });
   });
 
-  it('submits immediately with skipUserMessageSave when the cycle releases while saveUserMessage is still awaiting', async () => {
+  it('waits for an awaiting saveUserMessage on release and releases it as survivor with skipUserMessageSave', async () => {
     const slot = buildSlot('activation');
     await registry.submitOrHoldSlot(
       buildFanOutInput(buildMessage('m1', 'u1'), slot),
@@ -613,14 +613,17 @@ describe('CoalescingHoldRegistry', () => {
       nsfwGate
     );
 
-    // Release cycle 1 while m2's save is pending: cycle 1 has no newest yet,
-    // so its entry is torn down with no handoff for m2.
+    // Release cycle 1 while m2's save is pending: cycle 1 drains until m2's
+    // save settles, then releases m2 as the survivor.
     await registry.release('channel-1', 'pers-1', 'job-1-m1');
+    await flushDetachedFanOut();
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
 
     resolveSave({ kind: 'saved' });
     const outcome = await held;
+    await flushDetachedFanOut();
 
-    expect(outcome).toMatchObject({ kind: 'submitted' });
+    expect(outcome).toEqual({ kind: 'held' });
     expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
     expect(chatManager.submitChatJob.mock.calls[1][0]).toMatchObject({
       message: expect.objectContaining({ id: 'm2' }),
@@ -1070,5 +1073,426 @@ describe('CoalescingHoldRegistry', () => {
       expect.objectContaining({ reason: 'submit-error' }),
       expect.any(String)
     );
+  });
+
+  it('coalesces a 3-message burst to 2 submits when release arrives while both follow-up saves are still awaiting', async () => {
+    const slot = buildSlot('activation');
+    const m1 = buildFanOutInput(buildMessage('m1', 'u1', [], [], 1_000), slot, 'test 1');
+    const m2 = buildFanOutInput(buildMessage('m2', 'u1', [], [], 2_000), slot, 'test 2');
+    const m3 = buildFanOutInput(buildMessage('m3', 'u1', [], [], 3_000), slot, 'test 3');
+
+    await registry.submitOrHoldSlot(m1, slot, nsfwGate);
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+
+    let resolveSave2!: (value: unknown) => void;
+    let resolveSave3!: (value: unknown) => void;
+    chatManager.saveUserMessage
+      .mockImplementationOnce(() => new Promise(resolve => (resolveSave2 = resolve)))
+      .mockImplementationOnce(() => new Promise(resolve => (resolveSave3 = resolve)));
+
+    const hold2 = registry.submitOrHoldSlot(m2, slot, nsfwGate);
+    const hold3 = registry.submitOrHoldSlot(m3, slot, nsfwGate);
+
+    // Fast model finishes m1 before either 2.5s saveUserMessage resolves
+    await registry.release('channel-1', 'pers-1', 'job-1-m1');
+    await flushDetachedFanOut();
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+
+    resolveSave2({ kind: 'saved' });
+    expect(await hold2).toEqual({ kind: 'held' });
+    await flushDetachedFanOut();
+    // Must wait for m3's already-in-flight save rather than submitting m2 alone
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+
+    resolveSave3({ kind: 'saved' });
+    expect(await hold3).toEqual({ kind: 'held' });
+    await flushDetachedFanOut();
+
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+    expect(chatManager.submitChatJob.mock.calls[1][0]).toMatchObject({
+      message: m3.message,
+      content: 'test 3',
+      skipUserMessageSave: true,
+      skippedMessages: [{ messageId: 'm2', authorId: 'u1' }],
+    });
+  });
+
+  it('waits for an in-flight newer save even when an older trigger is already held as newest at release time', async () => {
+    const slot = buildSlot('activation');
+    const m1 = buildFanOutInput(buildMessage('m1', 'u1', [], [], 1_000), slot, 'test 1');
+    const m2 = buildFanOutInput(buildMessage('m2', 'u1', [], [], 2_000), slot, 'test 2');
+    const m3 = buildFanOutInput(buildMessage('m3', 'u1', [], [], 3_000), slot, 'test 3');
+
+    await registry.submitOrHoldSlot(m1, slot, nsfwGate);
+    expect(await registry.submitOrHoldSlot(m2, slot, nsfwGate)).toEqual({ kind: 'held' });
+
+    let resolveSave3!: (value: unknown) => void;
+    chatManager.saveUserMessage.mockImplementationOnce(
+      () => new Promise(resolve => (resolveSave3 = resolve))
+    );
+    const hold3 = registry.submitOrHoldSlot(m3, slot, nsfwGate);
+
+    // m1 releases while m2 is already newest and m3 is still inside saveUserMessage
+    await registry.release('channel-1', 'pers-1', 'job-1-m1');
+    await flushDetachedFanOut();
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+
+    resolveSave3({ kind: 'saved' });
+    expect(await hold3).toEqual({ kind: 'held' });
+    await flushDetachedFanOut();
+
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+    expect(chatManager.submitChatJob.mock.calls[1][0]).toMatchObject({
+      message: m3.message,
+      content: 'test 3',
+      skipUserMessageSave: true,
+      skippedMessages: [{ messageId: 'm2', authorId: 'u1' }],
+    });
+  });
+
+  it('tears down cleanly when all pending saves awaited by a release are denied', async () => {
+    const slot = buildSlot('activation');
+    await registry.submitOrHoldSlot(
+      buildFanOutInput(buildMessage('m1', 'u1', [], [], 1_000), slot),
+      slot,
+      nsfwGate
+    );
+
+    let resolveSave2!: (value: unknown) => void;
+    chatManager.saveUserMessage.mockImplementationOnce(
+      () => new Promise(resolve => (resolveSave2 = resolve))
+    );
+    const hold2 = registry.submitOrHoldSlot(
+      buildFanOutInput(buildMessage('m2', 'u2', [], [], 2_000), slot),
+      slot,
+      nsfwGate
+    );
+
+    await registry.release('channel-1', 'pers-1', 'job-1-m1');
+    resolveSave2({ kind: 'denied', reason: 'denylisted', silent: true });
+    expect(await hold2).toEqual({ kind: 'denied', reason: 'denylisted', silent: true });
+    await flushDetachedFanOut();
+
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+    expect(registry.getEntry('channel-1', 'pers-1')).toBeUndefined();
+  });
+
+  it('does not deadlock release drain when one pending save throws and another succeeds', async () => {
+    const slot = buildSlot('activation');
+    const m1 = buildFanOutInput(buildMessage('m1', 'u1', [], [], 1_000), slot);
+    const m2 = buildFanOutInput(buildMessage('m2', 'u2', [], [], 2_000), slot);
+    const m3 = buildFanOutInput(buildMessage('m3', 'u3', [], [], 3_000), slot, 'survivor');
+
+    await registry.submitOrHoldSlot(m1, slot, nsfwGate);
+
+    let rejectSave2!: (err: Error) => void;
+    let resolveSave3!: (value: unknown) => void;
+    chatManager.saveUserMessage
+      .mockImplementationOnce(() => new Promise((_, reject) => (rejectSave2 = reject)))
+      .mockImplementationOnce(() => new Promise(resolve => (resolveSave3 = resolve)));
+
+    const hold2 = registry.submitOrHoldSlot(m2, slot, nsfwGate);
+    const hold3 = registry.submitOrHoldSlot(m3, slot, nsfwGate);
+
+    await registry.release('channel-1', 'pers-1', 'job-1-m1');
+
+    rejectSave2(new Error('gateway hiccup'));
+    await expect(hold2).rejects.toThrow('gateway hiccup');
+
+    resolveSave3({ kind: 'saved' });
+    expect(await hold3).toEqual({ kind: 'held' });
+    await flushDetachedFanOut();
+
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+    expect(chatManager.submitChatJob.mock.calls[1][0]).toMatchObject({
+      message: m3.message,
+      content: 'survivor',
+      skipUserMessageSave: true,
+    });
+    expect(chatManager.submitChatJob.mock.calls[1][0].skippedMessages).toBeUndefined();
+  });
+
+  it('does not double-release when a second release arrives while draining pending saves, and carries mid-drain arrivals onto the survivor cycle', async () => {
+    const slot = buildSlot('activation');
+    const m1 = buildFanOutInput(buildMessage('m1', 'u1', [], [], 1_000), slot);
+    const m2 = buildFanOutInput(buildMessage('m2', 'u2', [], [], 2_000), slot, 'wave-1');
+    const m3 = buildFanOutInput(buildMessage('m3', 'u3', [], [], 3_000), slot, 'wave-2a');
+    const m4 = buildFanOutInput(buildMessage('m4', 'u4', [], [], 4_000), slot, 'wave-2b');
+
+    await registry.submitOrHoldSlot(m1, slot, nsfwGate);
+
+    let resolveSave2!: (value: unknown) => void;
+    let resolveSave3!: (value: unknown) => void;
+    let resolveSave4!: (value: unknown) => void;
+    chatManager.saveUserMessage
+      .mockImplementationOnce(() => new Promise(resolve => (resolveSave2 = resolve)))
+      .mockImplementationOnce(() => new Promise(resolve => (resolveSave3 = resolve)))
+      .mockImplementationOnce(() => new Promise(resolve => (resolveSave4 = resolve)));
+
+    const hold2 = registry.submitOrHoldSlot(m2, slot, nsfwGate);
+    await registry.release('channel-1', 'pers-1', 'job-1-m1');
+    // Duplicate release while draining must be a no-op
+    await registry.release('channel-1', 'pers-1', 'job-1-m1');
+
+    // m3 and m4 arrive while cycle 1 is draining for m2
+    const hold3 = registry.submitOrHoldSlot(m3, slot, nsfwGate);
+    const hold4 = registry.submitOrHoldSlot(m4, slot, nsfwGate);
+
+    // m2 finishes → cycle 1 releases m2 immediately (no starvation) and carries m3/m4 onto cycle 2
+    resolveSave2({ kind: 'saved' });
+    expect(await hold2).toEqual({ kind: 'held' });
+    await flushDetachedFanOut();
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+    expect(chatManager.submitChatJob.mock.calls[1][0].message.id).toBe('m2');
+
+    // Cycle 2 finishes before m3/m4 finish saving: cycle 2 waits for BOTH carried saves
+    await registry.release('channel-1', 'pers-1', 'job-2-m2');
+    await flushDetachedFanOut();
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+
+    resolveSave3({ kind: 'saved' });
+    resolveSave4({ kind: 'saved' });
+    expect(await hold3).toEqual({ kind: 'held' });
+    expect(await hold4).toEqual({ kind: 'held' });
+    await flushDetachedFanOut();
+
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(3);
+    expect(chatManager.submitChatJob.mock.calls[2][0]).toMatchObject({
+      message: m4.message,
+      content: 'wave-2b',
+      skipUserMessageSave: true,
+      skippedMessages: [{ messageId: 'm3', authorId: 'u3' }],
+    });
+  });
+
+  it('re-drains arrivals from the drain window when every earlier snapshot save was denied', async () => {
+    const slot = buildSlot('activation');
+    const m1 = buildFanOutInput(buildMessage('m1', 'u1', [], [], 1_000), slot);
+    const m2 = buildFanOutInput(buildMessage('m2', 'u-denied', [], [], 2_000), slot);
+    const m3 = buildFanOutInput(buildMessage('m3', 'u3', [], [], 3_000), slot, 'late-1');
+    const m4 = buildFanOutInput(buildMessage('m4', 'u4', [], [], 4_000), slot, 'late-2');
+
+    await registry.submitOrHoldSlot(m1, slot, nsfwGate);
+
+    let resolveSave2!: (value: unknown) => void;
+    let resolveSave3!: (value: unknown) => void;
+    let resolveSave4!: (value: unknown) => void;
+    chatManager.saveUserMessage
+      .mockImplementationOnce(() => new Promise(resolve => (resolveSave2 = resolve)))
+      .mockImplementationOnce(() => new Promise(resolve => (resolveSave3 = resolve)))
+      .mockImplementationOnce(() => new Promise(resolve => (resolveSave4 = resolve)));
+
+    const hold2 = registry.submitOrHoldSlot(m2, slot, nsfwGate);
+    await registry.release('channel-1', 'pers-1', 'job-1-m1');
+
+    const hold3 = registry.submitOrHoldSlot(m3, slot, nsfwGate);
+    const hold4 = registry.submitOrHoldSlot(m4, slot, nsfwGate);
+
+    // m2 is denied, so nothing is ready yet while m3 and m4 are still saving
+    resolveSave2({ kind: 'denied', reason: 'denylisted', silent: true });
+    expect(await hold2).toMatchObject({ kind: 'denied' });
+    await flushDetachedFanOut();
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+
+    resolveSave3({ kind: 'saved' });
+    resolveSave4({ kind: 'saved' });
+    expect(await hold3).toEqual({ kind: 'held' });
+    expect(await hold4).toEqual({ kind: 'held' });
+    await flushDetachedFanOut();
+
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+    expect(chatManager.submitChatJob.mock.calls[1][0]).toMatchObject({
+      message: m4.message,
+      content: 'late-2',
+      skipUserMessageSave: true,
+      skippedMessages: [{ messageId: 'm3', authorId: 'u3' }],
+    });
+  });
+
+  it('drops an in-flight save silently without leaking a new cycle when clear() runs during shutdown', async () => {
+    const slot = buildSlot('activation');
+    await registry.submitOrHoldSlot(
+      buildFanOutInput(buildMessage('m1', 'u1', [], [], 1_000), slot),
+      slot,
+      nsfwGate
+    );
+
+    let resolveSave2!: (value: unknown) => void;
+    chatManager.saveUserMessage.mockImplementationOnce(
+      () => new Promise(resolve => (resolveSave2 = resolve))
+    );
+    const hold2 = registry.submitOrHoldSlot(
+      buildFanOutInput(buildMessage('m2', 'u2', [], [], 2_000), slot),
+      slot,
+      nsfwGate
+    );
+
+    registry.clear();
+    resolveSave2({ kind: 'saved' });
+    expect(await hold2).toEqual({ kind: 'held' });
+    await flushDetachedFanOut();
+
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+    expect(registry.getEntry('channel-1', 'pers-1')).toBeUndefined();
+  });
+
+  it('does not let a pre-clear save mutate a newly recreated entry under the same key', async () => {
+    const slot = buildSlot('activation');
+    await registry.submitOrHoldSlot(
+      buildFanOutInput(buildMessage('m1', 'u1', [], [], 1_000), slot),
+      slot,
+      nsfwGate
+    );
+
+    let resolveOldSave!: (value: unknown) => void;
+    chatManager.saveUserMessage.mockImplementationOnce(
+      () => new Promise(resolve => (resolveOldSave = resolve))
+    );
+    const oldHold = registry.submitOrHoldSlot(
+      buildFanOutInput(buildMessage('m-old', 'u1', [], [], 2_000), slot),
+      slot,
+      nsfwGate
+    );
+
+    // Clear (shutdown/reset) then recreate the same (channelId, personalityId) key
+    registry.clear();
+    await registry.submitOrHoldSlot(
+      buildFanOutInput(buildMessage('m-fresh', 'u2', [], [], 3_000), slot),
+      slot,
+      nsfwGate
+    );
+
+    // Old save resolves after the new entry exists: must NOT write into the new entry
+    resolveOldSave({ kind: 'saved' });
+    expect(await oldHold).toEqual({ kind: 'held' });
+    expect(registry.getEntry('channel-1', 'pers-1')?.newest).toBeNull();
+    expect(registry.getEntry('channel-1', 'pers-1')?.skipped).toEqual([]);
+  });
+
+  it('bounds pending-save drain with saveDrainTimeoutMs so a stalled save cannot wedge the pair', async () => {
+    const slot = buildSlot('activation');
+    const boundedRegistry = new CoalescingHoldRegistry(
+      chatManager as unknown as CoalescingChatManagerPort,
+      async releasedInput => {
+        for (const s of releasedInput.slots) {
+          await boundedRegistry.submitOrHoldSlot(releasedInput, s, nsfwGate);
+        }
+      },
+      COALESCING.HOLD_DEADLINE_MS,
+      5_000
+    );
+
+    const m1 = buildFanOutInput(buildMessage('m1', 'u1', [], [], 1_000), slot);
+    const m2 = buildFanOutInput(buildMessage('m2', 'u2', [], [], 2_000), slot, 'saved-ok');
+    const mStuck = buildFanOutInput(buildMessage('m-stuck', 'u3', [], [], 3_000), slot, 'stuck');
+
+    await boundedRegistry.submitOrHoldSlot(m1, slot, nsfwGate);
+    expect(await boundedRegistry.submitOrHoldSlot(m2, slot, nsfwGate)).toEqual({ kind: 'held' });
+
+    // m-stuck's save never settles before the drain cutoff
+    let resolveStuck!: (value: unknown) => void;
+    chatManager.saveUserMessage.mockImplementationOnce(
+      () => new Promise(resolve => (resolveStuck = resolve))
+    );
+    const stuckHold = boundedRegistry.submitOrHoldSlot(mStuck, slot, nsfwGate);
+
+    await boundedRegistry.release('channel-1', 'pers-1', 'job-1-m1');
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+
+    // Cutoff fires at 5_000ms: m2 releases without waiting forever for m-stuck
+    await vi.advanceTimersByTimeAsync(1);
+    await flushDetachedFanOut();
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+    expect(chatManager.submitChatJob.mock.calls[1][0].message.id).toBe('m2');
+
+    // Late resolution of m-stuck lands cleanly on m2's successor cycle
+    resolveStuck({ kind: 'saved' });
+    expect(await stuckHold).toEqual({ kind: 'held' });
+    expect(boundedRegistry.getEntry('channel-1', 'pers-1')?.newest?.input.message.id).toBe(
+      'm-stuck'
+    );
+    boundedRegistry.clear();
+  });
+
+  it('preserves failed-survivor skipped contexts when submit-denied arrives during an active drain', async () => {
+    const slot = buildSlot('activation');
+    const m1 = buildFanOutInput(buildMessage('m1', 'u1', [], [], 1_000), slot);
+    const m2 = buildFanOutInput(buildMessage('m2', 'u2', [], [], 2_000), slot, 'carried');
+    const m3 = buildFanOutInput(buildMessage('m3', 'u3', [], [], 3_000), slot, 'survivor-fails');
+    const m4 = buildFanOutInput(
+      buildMessage('m4', 'u4', [], [], 4_000),
+      slot,
+      'denied-during-wait'
+    );
+
+    await registry.submitOrHoldSlot(m1, slot, nsfwGate);
+    await registry.submitOrHoldSlot(m2, slot, nsfwGate);
+    await registry.submitOrHoldSlot(m3, slot, nsfwGate);
+
+    let resolveSurvivorSubmit!: (value: unknown) => void;
+    chatManager.submitChatJob.mockImplementationOnce(
+      () => new Promise(resolve => (resolveSurvivorSubmit = resolve))
+    );
+    await registry.release('channel-1', 'pers-1', 'job-1-m1');
+    await flushDetachedFanOut();
+
+    // m4 arrives while m3's survivor submit is in flight and stalls in saveUserMessage
+    let resolveSave4!: (value: unknown) => void;
+    chatManager.saveUserMessage.mockImplementationOnce(
+      () => new Promise(resolve => (resolveSave4 = resolve))
+    );
+    const hold4 = registry.submitOrHoldSlot(m4, slot, nsfwGate);
+
+    // Cycle 2's deadline fires first and enters drainingRelease while m4 is saving
+    await vi.advanceTimersByTimeAsync(COALESCING.HOLD_DEADLINE_MS + 10);
+
+    // Now m3's survivor submit returns denied (carrying m2 as lost context) while cycle 2 is draining
+    resolveSurvivorSubmit({ kind: 'denied', reason: 'denylisted', silent: true });
+    await flushDetachedFanOut();
+
+    // m4 is denied, so cycle 2 must promote m2 (preserved from m3's failure) rather than dropping it
+    resolveSave4({ kind: 'denied', reason: 'denylisted', silent: true });
+    expect(await hold4).toMatchObject({ kind: 'denied' });
+    await flushDetachedFanOut();
+
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(3);
+    expect(chatManager.submitChatJob.mock.calls[2][0].message.id).toBe('m2');
+  });
+
+  it('coalesces a mid-drain arrival into the closing cycle when its save finishes before the snapshot settles', async () => {
+    const slot = buildSlot('activation');
+    const m1 = buildFanOutInput(buildMessage('m1', 'u1', [], [], 1_000), slot);
+    const m2 = buildFanOutInput(buildMessage('m2', 'u2', [], [], 2_000), slot, 'slow-save');
+    const m3 = buildFanOutInput(buildMessage('m3', 'u3', [], [], 3_000), slot, 'fast-mid-drain');
+
+    await registry.submitOrHoldSlot(m1, slot, nsfwGate);
+
+    let resolveSave2!: (value: unknown) => void;
+    let resolveSave3!: (value: unknown) => void;
+    chatManager.saveUserMessage
+      .mockImplementationOnce(() => new Promise(resolve => (resolveSave2 = resolve)))
+      .mockImplementationOnce(() => new Promise(resolve => (resolveSave3 = resolve)));
+
+    const hold2 = registry.submitOrHoldSlot(m2, slot, nsfwGate);
+    await registry.release('channel-1', 'pers-1', 'job-1-m1');
+
+    // m3 arrives during drain and finishes saving BEFORE m2
+    const hold3 = registry.submitOrHoldSlot(m3, slot, nsfwGate);
+    resolveSave3({ kind: 'saved' });
+    expect(await hold3).toEqual({ kind: 'held' });
+
+    resolveSave2({ kind: 'saved' });
+    expect(await hold2).toEqual({ kind: 'held' });
+    await flushDetachedFanOut();
+
+    // Both coalesce into one survivor reply (m3) with m2 skipped
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+    expect(chatManager.submitChatJob.mock.calls[1][0]).toMatchObject({
+      message: m3.message,
+      content: 'fast-mid-drain',
+      skipUserMessageSave: true,
+      skippedMessages: [{ messageId: 'm2', authorId: 'u2' }],
+    });
   });
 });

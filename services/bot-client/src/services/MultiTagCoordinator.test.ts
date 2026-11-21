@@ -1651,6 +1651,115 @@ describe('MultiTagCoordinator', () => {
       expect(chatManager.submitChatJob).toHaveBeenCalledTimes(3);
       expect(chatManager.saveUserMessage).toHaveBeenCalledTimes(1);
     });
+
+    it('coalesces a 3-message burst to 2 replies when job-1 delivers during the 2.5s hold-time save window', async () => {
+      const alice = buildPersonality('Alice');
+      const channel = buildChannel();
+      let jobSeq = 0;
+      chatManager.submitChatJob.mockImplementation(async ({ personality, message }) => ({
+        kind: 'submitted',
+        jobId: `job-${++jobSeq}-${message.id}`,
+        trackingContext: {
+          kind: 'message',
+          channel,
+          guildId: 'guild-1',
+          clientId: 'bot-1',
+          personality,
+          personaId: `persona-${personality.name}`,
+          userMessageTime: new Date(),
+          userMessageContent: 'hi',
+          message,
+        },
+      }));
+      // Hold both saveUserMessage promises open to simulate the 2.5s
+      // EMBED_PROCESSING_DELAY window while job-1-m1 delivers early.
+      let resolveSave2!: (value: { kind: 'saved' }) => void;
+      let resolveSave3!: (value: { kind: 'saved' }) => void;
+      chatManager.saveUserMessage
+        .mockImplementationOnce(
+          () =>
+            new Promise<{ kind: 'saved' }>(resolve => {
+              resolveSave2 = resolve;
+            })
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise<{ kind: 'saved' }>(resolve => {
+              resolveSave3 = resolve;
+            })
+        );
+
+      const msg1 = buildTriggerMessage('m1', 'u1');
+      const msg2 = buildTriggerMessage('m2', 'u1');
+      const msg3 = buildTriggerMessage('m3', 'u1');
+
+      await coordinator.startFanOut({
+        message: msg1,
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'test 1',
+        truncated: false,
+        maxTags: 5,
+      });
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+
+      // msg2 and msg3 arrive while job-1-m1 is in flight and enter saveUserMessage
+      const fanOut2 = coordinator.startFanOut({
+        message: msg2,
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'test 2',
+        truncated: false,
+        maxTags: 5,
+      });
+      const fanOut3 = coordinator.startFanOut({
+        message: msg3,
+        channel,
+        slots: [buildActivationSlot(alice)],
+        content: 'test 3',
+        truncated: false,
+        maxTags: 5,
+      });
+
+      // Fast model delivers msg1's reply before either saveUserMessage finishes
+      await coordinator.handleJobResult('job-1-m1', {
+        requestId: 'req-1',
+        success: true,
+        content: 'Reply to test 1',
+      });
+
+      // Resolve msg2's save first, then msg3's save (same order as prod)
+      resolveSave2({ kind: 'saved' });
+      await fanOut2;
+      await vi.advanceTimersByTimeAsync(0);
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+
+      resolveSave3({ kind: 'saved' });
+      await fanOut3;
+      await vi.advanceTimersByTimeAsync(0);
+
+      // Exactly TWO replies total: in-flight m1 + survivor m3 (m2 skipped)
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+      expect(chatManager.submitChatJob.mock.calls[1][0]).toMatchObject({
+        message: msg3,
+        personality: alice,
+        content: 'test 3',
+        skipUserMessageSave: true,
+        skippedMessages: [{ messageId: 'm2', authorId: 'u1' }],
+      });
+      expect(coordinator.ownsJob('job-2-m3')).toBe(true);
+      expect(vi.mocked(msg2.reply)).not.toHaveBeenCalled();
+      expect(vi.mocked(msg3.reply)).not.toHaveBeenCalled();
+
+      // Completing the survivor reply leaves the pair idle (no 3rd reply)
+      await coordinator.handleJobResult('job-2-m3', {
+        requestId: 'req-2',
+        success: true,
+        content: 'Reply to test 3',
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+    });
   });
 });
 

@@ -19,6 +19,8 @@ import {
 import { hasVoiceMessageFlag, isVoiceAttachment } from '../utils/voiceAttachment.js';
 import type { StartFanOutInput } from './multiTagCoordinatorHelpers.js';
 import type { ResolvedSlot } from './SlotResolver.js';
+import type { SubmitChatJobInput } from './character/PersonalityChatManager.js';
+import type { NsfwGate } from './character/sharedNsfwGate.js';
 
 const logger = createLogger('coalescingHoldability');
 
@@ -26,6 +28,110 @@ const logger = createLogger('coalescingHoldability');
 export interface HeldTriggerContext {
   input: StartFanOutInput;
   resolved: ResolvedSlot;
+}
+
+/** Reason a coalescing hold cycle transitioned or tore down. */
+export type CoalescingReleaseReason = 'completion' | 'deadline' | 'submit-denied' | 'submit-error';
+
+/** Carried skipped-trigger payload from a failed survivor submission. */
+export interface LostSkippedPayload {
+  skippedCount: number;
+  skippedContexts: HeldTriggerContext[];
+}
+
+/**
+ * Maximum time (ms) a releasing cycle waits for already-arrived hold-time
+ * `saveUserMessage` calls to settle before force-finalizing. Sized well above
+ * the ~2.5s embed-processing delay and 5s gateway RPC timeout so normal saves
+ * always finish, while a wedged fetch or continuous denied traffic cannot
+ * stall a channel indefinitely.
+ */
+export const DEFAULT_SAVE_DRAIN_TIMEOUT_MS = 15_000;
+
+/** In-memory coalescing hold state for one (channelId, personalityId) pair. */
+export interface CoalescingHoldEntry {
+  channelId: string;
+  personalityId: string;
+  awaitedJobId: string | null;
+  newest: HeldTriggerContext | null;
+  skipped: SkippedMessage[];
+  /**
+   * Full in-memory context ({input, resolved}) per skipped trigger, aligned
+   * with `skipped` and capped identically. Never serialized to the wire (the
+   * wire payload stays id-only `skipped`): it lets a failed survivor
+   * submission promote the newest skipped trigger instead of dropping the
+   * held rows.
+   */
+  skippedContexts: HeldTriggerContext[];
+  createdAt: number;
+  deadlineTimer: NodeJS.Timeout;
+  /** Bounded cutoff timer armed while `drainingRelease` is true. */
+  drainTimer?: NodeJS.Timeout;
+  cycleId: number;
+  /**
+   * In-flight hold-time `saveUserMessage` operations that arrived while this
+   * cycle was active. `releaseCycle` waits for these to settle before choosing
+   * the survivor so a fast completion during the ~2.5s embed-processing save
+   * window cannot tear down the entry and split a burst into separate replies.
+   */
+  pendingSaves: Set<Promise<void>>;
+  /** True once a release for this cycle has entered the pending-save drain. */
+  drainingRelease: boolean;
+  /** Release reason captured when draining began (upgraded on submit failure). */
+  pendingReleaseReason?: CoalescingReleaseReason;
+  /** Carried survivor-failure skipped contexts accumulated while draining. */
+  pendingReleaseLost?: LostSkippedPayload;
+  /**
+   * Discord createdTimestamp of the released survivor this in-flight cycle was
+   * created for, stamped at release so a trigger whose save resolves after the
+   * release can be recognized as older than the answer already owed: one
+   * strictly older goes straight to skipped instead of becoming this cycle's
+   * newest and answering before the survivor. Undefined on a cycle started
+   * from an idle pair (no survivor yet).
+   */
+  survivorCreatedTimestamp?: number;
+}
+
+/**
+ * Outcome of deciding how a finished hold cycle should transition:
+ * - `'release'` — hand off `survivor` (either `entry.newest` or a promoted
+ *   skipped trigger after survivor-submit failure) into a fresh cycle.
+ * - `'idle'` — tear down the entry (nothing held and nothing promotable).
+ */
+export type ReleaseCyclePlan =
+  | {
+      kind: 'release';
+      promoted: boolean;
+      survivor: HeldTriggerContext;
+      skipped: SkippedMessage[];
+      skippedContexts: HeldTriggerContext[];
+      previousJobId: string | null;
+    }
+  | {
+      kind: 'idle';
+      lostCount: number;
+    };
+
+/** Handoff written for a released survivor and consumed by its own fan-out. */
+export interface PendingSurvivorRelease {
+  cycleId: number;
+  /** The survivor this handoff belongs to — step 1 consumes only for it. */
+  survivorMessageId: string;
+  skippedMessages: SkippedMessage[];
+  /** Full in-memory contexts backing `skippedMessages`, for survivor promotion. */
+  skippedContexts: HeldTriggerContext[];
+}
+
+/** Input payload for transitioning a pair into a released survivor cycle. */
+export interface BeginSurvivorCycleOpts {
+  channelId: string;
+  personalityId: string;
+  survivor: HeldTriggerContext;
+  skipped: SkippedMessage[];
+  skippedContexts: HeldTriggerContext[];
+  previousJobId: string | null;
+  reason: CoalescingReleaseReason;
+  holdStartedAt: number;
 }
 
 /** Raw attachment shape seen on Discord.js Message.attachments or test mocks. */
@@ -190,4 +296,237 @@ export function mergeSkippedForSurvivor(
     authorId: c.input.message.author.id,
   }));
   return { skipped, skippedContexts };
+}
+
+/**
+ * Place a saved holdable trigger into an active entry using Discord
+ * `createdTimestamp` latest-wins order:
+ * - Newer than `entry.newest` displaces the incumbent into `skipped`.
+ * - Older than (or tied with) `entry.newest`, or strictly older than the
+ *   cycle's released survivor (`survivorCreatedTimestamp`), goes straight to
+ *   `skipped`.
+ * - Otherwise becomes `entry.newest`.
+ */
+export function recordHeldTriggerInEntry(
+  entry: {
+    channelId: string;
+    personalityId: string;
+    newest: HeldTriggerContext | null;
+    skipped: SkippedMessage[];
+    skippedContexts: HeldTriggerContext[];
+    survivorCreatedTimestamp?: number;
+  },
+  context: HeldTriggerContext
+): void {
+  if (entry.newest !== null) {
+    // Latest-wins by Discord timestamps, not by resolve order: whoever's
+    // saveUserMessage resolves last is not necessarily the newest message.
+    // On an exact tie the incumbent stays newest; an arriving older message
+    // takes the incumbent's place on the skipped list instead.
+    const arrivingNewer =
+      context.input.message.createdTimestamp > entry.newest.input.message.createdTimestamp;
+    const displaced = arrivingNewer ? entry.newest : context;
+    pushToSkippedLists(entry, displaced);
+    if (arrivingNewer) {
+      entry.newest = context;
+    }
+    return;
+  }
+
+  if (
+    entry.survivorCreatedTimestamp !== undefined &&
+    context.input.message.createdTimestamp < entry.survivorCreatedTimestamp
+  ) {
+    // Strictly older than the survivor whose release created this cycle:
+    // it would answer BEFORE the survivor if it became this cycle's newest,
+    // so straight to skipped. Exact ties become newest — save-resolution
+    // order already orders them.
+    pushToSkippedLists(entry, context);
+    return;
+  }
+
+  entry.newest = context;
+}
+
+/**
+ * Merge a second release's `lost` payload into one already buffered on a
+ * draining entry (e.g. deadline started the drain, then the survivor's own
+ * submission failed carrying skipped contexts that must still be promoted).
+ */
+export function mergeLostPayloads(
+  existing: LostSkippedPayload | undefined,
+  incoming: LostSkippedPayload | undefined
+): LostSkippedPayload | undefined {
+  if (incoming === undefined) {
+    return existing;
+  }
+  if (existing === undefined) {
+    return {
+      skippedCount: incoming.skippedCount,
+      skippedContexts: [...incoming.skippedContexts],
+    };
+  }
+  return {
+    skippedCount: existing.skippedCount + incoming.skippedCount,
+    skippedContexts: [...existing.skippedContexts, ...incoming.skippedContexts],
+  };
+}
+
+/**
+ * Decide the post-drain transition for a cycle: release `entry.newest` (merging
+ * any carried `lostContexts`), promote the newest promotable skipped trigger
+ * when a survivor submission failed with `entry.newest === null`, or idle out.
+ */
+export function buildReleaseCyclePlan(
+  entry: CoalescingHoldEntry,
+  lost?: LostSkippedPayload
+): ReleaseCyclePlan {
+  if (entry.newest === null) {
+    const lostContexts = lost?.skippedContexts ?? [];
+    const promotable =
+      lost !== undefined ? [...lostContexts, ...entry.skippedContexts] : lostContexts;
+    if (promotable.length > 0) {
+      const sorted = [...promotable].sort(
+        (a, b) => b.input.message.createdTimestamp - a.input.message.createdTimestamp
+      );
+      const promoted = sorted[0];
+      const remaining = sorted.slice(1);
+      return {
+        kind: 'release',
+        promoted: true,
+        survivor: promoted,
+        skipped: remaining.map(c => ({
+          messageId: c.input.message.id,
+          authorId: c.input.message.author.id,
+        })),
+        skippedContexts: remaining,
+        previousJobId: null,
+      };
+    }
+    return { kind: 'idle', lostCount: lost?.skippedCount ?? 0 };
+  }
+
+  const { skipped, skippedContexts } = mergeSkippedForSurvivor(entry, lost?.skippedContexts ?? []);
+  return {
+    kind: 'release',
+    promoted: false,
+    survivor: entry.newest,
+    skipped,
+    skippedContexts,
+    previousJobId: entry.awaitedJobId,
+  };
+}
+
+/** Clear both the hold deadline timer and any active save-drain cutoff timer. */
+export function clearEntryTimers(
+  entry: Pick<CoalescingHoldEntry, 'deadlineTimer' | 'drainTimer'>
+): void {
+  clearTimeout(entry.deadlineTimer);
+  if (entry.drainTimer !== undefined) {
+    clearTimeout(entry.drainTimer);
+    entry.drainTimer = undefined;
+  }
+}
+
+/** Construct a fresh in-flight hold entry for `(channelId, personalityId)`. */
+export function createCoalescingHoldEntry(opts: {
+  channelId: string;
+  personalityId: string;
+  cycleId: number;
+  deadlineTimer: NodeJS.Timeout;
+  carriedPendingSaves?: ReadonlySet<Promise<void>>;
+}): CoalescingHoldEntry {
+  return {
+    channelId: opts.channelId,
+    personalityId: opts.personalityId,
+    awaitedJobId: null,
+    newest: null,
+    skipped: [],
+    skippedContexts: [],
+    createdAt: Date.now(),
+    deadlineTimer: opts.deadlineTimer,
+    cycleId: opts.cycleId,
+    pendingSaves: new Set(opts.carriedPendingSaves),
+    drainingRelease: false,
+  };
+}
+
+/** Build the `PersonalityChatManager.submitChatJob` payload for a slot. */
+export function buildSubmitChatJobInput(
+  input: StartFanOutInput,
+  resolved: ResolvedSlot,
+  nsfwGate: NsfwGate,
+  extra?: { skipUserMessageSave?: boolean; skippedMessages?: SkippedMessage[] }
+): SubmitChatJobInput {
+  const nonEmptySkipped =
+    extra?.skippedMessages !== undefined && extra.skippedMessages.length > 0
+      ? extra.skippedMessages
+      : undefined;
+  return {
+    message: input.message,
+    personality: resolved.personality,
+    content: input.content,
+    isAutoResponse: resolved.isAutoResponse,
+    nsfwGate,
+    ...(extra?.skipUserMessageSave === true ? { skipUserMessageSave: true } : {}),
+    ...(nonEmptySkipped !== undefined ? { skippedMessages: nonEmptySkipped } : {}),
+  };
+}
+
+/**
+ * Arm a single bounded drain cutoff and wait for `entry.pendingSaves` to settle
+ * before invoking `onFinalize`. If every snapshot save was denied/errored while
+ * newer saves arrived during the drain, re-drains under the SAME `drainTimer`
+ * cutoff so continuous denied traffic cannot extend the cycle indefinitely.
+ */
+export function startBoundedPendingSaveDrain(opts: {
+  entry: CoalescingHoldEntry;
+  saveDrainTimeoutMs: number;
+  getCurrent: () => CoalescingHoldEntry | undefined;
+  onFinalize: (current: CoalescingHoldEntry) => void;
+  onError: (err: unknown, entry: CoalescingHoldEntry) => void;
+}): void {
+  const { entry, saveDrainTimeoutMs, getCurrent, onFinalize, onError } = opts;
+
+  const finalizeIfCurrent = (): void => {
+    const current = getCurrent();
+    if (current?.cycleId !== entry.cycleId) {
+      return;
+    }
+    if (current.drainTimer !== undefined) {
+      clearTimeout(current.drainTimer);
+      current.drainTimer = undefined;
+    }
+    onFinalize(current);
+  };
+
+  entry.drainTimer = setTimeout(() => {
+    entry.drainTimer = undefined;
+    finalizeIfCurrent();
+  }, saveDrainTimeoutMs);
+
+  const waitSnapshot = (target: CoalescingHoldEntry): void => {
+    const snapshot = Array.from(target.pendingSaves);
+    void Promise.all(snapshot)
+      .then(() => {
+        const current = getCurrent();
+        if (current?.cycleId !== entry.cycleId) {
+          return;
+        }
+        if (
+          current.newest === null &&
+          (current.pendingReleaseLost?.skippedContexts.length ?? 0) === 0 &&
+          current.pendingSaves.size > 0
+        ) {
+          waitSnapshot(current);
+          return;
+        }
+        finalizeIfCurrent();
+      })
+      .catch((err: unknown) => {
+        onError(err, entry);
+      });
+  };
+
+  waitSnapshot(entry);
 }
