@@ -4,7 +4,7 @@
  * Tests for AI worker initialization and validation functions.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock common-types before importing module
 vi.mock('@tzurot/common-types/config/config', async () => {
@@ -43,6 +43,7 @@ vi.mock('./services/voice/VoiceEngineClient.js', () => ({
 import { HealthStatus } from '@tzurot/common-types/constants/service';
 import { getVoiceEngineClient } from './services/voice/VoiceEngineClient.js';
 import { validateRequiredEnvVars, buildHealthResponse, checkVoiceEngineHealth } from './startup.js';
+import { snapshotEncryptionEnv } from './services/test-utils.js';
 
 describe('Startup Utilities', () => {
   beforeEach(() => {
@@ -108,6 +109,69 @@ describe('Startup Utilities', () => {
           config as ReturnType<typeof import('@tzurot/common-types/config/config').getConfig>
         )
       ).toThrow('INTERNAL_SERVICE_SECRET environment variable is required');
+    });
+  });
+
+  describe('validateRequiredEnvVars — API_KEY_ENCRYPTION_KEY', () => {
+    type Cfg = ReturnType<typeof import('@tzurot/common-types/config/config').getConfig>;
+    const base = { REDIS_URL: 'redis://localhost:6379', INTERNAL_SERVICE_SECRET: 'test-secret' };
+    const restoreEncryptionEnv = snapshotEncryptionEnv();
+
+    beforeEach(() => {
+      // isEncryptionConfigured() reads process.env, not the config argument
+      process.env.API_KEY_ENCRYPTION_KEY = 'a'.repeat(64);
+      delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+    });
+
+    afterEach(() => {
+      restoreEncryptionEnv();
+    });
+
+    it('throws when deployed and the key is unset', () => {
+      const config = { ...base, RAILWAY_ENVIRONMENT_NAME: 'production' };
+      expect(() => validateRequiredEnvVars(config as Cfg)).toThrow(
+        /API_KEY_ENCRYPTION_KEY.*cannot be decrypted.*requests would fail.*Railway/s
+      );
+    });
+
+    it('does not throw when deployed and the key is set', () => {
+      const config = {
+        ...base,
+        RAILWAY_ENVIRONMENT_NAME: 'production',
+        API_KEY_ENCRYPTION_KEY: 'a'.repeat(64),
+      };
+      expect(() => validateRequiredEnvVars(config as Cfg)).not.toThrow();
+    });
+
+    it('does not throw on a local run (no RAILWAY_ENVIRONMENT_NAME) with the key unset', () => {
+      expect(() => validateRequiredEnvVars(base as Cfg)).not.toThrow();
+    });
+
+    it('throws when deployed, the key is valid and API_KEY_ENCRYPTION_KEY_PREVIOUS is malformed', () => {
+      process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS = 'not-hex';
+      const config = {
+        ...base,
+        RAILWAY_ENVIRONMENT_NAME: 'production',
+        API_KEY_ENCRYPTION_KEY: 'a'.repeat(64),
+      };
+      expect(() => validateRequiredEnvVars(config as Cfg)).toThrow(
+        /API_KEY_ENCRYPTION_KEY.*PREVIOUS.*malformed.*cannot be decrypted.*requests would fail.*Railway/s
+      );
+    });
+
+    it('does not throw on a local run with a malformed API_KEY_ENCRYPTION_KEY_PREVIOUS', () => {
+      process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS = 'not-hex';
+      const config = { ...base, API_KEY_ENCRYPTION_KEY: 'a'.repeat(64) };
+      expect(() => validateRequiredEnvVars(config as Cfg)).not.toThrow();
+    });
+
+    it('does not throw when deployed, the key is valid and no previous key is set', () => {
+      const config = {
+        ...base,
+        RAILWAY_ENVIRONMENT_NAME: 'production',
+        API_KEY_ENCRYPTION_KEY: 'a'.repeat(64),
+      };
+      expect(() => validateRequiredEnvVars(config as Cfg)).not.toThrow();
     });
   });
 

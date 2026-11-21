@@ -16,6 +16,7 @@ import {
   EncryptionMisconfiguredError,
   UndecryptableApiKeyError,
 } from './ApiKeyResolver.js';
+import { snapshotEncryptionEnv } from './test-utils.js';
 
 vi.mock('@tzurot/common-types/config/config', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
@@ -28,7 +29,6 @@ vi.mock('@tzurot/common-types/config/config', async () => {
 });
 
 const TEST_KEY_HEX = 'ab'.repeat(32);
-const RESOLVER_KEY = 'resolver-level-key-presence-only';
 
 /** Flip one bit of the first GCM auth-tag byte so authentication fails. */
 function corruptTag(tag: string): string {
@@ -39,31 +39,16 @@ function corruptTag(tag: string): string {
 describe('ApiKeyResolver — undecryptable stored key', () => {
   let findFirst: Mock;
   let resolver: ApiKeyResolver;
-  const originalKey = process.env.API_KEY_ENCRYPTION_KEY;
-  const originalPrevious = process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+  const restoreEncryptionEnv = snapshotEncryptionEnv();
 
   beforeEach(() => {
     process.env.API_KEY_ENCRYPTION_KEY = TEST_KEY_HEX;
     delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
     findFirst = vi.fn();
-    resolver = new ApiKeyResolver(
-      { userApiKey: { findFirst } } as unknown as PrismaClient,
-      RESOLVER_KEY
-    );
+    resolver = new ApiKeyResolver({ userApiKey: { findFirst } } as unknown as PrismaClient);
   });
 
-  afterEach(() => {
-    if (originalKey === undefined) {
-      delete process.env.API_KEY_ENCRYPTION_KEY;
-    } else {
-      process.env.API_KEY_ENCRYPTION_KEY = originalKey;
-    }
-    if (originalPrevious === undefined) {
-      delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
-    } else {
-      process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS = originalPrevious;
-    }
-  });
+  afterEach(restoreEncryptionEnv);
 
   function storeCorruptedRow(): void {
     const row = encryptApiKey('sk-or-real-specimen');
@@ -158,5 +143,74 @@ describe('ApiKeyResolver — undecryptable stored key', () => {
       source: 'system',
       isGuestMode: true,
     });
+  });
+});
+
+describe('ApiKeyResolver — env has no encryption key', () => {
+  let findFirst: Mock;
+  let resolver: ApiKeyResolver;
+  let row: ReturnType<typeof encryptApiKey>;
+  const restoreEncryptionEnv = snapshotEncryptionEnv();
+
+  beforeEach(() => {
+    // Encrypt a real row while configured, then lose the key (the lost-variable deploy).
+    process.env.API_KEY_ENCRYPTION_KEY = TEST_KEY_HEX;
+    delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+    row = encryptApiKey('sk-or-real-specimen');
+    delete process.env.API_KEY_ENCRYPTION_KEY;
+    findFirst = vi.fn();
+    resolver = new ApiKeyResolver({ userApiKey: { findFirst } } as unknown as PrismaClient);
+  });
+
+  afterEach(restoreEncryptionEnv);
+
+  it('resolveApiKey rejects with EncryptionMisconfiguredError for an existing row, and a second call re-reads the DB', async () => {
+    findFirst.mockResolvedValue(row);
+
+    await expect(resolver.resolveApiKey('user-1', AIProvider.OpenRouter)).rejects.toBeInstanceOf(
+      EncryptionMisconfiguredError
+    );
+    await expect(resolver.resolveApiKey('user-1', AIProvider.OpenRouter)).rejects.toBeInstanceOf(
+      EncryptionMisconfiguredError
+    );
+
+    expect(findFirst).toHaveBeenCalledTimes(2);
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { user: { discordId: 'user-1' }, provider: AIProvider.OpenRouter, isActive: true },
+      select: { iv: true, content: true, tag: true },
+    });
+  });
+
+  it('resolveApiKey returns the guest result when the user has no row', async () => {
+    findFirst.mockResolvedValue(null);
+
+    const result = await resolver.resolveApiKey('user-1', AIProvider.OpenRouter);
+
+    expect(result).toMatchObject({
+      apiKey: 'system-openrouter-key',
+      source: 'system',
+      isGuestMode: true,
+    });
+    expect(findFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it('tryResolveUserKey rejects with EncryptionMisconfiguredError for an existing row, and a second call re-reads the DB', async () => {
+    findFirst.mockResolvedValue(row);
+
+    await expect(resolver.tryResolveUserKey('user-1', AIProvider.ZaiCoding)).rejects.toBeInstanceOf(
+      EncryptionMisconfiguredError
+    );
+    await expect(resolver.tryResolveUserKey('user-1', AIProvider.ZaiCoding)).rejects.toBeInstanceOf(
+      EncryptionMisconfiguredError
+    );
+
+    expect(findFirst).toHaveBeenCalledTimes(2);
+  });
+
+  it('tryResolveUserKey returns null when the user has no row', async () => {
+    findFirst.mockResolvedValue(null);
+
+    await expect(resolver.tryResolveUserKey('user-1', AIProvider.ZaiCoding)).resolves.toBeNull();
+    expect(findFirst).toHaveBeenCalledTimes(1);
   });
 });

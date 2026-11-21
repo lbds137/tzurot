@@ -4,7 +4,7 @@
  * Tests for server initialization and validation functions.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock common-types before importing module
 vi.mock('@tzurot/common-types/config/config', async () => {
@@ -71,6 +71,28 @@ describe('Startup Utilities', () => {
   });
 
   describe('validateByokConfiguration', () => {
+    const originalKey = process.env.API_KEY_ENCRYPTION_KEY;
+    const originalPrevious = process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+
+    beforeEach(() => {
+      // isEncryptionConfigured() reads process.env, not the mocked config
+      process.env.API_KEY_ENCRYPTION_KEY = 'a'.repeat(64);
+      delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+    });
+
+    afterEach(() => {
+      if (originalKey === undefined) {
+        delete process.env.API_KEY_ENCRYPTION_KEY;
+      } else {
+        process.env.API_KEY_ENCRYPTION_KEY = originalKey;
+      }
+      if (originalPrevious === undefined) {
+        delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+      } else {
+        process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS = originalPrevious;
+      }
+    });
+
     it('should not throw when encryption key is not configured (BYOK disabled)', async () => {
       vi.mocked(getConfig).mockReturnValue({
         API_KEY_ENCRYPTION_KEY: undefined,
@@ -83,6 +105,61 @@ describe('Startup Utilities', () => {
     it('should not throw when encryption key is empty (BYOK disabled)', async () => {
       vi.mocked(getConfig).mockReturnValue({
         API_KEY_ENCRYPTION_KEY: '',
+      } as ReturnType<typeof getConfig>);
+
+      const { validateByokConfiguration } = await import('./startup.js');
+      expect(() => validateByokConfiguration()).not.toThrow();
+    });
+
+    it('should throw when deployed and the encryption key is unset', async () => {
+      vi.mocked(getConfig).mockReturnValue({
+        API_KEY_ENCRYPTION_KEY: undefined,
+        RAILWAY_ENVIRONMENT_NAME: 'production',
+      } as ReturnType<typeof getConfig>);
+
+      const { validateByokConfiguration } = await import('./startup.js');
+      expect(() => validateByokConfiguration()).toThrow(
+        /API_KEY_ENCRYPTION_KEY.*cannot be decrypted.*requests would fail.*Railway/s
+      );
+    });
+
+    it('should not throw when deployed and the encryption key is valid', async () => {
+      vi.mocked(getConfig).mockReturnValue({
+        API_KEY_ENCRYPTION_KEY: 'a'.repeat(64),
+        RAILWAY_ENVIRONMENT_NAME: 'production',
+      } as ReturnType<typeof getConfig>);
+
+      const { validateByokConfiguration } = await import('./startup.js');
+      expect(() => validateByokConfiguration()).not.toThrow();
+    });
+
+    it('should throw when deployed, the key is valid and API_KEY_ENCRYPTION_KEY_PREVIOUS is malformed', async () => {
+      process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS = 'not-hex';
+      vi.mocked(getConfig).mockReturnValue({
+        API_KEY_ENCRYPTION_KEY: 'a'.repeat(64),
+        RAILWAY_ENVIRONMENT_NAME: 'production',
+      } as ReturnType<typeof getConfig>);
+
+      const { validateByokConfiguration } = await import('./startup.js');
+      expect(() => validateByokConfiguration()).toThrow(
+        /API_KEY_ENCRYPTION_KEY.*PREVIOUS.*malformed.*cannot be decrypted.*requests would fail.*Railway/s
+      );
+    });
+
+    it('should not throw on a local run with a malformed API_KEY_ENCRYPTION_KEY_PREVIOUS', async () => {
+      process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS = 'not-hex';
+      vi.mocked(getConfig).mockReturnValue({
+        API_KEY_ENCRYPTION_KEY: 'a'.repeat(64),
+      } as ReturnType<typeof getConfig>);
+
+      const { validateByokConfiguration } = await import('./startup.js');
+      expect(() => validateByokConfiguration()).not.toThrow();
+    });
+
+    it('should not throw when deployed, the key is valid and no previous key is set', async () => {
+      vi.mocked(getConfig).mockReturnValue({
+        API_KEY_ENCRYPTION_KEY: 'a'.repeat(64),
+        RAILWAY_ENVIRONMENT_NAME: 'production',
       } as ReturnType<typeof getConfig>);
 
       const { validateByokConfiguration } = await import('./startup.js');
