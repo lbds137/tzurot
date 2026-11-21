@@ -12,9 +12,10 @@
  *   passing `config.model` through so the chosen model (which may be an
  *   own-plan z.ai substitution or a forced free-tier downgrade) is honored
  *   rather than re-selected.
- * - `{ kind: 'failFast', provider }` — caller MUST short-circuit. Only happens
- *   when even the free-model system fallback is unavailable (no system
- *   OpenRouter key configured).
+ * - `{ kind: 'failFast', provider }` — caller MUST short-circuit this tier: no
+ *   usable key and no free fallback, or resolution threw. A failed stored-key
+ *   read is NOT one of these: image description degrades it to the system key
+ *   (probe / broad free fallback / guest branch), like an undecryptable row.
  *
  * Policy: an authenticated user lacking a key for the vision provider does NOT
  * fail-fast. When they hold a z.ai coding-plan key and no OpenRouter key, the
@@ -48,6 +49,7 @@ import { selectVisionModel } from './VisionProcessor.js';
 import { buildFailureFallback } from './visionDescribeGates.js';
 import { visionFallbackQuota, zaiFreeTierAdmission } from '../../redis.js';
 import {
+  ApiKeyLookupError,
   EncryptionMisconfiguredError,
   UndecryptableApiKeyError,
   type ApiKeyResolutionResult,
@@ -313,9 +315,10 @@ async function resolveOwnZaiPlanVision(
  * Only a SYSTEM-key downgrade spends the owner's shared free-tier quota, so only
  * it counts against the per-user daily cap (a user on their OWN OpenRouter key
  * doesn't). Over the cap → fail-fast. A stored free-provider row that will not
- * decrypt (`UndecryptableApiKeyError`) reads as absent: warn, then resolve the
- * SYSTEM key via `resolveApiKey(undefined, …)`, which is a system-key downgrade
- * and so still consumes the quota. Any other `resolveApiKey` throw
+ * decrypt (`UndecryptableApiKeyError`) or whose read failed (`ApiKeyLookupError`)
+ * reads as absent: warn, then resolve the SYSTEM key via
+ * `resolveApiKey(undefined, …)`, which is a system-key downgrade and so still
+ * consumes the quota. Any other `resolveApiKey` throw
  * (`EncryptionMisconfiguredError` included) propagates to the caller's catch
  * (→ fail-fast). `originalVisionProvider` is carried so a
  * fail-fast names what the user actually lacked, not the free-fallback provider.
@@ -335,16 +338,19 @@ async function resolveBroadFreeFallback(
   try {
     sys = await apiKeyResolver.resolveApiKey(userId, freeProvider);
   } catch (err) {
-    if (!(err instanceof UndecryptableApiKeyError)) {
+    const readFailed = err instanceof ApiKeyLookupError;
+    if (!readFailed && !(err instanceof UndecryptableApiKeyError)) {
       throw err;
     }
-    // The user's own row for the free provider will not decrypt (and is never
-    // cached, so the lookup above re-throws every time). Vision is a secondary
-    // probe, so treat the row as absent and take the SYSTEM key; the
-    // `source === 'system'` quota consume below still applies.
+    // The user's own row for the free provider will not decrypt, or its read
+    // failed (neither is ever cached, so the lookup above re-throws every
+    // time). Vision is a secondary probe, so treat the row as absent and take
+    // the SYSTEM key; the `source === 'system'` quota consume below still applies.
     logger.warn(
       { err, userId, freeProvider },
-      'Stored free-fallback provider key will not decrypt — using the system key'
+      readFailed
+        ? 'Stored free-fallback provider key read failed — using the system key'
+        : 'Stored free-fallback provider key will not decrypt — using the system key'
     );
     sys = await apiKeyResolver.resolveApiKey(undefined, freeProvider);
   }
@@ -452,7 +458,7 @@ async function resolveZaiPiggybackVision(
   };
 }
 
-/** Warn text for the fail-fast path: a server encryption fault is not "no usable key". */
+/** Warn text for the fail-fast path: a server fault is not "no usable key". */
 function visionFailFastLogMessage(error: unknown): string {
   return error instanceof EncryptionMisconfiguredError
     ? 'Vision config resolution failed — failing fast (server encryption misconfiguration)'
@@ -461,8 +467,10 @@ function visionFailFastLogMessage(error: unknown): string {
 
 /**
  * Look up the authenticated user's key for the vision provider as a PROBE: the
- * reply routes on the main key, so a stored row that will not decrypt reads as
- * absent (warn, `null`) and the caller's own-plan / free fallbacks run.
+ * reply routes on the main key, so a stored row that will not decrypt, or a
+ * failed database read of it (`ApiKeyLookupError`), reads as absent (warn,
+ * `null`) and the caller's own-plan / free fallbacks run (image description is
+ * a secondary probe; chat still fails loudly on the same errors).
  * EncryptionMisconfiguredError and every other error still propagate.
  */
 async function probeUserVisionKey(
@@ -473,6 +481,13 @@ async function probeUserVisionKey(
   try {
     return await apiKeyResolver.tryResolveUserKey(userId, visionProvider);
   } catch (err) {
+    if (err instanceof ApiKeyLookupError) {
+      logger.warn(
+        { err, userId, visionProvider },
+        'Stored vision-provider key read failed — treating it as absent'
+      );
+      return null;
+    }
     if (!(err instanceof UndecryptableApiKeyError)) {
       throw err;
     }
@@ -481,6 +496,31 @@ async function probeUserVisionKey(
       'Stored vision-provider key will not decrypt — treating it as absent'
     );
     return null;
+  }
+}
+
+/**
+ * The guest branch's key read. A guest is served on the system key anyway, so a
+ * failed database read of a stored user key (`ApiKeyLookupError`) warns and
+ * retries as the system lookup (`resolveApiKey(undefined, …)`, which never reads
+ * the database). Every other error propagates to the caller's fail-fast catch.
+ */
+async function resolveGuestKey(
+  apiKeyResolver: ApiKeyResolver,
+  userId: string | undefined,
+  guestProvider: AIProvider
+): Promise<ApiKeyResolutionResult> {
+  try {
+    return await apiKeyResolver.resolveApiKey(userId, guestProvider);
+  } catch (err) {
+    if (!(err instanceof ApiKeyLookupError)) {
+      throw err;
+    }
+    logger.warn(
+      { err, userId, guestProvider },
+      'Stored guest-path key read failed — using the system key'
+    );
+    return apiKeyResolver.resolveApiKey(undefined, guestProvider);
   }
 }
 
@@ -619,7 +659,7 @@ export async function resolveVisionAuth(
       // collapses the duplicates into one attempt).
       const guestModel = isPrimaryTier ? targetModel : getFreeVisionFloor();
       const guestProvider = isPrimaryTier ? visionProvider : detectVisionProvider(guestModel);
-      const result = await apiKeyResolver.resolveApiKey(userId, guestProvider);
+      const result = await resolveGuestKey(apiKeyResolver, userId, guestProvider);
       logger.debug(
         { userId, visionProvider: guestProvider, mainProvider, source: result.source },
         'Cross-provider vision config resolved (guest path)'
@@ -655,8 +695,8 @@ export async function resolveVisionAuth(
       };
     }
 
-    // Authenticated user with no usable key for the vision provider (missing, or
-    // stored but undecryptable) → try their own z.ai coding-plan key (when they
+    // Authenticated user with no usable key for the vision provider (missing,
+    // stored but undecryptable, or its read failed) → try their own z.ai coding-plan key (when they
     // hold no OpenRouter key, once per walk), then fall back to the broad free
     // fallback (free vision model on the system key). Runs inside this try so a
     // `resolveApiKey` throw still degrades to fail-fast via the catch below.
@@ -669,7 +709,7 @@ export async function resolveVisionAuth(
     // (user or system) is available for the requested provider. For the
     // authenticated free-fallback branch that means no system OpenRouter key is
     // configured → fail-fast against the original vision provider. For the guest
-    // branch a throw is genuinely unrecoverable too, so fail-fast is consistent.
+    // branch a throw that `resolveGuestKey` did not recover from is unrecoverable too.
     logger.warn({ err: error, userId, visionProvider }, visionFailFastLogMessage(error));
     return { kind: 'failFast', provider: visionProvider };
   }

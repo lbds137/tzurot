@@ -237,8 +237,8 @@ export class AIJobProcessor {
 
     // Fetch the corresponding API key for BYOK providers. voice-engine needs
     // no key; mistral/elevenlabs need their respective BYOK key. If key
-    // resolution fails (no key configured, decryption error), fall through
-    // to voice-engine — AudioProcessor handles the missing-key dispatch.
+    // resolution fails (no key configured, decryption error, failed key read), fall
+    // through to voice-engine — AudioProcessor handles the missing-key dispatch.
     let apiKey: string | undefined;
     if (sttResult.provider !== 'voice-engine') {
       const aiProvider =

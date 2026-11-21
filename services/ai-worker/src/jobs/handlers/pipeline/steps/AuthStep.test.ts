@@ -16,6 +16,7 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { AuthStep } from './AuthStep.js';
 import type { GenerationContext, ResolvedConfig } from '../types.js';
 import {
+  ApiKeyLookupError,
   EncryptionMisconfiguredError,
   NoApiKeyAvailableError,
   UndecryptableApiKeyError,
@@ -246,6 +247,10 @@ describe('AuthStep', () => {
       [
         'a misconfigured encryption env',
         new EncryptionMisconfiguredError({ cause: new Error('API_KEY_ENCRYPTION_KEY missing') }),
+      ],
+      [
+        'a failed stored-key lookup (a DB blip is not "no key")',
+        new ApiKeyLookupError(AIProvider.OpenRouter, { cause: new Error('connection reset') }),
       ],
     ])('should fail the step (no guest demotion) on %s', async (_label, error) => {
       vi.mocked(mockApiKeyResolver.resolveApiKey).mockRejectedValue(error);

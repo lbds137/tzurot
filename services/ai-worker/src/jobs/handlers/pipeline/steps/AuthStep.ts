@@ -11,6 +11,7 @@ import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { SttResolver, LlmConfigResolver } from '@tzurot/config-resolver';
 import {
+  ApiKeyLookupError,
   EncryptionMisconfiguredError,
   NoApiKeyAvailableError,
   UndecryptableApiKeyError,
@@ -468,10 +469,13 @@ export class AuthStep implements IPipelineStep {
     } catch (error) {
       // A stored key that will not decrypt (or a broken encryption env) must
       // fail the job, not demote the user to free models: the handler renders
-      // the re-enter copy / a loud error instead.
+      // the re-enter copy / a loud error instead. A failed key READ is the same
+      // class: the user's key was never seen, so guest mode would be a silent
+      // demotion (the handler fails it loudly).
       if (
         error instanceof UndecryptableApiKeyError ||
-        error instanceof EncryptionMisconfiguredError
+        error instanceof EncryptionMisconfiguredError ||
+        error instanceof ApiKeyLookupError
       ) {
         throw error;
       }
