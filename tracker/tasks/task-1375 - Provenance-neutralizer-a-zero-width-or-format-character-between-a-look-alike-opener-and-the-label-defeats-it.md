@@ -3,10 +3,10 @@ id: TASK-1375
 title: >-
   Provenance neutralizer: a zero-width or format character between a look-alike
   opener and the label defeats it
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-09T21:55:00Z'
-updated_date: '2026-11-20T05:58:00Z'
+updated_date: '2026-11-21T03:32:00Z'
 labels:
   - area:common-types
   - size:S
