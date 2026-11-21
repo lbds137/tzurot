@@ -9,7 +9,12 @@
 import { describe, it, expect } from 'vitest';
 import { buildErrorContent } from './buildErrorContent.js';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
-import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
+import {
+  ApiErrorCategory,
+  ApiErrorType,
+  formatErrorSpoiler,
+  USER_ERROR_MESSAGES,
+} from '@tzurot/common-types/constants/error';
 import { undecryptableApiKeyMessage } from '@tzurot/common-types/utils/providerDisplayName';
 import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 
@@ -118,32 +123,59 @@ describe('buildErrorContent', () => {
     });
   });
 
-  describe('undecryptable BYOK key (ai-worker AUTHENTICATION result)', () => {
+  describe('userActionMessage (undecryptable BYOK key, rendered plainly)', () => {
     const copy = undecryptableApiKeyMessage(AIProvider.OpenRouter);
+    const generic = USER_ERROR_MESSAGES[ApiErrorCategory.AUTHENTICATION];
+    const spoiler = formatErrorSpoiler(ApiErrorCategory.AUTHENTICATION, 'ref-key');
     const baseResult = {
       success: false,
       errorInfo: {
         type: ApiErrorType.PERMANENT,
         category: ApiErrorCategory.AUTHENTICATION,
-        userMessage: copy,
-        technicalMessage: copy,
+        userMessage: generic,
+        userActionMessage: copy,
         referenceId: 'ref-key',
         shouldRetry: false,
       },
     } as unknown as LLMGenerationResult;
 
-    it('shows the re-enter copy on the default branch', () => {
-      expect(buildErrorContent(baseResult)).toContain(copy);
+    /** Everything outside `||...||` spoiler spans. */
+    const outsideSpoilers = (content: string): string => content.replace(/\|\|.*?\|\|/gs, '');
+
+    it('default branch: copy replaces the generic line and sits outside the spoiler', () => {
+      const content = buildErrorContent(baseResult);
+
+      expect(outsideSpoilers(content)).toContain(copy);
+      expect(content).not.toContain(generic);
+      expect(content).toBe(`${copy} ${spoiler}`);
     });
 
-    it('shows the re-enter copy on the personality-voiced branch too', () => {
+    it('personality branch: personality voice, then the copy on its own line, outside the spoiler', () => {
       const content = buildErrorContent({
         ...baseResult,
         personalityErrorMessage: 'Oops, my circuits fizzled.',
       } as LLMGenerationResult);
 
-      expect(content).toContain('Oops, my circuits fizzled.');
-      expect(content).toContain(copy);
+      expect(outsideSpoilers(content)).toContain(copy);
+      expect(content).toBe(`Oops, my circuits fizzled. ${spoiler}\n${copy}`);
+    });
+
+    it('missing-referenceId guard branch: returns the copy plainly', () => {
+      const content = buildErrorContent({
+        ...baseResult,
+        errorInfo: { ...baseResult.errorInfo, referenceId: '' },
+      } as LLMGenerationResult);
+
+      expect(content).toBe(copy);
+    });
+
+    it('ignores an empty userActionMessage (falls back to the category line)', () => {
+      const content = buildErrorContent({
+        ...baseResult,
+        errorInfo: { ...baseResult.errorInfo, userActionMessage: '' },
+      } as LLMGenerationResult);
+
+      expect(content).toContain(generic);
     });
   });
 

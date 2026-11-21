@@ -11,7 +11,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Job } from 'bullmq';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
-import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
+import {
+  ApiErrorCategory,
+  ApiErrorType,
+  USER_ERROR_MESSAGES,
+} from '@tzurot/common-types/constants/error';
 import { undecryptableApiKeyMessage } from '@tzurot/common-types/utils/providerDisplayName';
 import { JobType, JobStatus, REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
@@ -909,11 +913,12 @@ describe('LLMGenerationHandler', () => {
           category: ApiErrorCategory.AUTHENTICATION,
           type: ApiErrorType.PERMANENT,
           shouldRetry: false,
-          userMessage: copy,
-          // technicalMessage is the field bot-client's buildErrorContent renders
-          // into the Discord reply on BOTH its personality and default branches.
-          technicalMessage: copy,
+          userMessage: USER_ERROR_MESSAGES[ApiErrorCategory.AUTHENTICATION],
+          // bot-client renders userActionMessage plainly, outside the spoiler.
+          userActionMessage: copy,
         });
+        // The copy would only repeat inside the spoiler.
+        expect(result.errorInfo?.technicalMessage).toBeUndefined();
         expect(result.metadata?.failedStep).toBe('AuthResolution');
       });
 
@@ -941,6 +946,7 @@ describe('LLMGenerationHandler', () => {
         expect(result.errorInfo?.category).toBe(ApiErrorCategory.UNKNOWN);
         expect(result.errorInfo?.technicalMessage).toContain('API_KEY_ENCRYPTION_KEY');
         expect(result.errorInfo?.technicalMessage).not.toContain("can't be read anymore");
+        expect(result.errorInfo?.userActionMessage).toBeUndefined();
       });
 
       it('should always include errorInfo on failure results so bot-client can render spoiler-tag details', async () => {

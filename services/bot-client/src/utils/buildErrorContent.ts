@@ -23,6 +23,12 @@ const DEFAULT_ERROR =
  * This allows users to see what went wrong while keeping the error message
  * in the personality's voice.
  *
+ * When `errorInfo.userActionMessage` is set (approved copy the user must act on,
+ * e.g. re-enter a key), it is rendered PLAINLY, never inside a spoiler: it
+ * replaces the generic category line on the default branch, follows the
+ * personality message on its own line on the personality branch, and is the
+ * whole reply when the referenceId is missing.
+ *
  * Example with placeholder:
  *   Input: "Oops! Something went wrong ||*(an error has occurred)*||"
  *   Output: "Oops! Something went wrong ||*(error: quota exceeded — "402 Payment Required"; ref: m5abc123)*||"
@@ -34,26 +40,35 @@ const DEFAULT_ERROR =
 export function buildErrorContent(result: LLMGenerationResult): string {
   // If we have structured error info, use it for dynamic messaging
   if (result.errorInfo) {
-    const { category, referenceId, technicalMessage } = result.errorInfo;
+    const { category, referenceId, technicalMessage, userActionMessage } = result.errorInfo;
+    const actionMessage =
+      userActionMessage !== undefined && userActionMessage !== '' ? userActionMessage : undefined;
 
     // Guard: referenceId is required by Zod schema, but be defensive for edge cases
     if (referenceId === undefined || referenceId.length === 0) {
+      if (actionMessage !== undefined) {
+        return actionMessage;
+      }
       const userMessage = USER_ERROR_MESSAGES[category] ?? DEFAULT_ERROR;
       return result.personalityErrorMessage ?? userMessage;
     }
 
     // If personality has a custom error message, format it with error details
     if (result.personalityErrorMessage !== undefined && result.personalityErrorMessage !== '') {
-      return formatPersonalityErrorMessage(
+      const personalityContent = formatPersonalityErrorMessage(
         result.personalityErrorMessage,
         category,
         referenceId,
         technicalMessage
       );
+      return actionMessage === undefined
+        ? personalityContent
+        : `${personalityContent}\n${actionMessage}`;
     }
 
-    // No personality message - use the category-specific user message with spoiler
-    const userMessage = USER_ERROR_MESSAGES[category] ?? DEFAULT_ERROR;
+    // No personality message - the action copy (when present) replaces the generic
+    // category line; either way the spoiler follows
+    const userMessage = actionMessage ?? USER_ERROR_MESSAGES[category] ?? DEFAULT_ERROR;
     const spoiler = formatErrorSpoiler(category, referenceId, technicalMessage);
     return `${userMessage} ${spoiler}`;
   }
