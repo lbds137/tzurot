@@ -32,6 +32,7 @@ import {
   isZaiFreeTierModel,
 } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
+import { EncryptionMisconfiguredError } from '../ApiKeyResolver.js';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import {
@@ -548,6 +549,36 @@ describe('describeImageWithFallback', () => {
     );
 
     expect(result.attribution).toBeNull();
+  });
+
+  it('logs at error and keeps the default tier order when the OpenRouter probe hits an encryption misconfiguration', async () => {
+    const personality = makePersonality({
+      visionFallbackModels: [FREE_ROUTER_MODEL, 'openrouter/auto'],
+    });
+    const misconfigured = new EncryptionMisconfiguredError();
+    mockTryResolveUserKey.mockRejectedValue(misconfigured);
+    // The probe runs lazily, only once the primary tier has failed.
+    mockDescribeImage
+      .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'refused'))
+      .mockResolvedValueOnce('described');
+
+    const result = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeAuthOptions({ personality }),
+      { model: 'qwen/qwen3.7-plus' }
+    );
+
+    expect(result.description).toBe('described');
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: misconfigured, userId: 'user-1' }),
+      expect.stringContaining('encryption misconfiguration')
+    );
+    // Fail-soft return stays false: the default order keeps the free route at tier 2.
+    expect(mockResolveVisionAuth.mock.calls.map(call => call[0])).toEqual([
+      'qwen/qwen3.7-plus',
+      FREE_ROUTER_MODEL,
+    ]);
   });
 
   it('walks the chain in BYOK order when the user has an OpenRouter key (7da570d8 shape)', async () => {

@@ -38,10 +38,16 @@ import {
 } from './visionAuthResolver.js';
 import { selectVisionModel } from './VisionProcessor.js';
 import { buildFailureFallback } from './visionDescribeGates.js';
-import type { ApiKeyResolver, ApiKeyResolutionResult } from '../ApiKeyResolver.js';
+import {
+  EncryptionMisconfiguredError,
+  UndecryptableApiKeyError,
+  type ApiKeyResolver,
+  type ApiKeyResolutionResult,
+} from '../ApiKeyResolver.js';
 
-const { mockLoggerWarn } = vi.hoisted(() => ({
+const { mockLoggerWarn, mockLoggerError } = vi.hoisted(() => ({
   mockLoggerWarn: vi.fn(),
+  mockLoggerError: vi.fn(),
 }));
 
 // Logger mock — visionAuthResolver imports createLogger from common-types
@@ -55,7 +61,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
       debug: vi.fn(),
       info: vi.fn(),
       warn: mockLoggerWarn,
-      error: vi.fn(),
+      error: mockLoggerError,
     }),
   };
 });
@@ -624,6 +630,46 @@ describe('resolveVisionConfig', () => {
       );
     });
 
+    it('logs at error when the own-plan key lookup hits an encryption misconfiguration, and still falls back', async () => {
+      const misconfigured = new EncryptionMisconfiguredError();
+      mockSelectVisionModel.mockResolvedValue('qwen/qwen3.5-397b-a17b');
+      mockTryResolveUserKey.mockImplementation(async (_uid: string, provider: AIProvider) => {
+        if (provider === AIProvider.ZaiCoding) {
+          throw misconfigured;
+        }
+        return null;
+      });
+      mockResolveApiKey.mockResolvedValue({
+        apiKey: 'system-or-key',
+        source: 'system',
+        provider: AIProvider.OpenRouter,
+        isGuestMode: true,
+        userId: 'user-1',
+      } satisfies ApiKeyResolutionResult);
+
+      const result = await resolveVisionAuth(
+        'qwen/qwen3.5-397b-a17b',
+        {
+          personality,
+          mainProvider: AIProvider.ZaiCoding,
+          mainApiKey: 'user-zai-key',
+          isGuestMode: false,
+          userId: 'user-1',
+          apiKeyResolver: mockResolver,
+        },
+        createVisionQuotaTracker('user-1'),
+        false
+      );
+
+      expect(mockLoggerError).toHaveBeenCalledWith(
+        expect.objectContaining({ err: misconfigured, userId: 'user-1' }),
+        expect.stringContaining('encryption misconfiguration')
+      );
+      // Fail-soft: a null key makes the own-plan arm yield to the broad free fallback.
+      expect(result.kind).toBe('resolved');
+      expect(result.kind === 'resolved' && result.config.provider).not.toBe(AIProvider.ZaiCoding);
+    });
+
     it('history images keep the free pool: resolveVisionConfig for a z.ai-only user resolves to the broad free fallback on the system key without looking up ZaiCoding', async () => {
       mockSelectVisionModel.mockResolvedValue('qwen/qwen3.5-397b-a17b');
       mockTryResolveUserKey.mockImplementation(async (_uid: string, provider: AIProvider) =>
@@ -871,6 +917,107 @@ describe('resolveVisionConfig', () => {
       });
 
       expect(result).toEqual({ kind: 'failFast', provider: AIProvider.OpenRouter });
+    });
+  });
+
+  describe('undecryptable vision-provider key (authenticated user)', () => {
+    const visionOptions = {
+      personality,
+      mainProvider: AIProvider.ZaiCoding,
+      mainApiKey: 'user-zai-key',
+      isGuestMode: false,
+      userId: 'user-1',
+      apiKeyResolver: mockResolver,
+    };
+
+    it('treats the row as absent: own-plan z.ai fallback runs, warning logged, no failFast', async () => {
+      const probeError = new UndecryptableApiKeyError(AIProvider.OpenRouter);
+      mockSelectVisionModel.mockResolvedValue('qwen/qwen3.5-397b-a17b');
+      mockTryResolveUserKey.mockImplementation(async (_uid: string, provider: AIProvider) => {
+        if (provider === AIProvider.OpenRouter) {
+          throw probeError;
+        }
+        return 'user-zai-key';
+      });
+
+      // resolveVisionAuth with a fresh tracker: the own-plan claim is still
+      // available (resolveVisionConfig pre-spends it for history images).
+      const result = await resolveVisionAuth(
+        'qwen/qwen3.5-397b-a17b',
+        visionOptions,
+        createVisionQuotaTracker('user-1'),
+        false
+      );
+
+      expect(mockTryResolveUserKey).toHaveBeenCalledWith('user-1', AIProvider.OpenRouter);
+      expect(mockTryResolveUserKey).toHaveBeenCalledWith('user-1', AIProvider.ZaiCoding);
+      expect(result).toEqual({
+        kind: 'resolved',
+        config: {
+          apiKey: 'user-zai-key',
+          provider: AIProvider.ZaiCoding,
+          model: 'glm-5.3-flash',
+          source: 'user',
+          isGuestMode: false,
+        },
+      } satisfies VisionConfigResult);
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'user-1', err: probeError }),
+        expect.stringContaining('will not decrypt')
+      );
+    });
+
+    it('falls to the broad free fallback when no own z.ai key exists either', async () => {
+      mockSelectVisionModel.mockResolvedValue('qwen/qwen3.5-397b-a17b');
+      mockTryResolveUserKey.mockImplementation(async (_uid: string, provider: AIProvider) => {
+        if (provider === AIProvider.OpenRouter) {
+          throw new UndecryptableApiKeyError(AIProvider.OpenRouter);
+        }
+        return null;
+      });
+      // The real resolver re-throws for a user with an undecryptable row (never
+      // cached); only the system lookup (no userId) resolves.
+      mockResolveApiKey.mockImplementation(async (uid: string | undefined) => {
+        if (uid !== undefined) {
+          throw new UndecryptableApiKeyError(AIProvider.OpenRouter);
+        }
+        return {
+          apiKey: 'system-or-key',
+          source: 'system',
+          provider: AIProvider.OpenRouter,
+          isGuestMode: true,
+          userId: undefined,
+        } satisfies ApiKeyResolutionResult;
+      });
+
+      const result = await resolveVisionConfig(visionOptions);
+
+      expect(result).toEqual({
+        kind: 'resolved',
+        config: {
+          apiKey: 'system-or-key',
+          provider: AIProvider.OpenRouter,
+          model: FREE_ROUTER_MODEL,
+          source: 'system',
+          isGuestMode: false,
+        },
+      } satisfies VisionConfigResult);
+      expect(mockResolveApiKey).toHaveBeenCalledWith(undefined, AIProvider.OpenRouter);
+      expect(mockTryConsume).toHaveBeenCalledWith('user-1');
+    });
+
+    it('fails fast on EncryptionMisconfiguredError and names the server misconfiguration', async () => {
+      const misconfigured = new EncryptionMisconfiguredError();
+      mockSelectVisionModel.mockResolvedValue('qwen/qwen3.5-397b-a17b');
+      mockTryResolveUserKey.mockRejectedValue(misconfigured);
+
+      const result = await resolveVisionConfig(visionOptions);
+
+      expect(result).toEqual({ kind: 'failFast', provider: AIProvider.OpenRouter });
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        { err: misconfigured, userId: 'user-1', visionProvider: AIProvider.OpenRouter },
+        expect.stringContaining('encryption misconfiguration')
+      );
     });
   });
 

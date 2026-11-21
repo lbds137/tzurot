@@ -47,7 +47,12 @@ import { detectVisionProvider } from '../ProviderRouter.js';
 import { selectVisionModel } from './VisionProcessor.js';
 import { buildFailureFallback } from './visionDescribeGates.js';
 import { visionFallbackQuota, zaiFreeTierAdmission } from '../../redis.js';
-import type { ApiKeyResolver } from '../ApiKeyResolver.js';
+import {
+  EncryptionMisconfiguredError,
+  UndecryptableApiKeyError,
+  type ApiKeyResolutionResult,
+  type ApiKeyResolver,
+} from '../ApiKeyResolver.js';
 
 const logger = createLogger('VisionAuthResolver');
 
@@ -228,6 +233,13 @@ async function lookupOwnZaiPlanKey(
     const zaiKey = await apiKeyResolver.tryResolveUserKey(userId, AIProvider.ZaiCoding);
     return zaiKey !== null && zaiKey.length > 0 ? zaiKey : null;
   } catch (error) {
+    if (error instanceof EncryptionMisconfiguredError) {
+      logger.error(
+        { err: error, userId },
+        'Own-plan key lookup hit a server encryption misconfiguration — keeping the broad free fallback'
+      );
+      return null;
+    }
     logger.warn(
       { err: error, userId },
       'Own-plan key lookup failed — keeping the broad free fallback'
@@ -300,8 +312,12 @@ async function resolveOwnZaiPlanVision(
  *
  * Only a SYSTEM-key downgrade spends the owner's shared free-tier quota, so only
  * it counts against the per-user daily cap (a user on their OWN OpenRouter key
- * doesn't). Over the cap → fail-fast. `resolveApiKey` throws propagate to the
- * caller's catch (→ fail-fast). `originalVisionProvider` is carried so a
+ * doesn't). Over the cap → fail-fast. A stored free-provider row that will not
+ * decrypt (`UndecryptableApiKeyError`) reads as absent: warn, then resolve the
+ * SYSTEM key via `resolveApiKey(undefined, …)`, which is a system-key downgrade
+ * and so still consumes the quota. Any other `resolveApiKey` throw
+ * (`EncryptionMisconfiguredError` included) propagates to the caller's catch
+ * (→ fail-fast). `originalVisionProvider` is carried so a
  * fail-fast names what the user actually lacked, not the free-fallback provider.
  * The `quotaTracker` gates the daily-cap consume to once per tracker (the loop calls this
  * per tier for ONE image; a fresh tracker per image = per-image accounting, see the
@@ -315,7 +331,23 @@ async function resolveBroadFreeFallback(
 ): Promise<VisionConfigResult> {
   const freeModel = getFreeVisionFloor();
   const freeProvider = detectVisionProvider(freeModel);
-  const sys = await apiKeyResolver.resolveApiKey(userId, freeProvider);
+  let sys: ApiKeyResolutionResult;
+  try {
+    sys = await apiKeyResolver.resolveApiKey(userId, freeProvider);
+  } catch (err) {
+    if (!(err instanceof UndecryptableApiKeyError)) {
+      throw err;
+    }
+    // The user's own row for the free provider will not decrypt (and is never
+    // cached, so the lookup above re-throws every time). Vision is a secondary
+    // probe, so treat the row as absent and take the SYSTEM key; the
+    // `source === 'system'` quota consume below still applies.
+    logger.warn(
+      { err, userId, freeProvider },
+      'Stored free-fallback provider key will not decrypt — using the system key'
+    );
+    sys = await apiKeyResolver.resolveApiKey(undefined, freeProvider);
+  }
   // `sys.apiKey ?? ''` is defense-in-depth: resolveApiKey normally throws when
   // no key is available, but a misbehaving resolver returning null would
   // otherwise throw on `.length`.
@@ -418,6 +450,38 @@ async function resolveZaiPiggybackVision(
       isGuestMode: true,
     },
   };
+}
+
+/** Warn text for the fail-fast path: a server encryption fault is not "no usable key". */
+function visionFailFastLogMessage(error: unknown): string {
+  return error instanceof EncryptionMisconfiguredError
+    ? 'Vision config resolution failed — failing fast (server encryption misconfiguration)'
+    : 'Vision config resolution failed — failing fast (no usable key for vision or free-fallback provider)';
+}
+
+/**
+ * Look up the authenticated user's key for the vision provider as a PROBE: the
+ * reply routes on the main key, so a stored row that will not decrypt reads as
+ * absent (warn, `null`) and the caller's own-plan / free fallbacks run.
+ * EncryptionMisconfiguredError and every other error still propagate.
+ */
+async function probeUserVisionKey(
+  apiKeyResolver: ApiKeyResolver,
+  userId: string,
+  visionProvider: AIProvider
+): Promise<string | null> {
+  try {
+    return await apiKeyResolver.tryResolveUserKey(userId, visionProvider);
+  } catch (err) {
+    if (!(err instanceof UndecryptableApiKeyError)) {
+      throw err;
+    }
+    logger.warn(
+      { err, userId, visionProvider },
+      'Stored vision-provider key will not decrypt — treating it as absent'
+    );
+    return null;
+  }
 }
 
 /**
@@ -573,7 +637,7 @@ export async function resolveVisionAuth(
     }
 
     // Authenticated user — try their key for the vision provider first.
-    const userKey = await apiKeyResolver.tryResolveUserKey(userId, visionProvider);
+    const userKey = await probeUserVisionKey(apiKeyResolver, userId, visionProvider);
     if (userKey !== null) {
       logger.debug(
         { userId, visionProvider, mainProvider, source: 'user' },
@@ -591,11 +655,11 @@ export async function resolveVisionAuth(
       };
     }
 
-    // Authenticated user with no key for the vision provider → try their own
-    // z.ai coding-plan key (when they hold no OpenRouter key, once per walk),
-    // then fall back to the broad free fallback (free vision model on the
-    // system key). Runs inside this try so a `resolveApiKey` throw still
-    // degrades to fail-fast via the catch below.
+    // Authenticated user with no usable key for the vision provider (missing, or
+    // stored but undecryptable) → try their own z.ai coding-plan key (when they
+    // hold no OpenRouter key, once per walk), then fall back to the broad free
+    // fallback (free vision model on the system key). Runs inside this try so a
+    // `resolveApiKey` throw still degrades to fail-fast via the catch below.
     return (
       (await resolveOwnZaiPlanVision(userId, visionProvider, apiKeyResolver, quotaTracker)) ??
       (await resolveBroadFreeFallback(userId, visionProvider, apiKeyResolver, quotaTracker))
@@ -606,10 +670,7 @@ export async function resolveVisionAuth(
     // authenticated free-fallback branch that means no system OpenRouter key is
     // configured → fail-fast against the original vision provider. For the guest
     // branch a throw is genuinely unrecoverable too, so fail-fast is consistent.
-    logger.warn(
-      { err: error, userId, visionProvider },
-      'Vision config resolution failed — failing fast (no usable key for vision or free-fallback provider)'
-    );
+    logger.warn({ err: error, userId, visionProvider }, visionFailFastLogMessage(error));
     return { kind: 'failFast', provider: visionProvider };
   }
 }

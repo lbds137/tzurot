@@ -8,6 +8,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { buildErrorContent } from './buildErrorContent.js';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
+import { undecryptableApiKeyMessage } from '@tzurot/common-types/utils/providerDisplayName';
 import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 
 describe('buildErrorContent', () => {
@@ -112,6 +115,35 @@ describe('buildErrorContent', () => {
       expect(content).toContain(
         'Sorry, I encountered an error generating a response. Please try again later.'
       );
+    });
+  });
+
+  describe('undecryptable BYOK key (ai-worker AUTHENTICATION result)', () => {
+    const copy = undecryptableApiKeyMessage(AIProvider.OpenRouter);
+    const baseResult = {
+      success: false,
+      errorInfo: {
+        type: ApiErrorType.PERMANENT,
+        category: ApiErrorCategory.AUTHENTICATION,
+        userMessage: copy,
+        technicalMessage: copy,
+        referenceId: 'ref-key',
+        shouldRetry: false,
+      },
+    } as unknown as LLMGenerationResult;
+
+    it('shows the re-enter copy on the default branch', () => {
+      expect(buildErrorContent(baseResult)).toContain(copy);
+    });
+
+    it('shows the re-enter copy on the personality-voiced branch too', () => {
+      const content = buildErrorContent({
+        ...baseResult,
+        personalityErrorMessage: 'Oops, my circuits fizzled.',
+      } as LLMGenerationResult);
+
+      expect(content).toContain('Oops, my circuits fizzled.');
+      expect(content).toContain(copy);
     });
   });
 

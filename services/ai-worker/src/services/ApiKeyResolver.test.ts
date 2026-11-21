@@ -3,7 +3,11 @@
  */
 
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
-import { ApiKeyResolver, NoApiKeyAvailableError } from './ApiKeyResolver.js';
+import {
+  ApiKeyResolver,
+  NoApiKeyAvailableError,
+  UndecryptableApiKeyError,
+} from './ApiKeyResolver.js';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
@@ -156,25 +160,32 @@ describe('ApiKeyResolver', () => {
       expect(mockPrisma.userApiKey.findFirst).not.toHaveBeenCalled();
     });
 
-    it('should fall back to system key with guest mode on decryption error', async () => {
-      mockPrisma.userApiKey.findFirst.mockResolvedValue({
-        iv: 'test-iv',
-        content: 'corrupted',
-        tag: 'test-auth-tag',
-      });
-      mockDecryptApiKey.mockImplementation(() => {
-        throw new Error('Decryption failed');
-      });
+    it('should throw UndecryptableApiKeyError (not fall back to guest) on decryption error', async () => {
+      // isEncryptionConfigured() reads the real env; a healthy config makes a
+      // decrypt failure a bad ROW. The real-cipher specimen lives in
+      // ApiKeyResolver.undecryptable.test.ts.
+      const original = process.env.API_KEY_ENCRYPTION_KEY;
+      process.env.API_KEY_ENCRYPTION_KEY = 'ab'.repeat(32);
+      try {
+        mockPrisma.userApiKey.findFirst.mockResolvedValue({
+          iv: 'test-iv',
+          content: 'corrupted',
+          tag: 'test-auth-tag',
+        });
+        mockDecryptApiKey.mockImplementation(() => {
+          throw new Error('Decryption failed');
+        });
 
-      const result = await resolver.resolveApiKey('user-123', AIProvider.OpenRouter);
-
-      expect(result).toEqual({
-        apiKey: 'system-openrouter-key',
-        source: 'system',
-        provider: AIProvider.OpenRouter,
-        userId: 'user-123',
-        isGuestMode: true, // Guest mode - restricted to free models
-      });
+        await expect(resolver.resolveApiKey('user-123', AIProvider.OpenRouter)).rejects.toThrow(
+          UndecryptableApiKeyError
+        );
+      } finally {
+        if (original === undefined) {
+          delete process.env.API_KEY_ENCRYPTION_KEY;
+        } else {
+          process.env.API_KEY_ENCRYPTION_KEY = original;
+        }
+      }
     });
 
     it('should fall back to system key with guest mode on database error', async () => {
