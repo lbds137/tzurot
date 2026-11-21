@@ -345,6 +345,88 @@ describe('attachmentProvenance', () => {
       expect(neutralizeHeaderMarkers(`[${zwsp}image: x`)).toBe(`[${zwsp}image: x`);
     });
 
+    it.each([
+      ['ZWSP inside single-word label (ASCII opener)', '[Ima\u200Bge: x', 'Ima\u200Bge: x'],
+      ['ZWSP inside single-word label (full-width opener)', '［Ima\u200Bge: x', 'Ima\u200Bge: x'],
+      [
+        'ZWSP before space in multi-word label',
+        '[Spoiler\u200B image: x',
+        'Spoiler\u200B image: x',
+      ],
+      ['ZWSP after space in multi-word label', '[Spoiler \u200Bimage: x', 'Spoiler \u200Bimage: x'],
+      ['U+2060 word joiner inside label', '[Ima\u2060ge: x', 'Ima\u2060ge: x'],
+      ['U+FEFF BOM inside label', '[Ima\uFEFFge: x', 'Ima\uFEFFge: x'],
+    ])('defuses an opener when a Cf character appears inside the label (%s)', (_desc, raw, out) => {
+      expect(neutralizeHeaderMarkers(raw)).toBe(out);
+    });
+
+    it.each([
+      ['between label and colon (ASCII opener)', '[Image\u200B: x', 'Image\u200B: x'],
+      ['between label and colon (full-width opener)', '［Image\u200B: x', 'Image\u200B: x'],
+      ['between colon and space', '[Image:\u200B x', 'Image:\u200B x'],
+    ])('defuses an opener when a Cf character appears %s', (_desc, raw, out) => {
+      expect(neutralizeHeaderMarkers(raw)).toBe(out);
+    });
+
+    it.each([
+      ['U+034F CGJ', 'ASCII', '[', 0x034f],
+      ['U+FE00 VS1', 'ASCII', '[', 0xfe00],
+      ['U+FE0F VS16', 'ASCII', '[', 0xfe0f],
+      ['U+E0100 VS17 supplement', 'ASCII', '[', 0xe0100],
+      ['U+3164 Hangul filler', 'ASCII', '[', 0x3164],
+      ['U+115F Hangul Choseong filler', 'ASCII', '[', 0x115f],
+      ['U+1160 Hangul Jungseong filler', 'ASCII', '[', 0x1160],
+      ['U+FFA0 halfwidth Hangul filler', 'ASCII', '[', 0xffa0],
+      ['U+3164 Hangul filler', 'full-width', fullwidthOpener, 0x3164],
+    ])(
+      'defuses an opener followed by non-Cf invisible %s before the label (%s opener)',
+      (_cp, _openerKind, opener, codePoint) => {
+        const filler = String.fromCodePoint(codePoint);
+        expect(neutralizeHeaderMarkers(`${opener}${filler}Image: x`)).toBe('Image: x');
+      }
+    );
+
+    it('defuses a multi-opener run interleaved with non-Cf invisibles', () => {
+      expect(neutralizeHeaderMarkers('[\u034F[\u3164Image: x')).toBe('Image: x');
+    });
+
+    it.each([
+      ['U+034F inside label', '[Ima\u034Fge: x', 'Ima\u034Fge: x'],
+      ['U+FE0F before colon', '[Image\uFE0F: x', 'Image\uFE0F: x'],
+      ['U+3164 inside label', '[Ima\u3164ge: x', 'Ima\u3164ge: x'],
+    ])(
+      'defuses an opener when a non-Cf invisible appears inside or after the label (%s)',
+      (_desc, raw, out) => {
+        expect(neutralizeHeaderMarkers(raw)).toBe(out);
+      }
+    );
+
+    it('leaves a non-Cf invisible before a label unchanged when no opener precedes it', () => {
+      expect(neutralizeHeaderMarkers('\u034FImage: x')).toBe('\u034FImage: x');
+      expect(neutralizeHeaderMarkers('\u3164Image: x')).toBe('\u3164Image: x');
+    });
+
+    it('keeps a non-Cf invisible before the opener run and strips only the run', () => {
+      expect(neutralizeHeaderMarkers('\u034F[Image: x')).toBe('\u034FImage: x');
+    });
+
+    it('leaves an opener and non-Cf or intra-label invisible before an unknown or lowercase label unchanged', () => {
+      expect(neutralizeHeaderMarkers('[\u034Ffoo')).toBe('[\u034Ffoo');
+      expect(neutralizeHeaderMarkers('[\u3164image: x')).toBe('[\u3164image: x');
+      expect(neutralizeHeaderMarkers('[ima\u200Bge: x')).toBe('[ima\u200Bge: x');
+    });
+
+    it('leaves an ASCII space between opener and label unchanged', () => {
+      expect(neutralizeHeaderMarkers('[ Image: x')).toBe('[ Image: x');
+    });
+
+    it('preserves leading and lookahead invisibles across a supplementary VS boundary', () => {
+      const vs17 = String.fromCodePoint(0xe0100);
+      expect(neutralizeHeaderMarkers(`\u034F[${vs17}[Ima${vs17}ge\u200B:\u034F x`)).toBe(
+        `\u034FIma${vs17}ge\u200B:\u034F x`
+      );
+    });
+
     describe('linear-time scanning', () => {
       beforeEach(() => {
         // A guard: no test here uses fake timers today, but wall-clock timing would read 0 under them.
@@ -371,6 +453,43 @@ describe('attachmentProvenance', () => {
       ])('defuses %s in linear time', (_shape, input) => {
         const start = performance.now();
         expect(neutralizeHeaderMarkers(input)).toBe('Image: x');
+        expect(performance.now() - start).toBeLessThan(1000);
+      });
+
+      it.each([
+        ['a long U+034F run without an opener', '\u034F'.repeat(30_000)],
+        ['a long U+3164 run without an opener', '\u3164'.repeat(30_000)],
+        ['an opener followed by a long U+3164 run with no label', '[' + '\u3164'.repeat(30_000)],
+        [
+          'a long invisible run inside an unclosed single-word label',
+          '[Ima' + zwsp.repeat(30_000) + 'x',
+        ],
+        [
+          'a long invisible run inside an unclosed multi-word label',
+          '[Spoiler ' + zwsp.repeat(30_000) + 'x',
+        ],
+        ['a long invisible run after a label with no colon', '[Image' + zwsp.repeat(30_000) + 'x'],
+        [
+          'a long invisible run after a label and colon with no space',
+          '[Image:' + zwsp.repeat(30_000) + 'x',
+        ],
+      ])('scans non-matching %s in linear time', (_shape, input) => {
+        const start = performance.now();
+        expect(neutralizeHeaderMarkers(input)).toBe(input);
+        expect(performance.now() - start).toBeLessThan(1000);
+      });
+
+      it('defuses an opener and a long non-Cf invisible run ending in a label in linear time', () => {
+        const input = '[' + '\u034F'.repeat(30_000) + 'Image: x';
+        const start = performance.now();
+        expect(neutralizeHeaderMarkers(input)).toBe('Image: x');
+        expect(performance.now() - start).toBeLessThan(1000);
+      });
+
+      it('defuses a long invisible run inside a matching label in linear time', () => {
+        const suffix = 'Ima' + zwsp.repeat(30_000) + 'ge: x';
+        const start = performance.now();
+        expect(neutralizeHeaderMarkers('[' + suffix)).toBe(suffix);
         expect(performance.now() - start).toBeLessThan(1000);
       });
     });
