@@ -3,11 +3,10 @@ id: TASK-1486
 title: >-
   ApiKeyResolver treats a failed Prisma read as no key, so a DB blip silently
   demotes BYOK users and caches it
-status: In Progress
-assignee:
-  - tzurot-main
+status: Done
+assignee: []
 created_date: '2026-11-21T00:26:00Z'
-updated_date: '2026-11-21T14:23:00Z'
+updated_date: '2026-11-21T18:39:00Z'
 labels:
   - area:ai-worker
   - size:S
