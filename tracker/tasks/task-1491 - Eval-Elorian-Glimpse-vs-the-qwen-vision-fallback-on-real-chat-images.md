@@ -23,4 +23,6 @@ What: caption about 20 images with glimpse and with VISION_FALLBACK (packages/co
 Privacy: her personal photos go only to non-Chinese-hosted endpoints (memory: personal data never on Chinese-hosted lanes); pin the qwen arm to a non-Chinese OpenRouter provider and record which. Images stay in docs/local or job tmp, never committed.
 
 Acceptance: a result doc with the pre-registered decision rule applied, and a recommendation on whether glimpse joins the vision catalog or replaces the fallback.
+
+Image set (owner discussion 2026-11-20): clearly adult NSFW only. Leave out ABDL-themed and youthful-styled anime art: OpenRouter's image screen (docs: "This request contains prohibited content.") judges appearance, a false positive risks an account flag, and the eval gains nothing from those images. Log OpenRouter blocks (403 or prohibited-content error) separately from model refusals.
 <!-- SECTION:DESCRIPTION:END -->
