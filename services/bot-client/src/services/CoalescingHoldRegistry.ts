@@ -6,9 +6,15 @@
  *   arriving activation-sourced plain-text and voice triggers are held in memory; only
  *   the newest held trigger is submitted when the in-flight generation releases, while
  *   older held triggers become the survivor payload's skippedMessages list.
- * - Release after delivery: the coordinator releases a pair's hold only after the
- *   awaited job's response (or terminal error/timeout) has been delivered and its
- *   assistant history row persisted, or when the entry's own short hold deadline fires.
+ * - Release after delivery (with bounded save drain): the coordinator releases a
+ *   pair's hold only after the awaited job's response (or terminal error/timeout)
+ *   has been delivered and its assistant history row persisted, or when the
+ *   entry's own short hold deadline fires. If hold-time `saveUserMessage` calls
+ *   are still awaiting when release fires, finalization is deferred up to
+ *   `saveDrainTimeoutMs` so fast completions during the embed-processing window
+ *   still coalesce arriving triggers; saves still in flight at normal rollover
+ *   carry onto the successor cycle (saves that outlive the cutoff are cleared so
+ *   a wedged save charges at most one drain).
  *   Documented exception: the degraded per-slot-ordering path (entry persistence
  *   failure) releases its slots immediately without the delivery funnel —
  *   cross-message ordering still holds via the ordering service's registerJob,
@@ -193,6 +199,8 @@ export class CoalescingHoldRegistry {
         return { kind: 'held' };
       }
     } finally {
+      // Clear from the arrival entry and the current live entry; any carried
+      // copies on replaced intermediate entries are already unreachable.
       existing.pendingSaves.delete(saveDone);
       if (this.clearEpoch === epochAtArrival) {
         this.entries.get(key)?.pendingSaves.delete(saveDone);
@@ -383,6 +391,10 @@ export class CoalescingHoldRegistry {
       entry.drainingRelease = true;
       entry.pendingReleaseReason = reason;
       entry.pendingReleaseLost = mergeLostPayloads(undefined, lost);
+      logger.info(
+        { channelId, personalityId, pendingSaveCount: entry.pendingSaves.size, reason },
+        'Draining pending hold saves before releasing coalescing cycle'
+      );
       startBoundedPendingSaveDrain({
         entry,
         saveDrainTimeoutMs: this.saveDrainTimeoutMs,
@@ -398,8 +410,13 @@ export class CoalescingHoldRegistry {
             { err, channelId: failedEntry.channelId, personalityId: failedEntry.personalityId },
             'Coalescing pending-save drain threw unexpectedly'
           );
-          if (this.entries.get(key)?.cycleId === failedEntry.cycleId) {
-            clearEntryTimers(failedEntry);
+          clearEntryTimers(failedEntry);
+          const active = this.entries.get(key);
+          if (active !== undefined) {
+            clearEntryTimers(active);
+            if (this.pendingReleases.get(key)?.cycleId === active.cycleId) {
+              this.pendingReleases.delete(key);
+            }
             this.entries.delete(key);
           }
         },
@@ -422,11 +439,12 @@ export class CoalescingHoldRegistry {
 
     if (plan.kind === 'idle') {
       // No promotable context: counts-only warn (ids/content never logged) —
-      // the skipped rows are lost with the cycle.
-      if ((reason === 'submit-denied' || reason === 'submit-error') && plan.lostCount > 0) {
+      // skipped rows (from a failed survivor or older-than-survivor arrivals)
+      // are dropped with the cycle.
+      if (plan.lostCount > 0) {
         logger.warn(
           { channelId, personalityId, skippedCount: plan.lostCount, reason },
-          'Dropping skipped coalesced triggers: survivor submission did not go through'
+          'Dropping skipped coalesced triggers: cycle ended without survivor submission'
         );
       }
       if (this.pendingReleases.get(key)?.cycleId === entry.cycleId) {

@@ -41,10 +41,12 @@ export interface LostSkippedPayload {
 
 /**
  * Maximum time (ms) a releasing cycle waits for already-arrived hold-time
- * `saveUserMessage` calls to settle before force-finalizing. Sized well above
- * the ~2.5s embed-processing delay and 5s gateway RPC timeout so normal saves
- * always finish, while a wedged fetch or continuous denied traffic cannot
- * stall a channel indefinitely.
+ * `saveUserMessage` calls to settle before force-finalizing. Sized above
+ * `INTERVALS.EMBED_PROCESSING_DELAY` (2.5 s) and `TIMEOUTS.GATEWAY_RPC` (5 s)
+ * in `@tzurot/common-types/constants/timing` so typical saves settle before the
+ * cutoff; Discord refetches carry no local timeout, so this bounds a stalled
+ * save to a single drain cutoff (timed-out markers are cleared at cutoff and
+ * are not carried to charge successor cycles again).
  */
 export const DEFAULT_SAVE_DRAIN_TIMEOUT_MS = 15_000;
 
@@ -403,7 +405,10 @@ export function buildReleaseCyclePlan(
         previousJobId: null,
       };
     }
-    return { kind: 'idle', lostCount: lost?.skippedCount ?? 0 };
+    return {
+      kind: 'idle',
+      lostCount: (lost?.skippedCount ?? 0) + entry.skippedContexts.length,
+    };
   }
 
   const { skipped, skippedContexts } = mergeSkippedForSurvivor(entry, lost?.skippedContexts ?? []);
@@ -487,6 +492,7 @@ export function startBoundedPendingSaveDrain(opts: {
   onError: (err: unknown, entry: CoalescingHoldEntry) => void;
 }): void {
   const { entry, saveDrainTimeoutMs, getCurrent, onFinalize, onError } = opts;
+  const drainStartedAt = Date.now();
 
   const finalizeIfCurrent = (): void => {
     const current = getCurrent();
@@ -502,7 +508,30 @@ export function startBoundedPendingSaveDrain(opts: {
 
   entry.drainTimer = setTimeout(() => {
     entry.drainTimer = undefined;
-    finalizeIfCurrent();
+    try {
+      const current = getCurrent();
+      if (current?.cycleId !== entry.cycleId) {
+        return;
+      }
+      const stillPending = current.pendingSaves.size;
+      // Give each stalled save at most one drain's worth of patience: clearing
+      // the timed-out markers prevents beginSurvivorCycle from carrying them
+      // onto successor cycles and charging every later release another cutoff.
+      current.pendingSaves.clear();
+      logger.warn(
+        {
+          channelId: current.channelId,
+          personalityId: current.personalityId,
+          stillPending,
+          reason: current.pendingReleaseReason ?? 'completion',
+          drainDurationMs: Date.now() - drainStartedAt,
+        },
+        'Coalescing pending-save drain reached cutoff; finalizing release'
+      );
+      finalizeIfCurrent();
+    } catch (err: unknown) {
+      onError(err, entry);
+    }
   }, saveDrainTimeoutMs);
 
   const waitSnapshot = (target: CoalescingHoldEntry): void => {

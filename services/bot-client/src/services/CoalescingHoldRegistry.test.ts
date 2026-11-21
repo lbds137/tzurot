@@ -1405,6 +1405,8 @@ describe('CoalescingHoldRegistry', () => {
     await flushDetachedFanOut();
     expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
     expect(chatManager.submitChatJob.mock.calls[1][0].message.id).toBe('m2');
+    // Timed-out m-stuck marker is cleared at cutoff, so cycle 2 does NOT pay another 5s drain
+    expect(boundedRegistry.getEntry('channel-1', 'pers-1')?.pendingSaves.size).toBe(0);
 
     // Late resolution of m-stuck lands cleanly on m2's successor cycle
     resolveStuck({ kind: 'saved' });
@@ -1413,6 +1415,158 @@ describe('CoalescingHoldRegistry', () => {
       'm-stuck'
     );
     boundedRegistry.clear();
+  });
+
+  it('idles at drain cutoff when newest is null and submits a late-resolving save via the fallback path', async () => {
+    const slot = buildSlot('activation');
+    const boundedRegistry = new CoalescingHoldRegistry(
+      chatManager as unknown as CoalescingChatManagerPort,
+      async releasedInput => {
+        for (const s of releasedInput.slots) {
+          await boundedRegistry.submitOrHoldSlot(releasedInput, s, nsfwGate);
+        }
+      },
+      COALESCING.HOLD_DEADLINE_MS,
+      5_000
+    );
+
+    await boundedRegistry.submitOrHoldSlot(
+      buildFanOutInput(buildMessage('m1', 'u1', [], [], 1_000), slot),
+      slot,
+      nsfwGate
+    );
+
+    let resolveLate!: (value: unknown) => void;
+    chatManager.saveUserMessage.mockImplementationOnce(
+      () => new Promise(resolve => (resolveLate = resolve))
+    );
+    const lateHold = boundedRegistry.submitOrHoldSlot(
+      buildFanOutInput(buildMessage('m-late', 'u2', [], [], 2_000), slot, 'late'),
+      slot,
+      nsfwGate
+    );
+
+    await boundedRegistry.release('channel-1', 'pers-1', 'job-1-m1');
+    await vi.advanceTimersByTimeAsync(5_000);
+    await flushDetachedFanOut();
+
+    // Cutoff tore down the idle entry with no survivor yet
+    expect(boundedRegistry.getEntry('channel-1', 'pers-1')).toBeUndefined();
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(1);
+
+    // Late save resolves after teardown: fallback submits immediately with skipUserMessageSave
+    resolveLate({ kind: 'saved' });
+    const outcome = await lateHold;
+    expect(outcome).toMatchObject({ kind: 'submitted', jobId: 'job-2-m-late' });
+    expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+    expect(chatManager.submitChatJob.mock.calls[1][0]).toMatchObject({
+      message: expect.objectContaining({ id: 'm-late' }),
+      skipUserMessageSave: true,
+    });
+    boundedRegistry.clear();
+  });
+
+  it('cleans up the entry when onFinalize throws synchronously on either the snapshot or cutoff path', async () => {
+    const slot = buildSlot('activation');
+    const throwingRegistry = new CoalescingHoldRegistry(
+      chatManager as unknown as CoalescingChatManagerPort,
+      () => {
+        throw new Error('sync fan-out boom');
+      },
+      COALESCING.HOLD_DEADLINE_MS,
+      5_000
+    );
+
+    // 1. Snapshot settlement path (.catch -> onError)
+    await throwingRegistry.submitOrHoldSlot(
+      buildFanOutInput(buildMessage('m1', 'u1', [], [], 1_000), slot),
+      slot,
+      nsfwGate
+    );
+    let resolveSave2!: (value: unknown) => void;
+    chatManager.saveUserMessage.mockImplementationOnce(
+      () => new Promise(resolve => (resolveSave2 = resolve))
+    );
+    const hold2 = throwingRegistry.submitOrHoldSlot(
+      buildFanOutInput(buildMessage('m2', 'u2', [], [], 2_000), slot),
+      slot,
+      nsfwGate
+    );
+    await throwingRegistry.release('channel-1', 'pers-1', 'job-1-m1');
+    resolveSave2({ kind: 'saved' });
+    expect(await hold2).toEqual({ kind: 'held' });
+    await flushDetachedFanOut();
+
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ channelId: 'channel-1', personalityId: 'pers-1' }),
+      'Coalescing pending-save drain threw unexpectedly'
+    );
+    expect(throwingRegistry.getEntry('channel-1', 'pers-1')).toBeUndefined();
+
+    // 2. Cutoff timer path (try/catch -> onError)
+    loggerMocks.error.mockClear();
+    await throwingRegistry.submitOrHoldSlot(
+      buildFanOutInput(buildMessage('m3', 'u1', [], [], 3_000), slot),
+      slot,
+      nsfwGate
+    );
+    await throwingRegistry.submitOrHoldSlot(
+      buildFanOutInput(buildMessage('m4', 'u2', [], [], 4_000), slot),
+      slot,
+      nsfwGate
+    );
+    chatManager.saveUserMessage.mockImplementationOnce(() => new Promise(() => {}));
+    void throwingRegistry.submitOrHoldSlot(
+      buildFanOutInput(buildMessage('m5', 'u3', [], [], 5_000), slot),
+      slot,
+      nsfwGate
+    );
+    await throwingRegistry.release('channel-1', 'pers-1', 'job-2-m3');
+    await vi.advanceTimersByTimeAsync(5_000);
+    await flushDetachedFanOut();
+
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ channelId: 'channel-1', personalityId: 'pers-1' }),
+      'Coalescing pending-save drain threw unexpectedly'
+    );
+    expect(throwingRegistry.getEntry('channel-1', 'pers-1')).toBeUndefined();
+    throwingRegistry.clear();
+  });
+
+  it('warns when a completion release idles out with older-than-survivor skipped triggers', async () => {
+    const slot = buildSlot('activation');
+    await registry.submitOrHoldSlot(
+      buildFanOutInput(buildMessage('m1', 'u1', [], [], 1_000), slot),
+      slot,
+      nsfwGate
+    );
+    await registry.submitOrHoldSlot(
+      buildFanOutInput(buildMessage('m-surv', 'u2', [], [], 3_000), slot),
+      slot,
+      nsfwGate
+    );
+    await registry.release('channel-1', 'pers-1', 'job-1-m1');
+    await flushDetachedFanOut();
+
+    // Strictly older than survivor: lands in skipped with newest still null
+    await registry.submitOrHoldSlot(
+      buildFanOutInput(buildMessage('m-old', 'u3', [], [], 2_000), slot),
+      slot,
+      nsfwGate
+    );
+    loggerMocks.warn.mockClear();
+
+    await registry.release('channel-1', 'pers-1', 'job-2-m-surv');
+    expect(registry.getEntry('channel-1', 'pers-1')).toBeUndefined();
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelId: 'channel-1',
+        personalityId: 'pers-1',
+        skippedCount: 1,
+        reason: 'completion',
+      }),
+      'Dropping skipped coalesced triggers: cycle ended without survivor submission'
+    );
   });
 
   it('preserves failed-survivor skipped contexts when submit-denied arrives during an active drain', async () => {
