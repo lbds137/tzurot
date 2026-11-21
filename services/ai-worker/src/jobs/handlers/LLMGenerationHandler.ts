@@ -29,6 +29,7 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { undecryptableApiKeyMessage } from '@tzurot/common-types/utils/providerDisplayName';
 import { ConversationHistoryService } from '@tzurot/conversation-history';
 import type {
   LlmConfigResolver,
@@ -66,6 +67,39 @@ import {
 } from './pipeline/index.js';
 
 const logger = createLogger('LLMGenerationHandler');
+
+/**
+ * Classify a pipeline-level failure for the user-facing errorInfo.
+ *
+ * An unreadable stored BYOK key is AUTHENTICATION plus the approved re-enter
+ * copy as `userActionMessage` (bot-client renders it plainly, outside the
+ * spoiler); the copy is built from the approved function, never `error.message`,
+ * and `technicalMessage` is omitted since it would only repeat it in the spoiler.
+ * A failed DownloadAttachments step is MEDIA_NOT_FOUND; anything else is UNKNOWN
+ * with the technical message in the spoiler.
+ */
+function classifyPipelineFailure(
+  error: unknown,
+  failedStep: string | undefined,
+  technicalMessage: string
+): {
+  category: ApiErrorCategory;
+  errorInfoMessages: { technicalMessage?: string; userActionMessage?: string };
+} {
+  if (error instanceof UndecryptableApiKeyError) {
+    return {
+      category: ApiErrorCategory.AUTHENTICATION,
+      errorInfoMessages: { userActionMessage: undecryptableApiKeyMessage(error.provider) },
+    };
+  }
+  return {
+    category:
+      failedStep === 'DownloadAttachments'
+        ? ApiErrorCategory.MEDIA_NOT_FOUND
+        : ApiErrorCategory.UNKNOWN,
+    errorInfoMessages: { technicalMessage },
+  };
+}
 
 /**
  * Handler for LLM generation jobs
@@ -277,24 +311,13 @@ export class LLMGenerationHandler {
         'Pipeline failed'
       );
 
-      // Classify the failure for the bot's user-facing error message. Without
-      // an `errorInfo` field, bot-client's `buildErrorContent` falls through
-      // to a generic "Sorry, I encountered an error" with no spoiler-tag
-      // detail, leaving users with no visible signal about what actually
-      // broke. Map known
-      // failed-step values to their user-facing categories; everything else
-      // surfaces as UNKNOWN with the technical message in the spoiler.
-      // An unreadable stored BYOK key is AUTHENTICATION with the re-enter copy.
-      // bot-client renders `technicalMessage` on both its personality and
-      // default branches (`userMessage` is not read there), so the copy rides it.
-      const undecryptable = error instanceof UndecryptableApiKeyError;
-      let category = ApiErrorCategory.UNKNOWN;
-      if (undecryptable) {
-        category = ApiErrorCategory.AUTHENTICATION;
-      } else if (currentStepName === 'DownloadAttachments') {
-        category = ApiErrorCategory.MEDIA_NOT_FOUND;
-      }
+      // Classification rules: see `classifyPipelineFailure`.
       const technicalMessage = error instanceof Error ? error.message : String(error);
+      const { category, errorInfoMessages } = classifyPipelineFailure(
+        error,
+        currentStepName,
+        technicalMessage
+      );
 
       // Return error result with step information for debugging
       // Include model info if available (ConfigStep may have populated it)
@@ -306,8 +329,8 @@ export class LLMGenerationHandler {
         errorInfo: {
           type: ApiErrorType.PERMANENT,
           category,
-          userMessage: undecryptable ? technicalMessage : USER_ERROR_MESSAGES[category],
-          technicalMessage,
+          userMessage: USER_ERROR_MESSAGES[category],
+          ...errorInfoMessages,
           referenceId: job.id ?? randomUUID(),
           shouldRetry: false,
         },

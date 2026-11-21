@@ -50,6 +50,9 @@ const errorInfoSchema = z.object({
   userMessage: z.string(),
   /** Technical details for logging (e.g., raw HTTP error message) */
   technicalMessage: z.string().optional(),
+  /** Approved copy the user must act on (e.g. re-enter a key), rendered plainly by
+   *  bot-client outside the error spoiler; never raw exception text. */
+  userActionMessage: z.string().optional(),
   /** Unique reference ID for support */
   referenceId: z.string(),
   /** Whether this error should have been retried */
