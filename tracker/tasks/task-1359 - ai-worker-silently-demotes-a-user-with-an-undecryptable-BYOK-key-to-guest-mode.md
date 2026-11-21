@@ -1,10 +1,10 @@
 ---
 id: TASK-1359
 title: ai-worker silently demotes a user with an undecryptable BYOK key to guest mode
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-08T05:47:00Z'
-updated_date: '2026-11-21T00:27:00Z'
+updated_date: '2026-11-21T03:11:00Z'
 labels:
   - area:ai-worker
   - size:M
