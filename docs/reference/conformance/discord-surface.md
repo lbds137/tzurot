@@ -1179,9 +1179,8 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/services/ArchivePromotionScheduler.ts | setDescription | 2 |
 | services/bot-client/src/services/ArchivePromotionScheduler.ts | setTimestamp | 2 |
 | services/bot-client/src/services/ArchivePromotionScheduler.ts | setTitle | 2 |
-| services/bot-client/src/services/CoalescingHoldRegistry.ts | author | 1 |
-| services/bot-client/src/services/CoalescingHoldRegistry.ts | createdTimestamp | 6 |
-| services/bot-client/src/services/CoalescingHoldRegistry.ts | id | 10 |
+| services/bot-client/src/services/CoalescingHoldRegistry.ts | createdTimestamp | 1 |
+| services/bot-client/src/services/CoalescingHoldRegistry.ts | id | 8 |
 | services/bot-client/src/services/ConversationPersistence.ts | channel | 3 |
 | services/bot-client/src/services/ConversationPersistence.ts | createdAt | 1 |
 | services/bot-client/src/services/ConversationPersistence.ts | embeds | 1 |
@@ -1389,9 +1388,9 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/services/character/slashChatGates.ts | id | 3 |
 | services/bot-client/src/services/character/slashChatGates.ts | type | 1 |
 | services/bot-client/src/services/character/tagPool.ts | escapeMarkdown | 1 |
-| services/bot-client/src/services/coalescingHoldability.ts | author | 2 |
-| services/bot-client/src/services/coalescingHoldability.ts | createdTimestamp | 2 |
-| services/bot-client/src/services/coalescingHoldability.ts | id | 4 |
+| services/bot-client/src/services/coalescingHoldability.ts | author | 3 |
+| services/bot-client/src/services/coalescingHoldability.ts | createdTimestamp | 7 |
+| services/bot-client/src/services/coalescingHoldability.ts | id | 6 |
 | services/bot-client/src/services/contextBuilder/GuildMemberResolver.ts | author | 1 |
 | services/bot-client/src/services/contextBuilder/GuildMemberResolver.ts | cache | 1 |
 | services/bot-client/src/services/contextBuilder/GuildMemberResolver.ts | displayHexColor | 2 |
@@ -3150,4 +3149,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 2 |
 
-Total: 3080 entries across 7159 sites.
+Total: 3079 entries across 7159 sites.

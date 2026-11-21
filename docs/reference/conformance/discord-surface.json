@@ -6,7 +6,7 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 3080,
+    "entries": 3079,
     "sites": 7159
   },
   "entries": [
@@ -6997,20 +6997,14 @@
     {
       "category": "client-methods",
       "file": "services/bot-client/src/services/CoalescingHoldRegistry.ts",
-      "symbol": "author",
+      "symbol": "createdTimestamp",
       "count": 1
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/services/CoalescingHoldRegistry.ts",
-      "symbol": "createdTimestamp",
-      "count": 6
-    },
-    {
-      "category": "client-methods",
-      "file": "services/bot-client/src/services/CoalescingHoldRegistry.ts",
       "symbol": "id",
-      "count": 10
+      "count": 8
     },
     {
       "category": "client-methods",
@@ -8258,19 +8252,19 @@
       "category": "client-methods",
       "file": "services/bot-client/src/services/coalescingHoldability.ts",
       "symbol": "author",
-      "count": 2
+      "count": 3
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/services/coalescingHoldability.ts",
       "symbol": "createdTimestamp",
-      "count": 2
+      "count": 7
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/services/coalescingHoldability.ts",
       "symbol": "id",
-      "count": 4
+      "count": 6
     },
     {
       "category": "client-methods",
