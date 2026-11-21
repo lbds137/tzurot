@@ -10,7 +10,7 @@
  *
  * Usage:
  * ```typescript
- * const resolver = new ApiKeyResolver(prisma, 'your-encryption-key');
+ * const resolver = new ApiKeyResolver(prisma); // reads API_KEY_ENCRYPTION_KEY from the env
  * const apiKey = await resolver.resolveApiKey(userId, AIProvider.OpenRouter);
  * ```
  */
@@ -116,12 +116,10 @@ export class EncryptionMisconfiguredError extends Error {
  */
 export class ApiKeyResolver {
   private prisma: PrismaClient;
-  private encryptionKey: string;
   private readonly cache: TTLCache<ApiKeyResolutionResult>;
 
   constructor(
     prisma: PrismaClient,
-    encryptionKey?: string,
     options?: {
       cacheTtlMs?: number;
       /** Test-only: inject a clock function for fake-timer compatibility with TTLCache. */
@@ -129,16 +127,16 @@ export class ApiKeyResolver {
     }
   ) {
     this.prisma = prisma;
-    this.encryptionKey = encryptionKey ?? config.API_KEY_ENCRYPTION_KEY ?? '';
     this.cache = new TTLCache<ApiKeyResolutionResult>({
       ttl: options?.cacheTtlMs ?? INTERVALS.API_KEY_CACHE_TTL,
       now: options?.now,
     });
 
-    if (this.encryptionKey.length === 0) {
+    // Same source decryption reads (process.env), so the warn cannot disagree with it.
+    if (!isEncryptionConfigured()) {
       logger.warn(
         { component: 'ApiKeyResolver' },
-        'API_KEY_ENCRYPTION_KEY not set - BYOK disabled, using system keys only'
+        'API_KEY_ENCRYPTION_KEY (or API_KEY_ENCRYPTION_KEY_PREVIOUS) missing or malformed - any stored BYOK key will fail loudly (EncryptionMisconfiguredError); users without a key use the system key as guests'
       );
     }
   }
@@ -170,8 +168,9 @@ export class ApiKeyResolver {
       return cached;
     }
 
-    // Try to get user's API key if userId provided and encryption is configured
-    if (userId !== undefined && userId.length > 0 && this.encryptionKey.length > 0) {
+    // Try to get user's API key if userId provided. Never gated on the key being
+    // present: a stored row with no usable key must throw, not read as "no key".
+    if (userId !== undefined && userId.length > 0) {
       const userKey = await this.getUserApiKey(userId, provider);
       if (userKey !== null) {
         const result: ApiKeyResolutionResult = {
@@ -248,8 +247,8 @@ export class ApiKeyResolver {
 
   /**
    * Look up and decrypt a user's BYOK API key without falling back to the
-   * system key. Returns `null` if the user has no key for the requested
-   * provider OR encryption is disabled at the resolver level.
+   * system key. Returns `null` only if the user has no key for the requested
+   * provider; the lookup always runs, whether or not an encryption key is set.
    *
    * Use this when callers want to know whether the user has a specific key
    * (e.g., ProviderRouter deciding whether to route z.ai-direct or fall through
@@ -267,18 +266,6 @@ export class ApiKeyResolver {
     if (userId === undefined || userId.length === 0) {
       return null;
     }
-    if (this.encryptionKey.length === 0) {
-      // Encryption not configured — every BYOK lookup returns null. Distinct
-      // from "user has no key": a zai-coding preset always falls through to
-      // OpenRouter in this branch, which is correct but worth surfacing when
-      // diagnosing "why is my zai-coding preset not routing direct."
-      logger.debug(
-        { userId, provider },
-        'Encryption key not configured — skipping user-key lookup'
-      );
-      return null;
-    }
-
     // Peek the cache populated by resolveApiKey() before going to DB. Per-request
     // DB reads on the LLM hot path were exactly the cost the cache was added to
     // avoid; tryResolveUserKey() must respect it. Only honor cache hits where the
@@ -363,10 +350,9 @@ export class ApiKeyResolver {
         tag: userApiKey.tag,
       });
     } catch (error) {
-      // The constructor's key (this.encryptionKey) and the env can disagree; the
-      // env check below is what decides the error class, not the injected key.
+      // Decryption reads process.env, so the same env check decides the error class.
       if (!isEncryptionConfigured()) {
-        logger.error({ err: error, userId, provider }, 'Encryption is not configured');
+        logger.error({ err: error, userId, provider }, 'Encryption key missing or malformed');
         throw new EncryptionMisconfiguredError({ cause: error });
       }
       logger.warn({ err: error, userId, provider }, 'Stored user API key failed to decrypt');

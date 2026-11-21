@@ -36,7 +36,6 @@ vi.mock('../../redis.js', () => ({
 }));
 
 const TEST_KEY_HEX = 'ab'.repeat(32);
-const RESOLVER_KEY = 'resolver-level-key-presence-only';
 
 /** Flip one bit of the first GCM auth-tag byte so authentication fails. */
 function corruptTag(tag: string): string {
@@ -61,10 +60,7 @@ describe('resolveVisionAuth — undecryptable OpenRouter row, real ApiKeyResolve
         ? { ...row, tag: corruptTag(row.tag) }
         : null
     );
-    resolver = new ApiKeyResolver(
-      { userApiKey: { findFirst } } as unknown as PrismaClient,
-      RESOLVER_KEY
-    );
+    resolver = new ApiKeyResolver({ userApiKey: { findFirst } } as unknown as PrismaClient);
   });
 
   afterEach(() => {
