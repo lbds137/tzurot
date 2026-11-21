@@ -285,3 +285,16 @@ The shape it fits: one more `TtsProvider` adapter (an HTTP provider beside
 Mistral), plus STT on the same host or a BYOK STT, then the voice-engine
 retirement. Promote when the owner reopens voice quality, or when the Railway
 voice-engine bill or cold start becomes the pain point.
+
+## Fish Audio hosted API as a BYOK TTS candidate (Lila 2026-11-20)
+
+Separate from GPU self-hosting: fish.audio's hosted API needs no hosting and
+would be one more external BYOK TTS provider (external APIs may be added
+alongside; the one-hosted-slot rule does not apply). Owner bar, all three:
+**better quality than Mistral, cheaper than ElevenLabs, less censored than
+Mistral**. Owner signal: Mistral TTS quality is why she uses voice much less.
+Mistral STT is good and rarely, if ever, filtered, so STT stays on Mistral
+whatever TTS decides. A probe here costs API calls only: compare cloning
+quality on our character references, price per character against ElevenLabs,
+and content-filter behaviour on the irreverent lines that tripped Mistral
+(code 1920 guardrail_violation, above).
