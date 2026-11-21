@@ -3,10 +3,10 @@ id: TASK-1385
 title: >-
   Log fields carry raw Discord CDN URLs (user filenames) in ai-worker attachment
   paths
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-10T12:02:00Z'
-updated_date: '2026-11-20T05:58:00Z'
+updated_date: '2026-11-21T12:30:00Z'
 labels:
   - area:ai-worker
   - size:M
