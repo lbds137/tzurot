@@ -3,9 +3,10 @@ id: TASK-1502
 title: >-
   Provenance neutralizer: plain-ASCII separator variants still mint a header
   ([Image:x], [Image : x], tab/newline after colon)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-22T04:51:00Z'
+updated_date: '2026-11-22T07:09:00Z'
 labels:
   - area:common-types
   - size:M
