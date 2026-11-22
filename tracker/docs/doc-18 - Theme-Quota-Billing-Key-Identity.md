@@ -90,7 +90,7 @@ refinements, all evidence-gated.
       free tier doesn't exist. (2026-07-15)
 - [ ] Audit api-gateway key validators for 5xx-as-transient classification (2026-05-17)
 - [ ] `QUOTA_EXCEEDED` branch of `defaultRateLimitResetMs` is untested (2026-05-18)
-- [ ] BYOK `lastUsedAt` tracking — the oldest row in the whole table (2026-01-26)
+- [x] BYOK last-used tracking — ruled out (TASK-68: a write per message for a nice-to-have); the field was relabelled "Last validated" and renamed `lastValidatedAt` (TASK-1234, PR #2787)
 
 ### Notes
 
