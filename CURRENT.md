@@ -6,7 +6,6 @@
 
 ## 🧪 beta.248 / beta.247 watch (beta.248 shipped to main 2026-11-22 13:38Z; #2775–#2779, #2781–#2785 are high tier / observability: CI + reviews cover)
 
-- **Needs-smoke — coalescing re-smoke (#2780, TASK-1499, Discord-truth):** in an activated channel, send 3 quick plain-text messages while the character is still replying → TWO replies: the in-flight one, plus ONE survivor reply to the newest (Lila 2026-11-21: never cancel an in-flight generation); an image mid-burst gets its own reply; an @mention mid-burst is answered 1:1. Beta.247 failed (3→3); beta.248 (#2780) drains pending hold saves before `releaseCycle` with drain entry/cutoff logs — ready for prod re-smoke.
 - **Watch — cache tokens (#2770/#2771, TASK-1450):** one week of prod rows from beta.247 (2026-11-20), then `pnpm ops telemetry:inference --env prod` for the hit rate; the same read settles TASK-1414's write/read ratio.
 
 ## 🧪 beta.246 watch (shipped to main 2026-11-18 13:21Z; no needs-smoke: both fail soft, CI + reviews cover the rest)

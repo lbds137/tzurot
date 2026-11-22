@@ -1,9 +1,10 @@
 ---
 id: TASK-1499
 title: 'beta.247 coalescing failed prod smoke: 3-message burst got 3 replies'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-21T19:23:00Z'
+updated_date: '2026-11-22T17:14:00Z'
 labels:
   - area:bot-client
   - size:M
@@ -29,3 +30,9 @@ Intended count (Lila ruling 2026-11-21): TWO replies. The in-flight reply to msg
 
 Fix merged to develop 2026-11-21 in PR #2780 (061686496): confirmed root cause in code+logs — msg2 (19:22:16.068Z) and msg3 (19:22:17.391Z) BOTH saw msg1's in-flight entry immediately and entered saveUserMessage, which awaited INTERVALS.EMBED_PROCESSING_DELAY (2.5s) before setting entry.newest. When msg1 delivered at 19:22:18.629Z, entry.newest was still null so releaseCycle deleted the entry; 130ms later msg2 saw undefined and submitted reply #2, and msg3 held behind msg2 for reply #3. CoalescingHoldRegistry now tracks pendingSaves synchronously before awaiting saveUserMessage and drains them under a bounded 15s cutoff on release; red-first regression tests added in CoalescingHoldRegistry.test.ts and MultiTagCoordinator.test.ts. Remaining acceptance: prod re-smoke after the next release deploys.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Prod re-smoke PASSED 2026-11-22 11:30 EST (Lila, #cold-ai, relayed by the Deck session from her screenshot): 4 quick plain-text messages sent mid-reply produced 2 COLD replies (the in-flight one plus one survivor), matching the two-reply ruling. Acceptance met.
+<!-- SECTION:NOTES:END -->
