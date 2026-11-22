@@ -416,8 +416,8 @@ describe('attachmentProvenance', () => {
       expect(neutralizeHeaderMarkers('[ima\u200Bge: x')).toBe('[ima\u200Bge: x');
     });
 
-    it('leaves an ASCII space between opener and label unchanged', () => {
-      expect(neutralizeHeaderMarkers('[ Image: x')).toBe('[ Image: x');
+    it('defuses an opener followed by an ASCII space before the label', () => {
+      expect(neutralizeHeaderMarkers('[ Image: x')).toBe('Image: x');
     });
 
     it('preserves leading and lookahead invisibles across a supplementary VS boundary', () => {
@@ -425,6 +425,100 @@ describe('attachmentProvenance', () => {
       expect(neutralizeHeaderMarkers(`\u034F[${vs17}[Ima${vs17}ge\u200B:\u034F x`)).toBe(
         `\u034FIma${vs17}ge\u200B:\u034F x`
       );
+    });
+
+    it.each([
+      ['no space after colon', '[Image:x]', 'Image:x]'],
+      ['empty body before closing bracket', '[Image:]', 'Image:]'],
+      ['colon at end of string', '[Image:', 'Image:'],
+      ['tab after colon', '[Image:\tx]', 'Image:\tx]'],
+      ['LF newline after colon', '[Image:\nx]', 'Image:\nx]'],
+      ['NBSP after colon', '[Image:\u00A0x]', 'Image:\u00A0x]'],
+    ])('defuses a forged header regardless of what follows the colon (%s)', (_desc, raw, out) => {
+      expect(neutralizeHeaderMarkers(raw)).toBe(out);
+    });
+
+    it.each([
+      ['single ASCII space', '[Image : x]', 'Image : x]'],
+      ['multiple ASCII spaces', '[Image   : x]', 'Image   : x]'],
+      ['tab', '[Image\t: x]', 'Image\t: x]'],
+      ['NBSP U+00A0', '[Image\u00A0: x]', 'Image\u00A0: x]'],
+      ['ideographic space U+3000', '[Image\u3000: x]', 'Image\u3000: x]'],
+    ])('defuses a forged header with whitespace before the colon (%s)', (_desc, raw, out) => {
+      expect(neutralizeHeaderMarkers(raw)).toBe(out);
+    });
+
+    it.each([
+      ['double ASCII space', '[Spoiler  image: x]', 'Spoiler  image: x]'],
+      ['tab', '[Spoiler\timage: x]', 'Spoiler\timage: x]'],
+      ['LF newline', '[Spoiler\nimage: x]', 'Spoiler\nimage: x]'],
+      ['NBSP U+00A0', '[Spoiler\u00A0image: x]', 'Spoiler\u00A0image: x]'],
+      ['ideographic space U+3000', '[Spoiler\u3000image: x]', 'Spoiler\u3000image: x]'],
+      ['mixed ZWSP and NBSP', '[Spoiler\u200B\u00A0image: x]', 'Spoiler\u200B\u00A0image: x]'],
+      [
+        'three-word label with tab and double space',
+        '[Spoiler\tvoice  message: x]',
+        'Spoiler\tvoice  message: x]',
+      ],
+      [
+        'three-word label with NBSP and U+3000',
+        '[Spoiler\u00A0voice\u3000message: x]',
+        'Spoiler\u00A0voice\u3000message: x]',
+      ],
+    ])('defuses a multi-word label with non-canonical word separators (%s)', (_desc, raw, out) => {
+      expect(neutralizeHeaderMarkers(raw)).toBe(out);
+    });
+
+    it.each([
+      ['ASCII space after opener', '[ Image: x]', 'Image: x]'],
+      ['tab after opener', '[\tImage: x', 'Image: x'],
+      ['LF newline after opener', '[\nImage: x', 'Image: x'],
+      ['NBSP U+00A0 after opener', '[\u00A0Image: x', 'Image: x'],
+      ['ideographic space U+3000 after opener', '[\u3000Image: x', 'Image: x'],
+      ['full-width opener followed by ASCII space', '［ Image: x', 'Image: x'],
+      ['interleaved multi-opener with ASCII spaces', '[ [ Image: x', 'Image: x'],
+      ['interleaved multi-opener with tab and LF', '[\t[\nImage: x', 'Image: x'],
+    ])(
+      'strips openers and trailing or interleaved whitespace before the label (%s)',
+      (_desc, raw, out) => {
+        expect(neutralizeHeaderMarkers(raw)).toBe(out);
+      }
+    );
+
+    it.each([
+      ['ASCII opener, no space after fullwidth colon', '[Image\uFF1Ax]', 'Image\uFF1Ax]'],
+      ['ASCII opener, space after fullwidth colon', '[Image\uFF1A x]', 'Image\uFF1A x]'],
+      [
+        'ASCII opener, space before and after fullwidth colon',
+        '[Image \uFF1A x]',
+        'Image \uFF1A x]',
+      ],
+      ['full-width opener and fullwidth colon', '［Image\uFF1Ax］', 'Image\uFF1Ax］'],
+    ])('defuses a forged header using fullwidth colon U+FF1A (%s)', (_desc, raw, out) => {
+      expect(neutralizeHeaderMarkers(raw)).toBe(out);
+    });
+
+    it.each([
+      ['kept `(` before opener + space', '([ Image: x', '(Image: x'],
+      ['leading spaces before opener preserved', '  [Image: x', '  Image: x'],
+      [
+        'earlier unrelated bracketed text untouched, later forged header defused',
+        '[ note ] [Image:x]',
+        '[ note ] Image:x]',
+      ],
+      ['nested forged header after colon and space', '[Image: [File: b]', 'Image: File: b]'],
+      ['nested forged header directly after colon', '[Image:[File: b]', 'Image:File: b]'],
+      ['space mid-word stays untouched', '[Ima ge: x', '[Ima ge: x'],
+      [
+        'missing separator between multi-word label words stays untouched',
+        '[Spoilerimage: x',
+        '[Spoilerimage: x',
+      ],
+      ['opener + space + label with no colon stays untouched', '[ Image', '[ Image'],
+      ['lowercase label with leading space stays untouched', '[ image: x', '[ image: x'],
+      ['lowercase label with no space after colon stays untouched', '[image:x', '[image:x'],
+    ])('respects non-false-positive boundary (%s)', (_desc, raw, out) => {
+      expect(neutralizeHeaderMarkers(raw)).toBe(out);
     });
 
     describe('linear-time scanning', () => {
@@ -450,6 +544,11 @@ describe('attachmentProvenance', () => {
           'alternating openers and format characters ending in a label',
           `[${zwsp}`.repeat(30_000) + 'Image: x',
         ],
+        ['an opener, a long ASCII space run and a label', `[${' '.repeat(30_000)}Image: x`],
+        [
+          'alternating openers and ASCII spaces ending in a label',
+          '[ '.repeat(30_000) + 'Image: x',
+        ],
       ])('defuses %s in linear time', (_shape, input) => {
         const start = performance.now();
         expect(neutralizeHeaderMarkers(input)).toBe('Image: x');
@@ -469,10 +568,18 @@ describe('attachmentProvenance', () => {
           '[Spoiler ' + zwsp.repeat(30_000) + 'x',
         ],
         ['a long invisible run after a label with no colon', '[Image' + zwsp.repeat(30_000) + 'x'],
+        ['a long ASCII space run without an opener', ' '.repeat(30_000)],
+        ['alternating openers and ASCII spaces with no label', '[ '.repeat(30_000)],
+        ['an opener followed by a long ASCII space run with no label', '[' + ' '.repeat(30_000)],
         [
-          'a long invisible run after a label and colon with no space',
-          '[Image:' + zwsp.repeat(30_000) + 'x',
+          'a long ASCII space run between multi-word label words failing the second word',
+          '[Spoiler' + ' '.repeat(30_000) + 'x',
         ],
+        [
+          'a long BOM (U+FEFF) run between multi-word label words failing the second word',
+          '[Spoiler' + '\uFEFF'.repeat(30_000) + 'x',
+        ],
+        ['a long ASCII space run after a label with no colon', '[Image' + ' '.repeat(30_000) + 'x'],
       ])('scans non-matching %s in linear time', (_shape, input) => {
         const start = performance.now();
         expect(neutralizeHeaderMarkers(input)).toBe(input);
@@ -488,6 +595,22 @@ describe('attachmentProvenance', () => {
 
       it('defuses a long invisible run inside a matching label in linear time', () => {
         const suffix = 'Ima' + zwsp.repeat(30_000) + 'ge: x';
+        const start = performance.now();
+        expect(neutralizeHeaderMarkers('[' + suffix)).toBe(suffix);
+        expect(performance.now() - start).toBeLessThan(1000);
+      });
+
+      it.each([
+        [
+          'a long invisible run after a label and colon with no space',
+          'Image:' + zwsp.repeat(30_000) + 'x',
+        ],
+        ['a long ASCII space run before the colon', 'Image' + ' '.repeat(30_000) + ': x'],
+        [
+          'a long ASCII space run between multi-word label words',
+          'Spoiler' + ' '.repeat(30_000) + 'image: x',
+        ],
+      ])('defuses %s in linear time while preserving lookahead characters', (_shape, suffix) => {
         const start = performance.now();
         expect(neutralizeHeaderMarkers('[' + suffix)).toBe(suffix);
         expect(performance.now() - start).toBeLessThan(1000);

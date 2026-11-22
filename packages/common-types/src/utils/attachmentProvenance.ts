@@ -172,43 +172,74 @@ const HEADER_OPENER_SOURCE = `(?=\\p{Ps})${HEADER_BRACKET_CLASS_SOURCE}`;
 const BRACKET_CLASS_GLOBAL = new RegExp(HEADER_BRACKET_CLASS_SOURCE, 'gu');
 
 /**
- * Regex character-class source (for a `u`-flag pattern) matching one bounded
- * invisible character that could disguise a forged provenance header without
- * changing how a model reads it: Unicode `Cf` format characters (zero-width
- * space, word joiner, BOM, ZWJ, soft hyphen, bidi controls, …) plus named
- * invisible `Mn`/`Lo` fillers — U+034F (Combining Grapheme Joiner),
- * U+FE00–U+FE0F and U+E0100–U+E01EF (Variation Selectors), and U+115F,
- * U+1160, U+3164, U+FFA0 (Hangul fillers).
+ * Character-class body (for a `u`-flag pattern) matching one bounded invisible
+ * character that could disguise a forged provenance header without changing how
+ * a model reads it: Unicode `Cf` format characters (zero-width space, word
+ * joiner, BOM, ZWJ, soft hyphen, bidi controls, …) plus named invisible
+ * `Mn`/`Lo` fillers — U+034F (Combining Grapheme Joiner), U+FE00–U+FE0F and
+ * U+E0100–U+E01EF (Variation Selectors), and U+115F, U+1160, U+3164, U+FFA0
+ * (Hangul fillers). Factored so `HEADER_INVISIBLE_SOURCE` and
+ * `HEADER_NOISE_SOURCE` share one source of truth.
  */
-const HEADER_INVISIBLE_SOURCE =
-  '[\\p{Cf}\\u034F\\u115F\\u1160\\u3164\\uFE00-\\uFE0F\\uFFA0\\u{E0100}-\\u{E01EF}]';
+const HEADER_INVISIBLE_CHARS =
+  '\\p{Cf}\\u034F\\u115F\\u1160\\u3164\\uFE00-\\uFE0F\\uFFA0\\u{E0100}-\\u{E01EF}';
+
+/**
+ * Regex character-class source (for a `u`-flag pattern) matching one invisible
+ * character from `HEADER_INVISIBLE_CHARS`; used within a label word so a space
+ * mid-word (`[Ima ge: x`) is not treated as a label word.
+ */
+const HEADER_INVISIBLE_SOURCE = `[${HEADER_INVISIBLE_CHARS}]`;
+
+/**
+ * Regex character-class source (for a `u`-flag pattern) matching one separator
+ * or invisible noise character (`\s` — ASCII whitespace, NBSP U+00A0,
+ * ideographic space U+3000, BOM U+FEFF, and the rest of Unicode `White_Space` —
+ * or `HEADER_INVISIBLE_CHARS`). Used as a single unified class per separator
+ * slot (after openers, between multi-word label words, and before the colon) so
+ * overlapping characters such as U+FEFF (`\s ∩ \p{Cf}`) are matched by one
+ * quantifier rather than two adjacent ones.
+ */
+const HEADER_NOISE_SOURCE = `[\\s${HEADER_INVISIBLE_CHARS}]`;
 
 /**
  * A run of openers, each optionally followed by characters from
- * `HEADER_INVISIBLE_SOURCE`, directly before `<Label>: ` (with optional
- * `HEADER_INVISIBLE_SOURCE` characters between label characters, before `:`,
- * and between `:` and ` `); invisibles inside or directly after the opener run
- * are consumed with the run, while the label text in the lookahead stays
- * untouched.
- * The leading lookbehind (an opener plus any `HEADER_INVISIBLE_SOURCE`
- * characters) anchors the match at the start of a run, which keeps a long
- * bracket run from being retried from every position. The opener lookahead in
- * front of it confines that variable-length backward scan to opener positions,
- * and every `HEADER_INVISIBLE_SOURCE*` quantifier in the label lookahead is
- * separated by a concrete non-invisible character, so scanning costs linear
- * time; pinned by the linear-time cases in this module's colocated test file
- * (long `Cf` and non-`Cf` invisible runs with or without openers, alternating
- * openers and invisibles, long invisible runs inside matching or failing
- * labels, and a 200k plain bracket run).
- * Label order is irrelevant: the lookahead requires the colon and space right
- * after the label.
+ * `HEADER_NOISE_SOURCE` (whitespace and invisibles), before `<Label>` and an
+ * ASCII or fullwidth colon (`[:\uFF1A]`). Within each word of `<Label>`,
+ * optional `HEADER_INVISIBLE_SOURCE` characters are tolerated between letters
+ * (not whitespace, so `[Ima ge: x` stays untouched); between words of a
+ * multi-word label, `HEADER_NOISE_SOURCE+` requires one or more whitespace or
+ * invisible characters; and after the final word, `HEADER_NOISE_SOURCE*`
+ * tolerates optional whitespace or invisibles before `[:\uFF1A]`. Noise inside
+ * or directly after the opener run is consumed with the run, while the label
+ * text and colon in the lookahead stay untouched.
+ *
+ * The leading lookbehind (an opener plus any `HEADER_NOISE_SOURCE` characters)
+ * anchors the match at the start of a run, which keeps a long opener/noise run
+ * from being retried from every position. The opener lookahead in front of it
+ * confines that variable-length backward scan to opener positions. Every
+ * quantifier (`HEADER_NOISE_SOURCE*`, `HEADER_NOISE_SOURCE+`, and
+ * `HEADER_INVISIBLE_SOURCE*`) is separated from the next by a concrete ASCII
+ * label letter, an opener, or `[:\uFF1A]` — no two quantifiers sit adjacent, so
+ * characters in `\s ∩ \p{Cf}` (U+FEFF) match one class per slot and scanning
+ * costs linear time; pinned by the linear-time cases in this module's colocated
+ * test file (long `Cf`, non-`Cf`, whitespace, and U+FEFF runs with or without
+ * openers, alternating openers and invisibles/spaces, long runs inside or after
+ * matching or failing labels, and a 200k plain bracket run).
+ *
+ * The lookahead ends at `[:\uFF1A]` (requiring nothing after the colon, so
+ * `[Image:x]`, `[Image: x]`, `[Image:\tx]`, `[Image:\nx]`, `[Image:]`, and
+ * end-of-string `[Image:` all defuse), and label order is irrelevant because
+ * `[:\uFF1A]` immediately follows the label and optional `HEADER_NOISE_SOURCE*`.
  */
 const HEADER_OPENER_RUN = new RegExp(
-  `(?=${HEADER_OPENER_SOURCE})(?<!${HEADER_OPENER_SOURCE}${HEADER_INVISIBLE_SOURCE}*)(?:${HEADER_OPENER_SOURCE}${HEADER_INVISIBLE_SOURCE}*)+(?=(?:${HEADER_LABELS.map(
+  `(?=${HEADER_OPENER_SOURCE})(?<!${HEADER_OPENER_SOURCE}${HEADER_NOISE_SOURCE}*)(?:${HEADER_OPENER_SOURCE}${HEADER_NOISE_SOURCE}*)+(?=(?:${HEADER_LABELS.map(
     label =>
-      [...label].map(escapeRegExpLiteral).join(`${HEADER_INVISIBLE_SOURCE}*`) +
-      `${HEADER_INVISIBLE_SOURCE}*`
-  ).join('|')}):${HEADER_INVISIBLE_SOURCE}* )`,
+      label
+        .split(' ')
+        .map(word => [...word].map(escapeRegExpLiteral).join(`${HEADER_INVISIBLE_SOURCE}*`))
+        .join(`${HEADER_NOISE_SOURCE}+`) + `${HEADER_NOISE_SOURCE}*`
+  ).join('|')})[:\\uFF1A])`,
   'gu'
 );
 
@@ -248,41 +279,49 @@ export function headerDisplayName(name: string | undefined): string {
 }
 
 /**
- * Neutralizes a forged header-opening literal (`[<Label>: `) inside
- * attachment-description text by removing its leading opener, so raw model
+ * Neutralizes a forged header-opening literal (`[<Label>:`) inside
+ * attachment-description text by removing its leading opener run, so raw model
  * output cannot mint a second provenance marker the constraint in
  * `OUTPUT_CONSTRAINTS` would otherwise treat as authoritative. Mirrors
  * `neutralizeWrapperClosingTags`'s approach: defuse the exact substring that
  * could forge structure, leave every other bracket in the text untouched.
- * Match is case-SENSITIVE: a lowercase `[image: ` passes through, which is
- * acceptable only because the constraint keys on the exact-case form too.
+ * Match is case-SENSITIVE: a lowercase `[image: x` or `[image:x` passes
+ * through, which is acceptable only because the constraint keys on the
+ * exact-case form too.
  *
  * An opener is any Unicode `Ps` character except the kept ASCII `(` `{` and
  * the kept quotation marks U+201A, U+201E, U+301D (so `[`, the fullwidth `［`,
  * CJK `「` `【`, …), the same class `headerDisplayName` strips minus its close
- * half. A RUN of consecutive openers directly before `<Label>: ` is removed
- * whole, so `［[Image: x` and `[[Image: x` both become `Image: x` rather than
- * leaving a residual forge. Pinned by the look-alike, `(`/`{`, kept-quote,
- * lowercase, untouched-bracket and run-strip cases in this module's colocated
- * test file.
- *
- * Invisible characters (`HEADER_INVISIBLE_SOURCE`: Unicode `Cf` format
- * characters such as U+200B, U+2060, U+FEFF, plus named `Mn`/`Lo` fillers
- * U+034F, U+FE00–U+FE0F, U+E0100–U+E01EF, U+115F, U+1160, U+3164, U+FFA0)
- * inside or between the opener run and the label are removed with the opener
- * run, and the label lookahead tolerates them between label characters,
- * between the label and `:`, and between `:` and ` ` while leaving the label
- * text itself untouched; pinned by the format-character and non-`Cf` invisible
+ * half. A RUN of openers (including any interleaved or trailing
+ * `HEADER_NOISE_SOURCE` whitespace or invisibles) before `<Label>:` is removed
+ * whole, so `［[Image: x`, `[[Image: x`, `[ Image: x`, and `[ [ Image: x` all
+ * become `Image: x` rather than leaving a residual forge. Pinned by the
+ * look-alike, `(`/`{`, kept-quote, lowercase, untouched-bracket and run-strip
  * cases in this module's colocated test file.
  *
+ * Whitespace and invisible characters (`HEADER_NOISE_SOURCE`: ASCII and Unicode
+ * `\s` whitespace including space, tab, LF newline, NBSP U+00A0, and
+ * ideographic space U+3000, plus `HEADER_INVISIBLE_SOURCE` — Unicode `Cf`
+ * format characters such as U+200B, U+2060, U+FEFF and named `Mn`/`Lo` fillers
+ * U+034F, U+FE00–U+FE0F, U+E0100–U+E01EF, U+115F, U+1160, U+3164, U+FFA0)
+ * inside or between the opener run and the label are removed with the opener
+ * run. The lookahead also tolerates `HEADER_INVISIBLE_SOURCE` between letters
+ * within a label word, one or more `HEADER_NOISE_SOURCE` characters between
+ * words of a multi-word label, optional `HEADER_NOISE_SOURCE` characters before
+ * the colon, an ASCII `:` or fullwidth U+FF1A colon, and anything or nothing
+ * after the colon (`[Image:x]`, `[Image: x]`, `[Image:\tx]`, `[Image:\nx]`,
+ * `[Image:\u00A0x]`, `[Image:]`, `[Image:`), while leaving the label text and
+ * colon untouched; pinned by the separator, fullwidth-colon, format-character,
+ * and non-`Cf` invisible cases in this module's colocated test file.
+ *
  * Unpinned limit: cases that still pass through undefused, neither handled nor
- * tested: look-alike colons such as fullwidth U+FF1A or a non-ASCII space
- * after `:` (the colon and space after the label are matched as ASCII only);
- * invisible or blank characters outside `HEADER_INVISIBLE_SOURCE` such as
- * Braille Pattern Blank U+2800 or other combining marks; homoglyph letters
- * inside the label; and bracket-shaped characters outside `Ps`/`Pe` (see
- * `HEADER_BRACKET_CLASS_SOURCE`). Visible separators such as an ASCII space
- * between the opener and the label also pass through (pinned unchanged).
+ * tested: blank or invisible characters outside `HEADER_NOISE_SOURCE` (e.g.,
+ * Braille Pattern Blank U+2800, Khmer Vowel Inherent Aq/Aa U+17B4/U+17B5, and
+ * general combining marks `Mn`); other look-alike colons outside `[:\uFF1A]`
+ * (e.g., U+FE55 small colon, U+A789 modifier letter colon, U+2236 ratio);
+ * homoglyph, fullwidth, or mathematical-alphanumeric letters inside the label
+ * (e.g., Cyrillic U+0406 or mathematical bold U+1D408); and bracket-shaped
+ * characters outside `Ps`/`Pe` (see `HEADER_BRACKET_CLASS_SOURCE`).
  *
  * The cannot-mint claim for the ASCII form is pinned by the three
  * `neutralizes a forged header opener` cases in RAGUtils.test.ts, one per
