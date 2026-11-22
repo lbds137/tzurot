@@ -91,7 +91,9 @@ yours to inspect:
 - **Hear them back**: characters can reply with speech. `/character voice set`
   enrolls a cloned voice for a character from reference audio; `/voice replies`
   chooses when a character replies with voice (note: the character's creator
-  also has to enable voice for it — `/voice view` shows whether it is);
+  also has to enable voice for it — `/voice view` shows whether it is; and if a
+  rapid burst combines a voice message followed by text, the newest text message
+  decides the reply, so "Only when you send voice" replies in text);
   `/voice` configures which text-to-speech and transcription providers are
   used and manages your cloned-voice library.
 - Voice runs on self-hosted infrastructure by default — no key needed — or

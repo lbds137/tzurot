@@ -25,13 +25,13 @@ Complete reference for every `/` command Tzurot exposes in Discord. For a high-l
 
 TTS + STT provider selection and cloned-voice library lifecycle. Per-character TTS overrides cascade over user defaults; STT is user-scoped (your voice doesn't change per character).
 
-| Command  | Subcommands                    | Purpose                                                                                                            |
-| -------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `/voice` | `view <character>`             | Voice settings for a character: reply mode, TTS + STT in use (with cascade source)                                 |
-|          | `replies <character> <mode>`   | Choose when a character replies with voice (for you); `/voice view` shows the resolved result                      |
-|          | `tts browse set clear default` | Per-character + user-default TTS provider config; **Select several** in browse clears a batch of overrides at once |
-|          | `stt set clear`                | Transcription provider preference (user-scoped)                                                                    |
-|          | `voices browse delete purge`   | Cloned-voice library lifecycle                                                                                     |
+| Command  | Subcommands                    | Purpose                                                                                                                                                                                                                                               |
+| -------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/voice` | `view <character>`             | Voice settings for a character: reply mode, TTS + STT in use (with cascade source)                                                                                                                                                                    |
+|          | `replies <character> <mode>`   | Choose when a character replies with voice (for you); `/voice view` shows the resolved result. If a rapid burst coalesces a voice message followed by text, the newest (text) message decides the reply, so **Only when you send voice** stays silent |
+|          | `tts browse set clear default` | Per-character + user-default TTS provider config; **Select several** in browse clears a batch of overrides at once                                                                                                                                    |
+|          | `stt set clear`                | Transcription provider preference (user-scoped)                                                                                                                                                                                                       |
+|          | `voices browse delete purge`   | Cloned-voice library lifecycle                                                                                                                                                                                                                        |
 
 ## Presets & Channels
 

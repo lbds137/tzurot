@@ -1,9 +1,10 @@
 ---
 id: TASK-1479
 title: voice-resolution reads a private character without a visibility check
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-20T06:36:00Z'
+updated_date: '2026-11-22T04:53:00Z'
 labels:
   - area:api-gateway
   - size:S

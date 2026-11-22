@@ -3,9 +3,10 @@ id: TASK-1483
 title: >-
   Docs: a coalesced voice-then-text burst replies to the text, so "Only when you
   send voice" stays silent
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-20T13:36:00Z'
+updated_date: '2026-11-22T04:53:00Z'
 labels:
   - area:docs
   - size:S
