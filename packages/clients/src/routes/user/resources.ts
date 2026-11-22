@@ -338,6 +338,7 @@ export const userResourceRoutes = {
     query: {
       personalityId: z.string().uuid(),
       channelId: z.string().regex(DISCORD_SNOWFLAKE.PATTERN).optional(),
+      skipVoices: z.enum(['true', 'false']).optional(),
     },
     output: GetVoiceResolutionResponseSchema,
     requiresProvisionedUser: true,
