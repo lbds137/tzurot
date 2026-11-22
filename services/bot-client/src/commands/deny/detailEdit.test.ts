@@ -172,18 +172,18 @@ describe('handleEdit', () => {
     expect(serialized).toContain('Bot-wide');
   });
 
-  it('shows bot-wide-only placeholders for a GUILD-type entry but not for a USER-type entry', async () => {
+  it('omits scope and scopeId inputs for a GUILD-type entry while keeping all 3 inputs for a USER-type entry', async () => {
     mockSessionManager.get.mockResolvedValue(guildSession);
     const guildInteraction = createMockButtonInteraction('deny::edit::entry-uuid-1234');
 
     await handleEdit(guildInteraction, 'entry-uuid-1234');
 
     const guildModal = vi.mocked(guildInteraction.showModal).mock.calls[0][0] as {
-      toJSON: () => unknown;
+      toJSON: () => { components: { component?: { custom_id?: string } }[] };
     };
-    const guildSerialized = JSON.stringify(guildModal.toJSON());
-    expect(guildSerialized).toContain('server denials are bot-wide only');
-    expect(guildSerialized).toContain('the only scope ID for a server denial');
+    const guildJson = guildModal.toJSON();
+    expect(guildJson.components).toHaveLength(1);
+    expect(guildJson.components.map(c => c.component?.custom_id)).toEqual(['reason']);
 
     mockSessionManager.get.mockResolvedValue(sampleSession);
     const userInteraction = createMockButtonInteraction('deny::edit::entry-uuid-1234');
@@ -191,11 +191,15 @@ describe('handleEdit', () => {
     await handleEdit(userInteraction, 'entry-uuid-1234');
 
     const userModal = vi.mocked(userInteraction.showModal).mock.calls[0][0] as {
-      toJSON: () => unknown;
+      toJSON: () => { components: { component?: { custom_id?: string } }[] };
     };
-    const userSerialized = JSON.stringify(userModal.toJSON());
-    expect(userSerialized).not.toContain('server denials are bot-wide only');
-    expect(userSerialized).not.toContain('the only scope ID for a server denial');
+    const userJson = userModal.toJSON();
+    expect(userJson.components).toHaveLength(3);
+    expect(userJson.components.map(c => c.component?.custom_id)).toEqual([
+      'scope',
+      'scopeId',
+      'reason',
+    ]);
   });
 
   it('should handle session expiry via reply (unacknowledged button needs initial response)', async () => {
@@ -358,36 +362,10 @@ describe('handleEditModal', () => {
     );
   });
 
-  // GUILD-type entries re-scope only to BOT: the gateway rejects anything else
-  // (400 "GUILD type only supports BOT scope") and the denylist cache would
-  // ignore it — the modal must not offer a path that can never succeed.
-  it.each([
-    ['GUILD', '999888777666555444'],
-    ['CHANNEL', 'chan-999'],
-    ['PERSONALITY', '11111111-2222-3333-4444-555555555555'],
-  ])(
-    'rejects re-scoping a GUILD-type entry to %s (gateway enforces BOT-only)',
-    async (scope, scopeId) => {
-      mockSessionManager.get.mockResolvedValue(guildSession);
-      const interaction = createMockModalInteraction('deny::modal::entry-uuid-1234::edit', {
-        scope,
-        scopeId,
-        reason: 'Spamming',
-      });
-
-      await handleEditModal(interaction, 'entry-uuid-1234');
-
-      expect(interaction.editReply).not.toHaveBeenCalled();
-      expect(interaction.followUp).toHaveBeenCalledWith({
-        content: expect.stringContaining('only supported at Bot-wide'),
-        flags: MessageFlags.Ephemeral,
-      });
-      expect(stub.addDenylistEntry).not.toHaveBeenCalled();
-      expect(stub.removeDenylistEntry).not.toHaveBeenCalled();
-    }
-  );
-
-  it('still edits a GUILD-type entry that stays at BOT scope', async () => {
+  // GUILD-type entries only support BOT scope with '*' scopeId: the modal omits
+  // the scope and scopeId inputs and handleEditModal submits BOT / * directly
+  // without reading those fields from the modal submission.
+  it('submits BOT scope and * scopeId for a GUILD-type entry without reading omitted scope inputs', async () => {
     mockSessionManager.get.mockResolvedValue(guildSession);
     mockSessionManager.update.mockResolvedValue(guildSession);
     stub.addDenylistEntry.mockResolvedValue(
@@ -401,18 +379,51 @@ describe('handleEditModal', () => {
       })
     );
     const interaction = createMockModalInteraction('deny::modal::entry-uuid-1234::edit', {
-      scope: 'BOT',
-      scopeId: '*',
       reason: 'New reason',
+    });
+    vi.mocked(interaction.fields.getTextInputValue).mockImplementation((name: string) => {
+      if (name === 'scope' || name === 'scopeId') {
+        throw new TypeError(`Field "${name}" is not present on GUILD edit modal`);
+      }
+      return name === 'reason' ? 'New reason' : '';
     });
 
     await handleEditModal(interaction, 'entry-uuid-1234');
 
     expect(stub.addDenylistEntry).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'GUILD', scope: 'BOT', scopeId: '*' })
+      expect.objectContaining({
+        type: 'GUILD',
+        scope: 'BOT',
+        scopeId: '*',
+        reason: 'New reason',
+      })
     );
     expect(stub.removeDenylistEntry).not.toHaveBeenCalled();
     expect(interaction.editReply).toHaveBeenCalledWith(expect.objectContaining({ content: null }));
+  });
+
+  it('rejects a GUILD-type entry edit when reason exceeds max length', async () => {
+    mockSessionManager.get.mockResolvedValue(guildSession);
+    const longReason = 'x'.repeat(501);
+    const interaction = createMockModalInteraction('deny::modal::entry-uuid-1234::edit', {
+      reason: longReason,
+    });
+    vi.mocked(interaction.fields.getTextInputValue).mockImplementation((name: string) => {
+      if (name === 'scope' || name === 'scopeId') {
+        throw new TypeError(`Field "${name}" is not present on GUILD edit modal`);
+      }
+      return name === 'reason' ? longReason : '';
+    });
+
+    await handleEditModal(interaction, 'entry-uuid-1234');
+
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: expect.stringContaining('Reason too long'),
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(stub.addDenylistEntry).not.toHaveBeenCalled();
+    expect(stub.removeDenylistEntry).not.toHaveBeenCalled();
   });
 
   it('should reject non-* scopeId for BOT scope', async () => {
