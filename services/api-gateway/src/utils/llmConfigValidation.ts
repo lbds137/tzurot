@@ -131,6 +131,8 @@ async function resolveEffectiveFields(
   };
 }
 
+const BOTH_SLOT_CHAT_HINT = ' To pin this preset for chat only, retry with slot Chat.';
+
 /**
  * Vision capability gate — fail closed. A vision-slot model MUST be confirmed
  * vision-capable; the prod failure the epic targeted was a vision slot silently
@@ -146,7 +148,8 @@ async function resolveEffectiveFields(
 export async function ensureVisionCapableModel(
   res: Response,
   modelCache: OpenRouterModelCache | undefined,
-  model: string
+  model: string,
+  options?: { retryWithChatHint?: boolean }
 ): Promise<boolean> {
   // Built per call on purpose: ModelCapabilityService is a stateless wrapper over
   // the (shared-by-reference) modelCache, so construction is free. Each gate site
@@ -154,6 +157,7 @@ export async function ensureVisionCapableModel(
   // single model once per request — no loop — so there's nothing to amortise by
   // threading a shared instance through every caller. The LIST handler keeps one
   // instance only because it resolves N rows in a loop.
+  const hint = options?.retryWithChatHint === true ? BOTH_SLOT_CHAT_HINT : '';
   const capabilities = await new ModelCapabilityService(modelCache).resolve(model);
   if (capabilities === null) {
     // `resolve()` returns the same null whether the catalog lists no such model
@@ -165,7 +169,7 @@ export async function ensureVisionCapableModel(
       ErrorResponses.validationError(
         `Couldn't confirm '${model}' supports image input (vision) — it is either absent from ` +
           `the model catalog or the catalog is temporarily unreachable. Choose a known ` +
-          `vision-capable model, or try again shortly.`
+          `vision-capable model, or try again shortly.${hint}`
       )
     );
     return false;
@@ -174,7 +178,7 @@ export async function ensureVisionCapableModel(
     sendError(
       res,
       ErrorResponses.validationError(
-        `Model '${model}' doesn't support image input (vision). Choose a vision-capable model for a vision preset.`
+        `Model '${model}' doesn't support image input (vision). Choose a vision-capable model for a vision preset.${hint}`
       )
     );
     return false;

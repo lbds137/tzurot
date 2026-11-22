@@ -518,6 +518,11 @@ describe('/user/model-override routes', () => {
           message: expect.stringContaining('vision'),
         })
       );
+      expect(res.json).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('retry with slot Chat'),
+        })
+      );
       // No write happens when the capability gate rejects.
       expect(mockPrisma.userPersonalityConfig.upsert).not.toHaveBeenCalled();
     });
@@ -727,6 +732,11 @@ describe('/user/model-override routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           message: expect.stringContaining('vision'),
+        })
+      );
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('retry with slot Chat'),
         })
       );
       expect(mockPrisma.userPersonalityConfig.upsert).not.toHaveBeenCalled();
@@ -1138,6 +1148,11 @@ describe('/user/model-override routes', () => {
           message: expect.stringContaining('vision'),
         })
       );
+      expect(res.json).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('retry with slot Chat'),
+        })
+      );
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
 
@@ -1250,6 +1265,11 @@ describe('/user/model-override routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           message: expect.stringContaining('vision'),
+        })
+      );
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('retry with slot Chat'),
         })
       );
       expect(mockPrisma.user.update).not.toHaveBeenCalled();

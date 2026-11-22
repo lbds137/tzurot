@@ -264,7 +264,9 @@ function createSetDefaultHandler(
     // BEFORE any write, so a text-only preset refuses whole — no half-apply.
     if (
       (slot === 'vision' || slot === 'both') &&
-      !(await ensureVisionCapableModel(res, modelCache, config.model))
+      !(await ensureVisionCapableModel(res, modelCache, config.model, {
+        retryWithChatHint: slot === 'both',
+      }))
     ) {
       return;
     }
@@ -326,7 +328,9 @@ function createSetFreeDefaultHandler(
     // BEFORE any write, so a text-only preset refuses whole — no half-apply.
     if (
       (slot === 'vision' || slot === 'both') &&
-      !(await ensureVisionCapableModel(res, modelCache, config.model))
+      !(await ensureVisionCapableModel(res, modelCache, config.model, {
+        retryWithChatHint: slot === 'both',
+      }))
     ) {
       return;
     }

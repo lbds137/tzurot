@@ -912,6 +912,7 @@ describe('Admin LLM Config Routes', () => {
       );
 
       expect(response.status).toBe(400);
+      expect(response.body.message).not.toContain('retry with slot Chat');
       expect(prisma.adminSettings.upsert).not.toHaveBeenCalled();
     });
 
@@ -974,6 +975,7 @@ describe('Admin LLM Config Routes', () => {
       // clear refusal and neither pointer moves.
       expect(response.status).toBe(400);
       expect(response.body.message).toMatch(/vision/i);
+      expect(response.body.message).toContain('retry with slot Chat');
       expect(prisma.adminSettings.upsert).not.toHaveBeenCalled();
     });
   });
@@ -1031,6 +1033,7 @@ describe('Admin LLM Config Routes', () => {
       );
 
       expect(response.status).toBe(400);
+      expect(response.body.message).not.toContain('retry with slot Chat');
       expect(prisma.adminSettings.upsert).not.toHaveBeenCalled();
     });
 
@@ -1073,6 +1076,7 @@ describe('Admin LLM Config Routes', () => {
       );
 
       expect(response.status).toBe(400);
+      expect(response.body.message).toContain('retry with slot Chat');
       expect(prisma.adminSettings.upsert).not.toHaveBeenCalled();
     });
 
