@@ -91,7 +91,7 @@ export const handleSetWalletKey = (deps: WalletSetDeps): RequestHandler => {
         content: encrypted.content,
         tag: encrypted.tag,
         isActive: true,
-        lastUsedAt: now,
+        lastValidatedAt: now,
       },
       create: {
         id: generateUserApiKeyUuid(userId, provider),
@@ -101,7 +101,7 @@ export const handleSetWalletKey = (deps: WalletSetDeps): RequestHandler => {
         content: encrypted.content,
         tag: encrypted.tag,
         isActive: true,
-        lastUsedAt: now,
+        lastValidatedAt: now,
       },
     });
 

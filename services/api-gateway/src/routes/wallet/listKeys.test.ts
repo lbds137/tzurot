@@ -99,7 +99,7 @@ describe('GET /api/user/wallet/list', () => {
           provider: true,
           isActive: true,
           createdAt: true,
-          lastUsedAt: true,
+          lastValidatedAt: true,
         },
         orderBy: { createdAt: 'desc' },
         take: 100,
@@ -123,14 +123,14 @@ describe('GET /api/user/wallet/list', () => {
 
     it('should return keys with formatted metadata', async () => {
       const createdAt = new Date('2025-01-15T10:00:00Z');
-      const lastUsedAt = new Date('2025-01-20T15:30:00Z');
+      const lastValidatedAt = new Date('2025-01-20T15:30:00Z');
 
       mockPrisma.userApiKey.findMany.mockResolvedValue([
         {
           provider: AIProvider.OpenRouter,
           isActive: true,
           createdAt,
-          lastUsedAt,
+          lastValidatedAt,
         },
       ]);
 
@@ -145,14 +145,14 @@ describe('GET /api/user/wallet/list', () => {
               provider: AIProvider.OpenRouter,
               isActive: true,
               createdAt: createdAt.toISOString(),
-              lastUsedAt: lastUsedAt.toISOString(),
+              lastValidatedAt: lastValidatedAt.toISOString(),
             },
           ],
         })
       );
     });
 
-    it('should handle null lastUsedAt', async () => {
+    it('should handle null lastValidatedAt', async () => {
       const createdAt = new Date('2025-01-15T10:00:00Z');
 
       mockPrisma.userApiKey.findMany.mockResolvedValue([
@@ -160,7 +160,7 @@ describe('GET /api/user/wallet/list', () => {
           provider: AIProvider.OpenRouter,
           isActive: true,
           createdAt,
-          lastUsedAt: null,
+          lastValidatedAt: null,
         },
       ]);
 
@@ -175,7 +175,7 @@ describe('GET /api/user/wallet/list', () => {
               provider: AIProvider.OpenRouter,
               isActive: true,
               createdAt: createdAt.toISOString(),
-              lastUsedAt: null,
+              lastValidatedAt: null,
             },
           ],
         })
@@ -191,13 +191,13 @@ describe('GET /api/user/wallet/list', () => {
           provider: AIProvider.OpenRouter,
           isActive: true,
           createdAt: date1,
-          lastUsedAt: null,
+          lastValidatedAt: null,
         },
         {
           provider: AIProvider.OpenRouter,
           isActive: false,
           createdAt: date2,
-          lastUsedAt: null,
+          lastValidatedAt: null,
         },
       ]);
 
@@ -235,7 +235,7 @@ describe('GET /api/user/wallet/list', () => {
           provider: AIProvider.OpenRouter,
           isActive: true,
           createdAt: new Date(),
-          lastUsedAt: null,
+          lastValidatedAt: null,
           // These should NOT be included in select, but verify response doesn't have them
           iv: 'should-not-appear',
           content: 'should-not-appear',

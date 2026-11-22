@@ -22,7 +22,7 @@ function createValidWalletKey(overrides = {}) {
     provider: 'openrouter',
     isActive: true,
     createdAt: '2025-01-15T12:00:00.000Z',
-    lastUsedAt: '2025-01-20T15:30:00.000Z',
+    lastValidatedAt: '2025-01-20T15:30:00.000Z',
     ...overrides,
   };
 }
@@ -35,8 +35,8 @@ describe('Wallet API Contract Tests', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should accept wallet key with null lastUsedAt', () => {
-      const data = createValidWalletKey({ lastUsedAt: null });
+    it('should accept wallet key with null lastValidatedAt', () => {
+      const data = createValidWalletKey({ lastValidatedAt: null });
       const result = WalletKeySchema.safeParse(data);
       expect(result.success).toBe(true);
     });
