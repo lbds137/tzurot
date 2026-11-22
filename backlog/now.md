@@ -14,16 +14,16 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 ---
 
-### 🚢 Next Release — beta.248 (theme: beta.247 follow-ups + owner-ruled fixes)
+### 🚢 Next Release — beta.249 (theme: TASK-1234 rename migration + caching / BYOK follow-ups)
 
-_Drafted 2026-11-20 after beta.247 (shipped 13:39Z, PR 2774; 4 runtime PRs, 204 files; prod checks in CURRENT.md § beta.247 watch)._
+_Drafted 2026-11-22 after beta.248 (shipped 13:38Z, PR 2786; 11 runtime PRs, 144 files; coalescing re-smoke in CURRENT.md § beta.248 watch)._
 
-- **In already**: PR #2780 (TASK-1499 coalescing pending-save drain — prod re-smoke after release), PR #2781 (TASK-1485 provenance neutralizer intra-label/non-Cf invisibles), PR #2782 (TASK-1479 voice-resolution visibility + TASK-1477 `/voice replies` skipVoices & stale read-back guard), TASK-1483 (docs: voice-then-text burst), PR #2783 (TASK-1435 Both-slot vision-gate Chat retry hint), PR #2784 (TASK-1502 tolerant provenance-marker separator matching), PR #2785 (TASK-1327 omit Scope/Scope ID inputs in GUILD deny-edit modal), plus the credit-run fixes on `develop` (#2775 TASK-1375, #2776 TASK-1359, TASK-1385+1131, TASK-1488, TASK-1486).
-- **Waiting on**: none — ready to cut `beta.248` (release PR merge needs Lila's explicit approval).
-- **Explicitly NOT in**: TASK-1234 (rename, owner-ruled 11-20 but carries a migration + API change: its own train) · TASK-1356 (BYOK rotation redesign, security-critical, design first) · TASK-1474 (process PR, ships any time) · TASK-1411/1416 · caching Phase 3 (doc-17 reading) · TASK-1347/1174 (owner-approved 11-20; design- or ops-sized, scheduled separately).
-- **Deploy notes**: none yet (no migration planned).
-- **Cut when**: the waiting-on units are merged; backstops ~10 runtime PRs / ~250 files (`pnpm ops release:range`; 0 at drafting). The release PR merge needs her explicit yes.
-- **vNext+1 sketch (beta.249)**: TASK-1234 rename (migration) · doc-17 reading → caching Phase 3.
+- **In already**: none yet.
+- **Waiting on**: TASK-1234 (rename, owner-ruled 11-20, migration + API change) · doc-17 reading → caching Phase 3 (or high-priority drain batch up to ~10 runtime PRs).
+- **Explicitly NOT in**: TASK-1400 Claude character route (pending Lila's blind rating verdict on `docs/local/task-1400-eval/blind-packet.md`) · TASK-1356 (BYOK rotation redesign — design first, security-critical) · TASK-1474 (process PR, ships any time) · TASK-1411/1416 · TASK-1347/1174 (design- or ops-sized, scheduled separately).
+- **Deploy notes**: TASK-1234 carries a migration — run `pnpm ops release:premigrate` before merging on Lila's explicit in-session approval.
+- **Cut when**: waiting-on units are merged; backstops ~10 runtime PRs / ~250 files (`pnpm ops release:range`; 0 at drafting). Release PR merge needs her explicit yes.
+- **vNext+1 sketch (beta.250)**: TASK-1400 (if GO) or TASK-1416/1415/1411/1412 + Machloket e2e (`doc-114`).
 
 ### 🎯 Current Focus (max 3)
 
