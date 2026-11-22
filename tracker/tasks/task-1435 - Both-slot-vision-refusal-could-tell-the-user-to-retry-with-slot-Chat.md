@@ -1,9 +1,10 @@
 ---
 id: TASK-1435
 title: Both-slot vision refusal could tell the user to retry with slot Chat
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17T13:18:00Z'
+updated_date: '2026-11-22T05:14:00Z'
 labels:
   - area:bot-client
   - size:S

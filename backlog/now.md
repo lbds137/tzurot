@@ -18,8 +18,8 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 _Drafted 2026-11-20 after beta.247 (shipped 13:39Z, PR 2774; 4 runtime PRs, 204 files; prod checks in CURRENT.md § beta.247 watch)._
 
-- **In already**: PR #2780 (TASK-1499 coalescing pending-save drain — prod re-smoke after release), PR #2781 (TASK-1485 provenance neutralizer intra-label/non-Cf invisibles), PR #2782 (TASK-1479 voice-resolution visibility + TASK-1477 `/voice replies` skipVoices & stale read-back guard), TASK-1483 (docs: voice-then-text burst), plus the credit-run fixes on `develop` (#2775 TASK-1375, #2776 TASK-1359, TASK-1385+1131, TASK-1488, TASK-1486).
-- **Waiting on**: TASK-1435 (Both-refusal retry hint — worker in flight) · TASK-1502 (high, tolerant provenance-marker matching — next after TASK-1435) · TASK-1327 (omit the GUILD deny-edit scope inputs).
+- **In already**: PR #2780 (TASK-1499 coalescing pending-save drain — prod re-smoke after release), PR #2781 (TASK-1485 provenance neutralizer intra-label/non-Cf invisibles), PR #2782 (TASK-1479 voice-resolution visibility + TASK-1477 `/voice replies` skipVoices & stale read-back guard), TASK-1483 (docs: voice-then-text burst), PR #2783 (TASK-1435 Both-slot vision-gate Chat retry hint), plus the credit-run fixes on `develop` (#2775 TASK-1375, #2776 TASK-1359, TASK-1385+1131, TASK-1488, TASK-1486).
+- **Waiting on**: TASK-1502 (high, tolerant provenance-marker matching — next, ahead of rest of beta.248) · TASK-1327 (omit the GUILD deny-edit scope inputs).
 - **Explicitly NOT in**: TASK-1234 (rename, owner-ruled 11-20 but carries a migration + API change: its own train) · TASK-1356 (BYOK rotation redesign, security-critical, design first) · TASK-1474 (process PR, ships any time) · TASK-1411/1416 · caching Phase 3 (doc-17 reading) · TASK-1347/1174 (owner-approved 11-20; design- or ops-sized, scheduled separately).
 - **Deploy notes**: none yet (no migration planned).
 - **Cut when**: the waiting-on units are merged; backstops ~10 runtime PRs / ~250 files (`pnpm ops release:range`; 0 at drafting). The release PR merge needs her explicit yes.
