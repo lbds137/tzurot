@@ -1,9 +1,10 @@
 ---
 id: TASK-1327
 title: 'GUILD deny-edit modal UX: hide scope inputs or label the constraint'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-29T22:13:00Z'
+updated_date: '2026-11-22T07:39:00Z'
 labels:
   - area:bot-client
   - size:S
