@@ -106,6 +106,7 @@ describe('handleVoiceReplies', () => {
     expect(stub.getVoiceResolution).toHaveBeenCalledWith({
       personalityId: 'personality-uuid-1',
       channelId: 'channel-42',
+      skipVoices: 'true',
     });
 
     const reply = context.editReply.mock.calls[0]?.[0];
@@ -145,6 +146,60 @@ describe('handleVoiceReplies', () => {
     // The write applied; only the read-back failed — no duplicate-save invitation.
     expect(content).toContain("couldn't read the confirmation back");
     expect(content).toContain('no need to save again');
+  });
+
+  it('falls back to committedUnconfirmed when read-back returns a stale mode value', async () => {
+    stub.getVoiceResolution.mockResolvedValue(
+      resolutionPayload(true, 'always', 'user-personality')
+    );
+
+    const context = makeContext();
+    await handleVoiceReplies(context as never);
+
+    const { content } = vi.mocked(context.editReply).mock.calls[0][0] as { content: string };
+    expect(content).toContain("couldn't read the confirmation back");
+    expect(content).toContain('no need to save again');
+    expect(content).not.toContain('Always');
+    expect(content).not.toContain('Aurora');
+  });
+
+  it('falls back to committedUnconfirmed when read-back returns a stale source', async () => {
+    stub.getVoiceResolution.mockResolvedValue(resolutionPayload(true, 'voice-only', 'channel'));
+
+    const context = makeContext();
+    await handleVoiceReplies(context as never);
+
+    const { content } = vi.mocked(context.editReply).mock.calls[0][0] as { content: string };
+    expect(content).toContain("couldn't read the confirmation back");
+    expect(content).toContain('no need to save again');
+    expect(content).not.toContain("this channel's setting");
+    expect(content).not.toContain('Aurora');
+  });
+
+  it('returns early with AUTOCOMPLETE_UNAVAILABLE_MESSAGE on autocomplete sentinel', async () => {
+    const apiCheck = await import('../../utils/apiCheck.js');
+    vi.mocked(apiCheck.isAutocompleteErrorSentinel).mockReturnValueOnce(true);
+
+    const context = makeContext();
+    await handleVoiceReplies(context as never);
+
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: apiCheck.AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+    });
+    expect(stub.updatePersonalityOverrides).not.toHaveBeenCalled();
+    expect(stub.getVoiceResolution).not.toHaveBeenCalled();
+  });
+
+  it('catches a thrown write error and replies with classified failure copy', async () => {
+    stub.updatePersonalityOverrides.mockRejectedValueOnce(new Error('network timeout'));
+
+    const context = makeContext();
+    await handleVoiceReplies(context as never);
+
+    expect(stub.getVoiceResolution).not.toHaveBeenCalled();
+    const { content } = vi.mocked(context.editReply).mock.calls[0][0] as { content: string };
+    expect(content).toContain('Failed to set voice replies.');
+    expect(content).not.toContain('network timeout');
   });
 
   it('reports a failed write without reading the resolution', async () => {

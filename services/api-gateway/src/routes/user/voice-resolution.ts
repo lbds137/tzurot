@@ -1,12 +1,13 @@
 /**
  * User Voice Resolution Route
  *
- * Aggregate read endpoint backing the `/voice view` dashboard. Returns the
- * resolved TTS provider for a personality, the resolved STT provider for
- * the user, a cloned-voice summary, the character's voice-enabled flag, and
- * the resolved Voice Response Mode in a single round-trip.
+ * Aggregate read endpoint backing the `/voice view` dashboard and `/voice replies`
+ * confirmation. Returns the resolved TTS provider for a personality, the resolved
+ * STT provider for the user, a cloned-voice summary (skipped when `skipVoices=true`),
+ * the character's voice-enabled flag, and the resolved Voice Response Mode in a
+ * single round-trip.
  *
- *   GET /api/user/voice-resolution?personalityId=X[&channelId=Y]
+ *   GET /api/user/voice-resolution?personalityId=X[&channelId=Y][&skipVoices=true|false]
  *
  * STT resolution uses {@link SttResolver} directly — speaker-bound cascade
  * (override → tts-derived → voice-engine), no per-personality dimension.
@@ -31,6 +32,7 @@ import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.j
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { resolveAudioProviderKeys } from '../../utils/audioProviderKeyResolver.js';
+import { canUserViewPersonality } from './personality/helpers.js';
 import { fetchAllTzurotVoices } from './voices.js';
 import type { ProvisionedRequest } from '../../types.js';
 import type { RouteDeps } from '../routeDeps.js';
@@ -41,9 +43,10 @@ const logger = createLogger('user-voice-resolution');
 const MAX_PREVIEW_SLUGS = 5;
 
 /**
- * GET /api/user/voice-resolution?personalityId=X[&channelId=Y] — aggregate summary:
- * personality name + voiceEnabled, resolved voiceResponseMode (channel-scoped when
- * channelId is given), TTS, STT and the cloned-voices summary
+ * GET /api/user/voice-resolution?personalityId=X[&channelId=Y][&skipVoices=true|false]
+ * Aggregate summary: personality name + voiceEnabled, resolved voiceResponseMode
+ * (channel-scoped when channelId is given), TTS, STT, and cloned-voices summary
+ * (empty when skipVoices=true).
  *
  * Per-process resolver instances. Cache lifetime ~5 min; mutating endpoints
  * publish invalidation events but the gateway doesn't subscribe to them
@@ -60,23 +63,36 @@ export const handleGetVoiceResolution = (deps: RouteDeps): RequestHandler => {
       const userId = resolveProvisionedUserId(req);
 
       const { personalityId, channelId } = query;
+      const skipVoices = query.skipVoices === 'true';
 
       // Independent existence checks — issue them in parallel.
       const [personality, userExists] = await Promise.all([
         prisma.personality.findFirst({
           where: { id: personalityId },
-          select: { id: true, name: true, voiceEnabled: true },
+          select: { id: true, name: true, voiceEnabled: true, isPublic: true, ownerId: true },
         }),
         prisma.user.findUnique({
           where: { id: userId },
           select: { id: true },
         }),
       ]);
+      if (userExists === null) {
+        return sendError(res, ErrorResponses.notFound('User'));
+      }
       if (personality === null) {
         return sendError(res, ErrorResponses.notFound('Personality'));
       }
-      if (userExists === null) {
-        return sendError(res, ErrorResponses.notFound('User'));
+
+      const visible = await canUserViewPersonality({
+        prisma,
+        userId,
+        personalityId: personality.id,
+        isPublic: personality.isPublic,
+        ownerId: personality.ownerId,
+        discordUserId,
+      });
+      if (!visible) {
+        return sendError(res, ErrorResponses.notFound('Personality'));
       }
 
       const personalityForResolver: LoadedTtsPersonality = { id: personality.id };
@@ -91,9 +107,9 @@ export const handleGetVoiceResolution = (deps: RouteDeps): RequestHandler => {
         ttsResolver.resolveConfig(discordUserId, personalityId, personalityForResolver),
         // STT resolution — user-scoped (no personalityId argument).
         sttResolver.resolveProvider(discordUserId),
-        // Cloned-voice summary — only if the user has at least one BYOK key.
-        // No keys → summary is "0 voices" (avoids surfacing a 404).
-        resolveAudioProviderKeys(prisma, discordUserId),
+        // Cloned-voice summary — only if skipVoices is not set and the user has at least one BYOK key.
+        // No keys (or skipVoices=true) → summary is "0 voices" (avoids surfacing a 404).
+        skipVoices ? Promise.resolve(undefined) : resolveAudioProviderKeys(prisma, discordUserId),
       ]);
       const voiceResponseMode = {
         value: resolved.voiceResponseMode,
@@ -115,7 +131,7 @@ export const handleGetVoiceResolution = (deps: RouteDeps): RequestHandler => {
         totalVoices: 0,
         previewSlugs: [],
       };
-      if ('keys' in keysResult && keysResult.keys.size > 0) {
+      if (keysResult !== undefined && 'keys' in keysResult && keysResult.keys.size > 0) {
         const { voices, totalVoicesByProvider } = await fetchAllTzurotVoices(keysResult.keys);
         const totalVoices = Array.from(totalVoicesByProvider.values()).reduce((a, b) => a + b, 0);
         voicesSummary = {
