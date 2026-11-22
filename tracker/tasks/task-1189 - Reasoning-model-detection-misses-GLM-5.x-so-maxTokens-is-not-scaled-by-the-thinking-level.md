@@ -22,7 +22,7 @@ Why: prod logs on 2026-10-07 show isReasoningModel=false for glm-5.3-flash and z
 
 Effect (code-read): the only behavioural consumer is getEffectiveMaxTokens in services/ai-worker/src/services/ModelFactory.ts:275, which scales maxTokens by thinking level only when the config sets no maxTokens; LLMInvoker.ts:229 just logs it. So a GLM-5 config without maxTokens gets the standard default rather than the reasoning-scaled one. Not tied to the 2026-10-07 timeout (TASK-1188).
 
-What: extend the pattern to GLM-5.x (check which GLM-5 variants actually reason before widening), plus a unit test per new id.
+What: extend the pattern to GLM-5.x (check which GLM-5 variants actually reason before widening) and Claude 5.x (`CLAUDE_EXTENDED_THINKING` at `services/ai-worker/src/utils/reasoningModelUtils.ts:22` matches only `claude-3-[789]|claude-4`, missing `anthropic/claude-haiku-5.5` and `anthropic/claude-sonnet-5.5` observed during TASK-1400 prep on 2026-11-21), plus a unit test per new id.
 
-Acceptance: detectReasoningModelType returns GlmThinking for glm-5.3-flash and z-ai/glm-5.3-flash, tested.
+Acceptance: detectReasoningModelType returns GlmThinking for glm-5.3-flash / z-ai/glm-5.3-flash and ClaudeExtendedThinking for claude-haiku-5.5 / claude-sonnet-5.5, tested.
 <!-- SECTION:DESCRIPTION:END -->

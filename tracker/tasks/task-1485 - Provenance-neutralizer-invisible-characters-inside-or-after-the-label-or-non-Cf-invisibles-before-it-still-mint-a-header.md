@@ -3,9 +3,10 @@ id: TASK-1485
 title: >-
   Provenance neutralizer: invisible characters inside or after the label, or
   non-Cf invisibles before it, still mint a header
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-21T00:16:00Z'
+updated_date: '2026-11-22T03:24:00Z'
 labels:
   - area:common-types
   - size:S
