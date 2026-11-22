@@ -102,6 +102,77 @@ describe('ensureVisionCapableModel', () => {
     );
     expect(mockSendError).not.toHaveBeenCalled();
   });
+
+  it('omits the Chat-slot retry hint on both refusal branches when options are omitted or retryWithChatHint is false', async () => {
+    const nullCache = {
+      supportsReasoning: vi.fn().mockResolvedValue(undefined),
+      getModelById: vi.fn().mockResolvedValue(null),
+    } as unknown as OpenRouterModelCache;
+    const textOnlyCache = {
+      supportsReasoning: vi.fn().mockResolvedValue(undefined),
+      getModelById: vi.fn().mockResolvedValue({
+        id: 'some/text-only',
+        supportsVision: false,
+        supportsImageGeneration: false,
+        supportsAudioInput: false,
+        supportsAudioOutput: false,
+        contextLength: 128_000,
+      }),
+    } as unknown as OpenRouterModelCache;
+
+    await ensureVisionCapableModel(mockRes, nullCache, 'anthropic/claude-sonnet-4');
+    await ensureVisionCapableModel(mockRes, nullCache, 'anthropic/claude-sonnet-4', {
+      retryWithChatHint: false,
+    });
+    await ensureVisionCapableModel(mockRes, textOnlyCache, 'some/text-only');
+    await ensureVisionCapableModel(mockRes, textOnlyCache, 'some/text-only', {
+      retryWithChatHint: false,
+    });
+
+    expect(mockSendError).toHaveBeenCalledTimes(4);
+    for (const [, body] of mockSendError.mock.calls as [unknown, { message: string }][]) {
+      expect(body.message).not.toContain('retry with slot Chat');
+    }
+  });
+
+  it('appends the Chat-slot retry hint on both refusal branches when retryWithChatHint is true', async () => {
+    const nullCache = {
+      supportsReasoning: vi.fn().mockResolvedValue(undefined),
+      getModelById: vi.fn().mockResolvedValue(null),
+    } as unknown as OpenRouterModelCache;
+    const textOnlyCache = {
+      supportsReasoning: vi.fn().mockResolvedValue(undefined),
+      getModelById: vi.fn().mockResolvedValue({
+        id: 'some/text-only',
+        supportsVision: false,
+        supportsImageGeneration: false,
+        supportsAudioInput: false,
+        supportsAudioOutput: false,
+        contextLength: 128_000,
+      }),
+    } as unknown as OpenRouterModelCache;
+
+    expect(
+      await ensureVisionCapableModel(mockRes, nullCache, 'anthropic/claude-sonnet-4', {
+        retryWithChatHint: true,
+      })
+    ).toBe(false);
+    expect(
+      await ensureVisionCapableModel(mockRes, textOnlyCache, 'some/text-only', {
+        retryWithChatHint: true,
+      })
+    ).toBe(false);
+
+    expect(mockSendError).toHaveBeenCalledTimes(2);
+    const [, nullBranchBody] = mockSendError.mock.calls[0] as [unknown, { message: string }];
+    const [, textOnlyBranchBody] = mockSendError.mock.calls[1] as [unknown, { message: string }];
+    expect(nullBranchBody.message).toContain(
+      'To pin this preset for chat only, retry with slot Chat.'
+    );
+    expect(textOnlyBranchBody.message).toContain(
+      'To pin this preset for chat only, retry with slot Chat.'
+    );
+  });
 });
 
 describe('validateLlmConfigModelFields', () => {

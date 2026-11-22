@@ -182,7 +182,9 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
       const isBoth = slot === 'both';
       if (
         (isVision || isBoth) &&
-        !(await ensureVisionCapableModel(res, modelCache, llmConfig.model))
+        !(await ensureVisionCapableModel(res, modelCache, llmConfig.model, {
+          retryWithChatHint: isBoth,
+        }))
       ) {
         return;
       }
@@ -328,7 +330,9 @@ export const handleSetDefaultModelConfig = (deps: RouteDeps): RequestHandler => 
       const isBoth = slot === 'both';
       if (
         (isVision || isBoth) &&
-        !(await ensureVisionCapableModel(res, modelCache, llmConfig.model))
+        !(await ensureVisionCapableModel(res, modelCache, llmConfig.model, {
+          retryWithChatHint: isBoth,
+        }))
       ) {
         return;
       }
