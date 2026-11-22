@@ -23,5 +23,7 @@ Why: PR #2778 (TASK-1488) claude-review round 3 left two items, merged by owner 
 1. services/api-gateway/src/bootstrap/startup.ts validateByokConfiguration: the deployed-only isEncryptionConfigured() check is skipped on a local run, so a malformed API_KEY_ENCRYPTION_KEY_PREVIOUS falls through to the info log that BYOK storage is ENABLED while every decrypt will throw (ai-worker warns in the same state). Fix: warn when not isEncryptionConfigured() on a local run.
 2. services/ai-worker/src/startup.test.ts and services/api-gateway/src/bootstrap/startup.test.ts each hold a duplicate deployed-with-valid-key test pair. Repurpose one of each pair into the uncovered positive case: deployed, valid primary, VALID _PREVIOUS (the real rotation state) does not throw.
 
-Acceptance: a gateway test pins the local warn; both services have the deployed valid-_PREVIOUS no-throw test; the duplicates are gone.
+Scope extension (TASK-1356): both startups now also validate a staged API_KEY_ENCRYPTION_KEY_NEXT, so item 1's local malformed case covers a malformed _NEXT too, and item 2's positive case also wants deployed + valid primary + VALID _NEXT does not throw.
+
+Acceptance: a gateway test pins the local warn (malformed _PREVIOUS and malformed _NEXT); both services have the deployed valid-_PREVIOUS and valid-_NEXT no-throw tests; the duplicates are gone.
 <!-- SECTION:DESCRIPTION:END -->
