@@ -13,6 +13,7 @@ import {
 } from '@tzurot/common-types/schemas/api/denylist';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { buildToolkitModal } from '../../utils/modal/toolkit.js';
+import type { ModalItem } from '../../utils/modal/types.js';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
 import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
 import { ackWithTimeoutCatch } from '../../utils/dashboard/ackWithTimeoutCatch.js';
@@ -80,34 +81,36 @@ export async function handleEdit(interaction: ButtonInteraction, entryId: string
   }
 
   const data = session.data;
+  const scopeItems: ModalItem[] =
+    data.type !== 'GUILD'
+      ? [
+          {
+            kind: 'text',
+            id: 'scope',
+            label: 'Scope',
+            style: 'short',
+            placeholder: SCOPE_LABEL_LIST,
+            maxLength: MAX_SCOPE_LENGTH,
+            required: true,
+            initialValue: SCOPE_LABELS[data.scope],
+          },
+          {
+            kind: 'text',
+            id: 'scopeId',
+            label: 'Scope ID',
+            style: 'short',
+            placeholder: '* for Bot-wide, channel/character ID for others',
+            maxLength: MAX_SCOPE_ID_LENGTH,
+            required: true,
+            initialValue: data.scopeId,
+          },
+        ]
+      : [];
   const modal = buildToolkitModal({
     customId: `deny::modal::${entryId}::edit`,
     title: 'Edit Denylist Entry',
     items: [
-      {
-        kind: 'text',
-        id: 'scope',
-        label: 'Scope',
-        style: 'short',
-        placeholder:
-          data.type === 'GUILD' ? 'Bot-wide (server denials are bot-wide only)' : SCOPE_LABEL_LIST,
-        maxLength: MAX_SCOPE_LENGTH,
-        required: true,
-        initialValue: SCOPE_LABELS[data.scope],
-      },
-      {
-        kind: 'text',
-        id: 'scopeId',
-        label: 'Scope ID',
-        style: 'short',
-        placeholder:
-          data.type === 'GUILD'
-            ? '* (the only scope ID for a server denial)'
-            : '* for Bot-wide, channel/character ID for others',
-        maxLength: MAX_SCOPE_ID_LENGTH,
-        required: true,
-        initialValue: data.scopeId,
-      },
+      ...scopeItems,
       {
         kind: 'text',
         id: 'reason',
@@ -244,8 +247,10 @@ export async function handleEditModal(
   }
 
   const data = session.data;
-  const newScopeRaw = interaction.fields.getTextInputValue('scope').trim();
-  const newScopeId = interaction.fields.getTextInputValue('scopeId').trim();
+  const newScopeRaw =
+    data.type === 'GUILD' ? 'BOT' : interaction.fields.getTextInputValue('scope').trim();
+  const newScopeId =
+    data.type === 'GUILD' ? '*' : interaction.fields.getTextInputValue('scopeId').trim();
   const newReason = interaction.fields.getTextInputValue('reason').trim() || null;
 
   const validation = validateEditInput(newScopeRaw, newScopeId, newReason, data.type);
