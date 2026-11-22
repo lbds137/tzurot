@@ -36,7 +36,7 @@ function createBaseWalletKey(overrides?: DeepPartial<WalletKey>): WalletKey {
     provider: AIProvider.OpenRouter,
     isActive: true,
     createdAt: now,
-    lastUsedAt: null,
+    lastValidatedAt: null,
   };
   return deepMerge(base, overrides);
 }

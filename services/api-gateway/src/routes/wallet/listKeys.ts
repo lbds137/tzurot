@@ -35,7 +35,7 @@ export const handleListWalletKeys = (deps: WalletListDeps): RequestHandler => {
         provider: true,
         isActive: true,
         createdAt: true,
-        lastUsedAt: true,
+        lastValidatedAt: true,
       },
       orderBy: { createdAt: 'desc' },
       take: 100, // User-scoped ceiling; provider count is bounded by a small handful
@@ -54,7 +54,7 @@ export const handleListWalletKeys = (deps: WalletListDeps): RequestHandler => {
         provider: key.provider,
         isActive: key.isActive,
         createdAt: key.createdAt.toISOString(),
-        lastUsedAt: key.lastUsedAt?.toISOString() ?? null,
+        lastValidatedAt: key.lastValidatedAt?.toISOString() ?? null,
       })),
       timestamp: new Date().toISOString(),
     });

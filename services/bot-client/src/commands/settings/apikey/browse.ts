@@ -53,7 +53,9 @@ function buildBrowseEmbed(keys: WalletKey[]): EmbedBuilder {
       metadata: [
         key.isActive ? 'Active' : 'Inactive',
         `Last validated ${
-          key.lastUsedAt !== null ? formatDiscordTimestamp(key.lastUsedAt, 'R') : UX_SENTINELS.NEVER
+          key.lastValidatedAt !== null
+            ? formatDiscordTimestamp(key.lastValidatedAt, 'R')
+            : UX_SENTINELS.NEVER
         }`,
         `Added ${formatDiscordTimestamp(key.createdAt, 'D')}`,
       ],

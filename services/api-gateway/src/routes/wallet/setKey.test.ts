@@ -315,13 +315,13 @@ describe('POST /api/user/wallet/set', () => {
             iv: expect.any(String),
             content: expect.any(String),
             tag: expect.any(String),
-            lastUsedAt: expect.any(Date),
+            lastValidatedAt: expect.any(Date),
           }),
         })
       );
     });
 
-    it('stamps lastUsedAt on both upsert branches (the key was just validated)', async () => {
+    it('stamps lastValidatedAt on both upsert branches (the key was just validated)', async () => {
       const { req, res } = createMockReqRes({
         provider: AIProvider.OpenRouter,
         apiKey: 'sk-valid-key',
@@ -332,19 +332,19 @@ describe('POST /api/user/wallet/set', () => {
       expect(mockPrisma.userApiKey.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           update: expect.objectContaining({
-            lastUsedAt: expect.any(Date),
+            lastValidatedAt: expect.any(Date),
           }),
           create: expect.objectContaining({
-            lastUsedAt: expect.any(Date),
+            lastValidatedAt: expect.any(Date),
           }),
         })
       );
 
       const upsertCall = mockPrisma.userApiKey.upsert.mock.calls[0][0] as {
-        create: { lastUsedAt: Date };
-        update: { lastUsedAt: Date };
+        create: { lastValidatedAt: Date };
+        update: { lastValidatedAt: Date };
       };
-      expect(upsertCall.update.lastUsedAt).toBe(upsertCall.create.lastUsedAt);
+      expect(upsertCall.update.lastValidatedAt).toBe(upsertCall.create.lastValidatedAt);
     });
 
     it('stamps notifyOptedInAt after storing the key (BYOK = deliberate use)', async () => {

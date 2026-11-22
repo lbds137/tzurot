@@ -314,7 +314,7 @@ and it is owner-scoped and global. Per-user totals come from the SQL in Pass I.
 # wrapped bash — a double-quoted "$DATABASE_URL" would expand (empty) in YOUR
 # shell before pnpm even runs, and psql would silently hit the wrong database.
 pnpm ops run --env dev -- bash -c \
-  'psql "$DATABASE_URL" -c "SELECT provider, is_active, left(iv, 8) AS iv_head, left(content, 16) AS content_head, left(tag, 8) AS tag_head, last_used_at FROM user_api_keys LIMIT 5"'
+  'psql "$DATABASE_URL" -c "SELECT provider, is_active, left(iv, 8) AS iv_head, left(content, 16) AS content_head, left(tag, 8) AS tag_head, last_validated_at FROM user_api_keys LIMIT 5"'
 ```
 
 Expected: `iv_head` / `content_head` / `tag_head` are hex-ish noise. **Fail the

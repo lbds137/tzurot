@@ -100,14 +100,14 @@ export const handleTestWalletKey = (deps: WalletTestDeps): RequestHandler => {
       return;
     }
 
-    // Update lastUsedAt since we just validated
+    // Update lastValidatedAt since we just validated
     await prisma.userApiKey.updateMany({
       where: {
         userId,
         provider,
       },
       data: {
-        lastUsedAt: new Date(),
+        lastValidatedAt: new Date(),
       },
     });
 
