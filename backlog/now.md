@@ -21,7 +21,7 @@ _Drafted 2026-11-22 after beta.248 (shipped 13:38Z, PR 2786; 11 runtime PRs, 144
 - **In already**: none yet.
 - **Waiting on**: TASK-1234 (rename, owner-ruled 11-20, migration + API change) · doc-17 reading → caching Phase 3 (or high-priority drain batch up to ~10 runtime PRs).
 - **Explicitly NOT in**: TASK-1400 Claude character route (pending Lila's blind rating verdict on `docs/local/task-1400-eval/blind-packet.md`) · TASK-1356 (BYOK rotation redesign — design first, security-critical) · TASK-1474 (process PR, ships any time) · TASK-1411/1416 · TASK-1347/1174 (design- or ops-sized, scheduled separately).
-- **Deploy notes**: TASK-1234 carries a migration — run `pnpm ops release:premigrate` before merging on Lila's explicit in-session approval.
+- **Deploy notes**: TASK-1234 (#2787) carries a DESTRUCTIVE migration (`RENAME COLUMN user_api_keys.last_used_at → last_validated_at`; old code reads the old name). Lila AUQ 2026-11-22: maintenance window. On her explicit in-session approval: `pnpm ops maintenance on --env prod` → `pnpm ops release:premigrate --allow-destructive` → merge the release PR → `pnpm ops maintenance off --env prod`. Dev already migrated 2026-11-22.
 - **Cut when**: waiting-on units are merged; backstops ~10 runtime PRs / ~250 files (`pnpm ops release:range`; 0 at drafting). Release PR merge needs her explicit yes.
 - **vNext+1 sketch (beta.250)**: TASK-1400 (if GO) or TASK-1416/1415/1411/1412 + Machloket e2e (`doc-114`).
 
