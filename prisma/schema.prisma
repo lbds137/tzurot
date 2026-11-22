@@ -192,14 +192,14 @@ model RetentionPurgeLog {
 /// DELIBERATE_USE): TTL-pruning this table independently would demote users
 /// to bystander — check that fragment's precedence argument before adding one.
 model UsageLog {
-  id            String       @id @db.Uuid
-  userId        String       @map("user_id") @db.Uuid
-  provider      String       @db.VarChar(20)
-  model         String       @db.VarChar(255)
-  tokensIn      Int          @map("tokens_in")
-  tokensOut     Int          @map("tokens_out")
-  requestType   String       @map("request_type") @db.VarChar(50)
-  createdAt     DateTime     @default(now()) @map("created_at")
+  id               String       @id @db.Uuid
+  userId           String       @map("user_id") @db.Uuid
+  provider         String       @db.VarChar(20)
+  model            String       @db.VarChar(255)
+  tokensIn         Int          @map("tokens_in")
+  tokensOut        Int          @map("tokens_out")
+  requestType      String       @map("request_type") @db.VarChar(50)
+  createdAt        DateTime     @default(now()) @map("created_at")
   /// Not-measured marker: NULL when the write site has no timing in scope
   /// (fact_extraction and roster_blurb system calls, plus all rows predating
   /// the column); populated by the llm_generation path with the
@@ -207,12 +207,12 @@ model UsageLog {
   /// measurement and is not included — and by the archive_summary path with
   /// each individual model call's latency. Reads guard with != null and must
   /// not treat NULL as zero latency.
-  latencyMs     Int?         @map("latency_ms")
+  latencyMs        Int?         @map("latency_ms")
   /// Tri-state applicability: NULL = the BYOK-vs-free distinction does not
   /// apply (system/background calls, rows predating the column); true = ran
   /// on the user's own key; false = ran on the free/guest tier. Reads guard
   /// with != null — NULL is "not applicable", never "free tier".
-  byok          Boolean?
+  byok             Boolean?
   /// Attribution, not ownership: NULL for calls with no personality in scope,
   /// rows predating the column, or a since-deleted personality (FK is
   /// SetNull — unlike conversation/memory rows, a usage row is the OWNER's
@@ -292,23 +292,23 @@ model AdminSettings {
 /// Encrypted API keys for BYOK (Bring Your Own Key) support.
 /// Uses AES-256-GCM encryption with separate columns for iv, content, and tag.
 model UserApiKey {
-  id         String    @id @db.Uuid
-  userId     String    @map("user_id") @db.Uuid
-  provider   String    @default("openrouter") @db.VarChar(20)
-  iv         String    @db.VarChar(32)
-  content    String    @db.Text
-  tag        String    @db.VarChar(32)
-  isActive   Boolean   @default(true) @map("is_active")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
+  id              String    @id @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  provider        String    @default("openrouter") @db.VarChar(20)
+  iv              String    @db.VarChar(32)
+  content         String    @db.Text
+  tag             String    @db.VarChar(32)
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
   /// Stamped by both validation paths: wallet/setKey (validated at set) and
   /// wallet/testKey (validated at test).
   /// Null = no validation recorded (rows set before setKey stamped, and never tested since); they show "Never" until a test or re-set.
   /// The UI labels it "Last validated".
   /// Not pinned by a test for future writers: a new ai-worker write path
   /// would silently falsify this.
-  lastUsedAt DateTime? @map("last_used_at")
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastValidatedAt DateTime? @map("last_validated_at")
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, provider])
   @@index([userId])
