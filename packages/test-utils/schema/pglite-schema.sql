@@ -115,7 +115,7 @@ CREATE TABLE "user_api_keys" (
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
-    "last_used_at" TIMESTAMP(3),
+    "last_validated_at" TIMESTAMP(3),
 
     CONSTRAINT "user_api_keys_pkey" PRIMARY KEY ("id")
 );
