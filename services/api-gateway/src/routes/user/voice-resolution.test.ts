@@ -81,6 +81,7 @@ const VALID_PERSONALITY_ID = '11111111-1111-4111-8111-111111111111';
 
 const mockPrisma = {
   personality: { findFirst: vi.fn() },
+  personalityOwner: { findUnique: vi.fn() },
   user: { findUnique: vi.fn() },
 };
 
@@ -100,6 +101,7 @@ function buildHandler(handler: (deps: RouteDeps) => RequestHandler) {
 describe('user/voice-resolution route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
     // Default cascade resolution: hardcoded tier supplies the voice mode.
     mockResolveOverrides.mockResolvedValue({
       voiceResponseMode: 'always',
@@ -112,6 +114,8 @@ describe('user/voice-resolution route', () => {
       id: VALID_PERSONALITY_ID,
       name: 'Alice',
       voiceEnabled: true,
+      isPublic: true,
+      ownerId: 'owner-uuid-1',
     });
     mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-1' });
     mockResolveConfig.mockResolvedValue({
@@ -158,6 +162,8 @@ describe('user/voice-resolution route', () => {
       id: VALID_PERSONALITY_ID,
       name: 'Alice',
       voiceEnabled: false,
+      isPublic: true,
+      ownerId: 'owner-uuid-1',
     });
     mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-1' });
     mockResolveOverrides.mockResolvedValue({
@@ -210,6 +216,8 @@ describe('user/voice-resolution route', () => {
       id: VALID_PERSONALITY_ID,
       name: 'Alice',
       voiceEnabled: true,
+      isPublic: true,
+      ownerId: 'owner-uuid-1',
     });
     mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-1' });
     mockResolveConfig.mockResolvedValue({
@@ -237,6 +245,8 @@ describe('user/voice-resolution route', () => {
       id: VALID_PERSONALITY_ID,
       name: 'Alice',
       voiceEnabled: true,
+      isPublic: true,
+      ownerId: 'owner-uuid-1',
     });
     mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-1' });
     mockResolveConfig.mockResolvedValue({
@@ -268,6 +278,199 @@ describe('user/voice-resolution route', () => {
     await handler(makeMockReq({ personalityId: VALID_PERSONALITY_ID }), res);
 
     expect(status).toHaveBeenCalledWith(404);
+  });
+
+  it('returns 404 when personality is private and caller has no view access', async () => {
+    mockPrisma.personality.findFirst.mockResolvedValue({
+      id: VALID_PERSONALITY_ID,
+      name: 'SecretAlice',
+      voiceEnabled: true,
+      isPublic: false,
+      ownerId: 'other-user-uuid',
+    });
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-1' });
+    mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
+
+    const { handler } = buildHandler(handleGetVoiceResolution);
+    const { res, json, status } = makeMockRes();
+
+    await handler(makeMockReq({ personalityId: VALID_PERSONALITY_ID }), res);
+
+    expect(status).toHaveBeenCalledWith(StatusCodes.NOT_FOUND);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: 'NOT_FOUND',
+        message: 'Personality not found',
+      })
+    );
+    expect(mockPrisma.personalityOwner.findUnique).toHaveBeenCalledWith({
+      where: {
+        personalityId_userId: {
+          personalityId: VALID_PERSONALITY_ID,
+          userId: 'user-uuid-1',
+        },
+      },
+    });
+    expect(mockResolveOverrides).not.toHaveBeenCalled();
+    expect(mockResolveConfig).not.toHaveBeenCalled();
+    expect(mockResolveStt).not.toHaveBeenCalled();
+    expect(mockResolveAudioProviderKeys).not.toHaveBeenCalled();
+    expect(mockFetchAllTzurotVoices).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 when personality is private and owned directly by the caller', async () => {
+    mockPrisma.personality.findFirst.mockResolvedValue({
+      id: VALID_PERSONALITY_ID,
+      name: 'MyPrivateAlice',
+      voiceEnabled: true,
+      isPublic: false,
+      ownerId: 'user-uuid-1',
+    });
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-1' });
+    mockResolveConfig.mockResolvedValue({
+      config: { provider: 'self-hosted' },
+      source: 'hardcoded',
+    });
+    mockResolveStt.mockResolvedValue({ provider: 'voice-engine', source: 'hardcoded' });
+    mockResolveAudioProviderKeys.mockResolvedValue({ keys: new Map() });
+
+    const { handler } = buildHandler(handleGetVoiceResolution);
+    const { res, json, status } = makeMockRes();
+
+    await handler(makeMockReq({ personalityId: VALID_PERSONALITY_ID }), res);
+
+    expect(status).toHaveBeenCalledWith(StatusCodes.OK);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        personalityName: 'MyPrivateAlice',
+        voiceEnabled: true,
+      })
+    );
+    expect(mockPrisma.personalityOwner.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 when personality is private and caller is in personalityOwner', async () => {
+    mockPrisma.personality.findFirst.mockResolvedValue({
+      id: VALID_PERSONALITY_ID,
+      name: 'CoOwnedAlice',
+      voiceEnabled: true,
+      isPublic: false,
+      ownerId: 'other-user-uuid',
+    });
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-1' });
+    mockPrisma.personalityOwner.findUnique.mockResolvedValue({
+      personalityId: VALID_PERSONALITY_ID,
+      userId: 'user-uuid-1',
+    });
+    mockResolveConfig.mockResolvedValue({
+      config: { provider: 'self-hosted' },
+      source: 'hardcoded',
+    });
+    mockResolveStt.mockResolvedValue({ provider: 'voice-engine', source: 'hardcoded' });
+    mockResolveAudioProviderKeys.mockResolvedValue({ keys: new Map() });
+
+    const { handler } = buildHandler(handleGetVoiceResolution);
+    const { res, json, status } = makeMockRes();
+
+    await handler(makeMockReq({ personalityId: VALID_PERSONALITY_ID }), res);
+
+    expect(status).toHaveBeenCalledWith(StatusCodes.OK);
+    expect(mockPrisma.personalityOwner.findUnique).toHaveBeenCalledWith({
+      where: {
+        personalityId_userId: {
+          personalityId: VALID_PERSONALITY_ID,
+          userId: 'user-uuid-1',
+        },
+      },
+    });
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        personalityName: 'CoOwnedAlice',
+      })
+    );
+  });
+
+  it('skips audio provider key resolution and voice listing when skipVoices is true', async () => {
+    mockPrisma.personality.findFirst.mockResolvedValue({
+      id: VALID_PERSONALITY_ID,
+      name: 'Alice',
+      voiceEnabled: true,
+      isPublic: true,
+      ownerId: 'owner-uuid-1',
+    });
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-1' });
+    mockResolveConfig.mockResolvedValue({
+      config: { provider: 'mistral' },
+      source: 'user-default',
+      configName: 'mistral-default',
+    });
+    mockResolveStt.mockResolvedValue({ provider: 'mistral', source: 'tts-derived' });
+    mockResolveAudioProviderKeys.mockResolvedValue({
+      keys: new Map([['mistral', 'fake-mistral-key']]),
+    });
+
+    const { handler } = buildHandler(handleGetVoiceResolution);
+    const { res, json, status } = makeMockRes();
+
+    await handler(makeMockReq({ personalityId: VALID_PERSONALITY_ID, skipVoices: 'true' }), res);
+
+    expect(status).toHaveBeenCalledWith(StatusCodes.OK);
+    expect(mockResolveAudioProviderKeys).not.toHaveBeenCalled();
+    expect(mockFetchAllTzurotVoices).not.toHaveBeenCalled();
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        voices: { tzurotCount: 0, totalVoices: 0, previewSlugs: [] },
+      })
+    );
+  });
+
+  it('still resolves audio provider keys and lists voices when skipVoices is false', async () => {
+    mockPrisma.personality.findFirst.mockResolvedValue({
+      id: VALID_PERSONALITY_ID,
+      name: 'Alice',
+      voiceEnabled: true,
+      isPublic: true,
+      ownerId: 'owner-uuid-1',
+    });
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-1' });
+    mockResolveConfig.mockResolvedValue({
+      config: { provider: 'mistral' },
+      source: 'user-default',
+      configName: 'mistral-default',
+    });
+    mockResolveStt.mockResolvedValue({ provider: 'mistral', source: 'tts-derived' });
+    mockResolveAudioProviderKeys.mockResolvedValue({
+      keys: new Map([['mistral', 'fake-mistral-key']]),
+    });
+    mockFetchAllTzurotVoices.mockResolvedValue({
+      voices: [{ provider: 'mistral', voiceId: 'v1', name: 'tzu_alice', slug: 'alice' }],
+      totalVoicesByProvider: new Map([['mistral', 3]]),
+      warnings: [],
+    });
+
+    const { handler } = buildHandler(handleGetVoiceResolution);
+    const { res, json, status } = makeMockRes();
+
+    await handler(makeMockReq({ personalityId: VALID_PERSONALITY_ID, skipVoices: 'false' }), res);
+
+    expect(status).toHaveBeenCalledWith(StatusCodes.OK);
+    expect(mockResolveAudioProviderKeys).toHaveBeenCalledWith(mockPrisma, '111111111111111111');
+    expect(mockFetchAllTzurotVoices).toHaveBeenCalledTimes(1);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        voices: { tzurotCount: 1, totalVoices: 3, previewSlugs: ['alice'] },
+      })
+    );
+  });
+
+  it('rejects an invalid skipVoices value via manifest query validation', async () => {
+    const { handler } = buildHandler(handleGetVoiceResolution);
+    const { res, status } = makeMockRes();
+
+    await handler(makeMockReq({ personalityId: VALID_PERSONALITY_ID, skipVoices: 'yes' }), res);
+
+    expect(status).toHaveBeenCalledWith(StatusCodes.BAD_REQUEST);
+    expect(mockPrisma.personality.findFirst).not.toHaveBeenCalled();
   });
 
   it('rejects non-uuid personalityId via Zod', async () => {

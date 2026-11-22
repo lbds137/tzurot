@@ -2,9 +2,9 @@
  * Voice Replies Handler
  * Handles /voice replies <character> <mode> — writes the per-character
  * Voice Response Mode override (the same user-personality tier the
- * `/character overrides` dashboard's Voice page writes), then confirms with
- * the freshly resolved mode + its cascade source via the extended
- * /user/voice-resolution read, so the reply shows what actually applies.
+ * `/character overrides` dashboard's Voice page writes), then reads
+ * /user/voice-resolution with `skipVoices=true` for the character's name and
+ * voice-enabled state while verifying the cascade read-back matches the write.
  *
  * `/voice view` renders the same pair of facts read-only; this command is
  * the write path that reaches it without opening a dashboard.
@@ -81,14 +81,20 @@ export async function handleVoiceReplies(context: DeferredCommandContext): Promi
       return;
     }
 
-    // Confirm with the resolved mode + source. The read is channel-scoped;
-    // the read-back is expected to show the just-written user-personality
-    // tier. The gateway's cascade cache is invalidated asynchronously via
-    // pub/sub, so a just-cached entry could in principle lag (not verified by
-    // a test). (channelId is null outside a guild/DM context — normalized to
-    // undefined so the query param is simply omitted.)
+    // Fetch character metadata (name + voiceEnabled) and confirm the cascade
+    // read-back matches the just-written user-personality tier, passing
+    // skipVoices='true' to skip live provider voice listing. Because cascade
+    // cache invalidation travels over async pub/sub, a cached entry can lag
+    // and return an older mode or source; a mismatch falls back to
+    // committedUnconfirmed (pinned in replies.test.ts). (channelId is null
+    // outside a guild/DM context — normalized to undefined so the query param
+    // is omitted.)
     const channelId = context.interaction.channelId ?? undefined;
-    const resolution = await userClient.getVoiceResolution({ personalityId, channelId });
+    const resolution = await userClient.getVoiceResolution({
+      personalityId,
+      channelId,
+      skipVoices: 'true',
+    });
 
     if (!resolution.ok) {
       logger.warn(
@@ -105,9 +111,26 @@ export async function handleVoiceReplies(context: DeferredCommandContext): Promi
 
     const { personalityName, voiceEnabled, voiceResponseMode } = resolution.data;
 
+    if (voiceResponseMode.value !== mode || voiceResponseMode.source !== 'user-personality') {
+      logger.warn(
+        {
+          userId,
+          personalityId,
+          writtenMode: mode,
+          readMode: voiceResponseMode.value,
+          readSource: voiceResponseMode.source,
+        },
+        'Set voice response mode; resolution read-back mismatched write'
+      );
+      await context.editReply({
+        content: renderSpec(CATALOG.error.committedUnconfirmed(VOICE_REPLIES_RESOURCE)),
+      });
+      return;
+    }
+
     const resolvedLine =
       `Voice replies for **${escapeMarkdown(personalityName)}**: ` +
-      `**${voiceModeValueLabel(voiceResponseMode.value)}** _(${voiceModeSourceLabel(voiceResponseMode.source)})_.`;
+      `**${voiceModeValueLabel(mode)}** _(${voiceModeSourceLabel('user-personality')})_.`;
     const voiceNote = voiceEnabled
       ? undefined
       : "Voice replies also need the character's voice enabled by its creator — `/voice view` shows whether it is.";
