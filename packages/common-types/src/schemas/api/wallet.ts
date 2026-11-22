@@ -24,7 +24,7 @@ export const WalletKeySchema = z.object({
   provider: AIProviderSchema,
   isActive: z.boolean(),
   createdAt: z.string(), // ISO date string
-  lastUsedAt: z.string().nullable(), // ISO date string or null
+  lastValidatedAt: z.string().nullable(), // ISO date string or null
 });
 
 export type WalletKey = z.infer<typeof WalletKeySchema>;

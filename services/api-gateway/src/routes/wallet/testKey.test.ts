@@ -300,7 +300,7 @@ describe('POST /api/user/wallet/test', () => {
       );
     });
 
-    it('should update lastUsedAt on successful validation', async () => {
+    it('should update lastValidatedAt on successful validation', async () => {
       const { req, res } = createMockReqRes({ provider: AIProvider.OpenRouter });
 
       await callHandler(mockPrisma, req, res);
@@ -311,7 +311,7 @@ describe('POST /api/user/wallet/test', () => {
           provider: AIProvider.OpenRouter,
         },
         data: {
-          lastUsedAt: expect.any(Date),
+          lastValidatedAt: expect.any(Date),
         },
       });
     });
