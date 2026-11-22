@@ -1,9 +1,10 @@
 ---
 id: TASK-1477
 title: /voice replies confirms from the write, not a cached read-back
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-20T06:36:00Z'
+updated_date: '2026-11-22T04:53:00Z'
 labels:
   - area:bot-client
   - size:M
