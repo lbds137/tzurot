@@ -1,15 +1,16 @@
 ---
 id: TASK-1234
 title: Rename UserApiKey.lastUsedAt to lastValidatedAt (migration + UI + API field)
-status: To Do
-assignee: []
-created_date: '2026-10-16 05:53'
-updated_date: '2026-10-16 05:56'
+status: In Progress
+assignee:
+  - tzurot
+created_date: 2026-10-16 05:53
+updated_date: '2026-11-22T15:59:00Z'
 labels:
-  - 'area:api-gateway'
-  - 'area:db'
-  - 'size:M'
-  - 'state:ready'
+  - area:api-gateway
+  - area:db
+  - size:M
+  - state:ready
 dependencies: []
 priority: low
 ordinal: 1222000
@@ -25,3 +26,9 @@ Owner question: is the naming drift worth a schema migration and an API field re
 Recommendation: keep the name - the migration + API-visible field change buys clarity for one internal table; the schema comment and the UI label already state the semantics. Revisit only if another lastUsedAt consumer appears.
 Owner ruling (2026-11-20, AUQ): RENAME to lastValidatedAt (against the keep-the-name recommendation): migration + UI + API field rename.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner ruling (2026-11-22, AUQ): real column rename last_used_at -> last_validated_at; beta.249 deploys inside a prod maintenance window (destructive migration path: maintenance on -> release:premigrate --allow-destructive -> merge -> maintenance off). Scope excludes the shapes credential lastUsedAt (genuinely last-used, stamped by shapes/list.ts).
+<!-- SECTION:NOTES:END -->
