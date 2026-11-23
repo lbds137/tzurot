@@ -71,6 +71,7 @@ import {
   type ByokServiceIds,
 } from './byok-stage-helpers.js';
 import { listRailwayLiveDeploymentIds } from '../deployment/railway-deployment-status.js';
+import { checkDeployedCodeDecryptsWithNext } from './deployed-code-gate.js';
 import { waitForDeploymentRemoved } from './deployment-removal-wait.js';
 import type { RedeployFailure } from './redeploy-repair-text.js';
 import { redeployAndWaitForService } from './service-redeploy-wait.js';
@@ -469,6 +470,7 @@ export async function rotateByokKey(options: {
       redeployWithSource: redeployRailwayServiceReusingImageWithSource,
       waitForDeploymentRemoved,
       listLiveDeploymentIds: listRailwayLiveDeploymentIds,
+      checkDeployedCode: checkDeployedCodeDecryptsWithNext,
       redeployServices: redeployByokServices,
     });
     return;

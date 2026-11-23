@@ -83,6 +83,17 @@ vi.mock('../deployment/railway-status.js', () => ({
   resolveRailwayIds,
 }));
 
+// The image decrypt gate reads live deployments and git, and is pinned in its own
+// tests: deployed-code-gate*.test.ts (the gate) and byok-prepare-stage.test.ts (the
+// refusal before the first write). Here it always passes, so stage-1 tests exercise
+// the rotation itself.
+vi.mock('./deployed-code-gate.js', () => ({
+  checkDeployedCodeDecryptsWithNext: vi.fn().mockResolvedValue({
+    ok: true,
+    commit: 'c0ffee0000000000000000000000000000000000',
+  }),
+}));
+
 import {
   markSecretRotated,
   rotateByokKey,
@@ -91,6 +102,7 @@ import {
   warnIfCapped,
   DEFAULT_INTERVALS,
 } from './rotation.js';
+import { checkDeployedCodeDecryptsWithNext } from './deployed-code-gate.js';
 
 const KEY_A_HEX = 'a'.repeat(64);
 const KEY_B_HEX = 'b'.repeat(64);
@@ -336,6 +348,16 @@ describe('rotateByokKey', () => {
 
     try {
       await expect(rotateByokKey({ env: 'dev', stage: '1' })).resolves.toBeUndefined();
+
+      // Wiring: the image gate runs once per BYOK service.
+      const gate = vi.mocked(checkDeployedCodeDecryptsWithNext);
+      expect(gate).toHaveBeenCalledTimes(2);
+      expect(gate).toHaveBeenCalledWith(
+        expect.objectContaining({ serviceName: 'api-gateway', env: 'dev' })
+      );
+      expect(gate).toHaveBeenCalledWith(
+        expect.objectContaining({ serviceName: 'ai-worker', env: 'dev' })
+      );
 
       const setCalls = mockExecFileSync.mock.calls.filter(
         call => Array.isArray(call[1]) && (call[1] as string[]).includes('--set')

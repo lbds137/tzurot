@@ -8,6 +8,10 @@
  * stage 2 rather than a single restart, which is strictly worse than the
  * unstaged rotation it replaces.
  *
+ * The same gate shape also serves BYOK stage 1 (byok-prepare-stage.ts): stage 1
+ * stages NEXT and redeploys each service reusing its running image, so it must
+ * refuse unless that image's decrypt reads NEXT (`checkDeployedCodeDecryptsWithNext`).
+ *
  * There is deliberately NO override flag: an acknowledgement the operator can
  * type is a rubber stamp, and this check is cheap and real.
  */
@@ -69,9 +73,9 @@ function commitExistsLocally(commit: string): boolean {
 // intent. `-F` selects git-grep's fixed-string mode, so escaping is delegated
 // to git rather than hand-rolled here; pinned by the "passes a
 // metacharacter-bearing token through to git verbatim" case.
-function commitCarriesToken(commit: string, token: string): boolean {
+function commitCarriesToken(commit: string, token: string, pathspecs: readonly string[]): boolean {
   try {
-    execFileSync('git', ['grep', '-q', '-F', token, commit, '--', ...SOURCE_PATHSPECS], {
+    execFileSync('git', ['grep', '-q', '-F', token, commit, '--', ...pathspecs], {
       stdio: 'ignore',
     });
     return true;
@@ -80,11 +84,29 @@ function commitCarriesToken(commit: string, token: string): boolean {
   }
 }
 
-export async function checkDeployedCodeAcceptsPrevious(
-  args: DeployedCodeGateArgs
-): Promise<DeployedCodeGateResult> {
-  const token = `${args.name}_PREVIOUS`;
+/**
+ * The token is the decrypt module's own read of the NEXT variable. The path is
+ * scoped to that one file because tooling (byok-stage-helpers.ts) also names the
+ * variable but is not in any service image, so an unscoped grep would pass on
+ * tooling alone.
+ */
+export const BYOK_NEXT_TOKEN = 'process.env.API_KEY_ENCRYPTION_KEY_NEXT';
+export const BYOK_DECRYPT_PATHSPECS = [':/packages/common-types/src/utils/encryption.ts'];
 
+interface CarriesTokenArgs {
+  environmentId: string;
+  serviceId: string;
+  serviceName: string;
+  env: RailwayEnv;
+  token: string;
+  pathspecs: readonly string[];
+  missingReason: (commit: string) => string;
+}
+
+/** Read the live commit, check it is local, then check it carries `token` under `pathspecs`. */
+async function checkDeployedCodeCarriesToken(
+  args: CarriesTokenArgs
+): Promise<DeployedCodeGateResult> {
   let commit: string;
   try {
     commit = await getLiveDeploymentCommit({
@@ -113,17 +135,59 @@ export async function checkDeployedCodeAcceptsPrevious(
     };
   }
 
-  if (!commitCarriesToken(commit, token)) {
-    return {
-      ok: false,
-      commit,
-      reason:
-        `the commit "${args.serviceName}" is running (${commit}) carries no "${token}" under ` +
-        `${SOURCE_PATHSPECS.join(' or ')} — that deployment cannot accept the previous value, ` +
-        'so stage 1 would open a window nothing closes. Deploy the dual-acceptance code to this ' +
-        'environment first, then retry.',
-    };
+  if (!commitCarriesToken(commit, args.token, args.pathspecs)) {
+    return { ok: false, commit, reason: args.missingReason(commit) };
   }
 
   return { ok: true, commit };
+}
+
+export async function checkDeployedCodeAcceptsPrevious(
+  args: DeployedCodeGateArgs
+): Promise<DeployedCodeGateResult> {
+  const token = `${args.name}_PREVIOUS`;
+  return checkDeployedCodeCarriesToken({
+    environmentId: args.environmentId,
+    serviceId: args.serviceId,
+    serviceName: args.serviceName,
+    env: args.env,
+    token,
+    pathspecs: SOURCE_PATHSPECS,
+    missingReason: commit =>
+      `the commit "${args.serviceName}" is running (${commit}) carries no "${token}" under ` +
+      `${SOURCE_PATHSPECS.join(' or ')} — that deployment cannot accept the previous value, ` +
+      'so stage 1 would open a window nothing closes. Deploy the dual-acceptance code to this ' +
+      'environment first, then retry.',
+  });
+}
+
+export interface DeployedDecryptGateArgs {
+  environmentId: string;
+  serviceId: string;
+  /** Operator-facing name of the service, for the refusal message. */
+  serviceName: string;
+  env: RailwayEnv;
+}
+
+/**
+ * BYOK stage 1 gate: the running image must decrypt with a staged NEXT key.
+ * Stage 1 redeploys each service reusing that image, so an image whose decrypt
+ * ignores NEXT would encrypt-swap into a state it cannot read.
+ */
+export async function checkDeployedCodeDecryptsWithNext(
+  args: DeployedDecryptGateArgs
+): Promise<DeployedCodeGateResult> {
+  return checkDeployedCodeCarriesToken({
+    environmentId: args.environmentId,
+    serviceId: args.serviceId,
+    serviceName: args.serviceName,
+    env: args.env,
+    token: BYOK_NEXT_TOKEN,
+    pathspecs: BYOK_DECRYPT_PATHSPECS,
+    missingReason: commit =>
+      `the commit "${args.serviceName}" is running (${commit}) does not read API_KEY_ENCRYPTION_KEY_NEXT ` +
+      'in packages/common-types/src/utils/encryption.ts — that image ignores a staged NEXT key, so ' +
+      'the stage-1 swap would reopen the cross-service decrypt race. Deploy code containing the ' +
+      'NEXT-aware decrypt to this environment first, then retry.',
+  });
 }

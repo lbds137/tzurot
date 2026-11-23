@@ -45,6 +45,8 @@ interface HarnessOptions {
   failOn?: string[];
   /** Live deployment ids per service name for the pre-swap check. Default: only the new deployment. */
   liveDeployments?: Record<string, string[]>;
+  /** Per-service refusal from the image decrypt gate. Default: both images decrypt with NEXT. */
+  imageGate?: Partial<Record<'api-gateway' | 'ai-worker', { ok: false; reason: string }>>;
 }
 
 function sameVars(vars: Record<string, string>): VarStore {
@@ -143,6 +145,15 @@ function makeHarness(options: HarnessOptions = {}): {
     listLiveDeploymentIds: vi.fn(async (args: { serviceId: string }) => {
       const service = nameOf(args.serviceId);
       return options.liveDeployments?.[service] ?? [`new-${service}`];
+    }),
+    checkDeployedCode: vi.fn(async (args: { serviceName: 'api-gateway' | 'ai-worker' }) => {
+      events.push(`gate:${args.serviceName}`);
+      return (
+        options.imageGate?.[args.serviceName] ?? {
+          ok: true,
+          commit: 'c0ffee0000000000000000000000000000000000',
+        }
+      );
     }),
     redeployServices: vi.fn(async () => {
       events.push('redeployServices');
@@ -281,6 +292,8 @@ describe('stageByokWindow', () => {
       }
 
       expect(events).toEqual([
+        'gate:api-gateway',
+        'gate:ai-worker',
         'upsert:api-gateway:API_KEY_ENCRYPTION_KEY_NEXT',
         'upsert:ai-worker:API_KEY_ENCRYPTION_KEY_NEXT',
         'redeploy:api-gateway',
@@ -703,6 +716,74 @@ describe('stageByokWindow', () => {
       await expect(stageByokWindow(deps)).rejects.toThrow(/did not report its new deployment/);
       expect(writesAfterStaging(events)).toEqual([]);
       expect(events).not.toContain('redeployServices');
+    });
+  });
+
+  describe('image decrypt gate (refuse before the first write when a running image ignores NEXT)', () => {
+    let logSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      logSpy.mockRestore();
+    });
+
+    it('checks each service once with its ids and env, before any write', async () => {
+      const { deps, events } = makeHarness();
+
+      await stageByokWindow(deps);
+
+      expect(deps.checkDeployedCode).toHaveBeenCalledTimes(2);
+      expect(deps.checkDeployedCode).toHaveBeenCalledWith({
+        environmentId: 'envid',
+        serviceId: 'svc-api-gateway',
+        serviceName: 'api-gateway',
+        env: 'dev',
+      });
+      expect(deps.checkDeployedCode).toHaveBeenCalledWith({
+        environmentId: 'envid',
+        serviceId: 'svc-ai-worker',
+        serviceName: 'ai-worker',
+        env: 'dev',
+      });
+      const firstWrite = Math.min(...written(events, 'upsert:'));
+      expect(written(events, 'gate:').every(index => index < firstWrite)).toBe(true);
+      expect(written(events, 'gate:')).toHaveLength(2);
+    });
+
+    it('refuses before any write when ai-worker runs an image that ignores NEXT', async () => {
+      const { deps, events, store } = makeHarness({
+        imageGate: { 'ai-worker': { ok: false, reason: 'stale image' } },
+      });
+      const before = structuredClone(store);
+
+      await expect(stageByokWindow(deps)).rejects.toThrow(/ai-worker[\s\S]*stale image/);
+
+      expect(events.filter(e => /^(upsert|delete|redeploy)/.test(e))).toEqual([]);
+      expect(store).toEqual(before);
+    });
+
+    it('names every service whose image fails the gate', async () => {
+      const { deps } = makeHarness({
+        imageGate: {
+          'api-gateway': { ok: false, reason: 'gateway stale' },
+          'ai-worker': { ok: false, reason: 'worker stale' },
+        },
+      });
+
+      const error = await stageByokWindow(deps).then(
+        () => undefined,
+        (caught: unknown) => caught
+      );
+
+      expect(error).toBeInstanceOf(Error);
+      const message = (error as Error).message;
+      expect(message).toContain('api-gateway: gateway stale');
+      expect(message).toContain('ai-worker: worker stale');
+      expect(message).toContain('API_KEY_ENCRYPTION_KEY has not changed and nothing was written.');
+      expect(deps.upsertVariable).not.toHaveBeenCalled();
     });
   });
 });
