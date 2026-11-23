@@ -9,6 +9,10 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  listZaiCodingPlanModels,
+  zaiCodingPlanModelCapabilities,
+} from '@tzurot/common-types/constants/ai';
+import {
   hasVisionSupportFallback,
   hasReasoningSupportFallback,
 } from './modelCapabilityPatterns.js';
@@ -51,12 +55,60 @@ describe('hasVisionSupportFallback', () => {
     // reach (a substring term would match both).
     'z-ai/glm-5.4-turbo',
     'glm-5.4-air',
+    // Dated snapshot of glm-5.4: the exact rule does not recognize it, so it
+    // falls through as not-vision (fail-closed).
+    'z-ai/glm-5.4-20261201',
+    // Boundary cases for the exact rule: a `/` anchor (xglm-5.4 is not a
+    // provider-prefixed glm-5.4) and whole-id equality (glm-5.4x is not glm-5.4).
+    'z-ai/xglm-5.4',
+    'glm-5.4x',
   ])('does not claim %s is vision-capable', model => {
     expect(hasVisionSupportFallback(model)).toBe(false);
   });
 
   it('is case-insensitive — the caller may pass a raw catalog ID', () => {
     expect(hasVisionSupportFallback('Anthropic/Claude-3-Opus')).toBe(true);
+  });
+});
+
+describe('catalog ↔ VISION_MODEL_PATTERNS parity', () => {
+  // Drift guard: a z.ai coding-plan catalog edit that flips a model's
+  // supportsVision flag must be mirrored in the degraded-mode fallback patterns,
+  // or the two resolution paths disagree silently.
+  it('every catalog member declaring vision satisfies hasVisionSupportFallback', () => {
+    // Non-vacuity: the loop below asserts nothing if no member declares vision.
+    expect(
+      listZaiCodingPlanModels().some(
+        ({ model }) => zaiCodingPlanModelCapabilities(model)?.supportsVision === true
+      )
+    ).toBe(true);
+    for (const { model } of listZaiCodingPlanModels()) {
+      const vision = zaiCodingPlanModelCapabilities(model)?.supportsVision === true;
+      if (vision) {
+        expect({ model, fallback: hasVisionSupportFallback(model) }).toEqual({
+          model,
+          fallback: true,
+        });
+      }
+    }
+  });
+
+  it('every catalog member without vision does not satisfy hasVisionSupportFallback', () => {
+    // Non-vacuity: the loop below asserts nothing if every member declares vision.
+    expect(
+      listZaiCodingPlanModels().some(
+        ({ model }) => zaiCodingPlanModelCapabilities(model)?.supportsVision !== true
+      )
+    ).toBe(true);
+    for (const { model } of listZaiCodingPlanModels()) {
+      const vision = zaiCodingPlanModelCapabilities(model)?.supportsVision === true;
+      if (!vision) {
+        expect({ model, fallback: hasVisionSupportFallback(model) }).toEqual({
+          model,
+          fallback: false,
+        });
+      }
+    }
   });
 });
 
