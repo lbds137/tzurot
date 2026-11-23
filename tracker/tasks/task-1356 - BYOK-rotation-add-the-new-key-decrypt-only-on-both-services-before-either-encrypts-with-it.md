@@ -3,11 +3,10 @@ id: TASK-1356
 title: >-
   BYOK rotation: add the new key decrypt-only on both services before either
   encrypts with it
-status: In Progress
-assignee:
-  - Tzurot
+status: Done
+assignee: []
 created_date: '2026-11-08T03:28:00Z'
-updated_date: '2026-11-22T18:14:00Z'
+updated_date: '2026-11-23T05:53:00Z'
 labels:
   - area:tooling
   - size:M
@@ -43,4 +42,6 @@ Shipped in PR 2788 (develop 28b754100). Dev end-to-end rotation, 2026-11-22 (UTC
 - Stage 1 passed. Prepare deployments e27b3cfb (api-gateway) and 7acc500d (ai-worker) logged byokNextKeySet true before the swap: runtime evidence that a reuse-image redeploy loads a skipDeploys variable. Post-swap deployments 7745127d and 8d8f6d8f log PREVIOUS set, NEXT unset.
 - Stage 2 passed: user_api_keys 3 re-encrypted, 0 unreadable; user_credentials has 0 rows; all rows verified on the current key.
 - Open: the live BYOK-backed request the rotation doc requires before stage 3. Two attempts did not reach the dev bot (dev bot-client logged no events after 02:21Z). Lila ruled (AUQ "Keep window open"): the dev window stays open, PREVIOUS still held, until a BYOK reply from the dev bot is observed; then check logs, run stage 3, and close this task.
+
+11-23 05:53Z dev stage 3 PASS. Lila sent a BYOK-backed message to the dev bot; ai-worker logged 'Cross-provider vision config resolved (authenticated user key)' source=user at 05:52:04Z and LLMGenerationHandler 'Job completed' success=true at 05:52:06Z, no error/warn on ai-worker or api-gateway. Then pnpm ops secrets:rotate-byok --env dev --stage 3 exited 0: PREVIOUS deleted on both services, NEXT already absent, both redeployed, ledger byok-encryption-key stamped (180d, dev). Full dev e2e (abort, 1, 2, 3) PASS. Prod rotation stays gated on a release carrying getNextEncryptionKey (TASK-1510).
 <!-- SECTION:NOTES:END -->
