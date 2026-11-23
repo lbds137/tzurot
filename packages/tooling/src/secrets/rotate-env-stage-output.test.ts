@@ -43,7 +43,13 @@ describe('rotate-env-stage-output', () => {
     it('prints REFUSE wording including the reason when ok is false', () => {
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      printGateVerdict({ ok: false, commit: 'abc123', reason: 'no token' });
+      printGateVerdict({
+        ok: false,
+        readFailed: false,
+        commit: 'abc123',
+        deploymentId: 'dep-1',
+        reason: 'no token',
+      });
 
       const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
       expect(allOutput).toMatch(/REFUSE/);

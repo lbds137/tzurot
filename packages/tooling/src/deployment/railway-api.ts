@@ -554,7 +554,7 @@ export class RailwayRedeployRefusedError extends Error {
  * Selecting `serviceInstance(environmentId, serviceId).latestDeployment` and
  * requiring its status to be `SUCCESS` (refusing when missing or non-`SUCCESS`,
  * pinned in `railway-api.test.ts`) selects the live deployment record — the
- * same record `getLiveDeploymentCommit` and the deployed-code gate inspect —
+ * same record `getLiveDeployment` and the deployed-code gate inspect —
  * rather than relying on unpinned list ordering from a `deployments` query.
  * Secret rotation uses this so a variable-only rotation restarts the image and
  * code already running in the environment without running a full image build or
@@ -603,7 +603,7 @@ export async function redeployRailwayServiceReusingImage(
   return (await redeployRailwayServiceReusingImageWithSource(args)).newDeploymentId;
 }
 
-export interface GetLiveDeploymentCommitArgs {
+export interface GetLiveDeploymentArgs {
   environmentId: string;
   serviceId: string;
   /** Operator-facing service name, for the refusal message. */
@@ -612,8 +612,8 @@ export interface GetLiveDeploymentCommitArgs {
 }
 
 /**
- * The commit SHA of a service instance's latest deployment, required to be
- * SUCCESS.
+ * The id and commit SHA of a service instance's latest deployment, required to be
+ * SUCCESS. The id lets a caller confirm WHICH deployment it read, not only what it ran.
  *
  * Observed once, against one service in one environment: `latestDeployment`
  * returned the SUCCESS build rather than a newer SKIPPED record. That single
@@ -622,17 +622,8 @@ export interface GetLiveDeploymentCommitArgs {
  * of trusting the field's selection rule to mean "the live build". Pinned by
  * the "refuses a non-SUCCESS latestDeployment" case in `railway-api.test.ts`.
  */
-export async function getLiveDeploymentCommit(args: GetLiveDeploymentCommitArgs): Promise<string> {
-  return (await getLiveDeployment(args)).commit;
-}
-
-/**
- * The id and commit SHA of a service instance's latest deployment, required to be
- * SUCCESS. Same validation and errors as `getLiveDeploymentCommit`, which delegates
- * here. The id lets a caller confirm WHICH deployment it read, not only what it ran.
- */
 export async function getLiveDeployment(
-  args: GetLiveDeploymentCommitArgs
+  args: GetLiveDeploymentArgs
 ): Promise<{ id: string; commit: string }> {
   const deployment = await fetchServiceInstanceLatestDeployment(args);
   if (deployment === null) {
