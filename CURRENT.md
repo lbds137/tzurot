@@ -1,5 +1,7 @@
 # Current
 
+> HOLD (11-23 reboot): start nothing new until Deck signals the fleet fixes landed; then re-push 17ad862fb (task-1515 worktree, ahead 1) and follow the NEXT note.
+
 > **NEXT (Lila via Deck, 2026-11-23 17:47 EST, before the reboot)**: (1) **`TASK-815` first** (paths-scope `.claude/rules`, fresh-start target under ~90k tokens), ahead of the beta.249 cut. (2) Until TASK-815 lands, prefer **/clear over /compact** at unit boundaries (fresh start ~120k vs ~160k after compact). (3) Then beta.249: rerun `release:range`; #2787's destructive rename needs maintenance on → `release:premigrate --allow-destructive` → merge → maintenance off, every gated step asked via AUQ. (4) Then TASK-1517, then the drain (1511–1513, 1500–1508, 1416/1415/1411/1412). **PR #2795 (GLM 5.4, TASK-1515 + TASK-1393)**: round-7 doc commit `17ad862fb` pushing at 17:47; if not merged by the reboot, re-arm `gh:ci-gate 2795` from worktree `.claude/worktrees/task-1515`, read the review, merge, mark both tasks Done.
 
 > **Session handoff 2026-11-22 08:39 EST (`agy` Gemini 4 Neon)**: beta.248 SHIPPED (PR #2786, tag `v3.0.0-beta.248`, `develop` aligned at `345010bbf`). `TASK-1400` 4-arm Claude character eval COMPLETE ($9.4944 actual BYOK spend across 80 turns; local `chmod 600` blind packet at `docs/local/task-1400-eval/blind-packet.md` awaiting Lila's rating). Unreleased on develop: nothing since `v3.0.0-beta.248` except tracker/CURRENT bookkeeping.
