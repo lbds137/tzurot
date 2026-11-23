@@ -1,11 +1,10 @@
 ---
 id: TASK-1514
 title: BYOK image gate follow-ups from PR 2789 round 4
-status: In Progress
-assignee:
-  - tzurot
+status: Done
+assignee: []
 created_date: '2026-11-23T04:30:00Z'
-updated_date: '2026-11-23T04:56:00Z'
+updated_date: '2026-11-23T06:32:00Z'
 labels:
   - area:tooling
   - size:S
@@ -24,3 +23,9 @@ What: delete getLiveDeploymentCommit, move its tests onto getLiveDeployment, fix
 
 Acceptance: no production reference to getLiveDeploymentCommit; a test fails if a not-ok gate branch drops deploymentId; tooling suite green.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped in PR #2790 (merged 2026-11-23 06:31Z): readFailed discriminant on DeployedCodeGateResult (three-arm union, every not-ok branch shape-pinned by toEqual), stage-1 prefix keyed on readFailed with a pre-write no-prefix test, getLiveDeploymentCommit removed (tests ported), BYOK fixture reason fixed, doc reflowed. Three review rounds; declined nits recorded in the PR Residue.
+<!-- SECTION:NOTES:END -->
