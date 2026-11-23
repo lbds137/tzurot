@@ -21,7 +21,8 @@ type ModelPattern =
        * provider prefix like `z-ai/` is allowed. Replaces the substring match;
        * the type forbids `additional` on exact patterns. Ids the exact rule does
        * not recognize, such as a dated snapshot (`z-ai/glm-5.4-20261201`), fall
-       * through as not-vision: the fail-closed direction.
+       * through as not-vision: the fail-closed direction, deliberately unlike
+       * substring patterns, which would match such a snapshot.
        */
       exact: true;
     };
