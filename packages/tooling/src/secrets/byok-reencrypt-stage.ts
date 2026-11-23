@@ -2,10 +2,12 @@
  * Stage 2 (reencrypt) of the staged BYOK encryption-key rotation in rotation.ts.
  *
  * Re-encrypting rows while a service still holds only the old key orphans those
- * rows for that service. Stage 1 writes both keys with `skipDeploys: true` and
- * then redeploys; if stage 1 is interrupted between the writes and the redeploys,
- * each service's latest deployment is still the SUCCESS pre-rotation one, which
- * the readiness preflight cannot tell apart from a finished stage 1.
+ * rows for that service. Stage 1 (`byok-prepare-stage.ts`) stages NEXT, redeploys
+ * both services and waits for the superseded deployments to be removed, writes
+ * both keys with `skipDeploys: true`, then redeploys; if stage 1 is interrupted
+ * between the writes and the final redeploys, each service's latest deployment is
+ * still a SUCCESS one that predates the swap, which the readiness preflight cannot
+ * tell apart from a finished stage 1.
  *
  * So stage 2 redeploys api-gateway and then ai-worker itself, one at a time, and
  * waits for each to report the NEW deployment id at SUCCESS before any row is
@@ -30,7 +32,7 @@
  * sweep, where rows already on the current key are tallied as already current.
  *
  * Precondition: the caller has already asserted that both services agree on
- * CURRENT and PREVIOUS (`assertByokServicesConsistent` in `rotation.ts`, pinned by
+ * CURRENT, PREVIOUS and NEXT (`assertByokServicesConsistent` in `byok-consistency.ts`, pinned by
  * `every stage refuses on split-brain key vars between the two services` in
  * `rotation.test.ts`). This stage reads api-gateway's copy of the keys, and calls
  * the injected assertion once more after the waits.
@@ -46,6 +48,7 @@
 
 import { parseEncryptionKeyMaterial } from '@tzurot/common-types/utils/encryption';
 import type { assertRailwayServiceDeploymentReady } from '../deployment/railway-api.js';
+import { assertNoPendingNext } from './byok-consistency.js';
 import {
   assertByokServicesDeploymentReady,
   BYOK_SERVICES,
@@ -84,7 +87,7 @@ export interface ByokReencryptStageDeps {
   resolveByokIds: (env: 'dev' | 'prod') => ByokServiceIds;
   assertServiceDeploymentReady: typeof assertRailwayServiceDeploymentReady;
   redeployAndWait: typeof redeployAndWaitForService;
-  /** Throws when the two BYOK services disagree on CURRENT or PREVIOUS. */
+  /** Throws when the two BYOK services disagree on CURRENT, PREVIOUS or NEXT. */
   assertServicesConsistent: (env: 'dev' | 'prod') => void;
   /** Re-encrypt every row still on the previous key, then run the verify sweep. */
   reencryptAndVerify: (currentKey: Buffer, previousKey: Buffer) => Promise<void>;
@@ -105,6 +108,15 @@ export async function reencryptByokRows(deps: ByokReencryptStageDeps): Promise<v
   const currentRaw = getServiceVariable(env, GATEWAY_SERVICE, CURRENT_VAR);
   const currentKey = parseEncryptionKeyMaterial(currentRaw, CURRENT_VAR);
   const previousRaw = getServiceVariableOrEmpty(env, GATEWAY_SERVICE, PREVIOUS_VAR);
+  // Before the PREVIOUS refusals and every redeploy: a NEXT that still differs from
+  // CURRENT means stage 1 is unfinished (no window) or the variable was hand-edited
+  // (window open); pinned by the NEXT refusal tests in `byok-reencrypt-stage.test.ts`.
+  assertNoPendingNext({
+    env,
+    read: getServiceVariableOrEmpty,
+    current: currentRaw,
+    windowOpen: previousRaw !== '' && previousRaw !== currentRaw,
+  });
   if (previousRaw === '') {
     throw new Error('No rotation window is open (PREVIOUS is empty) — run stage 1 first.');
   }
@@ -141,6 +153,14 @@ export async function reencryptByokRows(deps: ByokReencryptStageDeps): Promise<v
   }
   // The re-read above covers api-gateway's copy only; this catches ai-worker drifting.
   assertServicesConsistent(env);
+  // A NEXT staged during the waits would be decrypt-only on a service that may not
+  // have restarted, so it also ends the stage before any row changes.
+  assertNoPendingNext({
+    env,
+    read: getServiceVariableOrEmpty,
+    current: currentRaw,
+    windowOpen: true,
+  });
 
   await reencryptAndVerify(currentKey, previousKey);
 }

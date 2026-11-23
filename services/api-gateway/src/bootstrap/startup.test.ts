@@ -39,18 +39,23 @@ vi.mock('@tzurot/common-types/constants/service', async () => {
   };
 });
 
+// One shared logger instance so tests can assert the arguments the module logs.
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -73,14 +78,21 @@ describe('Startup Utilities', () => {
   describe('validateByokConfiguration', () => {
     const originalKey = process.env.API_KEY_ENCRYPTION_KEY;
     const originalPrevious = process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+    const originalNext = process.env.API_KEY_ENCRYPTION_KEY_NEXT;
 
     beforeEach(() => {
       // isEncryptionConfigured() reads process.env, not the mocked config
       process.env.API_KEY_ENCRYPTION_KEY = 'a'.repeat(64);
       delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+      delete process.env.API_KEY_ENCRYPTION_KEY_NEXT;
     });
 
     afterEach(() => {
+      if (originalNext === undefined) {
+        delete process.env.API_KEY_ENCRYPTION_KEY_NEXT;
+      } else {
+        process.env.API_KEY_ENCRYPTION_KEY_NEXT = originalNext;
+      }
       if (originalKey === undefined) {
         delete process.env.API_KEY_ENCRYPTION_KEY;
       } else {
@@ -146,6 +158,17 @@ describe('Startup Utilities', () => {
       );
     });
 
+    it('should throw when deployed, the key is valid and API_KEY_ENCRYPTION_KEY_NEXT is malformed', async () => {
+      process.env.API_KEY_ENCRYPTION_KEY_NEXT = 'not-hex';
+      vi.mocked(getConfig).mockReturnValue({
+        API_KEY_ENCRYPTION_KEY: 'a'.repeat(64),
+        RAILWAY_ENVIRONMENT_NAME: 'production',
+      } as ReturnType<typeof getConfig>);
+
+      const { validateByokConfiguration } = await import('./startup.js');
+      expect(() => validateByokConfiguration()).toThrow(/NEXT.*malformed/s);
+    });
+
     it('should not throw on a local run with a malformed API_KEY_ENCRYPTION_KEY_PREVIOUS', async () => {
       process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS = 'not-hex';
       vi.mocked(getConfig).mockReturnValue({
@@ -164,6 +187,20 @@ describe('Startup Utilities', () => {
 
       const { validateByokConfiguration } = await import('./startup.js');
       expect(() => validateByokConfiguration()).not.toThrow();
+    });
+
+    it('logs booleans for the rotation key slots before the ENABLED line', async () => {
+      process.env.API_KEY_ENCRYPTION_KEY_NEXT = 'c'.repeat(64);
+      vi.mocked(getConfig).mockReturnValue({
+        API_KEY_ENCRYPTION_KEY: 'a'.repeat(64),
+      } as ReturnType<typeof getConfig>);
+
+      const { validateByokConfiguration } = await import('./startup.js');
+      validateByokConfiguration();
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ byokNextKeySet: true, byokPreviousKeySet: false }),
+        'BYOK rotation key slots at startup'
+      );
     });
 
     it('should not throw when encryption key is valid 64-char hex', async () => {

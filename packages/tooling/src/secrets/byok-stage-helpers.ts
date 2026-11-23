@@ -1,20 +1,15 @@
 /**
- * Stage-1 helpers for the staged BYOK encryption-key rotation in rotation.ts:
- * ordered variable writes (PREVIOUS on both services before CURRENT on both)
- * and state-specific repair messages that omit error causes and key values.
- * Stage 2 (byok-reencrypt-stage.ts) redeploys both services itself, so these
- * messages send the operator to stage 2 rather than to a hand redeploy; a service
- * whose latest deployment failed is fixed in the Railway dashboard first.
+ * Shared helpers for the staged BYOK encryption-key rotation in rotation.ts:
+ * the service/variable constants, state-specific repair messages for stage 1's
+ * ordered variable writes and stage 3's redeploys (all omit error causes and key
+ * values), and the readiness preflight every stage runs. Stage 1's own sequence
+ * lives in byok-prepare-stage.ts. Stage 2 (byok-reencrypt-stage.ts) redeploys
+ * both services itself, so these messages send the operator to stage 2 rather
+ * than to a hand redeploy; a service whose latest deployment failed is fixed in
+ * the Railway dashboard first.
  */
 
-import crypto from 'node:crypto';
-import chalk from 'chalk';
-import { parseEncryptionKeyMaterial } from '@tzurot/common-types/utils/encryption';
-import {
-  requireRailwayApiToken,
-  type assertRailwayServiceDeploymentReady,
-  type upsertRailwayVariable,
-} from '../deployment/railway-api.js';
+import type { assertRailwayServiceDeploymentReady } from '../deployment/railway-api.js';
 import type { RailwayIds } from '../deployment/railway-status.js';
 import {
   composeRedeployRepair,
@@ -26,9 +21,10 @@ export const GATEWAY_SERVICE = 'api-gateway';
 export const BYOK_SERVICES = [GATEWAY_SERVICE, 'ai-worker'] as const;
 export const CURRENT_VAR = 'API_KEY_ENCRYPTION_KEY';
 export const PREVIOUS_VAR = 'API_KEY_ENCRYPTION_KEY_PREVIOUS';
+export const NEXT_VAR = 'API_KEY_ENCRYPTION_KEY_NEXT';
 
 export type ByokServiceIds = Record<(typeof BYOK_SERVICES)[number], Required<RailwayIds>>;
-export type StageUpsertPhase = 'previous' | 'current';
+export type StageUpsertPhase = 'next' | 'previous' | 'current' | 'delete-next';
 
 export function stageUpsertFailureError(args: {
   env: 'dev' | 'prod';
@@ -37,6 +33,18 @@ export function stageUpsertFailureError(args: {
 }): Error {
   const { env, phase, failedService } = args;
   const suffix = ' No stored row has been touched; stage 2 has not run.';
+
+  if (phase === 'next') {
+    return new Error(
+      `Failed to upsert ${NEXT_VAR} on ${failedService} (${env}); it may or may not have applied. Re-run stage 1, which regenerates it; ${CURRENT_VAR} has not changed.${suffix}`
+    );
+  }
+
+  if (phase === 'delete-next') {
+    return new Error(
+      `Failed to delete ${NEXT_VAR} on ${failedService} (${env}); it may or may not have applied. Every key write landed and a leftover ${NEXT_VAR} equals ${CURRENT_VAR}, so it decrypts nothing extra: run stage 2, which redeploys both services itself and waits for each to reach SUCCESS; stage 3 deletes the leftover.${suffix}`
+    );
+  }
 
   if (phase === 'previous') {
     return new Error(
@@ -99,90 +107,4 @@ export async function assertByokServicesDeploymentReady(
       env,
     });
   }
-}
-
-export interface StageByokWindowDeps {
-  env: 'dev' | 'prod';
-  getServiceVariable: (env: 'dev' | 'prod', service: string, key: string) => string;
-  getServiceVariableOrEmpty: (env: 'dev' | 'prod', service: string, key: string) => string;
-  resolveByokIds: (env: 'dev' | 'prod') => ByokServiceIds;
-  assertServiceDeploymentReady: typeof assertRailwayServiceDeploymentReady;
-  upsertVariable: typeof upsertRailwayVariable;
-  redeployServices: (
-    env: 'dev' | 'prod',
-    ids: ByokServiceIds,
-    buildFailureMessage: (failures: RedeployFailure[]) => string
-  ) => Promise<void>;
-}
-
-export async function stageByokWindow(deps: StageByokWindowDeps): Promise<void> {
-  const {
-    env,
-    getServiceVariable,
-    getServiceVariableOrEmpty,
-    resolveByokIds,
-    assertServiceDeploymentReady,
-    upsertVariable,
-    redeployServices,
-  } = deps;
-
-  requireRailwayApiToken(env);
-
-  // A second stage-1 while a real window is open (PREVIOUS set and distinct
-  // from CURRENT) would demote the CURRENT key to PREVIOUS and DISCARD the
-  // original previous key — permanently orphaning rows still encrypted under
-  // it. When PREVIOUS equals CURRENT, an earlier stage-1 run stopped after
-  // writing PREVIOUS on both services and before writing a new CURRENT (a
-  // degenerate window), so stage 1 proceeds; pinned in rotation.test.ts.
-  const current = getServiceVariable(env, GATEWAY_SERVICE, CURRENT_VAR);
-  const previous = getServiceVariableOrEmpty(env, GATEWAY_SERVICE, PREVIOUS_VAR);
-  if (previous !== '' && previous !== current) {
-    throw new Error(
-      'A rotation window is already open (PREVIOUS is set) — run stage 2 then stage 3 to close it before starting a new rotation.' +
-        ` If stage 1 itself was interrupted after its writes, run stage 2 once both services' latest deployments have settled: it redeploys both services itself and waits for each to reach SUCCESS. If a service's latest deployment is FAILED, CRASHED, REMOVED or SKIPPED, fix it in the Railway dashboard until its latest deployment is SUCCESS first, because stage 2's readiness check refuses it (\`pnpm ops deploy:redeploy\` refuses it too).`
-    );
-  }
-  parseEncryptionKeyMaterial(current, CURRENT_VAR); // sanity before touching anything
-
-  const ids = resolveByokIds(env);
-  await assertByokServicesDeploymentReady(env, ids, assertServiceDeploymentReady);
-  const next = crypto.randomBytes(32).toString('hex');
-
-  // Write PREVIOUS = current on both services before writing CURRENT = next on
-  // either, so intermediate states still decrypt existing rows and the primary
-  // key does not advance ahead of its fallback; pinned in rotation.test.ts.
-  for (const { phase, name, value } of [
-    { phase: 'previous' as const, name: PREVIOUS_VAR, value: current },
-    { phase: 'current' as const, name: CURRENT_VAR, value: next },
-  ]) {
-    for (const svc of BYOK_SERVICES) {
-      try {
-        await upsertVariable({
-          ...ids[svc],
-          name,
-          value,
-          skipDeploys: true,
-          env,
-        });
-      } catch {
-        throw stageUpsertFailureError({
-          env,
-          phase,
-          failedService: svc,
-        });
-      }
-      console.log(chalk.green(`  set ${name} on ${svc} (${env})`));
-    }
-  }
-
-  await redeployServices(env, ids, failures =>
-    stageRedeployFailureMessage(failures.map(f => f.name).join(', '))
-  );
-
-  console.log(
-    chalk.cyan(
-      '\nStage 1 complete. Both services now hold current+previous keys; redeploys requested (image reused, no rebuild).\n' +
-        'Once both redeploys have settled (stage 2 refuses a deployment still in flight), run stage 2 (reencrypt): it redeploys both services again and waits for each new deployment to reach SUCCESS before touching any row.'
-    )
-  );
 }

@@ -6,7 +6,10 @@
 
 import { getConfig } from '@tzurot/common-types/config/config';
 import { HealthStatus } from '@tzurot/common-types/constants/service';
-import { isEncryptionConfigured } from '@tzurot/common-types/utils/encryption';
+import {
+  getEncryptionKeySlots,
+  isEncryptionConfigured,
+} from '@tzurot/common-types/utils/encryption';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getVoiceEngineClient } from './services/voice/VoiceEngineClient.js';
 
@@ -36,14 +39,23 @@ export function validateRequiredEnvVars(config = getConfig()): void {
         'Set API_KEY_ENCRYPTION_KEY on this Railway service.'
     );
   }
-  // Present but unusable: the primary key, or a rotation-window
-  // API_KEY_ENCRYPTION_KEY_PREVIOUS (not in the config schema), is malformed.
+  // Present but unusable: the primary key, a rotation-window
+  // API_KEY_ENCRYPTION_KEY_PREVIOUS, or a staged API_KEY_ENCRYPTION_KEY_NEXT
+  // (neither in the config schema), is malformed.
   if (config.RAILWAY_ENVIRONMENT_NAME !== undefined && !isEncryptionConfigured()) {
     throw new Error(
-      'API_KEY_ENCRYPTION_KEY or API_KEY_ENCRYPTION_KEY_PREVIOUS is malformed ' +
+      'API_KEY_ENCRYPTION_KEY, API_KEY_ENCRYPTION_KEY_PREVIOUS or API_KEY_ENCRYPTION_KEY_NEXT is malformed ' +
         `(RAILWAY_ENVIRONMENT_NAME="${config.RAILWAY_ENVIRONMENT_NAME}"). ` +
         "Stored BYOK keys cannot be decrypted, so every BYOK user's requests would fail. " +
         'Fix the variable on this Railway service.'
+    );
+  }
+  // Booleans only: which rotation slots are set, never their values.
+  if (config.API_KEY_ENCRYPTION_KEY !== undefined) {
+    const { previousKeySet, nextKeySet } = getEncryptionKeySlots();
+    logger.info(
+      { byokPreviousKeySet: previousKeySet, byokNextKeySet: nextKeySet },
+      'BYOK rotation key slots at startup'
     );
   }
 }

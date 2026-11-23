@@ -1,9 +1,10 @@
 /**
  * Redeploy a Railway service and wait for its NEW deployment to reach `SUCCESS`.
  *
- * Two callers share it: `secrets:rotate-env` stage 2 (the redeployed service is the
- * name's verifier, described below) and BYOK stage 2 (`byok-reencrypt-stage.ts`,
- * which redeploys its two key-holding services, one after the other). Each supplies
+ * Three callers share it: `secrets:rotate-env` stage 2 (the redeployed service is the
+ * name's verifier, described below), BYOK stage 2 (`byok-reencrypt-stage.ts`,
+ * which redeploys its two key-holding services, one after the other) and BYOK
+ * stage 1's prepare (`byok-prepare-stage.ts`, same two services). Each supplies
  * its own refusal `wording`.
  *
  * The paragraphs below, up to the BYOK note, describe the `secrets:rotate-env` use.

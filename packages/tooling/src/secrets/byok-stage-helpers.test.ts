@@ -2,30 +2,22 @@
  * Tests for stage-1 BYOK helpers and repair message builders.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { RailwayRedeployRefusedError } from '../deployment/railway-api.js';
 import {
   assertByokServicesDeploymentReady,
   finalizeRedeployFailureMessage,
   stageUpsertFailureError,
   stageRedeployFailureMessage,
-  stageByokWindow,
   type ByokServiceIds,
 } from './byok-stage-helpers.js';
 
-const { requireRailwayApiToken } = vi.hoisted(() => ({
-  requireRailwayApiToken: vi.fn(),
-}));
-
 vi.mock('../deployment/railway-api.js', () => ({
-  requireRailwayApiToken,
   // The partition helper does `instanceof` against this class on a failure's error.
   RailwayRedeployRefusedError: class RailwayRedeployRefusedError extends Error {
     name = 'RailwayRedeployRefusedError';
   },
 }));
-
-const KEY_A_HEX = 'a'.repeat(64);
 
 const MOCK_IDS: ByokServiceIds = {
   'api-gateway': {
@@ -197,101 +189,30 @@ describe('assertByokServicesDeploymentReady', () => {
   });
 });
 
-describe('stageByokWindow', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    requireRailwayApiToken.mockReturnValue('tok');
-  });
-
-  it('checks readiness for both services, writes PREVIOUS on both before CURRENT on both, prints one line per write, then redeploys', async () => {
-    const assertServiceDeploymentReady = vi.fn().mockResolvedValue(undefined);
-    const upsertVariable = vi.fn().mockResolvedValue(undefined);
-    const redeployServices = vi.fn().mockResolvedValue(undefined);
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-
-    try {
-      await stageByokWindow({
-        env: 'dev',
-        getServiceVariable: () => KEY_A_HEX,
-        getServiceVariableOrEmpty: () => '',
-        resolveByokIds: () => MOCK_IDS,
-        assertServiceDeploymentReady,
-        upsertVariable,
-        redeployServices,
-      });
-
-      expect(assertServiceDeploymentReady).toHaveBeenCalledTimes(2);
-      expect(assertServiceDeploymentReady).toHaveBeenNthCalledWith(1, {
-        environmentId: 'envid',
-        serviceId: 'svc-api-gateway',
-        serviceName: 'api-gateway',
-        env: 'dev',
-      });
-      expect(assertServiceDeploymentReady).toHaveBeenNthCalledWith(2, {
-        environmentId: 'envid',
-        serviceId: 'svc-ai-worker',
-        serviceName: 'ai-worker',
-        env: 'dev',
-      });
-
-      expect(upsertVariable).toHaveBeenCalledTimes(4);
-      expect(upsertVariable.mock.calls[0][0]).toMatchObject({
-        serviceId: 'svc-api-gateway',
-        name: 'API_KEY_ENCRYPTION_KEY_PREVIOUS',
-        value: KEY_A_HEX,
-      });
-      expect(upsertVariable.mock.calls[1][0]).toMatchObject({
-        serviceId: 'svc-ai-worker',
-        name: 'API_KEY_ENCRYPTION_KEY_PREVIOUS',
-        value: KEY_A_HEX,
-      });
-      expect(upsertVariable.mock.calls[2][0]).toMatchObject({
-        serviceId: 'svc-api-gateway',
-        name: 'API_KEY_ENCRYPTION_KEY',
-      });
-      expect(upsertVariable.mock.calls[3][0]).toMatchObject({
-        serviceId: 'svc-ai-worker',
-        name: 'API_KEY_ENCRYPTION_KEY',
-      });
-      expect(redeployServices).toHaveBeenCalledWith('dev', MOCK_IDS, expect.any(Function));
-
-      const setLines = logSpy.mock.calls
-        .map(call => String(call[0]))
-        .filter(line => line.includes('  set '));
-      expect(setLines).toHaveLength(4);
-      expect(setLines[0]).toContain('  set API_KEY_ENCRYPTION_KEY_PREVIOUS on api-gateway (dev)');
-      expect(setLines[1]).toContain('  set API_KEY_ENCRYPTION_KEY_PREVIOUS on ai-worker (dev)');
-      expect(setLines[2]).toContain('  set API_KEY_ENCRYPTION_KEY on api-gateway (dev)');
-      expect(setLines[3]).toContain('  set API_KEY_ENCRYPTION_KEY on ai-worker (dev)');
-    } finally {
-      logSpy.mockRestore();
-    }
-  });
-
-  it('refuses before any upsert when a service is not ready', async () => {
-    const assertServiceDeploymentReady = vi.fn().mockImplementation(async ({ serviceName }) => {
-      if (serviceName === 'ai-worker') {
-        throw new Error(
-          "ai-worker's latest deployment is INITIALIZING, not SUCCESS — wait for it to settle (or fix it), then re-run. Nothing was changed."
-        );
-      }
+describe('stageUpsertFailureError (NEXT phases)', () => {
+  it('tells the operator to re-run stage 1 when a NEXT write fails, and that CURRENT is unchanged', () => {
+    const err = stageUpsertFailureError({
+      env: 'dev',
+      phase: 'next',
+      failedService: 'ai-worker',
     });
-    const upsertVariable = vi.fn().mockResolvedValue(undefined);
-    const redeployServices = vi.fn().mockResolvedValue(undefined);
 
-    await expect(
-      stageByokWindow({
-        env: 'dev',
-        getServiceVariable: () => KEY_A_HEX,
-        getServiceVariableOrEmpty: () => '',
-        resolveByokIds: () => MOCK_IDS,
-        assertServiceDeploymentReady,
-        upsertVariable,
-        redeployServices,
-      })
-    ).rejects.toThrow("ai-worker's latest deployment is INITIALIZING, not SUCCESS");
+    expect(err.message).toBe(
+      'Failed to upsert API_KEY_ENCRYPTION_KEY_NEXT on ai-worker (dev); it may or may not have applied. Re-run stage 1, which regenerates it; API_KEY_ENCRYPTION_KEY has not changed. No stored row has been touched; stage 2 has not run.'
+    );
+    expect(err.cause).toBeUndefined();
+  });
 
-    expect(upsertVariable).not.toHaveBeenCalled();
-    expect(redeployServices).not.toHaveBeenCalled();
+  it('tells the operator to run stage 2 when the NEXT delete fails after every key write landed', () => {
+    const err = stageUpsertFailureError({
+      env: 'prod',
+      phase: 'delete-next',
+      failedService: 'api-gateway',
+    });
+
+    expect(err.message).toBe(
+      'Failed to delete API_KEY_ENCRYPTION_KEY_NEXT on api-gateway (prod); it may or may not have applied. Every key write landed and a leftover API_KEY_ENCRYPTION_KEY_NEXT equals API_KEY_ENCRYPTION_KEY, so it decrypts nothing extra: run stage 2, which redeploys both services itself and waits for each to reach SUCCESS; stage 3 deletes the leftover. No stored row has been touched; stage 2 has not run.'
+    );
+    expect(err.cause).toBeUndefined();
   });
 });
