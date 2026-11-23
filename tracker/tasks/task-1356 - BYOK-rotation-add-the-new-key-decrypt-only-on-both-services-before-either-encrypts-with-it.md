@@ -37,4 +37,10 @@ Owner ruling (2026-11-20, AUQ): YES, redesign the rotation (against the leave-as
 Design ruling (Lila AUQ 2026-11-22): decrypt-only API_KEY_ENCRYPTION_KEY_NEXT slot folded into stage 1 (stage NEXT on both, redeploy+wait with old-deployment-gone gate, then swap CURRENT/PREVIOUS and delete NEXT). Rejected: reusing PREVIOUS (state not identifiable from Railway vars alone). Restarts 3 to 4 per service per rotation, no new command. Before build: probe in dev what Railway reports for a superseded deployment. Acceptance: dev end-to-end rotation with a live mixed-state read.
 
 Driver calls 2026-11-22 (engineering, not owner): NEXT equal to CURRENT counts as unset (mirrors PREVIOUS normalisation; fixes a stage-1/2/3 refusal loop after an interrupted swap that dispatch 1 found); differing NEXT in an open window refuses with the deploy:var-delete command. Stage-1 test counts 4->6 updated as intended behaviour change. Spec: docs/local/dispatch/task-1356-spec.md (Amendments 1-2).
+
+Shipped in PR 2788 (develop 28b754100). Dev end-to-end rotation, 2026-11-22 (UTC 02:17-02:23 on 11-23):
+- Abort path: stage 1 stopped mid-drain; NEXT deleted on both services and both redeployed. Startup logs went from byokNextKeySet true (prepare deployments e66c0338, 04bfdb71) to false (5bb8fcaa, aceb036b).
+- Stage 1 passed. Prepare deployments e27b3cfb (api-gateway) and 7acc500d (ai-worker) logged byokNextKeySet true before the swap: runtime evidence that a reuse-image redeploy loads a skipDeploys variable. Post-swap deployments 7745127d and 8d8f6d8f log PREVIOUS set, NEXT unset.
+- Stage 2 passed: user_api_keys 3 re-encrypted, 0 unreadable; user_credentials has 0 rows; all rows verified on the current key.
+- Open: the live BYOK-backed request the rotation doc requires before stage 3. Two attempts did not reach the dev bot (dev bot-client logged no events after 02:21Z). Lila ruled (AUQ "Keep window open"): the dev window stays open, PREVIOUS still held, until a BYOK reply from the dev bot is observed; then check logs, run stage 3, and close this task.
 <!-- SECTION:NOTES:END -->
