@@ -41,6 +41,9 @@ vi.mock('node:fs', () => ({
   statSync: vi.fn(),
 }));
 
+// The listing tests resolve commands/preset/index.*; stub it so no real command module graph loads.
+vi.mock('../commands/preset/index.js', () => ({}));
+
 const mockEmitCommandEvent = vi.fn();
 vi.mock('../observability/emitCommandEvent.js', () => ({
   emitCommandEvent: (...args: unknown[]) => mockEmitCommandEvent(...args),
