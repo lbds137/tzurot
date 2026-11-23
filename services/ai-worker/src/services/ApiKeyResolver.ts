@@ -87,8 +87,8 @@ export class UndecryptableApiKeyError extends Error {
  * false — the SERVICE's encryption env is malformed, or set differently from the
  * key injected into this resolver. A deploy bug, not a user problem.
  * `isEncryptionConfigured()` is also false when `API_KEY_ENCRYPTION_KEY_PREVIOUS`
- * is set but malformed during a rotation window, so that classifies here too
- * (a real deploy fault).
+ * or `API_KEY_ENCRYPTION_KEY_NEXT` is set but malformed during a rotation, so
+ * that classifies here too (a real deploy fault).
  * A fully UNSET key is NOT covered here: the resolver then holds an empty key,
  * skips the user lookup and serves guest mode, so this error is never thrown.
  * That gap is tracked as TASK-1488.
@@ -158,7 +158,7 @@ export class ApiKeyResolver {
     if (!isEncryptionConfigured()) {
       logger.warn(
         { component: 'ApiKeyResolver' },
-        'API_KEY_ENCRYPTION_KEY (or API_KEY_ENCRYPTION_KEY_PREVIOUS) missing or malformed - any stored BYOK key will fail loudly (EncryptionMisconfiguredError); users without a key use the system key as guests'
+        'API_KEY_ENCRYPTION_KEY (or API_KEY_ENCRYPTION_KEY_PREVIOUS) missing or malformed, or API_KEY_ENCRYPTION_KEY_NEXT malformed - any stored BYOK key will fail loudly (EncryptionMisconfiguredError); users without a key use the system key as guests'
       );
     }
   }

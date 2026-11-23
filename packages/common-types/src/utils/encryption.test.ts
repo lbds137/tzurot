@@ -7,6 +7,7 @@ import {
   parseEncryptionKeyMaterial,
   isValidEncryptedData,
   isEncryptionConfigured,
+  getEncryptionKeySlots,
   type EncryptedData,
 } from './encryption.js';
 
@@ -146,6 +147,62 @@ describe('Encryption Utilities', () => {
       vi.stubEnv('API_KEY_ENCRYPTION_KEY_PREVIOUS', OLD_KEY);
 
       expect(() => decryptApiKey(encrypted)).toThrow();
+    });
+  });
+
+  describe('decrypt-only NEXT slot', () => {
+    const OLD_KEY = 'b'.repeat(64);
+    const NEXT_KEY = 'c'.repeat(64);
+
+    function encryptUnder(key: string): EncryptedData {
+      return encryptWithKey(TEST_API_KEY, Buffer.from(key, 'hex'));
+    }
+
+    it('decrypts a row written under NEXT only while NEXT is set', () => {
+      const encrypted = encryptUnder(NEXT_KEY);
+
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_NEXT', NEXT_KEY);
+      expect(decryptApiKey(encrypted)).toBe(TEST_API_KEY);
+
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_NEXT', '');
+      expect(() => decryptApiKey(encrypted)).toThrow();
+    });
+
+    it('decrypts a NEXT row with CURRENT, PREVIOUS and NEXT all set', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_PREVIOUS', OLD_KEY);
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_NEXT', NEXT_KEY);
+
+      expect(decryptApiKey(encryptUnder(NEXT_KEY))).toBe(TEST_API_KEY);
+      expect(decryptApiKey(encryptUnder(OLD_KEY))).toBe(TEST_API_KEY);
+    });
+
+    it('treats an EMPTY NEXT variable as unset', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_NEXT', '');
+
+      expect(() => decryptApiKey(encryptUnder(NEXT_KEY))).toThrow();
+    });
+
+    it('never encrypts under NEXT: encryptApiKey uses CURRENT even with NEXT set', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_NEXT', NEXT_KEY);
+      const encrypted = encryptApiKey(TEST_API_KEY);
+
+      expect(decryptWithKey(encrypted, Buffer.from(VALID_MASTER_KEY, 'hex'))).toBe(TEST_API_KEY);
+      expect(() => decryptWithKey(encrypted, Buffer.from(NEXT_KEY, 'hex'))).toThrow();
+    });
+
+    it('reports isEncryptionConfigured false when a present NEXT is malformed', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_NEXT', 'not-hex-and-wrong-length');
+
+      expect(isEncryptionConfigured()).toBe(false);
+    });
+
+    it('throws the CURRENT config error for a malformed CURRENT even with a valid NEXT', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', 'g'.repeat(64));
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_NEXT', NEXT_KEY);
+
+      expect(() => decryptApiKey(encryptUnder(NEXT_KEY))).toThrow(
+        /API_KEY_ENCRYPTION_KEY must contain only hexadecimal/
+      );
     });
   });
 
@@ -298,6 +355,52 @@ describe('Encryption Utilities', () => {
       vi.stubEnv('API_KEY_ENCRYPTION_KEY_PREVIOUS', 'not-hex-and-wrong-length');
 
       expect(isEncryptionConfigured()).toBe(false);
+    });
+  });
+
+  describe('getEncryptionKeySlots', () => {
+    const savedPrevious = process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+    const savedNext = process.env.API_KEY_ENCRYPTION_KEY_NEXT;
+
+    beforeEach(() => {
+      // Start from truly absent variables, not empty ones, so the unset branch is exercised.
+      delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+      delete process.env.API_KEY_ENCRYPTION_KEY_NEXT;
+    });
+
+    afterEach(() => {
+      if (savedPrevious === undefined) {
+        delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+      } else {
+        process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS = savedPrevious;
+      }
+      if (savedNext === undefined) {
+        delete process.env.API_KEY_ENCRYPTION_KEY_NEXT;
+      } else {
+        process.env.API_KEY_ENCRYPTION_KEY_NEXT = savedNext;
+      }
+    });
+
+    it('reports neither slot set when both variables are absent', () => {
+      expect(getEncryptionKeySlots()).toEqual({ previousKeySet: false, nextKeySet: false });
+    });
+
+    it('reports only the PREVIOUS slot when only PREVIOUS is set', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_PREVIOUS', 'b'.repeat(64));
+
+      expect(getEncryptionKeySlots()).toEqual({ previousKeySet: true, nextKeySet: false });
+    });
+
+    it('reports only the NEXT slot when only NEXT is set', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_NEXT', 'c'.repeat(64));
+
+      expect(getEncryptionKeySlots()).toEqual({ previousKeySet: false, nextKeySet: true });
+    });
+
+    it('treats an empty NEXT as unset, exactly as the NEXT getter does', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_NEXT', '');
+
+      expect(getEncryptionKeySlots()).toEqual({ previousKeySet: false, nextKeySet: false });
     });
   });
 

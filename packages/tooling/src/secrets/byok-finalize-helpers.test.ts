@@ -16,6 +16,7 @@ vi.mock('../deployment/railway-status.js', () => ({
 import {
   assertFinalizeWindowState,
   classifyFinalizeWindow,
+  deleteByokVariable,
   deleteFailureError,
   resolveServiceIds,
 } from './byok-finalize-helpers.js';
@@ -209,5 +210,106 @@ describe('deleteFailureError', () => {
     );
     expect(err.message).toContain('re-run stage 3 with --resume');
     expect(err.cause).toBe(cause);
+  });
+
+  it('with PREVIOUS already deleted everywhere and nothing absent yet, points at --resume', () => {
+    const cause = new Error('api error');
+    const err = deleteFailureError({
+      env: 'prod',
+      service: 'api-gateway',
+      services: ['api-gateway', 'ai-worker'],
+      absentNow: [],
+      varName: 'API_KEY_ENCRYPTION_KEY_NEXT',
+      error: cause,
+      previousAlreadyDeleted: true,
+    });
+
+    expect(err.message).toBe(
+      'Failed to delete API_KEY_ENCRYPTION_KEY_NEXT on api-gateway (prod). API_KEY_ENCRYPTION_KEY_PREVIOUS is already deleted on every service; re-run stage 3 with --resume to retry.'
+    );
+    expect(err.cause).toBe(cause);
+  });
+
+  it('keeps the var-delete listing when previousAlreadyDeleted is true but a service is already absent', () => {
+    const err = deleteFailureError({
+      env: 'dev',
+      service: 'b',
+      services: ['a', 'b'],
+      absentNow: ['a'],
+      varName: 'X',
+      error: new Error('api error'),
+      previousAlreadyDeleted: true,
+    });
+
+    expect(err.message).toContain('may still be set on b');
+  });
+});
+
+describe('deleteByokVariable', () => {
+  const IDS = {
+    'api-gateway': { projectId: 'p', environmentId: 'e', serviceId: 's-gw' },
+    'ai-worker': { projectId: 'p', environmentId: 'e', serviceId: 's-aw' },
+  };
+
+  it('skips a service whose variable is absent and deletes the rest', async () => {
+    const deleteVariable = vi.fn().mockResolvedValue(undefined);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    try {
+      await deleteByokVariable({
+        env: 'dev',
+        ids: IDS,
+        varName: 'X',
+        readRaw: (_env, svc) => (svc === 'api-gateway' ? undefined : 'v'),
+        deleteVariable,
+        previousAlreadyDeleted: false,
+      });
+
+      expect(deleteVariable).toHaveBeenCalledTimes(1);
+      expect(deleteVariable).toHaveBeenCalledWith({ ...IDS['ai-worker'], name: 'X', env: 'dev' });
+      const lines = logSpy.mock.calls.map(call => String(call[0]));
+      expect(lines.some(line => line.includes('X already absent on api-gateway (dev)'))).toBe(true);
+      expect(lines.some(line => line.includes('deleted X on ai-worker (dev)'))).toBe(true);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('throws the partial-delete message naming what is left when a later delete fails', async () => {
+    const deleteVariable = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('boom'));
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    try {
+      await expect(
+        deleteByokVariable({
+          env: 'dev',
+          ids: IDS,
+          varName: 'X',
+          readRaw: () => 'v',
+          deleteVariable,
+          previousAlreadyDeleted: false,
+        })
+      ).rejects.toThrow('It is now absent on api-gateway but may still be set on ai-worker');
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('passes previousAlreadyDeleted through to the first-delete failure message', async () => {
+    const deleteVariable = vi.fn().mockRejectedValue(new Error('boom'));
+
+    await expect(
+      deleteByokVariable({
+        env: 'dev',
+        ids: IDS,
+        varName: 'X',
+        readRaw: () => 'v',
+        deleteVariable,
+        previousAlreadyDeleted: true,
+      })
+    ).rejects.toThrow('already deleted on every service; re-run stage 3 with --resume to retry');
   });
 });

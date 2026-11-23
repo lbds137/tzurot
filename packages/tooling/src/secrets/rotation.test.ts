@@ -38,6 +38,8 @@ const {
   redeployRailwayServiceReusingImage,
   redeployRailwayServiceReusingImageWithSource,
   getRailwayServiceLatestDeployment,
+  getRailwayDeploymentStatus,
+  listRailwayLiveDeploymentIds,
   resolveRailwayIds,
 } = vi.hoisted(() => ({
   assertRailwayServiceDeploymentReady: vi.fn(),
@@ -47,6 +49,8 @@ const {
   redeployRailwayServiceReusingImage: vi.fn(),
   redeployRailwayServiceReusingImageWithSource: vi.fn(),
   getRailwayServiceLatestDeployment: vi.fn(),
+  getRailwayDeploymentStatus: vi.fn(),
+  listRailwayLiveDeploymentIds: vi.fn(),
   resolveRailwayIds: vi.fn((_env: string, service: string): RailwayIds => ({
     projectId: 'proj',
     environmentId: 'envid',
@@ -66,6 +70,13 @@ vi.mock('../deployment/railway-api.js', () => ({
   RailwayRedeployRefusedError: class RailwayRedeployRefusedError extends Error {
     name = 'RailwayRedeployRefusedError';
   },
+}));
+
+vi.mock('../deployment/railway-deployment-status.js', () => ({
+  getRailwayDeploymentStatus,
+  listRailwayLiveDeploymentIds,
+  // A constant, not a fake: deployment-removal-wait.ts reads it to end the drain.
+  NOT_LIVE_STATUSES: ['REMOVED', 'SKIPPED', 'FAILED'],
 }));
 
 vi.mock('../deployment/railway-status.js', () => ({
@@ -105,6 +116,68 @@ function stubRailwayVars(vars: Record<string, string>): void {
     }
     return '';
   });
+}
+
+type VarStore = Record<string, Record<string, string>>;
+
+/** The same Railway variables on both BYOK services. */
+function bothServices(vars: Record<string, string>): VarStore {
+  return { 'api-gateway': { ...vars }, 'ai-worker': { ...vars } };
+}
+
+/**
+ * Stateful Railway fake: `upsertRailwayVariable` / `deleteRailwayVariable` mutate a
+ * per-service store that the `railway variables --json` stub reads, so a stage
+ * that re-reads its keys sees its own writes. `failures` injects a rejection at
+ * the Nth write (upserts and deletes share one counter); `applied: true` makes
+ * the write land before it rejects. Returns the live store.
+ */
+function useStatefulRailway(
+  byService: VarStore,
+  failures: Record<number, { error?: Error; applied?: boolean }> = {}
+): VarStore {
+  const store: VarStore = {
+    'api-gateway': { ...byService['api-gateway'] },
+    'ai-worker': { ...byService['ai-worker'] },
+  };
+  const varsOf = (serviceId: string): Record<string, string> => {
+    const vars = store[serviceId.replace('svc-', '')];
+    if (vars === undefined) {
+      throw new Error(`unknown service id ${serviceId}`);
+    }
+    return vars;
+  };
+  let writes = 0;
+  const write = (mutate: () => void): Promise<void> => {
+    const failure = failures[writes++];
+    if (failure === undefined) {
+      mutate();
+      return Promise.resolve();
+    }
+    if (failure.applied === true) {
+      mutate();
+    }
+    return Promise.reject(failure.error ?? new Error('write boom'));
+  };
+  upsertRailwayVariable.mockImplementation(
+    (args: { serviceId: string; name: string; value: string }) =>
+      write(() => {
+        varsOf(args.serviceId)[args.name] = args.value;
+      })
+  );
+  deleteRailwayVariable.mockImplementation((args: { serviceId: string; name: string }) =>
+    write(() => {
+      delete varsOf(args.serviceId)[args.name];
+    })
+  );
+  mockExecFileSync.mockImplementation((_cmd: unknown, args: unknown) => {
+    if (Array.isArray(args) && args.includes('--json')) {
+      const service = String(args[args.indexOf('--service') + 1]);
+      return JSON.stringify(store[service] ?? {});
+    }
+    return '';
+  });
+  return store;
 }
 
 describe('markSecretRotated', () => {
@@ -173,6 +246,12 @@ describe('rotateByokKey', () => {
     );
     getRailwayServiceLatestDeployment.mockImplementation(({ serviceId }: { serviceId: string }) =>
       Promise.resolve({ id: `new-${serviceId}`, status: 'SUCCESS' })
+    );
+    // Stage 1's drain: the superseded deployment is already gone.
+    getRailwayDeploymentStatus.mockResolvedValue('REMOVED');
+    // Stage 1's pre-swap check: only this run's new deployment is still live.
+    listRailwayLiveDeploymentIds.mockImplementation(({ serviceId }: { serviceId: string }) =>
+      Promise.resolve([`new-${serviceId}`])
     );
     resolveRailwayIds.mockImplementation((_env: string, service: string) => ({
       projectId: 'proj',
@@ -252,7 +331,7 @@ describe('rotateByokKey', () => {
     // entirely before the first rotation — absent must read as unset, not
     // throw — the window guard must treat a missing key as "no previous key"
     // rather than dereferencing it.
-    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
+    useStatefulRailway(bothServices({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX }));
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
     try {
@@ -263,7 +342,25 @@ describe('rotateByokKey', () => {
       );
       expect(setCalls).toHaveLength(0);
 
-      expect(upsertRailwayVariable).toHaveBeenCalledTimes(4);
+      // NEXT x2, PREVIOUS x2, CURRENT x2.
+      expect(upsertRailwayVariable).toHaveBeenCalledTimes(6);
+      const nextCalls = upsertRailwayVariable.mock.calls
+        .map(call => call[0] as { name: string; value: string; skipDeploys: boolean })
+        .filter(arg => arg.name === 'API_KEY_ENCRYPTION_KEY_NEXT');
+      expect(nextCalls).toHaveLength(2);
+      expect(nextCalls[0].value).toMatch(/^[0-9a-f]{64}$/);
+      expect(nextCalls[1].value).toBe(nextCalls[0].value);
+      expect(nextCalls.every(arg => arg.skipDeploys)).toBe(true);
+      expect(deleteRailwayVariable).toHaveBeenCalledTimes(2);
+      for (const serviceId of ['svc-api-gateway', 'svc-ai-worker']) {
+        expect(deleteRailwayVariable).toHaveBeenCalledWith({
+          projectId: 'proj',
+          environmentId: 'envid',
+          serviceId,
+          name: 'API_KEY_ENCRYPTION_KEY_NEXT',
+          env: 'dev',
+        });
+      }
       for (const serviceId of ['svc-api-gateway', 'svc-ai-worker']) {
         expect(upsertRailwayVariable).toHaveBeenCalledWith({
           projectId: 'proj',
@@ -292,6 +389,17 @@ describe('rotateByokKey', () => {
       expect(currentCalls[0].value).toMatch(/^[0-9a-f]{64}$/);
       expect(currentCalls[0].value).not.toBe(KEY_A_HEX);
       expect(currentCalls[1].value).toBe(currentCalls[0].value);
+      // The key promoted to CURRENT is the one that was staged (and drained) as NEXT.
+      expect(currentCalls[0].value).toBe(nextCalls[0].value);
+      // The drain polled each service's SUPERSEDED deployment, not its replacement.
+      expect(getRailwayDeploymentStatus).toHaveBeenCalledWith({
+        deploymentId: 'old-svc-api-gateway',
+        env: 'dev',
+      });
+      expect(getRailwayDeploymentStatus).toHaveBeenCalledWith({
+        deploymentId: 'old-svc-ai-worker',
+        env: 'dev',
+      });
 
       expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
       expect(redeployRailwayServiceReusingImage).toHaveBeenCalledWith({
@@ -335,6 +443,9 @@ describe('rotateByokKey', () => {
 
       const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
       expect(allOutput).not.toMatch(/[0-9a-f]{64}/);
+      expect(allOutput).toContain('  set API_KEY_ENCRYPTION_KEY_NEXT on api-gateway (dev)');
+      expect(allOutput).toContain('  set API_KEY_ENCRYPTION_KEY_NEXT on ai-worker (dev)');
+      expect(allOutput).toContain('  deleted API_KEY_ENCRYPTION_KEY_NEXT on ai-worker (dev)');
       expect(allOutput).toContain('  set API_KEY_ENCRYPTION_KEY_PREVIOUS on api-gateway (dev)');
       expect(allOutput).toContain('  set API_KEY_ENCRYPTION_KEY_PREVIOUS on ai-worker (dev)');
       expect(allOutput).toContain('  set API_KEY_ENCRYPTION_KEY on api-gateway (dev)');
@@ -344,9 +455,11 @@ describe('rotateByokKey', () => {
     }
   });
 
-  it('stage 1 failure state 1 (1st upsert fails — PREVIOUS on first service): honest may-or-may-not-have-applied message, re-run stage 1', async () => {
-    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
-    upsertRailwayVariable.mockRejectedValueOnce(new Error('upsert boom'));
+  // The failing upsert's index follows stage 1's write order: 0-1 NEXT, 2-3 PREVIOUS, 4-5 CURRENT.
+  it('stage 1 failure state 1 (upsert 3 fails — PREVIOUS on first service): honest may-or-may-not-have-applied message, re-run stage 1', async () => {
+    useStatefulRailway(bothServices({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX }), {
+      2: { error: new Error('upsert boom') },
+    });
 
     let caught: unknown;
     try {
@@ -363,11 +476,10 @@ describe('rotateByokKey', () => {
     expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
   });
 
-  it('stage 1 failure state 2 (2nd upsert fails — PREVIOUS on second service): honest may-or-may-not-have-applied message, re-run stage 1', async () => {
-    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
-    upsertRailwayVariable
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('upsert boom'));
+  it('stage 1 failure state 2 (upsert 4 fails — PREVIOUS on second service): honest may-or-may-not-have-applied message, re-run stage 1', async () => {
+    useStatefulRailway(bothServices({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX }), {
+      3: { error: new Error('upsert boom') },
+    });
 
     let caught: unknown;
     try {
@@ -384,12 +496,10 @@ describe('rotateByokKey', () => {
     expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
   });
 
-  it('stage 1 failure state 3 (3rd upsert fails — CURRENT on first service): re-run stage 1 and follow what it reports, with deploy:redeploy commands', async () => {
-    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
-    upsertRailwayVariable
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('upsert boom'));
+  it('stage 1 failure state 3 (upsert 5 fails — CURRENT on first service): re-run stage 1 and follow what it reports, with deploy:redeploy commands', async () => {
+    useStatefulRailway(bothServices({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX }), {
+      4: { error: new Error('upsert boom') },
+    });
 
     let caught: unknown;
     try {
@@ -406,13 +516,10 @@ describe('rotateByokKey', () => {
     expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
   });
 
-  it('stage 1 failure state 4 (4th upsert fails — CURRENT on second service): re-run stage 1 and follow what it reports, with deploy:redeploy commands', async () => {
-    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
-    upsertRailwayVariable
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('upsert boom'));
+  it('stage 1 failure state 4 (upsert 6 fails — CURRENT on second service): re-run stage 1 and follow what it reports, with deploy:redeploy commands', async () => {
+    useStatefulRailway(bothServices({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX }), {
+      5: { error: new Error('upsert boom') },
+    });
 
     let caught: unknown;
     try {
@@ -430,13 +537,11 @@ describe('rotateByokKey', () => {
   });
 
   it('stage 1 never leaks old or new key material in util.inspect(caught) or console.log when an upsert rejects with the old key', async () => {
-    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
+    // Upsert 6 (CURRENT on the second service) rejects carrying the old key.
+    useStatefulRailway(bothServices({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX }), {
+      5: { error: new Error(`upsert failed with key ${KEY_A_HEX}`) },
+    });
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    upsertRailwayVariable
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error(`upsert failed with key ${KEY_A_HEX}`));
 
     let caught: unknown;
     try {
@@ -444,7 +549,7 @@ describe('rotateByokKey', () => {
     } catch (error) {
       caught = error;
     } finally {
-      const newKeyHex = (upsertRailwayVariable.mock.calls[2][0] as { value: string }).value;
+      const newKeyHex = (upsertRailwayVariable.mock.calls[4][0] as { value: string }).value;
       expect(newKeyHex).toMatch(/^[0-9a-f]{64}$/);
       expect(newKeyHex).not.toBe(KEY_A_HEX);
 
@@ -467,7 +572,7 @@ describe('rotateByokKey', () => {
   });
 
   it('stage 1 attempts both redeploys and throws when one service fails to redeploy', async () => {
-    stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
+    useStatefulRailway(bothServices({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX }));
     redeployRailwayServiceReusingImage.mockImplementation(({ serviceId }: { serviceId: string }) =>
       serviceId === 'svc-api-gateway'
         ? Promise.reject(new Error('redeploy boom'))
@@ -483,15 +588,17 @@ describe('rotateByokKey', () => {
   });
 
   it('stage 1 proceeds when PREVIOUS equals CURRENT on both services (degenerate window)', async () => {
-    stubRailwayVars({
-      API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
-      API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_A_HEX,
-    });
+    useStatefulRailway(
+      bothServices({
+        API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+        API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_A_HEX,
+      })
+    );
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
     try {
       await expect(rotateByokKey({ env: 'dev', stage: '1' })).resolves.toBeUndefined();
-      expect(upsertRailwayVariable).toHaveBeenCalledTimes(4);
+      expect(upsertRailwayVariable).toHaveBeenCalledTimes(6);
       expect(redeployRailwayServiceReusingImage).toHaveBeenCalledTimes(2);
     } finally {
       logSpy.mockRestore();
@@ -1073,7 +1180,7 @@ describe('rotateByokKey', () => {
   });
 
   it('consistency guard accepts gateway PREVIOUS equal to its CURRENT while worker PREVIOUS is absent', async () => {
-    stubRailwayVarsPerService({
+    useStatefulRailway({
       'api-gateway': {
         API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
         API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_A_HEX,
@@ -1086,7 +1193,7 @@ describe('rotateByokKey', () => {
 
     try {
       await expect(rotateByokKey({ env: 'dev', stage: '1' })).resolves.toBeUndefined();
-      expect(upsertRailwayVariable).toHaveBeenCalledTimes(4);
+      expect(upsertRailwayVariable).toHaveBeenCalledTimes(6);
     } finally {
       logSpy.mockRestore();
     }
@@ -1284,6 +1391,216 @@ describe('rotateByokKey', () => {
     expect(mockPrisma.secretRotation.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ where: { name: 'byok-encryption-key' } })
     );
+  });
+
+  describe('a staged NEXT key across the stages (stateful Railway fake)', () => {
+    const KEY_C_HEX = 'c'.repeat(64);
+    const KEY_D_HEX = 'd'.repeat(64);
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      mockPrisma.userApiKey.findMany.mockResolvedValue([]);
+      mockPrisma.userCredential.findMany.mockResolvedValue([]);
+      mockPrisma.secretRotation.upsert.mockResolvedValue({});
+      vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    });
+
+    it('stage 1 is NOT blocked by a NEXT mismatch between services: it regenerates', async () => {
+      const store = useStatefulRailway({
+        'api-gateway': {
+          API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+          API_KEY_ENCRYPTION_KEY_NEXT: KEY_C_HEX,
+        },
+        'ai-worker': { API_KEY_ENCRYPTION_KEY: KEY_A_HEX, API_KEY_ENCRYPTION_KEY_NEXT: KEY_D_HEX },
+      });
+
+      await rotateByokKey({ env: 'dev', stage: '1' });
+
+      const promoted = store['api-gateway']?.API_KEY_ENCRYPTION_KEY;
+      expect(promoted).toMatch(/^[0-9a-f]{64}$/);
+      expect([KEY_A_HEX, KEY_C_HEX, KEY_D_HEX]).not.toContain(promoted);
+      expect(store['ai-worker']?.API_KEY_ENCRYPTION_KEY).toBe(promoted);
+    });
+
+    it('stage 3 deletes a NEXT equal to CURRENT on both services alongside PREVIOUS', async () => {
+      const store = useStatefulRailway(
+        bothServices({
+          API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+          API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+          API_KEY_ENCRYPTION_KEY_NEXT: KEY_A_HEX,
+        })
+      );
+
+      await rotateByokKey({ env: 'dev', stage: '3' });
+
+      const deleted = deleteRailwayVariable.mock.calls.map(
+        call =>
+          `${(call[0] as { serviceId: string }).serviceId}:${(call[0] as { name: string }).name}`
+      );
+      expect(deleted).toEqual([
+        'svc-api-gateway:API_KEY_ENCRYPTION_KEY_PREVIOUS',
+        'svc-ai-worker:API_KEY_ENCRYPTION_KEY_PREVIOUS',
+        'svc-api-gateway:API_KEY_ENCRYPTION_KEY_NEXT',
+        'svc-ai-worker:API_KEY_ENCRYPTION_KEY_NEXT',
+      ]);
+      expect(store['api-gateway']).toEqual({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
+      expect(mockPrisma.secretRotation.upsert).toHaveBeenCalledTimes(1);
+    });
+
+    it('stage 3 refuses a NEXT that differs from CURRENT while a window is open, naming the var-delete commands, before any delete or ledger stamp', async () => {
+      useStatefulRailway(
+        bothServices({
+          API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+          API_KEY_ENCRYPTION_KEY_PREVIOUS: KEY_B_HEX,
+          API_KEY_ENCRYPTION_KEY_NEXT: KEY_C_HEX,
+        })
+      );
+
+      const promise = rotateByokKey({ env: 'dev', stage: '3' });
+
+      await expect(promise).rejects.toThrow(
+        '`pnpm ops deploy:var-delete --env dev --service api-gateway --name API_KEY_ENCRYPTION_KEY_NEXT --yes`'
+      );
+      await expect(promise).rejects.toThrow('while a rotation window is open');
+      expect(deleteRailwayVariable).not.toHaveBeenCalled();
+      expect(redeployRailwayServiceReusingImage).not.toHaveBeenCalled();
+      expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
+    });
+
+    it('stage 3 --resume with PREVIOUS gone refuses a NEXT that differs from CURRENT (re-run stage 1) before any verify, delete or ledger stamp', async () => {
+      useStatefulRailway(
+        bothServices({
+          API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+          API_KEY_ENCRYPTION_KEY_NEXT: KEY_C_HEX,
+        })
+      );
+
+      const promise = rotateByokKey({ env: 'dev', stage: '3', resume: true });
+
+      await expect(promise).rejects.toThrow('with no rotation window open');
+      await expect(promise).rejects.toThrow('Re-run stage 1');
+      expect(mockPrisma.userApiKey.findMany).not.toHaveBeenCalled();
+      expect(deleteRailwayVariable).not.toHaveBeenCalled();
+      expect(mockPrisma.secretRotation.upsert).not.toHaveBeenCalled();
+    });
+
+    /** What a failed write leaves behind, then only what the thrown message instructs. */
+    async function walkFromFailedWrite(
+      writeIndex: number,
+      applied: boolean
+    ): Promise<{ messages: string[]; store: VarStore; nextBeforeRerun: string | undefined }> {
+      const store = useStatefulRailway(bothServices({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX }), {
+        [writeIndex]: { applied },
+      });
+      const messages: string[] = [];
+      let nextBeforeRerun: string | undefined;
+
+      const runFollowing = async (stage: '1' | '2'): Promise<void> => {
+        try {
+          await rotateByokKey({ env: 'dev', stage });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          messages.push(message);
+          if (/^API_KEY_ENCRYPTION_KEY DIFFERS/.test(message)) {
+            const gateway = store['api-gateway'];
+            const worker = store['ai-worker'];
+            if (gateway !== undefined && worker !== undefined) {
+              worker.API_KEY_ENCRYPTION_KEY = gateway.API_KEY_ENCRYPTION_KEY ?? '';
+            }
+            return;
+          }
+          if (/^Failed to upsert/.test(message)) {
+            nextBeforeRerun ??= store['api-gateway']?.API_KEY_ENCRYPTION_KEY_NEXT;
+            await runFollowing('1');
+            return;
+          }
+          if (
+            !/^A rotation window is already open/.test(message) &&
+            !/^Failed to delete API_KEY_ENCRYPTION_KEY_NEXT/.test(message)
+          ) {
+            throw error;
+          }
+        }
+      };
+
+      await runFollowing('1');
+      await rotateByokKey({ env: 'dev', stage: '2' });
+      await rotateByokKey({ env: 'dev', stage: '3' });
+      return { messages, store, nextBeforeRerun };
+    }
+
+    const WRITES = [
+      'NEXT on api-gateway',
+      'NEXT on ai-worker',
+      'PREVIOUS on api-gateway',
+      'PREVIOUS on ai-worker',
+      'CURRENT on api-gateway',
+      'CURRENT on ai-worker',
+      'delete NEXT on api-gateway',
+      'delete NEXT on ai-worker',
+    ];
+
+    it.each(
+      WRITES.flatMap((what, index) => [
+        { label: `${what} fails, not applied`, index, applied: false },
+        { label: `${what} fails after applying`, index, applied: true },
+      ])
+    )(
+      'completes the rotation after write $label, following only what the message says',
+      async ({ index, applied }) => {
+        const { messages, store } = await walkFromFailedWrite(index, applied);
+
+        expect(messages.length).toBeGreaterThan(0);
+        for (const message of messages) {
+          expect(message).not.toMatch(/[0-9a-f]{64}/);
+        }
+        for (const service of ['api-gateway', 'ai-worker']) {
+          const vars = store[service] ?? {};
+          expect(vars.API_KEY_ENCRYPTION_KEY).toMatch(/^[0-9a-f]{64}$/);
+          expect(vars.API_KEY_ENCRYPTION_KEY).not.toBe(KEY_A_HEX);
+          expect(vars.API_KEY_ENCRYPTION_KEY_PREVIOUS).toBeUndefined();
+          expect(vars.API_KEY_ENCRYPTION_KEY_NEXT).toBeUndefined();
+        }
+        expect(store['ai-worker']?.API_KEY_ENCRYPTION_KEY).toBe(
+          store['api-gateway']?.API_KEY_ENCRYPTION_KEY
+        );
+        expect(mockPrisma.secretRotation.upsert).toHaveBeenCalledTimes(1);
+      }
+    );
+
+    it('interrupted state: NEXT left on both services (delete phase) is harmless and stage 3 clears it', async () => {
+      const { messages, store } = await walkFromFailedWrite(6, false);
+
+      expect(messages[0]).toMatch(/^Failed to delete API_KEY_ENCRYPTION_KEY_NEXT on api-gateway/);
+      expect(store['api-gateway']?.API_KEY_ENCRYPTION_KEY_NEXT).toBeUndefined();
+      expect(store['ai-worker']?.API_KEY_ENCRYPTION_KEY_NEXT).toBeUndefined();
+    });
+
+    it('interrupted state: NEXT deleted on one service only is harmless and stage 3 clears the other', async () => {
+      const { messages, store } = await walkFromFailedWrite(7, false);
+
+      expect(messages[0]).toMatch(/^Failed to delete API_KEY_ENCRYPTION_KEY_NEXT on ai-worker/);
+      expect(store['ai-worker']?.API_KEY_ENCRYPTION_KEY_NEXT).toBeUndefined();
+    });
+
+    it('interrupted state: CURRENT split between the services makes the guard fire, and copying CURRENT then stage 2 completes', async () => {
+      const { messages } = await walkFromFailedWrite(4, true);
+
+      expect(messages.some(message => /^API_KEY_ENCRYPTION_KEY DIFFERS/.test(message))).toBe(true);
+    });
+
+    it('interrupted state: PREVIOUS-phase interrupted, stage 1 resumes REUSING the equal-on-both NEXT', async () => {
+      const { messages, store, nextBeforeRerun } = await walkFromFailedWrite(3, false);
+
+      expect(messages[0]).toMatch(/^Failed to upsert API_KEY_ENCRYPTION_KEY_PREVIOUS on ai-worker/);
+      expect(nextBeforeRerun).toMatch(/^[0-9a-f]{64}$/);
+      expect(nextBeforeRerun).not.toBe(KEY_A_HEX);
+      expect(store['api-gateway']?.API_KEY_ENCRYPTION_KEY).toBe(nextBeforeRerun);
+    });
   });
 });
 

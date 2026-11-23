@@ -20,19 +20,24 @@ vi.mock('@tzurot/common-types/config/config', async () => {
   };
 });
 
+// One shared logger instance so tests can assert the arguments the module logs.
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    fatal: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      fatal: vi.fn(),
-      debug: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -121,6 +126,7 @@ describe('Startup Utilities', () => {
       // isEncryptionConfigured() reads process.env, not the config argument
       process.env.API_KEY_ENCRYPTION_KEY = 'a'.repeat(64);
       delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+      delete process.env.API_KEY_ENCRYPTION_KEY_NEXT;
     });
 
     afterEach(() => {
@@ -159,6 +165,16 @@ describe('Startup Utilities', () => {
       );
     });
 
+    it('throws when deployed, the key is valid and API_KEY_ENCRYPTION_KEY_NEXT is malformed', () => {
+      process.env.API_KEY_ENCRYPTION_KEY_NEXT = 'not-hex';
+      const config = {
+        ...base,
+        RAILWAY_ENVIRONMENT_NAME: 'production',
+        API_KEY_ENCRYPTION_KEY: 'a'.repeat(64),
+      };
+      expect(() => validateRequiredEnvVars(config as Cfg)).toThrow(/NEXT.*malformed/s);
+    });
+
     it('does not throw on a local run with a malformed API_KEY_ENCRYPTION_KEY_PREVIOUS', () => {
       process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS = 'not-hex';
       const config = { ...base, API_KEY_ENCRYPTION_KEY: 'a'.repeat(64) };
@@ -172,6 +188,24 @@ describe('Startup Utilities', () => {
         API_KEY_ENCRYPTION_KEY: 'a'.repeat(64),
       };
       expect(() => validateRequiredEnvVars(config as Cfg)).not.toThrow();
+    });
+
+    it('logs booleans for the rotation key slots once the primary key is configured', () => {
+      process.env.API_KEY_ENCRYPTION_KEY_NEXT = 'c'.repeat(64);
+      const config = { ...base, API_KEY_ENCRYPTION_KEY: 'a'.repeat(64) };
+      validateRequiredEnvVars(config as Cfg);
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ byokNextKeySet: true, byokPreviousKeySet: false }),
+        'BYOK rotation key slots at startup'
+      );
+    });
+
+    it('does not log the rotation key slots on a local run with no primary key', () => {
+      validateRequiredEnvVars(base as Cfg);
+      expect(mockLogger.info).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'BYOK rotation key slots at startup'
+      );
     });
   });
 
