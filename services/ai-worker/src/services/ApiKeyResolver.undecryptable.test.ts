@@ -106,7 +106,7 @@ describe('ApiKeyResolver — undecryptable stored key', () => {
     expect(result).toMatchObject({ apiKey: 'sk-or-fresh', source: 'user', isGuestMode: false });
   });
 
-  it('rethrows the raw error loudly when the encryption env is unset but the resolver holds a key, and caches nothing', async () => {
+  it('rethrows loudly when the encryption env is unset, and caches nothing', async () => {
     // Row encrypted while configured, then the deploy loses its key.
     const row = encryptApiKey('sk-or-real-specimen');
     findFirst.mockResolvedValue(row);
