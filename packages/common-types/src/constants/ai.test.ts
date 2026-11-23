@@ -469,7 +469,7 @@ describe('getZaiCodingPlanContextLength', () => {
     expect(getZaiCodingPlanContextLength('glm-5.2')).toBe(1_000_000);
   });
 
-  it('should return 1M for glm-5.3 (z.ai-only until the staggered OpenRouter listing lands)', () => {
+  it('should return 1M for glm-5.3 (the catalog is authoritative on z.ai-direct routing)', () => {
     expect(getZaiCodingPlanContextLength('glm-5.3')).toBe(1_000_000);
   });
 
@@ -516,9 +516,11 @@ describe('listZaiCodingPlanModels', () => {
       ].sort()
     );
     expect(byName.get('glm-5.2')?.contextLength).toBe(1_000_000);
-    // z.ai-only entries must carry `released` — it is the only `created`
-    // source for the /models recency sort until an OpenRouter listing exists.
+    // `released` is the /models recency sort's `created` source only for an
+    // entry OpenRouter does not list (glm-5.4); a listed entry such as glm-5.3
+    // takes OpenRouter's `created`, and its `released` stays inert.
     expect(byName.get('glm-5.3')?.released).toBe('2026-08-14');
+    expect(byName.get('glm-5.4')?.released).toBe('2026-11-23');
   });
 
   it('returns bare keys (no z-ai/ prefix) and a docs URL per model', () => {
