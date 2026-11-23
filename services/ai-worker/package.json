@@ -21,7 +21,7 @@
     "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json"
   },
   "dependencies": {
-    "@langchain/core": "^1.4.1",
+    "@langchain/core": "^1.4.2",
     "@langchain/openai": "^1.8.4",
     "@tzurot/cache-invalidation": "workspace:*",
     "@tzurot/common-types": "workspace:*",
@@ -33,7 +33,7 @@
     "fast-xml-parser": "^5.12.1",
     "fflate": "^0.8.3",
     "ioredis": "^5.11.1",
-    "langchain": "^1.6.6",
+    "langchain": "^1.6.7",
     "onnxruntime-node": "^1.31.1",
     "pino": "^10.4.0",
     "sharp": "^0.35.5",
