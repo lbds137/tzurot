@@ -94,7 +94,7 @@ const thisFile = fileURLToPath(import.meta.url);
 /** Test files under `dir` whose source contains `needle`, excluding this guard (it names the needle). */
 function testFilesContaining(dir: string, needle: string): string[] {
   return readdirSync(dir, { recursive: true, encoding: 'utf-8' })
-    .filter(rel => rel.endsWith('.test.ts') && path.basename(rel) !== path.basename(thisFile))
+    .filter(rel => rel.endsWith('.test.ts') && path.join(dir, rel) !== thisFile)
     .filter(rel => readFileSync(path.join(dir, rel), 'utf-8').includes(needle));
 }
 
@@ -130,13 +130,10 @@ describe('tooling test tasks that load the root ESLint config', () => {
   it('has a tooling test that loads the root ESLint config — the positive control for the requirement', () => {
     // Without a loading test the edge above is unnecessary, and this test
     // should be removed together with it. A needle no file contains fails here.
-    const hits = testFilesContaining(
-      path.join(repoRoot, 'packages/tooling/src'),
-      'calculateConfigForFile('
-    );
+    const hits = testFilesContaining(path.join(repoRoot, 'packages/tooling/src'), 'new ESLint(');
     expect(
       hits,
-      'no tooling test resolves the root ESLint config (calculateConfigForFile), so the test-task edges are unnecessary — remove them and this positive control together'
+      'no tooling test constructs an ESLint instance. Before removing the test-task edges with this control, confirm no tooling test still loads the root config another way (a direct eslint.config.js import)'
     ).not.toEqual([]);
   });
 });
