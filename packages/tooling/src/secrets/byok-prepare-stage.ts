@@ -193,7 +193,7 @@ async function assertImagesDecryptWithNext(
     } else {
       // One trailing period is stripped so the joined reasons do not read "...retry.; ...".
       const reason = result.reason.replace(/\.$/, '');
-      // `readFailed` is set only by the gate's live-read catch; the pre-swap check is the only one with `expected` defined.
+      // Only the pre-swap check (expected defined) gets the in-flight prefix; readFailed marks the gate's live-read catch.
       const readFailed = expected !== undefined && result.readFailed;
       failures.push(`${svc}: ${readFailed ? LIVE_READ_FAILED_PREFIX : ''}${reason}`);
     }
