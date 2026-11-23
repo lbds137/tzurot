@@ -120,8 +120,13 @@ describe('checkDeployedCodeAcceptsPrevious', () => {
       env: 'dev',
     });
 
-    expect(result.ok).toBe(false);
-    expect(result.ok === false && result.reason).toContain('services/*/src');
+    expect(result).toEqual({
+      ok: false,
+      readFailed: false,
+      commit: KNOWN_COMMIT,
+      deploymentId: 'dep-1',
+      reason: expect.stringContaining('services/*/src'),
+    });
   });
 
   it('refuses when the deployed commit is not in this clone', async () => {
@@ -140,8 +145,13 @@ describe('checkDeployedCodeAcceptsPrevious', () => {
       env: 'dev',
     });
 
-    expect(result.ok).toBe(false);
-    expect(result.ok === false && result.reason).toContain('git fetch origin');
+    expect(result).toEqual({
+      ok: false,
+      readFailed: false,
+      commit: KNOWN_COMMIT,
+      deploymentId: 'dep-1',
+      reason: expect.stringContaining('git fetch origin'),
+    });
   });
 
   it('refuses when the live deployment cannot be read', async () => {
@@ -155,8 +165,12 @@ describe('checkDeployedCodeAcceptsPrevious', () => {
       env: 'dev',
     });
 
-    expect(result.ok).toBe(false);
-    expect(result.ok === false && result.reason).toContain('network unreachable');
+    // A failed read never reached a deployment, so it has no id or commit to report.
+    expect(result).toEqual({
+      ok: false,
+      readFailed: true,
+      reason: expect.stringContaining('network unreachable'),
+    });
   });
 
   it('refuses when no source file carries the token', async () => {
@@ -172,7 +186,13 @@ describe('checkDeployedCodeAcceptsPrevious', () => {
       env: 'dev',
     });
 
-    expect(result.ok).toBe(false);
+    expect(result).toEqual({
+      ok: false,
+      readFailed: false,
+      commit: KNOWN_COMMIT,
+      deploymentId: 'dep-1',
+      reason: expect.stringContaining('carries no "INTERNAL_SERVICE_SECRET_PREVIOUS"'),
+    });
   });
 
   it('looks for <name>_PREVIOUS derived from the rotated name', async () => {
@@ -361,8 +381,13 @@ describe('checkDeployedCodeDecryptsWithNext', () => {
 
     const result = await checkDeployedCodeDecryptsWithNext(args);
 
-    expect(result.ok).toBe(false);
-    expect(result.ok === false && result.reason).toContain('getNextEncryptionKey');
+    expect(result).toEqual({
+      ok: false,
+      readFailed: false,
+      commit: KNOWN_COMMIT,
+      deploymentId: 'dep-1',
+      reason: expect.stringContaining('does not define getNextEncryptionKey'),
+    });
   });
 
   it('refuses when the deployed commit is not in this clone', async () => {
@@ -375,8 +400,13 @@ describe('checkDeployedCodeDecryptsWithNext', () => {
 
     const result = await checkDeployedCodeDecryptsWithNext(args);
 
-    expect(result.ok).toBe(false);
-    expect(result.ok === false && result.reason).toContain('git fetch origin');
+    expect(result).toEqual({
+      ok: false,
+      readFailed: false,
+      commit: KNOWN_COMMIT,
+      deploymentId: 'dep-1',
+      reason: expect.stringContaining('git fetch origin'),
+    });
   });
 
   it('refuses when the live deployment cannot be read', async () => {
@@ -384,8 +414,11 @@ describe('checkDeployedCodeDecryptsWithNext', () => {
 
     const result = await checkDeployedCodeDecryptsWithNext(args);
 
-    expect(result.ok).toBe(false);
-    expect(result.ok === false && result.reason).toContain('network unreachable');
+    expect(result).toEqual({
+      ok: false,
+      readFailed: true,
+      reason: expect.stringContaining('network unreachable'),
+    });
   });
 
   it('greps the NEXT token with -F, scoped to the decrypt module', async () => {
