@@ -53,7 +53,8 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
  * - turbo-lint-build-edge.test.ts: the root turbo.json and eslint.config.js,
  *   whose RELATIONSHIP it guards — an edit to either is what that test exists
  *   to react to, so both must invalidate the cache or the guard reports on a
- *   pairing it never re-read
+ *   pairing it never re-read (its tooling test-task check also reads
+ *   packages/tooling/turbo.json and src, which are package-local, so no root)
  * - check-readme.test.ts (and check-readme.ts, its reader at runtime): the
  *   root README.md, which findReadmeDrift reads directly
  */
