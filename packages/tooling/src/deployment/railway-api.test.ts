@@ -1202,57 +1202,23 @@ describe('railway-api', () => {
         })
       );
 
-      await expect(
-        getLiveDeployment({
-          environmentId: 'env-1',
-          serviceId: 'svc-1',
-          serviceName: 'api-gateway',
-          env: 'dev',
-        })
-      ).rejects.toThrow(/BUILDING/);
-    });
-
-    // The service name and env appear in the refusal; the internal service id does not.
-    it('refuses a non-SUCCESS latestDeployment, naming the service name and env but not the id', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
-      mockFetch.mockResolvedValue(
-        jsonResponse(200, {
-          data: {
-            serviceInstance: {
-              latestDeployment: {
-                id: 'dep-1',
-                status: 'BUILDING',
-                meta: { commitHash: 'abc1234' },
-              },
-            },
-          },
-        })
+      const error = await getLiveDeployment({
+        environmentId: 'env-1',
+        serviceId: 'svc-1',
+        serviceName: 'api-gateway',
+        env: 'dev',
+      }).then(
+        () => {
+          throw new Error('expected getLiveDeployment to refuse');
+        },
+        (e: unknown) => e as Error
       );
 
-      await expect(
-        getLiveDeployment({
-          environmentId: 'env-1',
-          serviceId: 'svc-1',
-          serviceName: 'api-gateway',
-          env: 'dev',
-        })
-      ).rejects.toThrow(/not SUCCESS/);
-      await expect(
-        getLiveDeployment({
-          environmentId: 'env-1',
-          serviceId: 'svc-1',
-          serviceName: 'api-gateway',
-          env: 'dev',
-        })
-      ).rejects.toThrow(/"api-gateway" \(dev\)/);
-      await expect(
-        getLiveDeployment({
-          environmentId: 'env-1',
-          serviceId: 'svc-1',
-          serviceName: 'api-gateway',
-          env: 'dev',
-        })
-      ).rejects.not.toThrow(/svc-1/);
+      // The status and the service name and env appear in the refusal; the internal service id does not.
+      expect(error.message).toMatch(/BUILDING/);
+      expect(error.message).toMatch(/not SUCCESS/);
+      expect(error.message).toMatch(/"api-gateway" \(dev\)/);
+      expect(error.message).not.toMatch(/svc-1/);
     });
 
     it('throws a shape error when commitHash is missing', async () => {
