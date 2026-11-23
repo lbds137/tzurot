@@ -473,6 +473,10 @@ describe('getZaiCodingPlanContextLength', () => {
     expect(getZaiCodingPlanContextLength('glm-5.3')).toBe(1_000_000);
   });
 
+  it('should return 1M for glm-5.4 (z.ai-only; the family limit, measured live, not documented)', () => {
+    expect(getZaiCodingPlanContextLength('glm-5.4')).toBe(1_000_000);
+  });
+
   it('should strip the z-ai/ prefix before lookup', () => {
     // Config validation and the runtime clamp pass the prefixed form; the
     // catalog keys are bare.
@@ -497,9 +501,19 @@ describe('listZaiCodingPlanModels', () => {
   it('returns every catalog model with its metadata', () => {
     const models = listZaiCodingPlanModels();
     const byName = new Map(models.map(m => [m.model, m]));
-    // The catalog lineup per docs.z.ai/devpack/overview.
+    // The catalog lineup per docs.z.ai/devpack/overview. glm-5.4 is not on
+    // that page's per-model docs; it is sourced from the plan's /models listing.
     expect([...byName.keys()].sort()).toEqual(
-      ['glm-4.7', 'glm-5', 'glm-5-turbo', 'glm-5.1', 'glm-5.2', 'glm-5.3', 'glm-5.3-flash'].sort()
+      [
+        'glm-4.7',
+        'glm-5',
+        'glm-5-turbo',
+        'glm-5.1',
+        'glm-5.2',
+        'glm-5.3',
+        'glm-5.3-flash',
+        'glm-5.4',
+      ].sort()
     );
     expect(byName.get('glm-5.2')?.contextLength).toBe(1_000_000);
     // z.ai-only entries must carry `released` — it is the only `created`
@@ -542,10 +556,15 @@ describe('zaiCodingPlanModelCapabilities', () => {
   it('reports glm-5.3-flash vision-capable and its 5.3 sibling text-only', () => {
     // The mirror test above cannot fail on a wrong catalog value (it reads
     // the same entry it asserts against), so the two directions are pinned
-    // explicitly: the one vision member, and a text-only sibling.
+    // explicitly: a vision member, and a text-only sibling.
     expect(zaiCodingPlanModelCapabilities('glm-5.3-flash')?.supportsVision).toBe(true);
     expect(zaiCodingPlanModelCapabilities('glm-5.3')?.supportsVision).toBe(false);
     expect(zaiCodingPlanModelCapabilities('glm-5.3-flash')?.contextLength).toBe(1_000_000);
+  });
+
+  it('reports glm-5.4 vision-capable with a 1M context window', () => {
+    expect(zaiCodingPlanModelCapabilities('glm-5.4')?.supportsVision).toBe(true);
+    expect(zaiCodingPlanModelCapabilities('glm-5.4')?.contextLength).toBe(1_000_000);
   });
 
   it('strips the z-ai/ prefix and case-normalizes before lookup', () => {
@@ -581,7 +600,7 @@ describe('zaiThinkingOffSupport', () => {
   });
 
   it('covers the whole GLM-5.x family as best-effort', () => {
-    for (const model of ['glm-5', 'glm-5.1', 'glm-5.2', 'glm-5.3', 'glm-5-turbo']) {
+    for (const model of ['glm-5', 'glm-5.1', 'glm-5.2', 'glm-5.3', 'glm-5.4', 'glm-5-turbo']) {
       expect(zaiThinkingOffSupport(model)).toBe('best-effort');
     }
   });

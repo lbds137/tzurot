@@ -476,10 +476,12 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.7';
  *    isn't here, promotion would 404, so the request stays on OpenRouter.
  *
  * 2. **Model docs URL** — `buildModelInfoUrl()` (z.ai branch) reads the
- *    `docsUrl` for the response footer link. Every catalog member has a
- *    dedicated docs page under `docs.z.ai/guides/` — `llm/<model>` for the
- *    text models, `vlm/<model>` for vision ones (glm-5.3-flash) — which is
- *    why the field is explicit: z.ai has docked a variant on its parent
+ *    `docsUrl` for the response footer link. Every catalog member EXCEPT
+ *    glm-5.4 has a dedicated docs page under `docs.z.ai/guides/` — `llm/<model>`
+ *    for the text models, `vlm/<model>` for the vision ones that dock there
+ *    (glm-5.3-flash). glm-5.4's page was not published when it was added, so
+ *    its docsUrl is a pattern guess (TASK-1516 sets the live one). The field is
+ *    explicit for that reason: z.ai has docked a variant on its parent
  *    family's page before, and the section a model lands in is not
  *    derivable from its name.
  *
@@ -502,13 +504,15 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.7';
  *    rounded-down label (OpenRouter's card for glm-5.1 is 202752, z.ai shows
  *    "200K"), so the decimal reading sits at or below the real served limit,
  *    which is the safe direction for a cap. glm-5/5.1/5-turbo/4.7 = 200K,
- *    glm-5.2/5.3/5.3-flash = 1M. (z.ai documents 128K max output for the
+ *    glm-5.2/5.3/5.3-flash/5.4 = 1M. (z.ai documents 128K max output for the
  *    GLM-5 family and 5-turbo — output headroom the cap formula reserves
  *    automatically; recorded here so the next audit has it.)
  *
  * Source of truth for membership: docs.z.ai/devpack/overview. Source of truth
  * for context lengths + docs URLs: the per-model pages under
- * docs.z.ai/guides/llm (indexed in docs.z.ai/llms.txt). Keys must stay
+ * docs.z.ai/guides/llm (indexed in docs.z.ai/llms.txt). glm-5.4's context
+ * length and capabilities come from live measurement against the plan, not a
+ * docs page (TASK-1516). Keys must stay
  * lowercase to match the case-normalized lookups; user-typed preset configs
  * may use any case so callers normalize before lookup.
  */
@@ -517,8 +521,8 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.7';
 // Models that also live on OpenRouter take OpenRouter's `created` via the merge,
 // so `released` is optional and only worth setting for z.ai-only entries.
 // Modality flags are OPTIONAL and omitted = false (text-only). glm-5.3-flash
-// is the first member to set one (`supportsVision`); every other member is
-// text-only and omits them all. `zaiCodingPlanModelCapabilities` reads them
+// and glm-5.4 set one (`supportsVision`); every other member is text-only and
+// omits them all. `zaiCodingPlanModelCapabilities` reads them
 // with `?? false`.
 //
 // `thinkingOff` records how far a `thinking: 'off'` request is actually honored
@@ -602,6 +606,24 @@ const ZAI_MODEL_CATALOG: Readonly<
     docsUrl: 'https://docs.z.ai/guides/vlm/glm-5.3-flash',
     contextLength: 1_000_000,
     released: '2026-08-26',
+    supportsVision: true,
+    thinkingOff: GLM_5X_THINKING_OFF,
+  },
+  // glm-5.4 is z.ai-only for now (no OpenRouter listing yet), so `released`
+  // is live here and feeds the /models recency sort. The docsUrl is an
+  // unverified guess at z.ai's per-model pattern (the page 404s when added),
+  // and it may move to guides/vlm/ like glm-5.3-flash; TASK-1516 sets the live one.
+  // Context, vision and thinkingOff were each probed live against the model:
+  // a 999,996-token prompt (max_tokens 5) was accepted and one near 1.05M was
+  // refused, so the 1_000_000 cap is measured, not documented. An image_url
+  // block was accepted, where text-only glm-5.3 rejects the same request.
+  // thinkingOff is MEASURED: a request with thinking disabled still returned
+  // reasoning tokens. As a vision member it pairs with ai-worker's
+  // VISION_MODEL_PATTERNS.
+  'glm-5.4': {
+    docsUrl: 'https://docs.z.ai/guides/llm/glm-5.4',
+    contextLength: 1_000_000,
+    released: '2026-11-23',
     supportsVision: true,
     thinkingOff: GLM_5X_THINKING_OFF,
   },
