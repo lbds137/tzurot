@@ -74,7 +74,8 @@ describe('hasVisionSupportFallback', () => {
 describe('catalog ↔ VISION_MODEL_PATTERNS parity', () => {
   // Drift guard: a z.ai coding-plan catalog edit that flips a model's
   // supportsVision flag must be mirrored in the degraded-mode fallback patterns,
-  // or the two resolution paths disagree silently.
+  // or the two resolution paths disagree silently. Both the bare key and the
+  // `z-ai/`-prefixed form the z.ai-direct route carries are checked.
   it('every catalog member declaring vision satisfies hasVisionSupportFallback', () => {
     // Non-vacuity: the loop below asserts nothing if no member declares vision.
     expect(
@@ -87,6 +88,13 @@ describe('catalog ↔ VISION_MODEL_PATTERNS parity', () => {
       if (vision) {
         expect({ model, fallback: hasVisionSupportFallback(model) }).toEqual({
           model,
+          fallback: true,
+        });
+        expect({
+          model: `z-ai/${model}`,
+          fallback: hasVisionSupportFallback(`z-ai/${model}`),
+        }).toEqual({
+          model: `z-ai/${model}`,
           fallback: true,
         });
       }
@@ -105,6 +113,13 @@ describe('catalog ↔ VISION_MODEL_PATTERNS parity', () => {
       if (!vision) {
         expect({ model, fallback: hasVisionSupportFallback(model) }).toEqual({
           model,
+          fallback: false,
+        });
+        expect({
+          model: `z-ai/${model}`,
+          fallback: hasVisionSupportFallback(`z-ai/${model}`),
+        }).toEqual({
+          model: `z-ai/${model}`,
           fallback: false,
         });
       }
