@@ -27,10 +27,13 @@ describe('hasVisionSupportFallback', () => {
     'qwen/qwen3.5-plus',
     'mistralai/pixtral-12b',
     'opengvlab/internvl3-78b',
-    // The one vision-flagged z.ai coding-plan model, with and without the prefix
+    // The vision-flagged z.ai coding-plan models, with and without the prefix
     // the z.ai-direct route carries.
     'glm-5.3-flash',
     'z-ai/glm-5.3-flash',
+    'glm-5.4',
+    'z-ai/glm-5.4',
+    'z-ai/glm-5.4:free',
   ])('detects %s as vision-capable', model => {
     expect(hasVisionSupportFallback(model)).toBe(true);
   });
@@ -44,6 +47,10 @@ describe('hasVisionSupportFallback', () => {
     // and the base 5.3 line the flash variant is named after.
     'z-ai/glm-4.7-flash',
     'z-ai/glm-5.3',
+    // Hypothetical text-only glm-5.4 variants the exact glm-5.4 term must not
+    // reach (a substring term would match both).
+    'z-ai/glm-5.4-turbo',
+    'glm-5.4-air',
   ])('does not claim %s is vision-capable', model => {
     expect(hasVisionSupportFallback(model)).toBe(false);
   });
