@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { stageByokWindow, type StageByokWindowDeps } from './byok-prepare-stage.js';
 import type { ByokServiceIds } from './byok-stage-helpers.js';
+import type { DeployedCodeGateResult } from './deployed-code-gate.js';
 import { waitForDeploymentRemoved } from './deployment-removal-wait.js';
 import { redeployAndWaitForService } from './service-redeploy-wait.js';
 
@@ -56,17 +57,9 @@ interface HarnessOptions {
   imageGateSequence?: ReadonlyArray<GateOutcomeByService | undefined>;
 }
 
-/** Mirrors the not-ok arms of DeployedCodeGateResult: only a failed live read lacks commit and id. */
-type GateNotOk =
-  | { ok: false; readFailed: true; reason: string }
-  | { ok: false; readFailed: false; commit: string; deploymentId: string; reason: string };
+type GateNotOk = Extract<DeployedCodeGateResult, { ok: false }>;
 type ImageGateFailures = Partial<Record<'api-gateway' | 'ai-worker', GateNotOk>>;
-type GateOutcomeByService = Partial<
-  Record<
-    'api-gateway' | 'ai-worker',
-    GateNotOk | { ok: true; commit: string; deploymentId: string }
-  >
->;
+type GateOutcomeByService = Partial<Record<'api-gateway' | 'ai-worker', DeployedCodeGateResult>>;
 
 function sameVars(vars: Record<string, string>): VarStore {
   return { 'api-gateway': { ...vars }, 'ai-worker': { ...vars } };
@@ -983,6 +976,31 @@ describe('stageByokWindow', () => {
 
       await expect(stageByokWindow(deps)).rejects.toThrow(/ai-worker[\s\S]*stale image/);
 
+      expect(events.filter(e => /^(upsert|delete|redeploy)/.test(e))).toEqual([]);
+      expect(store).toEqual(before);
+    });
+
+    it('refuses before any write, without the in-flight prefix, when the pre-write live read fails', async () => {
+      const { deps, events, store } = makeHarness({
+        imageGate: {
+          'ai-worker': {
+            ok: false,
+            readFailed: true,
+            reason: 'could not read the live deployment for "ai-worker": timeout',
+          },
+        },
+      });
+      const before = structuredClone(store);
+
+      const message = await stageByokWindow(deps).then(
+        () => {
+          throw new Error('expected stageByokWindow to reject');
+        },
+        (caught: unknown) => (caught as Error).message
+      );
+
+      expect(message).toContain('ai-worker: could not read the live deployment');
+      expect(message).not.toContain('a newer deploy may still be in flight');
       expect(events.filter(e => /^(upsert|delete|redeploy)/.test(e))).toEqual([]);
       expect(store).toEqual(before);
     });
