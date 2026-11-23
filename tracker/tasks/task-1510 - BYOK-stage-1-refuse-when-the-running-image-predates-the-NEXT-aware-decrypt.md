@@ -1,9 +1,10 @@
 ---
 id: TASK-1510
 title: 'BYOK stage 1: refuse when the running image predates the NEXT-aware decrypt'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-22T20:49:00Z'
+updated_date: '2026-11-23T04:31:00Z'
 labels:
   - area:tooling
   - size:M
@@ -26,3 +27,9 @@ Gate (Lila 2026-11-22, AskUserQuestion on PR #2788 review finding 2, "Gate prod 
 
 Also before the first prod rotation (PR #2788 review round 5): probe prod read-only with `deployments(input: { serviceId, environmentId, status: { in: [CRASHED] } })` for api-gateway and ai-worker. Only dev was probed; it had none. One lingering superseded CRASHED deployment would make the pre-swap check (`assertOnlyNewDeploymentsLive`) refuse every run, after both prepare restarts. The session that built #2788 had this read refused by the auto-mode classifier, so it may need the owner's run.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped in PR 2789 (four review rounds). Stage 1 runs the gate twice: once before the first write, and once before the swap against the deployments this run created (the deployment id must match). The gate passes when the live commit's packages/common-types/src/utils/encryption.ts defines getNextEncryptionKey. Dev passed at runtime (live 988b6acae); the grep refuses at origin/main, so prod rotation stays shut until a release carries the NEXT-aware decrypt. Prod probe for extra live deployments (Lila ran it 2026-11-22): api-gateway and ai-worker each have exactly one, so the pre-swap check can pass. Round-4 lows were filed as TASK-1514.
+<!-- SECTION:NOTES:END -->
