@@ -56,14 +56,15 @@ interface HarnessOptions {
   imageGateSequence?: ReadonlyArray<GateOutcomeByService | undefined>;
 }
 
-type ImageGateFailures = Partial<
-  Record<'api-gateway' | 'ai-worker', { ok: false; reason: string }>
->;
+/** Mirrors the not-ok arms of DeployedCodeGateResult: only a failed live read lacks commit and id. */
+type GateNotOk =
+  | { ok: false; readFailed: true; reason: string }
+  | { ok: false; readFailed: false; commit: string; deploymentId: string; reason: string };
+type ImageGateFailures = Partial<Record<'api-gateway' | 'ai-worker', GateNotOk>>;
 type GateOutcomeByService = Partial<
   Record<
     'api-gateway' | 'ai-worker',
-    | { ok: false; reason: string; deploymentId?: string }
-    | { ok: true; commit: string; deploymentId: string }
+    GateNotOk | { ok: true; commit: string; deploymentId: string }
   >
 >;
 
@@ -798,8 +799,10 @@ describe('stageByokWindow', () => {
           {
             'ai-worker': {
               ok: false,
+              readFailed: false,
               reason: 'rolled back to an image without NEXT',
               // The gate read the deployment and refused its image, so the id is known.
+              commit: 'c0ffee0000000000000000000000000000000000',
               deploymentId: 'new-ai-worker',
             },
           },
@@ -903,7 +906,7 @@ describe('stageByokWindow', () => {
     });
 
     it('refuses before the swap, prefixing the read failure, when the pre-swap live deployment cannot be read', async () => {
-      // No deploymentId on the result means the read itself failed (a newer deploy may still be in flight).
+      // readFailed marks the live read itself failing (a newer deploy may still be in flight).
       const { deps, events } = makeHarness({
         imageGateSequence: [
           undefined,
@@ -912,6 +915,7 @@ describe('stageByokWindow', () => {
           {
             'ai-worker': {
               ok: false,
+              readFailed: true,
               reason: 'could not read the live deployment for "ai-worker": timeout',
             },
           },
@@ -942,7 +946,9 @@ describe('stageByokWindow', () => {
           {
             'ai-worker': {
               ok: false,
-              reason: 'carries no "API_KEY_ENCRYPTION_KEY_PREVIOUS"',
+              readFailed: false,
+              reason: 'does not define "getNextEncryptionKey"',
+              commit: 'c0ffee0000000000000000000000000000000000',
               deploymentId: 'new-ai-worker',
             },
           },
@@ -955,7 +961,7 @@ describe('stageByokWindow', () => {
       );
 
       const message = (error as Error).message;
-      expect(message).toContain('ai-worker: carries no "API_KEY_ENCRYPTION_KEY_PREVIOUS"');
+      expect(message).toContain('ai-worker: does not define "getNextEncryptionKey"');
       expect(message).not.toContain('is not the one this run created');
       expect(message).not.toContain('could not be read');
       expect(events.filter(e => e.startsWith('delete:'))).toEqual([]);
@@ -963,7 +969,15 @@ describe('stageByokWindow', () => {
 
     it('refuses before any write when ai-worker runs an image that ignores NEXT', async () => {
       const { deps, events, store } = makeHarness({
-        imageGate: { 'ai-worker': { ok: false, reason: 'stale image' } },
+        imageGate: {
+          'ai-worker': {
+            ok: false,
+            readFailed: false,
+            commit: 'c0ffee0000000000000000000000000000000000',
+            deploymentId: 'new-ai-worker',
+            reason: 'stale image',
+          },
+        },
       });
       const before = structuredClone(store);
 
@@ -976,8 +990,20 @@ describe('stageByokWindow', () => {
     it('names every service whose image fails the gate', async () => {
       const { deps } = makeHarness({
         imageGate: {
-          'api-gateway': { ok: false, reason: 'gateway stale' },
-          'ai-worker': { ok: false, reason: 'worker stale' },
+          'api-gateway': {
+            ok: false,
+            readFailed: false,
+            commit: 'c0ffee0000000000000000000000000000000000',
+            deploymentId: 'new-api-gateway',
+            reason: 'gateway stale',
+          },
+          'ai-worker': {
+            ok: false,
+            readFailed: false,
+            commit: 'c0ffee0000000000000000000000000000000000',
+            deploymentId: 'new-ai-worker',
+            reason: 'worker stale',
+          },
         },
       });
 

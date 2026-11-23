@@ -210,7 +210,13 @@ describe('runStagedRotation', () => {
   });
 
   it("stage 1 refuses when the verifier's live commit does not accept the previous value", async () => {
-    mockGate.mockResolvedValue({ ok: false, commit: 'abc123', reason: 'no token' });
+    mockGate.mockResolvedValue({
+      ok: false,
+      readFailed: false,
+      commit: 'abc123',
+      deploymentId: 'dep-1',
+      reason: 'no token',
+    });
     const context = makeContext();
 
     await expect(runStagedRotation(makeOptions({ stage: '1' }), context)).rejects.toThrow(
@@ -627,7 +633,13 @@ describe('runStagedRotation', () => {
   });
 
   it('a dry run of stage 1 with a refusing gate prints REFUSE and suppresses the plan', async () => {
-    mockGate.mockResolvedValue({ ok: false, commit: 'abc123', reason: 'no token' });
+    mockGate.mockResolvedValue({
+      ok: false,
+      readFailed: false,
+      commit: 'abc123',
+      deploymentId: 'dep-1',
+      reason: 'no token',
+    });
     const context = makeContext();
 
     await runStagedRotation(makeOptions({ stage: '1', dryRun: true }), context);

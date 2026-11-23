@@ -57,11 +57,14 @@ export interface DeployedCodeGateArgs {
 /**
  * `deploymentId` is the id of the latest deployment the gate read. It is set
  * whenever that read succeeded, so a caller can confirm WHICH deployment it
- * checked, not only the commit it ran.
+ * checked, not only the commit it ran. A not-ok result that read the deployment
+ * always carries its id and commit; only `readFailed: true` lacks them (pinned
+ * by deployed-code-gate.test.ts).
  */
 export type DeployedCodeGateResult =
   | { ok: true; commit: string; deploymentId: string }
-  | { ok: false; commit?: string; deploymentId?: string; reason: string };
+  | { ok: false; readFailed: true; reason: string }
+  | { ok: false; readFailed: false; commit: string; deploymentId: string; reason: string };
 
 function commitExistsLocally(commit: string): boolean {
   try {
@@ -135,6 +138,7 @@ async function checkDeployedCodeCarriesToken(
     const message = error instanceof Error ? error.message : String(error);
     return {
       ok: false,
+      readFailed: true,
       reason:
         `could not read the live deployment for "${args.serviceName}": ${message}. Check ` +
         'TZUROT_RAILWAY_API_TOKEN_<ENV> and that the service has a finished deploy.',
@@ -145,6 +149,7 @@ async function checkDeployedCodeCarriesToken(
   if (!commitExistsLocally(commit)) {
     return {
       ok: false,
+      readFailed: false,
       commit,
       deploymentId,
       reason:
@@ -154,7 +159,13 @@ async function checkDeployedCodeCarriesToken(
   }
 
   if (!commitCarriesToken(commit, args.token, args.pathspecs)) {
-    return { ok: false, commit, deploymentId, reason: args.missingReason(commit) };
+    return {
+      ok: false,
+      readFailed: false,
+      commit,
+      deploymentId,
+      reason: args.missingReason(commit),
+    };
   }
 
   return { ok: true, commit, deploymentId };

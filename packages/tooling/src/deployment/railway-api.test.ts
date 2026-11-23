@@ -14,7 +14,6 @@ import {
   redeployRailwayServiceReusingImage,
   redeployRailwayServiceReusingImageWithSource,
   getLiveDeployment,
-  getLiveDeploymentCommit,
   getRailwayServiceWatchPatterns,
   RailwayRedeployRefusedError,
 } from './railway-api.js';
@@ -1187,7 +1186,7 @@ describe('railway-api', () => {
       });
     });
 
-    it('refuses a non-SUCCESS latestDeployment, same as getLiveDeploymentCommit', async () => {
+    it('refuses a non-SUCCESS latestDeployment', async () => {
       process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch.mockResolvedValue(
         jsonResponse(200, {
@@ -1212,41 +1211,8 @@ describe('railway-api', () => {
         })
       ).rejects.toThrow(/BUILDING/);
     });
-  });
 
-  describe('getLiveDeploymentCommit', () => {
-    it('returns the commitHash of a SUCCESS latest deployment', async () => {
-      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
-      mockFetch.mockResolvedValue(
-        jsonResponse(200, {
-          data: {
-            serviceInstance: {
-              latestDeployment: {
-                id: 'dep-1',
-                status: 'SUCCESS',
-                meta: {
-                  commitHash: 'db783ced15f2efe99cbf1e13bf89d51e03e52203',
-                  branch: 'develop',
-                  repo: 'lbds137/tzurot',
-                  commitAuthor: 'someone',
-                  commitMessage: 'a message',
-                },
-              },
-            },
-          },
-        })
-      );
-
-      const commit = await getLiveDeploymentCommit({
-        environmentId: 'env-1',
-        serviceId: 'svc-1',
-        serviceName: 'api-gateway',
-        env: 'dev',
-      });
-
-      expect(commit).toBe('db783ced15f2efe99cbf1e13bf89d51e03e52203');
-    });
-
+    // The service name and env appear in the refusal; the internal service id does not.
     it('refuses a non-SUCCESS latestDeployment, naming the service name and env but not the id', async () => {
       process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
       mockFetch.mockResolvedValue(
@@ -1264,15 +1230,7 @@ describe('railway-api', () => {
       );
 
       await expect(
-        getLiveDeploymentCommit({
-          environmentId: 'env-1',
-          serviceId: 'svc-1',
-          serviceName: 'api-gateway',
-          env: 'dev',
-        })
-      ).rejects.toThrow(/BUILDING/);
-      await expect(
-        getLiveDeploymentCommit({
+        getLiveDeployment({
           environmentId: 'env-1',
           serviceId: 'svc-1',
           serviceName: 'api-gateway',
@@ -1280,7 +1238,7 @@ describe('railway-api', () => {
         })
       ).rejects.toThrow(/not SUCCESS/);
       await expect(
-        getLiveDeploymentCommit({
+        getLiveDeployment({
           environmentId: 'env-1',
           serviceId: 'svc-1',
           serviceName: 'api-gateway',
@@ -1288,7 +1246,7 @@ describe('railway-api', () => {
         })
       ).rejects.toThrow(/"api-gateway" \(dev\)/);
       await expect(
-        getLiveDeploymentCommit({
+        getLiveDeployment({
           environmentId: 'env-1',
           serviceId: 'svc-1',
           serviceName: 'api-gateway',
@@ -1314,7 +1272,7 @@ describe('railway-api', () => {
       );
 
       await expect(
-        getLiveDeploymentCommit({
+        getLiveDeployment({
           environmentId: 'env-1',
           serviceId: 'svc-1',
           serviceName: 'api-gateway',
@@ -1340,7 +1298,7 @@ describe('railway-api', () => {
       );
 
       await expect(
-        getLiveDeploymentCommit({
+        getLiveDeployment({
           environmentId: 'env-1',
           serviceId: 'svc-1',
           serviceName: 'api-gateway',
@@ -1366,7 +1324,7 @@ describe('railway-api', () => {
       );
 
       await expect(
-        getLiveDeploymentCommit({
+        getLiveDeployment({
           environmentId: 'env-1',
           serviceId: 'svc-1',
           serviceName: 'api-gateway',
