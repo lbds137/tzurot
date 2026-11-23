@@ -6,11 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: 2026-08-14 00:40
-updated_date: 2026-09-01 22:15
+updated_date: '2026-11-23T04:22:00Z'
 labels:
   - area:tooling
   - size:S
-  - state:observable
+  - state:ready
 dependencies: []
 priority: high
 ordinal: 80
@@ -93,4 +93,6 @@ WHY THIS IS NOT Done: the acceptance line's first clause is "pushing from a work
 CLOSE WHEN: a stretch of worktree PRs passes with no hit 10. If a hit 10 DOES occur, it falsifies "the edge is sufficient" and the hook presence-check becomes live again — capture the turbo output showing which tasks ran concurrently, since that is what distinguishes a surviving race from a new mechanism.
 
 SECOND FINDING, shipped in the same PR: the new guard reads root turbo.json and eslint.config.js, neither of which was a declared cache input for the tooling test tasks — so a local full test run could report the guard green off a stale cache hit. Both declared, and added to INLINE_LITERAL_ROOTS so turbo-inputs-coverage enforces them. Surfaced by dev:deferred-refs pointing at TASK-510.
+
+HITS 10-12 (2026-11-22, PR 2789, worktree .claude/worktrees/task-1510; this falsifies "the edge is sufficient"). Three pre-pushes failed `no-message-metadata-rmw.test.ts` "repo enablement — resolved severity from the real root config" with `Cannot find module .../task-1510/packages/tooling/dist/eslint/index.js imported from .../eslint.config.js`. On the third, dist/eslint/index.js existed just before `git push`, and the failing pre-push turbo summary read `Tasks: 5 successful, 7 total / Cached: 4 cached, 7 total`, with `@tzurot/tooling:test: cache miss`. So a cached dependency build was replayed during the push and dropped dist/eslint. Running alone, the test passed 38/38. Each time, the documented purge (`safe-clean <main>/.turbo <wt>/packages/tooling/.turbo` plus `npx turbo run build --filter=@tzurot/tooling --force`) made the next push pass. The run logged only errors, so which cached task replayed is not captured; the next hit should run with full turbo output.
 <!-- SECTION:DESCRIPTION:END -->
