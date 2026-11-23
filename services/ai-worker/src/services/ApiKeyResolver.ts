@@ -84,14 +84,13 @@ export class UndecryptableApiKeyError extends Error {
 
 /**
  * Thrown when a stored row fails to decrypt AND `isEncryptionConfigured()` is
- * false — the SERVICE's encryption env is malformed, or set differently from the
- * key injected into this resolver. A deploy bug, not a user problem.
- * `isEncryptionConfigured()` is also false when `API_KEY_ENCRYPTION_KEY_PREVIOUS`
- * or `API_KEY_ENCRYPTION_KEY_NEXT` is set but malformed during a rotation, so
- * that classifies here too (a real deploy fault).
- * A fully UNSET key is NOT covered here: the resolver then holds an empty key,
- * skips the user lookup and serves guest mode, so this error is never thrown.
- * That gap is tracked as TASK-1488.
+ * false — the SERVICE's encryption env is unset or malformed. A deploy bug, not
+ * a user problem. `isEncryptionConfigured()` is also false when
+ * `API_KEY_ENCRYPTION_KEY_PREVIOUS` or `API_KEY_ENCRYPTION_KEY_NEXT` is set but
+ * malformed during a rotation, so that classifies here too.
+ * A fully UNSET key classifies here as well: the user lookup still runs, so a
+ * stored row reaches this error, never guest mode (ApiKeyResolver.undecryptable
+ * tests). On Railway, ai-worker's startup refuses to boot without the key.
  * Keeps the underlying message (which names the env var) and must never be
  * rendered as the user's re-enter copy or absorbed into guest mode.
  */
