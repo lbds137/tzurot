@@ -3,6 +3,7 @@
   "extends": ["//"],
   "tasks": {
     "test": {
+      "dependsOn": ["^build", "build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/.claude/hooks/**",
@@ -28,6 +29,7 @@
       ]
     },
     "test:coverage": {
+      "dependsOn": ["^build", "build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/.claude/hooks/**",

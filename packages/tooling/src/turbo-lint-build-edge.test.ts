@@ -1,6 +1,7 @@
 /**
- * Guards the root turbo.json `lint` task against losing its ordering edge to
- * the builds whose artifacts the root ESLint config imports.
+ * Guards the root turbo.json `lint` task, and the tooling package's `test` and
+ * `test:coverage` tasks, against losing their ordering edge to the builds whose
+ * artifacts the root ESLint config imports.
  *
  * `eslint.config.js` statically imports `packages/tooling/dist/eslint/index.js`
  * — a BUILD OUTPUT of `@tzurot/tooling`. Every package's lint task loads that
@@ -15,9 +16,14 @@
  * imports each run, so removing the import removes the requirement, and adding
  * a second dist-importing plugin demands its own edge instead of silently
  * reintroducing the race.
+ *
+ * Test tasks have the same exposure: a tooling test that loads the root config
+ * can start while a restored tooling build is still being written, and then
+ * fails with a missing dist module. So the tooling test tasks carry the same
+ * edge, asserted by the second describe below.
  */
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -80,6 +86,58 @@ describe('root turbo.json lint task', () => {
     // Without this, a regex that matches nothing would report every edge
     // satisfied and the guard above would pass while guarding nothing.
     expect(distImportingPackages(eslintConfig, repoRoot)).toContain('@tzurot/tooling');
+  });
+});
+
+const thisFile = fileURLToPath(import.meta.url);
+
+/** Test files under `dir` whose source contains `needle`, excluding this guard (it names the needle). */
+function testFilesContaining(dir: string, needle: string): string[] {
+  return readdirSync(dir, { recursive: true, encoding: 'utf-8' })
+    .filter(rel => rel.endsWith('.test.ts') && path.basename(rel) !== path.basename(thisFile))
+    .filter(rel => readFileSync(path.join(dir, rel), 'utf-8').includes(needle));
+}
+
+describe('tooling test tasks that load the root ESLint config', () => {
+  const toolingManifest = JSON.parse(
+    readFileSync(path.join(repoRoot, 'packages/tooling/package.json'), 'utf-8')
+  ) as { name: string };
+  const toolingTurbo = JSON.parse(
+    readFileSync(path.join(repoRoot, 'packages/tooling/turbo.json'), 'utf-8')
+  ) as TurboRootConfig;
+  const eslintConfig = readFileSync(path.join(repoRoot, 'eslint.config.js'), 'utf-8');
+
+  // A bare "build" in the package's own turbo.json is that package's own build
+  // task; name it the way the turbo graph does.
+  const normalize = (edge: string): string =>
+    edge === 'build' ? `${toolingManifest.name}#build` : edge;
+
+  it.each(['test', 'test:coverage'])(
+    '%s depends on the build of every package whose dist the root ESLint config imports',
+    taskName => {
+      const required = distImportingPackages(eslintConfig, repoRoot).map(name => `${name}#build`);
+      const dependsOn = (toolingTurbo.tasks[taskName]?.dependsOn ?? []).map(normalize);
+      const missing = required.filter(edge => !dependsOn.includes(edge));
+      expect(
+        missing,
+        "eslint.config.js imports these packages' build outputs, and tooling tests that " +
+          'load it race a restored build without an edge — add the "<pkg>#build" edge to ' +
+          `packages/tooling/turbo.json "${taskName}".dependsOn`
+      ).toEqual([]);
+    }
+  );
+
+  it('has a tooling test that loads the root ESLint config — the positive control for the requirement', () => {
+    // Without a loading test the edge above is unnecessary, and this test
+    // should be removed together with it. A needle no file contains fails here.
+    const hits = testFilesContaining(
+      path.join(repoRoot, 'packages/tooling/src'),
+      'calculateConfigForFile('
+    );
+    expect(
+      hits,
+      'no tooling test resolves the root ESLint config (calculateConfigForFile), so the test-task edges are unnecessary — remove them and this positive control together'
+    ).not.toEqual([]);
   });
 });
 
