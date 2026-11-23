@@ -17,9 +17,12 @@ type ModelPattern =
       required: string;
       /**
        * The normalized id (after dropping any `:variant` suffix such as
-       * `:free`) must equal `required` or end with `/` + `required`, so a
-       * provider prefix like `z-ai/` is allowed. Replaces the substring match;
-       * the type forbids `additional` on exact patterns. Ids the exact rule does
+       * `:free`) must equal `required` or end with `/` + `required`, so any
+       * provider prefix is accepted (not only `z-ai/`). A text-only re-host
+       * under another prefix (`someprovider/glm-5.4`) is therefore claimed
+       * vision-capable in this degraded fallback — fail-open in that direction,
+       * the same as the substring patterns. Replaces the substring match; the
+       * type forbids `additional` on exact patterns. Ids the exact rule does
        * not recognize, such as a dated snapshot (`z-ai/glm-5.4-20261201`), fall
        * through as not-vision: the fail-closed direction, deliberately unlike
        * substring patterns, which would match such a snapshot.
