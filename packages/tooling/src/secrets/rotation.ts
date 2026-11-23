@@ -9,19 +9,22 @@
  *
  * BYOK rotation is STAGED because services must hold both keys while rows
  * migrate (dual-key window — see common-types/utils/encryption.ts):
- *   stage 1 (stage):     mint new key; upsert PREVIOUS=old on both services,
- *                        then CURRENT=new on both (api-gateway + ai-worker)
- *                        through the Railway API (skipDeploys), then redeploy
- *                        both reusing their running image (stage 2 does not
- *                        depend on that redeploy having happened).
+ *   stage 1 (stage):     stage a decrypt-only NEXT key on both services, redeploy
+ *                        each and wait for its superseded deployment to be
+ *                        removed, then swap through the Railway API
+ *                        (skipDeploys): PREVIOUS=old on both, CURRENT=NEXT on
+ *                        both, delete NEXT; then redeploy both reusing their
+ *                        running image (byok-prepare-stage.ts; stage 2 does not
+ *                        depend on that last redeploy having happened).
  *   stage 2 (reencrypt): redeploy api-gateway then ai-worker and wait for each
  *                        new deployment to reach SUCCESS, then re-encrypt every
  *                        user_api_keys/user_credentials row still on the
  *                        previous key; verify sweep (byok-reencrypt-stage.ts).
  *   stage 3 (finalize):  refuse with no open window or PREVIOUS equal to CURRENT
  *                        (`--resume` finishes an interrupted stage 3), verify
- *                        again, delete PREVIOUS on both services through the
- *                        Railway API, redeploy them reusing their running image,
+ *                        again, delete PREVIOUS (and a leftover NEXT equal to
+ *                        CURRENT) on both services through the Railway API,
+ *                        redeploy them reusing their running image,
  *                        and stamp the ledger only when both redeploys were
  *                        accepted.
  *
@@ -43,15 +46,19 @@ import {
   assertRailwayServiceDeploymentReady,
   deleteRailwayVariable,
   redeployRailwayServiceReusingImage,
+  redeployRailwayServiceReusingImageWithSource,
   requireRailwayApiToken,
   upsertRailwayVariable,
 } from '../deployment/railway-api.js';
 import { getRailwayDatabaseUrl, getRailwayEnvName } from '../utils/env-runner.js';
+import { assertByokServicesConsistent, assertNoPendingNext } from './byok-consistency.js';
 import {
   assertFinalizeWindowState,
-  deleteFailureError,
+  classifyFinalizeWindow,
+  deleteByokVariable,
   resolveServiceIds,
 } from './byok-finalize-helpers.js';
+import { stageByokWindow } from './byok-prepare-stage.js';
 import { reencryptByokRows } from './byok-reencrypt-stage.js';
 import {
   assertByokServicesDeploymentReady,
@@ -59,10 +66,12 @@ import {
   CURRENT_VAR,
   GATEWAY_SERVICE,
   finalizeRedeployFailureMessage,
+  NEXT_VAR,
   PREVIOUS_VAR,
-  stageByokWindow,
   type ByokServiceIds,
 } from './byok-stage-helpers.js';
+import { listRailwayLiveDeploymentIds } from '../deployment/railway-deployment-status.js';
+import { waitForDeploymentRemoved } from './deployment-removal-wait.js';
 import type { RedeployFailure } from './redeploy-repair-text.js';
 import { redeployAndWaitForService } from './service-redeploy-wait.js';
 
@@ -141,39 +150,6 @@ export function getServiceVariable(env: SecretsEnv, service: string, key: string
  */
 export function getServiceVariableOrEmpty(env: SecretsEnv, service: string, key: string): string {
   return readServiceVariable(env, service, key) ?? '';
-}
-
-/**
- * Refuse to operate while the two BYOK services disagree on key variables —
- * the partial-failure detector for the stage-1/stage-3 write loop (e.g. the
- * api-gateway set succeeded but the ai-worker set threw). Without this, a
- * split-brain window is silent until ai-worker BYOK decrypts start failing.
- *
- * A service's `PREVIOUS` equal to its own `CURRENT` decrypts nothing `CURRENT`
- * does not, so it is normalised to `''` before comparing (pinned in
- * `rotation.test.ts`). That lets a stage 1 interrupted mid-`PREVIOUS` phase
- * re-run without being blocked as a split-brain state.
- */
-function assertByokServicesConsistent(env: SecretsEnv): void {
-  const [first, second] = BYOK_SERVICES;
-  const firstCurrent = getServiceVariableOrEmpty(env, first, CURRENT_VAR);
-  const secondCurrent = getServiceVariableOrEmpty(env, second, CURRENT_VAR);
-  if (firstCurrent !== secondCurrent) {
-    throw new Error(
-      `${CURRENT_VAR} DIFFERS between ${first} and ${second} (${env}) — a previous variable write partially failed. Re-set it on the lagging service (Railway dashboard history has the values), then re-run.`
-    );
-  }
-
-  const firstPreviousRaw = getServiceVariableOrEmpty(env, first, PREVIOUS_VAR);
-  const secondPreviousRaw = getServiceVariableOrEmpty(env, second, PREVIOUS_VAR);
-  const firstPrevious = firstPreviousRaw === firstCurrent ? '' : firstPreviousRaw;
-  const secondPrevious = secondPreviousRaw === secondCurrent ? '' : secondPreviousRaw;
-  if (firstPrevious !== secondPrevious) {
-    throw new Error(
-      `${PREVIOUS_VAR} DIFFERS between ${first} and ${second} (${env}) — a previous variable write partially failed. Re-set it on the lagging service (Railway dashboard history has the values), then re-run.` +
-        ` If stage 3 was interrupted (PREVIOUS deleted on one service only), delete it on the other with \`pnpm ops deploy:var-delete --env ${env} --service <name> --name API_KEY_ENCRYPTION_KEY_PREVIOUS --yes\` instead, then re-run stage 3 with --resume.`
-    );
-  }
 }
 
 function readServiceVariable(env: SecretsEnv, service: string, key: string): string | undefined {
@@ -410,11 +386,15 @@ async function finalizeByokWindow(env: SecretsEnv, resume: boolean): Promise<voi
 
   const currentRaw = getServiceVariable(env, GATEWAY_SERVICE, CURRENT_VAR);
   const currentKey = parseEncryptionKeyMaterial(currentRaw, CURRENT_VAR);
-  assertFinalizeWindowState({
+  const previousByService = BYOK_SERVICES.map(svc => readServiceVariable(env, svc, PREVIOUS_VAR));
+  assertFinalizeWindowState({ env, resume, current: currentRaw, previousByService });
+  // A NEXT that differs from CURRENT refuses here, before any row check or delete:
+  // with PREVIOUS gone (`--resume`) it can only be an unfinished stage 1.
+  assertNoPendingNext({
     env,
-    resume,
+    read: getServiceVariableOrEmpty,
     current: currentRaw,
-    previousByService: BYOK_SERVICES.map(svc => readServiceVariable(env, svc, PREVIOUS_VAR)),
+    windowOpen: classifyFinalizeWindow({ current: currentRaw, previousByService }) === 'open',
   });
   const remaining = await withEnvPrisma(env, prisma => countNonCurrentRows(prisma, currentKey));
   if (remaining > 0) {
@@ -430,28 +410,15 @@ async function finalizeByokWindow(env: SecretsEnv, resume: boolean): Promise<voi
   // does not redeploy by itself, so the explicit redeploy below is what closes the
   // window in the running services. Both are observed Railway behaviour, not pinned
   // by a test.
-  const absentNow: string[] = [];
-  for (const svc of BYOK_SERVICES) {
-    if (readServiceVariable(env, svc, PREVIOUS_VAR) === undefined) {
-      absentNow.push(svc);
-      console.log(chalk.dim(`  ${PREVIOUS_VAR} already absent on ${svc} (${env})`));
-      continue;
-    }
-    try {
-      await deleteRailwayVariable({ ...ids[svc], name: PREVIOUS_VAR, env });
-      absentNow.push(svc);
-      console.log(chalk.green(`  deleted ${PREVIOUS_VAR} on ${svc} (${env})`));
-    } catch (error) {
-      throw deleteFailureError({
-        env,
-        service: svc,
-        services: BYOK_SERVICES,
-        absentNow,
-        varName: PREVIOUS_VAR,
-        error,
-      });
-    }
-  }
+  const deleteArgs = {
+    env,
+    ids,
+    readRaw: readServiceVariable,
+    deleteVariable: deleteRailwayVariable,
+  };
+  await deleteByokVariable({ ...deleteArgs, varName: PREVIOUS_VAR, previousAlreadyDeleted: false });
+  // Only a NEXT equal to CURRENT reaches here (a leftover of an interrupted swap).
+  await deleteByokVariable({ ...deleteArgs, varName: NEXT_VAR, previousAlreadyDeleted: true });
 
   await redeployByokServices(env, ids, failures =>
     finalizeRedeployFailureMessage({ env, failures })
@@ -460,7 +427,7 @@ async function finalizeByokWindow(env: SecretsEnv, resume: boolean): Promise<voi
   await markSecretRotated({ env, name: 'byok-encryption-key' });
   console.log(
     chalk.green(
-      '\nStage 3 complete — PREVIOUS deleted, redeploys requested, ledger stamped. The window is closed in the running services once both new deployments are live.'
+      '\nStage 3 complete — PREVIOUS (and any leftover NEXT) deleted, redeploys requested, ledger stamped. The window is closed in the running services once both new deployments are live.'
     )
   );
 }
@@ -485,9 +452,11 @@ export async function rotateByokKey(options: {
   // …then the IO-touching guard: every stage refuses to run on a split-brain
   // variable state — reads below use api-gateway's copy, which is only
   // trustworthy when both services agree.
-  assertByokServicesConsistent(env);
+  const isStage1 = stage === '1' || stage === 'stage';
+  // Stage 1 repairs a NEXT mismatch by regenerating it, so only stages 2 and 3 compare NEXT.
+  assertByokServicesConsistent(env, getServiceVariableOrEmpty, { compareNext: !isStage1 });
 
-  if (stage === '1' || stage === 'stage') {
+  if (isStage1) {
     await stageByokWindow({
       env,
       getServiceVariable,
@@ -495,6 +464,11 @@ export async function rotateByokKey(options: {
       resolveByokIds,
       assertServiceDeploymentReady: assertRailwayServiceDeploymentReady,
       upsertVariable: upsertRailwayVariable,
+      deleteVariable: deleteRailwayVariable,
+      redeployAndWait: redeployAndWaitForService,
+      redeployWithSource: redeployRailwayServiceReusingImageWithSource,
+      waitForDeploymentRemoved,
+      listLiveDeploymentIds: listRailwayLiveDeploymentIds,
       redeployServices: redeployByokServices,
     });
     return;
@@ -508,7 +482,8 @@ export async function rotateByokKey(options: {
       resolveByokIds,
       assertServiceDeploymentReady: assertRailwayServiceDeploymentReady,
       redeployAndWait: redeployAndWaitForService,
-      assertServicesConsistent: assertByokServicesConsistent,
+      assertServicesConsistent: e =>
+        assertByokServicesConsistent(e, getServiceVariableOrEmpty, { compareNext: true }),
       reencryptAndVerify: (currentKey, previousKey) =>
         withEnvPrisma(env, prisma => reencryptAndVerifyRows(prisma, currentKey, previousKey)),
     });

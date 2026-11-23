@@ -89,6 +89,42 @@ describe('reencryptByokRows', () => {
     });
   });
 
+  describe('a staged NEXT', () => {
+    const KEY_C_HEX = 'c'.repeat(64);
+
+    it('refuses with a re-run-stage-1 message before any redeploy when NEXT is set and no window is open', async () => {
+      const deps = makeDeps({
+        API_KEY_ENCRYPTION_KEY: KEY_A_HEX,
+        API_KEY_ENCRYPTION_KEY_NEXT: KEY_C_HEX,
+      });
+
+      await expect(reencryptByokRows(deps)).rejects.toThrow(
+        /API_KEY_ENCRYPTION_KEY_NEXT is set on api-gateway, ai-worker \(dev\) with no rotation window open.*Re-run stage 1/s
+      );
+      expectNothingChanged(deps);
+      expect(deps.assertServiceDeploymentReady).not.toHaveBeenCalled();
+    });
+
+    it('refuses with the var-delete command before any redeploy when NEXT differs from CURRENT in an open window', async () => {
+      const deps = makeDeps({ ...OPEN_WINDOW, API_KEY_ENCRYPTION_KEY_NEXT: KEY_C_HEX });
+
+      await expect(reencryptByokRows(deps)).rejects.toThrow(
+        /while a rotation window is open.*`pnpm ops deploy:var-delete --env dev --service api-gateway --name API_KEY_ENCRYPTION_KEY_NEXT --yes`; `pnpm ops deploy:var-delete --env dev --service ai-worker/s
+      );
+      expectNothingChanged(deps);
+      expect(deps.assertServiceDeploymentReady).not.toHaveBeenCalled();
+    });
+
+    it('proceeds when NEXT equals CURRENT (a leftover of an interrupted swap)', async () => {
+      const deps = makeDeps({ ...OPEN_WINDOW, API_KEY_ENCRYPTION_KEY_NEXT: KEY_A_HEX });
+
+      await reencryptByokRows(deps);
+
+      expect(deps.redeployAndWait).toHaveBeenCalledTimes(2);
+      expect(deps.reencryptAndVerify).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('redeploys api-gateway then ai-worker, one at a time, and only then re-encrypts with the parsed keys', async () => {
     const calls: string[] = [];
     const deps = makeDeps(OPEN_WINDOW, {
@@ -337,15 +373,20 @@ describe('reencryptByokRows', () => {
       const waits = vi.mocked(deps.redeployAndWait).mock.invocationCallOrder;
       // The first read of CURRENT is the strict one; every later read is absent-tolerant.
       const strictReads = vi.mocked(deps.getServiceVariable).mock.invocationCallOrder;
-      // Three tolerant reads: the PREVIOUS snapshot, then the CURRENT and PREVIOUS re-reads.
+      // Seven tolerant reads: the PREVIOUS snapshot and the two NEXT checks before the waits;
+      // then the CURRENT and PREVIOUS re-reads and the two NEXT checks after them.
       const tolerantReads = vi.mocked(deps.getServiceVariableOrEmpty).mock.invocationCallOrder;
       expect(waits).toHaveLength(2);
       expect(strictReads).toHaveLength(1);
       expect(strictReads[0]).toBeLessThan(waits[0]);
-      expect(tolerantReads).toHaveLength(3);
+      expect(tolerantReads).toHaveLength(7);
       expect(tolerantReads[0]).toBeLessThan(waits[0]);
-      expect(tolerantReads[1]).toBeGreaterThan(waits[1]);
-      expect(tolerantReads[2]).toBeGreaterThan(waits[1]);
+      expect(tolerantReads[1]).toBeLessThan(waits[0]);
+      expect(tolerantReads[2]).toBeLessThan(waits[0]);
+      expect(tolerantReads[3]).toBeGreaterThan(waits[1]);
+      expect(tolerantReads[4]).toBeGreaterThan(waits[1]);
+      expect(tolerantReads[5]).toBeGreaterThan(waits[1]);
+      expect(tolerantReads[6]).toBeGreaterThan(waits[1]);
     });
 
     it('asserts the two services agree again only after both waits have finished', async () => {

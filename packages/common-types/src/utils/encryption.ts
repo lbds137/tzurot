@@ -61,16 +61,38 @@ function getEncryptionKey(): Buffer {
 }
 
 /**
+ * The single "is this optional key variable set" rule shared by the PREVIOUS and
+ * NEXT getters and by `getEncryptionKeySlots`: absent or empty both mean unset.
+ */
+function isKeyVarSet(value: string | undefined): value is string {
+  return value !== undefined && value !== '';
+}
+
+/**
  * Previous encryption key during a rotation window, or null outside one.
  * Absent or empty both mean no rotation window: stage 3 deletes the variable,
  * and an empty value (left by an older finalize or a hand edit) means the same.
  */
 function getPreviousEncryptionKey(): Buffer | null {
   const key = process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
-  if (key === undefined || key === '') {
+  if (!isKeyVarSet(key)) {
     return null;
   }
   return parseKeyMaterial(key, 'API_KEY_ENCRYPTION_KEY_PREVIOUS');
+}
+
+/**
+ * Next encryption key staged by rotation stage 1 before the swap, or null
+ * when none is staged. DECRYPT-ONLY: `encryptApiKey` never reads it, so no row
+ * is written under it until the swap promotes it to CURRENT. Absent or empty
+ * both mean no staged key (same convention as PREVIOUS).
+ */
+function getNextEncryptionKey(): Buffer | null {
+  const key = process.env.API_KEY_ENCRYPTION_KEY_NEXT;
+  if (!isKeyVarSet(key)) {
+    return null;
+  }
+  return parseKeyMaterial(key, 'API_KEY_ENCRYPTION_KEY_NEXT');
 }
 
 /**
@@ -128,17 +150,37 @@ export function decryptApiKey(encrypted: EncryptedData): string {
   try {
     return decryptWithKey(encrypted, currentKey);
   } catch (error) {
-    // Dual-key rotation window: rows not yet re-encrypted decrypt with the
-    // previous key. GCM's auth tag makes a wrong-key attempt fail loudly
-    // (never silent garbage), so try-then-fallback IS the key selector — no
-    // ciphertext versioning needed. Outside a rotation window the fallback
-    // is absent and the original error propagates.
-    const previousKey = getPreviousEncryptionKey();
-    if (previousKey === null) {
-      throw error;
-    }
-    return decryptWithKey(encrypted, previousKey);
+    // Rotation fallbacks, tried in order: rows not yet re-encrypted decrypt
+    // with the previous key; a row another process already wrote under the
+    // staged next key decrypts with NEXT. GCM's auth tag makes a wrong-key
+    // attempt fail loudly (never silent garbage), so try-then-fallback IS the
+    // key selector — no ciphertext versioning needed. Each fallback key is
+    // resolved lazily, in this order. With no fallback set the original error
+    // propagates; with fallbacks set, a decrypt error from the attempts is thrown
+    // (wrong-key errors carry the same message, so which attempt's error surfaces
+    // is not pinned).
+    return decryptWithFallbacks(encrypted, error, [getPreviousEncryptionKey, getNextEncryptionKey]);
   }
+}
+
+function decryptWithFallbacks(
+  encrypted: EncryptedData,
+  currentError: unknown,
+  resolvers: readonly (() => Buffer | null)[]
+): string {
+  let lastError = currentError;
+  for (const resolve of resolvers) {
+    const key = resolve();
+    if (key === null) {
+      continue;
+    }
+    try {
+      return decryptWithKey(encrypted, key);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
 }
 
 /**
@@ -166,17 +208,31 @@ export function parseEncryptionKeyMaterial(value: string, label: string): Buffer
  *
  * Re-runs the same key resolution `decryptApiKey`/`encryptApiKey` depend on,
  * so this cannot drift from what they actually require: `false` means
- * `API_KEY_ENCRYPTION_KEY` (or a present `API_KEY_ENCRYPTION_KEY_PREVIOUS`)
- * is missing or malformed, never that a specific row's ciphertext is bad.
+ * `API_KEY_ENCRYPTION_KEY` (or a present `API_KEY_ENCRYPTION_KEY_PREVIOUS` /
+ * `API_KEY_ENCRYPTION_KEY_NEXT`) is missing or malformed, never that a
+ * specific row's ciphertext is bad.
  */
 export function isEncryptionConfigured(): boolean {
   try {
     getEncryptionKey();
     getPreviousEncryptionKey();
+    getNextEncryptionKey();
     return true;
   } catch {
     return false;
   }
+}
+
+/**
+ * Presence only, for startup observability during a BYOK rotation: whether the
+ * PREVIOUS and NEXT key variables are set, by the same rule the getters use.
+ * Never parses, returns or logs a key value.
+ */
+export function getEncryptionKeySlots(): { previousKeySet: boolean; nextKeySet: boolean } {
+  return {
+    previousKeySet: isKeyVarSet(process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS),
+    nextKeySet: isKeyVarSet(process.env.API_KEY_ENCRYPTION_KEY_NEXT),
+  };
 }
 
 /**

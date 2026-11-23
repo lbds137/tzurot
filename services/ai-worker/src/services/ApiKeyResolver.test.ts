@@ -76,6 +76,7 @@ describe('ApiKeyResolver', () => {
   beforeEach(() => {
     process.env.API_KEY_ENCRYPTION_KEY = VALID_KEY_HEX;
     delete process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+    delete process.env.API_KEY_ENCRYPTION_KEY_NEXT;
   });
 
   afterEach(restoreEncryptionEnv);
@@ -543,6 +544,19 @@ describe('ApiKeyResolver', () => {
         expect.stringContaining(
           'API_KEY_ENCRYPTION_KEY (or API_KEY_ENCRYPTION_KEY_PREVIOUS) missing or malformed'
         )
+      );
+    });
+
+    it('should warn at construction when the key is valid but API_KEY_ENCRYPTION_KEY_NEXT is malformed', () => {
+      process.env.API_KEY_ENCRYPTION_KEY_NEXT = 'not-hex';
+
+      mockLogger.warn.mockClear();
+      new ApiKeyResolver(mockPrisma as unknown as PrismaClient);
+
+      expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        { component: 'ApiKeyResolver' },
+        expect.stringContaining('API_KEY_ENCRYPTION_KEY_NEXT malformed')
       );
     });
   });

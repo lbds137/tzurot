@@ -1,10 +1,14 @@
 /**
  * Stage-3 helpers for the staged BYOK encryption-key rotation in rotation.ts:
  * window classification, finalize-window refusal messaging, service-id
- * narrowing, and partial-delete repair messaging.
+ * narrowing, the per-service variable delete loop, and partial-delete repair
+ * messaging.
  */
 
+import chalk from 'chalk';
+import type { deleteRailwayVariable } from '../deployment/railway-api.js';
 import { resolveRailwayIds, type RailwayIds } from '../deployment/railway-status.js';
+import { BYOK_SERVICES, type ByokServiceIds } from './byok-stage-helpers.js';
 
 export type FinalizeWindowState = 'open' | 'none' | 'degenerate';
 
@@ -88,8 +92,16 @@ export function deleteFailureError(args: {
   absentNow: readonly string[];
   varName: string;
   error: unknown;
+  /** True when PREVIOUS is already gone on every service (the NEXT cleanup after the PREVIOUS delete). */
+  previousAlreadyDeleted?: boolean;
 }): Error {
-  const { env, service, services, absentNow, varName, error } = args;
+  const { env, service, services, absentNow, varName, error, previousAlreadyDeleted } = args;
+  if (absentNow.length === 0 && previousAlreadyDeleted === true) {
+    return new Error(
+      `Failed to delete ${varName} on ${service} (${env}). API_KEY_ENCRYPTION_KEY_PREVIOUS is already deleted on every service; re-run stage 3 with --resume to retry.`,
+      { cause: error }
+    );
+  }
   if (absentNow.length === 0) {
     return new Error(
       `Failed to delete ${varName} on ${service} (${env}). Re-run stage 3 to retry; if the re-run reports that the services differ, run the deploy:var-delete command it prints, then re-run stage 3 with --resume.`,
@@ -106,4 +118,45 @@ export function deleteFailureError(args: {
       `Delete it with: ${commands}, then re-run stage 3 with --resume.`,
     { cause: error }
   );
+}
+
+/**
+ * Delete `varName` from every BYOK service through the Railway API (the CLI
+ * rejects an empty value). A service whose variable is already absent is
+ * skipped; a failed delete throws `deleteFailureError` naming what is left.
+ * `previousAlreadyDeleted` marks the NEXT cleanup that runs after PREVIOUS was
+ * deleted everywhere, so a first-delete failure points at `--resume`.
+ */
+export async function deleteByokVariable(args: {
+  env: 'dev' | 'prod';
+  ids: ByokServiceIds;
+  varName: string;
+  readRaw: (env: 'dev' | 'prod', service: string, key: string) => string | undefined;
+  deleteVariable: typeof deleteRailwayVariable;
+  previousAlreadyDeleted: boolean;
+}): Promise<void> {
+  const { env, ids, varName, readRaw, deleteVariable, previousAlreadyDeleted } = args;
+  const absentNow: string[] = [];
+  for (const svc of BYOK_SERVICES) {
+    if (readRaw(env, svc, varName) === undefined) {
+      absentNow.push(svc);
+      console.log(chalk.dim(`  ${varName} already absent on ${svc} (${env})`));
+      continue;
+    }
+    try {
+      await deleteVariable({ ...ids[svc], name: varName, env });
+      absentNow.push(svc);
+      console.log(chalk.green(`  deleted ${varName} on ${svc} (${env})`));
+    } catch (error) {
+      throw deleteFailureError({
+        env,
+        service: svc,
+        services: BYOK_SERVICES,
+        absentNow,
+        varName,
+        error,
+        previousAlreadyDeleted,
+      });
+    }
+  }
 }
