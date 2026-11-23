@@ -10,10 +10,20 @@
  * unit: a string in, a boolean out, with no cache or Redis coupling.
  */
 
-interface ModelPattern {
-  required: string;
-  additional?: string[];
-}
+type ModelPattern =
+  | { required: string; additional?: string[]; exact?: false }
+  | {
+      required: string;
+      /**
+       * The normalized id (after dropping any `:variant` suffix such as
+       * `:free`) must equal `required` or end with `/` + `required`, so a
+       * provider prefix like `z-ai/` is allowed. Replaces the substring match;
+       * the type forbids `additional` on exact patterns. Ids the exact rule does
+       * not recognize, such as a dated snapshot (`z-ai/glm-5.4-20261201`), fall
+       * through as not-vision: the fail-closed direction.
+       */
+      exact: true;
+    };
 
 /**
  * Vision model patterns for fallback detection.
@@ -46,11 +56,15 @@ const VISION_MODEL_PATTERNS: ModelPattern[] = [
   { required: 'pixtral' },
   // InternVL models
   { required: 'internvl' },
-  // Z.AI GLM — mirrors the `supportsVision` flag on the z.ai coding-plan catalog
-  // entry, so degraded mode agrees with the catalog. The full `glm-5.3-flash`
-  // term is required: the GLM flash line is not uniformly multimodal, and a
-  // broader 'glm-5.3' or 'flash' term would over-claim its text-only siblings.
+  // Z.AI GLM — these entries mirror the `supportsVision` flags on the z.ai
+  // coding-plan catalog entries (glm-5.3-flash, glm-5.4), so degraded mode
+  // agrees with the catalog. The full `glm-5.3-flash` term is required: the GLM
+  // flash line is not uniformly multimodal, and a broader 'glm-5.3' or 'flash'
+  // term would over-claim its text-only siblings. glm-5.4 is EXACT because a
+  // broader term would over-claim future text-only glm-5.4-* variants (the 5.x
+  // line has shipped text-only variants under a parent prefix, e.g. glm-5-turbo).
   { required: 'glm-5.3-flash' },
+  { required: 'glm-5.4', exact: true },
 ];
 
 /**
@@ -94,6 +108,10 @@ const REASONING_MODEL_PATTERNS: ModelPattern[] = [
 /** Check patterns against a normalized model name */
 function matchesPatterns(normalized: string, patterns: ModelPattern[]): boolean {
   return patterns.some(pattern => {
+    if (pattern.exact === true) {
+      const id = normalized.split(':')[0];
+      return id === pattern.required || id.endsWith(`/${pattern.required}`);
+    }
     if (!normalized.includes(pattern.required)) {
       return false;
     }
