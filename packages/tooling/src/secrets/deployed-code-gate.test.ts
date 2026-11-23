@@ -362,7 +362,7 @@ describe('checkDeployedCodeDecryptsWithNext', () => {
     const result = await checkDeployedCodeDecryptsWithNext(args);
 
     expect(result.ok).toBe(false);
-    expect(result.ok === false && result.reason).toContain('API_KEY_ENCRYPTION_KEY_NEXT');
+    expect(result.ok === false && result.reason).toContain('getNextEncryptionKey');
   });
 
   it('refuses when the deployed commit is not in this clone', async () => {
@@ -403,7 +403,7 @@ describe('checkDeployedCodeDecryptsWithNext', () => {
       'grep',
       '-q',
       '-F',
-      'process.env.API_KEY_ENCRYPTION_KEY_NEXT',
+      'getNextEncryptionKey',
       KNOWN_COMMIT,
       '--',
       ':/packages/common-types/src/utils/encryption.ts',

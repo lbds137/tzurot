@@ -45,9 +45,19 @@ interface HarnessOptions {
   failOn?: string[];
   /** Live deployment ids per service name for the pre-swap check. Default: only the new deployment. */
   liveDeployments?: Record<string, string[]>;
-  /** Per-service refusal from the image decrypt gate. Default: both images decrypt with NEXT. */
-  imageGate?: Partial<Record<'api-gateway' | 'ai-worker', { ok: false; reason: string }>>;
+  /** Per-service refusal from the image decrypt gate, on every call. Default: both images decrypt with NEXT. */
+  imageGate?: ImageGateFailures;
+  /**
+   * Per-call refusals, by 0-based call index across the whole run. The gate runs
+   * twice per service: calls 0 (api-gateway) and 1 (ai-worker) before the first
+   * write, calls 2 and 3 before the swap. A missing entry falls back to `imageGate`.
+   */
+  imageGateSequence?: ReadonlyArray<ImageGateFailures | undefined>;
 }
+
+type ImageGateFailures = Partial<
+  Record<'api-gateway' | 'ai-worker', { ok: false; reason: string }>
+>;
 
 function sameVars(vars: Record<string, string>): VarStore {
   return { 'api-gateway': { ...vars }, 'ai-worker': { ...vars } };
@@ -79,6 +89,7 @@ function makeHarness(options: HarnessOptions = {}): {
   };
   const removalPolls: Record<string, number> = {};
   let clock = 0;
+  let gateCalls = 0;
 
   const deps = {
     env: 'dev',
@@ -147,8 +158,11 @@ function makeHarness(options: HarnessOptions = {}): {
       return options.liveDeployments?.[service] ?? [`new-${service}`];
     }),
     checkDeployedCode: vi.fn(async (args: { serviceName: 'api-gateway' | 'ai-worker' }) => {
+      const call = gateCalls;
+      gateCalls += 1;
       events.push(`gate:${args.serviceName}`);
       return (
+        options.imageGateSequence?.[call]?.[args.serviceName] ??
         options.imageGate?.[args.serviceName] ?? {
           ok: true,
           commit: 'c0ffee0000000000000000000000000000000000',
@@ -302,6 +316,8 @@ describe('stageByokWindow', () => {
         'redeploy:ai-worker',
         'latest:ai-worker',
         'status:old-ai-worker:REMOVED',
+        'gate:api-gateway',
+        'gate:ai-worker',
         'upsert:api-gateway:API_KEY_ENCRYPTION_KEY_PREVIOUS',
         'upsert:ai-worker:API_KEY_ENCRYPTION_KEY_PREVIOUS',
         'upsert:api-gateway:API_KEY_ENCRYPTION_KEY',
@@ -735,7 +751,8 @@ describe('stageByokWindow', () => {
 
       await stageByokWindow(deps);
 
-      expect(deps.checkDeployedCode).toHaveBeenCalledTimes(2);
+      // Twice per service: before the first write, and again before the swap.
+      expect(deps.checkDeployedCode).toHaveBeenCalledTimes(4);
       expect(deps.checkDeployedCode).toHaveBeenCalledWith({
         environmentId: 'envid',
         serviceId: 'svc-api-gateway',
@@ -748,9 +765,54 @@ describe('stageByokWindow', () => {
         serviceName: 'ai-worker',
         env: 'dev',
       });
+      // The first pair runs before the first write; the second pair runs before the swap.
       const firstWrite = Math.min(...written(events, 'upsert:'));
-      expect(written(events, 'gate:').every(index => index < firstWrite)).toBe(true);
-      expect(written(events, 'gate:')).toHaveLength(2);
+      const gateIndexes = written(events, 'gate:');
+      expect(gateIndexes).toHaveLength(4);
+      expect(gateIndexes.slice(0, 2).every(index => index < firstWrite)).toBe(true);
+    });
+
+    it('refuses before the swap when ai-worker changes image between the first check and the redeploy', async () => {
+      // Calls 0-1 (before any write) pass; call 3 (ai-worker, before the swap) fails.
+      const { deps, events, store } = makeHarness({
+        imageGateSequence: [
+          undefined,
+          undefined,
+          undefined,
+          { 'ai-worker': { ok: false, reason: 'rolled back to an image without NEXT' } },
+        ],
+      });
+      const before = structuredClone(store);
+
+      const error = await stageByokWindow(deps).then(
+        () => undefined,
+        (caught: unknown) => caught
+      );
+
+      expect(error).toBeInstanceOf(Error);
+      const message = (error as Error).message;
+      expect(message).toContain('ai-worker: rolled back to an image without NEXT');
+      expect(message).toContain(
+        'API_KEY_ENCRYPTION_KEY has not changed and no row has been touched; the staged API_KEY_ENCRYPTION_KEY_NEXT is harmless'
+      );
+      expect(message).toContain('re-run BYOK stage 1 (it reuses API_KEY_ENCRYPTION_KEY_NEXT).');
+      // Both gate pairs ran, and the redeploys happened before the refusal.
+      expect(written(events, 'gate:')).toHaveLength(4);
+      expect(events).toContain('redeploy:ai-worker');
+      // No PREVIOUS or CURRENT write and no delete; CURRENT is unchanged.
+      expect(events.filter(e => /^upsert:.*:API_KEY_ENCRYPTION_KEY(_PREVIOUS)?$/.test(e))).toEqual(
+        []
+      );
+      expect(events.filter(e => e.startsWith('delete:'))).toEqual([]);
+      expect(store).toEqual({
+        'api-gateway': {
+          ...before['api-gateway'],
+          API_KEY_ENCRYPTION_KEY_NEXT: expect.any(String),
+        },
+        'ai-worker': { ...before['ai-worker'], API_KEY_ENCRYPTION_KEY_NEXT: expect.any(String) },
+      });
+      expect(store['api-gateway'].API_KEY_ENCRYPTION_KEY).toBe(KEY_A_HEX);
+      expect(store['ai-worker'].API_KEY_ENCRYPTION_KEY).toBe(KEY_A_HEX);
     });
 
     it('refuses before any write when ai-worker runs an image that ignores NEXT', async () => {
