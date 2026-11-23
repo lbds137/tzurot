@@ -5,7 +5,10 @@ vi.mock('../deployment/railway-api.js', () => ({ getLiveDeploymentCommit: vi.fn(
 
 import { execFileSync } from 'node:child_process';
 import { getLiveDeploymentCommit } from '../deployment/railway-api.js';
-import { checkDeployedCodeAcceptsPrevious } from './deployed-code-gate.js';
+import {
+  checkDeployedCodeAcceptsPrevious,
+  checkDeployedCodeDecryptsWithNext,
+} from './deployed-code-gate.js';
 
 const mockExecFileSync = vi.mocked(execFileSync);
 const mockGetLiveDeploymentCommit = vi.mocked(getLiveDeploymentCommit);
@@ -315,5 +318,95 @@ describe('checkDeployedCodeAcceptsPrevious', () => {
     for (const spec of pathspecs) {
       expect(spec.startsWith(':/')).toBe(true);
     }
+  });
+});
+
+describe('checkDeployedCodeDecryptsWithNext', () => {
+  const args = {
+    environmentId: 'env-1',
+    serviceId: 'svc-worker',
+    serviceName: 'ai-worker',
+    env: 'dev' as const,
+  };
+
+  beforeEach(() => {
+    mockExecFileSync.mockReset();
+    mockGetLiveDeploymentCommit.mockReset();
+    mockGetLiveDeploymentCommit.mockResolvedValue(KNOWN_COMMIT);
+  });
+
+  it('passes when the token is in the common-types decrypt module', async () => {
+    mockExecFileSync.mockImplementation(
+      fakeGit({
+        knownCommit: KNOWN_COMMIT,
+        tokenPath: 'packages/common-types/src/utils/encryption.ts',
+      }) as unknown as typeof execFileSync
+    );
+
+    const result = await checkDeployedCodeDecryptsWithNext(args);
+
+    expect(result).toEqual({ ok: true, commit: KNOWN_COMMIT });
+  });
+
+  // Vacuity case: tooling names the variable too (byok-stage-helpers.ts) but is
+  // not in any service image, so a commit where only tooling carries the token
+  // must not pass.
+  it('refuses when the only file carrying the token is a tooling file', async () => {
+    mockExecFileSync.mockImplementation(
+      fakeGit({
+        knownCommit: KNOWN_COMMIT,
+        tokenPath: 'packages/tooling/src/secrets/byok-stage-helpers.ts',
+      }) as unknown as typeof execFileSync
+    );
+
+    const result = await checkDeployedCodeDecryptsWithNext(args);
+
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.reason).toContain('API_KEY_ENCRYPTION_KEY_NEXT');
+  });
+
+  it('refuses when the deployed commit is not in this clone', async () => {
+    mockExecFileSync.mockImplementation(
+      fakeGit({
+        knownCommit: 'some-other-commit',
+        tokenPath: undefined,
+      }) as unknown as typeof execFileSync
+    );
+
+    const result = await checkDeployedCodeDecryptsWithNext(args);
+
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.reason).toContain('git fetch origin');
+  });
+
+  it('refuses when the live deployment cannot be read', async () => {
+    mockGetLiveDeploymentCommit.mockRejectedValue(new Error('network unreachable'));
+
+    const result = await checkDeployedCodeDecryptsWithNext(args);
+
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.reason).toContain('network unreachable');
+  });
+
+  it('greps the NEXT token with -F, scoped to the decrypt module', async () => {
+    mockExecFileSync.mockImplementation(
+      fakeGit({
+        knownCommit: KNOWN_COMMIT,
+        tokenPath: 'packages/common-types/src/utils/encryption.ts',
+      }) as unknown as typeof execFileSync
+    );
+
+    await checkDeployedCodeDecryptsWithNext(args);
+
+    const grepCall = mockExecFileSync.mock.calls.find(call => call[1]?.[0] === 'grep');
+    expect(grepCall?.[1]).toEqual([
+      'grep',
+      '-q',
+      '-F',
+      'process.env.API_KEY_ENCRYPTION_KEY_NEXT',
+      KNOWN_COMMIT,
+      '--',
+      ':/packages/common-types/src/utils/encryption.ts',
+    ]);
   });
 });

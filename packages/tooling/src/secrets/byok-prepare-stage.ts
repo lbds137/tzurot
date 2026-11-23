@@ -5,7 +5,8 @@
  * live process can write. Both services read and write encrypted rows, so the
  * new key must be decrypt-live in EVERY process before ANY process encrypts with
  * it. The order is:
- *   1. refusals (an open window, a malformed CURRENT) and the readiness preflight;
+ *   1. refusals (an open window, a malformed CURRENT), the readiness preflight, and
+ *      the check that each service's running image decrypts with NEXT;
  *   2. prepare: stage a decrypt-only `API_KEY_ENCRYPTION_KEY_NEXT` on both
  *      services (reusing an equal-on-both valid one left by an interrupted run,
  *      otherwise minting a fresh one; nothing encrypts under NEXT, so replacing
@@ -23,9 +24,11 @@
  *      then CURRENT = the NEXT value on both, then delete NEXT on both;
  *   6. redeploy both services; stage 2 then re-encrypts the rows.
  *
- * PRECONDITION, not checked by this tool: the environment's running image already
- * contains the NEXT-aware `decryptApiKey`. The prepare redeploy reuses the running
- * image, so deploy that code to the environment before running stage 1.
+ * CHECKED before the first write: stage 1 reads each service's live deployment
+ * commit and refuses unless that commit's common-types `encryption.ts` reads NEXT
+ * (`checkDeployedCodeDecryptsWithNext`). The commit must be in the local clone, so
+ * run `git fetch origin` first. The prepare redeploy reuses the running image, so a
+ * refusal means deploying that code to the environment and re-running stage 1.
  *
  * Probed on dev: the `deployment(id:)` status query (see
  * `deployment/railway-deployment-status.ts`) returned the requested ids with
@@ -63,6 +66,7 @@ import {
   type StageUpsertPhase,
 } from './byok-stage-helpers.js';
 import type { listRailwayLiveDeploymentIds } from '../deployment/railway-deployment-status.js';
+import type { checkDeployedCodeDecryptsWithNext } from './deployed-code-gate.js';
 import type { waitForDeploymentRemoved } from './deployment-removal-wait.js';
 import type { RedeployFailure } from './redeploy-repair-text.js';
 import type { redeployAndWaitForService, RedeployWaitWording } from './service-redeploy-wait.js';
@@ -101,6 +105,7 @@ export interface StageByokWindowDeps {
   redeployWithSource: typeof redeployRailwayServiceReusingImageWithSource;
   waitForDeploymentRemoved: typeof waitForDeploymentRemoved;
   listLiveDeploymentIds: typeof listRailwayLiveDeploymentIds;
+  checkDeployedCode: typeof checkDeployedCodeDecryptsWithNext;
   redeployServices: (
     env: Env,
     ids: ByokServiceIds,
@@ -115,6 +120,42 @@ function isValidKeyMaterial(value: string): boolean {
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Refuse unless each service's live deployment commit decrypts with NEXT. Both
+ * services are checked before refusing, so one run names every stale image.
+ * Runs before the first write, so a refusal leaves CURRENT and every row untouched.
+ */
+async function assertImagesDecryptWithNext(
+  deps: StageByokWindowDeps,
+  ids: ByokServiceIds
+): Promise<void> {
+  const { env, checkDeployedCode } = deps;
+  const failures: string[] = [];
+  for (const svc of BYOK_SERVICES) {
+    const result = await checkDeployedCode({
+      environmentId: ids[svc].environmentId,
+      serviceId: ids[svc].serviceId,
+      serviceName: svc,
+      env,
+    });
+    if (result.ok) {
+      console.log(
+        chalk.green(
+          `  ${svc} (${env}) runs ${result.commit.slice(0, 12)}, which decrypts with ${NEXT_VAR}`
+        )
+      );
+    } else {
+      // One trailing period is stripped so the joined reasons do not read "...retry.; ...".
+      failures.push(`${svc}: ${result.reason.replace(/\.$/, '')}`);
+    }
+  }
+  if (failures.length > 0) {
+    throw new Error(
+      `${failures.join('; ')}. ${CURRENT_VAR} has not changed and nothing was written.`
+    );
   }
 }
 
@@ -353,6 +394,7 @@ export async function stageByokWindow(deps: StageByokWindowDeps): Promise<void> 
 
   const ids = resolveByokIds(env);
   await assertByokServicesDeploymentReady(env, ids, assertServiceDeploymentReady);
+  await assertImagesDecryptWithNext(deps, ids);
 
   const next = await prepareNextKey(deps, ids, current);
   const newIds = await redeployAndDrain(deps, ids);
@@ -366,7 +408,7 @@ export async function stageByokWindow(deps: StageByokWindowDeps): Promise<void> 
 
   console.log(
     chalk.cyan(
-      '\nStage 1 complete. Both services now hold current+previous keys, and the new key was staged on both and each pre-staging deployment reported a not-live status (REMOVED, SKIPPED or FAILED) before either encrypted with it (that the running image decrypts with NEXT is a precondition this tool does not check); redeploys requested (image reused, no rebuild).\n' +
+      '\nStage 1 complete. Both services now hold current+previous keys, and the new key was staged on both and each pre-staging deployment reported a not-live status (REMOVED, SKIPPED or FAILED) before either encrypted with it (both running images were checked to decrypt with NEXT); redeploys requested (image reused, no rebuild).\n' +
         'Once both redeploys have settled (stage 2 refuses a deployment still in flight), run stage 2 (reencrypt): it redeploys both services again and waits for each new deployment to reach SUCCESS before touching any row.'
     )
   );

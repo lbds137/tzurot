@@ -55,11 +55,13 @@ the new key first goes in as `NEXT` on both services, which decrypts with it but
 never encrypts with it; only once every process that could write is known to hold
 it does stage 1 promote it.
 
-**Precondition: deploy the `NEXT`-aware code first.** Stage 1 redeploys each
-service reusing its running image, so the image already running in the target
-environment must contain the `NEXT`-aware `decryptApiKey`. This tool does not
-check it. Deploy to the environment before running stage 1. Until TASK-1510
-adds that check, no prod BYOK rotation runs (owner ruling).
+**Stage 1 checks that the running code decrypts with `NEXT`.** Stage 1 redeploys each
+service reusing its running image, so that image must already contain the `NEXT`-aware
+`decryptApiKey`. Before staging anything, stage 1 reads each service's live deployment
+commit and refuses, naming the service, unless that commit's
+`packages/common-types/src/utils/encryption.ts` reads `API_KEY_ENCRYPTION_KEY_NEXT`. The
+commit must be in your clone, so run `git fetch origin` first. On a refusal, deploy that
+code to the environment and re-run stage 1.
 
 ### Stage 1 — stage
 
