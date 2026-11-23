@@ -55,11 +55,13 @@ export interface DeployedCodeGateArgs {
 }
 
 /**
- * `deploymentId` is the id of the latest deployment the gate read. It is set
- * whenever that read succeeded, so a caller can confirm WHICH deployment it
- * checked, not only the commit it ran. A not-ok result that read the deployment
- * always carries its id and commit; only `readFailed: true` lacks them (pinned
- * by deployed-code-gate.test.ts).
+ * The three arms:
+ * - `ok: true` carries the commit and id of the deployment the read returned.
+ * - `readFailed: true` means the live read itself threw, so no deployment was
+ *   reached and there is no commit or id.
+ * - `readFailed: false` refused a deployment it did read, and carries that
+ *   deployment's commit and id so a caller can confirm WHICH deployment it
+ *   checked (pinned by deployed-code-gate.test.ts).
  */
 export type DeployedCodeGateResult =
   | { ok: true; commit: string; deploymentId: string }
