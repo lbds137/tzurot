@@ -33,7 +33,7 @@
  * common-types `encryption.ts` defines `getNextEncryptionKey`, the NEXT-aware decrypt
  * fallback. The second check catches a deploy or rollback between the first check
  * and the redeploy. The commit must be in the local clone, so run
- * `git fetch origin main develop` first. The prepare redeploy reuses the running
+ * `git fetch origin` first. The prepare redeploy reuses the running
  * image, so a refusal means deploying that code to the environment and re-running
  * stage 1.
  *
@@ -132,7 +132,10 @@ function isValidKeyMaterial(value: string): boolean {
 
 /** Refusal tail for the check before the first write: nothing has been written yet. */
 const FIRST_CHECK_TAIL = `${CURRENT_VAR} has not changed and nothing was written.`;
-/** Refusal tail for the check before the swap: the staged NEXT is harmless, nothing encrypts with it. */
+/**
+ * Refusal tail for the check before the swap: the staged NEXT is harmless, nothing encrypts with it.
+ * Pinned by the pre-swap refusal test in byok-prepare-stage.test.ts, which also re-runs stage 1.
+ */
 const PRE_SWAP_CHECK_TAIL =
   `${CURRENT_VAR} has not changed and no row has been touched; the staged ${NEXT_VAR} is ` +
   `harmless (nothing encrypts with it). Deploy code with the NEXT-aware decrypt, then re-run ` +
@@ -142,11 +145,15 @@ const PRE_SWAP_CHECK_TAIL =
  * Refuse unless each service's live deployment commit defines `getNextEncryptionKey`. Both
  * services are checked before refusing, so one run names every stale image.
  * The refusal ends with `refusalTail`, which states what state the run left.
+ * `expectedDeploymentIds` (the pre-swap call) also requires the deployment the gate
+ * read to be the one this run created, so a deploy that landed after the redeploy
+ * is refused rather than passed on the commit alone.
  */
 async function assertImagesDecryptWithNext(
   deps: StageByokWindowDeps,
   ids: ByokServiceIds,
-  refusalTail: string
+  refusalTail: string,
+  expectedDeploymentIds?: DeploymentIdByService
 ): Promise<void> {
   const { env, checkDeployedCode } = deps;
   const failures: string[] = [];
@@ -157,7 +164,12 @@ async function assertImagesDecryptWithNext(
       serviceName: svc,
       env,
     });
-    if (result.ok) {
+    const expected = expectedDeploymentIds?.[svc];
+    if (result.ok && expected !== undefined && result.deploymentId !== expected) {
+      failures.push(
+        `${svc}: the deployment it read (${result.deploymentId}) is not the one this run created (${expected}); a newer deploy landed after the redeploy`
+      );
+    } else if (result.ok) {
       console.log(
         chalk.green(
           `  ${svc} (${env}) runs ${result.commit.slice(0, 12)}, which decrypts with ${NEXT_VAR}`
@@ -413,7 +425,7 @@ export async function stageByokWindow(deps: StageByokWindowDeps): Promise<void> 
   const next = await prepareNextKey(deps, ids, current);
   const newIds = await redeployAndDrain(deps, ids);
   await assertOnlyNewDeploymentsLive(deps, ids, newIds);
-  await assertImagesDecryptWithNext(deps, ids, PRE_SWAP_CHECK_TAIL);
+  await assertImagesDecryptWithNext(deps, ids, PRE_SWAP_CHECK_TAIL, newIds);
   assertKeysUnchanged(deps, { current, previous: previousByService, next });
   await swapToNext(deps, ids, { current, next });
 

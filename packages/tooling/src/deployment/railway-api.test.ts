@@ -13,6 +13,7 @@ import {
   assertRailwayServiceDeploymentReady,
   redeployRailwayServiceReusingImage,
   redeployRailwayServiceReusingImageWithSource,
+  getLiveDeployment,
   getLiveDeploymentCommit,
   getRailwayServiceWatchPatterns,
   RailwayRedeployRefusedError,
@@ -1153,6 +1154,63 @@ describe('railway-api', () => {
       await expect(
         readRailwayVariableValue({ projectId: 'p', environmentId: 'e', name: 'FOO', env: 'dev' })
       ).rejects.not.toThrow(/12345/);
+    });
+  });
+
+  describe('getLiveDeployment', () => {
+    it('returns the id and commitHash of a SUCCESS latest deployment', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(
+        jsonResponse(200, {
+          data: {
+            serviceInstance: {
+              latestDeployment: {
+                id: 'dep-42',
+                status: 'SUCCESS',
+                meta: { commitHash: 'db783ced15f2efe99cbf1e13bf89d51e03e52203' },
+              },
+            },
+          },
+        })
+      );
+
+      const deployment = await getLiveDeployment({
+        environmentId: 'env-1',
+        serviceId: 'svc-1',
+        serviceName: 'api-gateway',
+        env: 'dev',
+      });
+
+      expect(deployment).toEqual({
+        id: 'dep-42',
+        commit: 'db783ced15f2efe99cbf1e13bf89d51e03e52203',
+      });
+    });
+
+    it('refuses a non-SUCCESS latestDeployment, same as getLiveDeploymentCommit', async () => {
+      process.env.TZUROT_RAILWAY_API_TOKEN_DEV = SENTINEL_TOKEN;
+      mockFetch.mockResolvedValue(
+        jsonResponse(200, {
+          data: {
+            serviceInstance: {
+              latestDeployment: {
+                id: 'dep-1',
+                status: 'BUILDING',
+                meta: { commitHash: 'abc1234' },
+              },
+            },
+          },
+        })
+      );
+
+      await expect(
+        getLiveDeployment({
+          environmentId: 'env-1',
+          serviceId: 'svc-1',
+          serviceName: 'api-gateway',
+          env: 'dev',
+        })
+      ).rejects.toThrow(/BUILDING/);
     });
   });
 

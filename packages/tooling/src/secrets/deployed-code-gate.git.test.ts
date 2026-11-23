@@ -3,13 +3,13 @@ import { describe, it, expect, vi } from 'vitest';
 // Only the Railway read is mocked. Git is real: this file pins that the gate's
 // token and pathspec still match the decrypt source at HEAD, which a mocked git
 // cannot show.
-vi.mock('../deployment/railway-api.js', () => ({ getLiveDeploymentCommit: vi.fn() }));
+vi.mock('../deployment/railway-api.js', () => ({ getLiveDeployment: vi.fn() }));
 
 import { execFileSync } from 'node:child_process';
-import { getLiveDeploymentCommit } from '../deployment/railway-api.js';
+import { getLiveDeployment } from '../deployment/railway-api.js';
 import { checkDeployedCodeDecryptsWithNext } from './deployed-code-gate.js';
 
-const mockGetLiveDeploymentCommit = vi.mocked(getLiveDeploymentCommit);
+const mockGetLiveDeployment = vi.mocked(getLiveDeployment);
 
 describe('checkDeployedCodeDecryptsWithNext against the real git repo at HEAD', () => {
   // Pins that BYOK_NEXT_TOKEN and BYOK_DECRYPT_PATHSPECS still match the real
@@ -23,7 +23,7 @@ describe('checkDeployedCodeDecryptsWithNext against the real git repo at HEAD', 
   // the commit-not-in-clone case in deployed-code-gate.test.ts).
   it('passes for HEAD, whose decrypt module defines getNextEncryptionKey', async () => {
     const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf-8' }).trim();
-    mockGetLiveDeploymentCommit.mockResolvedValue(head);
+    mockGetLiveDeployment.mockResolvedValue({ id: 'dep-head', commit: head });
 
     const result = await checkDeployedCodeDecryptsWithNext({
       environmentId: 'env-1',
@@ -32,6 +32,6 @@ describe('checkDeployedCodeDecryptsWithNext against the real git repo at HEAD', 
       env: 'dev',
     });
 
-    expect(result).toEqual({ ok: true, commit: head });
+    expect(result).toEqual({ ok: true, commit: head, deploymentId: 'dep-head' });
   });
 });

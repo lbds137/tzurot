@@ -18,7 +18,7 @@
  */
 import { execFileSync } from 'node:child_process';
 
-import { getLiveDeploymentCommit, type RailwayEnv } from '../deployment/railway-api.js';
+import { getLiveDeployment, type RailwayEnv } from '../deployment/railway-api.js';
 
 // Scoping the grep to source is load-bearing, not cosmetic: the tracker task
 // describing this feature carries the literal `<NAME>_PREVIOUS` token and is
@@ -54,8 +54,14 @@ export interface DeployedCodeGateArgs {
   env: RailwayEnv;
 }
 
+/**
+ * `deploymentId` is the id of the latest deployment the gate read. It is set
+ * whenever that read succeeded, so a caller can confirm WHICH deployment it
+ * checked, not only the commit it ran.
+ */
 export type DeployedCodeGateResult =
-  { ok: true; commit: string } | { ok: false; commit?: string; reason: string };
+  | { ok: true; commit: string; deploymentId: string }
+  | { ok: false; commit?: string; deploymentId?: string; reason: string };
 
 function commitExistsLocally(commit: string): boolean {
   try {
@@ -115,9 +121,9 @@ interface CarriesTokenArgs {
 async function checkDeployedCodeCarriesToken(
   args: CarriesTokenArgs
 ): Promise<DeployedCodeGateResult> {
-  let commit: string;
+  let deployment: { id: string; commit: string };
   try {
-    commit = await getLiveDeploymentCommit({
+    deployment = await getLiveDeployment({
       environmentId: args.environmentId,
       serviceId: args.serviceId,
       serviceName: args.serviceName,
@@ -132,11 +138,13 @@ async function checkDeployedCodeCarriesToken(
         'TZUROT_RAILWAY_API_TOKEN_<ENV> and that the service has a finished deploy.',
     };
   }
+  const { id: deploymentId, commit } = deployment;
 
   if (!commitExistsLocally(commit)) {
     return {
       ok: false,
       commit,
+      deploymentId,
       reason:
         `the commit "${args.serviceName}" is running (${commit}) is not in this clone — run ` +
         '`git fetch origin` and retry.',
@@ -144,10 +152,10 @@ async function checkDeployedCodeCarriesToken(
   }
 
   if (!commitCarriesToken(commit, args.token, args.pathspecs)) {
-    return { ok: false, commit, reason: args.missingReason(commit) };
+    return { ok: false, commit, deploymentId, reason: args.missingReason(commit) };
   }
 
-  return { ok: true, commit };
+  return { ok: true, commit, deploymentId };
 }
 
 export async function checkDeployedCodeAcceptsPrevious(
