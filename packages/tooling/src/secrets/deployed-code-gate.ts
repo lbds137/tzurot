@@ -96,8 +96,10 @@ function commitCarriesToken(commit: string, token: string, pathspecs: readonly s
  * encryption.ts (it is in `decryptApiKey`'s fallback list). It first appeared in
  * the commit that introduced NEXT. The match is PRESENCE-ONLY: a grep for the
  * name cannot tell whether the fallback is still wired into decrypt. A refactor
- * that keeps the name but drops the wiring passes this gate, and the real-git
- * HEAD test (deployed-code-gate.git.test.ts) is what catches a rename or removal.
+ * that keeps the name but drops the wiring passes this gate. The real-git HEAD
+ * test (deployed-code-gate.git.test.ts) catches a rename or removal of the
+ * function; the fallback wiring is pinned by common-types encryption.test.ts,
+ * "decrypt-only NEXT slot › decrypts a row written under NEXT only while NEXT is set".
  * The path is scoped to that one file because tooling (byok-stage-helpers.ts)
  * also names NEXT but is not in any service image, so an unscoped grep would
  * pass on tooling alone.
