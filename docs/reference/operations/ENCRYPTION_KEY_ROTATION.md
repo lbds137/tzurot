@@ -60,8 +60,10 @@ service reusing its running image, so that image must already contain the
 `NEXT`-aware `decryptApiKey`. Stage 1 reads each service's live deployment commit and
 refuses, naming the service, unless that commit's
 `packages/common-types/src/utils/encryption.ts` defines `getNextEncryptionKey`, the
-NEXT-aware decrypt fallback. The check is presence-only, and the real-git HEAD test
-catches a rename or removal. It runs twice: before staging anything, and again after
+NEXT-aware decrypt fallback. The check is presence-only. The real-git HEAD test catches
+a rename or removal of the function, and the fallback wiring is pinned by the
+`decrypt-only NEXT slot` tests in `encryption.test.ts`. It runs twice: before staging
+anything, and again after
 the redeploys and before the swap, against the deployments stage 1 created. The commit
 must be in your clone, so run `git fetch origin` first. On a refusal, deploy that code
 to the environment and re-run stage 1.

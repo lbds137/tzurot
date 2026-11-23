@@ -62,7 +62,8 @@ type ImageGateFailures = Partial<
 type GateOutcomeByService = Partial<
   Record<
     'api-gateway' | 'ai-worker',
-    { ok: false; reason: string } | { ok: true; commit: string; deploymentId: string }
+    | { ok: false; reason: string; deploymentId?: string }
+    | { ok: true; commit: string; deploymentId: string }
   >
 >;
 
@@ -794,7 +795,14 @@ describe('stageByokWindow', () => {
           undefined,
           undefined,
           undefined,
-          { 'ai-worker': { ok: false, reason: 'rolled back to an image without NEXT' } },
+          {
+            'ai-worker': {
+              ok: false,
+              reason: 'rolled back to an image without NEXT',
+              // The gate read the deployment and refused its image, so the id is known.
+              deploymentId: 'new-ai-worker',
+            },
+          },
         ],
       });
       const before = structuredClone(store);
@@ -874,9 +882,13 @@ describe('stageByokWindow', () => {
       expect(message).toContain(
         'api-gateway: the deployment it read (dep-a-newer-deploy) is not the one this run created (new-api-gateway); a newer deploy landed after the redeploy'
       );
-      expect(message).toContain(
-        'API_KEY_ENCRYPTION_KEY has not changed and no row has been touched; the staged API_KEY_ENCRYPTION_KEY_NEXT is harmless'
-      );
+      // A mismatch is not a stale image, so the tail does not advise deploying NEXT-aware code.
+      expect(
+        message.endsWith(
+          "API_KEY_ENCRYPTION_KEY has not changed and no row has been touched; the staged API_KEY_ENCRYPTION_KEY_NEXT is harmless (nothing encrypts with it). A newer deploy landed after this run's redeploy: wait for it to settle, then re-run BYOK stage 1 (it reuses API_KEY_ENCRYPTION_KEY_NEXT)."
+        )
+      ).toBe(true);
+      expect(message).not.toContain('Deploy code with the NEXT-aware decrypt');
       // Nothing past NEXT is written: no PREVIOUS or CURRENT upsert, no delete.
       expect(events.filter(e => /^upsert:.*:API_KEY_ENCRYPTION_KEY(_PREVIOUS)?$/.test(e))).toEqual(
         []
@@ -888,6 +900,65 @@ describe('stageByokWindow', () => {
       expect(store['ai-worker'].API_KEY_ENCRYPTION_KEY).toBe(
         before['ai-worker'].API_KEY_ENCRYPTION_KEY
       );
+    });
+
+    it('refuses before the swap, prefixing the read failure, when the pre-swap live deployment cannot be read', async () => {
+      // No deploymentId on the result means the read itself failed (a newer deploy may still be in flight).
+      const { deps, events } = makeHarness({
+        imageGateSequence: [
+          undefined,
+          undefined,
+          undefined,
+          {
+            'ai-worker': {
+              ok: false,
+              reason: 'could not read the live deployment for "ai-worker": timeout',
+            },
+          },
+        ],
+      });
+
+      const error = await stageByokWindow(deps).then(
+        () => undefined,
+        (caught: unknown) => caught
+      );
+
+      expect(error).toBeInstanceOf(Error);
+      const message = (error as Error).message;
+      expect(message).toContain(
+        'ai-worker: the live deployment could not be read (a newer deploy may still be in flight; wait for it to settle and re-run): could not read the live deployment for "ai-worker": timeout. '
+      );
+      // Not all failures are mismatches, so the stale-image tail is kept.
+      expect(message).toContain('Deploy code with the NEXT-aware decrypt');
+      expect(events.filter(e => e.startsWith('delete:'))).toEqual([]);
+    });
+
+    it("reports the gate's own reason, not the mismatch message, when the pre-swap result is not ok but carries a deploymentId", async () => {
+      const { deps, events } = makeHarness({
+        imageGateSequence: [
+          undefined,
+          undefined,
+          undefined,
+          {
+            'ai-worker': {
+              ok: false,
+              reason: 'carries no "API_KEY_ENCRYPTION_KEY_PREVIOUS"',
+              deploymentId: 'new-ai-worker',
+            },
+          },
+        ],
+      });
+
+      const error = await stageByokWindow(deps).then(
+        () => undefined,
+        (caught: unknown) => caught
+      );
+
+      const message = (error as Error).message;
+      expect(message).toContain('ai-worker: carries no "API_KEY_ENCRYPTION_KEY_PREVIOUS"');
+      expect(message).not.toContain('is not the one this run created');
+      expect(message).not.toContain('could not be read');
+      expect(events.filter(e => e.startsWith('delete:'))).toEqual([]);
     });
 
     it('refuses before any write when ai-worker runs an image that ignores NEXT', async () => {

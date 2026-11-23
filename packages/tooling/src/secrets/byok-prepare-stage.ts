@@ -140,6 +140,18 @@ const PRE_SWAP_CHECK_TAIL =
   `${CURRENT_VAR} has not changed and no row has been touched; the staged ${NEXT_VAR} is ` +
   `harmless (nothing encrypts with it). Deploy code with the NEXT-aware decrypt, then re-run ` +
   `BYOK stage 1 (it reuses ${NEXT_VAR}).`;
+/**
+ * Refusal tail when every pre-swap failure is a deployment-id mismatch. The code is
+ * not the problem, so it does not advise deploying NEXT-aware code.
+ */
+const PRE_SWAP_MISMATCH_TAIL =
+  `${CURRENT_VAR} has not changed and no row has been touched; the staged ${NEXT_VAR} is ` +
+  `harmless (nothing encrypts with it). A newer deploy landed after this run's redeploy: wait ` +
+  `for it to settle, then re-run BYOK stage 1 (it reuses ${NEXT_VAR}).`;
+/** Prefix for a pre-swap failure where the live deployment could not be read at all. */
+const LIVE_READ_FAILED_PREFIX =
+  'the live deployment could not be read (a newer deploy may still be in flight; wait for it ' +
+  'to settle and re-run): ';
 
 /**
  * Refuse unless each service's live deployment commit defines `getNextEncryptionKey`. Both
@@ -147,7 +159,8 @@ const PRE_SWAP_CHECK_TAIL =
  * The refusal ends with `refusalTail`, which states what state the run left.
  * `expectedDeploymentIds` (the pre-swap call) also requires the deployment the gate
  * read to be the one this run created, so a deploy that landed after the redeploy
- * is refused rather than passed on the commit alone.
+ * is refused rather than passed on the commit alone. When every failure is such a
+ * mismatch, the refusal ends with `PRE_SWAP_MISMATCH_TAIL` instead.
  */
 async function assertImagesDecryptWithNext(
   deps: StageByokWindowDeps,
@@ -157,6 +170,7 @@ async function assertImagesDecryptWithNext(
 ): Promise<void> {
   const { env, checkDeployedCode } = deps;
   const failures: string[] = [];
+  let mismatches = 0;
   for (const svc of BYOK_SERVICES) {
     const result = await checkDeployedCode({
       environmentId: ids[svc].environmentId,
@@ -166,6 +180,7 @@ async function assertImagesDecryptWithNext(
     });
     const expected = expectedDeploymentIds?.[svc];
     if (result.ok && expected !== undefined && result.deploymentId !== expected) {
+      mismatches += 1;
       failures.push(
         `${svc}: the deployment it read (${result.deploymentId}) is not the one this run created (${expected}); a newer deploy landed after the redeploy`
       );
@@ -177,11 +192,14 @@ async function assertImagesDecryptWithNext(
       );
     } else {
       // One trailing period is stripped so the joined reasons do not read "...retry.; ...".
-      failures.push(`${svc}: ${result.reason.replace(/\.$/, '')}`);
+      const reason = result.reason.replace(/\.$/, '');
+      const readFailed = expected !== undefined && result.deploymentId === undefined;
+      failures.push(`${svc}: ${readFailed ? LIVE_READ_FAILED_PREFIX : ''}${reason}`);
     }
   }
   if (failures.length > 0) {
-    throw new Error(`${failures.join('; ')}. ${refusalTail}`);
+    const tail = mismatches === failures.length ? PRE_SWAP_MISMATCH_TAIL : refusalTail;
+    throw new Error(`${failures.join('; ')}. ${tail}`);
   }
 }
 
