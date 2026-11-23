@@ -1,9 +1,11 @@
 ---
 id: TASK-1514
 title: BYOK image gate follow-ups from PR 2789 round 4
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - tzurot
 created_date: '2026-11-23T04:30:00Z'
+updated_date: '2026-11-23T04:56:00Z'
 labels:
   - area:tooling
   - size:S
