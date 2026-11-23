@@ -10,7 +10,8 @@
  *
  * The same gate shape also serves BYOK stage 1 (byok-prepare-stage.ts): stage 1
  * stages NEXT and redeploys each service reusing its running image, so it must
- * refuse unless that image's decrypt reads NEXT (`checkDeployedCodeDecryptsWithNext`).
+ * refuse unless that image's decrypt defines `getNextEncryptionKey`, the NEXT-aware
+ * decrypt fallback (`checkDeployedCodeDecryptsWithNext`).
  *
  * There is deliberately NO override flag: an acknowledgement the operator can
  * type is a rubber stamp, and this check is cheap and real.
@@ -85,13 +86,20 @@ function commitCarriesToken(commit: string, token: string, pathspecs: readonly s
 }
 
 /**
- * The token is the decrypt module's own read of the NEXT variable. The path is
- * scoped to that one file because tooling (byok-stage-helpers.ts) also names the
- * variable but is not in any service image, so an unscoped grep would pass on
- * tooling alone.
+ * `getNextEncryptionKey` is the NEXT-aware decrypt fallback in common-types
+ * encryption.ts (it is in `decryptApiKey`'s fallback list). It first appeared in
+ * the commit that introduced NEXT. The match is PRESENCE-ONLY: a grep for the
+ * name cannot tell whether the fallback is still wired into decrypt. A refactor
+ * that keeps the name but drops the wiring passes this gate, and the real-git
+ * HEAD test (deployed-code-gate.git.test.ts) is what catches a rename or removal.
+ * The path is scoped to that one file because tooling (byok-stage-helpers.ts)
+ * also names NEXT but is not in any service image, so an unscoped grep would
+ * pass on tooling alone.
  */
-export const BYOK_NEXT_TOKEN = 'process.env.API_KEY_ENCRYPTION_KEY_NEXT';
-export const BYOK_DECRYPT_PATHSPECS = [':/packages/common-types/src/utils/encryption.ts'];
+export const BYOK_NEXT_TOKEN = 'getNextEncryptionKey';
+export const BYOK_DECRYPT_PATHSPECS: readonly string[] = [
+  ':/packages/common-types/src/utils/encryption.ts',
+];
 
 interface CarriesTokenArgs {
   environmentId: string;
@@ -185,9 +193,10 @@ export async function checkDeployedCodeDecryptsWithNext(
     token: BYOK_NEXT_TOKEN,
     pathspecs: BYOK_DECRYPT_PATHSPECS,
     missingReason: commit =>
-      `the commit "${args.serviceName}" is running (${commit}) does not read API_KEY_ENCRYPTION_KEY_NEXT ` +
-      'in packages/common-types/src/utils/encryption.ts — that image ignores a staged NEXT key, so ' +
-      'the stage-1 swap would reopen the cross-service decrypt race. Deploy code containing the ' +
-      'NEXT-aware decrypt to this environment first, then retry.',
+      `the commit "${args.serviceName}" is running (${commit}) does not define ${BYOK_NEXT_TOKEN} ` +
+      `in ${BYOK_DECRYPT_PATHSPECS.map(spec => spec.replace(/^:\//, '')).join(' or ')} — that ` +
+      "image's decrypt ignores a staged NEXT key, so the stage-1 swap would reopen the " +
+      'cross-service decrypt race. Deploy code containing the NEXT-aware decrypt to this ' +
+      'environment first, then retry.',
   });
 }

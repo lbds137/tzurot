@@ -19,16 +19,23 @@
  *      service is REMOVED, SKIPPED or FAILED (the new deployment is the only
  *      live one), because an older deployment that is still live runs with
  *      CURRENT and no NEXT, and cannot decrypt rows written after the swap;
+ *      the decrypt-with-NEXT check runs again here, against the deployments this
+ *      run created, so a deploy or rollback between the first check and the
+ *      redeploy is caught before the swap;
  *   4. re-read the keys (the waits take minutes) and refuse if they moved;
  *   5. swap, all with `skipDeploys`: PREVIOUS = old CURRENT on both services,
  *      then CURRENT = the NEXT value on both, then delete NEXT on both;
  *   6. redeploy both services; stage 2 then re-encrypts the rows.
  *
- * CHECKED before the first write: stage 1 reads each service's live deployment
- * commit and refuses unless that commit's common-types `encryption.ts` reads NEXT
- * (`checkDeployedCodeDecryptsWithNext`). The commit must be in the local clone, so
- * run `git fetch origin` first. The prepare redeploy reuses the running image, so a
- * refusal means deploying that code to the environment and re-running stage 1.
+ * CHECKED twice (`checkDeployedCodeDecryptsWithNext`): before the first write, and
+ * again before the swap, against the deployments this run created. Each check reads
+ * each service's live deployment commit and refuses unless that commit's
+ * common-types `encryption.ts` defines `getNextEncryptionKey`, the NEXT-aware decrypt
+ * fallback. The second check catches a deploy or rollback between the first check
+ * and the redeploy. The commit must be in the local clone, so run
+ * `git fetch origin main develop` first. The prepare redeploy reuses the running
+ * image, so a refusal means deploying that code to the environment and re-running
+ * stage 1.
  *
  * Probed on dev: the `deployment(id:)` status query (see
  * `deployment/railway-deployment-status.ts`) returned the requested ids with
@@ -123,14 +130,23 @@ function isValidKeyMaterial(value: string): boolean {
   }
 }
 
+/** Refusal tail for the check before the first write: nothing has been written yet. */
+const FIRST_CHECK_TAIL = `${CURRENT_VAR} has not changed and nothing was written.`;
+/** Refusal tail for the check before the swap: the staged NEXT is harmless, nothing encrypts with it. */
+const PRE_SWAP_CHECK_TAIL =
+  `${CURRENT_VAR} has not changed and no row has been touched; the staged ${NEXT_VAR} is ` +
+  `harmless (nothing encrypts with it). Deploy code with the NEXT-aware decrypt, then re-run ` +
+  `BYOK stage 1 (it reuses ${NEXT_VAR}).`;
+
 /**
- * Refuse unless each service's live deployment commit decrypts with NEXT. Both
+ * Refuse unless each service's live deployment commit defines `getNextEncryptionKey`. Both
  * services are checked before refusing, so one run names every stale image.
- * Runs before the first write, so a refusal leaves CURRENT and every row untouched.
+ * The refusal ends with `refusalTail`, which states what state the run left.
  */
 async function assertImagesDecryptWithNext(
   deps: StageByokWindowDeps,
-  ids: ByokServiceIds
+  ids: ByokServiceIds,
+  refusalTail: string
 ): Promise<void> {
   const { env, checkDeployedCode } = deps;
   const failures: string[] = [];
@@ -153,9 +169,7 @@ async function assertImagesDecryptWithNext(
     }
   }
   if (failures.length > 0) {
-    throw new Error(
-      `${failures.join('; ')}. ${CURRENT_VAR} has not changed and nothing was written.`
-    );
+    throw new Error(`${failures.join('; ')}. ${refusalTail}`);
   }
 }
 
@@ -394,11 +408,12 @@ export async function stageByokWindow(deps: StageByokWindowDeps): Promise<void> 
 
   const ids = resolveByokIds(env);
   await assertByokServicesDeploymentReady(env, ids, assertServiceDeploymentReady);
-  await assertImagesDecryptWithNext(deps, ids);
+  await assertImagesDecryptWithNext(deps, ids, FIRST_CHECK_TAIL);
 
   const next = await prepareNextKey(deps, ids, current);
   const newIds = await redeployAndDrain(deps, ids);
   await assertOnlyNewDeploymentsLive(deps, ids, newIds);
+  await assertImagesDecryptWithNext(deps, ids, PRE_SWAP_CHECK_TAIL);
   assertKeysUnchanged(deps, { current, previous: previousByService, next });
   await swapToNext(deps, ids, { current, next });
 

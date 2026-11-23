@@ -57,11 +57,13 @@ it does stage 1 promote it.
 
 **Stage 1 checks that the running code decrypts with `NEXT`.** Stage 1 redeploys each
 service reusing its running image, so that image must already contain the `NEXT`-aware
-`decryptApiKey`. Before staging anything, stage 1 reads each service's live deployment
-commit and refuses, naming the service, unless that commit's
-`packages/common-types/src/utils/encryption.ts` reads `API_KEY_ENCRYPTION_KEY_NEXT`. The
-commit must be in your clone, so run `git fetch origin` first. On a refusal, deploy that
-code to the environment and re-run stage 1.
+`decryptApiKey`. Stage 1 reads each service's live deployment commit and refuses, naming
+the service, unless that commit's `packages/common-types/src/utils/encryption.ts` defines
+`getNextEncryptionKey`, the NEXT-aware decrypt fallback. The check is presence-only, and
+the real-git HEAD test catches a rename or removal. It runs twice: before staging
+anything, and again after the redeploys and before the swap, against the deployments
+stage 1 created. The commit must be in your clone, so run `git fetch origin main develop`
+first. On a refusal, deploy that code to the environment and re-run stage 1.
 
 ### Stage 1 — stage
 

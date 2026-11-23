@@ -349,9 +349,9 @@ describe('rotateByokKey', () => {
     try {
       await expect(rotateByokKey({ env: 'dev', stage: '1' })).resolves.toBeUndefined();
 
-      // Wiring: the image gate runs once per BYOK service.
+      // Wiring: the image gate runs once per BYOK service before the first write, and again before the swap.
       const gate = vi.mocked(checkDeployedCodeDecryptsWithNext);
-      expect(gate).toHaveBeenCalledTimes(2);
+      expect(gate).toHaveBeenCalledTimes(4);
       expect(gate).toHaveBeenCalledWith(
         expect.objectContaining({ serviceName: 'api-gateway', env: 'dev' })
       );
