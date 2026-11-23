@@ -507,13 +507,13 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.7';
  *    GLM-5 family and 5-turbo — output headroom the cap formula reserves
  *    automatically; recorded here so the next audit has it.)
  *
- * Source of truth for membership: docs.z.ai/devpack/overview. Source of truth
- * for context lengths + docs URLs: the per-model pages under
- * docs.z.ai/guides/llm (indexed in docs.z.ai/llms.txt). glm-5.4's context
- * length and capabilities come from live measurement against the plan, not a
- * docs page (TASK-1516). Keys must stay lowercase to match the case-normalized
- * lookups; user-typed preset configs may use any case so callers normalize
- * before lookup.
+ * Source of truth for membership: docs.z.ai/devpack/overview, except glm-5.4,
+ * whose membership comes from the plan's /models listing. Source of truth for
+ * context lengths + docs URLs: the per-model pages under docs.z.ai/guides/llm
+ * (indexed in docs.z.ai/llms.txt). glm-5.4's context length and capabilities
+ * come from live measurement against the plan, not a docs page (TASK-1516).
+ * Keys must stay lowercase to match the case-normalized lookups; user-typed
+ * preset configs may use any case so callers normalize before lookup.
  */
 // `released` (ISO date) is only consumed for z.ai-EXCLUSIVE models: it becomes
 // the synthetic catalog entry's `created` so `/models` can sort them by recency.
