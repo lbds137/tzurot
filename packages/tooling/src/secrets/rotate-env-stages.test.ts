@@ -165,7 +165,7 @@ describe('runStagedRotation', () => {
       return SENTINEL_VALUE;
     });
     mockConfirm.mockReset().mockResolvedValue(true);
-    mockGate.mockReset().mockResolvedValue({ ok: true, commit: 'abc123' });
+    mockGate.mockReset().mockResolvedValue({ ok: true, commit: 'abc123', deploymentId: 'dep-1' });
     mockRedeploy.mockReset().mockResolvedValue([]);
     mockReportFailures.mockReset();
     mockMarkRotated.mockReset().mockResolvedValue(true);
@@ -220,7 +220,7 @@ describe('runStagedRotation', () => {
   });
 
   it('stage 1 refuses to open a second window while one is already open', async () => {
-    mockGate.mockResolvedValue({ ok: true, commit: 'abc123' });
+    mockGate.mockResolvedValue({ ok: true, commit: 'abc123', deploymentId: 'dep-1' });
     verifierNames.add(PREVIOUS_NAME);
     const context = makeContext();
 

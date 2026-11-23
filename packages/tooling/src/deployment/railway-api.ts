@@ -28,6 +28,7 @@
 import { z } from 'zod';
 
 import { UsageError } from '../utils/errors.js';
+import { DeploymentMetaSchema } from './deployment-meta.js';
 
 const RAILWAY_GRAPHQL_ENDPOINT = 'https://backboard.railway.app/graphql/v2';
 
@@ -602,25 +603,6 @@ export async function redeployRailwayServiceReusingImage(
   return (await redeployRailwayServiceReusingImageWithSource(args)).newDeploymentId;
 }
 
-/**
- * `meta` is a Railway GraphQL SCALAR (opaque JSON) rather than a selectable
- * object type, so it arrives whole and is parsed here. Only `commitHash` is
- * required; the other keys Railway carries (`branch`, `repo`, `commitAuthor`,
- * `commitMessage`) ride along unvalidated via `passthrough`.
- *
- * `commitHash` is regex-constrained to a hex string, not just `z.string()`:
- * this value is later passed as an argv element to `git cat-file` and `git
- * grep` as a revision. It is never shell-interpolated, so this is not an
- * injection risk, but a value beginning with `-` would be read by git as a
- * FLAG rather than a revision, producing a confusing failure in place of the
- * intended "commit not in this clone" message. The length range is 7-40
- * (short SHA through full SHA) rather than exactly 40, since both `git
- * cat-file` and `git grep` accept abbreviated SHAs.
- */
-const DeploymentMetaSchema = z
-  .object({ commitHash: z.string().regex(/^[0-9a-f]{7,40}$/) })
-  .passthrough();
-
 export interface GetLiveDeploymentCommitArgs {
   environmentId: string;
   serviceId: string;
@@ -641,6 +623,17 @@ export interface GetLiveDeploymentCommitArgs {
  * the "refuses a non-SUCCESS latestDeployment" case in `railway-api.test.ts`.
  */
 export async function getLiveDeploymentCommit(args: GetLiveDeploymentCommitArgs): Promise<string> {
+  return (await getLiveDeployment(args)).commit;
+}
+
+/**
+ * The id and commit SHA of a service instance's latest deployment, required to be
+ * SUCCESS. Same validation and errors as `getLiveDeploymentCommit`, which delegates
+ * here. The id lets a caller confirm WHICH deployment it read, not only what it ran.
+ */
+export async function getLiveDeployment(
+  args: GetLiveDeploymentCommitArgs
+): Promise<{ id: string; commit: string }> {
   const deployment = await fetchServiceInstanceLatestDeployment(args);
   if (deployment === null) {
     throw unexpectedShapeError(SERVICE_INSTANCE_DEPLOYMENT_SHAPE);
@@ -658,7 +651,7 @@ export async function getLiveDeploymentCommit(args: GetLiveDeploymentCommitArgs)
     );
   }
 
-  return parsedMeta.data.commitHash;
+  return { id: deployment.id, commit: parsedMeta.data.commitHash };
 }
 
 const SERVICE_INSTANCE_WATCH_PATTERNS_QUERY = `

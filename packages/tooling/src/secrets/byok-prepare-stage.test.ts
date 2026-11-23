@@ -48,15 +48,22 @@ interface HarnessOptions {
   /** Per-service refusal from the image decrypt gate, on every call. Default: both images decrypt with NEXT. */
   imageGate?: ImageGateFailures;
   /**
-   * Per-call refusals, by 0-based call index across the whole run. The gate runs
+   * Per-call outcomes, by 0-based call index across the whole run. The gate runs
    * twice per service: calls 0 (api-gateway) and 1 (ai-worker) before the first
-   * write, calls 2 and 3 before the swap. A missing entry falls back to `imageGate`.
+   * write, calls 2 and 3 before the swap. A missing entry falls back to `imageGate`,
+   * then to a pass on the run's own new deployment.
    */
-  imageGateSequence?: ReadonlyArray<ImageGateFailures | undefined>;
+  imageGateSequence?: ReadonlyArray<GateOutcomeByService | undefined>;
 }
 
 type ImageGateFailures = Partial<
   Record<'api-gateway' | 'ai-worker', { ok: false; reason: string }>
+>;
+type GateOutcomeByService = Partial<
+  Record<
+    'api-gateway' | 'ai-worker',
+    { ok: false; reason: string } | { ok: true; commit: string; deploymentId: string }
+  >
 >;
 
 function sameVars(vars: Record<string, string>): VarStore {
@@ -166,6 +173,8 @@ function makeHarness(options: HarnessOptions = {}): {
         options.imageGate?.[args.serviceName] ?? {
           ok: true,
           commit: 'c0ffee0000000000000000000000000000000000',
+          // Matches the redeploy fake's newDeploymentId, so the run's own deployment passes.
+          deploymentId: `new-${args.serviceName}`,
         }
       );
     }),
@@ -746,7 +755,7 @@ describe('stageByokWindow', () => {
       logSpy.mockRestore();
     });
 
-    it('checks each service once with its ids and env, before any write', async () => {
+    it('checks each service twice with its ids and env; the first pair precedes any write', async () => {
       const { deps, events } = makeHarness();
 
       await stageByokWindow(deps);
@@ -770,6 +779,12 @@ describe('stageByokWindow', () => {
       const gateIndexes = written(events, 'gate:');
       expect(gateIndexes).toHaveLength(4);
       expect(gateIndexes.slice(0, 2).every(index => index < firstWrite)).toBe(true);
+      // The second pair runs after the last old deployment is drained and before the first swap write.
+      const lastRemovalPoll = Math.max(...written(events, 'status:old-'));
+      const firstPrevious = events.indexOf('upsert:api-gateway:API_KEY_ENCRYPTION_KEY_PREVIOUS');
+      expect(
+        gateIndexes.slice(2).every(index => index > lastRemovalPoll && index < firstPrevious)
+      ).toBe(true);
     });
 
     it('refuses before the swap when ai-worker changes image between the first check and the redeploy', async () => {
@@ -813,6 +828,66 @@ describe('stageByokWindow', () => {
       });
       expect(store['api-gateway'].API_KEY_ENCRYPTION_KEY).toBe(KEY_A_HEX);
       expect(store['ai-worker'].API_KEY_ENCRYPTION_KEY).toBe(KEY_A_HEX);
+
+      // Re-run on the same store with the gate passing: stage 1 reuses the NEXT the
+      // refused run staged, and promotes it to CURRENT on both services.
+      const stagedNext = store['api-gateway'].API_KEY_ENCRYPTION_KEY_NEXT;
+      expect(stagedNext).toMatch(/^[0-9a-f]{64}$/);
+      const rerunLog = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      try {
+        await expect(stageByokWindow(deps)).resolves.toBeUndefined();
+        const logged = rerunLog.mock.calls.map(call => String(call[0])).join('\n');
+        expect(logged).toContain(
+          'reusing the staged API_KEY_ENCRYPTION_KEY_NEXT found on both services (dev)'
+        );
+      } finally {
+        rerunLog.mockRestore();
+      }
+      expect(store['api-gateway'].API_KEY_ENCRYPTION_KEY).toBe(stagedNext);
+      expect(store['ai-worker'].API_KEY_ENCRYPTION_KEY).toBe(stagedNext);
+    });
+
+    it('refuses before the swap when the pre-swap gate read a different deployment than this run created', async () => {
+      // The commit may still match, but the deployment read is not the one stage 1 redeployed.
+      const { deps, events, store } = makeHarness({
+        imageGateSequence: [
+          undefined,
+          undefined,
+          {
+            'api-gateway': {
+              ok: true,
+              commit: 'c0ffee0000000000000000000000000000000000',
+              deploymentId: 'dep-a-newer-deploy',
+            },
+          },
+        ],
+      });
+      const before = structuredClone(store);
+
+      const error = await stageByokWindow(deps).then(
+        () => undefined,
+        (caught: unknown) => caught
+      );
+
+      expect(error).toBeInstanceOf(Error);
+      const message = (error as Error).message;
+      expect(message).toContain(
+        'api-gateway: the deployment it read (dep-a-newer-deploy) is not the one this run created (new-api-gateway); a newer deploy landed after the redeploy'
+      );
+      expect(message).toContain(
+        'API_KEY_ENCRYPTION_KEY has not changed and no row has been touched; the staged API_KEY_ENCRYPTION_KEY_NEXT is harmless'
+      );
+      // Nothing past NEXT is written: no PREVIOUS or CURRENT upsert, no delete.
+      expect(events.filter(e => /^upsert:.*:API_KEY_ENCRYPTION_KEY(_PREVIOUS)?$/.test(e))).toEqual(
+        []
+      );
+      expect(events.filter(e => e.startsWith('delete:'))).toEqual([]);
+      expect(store['api-gateway'].API_KEY_ENCRYPTION_KEY).toBe(
+        before['api-gateway'].API_KEY_ENCRYPTION_KEY
+      );
+      expect(store['ai-worker'].API_KEY_ENCRYPTION_KEY).toBe(
+        before['ai-worker'].API_KEY_ENCRYPTION_KEY
+      );
     });
 
     it('refuses before any write when ai-worker runs an image that ignores NEXT', async () => {

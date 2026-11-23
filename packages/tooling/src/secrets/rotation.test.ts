@@ -88,10 +88,12 @@ vi.mock('../deployment/railway-status.js', () => ({
 // refusal before the first write). Here it always passes, so stage-1 tests exercise
 // the rotation itself.
 vi.mock('./deployed-code-gate.js', () => ({
-  checkDeployedCodeDecryptsWithNext: vi.fn().mockResolvedValue({
+  // The deployment id matches the redeploy fake's newDeploymentId (`new-${serviceId}`).
+  checkDeployedCodeDecryptsWithNext: vi.fn(async (args: { serviceName: string }) => ({
     ok: true,
     commit: 'c0ffee0000000000000000000000000000000000',
-  }),
+    deploymentId: `new-svc-${args.serviceName}`,
+  })),
 }));
 
 import {
