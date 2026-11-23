@@ -793,8 +793,8 @@ export function zaiThinkingOffSupport(model: string): ZaiThinkingOffSupport | un
  * The catalog's modality flags are optional and read as `false` when omitted,
  * so a member that declares nothing fails closed — a `kind='vision'` config on
  * it resolves to no confirmed vision support. A member that DOES declare the
- * flag resolves to it: glm-5.3-flash sets `supportsVision`, so a `kind='vision'`
- * config on that model passes.
+ * flag resolves to it: glm-5.3-flash and glm-5.4 set `supportsVision`, so a
+ * `kind='vision'` config on either passes.
  */
 export function zaiCodingPlanModelCapabilities(model: string): ModelCapabilities | null {
   const bare = stripZaiPrefix(model);

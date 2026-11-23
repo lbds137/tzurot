@@ -2,9 +2,10 @@
  * Model Capability Patterns
  *
  * Substring heuristics for detecting vision and reasoning support from a model
- * ID alone. These are the LAST resort in ModelCapabilityChecker's resolution
- * order — they fire only when the OpenRouter catalog is unavailable, and they
- * carry no context-length knowledge.
+ * ID alone: a pattern matches when its term appears anywhere in the id, with an
+ * exact-match mode for patterns marked `exact: true`. These are the LAST resort
+ * in ModelCapabilityChecker's resolution order — they fire only when the
+ * OpenRouter catalog is unavailable, and they carry no context-length knowledge.
  *
  * Kept in their own module because they are a self-contained, dependency-free
  * unit: a string in, a boolean out, with no cache or Redis coupling.
@@ -27,7 +28,8 @@ type ModelPattern =
 
 /**
  * Vision model patterns for fallback detection.
- * Each pattern has a required term and optional additional terms (any must match).
+ * Each pattern has a required term and optional additional terms (any must match),
+ * or is `exact: true`, which matches the whole normalized id (see the ModelPattern type).
  *
  * Source of truth: OpenRouter /api/v1/models `architecture.input_modalities` field.
  * These fallbacks only fire when Redis cache (primary path) is unavailable.
