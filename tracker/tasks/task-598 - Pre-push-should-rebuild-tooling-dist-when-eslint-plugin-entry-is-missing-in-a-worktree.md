@@ -3,15 +3,14 @@ id: TASK-598
 title: >-
   Pre-push should rebuild tooling dist when eslint plugin entry is missing in a
   worktree
-status: In Progress
-assignee:
-  - tzurot
+status: To Do
+assignee: []
 created_date: 2026-08-14 00:40
-updated_date: '2026-11-23T05:29:00Z'
+updated_date: '2026-11-23T06:52:00Z'
 labels:
   - area:tooling
   - size:S
-  - state:ready
+  - state:observable
 dependencies: []
 priority: high
 ordinal: 80
@@ -97,3 +96,9 @@ SECOND FINDING, shipped in the same PR: the new guard reads root turbo.json and 
 
 HITS 10-12 (2026-11-22, PR 2789, worktree .claude/worktrees/task-1510; this falsifies "the edge is sufficient"). Three pre-pushes failed `no-message-metadata-rmw.test.ts` "repo enablement — resolved severity from the real root config" with `Cannot find module .../task-1510/packages/tooling/dist/eslint/index.js imported from .../eslint.config.js`. On the third, dist/eslint/index.js existed just before `git push`, and the failing pre-push turbo summary read `Tasks: 5 successful, 7 total / Cached: 4 cached, 7 total`, with `@tzurot/tooling:test: cache miss`. So a cached dependency build was replayed during the push and dropped dist/eslint. Running alone, the test passed 38/38. Each time, the documented purge (`safe-clean <main>/.turbo <wt>/packages/tooling/.turbo` plus `npx turbo run build --filter=@tzurot/tooling --force`) made the next push pass. The run logged only errors, so which cached task replayed is not captured; the next hit should run with full turbo output.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+11-23: SECOND EDGE SHIPPED in PR #2791 (merged 06:51Z). turbo --dry=json showed @tzurot/tooling#test (and #test:coverage) had NO edge to @tzurot/tooling#build: dependencies were only the clients, common-types, embeddings and test-utils builds. no-message-metadata-rmw.test.ts builds new ESLint({cwd: repoRoot}), which loads the root eslint.config.js, which imports tooling dist/eslint. So in pre-push build+lint+test, tooling:test could run while a cache-restored tooling build was being written (fits hit 12: Cached 4, tooling:test cache miss). Fix: packages/tooling/turbo.json test and test:coverage dependsOn [^build, build]; turbo-lint-build-edge.test.ts now guards both tasks (positive control: a tooling test with new ESLint(, excluding the guard file). Race not reproduced live (rm of dist needs owner yes). CLOSE WHEN a stretch of worktree pushes passes with no hit 13 WITHOUT the manual purge. If hit 13 occurs, capture full turbo output (not errors-only) naming which cached task replayed.
+<!-- SECTION:NOTES:END -->
