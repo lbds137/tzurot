@@ -3,10 +3,11 @@ id: TASK-598
 title: >-
   Pre-push should rebuild tooling dist when eslint plugin entry is missing in a
   worktree
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - tzurot
 created_date: 2026-08-14 00:40
-updated_date: '2026-11-23T04:22:00Z'
+updated_date: '2026-11-23T05:29:00Z'
 labels:
   - area:tooling
   - size:S
