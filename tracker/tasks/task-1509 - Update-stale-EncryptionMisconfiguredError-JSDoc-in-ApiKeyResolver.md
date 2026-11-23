@@ -1,9 +1,10 @@
 ---
 id: TASK-1509
 title: Update stale EncryptionMisconfiguredError JSDoc in ApiKeyResolver
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-22T13:40:00Z'
+updated_date: '2026-11-23T02:04:00Z'
 labels:
   - area:ai-worker
   - size:S
