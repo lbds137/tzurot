@@ -33,7 +33,7 @@ describe('rotate-env-stage-output', () => {
     it('prints PASS wording including the commit when ok is true', () => {
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      printGateVerdict({ ok: true, commit: 'abc123' });
+      printGateVerdict({ ok: true, commit: 'abc123', deploymentId: 'dep-1' });
 
       const allOutput = logSpy.mock.calls.flat().map(String).join('\n');
       expect(allOutput).toMatch(/PASS/);

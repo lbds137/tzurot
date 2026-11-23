@@ -127,7 +127,7 @@ describe('runStage3 roll-marker and presenter-readiness guards', () => {
       return SENTINEL_VALUE;
     });
     mockConfirm.mockReset().mockResolvedValue(true);
-    mockGate.mockReset().mockResolvedValue({ ok: true, commit: 'abc123' });
+    mockGate.mockReset().mockResolvedValue({ ok: true, commit: 'abc123', deploymentId: 'dep-1' });
     mockRedeploy.mockReset().mockResolvedValue([]);
     mockMarkRotated.mockReset().mockResolvedValue(true);
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});

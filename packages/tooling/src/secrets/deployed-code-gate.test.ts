@@ -1,17 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
-vi.mock('../deployment/railway-api.js', () => ({ getLiveDeploymentCommit: vi.fn() }));
+vi.mock('../deployment/railway-api.js', () => ({ getLiveDeployment: vi.fn() }));
 
 import { execFileSync } from 'node:child_process';
-import { getLiveDeploymentCommit } from '../deployment/railway-api.js';
+import { getLiveDeployment } from '../deployment/railway-api.js';
 import {
   checkDeployedCodeAcceptsPrevious,
   checkDeployedCodeDecryptsWithNext,
 } from './deployed-code-gate.js';
 
 const mockExecFileSync = vi.mocked(execFileSync);
-const mockGetLiveDeploymentCommit = vi.mocked(getLiveDeploymentCommit);
+const mockGetLiveDeployment = vi.mocked(getLiveDeployment);
 
 const KNOWN_COMMIT = 'db783ced15f2efe99cbf1e13bf89d51e03e52203';
 
@@ -81,8 +81,8 @@ function fakeGit(options: { knownCommit: string; tokenPath: string | undefined }
 describe('checkDeployedCodeAcceptsPrevious', () => {
   beforeEach(() => {
     mockExecFileSync.mockReset();
-    mockGetLiveDeploymentCommit.mockReset();
-    mockGetLiveDeploymentCommit.mockResolvedValue(KNOWN_COMMIT);
+    mockGetLiveDeployment.mockReset();
+    mockGetLiveDeployment.mockResolvedValue({ id: 'dep-1', commit: KNOWN_COMMIT });
   });
 
   it('passes when the deployed commit carries the token in service source', async () => {
@@ -101,7 +101,7 @@ describe('checkDeployedCodeAcceptsPrevious', () => {
       env: 'dev',
     });
 
-    expect(result).toEqual({ ok: true, commit: KNOWN_COMMIT });
+    expect(result).toEqual({ ok: true, commit: KNOWN_COMMIT, deploymentId: 'dep-1' });
   });
 
   it('a commit where only a tracker file carries the token does not pass', async () => {
@@ -145,7 +145,7 @@ describe('checkDeployedCodeAcceptsPrevious', () => {
   });
 
   it('refuses when the live deployment cannot be read', async () => {
-    mockGetLiveDeploymentCommit.mockRejectedValue(new Error('network unreachable'));
+    mockGetLiveDeployment.mockRejectedValue(new Error('network unreachable'));
 
     const result = await checkDeployedCodeAcceptsPrevious({
       environmentId: 'env-1',
@@ -331,8 +331,8 @@ describe('checkDeployedCodeDecryptsWithNext', () => {
 
   beforeEach(() => {
     mockExecFileSync.mockReset();
-    mockGetLiveDeploymentCommit.mockReset();
-    mockGetLiveDeploymentCommit.mockResolvedValue(KNOWN_COMMIT);
+    mockGetLiveDeployment.mockReset();
+    mockGetLiveDeployment.mockResolvedValue({ id: 'dep-1', commit: KNOWN_COMMIT });
   });
 
   it('passes when the token is in the common-types decrypt module', async () => {
@@ -345,7 +345,7 @@ describe('checkDeployedCodeDecryptsWithNext', () => {
 
     const result = await checkDeployedCodeDecryptsWithNext(args);
 
-    expect(result).toEqual({ ok: true, commit: KNOWN_COMMIT });
+    expect(result).toEqual({ ok: true, commit: KNOWN_COMMIT, deploymentId: 'dep-1' });
   });
 
   // Vacuity case: tooling names the variable too (byok-stage-helpers.ts) but is
@@ -380,7 +380,7 @@ describe('checkDeployedCodeDecryptsWithNext', () => {
   });
 
   it('refuses when the live deployment cannot be read', async () => {
-    mockGetLiveDeploymentCommit.mockRejectedValue(new Error('network unreachable'));
+    mockGetLiveDeployment.mockRejectedValue(new Error('network unreachable'));
 
     const result = await checkDeployedCodeDecryptsWithNext(args);
 
