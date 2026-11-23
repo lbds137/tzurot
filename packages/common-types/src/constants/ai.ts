@@ -479,11 +479,10 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.7';
  *    `docsUrl` for the response footer link. Every catalog member EXCEPT
  *    glm-5.4 has a dedicated docs page under `docs.z.ai/guides/` — `llm/<model>`
  *    for the text models, `vlm/<model>` for the vision ones that dock there
- *    (glm-5.3-flash). glm-5.4's page was not published when it was added, so
- *    its docsUrl is a pattern guess (TASK-1516 sets the live one). The field is
- *    explicit for that reason: z.ai has docked a variant on its parent
- *    family's page before, and the section a model lands in is not
- *    derivable from its name.
+ *    (glm-5.3-flash). glm-5.4's docsUrl is an unverified pattern guess
+ *    (TASK-1516 sets the live one). The field is explicit for that reason:
+ *    z.ai has docked a variant on its parent family's page before, and the
+ *    section a model lands in is not derivable from its name.
  *
  * 3. **Context length** — `getZaiCodingPlanContextLength()` reads the
  *    `contextLength` for the context-window cap. This is load-bearing: when a
@@ -512,9 +511,9 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.7';
  * for context lengths + docs URLs: the per-model pages under
  * docs.z.ai/guides/llm (indexed in docs.z.ai/llms.txt). glm-5.4's context
  * length and capabilities come from live measurement against the plan, not a
- * docs page (TASK-1516). Keys must stay
- * lowercase to match the case-normalized lookups; user-typed preset configs
- * may use any case so callers normalize before lookup.
+ * docs page (TASK-1516). Keys must stay lowercase to match the case-normalized
+ * lookups; user-typed preset configs may use any case so callers normalize
+ * before lookup.
  */
 // `released` (ISO date) is only consumed for z.ai-EXCLUSIVE models: it becomes
 // the synthetic catalog entry's `created` so `/models` can sort them by recency.
@@ -578,12 +577,10 @@ const ZAI_MODEL_CATALOG: Readonly<
     released: '2026-06-13',
     thinkingOff: GLM_5X_THINKING_OFF,
   },
-  // glm-5.3 is z.ai-only for now (the OpenRouter listing staggers a few weeks
-  // behind, matching the glm-5.2 rollout pattern), so `released` is live here
-  // — it feeds the /models recency sort until the OpenRouter merge supplies
-  // `created`. `thinkingOff` is MEASURED directly (unlike the doc-read
-  // 5/5.1/5-turbo siblings): a live request with thinking disabled still
-  // returned reasoning tokens.
+  // OpenRouter lists glm-5.3, so the merge takes its `created` and `released`
+  // stays inert-but-kept, as with glm-5.2. `thinkingOff` is MEASURED directly
+  // (unlike the doc-read 5/5.1/5-turbo siblings): a live request with thinking
+  // disabled still returned reasoning tokens.
   'glm-5.3': {
     docsUrl: 'https://docs.z.ai/guides/llm/glm-5.3',
     contextLength: 1_000_000,
@@ -609,10 +606,10 @@ const ZAI_MODEL_CATALOG: Readonly<
     supportsVision: true,
     thinkingOff: GLM_5X_THINKING_OFF,
   },
-  // glm-5.4 is z.ai-only for now (no OpenRouter listing yet), so `released`
-  // is live here and feeds the /models recency sort. The docsUrl is an
-  // unverified guess at z.ai's per-model pattern (the page 404s when added),
-  // and it may move to guides/vlm/ like glm-5.3-flash; TASK-1516 sets the live one.
+  // glm-5.4 has no OpenRouter listing, so `released` is live here and feeds
+  // the /models recency sort. The docsUrl is an unverified guess at z.ai's
+  // per-model pattern, and it may move to guides/vlm/ like glm-5.3-flash;
+  // TASK-1516 sets the live one.
   // Context, vision and thinkingOff were each probed live against the model:
   // a 999,996-token prompt (max_tokens 5) was accepted and one near 1.05M was
   // refused, so the 1_000_000 cap is measured, not documented. An image_url
