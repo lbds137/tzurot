@@ -42,6 +42,7 @@ vi.mock('node:fs', () => ({
 }));
 
 // The listing tests resolve commands/preset/index.*; stub it so no real command module graph loads.
+// Deliberately exportless because the listing tests only exercise the readdirSync walk, never the module's exports.
 vi.mock('../commands/preset/index.js', () => ({}));
 
 const mockEmitCommandEvent = vi.fn();

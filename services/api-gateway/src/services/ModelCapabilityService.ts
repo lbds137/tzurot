@@ -34,7 +34,7 @@ export class ModelCapabilityService {
    *    live on OpenRouter (e.g. `z-ai/glm-5.1`). Per project direction,
    *    OpenRouter is the source of truth for any model it carries.
    * 2. **z.ai coding-plan catalog.** For `z-ai/`-prefixed models absent from
-   *    OpenRouter (e.g. `z-ai/glm-5.2`), fall back to the static z.ai catalog,
+   *    OpenRouter (e.g. `z-ai/glm-5.4`), fall back to the static z.ai catalog,
    *    whose modality flags are per-member and optional — an omitted flag reads
    *    as `false`, so an undeclared model fails closed for a vision gate while
    *    flagged ones (glm-5.3-flash, glm-5.4) resolve as vision-capable.
