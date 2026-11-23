@@ -601,7 +601,7 @@ const ZAI_MODEL_CATALOG: Readonly<
   // doc-read family calibration, not probed against this model.
   // A NEW vision member also adds its entry to ai-worker's
   // VISION_MODEL_PATTERNS — the degraded-mode (Redis-outage) mirror of this
-  // flag; the two have no mechanical tie, so this comment is the tie.
+  // flag; the parity block in modelCapabilityPatterns.test.ts fails on a miss.
   'glm-5.3-flash': {
     docsUrl: 'https://docs.z.ai/guides/vlm/glm-5.3-flash',
     contextLength: 1_000_000,
