@@ -6,12 +6,13 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-23T15:57:00Z'
+updated_date: '2026-11-23T15:58:00Z'
 labels:
   - area:husky
   - size:S
   - state:ready
 dependencies: []
-priority: medium
+priority: high
 ordinal: 1517000
 ---
 
