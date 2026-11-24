@@ -1,11 +1,10 @@
 ---
 id: TASK-1528
 title: 'Nightly db-sync fails: users_default_vision_config_id_fkey is never deferred'
-status: In Progress
-assignee:
-  - tzurot
+status: Done
+assignee: []
 created_date: '2026-11-24T12:41:00Z'
-updated_date: '2026-11-24T14:54:00Z'
+updated_date: '2026-11-24T16:35:00Z'
 labels:
   - area:api-gateway
   - size:M
