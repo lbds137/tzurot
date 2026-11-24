@@ -1204,7 +1204,7 @@ CREATE UNIQUE INDEX "personality_aliases_user_alias_unique" ON "personality_alia
 -- DEFERRABLE-constraint ALTERs harvested from prisma/migrations/**/migration.sql
 -- (Prisma can't express DEFERRABLE in schema.prisma, so the hand-written
 -- ALTER CONSTRAINT statements are merged back in here. db-sync relies on
--- SET CONSTRAINTS ALL DEFERRED for atomic circular-FK inserts.)
+-- SET CONSTRAINTS <named list> DEFERRED for atomic circular-FK inserts.)
 ALTER TABLE "users" ALTER CONSTRAINT "users_default_persona_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
 ALTER TABLE "users" ALTER CONSTRAINT "users_default_llm_config_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
 ALTER TABLE "personas" ALTER CONSTRAINT "personas_owner_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
