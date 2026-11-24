@@ -260,6 +260,8 @@ run_in 0 "git status in an uninstalled worktree" "$T/wt" "git status"
 run_in 0 "override waives the hooks-presence arm" "$T/wt" \
   "TZUROT_ALLOW_NO_VERIFY=1 git commit -m x"
 run_in 2 "pushd into an uninstalled worktree" "$T/proj" "pushd $T/wt && git commit -m x"
+run_in 2 "git -C into an uninstalled worktree for push" "$T/proj" "git -C $T/wt push"
+run_in 2 "bash -c cd into an uninstalled worktree" "$T/proj" "bash -c 'cd $T/wt && git commit -m x'"
 # The arm is off under GitHub Actions, read from the hook's own env only.
 run_in_env 0 "GITHUB_ACTIONS=true in the hook env turns the arm off" "$T/wt" \
   "git commit -m x" GITHUB_ACTIONS=true
@@ -277,6 +279,15 @@ if printf '%s' "$BLOCK_ERR" | grep -qF 'pnpm install --frozen-lockfile' \
   printf 'PASS  blocked commit prints the fix command and the checkout path\n'
 else
   printf 'FAIL  fix command or path missing: %s\n' "$BLOCK_ERR"
+  FAILURES=$((FAILURES + 1))
+fi
+
+if [ "$(printf '%s\n' "$BLOCK_ERR" | grep -c '^Checkout:')" = 1 ] \
+  && printf '%s' "$BLOCK_ERR" | grep -qF 'pre-commit' \
+  && printf '%s' "$BLOCK_ERR" | grep -qF 'commit-msg'; then
+  printf 'PASS  a commit missing both hooks prints one Checkout block naming both\n'
+else
+  printf 'FAIL  expected one Checkout block naming both hooks: %s\n' "$BLOCK_ERR"
   FAILURES=$((FAILURES + 1))
 fi
 
