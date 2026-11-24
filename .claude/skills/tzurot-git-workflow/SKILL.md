@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-11-19'
+lastUpdated: '2026-11-23'
 ---
 
 # Git Workflow Procedures
@@ -372,7 +372,8 @@ git log v<previous>..HEAD --no-merges --oneline
 ```
 
 **User-facing doc sweep (required before the release PR)**: the drafted notes
-enumerate exactly what shipped — walk each Breaking Changes, Features, and
+enumerate exactly what shipped (Breaking Changes holds user-facing breaks only;
+the definition is at the `release:publish` step) — walk each Breaking Changes, Features, and
 Improvements item (breaking renames/removals are the stalest-doc risk) against
 every user-facing doc surface, and fix what's stale in the same sitting:
 
@@ -519,6 +520,15 @@ also demotes the previous tag) is error-prone from memory, so it's automated —
 pnpm ops release:publish 3.0.0-beta.XX --notes-file /tmp/notes.md
 pnpm ops release:publish 3.0.0-beta.XX --notes-file /tmp/notes.md --dry-run  # preview
 ```
+
+**Breaking Changes means a break a USER sees**: a command removed or renamed, or
+a behaviour users relied on changed. The announce pipeline classifies any
+release with a non-empty `### Breaking Changes` section as major, which DMs
+every user at the default notify level. Internal breaks (schema renames,
+destructive migrations, deploy ordering) go under **Database Migrations** or
+the deploy notes. `release:publish` refuses notes carrying the section unless
+you pass `--broadcast-all`, so every user-wide broadcast is a deliberate
+choice.
 
 What it does (release-flow steps 7–8):
 

@@ -205,12 +205,22 @@ function registerPublishCommand(cli: CAC): void {
     .option('--notes-file <path>', 'Path to the release-notes markdown (required)')
     .option('--target <branch>', 'Branch the tag/release points at (default: main)')
     .option('--dry-run', 'Preview the steps without tagging, releasing, or flipping')
+    .option(
+      '--broadcast-all',
+      'Allow a Breaking Changes section (classifies the release major and DMs every default-level user)'
+    )
     .example('pnpm ops release:publish 3.0.0-beta.155 --notes-file /tmp/notes.md')
+    .example('pnpm ops release:publish 3.0.0-beta.155 --notes-file /tmp/notes.md --broadcast-all')
     .example('pnpm ops release:publish 3.0.0 --notes-file /tmp/notes.md   # stable: no demote')
     .action(
       async (
         version: string,
-        options: { notesFile?: string; target?: string; dryRun?: boolean }
+        options: {
+          notesFile?: string;
+          target?: string;
+          dryRun?: boolean;
+          broadcastAll?: boolean;
+        }
       ) => {
         if (options.notesFile === undefined || options.notesFile.length === 0) {
           throw new UsageError(
@@ -222,6 +232,7 @@ function registerPublishCommand(cli: CAC): void {
           notesFile: options.notesFile,
           target: options.target,
           dryRun: options.dryRun,
+          broadcastAll: options.broadcastAll === true,
         });
       }
     );

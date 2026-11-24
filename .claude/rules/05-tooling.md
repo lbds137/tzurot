@@ -276,6 +276,8 @@ this order when present — **Breaking Changes**, **Features**, **Bug Fixes**,
 **Improvements**, **Chores**, **Tests**, **Database Migrations** — omitting empty
 ones. Line items are `- **scope:** description (#123)`. End with
 `**Full Changelog**: https://github.com/lbds137/tzurot/compare/vOLD...vNEW`.
+Breaking Changes is for USER-FACING breaks only (it DMs every default-level
+user); internal breaks go under Database Migrations or the deploy notes.
 
 ### Model calls from tooling
 

@@ -16,6 +16,7 @@ import {
   findPreviousReleaseTag,
   publishRelease,
   assertNotesFinalized,
+  assertNoUnapprovedBroadcast,
 } from './publish.js';
 
 describe('assertNotesFinalized', () => {
@@ -51,6 +52,71 @@ describe('assertNotesFinalized', () => {
       '- bumped dep (see https://github.com/up/stream/compare/v1.0.0...v2.0.0)\n\n' +
       '**Full Changelog**: https://x/compare/v3.0.0-beta.170...v3.0.0-beta.171';
     expect(() => assertNotesFinalized(notes, 'v3.0.0-beta.171')).not.toThrow();
+  });
+});
+
+describe('assertNoUnapprovedBroadcast', () => {
+  const beta249Body =
+    '### Breaking Changes\n\n- **prisma:** rename x (#1)\n\n### Features\n- y\n\n**Full Changelog**: https://x/compare/v1...v2';
+
+  it('throws on a beta.249-shaped body when broadcastAll is false', () => {
+    expect(() => assertNoUnapprovedBroadcast(beta249Body, false)).toThrow(
+      /Breaking Changes.*USER-FACING.*Database Migrations.*--broadcast-all/s
+    );
+  });
+
+  it('does not throw on the same body when broadcastAll is true', () => {
+    expect(() => assertNoUnapprovedBroadcast(beta249Body, true)).not.toThrow();
+  });
+
+  it('does not throw when the Breaking Changes heading has only blank lines before the next heading', () => {
+    const notes = '### Breaking Changes\n\n   \n### Features\n- y';
+    expect(() => assertNoUnapprovedBroadcast(notes, false)).not.toThrow();
+  });
+
+  it('throws on a lowercase ### breaking changes heading', () => {
+    const notes = '### breaking changes\n- lower (#1)';
+    expect(() => assertNoUnapprovedBroadcast(notes, false)).toThrow(/--broadcast-all/);
+  });
+
+  it('does not throw for notes with only Features/Bug Fixes', () => {
+    const notes = '### Features\n- feat (#1)\n\n### Bug Fixes\n- fix (#2)';
+    expect(() => assertNoUnapprovedBroadcast(notes, false)).not.toThrow();
+  });
+
+  it('does not throw when the Breaking Changes heading is followed only by the Full Changelog trailer', () => {
+    const notes = '### Breaking Changes\n\n**Full Changelog**: https://x/compare/v1...v2';
+    expect(() => assertNoUnapprovedBroadcast(notes, false)).not.toThrow();
+  });
+
+  it('throws on CRLF line endings', () => {
+    const notes = '### Breaking Changes\r\n\r\n- x (#1)\r\n';
+    expect(() => assertNoUnapprovedBroadcast(notes, false)).toThrow(/--broadcast-all/);
+  });
+
+  it('throws when the heading uses a tab and trailing spaces', () => {
+    const notes = '###\tBreaking Changes   \n- x\n';
+    expect(() => assertNoUnapprovedBroadcast(notes, false)).toThrow(/--broadcast-all/);
+  });
+
+  it('throws when the first Breaking Changes heading is empty and a second one is populated', () => {
+    const notes = '### Breaking Changes\n\n### Features\n- y\n\n### Breaking Changes\n- x (#1)\n';
+    expect(() => assertNoUnapprovedBroadcast(notes, false)).toThrow(/--broadcast-all/);
+  });
+
+  it('counts an H4 line inside a Breaking Changes section as content and throws', () => {
+    const notes = '### Breaking Changes\n#### Sub\n';
+    expect(() => assertNoUnapprovedBroadcast(notes, false)).toThrow(/--broadcast-all/);
+  });
+
+  it('does not throw on an H2 Breaking Changes heading', () => {
+    const notes = '## Breaking Changes\n- x\n';
+    expect(() => assertNoUnapprovedBroadcast(notes, false)).not.toThrow();
+  });
+
+  it('does not throw on Breaking-Changes-like text in the preamble before any H3', () => {
+    const notes = 'Breaking Changes: none\n\n### Features\n- y\n';
+    expect(() => assertNoUnapprovedBroadcast(notes, false)).not.toThrow();
   });
 });
 
@@ -231,6 +297,46 @@ describe('publishRelease', () => {
     expect(() => publishRelease('3.0.0-beta.155', { notesFile: '/tmp/nope.md' })).toThrow(
       /Release notes file not found/
     );
+  });
+
+  it('refuses a Breaking Changes notes file before any execFileSync call when broadcastAll is unset', () => {
+    mockedRead.mockReturnValue(
+      '### Breaking Changes\n\n- **prisma:** rename x (#1)\n\n### Features\n- y' as never
+    );
+
+    expect(() => publishRelease('3.0.0-beta.249', { notesFile: '/tmp/notes.md' })).toThrow(
+      /--broadcast-all/
+    );
+    expect(mockedExec).not.toHaveBeenCalled();
+  });
+
+  it('refuses a Breaking Changes notes file in dryRun mode when broadcastAll is unset before any execFileSync call', () => {
+    mockedRead.mockReturnValue(
+      '### Breaking Changes\n\n- **prisma:** rename x (#1)\n\n### Features\n- y' as never
+    );
+
+    expect(() =>
+      publishRelease('3.0.0-beta.249', { notesFile: '/tmp/notes.md', dryRun: true })
+    ).toThrow(/--broadcast-all/);
+    expect(mockedExec).not.toHaveBeenCalled();
+  });
+
+  it('proceeds and logs a warning when broadcastAll is true on a Breaking Changes notes file', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      mockedRead.mockReturnValue(
+        '### Breaking Changes\n\n- **prisma:** rename x (#1)\n\n### Features\n- y' as never
+      );
+      stubTagAbsentThenReleaseList('v3.0.0-beta.155\nv3.0.0-beta.154\n');
+
+      publishRelease('3.0.0-beta.155', { notesFile: '/tmp/notes.md', broadcastAll: true });
+
+      const ghCreate = calls().find(c => c.cmd === 'gh' && c.args[1] === 'create');
+      expect(ghCreate).toBeDefined();
+      expect(logSpy.mock.calls.some(c => String(c[0]).includes('--broadcast-all'))).toBe(true);
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 
   it('dry-run performs no tag/release/flip side effects', () => {
