@@ -8,6 +8,12 @@
 
 > **Version**: v3.0.0-beta.248 — "coalescing fix, BYOK hardening, provenance & UX fixes" — SHIPPED 2026-11-22 13:38Z (PR 2786). 11 PRs / 11 runtime / 144 files (#2775–#2785); no migration; prod `API_KEY_ENCRYPTION_KEY` precondition (#2778) verified valid & matching on `ai-worker` + `api-gateway`; holistic release review: no blocking findings. Notes: `docs/local/dispatch/notes-beta248.md`. **Previous**: v3.0.0-beta.247 — "burst coalescing, settings discoverability, cache telemetry" (5 PRs / 4 runtime / 204 files; 2026-11-20 13:39Z) · v3.0.0-beta.246 — "prompt-cache prefix fix + prod-correctness fixes" (13 PRs / 13 runtime / 151 files; 2026-11-18 13:21Z) · v3.0.0-beta.245 — "caching reads" (1 PR; 2026-11-13 12:05Z) · v3.0.0-beta.244 — "prompt caching + preset param fixes" (3 PRs / 2 runtime; 2026-11-13 04:37Z) · v3.0.0-beta.243 (32 PRs / 21 runtime / 296 files; 2026-11-12 22:27Z).
 
+## 🧪 beta.249 smoke (release PR open 2026-11-23; tiers per /tzurot-testing)
+
+- **(needs-smoke, owner, after deploy)** `/settings apikey browse` on a keyed account: the key line reads "Last validated …" and the page loads without an error (#2787's column rename reached prod). Then test the key and browse again: the timestamp moves. The confidence is medium: the rename is covered by unit and component tests, but only a prod read proves the migration and the new code met.
+- **(optional, owner)** glm-5.4 shows up in the model autocomplete for `/preset` (#2795). The confidence is high: the catalog tests pin it.
+- **Watch — prod deps group (#2792, 9 updates):** the first prod AI replies and gateway requests after deploy are the check; an error spike = roll back.
+
 ## 🧪 beta.248 / beta.247 watch (beta.248 shipped to main 2026-11-22 13:38Z; #2775–#2779, #2781–#2785 are high tier / observability: CI + reviews cover)
 
 - **Watch — cache tokens (#2770/#2771, TASK-1450):** one week of prod rows from beta.247 (2026-11-20), then `pnpm ops telemetry:inference --env prod` for the hit rate; the same read settles TASK-1414's write/read ratio.
