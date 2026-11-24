@@ -20,6 +20,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { RELEASE_LEVEL_SECTIONS } from '@tzurot/common-types/constants/releaseNotes';
 import chalk from 'chalk';
 
 /**
@@ -29,6 +30,11 @@ import chalk from 'chalk';
  */
 const PRERELEASE_CHANNEL_RE = /-(?:alpha|beta|rc)(?:[.-]?\d+)?$/i;
 
+/** H3 category heading in Conventional-Changelog release notes. */
+const H3_HEADING_RE = /^###[ \t]+(\S.*)$/;
+/** The compare-link trailer line, excluded from every section by the classifier. */
+const TRAILER_RE = /^\*\*full changelog\*\*:/i;
+
 export interface PublishOptions {
   /** Path to the release-notes markdown (Conventional-Changelog body). */
   notesFile: string;
@@ -36,6 +42,8 @@ export interface PublishOptions {
   target?: string;
   /** Print the steps without creating tags/releases or flipping anything. */
   dryRun?: boolean;
+  /** Allow a Breaking Changes section (classifies the release as major and DMs every default-level user). */
+  broadcastAll?: boolean;
 }
 
 /** Normalize `3.0.0-beta.155` or `v3.0.0-beta.155` to a `v`-prefixed tag. */
@@ -83,6 +91,57 @@ export function assertNotesFinalized(notes: string, tag: string): void {
         `pnpm ops release:draft-notes and re-finalize the compare line.`
     );
   }
+}
+
+/**
+ * Guard against an unintended all-user broadcast. Mirrors the announce
+ * classifier (`parseReleaseSections`/`hasSection` in
+ * `services/api-gateway/src/services/releaseNotes.ts`; keep the two in sync
+ * until TASK-1524 shares one parser): a section
+ * whose trimmed, lowercased H3 heading matches `RELEASE_LEVEL_SECTIONS.major`
+ * and carries at least one non-blank line (ignoring the `**Full Changelog**:`
+ * trailer) classifies the release as `major` and DMs every user at the default
+ * notify level. Refuses unless `broadcastAll` is true.
+ */
+export function assertNoUnapprovedBroadcast(notes: string, broadcastAll: boolean): void {
+  const majorHeading = RELEASE_LEVEL_SECTIONS.major.toLowerCase();
+  let inMajorSection = false;
+  let hasMajorContent = false;
+
+  for (const line of notes.split(/\r?\n/)) {
+    if (TRAILER_RE.test(line.trim())) {
+      continue;
+    }
+    const heading = H3_HEADING_RE.exec(line);
+    if (heading !== null) {
+      inMajorSection = heading[1].trim().toLowerCase() === majorHeading;
+      continue;
+    }
+    if (inMajorSection && line.trim() !== '') {
+      hasMajorContent = true;
+      break;
+    }
+  }
+
+  if (!hasMajorContent) {
+    return;
+  }
+  if (!broadcastAll) {
+    throw new Error(
+      `Release notes contain a non-empty "${RELEASE_LEVEL_SECTIONS.major}" section, which classifies ` +
+        `the release as major and DMs every user at the default notify level.\n` +
+        `${RELEASE_LEVEL_SECTIONS.major} is for USER-FACING breaks only (a command removed or renamed, ` +
+        `a behaviour users relied on changed); move internal breaks (schema renames, destructive ` +
+        `migrations, deploy ordering) under "Database Migrations" or the deploy notes; or re-run ` +
+        `with --broadcast-all if every user really must be notified (resuming a publish that ` +
+        `already ran with --broadcast-all needs the flag again).`
+    );
+  }
+  console.log(
+    chalk.yellow(
+      `  --broadcast-all: "${RELEASE_LEVEL_SECTIONS.major}" section present — this release will broadcast to every default-level user`
+    )
+  );
 }
 
 /**
@@ -273,12 +332,14 @@ export function publishRelease(version: string, opts: PublishOptions): void {
         `Prepare notes first (e.g. pnpm ops release:draft-notes > notes.md) and pass --notes-file.`
     );
   }
-  assertNotesFinalized(readFileSync(opts.notesFile, 'utf-8'), tag);
+  const notes = readFileSync(opts.notesFile, 'utf-8');
+  assertNotesFinalized(notes, tag);
 
   console.log(
     chalk.bold(`Publishing ${tag}`) +
       chalk.dim(` (target: ${target}, channel: ${prerelease ? 'prerelease' : 'stable'})`)
   );
+  assertNoUnapprovedBroadcast(notes, opts.broadcastAll ?? false);
 
   ensureTagPushed(tag, target, dryRun);
   ensureReleaseCreated(tag, target, opts.notesFile, dryRun);
