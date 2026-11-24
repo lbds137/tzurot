@@ -363,23 +363,24 @@ reads the CURRENT deployment; for older windows use
 
 Cover the full release lifecycle: bump versions before the release PR, draft and verify release notes, and finalize develop-vs-main alignment after the release merges.
 
-| Command                                                              | Description                                                                                                       |
-| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `pnpm ops release:bump 3.0.0-beta.49`                                | Bump version in all package.json files (refuses when CURRENT.md still declares the previous release)              |
-| `pnpm ops release:bump 3.0.0 --dry-run`                              | Preview bump without writing (the CURRENT.md check still applies)                                                 |
-| `pnpm ops release:bump 3.0.0 --allow-stale-current`                  | Bump anyway when CURRENT.md was deliberately not reset                                                            |
-| `pnpm ops release:draft-notes`                                       | Draft release-notes skeleton from PRs merged since the previous tag                                               |
-| `pnpm ops release:draft-notes --from v3.0.0-beta.103`                | Draft starting from a specific tag (else auto-discovered via `git describe`)                                      |
-| `cat /tmp/notes.md \| pnpm ops release:verify-notes`                 | Verify a notes draft references every merged PR in range exactly once (exits 1 on missing/extra/duplicate refs)   |
-| `pnpm ops release:range`                                             | List PRs merged since the previous tag, classified runtime vs. non-runtime, plus the range's diff size            |
-| `pnpm ops release:range --from v3.0.0-beta.103`                      | Range starting from a specific tag (else auto-discovered via `git describe`)                                      |
-| `pnpm ops release:premigrate --dry-run`                              | Preview the prod migrations in the release range without applying                                                 |
-| `pnpm ops release:premigrate`                                        | Apply the release range's migrations to prod BEFORE merging the release PR (refuses destructive shapes)           |
-| `pnpm ops release:develop-ci`                                        | Preflight on develop's last non-board push CI run: 0 success, 1 finding, 2 none, 3 unclassifiable, 4 error        |
-| `pnpm ops release:publish 3.0.0-beta.155 --notes-file /tmp/notes.md` | Tag + publish the GitHub Release with correct latest/prerelease flags                                             |
-| `pnpm ops release:finalize`                                          | Rebase develop onto main after a release PR merges (step 6 of the git-workflow release flow). Interactive prompt. |
-| `pnpm ops release:finalize --yes`                                    | Skip the force-push confirmation prompt (required on non-TTY stdin)                                               |
-| `pnpm ops release:finalize --dry-run`                                | Preview the finalize steps without executing                                                                      |
+| Command                                                                              | Description                                                                                                         |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `pnpm ops release:bump 3.0.0-beta.49`                                                | Bump version in all package.json files (refuses when CURRENT.md still declares the previous release)                |
+| `pnpm ops release:bump 3.0.0 --dry-run`                                              | Preview bump without writing (the CURRENT.md check still applies)                                                   |
+| `pnpm ops release:bump 3.0.0 --allow-stale-current`                                  | Bump anyway when CURRENT.md was deliberately not reset                                                              |
+| `pnpm ops release:draft-notes`                                                       | Draft release-notes skeleton from PRs merged since the previous tag                                                 |
+| `pnpm ops release:draft-notes --from v3.0.0-beta.103`                                | Draft starting from a specific tag (else auto-discovered via `git describe`)                                        |
+| `cat /tmp/notes.md \| pnpm ops release:verify-notes`                                 | Verify a notes draft references every merged PR in range exactly once (exits 1 on missing/extra/duplicate refs)     |
+| `pnpm ops release:range`                                                             | List PRs merged since the previous tag, classified runtime vs. non-runtime, plus the range's diff size              |
+| `pnpm ops release:range --from v3.0.0-beta.103`                                      | Range starting from a specific tag (else auto-discovered via `git describe`)                                        |
+| `pnpm ops release:premigrate --dry-run`                                              | Preview the prod migrations in the release range without applying                                                   |
+| `pnpm ops release:premigrate`                                                        | Apply the release range's migrations to prod BEFORE merging the release PR (refuses destructive shapes)             |
+| `pnpm ops release:develop-ci`                                                        | Preflight on develop's last non-board push CI run: 0 success, 1 finding, 2 none, 3 unclassifiable, 4 error          |
+| `pnpm ops release:publish 3.0.0-beta.155 --notes-file /tmp/notes.md`                 | Tag + publish the GitHub Release with correct latest/prerelease flags                                               |
+| `pnpm ops release:publish 3.0.0-beta.155 --notes-file /tmp/notes.md --broadcast-all` | Publish notes that carry a Breaking Changes section (major: DMs every default-level user); refused without the flag |
+| `pnpm ops release:finalize`                                                          | Rebase develop onto main after a release PR merges (step 6 of the git-workflow release flow). Interactive prompt.   |
+| `pnpm ops release:finalize --yes`                                                    | Skip the force-push confirmation prompt (required on non-TTY stdin)                                                 |
+| `pnpm ops release:finalize --dry-run`                                                | Preview the finalize steps without executing                                                                        |
 
 **Use cases:**
 
@@ -388,7 +389,7 @@ Cover the full release lifecycle: bump versions before the release PR, draft and
 - `release:verify-notes` — CI/pre-publish gate: confirms every merged PR in the tag-to-HEAD range appears in the notes exactly once.
 - `release:range` — the deterministic answer to "how many PRs since the last release, how many touch runtime, and how big is the diff?" Reuses `release:draft-notes`'s enumeration, so it can never disagree with it; use this instead of a hand-rolled `gh pr list` query. Prints two independent cut triggers: the runtime-PR count (prod risk, ~10) and the range's changed-file count against GitHub's 300-file diff-rendering ceiling (review capacity, advisory at 250) — a mostly-non-runtime range can trip the second without moving the first. When the file count can't be measured it warns on stderr rather than omitting the line silently.
 - `release:premigrate` — run BEFORE merging the release PR so auto-deploy lands into a ready schema; destructive shapes need `--allow-destructive` inside a maintenance window, and a migration marked `-- tzurot:apply-after-deploy` needs `--allow-marked` (or, better, merge first and `db:migrate` after) (see `.claude/rules/03-database.md` § Deployment). Also cross-checks that dev has applied the release range's migrations before premigrating prod (`prisma migrate status` against dev) — refuses if dev is behind, naming the range and dev's own status; `--allow-dev-pending` overrides. Because of that cross-check, a prod premigrate needs the **dev** Railway link too; a missing link surfaces as that same unreachable refusal, with the Railway URL-fetch error quoted. An unreachable dev is reported separately from a behind dev and refuses on its own terms — `--allow-dev-pending` does not cover it, since that flag asserts dev's state is known.
-- `release:publish` — after the release merge, tag and publish the GitHub Release from the verified notes file.
+- `release:publish` — after the release merge, tag and publish the GitHub Release from the verified notes file. It refuses notes with a non-empty Breaking Changes section unless `--broadcast-all` is passed.
 - `release:finalize` — run after the release PR merges to main. Keeps develop's SHAs aligned with main's so the next release PR doesn't show phantom "conflicts with main."
 
 ## GitHub Commands

@@ -1,12 +1,15 @@
 /**
  * Release-notes section names that carry notification-level semantics.
  *
- * Two modules depend on these exact strings staying identical:
+ * Three modules depend on these exact strings staying identical:
  * - the GENERATOR: `packages/tooling/src/release/notes-format.ts` emits them
  *   as `### <section>` headers when drafting release notes
  * - the CLASSIFIER: `services/api-gateway/src/services/releaseNotes.ts` reads
  *   them back out of a published GitHub Release body to derive the broadcast
  *   level (Breaking Changes → major, Features → minor, anything else → patch)
+ * - the GUARD: `packages/tooling/src/release/publish.ts`
+ *   (`assertNoUnapprovedBroadcast`) refuses to publish notes whose Breaking
+ *   Changes section is non-empty unless `--broadcast-all` is passed
  *
  * A rename that touched only one side would silently downgrade every future
  * release announcement to patch — sharing the literals makes that impossible.
