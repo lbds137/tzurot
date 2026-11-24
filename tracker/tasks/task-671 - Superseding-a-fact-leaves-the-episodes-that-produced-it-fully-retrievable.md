@@ -110,4 +110,12 @@ created: 2026-11-03T20:57:00Z
 Relabelled state:ready to state:observable: step 0 shipped in #2614 and the task's own next step is to observe it in prod before choosing a structural fix (owner reports are the signal). Not drain-eligible.
 
 ---
+
+created: 2026-11-24T05:30:00Z
+
+---
+
+Post-step-0 sighting: owner report 2026-11-23, superseded things still recalled. Step 0 has been in prod since v3.0.0-beta.237 (4c3b51141 is on origin/main), so this is the observation the task was waiting for: the prompt wording alone did not stop it. Code re-trace: `PgvectorQueryBuilder.ts` `buildWhereConditions` and `PgvectorSiblingExpander.ts` carry no supersession filter, and the `memories` table has no supersession columns. The structural fix is still unstarted. Runtime check still open: prod `extractionEnabled`/`factsInPromptEnabled` values and the superseded `memory_facts` count. A read-only aggregate probe exists as an untracked file (`scripts/analysis/supersession-probe.ts` in the develop-board worktree); the auto-mode classifier blocked the prod run, so the owner runs it.
+
+---
 <!-- COMMENTS:END -->
