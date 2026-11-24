@@ -70,7 +70,9 @@ export class AuthStep implements IPipelineStep {
     // the inline-constructed router.
     this.providerRouter =
       providerRouter ??
-      (apiKeyResolver !== undefined ? new ProviderRouter(apiKeyResolver) : undefined);
+      (apiKeyResolver !== undefined
+        ? new ProviderRouter(apiKeyResolver, extras?.quotaFallbackCaches?.catalogPresence)
+        : undefined);
   }
 
   async process(context: GenerationContext): Promise<GenerationContext> {

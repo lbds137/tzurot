@@ -115,7 +115,8 @@ export function toResolvedAuth(
     sttDispatch,
     // wasAutoPromoted usually arrives with a fallback, but
     // ProviderRouter.tryAutoPromoteToZai promotes without one when the
-    // OpenRouter key cannot be resolved. GenerationStep reads the swap route
+    // OpenRouter catalog confirms the model absent or the OpenRouter key
+    // cannot be resolved. GenerationStep reads the swap route
     // as `wasAutoPromoted ? fallback : undefined`, so that case simply has no
     // retry-with-fallback. Each is spread separately because both are optional.
     ...(wasAutoPromoted === true ? { wasAutoPromoted: true } : {}),

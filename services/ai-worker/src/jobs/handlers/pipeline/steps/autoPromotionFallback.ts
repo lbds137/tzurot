@@ -3,8 +3,9 @@
  *
  * Wraps a generate-attempt callback with a one-shot fallback retry for
  * auto-promoted z.ai requests. When ProviderRouter promotes an OpenRouter
- * `z-ai/<model>` request to z.ai-direct, AuthStep attaches a pre-computed
- * OpenRouter passthrough route (`auth.fallback`) ready to swap on failure —
+ * `z-ai/<model>` request to z.ai-direct, it attaches a pre-computed
+ * OpenRouter passthrough route (`auth.fallback`) ready to swap on failure,
+ * unless the OpenRouter catalog confirms the model absent —
  * defense in depth against the whitelist going stale (e.g., z.ai deprecates
  * a model without us noticing).
  *

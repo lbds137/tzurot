@@ -275,10 +275,11 @@ export async function checkModelViability(options: {
  * a catalog outage must never convert a rescuable turn into a dead end.
  *
  * Accepted tradeoff: a model published between catalog refreshes reads as
- * genuinely absent and gets vetoed until the next refresh. The candidates
- * judged here are admin-configured fallback targets — stable models, not
- * just-published ones — and a wrong veto degrades to the next cascade tier,
- * not a dead end.
+ * genuinely absent and gets vetoed until the next refresh plus up to the
+ * presence-memo TTL (`MODEL_CAPABILITY_CACHE_TTL_MS`, memoized in
+ * `isModelListed`). The candidates judged here are admin-configured fallback
+ * targets — stable models, not just-published ones — and a wrong veto degrades
+ * to the next cascade tier, not a dead end.
  */
 async function isVetoedAsUnlistedTarget(options: {
   model: string;

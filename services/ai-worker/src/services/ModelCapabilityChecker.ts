@@ -53,6 +53,14 @@ const capabilityCache = new TTLCache<CachedCapabilities>({
   maxSize: 500,
 });
 
+// Memoizes only settled catalog-presence answers (`resolved` → true,
+// `absent` → false). A `transient` lookup is not cached, so a catalog outage
+// is re-probed on the next call (pinned by "re-probes after a transient miss").
+const catalogPresenceCache = new TTLCache<boolean>({
+  ttl: AI_DEFAULTS.MODEL_CAPABILITY_CACHE_TTL_MS,
+  maxSize: 500,
+});
+
 // A model's context length is effectively static, so a value we have already
 // resolved stays valid across a catalog outage. This long-lived memo is what
 // keeps a transient miss from unclamping a model whose real limit we have seen.
@@ -99,7 +107,17 @@ async function resolveFromRedis(
       return { kind: 'transient', cause: parseError };
     }
 
-    const model = models.find(m => m.id === normalizedId || m.id === modelId);
+    // The compare is case-insensitive so a match does not depend on how the
+    // catalog or the caller cases an id. Every OpenRouter catalog id has been
+    // observed lowercase, and callers that send a matched id to OpenRouter
+    // send it lowercased (see ProviderRouter attachPromotedFallback); not
+    // verified that OpenRouter's chat endpoint folds case.
+    const loweredNormalizedId = normalizedId.toLowerCase();
+    const loweredModelId = modelId.toLowerCase();
+    const model = models.find(m => {
+      const loweredId = m.id.toLowerCase();
+      return loweredId === loweredNormalizedId || loweredId === loweredModelId;
+    });
     if (!model) {
       return { kind: 'absent' };
     }
@@ -313,28 +331,47 @@ export async function getModelContextLength(modelId: string, redis: Redis): Prom
  * `null` when the catalog itself was unavailable — in which case a caller must
  * NOT treat absence as an answer.
  *
+ * Settled answers (`true` and `false`) are memoized in `catalogPresenceCache`
+ * for the capability-cache TTL (`AI_DEFAULTS.MODEL_CAPABILITY_CACHE_TTL_MS`),
+ * so a model OpenRouter newly lists is seen within that TTL after the catalog
+ * refresh. Transient misses (`null`) are not memoized.
+ *
  * Reads `resolveFromRedis` directly rather than `getCapabilities`: the latter
  * caches an `absent` lookup as pattern-derived capabilities, which a later read
  * cannot distinguish from a resolved one.
  */
 export async function isModelListed(modelId: string, redis: Redis): Promise<boolean | null> {
+  // The presence memo is keyed by the lowercased id, and the catalog compare
+  // itself is case-insensitive (in `resolveFromRedis`), so callers in any
+  // casing share one answer (pinned by "shares one memoized answer across
+  // casings").
+  const key = modelId.toLowerCase();
+  const cached = catalogPresenceCache.get(key);
+  if (cached !== null) {
+    return cached;
+  }
+
   const lookup = await resolveFromRedis(modelId, normalizeModelId(modelId), redis);
   if (lookup.kind === 'resolved') {
+    catalogPresenceCache.set(key, true);
     return true;
   }
   if (lookup.kind === 'absent') {
+    catalogPresenceCache.set(key, false);
     return false;
   }
   return null;
 }
 
 /**
- * Clear the in-memory capability caches, including the long-lived context-length
- * memo — the memo is part of the same capability state, so a caller asking for a
- * clean slate must not be left with a stale remembered limit.
+ * Clear the in-memory capability caches — `capabilityCache`,
+ * `catalogPresenceCache`, and the long-lived `lastKnownContextLength` memo —
+ * so a caller asking for a clean slate is not left with stale capability,
+ * catalog-presence, or context-length state.
  * Useful for testing or when model data is known to have changed
  */
 export function clearCapabilityCache(): void {
   capabilityCache.clear();
+  catalogPresenceCache.clear();
   lastKnownContextLength.clear();
 }
