@@ -9383,11 +9383,6 @@ snapshots:
     dependencies:
       tslib: 2.9.1
 
-  '@tybys/wasm-util@0.10.5':
-    dependencies:
-      tslib: 2.9.1
-    optional: true
-
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
