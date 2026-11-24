@@ -15,9 +15,11 @@
 #   3. `core.hooksPath` among the git global flags (`git -c core.hooksPath=…`).
 #   4. `HUSKY=0` as an env assignment prefixing that invocation.
 #   5. hooks not installed: a commit/push that would run in a checkout of THIS
-#      repo whose resolved hooks dir lacks the hook git runs (commit-msg for a
-#      commit, pre-push for a push; missing or not executable). Git then runs
-#      no hooks at all, silently. Candidate checkouts: the payload cwd, every
+#      repo whose resolved hooks dir lacks a hook git runs (pre-commit AND
+#      commit-msg for a commit, pre-push for a push; each missing or not
+#      executable, each reported). With the dir missing git runs no hooks at
+#      all, silently; with one shim missing it skips that hook. Candidate
+#      checkouts: the payload cwd, every
 #      `cd`/`pushd` target in the command and every `git -C` target in a
 #      commit/push invocation's own global flags. Only
 #      checkouts sharing the project's git-common-dir count (a foreign repo is
@@ -94,6 +96,10 @@
 #     uninstalled start dir blocks, because the start dir is always a
 #     candidate. Likewise a `cd <dir>` anywhere in the command makes <dir> a
 #     candidate for every invocation in it, in effect there or not.
+#   - OVER-arm (hooks presence): `cd`/`pushd` is matched as any
+#     whitespace-preceded word, not only in command position, so an argument
+#     such as `grep -rn cd ../wt && git commit` or `echo cd ../wt; git commit`
+#     makes `../wt` a candidate (fail-closed direction).
 #   - hooks presence: `cd` targets are resolved against the start dir only,
 #     never chained (`cd a && cd b` resolves `b` relative to the start dir).
 #   - hooks presence: a `cd` target built from a variable or substitution
@@ -400,13 +406,15 @@ def hook_dirs_once(views):
 
 
 def missing_hooks(kind, views):
-    """[(top, hooks_dir, hook_name)] where git would find no runnable hook."""
-    hook_name = "commit-msg" if kind == "commit" else "pre-push"
+    """[(top, hooks_dir, hook_name)] for each hook git would find missing or
+    not executable (commit runs pre-commit and commit-msg, push runs pre-push)."""
+    hook_names = ("pre-commit", "commit-msg") if kind == "commit" else ("pre-push",)
     out = []
     for top, hooks_dir in hook_dirs_once(views):
-        path = os.path.join(hooks_dir, hook_name)
-        if not (os.path.isfile(path) and os.access(path, os.X_OK)):
-            out.append((top, hooks_dir, hook_name))
+        for hook_name in hook_names:
+            path = os.path.join(hooks_dir, hook_name)
+            if not (os.path.isfile(path) and os.access(path, os.X_OK)):
+                out.append((top, hooks_dir, hook_name))
     return out
 
 
@@ -502,7 +510,7 @@ if [ -n "$HOOKS_MISSING" ]; then
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     while IFS=$'\t' read -r _ kind top hooks_dir hook_name; do
       echo "Checkout: $top"
-      echo "  git $kind there would run NO hooks: $hooks_dir/$hook_name is missing"
+      echo "  git $kind there would skip $hook_name: $hooks_dir/$hook_name is missing"
       echo "  or not executable (core.hooksPath resolves there; husky creates it only"
       echo "  on pnpm install)."
       echo "  Fix:"
