@@ -6,8 +6,9 @@
 # are the gate CI would otherwise catch a round later; a commit made with the
 # hooks skipped surfaces its formatting or lint failure only after a CI cycle.
 #
-# Five shapes block (each judged per invocation, in that one
-# invocation's own argument span, never the whole command):
+# Five shapes block (shapes 1-4 are each judged per invocation, in that one
+# invocation's own argument span, never the whole command; shape 5 is judged
+# over the whole command, see below):
 #   1. commit: `--no-verify`, `-n`, or a short-flag bundle containing `n` with
 #      no arg-taking letter (m F c C t u S, per ARG_TAKING) before it (`-nm`, `-an` block; `-mn` is
 #      the message "n" and passes).
@@ -16,22 +17,21 @@
 #   4. `HUSKY=0` as an env assignment prefixing that invocation.
 #   5. hooks not installed: a literal `git commit`/`git push` in the command
 #      text (wrapper-driven ones are a known gap) that would run in a
-#      checkout of THIS repo whose resolved hooks dir lacks a hook git runs (pre-commit AND
-#      commit-msg for a commit, pre-push for a push; each missing or not
-#      executable, each reported). With the dir missing git runs no hooks at
-#      all, silently; with one shim missing it skips that hook. Candidate
-#      checkouts: the payload cwd, every
-#      `cd`/`pushd` target in the command and every `git -C` target in a
-#      commit/push invocation's own global flags. Only
-#      checkouts sharing the project's git-common-dir count (a foreign repo is
-#      never blocked). Candidates are a deliberate OVER-approximation, the
-#      fail-closed direction: any directory the command names is a checkout the
-#      invocation might run in. The same per-invocation override waives it.
-#      Any failure inside this arm (git missing, timeout, odd output) lets the
-#      command through. The arm is off entirely under GitHub Actions
-#      (GITHUB_ACTIONS=true in the hook's own env; a command prefix cannot set
-#      it): the PR's CI runs every gate and an Actions checkout is never
-#      installed.
+#      checkout of THIS repo whose resolved hooks dir lacks a hook git runs
+#      (pre-commit AND commit-msg for a commit, pre-push for a push; each
+#      missing or not executable, each reported). With the dir missing git
+#      runs no hooks at all, silently; with one shim missing it skips that
+#      hook. Candidate checkouts: the payload cwd, every `cd`/`pushd` target
+#      in the command and every `git -C` target in a commit/push invocation's
+#      own global flags. Only checkouts sharing the project's git-common-dir
+#      count (a foreign repo is never blocked). Candidates are a deliberate
+#      OVER-approximation, the fail-closed direction: any directory the
+#      command names is a checkout the invocation might run in. The same
+#      per-invocation override waives it. Any failure inside this arm (git
+#      missing, timeout, odd output) lets the command through. The arm is
+#      off entirely under GitHub Actions (GITHUB_ACTIONS=true in the hook's
+#      own env; a command prefix cannot set it): the PR's CI runs every gate
+#      and an Actions checkout is never installed.
 #
 # Override, per invocation (an owner-approved exception):
 #   TZUROT_ALLOW_NO_VERIFY=1 git commit ...
@@ -109,6 +109,11 @@
 #     literal `git commit` / `git push` in the command text (`gh pr create`
 #     pushing a branch, a `pnpm ops …` command that commits internally) is
 #     invisible to the arm (fail-open).
+#   - OVER-arm (hooks presence): `git commit --dry-run` runs no hooks yet is
+#     blocked in an uninstalled checkout (`git push --dry-run` does run
+#     pre-push, so that block is correct).
+#   - hooks presence: needs git >= 2.31 (`rev-parse --path-format=absolute`);
+#     an older git fails the lookup and disables the arm (fail-open).
 #   - hooks presence: `git --git-dir=<p> [--work-tree=<p>] commit` and a
 #     `GIT_DIR=…` / `GIT_WORK_TREE=…` prefix are not candidates (fail-open:
 #     the named checkout is not examined).
