@@ -18,7 +18,8 @@
 #      repo whose resolved hooks dir lacks the hook git runs (commit-msg for a
 #      commit, pre-push for a push; missing or not executable). Git then runs
 #      no hooks at all, silently. Candidate checkouts: the payload cwd, every
-#      `cd`/`pushd` target and every `git -C` target in the command. Only
+#      `cd`/`pushd` target in the command and every `git -C` target in a
+#      commit/push invocation's own global flags. Only
 #      checkouts sharing the project's git-common-dir count (a foreign repo is
 #      never blocked). Candidates are a deliberate OVER-approximation, the
 #      fail-closed direction: any directory the command names is a checkout the
@@ -88,9 +89,12 @@
 #     `git commit -m x {-n,}`.
 #   - OVER-arm (hooks presence): `git -C <installed> commit` typed from an
 #     uninstalled start dir blocks, because the start dir is always a
-#     candidate.
+#     candidate. Likewise a `cd <dir>` anywhere in the command makes <dir> a
+#     candidate for every invocation in it, in effect there or not.
 #   - hooks presence: `cd` targets are resolved against the start dir only,
 #     never chained (`cd a && cd b` resolves `b` relative to the start dir).
+#   - hooks presence: a `cd` target built from a variable or substitution
+#     (`cd "$WT"`, `cd $(…)`) is not resolved, so it is not a candidate.
 #
 # Fixture check: run .claude/hooks/no-verify-guard.probe.sh after ANY edit to
 # this hook.
@@ -267,9 +271,12 @@ def blanked_view(orig_view):
 
 # --- hooks-presence arm ------------------------------------------------------
 # Every failure inside this arm is swallowed: it contributes nothing.
-CD_RE = re.compile(r"(?:^|[\s;&|(){}])(?:cd|pushd)\s+(\S+)")
-GIT_SEGMENT_RE = re.compile(r"\bgit\b[^;&|\n(){}]*")
-DASH_C_RE = re.compile(r"\s-C\s*(\S+)")
+# Horizontal whitespace only (a newline ends the `cd`), optional `-L`/`-P`/`--`
+# tokens, and the dir token stops at shell separators and angle brackets.
+CD_RE = re.compile(
+    r"(?:^|[\s;&|(){}])(?:cd|pushd)(?:[ \t]+(?:-[LP]+|--))*[ \t]+([^\s;&|(){}<>]+)"
+)
+DASH_C_RE = re.compile(r"[ \t]-C[ \t]*([^\s;&|(){}<>]+)")
 SCRUBBED_GIT_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")
 
 
@@ -295,7 +302,8 @@ def git_lines(directory, *args):
 
 
 def named_dirs(views, start_dir):
-    """Existing directories the command names via `cd`/`pushd`/`git -C`.
+    """Existing directories the command names via `cd`/`pushd`/`git -C` (the
+    last only in a commit/push invocation's own global flags).
 
     A deliberate OVER-approximation (the fail-closed direction): any directory
     the command names is a checkout the commit/push might run in, so none is
@@ -305,9 +313,12 @@ def named_dirs(views, start_dir):
         view = blanked_view(orig_view)
         for m in CD_RE.finditer(view):
             words.append((orig_view, values, m.start(1), m.group(1)))
-        for gm in GIT_SEGMENT_RE.finditer(view):
-            for cm in DASH_C_RE.finditer(gm.group()):
-                words.append((orig_view, values, gm.start() + cm.start(1), cm.group(1)))
+        # `-C` only from the global-flag span of a commit/push invocation, so
+        # `git -C x status && git commit` and `git commit -C <sha>` add nothing.
+        for regex in (GIT_COMMIT_RE, GIT_PUSH_RE):
+            for gm in regex.finditer(view):
+                for cm in DASH_C_RE.finditer(gm.group()):
+                    words.append((orig_view, values, gm.start() + cm.start(1), cm.group(1)))
     found_dirs = []
     for orig_view, values, start, word in words:
         resolved, _ = resolve_placeholders(
@@ -319,7 +330,7 @@ def named_dirs(views, start_dir):
         if not os.path.isabs(path):
             path = os.path.join(start_dir, path)
         path = os.path.normpath(path)
-        if os.path.isdir(path):
+        if os.path.isdir(path) and path not in found_dirs:
             found_dirs.append(path)
     return found_dirs
 
@@ -339,7 +350,11 @@ def this_repo_hook_dirs(views):
         project_common = os.path.realpath(pcommon[0])
         result = []
         seen_tops = set()
-        for d in [start_dir] + named_dirs(views, start_dir):
+        start_norm = os.path.normpath(start_dir)
+        candidates = [start_norm] + [
+            d for d in named_dirs(views, start_dir) if d != start_norm
+        ]
+        for d in candidates:
             out = git_lines(
                 d, "rev-parse", "--path-format=absolute", "--git-common-dir", "--show-toplevel"
             )

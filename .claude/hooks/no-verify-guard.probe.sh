@@ -2,8 +2,9 @@
 # Fixture check for no-verify-guard.sh — run after ANY edit to the hook. The
 # skip-shape rows decide purely from the command text, so they need only the
 # JSON payload shape the PreToolUse hook receives on stdin; `run` pins their
-# payload cwd to a plain non-git dir so the hooks-presence arm stays inert for
-# them. The hooks-presence rows use throwaway fixture repos built in a temp
+# payload cwd to "$T/plain/sub", a plain non-git dir with no sibling `wt`, so
+# the hooks-presence arm stays inert for them and a `../wt` in a row cannot
+# resolve to the real uninstalled fixture worktree. The hooks-presence rows use throwaway fixture repos built in a temp
 # dir (an installed project, uninstalled/partial/non-executable worktrees, a
 # foreign repo, a plain dir) and `run_in` to choose the payload cwd. Global
 # git config is isolated, since the machine's own sets core.hooksPath.
@@ -20,6 +21,7 @@ FAILURES=0
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
 
 # Installed project: husky-style shims, relative core.hooksPath, .husky/_
 # untracked so a worktree of it lacks the shims.
@@ -45,7 +47,7 @@ done
 chmod +x "$T/wt-noexec/.husky/_/commit-msg"
 chmod -x "$T/wt-noexec/.husky/_/pre-push"
 git init -q "$T/foreign"
-mkdir -p "$T/plain"
+mkdir -p "$T/plain/sub"
 
 # run_in <expected-exit> <label> <cwd> <command>
 run_in() {
@@ -65,7 +67,7 @@ run_in() {
 # run <expected-exit> <label> <tool_name> <command>
 run() {
   local expected="$1" label="$2" tool="$3" cmd="$4"
-  jq -n --arg t "$tool" --arg c "$cmd" --arg d "$T/plain" \
+  jq -n --arg t "$tool" --arg c "$cmd" --arg d "$T/plain/sub" \
     '{tool_name:$t,cwd:$d,tool_input:{command:$c}}' \
     | CLAUDE_PROJECT_DIR="$T/proj" "$HOOK" >/dev/null 2>&1
   local actual=$?
@@ -179,8 +181,9 @@ run 0 "tool_name Edit is ignored" Edit "git commit --no-verify -m x"
 
 # --- the override announces itself ---------------------------------------------
 # (its exit 0 is pinned by the "override prefix on push" row above)
-OVERRIDE_ERR=$(jq -n --arg c "TZUROT_ALLOW_NO_VERIFY=1 git push --no-verify" \
-  '{tool_name:"Bash",tool_input:{command:$c}}' | "$HOOK" 2>&1 >/dev/null)
+OVERRIDE_ERR=$(jq -n --arg c "TZUROT_ALLOW_NO_VERIFY=1 git push --no-verify" --arg d "$T/plain/sub" \
+  '{tool_name:"Bash",cwd:$d,tool_input:{command:$c}}' \
+  | CLAUDE_PROJECT_DIR="$T/proj" "$HOOK" 2>&1 >/dev/null)
 if printf '%s' "$OVERRIDE_ERR" | grep -qF 'no-verify-guard: override used (git push)'; then
   printf 'PASS  override prints its stderr line\n'
 else
@@ -195,6 +198,14 @@ run_in 2 "push in an uninstalled worktree" "$T/wt" "git push"
 run_in 2 "git -C absolute uninstalled worktree" "$T/proj" "git -C $T/wt commit -m x"
 run_in 2 "git -C relative uninstalled worktree" "$T/proj" "git -C ../wt commit -m x"
 run_in 2 "cd into an uninstalled worktree then commit" "$T/proj" "cd $T/wt && git commit -m x"
+run_in 2 "cd with semicolon into an uninstalled worktree" "$T/proj" "cd $T/wt; git commit -m x"
+run_in 2 "quoted cd with semicolon" "$T/proj" "cd \"$T/wt\"; git commit -m x"
+run_in 2 "cd -P into an uninstalled worktree" "$T/proj" "cd -P $T/wt && git commit -m x"
+run_in 2 "subshell cd into an uninstalled worktree" "$T/proj" "(cd $T/wt && git commit -m x)"
+run_in 2 "uppercase GIT -C COMMIT" "$T/proj" "GIT -C $T/wt COMMIT -m x"
+run_in 0 "git -C on another command does not block an installed commit" "$T/proj" \
+  "git -C $T/wt status && git commit -m x"
+run_in 0 "commit -C reuse-message is not a directory" "$T/proj" "git commit -C HEAD"
 run_in 2 "push where only commit-msg exists" "$T/wt-cm" "git push"
 run_in 2 "push where pre-push is not executable" "$T/wt-noexec" "git push"
 run_in 0 "commit in the installed project" "$T/proj" "git commit -m x"
