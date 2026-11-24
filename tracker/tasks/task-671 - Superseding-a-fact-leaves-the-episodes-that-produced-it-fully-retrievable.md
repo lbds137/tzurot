@@ -8,7 +8,7 @@ updated_date: '2026-11-03T20:58:00Z'
 labels:
   - area:ai-worker
   - size:L
-  - state:observable
+  - state:ready
 dependencies: []
 priority: high
 ordinal: 50
@@ -119,3 +119,5 @@ Post-step-0 sighting: owner report 2026-11-23, superseded things still recalled.
 
 ---
 <!-- COMMENTS:END -->
+
+Relabelled state:observable to state:ready (owner decision 2026-11-24): the 11-23 owner report is the observation this task waited for. Next: run the read-only prod probe, then design the retrieval-side fix (mark or down-weight episodes behind superseded facts, never delete) and show it to the owner before building.
