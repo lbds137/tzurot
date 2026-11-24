@@ -3,7 +3,7 @@ id: TASK-1521
 title: >-
   Stop internal-only breaking changes from triggering the all-user release
   broadcast
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-24T01:36:00Z'
 labels:
