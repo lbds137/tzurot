@@ -10,6 +10,7 @@ import {
   ZAI_FREE_TIER_MODEL,
 } from '@tzurot/common-types/constants/ai';
 import type { ZaiFreeTierAdmission } from '../../../../services/ZaiFreeTierAdmission.js';
+import type { QuotaFallbackCaches } from '../../../../services/quotaFallback.js';
 import { JobType } from '@tzurot/common-types/constants/queue';
 import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -918,6 +919,48 @@ describe('AuthStep', () => {
           isGuestMode: false,
         });
       });
+
+      it('forwards catalogPresence to the inline ProviderRouter so an unlisted z-ai/ model promotes without an OpenRouter fallback', async () => {
+        const OR_ZAI_54_PERSONALITY: LoadedPersonality = {
+          ...TEST_PERSONALITY,
+          provider: 'openrouter',
+          model: 'z-ai/glm-5.4',
+        };
+        vi.mocked(mockApiKeyResolver.tryResolveUserKey).mockResolvedValue('fixture-zai-user-key');
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue({
+          apiKey: 'fixture-or-user-key',
+          provider: AIProvider.OpenRouter,
+          source: 'user',
+          isGuestMode: false,
+        });
+        const catalogPresence = vi.fn().mockResolvedValue(false);
+        const caches = {
+          creditExhaustion: {
+            isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }),
+          } as unknown as QuotaFallbackCaches['creditExhaustion'],
+          rateLimit: {
+            isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }),
+          } as unknown as QuotaFallbackCaches['rateLimit'],
+          catalogPresence,
+        } satisfies QuotaFallbackCaches;
+
+        step = new AuthStep(mockApiKeyResolver, mockConfigResolver, undefined, undefined, {
+          quotaFallbackCaches: caches,
+        });
+        const result = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: { effectivePersonality: OR_ZAI_54_PERSONALITY, configSource: 'personality' },
+        });
+
+        expect(catalogPresence).toHaveBeenCalledWith('z-ai/glm-5.4');
+        expect(result.config?.effectivePersonality.model).toBe('glm-5.4');
+        expect(result.config?.effectivePersonality.provider).toBe(AIProvider.ZaiCoding);
+        expect(result.auth?.apiKey).toBe('fixture-zai-user-key');
+        expect(result.auth?.provider).toBe(AIProvider.ZaiCoding);
+        expect(result.auth?.wasAutoPromoted).toBe(true);
+        expect(result.auth?.fallback).toBeUndefined();
+      });
     });
 
     describe('promotion demotion tier (doomed z.ai promotion → OpenRouter passthrough)', () => {
@@ -1094,6 +1137,61 @@ describe('AuthStep', () => {
         expect(result.auth?.wasAutoPromoted).toBe(true);
         expect(result.auth?.fallback).toEqual(PROMOTED_ROUTE.fallback);
         expect(result.auth?.quotaFallback).toBeUndefined();
+      });
+
+      it('an unlisted promoted model (catalog-absent, no fallback) skips demotion and takes the quota retarget when z.ai is doomed', async () => {
+        const OR_ZAI_54_PERSONALITY: LoadedPersonality = {
+          ...TEST_PERSONALITY,
+          provider: 'openrouter',
+          model: 'z-ai/glm-5.4',
+        };
+        vi.mocked(mockApiKeyResolver.tryResolveUserKey).mockResolvedValue('fixture-zai-user-key');
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue({
+          apiKey: 'fixture-or-user-key',
+          provider: AIProvider.OpenRouter,
+          source: 'user',
+          isGuestMode: false,
+        });
+        vi.mocked(mockApiKeyResolver.resolveUserOpenRouterKey).mockResolvedValue(
+          'fixture-or-user-key'
+        );
+        const resolverWithGlobal = {
+          ...mockConfigResolver,
+          getGlobalDefaultConfig: vi
+            .fn()
+            .mockResolvedValue({ model: 'paid/default', temperature: 0.5 }),
+        } as unknown as LlmConfigResolver;
+        const catalogPresence = vi.fn((model: string) =>
+          Promise.resolve(model === 'z-ai/glm-5.4' ? false : true)
+        );
+        const caches = {
+          creditExhaustion: {
+            isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }),
+          } as unknown as QuotaFallbackCaches['creditExhaustion'],
+          rateLimit: {
+            isRateLimited: vi
+              .fn()
+              .mockImplementation(({ model }: { model: string }) =>
+                Promise.resolve(
+                  model === 'glm-5.4' ? { rateLimited: true } : { rateLimited: false }
+                )
+              ),
+          } as unknown as QuotaFallbackCaches['rateLimit'],
+          catalogPresence,
+        } satisfies QuotaFallbackCaches;
+
+        step = new AuthStep(mockApiKeyResolver, resolverWithGlobal, undefined, undefined, {
+          quotaFallbackCaches: caches,
+        });
+        const result = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: { effectivePersonality: OR_ZAI_54_PERSONALITY, configSource: 'personality' },
+        });
+
+        expect(result.config?.effectivePersonality.model).not.toBe('z-ai/glm-5.4');
+        expect(result.config?.effectivePersonality.model).toBe('paid/default');
+        expect(result.auth?.quotaFallback?.toModel).toBe('paid/default');
       });
     });
 

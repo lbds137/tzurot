@@ -420,6 +420,15 @@ describe('ModelCapabilityChecker', () => {
       expect(result).toBe(4096);
     });
 
+    it('resolves a mixed-case id against the catalog entry', async () => {
+      const models = [createMockModel('google/gemma-3-27b-it', ['text'])];
+      vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
+
+      const result = await getModelContextLength('Google/Gemma-3-27b-it', mockRedis);
+
+      expect(result).toBe(4096);
+    });
+
     it('should return null when the model is not in the cache', async () => {
       vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify([]));
 
@@ -719,6 +728,71 @@ describe('ModelCapabilityChecker', () => {
       vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
 
       expect(await isModelListed('x-ai/grok-4.1-fast:free', mockRedis)).toBe(true);
+    });
+
+    it('matches a mixed-case id against the lowercase catalog entry', async () => {
+      const models = [createMockModel('z-ai/glm-5.3', ['text'])];
+      vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
+
+      expect(await isModelListed('z-ai/GLM-5.3', mockRedis)).toBe(true);
+    });
+
+    it('matches a lowercase id against an uppercase catalog entry', async () => {
+      const models = [createMockModel('Z-AI/GLM-5.3', ['text'])];
+      vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
+
+      expect(await isModelListed('z-ai/glm-5.3', mockRedis)).toBe(true);
+    });
+
+    it('shares one memoized answer across casings', async () => {
+      const models = [createMockModel('z-ai/glm-5.3', ['text'])];
+      vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
+
+      expect(await isModelListed('z-ai/GLM-5.3', mockRedis)).toBe(true);
+      expect(await isModelListed('z-ai/glm-5.3', mockRedis)).toBe(true);
+      expect(mockRedis.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('serves a repeat lookup for a listed model from memory', async () => {
+      const models = [createMockModel('google/gemma-3-27b-it', ['text'])];
+      vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
+
+      expect(await isModelListed('google/gemma-3-27b-it', mockRedis)).toBe(true);
+      expect(await isModelListed('google/gemma-3-27b-it', mockRedis)).toBe(true);
+      expect(mockRedis.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('serves a repeat lookup for an absent model from memory', async () => {
+      const models = [createMockModel('google/gemma-3-27b-it', ['text'])];
+      vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
+
+      expect(await isModelListed('z-ai/glm-5.4', mockRedis)).toBe(false);
+      expect(await isModelListed('z-ai/glm-5.4', mockRedis)).toBe(false);
+      expect(mockRedis.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('re-probes after a transient miss', async () => {
+      vi.mocked(mockRedis.get).mockResolvedValueOnce(null);
+      const models = [createMockModel('google/gemma-3-27b-it', ['text'])];
+      vi.mocked(mockRedis.get).mockResolvedValueOnce(JSON.stringify(models));
+
+      expect(await isModelListed('google/gemma-3-27b-it', mockRedis)).toBeNull();
+      expect(await isModelListed('google/gemma-3-27b-it', mockRedis)).toBe(true);
+      expect(mockRedis.get).toHaveBeenCalledTimes(2);
+    });
+
+    it('clearCapabilityCache drops a memoized presence answer', async () => {
+      vi.mocked(mockRedis.get).mockResolvedValue(
+        JSON.stringify([createMockModel('google/gemma-3-27b-it', ['text'])])
+      );
+      expect(await isModelListed('z-ai/glm-5.4', mockRedis)).toBe(false);
+
+      clearCapabilityCache();
+
+      vi.mocked(mockRedis.get).mockResolvedValue(
+        JSON.stringify([createMockModel('z-ai/glm-5.4', ['text'])])
+      );
+      expect(await isModelListed('z-ai/glm-5.4', mockRedis)).toBe(true);
     });
   });
 });

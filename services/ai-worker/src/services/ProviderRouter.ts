@@ -48,6 +48,7 @@ import {
   type ApiKeyResolutionResult,
   type ApiKeyResolver,
 } from './ApiKeyResolver.js';
+import type { QuotaFallbackCaches } from './quotaFallback.js';
 
 const logger = createLogger('ProviderRouter');
 
@@ -120,11 +121,13 @@ export interface ResolvedRoute {
   wasAutoPromoted: boolean;
 
   /**
-   * Pre-computed OpenRouter passthrough route, populated when (and only
-   * when) `wasAutoPromoted` is true. Contains the apiKey/provider/model
-   * triple that GenerationStep should swap to if the promoted z.ai request
-   * fails — defense in depth against catalog drift (the whitelist may go
-   * stale if z.ai deprecates a model without us noticing).
+   * Pre-computed OpenRouter passthrough route, populated when
+   * `wasAutoPromoted` is true unless the OpenRouter catalog confirms the
+   * model is absent (or OpenRouter key resolution fails). Contains the
+   * apiKey/provider/model triple that GenerationStep should swap to if the
+   * promoted z.ai request fails — defense in depth against catalog drift
+   * (the whitelist may go stale if z.ai deprecates a model without us
+   * noticing).
    *
    * Pre-computing here rather than re-resolving on retry keeps the retry
    * path synchronous + decoupled from ProviderRouter; the cost is one
@@ -135,7 +138,10 @@ export interface ResolvedRoute {
 }
 
 export class ProviderRouter {
-  constructor(private readonly apiKeyResolver: ApiKeyResolver) {}
+  constructor(
+    private readonly apiKeyResolver: ApiKeyResolver,
+    private readonly catalogPresence?: QuotaFallbackCaches['catalogPresence']
+  ) {}
 
   /**
    * Resolve the effective routing decision for a request.
@@ -238,6 +244,12 @@ export class ProviderRouter {
    * route (z.ai-direct, bare model name). Returns `null` when promotion isn't
    * applicable — caller falls back to the OpenRouter passthrough path.
    *
+   * Attaches a pre-computed OpenRouter fallback route unless the OpenRouter
+   * catalog probe confirms the model is absent (`false`). A fallback forces a
+   * single primary attempt on z.ai before hopping to OpenRouter, so attaching
+   * an unservable fallback turns a transient z.ai overload into a hard failure;
+   * omitting it keeps the normal retry budget on z.ai.
+   *
    * Case-normalizes the bare model to lowercase before the whitelist lookup,
    * so user-typed variations (`z-ai/GLM-5.1` vs `z-ai/glm-5.1`) both promote
    * correctly. The promoted `effectiveModel` uses the lowercased form because
@@ -304,16 +316,17 @@ export class ProviderRouter {
       );
       return null;
     }
-    // Pre-compute the OpenRouter fallback route alongside the promotion.
+    // Pre-compute the OpenRouter fallback route alongside the promotion
+    // unless the OpenRouter catalog confirms the model is absent.
     // GenerationStep uses this to retry-with-fallback if the z.ai request
-    // fails (catalog drift defense). Computed even on the happy path so the
-    // retry decision stays synchronous — cheap one-time cost per request.
+    // fails (catalog drift defense). A fallback forces a single primary
+    // attempt on z.ai before hopping to OpenRouter, so an unservable
+    // fallback turns a transient z.ai overload into a hard failure; omitting
+    // it when confirmed absent preserves the full z.ai retry budget.
     //
     // Failure of the fallback resolution must NOT kill the promotion: the
     // z.ai route is independently viable (we already have userZaiKey), so
-    // we proceed with promotion sans-fallback rather than throwing. Worst
-    // case: a future z.ai 404 surfaces directly to the user (same UX as
-    // pre-PR-#928), which is strictly no worse than the previous behavior.
+    // we proceed with promotion sans-fallback rather than throwing.
     const promotedRoute: ResolvedRoute = {
       effectiveProvider: AIProvider.ZaiCoding,
       effectiveModel: bareModel,
@@ -322,20 +335,7 @@ export class ProviderRouter {
       fallthroughTriggered: false,
       wasAutoPromoted: true,
     };
-    try {
-      const orFallback = await this.apiKeyResolver.resolveApiKey(userId, AIProvider.OpenRouter);
-      promotedRoute.fallback = {
-        apiKey: orFallback.apiKey,
-        provider: AIProvider.OpenRouter,
-        model: configuredModel, // original z-ai/-prefixed model name
-        isGuestMode: orFallback.isGuestMode,
-      };
-    } catch (err) {
-      logger.warn(
-        { userId, configuredModel, err },
-        'Failed to pre-compute OpenRouter fallback during z.ai promotion — proceeding without retry-with-fallback safety net'
-      );
-    }
+    await this.attachPromotedFallback(promotedRoute, configuredModel, userId);
     logger.info(
       {
         userId,
@@ -346,6 +346,71 @@ export class ProviderRouter {
       'Auto-promoting OpenRouter z-ai/ model to z.ai-direct (user has zai-coding key)'
     );
     return this.assertResolvedRouteInvariant(promotedRoute);
+  }
+
+  /**
+   * Pre-compute and attach the OpenRouter fallback route to `promotedRoute`.
+   *
+   * Skips the OpenRouter fallback only when the catalog probe returns exactly
+   * `false`, and fails open otherwise (pinned by the `catalogPresence` cases in
+   * `ProviderRouter.test.ts`). The decision follows the catalog's refresh lag
+   * plus the presence memo TTL: a model OpenRouter starts listing keeps running
+   * without a fallback (the safe direction: full z.ai retry budget), and a model
+   * OpenRouter delists keeps a fallback that will 400 until the refresh lands
+   * (today's behaviour before this probe existed).
+   */
+  private async attachPromotedFallback(
+    promotedRoute: ResolvedRoute,
+    configuredModel: string,
+    userId: string | undefined
+  ): Promise<void> {
+    // Case folding happens inside the catalog probe (isModelListed).
+    if (await this.isConfirmedUnlistedOnOpenRouter(configuredModel)) {
+      logger.debug(
+        { userId, configuredModel },
+        'Skipping OpenRouter fallback for z.ai promotion: model not listed in the OpenRouter catalog'
+      );
+      return;
+    }
+    try {
+      const orFallback = await this.apiKeyResolver.resolveApiKey(userId, AIProvider.OpenRouter);
+      // The fallback sends the lowercased id — the casing the OpenRouter
+      // catalog lists (every catalog id observed lowercase) — so a mixed-case
+      // preset that the case-insensitive catalog check reads as listed is not
+      // sent in a casing OpenRouter's chat endpoint was not verified to accept.
+      promotedRoute.fallback = {
+        apiKey: orFallback.apiKey,
+        provider: AIProvider.OpenRouter,
+        model: configuredModel.toLowerCase(),
+        isGuestMode: orFallback.isGuestMode,
+      };
+    } catch (err) {
+      logger.warn(
+        { userId, configuredModel, err },
+        'Failed to pre-compute OpenRouter fallback during z.ai promotion — proceeding without retry-with-fallback safety net'
+      );
+    }
+  }
+
+  /**
+   * Whether the OpenRouter catalog probe confirms `model` is absent (`false`).
+   * Fail-open: returns `false` when the probe is unwired, returns `null`
+   * (catalog unavailable), or throws.
+   */
+  private async isConfirmedUnlistedOnOpenRouter(model: string): Promise<boolean> {
+    if (this.catalogPresence === undefined) {
+      return false;
+    }
+    try {
+      const listed = await this.catalogPresence(model);
+      return listed === false;
+    } catch (err: unknown) {
+      logger.warn(
+        { err, model },
+        'Catalog presence probe threw — not skipping OpenRouter fallback'
+      );
+      return false;
+    }
   }
 
   /**
