@@ -5,13 +5,15 @@ title: >-
   for zai-coding rows
 status: To Do
 assignee: []
-created_date: '2026-10-18 22:12'
+created_date: 2026-10-18 22:12
+updated_date: '2026-11-24T12:52:00Z'
 labels:
-  - 'area:api-gateway'
-  - 'size:S'
-  - 'state:dependent'
+  - area:api-gateway
+  - area:bot-client
+  - size:S
+  - state:ready
 dependencies: []
-priority: low
+priority: medium
 ordinal: 1235000
 ---
 
@@ -23,4 +25,6 @@ Why: since PR 2632 (TASK-1240, owner ruling: watch the keyless route) a zai-codi
 What: carry the configured model (and provider) in CatalogDriftEntry (common-types types/jobs.ts catalogDriftAlertJobDataSchema), and render e.g. glm-5 (keyless route: z-ai/glm-5) when they differ. Contract change: update the producer contract fixture (services/api-gateway/src/services/CatalogDriftContract.producer.test.ts) and the bot-client consumer.
 
 Acceptance: a zai-coding drift renders both ids; an openrouter drift renders one; contract tests green.
+
+Second case (2026-11-24 prod alert, 04:26): the global preset GLM 5.4 (Reasoning: high), an openrouter-provider row with model z-ai/glm-5.4, fired the drift alert because OpenRouter does not list glm-5.4. The alert says turns fall to the fallback chain, but for a user holding a z.ai key the request auto-promotes to z.ai (ProviderRouter.tryAutoPromoteToZai), so only keyless users fall through. The embed overstates the effect for any z-ai/ model that auto-promotes. Extra acceptance: when the drifted model is a z-ai/ id, the embed says z.ai-key holders are unaffected (auto-promotion) and only keyless turns use the fallback chain. Priority raised to medium: the alert already fired once on a working model and reached the owner as noise.
 <!-- SECTION:DESCRIPTION:END -->
