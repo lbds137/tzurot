@@ -21,8 +21,8 @@
     "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json"
   },
   "dependencies": {
-    "@langchain/core": "^1.4.2",
-    "@langchain/openai": "^1.8.4",
+    "@langchain/core": "^1.5.0",
+    "@langchain/openai": "^1.8.5",
     "@tzurot/cache-invalidation": "workspace:*",
     "@tzurot/common-types": "workspace:*",
     "@tzurot/config-resolver": "workspace:*",
