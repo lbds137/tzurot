@@ -7,7 +7,8 @@
  * Pinned by unit tests in `packages/test-utils/src/testLane.test.ts`.
  */
 
-import { basename, normalize, sep } from 'node:path';
+import { existsSync } from 'node:fs';
+import { basename, dirname, join, normalize, sep } from 'node:path';
 
 export type TestLane = 'a' | 'b' | 'c' | 'd' | 'e';
 
@@ -16,7 +17,7 @@ export type TestLane = 'a' | 'b' | 'c' | 'd' | 'e';
  * Explicit mapping (`packages/test-utils/src/testLane.test.ts`); DB 0 holds
  * live local dev data and is excluded from the test lane table.
  */
-export const TEST_LANE_REDIS_DB: Record<TestLane, number> = {
+export const TEST_LANE_REDIS_DB = {
   /** Primary checkout (`tzurot`), CI, and fallback lane (Redis DB 15) */
   a: 15,
   /** Parallel checkout `tzurot-b` (Redis DB 14) */
@@ -27,7 +28,7 @@ export const TEST_LANE_REDIS_DB: Record<TestLane, number> = {
   d: 12,
   /** Parallel checkout `tzurot-e` (Redis DB 11) */
   e: 11,
-} as const;
+} as const satisfies Record<TestLane, number>;
 
 const ALLOWED_TEST_LANES: readonly TestLane[] = ['a', 'b', 'c', 'd', 'e'];
 
@@ -55,7 +56,7 @@ export function checkoutRootOf(dir: string): string {
   if (markerIndex > 0) {
     return normalized.slice(0, markerIndex);
   }
-  return dir;
+  return normalized;
 }
 
 /**
@@ -120,19 +121,65 @@ export function resolveLaneRedisUrl(opts: {
   redisDb: number;
   env: Record<string, string | undefined>;
 }): string {
-  /** Branch 1: blank or undefined `raw` defaults to local Redis on `redisDb` (`testLane.test.ts`). */
+  // Branch 1: blank or undefined `raw` defaults to local Redis on `redisDb` (`testLane.test.ts`).
   if (opts.raw === undefined || opts.raw.trim().length === 0) {
     return laneRedisUrl('redis://127.0.0.1:6379', opts.redisDb);
   }
-  /** Branch 2: `env.CI === 'true'` keeps `raw` byte-identical (`testLane.test.ts`). */
+  // Branch 2: `env.CI === 'true'` keeps `raw` byte-identical (`testLane.test.ts`).
   if (opts.env.CI === 'true') {
     return opts.raw;
   }
   const { pathname } = new URL(opts.raw);
-  /** Branch 3: empty path, `/`, or `/0` rewrites to `/<redisDb>`, keeping host, port, and credentials (`testLane.test.ts`). */
+  // Branch 3: empty path, `/`, or `/0` rewrites to `/<redisDb>`, keeping host, port, and credentials (`testLane.test.ts`).
   if (pathname === '' || pathname === '/' || pathname === '/0') {
     return laneRedisUrl(opts.raw, opts.redisDb);
   }
-  /** Branch 4: any other explicit DB pathname is returned unchanged (`testLane.test.ts`). */
+  // Branch 4: any other explicit DB pathname is returned unchanged (`testLane.test.ts`).
   return opts.raw;
+}
+
+/**
+ * Return the Redis logical DB a test harness should connect to: an explicit
+ * non-zero `/N` DB in `raw` wins, matching `resolveLaneRedisUrl`; unset,
+ * blank, unparsable, empty-path, `/`, and `/0` values fall back to `laneDb`
+ * (`packages/test-utils/src/testLane.test.ts`).
+ */
+export function redisDbForUrl(raw: string | undefined, laneDb: number): number {
+  if (raw === undefined || raw.trim().length === 0) {
+    return laneDb;
+  }
+  let pathname: string;
+  try {
+    ({ pathname } = new URL(raw));
+  } catch {
+    return laneDb;
+  }
+  const match = /^\/(\d+)$/.exec(pathname);
+  if (match === null) {
+    return laneDb;
+  }
+  const explicit = Number.parseInt(match[1], 10);
+  return explicit === 0 ? laneDb : explicit;
+}
+
+/**
+ * Walk up from `startDir` (inclusive) to the nearest directory containing
+ * `pnpm-workspace.yaml`; returns `startDir` when none is found. `exists` is
+ * injectable for tests (`packages/test-utils/src/testLane.test.ts`).
+ */
+export function findWorkspaceRoot(
+  startDir: string,
+  exists: (path: string) => boolean = existsSync
+): string {
+  let current = startDir;
+  for (;;) {
+    if (exists(join(current, 'pnpm-workspace.yaml'))) {
+      return current;
+    }
+    const parent = dirname(current);
+    if (parent === current) {
+      return startDir;
+    }
+    current = parent;
+  }
 }

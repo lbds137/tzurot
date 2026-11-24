@@ -24,7 +24,7 @@ import { Redis as IORedis } from 'ioredis';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveTestLane } from './testLane.js';
+import { findWorkspaceRoot, redisDbForUrl, resolveTestLane } from './testLane.js';
 import { resolveTestRedisUrl } from './testRedisUrl.js';
 
 /**
@@ -112,7 +112,9 @@ export async function setupTestEnvironment(): Promise<TestEnvironment> {
   // Real data lives on db 0; tests run on the checkout lane's dedicated Redis
   // DB (15 for lane a; see `packages/test-utils/src/testLane.ts`) and flush it
   // on setup + cleanup so test runs remain isolated from dev data and parallel checkouts.
-  const { redisDb } = resolveTestLane({ rootDir: process.cwd(), env: process.env });
+  const lane = resolveTestLane({ rootDir: findWorkspaceRoot(process.cwd()), env: process.env });
+  // An explicit non-zero `/N` in REDIS_URL wins, matching `resolveLaneRedisUrl`.
+  const redisDb = redisDbForUrl(process.env.REDIS_URL, lane.redisDb);
   const url = new URL(redisUrl);
   const port = parseInt(url.port, 10) || 6379;
   const redis = new IORedis({

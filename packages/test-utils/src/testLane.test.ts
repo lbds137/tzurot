@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   TEST_LANE_REDIS_DB,
   checkoutRootOf,
+  findWorkspaceRoot,
   integrationDbNameForLane,
   laneRedisUrl,
+  redisDbForUrl,
   resolveLaneRedisUrl,
   resolveTestLane,
 } from './testLane.js';
@@ -222,5 +224,47 @@ describe('resolveLaneRedisUrl', () => {
         env: {},
       })
     ).toBe('redis://testuser:testpass@redis.example.test:6380/13');
+  });
+});
+
+describe('redisDbForUrl', () => {
+  it.each([
+    ['redis://127.0.0.1:6379/5', 5],
+    ['redis://127.0.0.1:6379/15', 15],
+  ])('returns the explicit non-zero DB of %s', (raw, expected) => {
+    expect(redisDbForUrl(raw, 14)).toBe(expected);
+  });
+
+  it.each([
+    [undefined],
+    [''],
+    ['   '],
+    ['not a url'],
+    ['redis://127.0.0.1:6379'],
+    ['redis://127.0.0.1:6379/'],
+    ['redis://127.0.0.1:6379/0'],
+    ['redis://127.0.0.1:6379/abc'],
+  ])('falls back to the lane DB for %s', raw => {
+    expect(redisDbForUrl(raw, 14)).toBe(14);
+  });
+});
+
+describe('findWorkspaceRoot', () => {
+  const marker = '/pnpm-workspace.yaml';
+
+  it('returns startDir when it holds the workspace file', () => {
+    expect(findWorkspaceRoot('/a/b/tzurot-c', p => p === `/a/b/tzurot-c${marker}`)).toBe(
+      '/a/b/tzurot-c'
+    );
+  });
+
+  it('returns the nearest ancestor holding the workspace file', () => {
+    expect(findWorkspaceRoot('/a/b/tzurot-c/packages/x', p => p === `/a/b/tzurot-c${marker}`)).toBe(
+      '/a/b/tzurot-c'
+    );
+  });
+
+  it('returns startDir when no ancestor holds the workspace file', () => {
+    expect(findWorkspaceRoot('/x/tzurot-c/sub', () => false)).toBe('/x/tzurot-c/sub');
   });
 });

@@ -20,12 +20,3 @@ export {
   envelopeContextArb,
   hasDescribableDirectAttachment,
 } from './jobContextArbitraries.js';
-export {
-  TEST_LANE_REDIS_DB,
-  checkoutRootOf,
-  integrationDbNameForLane,
-  laneRedisUrl,
-  resolveLaneRedisUrl,
-  resolveTestLane,
-  type TestLane,
-} from './testLane.js';
