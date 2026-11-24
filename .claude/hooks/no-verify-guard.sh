@@ -14,8 +14,9 @@
 #   2. push: `--no-verify` only. `-n` on push is `--dry-run` and passes.
 #   3. `core.hooksPath` among the git global flags (`git -c core.hooksPath=…`).
 #   4. `HUSKY=0` as an env assignment prefixing that invocation.
-#   5. hooks not installed: a commit/push that would run in a checkout of THIS
-#      repo whose resolved hooks dir lacks a hook git runs (pre-commit AND
+#   5. hooks not installed: a literal `git commit`/`git push` in the command
+#      text (wrapper-driven ones are a known gap) that would run in a
+#      checkout of THIS repo whose resolved hooks dir lacks a hook git runs (pre-commit AND
 #      commit-msg for a commit, pre-push for a push; each missing or not
 #      executable, each reported). With the dir missing git runs no hooks at
 #      all, silently; with one shim missing it skips that hook. Candidate
@@ -104,6 +105,10 @@
 #     never chained (`cd a && cd b` resolves `b` relative to the start dir).
 #   - hooks presence: a `cd` target built from a variable or substitution
 #     (`cd "$WT"`, `cd $(…)`) is not resolved, so it is not a candidate.
+#   - hooks presence: a commit/push performed by a wrapper rather than a
+#     literal `git commit` / `git push` in the command text (`gh pr create`
+#     pushing a branch, a `pnpm ops …` command that commits internally) is
+#     invisible to the arm (fail-open).
 #   - hooks presence: `git --git-dir=<p> [--work-tree=<p>] commit` and a
 #     `GIT_DIR=…` / `GIT_WORK_TREE=…` prefix are not candidates (fail-open:
 #     the named checkout is not examined).
@@ -136,6 +141,7 @@ export GIT_OPTIONAL_LOCKS=0
 SEEN=$(GUARD_CMD="$COMMAND" GUARD_CWD="$CWD" HOOK_DIR="$HOOK_DIR" HOOK_LIB="$HOOK_LIB" PYTHONDONTWRITEBYTECODE=1 python3 << 'PYEOF'
 import os
 import re
+import subprocess
 import sys
 
 sys.path.insert(0, os.environ["HOOK_LIB"])
@@ -294,8 +300,6 @@ SCRUBBED_GIT_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DI
 
 def git_lines(directory, *args):
     """Stdout lines of `git -C directory <args>`, or None on any failure."""
-    import subprocess
-
     env = {k: v for k, v in os.environ.items() if k not in SCRUBBED_GIT_ENV}
     env["GIT_OPTIONAL_LOCKS"] = "0"
     try:
@@ -469,8 +473,12 @@ for orig_view, values in views_all:
                 continue
             if reasons:
                 found.append("git %s: %s" % (kind, ", ".join(reasons)))
+            # One line per (kind, checkout): the hook names ride comma-joined.
+            by_checkout = {}
             for top, hooks_dir, hook_name in missing:
-                entry = "HOOKS\t%s\t%s\t%s\t%s" % (kind, top, hooks_dir, hook_name)
+                by_checkout.setdefault((top, hooks_dir), []).append(hook_name)
+            for (top, hooks_dir), names in by_checkout.items():
+                entry = "HOOKS\t%s\t%s\t%s\t%s" % (kind, top, hooks_dir, ",".join(names))
                 if entry not in hooks_found:
                     hooks_found.append(entry)
 
@@ -508,11 +516,11 @@ if [ -n "$HOOKS_MISSING" ]; then
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "NO-VERIFY GUARD — git hooks not installed in this checkout"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    while IFS=$'\t' read -r _ kind top hooks_dir hook_name; do
+    while IFS=$'\t' read -r _ kind top hooks_dir hook_names; do
       echo "Checkout: $top"
-      echo "  git $kind there would skip $hook_name: $hooks_dir/$hook_name is missing"
-      echo "  or not executable (core.hooksPath resolves there; husky creates it only"
-      echo "  on pnpm install)."
+      echo "  git $kind there would skip ${hook_names//,/, }: missing or not executable in"
+      echo "  $hooks_dir (core.hooksPath resolves there; husky creates it only on"
+      echo "  pnpm install)."
       echo "  Fix:"
       echo "    cd \"$top\" && pnpm install --frozen-lockfile && pnpm --filter \"./packages/**\" build"
     done <<<"$HOOKS_MISSING"
