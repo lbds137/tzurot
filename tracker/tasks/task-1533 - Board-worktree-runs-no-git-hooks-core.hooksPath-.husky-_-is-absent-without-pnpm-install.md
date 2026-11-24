@@ -3,9 +3,10 @@ id: TASK-1533
 title: >-
   Board worktree runs no git hooks: core.hooksPath .husky/_ is absent without
   pnpm install
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-24T17:53:00Z'
+updated_date: '2026-11-24T20:38:00Z'
 labels:
   - area:hooks
   - size:S
