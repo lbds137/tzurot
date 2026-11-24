@@ -790,6 +790,26 @@ pnpm test personalityMentionParser.test.ts
 pnpm test --grep "Priority Rules"
 ```
 
+### Parallel checkouts (test lanes)
+
+Parallel clones run component and integration tests concurrently without Redis or Postgres collisions by resolving a checkout lane (`packages/test-utils/src/testLane.ts`):
+
+- **Path rule:** checkout basename `tzurot-b`..`tzurot-e` selects lane `b`..`e` (linked `.claude/worktrees/*` inherit their parent checkout's lane); any other directory name (`tzurot`, CI checkouts) resolves to lane `a`.
+- **Env override:** `TZUROT_TEST_LANE=a|b|c|d|e` overrides the path rule (any other non-empty value throws).
+- **Provisioning:** run `pnpm ops test:lane` to inspect the active lane, or `pnpm ops test:lane --provision` to create the lane's integration database in `tzurot-postgres` with `vector` and `citext` enabled.
+- **`REDIS_URL` lane resolution (`resolveLaneRedisUrl`):** in `vitest.component.config.ts` and `vitest.integration.config.ts`, a blank or unset `REDIS_URL` defaults to `redis://127.0.0.1:6379/<redisDb>`; when `CI === 'true'`, `REDIS_URL` is returned unchanged; a local `REDIS_URL` whose pathname is empty, `/`, or `/0` (such as `redis://127.0.0.1:6379` from `.env`) is rewritten to `/<redisDb>` while preserving host, port, and credentials; any other explicit `/<N>` DB pathname is kept unchanged.
+- **Export `TZUROT_TEST_LANE` in the shell, not in `.env`:** the ops CLI reads `.env`, whereas Vitest does not, so set `TZUROT_TEST_LANE` by exporting it in the shell rather than placing it in `.env`.
+- **Agent worktrees share their parent's lane:** linked `.claude/worktrees/*` fold back to their parent checkout (`checkoutRootOf`), so do not run two component or integration suites in worktrees of the same checkout at once.
+- **Fresh-clone build prerequisite:** `pnpm ops test:lane` imports `@tzurot/test-utils` from its built output, so run `pnpm --filter @tzurot/test-utils build` first on a fresh clone.
+
+| Lane | Checkout basename | Redis DB | Integration Postgres DB     |
+| ---- | ----------------- | -------- | --------------------------- |
+| `a`  | `tzurot` / other  | `15`     | `tzurot_integration_test`   |
+| `b`  | `tzurot-b`        | `14`     | `tzurot_integration_b_test` |
+| `c`  | `tzurot-c`        | `13`     | `tzurot_integration_c_test` |
+| `d`  | `tzurot-d`        | `12`     | `tzurot_integration_d_test` |
+| `e`  | `tzurot-e`        | `11`     | `tzurot_integration_e_test` |
+
 ### CI/CD Integration
 
 Tests run automatically on:

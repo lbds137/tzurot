@@ -2,7 +2,8 @@
  * Component/Contract Test Setup
  *
  * Redis: a REAL ioredis connection in every environment (local, pre-push, CI),
- * scoped to a dedicated logical DB (db 15) that is flushed on setup + cleanup.
+ * scoped to the checkout lane's dedicated logical DB (db 15 for lane a; see
+ * `packages/test-utils/src/testLane.ts`) that is flushed on setup + cleanup.
  * There is no mock — a mock that disagrees with real Redis is a source of false
  * confidence, and "green locally" must mean the same thing as "green in CI".
  *
@@ -23,11 +24,12 @@ import { Redis as IORedis } from 'ioredis';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveTestLane } from './testLane.js';
 import { resolveTestRedisUrl } from './testRedisUrl.js';
 
 /**
  * Test environment interface
- * - redis: a real ioredis connection on the dedicated test DB (db 15)
+ * - redis: a real ioredis connection on the checkout lane's dedicated test DB (db 15 for lane a)
  * - prisma: Optional - tests that need it should set it up themselves
  * - cleanup: Function to clean up resources
  */
@@ -36,13 +38,6 @@ export interface TestEnvironment {
   prisma?: unknown; // Optional - tests add their own PrismaClient
   cleanup: () => Promise<void>;
 }
-
-/**
- * Dedicated Redis logical DB for tests. Real data lives on db 0; tests run on
- * db 15 and flush it on setup + cleanup, so a test run is isolated per file and
- * can never clobber other data even if REDIS_URL points at a shared instance.
- */
-const TEST_REDIS_DB = 15;
 
 // Get the directory of this file for resolving the schema path
 const __filename = fileURLToPath(import.meta.url);
@@ -114,6 +109,10 @@ export function loadPGliteSchema(): string {
  */
 export async function setupTestEnvironment(): Promise<TestEnvironment> {
   const redisUrl = resolveTestRedisUrl(process.env.REDIS_URL);
+  // Real data lives on db 0; tests run on the checkout lane's dedicated Redis
+  // DB (15 for lane a; see `packages/test-utils/src/testLane.ts`) and flush it
+  // on setup + cleanup so test runs remain isolated from dev data and parallel checkouts.
+  const { redisDb } = resolveTestLane({ rootDir: process.cwd(), env: process.env });
   const url = new URL(redisUrl);
   const port = parseInt(url.port, 10) || 6379;
   const redis = new IORedis({
@@ -121,7 +120,7 @@ export async function setupTestEnvironment(): Promise<TestEnvironment> {
     port,
     password: url.password || undefined,
     username: url.username || undefined,
-    db: TEST_REDIS_DB,
+    db: redisDb,
     // Fail fast with a clear message instead of hanging when Redis is down.
     lazyConnect: true,
     maxRetriesPerRequest: 1,

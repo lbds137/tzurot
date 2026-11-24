@@ -20,6 +20,12 @@ import { Client } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { CacheInvalidationService } from '@tzurot/cache-invalidation';
+import {
+  TEST_LANE_REDIS_DB,
+  integrationDbNameForLane,
+  resolveTestLane,
+  type TestLane,
+} from '@tzurot/test-utils';
 import { DatabaseNotificationListener } from '../../services/api-gateway/src/services/DatabaseNotificationListener.js';
 
 /**
@@ -63,6 +69,19 @@ function assertDedicatedTestDatabase(url: string): void {
         `"_test". This suite mutates rows and fires real cache-invalidation NOTIFYs, so it must ` +
         `point at a dedicated test database (CI uses tzurot_test; locally, tzurot_integration_test).`
     );
+  }
+  const ownLane = resolveTestLane({ rootDir: process.cwd(), env: process.env });
+  for (const candidateLane of Object.keys(TEST_LANE_REDIS_DB) as TestLane[]) {
+    if (
+      candidateLane !== ownLane.lane &&
+      databaseName === integrationDbNameForLane(candidateLane)
+    ) {
+      throw new Error(
+        `Refusing to run: DATABASE_URL names "${databaseName}" (lane "${candidateLane}"), ` +
+          `which belongs to another checkout lane; this checkout is lane "${ownLane.lane}" ` +
+          `(expected "${ownLane.integrationDbName}" or CI's "tzurot_test").`
+      );
+    }
   }
 }
 
@@ -229,6 +248,33 @@ describe('assertDedicatedTestDatabase', () => {
 
   it('refuses an unparseable URL rather than skipping the check', () => {
     expect(() => assertDedicatedTestDatabase('not-a-url')).toThrow(/not a parseable URL/);
+  });
+
+  it('refuses another lane integration database and names both lanes', () => {
+    const previousLane = process.env.TZUROT_TEST_LANE;
+    try {
+      process.env.TZUROT_TEST_LANE = 'a';
+      expect(() =>
+        assertDedicatedTestDatabase('postgresql://u:p@localhost:5432/tzurot_integration_b_test')
+      ).toThrow(/lane "b".*lane "a"/);
+
+      process.env.TZUROT_TEST_LANE = 'b';
+      expect(() =>
+        assertDedicatedTestDatabase('postgresql://u:p@localhost:5432/tzurot_integration_test')
+      ).toThrow(/lane "a".*lane "b"/);
+      expect(() =>
+        assertDedicatedTestDatabase('postgresql://u:p@localhost:5432/tzurot_integration_b_test')
+      ).not.toThrow();
+      expect(() =>
+        assertDedicatedTestDatabase('postgresql://u:p@localhost:5432/tzurot_test')
+      ).not.toThrow();
+    } finally {
+      if (previousLane === undefined) {
+        delete process.env.TZUROT_TEST_LANE;
+      } else {
+        process.env.TZUROT_TEST_LANE = previousLane;
+      }
+    }
   });
 });
 
