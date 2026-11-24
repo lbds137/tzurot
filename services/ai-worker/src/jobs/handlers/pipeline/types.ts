@@ -131,10 +131,12 @@ export interface ResolvedAuth {
    */
   fallthroughTriggered?: boolean;
   /**
-   * Pre-computed OpenRouter passthrough route — populated when (and only
-   * when) `wasAutoPromoted` is true. Contains everything GenerationStep
-   * needs to swap to OpenRouter on a z.ai failure (catalog drift defense
-   * in depth — the whitelist may go stale if z.ai deprecates a model).
+   * Pre-computed OpenRouter passthrough route — populated only when
+   * `wasAutoPromoted` is true, the OpenRouter catalog does not confirm the
+   * model absent, and the OpenRouter key resolves. Contains everything
+   * GenerationStep needs to swap to OpenRouter on a z.ai failure (catalog
+   * drift defense in depth — the whitelist may go stale if z.ai deprecates
+   * a model).
    *
    * `model` is the ORIGINAL `z-ai/<model>` namespaced form (not the
    * stripped form sent to z.ai), so the OpenRouter retry uses the right

@@ -23,7 +23,11 @@ import {
   type ApiKeyResolutionResult,
 } from './ApiKeyResolver.js';
 
-const { mockLoggerWarn } = vi.hoisted(() => ({ mockLoggerWarn: vi.fn() }));
+const { mockLoggerDebug, mockLoggerInfo, mockLoggerWarn } = vi.hoisted(() => ({
+  mockLoggerDebug: vi.fn(),
+  mockLoggerInfo: vi.fn(),
+  mockLoggerWarn: vi.fn(),
+}));
 
 // Mock logger via the shared common-types mock pattern
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -33,8 +37,8 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   return {
     ...actual,
     createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
+      debug: mockLoggerDebug,
+      info: mockLoggerInfo,
       warn: mockLoggerWarn,
       error: vi.fn(),
     }),
@@ -48,6 +52,8 @@ describe('ProviderRouter', () => {
   let router: ProviderRouter;
 
   beforeEach(() => {
+    mockLoggerDebug.mockClear();
+    mockLoggerInfo.mockClear();
     mockLoggerWarn.mockClear();
     mockResolveApiKey = vi.fn();
     mockTryResolveUserKey = vi.fn();
@@ -302,6 +308,14 @@ describe('ProviderRouter', () => {
   });
 
   describe('OpenRouter z-ai/ auto-promotion', () => {
+    const OR_USER_KEY_RESULT = {
+      apiKey: 'fixture-or-user-key',
+      source: 'user',
+      provider: AIProvider.OpenRouter,
+      userId: 'user-123',
+      isGuestMode: false,
+    } satisfies ApiKeyResolutionResult;
+
     it('skips promotion when the z.ai probe read fails but the user own OpenRouter key resolves', async () => {
       const lookupError = new ApiKeyLookupError(AIProvider.ZaiCoding);
       mockTryResolveUserKey.mockRejectedValue(lookupError);
@@ -592,10 +606,9 @@ describe('ProviderRouter', () => {
       expect(route.wasAutoPromoted).toBe(true);
       expect(route.effectiveProvider).toBe(AIProvider.ZaiCoding);
       expect(route.effectiveModel).toBe('glm-5.1'); // normalized to lowercase
-      // Fallback preserves the original (uppercase) model name verbatim — if
-      // OpenRouter retry fires, it'll hit OpenRouter with whatever the preset
-      // had. OpenRouter handles case-insensitive matching on its side.
-      expect(route.fallback?.model).toBe('z-ai/GLM-5.1');
+      // Fallback also sends the lowercased id — the casing the OpenRouter
+      // catalog lists (not verified that OpenRouter's chat endpoint folds case).
+      expect(route.fallback?.model).toBe('z-ai/glm-5.1');
     });
 
     it('should still promote when OpenRouter fallback resolution fails (degrade to no-fallback)', async () => {
@@ -603,7 +616,7 @@ describe('ProviderRouter', () => {
       // resolver bug), the z.ai promotion should still succeed — the z.ai
       // route is independently viable. The route returns without a `fallback`
       // field, so retry-with-fallback simply won't fire if z.ai later 404s
-      // (degrades to pre-PR-#928 UX, which is strictly no worse).
+      // (degrades to a plain z.ai call, which is strictly no worse).
       mockTryResolveUserKey.mockResolvedValue('zai-user-key');
       mockResolveApiKey.mockRejectedValue(new Error('OpenRouter resolver unavailable'));
 
@@ -660,6 +673,160 @@ describe('ProviderRouter', () => {
       expect(route.wasAutoPromoted).toBe(false);
       expect(route.effectiveProvider).toBe(AIProvider.OpenRouter);
       expect(route.isGuestMode).toBe(true);
+    });
+
+    it('omits the OpenRouter fallback when catalogPresence confirms the model is unlisted (false)', async () => {
+      mockTryResolveUserKey.mockResolvedValue('fixture-zai-user-key');
+      mockResolveApiKey.mockResolvedValue(OR_USER_KEY_RESULT);
+      const probe = vi.fn().mockResolvedValue(false);
+      const probedRouter = new ProviderRouter(mockApiKeyResolver, probe);
+
+      const route = await probedRouter.resolveRoute(
+        AIProvider.OpenRouter,
+        'z-ai/glm-5.4',
+        'user-123'
+      );
+
+      expect(probe).toHaveBeenCalledWith('z-ai/glm-5.4');
+      expect(mockResolveApiKey).not.toHaveBeenCalled();
+      expect(route).toEqual({
+        effectiveProvider: AIProvider.ZaiCoding,
+        effectiveModel: 'glm-5.4',
+        apiKey: 'fixture-zai-user-key',
+        isGuestMode: false,
+        fallthroughTriggered: false,
+        wasAutoPromoted: true,
+      });
+      expect(route.fallback).toBeUndefined();
+      expect(mockLoggerDebug).toHaveBeenCalledWith(
+        { userId: 'user-123', configuredModel: 'z-ai/glm-5.4' },
+        'Skipping OpenRouter fallback for z.ai promotion: model not listed in the OpenRouter catalog'
+      );
+      expect(mockLoggerInfo).toHaveBeenCalledWith(
+        {
+          userId: 'user-123',
+          configuredModel: 'z-ai/glm-5.4',
+          promotedModel: 'glm-5.4',
+          fallbackAvailable: false,
+        },
+        'Auto-promoting OpenRouter z-ai/ model to z.ai-direct (user has zai-coding key)'
+      );
+    });
+
+    it('attaches the OpenRouter fallback when catalogPresence confirms the model is listed (true)', async () => {
+      mockTryResolveUserKey.mockResolvedValue('fixture-zai-user-key');
+      mockResolveApiKey.mockResolvedValue(OR_USER_KEY_RESULT);
+      const probe = vi.fn().mockResolvedValue(true);
+      const probedRouter = new ProviderRouter(mockApiKeyResolver, probe);
+
+      const route = await probedRouter.resolveRoute(
+        AIProvider.OpenRouter,
+        'z-ai/glm-5.4',
+        'user-123'
+      );
+
+      expect(probe).toHaveBeenCalledWith('z-ai/glm-5.4');
+      expect(route.wasAutoPromoted).toBe(true);
+      expect(route.fallback).toEqual({
+        apiKey: 'fixture-or-user-key',
+        provider: AIProvider.OpenRouter,
+        model: 'z-ai/glm-5.4',
+        isGuestMode: false,
+      });
+    });
+
+    it('passes a mixed-case preset id to the catalog probe unchanged and sends the lowercased id on the fallback', async () => {
+      mockTryResolveUserKey.mockResolvedValue('fixture-zai-user-key');
+      mockResolveApiKey.mockResolvedValue(OR_USER_KEY_RESULT);
+      const probe = vi.fn().mockResolvedValue(true);
+      const probedRouter = new ProviderRouter(mockApiKeyResolver, probe);
+
+      const route = await probedRouter.resolveRoute(
+        AIProvider.OpenRouter,
+        'z-ai/GLM-5.4',
+        'user-123'
+      );
+
+      expect(probe).toHaveBeenCalledWith('z-ai/GLM-5.4');
+      expect(route.fallback?.model).toBe('z-ai/glm-5.4');
+    });
+
+    it('attaches the OpenRouter fallback when catalogPresence resolves null (catalog unavailable)', async () => {
+      mockTryResolveUserKey.mockResolvedValue('fixture-zai-user-key');
+      mockResolveApiKey.mockResolvedValue(OR_USER_KEY_RESULT);
+      const probe = vi.fn().mockResolvedValue(null);
+      const probedRouter = new ProviderRouter(mockApiKeyResolver, probe);
+
+      const route = await probedRouter.resolveRoute(
+        AIProvider.OpenRouter,
+        'z-ai/glm-5.4',
+        'user-123'
+      );
+
+      expect(probe).toHaveBeenCalledWith('z-ai/glm-5.4');
+      expect(route.wasAutoPromoted).toBe(true);
+      expect(route.fallback).toEqual({
+        apiKey: 'fixture-or-user-key',
+        provider: AIProvider.OpenRouter,
+        model: 'z-ai/glm-5.4',
+        isGuestMode: false,
+      });
+    });
+
+    it('attaches the OpenRouter fallback and logs a warning when catalogPresence rejects', async () => {
+      mockTryResolveUserKey.mockResolvedValue('fixture-zai-user-key');
+      mockResolveApiKey.mockResolvedValue(OR_USER_KEY_RESULT);
+      const probeError = new Error('catalog unavailable');
+      const probe = vi.fn().mockRejectedValue(probeError);
+      const probedRouter = new ProviderRouter(mockApiKeyResolver, probe);
+
+      const route = await probedRouter.resolveRoute(
+        AIProvider.OpenRouter,
+        'z-ai/glm-5.4',
+        'user-123'
+      );
+
+      expect(probe).toHaveBeenCalledWith('z-ai/glm-5.4');
+      expect(route.wasAutoPromoted).toBe(true);
+      expect(route.fallback).toEqual({
+        apiKey: 'fixture-or-user-key',
+        provider: AIProvider.OpenRouter,
+        model: 'z-ai/glm-5.4',
+        isGuestMode: false,
+      });
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        { err: probeError, model: 'z-ai/glm-5.4' },
+        'Catalog presence probe threw — not skipping OpenRouter fallback'
+      );
+    });
+
+    it('attaches the OpenRouter fallback when catalogPresence throws synchronously', async () => {
+      mockTryResolveUserKey.mockResolvedValue('fixture-zai-user-key');
+      mockResolveApiKey.mockResolvedValue(OR_USER_KEY_RESULT);
+      const probeError = new Error('x');
+      const probe = vi.fn(() => {
+        throw probeError;
+      });
+      const probedRouter = new ProviderRouter(mockApiKeyResolver, probe);
+
+      const route = await probedRouter.resolveRoute(
+        AIProvider.OpenRouter,
+        'z-ai/glm-5.4',
+        'user-123'
+      );
+
+      expect(probe).toHaveBeenCalledWith('z-ai/glm-5.4');
+      expect(route.wasAutoPromoted).toBe(true);
+      expect(route.fallback).toEqual({
+        apiKey: 'fixture-or-user-key',
+        provider: AIProvider.OpenRouter,
+        model: 'z-ai/glm-5.4',
+        isGuestMode: false,
+      });
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        { err: probeError, model: 'z-ai/glm-5.4' },
+        'Catalog presence probe threw — not skipping OpenRouter fallback'
+      );
     });
   });
 });
