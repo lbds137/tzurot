@@ -25,7 +25,10 @@
 #      fail-closed direction: any directory the command names is a checkout the
 #      invocation might run in. The same per-invocation override waives it.
 #      Any failure inside this arm (git missing, timeout, odd output) lets the
-#      command through.
+#      command through. The arm is off entirely under GitHub Actions
+#      (GITHUB_ACTIONS=true in the hook's own env; a command prefix cannot set
+#      it): the PR's CI runs every gate and an Actions checkout is never
+#      installed.
 #
 # Override, per invocation (an owner-approved exception):
 #   TZUROT_ALLOW_NO_VERIFY=1 git commit ...
@@ -95,6 +98,9 @@
 #     never chained (`cd a && cd b` resolves `b` relative to the start dir).
 #   - hooks presence: a `cd` target built from a variable or substitution
 #     (`cd "$WT"`, `cd $(…)`) is not resolved, so it is not a candidate.
+#   - hooks presence: `git --git-dir=<p> [--work-tree=<p>] commit` and a
+#     `GIT_DIR=…` / `GIT_WORK_TREE=…` prefix are not candidates (fail-open:
+#     the named checkout is not examined).
 #
 # Fixture check: run .claude/hooks/no-verify-guard.probe.sh after ANY edit to
 # this hook.
@@ -338,6 +344,11 @@ def named_dirs(views, start_dir):
 def this_repo_hook_dirs(views):
     """[(top, hooks_dir)] for each candidate checkout of THIS repo (same
     git-common-dir as the project). Empty on any failure or foreign repo."""
+    # Off under GitHub Actions: the PR's own CI runs every gate, an Actions
+    # checkout is never `pnpm install`ed before the @claude agent, and this
+    # reads the hook's own process env, which a command prefix cannot set.
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        return []
     try:
         guard_cwd = os.environ.get("GUARD_CWD", "")
         start_dir = guard_cwd if os.path.isdir(guard_cwd) else os.getcwd()
@@ -495,7 +506,7 @@ if [ -n "$HOOKS_MISSING" ]; then
       echo "  or not executable (core.hooksPath resolves there; husky creates it only"
       echo "  on pnpm install)."
       echo "  Fix:"
-      echo "    cd $top && pnpm install --frozen-lockfile && pnpm --filter \"./packages/**\" build"
+      echo "    cd \"$top\" && pnpm install --frozen-lockfile && pnpm --filter \"./packages/**\" build"
     done <<<"$HOOKS_MISSING"
     echo
     echo "The build is needed because pre-push runs pnpm ops, which imports built"
