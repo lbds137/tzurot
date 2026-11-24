@@ -1,10 +1,6 @@
 # Current
 
-> HOLD (11-23 reboot): start nothing new until Deck signals the fleet fixes landed; 17ad862fb did land on origin (no re-push needed): arm ci-gate for 2795 from the task-1515 worktree, then follow the NEXT note.
-
-> **NEXT (Lila via Deck, 2026-11-23 17:47 EST, before the reboot)**: (1) **`TASK-815` first** (paths-scope `.claude/rules`, fresh-start target under ~90k tokens), ahead of the beta.249 cut. (2) Until TASK-815 lands, prefer **/clear over /compact** at unit boundaries (fresh start ~120k vs ~160k after compact). (3) Then beta.249: rerun `release:range`; #2787's destructive rename needs maintenance on → `release:premigrate --allow-destructive` → merge → maintenance off, every gated step asked via AUQ. (4) Then TASK-1517, then the drain (1511–1513, 1500–1508, 1416/1415/1411/1412). **PR #2795 (GLM 5.4, TASK-1515 + TASK-1393)**: round-7 doc commit `17ad862fb` pushing at 17:47; if not merged by the reboot, re-arm `gh:ci-gate 2795` from worktree `.claude/worktrees/task-1515`, read the review, merge, mark both tasks Done.
-
-> **Session handoff 2026-11-22 08:39 EST (`agy` Gemini 4 Neon)**: beta.248 SHIPPED (PR #2786, tag `v3.0.0-beta.248`, `develop` aligned at `345010bbf`). `TASK-1400` 4-arm Claude character eval COMPLETE ($9.4944 actual BYOK spend across 80 turns; local `chmod 600` blind packet at `docs/local/task-1400-eval/blind-packet.md` awaiting Lila's rating). Unreleased on develop: nothing since `v3.0.0-beta.248` except tracker/CURRENT bookkeeping.
+> **NEXT (2026-11-23)**: beta.249 release PR #2796 waits on Lila's approval of the merge plus the maintenance window (#2787's destructive rename: maintenance on → `release:premigrate --allow-destructive` → merge → maintenance off). #2798 (duplicate lockfile key that broke develop's install) merges first. Then `TASK-815` (paths-scope `.claude/rules`, fresh start under ~90k tokens; until it lands prefer /clear over /compact), TASK-1517, then the drain (1511–1513, 1500–1508, 1416/1415/1411/1412). #2795 (GLM 5.4) merged; TASK-1515 and TASK-1393 Done. Waiting on Lila: the TASK-1400 blind rating (`docs/local/task-1400-eval/blind-packet.md`).
 
 > **Version**: v3.0.0-beta.248 — "coalescing fix, BYOK hardening, provenance & UX fixes" — SHIPPED 2026-11-22 13:38Z (PR 2786). 11 PRs / 11 runtime / 144 files (#2775–#2785); no migration; prod `API_KEY_ENCRYPTION_KEY` precondition (#2778) verified valid & matching on `ai-worker` + `api-gateway`; holistic release review: no blocking findings. Notes: `docs/local/dispatch/notes-beta248.md`. **Previous**: v3.0.0-beta.247 — "burst coalescing, settings discoverability, cache telemetry" (5 PRs / 4 runtime / 204 files; 2026-11-20 13:39Z) · v3.0.0-beta.246 — "prompt-cache prefix fix + prod-correctness fixes" (13 PRs / 13 runtime / 151 files; 2026-11-18 13:21Z) · v3.0.0-beta.245 — "caching reads" (1 PR; 2026-11-13 12:05Z) · v3.0.0-beta.244 — "prompt caching + preset param fixes" (3 PRs / 2 runtime; 2026-11-13 04:37Z) · v3.0.0-beta.243 (32 PRs / 21 runtime / 296 files; 2026-11-12 22:27Z).
 
@@ -14,12 +10,9 @@
 - **(optional, owner)** glm-5.4 shows up in the model autocomplete for `/preset` (#2795). The confidence is high: the catalog tests pin it.
 - **Watch — prod deps group (#2792, 9 updates):** the first prod AI replies and gateway requests after deploy are the check; an error spike = roll back.
 
-## 🧪 beta.248 / beta.247 watch (beta.248 shipped to main 2026-11-22 13:38Z; #2775–#2779, #2781–#2785 are high tier / observability: CI + reviews cover)
+## 🧪 beta.248 / beta.247 / beta.246 watch (shipped to main 11-22, 11-20, 11-18; no needs-smoke: high tier / observability and fail-soft, CI + reviews cover)
 
 - **Watch — cache tokens (#2770/#2771, TASK-1450):** one week of prod rows from beta.247 (2026-11-20), then `pnpm ops telemetry:inference --env prod` for the hit rate; the same read settles TASK-1414's write/read ratio.
-
-## 🧪 beta.246 watch (shipped to main 2026-11-18 13:21Z; no needs-smoke: both fail soft, CI + reviews cover the rest)
-
 - **Watch — cache prefix (#2755):** a same-model turn pair on an Anthropic-family model logs `cachedPromptTokens` ≈ prompt minus the per-turn block, with a small `cachedWriteTokens` (before: 98,487 prompt / 10,365 cached / 88,118 written every turn). **Rechecked 11-19:** 15h of prod Generated-response lines (26 generations) — zero Anthropic-family traffic, so the prefix check has no qualifying pair yet; the GLM side is healthy (31% of calls took cache reads, ~17% read share, n=26, z.ai implicit caching, all `promptCacheGate=false`). Recheck after a claude-family pair appears.
 - **Watch — trigger link embeds (#2764):** a bare-link trigger renders its embed on the FIRST reply; the refetch fallback (`Could not refetch message`, debug level) is code-read only. Not yet observed (Discord-truth; needs her eyes or a log signature).
 
@@ -31,16 +24,13 @@
 - **Watch — system-model truncation warn (#2715, TASK-798):** `System model response is likely truncated` now fires for every background caller at its cap. A burst tagged `appTitleSuffix: 'ArchiveSummary'` (cap 512) or the digest is expected, since how often those reach their caps is unmeasured; an `Extraction` or `RosterBlurb` hit means the 32768/8192 cap is too low. The length finish-reason branch is unverified on z.ai-direct.
 - **Follow-up named by the holistic review — TASK-1374 (vision negative cache keys on (model, attachment), not key; first pull after this soaks).**
 
-## 🧪 beta.242 watch (shipped 2026-11-03; no needs-smoke)
+## 🧪 beta.242 / beta.241 watch (shipped 2026-11-03 and 10-27; no needs-smoke)
 
 - **Check — refused webhook names (#2710):** the first persona whose name Discord refuses should log `Webhook username refused, retrying with adjusted name` followed by a delivered message; a second send to that persona should go straight out under the cached name. Runtime-unverified end to end.
 - **Watch — OpenRouter harness-only 403 (#2702):** classified as model unavailable; fires only on that provider response.
 - **Check — stored summaries render (#2689):** a prod read on 11-01 found 39 rows with a stored summary not rendering (`failed` or `dead`), all recalled. After deploy, confirm a real affected row renders its summary; not runtime-confirmed yet. Count script: `docs/local/glm-audit/stranded-summaries.mjs` (read-only; its count will not fall, because the rows keep their status).
 - **Expected — `summaryNotes` telemetry rises (#2689):** notes from `failed`, `dead` and `pending` rows now count as summary notes. A small step up is not a regression.
 - **Watch — one NSFW prompt per multi-tag message (#2690):** logs should show one `Interaction blocked - user not NSFW verified` per message. The all-denied log now comes from logger `MultiTagCoordinatorHelpers`, so a saved Railway filter on the old name needs updating.
-
-## 🧪 beta.241 watch (shipped 2026-10-27; no needs-smoke)
-
 - **Watch — bot-client batch pick error paths (#2665-#2672):** after deploy, check bot-client logs for batch-pick errors (override/alias/memories/facts/deny browsers). Error-path copy only; no smoke asked.
 - **Watch — single-delete memory response schema (#2667):** `DeleteMemoryResponseSchema.success` is now `z.literal(true)`; its only producer always sends `true` (`memorySingle.ts:390`). A parse failure on `/memory` single delete would be the signal.
 
@@ -51,12 +41,9 @@
 - **Watch — #2662 fallthrough footer:** visible only when a coding-plan call falls through to OpenRouter; first occurrence in prod shows the suffix.
 - **Advisories: CLOSED** — `pnpm ops security:advisories` reports none open after the beta.240 merge (2026-10-26).
 
-## 🧪 beta.238 watch (observability only — no needs-smoke items)
+## 🧪 beta.238 / beta.237 watch (observability only — no needs-smoke items)
 
 - **#2629 reasoning traces:** the first new prod memory written with a trace shows the 🧠 Reasoning button in `/memory` detail; dev/prod sync must not null a backfilled trace (`keepNonNullColumns`).
-
-## 🧪 beta.237 watch (observability only — no needs-smoke items)
-
 - **#2626 prompt v2 (NOW LIVE ON PROD):** watch ai-worker `overflow`/`dead` and `lengthState`/`regenerated` rates (safety keep-list vs the length caps — overflow/dead is the path that loses the summary). Dev rehearsal baseline: 206 hot rows → 201 done@v2, 4 overflow strike-1, 1 re-dead `no_template`, 0 overflow deaths. Expect auto-promotion to report every candidate `notReady` until the release-day sweep re-covers (expected, no demotion). Release-day data point (10-17 backfill, 1,534 rows): zero overflow deaths, overflow-failed ~2.5% ≈ dev's 1.9%, first-person/parse pools collapsed (21→6, 19→10 incl. v1 leftovers).
 - **#2622 render fallback:** `excerptNotes` share in the render telemetry vs the ~13% no-summary share — the character side should now be present on every parseable, non-chunk, non-empty own-note render (chunk rows, unparseable rows and empty or quote-only assistant halves get no excerpt by design).
 - **Carried from beta.236:** #2592's job time budget — the first real trigger logs `LLM job budget exhausted before …` in ai-worker (silence = no job reached the 720s budget); #2601's debug capture — grep prod bot-client logs for `guildInfoAmbiguousRoles`, unblocks TASK-705 phase 2 + the `debug:` cleanup PR.
