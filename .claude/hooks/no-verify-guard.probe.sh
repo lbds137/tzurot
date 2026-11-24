@@ -1,7 +1,12 @@
 #!/bin/bash
 # Fixture check for no-verify-guard.sh — run after ANY edit to the hook. The
-# hook decides purely from the command text, so the harness needs no fixture
-# repo, only the JSON payload shape the PreToolUse hook receives on stdin.
+# skip-shape rows decide purely from the command text, so they need only the
+# JSON payload shape the PreToolUse hook receives on stdin; `run` pins their
+# payload cwd to a plain non-git dir so the hooks-presence arm stays inert for
+# them. The hooks-presence rows use throwaway fixture repos built in a temp
+# dir (an installed project, uninstalled/partial/non-executable worktrees, a
+# foreign repo, a plain dir) and `run_in` to choose the payload cwd. Global
+# git config is isolated, since the machine's own sets core.hooksPath.
 #
 # Usage: .claude/hooks/no-verify-guard.probe.sh   (from anywhere)
 
@@ -12,11 +17,57 @@ HOOK="$SCRIPT_DIR/no-verify-guard.sh"
 
 FAILURES=0
 
+T=$(mktemp -d)
+trap 'rm -rf "$T"' EXIT
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+
+# Installed project: husky-style shims, relative core.hooksPath, .husky/_
+# untracked so a worktree of it lacks the shims.
+git init -q "$T/proj"
+mkdir -p "$T/proj/.husky/_"
+for h in commit-msg pre-push; do
+  printf '#!/bin/sh\nexit 0\n' >"$T/proj/.husky/_/$h"
+  chmod +x "$T/proj/.husky/_/$h"
+done
+git -C "$T/proj" config core.hooksPath .husky/_
+git -C "$T/proj" -c user.name=probe -c user.email=probe@example.invalid \
+  commit -q --allow-empty -m init
+git -C "$T/proj" worktree add -q --detach "$T/wt"
+git -C "$T/proj" worktree add -q --detach "$T/wt-cm"
+git -C "$T/proj" worktree add -q --detach "$T/wt-noexec"
+# wt-cm: commit-msg only. wt-noexec: both, pre-push not executable.
+mkdir -p "$T/wt-cm/.husky/_" "$T/wt-noexec/.husky/_"
+printf '#!/bin/sh\nexit 0\n' >"$T/wt-cm/.husky/_/commit-msg"
+chmod +x "$T/wt-cm/.husky/_/commit-msg"
+for h in commit-msg pre-push; do
+  printf '#!/bin/sh\nexit 0\n' >"$T/wt-noexec/.husky/_/$h"
+done
+chmod +x "$T/wt-noexec/.husky/_/commit-msg"
+chmod -x "$T/wt-noexec/.husky/_/pre-push"
+git init -q "$T/foreign"
+mkdir -p "$T/plain"
+
+# run_in <expected-exit> <label> <cwd> <command>
+run_in() {
+  local expected="$1" label="$2" cwd="$3" cmd="$4"
+  jq -n --arg c "$cmd" --arg d "$cwd" \
+    '{tool_name:"Bash",cwd:$d,tool_input:{command:$c}}' \
+    | CLAUDE_PROJECT_DIR="$T/proj" "$HOOK" >/dev/null 2>&1
+  local actual=$?
+  if [ "$actual" -eq "$expected" ]; then
+    printf 'PASS  (exit %d)  %s\n' "$actual" "$label"
+  else
+    printf 'FAIL  (exit %d, expected %d)  %s\n' "$actual" "$expected" "$label"
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+
 # run <expected-exit> <label> <tool_name> <command>
 run() {
   local expected="$1" label="$2" tool="$3" cmd="$4"
-  jq -n --arg t "$tool" --arg c "$cmd" '{tool_name:$t,tool_input:{command:$c}}' \
-    | "$HOOK" >/dev/null 2>&1
+  jq -n --arg t "$tool" --arg c "$cmd" --arg d "$T/plain" \
+    '{tool_name:$t,cwd:$d,tool_input:{command:$c}}' \
+    | CLAUDE_PROJECT_DIR="$T/proj" "$HOOK" >/dev/null 2>&1
   local actual=$?
   if [ "$actual" -eq "$expected" ]; then
     printf 'PASS  (exit %d)  %s\n' "$actual" "$label"
@@ -134,6 +185,45 @@ if printf '%s' "$OVERRIDE_ERR" | grep -qF 'no-verify-guard: override used (git p
   printf 'PASS  override prints its stderr line\n'
 else
   printf 'FAIL  override stderr line missing: %s\n' "$OVERRIDE_ERR"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# --- hooks-presence arm ---------------------------------------------------------
+echo "--- hooks-presence arm ---"
+run_in 2 "commit in an uninstalled worktree" "$T/wt" "git commit -m x"
+run_in 2 "push in an uninstalled worktree" "$T/wt" "git push"
+run_in 2 "git -C absolute uninstalled worktree" "$T/proj" "git -C $T/wt commit -m x"
+run_in 2 "git -C relative uninstalled worktree" "$T/proj" "git -C ../wt commit -m x"
+run_in 2 "cd into an uninstalled worktree then commit" "$T/proj" "cd $T/wt && git commit -m x"
+run_in 2 "push where only commit-msg exists" "$T/wt-cm" "git push"
+run_in 2 "push where pre-push is not executable" "$T/wt-noexec" "git push"
+run_in 0 "commit in the installed project" "$T/proj" "git commit -m x"
+run_in 0 "push in the installed project" "$T/proj" "git push"
+run_in 0 "commit where commit-msg exists" "$T/wt-cm" "git commit -m x"
+run_in 0 "commit in a foreign repo" "$T/foreign" "git commit -m x"
+run_in 0 "non-git command in an uninstalled worktree" "$T/wt" "ls -la"
+run_in 0 "git status in an uninstalled worktree" "$T/wt" "git status"
+run_in 0 "override waives the hooks-presence arm" "$T/wt" \
+  "TZUROT_ALLOW_NO_VERIFY=1 git commit -m x"
+
+BLOCK_ERR=$(jq -n --arg c "git commit -m x" --arg d "$T/wt" \
+  '{tool_name:"Bash",cwd:$d,tool_input:{command:$c}}' \
+  | CLAUDE_PROJECT_DIR="$T/proj" "$HOOK" 2>&1 >/dev/null)
+if printf '%s' "$BLOCK_ERR" | grep -qF 'pnpm install --frozen-lockfile' \
+  && printf '%s' "$BLOCK_ERR" | grep -qF "$T/wt"; then
+  printf 'PASS  blocked commit prints the fix command and the checkout path\n'
+else
+  printf 'FAIL  fix command or path missing: %s\n' "$BLOCK_ERR"
+  FAILURES=$((FAILURES + 1))
+fi
+
+BYPASS_ERR=$(jq -n --arg c "TZUROT_ALLOW_NO_VERIFY=1 git commit -m x" --arg d "$T/wt" \
+  '{tool_name:"Bash",cwd:$d,tool_input:{command:$c}}' \
+  | CLAUDE_PROJECT_DIR="$T/proj" "$HOOK" 2>&1 >/dev/null)
+if printf '%s' "$BYPASS_ERR" | grep -qF 'no-verify-guard: override used (git commit)'; then
+  printf 'PASS  hooks-presence override prints its stderr line\n'
+else
+  printf 'FAIL  hooks-presence override stderr line missing: %s\n' "$BYPASS_ERR"
   FAILURES=$((FAILURES + 1))
 fi
 

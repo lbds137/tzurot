@@ -6,7 +6,7 @@
 # are the gate CI would otherwise catch a round later; a commit made with the
 # hooks skipped surfaces its formatting or lint failure only after a CI cycle.
 #
-# Four hook-skip shapes block (each judged per invocation, in that one
+# Five shapes block (each judged per invocation, in that one
 # invocation's own argument span, never the whole command):
 #   1. commit: `--no-verify`, `-n`, or a short-flag bundle containing `n` with
 #      no arg-taking letter (m F c C t u S, per ARG_TAKING) before it (`-nm`, `-an` block; `-mn` is
@@ -14,6 +14,17 @@
 #   2. push: `--no-verify` only. `-n` on push is `--dry-run` and passes.
 #   3. `core.hooksPath` among the git global flags (`git -c core.hooksPath=…`).
 #   4. `HUSKY=0` as an env assignment prefixing that invocation.
+#   5. hooks not installed: a commit/push that would run in a checkout of THIS
+#      repo whose resolved hooks dir lacks the hook git runs (commit-msg for a
+#      commit, pre-push for a push; missing or not executable). Git then runs
+#      no hooks at all, silently. Candidate checkouts: the payload cwd, every
+#      `cd`/`pushd` target and every `git -C` target in the command. Only
+#      checkouts sharing the project's git-common-dir count (a foreign repo is
+#      never blocked). Candidates are a deliberate OVER-approximation, the
+#      fail-closed direction: any directory the command names is a checkout the
+#      invocation might run in. The same per-invocation override waives it.
+#      Any failure inside this arm (git missing, timeout, odd output) lets the
+#      command through.
 #
 # Override, per invocation (an owner-approved exception):
 #   TZUROT_ALLOW_NO_VERIFY=1 git commit ...
@@ -75,6 +86,11 @@
 #   - git aliases are not resolved: `git ci -n` passes.
 #   - a flag built by brace expansion passes: `git commit {--no-,}verify`,
 #     `git commit -m x {-n,}`.
+#   - OVER-arm (hooks presence): `git -C <installed> commit` typed from an
+#     uninstalled start dir blocks, because the start dir is always a
+#     candidate.
+#   - hooks presence: `cd` targets are resolved against the start dir only,
+#     never chained (`cd a && cd b` resolves `b` relative to the start dir).
 #
 # Fixture check: run .claude/hooks/no-verify-guard.probe.sh after ANY edit to
 # this hook.
@@ -96,8 +112,12 @@ case "$COMMAND" in
 esac
 shopt -u nocasematch
 
-HOOK_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib"
-SEEN=$(GUARD_CMD="$COMMAND" HOOK_LIB="$HOOK_LIB" PYTHONDONTWRITEBYTECODE=1 python3 << 'PYEOF'
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HOOK_LIB="$HOOK_DIR/lib"
+CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+# The hooks-presence arm only reads; no index.lock writes from its git calls.
+export GIT_OPTIONAL_LOCKS=0
+SEEN=$(GUARD_CMD="$COMMAND" GUARD_CWD="$CWD" HOOK_DIR="$HOOK_DIR" HOOK_LIB="$HOOK_LIB" PYTHONDONTWRITEBYTECODE=1 python3 << 'PYEOF'
 import os
 import re
 import sys
@@ -237,11 +257,138 @@ def prefix_assignments(orig_view, values, pstart, ptext):
     return allowed, husky
 
 
-found = []
-for orig_view, values in indexed_views(cmd):
+def blanked_view(orig_view):
+    """`orig_view` with redirects, comments and substitutions blanked (same
+    length, so indexes into `orig_view` stay valid)."""
     view = blank_substitutions(COMMENT_RE.sub(blank, REDIRECT_RE.sub(blank, orig_view)))
     # Filled with `_`, not spaces, so `{a,b}-notes.md` stays one word.
-    view = BRACE_EXPANSION_RE.sub(lambda m: "_" * len(m.group()), view)
+    return BRACE_EXPANSION_RE.sub(lambda m: "_" * len(m.group()), view)
+
+
+# --- hooks-presence arm ------------------------------------------------------
+# Every failure inside this arm is swallowed: it contributes nothing.
+CD_RE = re.compile(r"(?:^|[\s;&|(){}])(?:cd|pushd)\s+(\S+)")
+GIT_SEGMENT_RE = re.compile(r"\bgit\b[^;&|\n(){}]*")
+DASH_C_RE = re.compile(r"\s-C\s*(\S+)")
+SCRUBBED_GIT_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")
+
+
+def git_lines(directory, *args):
+    """Stdout lines of `git -C directory <args>`, or None on any failure."""
+    import subprocess
+
+    env = {k: v for k, v in os.environ.items() if k not in SCRUBBED_GIT_ENV}
+    env["GIT_OPTIONAL_LOCKS"] = "0"
+    try:
+        proc = subprocess.run(
+            ["git", "-C", directory, *args],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            env=env,
+        )
+    except Exception:
+        return None
+    if proc.returncode != 0:
+        return None
+    return proc.stdout.splitlines()
+
+
+def named_dirs(views, start_dir):
+    """Existing directories the command names via `cd`/`pushd`/`git -C`.
+
+    A deliberate OVER-approximation (the fail-closed direction): any directory
+    the command names is a checkout the commit/push might run in, so none is
+    ruled out by tracking which `cd` is in effect for which invocation."""
+    words = []
+    for orig_view, values in views:
+        view = blanked_view(orig_view)
+        for m in CD_RE.finditer(view):
+            words.append((orig_view, values, m.start(1), m.group(1)))
+        for gm in GIT_SEGMENT_RE.finditer(view):
+            for cm in DASH_C_RE.finditer(gm.group()):
+                words.append((orig_view, values, gm.start() + cm.start(1), cm.group(1)))
+    found_dirs = []
+    for orig_view, values, start, word in words:
+        resolved, _ = resolve_placeholders(
+            word, values, orig_view.count(QUOTED_SPAN, 0, start)
+        )
+        if not resolved or resolved.startswith("-"):
+            continue
+        path = os.path.expanduser(resolved)
+        if not os.path.isabs(path):
+            path = os.path.join(start_dir, path)
+        path = os.path.normpath(path)
+        if os.path.isdir(path):
+            found_dirs.append(path)
+    return found_dirs
+
+
+def this_repo_hook_dirs(views):
+    """[(top, hooks_dir)] for each candidate checkout of THIS repo (same
+    git-common-dir as the project). Empty on any failure or foreign repo."""
+    try:
+        guard_cwd = os.environ.get("GUARD_CWD", "")
+        start_dir = guard_cwd if os.path.isdir(guard_cwd) else os.getcwd()
+        project = os.environ.get("CLAUDE_PROJECT_DIR", "")
+        if not os.path.isdir(project):
+            project = os.environ.get("HOOK_DIR", "")
+        pcommon = git_lines(project, "rev-parse", "--path-format=absolute", "--git-common-dir")
+        if not pcommon:
+            return []
+        project_common = os.path.realpath(pcommon[0])
+        result = []
+        seen_tops = set()
+        for d in [start_dir] + named_dirs(views, start_dir):
+            out = git_lines(
+                d, "rev-parse", "--path-format=absolute", "--git-common-dir", "--show-toplevel"
+            )
+            if out is None or len(out) != 2:
+                continue
+            if os.path.realpath(out[0]) != project_common:
+                continue
+            top = out[1]
+            if top in seen_tops:
+                continue
+            seen_tops.add(top)
+            hooks = git_lines(top, "rev-parse", "--git-path", "hooks")
+            if not hooks:
+                continue
+            hooks_dir = hooks[0]
+            if not os.path.isabs(hooks_dir):
+                hooks_dir = os.path.join(top, hooks_dir)
+            result.append((top, hooks_dir))
+        return result
+    except Exception:
+        return []
+
+
+_hook_dirs = None
+
+
+def hook_dirs_once(views):
+    global _hook_dirs
+    if _hook_dirs is None:
+        _hook_dirs = this_repo_hook_dirs(views)
+    return _hook_dirs
+
+
+def missing_hooks(kind, views):
+    """[(top, hooks_dir, hook_name)] where git would find no runnable hook."""
+    hook_name = "commit-msg" if kind == "commit" else "pre-push"
+    out = []
+    for top, hooks_dir in hook_dirs_once(views):
+        path = os.path.join(hooks_dir, hook_name)
+        if not (os.path.isfile(path) and os.access(path, os.X_OK)):
+            out.append((top, hooks_dir, hook_name))
+    return out
+
+
+found = []
+hooks_found = []
+views_all = list(indexed_views(cmd))
+for orig_view, values in views_all:
+    view = blanked_view(orig_view)
 
     def segment_after(end):
         """Text from `end` to the next command separator: one invocation's args."""
@@ -282,24 +429,35 @@ for orig_view, values in indexed_views(cmd):
                 reasons.append("core.hooksPath")
             if husky:
                 reasons.append("HUSKY=0")
-            if reasons and allowed:
+            missing = missing_hooks(kind, views_all)
+            if (reasons or missing) and allowed:
                 print("no-verify-guard: override used (git %s)" % kind, file=sys.stderr)
-            elif reasons:
+                continue
+            if reasons:
                 found.append("git %s: %s" % (kind, ", ".join(reasons)))
+            for top, hooks_dir, hook_name in missing:
+                entry = "HOOKS\t%s\t%s\t%s\t%s" % (kind, top, hooks_dir, hook_name)
+                if entry not in hooks_found:
+                    hooks_found.append(entry)
 
-for line in found:
+for line in found + hooks_found:
     print(line)
 PYEOF
 ) || exit 0
 
 [ -z "$SEEN" ] && exit 0
 
-cat >&2 <<BANNER
+# Skip-shape findings vs hooks-presence findings (`HOOKS<TAB>…` lines).
+SKIPS=$(printf '%s\n' "$SEEN" | awk -F'\t' '$1 != "HOOKS"')
+HOOKS_MISSING=$(printf '%s\n' "$SEEN" | awk -F'\t' '$1 == "HOOKS"')
+
+if [ -n "$SKIPS" ]; then
+  cat >&2 <<BANNER
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 NO-VERIFY GUARD — git hooks skipped
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Seen:
-$(printf '%s\n' "$SEEN" | sed 's/^/  /')
+$(printf '%s\n' "$SKIPS" | sed 's/^/  /')
 
 The git hooks (lint-staged, commitlint, pre-push tests) are the gate CI
 would otherwise catch a round later. Fix the failure the hook reports
@@ -309,4 +467,28 @@ Ask the owner first. Only with their approval, prefix that one invocation:
 TZUROT_ALLOW_NO_VERIFY=1 git commit ...
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 BANNER
+fi
+
+if [ -n "$HOOKS_MISSING" ]; then
+  {
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "NO-VERIFY GUARD — git hooks not installed in this checkout"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    while IFS=$'\t' read -r _ kind top hooks_dir hook_name; do
+      echo "Checkout: $top"
+      echo "  git $kind there would run NO hooks: $hooks_dir/$hook_name is missing"
+      echo "  or not executable (core.hooksPath resolves there; husky creates it only"
+      echo "  on pnpm install)."
+      echo "  Fix:"
+      echo "    cd $top && pnpm install --frozen-lockfile && pnpm --filter \"./packages/**\" build"
+    done <<<"$HOOKS_MISSING"
+    echo
+    echo "The build is needed because pre-push runs pnpm ops, which imports built"
+    echo "package dist."
+    echo
+    echo "Owner-approved exception only: prefix that one invocation with"
+    echo "TZUROT_ALLOW_NO_VERIFY=1"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  } >&2
+fi
 exit 2
