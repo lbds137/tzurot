@@ -470,17 +470,18 @@ Type-checked inventory of bot-client's discord.js API surface. Builds a ts-morph
 
 Ratchet audits to enforce test coverage (CI runs these automatically):
 
-| Command                                  | Description                                                 |
-| ---------------------------------------- | ----------------------------------------------------------- |
-| `pnpm ops test:audit`                    | Run both contract and service audits                        |
-| `pnpm ops test:audit-contracts`          | Audit API schema contract test coverage                     |
-| `pnpm ops test:audit-services`           | Audit service component test coverage                       |
-| `pnpm ops test:audit --strict`           | Fail on ANY gap (not just new ones)                         |
-| `pnpm ops test:audit --update`           | Update the unified baseline + meta block (both audits)      |
-| `pnpm ops test:audit-contracts --update` | Update baseline after adding contract tests                 |
-| `pnpm ops test:audit-services --update`  | Update baseline after adding component tests                |
-| `pnpm ops test:tiers`                    | Report the per-package test-tier distribution (report-only) |
-| `pnpm ops test:generate-schema`          | Regenerate the PGLite schema SQL from Prisma                |
+| Command                                  | Description                                                  |
+| ---------------------------------------- | ------------------------------------------------------------ |
+| `pnpm ops test:audit`                    | Run both contract and service audits                         |
+| `pnpm ops test:audit-contracts`          | Audit API schema contract test coverage                      |
+| `pnpm ops test:audit-services`           | Audit service component test coverage                        |
+| `pnpm ops test:audit --strict`           | Fail on ANY gap (not just new ones)                          |
+| `pnpm ops test:audit --update`           | Update the unified baseline + meta block (both audits)       |
+| `pnpm ops test:audit-contracts --update` | Update baseline after adding contract tests                  |
+| `pnpm ops test:audit-services --update`  | Update baseline after adding component tests                 |
+| `pnpm ops test:tiers`                    | Report the per-package test-tier distribution (report-only)  |
+| `pnpm ops test:generate-schema`          | Regenerate the PGLite schema SQL from Prisma                 |
+| `pnpm ops test:lane`                     | Print resolved checkout test lane (`--provision` creates DB) |
 
 **How ratchets work:**
 

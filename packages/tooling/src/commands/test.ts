@@ -91,8 +91,31 @@ export function registerTestCommands(cli: CAC): void {
       await generateSchema(options);
     });
 
+  registerTestLaneCommand(cli);
   registerMutationCommands(cli);
+  registerAuditAndTierCommands(cli);
+}
 
+/** Resolve or provision the checkout's test lane. */
+function registerTestLaneCommand(cli: CAC): void {
+  cli
+    .command(
+      'test:lane',
+      'Show the resolved checkout test lane (Redis DB index + integration DB name) or provision its integration DB'
+    )
+    .option(
+      '--provision',
+      'Create the lane integration database in tzurot-postgres if absent and enable extensions'
+    )
+    .example('pnpm ops test:lane')
+    .example('pnpm ops test:lane --provision')
+    .action(async (options: { provision?: boolean }) => {
+      const { runTestLane } = await import('../test/test-lane.js');
+      runTestLane({ provision: options.provision });
+    });
+}
+
+function registerAuditAndTierCommands(cli: CAC): void {
   // Unified audit command (primary)
   cli
     .command('test:audit', 'Run unified test coverage audit')

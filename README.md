@@ -248,9 +248,12 @@ pnpm dev
 (`pnpm test:component`) need Redis (without it you get a clear "Test Redis is
 unreachable" error), and they use in-process PGLite for the database. The integration
 and contract tiers (`pnpm test:integration`) need Redis, and their real-Postgres
-suites also need a migrated `tzurot_integration_test` database. The one-time
-provisioning commands are in `vitest.integration.config.ts`, and
-[TESTING.md](docs/reference/guides/TESTING.md) has the details.
+suites also need a migrated `tzurot_integration_test` database
+(`tzurot_integration_<lane>_test` for parallel checkouts on lanes `b`–`e`). Provision
+the checkout's lane database once with `pnpm ops test:lane --provision` (see
+`vitest.integration.config.ts`), and see
+[TESTING.md § Parallel checkouts](docs/reference/guides/TESTING.md#parallel-checkouts-test-lanes)
+for the details.
 
 ## Documentation
 
