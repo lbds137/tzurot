@@ -3,11 +3,10 @@ id: TASK-1526
 title: >-
   GLM 5.4 fails in prod: z.ai 1305 overload gets one attempt, then falls back to
   a nonexistent OpenRouter slug
-status: In Progress
-assignee:
-  - tzurot-driver
+status: Done
+assignee: []
 created_date: '2026-11-24T05:15:00Z'
-updated_date: '2026-11-24T05:16:00Z'
+updated_date: '2026-11-24T14:32:00Z'
 labels:
   - area:ai-worker
   - size:M
