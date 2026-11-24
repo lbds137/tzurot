@@ -14,16 +14,17 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 ---
 
-### 🚢 Next Release — beta.249 (theme: TASK-1234 rename migration + caching / BYOK follow-ups)
+### 🚢 Next Release — beta.250 (theme: caching Phase 3 + drain)
 
-_Drafted 2026-11-22 after beta.248 (shipped 13:38Z, PR 2786; 11 runtime PRs, 144 files; coalescing re-smoke in CURRENT.md § beta.248 watch)._
+_Drafted 2026-11-23 after beta.249 (shipped 2026-11-24 01:24Z, PR 2796; 6 runtime PRs, 104 files; smoke in CURRENT.md § beta.249 smoke)._
 
-- **In** (`release:range` 11-23 evening: 8 PRs, 5 runtime, 91 files): TASK-1234 rename (#2787, destructive migration) · BYOK stage-1 NEXT-key staging (#2788) · tooling-only #2789/#2790/#2791 · GLM 5.4 catalog support (TASK-1515 + TASK-1393, #2795) · dependabot riders #2793 (dev group) and #2792 (prod group).
-- **Waiting on**: nothing; #2795 merged 2026-11-23, so the cut criterion is met. Caching Phase 3 (doc-17) moves to beta.250 (Lila AUQ 2026-11-23).
-- **Explicitly NOT in**: TASK-1400 Claude character route (pending Lila's blind rating verdict on `docs/local/task-1400-eval/blind-packet.md`) · TASK-1356 (BYOK rotation redesign — design first, security-critical) · TASK-1474 (process PR, ships any time) · TASK-1411/1416 · TASK-1347/1174 (design- or ops-sized, scheduled separately).
-- **Deploy notes**: TASK-1234 (#2787) carries a DESTRUCTIVE migration (`RENAME COLUMN user_api_keys.last_used_at → last_validated_at`; old code reads the old name). Lila AUQ 2026-11-22: maintenance window. On her explicit in-session approval: `pnpm ops maintenance on --env prod` → `pnpm ops release:premigrate --allow-destructive` → merge the release PR → `pnpm ops maintenance off --env prod`. Dev already migrated 2026-11-22.
-- **Cut when**: #2795 merges (Lila 11-23); backstops ~10 runtime PRs / ~250 files (`pnpm ops release:range`; 0 at drafting). Release PR merge needs her explicit yes.
-- **vNext+1 sketch (beta.250)**: doc-17 reading → caching Phase 3 · TASK-1400 (if GO) or TASK-1416/1415/1411/1412 + Machloket e2e (`doc-114`).
+- **In**: nothing merged yet (develop == main at `8ca4044a6`).
+- **Planned**: caching Phase 3 (doc-17 reading first; moved from beta.249 by Lila AUQ 2026-11-23) · TASK-1400 Claude character route if Lila's blind rating says GO, else TASK-1416/1415/1411/1412 · TASK-1519 lockfile regenerate · drain items (1511–1513, 1500–1508).
+- **Waiting on**: the doc-17 reading; Lila's TASK-1400 verdict (`docs/local/task-1400-eval/blind-packet.md`).
+- **Explicitly NOT in**: TASK-1356 (BYOK rotation redesign — design first, security-critical) · TASK-1347/1174 (design- or ops-sized, scheduled separately).
+- **Deploy notes**: none yet.
+- **Cut when**: caching Phase 3 merges; backstops ~10 runtime PRs / ~250 files (`pnpm ops release:range`; 0 at drafting). Release PR merge needs her explicit yes.
+- **vNext+1 sketch (beta.251)**: Machloket e2e (`doc-114`) · whatever of TASK-1416/1415/1411/1412 beta.250 does not carry.
 
 ### 🎯 Current Focus (max 3)
 
