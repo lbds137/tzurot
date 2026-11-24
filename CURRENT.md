@@ -7,8 +7,7 @@
 ## 🧪 beta.250 smoke (release PR pending; tiers per /tzurot-testing)
 
 - **(needs-smoke, owner, after deploy)** `/admin db-sync` completes without the `users_default_vision_config_id_fkey` 23503 (#2802, TASK-1528 acceptance). The confidence is medium: a component test reproduces and fixes the prod error, but only the prod sync proves it against prod data. Status: not run.
-- **Watch — GLM 5.4 (#2801):** prod replies on a glm-5.4 preset succeed; ai-worker logs show no OpenRouter `z-ai/glm-5.4` 400 after a z.ai 1305. Agent-checkable from logs; no owner smoke asked.
-- **Watch — `@langchain/core` 1.5.0 (#2799):** the first prod replies after deploy are the check; an error spike = roll back.
+- **Watch — GLM 5.4 (#2801) + `@langchain/core` 1.5.0 (#2799):** prod replies on a glm-5.4 preset succeed and ai-worker logs show no OpenRouter `z-ai/glm-5.4` 400 after a z.ai 1305 (agent-checkable from logs); an error spike in the first prod replies = roll back.
 
 ## 🧪 beta.249 smoke (shipped to main 2026-11-24 01:24Z; deploys green 01:27Z; tiers per /tzurot-testing)
 
