@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { DatabaseSyncService } from './DatabaseSyncService.js';
+import { DatabaseSyncService, SYNC_DEFERRED_CONSTRAINTS } from './DatabaseSyncService.js';
 import { SYNC_CONFIG, SYNC_TABLE_ORDER } from './sync/config/syncTables.js';
 
 // Healthy trigger inventory derived from SYNC_CONFIG so the tombstone-trigger
@@ -870,8 +870,8 @@ describe('DatabaseSyncService', () => {
       // 20260418010642), users.default_persona_id and default_llm_config_id
       // pass through with the source environment's real values in a single
       // pass. Postgres validates the circular FKs at COMMIT thanks to
-      // `SET CONSTRAINTS ALL DEFERRED` inside the sync transaction — which
-      // `flushWrites` issues as the transaction's first statement.
+      // `SET CONSTRAINTS <named list> DEFERRED` inside the sync transaction —
+      // which `flushWrites` issues as the transaction's first statement.
       //
       // If a future refactor restores the NULL-strip or adds a second
       // UPDATE pass, this test fails and the author should read the
@@ -911,7 +911,7 @@ describe('DatabaseSyncService', () => {
       await service.sync({ dryRun: false });
 
       // The first $executeRawUnsafe inside the prod transaction must be a
-      // named `SET CONSTRAINTS ... DEFERRED` for the four circular FKs —
+      // named `SET CONSTRAINTS ... DEFERRED` for SYNC_DEFERRED_CONSTRAINTS —
       // without it the circular-FK insert would violate at INSERT time.
       // We name them explicitly (rather than `ALL DEFERRED`) so future
       // migrations adding unrelated deferrable constraints don't get
@@ -924,10 +924,14 @@ describe('DatabaseSyncService', () => {
         'expected SET CONSTRAINTS DEFERRED inside prod transaction'
       ).toBeDefined();
       if (setConstraints) {
+        // Literal pins first, so an emptied constant cannot pass the loop vacuously.
         expect(setConstraints.query).toContain('users_default_persona_id_fkey');
         expect(setConstraints.query).toContain('users_default_llm_config_id_fkey');
         expect(setConstraints.query).toContain('personas_owner_id_fkey');
         expect(setConstraints.query).toContain('llm_configs_owner_id_fkey');
+        for (const name of SYNC_DEFERRED_CONSTRAINTS) {
+          expect(setConstraints.query).toContain(name);
+        }
       }
 
       // The users INSERT must carry the REAL default_persona_id value —

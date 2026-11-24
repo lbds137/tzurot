@@ -155,10 +155,10 @@ export interface UpsertRowOptions {
   keepNonNullColumns?: readonly string[];
   // NOTE: `deferredFkColumns` was removed in the Ouroboros Insert refactor.
   // The previous two-pass approach (insert NULL, backfill in pass 2) is
-  // replaced by single-pass insert with SET CONSTRAINTS ALL DEFERRED at
-  // the transaction level. Real FK values go in from the start; Postgres
-  // validates them at COMMIT when all circular rows exist. See the
-  // DatabaseSyncService docstring for the full rationale.
+  // replaced by single-pass insert with SET CONSTRAINTS <named list> DEFERRED
+  // (SYNC_DEFERRED_CONSTRAINTS) at the transaction level. Real FK values go
+  // in from the start; Postgres validates them at COMMIT when all circular
+  // rows exist. See the DatabaseSyncService docstring for the full rationale.
 }
 
 /**

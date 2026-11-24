@@ -51,7 +51,7 @@ import * as syncUpsertBuilder from './sync/SyncUpsertBuilder.js';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
-import { DatabaseSyncService } from './DatabaseSyncService.js';
+import { DatabaseSyncService, SYNC_DEFERRED_CONSTRAINTS } from './DatabaseSyncService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -889,5 +889,74 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
     expect(devTtsConfig).not.toBeNull();
     expect(devTtsConfig?.ownerId).toBe(userId);
     expect(devTtsConfig?.provider).toBe('self-hosted');
+  }, 30000);
+
+  /**
+   * Parallel to the TTS default-config test above, for the vision default
+   * circular FK pair (users_default_vision_config_id_fkey → llm_configs).
+   * Validates that deferring users_default_vision_config_id_fkey lets sync
+   * land a user with a non-NULL default_vision_config_id alongside the
+   * matching llm_configs row in a single transaction, even though users
+   * sync before llm_configs in SYNC_TABLE_ORDER.
+   */
+  it('syncs a user with default_vision_config_id pointing at an llm config from prod to empty dev', async () => {
+    const discordId = '22222222222222222222';
+    const userId = generateUserUuid(discordId);
+    const personaId = generatePersonaUuid('vision-default-user', userId);
+    const visionConfigId = '4f9b0f66-bbbb-4000-8000-000000000005';
+
+    await seedUserWithPersona(prodPrisma, {
+      userId,
+      personaId,
+      discordId,
+      username: 'vision-default-user',
+      personaName: 'vision-default-user',
+    });
+    await prodPrisma.$executeRawUnsafe(
+      `INSERT INTO llm_configs (id, name, owner_id, model, updated_at)
+       VALUES ($1::uuid, 'vision-default-config', $2::uuid, 'vision/model', NOW())`,
+      visionConfigId,
+      userId
+    );
+    await prodPrisma.$executeRawUnsafe(
+      `UPDATE users SET default_vision_config_id = $1::uuid WHERE id = $2::uuid`,
+      visionConfigId,
+      userId
+    );
+
+    // Sanity: dev is empty before sync
+    const devUsersBefore = await devPrisma.$queryRawUnsafe<{ count: bigint }[]>(
+      `SELECT COUNT(*)::bigint as count FROM "users"`
+    );
+    expect(Number(devUsersBefore[0].count)).toBe(0);
+
+    await service.sync({ dryRun: false });
+
+    // Dev now has the user, persona, and llm_config rows, with the user's
+    // default_vision_config_id correctly pointing at the synced config.
+    const devUser = await devPrisma.user.findUnique({ where: { id: userId } });
+    expect(devUser).not.toBeNull();
+    expect(devUser?.defaultVisionConfigId).toBe(visionConfigId);
+
+    const devVisionConfig = await devPrisma.llmConfig.findUnique({ where: { id: visionConfigId } });
+    expect(devVisionConfig).not.toBeNull();
+    expect(devVisionConfig?.ownerId).toBe(userId);
+    expect(devVisionConfig?.model).toBe('vision/model');
+  }, 30000);
+
+  /**
+   * Drift guard: any foreign key marked DEFERRABLE in the schema must also
+   * be listed in SYNC_DEFERRED_CONSTRAINTS so the flush transaction actually
+   * defers it. Catches the class where a migration marks a new FK
+   * DEFERRABLE INITIALLY IMMEDIATE without adding its name to the service's
+   * explicit SET CONSTRAINTS list.
+   */
+  it('every DEFERRABLE foreign key in the schema is in SYNC_DEFERRED_CONSTRAINTS', async () => {
+    const rows = await devPrisma.$queryRawUnsafe<{ constraint_name: string }[]>(
+      `SELECT constraint_name FROM information_schema.table_constraints WHERE table_schema = 'public' AND constraint_type = 'FOREIGN KEY' AND is_deferrable = 'YES'`
+    );
+    const schemaDeferrable = rows.map(r => r.constraint_name).sort();
+    const configuredDeferrable = [...SYNC_DEFERRED_CONSTRAINTS].sort();
+    expect(schemaDeferrable).toEqual(configuredDeferrable);
   }, 30000);
 });

@@ -311,7 +311,7 @@ describe('syncTables Configuration', () => {
       // These columns are circular FKs: users.default_persona_id → personas.id
       // and users.default_llm_config_id → llm_configs.id, with personas.owner_id
       // and llm_configs.owner_id both pointing back to users.id (all NOT NULL).
-      // Sync relies on `SET CONSTRAINTS ALL DEFERRED` inside the flush
+      // Sync relies on `SET CONSTRAINTS <named list> DEFERRED` inside the flush
       // transaction to accept real values in a single pass; uuidColumns still
       // matters for ::uuid casting at INSERT time.
       const usersConfig = SYNC_CONFIG.users;
