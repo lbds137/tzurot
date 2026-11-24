@@ -30,7 +30,7 @@ unset GITHUB_ACTIONS
 # untracked so a worktree of it lacks the shims.
 git init -q "$T/proj"
 mkdir -p "$T/proj/.husky/_"
-for h in commit-msg pre-push; do
+for h in pre-commit commit-msg pre-push; do
   printf '#!/bin/sh\nexit 0\n' >"$T/proj/.husky/_/$h"
   chmod +x "$T/proj/.husky/_/$h"
 done
@@ -40,16 +40,29 @@ git -C "$T/proj" -c user.name=probe -c user.email=probe@example.invalid \
 git -C "$T/proj" worktree add -q --detach "$T/wt"
 git -C "$T/proj" worktree add -q --detach "$T/wt-cm"
 git -C "$T/proj" worktree add -q --detach "$T/wt-noexec"
-# wt-cm: commit-msg only. wt-noexec: both, pre-push not executable.
-mkdir -p "$T/wt-cm/.husky/_" "$T/wt-noexec/.husky/_"
-printf '#!/bin/sh\nexit 0\n' >"$T/wt-cm/.husky/_/commit-msg"
-chmod +x "$T/wt-cm/.husky/_/commit-msg"
+git -C "$T/proj" worktree add -q --detach "$T/wt-pc"
+# wt-cm: the commit hooks (pre-commit, commit-msg), no pre-push. wt-noexec:
+# commit-msg + pre-push, pre-push not executable. wt-pc: commit-msg + pre-push,
+# no pre-commit.
+mkdir -p "$T/wt-cm/.husky/_" "$T/wt-noexec/.husky/_" "$T/wt-pc/.husky/_"
+for h in pre-commit commit-msg; do
+  printf '#!/bin/sh\nexit 0\n' >"$T/wt-cm/.husky/_/$h"
+  chmod +x "$T/wt-cm/.husky/_/$h"
+done
+for h in commit-msg pre-push; do
+  printf '#!/bin/sh\nexit 0\n' >"$T/wt-pc/.husky/_/$h"
+  chmod +x "$T/wt-pc/.husky/_/$h"
+done
 for h in commit-msg pre-push; do
   printf '#!/bin/sh\nexit 0\n' >"$T/wt-noexec/.husky/_/$h"
 done
 chmod +x "$T/wt-noexec/.husky/_/commit-msg"
 chmod -x "$T/wt-noexec/.husky/_/pre-push"
 git init -q "$T/foreign"
+# Never-installed clone: default (sample-only) .git/hooks, no core.hooksPath.
+git init -q "$T/clone"
+git -C "$T/clone" -c user.name=probe -c user.email=probe@example.invalid \
+  commit -q --allow-empty -m init
 mkdir -p "$T/plain/sub"
 # A git that fails for everything, for the fail-open row.
 mkdir -p "$T/fakegit"
@@ -72,12 +85,13 @@ run_in() {
 }
 
 # run_in_env <expected-exit> <label> <cwd> <command> <VAR=value>
-# Like run_in, with one extra variable in the HOOK's own environment only.
+# Like run_in, with one extra variable in the HOOK's own environment only
+# (placed after CLAUDE_PROJECT_DIR, so `env` lets it override that too).
 run_in_env() {
   local expected="$1" label="$2" cwd="$3" cmd="$4" extra="$5"
   jq -n --arg c "$cmd" --arg d "$cwd" \
     '{tool_name:"Bash",cwd:$d,tool_input:{command:$c}}' \
-    | env "$extra" CLAUDE_PROJECT_DIR="$T/proj" "$HOOK" >/dev/null 2>&1
+    | env CLAUDE_PROJECT_DIR="$T/proj" "$extra" "$HOOK" >/dev/null 2>&1
   local actual=$?
   if [ "$actual" -eq "$expected" ]; then
     printf 'PASS  (exit %d)  %s\n' "$actual" "$label"
@@ -229,11 +243,17 @@ run_in 2 "uppercase GIT -C COMMIT" "$T/proj" "GIT -C $T/wt COMMIT -m x"
 run_in 0 "git -C on another command does not block an installed commit" "$T/proj" \
   "git -C $T/wt status && git commit -m x"
 run_in 0 "commit -C reuse-message is not a directory" "$T/proj" "git commit -C HEAD"
-run_in 2 "push where only commit-msg exists" "$T/wt-cm" "git push"
+run_in 2 "push where pre-push is missing" "$T/wt-cm" "git push"
 run_in 2 "push where pre-push is not executable" "$T/wt-noexec" "git push"
 run_in 0 "commit in the installed project" "$T/proj" "git commit -m x"
 run_in 0 "push in the installed project" "$T/proj" "git push"
-run_in 0 "commit where commit-msg exists" "$T/wt-cm" "git commit -m x"
+run_in 0 "commit where pre-commit and commit-msg exist" "$T/wt-cm" "git commit -m x"
+run_in 2 "commit where pre-commit is missing" "$T/wt-pc" "git commit -m x"
+run_in 0 "push where pre-push exists but pre-commit is missing" "$T/wt-pc" "git push"
+run_in_env 2 "commit in a never-installed clone" "$T/clone" "git commit -m x" \
+  "CLAUDE_PROJECT_DIR=$T/clone"
+run_in_env 2 "push in a never-installed clone" "$T/clone" "git push" \
+  "CLAUDE_PROJECT_DIR=$T/clone"
 run_in 0 "commit in a foreign repo" "$T/foreign" "git commit -m x"
 run_in 0 "non-git command in an uninstalled worktree" "$T/wt" "ls -la"
 run_in 0 "git status in an uninstalled worktree" "$T/wt" "git status"
