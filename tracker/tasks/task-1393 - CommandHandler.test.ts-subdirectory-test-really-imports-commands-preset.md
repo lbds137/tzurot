@@ -1,9 +1,10 @@
 ---
 id: TASK-1393
 title: CommandHandler.test.ts subdirectory test really imports commands/preset
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-10T14:24:00Z'
+updated_date: '2026-11-24T00:35:00Z'
 labels:
   - area:bot-client
   - size:S
