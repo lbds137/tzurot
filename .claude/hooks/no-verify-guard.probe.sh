@@ -63,7 +63,7 @@ git init -q "$T/foreign"
 git init -q "$T/clone"
 git -C "$T/clone" -c user.name=probe -c user.email=probe@example.invalid \
   commit -q --allow-empty -m init
-mkdir -p "$T/plain/sub"
+mkdir -p "$T/plain/sub" "$T/wt/sub"
 # A git that fails for everything, for the fail-open row.
 mkdir -p "$T/fakegit"
 printf '#!/bin/sh\nexit 1\n' >"$T/fakegit/git"
@@ -262,6 +262,12 @@ run_in 0 "override waives the hooks-presence arm" "$T/wt" \
 run_in 2 "pushd into an uninstalled worktree" "$T/proj" "pushd $T/wt && git commit -m x"
 run_in 2 "git -C into an uninstalled worktree for push" "$T/proj" "git -C $T/wt push"
 run_in 2 "bash -c cd into an uninstalled worktree" "$T/proj" "bash -c 'cd $T/wt && git commit -m x'"
+run_in 2 "git -C<dir> attached into an uninstalled worktree" "$T/proj" \
+  "git -C$T/wt commit -m x"
+run_in 2 "commit from a subdirectory of an uninstalled worktree" "$T/wt/sub" \
+  "git commit -m x"
+run_in 2 "newline-separated cd into an uninstalled worktree" "$T/proj" \
+  "cd $T/wt"$'\n'"git commit -m x"
 # The arm is off under GitHub Actions, read from the hook's own env only.
 run_in_env 0 "GITHUB_ACTIONS=true in the hook env turns the arm off" "$T/wt" \
   "git commit -m x" GITHUB_ACTIONS=true
@@ -298,6 +304,21 @@ if printf '%s' "$BYPASS_ERR" | grep -qF 'no-verify-guard: override used (git com
   printf 'PASS  hooks-presence override prints its stderr line\n'
 else
   printf 'FAIL  hooks-presence override stderr line missing: %s\n' "$BYPASS_ERR"
+  FAILURES=$((FAILURES + 1))
+fi
+
+BOTH_ERR=$(jq -n --arg c "git commit --no-verify -m x" --arg d "$T/wt" \
+  '{tool_name:"Bash",cwd:$d,tool_input:{command:$c}}' \
+  | CLAUDE_PROJECT_DIR="$T/proj" "$HOOK" 2>&1 >/dev/null)
+BOTH_RC=$(jq -n --arg c "git commit --no-verify -m x" --arg d "$T/wt" \
+  '{tool_name:"Bash",cwd:$d,tool_input:{command:$c}}' \
+  | CLAUDE_PROJECT_DIR="$T/proj" "$HOOK" >/dev/null 2>&1; echo $?)
+if [ "$BOTH_RC" = 2 ] \
+  && printf '%s' "$BOTH_ERR" | grep -qF 'git hooks skipped' \
+  && printf '%s' "$BOTH_ERR" | grep -qF 'git hooks not installed in this checkout'; then
+  printf 'PASS  --no-verify in an uninstalled worktree prints both banners\n'
+else
+  printf 'FAIL  expected exit 2 and both banners (rc=%s): %s\n' "$BOTH_RC" "$BOTH_ERR"
   FAILURES=$((FAILURES + 1))
 fi
 
