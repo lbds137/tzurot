@@ -15,9 +15,9 @@
  *
  *   1. Migration 20260418010642 made the original four circular FKs
  *      (users↔personas, users↔llm_configs) DEFERRABLE INITIALLY IMMEDIATE.
- *      Migration 20260504065151 added users.default_tts_config_id_fkey to
- *      that set when the TTS feature shipped. Runtime enforcement is
- *      unchanged for all five — sync can defer checks to COMMIT time only
+ *      Later migrations marked more FKs DEFERRABLE; the full set is
+ *      SYNC_DEFERRED_CONSTRAINTS below. Runtime enforcement is unchanged
+ *      for every one of them — sync can defer checks to COMMIT time only
  *      inside the explicit SET CONSTRAINTS block below.
  *   2. This service collects all pending writes per direction (dev-bound,
  *      prod-bound) without executing them during the table scan loop.
@@ -72,16 +72,18 @@ const logger = createLogger('db-sync');
 /**
  * Constraints the flush transaction wants deferred. Must stay in sync with
  * the DEFERRABLE-marking migrations (20260418010642 for the original 4,
- * 20260504065151 for users_default_tts_config_id_fkey, 20260710183055 for
- * the memory_facts supersession self-FK — its pointers are not
- * creation-ordered, so rows upsert in arbitrary order and Postgres validates
- * the chain at COMMIT). Each flush target defers only the subset it reports
- * as deferrable (see resolveDeferrableConstraints).
+ * 20260504065151 for users_default_tts_config_id_fkey, 20260627040007
+ * (vision_config_kind) for users_default_vision_config_id_fkey,
+ * 20260710183055 for the memory_facts supersession self-FK — its pointers
+ * are not creation-ordered, so rows upsert in arbitrary order and Postgres
+ * validates the chain at COMMIT). Each flush target defers only the subset
+ * it reports as deferrable (see resolveDeferrableConstraints).
  */
-const SYNC_DEFERRED_CONSTRAINTS = [
+export const SYNC_DEFERRED_CONSTRAINTS = [
   'users_default_persona_id_fkey',
   'users_default_llm_config_id_fkey',
   'users_default_tts_config_id_fkey',
+  'users_default_vision_config_id_fkey',
   'personas_owner_id_fkey',
   'llm_configs_owner_id_fkey',
   'memory_facts_superseded_by_id_fkey',

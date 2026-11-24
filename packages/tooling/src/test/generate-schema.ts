@@ -49,7 +49,7 @@ const DEFERRABLE_CONSTRAINT_BANNER = [
   '-- DEFERRABLE-constraint ALTERs harvested from prisma/migrations/**/migration.sql',
   "-- (Prisma can't express DEFERRABLE in schema.prisma, so the hand-written",
   '-- ALTER CONSTRAINT statements are merged back in here. db-sync relies on',
-  '-- SET CONSTRAINTS ALL DEFERRED for atomic circular-FK inserts.)',
+  '-- SET CONSTRAINTS <named list> DEFERRED for atomic circular-FK inserts.)',
 ].join('\n');
 
 /**
@@ -133,7 +133,7 @@ const DROP_INDEX_REGEX = /^DROP\s+INDEX\s+(?:IF\s+EXISTS\s+)?"([^"]+)"/i;
  * DEFERRABLE in schema.prisma, so the circular-FK migrations hand-write
  * `ALTER CONSTRAINT ... DEFERRABLE INITIALLY IMMEDIATE` — and `migrate diff`
  * silently omits them. Without this harvest, PGLite FKs are NOT DEFERRABLE:
- * `SET CONSTRAINTS ALL DEFERRED` becomes a silent no-op and db-sync's atomic
+ * db-sync's `SET CONSTRAINTS <named list> DEFERRED` cannot defer them and its atomic
  * circular inserts (users ↔ personas ↔ configs) fail in component tests while
  * working in prod.
  *

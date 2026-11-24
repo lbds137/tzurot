@@ -83,10 +83,12 @@ export interface TableSyncConfig {
    */
   keepNonNullColumns?: string[];
   // NOTE: `deferredFkColumns` was removed in the Ouroboros Insert refactor.
-  // Circular NOT NULL FKs (users↔personas, users↔llm_configs) are now
-  // handled via `SET CONSTRAINTS ALL DEFERRED` at the DatabaseSyncService
-  // transaction boundary. Real FK values insert from the start; Postgres
-  // validates them at COMMIT when all circular rows exist.
+  // Circular and out-of-order FKs are now handled via an explicit
+  // `SET CONSTRAINTS <named list> DEFERRED` (using SYNC_DEFERRED_CONSTRAINTS
+  // in DatabaseSyncService.ts, filtered to those the target reports
+  // deferrable) at the DatabaseSyncService transaction boundary. Real FK
+  // values insert from the start; Postgres validates them at COMMIT when all
+  // referenced rows exist.
 }
 
 export type SyncTableName =
@@ -140,8 +142,10 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     // Four FK columns on users reference rows in tables that come AFTER
     // users in SYNC_TABLE_ORDER (personas, llm_configs, tts_configs are
     // all synced after users so their owner_id NOT-NULL FKs back to users
-    // can be satisfied). All four FKs are made DEFERRABLE so the sync
-    // transaction can issue SET CONSTRAINTS … DEFERRED and let Postgres
+    // can be satisfied). All four FKs are made DEFERRABLE in the schema and
+    // must also be named in SYNC_DEFERRED_CONSTRAINTS in DatabaseSyncService.ts
+    // so the sync transaction can issue SET CONSTRAINTS <named list> DEFERRED
+    // (for the subset the target reports deferrable) and let Postgres
     // validate the references at COMMIT time, when every cross-table
     // referenced row exists:
     //   - default_persona_id (NOT NULL), default_llm_config_id (nullable):
@@ -342,16 +346,20 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
  * - users: default_persona_id → personas.id (NOT NULL) AND
  *   default_llm_config_id → llm_configs.id (nullable), both circular. The
  *   enclosing sync transaction uses DEFERRABLE constraints + SET CONSTRAINTS
- *   ALL DEFERRED (see migration 20260418010642) so users inserts can carry
- *   real FK values; Postgres validates at COMMIT.
- * - llm_configs: owner_id → users (NOT NULL, also circular; same deferred handling)
+ *   <named list> DEFERRED (SYNC_DEFERRED_CONSTRAINTS in DatabaseSyncService.ts,
+ *   filtered to those the target reports deferrable; see migration
+ *   20260418010642) so users inserts can carry real FK values; Postgres
+ *   validates at COMMIT.
+ * - llm_configs: owner_id → users (NOT NULL, also circular; same deferred handling);
+ *   users.default_vision_config_id → llm_configs is likewise deferred
+ *   (migration 20260627040007)
  * - tts_configs: owner_id → users (NOT NULL); users.default_tts_config_id is
  *   NULLABLE (like default_llm_config_id; only default_persona_id is NOT NULL),
  *   but the FK users_default_tts_config_id_fkey is still DEFERRABLE (migration
  *   20260504065151). Nullability only governs whether the column may be NULL,
  *   not the FK reference check: a user with a non-NULL default_tts_config_id
  *   would fail an immediate FK validation during users-sync without DEFERRABLE.
- *   Same deferred handling as the original four FKs.
+ *   Same named-list deferred handling via SYNC_DEFERRED_CONSTRAINTS.
  * - personas: owner_id → users (NOT NULL, also circular; same deferred handling)
  * - personalities: system_prompt_id → system_prompts, owner_id → users (NOT NULL)
  * - personality_owners: personality_id → personalities, user_id → users
