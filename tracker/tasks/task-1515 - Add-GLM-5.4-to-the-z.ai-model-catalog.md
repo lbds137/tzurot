@@ -1,10 +1,10 @@
 ---
 id: TASK-1515
 title: Add GLM 5.4 to the z.ai model catalog
-status: In Progress
-assignee:
-  - tzurot
+status: Done
+assignee: []
 created_date: '2026-11-23T06:46:00Z'
+updated_date: '2026-11-24T00:35:00Z'
 labels:
   - area:ai-worker
   - size:S
