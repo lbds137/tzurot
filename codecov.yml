@@ -59,9 +59,11 @@ ignore:
   - '**/*.test.ts'
   - '**/*.spec.ts'
   - '**/tests/**'
-  # Test-support helpers, mocks and setup (packages/tooling/src/test/ is gate source and stays measured)
+  # Test-support helpers, mocks and setup (packages/tooling/src/test/ is gate source and stays measured);
+  # packages/test-utils is test-support infrastructure whose coverage is not uploaded
   - 'services/*/src/test/**'
   - 'packages/conversation-history/src/test/**'
+  - 'packages/test-utils/**'
   - '**/dist/**'
   - '**/node_modules/**'
   - 'scripts/**'

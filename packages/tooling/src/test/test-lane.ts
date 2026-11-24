@@ -10,7 +10,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { basename } from 'node:path';
-import { checkoutRootOf, resolveTestLane, type TestLane } from '@tzurot/test-utils';
+import { checkoutRootOf, resolveTestLane, type TestLane } from '@tzurot/test-utils/testLane';
 
 const SAFE_DB_NAME_PATTERN = /^[a-z0-9_]+$/;
 const POSTGRES_CONTAINER = 'tzurot-postgres';
@@ -116,7 +116,7 @@ export function runTestLane(options: TestLaneCommandOptions = {}): ResolvedLaneR
     resolved.source === 'path' &&
     resolved.lane === 'a' &&
     /^tzurot/i.test(checkoutName) &&
-    checkoutName !== 'tzurot'
+    checkoutName.toLowerCase() !== 'tzurot'
   ) {
     console.warn(
       `Warning: checkout "${checkoutName}" did not match tzurot-b..tzurot-e and shares lane a with the main clone; export TZUROT_TEST_LANE=b..e to isolate.`

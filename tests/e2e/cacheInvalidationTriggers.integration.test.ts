@@ -22,10 +22,11 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { CacheInvalidationService } from '@tzurot/cache-invalidation';
 import {
   TEST_LANE_REDIS_DB,
+  findWorkspaceRoot,
   integrationDbNameForLane,
   resolveTestLane,
   type TestLane,
-} from '@tzurot/test-utils';
+} from '../../packages/test-utils/src/testLane.js';
 import { DatabaseNotificationListener } from '../../services/api-gateway/src/services/DatabaseNotificationListener.js';
 
 /**
@@ -70,7 +71,10 @@ function assertDedicatedTestDatabase(url: string): void {
         `point at a dedicated test database (CI uses tzurot_test; locally, tzurot_integration_test).`
     );
   }
-  const ownLane = resolveTestLane({ rootDir: process.cwd(), env: process.env });
+  const ownLane = resolveTestLane({
+    rootDir: findWorkspaceRoot(process.cwd()),
+    env: process.env,
+  });
   for (const candidateLane of Object.keys(TEST_LANE_REDIS_DB) as TestLane[]) {
     if (
       candidateLane !== ownLane.lane &&
