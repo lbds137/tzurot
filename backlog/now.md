@@ -14,17 +14,20 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 ---
 
-### 🚢 Next Release — beta.250 (theme: caching Phase 3 + drain)
+### 🚢 Next Release — beta.250 (theme: GLM 5.4 + db-sync fixes) — CUTTING
 
-_Drafted 2026-11-23 after beta.249 (shipped 2026-11-24 01:24Z, PR 2796; 6 runtime PRs, 104 files; smoke in CURRENT.md § beta.249 smoke)._
+_Re-scoped 2026-11-24 by Lila's AUQ: cut from develop as it stands; caching Phase 3 and the rest of the original plan move to beta.251 below._
 
-- **In**: nothing merged yet (develop == main at `8ca4044a6`).
+- **In**: #2799 (prod deps) · #2800 (Breaking Changes broadcast guard) · #2801 (GLM 5.4 z.ai retry instead of the dead OpenRouter fallback) · #2802 (db-sync vision FK deferral). No migration. Smoke: CURRENT.md § beta.250 smoke.
+
+### 🚢 Release after — beta.251 (theme: caching Phase 3 + drain)
+
 - **Planned**: caching Phase 3 (doc-17 reading first; moved from beta.249 by Lila AUQ 2026-11-23) · TASK-1400 Claude character route if Lila's blind rating says GO, else TASK-1416/1415/1411/1412 · TASK-1519 lockfile regenerate · drain items (1511–1513, 1500–1508).
 - **Waiting on**: the doc-17 reading; Lila's TASK-1400 verdict (`docs/local/task-1400-eval/blind-packet.md`).
 - **Explicitly NOT in**: TASK-1356 (BYOK rotation redesign — design first, security-critical) · TASK-1347/1174 (design- or ops-sized, scheduled separately).
 - **Deploy notes**: none yet.
-- **Cut when**: caching Phase 3 merges; backstops ~10 runtime PRs / ~250 files (`pnpm ops release:range`; 0 at drafting). Release PR merge needs her explicit yes.
-- **vNext+1 sketch (beta.251)**: Machloket e2e (`doc-114`) · whatever of TASK-1416/1415/1411/1412 beta.250 does not carry.
+- **Cut when**: caching Phase 3 merges; backstops ~10 runtime PRs / ~250 files (`pnpm ops release:range`). Release PR merge needs her explicit yes.
+- **vNext+1 sketch (beta.252)**: Machloket e2e (`doc-114`) · whatever of TASK-1416/1415/1411/1412 beta.251 does not carry.
 
 ### 🎯 Current Focus (max 3)
 
