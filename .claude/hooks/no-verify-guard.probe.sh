@@ -4,10 +4,11 @@
 # JSON payload shape the PreToolUse hook receives on stdin; `run` pins their
 # payload cwd to "$T/plain/sub", a plain non-git dir with no sibling `wt`, so
 # the hooks-presence arm stays inert for them and a `../wt` in a row cannot
-# resolve to the real uninstalled fixture worktree. The hooks-presence rows use throwaway fixture repos built in a temp
-# dir (an installed project, uninstalled/partial/non-executable worktrees, a
-# foreign repo, a plain dir) and `run_in` to choose the payload cwd. Global
-# git config is isolated, since the machine's own sets core.hooksPath.
+# resolve to the real uninstalled fixture worktree. The hooks-presence rows
+# use throwaway fixture repos built in a temp dir (an installed project,
+# uninstalled/partial/non-executable worktrees, a foreign repo, a plain dir)
+# and `run_in` to choose the payload cwd. Global git config is isolated,
+# since the machine's own sets core.hooksPath.
 #
 # Usage: .claude/hooks/no-verify-guard.probe.sh   (from anywhere)
 
@@ -22,6 +23,8 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
+# CI sets GITHUB_ACTIONS=true, which switches the hooks-presence arm off.
+unset GITHUB_ACTIONS
 
 # Installed project: husky-style shims, relative core.hooksPath, .husky/_
 # untracked so a worktree of it lacks the shims.
@@ -48,6 +51,10 @@ chmod +x "$T/wt-noexec/.husky/_/commit-msg"
 chmod -x "$T/wt-noexec/.husky/_/pre-push"
 git init -q "$T/foreign"
 mkdir -p "$T/plain/sub"
+# A git that fails for everything, for the fail-open row.
+mkdir -p "$T/fakegit"
+printf '#!/bin/sh\nexit 1\n' >"$T/fakegit/git"
+chmod +x "$T/fakegit/git"
 
 # run_in <expected-exit> <label> <cwd> <command>
 run_in() {
@@ -55,6 +62,22 @@ run_in() {
   jq -n --arg c "$cmd" --arg d "$cwd" \
     '{tool_name:"Bash",cwd:$d,tool_input:{command:$c}}' \
     | CLAUDE_PROJECT_DIR="$T/proj" "$HOOK" >/dev/null 2>&1
+  local actual=$?
+  if [ "$actual" -eq "$expected" ]; then
+    printf 'PASS  (exit %d)  %s\n' "$actual" "$label"
+  else
+    printf 'FAIL  (exit %d, expected %d)  %s\n' "$actual" "$expected" "$label"
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+
+# run_in_env <expected-exit> <label> <cwd> <command> <VAR=value>
+# Like run_in, with one extra variable in the HOOK's own environment only.
+run_in_env() {
+  local expected="$1" label="$2" cwd="$3" cmd="$4" extra="$5"
+  jq -n --arg c "$cmd" --arg d "$cwd" \
+    '{tool_name:"Bash",cwd:$d,tool_input:{command:$c}}' \
+    | env "$extra" CLAUDE_PROJECT_DIR="$T/proj" "$HOOK" >/dev/null 2>&1
   local actual=$?
   if [ "$actual" -eq "$expected" ]; then
     printf 'PASS  (exit %d)  %s\n' "$actual" "$label"
@@ -216,6 +239,15 @@ run_in 0 "non-git command in an uninstalled worktree" "$T/wt" "ls -la"
 run_in 0 "git status in an uninstalled worktree" "$T/wt" "git status"
 run_in 0 "override waives the hooks-presence arm" "$T/wt" \
   "TZUROT_ALLOW_NO_VERIFY=1 git commit -m x"
+run_in 2 "pushd into an uninstalled worktree" "$T/proj" "pushd $T/wt && git commit -m x"
+# The arm is off under GitHub Actions, read from the hook's own env only.
+run_in_env 0 "GITHUB_ACTIONS=true in the hook env turns the arm off" "$T/wt" \
+  "git commit -m x" GITHUB_ACTIONS=true
+run_in 2 "a GITHUB_ACTIONS=true command prefix does not exempt" "$T/wt" \
+  "GITHUB_ACTIONS=true git commit -m x"
+# Fail-open claim: a git that errors on everything lets the command through.
+run_in_env 0 "git failing for everything fails open" "$T/wt" "git commit -m x" \
+  "PATH=$T/fakegit:$PATH"
 
 BLOCK_ERR=$(jq -n --arg c "git commit -m x" --arg d "$T/wt" \
   '{tool_name:"Bash",cwd:$d,tool_input:{command:$c}}' \
