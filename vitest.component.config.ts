@@ -1,15 +1,26 @@
 import { defineConfig } from 'vitest/config';
 import { resolve } from 'path';
 import { TEST_TIMEOUTS } from './packages/common-types/src/constants/timing.js';
+import { resolveLaneRedisUrl, resolveTestLane } from './packages/test-utils/src/testLane.js';
 
 // Set up test environment variables before anything else
 // This prevents config validation errors when importing services
 process.env.PROD_DATABASE_URL ??= process.env.DATABASE_URL ?? '';
+const testLane = resolveTestLane({ rootDir: __dirname, env: process.env });
+process.env.TZUROT_TEST_LANE ||= testLane.lane;
 // 127.0.0.1, not `localhost`: on hosts where `localhost` resolves to ::1 (IPv6)
-// first, an IPv4-only Redis bind refuses the connection (ECONNREFUSED ::1). CI
-// sets REDIS_URL explicitly, so this default only affects local runs. `||=`,
-// not `??=`: a blank REDIS_URL (a `REDIS_URL=` row exported from .env) is unset.
-process.env.REDIS_URL ||= 'redis://127.0.0.1:6379';
+// first, an IPv4-only Redis bind refuses the connection (ECONNREFUSED ::1).
+// resolveLaneRedisUrl defaults a blank/unset REDIS_URL to
+// redis://127.0.0.1:6379/<redisDb>, rewrites a local URL whose path is empty,
+// `/`, or `/0` to the checkout's lane DB index (`/15` for lane a, `/14` for
+// `tzurot-b`, etc.; see `packages/test-utils/src/testLane.ts`) so parallel
+// checkouts do not share a Redis DB, keeps any other explicit `/<N>` DB path
+// unchanged, and returns REDIS_URL unchanged when CI === 'true'.
+process.env.REDIS_URL = resolveLaneRedisUrl({
+  raw: process.env.REDIS_URL,
+  redisDb: testLane.redisDb,
+  env: process.env,
+});
 
 /**
  * Vitest configuration for component tests (*.component.test.ts)
