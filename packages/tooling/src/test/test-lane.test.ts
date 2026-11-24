@@ -188,4 +188,10 @@ describe('runTestLane and provisionLaneDatabase', () => {
 
     expect(warned).toEqual([]);
   });
+
+  it('does not print a warning for a differently-cased main clone (/srv/w/Tzurot)', () => {
+    runTestLane({ rootDir: '/srv/w/Tzurot', env: {} });
+
+    expect(warned).toEqual([]);
+  });
 });

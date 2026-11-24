@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { constructed, instances } = vi.hoisted(() => ({
   constructed: [] as Record<string, unknown>[],
-  instances: [] as { flushdb: () => Promise<number>; quit: () => Promise<string> }[],
+  instances: [] as { flushdb: () => Promise<string>; quit: () => Promise<string> }[],
 }));
 
 vi.mock('ioredis', () => ({
@@ -54,5 +54,29 @@ describe('setupTestEnvironment lane wiring', () => {
     expect(constructed).toHaveLength(1);
     expect(constructed[0]).toMatchObject({ db });
     expect(instances[0].quit).toHaveBeenCalled();
+  });
+
+  it('derives the lane from the checkout path when TZUROT_TEST_LANE is unset (db 13)', async () => {
+    delete process.env.TZUROT_TEST_LANE;
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/x/tzurot-c');
+    try {
+      const env = await setupTestEnvironment();
+      await env.cleanup();
+    } finally {
+      cwdSpy.mockRestore();
+    }
+
+    expect(constructed).toHaveLength(1);
+    expect(constructed[0]).toMatchObject({ db: 13 });
+  });
+
+  it('honours an explicit REDIS_URL database over the lane DB (db 5)', async () => {
+    process.env.TZUROT_TEST_LANE = 'b';
+    process.env.REDIS_URL = 'redis://127.0.0.1:6379/5';
+    const env = await setupTestEnvironment();
+    await env.cleanup();
+
+    expect(constructed).toHaveLength(1);
+    expect(constructed[0]).toMatchObject({ db: 5 });
   });
 });

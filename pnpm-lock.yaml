@@ -396,6 +396,9 @@ importers:
       '@tzurot/embeddings':
         specifier: workspace:*
         version: link:../embeddings
+      '@tzurot/test-utils':
+        specifier: workspace:*
+        version: link:../test-utils
       bullmq:
         specifier: ^5.81.5
         version: 5.81.5(redis@6.0.0)
@@ -433,9 +436,6 @@ importers:
       '@types/semver':
         specifier: ^7.8.0
         version: 7.8.0
-      '@tzurot/test-utils':
-        specifier: workspace:*
-        version: link:../test-utils
       '@vitest/coverage-v8':
         specifier: ^4.1.12
         version: 4.1.12(vitest@4.1.12)
