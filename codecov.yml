@@ -40,6 +40,9 @@ flags:
   common-types:
     paths:
       - packages/common-types/
+  test-utils:
+    paths:
+      - packages/test-utils/
   tooling:
     paths:
       - packages/tooling/
@@ -59,11 +62,9 @@ ignore:
   - '**/*.test.ts'
   - '**/*.spec.ts'
   - '**/tests/**'
-  # Test-support helpers, mocks and setup (packages/tooling/src/test/ is gate source and stays measured);
-  # packages/test-utils is test-support infrastructure whose coverage is not uploaded
+  # Test-support helpers, mocks and setup (packages/tooling/src/test/ is gate source and stays measured)
   - 'services/*/src/test/**'
   - 'packages/conversation-history/src/test/**'
-  - 'packages/test-utils/**'
   - '**/dist/**'
   - '**/node_modules/**'
   - 'scripts/**'
