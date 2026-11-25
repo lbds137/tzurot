@@ -203,4 +203,49 @@ describe('queryUpstreamData (component, PGLite)', () => {
       expect(lepton?.failed).toBe(0);
     });
   });
+
+  describe('completionTokens stored as a JSON string', () => {
+    // Its own fixture: a row added to the shared fixture above would move its
+    // expectations. The Cerebras host exists only in this block.
+    let stringPglite: PGlite;
+    let stringPrisma: PrismaClient;
+
+    beforeAll(async () => {
+      stringPglite = createTestPGlite();
+      await stringPglite.exec(loadPGliteSchema());
+      stringPrisma = new PrismaClient({ adapter: new PrismaPGlite(stringPglite) }) as PrismaClient;
+
+      await seed(stringPglite, '00000000-0000-4000-8000-000000000501', 'openrouter', {
+        llmResponse: {
+          rawContent: 'numeric',
+          finishReason: 'stop',
+          completionTokens: 10,
+          reasoningDebug: { upstreamProvider: 'Cerebras' },
+        },
+      });
+      await seed(stringPglite, '00000000-0000-4000-8000-000000000502', 'openrouter', {
+        llmResponse: {
+          rawContent: 'string',
+          finishReason: 'stop',
+          completionTokens: '12',
+          reasoningDebug: { upstreamProvider: 'Cerebras' },
+        },
+      });
+    });
+
+    afterAll(async () => {
+      await stringPrisma.$disconnect();
+      await stringPglite.close();
+    });
+
+    it('excludes the string "12" from the average without a cast error', async () => {
+      const data = await queryUpstreamData(stringPrisma as unknown as PrismaQueryable, 'local', 7);
+      const cerebras = data.rows.find(r => r.upstream === 'Cerebras');
+
+      expect(cerebras?.requests).toBe(2);
+      expect(cerebras?.finishStop).toBe(2);
+      // Only the numeric 10 counts; the string "12" would pull the mean to 11.
+      expect(cerebras?.avgCompletionTokens).toBe(10);
+    });
+  });
 });

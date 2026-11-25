@@ -15,6 +15,7 @@
  */
 
 import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { DIAGNOSTIC_RETENTION_DAYS } from '@tzurot/common-types/constants/diagnostics';
 import { FINISH_REASONS, NATURAL_STOP_REASONS } from '@tzurot/common-types/constants/finishReasons';
 import type { Environment } from '../utils/env-runner.js';
 import {
@@ -23,7 +24,6 @@ import {
   type TelemetryReportOptions,
 } from './reportRunner.js';
 import {
-  DIAGNOSTIC_RETENTION_DAYS,
   renderUpstreamMarkdown,
   type UpstreamReportData,
   type UpstreamStats,
@@ -78,30 +78,38 @@ export async function queryUpstreamData(
   env: Environment,
   days: number
 ): Promise<UpstreamReportData> {
-  // Report-local stop list. NATURAL_STOP_REASONS is LLMInvoker's continuation
-  // predicate and stays unchanged; this report also counts stop_sequence as stop.
+  // isNaturalStop (LLMInvoker's continuation predicate) must not change; this
+  // report alone also counts stop_sequence as a natural stop. See TASK-1542.
   const stopReasons = [...NATURAL_STOP_REASONS, FINISH_REASONS.STOP_SEQUENCE];
+  // One pass over the table: the window and provider filter run in the CTE, which
+  // extracts the response object and the failure flag once per row. The outer
+  // SELECT then aggregates over those two values, not over repeated `data->` reads.
   const raw = await prisma.$queryRaw<UpstreamRawRow[]>`
+    WITH served AS (
+      SELECT model,
+             data->'llmResponse' AS r,
+             (data->'error') IS NOT NULL AS failed
+      FROM llm_diagnostic_logs
+      WHERE created_at >= now() - (interval '1 day' * ${days})
+        AND provider = ${AIProvider.OpenRouter}
+    )
     SELECT model,
-           COALESCE(data->'llmResponse'->'reasoningDebug'->>'upstreamProvider', '(none)') AS upstream,
+           COALESCE(r->'reasoningDebug'->>'upstreamProvider', '(none)') AS upstream,
            COUNT(*) AS requests,
-           COUNT(*) FILTER (WHERE data->'error' IS NOT NULL) AS failed,
-           COUNT(*) FILTER (WHERE data->'llmResponse'->>'finishReason' = ANY(${stopReasons}) AND data->'error' IS NULL) AS finish_stop,
-           COUNT(*) FILTER (WHERE data->'llmResponse'->>'finishReason' = ${FINISH_REASONS.LENGTH} AND data->'error' IS NULL) AS finish_length,
-           COUNT(*) FILTER (WHERE data->'llmResponse'->>'finishReason' = ${FINISH_REASONS.CONTENT_FILTER} AND data->'error' IS NULL) AS finish_content_filter,
-           COUNT(*) FILTER (WHERE data->'llmResponse'->>'finishReason' = ${FINISH_REASONS.ERROR} AND data->'error' IS NULL) AS finish_error,
-           COUNT(*) FILTER (WHERE COALESCE(data->'llmResponse'->>'finishReason','') NOT IN (${FINISH_REASONS.LENGTH}, ${FINISH_REASONS.CONTENT_FILTER}, ${FINISH_REASONS.ERROR})
-                              AND NOT (COALESCE(data->'llmResponse'->>'finishReason','') = ANY(${stopReasons}))
-                              AND data->'error' IS NULL) AS finish_other,
-           COUNT(*) FILTER (WHERE data->'llmResponse' IS NOT NULL
-                              AND length(btrim(COALESCE(data->'llmResponse'->>'rawContent',''))) = 0) AS empty_replies,
-           AVG(CASE WHEN data->'error' IS NULL
-                     AND jsonb_typeof(data->'llmResponse'->'completionTokens') = 'number'
-                    THEN CASE WHEN (data->'llmResponse'->>'completionTokens')::float8 > 0
-                              THEN (data->'llmResponse'->>'completionTokens')::float8 END END) AS avg_completion_tokens
-    FROM llm_diagnostic_logs
-    WHERE created_at >= now() - (interval '1 day' * ${days})
-      AND provider = ${AIProvider.OpenRouter}
+           COUNT(*) FILTER (WHERE failed) AS failed,
+           COUNT(*) FILTER (WHERE r->>'finishReason' = ANY(${stopReasons}) AND NOT failed) AS finish_stop,
+           COUNT(*) FILTER (WHERE r->>'finishReason' = ${FINISH_REASONS.LENGTH} AND NOT failed) AS finish_length,
+           COUNT(*) FILTER (WHERE r->>'finishReason' = ${FINISH_REASONS.CONTENT_FILTER} AND NOT failed) AS finish_content_filter,
+           COUNT(*) FILTER (WHERE r->>'finishReason' = ${FINISH_REASONS.ERROR} AND NOT failed) AS finish_error,
+           COUNT(*) FILTER (WHERE COALESCE(r->>'finishReason','') NOT IN (${FINISH_REASONS.LENGTH}, ${FINISH_REASONS.CONTENT_FILTER}, ${FINISH_REASONS.ERROR})
+                              AND NOT (COALESCE(r->>'finishReason','') = ANY(${stopReasons}))
+                              AND NOT failed) AS finish_other,
+           COUNT(*) FILTER (WHERE length(btrim(COALESCE(r->>'rawContent',''))) = 0) AS empty_replies,
+           AVG(CASE WHEN NOT failed
+                     AND jsonb_typeof(r->'completionTokens') = 'number'
+                    THEN CASE WHEN (r->>'completionTokens')::float8 > 0
+                              THEN (r->>'completionTokens')::float8 END END) AS avg_completion_tokens
+    FROM served
     GROUP BY 1, 2
     ORDER BY model, requests DESC
   `;

@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cac } from 'cac';
 import { registerTelemetryCommands } from './telemetry.js';
 import { telemetryUpstreamReport } from '../telemetry/upstream-report.js';
-import { DIAGNOSTIC_RETENTION_DAYS } from '../telemetry/upstream-report-render.js';
+import { DIAGNOSTIC_RETENTION_DAYS } from '@tzurot/common-types/constants/diagnostics';
 
 vi.mock('../telemetry/upstream-report.js', () => ({
   telemetryUpstreamReport: vi.fn().mockResolvedValue(undefined),
