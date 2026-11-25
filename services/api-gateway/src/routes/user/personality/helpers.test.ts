@@ -24,6 +24,7 @@ import type { Response } from 'express';
 import {
   canUserEditPersonality,
   canUserViewPersonality,
+  requireVisiblePersonalityById,
   resolvePersonalityForEdit,
 } from './helpers.js';
 
@@ -343,6 +344,106 @@ describe('personality route helpers', () => {
       });
 
       expect(result).toBe(false);
+    });
+  });
+
+  describe('requireVisiblePersonalityById', () => {
+    function createMockRes() {
+      return {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn().mockReturnThis(),
+      } as unknown as Response;
+    }
+
+    function createMockReq(): ProvisionedRequest {
+      return {
+        userId: 'discord-123',
+        provisionedUserId: 'user-id',
+      } as unknown as ProvisionedRequest;
+    }
+
+    it('returns false and sends 404 when the personality does not exist', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue(null);
+      const res = createMockRes();
+
+      const result = await requireVisiblePersonalityById(
+        mockPrisma as unknown as PrismaClient,
+        createMockReq(),
+        res,
+        'personality-id'
+      );
+
+      expect(result).toBe(false);
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Personality not found' })
+      );
+      expect(mockPrisma.personality.findUnique).toHaveBeenCalledWith({
+        where: { id: 'personality-id' },
+        select: { id: true, isPublic: true, ownerId: true },
+      });
+    });
+
+    it('returns false and sends 404 for a private personality the caller does not own', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-id',
+        isPublic: false,
+        ownerId: 'other-owner-id',
+      });
+      // No PersonalityOwner row either
+      mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
+      const res = createMockRes();
+
+      const result = await requireVisiblePersonalityById(
+        mockPrisma as unknown as PrismaClient,
+        createMockReq(),
+        res,
+        'personality-id'
+      );
+
+      expect(result).toBe(false);
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Personality not found' })
+      );
+    });
+
+    it('returns true for a public personality without sending a response', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-id',
+        isPublic: true,
+        ownerId: 'other-owner-id',
+      });
+      const res = createMockRes();
+
+      const result = await requireVisiblePersonalityById(
+        mockPrisma as unknown as PrismaClient,
+        createMockReq(),
+        res,
+        'personality-id'
+      );
+
+      expect(result).toBe(true);
+      expect(res.status).not.toHaveBeenCalled();
+    });
+
+    it('returns true when the caller owns the private personality', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-id',
+        isPublic: false,
+        ownerId: 'user-id', // equals provisionedUserId
+      });
+      const res = createMockRes();
+
+      const result = await requireVisiblePersonalityById(
+        mockPrisma as unknown as PrismaClient,
+        createMockReq(),
+        res,
+        'personality-id'
+      );
+
+      expect(result).toBe(true);
+      expect(res.status).not.toHaveBeenCalled();
     });
   });
 

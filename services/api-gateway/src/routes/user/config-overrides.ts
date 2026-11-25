@@ -42,6 +42,7 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
 import { type RouteDeps } from '../routeDeps.js';
 import { pruneEmptyPersonalityConfig } from './pruneEmptyPersonalityConfig.js';
+import { requireVisiblePersonalityById } from './personality/helpers.js';
 
 const logger = createLogger('user-config-overrides');
 
@@ -279,6 +280,10 @@ export const handleUpdatePersonalityOverrides = (deps: RouteDeps): RequestHandle
       return;
     }
 
+    if (!(await requireVisiblePersonalityById(prisma, req, res, personalityId))) {
+      return;
+    }
+
     const userId = resolveProvisionedUserId(req);
 
     const upcId = generateUserPersonalityConfigUuid(userId, personalityId);
@@ -329,6 +334,10 @@ export const handleClearPersonalityOverrides = (deps: RouteDeps): RequestHandler
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const personalityId = getValidatedPersonalityId(req, res);
     if (personalityId === null) {
+      return;
+    }
+
+    if (!(await requireVisiblePersonalityById(prisma, req, res, personalityId))) {
       return;
     }
 
