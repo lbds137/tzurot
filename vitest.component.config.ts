@@ -15,11 +15,10 @@ process.env.TZUROT_TEST_LANE ||= testLane.lane;
 // `/`, or `/0` to the checkout's lane DB index (`/15` for lane a, `/14` for
 // `tzurot-b`, etc.; see `packages/test-utils/src/testLane.ts`) so parallel
 // checkouts do not share a Redis DB, keeps any other explicit `/<N>` DB path
-// unchanged, and returns REDIS_URL unchanged when CI === 'true'.
+// unchanged. CI is not special-cased: its Redis service maps to lane a's DB 15.
 process.env.REDIS_URL = resolveLaneRedisUrl({
   raw: process.env.REDIS_URL,
   redisDb: testLane.redisDb,
-  env: process.env,
 });
 
 /**

@@ -30,7 +30,8 @@ export const TEST_LANE_REDIS_DB = {
   e: 11,
 } as const satisfies Record<TestLane, number>;
 
-const ALLOWED_TEST_LANES: readonly TestLane[] = ['a', 'b', 'c', 'd', 'e'];
+/** Every valid test lane, in table order. */
+export const ALLOWED_TEST_LANES: readonly TestLane[] = ['a', 'b', 'c', 'd', 'e'];
 
 function isTestLane(value: string): value is TestLane {
   return (ALLOWED_TEST_LANES as readonly string[]).includes(value);
@@ -112,48 +113,48 @@ export function laneRedisUrl(baseUrl: string, redisDb: number): string {
 /**
  * Resolve the effective `REDIS_URL` for a test run (`packages/test-utils/src/testLane.test.ts`):
  * - Blank or undefined `raw` defaults to `laneRedisUrl('redis://127.0.0.1:6379', redisDb)`.
- * - When `env.CI === 'true'`, returns `raw` unchanged so CI stays byte-identical.
- * - When `raw` has an empty pathname, `/`, or `/0`, rewrites the pathname to `/<redisDb>` via `laneRedisUrl(raw, redisDb)` while preserving host, port, and credentials.
+ * - When `raw` has an empty pathname, `/`, or `/0`, rewrites the pathname to `/<redisDb>` via `laneRedisUrl(raw, redisDb)` while preserving host, port, and credentials. CI is not special-cased: its throwaway Redis maps to the lane DB like a local one.
  * - When `raw` has any other explicit DB pathname, returns `raw` unchanged.
+ * - Throws when `raw` does not parse as a URL (the value is never echoed: it can carry a password).
  */
-export function resolveLaneRedisUrl(opts: {
-  raw: string | undefined;
-  redisDb: number;
-  env: Record<string, string | undefined>;
-}): string {
+export function resolveLaneRedisUrl(opts: { raw: string | undefined; redisDb: number }): string {
   // Branch 1: blank or undefined `raw` defaults to local Redis on `redisDb` (`testLane.test.ts`).
   if (opts.raw === undefined || opts.raw.trim().length === 0) {
     return laneRedisUrl('redis://127.0.0.1:6379', opts.redisDb);
   }
-  // Branch 2: `env.CI === 'true'` keeps `raw` byte-identical (`testLane.test.ts`).
-  if (opts.env.CI === 'true') {
-    return opts.raw;
-  }
-  const { pathname } = new URL(opts.raw);
-  // Branch 3: empty path, `/`, or `/0` rewrites to `/<redisDb>`, keeping host, port, and credentials (`testLane.test.ts`).
+  const { pathname } = parseRedisUrl(opts.raw);
+  // Branch 2: empty path, `/`, or `/0` rewrites to `/<redisDb>`, keeping host, port, and credentials (`testLane.test.ts`).
   if (pathname === '' || pathname === '/' || pathname === '/0') {
     return laneRedisUrl(opts.raw, opts.redisDb);
   }
-  // Branch 4: any other explicit DB pathname is returned unchanged (`testLane.test.ts`).
+  // Branch 3: any other explicit DB pathname is returned unchanged (`testLane.test.ts`).
   return opts.raw;
+}
+
+/**
+ * Parse `raw` as a URL, throwing a message that never echoes the value (a
+ * Redis URL can carry a password).
+ */
+function parseRedisUrl(raw: string): URL {
+  try {
+    return new URL(raw);
+  } catch {
+    throw new Error('REDIS_URL is not a valid URL: it failed to parse (value not shown).');
+  }
 }
 
 /**
  * Return the Redis logical DB a test harness should connect to: an explicit
  * non-zero `/N` DB in `raw` wins, matching `resolveLaneRedisUrl`; unset,
- * blank, unparsable, empty-path, `/`, and `/0` values fall back to `laneDb`
+ * blank, empty-path, `/`, and `/0` values fall back to `laneDb`. Throws on an
+ * unparsable URL, like `resolveLaneRedisUrl`
  * (`packages/test-utils/src/testLane.test.ts`).
  */
 export function redisDbForUrl(raw: string | undefined, laneDb: number): number {
   if (raw === undefined || raw.trim().length === 0) {
     return laneDb;
   }
-  let pathname: string;
-  try {
-    ({ pathname } = new URL(raw));
-  } catch {
-    return laneDb;
-  }
+  const { pathname } = parseRedisUrl(raw);
   const match = /^\/(\d+)$/.exec(pathname);
   if (match === null) {
     return laneDb;

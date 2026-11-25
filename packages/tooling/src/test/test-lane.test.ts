@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   provisionLaneDatabase,
   runTestLane,
@@ -117,7 +120,27 @@ describe('runTestLane and provisionLaneDatabase', () => {
       ],
       { encoding: 'utf-8' }
     );
-    expect(logged.join('\n')).toContain('pnpm ops db:migrate');
+    expect(logged.join('\n')).toContain(
+      `Next step, in one line (README.md § Local Development's URL with database "tzurot_integration_b_test"): DATABASE_URL=<that URL> pnpm ops db:migrate`
+    );
+  });
+
+  it('resolves the lane from the workspace root above a nested cwd when rootDir is omitted', () => {
+    const base = mkdtempSync(join(tmpdir(), 'lane-root-'));
+    try {
+      const checkout = join(base, 'tzurot-c');
+      const nested = join(checkout, 'packages', 'tooling');
+      mkdirSync(nested, { recursive: true });
+      writeFileSync(join(checkout, 'pnpm-workspace.yaml'), '');
+      vi.spyOn(process, 'cwd').mockReturnValue(nested);
+
+      const result = runTestLane({ env: {} });
+
+      expect(result.lane).toBe('c');
+      expect(result.source).toBe('path');
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
   });
 
   it('skips createdb when the integration database already exists', () => {

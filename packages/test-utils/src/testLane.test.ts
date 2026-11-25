@@ -149,31 +149,29 @@ describe('laneRedisUrl', () => {
 
 describe('resolveLaneRedisUrl', () => {
   it('defaults undefined raw to redis://127.0.0.1:6379/<redisDb>', () => {
-    expect(resolveLaneRedisUrl({ raw: undefined, redisDb: 14, env: {} })).toBe(
-      'redis://127.0.0.1:6379/14'
-    );
+    expect(resolveLaneRedisUrl({ raw: undefined, redisDb: 14 })).toBe('redis://127.0.0.1:6379/14');
   });
 
   it('defaults an empty string raw to redis://127.0.0.1:6379/<redisDb>', () => {
-    expect(resolveLaneRedisUrl({ raw: '', redisDb: 14, env: {} })).toBe(
-      'redis://127.0.0.1:6379/14'
-    );
+    expect(resolveLaneRedisUrl({ raw: '', redisDb: 14 })).toBe('redis://127.0.0.1:6379/14');
   });
 
   it('defaults a whitespace-blank raw to redis://127.0.0.1:6379/<redisDb>', () => {
-    expect(resolveLaneRedisUrl({ raw: '   ', redisDb: 14, env: {} })).toBe(
-      'redis://127.0.0.1:6379/14'
+    expect(resolveLaneRedisUrl({ raw: '   ', redisDb: 14 })).toBe('redis://127.0.0.1:6379/14');
+  });
+
+  it("maps CI's throwaway redis://localhost:6379 to lane a's DB 15 like a local URL", () => {
+    expect(resolveLaneRedisUrl({ raw: 'redis://localhost:6379', redisDb: 15 })).toBe(
+      'redis://localhost:6379/15'
     );
   });
 
-  it('returns raw unchanged when env.CI is "true"', () => {
-    expect(
-      resolveLaneRedisUrl({
-        raw: 'redis://localhost:6379',
-        redisDb: 15,
-        env: { CI: 'true' },
-      })
-    ).toBe('redis://localhost:6379');
+  it('throws on an unparsable URL without echoing the value', () => {
+    const secret = 'not a url hunter2';
+    expect(() => resolveLaneRedisUrl({ raw: secret, redisDb: 14 })).toThrow(
+      /REDIS_URL is not a valid URL/
+    );
+    expect(() => resolveLaneRedisUrl({ raw: secret, redisDb: 14 })).not.toThrow(/hunter2/);
   });
 
   it('rewrites a URL with no path to /<redisDb>', () => {
@@ -181,7 +179,6 @@ describe('resolveLaneRedisUrl', () => {
       resolveLaneRedisUrl({
         raw: 'redis://127.0.0.1:6379',
         redisDb: 14,
-        env: {},
       })
     ).toBe('redis://127.0.0.1:6379/14');
   });
@@ -191,7 +188,6 @@ describe('resolveLaneRedisUrl', () => {
       resolveLaneRedisUrl({
         raw: 'redis://127.0.0.1:6379/',
         redisDb: 14,
-        env: {},
       })
     ).toBe('redis://127.0.0.1:6379/14');
   });
@@ -201,7 +197,6 @@ describe('resolveLaneRedisUrl', () => {
       resolveLaneRedisUrl({
         raw: 'redis://127.0.0.1:6379/0',
         redisDb: 14,
-        env: {},
       })
     ).toBe('redis://127.0.0.1:6379/14');
   });
@@ -211,7 +206,6 @@ describe('resolveLaneRedisUrl', () => {
       resolveLaneRedisUrl({
         raw: 'redis://127.0.0.1:6379/5',
         redisDb: 14,
-        env: {},
       })
     ).toBe('redis://127.0.0.1:6379/5');
   });
@@ -221,7 +215,6 @@ describe('resolveLaneRedisUrl', () => {
       resolveLaneRedisUrl({
         raw: 'redis://testuser:testpass@redis.example.test:6380/0',
         redisDb: 13,
-        env: {},
       })
     ).toBe('redis://testuser:testpass@redis.example.test:6380/13');
   });
@@ -239,13 +232,39 @@ describe('redisDbForUrl', () => {
     [undefined],
     [''],
     ['   '],
-    ['not a url'],
     ['redis://127.0.0.1:6379'],
     ['redis://127.0.0.1:6379/'],
     ['redis://127.0.0.1:6379/0'],
     ['redis://127.0.0.1:6379/abc'],
   ])('falls back to the lane DB for %s', raw => {
     expect(redisDbForUrl(raw, 14)).toBe(14);
+  });
+
+  it('throws on an unparsable URL without echoing the value', () => {
+    const secret = 'not a url hunter2';
+    expect(() => redisDbForUrl(secret, 14)).toThrow(/REDIS_URL is not a valid URL/);
+    expect(() => redisDbForUrl(secret, 14)).not.toThrow(/hunter2/);
+  });
+});
+
+describe('resolveLaneRedisUrl and redisDbForUrl agree', () => {
+  it.each([
+    [undefined],
+    [''],
+    ['   '],
+    ['redis://h:6379'],
+    ['redis://h:6379/'],
+    ['redis://h:6379/0'],
+    ['redis://h:6379/5'],
+    ['redis://h:6379/15'],
+    ['redis://localhost:6379'],
+    ['redis://user:pass@h:6380'],
+    ['redis://user:pass@h:6380/0'],
+    ['redis://user:pass@h:6380/5'],
+  ])('selects the same DB for %s', raw => {
+    expect(new URL(resolveLaneRedisUrl({ raw, redisDb: 14 })).pathname).toBe(
+      `/${redisDbForUrl(raw, 14)}`
+    );
   });
 });
 

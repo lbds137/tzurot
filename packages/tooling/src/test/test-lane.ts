@@ -10,7 +10,12 @@
 
 import { execFileSync } from 'node:child_process';
 import { basename } from 'node:path';
-import { checkoutRootOf, resolveTestLane, type TestLane } from '@tzurot/test-utils/testLane';
+import {
+  checkoutRootOf,
+  findWorkspaceRoot,
+  resolveTestLane,
+  type TestLane,
+} from '@tzurot/test-utils/testLane';
 
 const SAFE_DB_NAME_PATTERN = /^[a-z0-9_]+$/;
 const POSTGRES_CONTAINER = 'tzurot-postgres';
@@ -76,11 +81,9 @@ export function provisionLaneDatabase(dbName: string): { created: boolean } {
       ? `Created integration database "${dbName}" in ${POSTGRES_CONTAINER} and enabled extensions (vector, citext).`
       : `Integration database "${dbName}" already exists in ${POSTGRES_CONTAINER}; ensured extensions (vector, citext).`
   );
-  console.log('Next steps:');
   console.log(
-    `  1. Export DATABASE_URL built from README.md § Local Development with database name "${dbName}"`
+    `Next step, in one line (README.md § Local Development's URL with database "${dbName}"): DATABASE_URL=<that URL> pnpm ops db:migrate`
   );
-  console.log('  2. Run: pnpm ops db:migrate');
 
   return { created };
 }
@@ -103,7 +106,7 @@ export interface ResolvedLaneReport {
  * CLI entry point for `pnpm ops test:lane`.
  */
 export function runTestLane(options: TestLaneCommandOptions = {}): ResolvedLaneReport {
-  const rootDir = options.rootDir ?? process.cwd();
+  const rootDir = options.rootDir ?? findWorkspaceRoot(process.cwd());
   const env = options.env ?? process.env;
   const resolved = resolveTestLane({ rootDir, env });
 
