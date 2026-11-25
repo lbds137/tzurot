@@ -38,25 +38,26 @@ export const FINISH_REASONS = {
 export type FinishReason = (typeof FINISH_REASONS)[keyof typeof FINISH_REASONS];
 
 /**
- * Every finish reason that means natural/successful completion, for SQL
- * `= ANY(...)` binds that must count all providers' spellings. Providers use
- * different values for the same concept:
+ * Every finish reason that means natural/successful completion. Membership
+ * is the primary meaning: isNaturalStop checks against this list. Consumers
+ * that need SQL `= ANY(...)` binds can use it too, so the bind counts every
+ * provider's spelling. Providers use different values for the same concept:
  * - OpenAI/OpenRouter: 'stop'
  * - Anthropic: 'end_turn'
  * - Google: 'STOP'
  */
-export const NATURAL_STOP_REASONS: readonly string[] = [
+export const NATURAL_STOP_REASONS = [
   FINISH_REASONS.STOP,
   FINISH_REASONS.END_TURN,
   FINISH_REASONS.STOP_GOOGLE,
-];
+] as const satisfies readonly FinishReason[];
 
 /**
  * Check if a finish reason indicates natural/successful completion.
  * Membership in NATURAL_STOP_REASONS.
  */
 export function isNaturalStop(finishReason: string): boolean {
-  return NATURAL_STOP_REASONS.includes(finishReason);
+  return (NATURAL_STOP_REASONS as readonly string[]).includes(finishReason);
 }
 
 /**

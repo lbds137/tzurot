@@ -7,6 +7,7 @@
 
 import type { CAC } from 'cac';
 import type { Environment } from '../utils/env-runner.js';
+import { DIAGNOSTIC_RETENTION_DAYS } from '../telemetry/upstream-report-render.js';
 
 const ENV_OPTION = '--env <env>';
 const ENV_OPTION_DESC = 'Environment: local, dev, or prod';
@@ -50,7 +51,12 @@ export function registerTelemetryCommands(cli: CAC): void {
       'OpenRouter upstream-host report over llm_diagnostic_logs (read-only)'
     )
     .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
-    .option(DAYS_OPTION, 'Trailing window in days (diagnostic retention is 7)', { default: 7 })
+    // No cac default: an omitted --days arrives as undefined, and telemetryUpstreamReport
+    // applies DIAGNOSTIC_RETENTION_DAYS through parseDays. A cac default would pin 7 here.
+    .option(
+      DAYS_OPTION,
+      `Trailing window in days (diagnostic retention is ${DIAGNOSTIC_RETENTION_DAYS})`
+    )
     .option(OUTPUT_OPTION, OUTPUT_OPTION_DESC)
     .action(async (options: { env?: Environment; days?: number | string; output?: string }) => {
       const { telemetryUpstreamReport } = await import('../telemetry/upstream-report.js');

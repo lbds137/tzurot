@@ -56,7 +56,14 @@ describe('renderUpstreamMarkdown', () => {
     expect(output).toContain('telemetry:inference');
     expect(output).toContain('## Serving host per model');
     expect(output).toContain(
-      '| Model | Upstream host | Requests | Failed | Share of model | stop | length | content_filter | error | other | Empty | Avg out tokens |'
+      '| Model | Upstream host | Requests | Failed | Share of model | stop | length | content_filter | error | other | Empty (incl. failed) | Avg out tokens |'
+    );
+  });
+
+  it('says that Share of model counts (none) in its denominator', () => {
+    const output = renderUpstreamMarkdown(baseData());
+    expect(output).toContain(
+      "Share of model counts (none) in its denominator, so named hosts' shares understate their share of served traffic."
     );
   });
 
