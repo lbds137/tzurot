@@ -910,6 +910,63 @@ describe('AttachmentProcessor', () => {
     });
   });
 
+  describe('vision concurrency bound', () => {
+    it('keeps at most 4 vision walks in flight for a 10-image message and returns every result in input order', async () => {
+      // Each describeImage call parks until released, so the in-flight count is observable.
+      // With the bound at 4 the first wave is exactly 4 calls; the rest wait for a slot.
+      const release: Array<() => void> = [];
+      let inFlight = 0;
+      let maxInFlight = 0;
+      mockDescribeImage.mockImplementation(
+        () =>
+          new Promise<string>(resolve => {
+            inFlight++;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+            release.push(() => {
+              inFlight--;
+              resolve('image description');
+            });
+          })
+      );
+
+      const attachments = Array.from({ length: 10 }, (_, i) => ({
+        url: `https://example.com/img${i}.png`,
+        contentType: 'image/png',
+        name: `img${i}.png`,
+        size: 1000,
+      }));
+      const pending = processAttachmentsParallel({
+        attachments,
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+      });
+
+      for (let i = 0; i < 20; i++) {
+        await Promise.resolve();
+      }
+      expect(release).toHaveLength(4);
+
+      let released = 0;
+      while (release.length > 0) {
+        release.shift()?.();
+        released++;
+        for (let i = 0; i < 20; i++) {
+          await Promise.resolve();
+        }
+      }
+
+      const result = await pending;
+      expect(released).toBe(10);
+      expect(maxInFlight).toBe(4);
+      expect(mockDescribeImage).toHaveBeenCalledTimes(10);
+      expect(result.map(entry => entry.attachment)).toHaveLength(10);
+      expect(result.map(entry => (entry.attachment as { filename?: string }).filename)).toEqual(
+        attachments.map(attachment => attachment.name)
+      );
+    });
+  });
+
   describe('image provenance (source) survives every arm', () => {
     // `source` rides on the shared `identity` object in `processImageAttachment`
     // and `unprocessedAttachment`, so all three arms (preprocessed hit, a fresh

@@ -587,4 +587,143 @@ describe('vision fallback chain (wiring / seam test)', () => {
       resetSystemSettingsRegistration();
     }
   });
+
+  describe('paid floor beyond the tier cap (acceptance)', () => {
+    const invokedModelNames = (): string[] =>
+      mockCreateChatModel.mock.calls.map(call => (call[0] as { modelName: string }).modelName);
+
+    function registerFloor(floor: string): void {
+      registerSystemSettings({
+        get: (key: string) =>
+          key === 'fallbackVisionModel'
+            ? floor
+            : SYSTEM_SETTINGS_FALLBACKS[key as keyof typeof SYSTEM_SETTINGS_FALLBACKS],
+      } as unknown as SystemSettingsService);
+    }
+
+    it('A1: BYOK user with both keys — the paid floor serves after the capped primary and fallbacks all rate-limit', async () => {
+      registerFloor('openrouter/auto');
+      try {
+        const a1Personality: LoadedPersonality = {
+          ...personality,
+          visionModel: 'z-ai/glm-5.4',
+          visionFallbackModels: ['z-ai/glm-5.3-flash', 'google/gemma-4-31b-it:free'],
+        };
+        mockApiKeyResolver.tryResolveUserKey.mockImplementation(
+          async (_uid: string, provider: AIProvider) => {
+            if (provider === AIProvider.ZaiCoding) {
+              return 'user-zai-key';
+            }
+            return provider === AIProvider.OpenRouter ? 'user-or-key' : null;
+          }
+        );
+        driveModels({
+          'z-ai/glm-5.4': () => Promise.reject(new Error('429 rate_limit')),
+          'z-ai/glm-5.3-flash': () => Promise.reject(new Error('429 rate_limit')),
+          'google/gemma-4-31b-it:free': () => Promise.reject(new Error('429 rate_limit')),
+          'openrouter/auto': () => Promise.resolve({ content: 'FLOOR DESCRIPTION of the image' }),
+        });
+
+        const results = await processAttachments([imageAttachment], a1Personality, {
+          isGuestMode: false,
+          visionAuth: { ...buildVisionAuth(), personality: a1Personality },
+        });
+
+        expect(results).toHaveLength(1);
+        expect(results[0].description).toBe('FLOOR DESCRIPTION of the image');
+        expect(results[0].description.startsWith('[Image')).toBe(false);
+
+        // The floor served on the USER's OpenRouter key, not the system key.
+        const served = mockCreateChatModel.mock.calls
+          .map(call => call[0] as { modelName: string; apiKey: string; provider: AIProvider })
+          .find(args => args.modelName === 'openrouter/auto');
+        expect(served).toMatchObject({
+          modelName: 'openrouter/auto',
+          apiKey: 'user-or-key',
+          provider: AIProvider.OpenRouter,
+        });
+      } finally {
+        resetSystemSettingsRegistration();
+      }
+    });
+
+    it('A3: no-credit OpenRouter key — 402 on the paid tiers does not terminate the walk; the free model answers', async () => {
+      registerFloor('openrouter/auto');
+      try {
+        // Real classifier: the 402 category is derived from the error, not stubbed.
+        const actualParser = await vi.importActual<typeof import('../../utils/apiErrorParser.js')>(
+          '../../utils/apiErrorParser.js'
+        );
+        mockParseApiError.mockImplementation(actualParser.parseApiError);
+
+        const a3Personality: LoadedPersonality = {
+          ...personality,
+          visionModel: 'qwen/qwen3.7-plus',
+          visionFallbackModels: ['google/gemma-4-31b-it:free'],
+        };
+        mockApiKeyResolver.tryResolveUserKey.mockImplementation(
+          async (_uid: string, provider: AIProvider) =>
+            provider === AIProvider.OpenRouter ? 'user-or-key' : null
+        );
+        const payment402 = (): Promise<never> =>
+          Promise.reject(
+            Object.assign(new Error('402 Insufficient credits'), {
+              status: 402,
+              error: { message: 'Insufficient credits', code: 402 },
+            })
+          );
+        driveModels({
+          'qwen/qwen3.7-plus': payment402,
+          'openrouter/auto': payment402,
+          'google/gemma-4-31b-it:free': () =>
+            Promise.resolve({ content: 'FREE DESCRIPTION after 402' }),
+        });
+
+        const results = await processAttachments([imageAttachment], a3Personality, {
+          isGuestMode: false,
+          visionAuth: { ...buildVisionAuth(), personality: a3Personality },
+        });
+
+        expect(results).toHaveLength(1);
+        expect(results[0].description).toBe('FREE DESCRIPTION after 402');
+        expect(invokedModelNames()).toContain('google/gemma-4-31b-it:free');
+      } finally {
+        resetSystemSettingsRegistration();
+      }
+    });
+
+    it('A4: keyless non-guest — paid tiers never reach the system key; the free floor is attempted once', async () => {
+      registerFloor('openrouter/auto');
+      try {
+        const a4Personality: LoadedPersonality = {
+          ...personality,
+          visionModel: 'qwen/qwen3.7-plus',
+          visionFallbackModels: ['google/gemma-4-31b-it:free'],
+        };
+        mockApiKeyResolver.tryResolveUserKey.mockResolvedValue(null);
+        mockCreateChatModel.mockImplementation(({ modelName }: { modelName: string }) => ({
+          model: { generate: (): Promise<never> => Promise.reject(new Error('429 rate limited')) },
+          modelName,
+        }));
+
+        const results = await processAttachments([imageAttachment], a4Personality, {
+          isGuestMode: false,
+          visionAuth: { ...buildVisionAuth(), personality: a4Personality },
+        });
+        expect(results).toHaveLength(1);
+
+        const systemCalls = mockCreateChatModel.mock.calls
+          .map(call => call[0] as { modelName: string; apiKey: string })
+          .filter(args => args.apiKey === 'system-key')
+          .map(args => args.modelName);
+        expect(systemCalls).not.toContain('openrouter/auto');
+        expect(systemCalls.some(name => name.startsWith('qwen/'))).toBe(false);
+        // The free floor is attempted, exactly once per distinct resolved model.
+        expect(new Set(systemCalls).size).toBe(systemCalls.length);
+        expect(systemCalls.length).toBeGreaterThanOrEqual(1);
+      } finally {
+        resetSystemSettingsRegistration();
+      }
+    });
+  });
 });

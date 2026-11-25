@@ -75,6 +75,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 
 // Import the mocked modules
 import { describeImage } from '../services/MultimodalProcessor.js';
+import { VISION_ATTACHMENT_CONCURRENCY } from '../services/multimodal/constants.js';
 import { withRetry } from '../utils/retry.js';
 import { describeImageWithFallback } from '../services/multimodal/describeImageWithFallback.js';
 
@@ -1361,6 +1362,72 @@ describe('ImageDescriptionJob', () => {
         expect.objectContaining({
           globalTimeoutMs: TIMEOUTS.VISION_MODEL * VISION_MAX_ATTEMPTS,
         })
+      );
+    });
+
+    it('keeps at most VISION_ATTACHMENT_CONCURRENCY images in flight and returns results in input order', async () => {
+      // Each describeImage call parks until released, so the in-flight count is observable.
+      const release: Array<() => void> = [];
+      let inFlight = 0;
+      let maxInFlight = 0;
+      mockDescribeImage.mockImplementation(
+        attachment =>
+          new Promise<string>(resolve => {
+            inFlight++;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+            release.push(() => {
+              inFlight--;
+              resolve(`Description ${attachment.name}`);
+            });
+          })
+      );
+
+      const attachments = Array.from({ length: 10 }, (_, i) => ({
+        url: `https://example.com/img${i}.png`,
+        name: `img${i}.png`,
+        contentType: CONTENT_TYPES.IMAGE_PNG,
+        size: 1024,
+      }));
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-image-bound',
+        jobType: JobType.ImageDescription,
+        attachments,
+        personality: mockPersonality,
+        context: {
+          userId: 'user-123',
+          channelId: 'channel-456',
+        },
+        responseDestination: {
+          type: 'discord',
+          channelId: 'channel-456',
+        },
+      };
+      const job = {
+        id: 'image-test-req-image-bound',
+        data: jobData,
+      } as Job<ImageDescriptionJobData>;
+
+      const pending = processImageDescriptionJob(job);
+
+      for (let i = 0; i < 50; i++) {
+        await Promise.resolve();
+      }
+      expect(release).toHaveLength(VISION_ATTACHMENT_CONCURRENCY);
+
+      while (release.length > 0) {
+        release.shift()?.();
+        for (let i = 0; i < 50; i++) {
+          await Promise.resolve();
+        }
+      }
+
+      const result = await pending;
+      expect(maxInFlight).toBe(VISION_ATTACHMENT_CONCURRENCY);
+      expect(mockDescribeImage).toHaveBeenCalledTimes(10);
+      expect(result.success).toBe(true);
+      expect(result.descriptions!.map(d => d.url)).toEqual(attachments.map(a => a.url));
+      expect(result.descriptions!.map(d => d.description)).toEqual(
+        attachments.map(a => `Description ${a.name}`)
       );
     });
   });
