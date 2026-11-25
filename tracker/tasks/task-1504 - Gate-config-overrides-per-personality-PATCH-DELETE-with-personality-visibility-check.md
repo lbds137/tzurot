@@ -3,9 +3,11 @@ id: TASK-1504
 title: >-
   Gate config-overrides per-personality PATCH/DELETE with personality visibility
   check
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - tzurot-a
 created_date: '2026-11-22T04:53:00Z'
+updated_date: '2026-11-25T16:30:00Z'
 labels:
   - area:api-gateway
   - size:S
