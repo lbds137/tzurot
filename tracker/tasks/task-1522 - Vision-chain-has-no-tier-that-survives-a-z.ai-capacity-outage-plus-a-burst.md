@@ -1,10 +1,11 @@
 ---
 id: TASK-1522
 title: Vision chain has no tier that survives a z.ai capacity outage plus a burst
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - Tzurot
 created_date: '2026-11-24T01:41:00Z'
-updated_date: '2026-11-25T02:41:00Z'
+updated_date: '2026-11-25T07:47:00Z'
 labels:
   - area:ai-worker
   - size:M
