@@ -3,9 +3,10 @@ id: TASK-1536
 title: >-
   Harden per-lane test isolation: shared Postgres guard and harness-level
   other-lane pin
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-25T01:22:00Z'
+updated_date: '2026-11-25T07:36:00Z'
 labels:
   - area:test-utils
   - size:S
