@@ -39,19 +39,28 @@ export function validateIntegrationDbName(dbName: string): void {
 export function provisionLaneDatabase(dbName: string): { created: boolean } {
   validateIntegrationDbName(dbName);
 
-  const existing = execFileSync(
-    'podman',
-    [
-      'exec',
-      POSTGRES_CONTAINER,
-      'psql',
-      '-U',
-      POSTGRES_USER,
-      '-tAc',
-      `SELECT 1 FROM pg_database WHERE datname = '${dbName}'`,
-    ],
-    { encoding: 'utf-8' }
-  ).trim();
+  let existing: string;
+  try {
+    existing = execFileSync(
+      'podman',
+      [
+        'exec',
+        POSTGRES_CONTAINER,
+        'psql',
+        '-U',
+        POSTGRES_USER,
+        '-tAc',
+        `SELECT 1 FROM pg_database WHERE datname = '${dbName}'`,
+      ],
+      { encoding: 'utf-8' }
+    ).trim();
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    throw new Error(
+      `Could not reach the ${POSTGRES_CONTAINER} container via podman (is it running? podman ps). ${typeof code === 'string' ? code : 'exec failed'}`,
+      { cause: error }
+    );
+  }
 
   const created = existing !== '1';
   if (created) {
