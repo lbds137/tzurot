@@ -75,5 +75,36 @@ Cannot-decide triggers:
 
 The judge is glm-5.3 on the Z.ai plan.
 
-Remaining (routing PR): per-model allowlist constant on the system key, allow_fallbacks false, data_collection deny, BYOK default; every OpenRouter call site; the failure shape when no allowed host is up; the default for unlisted models; free-tier models under data_collection deny; dev A/B before enabling. Follow-ups from the report review: TASK-1547.
+A/B OUTCOME 2026-11-25. About 3,700 billed calls on the dev key, $8.02, metered and matched against the key's usage.
+- **Stage 1** (authored corpus, 32 hosts screened under the ship conditions): 30 shortlisted.
+  - Makora was excluded for a flagged benign control.
+  - Tenstorrent was excluded at 34.7% unavailable.
+  - The anchor censor rate was 0.7%, and the measured noise band was 3.5 pp, so the 10 pp floor applied. The largest kept Δ was 9.0 pp (Baseten).
+  - The judge passed its gate proof on both classes.
+- **Stage 2** (real-turn sample, about 69k-token prompts, 2 reps per host): no host removed.
+  - The anchor scored 80/80 clean. 28 hosts had zero flags, and SiliconFlow had 2/40.
+  - All 7 unavailable calls were 429s, and the worst host was at exactly 10%.
+  - Scope limit: the judge catches out-of-character refusals on real turns (20/20), but its sensitivity to sanitizing on real turns was only partially shown. Stage 1 is the evidence for sanitizing.
+- **GLM-5.3-flash allowlist** (30 bare slugs, `provider.only`, no `order`):
+
+  z-ai, baidu, baseten, cohere, coreweave, crusoe, deepinfra, digitalocean, fireworks, friendli, inceptron, inference-net, kt, mistral, modal, morph, near-ai, nebius, open-inference, parasail, pareto-inference, particle-ai, reka, relace, river, sail-research, siliconflow, together, venice, wafer.
+
+- **Excluded:**
+
+  | Host | Reason |
+  |---|---|
+  | makora | benign-control flag |
+  | tenstorrent | availability |
+  | novita, streamlake | MiniMax forwarders |
+  | darkbloom | 32k context |
+
+- **Cost:** the cheapest host (Relace, the largest observed prod share) stays in. The projected blended price is unchanged within about 1%. That is a projection, not a measurement.
+- **Retest:**
+  - the endpoint list or a host's quantization changes;
+  - the default character model moves off glm-5.3-flash;
+  - a filtering or forwarding report about a listed host;
+  - `content_filter` shows up in telemetry for a listed host;
+  - expiry 2027-02-25.
+
+Remaining (routing PR): per-model allowlist constant (above) on the system key, allow_fallbacks false, data_collection deny, BYOK default (opt-out TASK-1550); unlisted models and free tier get deny + the forwarder ignore list (owner rulings 2026-11-25); every OpenRouter call site; the failure shape when no allowed host is up (a routing-exhaustion 404 must not map to model-not-found); provider routing in the model cache key. Follow-ups from the report review: TASK-1547.
 <!-- SECTION:DESCRIPTION:END -->
