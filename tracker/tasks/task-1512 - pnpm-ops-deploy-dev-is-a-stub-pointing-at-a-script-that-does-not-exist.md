@@ -1,11 +1,10 @@
 ---
 id: TASK-1512
 title: pnpm ops deploy:dev is a stub pointing at a script that does not exist
-status: In Progress
-assignee:
-  - tzurot-a
+status: Done
+assignee: []
 created_date: '2026-11-23T01:09:00Z'
-updated_date: '2026-11-25T16:34:00Z'
+updated_date: '2026-11-25T20:02:00Z'
 labels:
   - area:tooling
   - size:S
