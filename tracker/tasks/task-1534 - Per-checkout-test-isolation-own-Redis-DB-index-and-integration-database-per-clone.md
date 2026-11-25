@@ -3,9 +3,10 @@ id: TASK-1534
 title: >-
   Per-checkout test isolation: own Redis DB index and integration database per
   clone
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-24T18:46:00Z'
+updated_date: '2026-11-25T01:24:00Z'
 labels:
   - area:tests
   - size:M
