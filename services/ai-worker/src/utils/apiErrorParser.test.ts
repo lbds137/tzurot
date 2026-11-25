@@ -528,6 +528,80 @@ describe('parseApiError', () => {
     });
   });
 
+  describe('OpenRouter routing-exhaustion detection', () => {
+    // The exact error shape probed through LangChain's ChatOpenAI against
+    // OpenRouter with an unsatisfiable `provider` routing object: status 404,
+    // code 404, LangChain's own lc_error_code still says MODEL_NOT_FOUND, and
+    // the message carries OpenRouter's privacy-guidance phrasing. The
+    // pattern-relevant prefix is verbatim from the probe; the tail after
+    // "Troubleshooting URL:" was truncated in the probe record.
+    const probedLangChainError = Object.assign(
+      new Error(
+        '404 All providers have been ignored. To change your default ignored providers, visit: https://openrouter.ai/settings/privacy\n\nTroubleshooting URL: https://openrouter.ai/docs/troubleshooting'
+      ),
+      { status: 404, code: 404, lc_error_code: 'MODEL_NOT_FOUND' }
+    );
+
+    it('classifies the probed LangChain 404 fixture as ROUTING_EXHAUSTED, not MODEL_NOT_FOUND', () => {
+      const result = parseApiError(probedLangChainError);
+      expect(result.category).toBe(ApiErrorCategory.ROUTING_EXHAUSTED);
+      expect(result.category).not.toBe(ApiErrorCategory.MODEL_NOT_FOUND);
+      expect(result.statusCode).toBe(404);
+    });
+
+    it('is transient (shouldRetry === true) with the SERVER_ERROR user message', () => {
+      const result = parseApiError(probedLangChainError);
+      expect(result.shouldRetry).toBe(true);
+      expect(result.userMessage).toBe(USER_ERROR_MESSAGES[ApiErrorCategory.SERVER_ERROR]);
+    });
+
+    it('classifies the second exhaustion wording ("No allowed providers are available") as ROUTING_EXHAUSTED', () => {
+      const error = Object.assign(
+        new Error('404 No allowed providers are available for the selected model'),
+        { status: 404, code: 404 }
+      );
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.ROUTING_EXHAUSTED);
+    });
+
+    it('hoists even without a status code — the message wording alone is the signal', () => {
+      expect(
+        parseApiError(new Error('No allowed providers are available for the selected model'))
+          .category
+      ).toBe(ApiErrorCategory.ROUTING_EXHAUSTED);
+      expect(
+        parseApiError(
+          new Error(
+            'All providers have been ignored. To change your default ignored providers, visit: https://openrouter.ai/settings/privacy'
+          )
+        ).category
+      ).toBe(ApiErrorCategory.ROUTING_EXHAUSTED);
+    });
+
+    it('negative control: a plain 404 model-not-found still classifies as MODEL_NOT_FOUND', () => {
+      const error = Object.assign(new Error('404 model not found: some-vendor/some-model'), {
+        status: 404,
+        code: 404,
+      });
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.MODEL_NOT_FOUND);
+      expect(result.shouldRetry).toBe(false);
+    });
+
+    it('does NOT hoist a provider-availability sentence unrelated to routing', () => {
+      // The patterns anchor on OpenRouter's two routing wordings, not a bare
+      // "providers" mention — an ordinary overload message keeps status routing.
+      const error = Object.assign(new Error('503 providers are currently overloaded'), {
+        status: 503,
+      });
+      expect(parseApiError(error).category).toBe(ApiErrorCategory.SERVER_ERROR);
+    });
+
+    it('is retarget-eligible: classifyQuotaFailure resolves the probed fixture to ROUTING_EXHAUSTED', () => {
+      expect(classifyQuotaFailure(probedLangChainError)).toBe(ApiErrorCategory.ROUTING_EXHAUSTED);
+    });
+  });
+
   describe('z.ai model-not-found detection (code 1214)', () => {
     const zaiSpecimen = Object.assign(
       new Error(

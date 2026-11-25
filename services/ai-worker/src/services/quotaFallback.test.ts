@@ -605,6 +605,7 @@ describe('D12 category membership', () => {
 
   it.each([
     ApiErrorCategory.MODEL_NOT_FOUND,
+    ApiErrorCategory.ROUTING_EXHAUSTED,
     ApiErrorCategory.SERVER_ERROR,
     ApiErrorCategory.TIMEOUT,
     ApiErrorCategory.NETWORK,
@@ -637,6 +638,9 @@ describe('D12 category membership', () => {
     expect(isCausePrecedenceFailure(err(ApiErrorCategory.MODEL_NOT_FOUND))).toBe(true);
     expect(isCausePrecedenceFailure(err(ApiErrorCategory.TIMEOUT))).toBe(false);
     expect(isCausePrecedenceFailure(err(ApiErrorCategory.SERVER_ERROR))).toBe(false);
+    // ROUTING_EXHAUSTED is availability-class: a trailing routing miss must not
+    // displace a preserved billing cause any more than a SERVER_ERROR would.
+    expect(isCausePrecedenceFailure(err(ApiErrorCategory.ROUTING_EXHAUSTED))).toBe(false);
   });
 });
 

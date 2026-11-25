@@ -57,6 +57,7 @@ export type QuotaFallbackCategory =
   | ApiErrorCategory.CREDIT_EXHAUSTION
   | ApiErrorCategory.RATE_LIMIT
   | ApiErrorCategory.MODEL_NOT_FOUND
+  | ApiErrorCategory.ROUTING_EXHAUSTED
   | ApiErrorCategory.SERVER_ERROR
   | ApiErrorCategory.TIMEOUT
   | ApiErrorCategory.NETWORK
@@ -154,6 +155,13 @@ const RETARGETABLE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
   // and it reaches the runner directly, without going through the retry
   // ladder at all.
   ApiErrorCategory.MODEL_NOT_FOUND,
+  // ROUTING_EXHAUSTED joins the availability class beside MODEL_NOT_FOUND: a
+  // different model routes to different hosts, so a routing miss on the
+  // configured model does not describe the retarget target. Like
+  // SERVER_ERROR/TIMEOUT/NETWORK below, it is transient in
+  // PERMANENT_ERROR_CATEGORIES terms, so the retry ladder runs first and the
+  // runner sees it only after the ladder exhausts.
+  ApiErrorCategory.ROUTING_EXHAUSTED,
   ApiErrorCategory.SERVER_ERROR,
   ApiErrorCategory.TIMEOUT,
   ApiErrorCategory.NETWORK,

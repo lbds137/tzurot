@@ -687,6 +687,80 @@ describe('ModelFactory', () => {
       expect(JSON.stringify(parsed)).not.toContain('cache_control');
     });
 
+    // Provider routing: every OpenRouter chat call must carry a `provider`
+    // object on the wire. These tests run the REAL createOpenRouterFetch with
+    // only the global fetch mocked — the body read here is the body that
+    // would reach OpenRouter.
+    it('pins z-ai/glm-5.3-flash to the measured only-list on the wire (real fetch chain)', async () => {
+      const parsed = await captureInjectedBody({ modelName: 'z-ai/glm-5.3-flash' });
+      const provider = parsed.provider as Record<string, unknown>;
+      expect(provider).toBeDefined();
+      expect(provider.only).toEqual(
+        expect.arrayContaining(['z-ai', 'fireworks', 'together', 'deepinfra'])
+      );
+      expect((provider.only as unknown[]).length).toBe(30);
+      expect(provider.allow_fallbacks).toBe(false);
+      expect(provider.data_collection).toBe('deny');
+      expect(provider.ignore).toBeUndefined();
+    });
+
+    it('sends the ignore shape (data_collection deny, no only-list) for an unpinned id (real fetch chain)', async () => {
+      const parsed = await captureInjectedBody({ modelName: 'anthropic/claude-haiku-4.5' });
+      const provider = parsed.provider as Record<string, unknown>;
+      expect(provider).toBeDefined();
+      expect(provider.ignore).toEqual(
+        expect.arrayContaining(['minimax', 'atlas-cloud', 'novita', 'streamlake'])
+      );
+      expect(provider.ignore).toHaveLength(4);
+      expect(provider.data_collection).toBe('deny');
+      expect(provider.only).toBeUndefined();
+      expect(provider.allow_fallbacks).toBeUndefined();
+    });
+
+    it('routes an absent config modelName by the RESOLVED fallback id, not the raw undefined', async () => {
+      // The wire id for an absent modelName is the fallbackTextModel setting;
+      // the routing must be a function of the id that ships. Registered here
+      // so the assertion does not depend on the ambient default.
+      registerSystemSettings({
+        get: (key: string) => (key === 'fallbackTextModel' ? 'z-ai/glm-5.3-flash' : undefined),
+      } as unknown as SystemSettingsService);
+      try {
+        const parsed = await captureInjectedBody({});
+        const provider = parsed.provider as Record<string, unknown>;
+        // The probe body cannot carry the resolved id (the harness stringifies
+        // the raw config), so the pin firing on `{}` IS the assertion: routing
+        // saw the fallback-resolved id, not the absent raw one.
+        expect(provider.only).toBeDefined();
+        expect(provider.allow_fallbacks).toBe(false);
+        expect(provider.ignore).toBeUndefined();
+      } finally {
+        resetSystemSettingsRegistration();
+      }
+    });
+
+    it('the z.ai builder carries no provider routing anywhere (no fetch closure, no routing key)', () => {
+      const config: ModelConfig = {
+        provider: AIProvider.ZaiCoding,
+        modelName: 'z-ai/glm-5.3-flash',
+        apiKey: 'zai-key',
+      };
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: Record<string, unknown>;
+        modelName?: string;
+      };
+      // The z.ai route never gets the custom fetch — the only injection path
+      // for a `provider` key on this codebase — so the configuration must be
+      // exactly the base URL.
+      expect(callArgs?.configuration).toEqual({
+        baseURL: 'https://api.z.ai/api/coding/paas/v4',
+      });
+      // Belt and suspenders: no routing shape anywhere in the constructor args.
+      expect(JSON.stringify(callArgs)).not.toContain('data_collection');
+      expect(JSON.stringify(callArgs)).not.toContain('"only"');
+    });
+
     it('should pass all advanced parameters together', () => {
       const config: ModelConfig = {
         modelName: 'test-model',

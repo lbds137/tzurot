@@ -49,6 +49,22 @@ const INVALID_MODEL_ID_PATTERN = /not a valid model id/i;
 const OPENROUTER_HARNESS_ONLY_PATTERN = /only available on agentic harnesses/i;
 
 /**
+ * OpenRouter's two wordings for provider-routing exhaustion — the request's
+ * routing rules (an `only` pin or an `ignore` list) left no eligible host:
+ * "All providers have been ignored" (probed: an `ignore` list covering every
+ * `only` host) and "No allowed providers are available" (which routing shape
+ * produces which wording is not verified beyond that one probe). Both arrive wrapped in a 404, which status mapping would read as the
+ * permanent MODEL_NOT_FOUND and let callers (the vision negative cache, the
+ * quota fallback) treat the model as dead for hours. Routing exhaustion is
+ * host availability — the same id succeeds once an eligible host recovers —
+ * so it hoists to the transient ROUTING_EXHAUSTED before status classification.
+ */
+const OPENROUTER_ROUTING_EXHAUSTED_PATTERNS = [
+  /no allowed providers are available/i,
+  /all providers have been ignored/i,
+];
+
+/**
  * z.ai's error-code token for "the configured model id is not a real z.ai
  * model" — body code `1214` paired with a `modelCode: does not exist`
  * message, wrapped in a 400. This deliberately survives the client-boundary
@@ -473,6 +489,15 @@ export function isAccountCreditExhaustion(error: unknown): boolean {
  * 403; must classify as MODEL_NOT_FOUND before status mapping reads the 403 as
  * CONTENT_POLICY.
  *
+ * OpenRouter routing exhaustion: when the request's provider routing rules
+ * leave no eligible host, OpenRouter answers 404 with either "All providers
+ * have been ignored" or "No allowed providers are available"; status mapping
+ * would read the 404 as the permanent MODEL_NOT_FOUND. The miss is host
+ * availability under the routing rules, so it must classify as the transient
+ * ROUTING_EXHAUSTED instead — a permanent classification would let the vision
+ * chain long-cache it and the quota fallback give up on a model that recovers
+ * the moment an eligible host returns.
+ *
  * z.ai model-not-found (code 1214): z.ai's own "the configured model id
  * doesn't exist" error also arrives wrapped in a 400; must classify as
  * MODEL_NOT_FOUND for the same reason as the unpublished-model-id case above.
@@ -570,6 +595,16 @@ function detectSpecialCases(error: unknown): ApiErrorCategory | null {
   // status extraction maps 403 to CONTENT_POLICY.
   if (OPENROUTER_HARNESS_ONLY_PATTERN.test(messageToSearch)) {
     return ApiErrorCategory.MODEL_NOT_FOUND;
+  }
+  // OpenRouter routing exhaustion arrives as a 404; catch it before status
+  // extraction maps 404 to MODEL_NOT_FOUND. The hoist exists because the two
+  // routing wordings share no wording with a genuine catalog miss — the model
+  // id is valid and listed, but no host matching the request's routing rules
+  // is currently eligible — and a permanent MODEL_NOT_FOUND would be cached
+  // long-cooldown by the vision negative cache and abandoned by the quota
+  // fallback, even though the same id succeeds once an eligible host returns.
+  if (OPENROUTER_ROUTING_EXHAUSTED_PATTERNS.some(pattern => pattern.test(messageToSearch))) {
+    return ApiErrorCategory.ROUTING_EXHAUSTED;
   }
 
   return null;

@@ -417,6 +417,56 @@ describe('OpenRouterFetch', () => {
     expect(parsed.route).toBe('fallback');
   });
 
+  it('copies the provider routing object onto the request body exactly as extraParams carries it', async () => {
+    const providerRouting: NonNullable<OpenRouterExtraParams['provider']> = {
+      only: ['z-ai', 'fireworks', 'together'],
+      allow_fallbacks: false,
+      data_collection: 'deny',
+    };
+    const customFetch = createOpenRouterFetch({ provider: providerRouting });
+
+    const requestBody = { model: 'z-ai/glm-5.3-flash', messages: [] };
+    let capturedBody: string | undefined;
+
+    globalThis.fetch = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string;
+      return Promise.resolve(mockResponse({ choices: [] }, 200));
+    });
+
+    await customFetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+    });
+
+    expect(capturedBody).toBeDefined();
+    const parsed = JSON.parse(capturedBody!) as Record<string, unknown>;
+    // The wire object is the SAME shape the resolver produced — field names
+    // verbatim, nothing renamed or dropped at the injection seam.
+    expect(parsed.provider).toEqual({
+      only: ['z-ai', 'fireworks', 'together'],
+      allow_fallbacks: false,
+      data_collection: 'deny',
+    });
+  });
+
+  it('omits the provider key from the body when extraParams does not carry one', async () => {
+    const customFetch = createFetch();
+
+    let capturedBody: string | undefined;
+    globalThis.fetch = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string;
+      return Promise.resolve(mockResponse({ choices: [] }, 200));
+    });
+
+    await customFetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'test-model', messages: [] }),
+    });
+
+    const parsed = JSON.parse(capturedBody!) as Record<string, unknown>;
+    expect(parsed).not.toHaveProperty('provider');
+  });
+
   it('leaves a POST body untouched when extraParams is empty (the vision shape)', async () => {
     const customFetch = createFetch();
 

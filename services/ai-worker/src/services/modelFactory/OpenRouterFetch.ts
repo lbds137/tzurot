@@ -31,6 +31,7 @@ import { PROMPT_CACHE_TTL } from '@tzurot/common-types/constants/ai';
 import { MAX_ERROR_MESSAGE_LENGTH } from '@tzurot/common-types/constants/error';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { extractApiReasoningContent } from '../../utils/thinkingExtraction.js';
+import { type OpenRouterProviderRouting } from './providerRouting.js';
 
 const logger = createLogger('ModelFactory');
 
@@ -41,6 +42,14 @@ export interface OpenRouterExtraParams {
   transforms?: string[];
   route?: 'fallback';
   verbosity?: 'low' | 'medium' | 'high';
+  /**
+   * Provider routing object sent as the request root's `provider` field — the
+   * host eligibility rules (ignore table / measured pin, `data_collection:
+   * 'deny'`) every OpenRouter chat call carries. Resolved per model id by
+   * `resolveOpenRouterProviderRouting` and set unconditionally in
+   * `buildOpenRouterExtraParams`; the wire field names live on the type.
+   */
+  provider?: OpenRouterProviderRouting;
   /**
    * Prompt-caching directive (anthropic-family ids only). Applied as explicit
    * per-block breakpoints on selected messages (`attachCacheBreakpoints`),
@@ -203,6 +212,9 @@ function injectOpenRouterParams(
     }
     if (extraParams.verbosity !== undefined) {
       body.verbosity = extraParams.verbosity;
+    }
+    if (extraParams.provider !== undefined) {
+      body.provider = extraParams.provider;
     }
     let cacheBreakpoints: number | undefined;
     if (extraParams.cacheControl !== undefined) {

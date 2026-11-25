@@ -443,6 +443,7 @@ const QUOTA_FALLBACK_REASON: Record<QuotaFallbackCategoryValue, string> = {
   rate_limit: 'rate limited',
   credit_exhaustion: 'out of credit',
   model_not_found: 'model unavailable',
+  routing_exhausted: 'provider error',
   server_error: 'provider error',
   timeout: 'timed out',
   network: 'network error',

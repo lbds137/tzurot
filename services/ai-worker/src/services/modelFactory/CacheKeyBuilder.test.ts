@@ -85,6 +85,16 @@ describe('getModelCacheKey', () => {
     expect(key1).not.toBe(key2);
   });
 
+  it('configs differing only in modelName (pinned vs unpinned) get different keys — routing is a function of the id', () => {
+    // The provider routing is resolved per model id inside the factory, so a
+    // pinned id and an unpinned one MUST never share a cached instance: the
+    // key already separates them through the resolved modelName.
+    const pinned: ModelConfig = { modelName: 'z-ai/glm-5.3-flash' };
+    const unpinned: ModelConfig = { modelName: 'anthropic/claude-haiku-4.5' };
+
+    expect(getModelCacheKey(pinned)).not.toBe(getModelCacheKey(unpinned));
+  });
+
   it('should generate same key for same configs', () => {
     const config: ModelConfig = {
       modelName: 'model-1',

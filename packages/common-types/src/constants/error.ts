@@ -176,6 +176,17 @@ export enum ApiErrorCategory {
   BAD_REQUEST = 'bad_request',
   /** 404 - Model not found */
   MODEL_NOT_FOUND = 'model_not_found',
+  /**
+   * OpenRouter's provider routing found no allowed host for the model — every
+   * host matching the request's routing rules was down or excluded. Arrives
+   * wrapped in a 404 (the two observed wordings: "All providers have been
+   * ignored" / "No allowed providers are available"), which status mapping
+   * would otherwise read as the permanent MODEL_NOT_FOUND and let the vision
+   * chain long-cache the miss. A routing miss is host availability, not
+   * catalog absence: the same model id succeeds once a host recovers, so the
+   * category is transient and short-cooldown.
+   */
+  ROUTING_EXHAUSTED = 'routing_exhausted',
   /** Media URL unavailable (e.g., Discord CDN link expired, upstream 404 fetching image). Permanent per-URL. */
   MEDIA_NOT_FOUND = 'media_not_found',
   /** 429 - Rate limit (may be temporary or daily) */
@@ -237,6 +248,7 @@ export const QUOTA_FALLBACK_CATEGORIES = [
   'rate_limit',
   // Availability-class + provider-side censorship (D12 runtime text descent).
   'model_not_found',
+  'routing_exhausted',
   'server_error',
   'timeout',
   'network',
@@ -275,6 +287,8 @@ export const USER_ERROR_MESSAGES: Record<ApiErrorCategory, string> = {
     'The conversation has become too long. Please start a new conversation or try a shorter message.',
   [ApiErrorCategory.MODEL_NOT_FOUND]:
     'The requested AI model is not available. Please try again or use a different personality.',
+  [ApiErrorCategory.ROUTING_EXHAUSTED]:
+    'The AI service is experiencing issues. Please try again in a moment.',
   [ApiErrorCategory.MEDIA_NOT_FOUND]:
     'The media attachment could not be fetched — the link may have expired.',
   [ApiErrorCategory.RATE_LIMIT]:
@@ -348,6 +362,10 @@ export const TRANSIENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set
   ApiErrorCategory.EMPTY_RESPONSE,
   ApiErrorCategory.CENSORED,
   ApiErrorCategory.BAD_REQUEST,
+  // Routing exhaustion is host availability, not catalog absence: the same
+  // model id succeeds once an allowed host recovers, so the retry ladder (and
+  // the quota-fallback retarget behind it) treats it like SERVER_ERROR.
+  ApiErrorCategory.ROUTING_EXHAUSTED,
 ]);
 
 /**
@@ -402,6 +420,10 @@ export const VISION_FAILURE_CACHE_POLICY: Record<ApiErrorCategory, { l1TtlSecond
   // Retryable-transient categories — generic cooldown
   [ApiErrorCategory.RATE_LIMIT]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
   [ApiErrorCategory.SERVER_ERROR]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
+  // ROUTING_EXHAUSTED: host availability under the model's routing rules, so
+  // the miss recovers when a host does — the SHORT cooldown, never the
+  // attachment-bound LONG one the wrapping 404 would otherwise earn.
+  [ApiErrorCategory.ROUTING_EXHAUSTED]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
   [ApiErrorCategory.TIMEOUT]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
   [ApiErrorCategory.NETWORK]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
   [ApiErrorCategory.EMPTY_RESPONSE]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },

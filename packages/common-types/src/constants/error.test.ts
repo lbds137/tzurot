@@ -680,3 +680,30 @@ describe('isTransientNetworkError', () => {
     expect(isTransientNetworkError(error)).toBe(false);
   });
 });
+
+describe('ROUTING_EXHAUSTED classification', () => {
+  it('is transient, not permanent — a routing miss recovers when a host comes back', () => {
+    expect(isTransientError(ApiErrorCategory.ROUTING_EXHAUSTED)).toBe(true);
+    expect(isPermanentError(ApiErrorCategory.ROUTING_EXHAUSTED)).toBe(false);
+  });
+
+  it('negative-caches at the SHORT vision TTL, same as SERVER_ERROR', () => {
+    expect(VISION_FAILURE_CACHE_POLICY[ApiErrorCategory.ROUTING_EXHAUSTED].l1TtlSeconds).toBe(
+      INTERVALS.VISION_FAILURE_TTL
+    );
+    expect(VISION_FAILURE_CACHE_POLICY[ApiErrorCategory.ROUTING_EXHAUSTED].l1TtlSeconds).not.toBe(
+      INTERVALS.VISION_FAILURE_TTL_LONG
+    );
+  });
+
+  it('user message matches SERVER_ERROR (temporarily unavailable, try again)', () => {
+    expect(USER_ERROR_MESSAGES[ApiErrorCategory.ROUTING_EXHAUSTED]).toBe(
+      USER_ERROR_MESSAGES[ApiErrorCategory.SERVER_ERROR]
+    );
+  });
+
+  it('a 404 status alone still maps to MODEL_NOT_FOUND — the category comes from the message hoist, not the status', () => {
+    expect(classifyHttpStatus(404).category).toBe(ApiErrorCategory.MODEL_NOT_FOUND);
+    expect(classifyHttpStatus(404).category).not.toBe(ApiErrorCategory.ROUTING_EXHAUSTED);
+  });
+});

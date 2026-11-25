@@ -27,6 +27,7 @@ import {
 import { buildThinkingKwargs } from './modelFactory/thinkingTranslation.js';
 import { resolveModelName, resolveProvider } from './modelFactory/modelResolution.js';
 import { promptCacheGateFires } from './modelFactory/promptCacheGate.js';
+import { resolveOpenRouterProviderRouting } from './modelFactory/providerRouting.js';
 
 // Re-export extracted modules for backward compatibility
 export { getModelCacheKey } from './modelFactory/CacheKeyBuilder.js';
@@ -233,9 +234,22 @@ function buildModelKwargs(modelConfig: ModelConfig, provider: AIProvider): Recor
 
 /**
  * Build OpenRouter-specific parameters that are injected via custom fetch.
+ *
+ * `modelName` is the RESOLVED id (the one `createChatModel` dispatches on and
+ * sends on the wire), not the raw config value — an absent config id falls
+ * back to the `fallbackTextModel` setting, and the routing must pin the id
+ * that actually ships. Provider routing is set UNCONDITIONALLY: every
+ * OpenRouter chat call carries the host eligibility rules, which also makes
+ * `extraParams` non-empty for every config (the fetch's injection gate can
+ * never skip a request-side injection on this route again).
  */
-function buildOpenRouterExtraParams(modelConfig: ModelConfig): OpenRouterExtraParams {
+function buildOpenRouterExtraParams(
+  modelConfig: ModelConfig,
+  modelName: string
+): OpenRouterExtraParams {
   const params: OpenRouterExtraParams = {};
+
+  params.provider = resolveOpenRouterProviderRouting(modelName);
 
   if (modelConfig.transforms !== undefined && modelConfig.transforms.length > 0) {
     params.transforms = modelConfig.transforms;
@@ -378,7 +392,7 @@ function buildOpenRouterModel(
     throw new Error('OPENROUTER_API_KEY is required for AI generation');
   }
 
-  const extraParams = buildOpenRouterExtraParams(modelConfig);
+  const extraParams = buildOpenRouterExtraParams(modelConfig, modelName);
   // Conversation-only opt-in: one-shot callers (vision description, system
   // calls) leave `promptCaching` unset, so their mostly-unique prompts pay no
   // 1h-tier cache-write premium. The family gate stays as belt and suspenders
