@@ -1,9 +1,10 @@
 ---
 id: TASK-1535
 title: Upload test-utils unit coverage to Codecov instead of ignoring it
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-25T00:22:00Z'
+updated_date: '2026-11-25T16:18:00Z'
 labels:
   - area:test-utils
   - size:S
