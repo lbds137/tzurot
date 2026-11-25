@@ -24,7 +24,7 @@ import type { Response } from 'express';
 import {
   canUserEditPersonality,
   canUserViewPersonality,
-  requireVisiblePersonalityById,
+  requireVisiblePersonality,
   resolvePersonalityForEdit,
 } from './helpers.js';
 
@@ -347,7 +347,7 @@ describe('personality route helpers', () => {
     });
   });
 
-  describe('requireVisiblePersonalityById', () => {
+  describe('requireVisiblePersonality', () => {
     function createMockRes() {
       return {
         status: vi.fn().mockReturnThis(),
@@ -362,31 +362,32 @@ describe('personality route helpers', () => {
       } as unknown as ProvisionedRequest;
     }
 
-    it('returns false and sends 404 when the personality does not exist', async () => {
+    it('returns null and sends 404 when the personality does not exist', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
       const res = createMockRes();
 
-      const result = await requireVisiblePersonalityById(
+      const result = await requireVisiblePersonality(
         mockPrisma as unknown as PrismaClient,
         createMockReq(),
         res,
-        'personality-id'
+        { id: 'personality-id' }
       );
 
-      expect(result).toBe(false);
+      expect(result).toBeNull();
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ message: 'Personality not found' })
       );
       expect(mockPrisma.personality.findUnique).toHaveBeenCalledWith({
         where: { id: 'personality-id' },
-        select: { id: true, isPublic: true, ownerId: true },
+        select: { id: true, slug: true, ownerId: true, isPublic: true },
       });
     });
 
-    it('returns false and sends 404 for a private personality the caller does not own', async () => {
+    it('returns null and sends 404 for a private personality the caller does not own', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: 'personality-id',
+        slug: 'personality-slug',
         isPublic: false,
         ownerId: 'other-owner-id',
       });
@@ -394,56 +395,110 @@ describe('personality route helpers', () => {
       mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
       const res = createMockRes();
 
-      const result = await requireVisiblePersonalityById(
+      const result = await requireVisiblePersonality(
         mockPrisma as unknown as PrismaClient,
         createMockReq(),
         res,
-        'personality-id'
+        { id: 'personality-id' }
       );
 
-      expect(result).toBe(false);
+      expect(result).toBeNull();
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ message: 'Personality not found' })
       );
     });
 
-    it('returns true for a public personality without sending a response', async () => {
-      mockPrisma.personality.findUnique.mockResolvedValue({
+    it('returns the row for a public personality without sending a response', async () => {
+      const row = {
         id: 'personality-id',
+        slug: 'personality-slug',
         isPublic: true,
         ownerId: 'other-owner-id',
-      });
+      };
+      mockPrisma.personality.findUnique.mockResolvedValue(row);
       const res = createMockRes();
 
-      const result = await requireVisiblePersonalityById(
+      const result = await requireVisiblePersonality(
         mockPrisma as unknown as PrismaClient,
         createMockReq(),
         res,
-        'personality-id'
+        { id: 'personality-id' }
       );
 
-      expect(result).toBe(true);
+      expect(result).toEqual(row);
       expect(res.status).not.toHaveBeenCalled();
     });
 
-    it('returns true when the caller owns the private personality', async () => {
-      mockPrisma.personality.findUnique.mockResolvedValue({
+    it('returns the row when the caller owns the private personality', async () => {
+      const row = {
         id: 'personality-id',
+        slug: 'personality-slug',
         isPublic: false,
         ownerId: 'user-id', // equals provisionedUserId
-      });
+      };
+      mockPrisma.personality.findUnique.mockResolvedValue(row);
       const res = createMockRes();
 
-      const result = await requireVisiblePersonalityById(
+      const result = await requireVisiblePersonality(
         mockPrisma as unknown as PrismaClient,
         createMockReq(),
         res,
-        'personality-id'
+        { id: 'personality-id' }
       );
 
-      expect(result).toBe(true);
+      expect(result).toEqual(row);
       expect(res.status).not.toHaveBeenCalled();
+    });
+
+    it('returns the row for a co-owner of a private personality', async () => {
+      const row = {
+        id: 'personality-id',
+        slug: 'personality-slug',
+        isPublic: false,
+        ownerId: 'other-owner-id',
+      };
+      mockPrisma.personality.findUnique.mockResolvedValue(row);
+      // Caller has a PersonalityOwner entry on someone else's personality
+      mockPrisma.personalityOwner.findUnique.mockResolvedValue({
+        personalityId: 'personality-id',
+        userId: 'user-id',
+      });
+      const res = createMockRes();
+
+      const result = await requireVisiblePersonality(
+        mockPrisma as unknown as PrismaClient,
+        createMockReq(),
+        res,
+        { id: 'personality-id' }
+      );
+
+      expect(result).toEqual(row);
+      expect(res.status).not.toHaveBeenCalled();
+    });
+
+    it('looks the personality up by slug when given a { slug } where', async () => {
+      const row = {
+        id: 'personality-id',
+        slug: 'personality-slug',
+        isPublic: true,
+        ownerId: 'other-owner-id',
+      };
+      mockPrisma.personality.findUnique.mockResolvedValue(row);
+      const res = createMockRes();
+
+      const result = await requireVisiblePersonality(
+        mockPrisma as unknown as PrismaClient,
+        createMockReq(),
+        res,
+        { slug: 'personality-slug' }
+      );
+
+      expect(mockPrisma.personality.findUnique).toHaveBeenCalledWith({
+        where: { slug: 'personality-slug' },
+        select: { id: true, slug: true, ownerId: true, isPublic: true },
+      });
+      expect(result).toEqual(row);
     });
   });
 

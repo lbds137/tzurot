@@ -57,7 +57,7 @@ import { sendZodError } from '../../../utils/zodHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
-import { canUserViewPersonality } from './helpers.js';
+import { type VisiblePersonality, requireVisiblePersonality } from './helpers.js';
 import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('user-personality-aliases');
@@ -71,20 +71,12 @@ const MAX_ALIASES_PER_SCOPE = 25;
  *  caller's) and the cross-character overview both fit comfortably. */
 const MAX_LIST_ROWS = 100;
 
-interface VisiblePersonality {
-  id: string;
-  slug: string;
-  ownerId: string;
-  isPublic: boolean;
-}
-
 /**
- * Slug guard + lookup + VISIBILITY gate (alias management is
- * visibility-scoped, not edit-scoped). Missing and invisible both 404 with
- * the same shape so existence never leaks. Returns null after sending the
- * error response.
+ * Slug guard (empty/missing slug → 400) + the shared VISIBILITY gate
+ * (alias management is visibility-scoped, not edit-scoped). Returns null
+ * after sending the error response.
  */
-async function requireVisiblePersonality(
+async function requireVisiblePersonalityBySlug(
   prisma: PrismaClient,
   req: ProvisionedRequest,
   res: Response,
@@ -95,29 +87,7 @@ async function requireVisiblePersonality(
     return null;
   }
 
-  const personality = await prisma.personality.findUnique({
-    where: { slug },
-    select: { id: true, slug: true, ownerId: true, isPublic: true },
-  });
-  if (personality === null) {
-    sendError(res, ErrorResponses.notFound('Personality'));
-    return null;
-  }
-
-  const visible = await canUserViewPersonality({
-    prisma,
-    userId: resolveProvisionedUserId(req),
-    personalityId: personality.id,
-    isPublic: personality.isPublic,
-    ownerId: personality.ownerId,
-    discordUserId: req.userId ?? '',
-  });
-  if (!visible) {
-    sendError(res, ErrorResponses.notFound('Personality'));
-    return null;
-  }
-
-  return personality;
+  return requireVisiblePersonality(prisma, req, res, { slug });
 }
 
 /**
@@ -154,7 +124,7 @@ function rowScope(row: { userId: string | null }): AliasScope {
 
 function createListHandler(prisma: PrismaClient) {
   return async (req: ProvisionedRequest, res: Response) => {
-    const personality = await requireVisiblePersonality(
+    const personality = await requireVisiblePersonalityBySlug(
       prisma,
       req,
       res,
@@ -268,7 +238,7 @@ function createAddHandler(
       );
     }
 
-    const personality = await requireVisiblePersonality(
+    const personality = await requireVisiblePersonalityBySlug(
       prisma,
       req,
       res,
@@ -357,7 +327,7 @@ function createRemoveHandler(
       );
     }
 
-    const personality = await requireVisiblePersonality(prisma, req, res, slug);
+    const personality = await requireVisiblePersonalityBySlug(prisma, req, res, slug);
     if (personality === null) {
       return;
     }
