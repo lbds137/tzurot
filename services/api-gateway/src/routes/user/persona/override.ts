@@ -33,6 +33,7 @@ import type { PersonaOverrideSummary } from './types.js';
 import { getOrCreateInternalUser } from '../userHelpers.js';
 import type { RouteDeps } from '../../routeDeps.js';
 import { pruneEmptyPersonalityConfig } from '../pruneEmptyPersonalityConfig.js';
+import { requireVisiblePersonality } from '../personality/helpers.js';
 
 const logger = createLogger('user-persona-override');
 
@@ -53,29 +54,73 @@ async function broadcastPersonaInvalidation(deps: RouteDeps, discordId: string):
 }
 
 /**
- * Validate slug and look up personality. Sends error response and returns null on failure.
+ * Validate slug and look up a personality the caller can VIEW. Sends error
+ * response and returns null on failure: slug validation 400 first, then the
+ * shared visibility gate (missing and invisible both 404 `Personality`).
  */
 async function resolvePersonalityBySlug(
   prisma: PrismaClient,
+  req: ProvisionedRequest,
   slug: string | undefined,
   res: Response
 ): Promise<{ id: string; name: string; displayName: string | null } | null> {
+  if (slug === undefined) {
+    sendError(res, ErrorResponses.validationError('Slug is required'));
+    return null;
+  }
   const slugValidation = validateSlug(slug);
   if (!slugValidation.valid) {
     sendError(res, slugValidation.error);
     return null;
   }
 
+  const visible = await requireVisiblePersonality(prisma, req, res, { slug });
+  if (visible === null) {
+    return null;
+  }
+
+  // The visibility gate does not select `displayName`; fetch it in a second
+  // narrow select rather than widening `VisiblePersonality` for every caller.
+  const extra = await prisma.personality.findUnique({
+    where: { id: visible.id },
+    select: { displayName: true },
+  });
+
+  return { id: visible.id, name: visible.name, displayName: extra?.displayName ?? null };
+}
+
+/**
+ * DELETE-only lookup for the clear-override flow: the same slug validation as
+ * `resolvePersonalityBySlug` (an undefined or malformed slug answers 400; a
+ * slug matching no personality answers 404 `Personality`), but the found personality carries NO
+ * visibility gate. The override DELETE contract keeps held rows always
+ * clearable: a caller who holds an override row can clear it even after the
+ * personality has gone private, and `resolvePersonalityBySlug`'s gate would
+ * 404 exactly that caller. Visibility is enforced on the no-row path instead
+ * (see `handleClearPersonaOverride`).
+ */
+async function resolvePersonalityBySlugUngated(
+  prisma: PrismaClient,
+  slug: string | undefined,
+  res: Response
+): Promise<{ id: string; name: string; displayName: string | null } | null> {
+  if (slug === undefined) {
+    sendError(res, ErrorResponses.validationError('Slug is required'));
+    return null;
+  }
+  const slugValidation = validateSlug(slug);
+  if (!slugValidation.valid) {
+    sendError(res, slugValidation.error);
+    return null;
+  }
   const personality = await prisma.personality.findUnique({
     where: { slug },
     select: { id: true, name: true, displayName: true },
   });
-
   if (personality === null) {
     sendError(res, ErrorResponses.notFound('Personality'));
     return null;
   }
-
   return personality;
 }
 
@@ -121,6 +166,7 @@ export const handleGetPersonaOverride = (deps: RouteDeps): RequestHandler => {
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const personality = await resolvePersonalityBySlug(
       prisma,
+      req,
       getParam(req.params.personalitySlug),
       res
     );
@@ -162,7 +208,7 @@ export const handleSetPersonaOverride = (deps: RouteDeps): RequestHandler => {
       return sendError(res, ErrorResponses.notFound('Persona'));
     }
 
-    const personality = await resolvePersonalityBySlug(prisma, personalitySlug, res);
+    const personality = await resolvePersonalityBySlug(prisma, req, personalitySlug, res);
     if (personality === null) {
       return;
     }
@@ -197,12 +243,25 @@ export const handleSetPersonaOverride = (deps: RouteDeps): RequestHandler => {
   });
 };
 
+/**
+ * Clear the caller's persona override for a personality.
+ *
+ * Visibility rule, asymmetric by design: a row the caller HOLDS is always
+ * clearable — even after the personality has gone private, the holder of a
+ * stale override must not be locked out of their own row. Without a row there
+ * is nothing of the caller's to touch, but the `hadOverride: false` response
+ * still carries personality data, so the no-row path runs the shared
+ * visibility gate: an invisible personality answers 404 `Personality`,
+ * indistinguishable from a missing slug.
+ */
 export const handleClearPersonaOverride = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const user = getOrCreateInternalUser(req);
 
-    const personality = await resolvePersonalityBySlug(
+    // Existence-only, ungated — NOT `resolvePersonalityBySlug`, whose gate
+    // would 404 the row-holding caller this handler must keep serving.
+    const personality = await resolvePersonalityBySlugUngated(
       prisma,
       getParam(req.params.personalitySlug),
       res
@@ -223,6 +282,11 @@ export const handleClearPersonaOverride = (deps: RouteDeps): RequestHandler => {
     };
 
     if (!existing) {
+      // No row → the response carries personality data, so this is the gated
+      // path: invisible personalities 404 `Personality` like a missing slug.
+      if ((await requireVisiblePersonality(prisma, req, res, { id: personality.id })) === null) {
+        return;
+      }
       logger.info({ userId: user.id, personalityId: personality.id }, 'No override to clear');
       sendCustomSuccess(res, {
         success: true,
@@ -232,6 +296,7 @@ export const handleClearPersonaOverride = (deps: RouteDeps): RequestHandler => {
       return;
     }
 
+    // Held row → always clearable, whatever the personality's visibility is now.
     // Null the persona slice, then drop the row only if EVERY slice is now
     // null. (The prior check looked at llmConfigId alone, so it would have
     // wrongly deleted a row still carrying a vision/TTS/config override.)
@@ -269,6 +334,9 @@ export const handleCreatePersonaOverride = (deps: RouteDeps): RequestHandler => 
   const { prisma } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const personalityId = getParam(req.params.personalityId);
+    if (personalityId === undefined) {
+      return sendError(res, ErrorResponses.validationError('personalityId is required'));
+    }
     const personalityIdValidation = validateUuid(personalityId, 'personalityId');
     if (!personalityIdValidation.valid) {
       return sendError(res, personalityIdValidation.error);
@@ -282,14 +350,22 @@ export const handleCreatePersonaOverride = (deps: RouteDeps): RequestHandler => 
 
     const user = getOrCreateInternalUser(req);
 
-    const personality = await prisma.personality.findUnique({
-      where: { id: personalityId },
-      select: { id: true, name: true, displayName: true },
-    });
-
-    if (personality === null) {
-      return sendError(res, ErrorResponses.notFound('Personality'));
+    // Visibility gate first (missing and invisible both 404 `Personality`);
+    // `displayName` for the response comes from a second narrow select rather
+    // than widening `VisiblePersonality`.
+    const visible = await requireVisiblePersonality(prisma, req, res, { id: personalityId });
+    if (visible === null) {
+      return;
     }
+    const extra = await prisma.personality.findUnique({
+      where: { id: visible.id },
+      select: { displayName: true },
+    });
+    const personality = {
+      id: visible.id,
+      name: visible.name,
+      displayName: extra?.displayName ?? null,
+    };
 
     // Deterministic persona UUID of (name, ownerId): a duplicate name for the
     // same owner trips P2002 on the persona insert. The whole transaction rolls

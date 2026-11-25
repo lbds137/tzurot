@@ -102,6 +102,7 @@ import {
   type RouteHandler,
 } from '../../test/shared-route-test-utils.js';
 import type { RouteDeps } from '../routeDeps.js';
+import type { VisiblePersonality } from './personality/helpers.js';
 
 // Helper to create mock request/response
 function createMockReqRes(
@@ -337,7 +338,7 @@ describe('/user/model-override routes', () => {
         name: 'Lilith',
         ownerId: 'owner-uuid-1',
         isPublic: true,
-      });
+      } satisfies VisiblePersonality);
       mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
 
       const handler = buildHandler(handleSetModelOverride, {
@@ -366,7 +367,7 @@ describe('/user/model-override routes', () => {
         name: 'Lilith',
         ownerId: 'owner-uuid-1',
         isPublic: true,
-      });
+      } satisfies VisiblePersonality);
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: '22222222-2222-4222-a222-222222222222',
         name: 'GPT-4',
@@ -433,7 +434,7 @@ describe('/user/model-override routes', () => {
         name: 'Lilith',
         ownerId: 'owner-uuid-1',
         isPublic: true,
-      });
+      } satisfies VisiblePersonality);
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: '22222222-2222-4222-a222-222222222222',
         name: 'GPT-4o',
@@ -498,7 +499,7 @@ describe('/user/model-override routes', () => {
         name: 'Lilith',
         ownerId: 'owner-uuid-1',
         isPublic: true,
-      });
+      } satisfies VisiblePersonality);
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: '22222222-2222-4222-a222-222222222222',
         name: 'GLM',
@@ -552,7 +553,7 @@ describe('/user/model-override routes', () => {
         name: 'Lilith',
         ownerId: 'owner-uuid-1',
         isPublic: true,
-      });
+      } satisfies VisiblePersonality);
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: '22222222-2222-4222-a222-222222222222',
         name: 'Mystery',
@@ -598,7 +599,7 @@ describe('/user/model-override routes', () => {
         name: 'Lilith',
         ownerId: 'owner-uuid-1',
         isPublic: true,
-      });
+      } satisfies VisiblePersonality);
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: '22222222-2222-4222-a222-222222222222',
         name: 'GPT-4o',
@@ -677,7 +678,7 @@ describe('/user/model-override routes', () => {
         name: 'Lilith',
         ownerId: 'owner-uuid-1',
         isPublic: true,
-      });
+      } satisfies VisiblePersonality);
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: '22222222-2222-4222-a222-222222222222',
         name: 'Test Config',
@@ -719,7 +720,7 @@ describe('/user/model-override routes', () => {
         name: 'Lilith',
         ownerId: 'owner-uuid-1',
         isPublic: true,
-      });
+      } satisfies VisiblePersonality);
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: '22222222-2222-4222-a222-222222222222',
         name: 'GLM',
@@ -779,7 +780,7 @@ describe('/user/model-override routes', () => {
         name: 'SecretLilith',
         ownerId: 'owner-uuid-private',
         isPublic: false,
-      });
+      } satisfies VisiblePersonality);
       // No co-ownership row either — the caller has no visibility path.
       mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
 

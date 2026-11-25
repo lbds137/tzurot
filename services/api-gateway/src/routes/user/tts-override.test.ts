@@ -10,6 +10,7 @@ import type { Request, RequestHandler, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { asRouteHandler, stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 import type { RouteDeps } from '../routeDeps.js';
+import type { VisiblePersonality } from './personality/helpers.js';
 
 vi.mock('../../services/AuthMiddleware.js', () => ({
   requireUserAuth: () => (_req: Request, _res: Response, next: () => void) => next(),
@@ -221,7 +222,7 @@ describe('user/tts-override routes', () => {
         name: 'Alice',
         ownerId: 'owner-uuid-1',
         isPublic: true,
-      });
+      } satisfies VisiblePersonality);
       vi.mocked(mockPrisma.ttsConfig.findFirst).mockResolvedValue(null);
       const handler = buildHandler(handleSetTtsOverride);
       const { res, json } = makeMockRes();
@@ -245,7 +246,7 @@ describe('user/tts-override routes', () => {
         name: 'Alice',
         ownerId: 'owner-uuid-1',
         isPublic: true,
-      });
+      } satisfies VisiblePersonality);
       vi.mocked(mockPrisma.ttsConfig.findFirst).mockResolvedValue({
         id: VALID_UUID_B,
         name: 'kyutai-self-hosted',
@@ -285,12 +286,12 @@ describe('user/tts-override routes', () => {
         name: 'SecretAlice',
         ownerId: 'owner-uuid-private',
         isPublic: false,
-      });
+      } satisfies VisiblePersonality);
       // No co-ownership row either — the caller has no visibility path.
       vi.mocked(mockPrisma.personalityOwner.findUnique).mockResolvedValue(null);
 
       const handler = buildHandler(handleSetTtsOverride);
-      const { res, json } = makeMockRes();
+      const { res, json, status } = makeMockRes();
 
       await handler(
         makeMockReq({ body: { personalityId: VALID_UUID_A, configId: VALID_UUID_B } }),
@@ -302,6 +303,7 @@ describe('user/tts-override routes', () => {
         where: { id: VALID_UUID_A },
         select: { id: true, slug: true, name: true, ownerId: true, isPublic: true },
       });
+      expect(status).toHaveBeenCalledWith(404);
       expect(json).toHaveBeenCalledWith(
         expect.objectContaining({ error: 'NOT_FOUND', message: 'Personality not found' })
       );
