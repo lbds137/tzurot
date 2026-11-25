@@ -124,7 +124,7 @@ part 2 already made durable. **Closed: no widening.**
 
 #### REVERSED 2026-08-26 — the window IS now 7d (owner call, PR #2231)
 
-`RETENTION_HOURS` is `7 * 24`, and the privacy policy moved with it. This is a
+`DIAGNOSTIC_LOG_RETENTION_HOURS` is `168` (7 days), and the privacy policy moved with it. This is a
 deliberate reversal of the decision above, not a session that failed to find it:
 the owner asked for the bump, the claude-review on #2231 surfaced this Part 3
 decision before merge, and the owner re-decided with these numbers in view.

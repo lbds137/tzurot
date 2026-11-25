@@ -57,6 +57,16 @@ describe('reportRunner', () => {
       expect(parseDays(undefined)).toBe(30);
     });
 
+    it('uses the caller-supplied default when undefined', async () => {
+      const { parseDays } = await import('./reportRunner.js');
+      expect(parseDays(undefined, 7)).toBe(7);
+    });
+
+    it('ignores the default when an explicit value is given', async () => {
+      const { parseDays } = await import('./reportRunner.js');
+      expect(parseDays(3, 7)).toBe(3);
+    });
+
     it('accepts a valid positive integer string', async () => {
       const { parseDays } = await import('./reportRunner.js');
       expect(parseDays('7')).toBe(7);
