@@ -20,12 +20,7 @@ import { Client } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { CacheInvalidationService } from '@tzurot/cache-invalidation';
-import {
-  ALLOWED_TEST_LANES,
-  findWorkspaceRoot,
-  integrationDbNameForLane,
-  resolveTestLane,
-} from '../../packages/test-utils/src/testLane.js';
+import { assertLaneIntegrationDb } from '../../packages/test-utils/src/testLane.js';
 import { DatabaseNotificationListener } from '../../services/api-gateway/src/services/DatabaseNotificationListener.js';
 
 /**
@@ -40,53 +35,6 @@ interface RecordedEvent {
 }
 
 const DATABASE_URL = process.env.DATABASE_URL ?? '';
-
-/**
- * Refuse to run against anything but a dedicated test database.
- *
- * This suite seeds and deletes rows in users, personas, personalities,
- * llm_configs, personality_default_configs and user_personality_configs, and
- * its UPDATEs fire the REAL trigger. NOTIFY fans out to every listener on the
- * channel, not just the one this file creates — so pointed at dev, an
- * llm_configs update would emit a genuine {type:'all'} invalidation to a
- * running api-gateway. And a run killed mid-flight (Ctrl-C, CI timeout) skips
- * afterAll, leaving fixture rows behind in whatever database was named.
- *
- * A comment cannot prevent an exported DATABASE_URL from a dev shell, so the
- * database NAME must end in `_test`: CI's tzurot_test and the local
- * tzurot_integration_test qualify; the dev `tzurot` database does not.
- */
-function assertDedicatedTestDatabase(url: string): void {
-  let databaseName: string;
-  try {
-    databaseName = new URL(url).pathname.replace(/^\//, '');
-  } catch {
-    throw new Error(`DATABASE_URL is not a parseable URL, so its database name cannot be checked.`);
-  }
-  if (!/_test$/.test(databaseName)) {
-    throw new Error(
-      `Refusing to run: DATABASE_URL names the database "${databaseName}", which does not end in ` +
-        `"_test". This suite mutates rows and fires real cache-invalidation NOTIFYs, so it must ` +
-        `point at a dedicated test database (CI uses tzurot_test; locally, tzurot_integration_test).`
-    );
-  }
-  const ownLane = resolveTestLane({
-    rootDir: findWorkspaceRoot(process.cwd()),
-    env: process.env,
-  });
-  for (const candidateLane of ALLOWED_TEST_LANES) {
-    if (
-      candidateLane !== ownLane.lane &&
-      databaseName === integrationDbNameForLane(candidateLane)
-    ) {
-      throw new Error(
-        `Refusing to run: DATABASE_URL names "${databaseName}" (lane "${candidateLane}"), ` +
-          `which belongs to another checkout lane; this checkout is lane "${ownLane.lane}" ` +
-          `(expected "${ownLane.integrationDbName}" or CI's "tzurot_test").`
-      );
-    }
-  }
-}
 
 /** Fixture ids, generated once so cleanup can target exactly what we inserted. */
 const userId = randomUUID();
@@ -224,63 +172,6 @@ async function cleanupFixtures(): Promise<void> {
   await db().query('COMMIT');
 }
 
-// The guard's whole job is refusing a run, so its REJECT branches are the ones
-// that matter — and only its accept path is exercised by the suite below. These
-// call it directly, outside any database connection.
-describe('assertDedicatedTestDatabase', () => {
-  it('accepts the database names CI and local provisioning actually use', () => {
-    expect(() =>
-      assertDedicatedTestDatabase('postgresql://u:p@localhost:5432/tzurot_test')
-    ).not.toThrow();
-    expect(() =>
-      assertDedicatedTestDatabase('postgresql://u:p@localhost:5432/tzurot_integration_test')
-    ).not.toThrow();
-  });
-
-  it('refuses the dev database, naming it', () => {
-    expect(() => assertDedicatedTestDatabase('postgresql://u:p@localhost:5432/tzurot')).toThrow(
-      /"tzurot".*does not end in/s
-    );
-  });
-
-  it('refuses a name that merely contains test without ending in _test', () => {
-    expect(() =>
-      assertDedicatedTestDatabase('postgresql://u:p@localhost:5432/test_fixtures')
-    ).toThrow(/does not end in/);
-  });
-
-  it('refuses an unparseable URL rather than skipping the check', () => {
-    expect(() => assertDedicatedTestDatabase('not-a-url')).toThrow(/not a parseable URL/);
-  });
-
-  it('refuses another lane integration database and names both lanes', () => {
-    const previousLane = process.env.TZUROT_TEST_LANE;
-    try {
-      process.env.TZUROT_TEST_LANE = 'a';
-      expect(() =>
-        assertDedicatedTestDatabase('postgresql://u:p@localhost:5432/tzurot_integration_b_test')
-      ).toThrow(/lane "b".*lane "a"/);
-
-      process.env.TZUROT_TEST_LANE = 'b';
-      expect(() =>
-        assertDedicatedTestDatabase('postgresql://u:p@localhost:5432/tzurot_integration_test')
-      ).toThrow(/lane "a".*lane "b"/);
-      expect(() =>
-        assertDedicatedTestDatabase('postgresql://u:p@localhost:5432/tzurot_integration_b_test')
-      ).not.toThrow();
-      expect(() =>
-        assertDedicatedTestDatabase('postgresql://u:p@localhost:5432/tzurot_test')
-      ).not.toThrow();
-    } finally {
-      if (previousLane === undefined) {
-        delete process.env.TZUROT_TEST_LANE;
-      } else {
-        process.env.TZUROT_TEST_LANE = previousLane;
-      }
-    }
-  });
-});
-
 describe('cache-invalidation trigger chain (real Postgres NOTIFY)', () => {
   beforeAll(async () => {
     if (DATABASE_URL === '') {
@@ -291,7 +182,7 @@ describe('cache-invalidation trigger chain (real Postgres NOTIFY)', () => {
       );
     }
 
-    assertDedicatedTestDatabase(DATABASE_URL);
+    assertLaneIntegrationDb(DATABASE_URL);
 
     writer = new Client({ connectionString: DATABASE_URL });
     await writer.connect();
