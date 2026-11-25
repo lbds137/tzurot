@@ -20,5 +20,7 @@ Why: the unit-tests packages cell (.github/workflows/ci.yml, matrix cell: packag
 
 What: one upload per package, each under its own flag with paths in codecov.yml (Codecov flags docs warn that one upload carrying several flags applies the whole report to every flag). Measure the project-coverage effect first: all: true adds every src file, so a package with untested files can lower the project percentage (threshold 2 percent).
 
+Design input (PR 2811 review, finding 3): TASK-1535's step hardcodes one path and one flag, and six more copies would be near-identical. Decide before building: drive the uploads from a matrix list field (one codecov CLI invocation per package in a script step), or keep per-step copies adjacent. Upload-step if: conditions should match the existing cell upload either way.
+
 Acceptance: Codecov shows each of the six flags from its own unit run, and the project status stays green.
 <!-- SECTION:DESCRIPTION:END -->
