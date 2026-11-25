@@ -186,6 +186,15 @@ describe('runTestLane and provisionLaneDatabase', () => {
     );
   });
 
+  it('turns a missing podman into one friendly line carrying the error code', () => {
+    mockExec.mockImplementationOnce(() => {
+      throw Object.assign(new Error('spawn podman ENOENT'), { code: 'ENOENT' });
+    });
+    expect(() => provisionLaneDatabase('tzurot_integration_b_test')).toThrow(
+      'Could not reach the tzurot-postgres container via podman (is it running? podman ps). ENOENT'
+    );
+  });
+
   it('refuses an unsafe database name before invoking podman', () => {
     expect(() => provisionLaneDatabase('bad-name;drop')).toThrow(
       /Invalid integration database name/

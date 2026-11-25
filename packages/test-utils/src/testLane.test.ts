@@ -210,6 +210,20 @@ describe('resolveLaneRedisUrl', () => {
     ).toBe('redis://127.0.0.1:6379/5');
   });
 
+  it('accepts an explicit DB equal to its own lane DB', () => {
+    expect(resolveLaneRedisUrl({ raw: 'redis://127.0.0.1:6379/14', redisDb: 14 })).toBe(
+      'redis://127.0.0.1:6379/14'
+    );
+  });
+
+  it("throws on another lane's DB without echoing the URL", () => {
+    const raw = 'redis://user:hunter2@127.0.0.1:6379/15';
+    expect(() => resolveLaneRedisUrl({ raw, redisDb: 14 })).toThrow(
+      /Redis DB 15, which belongs to test lane a; this checkout is lane-DB 14/
+    );
+    expect(() => resolveLaneRedisUrl({ raw, redisDb: 14 })).not.toThrow(/hunter2/);
+  });
+
   it('preserves credentials and custom port when rewriting to the lane DB', () => {
     expect(
       resolveLaneRedisUrl({
@@ -223,9 +237,15 @@ describe('resolveLaneRedisUrl', () => {
 describe('redisDbForUrl', () => {
   it.each([
     ['redis://127.0.0.1:6379/5', 5],
-    ['redis://127.0.0.1:6379/15', 15],
+    ['redis://127.0.0.1:6379/14', 14],
   ])('returns the explicit non-zero DB of %s', (raw, expected) => {
     expect(redisDbForUrl(raw, 14)).toBe(expected);
+  });
+
+  it("throws on another lane's DB without echoing the URL", () => {
+    const raw = 'redis://user:hunter2@127.0.0.1:6379/15';
+    expect(() => redisDbForUrl(raw, 14)).toThrow(/Redis DB 15, which belongs to test lane a/);
+    expect(() => redisDbForUrl(raw, 14)).not.toThrow(/hunter2/);
   });
 
   it.each([
@@ -256,7 +276,7 @@ describe('resolveLaneRedisUrl and redisDbForUrl agree', () => {
     ['redis://h:6379/'],
     ['redis://h:6379/0'],
     ['redis://h:6379/5'],
-    ['redis://h:6379/15'],
+    ['redis://h:6379/14'],
     ['redis://localhost:6379'],
     ['redis://user:pass@h:6380'],
     ['redis://user:pass@h:6380/0'],
@@ -265,6 +285,12 @@ describe('resolveLaneRedisUrl and redisDbForUrl agree', () => {
     expect(new URL(resolveLaneRedisUrl({ raw, redisDb: 14 })).pathname).toBe(
       `/${redisDbForUrl(raw, 14)}`
     );
+  });
+
+  it("throws for both functions on another lane's DB (/15 at lane DB 14)", () => {
+    const raw = 'redis://h:6379/15';
+    expect(() => resolveLaneRedisUrl({ raw, redisDb: 14 })).toThrow(/belongs to test lane a/);
+    expect(() => redisDbForUrl(raw, 14)).toThrow(/belongs to test lane a/);
   });
 });
 
