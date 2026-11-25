@@ -1,9 +1,10 @@
 ---
 id: TASK-1511
 title: 'Dispatch specs: list every vi.mock factory of a module whose exports change'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-22T23:51:00Z'
+updated_date: '2026-11-25T18:08:00Z'
 labels:
   - area:tooling
   - size:S
