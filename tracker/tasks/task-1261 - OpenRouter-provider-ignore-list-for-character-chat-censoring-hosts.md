@@ -57,6 +57,23 @@ OWNER RULINGS 2026-11-25 (Lila, AskUserQuestion in lane B):
 2. Free tier: data_collection deny plus the forwarder ignore list on `openrouter/free`. The router still picks the model and host.
 3. Unlisted models and router aliases: deny plus the forwarder ignore list only. `minimax/*` model ids stay usable. Only MiniMax and its forwarders are avoided as hosts.
 4. BYOK: same routing by default in this PR. The opt-out setting is a follow-up (TASK-1550).
+5. A/B corpus (AUQ 2026-11-25): "Two stages (Recommended)". Stage 1 screens every eligible glm-5.3-flash host on an authored adult character corpus (no real conversations), with first-party Z.AI as the anchor. Stage 2 replays the owner-approved TASK-1400 real-turn sample ONLY on the Stage 1 shortlist. Approved spend ~$5–8, metered OpenRouter.
+
+A/B PRE-REGISTERED 2026-11-25 (lane B, local pre-registration; seyag:eval measurement shape). Sizing probe under the ship conditions (`only` + allow_fallbacks false + deny, 16 tokens): 30 of 32 hosts served, with the served host equal to the pinned one. Fireworks and Tenstorrent returned 429 (availability, retried at run time). No host 404s under deny. Excluded before running: Novita and StreamLake (forwarders) and Darkbloom (32k context). Arm unit is the bare slug.
+
+Exclusion rule, frozen:
+- a hard block where the anchor never blocked;
+- a censor rate above the anchor's by more than max(noise band, 10 pp);
+- any flagged benign control;
+- more than 10% unavailable.
+
+Cannot-decide triggers:
+- fewer than 3 hosts pass;
+- the anchor's censor rate is above 30%;
+- the judge fails its gate proof;
+- the corpus fails its positive control.
+
+The judge is glm-5.3 on the Z.ai plan.
 
 Remaining (routing PR): per-model allowlist constant on the system key, allow_fallbacks false, data_collection deny, BYOK default; every OpenRouter call site; the failure shape when no allowed host is up; the default for unlisted models; free-tier models under data_collection deny; dev A/B before enabling. Follow-ups from the report review: TASK-1547.
 <!-- SECTION:DESCRIPTION:END -->
