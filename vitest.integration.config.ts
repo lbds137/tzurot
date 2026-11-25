@@ -9,12 +9,9 @@ process.env.PROD_DATABASE_URL ??= process.env.DATABASE_URL ?? '';
 const testLane = resolveTestLane({ rootDir: __dirname, env: process.env });
 process.env.TZUROT_TEST_LANE ||= testLane.lane;
 // Real-Redis integration tests (vision fallback loop) import service modules whose
-// module-level singletons connect at load time. resolveLaneRedisUrl defaults a
-// blank/unset REDIS_URL to redis://127.0.0.1:6379/<redisDb>, rewrites a local URL
-// whose path is empty, `/`, or `/0` to the checkout's per-lane logical DB (`/15`
-// for lane a, `/14` for `tzurot-b`, etc.; see `packages/test-utils/src/testLane.ts`)
-// instead of DB 0 (live dev data), keeps any other explicit `/<N>` DB path
-// unchanged. CI is not special-cased: its Redis service maps to lane a's DB 15.
+// module-level singletons connect at load time. resolveLaneRedisUrl maps an
+// unset/blank/DB-0 REDIS_URL to this checkout's lane DB and refuses another lane's
+// DB; rules: docs/reference/guides/TESTING.md § Parallel checkouts.
 process.env.REDIS_URL = resolveLaneRedisUrl({
   raw: process.env.REDIS_URL,
   redisDb: testLane.redisDb,

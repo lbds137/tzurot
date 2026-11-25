@@ -114,7 +114,7 @@ export function laneRedisUrl(baseUrl: string, redisDb: number): string {
  * Resolve the effective `REDIS_URL` for a test run (`packages/test-utils/src/testLane.test.ts`):
  * - Blank or undefined `raw` defaults to `laneRedisUrl('redis://127.0.0.1:6379', redisDb)`.
  * - When `raw` has an empty pathname, `/`, or `/0`, rewrites the pathname to `/<redisDb>` via `laneRedisUrl(raw, redisDb)` while preserving host, port, and credentials. CI is not special-cased: its throwaway Redis maps to the lane DB like a local one.
- * - When `raw` has any other explicit DB pathname, returns `raw` unchanged.
+ * - When `raw` has any other explicit DB pathname, returns `raw` unchanged, unless that DB is another test lane's (a `TEST_LANE_REDIS_DB` value other than `redisDb`), which throws.
  * - Throws when `raw` does not parse as a URL (the value is never echoed: it can carry a password).
  */
 export function resolveLaneRedisUrl(opts: { raw: string | undefined; redisDb: number }): string {
@@ -127,8 +127,30 @@ export function resolveLaneRedisUrl(opts: { raw: string | undefined; redisDb: nu
   if (pathname === '' || pathname === '/' || pathname === '/0') {
     return laneRedisUrl(opts.raw, opts.redisDb);
   }
-  // Branch 3: any other explicit DB pathname is returned unchanged (`testLane.test.ts`).
+  // Branch 3: any other explicit DB pathname is returned unchanged unless it is another lane's DB (`testLane.test.ts`).
+  const explicit = /^\/(\d+)$/.exec(pathname);
+  if (explicit !== null) {
+    assertNotOtherLaneDb(Number.parseInt(explicit[1], 10), opts.redisDb);
+  }
   return opts.raw;
+}
+
+/**
+ * Throw when `explicitDb` is a DB owned by a test lane other than the one
+ * whose DB is `ownDb`: two checkouts sharing a DB would `FLUSHDB` each
+ * other's data. DBs outside the lane table and the own lane's DB pass. The
+ * message never carries the URL.
+ */
+function assertNotOtherLaneDb(explicitDb: number, ownDb: number): void {
+  if (explicitDb === ownDb) {
+    return;
+  }
+  const owner = ALLOWED_TEST_LANES.find(lane => TEST_LANE_REDIS_DB[lane] === explicitDb);
+  if (owner !== undefined) {
+    throw new Error(
+      `REDIS_URL selects Redis DB ${explicitDb}, which belongs to test lane ${owner}; this checkout is lane-DB ${ownDb}. Unset REDIS_URL's DB path or set TZUROT_TEST_LANE.`
+    );
+  }
 }
 
 /**
@@ -147,7 +169,7 @@ function parseRedisUrl(raw: string): URL {
  * Return the Redis logical DB a test harness should connect to: an explicit
  * non-zero `/N` DB in `raw` wins, matching `resolveLaneRedisUrl`; unset,
  * blank, empty-path, `/`, and `/0` values fall back to `laneDb`. Throws on an
- * unparsable URL, like `resolveLaneRedisUrl`
+ * unparsable URL or another test lane's DB, like `resolveLaneRedisUrl`
  * (`packages/test-utils/src/testLane.test.ts`).
  */
 export function redisDbForUrl(raw: string | undefined, laneDb: number): number {
@@ -160,7 +182,11 @@ export function redisDbForUrl(raw: string | undefined, laneDb: number): number {
     return laneDb;
   }
   const explicit = Number.parseInt(match[1], 10);
-  return explicit === 0 ? laneDb : explicit;
+  if (explicit === 0) {
+    return laneDb;
+  }
+  assertNotOtherLaneDb(explicit, laneDb);
+  return explicit;
 }
 
 /**
