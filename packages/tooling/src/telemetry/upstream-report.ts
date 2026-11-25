@@ -81,11 +81,11 @@ export async function queryUpstreamData(
   // isNaturalStop (LLMInvoker's continuation predicate) must not change; this
   // report alone also counts stop_sequence as a natural stop. See TASK-1542.
   const stopReasons = [...NATURAL_STOP_REASONS, FINISH_REASONS.STOP_SEQUENCE];
-  // One pass over the table: the window and provider filter run in the CTE, which
-  // extracts the response object and the failure flag once per row. The outer
-  // SELECT then aggregates over those two values, not over repeated `data->` reads.
+  // MATERIALIZED stops Postgres from inlining this single-reference CTE, so the
+  // response object and the failure flag are extracted once per row and the outer
+  // SELECT aggregates over those two values, not over repeated `data->` reads.
   const raw = await prisma.$queryRaw<UpstreamRawRow[]>`
-    WITH served AS (
+    WITH served AS MATERIALIZED (
       SELECT model,
              data->'llmResponse' AS r,
              (data->'error') IS NOT NULL AS failed
