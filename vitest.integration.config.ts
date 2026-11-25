@@ -14,11 +14,10 @@ process.env.TZUROT_TEST_LANE ||= testLane.lane;
 // whose path is empty, `/`, or `/0` to the checkout's per-lane logical DB (`/15`
 // for lane a, `/14` for `tzurot-b`, etc.; see `packages/test-utils/src/testLane.ts`)
 // instead of DB 0 (live dev data), keeps any other explicit `/<N>` DB path
-// unchanged, and returns REDIS_URL unchanged when CI === 'true'.
+// unchanged. CI is not special-cased: its Redis service maps to lane a's DB 15.
 process.env.REDIS_URL = resolveLaneRedisUrl({
   raw: process.env.REDIS_URL,
   redisDb: testLane.redisDb,
-  env: process.env,
 });
 // DATABASE_URL is deliberately NOT defaulted here. Real-Postgres integration
 // tests seed and mutate rows, so a default would have to carry credentials —

@@ -49,11 +49,15 @@ describe('setupTestEnvironment lane wiring', () => {
   ])('connects ioredis to Redis DB for lane %s (db %i)', async (lane, db) => {
     process.env.TZUROT_TEST_LANE = lane;
     const env = await setupTestEnvironment();
+    // Setup flushes the lane DB once before any test runs.
+    expect(instances[0].flushdb).toHaveBeenCalledTimes(1);
     await env.cleanup();
 
     expect(constructed).toHaveLength(1);
     expect(constructed[0]).toMatchObject({ db });
     expect(instances[0].quit).toHaveBeenCalled();
+    // Cleanup flushes again, so the lane DB is left empty.
+    expect(instances[0].flushdb).toHaveBeenCalledTimes(2);
   });
 
   it('derives the lane from the checkout path when TZUROT_TEST_LANE is unset (db 13)', async () => {

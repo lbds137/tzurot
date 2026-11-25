@@ -21,11 +21,10 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { CacheInvalidationService } from '@tzurot/cache-invalidation';
 import {
-  TEST_LANE_REDIS_DB,
+  ALLOWED_TEST_LANES,
   findWorkspaceRoot,
   integrationDbNameForLane,
   resolveTestLane,
-  type TestLane,
 } from '../../packages/test-utils/src/testLane.js';
 import { DatabaseNotificationListener } from '../../services/api-gateway/src/services/DatabaseNotificationListener.js';
 
@@ -75,7 +74,7 @@ function assertDedicatedTestDatabase(url: string): void {
     rootDir: findWorkspaceRoot(process.cwd()),
     env: process.env,
   });
-  for (const candidateLane of Object.keys(TEST_LANE_REDIS_DB) as TestLane[]) {
+  for (const candidateLane of ALLOWED_TEST_LANES) {
     if (
       candidateLane !== ownLane.lane &&
       databaseName === integrationDbNameForLane(candidateLane)
