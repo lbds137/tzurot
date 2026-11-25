@@ -6,11 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: 2026-09-21 19:49
-updated_date: 2026-09-24 16:08
+updated_date: '2026-11-25T03:00:00Z'
 labels:
   - area:ai-worker
   - size:M
-  - state:observable
+  - state:ready
 dependencies: []
 priority: high
 ordinal: 40
@@ -42,6 +42,7 @@ OWNER RULING 2026-09-24 (AskUserQuestion, "Yes, N=3"): the owner sets sameChanne
 - Find the day's thread(s) with docs/local/handoffs/voice-drift-probe-1039.ts, then run voice-drift-read-1039.ts on them, split at the time N changed. Compare against the 09-22 OFF thread 1551910122136281108.
 - Confirm engagement from the ai-worker "Same-channel history rendered" lines (summarized greater than 0) in the env the owner chatted in. The diagnostic rows and logs are env-local, while the memories sync.
 - Then the read decides slice 2 and whether N returns to 10.
+OWNER RULING 2026-11-24 (Lila, AskUserQuestion in lane B's session; verified by lane A in B's transcript): "Reset to 10, drop slice 2". Set sameChannelVerbatimExchanges back to 10 on Emily and Lilith; the summarized mode stays available. Slice 2 (measured default N, override cascade) is RULED OUT on the 09-25 second read: N=3 with summaries in the prompt moved neither character toward the card register. Relabelled state:ready (was state:observable): the remaining action is the reset, owned by lane B. Close at the reset.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Comments

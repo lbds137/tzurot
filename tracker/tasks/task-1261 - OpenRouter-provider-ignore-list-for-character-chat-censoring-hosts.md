@@ -4,11 +4,11 @@ title: OpenRouter provider ignore list for character chat (censoring hosts)
 status: To Do
 assignee: []
 created_date: 2026-10-22 13:36
-updated_date: '2026-11-21T14:38:00Z'
+updated_date: '2026-11-25T03:00:00Z'
 labels:
   - area:ai-worker
   - size:M
-  - state:owner
+  - state:ready
 dependencies: []
 priority: high
 ordinal: 1249000
@@ -36,4 +36,5 @@ Owner question: should Tzurot pin OpenRouter routing for user conversations (an 
 Recommendation: yes, an allowlist of first-party or contractually direct hosts per model, plus data_collection deny, applied to the system key and offered as the default for BYOK; measure the refusal and cost effect on the allowed set before shipping (the censorship axis above).
 
 Acceptance: a measurement note, and either the ignore list shipped with a test asserting it crosses the request seam, or a recorded reason not to.
+OWNER RULING 2026-11-24 (Lila, AskUserQuestion in lane B's session; verified by lane A in B's transcript): "Yes, measure first". Pin OpenRouter provider routing per model on the system key (provider.only/order, allow_fallbacks false, data_collection deny), excluding MiniMax and the hosts that forward to it, and offer the same as the BYOK default. Measure the refusal and cost effect on dev before enabling. Relabelled state:ready (was state:owner); lane B builds it.
 <!-- SECTION:DESCRIPTION:END -->
