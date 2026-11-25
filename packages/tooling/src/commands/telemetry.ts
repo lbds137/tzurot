@@ -6,8 +6,8 @@
  */
 
 import type { CAC } from 'cac';
+import { DIAGNOSTIC_RETENTION_DAYS } from '@tzurot/common-types/constants/diagnostics';
 import type { Environment } from '../utils/env-runner.js';
-import { DIAGNOSTIC_RETENTION_DAYS } from '../telemetry/upstream-report-render.js';
 
 const ENV_OPTION = '--env <env>';
 const ENV_OPTION_DESC = 'Environment: local, dev, or prod';
