@@ -45,7 +45,12 @@ const mockPrisma = {
     create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
   },
   personality: {
-    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+  },
+  // The PUT visibility gate (requireVisiblePersonality) consults co-ownership
+  // for non-public personalities; null = no co-owner row (the private case).
+  personalityOwner: {
+    findUnique: vi.fn().mockResolvedValue(null),
   },
   llmConfig: {
     findFirst: vi.fn(),
@@ -113,12 +118,13 @@ function createMockReqRes(
     provisionedDefaultPersonaId: 'persona-uuid-default',
   } as unknown as Request & { userId: string };
 
+  const json = vi.fn().mockReturnThis();
   const res = {
     status: vi.fn().mockReturnThis(),
-    json: vi.fn().mockReturnThis(),
+    json,
   } as unknown as Response;
 
-  return { req, res };
+  return { req, res, json };
 }
 
 /**
@@ -303,7 +309,7 @@ describe('/user/model-override routes', () => {
     });
 
     it('should return 404 when personality not found', async () => {
-      mockPrisma.personality.findFirst.mockResolvedValue(null);
+      mockPrisma.personality.findUnique.mockResolvedValue(null);
 
       const handler = buildHandler(handleSetModelOverride, {
         ...stubRouteResolvers(),
@@ -325,9 +331,12 @@ describe('/user/model-override routes', () => {
     });
 
     it('should return 404 when config not found or not accessible', async () => {
-      mockPrisma.personality.findFirst.mockResolvedValue({
+      mockPrisma.personality.findUnique.mockResolvedValue({
         id: '11111111-1111-4111-a111-111111111111',
+        slug: 'lilith',
         name: 'Lilith',
+        ownerId: 'owner-uuid-1',
+        isPublic: true,
       });
       mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
 
@@ -351,9 +360,12 @@ describe('/user/model-override routes', () => {
     });
 
     it('should upsert override successfully', async () => {
-      mockPrisma.personality.findFirst.mockResolvedValue({
+      mockPrisma.personality.findUnique.mockResolvedValue({
         id: '11111111-1111-4111-a111-111111111111',
+        slug: 'lilith',
         name: 'Lilith',
+        ownerId: 'owner-uuid-1',
+        isPublic: true,
       });
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: '22222222-2222-4222-a222-222222222222',
@@ -415,9 +427,12 @@ describe('/user/model-override routes', () => {
     });
 
     it('writes the vision slot when ?slot=vision and the model is vision-capable', async () => {
-      mockPrisma.personality.findFirst.mockResolvedValue({
+      mockPrisma.personality.findUnique.mockResolvedValue({
         id: '11111111-1111-4111-a111-111111111111',
+        slug: 'lilith',
         name: 'Lilith',
+        ownerId: 'owner-uuid-1',
+        isPublic: true,
       });
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: '22222222-2222-4222-a222-222222222222',
@@ -477,9 +492,12 @@ describe('/user/model-override routes', () => {
     });
 
     it('rejects the vision slot when the model is not vision-capable', async () => {
-      mockPrisma.personality.findFirst.mockResolvedValue({
+      mockPrisma.personality.findUnique.mockResolvedValue({
         id: '11111111-1111-4111-a111-111111111111',
+        slug: 'lilith',
         name: 'Lilith',
+        ownerId: 'owner-uuid-1',
+        isPublic: true,
       });
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: '22222222-2222-4222-a222-222222222222',
@@ -528,9 +546,12 @@ describe('/user/model-override routes', () => {
     });
 
     it('rejects the vision slot when the model is not in the catalog', async () => {
-      mockPrisma.personality.findFirst.mockResolvedValue({
+      mockPrisma.personality.findUnique.mockResolvedValue({
         id: '11111111-1111-4111-a111-111111111111',
+        slug: 'lilith',
         name: 'Lilith',
+        ownerId: 'owner-uuid-1',
+        isPublic: true,
       });
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: '22222222-2222-4222-a222-222222222222',
@@ -571,9 +592,12 @@ describe('/user/model-override routes', () => {
     });
 
     it('pins BOTH slots in one upsert when ?slot=both and the model is vision-capable', async () => {
-      mockPrisma.personality.findFirst.mockResolvedValue({
+      mockPrisma.personality.findUnique.mockResolvedValue({
         id: '11111111-1111-4111-a111-111111111111',
+        slug: 'lilith',
         name: 'Lilith',
+        ownerId: 'owner-uuid-1',
+        isPublic: true,
       });
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: '22222222-2222-4222-a222-222222222222',
@@ -647,9 +671,12 @@ describe('/user/model-override routes', () => {
     });
 
     it('publishes the LLM-config cache invalidation for the Discord user after a set', async () => {
-      mockPrisma.personality.findFirst.mockResolvedValue({
+      mockPrisma.personality.findUnique.mockResolvedValue({
         id: '11111111-1111-4111-a111-111111111111',
+        slug: 'lilith',
         name: 'Lilith',
+        ownerId: 'owner-uuid-1',
+        isPublic: true,
       });
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: '22222222-2222-4222-a222-222222222222',
@@ -686,9 +713,12 @@ describe('/user/model-override routes', () => {
     });
 
     it('refuses ?slot=both with a text-only model and writes NOTHING (no half-apply)', async () => {
-      mockPrisma.personality.findFirst.mockResolvedValue({
+      mockPrisma.personality.findUnique.mockResolvedValue({
         id: '11111111-1111-4111-a111-111111111111',
+        slug: 'lilith',
         name: 'Lilith',
+        ownerId: 'owner-uuid-1',
+        isPublic: true,
       });
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: '22222222-2222-4222-a222-222222222222',
@@ -740,6 +770,45 @@ describe('/user/model-override routes', () => {
         })
       );
       expect(mockPrisma.userPersonalityConfig.upsert).not.toHaveBeenCalled();
+    });
+
+    it('returns 404 for a private personality the caller cannot view, writing nothing and leaking no name', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: '11111111-1111-4111-a111-111111111111',
+        slug: 'secret-lilith',
+        name: 'SecretLilith',
+        ownerId: 'owner-uuid-private',
+        isPublic: false,
+      });
+      // No co-ownership row either — the caller has no visibility path.
+      mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
+
+      const handler = buildHandler(handleSetModelOverride, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const { req, res, json } = createMockReqRes({
+        personalityId: '11111111-1111-4111-a111-111111111111',
+        configId: '22222222-2222-4222-a222-222222222222',
+      });
+
+      await handler(req, res);
+
+      // Seam: the gate loads the personality by the request's personalityId.
+      expect(mockPrisma.personality.findUnique).toHaveBeenCalledWith({
+        where: { id: '11111111-1111-4111-a111-111111111111' },
+        select: { id: true, slug: true, name: true, ownerId: true, isPublic: true },
+      });
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'NOT_FOUND', message: 'Personality not found' })
+      );
+      // No config read past the gate and no override write.
+      expect(mockPrisma.llmConfig.findFirst).not.toHaveBeenCalled();
+      expect(mockPrisma.userPersonalityConfig.upsert).not.toHaveBeenCalled();
+      // The response body must not carry the private personality's name.
+      const responseBody = JSON.stringify(json.mock.calls[0]?.[0] ?? null);
+      expect(responseBody).not.toContain('SecretLilith');
     });
   });
 

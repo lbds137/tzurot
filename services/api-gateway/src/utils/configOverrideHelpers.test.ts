@@ -25,10 +25,8 @@ import {
   mergeAndValidateOverrides,
   getValidatedPersonalityId,
   validatePersonalityIdValue,
-  findPersonalityOrSendNotFound,
 } from './configOverrideHelpers.js';
 import type { Request, Response } from 'express';
-import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 // Mock the merge function to control its return values
 const mockMerge = vi.fn();
@@ -161,37 +159,6 @@ describe('validatePersonalityIdValue', () => {
     expect(mockSendError).toHaveBeenCalledWith(
       res,
       expect.objectContaining({ error: 'VALIDATION' })
-    );
-  });
-});
-
-describe('findPersonalityOrSendNotFound', () => {
-  beforeEach(() => vi.resetAllMocks());
-
-  const res = {} as Response;
-  const prismaWith = (row: { id: string; name: string } | null): PrismaClient =>
-    ({
-      personality: { findFirst: vi.fn().mockResolvedValue(row) },
-    }) as unknown as PrismaClient;
-
-  it('returns the personality id+name when it exists', async () => {
-    const found = await findPersonalityOrSendNotFound(
-      res,
-      prismaWith({ id: 'p-1', name: 'Ivy' }),
-      'p-1'
-    );
-
-    expect(found).toEqual({ id: 'p-1', name: 'Ivy' });
-    expect(mockSendError).not.toHaveBeenCalled();
-  });
-
-  it('sends a 404 and returns null when missing', async () => {
-    const found = await findPersonalityOrSendNotFound(res, prismaWith(null), 'p-missing');
-
-    expect(found).toBeNull();
-    expect(mockSendError).toHaveBeenCalledWith(
-      res,
-      expect.objectContaining({ error: 'NOT_FOUND' })
     );
   });
 });

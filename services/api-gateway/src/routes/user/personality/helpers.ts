@@ -145,11 +145,13 @@ export async function canUserViewPersonality(
 
 /**
  * A personality row as `requireVisiblePersonality` returns it: the fields the
- * visibility check needs plus `slug` for callers that log or key on it.
+ * visibility check needs plus `slug` and `name` for callers that log or key
+ * on them.
  */
 export interface VisiblePersonality {
   id: string;
   slug: string;
+  name: string;
   ownerId: string;
   isPublic: boolean;
 }
@@ -159,6 +161,10 @@ export interface VisiblePersonality {
  * on VISIBILITY. Missing and invisible both 404 with the same shape so
  * existence never leaks; this function sends the 404 response itself and
  * returns null after doing so — the caller returns early on null.
+ *
+ * `where` must be a UNIQUE field: the lookup goes through `findUnique`,
+ * which requires it. `{ id }` and `{ slug }` are both unique, so both are
+ * accepted; a non-unique filter shape is a type error here.
  */
 export async function requireVisiblePersonality(
   prisma: PrismaClient,
@@ -168,7 +174,7 @@ export async function requireVisiblePersonality(
 ): Promise<VisiblePersonality | null> {
   const personality = await prisma.personality.findUnique({
     where,
-    select: { id: true, slug: true, ownerId: true, isPublic: true },
+    select: { id: true, slug: true, name: true, ownerId: true, isPublic: true },
   });
   if (personality === null) {
     sendError(res, ErrorResponses.notFound('Personality'));

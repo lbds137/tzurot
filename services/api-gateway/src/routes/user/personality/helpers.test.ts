@@ -380,7 +380,7 @@ describe('personality route helpers', () => {
       );
       expect(mockPrisma.personality.findUnique).toHaveBeenCalledWith({
         where: { id: 'personality-id' },
-        select: { id: true, slug: true, ownerId: true, isPublic: true },
+        select: { id: true, slug: true, name: true, ownerId: true, isPublic: true },
       });
     });
 
@@ -388,6 +388,7 @@ describe('personality route helpers', () => {
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: 'personality-id',
         slug: 'personality-slug',
+        name: 'Ivy',
         isPublic: false,
         ownerId: 'other-owner-id',
       });
@@ -413,6 +414,7 @@ describe('personality route helpers', () => {
       const row = {
         id: 'personality-id',
         slug: 'personality-slug',
+        name: 'Ivy',
         isPublic: true,
         ownerId: 'other-owner-id',
       };
@@ -427,6 +429,8 @@ describe('personality route helpers', () => {
       );
 
       expect(result).toEqual(row);
+      // The returned row carries `name` for callers that log it.
+      expect(result?.name).toBe('Ivy');
       expect(res.status).not.toHaveBeenCalled();
     });
 
@@ -434,6 +438,7 @@ describe('personality route helpers', () => {
       const row = {
         id: 'personality-id',
         slug: 'personality-slug',
+        name: 'Ivy',
         isPublic: false,
         ownerId: 'user-id', // equals provisionedUserId
       };
@@ -481,6 +486,7 @@ describe('personality route helpers', () => {
       const row = {
         id: 'personality-id',
         slug: 'personality-slug',
+        name: 'Ivy',
         isPublic: true,
         ownerId: 'other-owner-id',
       };
@@ -496,7 +502,7 @@ describe('personality route helpers', () => {
 
       expect(mockPrisma.personality.findUnique).toHaveBeenCalledWith({
         where: { slug: 'personality-slug' },
-        select: { id: true, slug: true, ownerId: true, isPublic: true },
+        select: { id: true, slug: true, name: true, ownerId: true, isPublic: true },
       });
       expect(result).toEqual(row);
     });

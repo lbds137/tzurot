@@ -28,10 +28,7 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { generateUserPersonalityConfigUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import {
-  tryInvalidateCache,
-  findPersonalityOrSendNotFound,
-} from '../../utils/configOverrideHelpers.js';
+import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -39,6 +36,7 @@ import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
 import type { ProvisionedRequest } from '../../types.js';
 import type { RouteDeps } from '../routeDeps.js';
+import { requireVisiblePersonality } from './personality/helpers.js';
 import { pruneEmptyPersonalityConfig } from './pruneEmptyPersonalityConfig.js';
 
 const logger = createLogger('user-tts-override');
@@ -108,7 +106,9 @@ export const handleSetTtsOverride = (deps: RouteDeps): RequestHandler => {
 
     const userId = resolveProvisionedUserId(req);
 
-    const personality = await findPersonalityOrSendNotFound(res, prisma, personalityId);
+    const personality = await requireVisiblePersonality(prisma, req, res, {
+      id: personalityId,
+    });
     if (personality === null) {
       return;
     }
