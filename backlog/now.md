@@ -23,7 +23,7 @@ _beta.250 shipped 2026-11-24 (PR 2804); its smoke is CURRENT.md § beta.250 smok
 - **Planned**: caching Phase 3 (doc-17 reading first; moved from beta.249 by Lila AUQ 2026-11-23) · TASK-1400 Claude character route if Lila's blind rating says GO, else TASK-1416/1415/1411/1412 · TASK-1519 lockfile regenerate · drain items (1511–1513, 1500–1508).
 - **Waiting on**: the doc-17 reading; Lila's TASK-1400 verdict (`docs/local/task-1400-eval/blind-packet.md`).
 - **Explicitly NOT in**: TASK-1356 (BYOK rotation redesign — design first, security-critical) · TASK-1347/1174 (design- or ops-sized, scheduled separately).
-- **Deploy notes**: none yet.
+- **Deploy notes**: PR 2809 (TASK-1522) — release notes should say users with their own OpenRouter key may see slightly more OpenRouter spend during z.ai squeezes (an exhausted image can now try up to 5 tiers, the last two on their key).
 - **Cut when**: caching Phase 3 merges; backstops ~10 runtime PRs / ~250 files (`pnpm ops release:range`). Release PR merge needs her explicit yes.
 - **vNext+1 sketch (beta.252)**: Machloket e2e (`doc-114`) · whatever of TASK-1416/1415/1411/1412 beta.251 does not carry.
 
