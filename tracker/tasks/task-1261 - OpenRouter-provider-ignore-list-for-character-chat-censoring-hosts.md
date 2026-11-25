@@ -1,10 +1,11 @@
 ---
 id: TASK-1261
 title: OpenRouter provider ignore list for character chat (censoring hosts)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - Tzurot B
 created_date: 2026-10-22 13:36
-updated_date: '2026-11-25T03:00:00Z'
+updated_date: '2026-11-25T07:48:00Z'
 labels:
   - area:ai-worker
   - size:M

@@ -5,6 +5,7 @@
  */
 
 import type { Environment } from '../utils/env-runner.js';
+import { escapeTableCell } from './markdown.js';
 
 /** Domain (number-typed) shape for a per-provider/model table row. */
 export interface PerModelStats {
@@ -146,18 +147,6 @@ function renderFreeTierTable(rows: FreeTierStats[]): string {
       `| ${escapeTableCell(row.provider)} | ${escapeTableCell(row.model)} | ${row.requests} | ${row.totalTokens} |`
   );
   return [header, ...lines].join('\n');
-}
-
-/**
- * Personality names AND model strings are user-controlled (LlmConfig.model is
- * an unrestricted string and catalog validation is skippable when the model
- * cache is unavailable), so every string cell that can originate from user
- * input is escaped: a literal `|` or newline would break its row's cell
- * structure — or fabricate rows — in any markdown-rendering surface the
- * report gets pasted into.
- */
-function escapeTableCell(value: string): string {
-  return value.replaceAll('|', '\\|').replaceAll(/\r?\n/g, ' ');
 }
 
 function renderPersonalityTable(rows: PersonalityStats[]): string {
