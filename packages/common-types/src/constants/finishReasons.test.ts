@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   FINISH_REASONS,
+  NATURAL_STOP_REASONS,
   isNaturalStop,
   resolveFinishReason,
   type FinishReason,
@@ -25,6 +26,19 @@ describe('FINISH_REASONS', () => {
   it('should be assignable to FinishReason type', () => {
     const reason: FinishReason = FINISH_REASONS.STOP;
     expect(reason).toBe('stop');
+  });
+});
+
+describe('NATURAL_STOP_REASONS', () => {
+  it('lists exactly the three natural-completion spellings, in provider order', () => {
+    expect([...NATURAL_STOP_REASONS]).toEqual(['stop', 'end_turn', 'STOP']);
+  });
+
+  it('agrees with isNaturalStop for every member and rejects a non-member', () => {
+    for (const reason of NATURAL_STOP_REASONS) {
+      expect(isNaturalStop(reason)).toBe(true);
+    }
+    expect(isNaturalStop(FINISH_REASONS.ERROR)).toBe(false);
   });
 });
 

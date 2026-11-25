@@ -21,6 +21,8 @@ import {
 export interface TelemetryReportOptions {
   env: Environment;
   days?: number | string;
+  /** Window used when `days` is undefined. Defaults to 30 (the inference report's window). */
+  defaultDays?: number;
   output?: string;
 }
 
@@ -32,11 +34,12 @@ export interface PrismaQueryable {
 /**
  * Parse and validate the `--days` option. Returns a positive integer or
  * throws a plain `Error` describing why the input was rejected — the runner
- * prints it and returns before opening a DB connection.
+ * prints it and returns before opening a DB connection. An undefined input
+ * yields `defaultDays`.
  */
-export function parseDays(input: number | string | undefined): number {
+export function parseDays(input: number | string | undefined, defaultDays = 30): number {
   if (input === undefined) {
-    return 30;
+    return defaultDays;
   }
   const asNumber = typeof input === 'string' ? Number(input) : input;
   if (!Number.isInteger(asNumber) || asNumber <= 0) {
@@ -57,7 +60,7 @@ export async function runTelemetryReport(
 ): Promise<void> {
   let days: number;
   try {
-    days = parseDays(options.days);
+    days = parseDays(options.days, options.defaultDays);
   } catch (error) {
     console.error(chalk.red(error instanceof Error ? error.message : String(error)));
     process.exitCode = 1;

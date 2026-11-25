@@ -12,12 +12,10 @@
  */
 
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { DIAGNOSTIC_LOG_RETENTION_HOURS } from '@tzurot/common-types/constants/diagnostics';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('cleanup-diagnostic-logs');
-
-/** Default retention period in hours (7 days) */
-const RETENTION_HOURS = 7 * 24;
 
 /**
  * Result of cleanup operation
@@ -35,7 +33,7 @@ interface DiagnosticCleanupResult {
  * Clean up diagnostic logs older than the retention period.
  *
  * This function deletes all records from llm_diagnostic_logs where
- * createdAt is older than RETENTION_HOURS (default 7 days).
+ * createdAt is older than DIAGNOSTIC_LOG_RETENTION_HOURS (default 7 days).
  *
  * @param prisma - Prisma client for database operations
  * @param retentionHours - Optional override for retention period (for testing)
@@ -43,7 +41,7 @@ interface DiagnosticCleanupResult {
  */
 export async function cleanupDiagnosticLogs(
   prisma: PrismaClient,
-  retentionHours: number = RETENTION_HOURS
+  retentionHours: number = DIAGNOSTIC_LOG_RETENTION_HOURS
 ): Promise<DiagnosticCleanupResult> {
   const startTime = Date.now();
 

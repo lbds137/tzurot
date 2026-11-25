@@ -103,7 +103,7 @@ output to see how the model interprets the system prompt; then widen to the
 
 | Tier | Window | What it holds per assistant turn | Source |
 | --- | --- | --- | --- |
-| A — diagnostic log | 7 days (`RETENTION_HOURS = 7 * 24`, `services/ai-worker/src/jobs/CleanupDiagnosticLogs.ts`) | the raw user message, retrieved and selected memories, every sampling parameter, model / provider / routed model / finish reason, the raw response, the thinking trace, and `reasoningDebug` metadata (`services/ai-worker/src/services/diagnostics/DiagnosticTypes.ts`) | `/inspect`'s record |
+| A — diagnostic log | 7 days (`DIAGNOSTIC_LOG_RETENTION_HOURS = 168`, `packages/common-types/src/constants/diagnostics.ts`) | the raw user message, retrieved and selected memories, every sampling parameter, model / provider / routed model / finish reason, the raw response, the thinking trace, and `reasoningDebug` metadata (`services/ai-worker/src/services/diagnostics/DiagnosticTypes.ts`) | `/inspect`'s record |
 | B — history row | 30 days (`ConversationRetentionService` default) | `thinkingContent` plus the assistant content; no request context | `prisma/schema.prisma` `thinking_content` |
 
 Two premises that change the design, both verified at source:
