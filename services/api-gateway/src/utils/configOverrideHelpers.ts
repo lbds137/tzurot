@@ -7,7 +7,7 @@
  */
 
 import type { Request, Response } from 'express';
-import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { Prisma } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { mergeConfigOverrides } from './configOverrideMerge.js';
 import { sendError } from './responseHelpers.js';
@@ -119,26 +119,4 @@ export function validatePersonalityIdValue(personalityId: string, res: Response)
 export function getValidatedPersonalityId(req: Request, res: Response): string | null {
   const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
   return validatePersonalityIdValue(personalityId, res);
-}
-
-/**
- * Confirm the personality a cascade override points at exists, sending a 404
- * otherwise. Existence-check only — override rows are user-scoped, so no
- * ownership gate belongs here (the owner-gated load in the personality
- * config-defaults route is deliberately a DIFFERENT shape).
- */
-export async function findPersonalityOrSendNotFound(
-  res: Response,
-  prisma: PrismaClient,
-  personalityId: string
-): Promise<{ id: string; name: string } | null> {
-  const personality = await prisma.personality.findFirst({
-    where: { id: personalityId },
-    select: { id: true, name: true },
-  });
-  if (personality === null) {
-    sendError(res, ErrorResponses.notFound('Personality'));
-    return null;
-  }
-  return personality;
 }

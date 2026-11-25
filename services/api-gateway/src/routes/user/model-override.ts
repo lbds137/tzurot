@@ -31,10 +31,7 @@ import {
 } from '../../utils/configRouteHelpers.js';
 import { ensureVisionCapableModel } from '../../utils/llmConfigValidation.js';
 import { ModelCapabilityService } from '../../services/ModelCapabilityService.js';
-import {
-  tryInvalidateCache,
-  findPersonalityOrSendNotFound,
-} from '../../utils/configOverrideHelpers.js';
+import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -48,6 +45,7 @@ import {
 } from './modelOverrideShared.js';
 import type { ProvisionedRequest } from '../../types.js';
 import type { RouteDeps } from '../routeDeps.js';
+import { requireVisiblePersonality } from './personality/helpers.js';
 import { pruneEmptyPersonalityConfig } from './pruneEmptyPersonalityConfig.js';
 
 const logger = createLogger('user-model-override');
@@ -160,7 +158,9 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
       const { personalityId, configId } = parseResult.data;
       const userId = resolveProvisionedUserId(req);
 
-      const personality = await findPersonalityOrSendNotFound(res, prisma, personalityId);
+      const personality = await requireVisiblePersonality(prisma, req, res, {
+        id: personalityId,
+      });
       if (personality === null) {
         return;
       }
