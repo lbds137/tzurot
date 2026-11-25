@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit; and the cloud dispatch mode (one cloud unit beside one local unit). Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-11-24'
+lastUpdated: '2026-11-25'
 ---
 
 # Orchestrator Mode
@@ -331,6 +331,31 @@ a gap the worker will fill by guessing.
    mechanical spec defects a worker discovers only by hitting them: a
    `pnpm --filter @tzurot/<pkg> <script>` the package does not declare, and a
    base SHA that resolves but is not the main checkout's HEAD.
+
+   A unit that adds, renames or removes an export adds a third ledger row (advisory;
+   the gate above checks only the section):
+   `git grep -nE "vi\.(doM|m)ock\(.*<path tail>" -- ':!*.md'`, the tail being
+   the module's last path segments (`utils/logger`, not one test's relative
+   specifier) (it is a regex: escape any `.` in the tail), plus
+   `git grep -nE "vi\.(doM|m)ock\(['\"]@tzurot/<pkg>['\"]" -- ':!*.md'`
+   when a package's root entry re-exports the module. Neither sees a mock of
+   some other file that re-exports it (rare: `02-code-standards.md` bans
+   re-export files). Triage each hit by where its export list lives:
+
+   - an explicit factory, or the object it returns (a same-file
+     `vi.hoisted`/local const or a shared `test/mocks/*` object), or the
+     `__mocks__/<file>` sibling behind a factory-less `vi.mock(path)`: a
+     sanctioned fixture edit in that file, because a missing key leaves the
+     new export `undefined` (on a rename, rename the key; never add one
+     beside it; on a removal, delete the stale key);
+   - a factory spreading `importOriginal()` or `vi.importActual()`: nothing
+     on an add; on a rename or removal, rename or delete any override key
+     for the old name, since a stale override leaves the new name running
+     the real implementation;
+   - a factory-less `vi.mock(path)` with no `__mocks__` sibling: automocked,
+     so the export exists as a stub (vitest's documented automock, not probed
+     here); check its return value only if callers depend on it.
+
 2. **Files in scope** — mandatory, never omitted. Every `file:line` cite is
    marked "verify before editing — cites drift". State how the enumeration was
    derived (the exact grep) and its positive control (the known-present
