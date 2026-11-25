@@ -20,6 +20,7 @@ import { attachmentUrlShape, filenameShape } from '@tzurot/common-types/utils/lo
 import { describeImage } from '../services/MultimodalProcessor.js';
 import { describeImageWithFallback } from '../services/multimodal/describeImageWithFallback.js';
 import { withRetry } from '../utils/retry.js';
+import { mapWithConcurrency } from '../utils/mapWithConcurrency.js';
 import { shouldRetryError, getErrorLogContext } from '../utils/apiErrorParser.js';
 import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 import {
@@ -28,6 +29,7 @@ import {
 } from '../services/multimodal/visionAuthResolver.js';
 
 import { VISION_PLACEHOLDER_PREFIX } from '../services/multimodal/visionDescriptionValidity.js';
+import { VISION_ATTACHMENT_CONCURRENCY } from '../services/multimodal/constants.js';
 
 const logger = createLogger('ImageDescriptionJob');
 
@@ -343,9 +345,12 @@ export async function processImageDescriptionJob(
       }
     }
 
-    // Process all images in parallel with graceful degradation
-    const results = await Promise.all(
-      attachments.map(attachment =>
+    // Process all images in parallel, bounded to VISION_ATTACHMENT_CONCURRENCY in flight,
+    // with graceful degradation
+    const results = await mapWithConcurrency(
+      attachments,
+      VISION_ATTACHMENT_CONCURRENCY,
+      attachment =>
         processSingleImage({
           attachment,
           personality,
@@ -356,7 +361,6 @@ export async function processImageDescriptionJob(
           visionAuth,
           loggingContext,
         })
-      )
     );
 
     // Filter for successful descriptions

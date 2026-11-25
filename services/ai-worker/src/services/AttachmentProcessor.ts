@@ -21,6 +21,7 @@ import { attachmentUrlShape, filenameShape } from '@tzurot/common-types/utils/lo
 import { imageSource, attachmentSpoiler } from '@tzurot/common-types/utils/attachmentProvenance';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
 import type { VisionLoggingContext } from './multimodal/VisionProcessor.js';
+import { VISION_ATTACHMENT_CONCURRENCY } from './multimodal/constants.js';
 import {
   classifyAttachment,
   type BuiltAttachment,
@@ -30,6 +31,7 @@ import { OWN_VOICE_DESCRIPTION } from './voice/ownVoiceGuard.js';
 import { isDeterministicSttRejection } from './multimodal/sttRejection.js';
 import { sniffPlainWebmForAudioOnly } from './multimodal/plainWebmAudioSniff.js';
 import { withRetry } from '../utils/retry.js';
+import { mapWithConcurrency } from '../utils/mapWithConcurrency.js';
 import { filterStickersBySetting } from '@tzurot/common-types/services/stickerVisionGate';
 import { isOwnPersonaVoice } from '@tzurot/common-types/utils/ownVoice';
 
@@ -186,8 +188,10 @@ export async function processAttachmentsParallel(
   type Outcome =
     { ok: true; built: BuiltAttachment } | { ok: false; attachment: Attachment; error: unknown };
 
-  const outcomes: Outcome[] = await Promise.all(
-    visionable.map(async (attachment): Promise<Outcome> => {
+  const outcomes: Outcome[] = await mapWithConcurrency(
+    visionable,
+    VISION_ATTACHMENT_CONCURRENCY,
+    async (attachment): Promise<Outcome> => {
       try {
         return {
           ok: true,
@@ -209,7 +213,7 @@ export async function processAttachmentsParallel(
       } catch (error) {
         return { ok: false, attachment, error };
       }
-    })
+    }
   );
 
   const rendered: BuiltAttachment[] = [];

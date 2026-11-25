@@ -29,6 +29,7 @@ import { describeImage, type VisionLoggingContext } from './multimodal/VisionPro
 import { describeImageWithFallback } from './multimodal/describeImageWithFallback.js';
 import type { ResolveVisionConfigOptions } from './multimodal/visionAuthResolver.js';
 import { transcribeAudio } from './multimodal/AudioProcessor.js';
+import { VISION_ATTACHMENT_CONCURRENCY } from './multimodal/constants.js';
 import { isDeterministicSttRejection } from './multimodal/sttRejection.js';
 import { sniffPlainWebmForAudioOnly } from './multimodal/plainWebmAudioSniff.js';
 
@@ -370,6 +371,8 @@ export async function processAttachments(
       }),
     {
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+      // Also bounds audio and document attachments on this path, not only images.
+      concurrency: VISION_ATTACHMENT_CONCURRENCY,
       logger,
       operationName: 'Attachment processing',
       shouldRetry: error => !isDeterministicSttRejection(error) && shouldRetryError(error),

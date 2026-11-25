@@ -50,13 +50,16 @@ import {
 const logger = createLogger('VisionFallbackLoop');
 
 /**
- * Cap on the composed base chain per attachment — each tier is a ~1-3s + $ API
- * call. Not an absolute ceiling on the walk: TWO cases can put the tier count
- * one above this, with the loop's resolved-model dedup bounding the
+ * Cap on the primary + stamped fallbacks per attachment — each tier is a ~1-3s + $ API
+ * call. The paid/free floor is appended after this cap and never trimmed by it (see
+ * `composeVisionTiers`). A non-guest composed chain is at most this cap + 2: the floor,
+ * then the concrete terminal when the floor is a router alias (the default). The guest
+ * hoist (below) can add a tier on top of that for guests. Not an absolute ceiling on the
+ * walk: further cases can add a tier, with the loop's resolved-model dedup bounding the
  * actually-attempted calls either way.
  *
  * 1. The guest piggyback hoist (see `composeWalkTiers`).
- * 2. A non-guest chain whose CAPPED tail is a router alias (`ROUTER_ALIAS_MODELS`:
+ * 2. A non-guest chain whose tail is a router alias (`ROUTER_ALIAS_MODELS`:
  *    `openrouter/auto` or `openrouter/free`) gets the concrete
  *    `MODEL_DEFAULTS.VISION_FALLBACK` appended after it, so the chain never ends
  *    on a router (see `appendConcreteTerminal`).
@@ -148,12 +151,12 @@ async function runVisionTier(
  * fails there is nothing concrete left to try — the shape that exhausts a chain
  * with no description. Either alias can reach the tail on a non-guest chain: the
  * paid floor setting is schema-validated against `ROUTER_ALIAS_MODELS`, so an
- * operator may configure either one. The check runs POST-cap on the capped
- * tail, so it fires no matter which source put the alias there: the
- * system-setting floor, or a gateway-stamped `visionFallbackModels` entry that
- * outlived the floor once the cap trimmed it. The concrete
- * `MODEL_DEFAULTS.VISION_FALLBACK` is appended and is allowed to sit ONE tier
- * above `MAX_VISION_FALLBACK_TIERS`.
+ * operator may configure either one. The check runs on the final tail (after the floor
+ * is appended), so it fires no matter which source put the alias there: the
+ * system-setting floor, or a stamped `visionFallbackModels` entry left at the
+ * capped tail when the floor is empty. The concrete
+ * `MODEL_DEFAULTS.VISION_FALLBACK` is appended and is allowed to sit one tier
+ * past the floor, which itself sits past `MAX_VISION_FALLBACK_TIERS`.
  *
  * An alias that is NOT the tail already has something concrete after it and
  * gets nothing. Guest chains get nothing either — the free floor is a billing
@@ -175,23 +178,27 @@ function appendConcreteTerminal(capped: string[], isGuestMode: boolean): string[
  * Compose the ordered, deduped tier list for one attachment: the resolved primary model
  * (the gateway-stamped `visionModel` or `selectVisionModel`, which already folds in the
  * native-main-model + hardcoded picks) → the stamped DB fallbacks (`visionFallbackModels`)
- * → the hardcoded floor. Capped at `MAX_VISION_FALLBACK_TIERS` so the worst case is a
- * bounded number of API calls.
+ * → the floor. The cap bounds the primary + stamped fallbacks to
+ * `MAX_VISION_FALLBACK_TIERS`; the floor is appended after the cap, so the worst case for
+ * a non-guest chain is cap + 2 (the capped tiers, the floor, then the concrete terminal,
+ * below, when the floor is a router alias).
  *
- * NOTE the cap can trim the TAIL: with a primary + 2 stamped fallbacks (the max — the global
- * + free vision defaults), the hardcoded floor is the 4th item and gets sliced off. That's
- * acceptable because the stamped FREE vision default already fills the free-tier last-resort
- * role when present; the hardcoded floor only needs to survive when there's ≤1 stamped
- * fallback (then it stays within the top 3). See the `caps the tier list at 3` test.
+ * INVARIANT: the floor is exempt from the tier cap. The cap never trims the floor. The
+ * reason is the provider pool: on a z.ai capacity squeeze the primary and the stamped
+ * fallbacks share one pool and can all rate-limit together, and for a user with an
+ * OpenRouter key the floor is the only tier outside that pool. The free default alone does not survive a
+ * burst, so a cap that dropped the floor would leave a squeezed chain with no tier to fall
+ * back to. Pinned by the `composeVisionTiers` tests and the `visionFallbackChain` purpose
+ * test.
  *
  * A ROUTER ALIAS must never be the last paid tier: when a router alias
  * (`ROUTER_ALIAS_MODELS`: `openrouter/auto` or `openrouter/free`) fails
  * there is nothing concrete left to try, which is how a two-tier chain exhausts
  * with no description. That rule is applied AFTER the cap, to whatever source
- * put the alias at the capped tail — the system-setting floor, or a stamped
- * fallback that outlived the floor the cap trimmed. When the tail is the alias
+ * put the alias at the tail — the system-setting floor, or, when the floor is
+ * empty, a stamped fallback at the capped tail. When the tail is the alias
  * on a non-guest walk, `MODEL_DEFAULTS.VISION_FALLBACK` is appended and the
- * chain is allowed to run ONE tier over the cap rather than lose its concrete
+ * chain is allowed to run one tier past the floor rather than lose its concrete
  * terminal. An alias mid-chain gets nothing (something concrete already follows
  * it), and guest composition is untouched — its free floor is a billing
  * firewall (`freeFloors.ts`). See {@link appendConcreteTerminal}; pinned by the
@@ -228,7 +235,7 @@ export function composeVisionTiers(
   // system key anyway (broad-free-fallback). So a "wrong" isGuestMode picks a floor model
   // name that auth-time resolution converges to free.
   const floor = isGuestMode ? getFreeVisionFloor() : getSystemSetting('fallbackVisionModel');
-  const ordered = [primaryModel, ...(personality.visionFallbackModels ?? []), floor];
+  const ordered = [primaryModel, ...(personality.visionFallbackModels ?? [])];
   const seen = new Set<string>();
   const deduped: string[] = [];
   for (const model of ordered) {
@@ -237,7 +244,15 @@ export function composeVisionTiers(
       deduped.push(model);
     }
   }
-  return appendConcreteTerminal(deduped.slice(0, MAX_VISION_FALLBACK_TIERS), isGuestMode);
+  // The cap applies to primary + stamped fallbacks only; the floor is kept outside it (see
+  // the INVARIANT in the doc comment above).
+  const capped = deduped.slice(0, MAX_VISION_FALLBACK_TIERS);
+  // A floor already inside the capped list keeps its first position (dedup keeps the first
+  // occurrence) and is not moved to the tail.
+  if (floor.length > 0 && !capped.includes(floor)) {
+    capped.push(floor);
+  }
+  return appendConcreteTerminal(capped, isGuestMode);
 }
 
 /**
@@ -406,8 +421,8 @@ async function userHasOpenRouterKey(authOptions: ResolveVisionConfigOptions): Pr
  *
  * Because the tail is `base` minus its flash member(s), it can be one entry
  * SHORTER than `base`, so the hoisted tier can push the total back up to
- * `MAX_VISION_FALLBACK_TIERS` and, when `base` was already at the cap, one over
- * it — the loop's resolved-model dedup keeps the actually-attempted API calls
+ * `MAX_VISION_FALLBACK_TIERS` and, when `base` was already at its maximum length, one
+ * over it — the loop's resolved-model dedup keeps the actually-attempted API calls
  * bounded regardless.
  *
  * Exported for the tier-composition unit tests; production reaches it via
