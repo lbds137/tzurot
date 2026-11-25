@@ -195,6 +195,60 @@ describe('runTestLane and provisionLaneDatabase', () => {
     );
   });
 
+  it('wraps a createdb failure with the step and database name', () => {
+    const original = new Error('createdb: database creation failed');
+    mockExec.mockReturnValueOnce('').mockImplementationOnce(() => {
+      throw original;
+    });
+    let err: unknown;
+    try {
+      provisionLaneDatabase('tzurot_integration_b_test');
+    } catch (caught) {
+      err = caught;
+    }
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toBe(
+      'Could not create integration database "tzurot_integration_b_test" in tzurot-postgres: exec failed'
+    );
+    expect((err as Error).cause).toBe(original);
+  });
+
+  it('includes the exit status when createdb fails with a numeric status', () => {
+    mockExec.mockReturnValueOnce('').mockImplementationOnce(() => {
+      throw Object.assign(new Error('createdb: database creation failed'), { status: 2 });
+    });
+    expect(() => provisionLaneDatabase('tzurot_integration_b_test')).toThrow(
+      'Could not create integration database "tzurot_integration_b_test" in tzurot-postgres: exit 2'
+    );
+  });
+
+  it('names the signal when createdb is killed by a signal', () => {
+    mockExec.mockReturnValueOnce('').mockImplementationOnce(() => {
+      throw Object.assign(new Error('createdb: killed'), { status: null, signal: 'SIGKILL' });
+    });
+    expect(() => provisionLaneDatabase('tzurot_integration_b_test')).toThrow(/: signal SIGKILL$/);
+  });
+
+  it('wraps a CREATE EXTENSION failure with the step and database name', () => {
+    const original = Object.assign(new Error('ERROR: could not open extension control file'), {
+      code: 'EPERM',
+    });
+    mockExec.mockReturnValueOnce('1\n').mockImplementationOnce(() => {
+      throw original;
+    });
+    let err: unknown;
+    try {
+      provisionLaneDatabase('tzurot_integration_b_test');
+    } catch (caught) {
+      err = caught;
+    }
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toBe(
+      'Could not enable extensions (vector, citext) on integration database "tzurot_integration_b_test" in tzurot-postgres: EPERM'
+    );
+    expect((err as Error).cause).toBe(original);
+  });
+
   it('refuses an unsafe database name before invoking podman', () => {
     expect(() => provisionLaneDatabase('bad-name;drop')).toThrow(
       /Invalid integration database name/

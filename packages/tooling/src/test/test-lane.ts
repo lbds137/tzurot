@@ -21,6 +21,23 @@ const SAFE_DB_NAME_PATTERN = /^[a-z0-9_]+$/;
 const POSTGRES_CONTAINER = 'tzurot-postgres';
 const POSTGRES_USER = 'tzurot';
 
+function execFailureDetail(error: unknown): string {
+  const { code, status, signal } = error as NodeJS.ErrnoException & {
+    status?: unknown;
+    signal?: unknown;
+  };
+  if (typeof code === 'string') {
+    return code;
+  }
+  if (typeof status === 'number') {
+    return `exit ${status}`;
+  }
+  if (typeof signal === 'string') {
+    return `signal ${signal}`;
+  }
+  return 'exec failed';
+}
+
 /**
  * Validate an integration database name before passing it to `psql` or `createdb`.
  */
@@ -50,40 +67,58 @@ export function provisionLaneDatabase(dbName: string): { created: boolean } {
         '-U',
         POSTGRES_USER,
         '-tAc',
+        // validateIntegrationDbName above restricts dbName to /^[a-z0-9_]+$/ (`packages/tooling/src/test/test-lane.test.ts`).
         `SELECT 1 FROM pg_database WHERE datname = '${dbName}'`,
       ],
       { encoding: 'utf-8' }
     ).trim();
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
     throw new Error(
-      `Could not reach the ${POSTGRES_CONTAINER} container via podman (is it running? podman ps). ${typeof code === 'string' ? code : 'exec failed'}`,
+      `Could not reach the ${POSTGRES_CONTAINER} container via podman (is it running? podman ps). ${execFailureDetail(error)}`,
       { cause: error }
     );
   }
 
   const created = existing !== '1';
   if (created) {
-    execFileSync('podman', ['exec', POSTGRES_CONTAINER, 'createdb', '-U', POSTGRES_USER, dbName], {
-      encoding: 'utf-8',
-    });
+    try {
+      execFileSync(
+        'podman',
+        ['exec', POSTGRES_CONTAINER, 'createdb', '-U', POSTGRES_USER, dbName],
+        {
+          encoding: 'utf-8',
+        }
+      );
+    } catch (error) {
+      throw new Error(
+        `Could not create integration database "${dbName}" in ${POSTGRES_CONTAINER}: ${execFailureDetail(error)}`,
+        { cause: error }
+      );
+    }
   }
 
-  execFileSync(
-    'podman',
-    [
-      'exec',
-      POSTGRES_CONTAINER,
-      'psql',
-      '-U',
-      POSTGRES_USER,
-      '-d',
-      dbName,
-      '-c',
-      'CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS citext',
-    ],
-    { encoding: 'utf-8' }
-  );
+  try {
+    execFileSync(
+      'podman',
+      [
+        'exec',
+        POSTGRES_CONTAINER,
+        'psql',
+        '-U',
+        POSTGRES_USER,
+        '-d',
+        dbName,
+        '-c',
+        'CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS citext',
+      ],
+      { encoding: 'utf-8' }
+    );
+  } catch (error) {
+    throw new Error(
+      `Could not enable extensions (vector, citext) on integration database "${dbName}" in ${POSTGRES_CONTAINER}: ${execFailureDetail(error)}`,
+      { cause: error }
+    );
+  }
 
   console.log(
     created

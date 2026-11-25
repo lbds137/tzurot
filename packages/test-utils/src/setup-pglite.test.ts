@@ -83,4 +83,12 @@ describe('setupTestEnvironment lane wiring', () => {
     expect(constructed).toHaveLength(1);
     expect(constructed[0]).toMatchObject({ db: 5 });
   });
+
+  it("refuses another lane's Redis DB before constructing IORedis (db 15 in lane b)", async () => {
+    process.env.TZUROT_TEST_LANE = 'b';
+    process.env.REDIS_URL = 'redis://127.0.0.1:6379/15';
+
+    await expect(setupTestEnvironment()).rejects.toThrow(/belongs to test lane a/);
+    expect(constructed).toHaveLength(0);
+  });
 });
