@@ -29,10 +29,6 @@ pnpm ops xray bot-client     # Single package
 pnpm ops xray --format md    # Markdown output (for LLMs)
 pnpm ops xray --format json  # JSON output (for tooling)
 
-# Deployment
-pnpm ops deploy:dev          # Deploy to Railway dev
-pnpm ops deploy:verify       # Verify build
-
 # Cache management
 pnpm ops cache:inspect       # Show cache size and stats
 pnpm ops cache:clear         # Clear Turborepo cache

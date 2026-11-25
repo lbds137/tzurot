@@ -55,9 +55,6 @@ Railway deployment helpers (full procedure: `/tzurot-deployment`):
 
 | Command                                                                     | Description                                                                                                   |
 | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `pnpm ops deploy:verify`                                                    | Verify the build before deploying                                                                             |
-| `pnpm ops deploy:dev`                                                       | Deploy to the Railway development environment                                                                 |
-| `pnpm ops deploy:update-gateway`                                            | Update the gateway URL in Railway                                                                             |
 | `pnpm ops deploy:setup-vars --env dev`                                      | Set up Railway environment variables from `.env`                                                              |
 | `pnpm ops deploy:setup-vars --env dev --dry-run`                            | Preview the variable set without writing to Railway                                                           |
 | `pnpm ops deploy:var-delete --env dev --service bot-client --name SOME_KEY` | Delete a Railway variable via the public API (the CLI cannot)                                                 |

@@ -17,15 +17,6 @@ pnpm ops db:check-drift      # Check for migration drift
 pnpm ops db:fix-drift <name> # Fix drifted migrations
 pnpm ops db:inspect          # Inspect database state
 pnpm ops db:inspect --table memories  # Inspect specific table
-
-# Data operations
-pnpm ops data:import <personality>  # Import a personality
-pnpm ops data:bulk-import           # Bulk import all
-pnpm ops data:backup                # Backup personality data
-
-# Deployment
-pnpm ops deploy:dev           # Deploy to Railway dev
-pnpm ops deploy:verify        # Verify build
 ```
 
 ## 📁 Directory Structure
@@ -93,33 +84,18 @@ The legacy `pnpm bump-version` still works for manual version bumps.
 
 ### Running Scripts
 
-Run scripts from the **project root**:
+By convention, run scripts from the **project root** with root-relative paths:
 
 ```bash
-# ✅ Correct
 pnpm ops db:inspect
-./scripts/deployment/deploy-railway-dev.sh
-
-# ❌ Wrong
-cd scripts && ./deployment/deploy-railway-dev.sh
-```
-
-### TypeScript Scripts
-
-Use `tsx` for TypeScript scripts not yet migrated to the ops CLI:
-
-```bash
-# Ad-hoc execution
-pnpm tsx scripts/data/rebuild-memories-from-history.ts
-
-# Or via package.json scripts
-pnpm import-personality
-pnpm bulk-import
+node scripts/testing/check-untested-files.js
 ```
 
 ### Railway CLI
 
-Deployment scripts require Railway CLI:
+Most commands that take `--env dev|prod` need the Railway CLI installed, logged in, and linked: `deploy:setup-vars` and `logs` call it directly, and many others reach it through `packages/tooling/src/utils/env-runner.ts`. `deploy:var-delete`, `deploy:redeploy`, and `deploy:watch-check` use it to resolve service/environment ids through `railway status --json`.
+
+`deploy:var-delete`, `deploy:redeploy`, and `deploy:watch-check` also use a Railway API token (`TZUROT_RAILWAY_API_TOKEN_DEV` / `_PROD`) for the GraphQL-API operations the CLI lacks: variable deletion, image-reusing redeploy, and reading a service's watch patterns.
 
 ```bash
 npm install -g @railway/cli
