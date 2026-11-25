@@ -42,7 +42,7 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
 import { type RouteDeps } from '../routeDeps.js';
 import { pruneEmptyPersonalityConfig } from './pruneEmptyPersonalityConfig.js';
-import { requireVisiblePersonalityById } from './personality/helpers.js';
+import { requireVisiblePersonality } from './personality/helpers.js';
 
 const logger = createLogger('user-config-overrides');
 
@@ -280,7 +280,7 @@ export const handleUpdatePersonalityOverrides = (deps: RouteDeps): RequestHandle
       return;
     }
 
-    if (!(await requireVisiblePersonalityById(prisma, req, res, personalityId))) {
+    if ((await requireVisiblePersonality(prisma, req, res, { id: personalityId })) === null) {
       return;
     }
 
@@ -337,10 +337,9 @@ export const handleClearPersonalityOverrides = (deps: RouteDeps): RequestHandler
       return;
     }
 
-    if (!(await requireVisiblePersonalityById(prisma, req, res, personalityId))) {
-      return;
-    }
-
+    // No visibility gate here, unlike PATCH: the row id derives from the
+    // caller's own user id, so this can only clear the caller's row, and a
+    // gate would lock them out of a stale row once a character goes private.
     const userId = resolveProvisionedUserId(req);
 
     const upcId = generateUserPersonalityConfigUuid(userId, personalityId);
