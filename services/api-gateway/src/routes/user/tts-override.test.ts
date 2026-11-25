@@ -90,7 +90,12 @@ const mockPrisma = {
     findFirst: vi.fn(),
   },
   personality: {
-    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+  },
+  // The PUT visibility gate (requireVisiblePersonality) consults co-ownership
+  // for non-public personalities; null = no co-owner row (the private case).
+  personalityOwner: {
+    findUnique: vi.fn().mockResolvedValue(null),
   },
   userPersonalityConfig: {
     findMany: vi.fn(),
@@ -193,7 +198,7 @@ describe('user/tts-override routes', () => {
     });
 
     it('returns 404 when personality not found', async () => {
-      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(null);
+      vi.mocked(mockPrisma.personality.findUnique).mockResolvedValue(null);
       const handler = buildHandler(handleSetTtsOverride);
       const { res, json } = makeMockRes();
 
@@ -210,9 +215,12 @@ describe('user/tts-override routes', () => {
     });
 
     it('returns 404 when TTS config is not accessible to the user', async () => {
-      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue({
+      vi.mocked(mockPrisma.personality.findUnique).mockResolvedValue({
         id: VALID_UUID_A,
+        slug: 'alice',
         name: 'Alice',
+        ownerId: 'owner-uuid-1',
+        isPublic: true,
       });
       vi.mocked(mockPrisma.ttsConfig.findFirst).mockResolvedValue(null);
       const handler = buildHandler(handleSetTtsOverride);
@@ -231,9 +239,12 @@ describe('user/tts-override routes', () => {
     });
 
     it('upserts UserPersonalityConfig.ttsConfigId on happy path', async () => {
-      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue({
+      vi.mocked(mockPrisma.personality.findUnique).mockResolvedValue({
         id: VALID_UUID_A,
+        slug: 'alice',
         name: 'Alice',
+        ownerId: 'owner-uuid-1',
+        isPublic: true,
       });
       vi.mocked(mockPrisma.ttsConfig.findFirst).mockResolvedValue({
         id: VALID_UUID_B,
@@ -265,6 +276,41 @@ describe('user/tts-override routes', () => {
           override: expect.objectContaining({ configId: VALID_UUID_B }),
         })
       );
+    });
+
+    it('returns 404 for a private personality the caller cannot view, writing nothing and leaking no name', async () => {
+      vi.mocked(mockPrisma.personality.findUnique).mockResolvedValue({
+        id: VALID_UUID_A,
+        slug: 'secret-alice',
+        name: 'SecretAlice',
+        ownerId: 'owner-uuid-private',
+        isPublic: false,
+      });
+      // No co-ownership row either — the caller has no visibility path.
+      vi.mocked(mockPrisma.personalityOwner.findUnique).mockResolvedValue(null);
+
+      const handler = buildHandler(handleSetTtsOverride);
+      const { res, json } = makeMockRes();
+
+      await handler(
+        makeMockReq({ body: { personalityId: VALID_UUID_A, configId: VALID_UUID_B } }),
+        res
+      );
+
+      // Seam: the gate loads the personality by the request's personalityId.
+      expect(mockPrisma.personality.findUnique).toHaveBeenCalledWith({
+        where: { id: VALID_UUID_A },
+        select: { id: true, slug: true, name: true, ownerId: true, isPublic: true },
+      });
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'NOT_FOUND', message: 'Personality not found' })
+      );
+      // No config read past the gate and no override write.
+      expect(mockPrisma.ttsConfig.findFirst).not.toHaveBeenCalled();
+      expect(mockPrisma.userPersonalityConfig.upsert).not.toHaveBeenCalled();
+      // The response body must not carry the private personality's name.
+      const responseBody = JSON.stringify(json.mock.calls[0]?.[0] ?? null);
+      expect(responseBody).not.toContain('SecretAlice');
     });
   });
 
