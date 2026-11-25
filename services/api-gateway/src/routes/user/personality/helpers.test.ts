@@ -26,6 +26,7 @@ import {
   canUserViewPersonality,
   requireVisiblePersonality,
   resolvePersonalityForEdit,
+  type VisiblePersonality,
 } from './helpers.js';
 
 describe('personality route helpers', () => {
@@ -391,7 +392,7 @@ describe('personality route helpers', () => {
         name: 'Ivy',
         isPublic: false,
         ownerId: 'other-owner-id',
-      });
+      } satisfies VisiblePersonality);
       // No PersonalityOwner row either
       mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
       const res = createMockRes();
@@ -417,7 +418,7 @@ describe('personality route helpers', () => {
         name: 'Ivy',
         isPublic: true,
         ownerId: 'other-owner-id',
-      };
+      } satisfies VisiblePersonality;
       mockPrisma.personality.findUnique.mockResolvedValue(row);
       const res = createMockRes();
 
@@ -441,7 +442,7 @@ describe('personality route helpers', () => {
         name: 'Ivy',
         isPublic: false,
         ownerId: 'user-id', // equals provisionedUserId
-      };
+      } satisfies VisiblePersonality;
       mockPrisma.personality.findUnique.mockResolvedValue(row);
       const res = createMockRes();
 
@@ -460,9 +461,10 @@ describe('personality route helpers', () => {
       const row = {
         id: 'personality-id',
         slug: 'personality-slug',
+        name: 'Ivy',
         isPublic: false,
         ownerId: 'other-owner-id',
-      };
+      } satisfies VisiblePersonality;
       mockPrisma.personality.findUnique.mockResolvedValue(row);
       // Caller has a PersonalityOwner entry on someone else's personality
       mockPrisma.personalityOwner.findUnique.mockResolvedValue({
@@ -480,6 +482,34 @@ describe('personality route helpers', () => {
 
       expect(result).toEqual(row);
       expect(res.status).not.toHaveBeenCalled();
+    });
+
+    it('returns the row for the bot owner on a private personality they do not own', async () => {
+      const row = {
+        id: 'personality-id',
+        slug: 'personality-slug',
+        name: 'Ivy',
+        isPublic: false,
+        ownerId: 'other-owner-id',
+      } satisfies VisiblePersonality;
+      mockPrisma.personality.findUnique.mockResolvedValue(row);
+      // Not the owner and no co-ownership row — the bot-owner bypass is the
+      // only visibility path left.
+      mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
+      mockIsBotOwner.mockReturnValue(true);
+      const res = createMockRes();
+
+      const result = await requireVisiblePersonality(
+        mockPrisma as unknown as PrismaClient,
+        createMockReq(),
+        res,
+        { id: 'personality-id' }
+      );
+
+      expect(result).toEqual(row);
+      expect(res.status).not.toHaveBeenCalled();
+      // The bypass is evaluated against the request's Discord user id.
+      expect(mockIsBotOwner).toHaveBeenCalledWith('discord-123');
     });
 
     it('looks the personality up by slug when given a { slug } where', async () => {
