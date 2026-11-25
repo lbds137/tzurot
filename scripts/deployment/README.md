@@ -1,37 +1,25 @@
-# Deployment Scripts
+# Deployment (ops CLI pointers)
 
-**Note:** Most deployment tasks are now handled by the ops CLI. See `tzurot-deployment` skill for full reference.
+**Note:** Deployment tasks are handled by the ops CLI. See `tzurot-deployment` skill for full reference.
 
-## Ops CLI Commands (Preferred)
+## Ops CLI Commands
+
+Two common examples follow; the full list of deploy commands is in `docs/reference/tooling/OPS_CLI_REFERENCE.md` § Deploy Commands.
 
 ```bash
-# Verify build before deployment
-pnpm ops deploy:verify
-
-# Update gateway URL
-pnpm ops deploy:update-gateway <url>
-
-# Setup Railway variables
+# Setup Railway environment variables from .env
 pnpm ops deploy:setup-vars --env dev --dry-run
 pnpm ops deploy:setup-vars --env dev
+
+# Delete a Railway environment variable (the Railway CLI cannot)
+pnpm ops deploy:var-delete --env dev --service bot-client --name SOME_KEY --dry-run
+pnpm ops deploy:var-delete --env prod --shared --name SOME_KEY
 ```
 
-## Legacy Scripts
-
-The following scripts have been migrated to ops CLI and removed:
-
-- ~~deploy-railway-dev.sh~~ → `pnpm ops deploy:setup-vars`
-- ~~update-gateway-url.sh~~ → `pnpm ops deploy:update-gateway`
-- ~~verify-build.sh~~ → `pnpm ops deploy:verify`
+Dev deploys come from `develop`'s Railway auto-deploy — a push to `develop` redeploys each dev service whose watch paths the push touches, not the whole environment; `pnpm ops deploy:watch-check` verifies those patterns cover every Dockerfile COPY source. There is no manual dev-deploy command.
 
 ## Creating Releases
 
-Use `gh` CLI directly for creating releases (see `tzurot-docs` skill for formatting):
-
-```bash
-gh release create v3.0.0-alpha.50 \
-  --title "v3.0.0-alpha.50 - Feature Name" \
-  --notes "Release notes here..."
-```
+Releases are published with `pnpm ops release:publish` — the full procedure (version bump, release PR, tag + GitHub release) lives in the `/tzurot-git-workflow` skill, and the release-notes format is defined in `.claude/rules/05-tooling.md` § Release Notes Format.
 
 **See:** `tzurot-deployment` skill for Railway-specific commands and troubleshooting

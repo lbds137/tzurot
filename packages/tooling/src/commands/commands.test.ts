@@ -18,18 +18,6 @@ vi.mock('../db/create-safe-migration.js', () => ({
   createSafeMigration: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../deployment/deploy-dev.js', () => ({
-  deployDev: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('../deployment/verify-build.js', () => ({
-  verifyBuild: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('../deployment/update-gateway-url.js', () => ({
-  updateGatewayUrl: vi.fn().mockResolvedValue(undefined),
-}));
-
 vi.mock('../deployment/logs.js', () => ({
   fetchLogs: vi.fn().mockResolvedValue(undefined),
 }));
@@ -128,45 +116,6 @@ describe('command handlers', () => {
   });
 
   describe('deploy commands', () => {
-    it('should call deploy-dev handler', async () => {
-      const { registerDeployCommands } = await import('./deploy.js');
-      const { deployDev } = await import('../deployment/deploy-dev.js');
-      const cli = cac('test');
-      registerDeployCommands(cli);
-
-      cli.parse(['node', 'test', 'deploy:dev'], { run: true });
-
-      await vi.waitFor(() => {
-        expect(deployDev).toHaveBeenCalled();
-      });
-    });
-
-    it('should call verify-build handler', async () => {
-      const { registerDeployCommands } = await import('./deploy.js');
-      const { verifyBuild } = await import('../deployment/verify-build.js');
-      const cli = cac('test');
-      registerDeployCommands(cli);
-
-      cli.parse(['node', 'test', 'deploy:verify'], { run: true });
-
-      await vi.waitFor(() => {
-        expect(verifyBuild).toHaveBeenCalled();
-      });
-    });
-
-    it('should call update-gateway-url handler', async () => {
-      const { registerDeployCommands } = await import('./deploy.js');
-      const { updateGatewayUrl } = await import('../deployment/update-gateway-url.js');
-      const cli = cac('test');
-      registerDeployCommands(cli);
-
-      cli.parse(['node', 'test', 'deploy:update-gateway'], { run: true });
-
-      await vi.waitFor(() => {
-        expect(updateGatewayUrl).toHaveBeenCalled();
-      });
-    });
-
     it('delivers a snowflake --job-id to fetchLogs digit-for-digit', async () => {
       // CAC/mri coerces all-digit values to Number, and a snowflake exceeds
       // 2^53: `--job-id 1536529216659792013` parses as ...792100, which still
