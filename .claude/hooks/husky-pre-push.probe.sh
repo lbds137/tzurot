@@ -1,11 +1,20 @@
 #!/bin/bash
 # Fixture check for .husky/pre-push — run after ANY edit to the hook.
 #
-# PARTIAL BY DESIGN. The probe pins two decisions the hook makes for a push:
-# which path it takes (docs-only early exit or the code path) and what it asks
-# turbo to run (whether --filter scopes it to changed packages). `pnpm` and `uv`
+# PARTIAL BY DESIGN. The probe pins three decisions the hook makes for a push:
+# which path it takes (docs-only early exit or the code path), what it asks
+# turbo to run (whether --filter scopes it to changed packages), and whether a
+# push from a linked worktree inherits the main checkout's .env low-resource
+# setting per key (the worktree's own .env value wins when it has one; a
+# worktree .env without the key still falls back to the main checkout's),
+# whether a push from the main checkout itself honours its own .env, whether
+# a trailing CR and one layer of surrounding quotes are stripped from the
+# .env value, and whether an on-value reaches child processes normalised to 1
+# (an off-value must leave none exported). `pnpm` and `uv`
 # are stubbed to log their arguments, so the probe does not run the real gates
-# and cannot tell whether build, lint, test, ruff, mypy or pytest pass.
+# and cannot tell whether build, lint, test, ruff, mypy or pytest pass. `nproc`
+# is stubbed too (prints 8) in the shared stub dir, so in EVERY case the
+# core-count auto-detect never fires, on any host.
 #
 # Every case builds a THROWAWAY git repo under a mktemp dir, copies the real
 # hook in, makes one commit that changes one file, and runs the hook copy with
@@ -36,6 +45,7 @@ mkdir -p "$STUB_DIR"
 cat >"$STUB_DIR/pnpm" <<'STUB'
 #!/bin/sh
 echo "$*" >>"$PNPM_STUB_LOG"
+echo "LRM=${LOW_RESOURCE_MODE:-}" >>"$PNPM_STUB_LOG"
 exit 0
 STUB
 chmod +x "$STUB_DIR/pnpm"
@@ -45,6 +55,11 @@ echo "$*" >>"$PNPM_STUB_LOG"
 exit 0
 STUB
 chmod +x "$STUB_DIR/uv"
+cat >"$STUB_DIR/nproc" <<'STUB'
+#!/bin/sh
+echo 8
+STUB
+chmod +x "$STUB_DIR/nproc"
 
 fail=0
 n=0
@@ -121,6 +136,71 @@ check() {
     fi
 }
 
+# check_worktree_env LABEL MAIN_ENV WT_ENV WANT
+#   MAIN_ENV / WT_ENV: the .env file body for the main checkout / the linked
+#   worktree, or "-" for no .env file. WANT: throttled | unthrottled.
+#   Pushes from a linked worktree (or, when WT_ENV is the sentinel "@main",
+#   from the main checkout itself, with no worktree created) with
+#   LOW_RESOURCE_MODE unset and nproc stubbed to 8; asserts on --concurrency=1
+#   in the turbo line, and for throttled also on the hook's "Low-resource mode
+#   enabled (LOW_RESOURCE_MODE set)" message and on the pnpm stub having seen
+#   LOW_RESOURCE_MODE=1 (the normalised value). For unthrottled, no pnpm stub
+#   line from the turbo run onward may carry a non-empty LOW_RESOURCE_MODE
+#   (earlier pnpm calls precede step 4 and still see an inherited value).
+#   Optional $5: a LOW_RESOURCE_MODE value to set in the environment (default:
+#   unset).
+check_worktree_env() {
+    local label="$1" main_env="$2" wt_env="$3" want="$4" env_value="${5:-}"
+    n=$((n + 1))
+    local repo="$TMPDIR_PROBE/case-$n"
+    local wt="$TMPDIR_PROBE/case-$n-wt"
+    local log="$TMPDIR_PROBE/case-$n.pnpm.log"
+    local out="$TMPDIR_PROBE/case-$n.out"
+    build_repo "$repo" "services/x/src/a.ts"
+    if [ "$wt_env" = "@main" ]; then
+        wt="$repo"
+    else
+        git -C "$repo" worktree add -q "$wt" -b fix/probe-wt
+        mkdir -p "$wt/services/x/src"
+        echo change-wt >"$wt/services/x/src/b.ts"
+        git -C "$wt" add -A
+        git -C "$wt" commit -qm "change in worktree"
+    fi
+    # .env is written after the commits so the fixture never tracks it.
+    [ "$main_env" = "-" ] || printf '%s\n' "$main_env" >"$repo/.env"
+    { [ "$wt_env" = "-" ] || [ "$wt_env" = "@main" ]; } || printf '%s\n' "$wt_env" >"$wt/.env"
+
+    local rc=0
+    local env_arg=(-u LOW_RESOURCE_MODE)
+    [ -z "$env_value" ] || env_arg=("LOW_RESOURCE_MODE=$env_value")
+    (cd "$wt" && env "${env_arg[@]}" PATH="$STUB_DIR:$PATH" PNPM_STUB_LOG="$log" sh .husky/pre-push) >"$out" 2>&1 || rc=$?
+    touch "$log"
+
+    local turbo_line
+    turbo_line=$(grep -F 'turbo run build lint test' "$log" | head -n 1)
+
+    local ok=0
+    if [ -n "$turbo_line" ]; then
+        if [ "$want" = throttled ]; then
+            [[ "$turbo_line" == *"--concurrency=1"* ]] \
+                && grep -qF 'Low-resource mode enabled (LOW_RESOURCE_MODE set)' "$out" \
+                && grep -qx 'LRM=1' "$log" && ok=1
+        else
+            [[ "$turbo_line" != *"--concurrency=1"* ]] \
+                && ! awk '/^turbo run build lint test/ {s=1} s && /^LRM=./ {f=1} END {exit !f}' "$log" \
+                && ok=1
+        fi
+    fi
+
+    if [ "$rc" = 0 ] && [ "$ok" = 1 ]; then
+        echo "ok: $label"
+    else
+        echo "FAIL [exit=$rc want=0 | want=$want ok=$ok | turbo: ${turbo_line:-<none>}]: $label"
+        sed 's/^/     out: /' "$out"
+        fail=1
+    fi
+}
+
 check "package tsconfig takes the code path, filtered" \
     "packages/x/tsconfig.json" full filter
 check "service Dockerfile takes the code path, filtered" \
@@ -177,5 +257,28 @@ check "pnpm-lock.yaml takes the code path, filtered" \
     "pnpm-lock.yaml" full filter
 check "dependency-cruiser config takes the code path, filtered" \
     ".dependency-cruiser.cjs" full filter
+
+check_worktree_env "worktree with no .env inherits the main checkout's low-resource mode" \
+    "LOW_RESOURCE_MODE=1" "-" throttled
+check_worktree_env "no .env anywhere stays unthrottled" \
+    "-" "-" unthrottled
+check_worktree_env "the worktree's own .env wins over the main checkout's" \
+    "LOW_RESOURCE_MODE=1" "LOW_RESOURCE_MODE=0" unthrottled
+check_worktree_env "a worktree .env without the key still falls back to the main checkout's" \
+    "LOW_RESOURCE_MODE=1" "DATABASE_URL=x" throttled
+check_worktree_env "an explicit environment value wins over the main checkout's .env" \
+    "LOW_RESOURCE_MODE=1" "-" unthrottled 0
+check_worktree_env "an on-value like true is exported to children as 1" \
+    "LOW_RESOURCE_MODE=true" "-" throttled
+check_worktree_env "a main-checkout push is throttled by its own .env" \
+    "LOW_RESOURCE_MODE=1" "@main" throttled
+check_worktree_env "a main-checkout .env off-value stays unthrottled" \
+    "LOW_RESOURCE_MODE=0" "@main" unthrottled
+check_worktree_env "a quoted off-value opts out" \
+    'LOW_RESOURCE_MODE="0"' "@main" unthrottled
+check_worktree_env "a single-quoted on-value throttles" \
+    "LOW_RESOURCE_MODE='1'" "@main" throttled
+check_worktree_env "a CRLF off-value opts out" \
+    $'LOW_RESOURCE_MODE=0\r' "@main" unthrottled
 
 exit $fail
