@@ -128,6 +128,19 @@ describe('terminate-set / attachment-bound-set invariant', () => {
       new Set([ApiErrorCategory.MEDIA_NOT_FOUND])
     );
   });
+
+  it('ROUTING_EXHAUSTED advances, never terminates, and never long-caches', () => {
+    // A routing miss is host availability under the model's routing rules —
+    // tier-specific exactly like MODEL_NOT_FOUND: a different tier is a
+    // different set of hosts, so the loop must advance. It is NOT
+    // attachment-bound, so it stays out of the LONG-TTL set and the negative
+    // cache holds it only for the short cooldown.
+    expect(VISION_TERMINATE_CATEGORIES.has(ApiErrorCategory.ROUTING_EXHAUSTED)).toBe(false);
+    expect(LONG_TTL_FAILURE_CATEGORIES.has(ApiErrorCategory.ROUTING_EXHAUSTED)).toBe(false);
+    expect(VISION_FAILURE_CACHE_POLICY[ApiErrorCategory.ROUTING_EXHAUSTED].l1TtlSeconds).toBe(
+      INTERVALS.VISION_FAILURE_TTL
+    );
+  });
 });
 
 describe('buildFailureFallback', () => {

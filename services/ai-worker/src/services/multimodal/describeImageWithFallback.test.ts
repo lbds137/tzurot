@@ -871,6 +871,27 @@ describe('describeImageWithFallback', () => {
     expect(mockDescribeImage).toHaveBeenCalledTimes(2);
   });
 
+  it('also treats ROUTING_EXHAUSTED as retryable and advances', async () => {
+    const personality = makePersonality({ visionFallbackModels: ['tier-a'] });
+    mockDescribeImage
+      .mockRejectedValueOnce(
+        new VisionModelError(ApiErrorCategory.ROUTING_EXHAUSTED, 'all providers ignored')
+      )
+      .mockResolvedValueOnce('recovered');
+
+    const result = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeAuthOptions({ personality }),
+      { model: 'primary/model' }
+    );
+
+    // A routing miss is host availability under the model's routing rules —
+    // a different tier is a different set of hosts, so the chain advances.
+    expect(result.description).toBe('recovered');
+    expect(mockDescribeImage).toHaveBeenCalledTimes(2);
+  });
+
   it('advances past a tier that throws a NON-VisionModelError (e.g. createChatModel missing-key)', async () => {
     const personality = makePersonality({ visionFallbackModels: ['tier-a'] });
     mockDescribeImage
