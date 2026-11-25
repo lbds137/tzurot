@@ -233,9 +233,9 @@ describe('composeVisionTiers', () => {
   it('produces order = [primary, ...visionFallbackModels, floor]', () => {
     const personality = makePersonality({ visionFallbackModels: ['tier-a', 'tier-b'] });
     const tiers = composeVisionTiers('primary/model', personality, false);
-    // Only 3 fit under MAX_VISION_FALLBACK_TIERS, so the floor is capped out here;
-    // the ORDER of the retained prefix is what this asserts.
-    expect(tiers).toEqual(['primary/model', 'tier-a', 'tier-b']);
+    // primary + tier-a + tier-b fill MAX_VISION_FALLBACK_TIERS (3); the floor is kept
+    // outside the cap and appended after them.
+    expect(tiers).toEqual(['primary/model', 'tier-a', 'tier-b', FALLBACK_PAID_MODEL]);
   });
 
   it('appends the paid floor (fallbackVisionModel setting) when NOT guest mode', () => {
@@ -259,13 +259,12 @@ describe('composeVisionTiers', () => {
     expect(tiers).toEqual(['primary/model', FALLBACK_PAID_MODEL]);
   });
 
-  it('caps the tier list at 3 (MAX_VISION_FALLBACK_TIERS)', () => {
+  it('caps primary + fallbacks at 3 (MAX_VISION_FALLBACK_TIERS) and keeps the floor', () => {
     const personality = makePersonality({
       visionFallbackModels: ['tier-a', 'tier-b', 'tier-c', 'tier-d'],
     });
     const tiers = composeVisionTiers('primary/model', personality, false);
-    expect(tiers).toHaveLength(3);
-    expect(tiers).toEqual(['primary/model', 'tier-a', 'tier-b']);
+    expect(tiers).toEqual(['primary/model', 'tier-a', 'tier-b', FALLBACK_PAID_MODEL]);
   });
 
   it('never reorders on its own — the stamped free-first order is preserved as-composed', () => {
@@ -273,15 +272,22 @@ describe('composeVisionTiers', () => {
       visionFallbackModels: [FREE_ROUTER_MODEL, 'openrouter/auto'],
     });
     // The stamped members keep their composed order — that is the assertion here.
-    // This fixture's capped tail happens to be the router alias (the concrete floor
-    // is what the cap trims), so the concrete default follows it as the fourth tier.
+    // The cap keeps primary + both stamped fallbacks; the paid floor is appended after
+    // them and is not a router alias, so no concrete successor follows it.
     const tiers = composeVisionTiers('qwen/qwen3.7-plus', personality, false);
     expect(tiers).toEqual([
       'qwen/qwen3.7-plus',
       FREE_ROUTER_MODEL,
       'openrouter/auto',
-      MODEL_DEFAULTS.VISION_FALLBACK,
+      FALLBACK_PAID_MODEL,
     ]);
+  });
+
+  it('appends nothing when the alias is NOT the tail — something concrete already follows', () => {
+    const personality = makePersonality({ visionFallbackModels: [AUTO_ROUTER_MODEL] });
+    const tiers = composeVisionTiers('primary/model', personality, false);
+    expect(tiers).toEqual(['primary/model', AUTO_ROUTER_MODEL, FALLBACK_PAID_MODEL]);
+    expect(tiers).not.toContain(MODEL_DEFAULTS.VISION_FALLBACK);
   });
 
   it('drops empty-string models', () => {
@@ -338,11 +344,10 @@ describe('composeVisionTiers', () => {
       expect(tiers.filter(model => model === MODEL_DEFAULTS.VISION_FALLBACK)).toHaveLength(1);
     });
 
-    it('runs one over the cap rather than lose the concrete successor to a stamped fallback', () => {
-      // primary + tier-a + AUTO_ROUTER_MODEL already fills MAX_VISION_FALLBACK_TIERS
-      // (3), and the capped tail is the alias — so the concrete VISION_FALLBACK is
-      // appended as a fourth tier instead of being sliced off, which would leave the
-      // chain ending on a router with nothing concrete left.
+    it('appends the concrete successor after a router-alias floor', () => {
+      // primary + tier-a are capped as-is, then the router-alias floor is appended and
+      // the tail is the alias — so the concrete VISION_FALLBACK follows it as a fourth
+      // tier, so the chain never ends on a router with nothing concrete left.
       const personality = makePersonality({ visionFallbackModels: ['tier-a'] });
       const tiers = composeVisionTiers('primary/model', personality, false);
       expect(tiers).toEqual([
@@ -354,6 +359,21 @@ describe('composeVisionTiers', () => {
       expect(tiers).toHaveLength(4);
     });
 
+    it('composes the production five-tier chain: cap plus the alias floor plus its concrete successor', () => {
+      // primary + tier-a + tier-b fill the cap (3), the router-alias floor is appended
+      // outside it, and the concrete VISION_FALLBACK follows the alias as the fifth tier.
+      const personality = makePersonality({ visionFallbackModels: ['tier-a', 'tier-b'] });
+      const tiers = composeVisionTiers('primary/model', personality, false);
+      expect(tiers).toEqual([
+        'primary/model',
+        'tier-a',
+        'tier-b',
+        AUTO_ROUTER_MODEL,
+        MODEL_DEFAULTS.VISION_FALLBACK,
+      ]);
+      expect(tiers).toHaveLength(5);
+    });
+
     it('appends nothing when the concrete default is already earlier in the chain', () => {
       const personality = makePersonality({
         visionFallbackModels: [MODEL_DEFAULTS.VISION_FALLBACK],
@@ -363,14 +383,15 @@ describe('composeVisionTiers', () => {
       expect(tiers.length).toBeLessThanOrEqual(3);
     });
 
-    it('guest mode gets no concrete successor even when a stamped alias is the tail', () => {
-      // Guest floor is free, so the alias can only reach the tail via the stamped
-      // list — the billing firewall must hold there too.
+    it('guest mode gets no concrete successor; the free floor stays the tail', () => {
+      // Guest floor is always a free model (getFreeVisionFloor), so the stamped alias is
+      // not the tail here: the free floor is. The billing firewall must hold regardless of
+      // list shape, so the concrete default is asserted absent explicitly.
       const personality = makePersonality({
         visionFallbackModels: ['stamped-1', AUTO_ROUTER_MODEL],
       });
       const tiers = composeVisionTiers('primary/model', personality, true);
-      expect(tiers).toEqual(['primary/model', 'stamped-1', AUTO_ROUTER_MODEL]);
+      expect(tiers).toEqual(['primary/model', 'stamped-1', AUTO_ROUTER_MODEL, FREE_ROUTER_MODEL]);
       expect(tiers).not.toContain(MODEL_DEFAULTS.VISION_FALLBACK);
     });
   });
@@ -409,11 +430,28 @@ describe('composeVisionTiers', () => {
     });
   });
 
-  describe('router alias arriving from the STAMPED list (concrete floor)', () => {
-    it('appends the concrete successor when the cap leaves a stamped alias at the tail', () => {
-      // The floor here is concrete (outer registration), so the alias reaches the
-      // tail only because the cap trimmed that floor off. A pre-cap, floor-only
-      // rule would miss this entirely and let the chain end on the router.
+  describe('router alias arriving from the STAMPED list (empty floor)', () => {
+    beforeAll(() => {
+      registerSystemSettings({
+        get: (key: string) =>
+          key === 'fallbackVisionModel'
+            ? ''
+            : SYSTEM_SETTINGS_FALLBACKS[key as keyof typeof SYSTEM_SETTINGS_FALLBACKS],
+      } as unknown as SystemSettingsService);
+    });
+
+    afterAll(() => {
+      registerSystemSettings({
+        get: (key: string) =>
+          key === 'fallbackVisionModel'
+            ? FALLBACK_PAID_MODEL
+            : SYSTEM_SETTINGS_FALLBACKS[key as keyof typeof SYSTEM_SETTINGS_FALLBACKS],
+      } as unknown as SystemSettingsService);
+    });
+
+    it('appends the concrete successor when the floor is empty and a stamped alias is the tail', () => {
+      // The paid floor is empty, so the stamped alias is the capped tail. A stamped alias
+      // at the tail must still get the concrete successor rather than end on the router.
       const personality = makePersonality({
         visionFallbackModels: ['stamped-1', AUTO_ROUTER_MODEL],
       });
@@ -426,7 +464,7 @@ describe('composeVisionTiers', () => {
       ]);
     });
 
-    it('appends the concrete successor when the STAMPED alias is FREE_ROUTER_MODEL, not AUTO', () => {
+    it('appends the concrete successor when the floor is empty and the STAMPED alias is FREE_ROUTER_MODEL, not AUTO', () => {
       // Same shape as the AUTO_ROUTER_MODEL case above, but the stamped fallback that
       // survives the cap is the free-router alias — the concrete-terminal rule keys off
       // isRouterAliasModel, not the AUTO constant specifically.
@@ -440,13 +478,6 @@ describe('composeVisionTiers', () => {
         FREE_ROUTER_MODEL,
         MODEL_DEFAULTS.VISION_FALLBACK,
       ]);
-    });
-
-    it('appends nothing when the alias is NOT the tail — something concrete already follows', () => {
-      const personality = makePersonality({ visionFallbackModels: [AUTO_ROUTER_MODEL] });
-      const tiers = composeVisionTiers('primary/model', personality, false);
-      expect(tiers).toEqual(['primary/model', AUTO_ROUTER_MODEL, FALLBACK_PAID_MODEL]);
-      expect(tiers).not.toContain(MODEL_DEFAULTS.VISION_FALLBACK);
     });
   });
 });
@@ -661,23 +692,72 @@ describe('describeImageWithFallback', () => {
     expect(mockTryResolveUserKey).not.toHaveBeenCalled();
   });
 
-  it('skips the wallet probe when the fallback tail is all free routes (reorder is a no-op)', async () => {
-    // Deliberately NOT guest — the guest short-circuit lives in the probe itself, so an
-    // authenticated user is what proves the tail-content gate skips the resolver call.
-    // TWO free fallbacks, so the cap slices the (paid) floor off and the tail is all-free.
-    // Primary FAILS so the walk reaches the reorder point.
-    const personality = makePersonality({
-      visionFallbackModels: [FREE_ROUTER_MODEL, 'x-ai/grok-4.1:free'],
+  describe('wallet probe with an empty paid floor', () => {
+    beforeAll(() => {
+      registerSystemSettings({
+        get: (key: string) =>
+          key === 'fallbackVisionModel'
+            ? ''
+            : SYSTEM_SETTINGS_FALLBACKS[key as keyof typeof SYSTEM_SETTINGS_FALLBACKS],
+      } as unknown as SystemSettingsService);
     });
+
+    afterAll(() => {
+      registerSystemSettings({
+        get: (key: string) =>
+          key === 'fallbackVisionModel'
+            ? FALLBACK_PAID_MODEL
+            : SYSTEM_SETTINGS_FALLBACKS[key as keyof typeof SYSTEM_SETTINGS_FALLBACKS],
+      } as unknown as SystemSettingsService);
+    });
+
+    it('skips the wallet probe when the fallback tail is all free routes (reorder is a no-op)', async () => {
+      // Deliberately NOT guest — the guest short-circuit lives in the probe itself, so an
+      // authenticated user is what proves the tail-content gate skips the resolver call.
+      // The paid floor is empty and both stamped fallbacks are free, so the tail is all-free.
+      // Primary FAILS so the walk reaches the reorder point.
+      const personality = makePersonality({
+        visionFallbackModels: [FREE_ROUTER_MODEL, 'google/gemma-4-31b-it:free'],
+      });
+      mockDescribeImage
+        .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'refused'))
+        .mockResolvedValueOnce('free description');
+
+      await describeImageWithFallback(attachment, personality, makeAuthOptions({ personality }), {
+        model: 'qwen/qwen3.7-plus',
+      });
+
+      expect(mockTryResolveUserKey).not.toHaveBeenCalled();
+    });
+  });
+
+  it('probes the wallet once when a free stamped fallback sits beside the paid floor, and runs the paid floor first', async () => {
+    // A free stamped fallback plus the paid floor is not an all-free tail, so the probe runs
+    // once. For an OpenRouter-key holder the sink then moves the paid floor ahead of the free
+    // route, so the free route is reached only after the paid floor has failed.
+    const personality = makePersonality({ visionFallbackModels: [FREE_ROUTER_MODEL] });
+    mockTryResolveUserKey.mockResolvedValue('sk-or-user-key');
     mockDescribeImage
+      .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'refused'))
       .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'refused'))
       .mockResolvedValueOnce('free description');
 
-    await describeImageWithFallback(attachment, personality, makeAuthOptions({ personality }), {
-      model: 'qwen/qwen3.7-plus',
-    });
+    const result = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeAuthOptions({ personality }),
+      { model: 'qwen/qwen3.7-plus' }
+    );
 
-    expect(mockTryResolveUserKey).not.toHaveBeenCalled();
+    expect(result.description).toBe('free description');
+    expect(mockTryResolveUserKey).toHaveBeenCalledTimes(1);
+    expect(mockTryResolveUserKey).toHaveBeenCalledWith('user-1', AIProvider.OpenRouter);
+    // Provider seam: the models that actually reached describeImage, in walk order.
+    expect(mockDescribeImage.mock.calls.map(call => call[4]?.model)).toEqual([
+      'qwen/qwen3.7-plus',
+      FALLBACK_PAID_MODEL,
+      FREE_ROUTER_MODEL,
+    ]);
   });
 
   it('names the last attempt routed model on the exhausted-chain log', async () => {

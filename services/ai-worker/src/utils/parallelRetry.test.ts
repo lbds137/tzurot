@@ -234,4 +234,137 @@ describe('withParallelRetry', () => {
     // shouldRetry should have been called for each failed item on each attempt
     expect(shouldRetry).toHaveBeenCalled();
   });
+
+  describe('concurrency option', () => {
+    /** Let queued promise continuations run. No timers involved. */
+    async function flush(): Promise<void> {
+      for (let i = 0; i < 50; i++) {
+        await Promise.resolve();
+      }
+    }
+
+    it('rejects with RangeError for concurrency below 1, even with no items, and never calls fn', async () => {
+      const fn = vi.fn((item: number) => Promise.resolve(item));
+
+      await expect(withParallelRetry([], fn, { concurrency: 0 })).rejects.toThrow(RangeError);
+      expect(fn).not.toHaveBeenCalled();
+    });
+
+    it('keeps at most `concurrency` items in flight and returns index-aligned results', async () => {
+      let inFlight = 0;
+      let maxInFlight = 0;
+      const release: Array<() => void> = [];
+      const fn = vi.fn(
+        (item: number) =>
+          new Promise<number>(resolve => {
+            inFlight++;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+            release.push(() => {
+              inFlight--;
+              resolve(item * 10);
+            });
+          })
+      );
+
+      const pending = withParallelRetry([0, 1, 2, 3, 4, 5], fn, {
+        maxAttempts: 1,
+        concurrency: 2,
+      });
+
+      await flush();
+      expect(release).toHaveLength(2);
+
+      while (release.length > 0) {
+        release.shift()?.();
+        await flush();
+      }
+
+      const results = await pending;
+      expect(maxInFlight).toBe(2);
+      expect(results.map(r => r.index)).toEqual([0, 1, 2, 3, 4, 5]);
+      expect(results.map(r => r.value)).toEqual([0, 10, 20, 30, 40, 50]);
+      expect(results.every(r => r.status === 'success' && r.attempts === 1)).toBe(true);
+    });
+
+    it('applies the bound to a retry attempt as well as the first', async () => {
+      let inFlight = 0;
+      let maxInFlight = 0;
+      const callsPerItem = new Map<number, number>();
+      const queue: Array<{ item: number; fail: boolean; settle: () => void }> = [];
+      const fn = vi.fn(
+        (item: number) =>
+          new Promise<number>((resolve, reject) => {
+            const calls = (callsPerItem.get(item) ?? 0) + 1;
+            callsPerItem.set(item, calls);
+            inFlight++;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+            // Odd items fail on their first attempt only, so they are retried in attempt 2.
+            const fail = item % 2 === 1 && calls === 1;
+            queue.push({
+              item,
+              fail,
+              settle: () => {
+                inFlight--;
+                if (fail) {
+                  reject(new Error(`item ${item} failed once`));
+                } else {
+                  resolve(item * 10);
+                }
+              },
+            });
+          })
+      );
+
+      const pending = withParallelRetry([0, 1, 2, 3, 4, 5], fn, {
+        maxAttempts: 3,
+        concurrency: 2,
+      });
+
+      await flush();
+      while (queue.length > 0) {
+        queue.shift()?.settle();
+        await flush();
+      }
+
+      const results = await pending;
+      expect(maxInFlight).toBe(2);
+      // 6 first-attempt calls plus 3 retries for the odd items.
+      expect(fn).toHaveBeenCalledTimes(9);
+      expect(results.map(r => r.index)).toEqual([0, 1, 2, 3, 4, 5]);
+      expect(results.map(r => r.value)).toEqual([0, 10, 20, 30, 40, 50]);
+      expect(results[1].attempts).toBe(2);
+      expect(results[3].attempts).toBe(2);
+      expect(results[5].attempts).toBe(2);
+      expect(results[0].attempts).toBe(1);
+    });
+
+    it('starts every item at once when concurrency is omitted', async () => {
+      let inFlight = 0;
+      let maxInFlight = 0;
+      const release: Array<() => void> = [];
+      const fn = vi.fn(
+        (item: number) =>
+          new Promise<number>(resolve => {
+            inFlight++;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+            release.push(() => {
+              inFlight--;
+              resolve(item);
+            });
+          })
+      );
+
+      const pending = withParallelRetry([0, 1, 2, 3, 4, 5], fn, { maxAttempts: 1 });
+
+      await flush();
+      expect(maxInFlight).toBe(6);
+
+      while (release.length > 0) {
+        release.shift()?.();
+        await flush();
+      }
+      const results = await pending;
+      expect(results.every(r => r.status === 'success')).toBe(true);
+    });
+  });
 });

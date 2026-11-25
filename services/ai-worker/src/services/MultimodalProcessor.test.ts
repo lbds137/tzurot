@@ -19,6 +19,7 @@ import {
   FFMPEG_AV_WEBM_PREFIX_HEX,
 } from '../test/mocks/fixtures/webmHeaders.js';
 import { PLAIN_WEBM_SNIFF_MAX_BYTES } from './multimodal/plainWebmAudioSniff.js';
+import { VISION_ATTACHMENT_CONCURRENCY } from './multimodal/constants.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets
 const {
@@ -951,6 +952,72 @@ describe('MultimodalProcessor', () => {
       });
 
       expect(results).toHaveLength(0);
+    });
+  });
+
+  describe('vision concurrency bound', () => {
+    it('keeps at most VISION_ATTACHMENT_CONCURRENCY vision walks in flight for a 10-image message and processes every attachment', async () => {
+      // Each fallback-loop call parks until released, so the in-flight count is observable.
+      const release: Array<() => void> = [];
+      let inFlight = 0;
+      let maxInFlight = 0;
+      mockDescribeImageWithFallback.mockImplementation(
+        () =>
+          new Promise(resolve => {
+            inFlight++;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+            release.push(() => {
+              inFlight--;
+              resolve({
+                description: 'image description',
+                attribution: { model: 'test-model', fromCache: false },
+              });
+            });
+          })
+      );
+
+      const attachments: AttachmentMetadata[] = Array.from({ length: 10 }, (_, i) => ({
+        url: `https://cdn.discordapp.com/img${i}.png`,
+        name: `img${i}.png`,
+        contentType: CONTENT_TYPES.IMAGE_PNG,
+        size: 1024,
+      }));
+      const visionAuth = {
+        personality: mockPersonality,
+        mainProvider: AIProvider.OpenRouter,
+        mainApiKey: 'sk-user-byok-key',
+        isGuestMode: false,
+        userId: 'user-1',
+        apiKeyResolver: {
+          resolveApiKey: vi.fn(),
+          tryResolveUserKey: vi.fn(),
+        } as unknown as ApiKeyResolver,
+      };
+
+      const pending = processAttachments(attachments, mockPersonality, {
+        isGuestMode: false,
+        visionAuth,
+      });
+
+      for (let i = 0; i < 50; i++) {
+        await Promise.resolve();
+      }
+      expect(release).toHaveLength(VISION_ATTACHMENT_CONCURRENCY);
+
+      let released = 0;
+      while (release.length > 0) {
+        release.shift()?.();
+        released++;
+        for (let i = 0; i < 50; i++) {
+          await Promise.resolve();
+        }
+      }
+
+      const results = await pending;
+      expect(released).toBe(10);
+      expect(maxInFlight).toBe(VISION_ATTACHMENT_CONCURRENCY);
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledTimes(10);
+      expect(results).toHaveLength(10);
     });
   });
 

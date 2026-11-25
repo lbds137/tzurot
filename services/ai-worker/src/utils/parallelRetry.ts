@@ -6,6 +6,7 @@
  */
 
 import type { Logger } from 'pino';
+import { mapWithConcurrency } from './mapWithConcurrency.js';
 
 /**
  * Options for parallel retry operations.
@@ -16,6 +17,8 @@ import type { Logger } from 'pino';
 interface ParallelRetryOptions {
   /** Maximum number of retry attempts (default: 3) */
   maxAttempts?: number;
+  /** Max items in flight per attempt; omitted = all at once. Must be >= 1: a value below 1 or NaN rejects the call */
+  concurrency?: number;
   /** Logger instance for logging retry attempts */
   logger?: Logger;
   /** Operation name for logging */
@@ -44,6 +47,14 @@ export interface ParallelItemResult<T> {
   attempts: number;
 }
 
+/** Per-item outcome of one attempt, before it is folded into `results`. */
+interface AttemptOutcome<TResult> {
+  index: number;
+  status: 'success' | 'failed';
+  value?: TResult;
+  error?: unknown;
+}
+
 /**
  * Process multiple items in parallel with retry logic
  *
@@ -65,6 +76,7 @@ export interface ParallelItemResult<T> {
  *   (attachment) => describeImage(attachment),
  *   {
  *     maxAttempts: 3,
+ *     concurrency: 4,
  *     logger,
  *     operationName: 'Image description'
  *   }
@@ -75,7 +87,19 @@ export async function withParallelRetry<TItem, TResult>(
   fn: (item: TItem, index: number) => Promise<TResult>,
   options: ParallelRetryOptions = {}
 ): Promise<ParallelItemResult<TResult>[]> {
-  const { maxAttempts = 3, logger, operationName = 'operation', shouldRetry } = options;
+  const {
+    maxAttempts = 3,
+    concurrency,
+    logger,
+    operationName = 'operation',
+    shouldRetry,
+  } = options;
+
+  // Validate up front so an empty `items` array rejects too; the attempt loop below
+  // breaks before mapWithConcurrency runs when there is nothing to process.
+  if (concurrency !== undefined && !(concurrency >= 1)) {
+    throw new RangeError(`withParallelRetry: concurrency must be at least 1 (got ${concurrency})`);
+  }
 
   // Track results for each item
   const results: ParallelItemResult<TResult>[] = items.map((_, index) => ({
@@ -97,17 +121,24 @@ export async function withParallelRetry<TItem, TResult>(
       `[ParallelRetry] ${operationName} attempt ${attempt}/${maxAttempts}`
     );
 
-    // Process remaining items in parallel
-    const promises = remainingIndices.map(async index => {
+    // Process remaining items in parallel. The per-item wrapper never rejects, so the
+    // bounded path (mapWithConcurrency) settles exactly like Promise.allSettled.
+    const runItem = async (index: number): Promise<AttemptOutcome<TResult>> => {
       try {
         const value = await fn(items[index], index);
-        return { index, status: 'success' as const, value };
+        return { index, status: 'success', value };
       } catch (error) {
-        return { index, status: 'failed' as const, error };
+        return { index, status: 'failed', error };
       }
-    });
+    };
 
-    const attemptResults = await Promise.allSettled(promises);
+    const attemptResults: PromiseSettledResult<AttemptOutcome<TResult>>[] =
+      concurrency === undefined
+        ? await Promise.allSettled(remainingIndices.map(runItem))
+        : (await mapWithConcurrency(remainingIndices, concurrency, runItem)).map(value => ({
+            status: 'fulfilled' as const,
+            value,
+          }));
 
     // Update results and identify items that still need retry
     const stillFailing: number[] = [];
@@ -132,7 +163,9 @@ export async function withParallelRetry<TItem, TResult>(
           }
         }
       } else {
-        // Promise itself was rejected (shouldn't happen with our setup)
+        // Deliberate defensive guard: runItem never rejects, so neither the bounded path
+        // nor the allSettled path reaches this arm today. Kept so a future change to runItem
+        // cannot silently drop a failure.
         results[index].attempts = attempt;
         results[index].status = 'failed';
         results[index].error = promiseResult.reason;

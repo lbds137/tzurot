@@ -115,12 +115,15 @@ the fallback loop below) re-attempts immediately rather than replaying the old m
 Today a vision failure yields one `[Image unavailable: …]` placeholder immediately. The fallback
 loop retries **down the chain** on a _retryable_ failure before giving up:
 
-**Tier list** (deduped by model, capped at `MAX_VISION_FALLBACK_TIERS = 3`, negative-cached tiers
-skipped): resolved primary → main-model-native-vision (worker-local) → `globalDefaultVisionConfigId`
-→ `freeDefaultVisionConfigId` → hardcoded floor. The two DB tiers are **stamped gateway-side** onto
+**Tier list** (deduped by model, negative-cached tiers skipped): resolved primary →
+main-model-native-vision (worker-local) → `globalDefaultVisionConfigId` →
+`freeDefaultVisionConfigId` → hardcoded floor. The two DB tiers are **stamped gateway-side** onto
 `personality.visionFallbackModels` (Slice B) — the worker has no Prisma, so all DB resolution stays
-on the gateway; the worker composes its local tiers around the stamped list. The list is capped
-at 3, **plus one over the cap** when the capped tail is a router alias (`ROUTER_ALIAS_MODELS`:
+on the gateway; the worker composes its local tiers around the stamped list. The
+`MAX_VISION_FALLBACK_TIERS = 3` cap bounds the primary + stamped fallbacks only. The floor is
+**exempt from the cap** and is always kept: on a z.ai capacity squeeze the stamped tiers share one
+provider pool, and for a non-guest user the floor is the only tier outside it. **Plus one more**
+when the tail is a router alias (`ROUTER_ALIAS_MODELS`:
 `openrouter/auto` or `openrouter/free`)
 (non-guest only): the worker appends the concrete `MODEL_DEFAULTS.VISION_FALLBACK` after it, so
 the concrete default always follows the alias and a chain never ends on a router that can fail
