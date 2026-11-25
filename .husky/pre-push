@@ -129,11 +129,16 @@ fi
 TURBO_ARGS="--output-logs=errors-only"
 
 # Print LOW_RESOURCE_MODE from the .env file $1 (key-scoped; the file is never
-# sourced). A trailing CR is removed and one layer of matching surrounding
-# double or single quotes is stripped; a lone or mismatched quote is kept.
+# sourced). The last matching line wins (dotenv semantics); then a CR is
+# removed, an inline comment (whitespace followed by #, to end of line) is
+# dropped, leading and trailing whitespace is trimmed, and one layer of
+# matching surrounding double or single quotes is stripped; a lone or
+# mismatched quote is kept.
 read_env_lrm() {
-    grep -E '^LOW_RESOURCE_MODE=' "$1" | cut -d '=' -f2- | tr -d '\r' \
-        | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/"
+    grep -E '^LOW_RESOURCE_MODE=' "$1" | tail -n 1 | cut -d '=' -f2- | tr -d '\r' \
+        | sed -e 's/[[:space:]][[:space:]]*#.*$//' \
+              -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+              -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/"
 }
 
 # Source LOW_RESOURCE_MODE from .env if not already set
@@ -144,13 +149,13 @@ if [ -z "$LOW_RESOURCE_MODE" ]; then
     # Per key: a linked worktree's .env is gitignored and often absent, or
     # present without this key. Fall back to the main checkout's .env, the
     # parent of the common git dir. Assumes a non-bare main checkout and
-    # git >= 2.31 (--path-format). Before 2.31, rev-parse echoes the
-    # unrecognised --path-format=absolute as its own output line, so
-    # GIT_COMMON holds two lines, dirname yields no real checkout path, and
-    # the [ -f ] test fails: still no fallback (not verified on old git).
+    # git >= 2.31 (--path-format). Before 2.31, rev-parse is expected to echo
+    # the unrecognised flag (not verified on old git); the case guard blanks
+    # any output that is not an absolute path, so there is no fallback.
     # A bare-repo layout resolves the parent of the bare dir.
     if [ -z "$LOW_RESOURCE_MODE" ]; then
         GIT_COMMON=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+        case "$GIT_COMMON" in /*) ;; *) GIT_COMMON="" ;; esac
         if [ -n "$GIT_COMMON" ] && [ -f "$(dirname "$GIT_COMMON")/.env" ]; then
             LOW_RESOURCE_MODE=$(read_env_lrm "$(dirname "$GIT_COMMON")/.env")
         fi

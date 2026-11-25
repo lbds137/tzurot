@@ -8,8 +8,9 @@
 # setting per key (the worktree's own .env value wins when it has one; a
 # worktree .env without the key still falls back to the main checkout's),
 # whether a push from the main checkout itself honours its own .env, whether
-# a trailing CR and one layer of surrounding quotes are stripped from the
-# .env value, and whether an on-value reaches child processes normalised to 1
+# the last of a repeated key wins and a trailing CR, an inline comment,
+# surrounding whitespace and one layer of surrounding quotes are stripped from
+# the .env value, and whether an on-value reaches child processes normalised to 1
 # (an off-value must leave none exported). `pnpm` and `uv`
 # are stubbed to log their arguments, so the probe does not run the real gates
 # and cannot tell whether build, lint, test, ruff, mypy or pytest pass. `nproc`
@@ -280,5 +281,11 @@ check_worktree_env "a single-quoted on-value throttles" \
     "LOW_RESOURCE_MODE='1'" "@main" throttled
 check_worktree_env "a CRLF off-value opts out" \
     $'LOW_RESOURCE_MODE=0\r' "@main" unthrottled
+check_worktree_env "a repeated key resolves to its last value" \
+    $'LOW_RESOURCE_MODE=1\nLOW_RESOURCE_MODE=0' "@main" unthrottled
+check_worktree_env "an off-value with an inline comment opts out" \
+    'LOW_RESOURCE_MODE=0 # off' "@main" unthrottled
+check_worktree_env "an off-value with trailing whitespace opts out" \
+    'LOW_RESOURCE_MODE=0 ' "@main" unthrottled
 
 exit $fail
