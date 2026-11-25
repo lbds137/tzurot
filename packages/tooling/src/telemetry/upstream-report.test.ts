@@ -184,12 +184,15 @@ describe('upstream-report', () => {
       expect(sql).toContain("(r->>'completionTokens')::float8");
     });
 
-    it('reads each data path once, in the CTE, and never repeats the data-> reads per column', async () => {
+    it('materializes the CTE, and the CTE holds the only two data reads', async () => {
       mockQueryRaw.mockResolvedValueOnce([]);
       const { telemetryUpstreamReport } = await import('./upstream-report.js');
       await telemetryUpstreamReport({ env: 'local', days: '7' });
 
       const { sql } = sqlOf(mockQueryRaw);
+      // MATERIALIZED is what stops Postgres inlining the single-reference CTE,
+      // which would re-read `data` per aggregate column.
+      expect(sql).toContain('WITH served AS MATERIALIZED (');
       // Exactly two `data->` reads: the response object and the error field, both in the CTE.
       expect(sql.match(/data->/g)).toHaveLength(2);
       expect(sql).toContain("(data->'error') IS NOT NULL AS failed");

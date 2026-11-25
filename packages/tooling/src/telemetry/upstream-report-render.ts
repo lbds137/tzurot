@@ -23,8 +23,9 @@ export interface UpstreamStats {
   finishError: number;
   finishOther: number;
   /**
-   * Blank raw replies, including empty-after-retries failures. Rows without a
-   * recorded response carry a non-blank placeholder ('[not recorded]'), so they never count.
+   * Blank raw replies, including empty-after-retries failures. Rows with no
+   * reply recorded (no response captured, or a thrown failure) carry a
+   * non-blank placeholder, so they never count.
    */
   emptyReplies: number;
   /**
@@ -86,6 +87,7 @@ const SCOPE_NOTE =
   'Empty counts blank replies, including empty-after-retries failures. ' +
   "A retried request is credited to the host of the last attempt that recorded a response; earlier attempts' hosts are not recorded. " +
   "Requests that failed with a thrown error record no upstream host and are counted under (none); a host's Failed column only counts failures that happened after a response arrived. " +
+  "Failures recorded before the provider was resolved are stored as provider 'unknown' and fall outside this report. " +
   "Share of model counts (none) in its denominator, so named hosts' shares understate their share of served traffic. " +
   'The diagnostic payload type has no BYOK field; the BYOK split per model is in `telemetry:inference`. ' +
   'Model is the requested model id, so a router alias groups every host it routed to.';

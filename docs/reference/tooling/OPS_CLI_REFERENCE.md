@@ -258,11 +258,11 @@ response.
 
 ## Telemetry Commands
 
-| Command                                   | Description                                                                                                                                                                                                                                                     |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm ops telemetry:report --env prod`    | Command discoverability report over `command_events` (**read-only**)                                                                                                                                                                                            |
-| `pnpm ops telemetry:inference --env prod` | Inference usage report over `usage_logs` — tokens, BYOK split, latency, cache hit rate (**read-only**)                                                                                                                                                          |
-| `pnpm ops telemetry:upstream --env prod`  | Serving-host report over `llm_diagnostic_logs` — OpenRouter upstream host per model, failed requests, finish reasons (stop, length, content_filter, error, other), empty replies, average output tokens (**read-only**, 7-day retention; default window 7 days) |
+| Command                                   | Description                                                                                                                                                                                                                                                                                          |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm ops telemetry:report --env prod`    | Command discoverability report over `command_events` (**read-only**)                                                                                                                                                                                                                                 |
+| `pnpm ops telemetry:inference --env prod` | Inference usage report over `usage_logs` — tokens, BYOK split, latency, cache hit rate (**read-only**)                                                                                                                                                                                               |
+| `pnpm ops telemetry:upstream --env prod`  | Serving-host report over `llm_diagnostic_logs` — OpenRouter upstream host per model, failed requests, finish reasons (stop, length, content_filter, error, other), empty replies, average output tokens (**read-only**, default window = diagnostic log retention, `DIAGNOSTIC_LOG_RETENTION_HOURS`) |
 
 ## Context Commands
 
