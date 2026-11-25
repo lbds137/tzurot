@@ -34,4 +34,10 @@ What:
 - Diagnose the 11:37 path first: which command spawned the 5 eslint processes, and was the flag set?
 
 Acceptance: with the switch on (or auto-on), a bare pnpm lint, pnpm test, pnpm quality and the pre-push hook each stay within the documented process and worker caps on the Deck; 05-tooling.md Resource Constraints names the switch and the auto rule; the derivation is reusable by the fleet (a documented contract, not Tzurot-only prose).
+
+## Diagnosis (2026-11-25, tzurot-a)
+
+The flag was SET; the path is not covered. Observed: B's transcript shows `export LOW_RESOURCE_MODE=1 NODE_OPTIONS=--max-old-space-size=3072` then quality piece 1 (`pnpm lint` = bare `turbo run lint`) launched at 16:35:49Z; the mem-pressure log shows avail 6050 MB (16:35Z) -> 2050 MB (16:37Z). The eslint process count and its tie to that command are inferred from timing. Also: the `tzurot-b` clone has no `.env` and the Deck has 8 cores, so neither the .env fallback nor the pre-push <=4-core auto-detect can fire there.
+
+Second, larger finding (runtime-verified, turbo 2.11.13): turbo runs in STRICT env mode and drops `LOW_RESOURCE_MODE` before the task process. Probe: `LOW_RESOURCE_MODE=1 NODE_OPTIONS=--require <print-env preload>` through the native turbo binary on `@tzurot/identity#test` printed `LRM=[]` in the task's pnpm process (NODE_OPTIONS, the positive control, did arrive). So vitest.config.ts `maxWorkers: 1` has never engaged under any `turbo run test`, the pre-push included; the pre-push and vitest.config.ts comments claiming the export reaches vitest are false. The husky pre-push probe stubs pnpm, so it never crosses this seam. Flipping LOW_RESOURCE_MODE leaves the task hash unchanged (82d647e8d3c1e06f both ways), so pass-through env is cache-neutral. `TURBO_CONCURRENCY=bogus` still fails flag validation on 2.11.13, so turbo reads the env var natively.
 <!-- SECTION:DESCRIPTION:END -->
