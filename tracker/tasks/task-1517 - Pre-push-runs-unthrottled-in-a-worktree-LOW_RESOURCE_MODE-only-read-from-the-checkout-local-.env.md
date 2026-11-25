@@ -3,10 +3,10 @@ id: TASK-1517
 title: >-
   Pre-push runs unthrottled in a worktree: LOW_RESOURCE_MODE only read from the
   checkout-local .env
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-23T15:57:00Z'
-updated_date: '2026-11-23T15:58:00Z'
+updated_date: '2026-11-25T07:20:00Z'
 labels:
   - area:husky
   - size:S
