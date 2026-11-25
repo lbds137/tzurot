@@ -119,17 +119,42 @@ fi
 
 # 4. Detect resource-constrained environment
 # Three triggers set LOW_RESOURCE_MODE: the LOW_RESOURCE_MODE=1 env var
-# (e.g., for Steam Deck), a LOW_RESOURCE_MODE= line in .env, or this step's
-# own auto-detect of a low core count (e.g., a small cloud VM). Set
-# LOW_RESOURCE_MODE to 0, false, off, or no (any case) to opt out and skip auto-detect.
-# The Node heap cap follows the explicit variable or a small total memory
-# reading, not the core-count trigger — a low core count alone throttles
+# (e.g., for Steam Deck), a LOW_RESOURCE_MODE= line in .env (the checkout's
+# own file, or the main checkout's when the worktree's has no value for it),
+# or this step's own auto-detect of a low core count (e.g., a small cloud VM).
+# Set LOW_RESOURCE_MODE to 0, false, off, or no (any case) to opt out and skip
+# auto-detect. The Node heap cap follows the explicit variable or a small total
+# memory reading, not the core-count trigger — a low core count alone throttles
 # concurrency but does not shrink the heap on a host with plenty of RAM.
 TURBO_ARGS="--output-logs=errors-only"
 
+# Print LOW_RESOURCE_MODE from the .env file $1 (key-scoped; the file is never
+# sourced). A trailing CR is removed and one layer of matching surrounding
+# double or single quotes is stripped; a lone or mismatched quote is kept.
+read_env_lrm() {
+    grep -E '^LOW_RESOURCE_MODE=' "$1" | cut -d '=' -f2- | tr -d '\r' \
+        | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/"
+}
+
 # Source LOW_RESOURCE_MODE from .env if not already set
-if [ -z "$LOW_RESOURCE_MODE" ] && [ -f ".env" ]; then
-    LOW_RESOURCE_MODE=$(grep -E '^LOW_RESOURCE_MODE=' .env | cut -d '=' -f2-)
+if [ -z "$LOW_RESOURCE_MODE" ]; then
+    if [ -f ".env" ]; then
+        LOW_RESOURCE_MODE=$(read_env_lrm ".env")
+    fi
+    # Per key: a linked worktree's .env is gitignored and often absent, or
+    # present without this key. Fall back to the main checkout's .env, the
+    # parent of the common git dir. Assumes a non-bare main checkout and
+    # git >= 2.31 (--path-format). Before 2.31, rev-parse echoes the
+    # unrecognised --path-format=absolute as its own output line, so
+    # GIT_COMMON holds two lines, dirname yields no real checkout path, and
+    # the [ -f ] test fails: still no fallback (not verified on old git).
+    # A bare-repo layout resolves the parent of the bare dir.
+    if [ -z "$LOW_RESOURCE_MODE" ]; then
+        GIT_COMMON=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+        if [ -n "$GIT_COMMON" ] && [ -f "$(dirname "$GIT_COMMON")/.env" ]; then
+            LOW_RESOURCE_MODE=$(read_env_lrm "$(dirname "$GIT_COMMON")/.env")
+        fi
+    fi
 fi
 
 # An explicit off value, in any letter case, opts out of auto-detect entirely.
@@ -187,7 +212,10 @@ if [ -n "$LOW_RESOURCE_MODE" ]; then
     # Export the flag itself so the vitest subprocess (turbo → pnpm → vitest)
     # sees it and drops maxWorkers to 1 (see vitest.config.ts). Sourced from
     # .env above as a local shell var; without this export child processes
-    # never see it and the intra-package thread count stays at 3.
+    # never see it and the intra-package thread count stays at 3. The value is
+    # normalised to 1 because vitest.config.ts compares against the string '1'
+    # (true/yes/on would otherwise leave the throttle off).
+    LOW_RESOURCE_MODE=1
     export LOW_RESOURCE_MODE
 fi
 
