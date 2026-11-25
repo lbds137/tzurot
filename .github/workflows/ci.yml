@@ -471,6 +471,19 @@ jobs:
           fail_ci_if_error: true
           verbose: true
 
+      - name: Upload test-utils coverage to Codecov
+        # test-utils gets its own upload under its own flag: a single upload
+        # carrying two flags applies the whole report to both (Codecov flags docs).
+        if: ${{ needs.changes.outputs.board_only != 'true' && !cancelled() && matrix.cell == 'packages' }}
+        uses: codecov/codecov-action@v7
+        with:
+          use_pypi: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/test-utils/coverage/lcov.info
+          flags: test-utils
+          fail_ci_if_error: true
+          verbose: true
+
       - name: Upload cell test results to Codecov
         if: ${{ needs.changes.outputs.board_only != 'true' && !cancelled() }}
         uses: codecov/codecov-action@v7
