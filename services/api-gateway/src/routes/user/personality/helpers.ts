@@ -144,44 +144,51 @@ export async function canUserViewPersonality(
 }
 
 /**
- * Load a personality by ID and gate the caller on VISIBILITY — a non-owner
- * must not be able to write override rows against a private character.
- * Missing and invisible both 404 with the same shape so existence never
- * leaks; this function sends the 404 response itself, and the caller
- * returns early when it returns false.
- *
- * Mirrors the slug-based `requireVisiblePersonality` in aliases.ts, keyed by
- * ID for routes that receive a personality UUID.
+ * A personality row as `requireVisiblePersonality` returns it: the fields the
+ * visibility check needs plus `slug` for callers that log or key on it.
  */
-export async function requireVisiblePersonalityById(
+export interface VisiblePersonality {
+  id: string;
+  slug: string;
+  ownerId: string;
+  isPublic: boolean;
+}
+
+/**
+ * Load a personality by `where` (`{ id }` or `{ slug }`) and gate the caller
+ * on VISIBILITY. Missing and invisible both 404 with the same shape so
+ * existence never leaks; this function sends the 404 response itself and
+ * returns null after doing so — the caller returns early on null.
+ */
+export async function requireVisiblePersonality(
   prisma: PrismaClient,
   req: ProvisionedRequest,
   res: Response,
-  personalityId: string
-): Promise<boolean> {
+  where: { id: string } | { slug: string }
+): Promise<VisiblePersonality | null> {
   const personality = await prisma.personality.findUnique({
-    where: { id: personalityId },
-    select: { id: true, isPublic: true, ownerId: true },
+    where,
+    select: { id: true, slug: true, ownerId: true, isPublic: true },
   });
   if (personality === null) {
     sendError(res, ErrorResponses.notFound('Personality'));
-    return false;
+    return null;
   }
 
   const visible = await canUserViewPersonality({
     prisma,
     userId: resolveProvisionedUserId(req),
-    personalityId,
+    personalityId: personality.id,
     isPublic: personality.isPublic,
     ownerId: personality.ownerId,
     discordUserId: req.userId ?? '',
   });
   if (!visible) {
     sendError(res, ErrorResponses.notFound('Personality'));
-    return false;
+    return null;
   }
 
-  return true;
+  return personality;
 }
 
 /**
