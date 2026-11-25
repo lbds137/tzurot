@@ -1,15 +1,14 @@
 ---
 id: TASK-1522
 title: Vision chain has no tier that survives a z.ai capacity outage plus a burst
-status: In Progress
-assignee:
-  - Tzurot
+status: To Do
+assignee: []
 created_date: '2026-11-24T01:41:00Z'
-updated_date: '2026-11-25T07:47:00Z'
+updated_date: '2026-11-25T15:26:00Z'
 labels:
   - area:ai-worker
   - size:M
-  - state:ready
+  - state:observable
 dependencies: []
 priority: high
 ordinal: 1520000
@@ -26,3 +25,9 @@ Acceptance: a z.ai capacity outage with a 10+ image message still yields descrip
 
 Recurrence 2026-11-24/25, read by lane B from prod ai-worker logs (`railway logs --filter vision`; not re-read by A): "Vision fallback chain exhausted" ×33 on deploy d2365964 (11-24 19:47Z ×9, 20:00Z ×3, 21:28Z ×11, 21:58Z ×4, 11-25 00:39Z ×5, 01:15Z ×1), plus ×38 on deploy 8e5f7612 (01:36Z ×14, 01:56Z ×24). Same tiers every time, lastAttempt category rate_limit, all three tiers failing within about 1 s, in per-minute bursts (B infers multi-image messages from the timing; this is not attributed per message). Raised medium → high: user-visible placeholders recur daily.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Merged 11-25 as PR 2809 (d938603), ships in beta.251. Watch: after the beta.251 deploy, a prod log of an image walk past the z.ai tiers reaching the floor (openrouter/auto on a user key, or gemma free) instead of a placeholder; close on that observation.
+<!-- SECTION:NOTES:END -->
