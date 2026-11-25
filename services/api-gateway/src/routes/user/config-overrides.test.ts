@@ -113,6 +113,12 @@ const mockPrisma = {
     delete: vi.fn(),
     deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
   },
+  personality: {
+    findUnique: vi.fn(),
+  },
+  personalityOwner: {
+    findUnique: vi.fn(),
+  },
 };
 
 // Required RouteDeps resolvers — injected instances (the handlers no longer
@@ -184,6 +190,14 @@ describe('/user/config-overrides routes', () => {
     mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue(null);
     mockPrisma.userPersonalityConfig.update.mockResolvedValue({});
     mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({});
+    // Visibility gate: default to a PUBLIC personality so the existing
+    // PATCH/DELETE tests keep exercising the write path, not the gate.
+    mockPrisma.personality.findUnique.mockResolvedValue({
+      id: TEST_PERSONALITY_ID,
+      isPublic: true,
+      ownerId: 'some-other-owner',
+    });
+    mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
   });
 
   describe('GET /api/user/config-overrides/resolve-defaults', () => {
@@ -765,6 +779,72 @@ describe('/user/config-overrides routes', () => {
         expect.objectContaining({ configOverrides: { maxMessages: 25 } })
       );
     });
+
+    it('returns 404 for a private personality owned by someone else, touching no override rows', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: TEST_PERSONALITY_ID,
+        isPublic: false,
+        ownerId: 'some-other-owner',
+      });
+      mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
+
+      const handler = buildHandler(handleUpdatePersonalityOverrides, mockDeps);
+      const { req, res } = createMockReqRes(
+        { maxMessages: 25 },
+        { personalityId: TEST_PERSONALITY_ID }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'NOT_FOUND', message: 'Personality not found' })
+      );
+      // Seam assertion: the gate loads the personality by the route's ID param.
+      expect(mockPrisma.personality.findUnique).toHaveBeenCalledWith({
+        where: { id: TEST_PERSONALITY_ID },
+        select: { id: true, isPublic: true, ownerId: true },
+      });
+      expect(mockPrisma.userPersonalityConfig.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.userPersonalityConfig.upsert).not.toHaveBeenCalled();
+      expect(mockPrisma.userPersonalityConfig.update).not.toHaveBeenCalled();
+      expect(mockPrisma.userPersonalityConfig.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('proceeds for a private personality owned by the caller', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: TEST_PERSONALITY_ID,
+        isPublic: false,
+        ownerId: 'internal-user-id',
+      });
+
+      const handler = buildHandler(handleUpdatePersonalityOverrides, mockDeps);
+      const { req, res } = createMockReqRes(
+        { maxMessages: 25 },
+        { personalityId: TEST_PERSONALITY_ID }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalled();
+    });
+
+    it('returns 404 when the personality does not exist, touching no override rows', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue(null);
+
+      const handler = buildHandler(handleUpdatePersonalityOverrides, mockDeps);
+      const { req, res } = createMockReqRes(
+        { maxMessages: 25 },
+        { personalityId: TEST_PERSONALITY_ID }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(mockPrisma.userPersonalityConfig.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.userPersonalityConfig.upsert).not.toHaveBeenCalled();
+    });
   });
 
   describe('DELETE /api/user/config-overrides/:personalityId', () => {
@@ -810,6 +890,56 @@ describe('/user/config-overrides routes', () => {
       expect(mockPrisma.userPersonalityConfig.update).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
+    it('returns 404 for a private personality owned by someone else, touching no override rows', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: TEST_PERSONALITY_ID,
+        isPublic: false,
+        ownerId: 'some-other-owner',
+      });
+      mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
+
+      const handler = buildHandler(handleClearPersonalityOverrides, mockDeps);
+      const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'NOT_FOUND', message: 'Personality not found' })
+      );
+      expect(mockPrisma.userPersonalityConfig.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.userPersonalityConfig.update).not.toHaveBeenCalled();
+      expect(mockPrisma.userPersonalityConfig.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('proceeds for a private personality owned by the caller', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: TEST_PERSONALITY_ID,
+        isPublic: false,
+        ownerId: 'internal-user-id',
+      });
+
+      const handler = buildHandler(handleClearPersonalityOverrides, mockDeps);
+      const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
+    it('returns 404 when the personality does not exist, touching no override rows', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue(null);
+
+      const handler = buildHandler(handleClearPersonalityOverrides, mockDeps);
+      const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(mockPrisma.userPersonalityConfig.findUnique).not.toHaveBeenCalled();
     });
   });
 

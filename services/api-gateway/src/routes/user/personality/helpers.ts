@@ -144,6 +144,47 @@ export async function canUserViewPersonality(
 }
 
 /**
+ * Load a personality by ID and gate the caller on VISIBILITY — a non-owner
+ * must not be able to write override rows against a private character.
+ * Missing and invisible both 404 with the same shape so existence never
+ * leaks; this function sends the 404 response itself, and the caller
+ * returns early when it returns false.
+ *
+ * Mirrors the slug-based `requireVisiblePersonality` in aliases.ts, keyed by
+ * ID for routes that receive a personality UUID.
+ */
+export async function requireVisiblePersonalityById(
+  prisma: PrismaClient,
+  req: ProvisionedRequest,
+  res: Response,
+  personalityId: string
+): Promise<boolean> {
+  const personality = await prisma.personality.findUnique({
+    where: { id: personalityId },
+    select: { id: true, isPublic: true, ownerId: true },
+  });
+  if (personality === null) {
+    sendError(res, ErrorResponses.notFound('Personality'));
+    return false;
+  }
+
+  const visible = await canUserViewPersonality({
+    prisma,
+    userId: resolveProvisionedUserId(req),
+    personalityId,
+    isPublic: personality.isPublic,
+    ownerId: personality.ownerId,
+    discordUserId: req.userId ?? '',
+  });
+  if (!visible) {
+    sendError(res, ErrorResponses.notFound('Personality'));
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Options for resolvePersonalityForEdit.
  *
  * The generic type parameter T on the function must exactly match the shape
