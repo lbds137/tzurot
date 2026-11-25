@@ -14,13 +14,9 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 ---
 
-### 🚢 Next Release — beta.250 (theme: GLM 5.4 + db-sync fixes) — CUTTING
+### 🚢 Next Release — beta.251 (theme: caching Phase 3 + drain)
 
-_Re-scoped 2026-11-24 by Lila's AUQ: cut from develop as it stands; caching Phase 3 and the rest of the original plan move to beta.251 below._
-
-- **In**: #2799 (prod deps) · #2800 (Breaking Changes broadcast guard) · #2801 (GLM 5.4 z.ai retry instead of the dead OpenRouter fallback) · #2802 (db-sync vision FK deferral). No migration. Smoke: CURRENT.md § beta.250 smoke.
-
-### 🚢 Release after — beta.251 (theme: caching Phase 3 + drain)
+_beta.250 shipped 2026-11-24 (PR 2804); its smoke is CURRENT.md § beta.250 smoke._
 
 - **Planned**: caching Phase 3 (doc-17 reading first; moved from beta.249 by Lila AUQ 2026-11-23) · TASK-1400 Claude character route if Lila's blind rating says GO, else TASK-1416/1415/1411/1412 · TASK-1519 lockfile regenerate · drain items (1511–1513, 1500–1508).
 - **Waiting on**: the doc-17 reading; Lila's TASK-1400 verdict (`docs/local/task-1400-eval/blind-packet.md`).
