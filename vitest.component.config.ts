@@ -10,8 +10,10 @@ const testLane = resolveTestLane({ rootDir: __dirname, env: process.env });
 process.env.TZUROT_TEST_LANE ||= testLane.lane;
 // 127.0.0.1, not `localhost`: on hosts where `localhost` resolves to ::1 (IPv6)
 // first, an IPv4-only Redis bind refuses the connection (ECONNREFUSED ::1).
-// resolveLaneRedisUrl maps an unset/blank/DB-0 REDIS_URL to this checkout's lane
-// DB and refuses another lane's DB, so parallel checkouts never share a Redis DB;
+// resolveLaneRedisUrl maps an unset/blank/DB-0 REDIS_URL to this checkout's
+// lane DB and refuses another lane's DB, so parallel checkouts
+// never share a lane Redis DB (`packages/test-utils/src/testLane.test.ts`; an
+// explicit non-lane DB like `/5` exported in two checkouts is still shared);
 // rules: docs/reference/guides/TESTING.md § Parallel checkouts.
 process.env.REDIS_URL = resolveLaneRedisUrl({
   raw: process.env.REDIS_URL,

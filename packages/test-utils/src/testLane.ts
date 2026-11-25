@@ -1,9 +1,10 @@
 /**
- * Per-checkout test lane resolution.
+ * Per-checkout test lane resolution and real-Postgres integration DB guard.
  *
  * Isolates Redis logical DB indexes and real-Postgres integration database
  * names across parallel repo checkouts (`tzurot`, `tzurot-b`..`tzurot-e`) so
- * component and integration suites can run concurrently without cross-talk.
+ * component and integration suites can run concurrently without cross-talk,
+ * and guards real-Postgres integration runs via `assertLaneIntegrationDb`.
  * Pinned by unit tests in `packages/test-utils/src/testLane.test.ts`.
  */
 
@@ -39,8 +40,9 @@ function isTestLane(value: string): value is TestLane {
 
 /**
  * Return the dedicated real-Postgres integration database name for `lane`.
- * Every lane database name ends in `_test` to satisfy the safety guard in
- * `tests/e2e/cacheInvalidationTriggers.integration.test.ts`.
+ * Every lane database name ends in `_test` by convention.
+ * `assertLaneIntegrationDb` accepts this exact name for its own lane (and
+ * `tzurot_test` only when `CI=true`) and refuses every other name.
  */
 export function integrationDbNameForLane(lane: TestLane): string {
   return lane === 'a' ? 'tzurot_integration_test' : `tzurot_integration_${lane}_test`;
@@ -67,7 +69,7 @@ export function checkoutRootOf(dir: string): string {
  */
 export function resolveTestLane(opts: {
   rootDir: string;
-  env: NodeJS.ProcessEnv | Record<string, string | undefined>;
+  env: Record<string, string | undefined>;
 }): {
   lane: TestLane;
   redisDb: number;
@@ -209,4 +211,77 @@ export function findWorkspaceRoot(
     }
     current = parent;
   }
+}
+
+/**
+ * Accept only this checkout lane's dedicated integration database
+ * (`ownLane.integrationDbName`), or `tzurot_test` when `env.CI === 'true'`, and
+ * refuse every other `DATABASE_URL` target for a real-Postgres integration suite.
+ *
+ * Real-Postgres integration suites seed and delete rows and fire live triggers
+ * whose `NOTIFY` events fan out to every listener on the channel
+ * (`tests/e2e/cacheInvalidationTriggers.integration.test.ts`). A killed run
+ * (Ctrl-C, a CI timeout) also skips `afterAll`, leaving fixture rows in
+ * whichever database was named, so an arbitrary `_test` database is refused
+ * too. Refusals cover
+ * `tzurot_test` outside CI, another lane's `tzurot_integration_*_test`
+ * database, names not ending in `_test`, and any other `_test` database outside
+ * the allowlist (`packages/test-utils/src/testLane.test.ts`). Error messages
+ * report the database name only, not the full URL
+ * (`packages/test-utils/src/testLane.test.ts`).
+ */
+export function assertLaneIntegrationDb(
+  url: string,
+  opts?: {
+    rootDir?: string;
+    env?: Record<string, string | undefined>;
+  }
+): void {
+  let databaseName: string;
+  try {
+    databaseName = new URL(url).pathname.replace(/^\//, '');
+  } catch {
+    throw new Error('DATABASE_URL is not a parseable URL, so its database name cannot be checked.');
+  }
+  const env = opts?.env ?? process.env;
+  const ownLane = resolveTestLane({
+    rootDir: opts?.rootDir ?? findWorkspaceRoot(process.cwd()),
+    env,
+  });
+  if (
+    databaseName === ownLane.integrationDbName ||
+    (databaseName === 'tzurot_test' && env.CI === 'true')
+  ) {
+    return;
+  }
+  if (databaseName === 'tzurot_test') {
+    throw new Error(
+      `Refusing to run: DATABASE_URL names CI's "tzurot_test" database outside CI (CI is not "true"); ` +
+        `this checkout is lane "${ownLane.lane}" (expected "${ownLane.integrationDbName}").`
+    );
+  }
+  for (const candidateLane of ALLOWED_TEST_LANES) {
+    if (
+      candidateLane !== ownLane.lane &&
+      databaseName === integrationDbNameForLane(candidateLane)
+    ) {
+      throw new Error(
+        `Refusing to run: DATABASE_URL names "${databaseName}" (lane "${candidateLane}"), ` +
+          `which belongs to another checkout lane; this checkout is lane "${ownLane.lane}" ` +
+          `(expected "${ownLane.integrationDbName}").`
+      );
+    }
+  }
+  if (!databaseName.endsWith('_test')) {
+    throw new Error(
+      `Refusing to run: DATABASE_URL names the database "${databaseName}", which does not end in ` +
+        '"_test". Real-Postgres integration tests mutate rows and fire real cache-invalidation ' +
+        'NOTIFYs, so DATABASE_URL must point at a dedicated test database ' +
+        `(CI uses tzurot_test when CI=true; locally, ${ownLane.integrationDbName}).`
+    );
+  }
+  throw new Error(
+    `Refusing to run: DATABASE_URL names "${databaseName}", which is not this lane's integration ` +
+      `database; this checkout is lane "${ownLane.lane}" (expected "${ownLane.integrationDbName}").`
+  );
 }

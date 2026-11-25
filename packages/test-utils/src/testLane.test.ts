@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   TEST_LANE_REDIS_DB,
+  assertLaneIntegrationDb,
   checkoutRootOf,
   findWorkspaceRoot,
   integrationDbNameForLane,
@@ -311,5 +312,201 @@ describe('findWorkspaceRoot', () => {
 
   it('returns startDir when no ancestor holds the workspace file', () => {
     expect(findWorkspaceRoot('/x/tzurot-c/sub', () => false)).toBe('/x/tzurot-c/sub');
+  });
+});
+
+describe('assertLaneIntegrationDb', () => {
+  it("accepts the lane's own integration database", () => {
+    expect(() =>
+      assertLaneIntegrationDb('postgresql://u:p@localhost:5432/tzurot_integration_test', {
+        rootDir: '/x/tzurot',
+        env: {},
+      })
+    ).not.toThrow();
+  });
+
+  it("accepts CI's tzurot_test when CI=true", () => {
+    expect(() =>
+      assertLaneIntegrationDb('postgresql://u:p@localhost:5432/tzurot_test', {
+        rootDir: '/x/tzurot',
+        env: { CI: 'true' },
+      })
+    ).not.toThrow();
+  });
+
+  it('does not widen the CI allowance to other databases when CI=true', () => {
+    expect(() =>
+      assertLaneIntegrationDb('postgresql://u:p@localhost:5432/tzurot_integration_b_test', {
+        rootDir: '/x/tzurot',
+        env: { CI: 'true' },
+      })
+    ).toThrow(/lane "b"/);
+    expect(() =>
+      assertLaneIntegrationDb('postgresql://u:p@localhost:5432/scratch_test', {
+        rootDir: '/x/tzurot',
+        env: { CI: 'true' },
+      })
+    ).toThrow(/"scratch_test"/);
+  });
+
+  it("refuses CI's tzurot_test when CI is unset, naming tzurot_test as CI's database and the lane's expected database", () => {
+    expect(() =>
+      assertLaneIntegrationDb('postgresql://u:p@localhost:5432/tzurot_test', {
+        rootDir: '/x/tzurot-b',
+        env: {},
+      })
+    ).toThrow(/CI's "tzurot_test".*tzurot_integration_b_test/);
+  });
+
+  it('refuses the dev database, naming it', () => {
+    expect(() =>
+      assertLaneIntegrationDb('postgresql://u:p@localhost:5432/tzurot', {
+        rootDir: '/x/tzurot',
+        env: {},
+      })
+    ).toThrow(/"tzurot".*does not end in/s);
+  });
+
+  it('refuses a name that merely contains test without ending in _test', () => {
+    expect(() =>
+      assertLaneIntegrationDb('postgresql://u:p@localhost:5432/test_fixtures', {
+        rootDir: '/x/tzurot',
+        env: {},
+      })
+    ).toThrow(/does not end in/);
+  });
+
+  it('refuses an unparseable URL rather than skipping the check', () => {
+    expect(() =>
+      assertLaneIntegrationDb('not-a-url', {
+        rootDir: '/x/tzurot',
+        env: {},
+      })
+    ).toThrow(/not a parseable URL/);
+  });
+
+  it('refuses another lane integration database and names both lanes', () => {
+    expect(() =>
+      assertLaneIntegrationDb('postgresql://u:p@localhost:5432/tzurot_integration_b_test', {
+        rootDir: '/x/tzurot',
+        env: { TZUROT_TEST_LANE: 'a' },
+      })
+    ).toThrow(/lane "b".*lane "a"/);
+
+    expect(() =>
+      assertLaneIntegrationDb('postgresql://u:p@localhost:5432/tzurot_integration_test', {
+        rootDir: '/x/tzurot',
+        env: { TZUROT_TEST_LANE: 'b' },
+      })
+    ).toThrow(/lane "a".*lane "b"/);
+  });
+
+  it('accepts lane b on its own database and on tzurot_test under CI', () => {
+    expect(() =>
+      assertLaneIntegrationDb('postgresql://u:p@localhost:5432/tzurot_integration_b_test', {
+        rootDir: '/x/tzurot',
+        env: { TZUROT_TEST_LANE: 'b' },
+      })
+    ).not.toThrow();
+    expect(() =>
+      assertLaneIntegrationDb('postgresql://u:p@localhost:5432/tzurot_test', {
+        rootDir: '/x/tzurot',
+        env: { TZUROT_TEST_LANE: 'b', CI: 'true' },
+      })
+    ).not.toThrow();
+  });
+
+  it('refuses an arbitrary _test database name outside the allowlist, naming the lane integration database', () => {
+    expect(() =>
+      assertLaneIntegrationDb('postgresql://u:p@localhost:5432/scratch_test', {
+        rootDir: '/x/tzurot',
+        env: {},
+      })
+    ).toThrow(
+      /"scratch_test".*not this lane's integration database.*expected "tzurot_integration_test"/
+    );
+  });
+
+  it("names lane b's expected database when refusing a non-_test database on lane b", () => {
+    expect(() =>
+      assertLaneIntegrationDb('postgresql://u:p@localhost:5432/tzurot_dev', {
+        rootDir: '/x/tzurot-b',
+        env: {},
+      })
+    ).toThrow(/"tzurot_dev".*does not end in "_test".*tzurot_integration_b_test/);
+    expect(() =>
+      assertLaneIntegrationDb('postgresql://u:p@localhost:5432/tzurot_dev', {
+        rootDir: '/x/tzurot-b',
+        env: {},
+      })
+    ).not.toThrow(/tzurot_integration_test/);
+  });
+
+  it('uses process.env and the workspace root when called with default options', () => {
+    vi.stubEnv('CI', '');
+    vi.stubEnv('TZUROT_TEST_LANE', 'b');
+    try {
+      expect(() =>
+        assertLaneIntegrationDb('postgres://u@h:5432/tzurot_integration_b_test')
+      ).not.toThrow();
+      expect(() => assertLaneIntegrationDb('postgres://u@h:5432/tzurot_integration_test')).toThrow(
+        /lane "a".*belongs to another checkout lane.*lane "b"/
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('never echoes the URL host or credentials across any refusal branch', () => {
+    // Built from parts so the fixture is not a literal connection string.
+    const pw = 's3cretpw';
+    const host = 'db.example';
+    for (const dbName of [
+      'tzurot_test',
+      'tzurot_integration_b_test',
+      'tzurot_dev',
+      'scratch_test',
+    ]) {
+      let caught: Error | undefined;
+      try {
+        assertLaneIntegrationDb(`postgresql://user:${pw}@${host}:5432/${dbName}`, {
+          rootDir: '/x/tzurot',
+          env: {},
+        });
+      } catch (err) {
+        caught = err as Error;
+      }
+      expect(caught).toBeInstanceOf(Error);
+      expect(caught?.message).not.toContain('s3cretpw');
+      expect(caught?.message).not.toContain('db.example');
+    }
+
+    let unparseableCaught: Error | undefined;
+    try {
+      assertLaneIntegrationDb(`postgresql://user:${pw}@[bad`, {
+        rootDir: '/x/tzurot',
+        env: {},
+      });
+    } catch (err) {
+      unparseableCaught = err as Error;
+    }
+    expect(unparseableCaught).toBeInstanceOf(Error);
+    expect(unparseableCaught?.message).not.toContain('s3cretpw');
+    expect(unparseableCaught?.message).not.toContain('[bad');
+  });
+
+  it("refuses tzurot_test when CI is '1' or 'TRUE' (strict CI === 'true' match)", () => {
+    expect(() =>
+      assertLaneIntegrationDb('postgresql://u:p@localhost:5432/tzurot_test', {
+        rootDir: '/x/tzurot',
+        env: { CI: '1' },
+      })
+    ).toThrow(/CI's "tzurot_test" database outside CI \(CI is not "true"\)/);
+    expect(() =>
+      assertLaneIntegrationDb('postgresql://u:p@localhost:5432/tzurot_test', {
+        rootDir: '/x/tzurot',
+        env: { CI: 'TRUE' },
+      })
+    ).toThrow(/CI's "tzurot_test" database outside CI \(CI is not "true"\)/);
   });
 });

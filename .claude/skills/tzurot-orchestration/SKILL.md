@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit; and the cloud dispatch mode (one cloud unit beside one local unit). Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-11-09'
+lastUpdated: '2026-11-24'
 ---
 
 # Orchestrator Mode
@@ -259,7 +259,7 @@ git checkout -B <type/description> origin/<pushed base branch>   # pre-push enfo
 cp .env.example .env && sed -i -E 's/^(BOT_OWNER_ID|DISCORD_CLIENT_ID|GUILD_ID)=.*/\1=100000000000000000/' .env
 pnpm install --frozen-lockfile && pnpm --filter "./packages/**" build
 su postgres -c "psql -c \"CREATE ROLE tzurot LOGIN SUPERUSER PASSWORD 'tzurot'\""   # this line on: Postgres units only
-su postgres -c "createdb -O tzurot tzurot_integration_test"   # the name must end in _test
+su postgres -c "createdb -O tzurot tzurot_integration_test"   # lane a's exact integration DB; the lane guard refuses any other name
 su postgres -c "psql -d tzurot_integration_test -c 'CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS citext'"
 export DATABASE_URL=postgresql://tzurot:tzurot@localhost:5432/tzurot_integration_test
 pnpm ops db:migrate && REDIS_IP_FAMILY=4 pnpm test:integration   # never raw prisma migrate (03-database.md); the VM has no IPv6
