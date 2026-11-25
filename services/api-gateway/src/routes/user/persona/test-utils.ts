@@ -68,6 +68,9 @@ interface MockPrismaClient {
   personality: {
     findUnique: ReturnType<typeof vi.fn>;
   };
+  personalityOwner: {
+    findUnique: ReturnType<typeof vi.fn>;
+  };
   userPersonalityConfig: {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
@@ -107,6 +110,11 @@ export function createMockPrisma(): MockPrismaClient {
     },
     personality: {
       findUnique: vi.fn(),
+    },
+    // The requireVisiblePersonality gate consults co-ownership for non-public
+    // personalities; null = no co-owner row (the private case).
+    personalityOwner: {
+      findUnique: vi.fn().mockResolvedValue(null),
     },
     userPersonalityConfig: {
       findMany: vi.fn(),
