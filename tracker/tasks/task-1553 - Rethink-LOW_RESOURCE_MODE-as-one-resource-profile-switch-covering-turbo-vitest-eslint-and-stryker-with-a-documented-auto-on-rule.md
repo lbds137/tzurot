@@ -3,10 +3,11 @@ id: TASK-1553
 title: >-
   Rethink LOW_RESOURCE_MODE as one resource-profile switch covering turbo,
   vitest, eslint and stryker, with a documented auto-on rule
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - tzurot-a
 created_date: '2026-11-25T19:18:00Z'
-updated_date: '2026-11-25T19:18:00Z'
+updated_date: '2026-11-25T20:42:00Z'
 labels:
   - area:tooling
   - size:L
