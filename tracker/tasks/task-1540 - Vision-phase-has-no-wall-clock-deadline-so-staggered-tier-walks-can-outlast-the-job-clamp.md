@@ -24,4 +24,6 @@ Why: PR 2809 bounds per-message vision concurrency at 4 and keeps the paid floor
 What: give the vision phase a per-message deadline (for example an AbortSignal shared by the walks, with remaining images getting the placeholder when it fires), or size calculateJobTimeout by waves.
 
 Acceptance: a test with every tier stalling shows the vision phase finishing under its budget with placeholders for the unfinished images; the job is not killed by the runtime clamp.
+
+Related (PR 2809 review): withParallelRetry waits for a whole attempt before retrying any failed item, so with the bound at 4 an attempt takes about ceil(N/4) walk-durations and a fast-failing audio or document item waits that long before its retry. A deadline design here should cover that path too.
 <!-- SECTION:DESCRIPTION:END -->
