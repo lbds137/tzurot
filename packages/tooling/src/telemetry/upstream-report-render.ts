@@ -4,12 +4,9 @@
  * against plain data, with no Prisma client to mock.
  */
 
-import { DIAGNOSTIC_LOG_RETENTION_HOURS } from '@tzurot/common-types/constants/diagnostics';
+import { DIAGNOSTIC_RETENTION_DAYS } from '@tzurot/common-types/constants/diagnostics';
 import type { Environment } from '../utils/env-runner.js';
 import { escapeTableCell } from './markdown.js';
-
-/** Diagnostic rows are pruned after this many days; a larger window reads the same data. */
-export const DIAGNOSTIC_RETENTION_DAYS = Math.ceil(DIAGNOSTIC_LOG_RETENTION_HOURS / 24);
 
 /** Domain (number-typed) shape for one (model, upstream host) row. */
 export interface UpstreamStats {
@@ -25,7 +22,10 @@ export interface UpstreamStats {
   /** Non-failed rows whose finish reason is `error` (provider failure reported inside a response). */
   finishError: number;
   finishOther: number;
-  /** Blank raw replies with a recorded response, including empty-after-retries failures. */
+  /**
+   * Blank raw replies, including empty-after-retries failures. Rows without a
+   * recorded response carry a non-blank placeholder ('[not recorded]'), so they never count.
+   */
   emptyReplies: number;
   /**
    * Mean `completionTokens` over non-failed rows reporting > 0 output tokens

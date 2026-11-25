@@ -48,7 +48,7 @@ const rawRow: UpstreamRawRow = {
 
 /**
  * The query text with each `${}` bind replaced by `?`, and every bind value in
- * order, as the seam tests read them. The natural-stop list is the first bind.
+ * order, as the seam tests read them. The natural-stop list is the first array bind.
  */
 function sqlOf(mockQueryRaw: ReturnType<typeof vi.fn>): { sql: string; binds: unknown[] } {
   const [strings, ...binds] = mockQueryRaw.mock.calls[0] as [TemplateStringsArray, ...unknown[]];
@@ -98,8 +98,8 @@ describe('upstream-report', () => {
       await telemetryUpstreamReport({ env: 'local' });
 
       const { binds } = sqlOf(mockQueryRaw);
-      // The window days bind is second from the end; the provider bind follows it.
-      expect(binds.at(-2)).toBe(7);
+      // The window days bind opens the query: it sits in the CTE's WHERE, which comes first.
+      expect(binds[0]).toBe(7);
       const output = consoleLogSpy.mock.calls.map((c: unknown[]) => String(c[0])).join('\n');
       expect(output).toContain('Window: trailing 7 days · env: local');
     });
@@ -113,22 +113,22 @@ describe('upstream-report', () => {
 
       expect(mockQueryRaw).toHaveBeenCalledTimes(1);
       const { sql, binds } = sqlOf(mockQueryRaw);
-      // Binds in SQL order: the stop list (finish_stop), the three non-stop finish
-      // literals (finish_length, finish_content_filter, finish_error), the same three
-      // again (finish_other's NOT IN), the stop list again (finish_other's exclusion),
-      // the window days, then the provider.
+      // Binds in SQL order: the window days and the provider (the CTE's WHERE comes
+      // first), then the stop list (finish_stop), the three non-stop finish literals
+      // (finish_length, finish_content_filter, finish_error), the same three again
+      // (finish_other's NOT IN), and the stop list again (finish_other's exclusion).
       const stop = ['stop', 'end_turn', 'STOP', 'stop_sequence'];
       expect(binds).toEqual([
-        stop,
-        'length',
-        'content_filter',
-        'error',
-        'length',
-        'content_filter',
-        'error',
-        stop,
         7,
         'openrouter',
+        stop,
+        'length',
+        'content_filter',
+        'error',
+        'length',
+        'content_filter',
+        'error',
+        stop,
       ]);
       expect(sql).toContain("WHERE created_at >= now() - (interval '1 day' * ?");
       expect(sql).toContain('AND provider = ?');
@@ -154,7 +154,9 @@ describe('upstream-report', () => {
       await telemetryUpstreamReport({ env: 'local', days: '7' });
 
       const { binds } = sqlOf(mockQueryRaw);
-      expect(binds[0]).toContain('stop_sequence');
+      // The stop list is the first array bind; the window days and provider come before it.
+      const stopList = binds.find(bind => Array.isArray(bind));
+      expect(stopList).toContain('stop_sequence');
       const { NATURAL_STOP_REASONS } = await import('@tzurot/common-types/constants/finishReasons');
       expect(NATURAL_STOP_REASONS).not.toContain('stop_sequence');
     });
@@ -165,7 +167,7 @@ describe('upstream-report', () => {
       await telemetryUpstreamReport({ env: 'local', days: '7' });
 
       const { sql } = sqlOf(mockQueryRaw);
-      expect(sql).toContain("finishReason' = ANY(?) AND data->'error' IS NULL) AS finish_stop");
+      expect(sql).toContain("r->>'finishReason' = ANY(?) AND NOT failed) AS finish_stop");
       expect(sql).not.toContain("finishReason' = 'stop'");
     });
 
@@ -175,22 +177,34 @@ describe('upstream-report', () => {
       await telemetryUpstreamReport({ env: 'local', days: '7' });
 
       const { sql } = sqlOf(mockQueryRaw);
-      expect(sql).toContain("data->'llmResponse'->'reasoningDebug'->>'upstreamProvider'");
-      expect(sql).toContain("data->'llmResponse'->>'finishReason'");
-      expect(sql).toContain("jsonb_typeof(data->'llmResponse'->'completionTokens') = 'number'");
-      expect(sql).toContain("(data->'llmResponse'->>'completionTokens')::float8");
+      expect(sql).toContain("data->'llmResponse' AS r");
+      expect(sql).toContain("r->'reasoningDebug'->>'upstreamProvider'");
+      expect(sql).toContain("r->>'finishReason'");
+      expect(sql).toContain("jsonb_typeof(r->'completionTokens') = 'number'");
+      expect(sql).toContain("(r->>'completionTokens')::float8");
     });
 
-    it('counts failed rows by the top-level error field and excludes them from the other columns', async () => {
+    it('reads each data path once, in the CTE, and never repeats the data-> reads per column', async () => {
       mockQueryRaw.mockResolvedValueOnce([]);
       const { telemetryUpstreamReport } = await import('./upstream-report.js');
       await telemetryUpstreamReport({ env: 'local', days: '7' });
 
       const { sql } = sqlOf(mockQueryRaw);
-      expect(sql).toContain("COUNT(*) FILTER (WHERE data->'error' IS NOT NULL) AS failed");
+      // Exactly two `data->` reads: the response object and the error field, both in the CTE.
+      expect(sql.match(/data->/g)).toHaveLength(2);
+      expect(sql).toContain("(data->'error') IS NOT NULL AS failed");
+    });
+
+    it('counts failed rows by the CTE failure flag and excludes them from the other columns', async () => {
+      mockQueryRaw.mockResolvedValueOnce([]);
+      const { telemetryUpstreamReport } = await import('./upstream-report.js');
+      await telemetryUpstreamReport({ env: 'local', days: '7' });
+
+      const { sql } = sqlOf(mockQueryRaw);
+      expect(sql).toContain('COUNT(*) FILTER (WHERE failed) AS failed');
       // Six non-failed-only predicates: stop, length, content_filter, error, other, avg.
       // Empty is deliberately not among them (see the empty-reply test below).
-      expect(sql.match(/data->'error' IS NULL/g)).toHaveLength(6);
+      expect(sql.match(/NOT failed/g)).toHaveLength(6);
     });
 
     it('counts finish_error as its own column over non-failed rows only', async () => {
@@ -200,7 +214,7 @@ describe('upstream-report', () => {
 
       const { sql } = sqlOf(mockQueryRaw);
       expect(sql).toContain(
-        "COUNT(*) FILTER (WHERE data->'llmResponse'->>'finishReason' = ? AND data->'error' IS NULL) AS finish_error"
+        "COUNT(*) FILTER (WHERE r->>'finishReason' = ? AND NOT failed) AS finish_error"
       );
     });
 
@@ -211,10 +225,12 @@ describe('upstream-report', () => {
 
       const { sql } = sqlOf(mockQueryRaw);
       // Empty-after-retries failures carry blank rawContent AND an error, so the
-      // Empty column must not exclude failed rows.
+      // Empty column must not exclude failed rows. The llmResponse IS NOT NULL guard
+      // is gone: finalize always records a response (a non-blank placeholder if none).
       expect(sql).toContain(
-        "COUNT(*) FILTER (WHERE data->'llmResponse' IS NOT NULL\n                              AND length(btrim(COALESCE(data->'llmResponse'->>'rawContent',''))) = 0) AS empty_replies"
+        "COUNT(*) FILTER (WHERE length(btrim(COALESCE(r->>'rawContent',''))) = 0) AS empty_replies"
       );
+      expect(sql).not.toContain('IS NOT NULL AND length');
     });
 
     it('averages only non-failed rows with a positive numeric completionTokens', async () => {
@@ -223,9 +239,7 @@ describe('upstream-report', () => {
       await telemetryUpstreamReport({ env: 'local', days: '7' });
 
       const { sql } = sqlOf(mockQueryRaw);
-      expect(sql).toContain(
-        "THEN CASE WHEN (data->'llmResponse'->>'completionTokens')::float8 > 0"
-      );
+      expect(sql).toContain("THEN CASE WHEN (r->>'completionTokens')::float8 > 0");
     });
 
     it('never selects the data column whole and never names the reply preview', async () => {
@@ -240,7 +254,7 @@ describe('upstream-report', () => {
       // rawContent appears exactly once in the empty predicate (length() only). The
       // finish-reason/average paths never touch the reply text.
       expect(sql.match(/rawContent/g)).toHaveLength(1);
-      expect(sql).toContain("length(btrim(COALESCE(data->'llmResponse'->>'rawContent'");
+      expect(sql).toContain("length(btrim(COALESCE(r->>'rawContent',''))) = 0");
     });
   });
 

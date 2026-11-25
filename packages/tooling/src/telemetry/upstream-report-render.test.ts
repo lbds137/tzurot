@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  DIAGNOSTIC_RETENTION_DAYS,
   renderUpstreamMarkdown,
   type UpstreamReportData,
   type UpstreamStats,
@@ -97,11 +96,6 @@ describe('renderUpstreamMarkdown', () => {
     expect(output).toContain(
       "A retried request is credited to the host of the last attempt that recorded a response; earlier attempts' hosts are not recorded."
     );
-  });
-
-  it('derives the retention days as an integer from the retention hours', () => {
-    expect(Number.isInteger(DIAGNOSTIC_RETENTION_DAYS)).toBe(true);
-    expect(DIAGNOSTIC_RETENTION_DAYS).toBe(7);
   });
 
   it('caps the window line at retention when the requested window is wider than 7 days', () => {
