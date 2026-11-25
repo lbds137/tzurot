@@ -63,7 +63,7 @@ function modelTotals(rows: UpstreamStats[]): Map<string, number> {
 function renderUpstreamTable(rows: UpstreamStats[]): string {
   const totals = modelTotals(rows);
   const header =
-    '| Model | Upstream host | Requests | Failed | Share of model | stop | length | content_filter | error | other | Empty | Avg out tokens |\n' +
+    '| Model | Upstream host | Requests | Failed | Share of model | stop | length | content_filter | error | other | Empty (incl. failed) | Avg out tokens |\n' +
     '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |';
   const lines = rows.map(row => {
     const modelTotal = totals.get(row.model) ?? 0;
@@ -86,6 +86,7 @@ const SCOPE_NOTE =
   'Empty counts blank replies, including empty-after-retries failures. ' +
   "A retried request is credited to the host of the last attempt that recorded a response; earlier attempts' hosts are not recorded. " +
   "Requests that failed with a thrown error record no upstream host and are counted under (none); a host's Failed column only counts failures that happened after a response arrived. " +
+  "Share of model counts (none) in its denominator, so named hosts' shares understate their share of served traffic. " +
   'The diagnostic payload type has no BYOK field; the BYOK split per model is in `telemetry:inference`. ' +
   'Model is the requested model id, so a router alias groups every host it routed to.';
 
