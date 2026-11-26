@@ -3,9 +3,11 @@ id: TASK-1559
 title: >-
   Message action: Edit Character (opens the /character edit dashboard for that
   message character)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - tzurot-a
 created_date: '2026-11-26T11:47:00Z'
+updated_date: '2026-11-26T11:59:00Z'
 labels:
   - area:bot-client
   - size:S

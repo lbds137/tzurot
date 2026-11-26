@@ -3,9 +3,11 @@ id: TASK-1558
 title: >-
   Message action: Chime In (same character, incognito matches the clicked
   message)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - tzurot-a
 created_date: '2026-11-26T11:47:00Z'
+updated_date: '2026-11-26T11:59:00Z'
 labels:
   - area:bot-client
   - size:M
