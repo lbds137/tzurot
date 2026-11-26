@@ -3,6 +3,10 @@
  *
  * Verifies custom fetch wrapper behavior:
  * - Request-side OpenRouter param injection (transforms, route, verbosity)
+ * - Fail-closed request side when `provider` routing is carried: a POST body
+ *   that cannot carry the routing object (non-string, non-JSON, non-object,
+ *   Request-wrapped) rejects before any fetch; tuning-only params keep the
+ *   historical fail-open
  * - 400-class JSON error recovery (synthesizing 200 from error responses
  *   that contain valid `choices[0].message.content` or reasoning-as-response)
  * - Pass-through behavior (non-JSON, 5xx, unparseable bodies)
@@ -514,6 +518,121 @@ describe('OpenRouterFetch', () => {
 
     // Body passes through unchanged — params NOT injected (would have required parsing)
     expect(capturedBody).toBe(nonJsonBody);
+  });
+
+  describe('fail-closed provider routing (unroutable POST bodies)', () => {
+    const ROUTING: NonNullable<OpenRouterExtraParams['provider']> = {
+      only: ['z-ai', 'fireworks', 'together'],
+      allow_fallbacks: false,
+      data_collection: 'deny',
+    };
+    const CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+    /** Swap in a fetch mock that must never fire on the fail-closed path; returns it for the not-called assertion. */
+    function neverFireFetch(): ReturnType<typeof vi.fn> {
+      const fetchMock = vi.fn().mockResolvedValue(mockResponse({ choices: [] }, 200));
+      globalThis.fetch = fetchMock;
+      return fetchMock;
+    }
+
+    it('rejects a non-string body (Uint8Array) when provider routing is set; fetch is not called', async () => {
+      const customFetch = createOpenRouterFetch({ provider: ROUTING });
+      const fetchMock = neverFireFetch();
+
+      await expect(
+        customFetch(CHAT_URL, { method: 'POST', body: new Uint8Array([1]) })
+      ).rejects.toThrow(
+        /OpenRouter request body could not carry provider routing; refusing to send unrouted \(body type: Uint8Array/
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects a string body that is not JSON when provider routing is set; fetch is not called', async () => {
+      const customFetch = createOpenRouterFetch({ provider: ROUTING });
+      const fetchMock = neverFireFetch();
+
+      await expect(customFetch(CHAT_URL, { method: 'POST', body: 'not json' })).rejects.toThrow(
+        /refusing to send unrouted \(body type: String/
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects a JSON array body when provider routing is set; fetch is not called', async () => {
+      const customFetch = createOpenRouterFetch({ provider: ROUTING });
+      const fetchMock = neverFireFetch();
+
+      await expect(customFetch(CHAT_URL, { method: 'POST', body: '[]' })).rejects.toThrow(
+        /refusing to send unrouted \(body type: Array/
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects a Request POST as the url with no init when provider routing is set', async () => {
+      const customFetch = createOpenRouterFetch({ provider: ROUTING });
+      const fetchMock = neverFireFetch();
+      const request = new Request(CHAT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ model: 'test-model', messages: [] }),
+      });
+
+      await expect(customFetch(request)).rejects.toThrow(
+        /refusing to send unrouted \(body type: Request/
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('injects routing when the POST method comes from a Request url and init omits method', async () => {
+      const customFetch = createOpenRouterFetch({ provider: ROUTING });
+      let capturedBody: string | undefined;
+      const fetchMock = vi.fn().mockImplementation((_url: unknown, init?: RequestInit) => {
+        capturedBody = init?.body as string;
+        return Promise.resolve(mockResponse({ choices: [] }, 200));
+      });
+      globalThis.fetch = fetchMock;
+
+      // Per the Fetch standard, `fetch(request, init)` without `init.method`
+      // sends the Request's own POST — so the routing must inject even though
+      // `init.method` is absent.
+      const request = new Request(CHAT_URL, { method: 'POST' });
+      await customFetch(request, { body: JSON.stringify({ model: 'm', messages: [] }) });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(capturedBody).toBeDefined();
+      const parsed = JSON.parse(capturedBody!) as Record<string, unknown>;
+      expect(parsed.provider).toEqual(ROUTING);
+    });
+
+    it('rejects a non-string init body when the POST method comes from a Request url; fetch is not called', async () => {
+      const customFetch = createOpenRouterFetch({ provider: ROUTING });
+      const fetchMock = neverFireFetch();
+
+      const request = new Request(CHAT_URL, { method: 'POST' });
+      await expect(customFetch(request, { body: new Uint8Array([1]) })).rejects.toThrow(
+        /OpenRouter request body could not carry provider routing; refusing to send unrouted \(body type: Uint8Array/
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('negative control: the same non-string body with tuning-only params passes through unchanged', async () => {
+      const customFetch = createOpenRouterFetch({ transforms: ['x'] });
+      let capturedBody: unknown;
+      const fetchMock = vi.fn().mockImplementation((_url: unknown, init?: RequestInit) => {
+        capturedBody = init?.body;
+        return Promise.resolve(mockResponse({ choices: [] }, 200));
+      });
+      globalThis.fetch = fetchMock;
+
+      const uint8Body = new Uint8Array([1]);
+      await customFetch(CHAT_URL, { method: 'POST', body: uint8Body });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(capturedBody).toBe(uint8Body);
+      // The fail-open breadcrumb still fires, naming the body's runtime type.
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        expect.objectContaining({ bodyType: 'Uint8Array' }),
+        'injectOpenRouterParams: body is not JSON-parseable, skipping param injection'
+      );
+    });
   });
 
   it('sends NO request-root cache_control when extraParams carries it (breakpoints are per-block)', async () => {
