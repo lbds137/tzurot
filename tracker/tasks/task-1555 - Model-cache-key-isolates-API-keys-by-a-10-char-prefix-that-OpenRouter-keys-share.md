@@ -3,11 +3,10 @@ id: TASK-1555
 title: >-
   Model cache key isolates API keys by a 10-char prefix that OpenRouter keys
   share
-status: In Progress
-assignee:
-  - tzurot-b
+status: Done
+assignee: []
 created_date: '2026-11-25T20:52:00Z'
-updated_date: '2026-11-26T11:29:00Z'
+updated_date: '2026-11-26T13:51:00Z'
 labels:
   - area:ai-worker
   - size:S
