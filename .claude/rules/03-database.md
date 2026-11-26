@@ -1,3 +1,11 @@
+---
+paths:
+  - 'prisma/**'
+  - 'packages/common-types/**'
+  - 'services/**'
+  - 'packages/test-utils/**'
+---
+
 # Database Rules
 
 ## Connection Management
@@ -34,7 +42,7 @@ Corollary for removals: `idx_scan = 0` alone never justifies a drop. Verify no q
 
 ## Migrations
 
-Step-by-step workflow (safe-migrate → migrate → regenerate PGLite schema → deploy): `/tzurot-db-vector`.
+Step-by-step workflow (safe-migrate → migrate → regenerate PGLite schema → deploy): `/tzurot-db-vector`. `db:safe-migrate` requires `--name` in non-TTY environments (AI assistants, CI).
 
 **NEVER** use `prisma migrate reset` (destroys all data) or raw `prisma migrate` commands.
 

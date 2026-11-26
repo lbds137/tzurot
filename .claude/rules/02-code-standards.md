@@ -195,7 +195,3 @@ freedom a caller could mix-and-match, the ceiling applies. Precedents:
 cascade-route "preamble helper" (schema + verify-access + pre-hook =
 independent knobs). Adapter IMPLEMENTATIONS live next to their implementor's
 code, never in the shared module.
-
-### CPD measurement: raw vs filtered
-
-`pnpm ops cpd:filtered` is the metric (raw `pnpm cpd` is informational). A tripped ratchet: extract, confirm skeleton-shape uniformity (2-callback rule), or fix the filter; never raise the baseline to pass. Triage: `cpd:filtered --show-pairs 25`.
