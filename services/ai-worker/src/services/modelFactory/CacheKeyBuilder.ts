@@ -5,6 +5,7 @@
  * to ensure correct behavior for each user's configuration.
  */
 
+import { sha256Hex } from '@tzurot/common-types/utils/sha256Hex';
 import type { ModelConfig } from './types.js';
 import { resolveModelName, resolveProvider } from './modelResolution.js';
 import { promptCacheGateFires } from './promptCacheGate.js';
@@ -42,10 +43,10 @@ export function getModelCacheKey(modelConfig: ModelConfig): string {
     modelName,
   });
 
-  // Use API key prefix for cache isolation (different keys = different instances)
+  // Whole-key digest, never a substring: vendor keys share a long prefix.
   const apiKey = modelConfig.apiKey;
-  const apiKeyPrefix =
-    apiKey !== undefined && apiKey.length >= 10 ? apiKey.substring(0, 10) : 'env';
+  const apiKeyDigest =
+    apiKey !== undefined && apiKey.length > 0 ? sha256Hex(apiKey, { length: 16 }) : 'env';
 
   // Build params key from all config values (no defaults - undefined is a valid state)
   const paramsKey = [
@@ -82,5 +83,5 @@ export function getModelCacheKey(modelConfig: ModelConfig): string {
     cacheVal(modelConfig.route),
   ].join(':');
 
-  return `${provider}-${modelName}-${apiKeyPrefix}-${paramsKey}`;
+  return `${provider}-${modelName}-${apiKeyDigest}-${paramsKey}`;
 }

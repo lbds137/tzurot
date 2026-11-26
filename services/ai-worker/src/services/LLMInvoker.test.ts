@@ -261,6 +261,24 @@ describe('LLMInvoker', () => {
     });
   });
 
+  async function withRealModelFactory(fn: () => Promise<void>): Promise<void> {
+    const actual = await vi.importActual<typeof import('./ModelFactory.js')>('./ModelFactory.js');
+    try {
+      vi.mocked(createChatModel).mockImplementation(actual.createChatModel);
+      vi.mocked(getModelCacheKey).mockImplementation(actual.getModelCacheKey);
+      await fn();
+    } finally {
+      // Restore the module-mock stubs so the other suites keep their seam
+      // (explicitly, rather than relying on restoreAllMocks semantics for
+      // constructor-passed vi.fn implementations).
+      vi.mocked(createChatModel).mockReset();
+      vi.mocked(createChatModel).mockImplementation(stubCreateChatModel);
+      vi.mocked(getModelCacheKey).mockReset();
+      vi.mocked(getModelCacheKey).mockImplementation(stubGetModelCacheKey);
+      mockChatOpenAI.mockClear();
+    }
+  }
+
   describe('getModel — sessionId cache isolation (real ModelFactory path)', () => {
     /**
      * Runs the REAL `getModelCacheKey` (CacheKeyBuilder) and the REAL
@@ -273,7 +291,6 @@ describe('LLMInvoker', () => {
      * send — the same capture pattern ModelFactory.test.ts uses.
      */
     it('gives two configs differing only in sessionId distinct instances with distinct wire session_id values', async () => {
-      const actual = await vi.importActual<typeof import('./ModelFactory.js')>('./ModelFactory.js');
       const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
           status: 200,
@@ -282,80 +299,70 @@ describe('LLMInvoker', () => {
       );
 
       try {
-        vi.mocked(createChatModel).mockImplementation(actual.createChatModel);
-        vi.mocked(getModelCacheKey).mockImplementation(actual.getModelCacheKey);
-
-        const base: ModelConfig = {
-          modelName: 'anthropic/claude-sonnet-4',
-          apiKey: 'byok-key-1234567890',
-          promptCaching: true,
-        };
-        // Two conversations that differ ONLY in the stickiness id — everything
-        // else about the configs is byte-identical, so a cache key omitting
-        // sessionId would collide and hand conversation B conversation A's
-        // cached client.
-        const configA: ModelConfig = { ...base, sessionId: 'chan-A' };
-        const configB: ModelConfig = { ...base, sessionId: 'chan-B' };
-
-        const resultA: ChatModelResult = invoker.getModel(configA);
-        const resultB: ChatModelResult = invoker.getModel(configB);
-
-        // Instance half: distinct cached clients, not the first conversation's
-        // instance reused.
-        expect(resultA).not.toBe(resultB);
-        expect(resultA.model).not.toBe(resultB.model);
-        // And memoization still works WITHIN one sessionId.
-        expect(invoker.getModel(configA)).toBe(resultA);
-
-        // Wire half: each instance's fetch closure carries its own session_id.
-        expect(mockChatOpenAI).toHaveBeenCalledTimes(2);
-        const fetchFor = (
-          callIndex: number
-        ): ((url: string, init?: RequestInit) => Promise<Response>) => {
-          const callArgs = mockChatOpenAI.mock.calls[callIndex]?.[0] as {
-            configuration?: { fetch?: (url: string, init?: RequestInit) => Promise<Response> };
+        await withRealModelFactory(async () => {
+          const base: ModelConfig = {
+            modelName: 'anthropic/claude-sonnet-4',
+            apiKey: 'byok-key-1234567890',
+            promptCaching: true,
           };
-          const fetchFn = callArgs?.configuration?.fetch;
-          expect(fetchFn).toBeInstanceOf(Function);
-          return fetchFn!;
-        };
+          // Two conversations that differ ONLY in the stickiness id — everything
+          // else about the configs is byte-identical, so a cache key omitting
+          // sessionId would collide and hand conversation B conversation A's
+          // cached client.
+          const configA: ModelConfig = { ...base, sessionId: 'chan-A' };
+          const configB: ModelConfig = { ...base, sessionId: 'chan-B' };
 
-        const wireSessionId = async (
-          fetchFn: (url: string, init?: RequestInit) => Promise<Response>
-        ): Promise<unknown> => {
-          const before = fetchSpy.mock.calls.length;
-          await fetchFn('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            body: JSON.stringify({
-              model: 'anthropic/claude-sonnet-4',
-              messages: [{ role: 'system', content: 'sys' }],
-            }),
-          });
-          const init = fetchSpy.mock.calls[before]?.[1] as RequestInit;
-          const parsed = JSON.parse(init.body as string) as Record<string, unknown>;
-          return parsed.session_id;
-        };
+          const resultA: ChatModelResult = invoker.getModel(configA);
+          const resultB: ChatModelResult = invoker.getModel(configB);
 
-        const sessionIdA = await wireSessionId(fetchFor(0));
-        const sessionIdB = await wireSessionId(fetchFor(1));
+          // Instance half: distinct cached clients, not the first conversation's
+          // instance reused.
+          expect(resultA).not.toBe(resultB);
+          expect(resultA.model).not.toBe(resultB.model);
+          // And memoization still works WITHIN one sessionId.
+          expect(invoker.getModel(configA)).toBe(resultA);
 
-        expect(sessionIdA).toBe('chan-A');
-        expect(sessionIdB).toBe('chan-B');
+          // Wire half: each instance's fetch closure carries its own session_id.
+          expect(mockChatOpenAI).toHaveBeenCalledTimes(2);
+          const fetchFor = (
+            callIndex: number
+          ): ((url: string, init?: RequestInit) => Promise<Response>) => {
+            const callArgs = mockChatOpenAI.mock.calls[callIndex]?.[0] as {
+              configuration?: { fetch?: (url: string, init?: RequestInit) => Promise<Response> };
+            };
+            const fetchFn = callArgs?.configuration?.fetch;
+            expect(fetchFn).toBeInstanceOf(Function);
+            return fetchFn!;
+          };
+
+          const wireSessionId = async (
+            fetchFn: (url: string, init?: RequestInit) => Promise<Response>
+          ): Promise<unknown> => {
+            const before = fetchSpy.mock.calls.length;
+            await fetchFn('https://openrouter.ai/api/v1/chat/completions', {
+              method: 'POST',
+              body: JSON.stringify({
+                model: 'anthropic/claude-sonnet-4',
+                messages: [{ role: 'system', content: 'sys' }],
+              }),
+            });
+            const init = fetchSpy.mock.calls[before]?.[1] as RequestInit;
+            const parsed = JSON.parse(init.body as string) as Record<string, unknown>;
+            return parsed.session_id;
+          };
+
+          const sessionIdA = await wireSessionId(fetchFor(0));
+          const sessionIdB = await wireSessionId(fetchFor(1));
+
+          expect(sessionIdA).toBe('chan-A');
+          expect(sessionIdB).toBe('chan-B');
+        });
       } finally {
-        // Restore the module-mock stubs so the other suites keep their seam
-        // (explicitly, rather than relying on restoreAllMocks semantics for
-        // constructor-passed vi.fn implementations).
-        vi.mocked(createChatModel).mockReset();
-        vi.mocked(createChatModel).mockImplementation(stubCreateChatModel);
-        vi.mocked(getModelCacheKey).mockReset();
-        vi.mocked(getModelCacheKey).mockImplementation(stubGetModelCacheKey);
         fetchSpy.mockRestore();
-        mockChatOpenAI.mockClear();
       }
     });
 
     it('shares one instance across sessionIds when the gate is off, no session_id', async () => {
-      const actual = await vi.importActual<typeof import('./ModelFactory.js')>('./ModelFactory.js');
       const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
           status: 200,
@@ -364,48 +371,65 @@ describe('LLMInvoker', () => {
       );
 
       try {
-        vi.mocked(createChatModel).mockImplementation(actual.createChatModel);
-        vi.mocked(getModelCacheKey).mockImplementation(actual.getModelCacheKey);
+        await withRealModelFactory(async () => {
+          // Non-anthropic id: promptCacheGateFires is false, so the sessionId must
+          // neither split the cache key nor reach the wire body.
+          const base: ModelConfig = {
+            modelName: 'z-ai/glm-5.3',
+            apiKey: 'byok-key-1234567890',
+            promptCaching: true,
+          };
+          const configA: ModelConfig = { ...base, sessionId: 'chan-A' };
+          const configB: ModelConfig = { ...base, sessionId: 'chan-B' };
 
-        // Non-anthropic id: promptCacheGateFires is false, so the sessionId must
-        // neither split the cache key nor reach the wire body.
-        const base: ModelConfig = {
-          modelName: 'z-ai/glm-5.3',
-          apiKey: 'byok-key-1234567890',
-          promptCaching: true,
-        };
-        const configA: ModelConfig = { ...base, sessionId: 'chan-A' };
-        const configB: ModelConfig = { ...base, sessionId: 'chan-B' };
+          const resultA: ChatModelResult = invoker.getModel(configA);
+          const resultB: ChatModelResult = invoker.getModel(configB);
 
-        const resultA: ChatModelResult = invoker.getModel(configA);
-        const resultB: ChatModelResult = invoker.getModel(configB);
+          expect(resultB).toBe(resultA);
+          expect(mockChatOpenAI).toHaveBeenCalledTimes(1);
 
-        expect(resultB).toBe(resultA);
-        expect(mockChatOpenAI).toHaveBeenCalledTimes(1);
-
-        const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
-          configuration?: { fetch?: (url: string, init?: RequestInit) => Promise<Response> };
-        };
-        const fetchFn = callArgs?.configuration?.fetch;
-        expect(fetchFn).toBeInstanceOf(Function);
-        await fetchFn!('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          body: JSON.stringify({
-            model: 'z-ai/glm-5.3',
-            messages: [{ role: 'system', content: 'sys' }],
-          }),
+          const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+            configuration?: { fetch?: (url: string, init?: RequestInit) => Promise<Response> };
+          };
+          const fetchFn = callArgs?.configuration?.fetch;
+          expect(fetchFn).toBeInstanceOf(Function);
+          await fetchFn!('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            body: JSON.stringify({
+              model: 'z-ai/glm-5.3',
+              messages: [{ role: 'system', content: 'sys' }],
+            }),
+          });
+          const init = fetchSpy.mock.calls[0]?.[1] as RequestInit;
+          const parsed = JSON.parse(init.body as string) as Record<string, unknown>;
+          expect(parsed).not.toHaveProperty('session_id');
         });
-        const init = fetchSpy.mock.calls[0]?.[1] as RequestInit;
-        const parsed = JSON.parse(init.body as string) as Record<string, unknown>;
-        expect(parsed).not.toHaveProperty('session_id');
       } finally {
-        vi.mocked(createChatModel).mockReset();
-        vi.mocked(createChatModel).mockImplementation(stubCreateChatModel);
-        vi.mocked(getModelCacheKey).mockReset();
-        vi.mocked(getModelCacheKey).mockImplementation(stubGetModelCacheKey);
         fetchSpy.mockRestore();
-        mockChatOpenAI.mockClear();
       }
+    });
+  });
+
+  describe('getModel — API-key cache isolation (real ModelFactory path)', () => {
+    it('gives two keys sharing a long prefix distinct instances, each built with its own key', async () => {
+      await withRealModelFactory(async () => {
+        // Same model and params, keys differing only past a shared prefix (as
+        // two vendor keys do): a cache key built from the prefix would hand the
+        // second caller the first caller's client, apiKey baked in.
+        const base: ModelConfig = { modelName: 'z-ai/glm-5.3' };
+        const keyA = 'fixture-key-shared-prefix-aaaa1111';
+        const keyB = 'fixture-key-shared-prefix-bbbb2222';
+
+        const resultA: ChatModelResult = invoker.getModel({ ...base, apiKey: keyA });
+        const resultB: ChatModelResult = invoker.getModel({ ...base, apiKey: keyB });
+
+        expect(resultB).not.toBe(resultA);
+        expect(mockChatOpenAI).toHaveBeenCalledTimes(2);
+        const builtKey = (callIndex: number): unknown =>
+          (mockChatOpenAI.mock.calls[callIndex]?.[0] as { apiKey?: string } | undefined)?.apiKey;
+        expect(builtKey(0)).toBe(keyA);
+        expect(builtKey(1)).toBe(keyB);
+      });
     });
   });
 

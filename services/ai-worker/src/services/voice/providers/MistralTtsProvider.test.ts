@@ -449,21 +449,40 @@ describe('MistralTtsProvider', () => {
     });
 
     it('different api keys → different cache entries', async () => {
-      // Use 12+ char keys — sub-12-char keys all collapse to the '[short-key]'
-      // sentinel by design (test fixtures shouldn't leak full keys into cache
-      // keys / debug logs in deployed environments).
+      // The cache key carries a whole-key SHA-256 digest, so distinct BYOK keys
+      // resolve to separate cache entries without exposing key material.
       mockedListVoices
         .mockResolvedValueOnce(okList([{ id: 'v-1', name: 'tzurot-emily', userId: 'u-a' }]))
         .mockResolvedValueOnce(okList([{ id: 'v-2', name: 'tzurot-emily', userId: 'u-b' }]));
 
-      // Suffix uses first-4 + last-8 chars, so keys must differ in either of
-      // those windows (not just the middle).
-      const a = await provider.prepare({ slug: 'emily', byokKey: 'sk-A1234567890ABC' });
-      const b = await provider.prepare({ slug: 'emily', byokKey: 'sk-B1234567890ABC' });
+      const a = await provider.prepare({ slug: 'emily', byokKey: 'user-a-key-11111111' });
+      const b = await provider.prepare({ slug: 'emily', byokKey: 'user-b-key-22222222' });
 
       expect(a).toMatchObject({ id: 'v-1' });
       expect(b).toMatchObject({ id: 'v-2' });
       expect(mockedListVoices).toHaveBeenCalledTimes(2);
+    });
+
+    it('gives separate cache entries to keys sharing first 4 and last 8 chars or shorter than 12 chars', async () => {
+      mockedListVoices
+        .mockResolvedValueOnce(okList([{ id: 'v-mid-a', name: 'tzurot-emily', userId: 'u-a' }]))
+        .mockResolvedValueOnce(okList([{ id: 'v-mid-b', name: 'tzurot-emily', userId: 'u-b' }]))
+        .mockResolvedValueOnce(okList([{ id: 'v-short-1', name: 'tzurot-emily', userId: 'u-c' }]))
+        .mockResolvedValueOnce(okList([{ id: 'v-short-2', name: 'tzurot-emily', userId: 'u-d' }]));
+
+      const midA = await provider.prepare({ slug: 'emily', byokKey: 'test-AAAAAA-key-12345678' });
+      const midB = await provider.prepare({ slug: 'emily', byokKey: 'test-BBBBBB-key-12345678' });
+
+      expect(midA).toMatchObject({ id: 'v-mid-a' });
+      expect(midB).toMatchObject({ id: 'v-mid-b' });
+      expect(mockedListVoices).toHaveBeenCalledTimes(2);
+
+      const short1 = await provider.prepare({ slug: 'emily', byokKey: 'shortkey1' });
+      const short2 = await provider.prepare({ slug: 'emily', byokKey: 'shortkey2' });
+
+      expect(short1).toMatchObject({ id: 'v-short-1' });
+      expect(short2).toMatchObject({ id: 'v-short-2' });
+      expect(mockedListVoices).toHaveBeenCalledTimes(4);
     });
   });
 

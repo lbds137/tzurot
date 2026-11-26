@@ -293,3 +293,41 @@ describe('getModelCacheKey', () => {
     expect(getModelCacheKey(config1)).toBe(getModelCacheKey(config2));
   });
 });
+
+describe('getModelCacheKey API-key isolation', () => {
+  // Fixture keys share a long common prefix, as real vendor keys do, without
+  // carrying any vendor's actual prefix.
+  const SHARED_PREFIX = 'fixture-key-shared-prefix-';
+  const keyA = `${SHARED_PREFIX}aaaa1111`;
+  const keyB = `${SHARED_PREFIX}bbbb2222`;
+  const base: ModelConfig = { modelName: 'model-1' };
+
+  it('gives two keys sharing a long prefix different cache keys', () => {
+    // A cached client has its apiKey baked in, so a shared cache key would
+    // serve one caller the other caller's client (and bill the wrong key).
+    expect(getModelCacheKey({ ...base, apiKey: keyA })).not.toBe(
+      getModelCacheKey({ ...base, apiKey: keyB })
+    );
+  });
+
+  it('puts no key material in the cache key', () => {
+    const key = getModelCacheKey({ ...base, apiKey: keyA });
+
+    expect(key).not.toContain(keyA);
+    expect(key).not.toContain(keyA.substring(0, 10));
+  });
+
+  it('gives the same key the same cache key', () => {
+    expect(getModelCacheKey({ ...base, apiKey: keyA })).toBe(
+      getModelCacheKey({ ...base, apiKey: keyA })
+    );
+  });
+
+  it('keys an empty apiKey like an absent one, as the factory treats both as the env key', () => {
+    expect(getModelCacheKey({ ...base, apiKey: '' })).toBe(getModelCacheKey(base));
+  });
+
+  it('separates a short apiKey from the env key', () => {
+    expect(getModelCacheKey({ ...base, apiKey: 'short' })).not.toBe(getModelCacheKey(base));
+  });
+});

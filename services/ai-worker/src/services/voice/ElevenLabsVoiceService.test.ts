@@ -134,6 +134,19 @@ describe('ElevenLabsVoiceService', () => {
     expect(mockListVoices).toHaveBeenCalledTimes(2);
   });
 
+  it('should use different cache entries for API keys sharing first 4 and last 8 chars', async () => {
+    mockListVoices
+      .mockResolvedValueOnce([{ voiceId: 'userA-v1', name: 'tzurot-sharedbot' }])
+      .mockResolvedValueOnce([{ voiceId: 'userB-v1', name: 'tzurot-sharedbot' }]);
+
+    const voiceA = await service.ensureVoiceCloned('sharedbot', 'test-AAAAAA-key-12345678');
+    const voiceB = await service.ensureVoiceCloned('sharedbot', 'test-BBBBBB-key-12345678');
+
+    expect(voiceA).toBe('userA-v1');
+    expect(voiceB).toBe('userB-v1');
+    expect(mockListVoices).toHaveBeenCalledTimes(2);
+  });
+
   it('should negatively cache clone failures', async () => {
     mockListVoices.mockResolvedValue([]);
     mockFetch.mockResolvedValue({
