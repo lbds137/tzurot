@@ -46,6 +46,20 @@ git init -q --bare "$t/none.git"
 git init -q "$t/empty" && git -C "$t/empty" remote add origin "$t/none.git"
 out=$(cd "$t/empty" && "$GATE" 2>&1); rc=$?
 [ $rc = 1 ] && grep -q "no usage reading" <<<"$out" && ok "refuses when the branch is missing" || bad "missing branch (rc $rc: $out)"
+# The fetch lands in the gate's own ref and leaves the checkout's FETCH_HEAD alone.
+meter "$(reading go 60 46)"
+rm -f "$t/vm/.git/FETCH_HEAD"
+(cd "$t/vm" && "$GATE" >/dev/null 2>&1)
+[ ! -e "$t/vm/.git/FETCH_HEAD" ] && git -C "$t/vm" rev-parse -q --verify refs/cloud-gate/usage-meter >/dev/null \
+  && ok "the fetch writes refs/cloud-gate/usage-meter, not FETCH_HEAD" || bad "fetch target"
+# A fetch that stalls stops within CLOUD_GATE_FETCH_S instead of hanging past the hook's timeout.
+mkdir -p "$t/slowbin" && realgit=$(command -v git)
+printf '#!/bin/bash\nfor a; do [ "$a" = fetch ] && exec sleep 30; done\nexec %q "$@"\n' "$realgit" >"$t/slowbin/git" && chmod +x "$t/slowbin/git"
+s0=$(date +%s)
+out=$(cd "$t/vm" && PATH="$t/slowbin:$PATH" CLOUD_GATE_FETCH_S=1 "$GATE" 2>&1); rc=$?
+el=$(($(date +%s) - s0))
+[ $rc = 1 ] && grep -q "timed out after 1 s" <<<"$out" && [ $el -lt 10 ] \
+  && ok "a stalled fetch stops in time (${el} s)" || bad "stalled fetch (rc $rc, ${el} s: $out)"
 
 # Staleness tiers (default 30 min / 2 h).
 j=$t/u.json
@@ -75,6 +89,13 @@ done
 "$GATE" --bogus >/dev/null 2>&1; [ $? = 2 ] && ok "'--bogus' exits 2" || bad "usage error"
 "$GATE" --file "" >/dev/null 2>&1; [ $? = 2 ] && ok "--file '' exits 2" || bad "empty --file"
 CLOUD_GATE_WARN_S=x "$GATE" --file "$j" >/dev/null 2>&1; [ $? = 2 ] && ok "a non-integer CLOUD_GATE_WARN_S exits 2" || bad "warn validation"
+CLOUD_GATE_MAX_S=x "$GATE" --file "$j" >/dev/null 2>&1; [ $? = 2 ] && ok "a non-integer CLOUD_GATE_MAX_S exits 2" || bad "max validation"
+CLOUD_GATE_WARN_S=9000 "$GATE" --file "$j" >/dev/null 2>&1; [ $? = 2 ] && ok "CLOUD_GATE_WARN_S above CLOUD_GATE_MAX_S exits 2" || bad "warn > max"
+CLOUD_GATE_FETCH_S=0 "$GATE" --file "$j" >/dev/null 2>&1; [ $? = 2 ] && ok "CLOUD_GATE_FETCH_S=0 exits 2" || bad "fetch_s validation"
+# The vendored body still matches the checksum its header records (an edit here without the source is drift).
+want=$(sed -n 's/^# body-sha256: \([0-9a-f]\{16\}\).*/\1/p' "$GATE")
+got=$(sed -n '/^set -u$/,$p' "$GATE" | sha256sum | cut -c1-16)
+[ -n "$want" ] && [ "$want" = "$got" ] && ok "the body matches its header checksum" || bad "body checksum (header '$want', body '$got')"
 
 # --session-start: silent off the VM, an instruction on stop on the VM, exit 0 either way.
 reading stop 60 >"$j"
