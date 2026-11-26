@@ -9,8 +9,9 @@
  * - every other id takes the shared ignore table (`FORWARDER_IGNORE`), which
  *   keeps the MiniMax host family from serving anything.
  *
- * Both shapes carry `data_collection: 'deny'` so no host that trains on or
- * retains prompts is eligible. The tables live in
+ * Both shapes carry `data_collection: 'deny'`. Whether a host retains or trains
+ * on prompts is OpenRouter's server-side policy to enforce, and is not
+ * verifiable from this code. The tables live in
  * `@tzurot/common-types/constants/openrouterRouting`; this module builds the
  * per-call wire objects.
  */
