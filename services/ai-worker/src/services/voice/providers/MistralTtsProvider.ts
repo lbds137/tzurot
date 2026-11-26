@@ -7,7 +7,7 @@
  * directly on this class.
  *
  * Lifecycle (mirrors ElevenLabsVoiceService.ensureVoiceCloned semantics):
- *   1. Check positive cache (slug + apiKey-suffix → voiceId, 30-min TTL)
+ *   1. Check positive cache (slug + apiKey digest → voiceId, 30-min TTL)
  *   2. Check negative cache (5-min TTL on failures, prevents retry storms)
  *   3. Inflight dedup — concurrent prepare() calls for same slug share one promise
  *   4. List voices via `GET /v1/audio/voices`, find by name `tzurot-${slug}`
@@ -33,6 +33,7 @@ import {
   type TtsProviderId,
 } from '@tzurot/common-types/services/tts/TtsProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { sha256Hex } from '@tzurot/common-types/utils/sha256Hex';
 import { CloneCacheKernel } from '../CloneCacheKernel.js';
 import {
   mistralCloneVoice,
@@ -404,26 +405,16 @@ export class MistralTtsProvider implements TtsProvider {
     return cloned.id;
   }
 
-  /** Cache key: slug + key-suffix (different users = different entries). */
+  /** Cache key: slug + key digest (different users = different entries). */
   private buildCacheKey(slug: string, apiKey: string): string {
-    return `${slug}:${this.getKeySuffix(apiKey)}`;
+    return `${slug}:${this.getKeyDigest(apiKey)}`;
   }
 
   /**
-   * First 4 + last 8 chars of the API key — short, unique, not the full key.
-   * For keys shorter than 12 chars (test fixtures only — production Mistral
-   * keys are ~32+ chars), return a sentinel rather than the full key. This
-   * prevents the cache key (and any debug logs that include it) from leaking
-   * a full short key if a test fixture is ever accidentally used in a
-   * deployed environment. The sentinel collapses all short keys into the
-   * same cache bucket — acceptable because (a) production never produces
-   * sub-12-char keys, and (b) cache collisions across test-fixture-keyed
-   * entries would only manifest in a misconfigured deployment.
+   * Fixed-width SHA-256 digest of the whole API key for cache key differentiation,
+   * so no key material appears in cache keys and keys of any length stay distinct.
    */
-  private getKeySuffix(apiKey: string): string {
-    if (apiKey.length < 12) {
-      return '[short-key]';
-    }
-    return `${apiKey.slice(0, 4)}${apiKey.slice(-8)}`;
+  private getKeyDigest(apiKey: string): string {
+    return sha256Hex(apiKey, { length: 16 });
   }
 }

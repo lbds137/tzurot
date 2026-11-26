@@ -17,6 +17,7 @@
 
 import { TTS_VOICE_NAME_PREFIX } from '@tzurot/common-types/constants/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { sha256Hex } from '@tzurot/common-types/utils/sha256Hex';
 import { CloneCacheKernel } from './CloneCacheKernel.js';
 import {
   elevenLabsCloneVoice,
@@ -149,7 +150,7 @@ export class ElevenLabsVoiceService {
    */
   private async evictAndClone(opts: EvictAndCloneOptions): Promise<string> {
     const { slug, apiKey, voices, voiceName, audioBuffer, contentType, description } = opts;
-    const keySuffix = this.getKeySuffix(apiKey);
+    const keyDigest = this.getKeyDigest(apiKey);
 
     const candidates = voices.filter(v => {
       if (!v.name.startsWith(TTS_VOICE_NAME_PREFIX)) {
@@ -160,7 +161,7 @@ export class ElevenLabsVoiceService {
         return false;
       }
       const candidateSlug = v.name.slice(TTS_VOICE_NAME_PREFIX.length);
-      const candidateKey = `${candidateSlug}:${keySuffix}`;
+      const candidateKey = `${candidateSlug}:${keyDigest}`;
       return !this.cloneCache.has(candidateKey) && !this.cloneCache.hasInflight(candidateKey);
     });
 
@@ -199,7 +200,7 @@ export class ElevenLabsVoiceService {
     // Clear any stale negative cache for the evicted voice's slug so it can be
     // re-cloned immediately if requested (rather than waiting for 5-min expiry)
     const victimSlug = victim.name.slice(TTS_VOICE_NAME_PREFIX.length);
-    this.cloneCache.deleteNegative(`${victimSlug}:${keySuffix}`);
+    this.cloneCache.deleteNegative(`${victimSlug}:${keyDigest}`);
 
     // Retry clone
     const { voiceId } = await elevenLabsCloneVoice({
@@ -214,23 +215,17 @@ export class ElevenLabsVoiceService {
     return voiceId;
   }
 
-  /** Build a cache key that includes the API key suffix (different users = different entries) */
+  /** Build a cache key that includes the API key digest (different users = different entries) */
   private buildCacheKey(slug: string, apiKey: string): string {
-    return `${slug}:${this.getKeySuffix(apiKey)}`;
+    return `${slug}:${this.getKeyDigest(apiKey)}`;
   }
 
   /**
-   * Extract a fingerprint from the API key for cache key differentiation.
-   * Uses first 4 + last 8 characters (12 total) to minimize collision risk
-   * while keeping cache keys short and the full key out of log output.
-   * Not a security boundary — the raw key is already in process memory.
-   *
-   * Assumes keys are at least 12 chars (ElevenLabs keys are ~32+ chars).
-   * For shorter keys the slices overlap, producing a longer-than-12-char
-   * suffix — still unique, just not optimally compact.
+   * Fixed-width SHA-256 digest of the whole API key for cache key differentiation,
+   * so no key material appears in cache keys and keys of any length stay distinct.
    */
-  private getKeySuffix(apiKey: string): string {
-    return `${apiKey.slice(0, 4)}${apiKey.slice(-8)}`;
+  private getKeyDigest(apiKey: string): string {
+    return sha256Hex(apiKey, { length: 16 });
   }
 
   /**
