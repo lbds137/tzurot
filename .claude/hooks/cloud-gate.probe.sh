@@ -49,9 +49,15 @@ out=$(cd "$t/empty" && "$GATE" 2>&1); rc=$?
 # The fetch lands in the gate's own ref and leaves the checkout's FETCH_HEAD alone.
 meter "$(reading go 60 46)"
 rm -f "$t/vm/.git/FETCH_HEAD"
-(cd "$t/vm" && "$GATE" >/dev/null 2>&1)
-[ ! -e "$t/vm/.git/FETCH_HEAD" ] && git -C "$t/vm" rev-parse -q --verify refs/cloud-gate/usage-meter >/dev/null \
-  && ok "the fetch writes refs/cloud-gate/usage-meter, not FETCH_HEAD" || bad "fetch target"
+git -C "$t/vm" update-ref -d refs/cloud-gate/usage-meter 2>/dev/null
+out=$(cd "$t/vm" && "$GATE" 2>&1); rc=$?
+[ $rc = 0 ] && grep -q "go week=46%" <<<"$out" && [ ! -e "$t/vm/.git/FETCH_HEAD" ] \
+  && git -C "$t/vm" rev-parse -q --verify refs/cloud-gate/usage-meter >/dev/null \
+  && ok "the fetch writes refs/cloud-gate/usage-meter, not FETCH_HEAD" || bad "fetch target (rc $rc: $out)"
+# --session-start with no --file (the real VM call, an empty args array under set -u) passes a go.
+out=$(cd "$t/vm" && CLAUDE_CODE_REMOTE=true "$GATE" --session-start 2>&1); rc=$?
+[ $rc = 0 ] && grep -q "cloud-gate: go week=46%" <<<"$out" && ! grep -q "USAGE GATE STOP" <<<"$out" \
+  && ok "--session-start through git passes a go" || bad "session-start through git (rc $rc: $out)"
 # A fetch that stalls stops within CLOUD_GATE_FETCH_S instead of hanging past the hook's timeout.
 mkdir -p "$t/slowbin" && realgit=$(command -v git)
 printf '#!/bin/bash\nfor a; do [ "$a" = fetch ] && exec sleep 30; done\nexec %q "$@"\n' "$realgit" >"$t/slowbin/git" && chmod +x "$t/slowbin/git"
@@ -91,11 +97,18 @@ done
 CLOUD_GATE_WARN_S=x "$GATE" --file "$j" >/dev/null 2>&1; [ $? = 2 ] && ok "a non-integer CLOUD_GATE_WARN_S exits 2" || bad "warn validation"
 CLOUD_GATE_MAX_S=x "$GATE" --file "$j" >/dev/null 2>&1; [ $? = 2 ] && ok "a non-integer CLOUD_GATE_MAX_S exits 2" || bad "max validation"
 CLOUD_GATE_WARN_S=9000 "$GATE" --file "$j" >/dev/null 2>&1; [ $? = 2 ] && ok "CLOUD_GATE_WARN_S above CLOUD_GATE_MAX_S exits 2" || bad "warn > max"
-CLOUD_GATE_FETCH_S=0 "$GATE" --file "$j" >/dev/null 2>&1; [ $? = 2 ] && ok "CLOUD_GATE_FETCH_S=0 exits 2" || bad "fetch_s validation"
+CLOUD_GATE_WARN_S= "$GATE" --file "$j" >/dev/null 2>&1; [ $? = 2 ] && ok "an empty CLOUD_GATE_WARN_S exits 2" || bad "empty warn"
+for v in 0 00 41 '' x; do
+  CLOUD_GATE_FETCH_S=$v "$GATE" --file "$j" >/dev/null 2>&1; rc=$?
+  [ $rc = 2 ] && ok "CLOUD_GATE_FETCH_S='$v' exits 2" || bad "CLOUD_GATE_FETCH_S='$v' (rc $rc)"
+done
 # The vendored body still matches the checksum its header records (an edit here without the source is drift).
+# The hash covers every line after the checksum line, and every line up to it must be a comment.
 want=$(sed -n 's/^# body-sha256: \([0-9a-f]\{16\}\).*/\1/p' "$GATE")
-got=$(sed -n '/^set -u$/,$p' "$GATE" | sha256sum | cut -c1-16)
-[ -n "$want" ] && [ "$want" = "$got" ] && ok "the body matches its header checksum" || bad "body checksum (header '$want', body '$got')"
+got=$(sed '1,/^# body-sha256:/d' "$GATE" | sha256sum | cut -c1-16)
+code_in_header=$(sed -n '1,/^# body-sha256:/p' "$GATE" | grep -cv '^#')
+[ -n "$want" ] && [ "$want" = "$got" ] && [ "$code_in_header" = 0 ] && ok "the body matches its header checksum" \
+  || bad "body checksum (header '$want', body '$got', non-comment header lines $code_in_header)"
 
 # --session-start: silent off the VM, an instruction on stop on the VM, exit 0 either way.
 reading stop 60 >"$j"
@@ -123,6 +136,16 @@ for group in json.load(open(sys.argv[1]))["hooks"]["SessionStart"]:
             print(h["command"])
 ' "$SETTINGS")
 [ -n "$hookcmd" ] && ok "settings.json has a SessionStart cloud-gate hook" || bad "no SessionStart cloud-gate hook in settings.json"
+# Its timeout must outlast the gate's longest fetch (40 s plus the 5 s kill grace).
+hookto=$(python3 -I -c '
+import json, sys
+for group in json.load(open(sys.argv[1]))["hooks"]["SessionStart"]:
+    for h in group["hooks"]:
+        if "cloud-gate" in h["command"]:
+            print(h.get("timeout", ""))
+' "$SETTINGS")
+case "$hookto" in '' | *[!0-9]*) hookto=0 ;; esac
+[ "$hookto" -gt 45 ] && ok "the hook's timeout ($hookto s) outlasts the longest fetch" || bad "hook timeout '$hookto' (need > 45)"
 # Off the VM, against a project whose gate is a canary: the line's own CLAUDE_CODE_REMOTE check must stop it
 # before any script starts (the gate's internal check would hide a missing one, so it isn't the real gate).
 mkdir -p "$t/canary/.claude/hooks" && printf '#!/bin/bash\necho spawned\nexit 1\n' >"$t/canary/.claude/hooks/cloud-gate.sh"
@@ -135,7 +158,8 @@ out=$(cd / && CLAUDE_CODE_REMOTE=true CLAUDE_PROJECT_DIR=$t/nogate bash -c "$hoo
 [ $rc = 0 ] && [ -z "$out" ] && ok "the hook line exits 0 silently on the VM when cloud-gate.sh is missing" || bad "hook line missing gate (rc $rc: $out)"
 mkdir -p "$t/proj/.claude/hooks" && cp "$GATE" "$t/proj/.claude/hooks/" && git init -q "$t/proj" && git -C "$t/proj" remote add origin "$t/none.git"
 out=$(cd / && CLAUDE_CODE_REMOTE=true CLAUDE_PROJECT_DIR=$t/proj bash -c "$hookcmd" 2>&1); rc=$?
-[ $rc = 0 ] && grep -q "USAGE GATE STOP" <<<"$out" && ok "the hook line stops a VM session with no reading (from any cwd)" || bad "hook line VM (rc $rc: $out)"
+[ $rc = 0 ] && grep -q "no usage reading" <<<"$out" && grep -q "USAGE GATE STOP" <<<"$out" \
+  && ok "the hook line stops a VM session with no reading (from any cwd)" || bad "hook line VM (rc $rc: $out)"
 
 [ $fail = 0 ] && echo "cloud-gate.probe: all passed" || echo "cloud-gate.probe: FAILURES"
 exit $fail
