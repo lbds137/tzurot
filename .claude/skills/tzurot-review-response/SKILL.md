@@ -1,7 +1,7 @@
 ---
 name: tzurot-review-response
 description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → decided when engineering-only, ASK when it carries a product/UX, user-visible, schema, spend, data-rights, or security dimension, changes an existing test assertion, or changes an async boundary or external contract), check reviewer-vs-agent signal conflict, batch-present the four sections, step back at ~3 automated rounds (rule of thumb), and hard-cap at ~6 — hand off to a fresh context or the owner. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
-lastUpdated: '2026-11-19'
+lastUpdated: '2026-11-26'
 ---
 
 # Review-Response Iteration
@@ -29,7 +29,7 @@ Procedure (the signal-conflict table, origin-language, deferral routing, do-it-n
 - **File the batch**: one PR's worth of sweeping is an idea doc (`pnpm tracker doc create 'Idea: …'`); a pass that needs its own phased rollout is a theme doc plus a `cold/queue.md` bullet. Per `06-backlog.md`'s granularity ladder, those were never follow-up rows.
 - **Grep for the batch before creating it**: `pnpm tracker doc search <term>` and `pnpm tracker task list --search <term> --plain`, by the pass's name AND the module it sweeps; if a theme-doc phase or idea doc already owns it, add the finding as a member and say which entry you joined.
 - **Origin-language**: "pre-existing" may never be the operative reason in any disposition (`00-critical.md` § Always Leave Code Better Than You Found It). Structural backstop: `pr-merge-review-check.sh` scans the injected review for origin vocabulary and demands per-finding merits dispositions before the merge retry.
-- **Process-work PR residue**: `06-backlog.md` § The process-residue default puts the residue of hook, skill, rule, tooling, and CI PRs (substance under `.claude/`, `.husky/`, `packages/tooling/`, `.github/`, tracker/backlog/docs bookkeeping riding along, no runtime or test-infra file touched) into the PR body's `## Residue` section: fixed here, declined with the technical reason, or filed only when it earns `medium` or above. It lands under Backlog candidates tagged `[residue]`; the fails-closed owner-call boundary from `06-backlog.md` § Ruling an item out applies unchanged, and "if declining feels wrong, file it" is the `medium` signal.
+- **Process-work PR residue**: `06-backlog.md` § The process-residue default puts the residue of hook, skill, rule, tooling, and CI PRs (substance under `.claude/`, `.husky/`, `packages/tooling/`, `.github/`, tracker/backlog/docs bookkeeping riding along, no runtime or test-infra file touched) into the PR body's `## Residue` section: fixed here, declined with the technical reason, filed only when it earns `medium` or above, or carried when the item also sits on one of the durable surfaces `06-backlog.md` names. It lands under Backlog candidates tagged `[residue]`; the fails-closed owner-call boundary from `06-backlog.md` § Ruling an item out applies unchanged, and "if declining feels wrong, file it" is the `medium` signal.
 
 ### 3. Apply with test-suite gating
 
