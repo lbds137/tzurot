@@ -11,7 +11,6 @@ _Active bugs observed in production. Fix before new features. Cleared issues are
 _Recently resolved items move to the GitHub release notes at ship time — this section stays empty between incidents (history: git + releases)._
 
 - **Runtime-unverified fixes and parked incidents live as `state:observable` tracker tasks**: TASK-937 (#2399 vision refusal advance, shipped beta.223; closes on a prod log of a qwen call after an auto-router `content_policy` advance) · TASK-952 (#2253 single-job restart recovery) · TASK-953 (#2155 guest floor hop-1 promotion) · TASK-954 (PARKED reply-ping toggle; branch `fix/reply-ping-gate` stays, never merge on the code read) · TASK-955 (#2220 GLM catalog-veto rescue) · TASK-956 (the 2026-07-12 Postgres lock-timeout window; probe DURING the next one) · TASK-1522 (#2809 vision paid floor past the tier cap, ships beta.251; closes on a prod image walk reaching the floor instead of a placeholder). Each carries its watch signal; close the task on the observation.
-- **Permanent bot branch `usage-meter`** (#2820): the plan usage reading that `.claude/hooks/cloud-gate.sh` reads on cloud VMs. The owner's machine publishes it (deck-platform `bin/usage-publish`), appending a commit per changed reading plus a heartbeat (about 72 a day). The owner's ruling also calls for weekly pruning; that isn't built yet and is tracked in deck-platform TASK-383. It is public by the owner's ruling (2026-11-25): usage %, reset times and the verdict only. Never merge, rebase or delete it: without it, every cloud session refuses work.
 
 ---
 
@@ -41,4 +40,11 @@ _Small tasks that can be done between major features. Good for momentum._
 ### 📥 Untriaged (max 10)
 
 _New items land here for same-session capture. Route each to its home — a tracker task (`pnpm tracker task create`, terse one-liner), a tracker idea doc (`pnpm tracker doc create`, speculative feature), a theme doc + `cold/queue.md` bullet (multi-phase epic), or Current Focus / Quick Wins — when you get to it. An empty Untriaged is the goal._
+
+### 📌 Standing notes
+
+_Permanent facts a session needs to recognise, not work items._
+
+- **Permanent bot branch `usage-meter`** (#2820): the plan usage reading that `.claude/hooks/cloud-gate.sh` reads on cloud VMs. The owner's machine publishes it (deck-platform `bin/usage-publish`), appending a commit per changed reading plus a heartbeat (about 72 a day). The owner's ruling also calls for weekly pruning; that isn't built yet and is tracked in deck-platform TASK-383. It is public by the owner's ruling (2026-11-25): usage %, reset times and the verdict only. Never merge, rebase or delete it: without it, every cloud session refuses work.
+- **Every cloud session refuses work?** Read its `cloud-gate:` line. "no usage reading (git fetch … failed)" means the VM could not fetch `usage-meter`. Whether the cloud git proxy allows fetching a branch other than the session's is not yet verified on a VM; deck-platform TASK-383's live cloud-launch check measures it. A stale or stop reading means the owner's publisher or plan, not this repo.
 

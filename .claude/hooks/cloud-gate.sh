@@ -8,7 +8,7 @@
 #   over 2 h, missing  refuse (fail closed); so does a reading dated more than 5 min in the future.
 # Age is measured from the reading's as_of (when the meter was read), not the commit time.
 # VENDORED: the body below the header matches deck-platform's bin/cloud-gate; change it there first.
-# body-sha256: 8cb473e6c8b61499 (first 16 hex of sha256 over every line after this one; the probe checks it)
+# body-sha256: 0bf9e89f0ac48f0f (first 16 hex of sha256 over every line after this one; the probe checks it)
 set -u
 
 usage() {
@@ -18,8 +18,9 @@ usage: cloud-gate [--file PATH] [--quiet] [--session-start]
   as claude-usage --ok.
   --file PATH  judge this usage.json instead of fetching origin's usage-meter branch (tests, local checks).
   --quiet      no stdout on pass.
-  --session-start  the repo SessionStart hook: does nothing unless CLAUDE_CODE_REMOTE=true; on a cloud VM it runs
-               the gate and prints its line, plus on stop an instruction to start no work; always exits 0.
+  --session-start  the repo SessionStart hook: does nothing unless CLAUDE_CODE_REMOTE=true, or when the hook input
+               on stdin names a continuing session (source compact, resume or clear); otherwise it runs the gate and
+               prints its line, plus on stop an instruction to start no work; always exits 0.
   CLOUD_GATE_WARN_S (default 1800) and CLOUD_GATE_MAX_S (default 7200) move the two age tiers; WARN may not
   exceed MAX. CLOUD_GATE_FETCH_S (default 20, 1 to 40) bounds the git fetch: a stalled fetch stops rather than hangs.
 EOF
@@ -42,14 +43,29 @@ done
 # Before any validation, so the hook exits 0 whatever goes wrong below.
 if [ $hook -eq 1 ]; then
 	[ "${CLAUDE_CODE_REMOTE:-}" = true ] || exit 0
+	# The gate refuses new units; a unit already running carries on past the wind-down line. So a session that
+	# continues (compact, resume, clear, read from the hook input's `source`) is not judged: a STOP after a mid-unit
+	# compaction would throw away paid-for work. Any other source, or none, is judged as a startup (fail closed).
+	src=
+	if [ ! -t 0 ]; then
+		input=$(timeout 2 head -c 65536 2>/dev/null)
+		src=$(python3 -I -c 'import json, sys
+try:
+    s = json.loads(sys.argv[1]).get("source")
+except Exception:
+    s = None
+print(s if isinstance(s, str) else "")' "$input" 2>/dev/null)
+	fi
+	case $src in compact | resume | clear) exit 0 ;; esac
 	args=()
 	[ -n "$file" ] && args=(--file "$file")
-	line=$(bash "$0" ${args[@]+"${args[@]}"} 2>&1)
+	line=$(bash "$0" ${args[@]+"${args[@]}"} 2>&1 </dev/null)
 	rc=$?
 	printf '%s\n' "$line"
 	if [ $rc -ne 0 ]; then
-		printf '%s\n' "USAGE GATE STOP: the Claude plan usage gate refuses new work. Do not start the task. Write /tmp/report.md" \
-			"saying the cloud usage gate stopped this unit and quoting the cloud-gate line above, print it, push nothing, and end."
+		printf '%s\n' "USAGE GATE STOP: the Claude plan usage gate refuses new work. Do not start the task or any other work." \
+			"Tell the user the cloud usage gate refused, quoting the cloud-gate line above; in a dispatched unit, also write" \
+			"that to /tmp/report.md and print it. Push nothing, and end."
 	fi
 	exit 0
 fi

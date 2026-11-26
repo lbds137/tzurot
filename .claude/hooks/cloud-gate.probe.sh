@@ -116,6 +116,16 @@ out=$(env -u CLAUDE_CODE_REMOTE "$GATE" --session-start --file "$j" 2>&1); rc=$?
 [ $rc = 0 ] && [ -z "$out" ] && ok "--session-start is silent without CLAUDE_CODE_REMOTE" || bad "session-start local (rc $rc: $out)"
 out=$(CLAUDE_CODE_REMOTE=true "$GATE" --session-start --file "$j" 2>&1); rc=$?
 [ $rc = 0 ] && grep -q "USAGE GATE STOP" <<<"$out" && ok "--session-start on the VM tells a stopped session not to start" || bad "session-start remote stop (rc $rc: $out)"
+# The hook input's source: a continuing session (compact, resume, clear) is not judged; a startup, an unknown
+# source or unreadable input is (fail closed).
+for src in compact resume clear; do
+  out=$(printf '{"hook_event_name":"SessionStart","source":"%s"}' "$src" | CLAUDE_CODE_REMOTE=true "$GATE" --session-start --file "$j" 2>&1); rc=$?
+  [ $rc = 0 ] && [ -z "$out" ] && ok "--session-start skips a '$src' session" || bad "session-start source $src (rc $rc: $out)"
+done
+for in_ in '{"source":"startup"}' '{"source":"something-new"}' '{"source":7}' 'not json' ''; do
+  out=$(printf '%s' "$in_" | CLAUDE_CODE_REMOTE=true "$GATE" --session-start --file "$j" 2>&1); rc=$?
+  [ $rc = 0 ] && grep -q "USAGE GATE STOP" <<<"$out" && ok "--session-start judges hook input '$in_'" || bad "session-start input '$in_' (rc $rc: $out)"
+done
 reading go 60 >"$j"
 out=$(CLAUDE_CODE_REMOTE=true "$GATE" --session-start --file "$j" 2>&1); rc=$?
 [ $rc = 0 ] && grep -q "cloud-gate: go" <<<"$out" && ! grep -q "USAGE GATE STOP" <<<"$out" && ok "--session-start on the VM passes a go quietly" || bad "session-start remote go (rc $rc: $out)"
@@ -128,22 +138,18 @@ out=$(CLAUDE_CODE_REMOTE=true bash "$t/cg-noexec" --session-start --file "$j" 2>
 
 # The hook line itself, read from settings.json: no process and no output off the VM, exit 0 on the VM even
 # when the script is missing (an older checkout), and a STOP on the VM with no reading.
-hookcmd=$(python3 -I -c '
+# One pass: the command on the first line, its timeout on the second.
+hookentry=$(python3 -I -c '
 import json, sys
 for group in json.load(open(sys.argv[1]))["hooks"]["SessionStart"]:
     for h in group["hooks"]:
         if "cloud-gate" in h["command"]:
-            print(h["command"])
+            print(h["command"]); print(h.get("timeout", ""))
 ' "$SETTINGS")
+hookcmd=$(sed -n 1p <<<"$hookentry")
+hookto=$(sed -n 2p <<<"$hookentry")
 [ -n "$hookcmd" ] && ok "settings.json has a SessionStart cloud-gate hook" || bad "no SessionStart cloud-gate hook in settings.json"
 # Its timeout must outlast the gate's longest fetch (40 s plus the 5 s kill grace).
-hookto=$(python3 -I -c '
-import json, sys
-for group in json.load(open(sys.argv[1]))["hooks"]["SessionStart"]:
-    for h in group["hooks"]:
-        if "cloud-gate" in h["command"]:
-            print(h.get("timeout", ""))
-' "$SETTINGS")
 case "$hookto" in '' | *[!0-9]*) hookto=0 ;; esac
 [ "$hookto" -gt 45 ] && ok "the hook's timeout ($hookto s) outlasts the longest fetch" || bad "hook timeout '$hookto' (need > 45)"
 # Off the VM, against a project whose gate is a canary: the line's own CLAUDE_CODE_REMOTE check must stop it
