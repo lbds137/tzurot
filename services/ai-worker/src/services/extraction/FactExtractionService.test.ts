@@ -647,6 +647,15 @@ describe('delay-not-downgrade (provider busy)', () => {
     expect(s.usageCreateMock).not.toHaveBeenCalled();
   });
 
+  it('routing exhaustion (404 "No allowed providers") THROWS busy and REFUNDS — a host outage delays, not skips', async () => {
+    // Classified ROUTING_EXHAUSTED by parseApiError's message hoist, ahead of
+    // the 404 → MODEL_NOT_FOUND status mapping. Busy here: skipping loses facts.
+    const s = rejectingSetup(404, 'No allowed providers are available for the selected model');
+    await expect(s.service.processBatch(job)).rejects.toThrow(ExtractionProviderBusyError);
+    expect(s.usageCreateMock).not.toHaveBeenCalled();
+    expect(s.budget.refund).toHaveBeenCalledTimes(1);
+  });
+
   it('a permanent 400 keeps fail-to-skip (writes nothing, does not throw)', async () => {
     const s = rejectingSetup(400, 'Invalid API parameter');
     const written = await s.service.processBatch(job);
