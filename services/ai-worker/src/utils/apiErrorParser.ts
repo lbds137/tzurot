@@ -53,11 +53,18 @@ const OPENROUTER_HARNESS_ONLY_PATTERN = /only available on agentic harnesses/i;
  * routing rules (an `only` pin or an `ignore` list) left no eligible host:
  * "All providers have been ignored" (probed: an `ignore` list covering every
  * `only` host) and "No allowed providers are available" (which routing shape
- * produces which wording is not verified beyond that one probe). Both arrive wrapped in a 404, which status mapping would read as the
- * permanent MODEL_NOT_FOUND and let callers (the vision negative cache, the
- * quota fallback) treat the model as dead for hours. Routing exhaustion is
- * host availability — the same id succeeds once an eligible host recovers —
- * so it hoists to the transient ROUTING_EXHAUSTED before status classification.
+ * produces which wording is not verified beyond that one probe). Both arrive
+ * wrapped in a 404, which status mapping would read as the permanent
+ * MODEL_NOT_FOUND and let callers (the vision negative cache, the quota
+ * fallback) treat the model as dead for hours. Exhaustion is USUALLY
+ * transient — an upstream outage can drain the eligible host set, and the
+ * same id succeeds again once a host recovers — but an exhaustion caused by
+ * the routing config itself (a deny list covering every host, only
+ * forwarder hosts serving the model, a stale pinned allowlist) persists
+ * until the routing tables or OpenRouter's host roster change. TRANSIENT is
+ * still the chosen default: misreading an outage as permanent caches a live
+ * model dead for hours, the worse error. It hoists to ROUTING_EXHAUSTED
+ * before status classification on that basis.
  */
 const OPENROUTER_ROUTING_EXHAUSTED_PATTERNS = [
   /no allowed providers are available/i,
@@ -492,11 +499,15 @@ export function isAccountCreditExhaustion(error: unknown): boolean {
  * OpenRouter routing exhaustion: when the request's provider routing rules
  * leave no eligible host, OpenRouter answers 404 with either "All providers
  * have been ignored" or "No allowed providers are available"; status mapping
- * would read the 404 as the permanent MODEL_NOT_FOUND. The miss is host
- * availability under the routing rules, so it must classify as the transient
- * ROUTING_EXHAUSTED instead — a permanent classification would let the vision
- * chain long-cache it and the quota fallback give up on a model that recovers
- * the moment an eligible host returns.
+ * would read the 404 as the permanent MODEL_NOT_FOUND. The miss is USUALLY
+ * host availability under the routing rules (an outage drains the eligible
+ * set), so it must classify as the transient ROUTING_EXHAUSTED instead — a
+ * permanent classification would let the vision chain long-cache it and the
+ * quota fallback give up on a model that usually recovers once an eligible
+ * host returns. Transient is the chosen default, not a certainty: an
+ * exhaustion caused by the routing config itself (a deny list covering every
+ * host, only forwarder hosts serving the model, a stale pinned allowlist)
+ * persists until the routing tables or OpenRouter's host roster change.
  *
  * z.ai model-not-found (code 1214): z.ai's own "the configured model id
  * doesn't exist" error also arrives wrapped in a 400; must classify as
@@ -602,7 +613,10 @@ function detectSpecialCases(error: unknown): ApiErrorCategory | null {
   // id is valid and listed, but no host matching the request's routing rules
   // is currently eligible — and a permanent MODEL_NOT_FOUND would be cached
   // long-cooldown by the vision negative cache and abandoned by the quota
-  // fallback, even though the same id succeeds once an eligible host returns.
+  // fallback, even though the same id usually succeeds once an eligible host
+  // returns (usually, not always: an exhaustion caused by the routing config
+  // itself persists until the routing tables or host roster change —
+  // transient is still the chosen default, the safer misread).
   if (OPENROUTER_ROUTING_EXHAUSTED_PATTERNS.some(pattern => pattern.test(messageToSearch))) {
     return ApiErrorCategory.ROUTING_EXHAUSTED;
   }

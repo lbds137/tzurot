@@ -6,7 +6,10 @@
  * hosts that do not retain or train on them, the MiniMax host family never
  * serves a request, and one measured allowlist governs a specific pinned
  * model. The wire shapes built from these tables live in ai-worker's
- * `providerRouting.ts` resolver; this module holds only the data.
+ * `providerRouting.ts` resolver; this module holds only the data. The tables
+ * live in common-types rather than beside that resolver because tooling
+ * scripts that call OpenRouter directly (TASK-1554) must apply the same
+ * routing, and `packages/tooling` cannot import from a service.
  */
 
 /**

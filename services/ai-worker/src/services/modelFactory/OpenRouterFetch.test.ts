@@ -544,6 +544,12 @@ describe('OpenRouterFetch', () => {
       ).rejects.toThrow(
         /OpenRouter request body could not carry provider routing; refusing to send unrouted \(body type: Uint8Array/
       );
+      // The root cause is logged at error level at the refusal site itself,
+      // before the throw: body type + reason, never body content.
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        { bodyType: 'Uint8Array', reason: 'POST body is not a JSON string' },
+        'Refusing to send OpenRouter request without provider routing'
+      );
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
@@ -553,6 +559,16 @@ describe('OpenRouterFetch', () => {
 
       await expect(customFetch(CHAT_URL, { method: 'POST', body: 'not json' })).rejects.toThrow(
         /refusing to send unrouted \(body type: String/
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects a POST with no body at all when provider routing is set; fetch is not called', async () => {
+      const customFetch = createOpenRouterFetch({ provider: ROUTING });
+      const fetchMock = neverFireFetch();
+
+      await expect(customFetch(CHAT_URL, { method: 'POST' })).rejects.toThrow(
+        /refusing to send unrouted \(body type: undefined/
       );
       expect(fetchMock).not.toHaveBeenCalled();
     });
@@ -600,6 +616,35 @@ describe('OpenRouterFetch', () => {
       expect(capturedBody).toBeDefined();
       const parsed = JSON.parse(capturedBody!) as Record<string, unknown>;
       expect(parsed.provider).toEqual(ROUTING);
+    });
+
+    it('the injection log summarizes provider routing instead of dumping the host list', async () => {
+      const customFetch = createOpenRouterFetch({
+        transforms: ['middle-out'],
+        provider: ROUTING,
+      });
+      globalThis.fetch = vi.fn().mockResolvedValue(mockResponse({ choices: [] }, 200));
+
+      await customFetch(CHAT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ model: 'm', messages: [] }),
+      });
+
+      const fields = mockLogger.info.mock.calls.find(
+        call => call[1] === 'Custom fetch injecting OpenRouter params'
+      )?.[0] as Record<string, unknown>;
+      const injected = fields.injectedParams as Record<string, unknown>;
+      // Every non-provider param survives verbatim.
+      expect(injected.transforms).toEqual(['middle-out']);
+      // The routing object is a summary — shape + host count + scalars —
+      // never the full host list.
+      expect(injected.provider).toEqual({
+        shape: 'only',
+        hostCount: 3,
+        allowFallbacks: false,
+        dataCollection: 'deny',
+      });
+      expect(injected.provider).not.toHaveProperty('only');
     });
 
     it('rejects a non-string init body when the POST method comes from a Request url; fetch is not called', async () => {
@@ -686,6 +731,24 @@ describe('OpenRouterFetch', () => {
     expect(parsed).not.toHaveProperty('cache_control');
     // The 4th key composes: existing injection still runs
     expect(parsed.transforms).toEqual(['middle-out']);
+  });
+
+  it('injects verbosity into the body when extraParams carries it', async () => {
+    const customFetch = createOpenRouterFetch({ verbosity: 'high' });
+
+    let capturedBody: string | undefined;
+    globalThis.fetch = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string;
+      return Promise.resolve(mockResponse({ choices: [] }, 200));
+    });
+
+    await customFetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'openai/gpt-5.1', messages: [] }),
+    });
+
+    const parsed = JSON.parse(capturedBody!) as Record<string, unknown>;
+    expect(parsed.verbosity).toBe('high');
   });
 
   it('skips cache_control silently on a non-JSON body (same fail-open breadcrumb as the other keys)', async () => {

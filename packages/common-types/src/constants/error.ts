@@ -182,9 +182,14 @@ export enum ApiErrorCategory {
    * wrapped in a 404 (the two observed wordings: "All providers have been
    * ignored" / "No allowed providers are available"), which status mapping
    * would otherwise read as the permanent MODEL_NOT_FOUND and let the vision
-   * chain long-cache the miss. A routing miss is host availability, not
-   * catalog absence: the same model id succeeds once a host recovers, so the
-   * category is transient and short-cooldown.
+   * chain long-cache the miss. A routing miss is USUALLY host availability,
+   * not catalog absence: the same model id usually succeeds once a host
+   * recovers, so the category is transient and short-cooldown. Transient is
+   * the chosen default, not a certainty — an exhaustion caused by the routing
+   * config itself (a deny list covering every host, only forwarder hosts
+   * serving the model, a stale pinned allowlist) persists until the routing
+   * tables or OpenRouter's host roster change — but misreading an outage as
+   * permanent caches a live model dead, the worse error.
    */
   ROUTING_EXHAUSTED = 'routing_exhausted',
   /** Media URL unavailable (e.g., Discord CDN link expired, upstream 404 fetching image). Permanent per-URL. */
@@ -362,9 +367,12 @@ export const TRANSIENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set
   ApiErrorCategory.EMPTY_RESPONSE,
   ApiErrorCategory.CENSORED,
   ApiErrorCategory.BAD_REQUEST,
-  // Routing exhaustion is host availability, not catalog absence: the same
-  // model id succeeds once an allowed host recovers, so the retry ladder (and
-  // the quota-fallback retarget behind it) treats it like SERVER_ERROR.
+  // Routing exhaustion is USUALLY host availability, not catalog absence: the
+  // same model id usually succeeds once an allowed host recovers (an
+  // exhaustion caused by the routing config itself persists until the routing
+  // tables change), so the retry ladder (and the quota-fallback retarget
+  // behind it) treats it like SERVER_ERROR — transient is the chosen default,
+  // the safer misread.
   ApiErrorCategory.ROUTING_EXHAUSTED,
 ]);
 
@@ -420,9 +428,11 @@ export const VISION_FAILURE_CACHE_POLICY: Record<ApiErrorCategory, { l1TtlSecond
   // Retryable-transient categories — generic cooldown
   [ApiErrorCategory.RATE_LIMIT]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
   [ApiErrorCategory.SERVER_ERROR]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
-  // ROUTING_EXHAUSTED: host availability under the model's routing rules, so
-  // the miss recovers when a host does — the SHORT cooldown, never the
-  // attachment-bound LONG one the wrapping 404 would otherwise earn.
+  // ROUTING_EXHAUSTED: usually host availability under the model's routing
+  // rules, so the miss usually recovers when a host does (a config-induced
+  // exhaustion persists until the routing tables change, but the SHORT
+  // cooldown stays the chosen default) — never the attachment-bound LONG one
+  // the wrapping 404 would otherwise earn.
   [ApiErrorCategory.ROUTING_EXHAUSTED]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
   [ApiErrorCategory.TIMEOUT]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
   [ApiErrorCategory.NETWORK]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },

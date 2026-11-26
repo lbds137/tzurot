@@ -36,7 +36,7 @@ import { extractAndPopulateOpenRouterReasoning } from './modelFactory/extractOpe
 import { LlmResponseError } from './LlmResponseError.js';
 import { withRetry, RetryError } from '../utils/retry.js';
 import { invokeModelGuarded } from '../utils/invokeModelGuarded.js';
-import { isCausePrecedenceFailure } from './quotaFallback.js';
+import { isCausePrecedenceFailure, warnRoutingExhaustedIfNeeded } from './quotaFallback.js';
 import {
   shouldRetryError,
   getErrorLogContext,
@@ -425,6 +425,10 @@ export class LLMInvoker {
     // so the dependency on RetryError's shape is compiler-checked.
     const underlying = err instanceof RetryError ? err.lastError : err;
     const errorInfo = parseApiError(underlying);
+    // A config-induced routing exhaustion persists until the routing tables
+    // change — surface it (the helper's doc carries the transient-default
+    // caveat). One warn per failed invocation; category + model only.
+    warnRoutingExhaustedIfNeeded(errorInfo.category, modelName);
     if (errorInfo.statusCode !== 429) {
       return;
     }
