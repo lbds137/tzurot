@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-11-23'
+lastUpdated: '2026-11-26'
 ---
 
 # Git Workflow Procedures
@@ -339,7 +339,14 @@ git commit -am "chore: bump version to 3.0.0-beta.XX"
 
 ### 2. Write Release Notes
 
-Write release notes following the Conventional Changelog format defined in `.claude/rules/05-tooling.md`.
+**Conventional Changelog format.** **Release title**: `v3.0.0-beta.XX` (version
+number only, no summary). **Body** starts directly with H3 category headings, in
+this order when present — **Breaking Changes**, **Features**, **Bug Fixes**,
+**Improvements**, **Chores**, **Tests**, **Database Migrations** — omitting empty
+ones. Line items are `- **scope:** description (#123)`. End with
+`**Full Changelog**: https://github.com/lbds137/tzurot/compare/vOLD...vNEW`.
+Breaking Changes is for USER-FACING breaks only (it DMs every default-level
+user); internal breaks go under Database Migrations or the deploy notes.
 
 **Source of truth**: `git log v<previous-tag>..HEAD --no-merges` — NOT CURRENT.md.
 CURRENT.md tracks session work; release notes track what shipped between tags.
