@@ -7,6 +7,8 @@
 
 import { execFileSync, spawnSync } from 'node:child_process';
 
+import { resolveLiveProfileSpawnEnv } from '../resource/spawnEnv.js';
+
 interface FocusRunnerOptions {
   /** Turbo task to run (lint, test, build, typecheck) */
   task: string;
@@ -109,12 +111,16 @@ export function runFocusedTask(options: FocusRunnerOptions): void {
   console.log(`\x1b[36m› Running focused ${task}...\x1b[0m`);
   console.log(`\x1b[90m› turbo ${turboArgs.join(' ')}\x1b[0m\n`);
 
+  // Same inputs and precedence as the exec wrapper (see resolveLiveProfileSpawnEnv).
+  const profileEnv = resolveLiveProfileSpawnEnv(process.cwd());
+
   // Deliberately unbounded: this is the actual lint/test/build run, not a
   // probe, so it legitimately runs for minutes — a bound would turn a working
   // command flaky. Same reasoning as the knip spawn in find-dead-files.ts.
   const result = spawnSync('turbo', turboArgs, {
     stdio: 'inherit',
     shell: false,
+    env: profileEnv.env,
   });
 
   if (result.error) {

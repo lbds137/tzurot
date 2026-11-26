@@ -7,6 +7,8 @@
 
 import { spawnSync } from 'node:child_process';
 
+import { resolveLiveProfileSpawnEnv } from '../resource/spawnEnv.js';
+
 // ANSI escape code regex for stripping colors
 // eslint-disable-next-line no-control-regex -- ANSI escape stripping requires control characters
 const ANSI_REGEX = /\x1b\[[0-9;]*m/g;
@@ -72,10 +74,14 @@ function printSummary(summaryLines: string[]): void {
 export function runTestSummary(): void {
   console.log('\x1b[36m› Running tests...\x1b[0m\n');
 
+  // Same inputs and precedence as the exec wrapper (see resolveLiveProfileSpawnEnv).
+  const profileEnv = resolveLiveProfileSpawnEnv(process.cwd());
+
   const result = spawnSync('turbo', ['run', 'test'], {
     stdio: ['inherit', 'pipe', 'pipe'],
     shell: false,
     encoding: 'utf-8',
+    env: profileEnv.env,
   });
 
   if (result.error) {

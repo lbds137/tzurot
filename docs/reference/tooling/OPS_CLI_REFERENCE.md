@@ -552,6 +552,16 @@ Run it in the release security-preflight: `transitive` and `direct+transitive` a
 | `pnpm ops topology:generate --write` | Write `coverage-topology.json`                                   |
 | `pnpm ops topology:check`            | CI gate: fail if the committed `coverage-topology.json` is stale |
 
+## Resource Profile Commands
+
+Concurrency/heap profiles for the root turbo scripts — resolution contract in
+[`resource-profiles.md`](resource-profiles.md):
+
+| Command                               | Description                                     |
+| ------------------------------------- | ----------------------------------------------- |
+| `pnpm ops resource:env`               | Print the resolved profile + env additions (sh) |
+| `pnpm ops resource:env --format json` | Same, as JSON (profile, trigger, knobs, env)    |
+
 ## CPD Commands
 
 Filtered copy-paste detection ratchet — same structural shape as test:audit:

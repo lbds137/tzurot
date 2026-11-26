@@ -12,4 +12,9 @@
  */
 import { config } from 'dotenv';
 
+import { recordPreDotenvProfileEnv } from './resource/preDotenvEnv.js';
+
+// Snapshot the resource-profile keys first, so the ops runners can still tell a
+// shell-exported value from one dotenv is about to copy out of `.env`.
+recordPreDotenvProfileEnv(process.env);
 config({ quiet: true });

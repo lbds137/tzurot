@@ -1,4 +1,15 @@
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
+
+import { liveMachineFacts } from './packages/tooling/src/resource/machineFacts.js';
+import { resolveVitestResourceProfile } from './packages/tooling/src/resource/vitestProfile.js';
+
+const resourceProfile = resolveVitestResourceProfile({
+  env: process.env,
+  rootDir: dirname(fileURLToPath(import.meta.url)),
+  ...liveMachineFacts(),
+});
 
 export default defineConfig({
   test: {
@@ -13,20 +24,24 @@ export default defineConfig({
     env: {
       FORCE_COLOR: '0',
     },
-    // Limit worker threads to reduce memory usage (default uses all CPU cores).
-    // With heavy mocking each worker can consume 500MB-1GB (v8 coverage pushes
-    // higher). On CI / capable machines we run 3 workers (~2.1GB).
-    //
-    // Under LOW_RESOURCE_MODE=1 (Steam Deck — set via .env or shell, exported by
-    // .husky/pre-push) we drop to a SINGLE worker. This is the piece the other
-    // throttles miss: `turbo --concurrency=1` serializes packages and
-    // NODE_OPTIONS caps each process heap at 2GB, but neither reduces vitest's
-    // intra-package thread count — so 3 workers × up to 2GB = ~6GB still OOM'd
-    // the Deck (repeated IDE crashes). One worker keeps a package's run near the
-    // 2GB heap cap. Trades speed for stability; only engages when the flag is set.
-    // Note: Vitest 4 moved poolOptions to top-level options.
+    // Worker count comes from the resource-profile resolver (contract:
+    // docs/reference/tooling/resource-profiles.md), not a raw env read. The
+    // resolver decides, in order: RESOURCE_PROFILE, then LOW_RESOURCE_MODE
+    // (process env ahead of .env for both), then the .env layer, then the
+    // auto rule (CI -> full; <= 16 GiB total memory -> low; <= 4 cpus ->
+    // cloud; else full). Runs through the exec wrapper (the wrapped root
+    // scripts) arrive with RESOURCE_PROFILE and VITEST_MAX_WORKERS exported,
+    // which win. Every other run that loads this config — a bare vitest,
+    // `pnpm --filter <pkg> test`, an unwrapped turbo task — resolves here WITH
+    // the .env layer: the two profile keys are read key-scoped from the
+    // directory holding this config file (the repo root), falling back per key
+    // to the main checkout's .env for linked worktrees. The .env-layer cases
+    // are pinned by src/resource/vitestProfile.test.ts in packages/tooling;
+    // not pinned here: that the call above stays anchored on this file's own
+    // directory (no test imports this config — it sits outside every package's
+    // spec rootDir).
     pool: 'threads',
-    maxWorkers: process.env.LOW_RESOURCE_MODE === '1' ? 1 : 3,
+    maxWorkers: resourceProfile.knobs.vitestMaxWorkers,
     minWorkers: 1,
     // Note: mockReset/restoreMocks were attempted but broke 57+ tests across
     // api-gateway and bot-client that rely on module-level mock persistence.
