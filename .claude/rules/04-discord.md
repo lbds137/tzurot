@@ -1,3 +1,10 @@
+---
+paths:
+  - 'services/bot-client/**'
+  - 'packages/common-types/src/types/**'
+  - 'packages/common-types/src/utils/autocompleteFormat.ts'
+---
+
 # Discord Rules
 
 ## 3-Second Rule (CRITICAL)
@@ -192,3 +199,14 @@ bot-client generates a `requestId` (`randomUUID()`) and sends it as the `X-Reque
 ### Structured Logging
 
 Structured data first, static message second (`logger.info({ personalityId, model }, 'Loaded personality')`) — never string interpolation, which loses structure.
+
+## Autocomplete Utilities
+
+**ALWAYS check for existing utilities before writing autocomplete handlers.**
+
+Available in `bot-client/src/utils/autocomplete/`:
+
+| Utility                         | Purpose                   |
+| ------------------------------- | ------------------------- |
+| `handlePersonalityAutocomplete` | Personality selection     |
+| `handlePersonaAutocomplete`     | Profile/persona selection |

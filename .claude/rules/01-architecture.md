@@ -70,17 +70,6 @@ Handlers that need the internal UUID should prefer `req.provisionedUserId` (set 
 
 **Keep inline when:** Used in one place only, stateless utility function, very simple logic
 
-## Autocomplete Utilities
-
-**ALWAYS check for existing utilities before writing autocomplete handlers.**
-
-Available in `bot-client/src/utils/autocomplete/`:
-
-| Utility                         | Purpose                   |
-| ------------------------------- | ------------------------- |
-| `handlePersonalityAutocomplete` | Personality selection     |
-| `handlePersonaAutocomplete`     | Profile/persona selection |
-
 ## Architecture Verification
 
 Run `/tzurot-arch-audit` periodically to verify these rules programmatically.
