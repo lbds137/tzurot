@@ -107,4 +107,6 @@ A/B OUTCOME 2026-11-25. About 3,700 billed calls on the dev key, $8.02, metered 
   - expiry 2027-02-25.
 
 Remaining (routing PR): per-model allowlist constant (above) on the system key, allow_fallbacks false, data_collection deny, BYOK default (opt-out TASK-1550); unlisted models and free tier get deny + the forwarder ignore list (owner rulings 2026-11-25); every OpenRouter call site; the failure shape when no allowed host is up (a routing-exhaustion 404 must not map to model-not-found); provider routing in the model cache key. Follow-ups from the report review: TASK-1547.
+
+Pin scope (PR #2816): the allowlist pin matches the exact id `z-ai/glm-5.3-flash` only. A suffixed variant (`:free`, `:nitro`, `:floor`) takes the deny + forwarder-ignore shape, not the censorship-measured allowlist (the lookup is an exact-key match on `OPENROUTER_ROUTING.PINNED_MODELS`; only the `:free` case is tested, `providerRouting.test.ts:37`). Adding a suffixed variant to a preset needs its own `PINNED_MODELS` entry and measurement.
 <!-- SECTION:DESCRIPTION:END -->
