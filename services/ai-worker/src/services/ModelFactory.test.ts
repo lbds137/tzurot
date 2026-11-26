@@ -742,7 +742,7 @@ describe('ModelFactory', () => {
     it('logs the routing SUMMARY for a pinned model, never the 30-entry only-list', () => {
       // The 'Creating model' debug line fires on every model build; a pinned
       // call's `provider.only` is ~30 entries, so the log summarizes it
-      // (summarizeProviderRouting) instead of repeating the list verbatim.
+      // (summarizeExtraParamsForLog) instead of repeating the list verbatim.
       createChatModel({ modelName: 'z-ai/glm-5.3-flash' });
 
       const debugCalls = mockLogger.debug.mock.calls as [Record<string, unknown>, string][];

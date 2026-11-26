@@ -28,6 +28,7 @@ import {
   isRouteAttempted,
   selectFloorTarget,
   selectQuotaFallbackTarget,
+  warnRoutingExhaustedForError,
   warnRoutingExhaustedIfNeeded,
   type AttemptedRoute,
   type QuotaFallbackCaches,
@@ -896,5 +897,53 @@ describe('selectQuotaFallbackTarget — routes already attempted this job', () =
       excludeRoutes: [zaiRoute] satisfies AttemptedRoute[],
     });
     expect(target).toBeNull();
+  });
+});
+
+describe('warnRoutingExhaustedForError', () => {
+  const ROUTING_TEXT = '404 No allowed providers are available for this model';
+  const ROUTING_WARN = 'OpenRouter routing exhausted: no eligible host for model';
+
+  beforeEach(() => {
+    mockLoggerWarn.mockClear();
+  });
+
+  it('warns once for a RetryError whose lastError classifies ROUTING_EXHAUSTED', () => {
+    warnRoutingExhaustedForError(
+      new RetryError('retries exhausted', 3, new Error(ROUTING_TEXT)),
+      'vendor/model-a'
+    );
+    expect(mockLoggerWarn).toHaveBeenCalledTimes(1);
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      { category: ApiErrorCategory.ROUTING_EXHAUSTED, model: 'vendor/model-a' },
+      ROUTING_WARN
+    );
+  });
+
+  it('warns once for an ApiError whose info.category is ROUTING_EXHAUSTED', () => {
+    // Message text deliberately carries no routing wording: the category must
+    // come from the instance's own info, not a re-parse.
+    const error = new ApiError('synthetic', {
+      type: ApiErrorType.TRANSIENT,
+      category: ApiErrorCategory.ROUTING_EXHAUSTED,
+      userMessage: 'x',
+      technicalMessage: 'x',
+      referenceId: 'ref',
+      shouldRetry: true,
+    });
+    warnRoutingExhaustedForError(error, 'vendor/model-a');
+    expect(mockLoggerWarn).toHaveBeenCalledTimes(1);
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      { category: ApiErrorCategory.ROUTING_EXHAUSTED, model: 'vendor/model-a' },
+      ROUTING_WARN
+    );
+  });
+
+  it('does not warn for a RetryError wrapping a non-routing error', () => {
+    warnRoutingExhaustedForError(
+      new RetryError('retries exhausted', 3, new Error('500 Internal Server Error')),
+      'vendor/model-a'
+    );
+    expect(mockLoggerWarn).not.toHaveBeenCalled();
   });
 });
