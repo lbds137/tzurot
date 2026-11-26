@@ -14,16 +14,17 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 ---
 
-### 🚢 Next Release — beta.251 (theme: caching Phase 3 + drain)
+### 🚢 Next Release — beta.252 (theme: caching Phase 3 + drain)
 
-_beta.250 shipped 2026-11-24 (PR 2804); its smoke is CURRENT.md § beta.250 smoke._
+_beta.251 shipped 2026-11-26 (PR 2817; cut ahead of Phase 3 on Lila's call 11-25); its smoke is CURRENT.md § beta.251 smoke._
 
-- **Planned**: caching Phase 3 (doc-17 reading first; moved from beta.249 by Lila AUQ 2026-11-23) · TASK-1400 Claude character route if Lila's blind rating says GO, else TASK-1416/1415/1411/1412 · TASK-1519 lockfile regenerate · drain items (1511–1513, 1500–1508).
-- **Waiting on**: the doc-17 reading; Lila's TASK-1400 verdict (`docs/local/task-1400-eval/blind-packet.md`).
-- **Explicitly NOT in**: TASK-1356 (BYOK rotation redesign — design first, security-critical) · TASK-1347/1174 (design- or ops-sized, scheduled separately).
-- **Deploy notes**: PR 2809 (TASK-1522) — release notes should say users with their own OpenRouter key may see slightly more OpenRouter spend during z.ai squeezes (an exhausted image can now try up to 5 tiers, the last two on their key).
-- **Cut when**: caching Phase 3 merges; backstops ~10 runtime PRs / ~250 files (`pnpm ops release:range`). Release PR merge needs her explicit yes.
-- **vNext+1 sketch (beta.252)**: Machloket e2e (`doc-114`) · whatever of TASK-1416/1415/1411/1412 beta.251 does not carry.
+- **In already**: nothing yet.
+- **Planned**: caching Phase 3 (markers decision from `docs/local/cache-gap-reading-result.md`, Lila's call) · #2816 (B) · TASK-1400 Claude character route if Lila's blind rating says GO, else TASK-1416/1415/1411/1412 · TASK-1519 lockfile regenerate · drain items (1513, 1500–1508).
+- **Waiting on**: Lila's caching Phase 3 markers decision; Lila's TASK-1400 verdict (`docs/local/task-1400-eval/blind-packet.md`).
+- **Explicitly NOT in**: TASK-1356 (BYOK rotation redesign — design first, security-critical) · TASK-1347/1174 (design- or ops-sized, scheduled separately) · #2815 / TASK-1553 (tooling; merges whenever its last review round lands, no release dependency).
+- **Deploy notes**: none yet.
+- **Cut when**: caching Phase 3 merges; backstops ~10 runtime PRs / ~250 files (`pnpm ops release:range`; 0 at cut). Release PR merge needs her explicit yes.
+- **vNext+1 sketch (beta.253)**: Machloket e2e (`doc-114`) · whatever of TASK-1416/1415/1411/1412 beta.252 does not carry.
 
 ### 🎯 Current Focus (max 3)
 
