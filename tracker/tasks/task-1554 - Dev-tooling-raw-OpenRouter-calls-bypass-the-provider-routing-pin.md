@@ -4,10 +4,11 @@ title: Dev tooling raw OpenRouter calls bypass the provider routing pin
 status: To Do
 assignee: []
 created_date: '2026-11-25T20:52:00Z'
+updated_date: '2026-11-26T11:29:00Z'
 labels:
   - area:tooling
   - size:S
-  - state:dependent
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1549000

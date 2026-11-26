@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-26T04:43:00Z'
+updated_date: '2026-11-26T11:29:00Z'
 labels:
   - area:ai-worker
   - size:S
-  - state:dependent
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 1551000
@@ -26,3 +27,9 @@ Acceptance: a Z-AI/GLM-5.3-Flash test takes the pin (or the doc states exact mat
 
 Promote when: PR #2816 merges to develop.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+PR #2816 round-6 review carries (owner ruling: lows ride the next PR): (a) warnRoutingExhaustedForError fires only from LLMInvoker.ts; emit it from the vision (VisionProcessor/invokeModelGuarded) and fact-extraction failure sites too, or narrow the quotaFallback.ts doc claim; (b) USER_ERROR_MESSAGES[ROUTING_EXHAUSTED] in error.ts duplicates the SERVER_ERROR string: reference one constant; (c) move OPENROUTER_ROUTING_EXHAUSTED_PATTERNS from apiErrorParser.ts into ERROR_PATTERNS.
+<!-- SECTION:NOTES:END -->

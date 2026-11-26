@@ -1,11 +1,10 @@
 ---
 id: TASK-1261
 title: OpenRouter provider ignore list for character chat (censoring hosts)
-status: In Progress
-assignee:
-  - Tzurot B
+status: Done
+assignee: []
 created_date: 2026-10-22 13:36
-updated_date: '2026-11-25T07:48:00Z'
+updated_date: '2026-11-26T11:29:00Z'
 labels:
   - area:ai-worker
   - size:M
@@ -110,3 +109,9 @@ Remaining (routing PR): per-model allowlist constant (above) on the system key, 
 
 Pin scope (PR #2816): the allowlist pin matches the exact id `z-ai/glm-5.3-flash` only. A suffixed variant (`:free`, `:nitro`, `:floor`) takes the deny + forwarder-ignore shape, not the censorship-measured allowlist (the lookup is an exact-key match on `OPENROUTER_ROUTING.PINNED_MODELS`; only the `:free` case is tested, `providerRouting.test.ts:37`). Adding a suffixed variant to a preset needs its own `PINNED_MODELS` entry and measurement.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped in PR #2816 (merged 070871635). Post-merge telemetry:upstream --env dev (2026-11-26): 7-day window holds 1 request (anthropic/claude-haiku-5.5), zero glm-5.3-flash rows, so the served-host-inside-allowlist check is not yet answerable; re-run after the first dev GLM conversation (carried in tzurot-b role Next). Review round 6 #1 (pinned shape under deny): every A/B arm sent only+allow_fallbacks:false+deny (docs/local/task-1261-eval/run-arms.mjs:78), no arm 404d.
+<!-- SECTION:NOTES:END -->

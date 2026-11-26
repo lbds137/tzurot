@@ -3,9 +3,11 @@ id: TASK-1555
 title: >-
   Model cache key isolates API keys by a 10-char prefix that OpenRouter keys
   share
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - tzurot-b
 created_date: '2026-11-25T20:52:00Z'
+updated_date: '2026-11-26T11:29:00Z'
 labels:
   - area:ai-worker
   - size:S
@@ -24,3 +26,9 @@ What: isolate on a non-reversible digest of the whole key (e.g. sha256 truncated
 
 Acceptance: a CacheKeyBuilder test with two fixture keys sharing their first 10 chars yields different keys (fixture keys not vendor-shaped); a canary reverting to the substring goes red; the digest helper has its own test.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+PR #2818 (fix/task-1555-cache-key-whole-key-digest @ 2e66e4753).
+<!-- SECTION:NOTES:END -->
