@@ -36,7 +36,7 @@ import { extractAndPopulateOpenRouterReasoning } from './modelFactory/extractOpe
 import { LlmResponseError } from './LlmResponseError.js';
 import { withRetry, RetryError } from '../utils/retry.js';
 import { invokeModelGuarded } from '../utils/invokeModelGuarded.js';
-import { isCausePrecedenceFailure, warnRoutingExhaustedIfNeeded } from './quotaFallback.js';
+import { isCausePrecedenceFailure, warnRoutingExhaustedForError } from './quotaFallback.js';
 import {
   shouldRetryError,
   getErrorLogContext,
@@ -313,6 +313,11 @@ export class LLMInvoker {
         }
       );
     } catch (err) {
+      // Surface routing exhaustion so a config-induced one is visible in the logs
+      // (usually transient — see ApiErrorCategory.ROUTING_EXHAUSTED). One warn
+      // per failed invocation, whether or not a cacheKeyId was supplied;
+      // category + model only.
+      warnRoutingExhaustedForError(err, modelName);
       // Cache rate-limit state on 429 with a usable reset header so the next
       // call in the same window short-circuits at the top of this function.
       // No-throw failure mode: marker write errors are swallowed inside the
@@ -425,10 +430,6 @@ export class LLMInvoker {
     // so the dependency on RetryError's shape is compiler-checked.
     const underlying = err instanceof RetryError ? err.lastError : err;
     const errorInfo = parseApiError(underlying);
-    // Surface routing exhaustion so a config-induced one is visible in the logs
-    // (usually transient — see ApiErrorCategory.ROUTING_EXHAUSTED). One warn
-    // per failed invocation; category + model only.
-    warnRoutingExhaustedIfNeeded(errorInfo.category, modelName);
     if (errorInfo.statusCode !== 429) {
       return;
     }

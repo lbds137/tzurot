@@ -115,6 +115,16 @@ describe('Canary: __includeRawResponse contract with @langchain/openai', () => {
 
     // === The contract we depend on ===
 
+    // 0. ChatOpenAI hands the fetch a string body. OpenRouterFetch's tuning-only
+    // fail-open branch relies on it (a non-string body would skip injection).
+    // If this fails: the fail-open branch comment in OpenRouterFetch.ts is stale.
+    const sentInit = stubFetch.mock.calls[0]?.[1] as RequestInit | undefined;
+    expect(
+      typeof sentInit?.body,
+      'ChatOpenAI no longer passes a string request body — OpenRouterFetch tuning-only ' +
+        'injection would silently skip. See injectOpenRouterParams.'
+    ).toBe('string');
+
     // 1. __raw_response is present in additional_kwargs.
     // If this fails: __includeRawResponse: true was either ignored or renamed.
     const rawResponse = (result.additional_kwargs as Record<string, unknown>).__raw_response;

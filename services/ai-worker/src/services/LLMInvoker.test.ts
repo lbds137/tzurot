@@ -634,6 +634,40 @@ describe('LLMInvoker', () => {
       vi.useRealTimers();
     });
 
+    it.each([
+      ['a cacheKeyId', 'user:111111111111111111'],
+      ['an empty cacheKeyId', ''],
+    ])(
+      'emits the routing-exhausted warn exactly once across retries with %s',
+      async (_label, cacheKeyId) => {
+        vi.useFakeTimers();
+
+        const invokeMock = vi
+          .fn()
+          .mockRejectedValue(new Error('404 No allowed providers are available for this model'));
+        const mockModel = mockChatModel(invokeMock);
+
+        const promise = invoker.invokeWithRetry({
+          model: mockModel,
+          messages: [new HumanMessage('Hello')],
+          modelName: 'z-ai/glm-5.3-flash',
+          cacheKeyId,
+        });
+        const assertion = expect(promise).rejects.toThrow(RetryError);
+        await vi.runAllTimersAsync();
+        await assertion;
+
+        // Retries really happened, yet the warn is per failed invocation.
+        expect(invokeMock.mock.calls.length).toBeGreaterThan(1);
+        const routingWarns = mockLoggerWarn.mock.calls.filter(
+          call => call[1] === 'OpenRouter routing exhausted: no eligible host for model'
+        );
+        expect(routingWarns).toHaveLength(1);
+
+        vi.useRealTimers();
+      }
+    );
+
     it('classifies a zero-choices 200 as EMPTY_RESPONSE through the guarded seam (retries, then RetryError)', async () => {
       vi.useFakeTimers();
 

@@ -28,7 +28,7 @@ import { buildThinkingKwargs } from './modelFactory/thinkingTranslation.js';
 import { resolveModelName, resolveProvider } from './modelFactory/modelResolution.js';
 import { promptCacheGateFires } from './modelFactory/promptCacheGate.js';
 import { resolveOpenRouterProviderRouting } from './modelFactory/providerRouting.js';
-import { summarizeProviderRouting } from './modelFactory/providerRoutingSummary.js';
+import { summarizeExtraParamsForLog } from './modelFactory/providerRoutingSummary.js';
 
 // Re-export extracted modules for backward compatibility
 export { getModelCacheKey } from './modelFactory/CacheKeyBuilder.js';
@@ -419,10 +419,6 @@ function buildOpenRouterModel(
       extraParams.sessionId = modelConfig.sessionId;
     }
   }
-  // `provider` is summarized (see `summarizeProviderRouting`) so the debug log
-  // carries the routing shape and host counts, never the full only-list; the
-  // client below still receives the full object via `extraParams`.
-  const { provider, ...tuningParams } = extraParams;
   const hasReasoning =
     modelConfig.thinking !== undefined && modelConfig.supportsReasoning !== false;
 
@@ -436,7 +432,10 @@ function buildOpenRouterModel(
       presencePenalty: shared.presencePenalty,
       maxTokens: shared.maxTokens,
       modelKwargs: shared.hasModelKwargs ? shared.modelKwargs : undefined,
-      extraParams: { ...tuningParams, provider: summarizeProviderRouting(provider) },
+      // Summarized (see `summarizeExtraParamsForLog`) so the debug log carries
+      // the routing shape and host counts, never the full only-list; the
+      // client below still receives the full object via `extraParams`.
+      extraParams: summarizeExtraParamsForLog(extraParams),
       reasoningEnabled: hasReasoning,
     },
     'Creating model'
