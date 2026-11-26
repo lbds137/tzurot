@@ -76,7 +76,8 @@
           },
           {
             "type": "command",
-            "command": "[ \"${CLAUDE_CODE_REMOTE:-}\" = true ] || exit 0; cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null && [ -r .claude/hooks/cloud-gate.sh ] && bash .claude/hooks/cloud-gate.sh --session-start || true"
+            "command": "[ \"${CLAUDE_CODE_REMOTE:-}\" = true ] || exit 0; cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null && [ -r .claude/hooks/cloud-gate.sh ] && bash .claude/hooks/cloud-gate.sh --session-start || true",
+            "timeout": 60
           }
         ]
       }

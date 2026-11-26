@@ -8,6 +8,7 @@
 #   over 2 h, missing  refuse (fail closed); so does a reading dated more than 5 min in the future.
 # Age is measured from the reading's as_of (when the meter was read), not the commit time.
 # VENDORED: the body below the header matches deck-platform's bin/cloud-gate; change it there first.
+# body-sha256: 064e482591398e34 (first 16 hex of sha256 over the lines from `set -u` to the end; the probe checks it)
 set -u
 
 usage() {
@@ -19,7 +20,8 @@ usage: cloud-gate [--file PATH] [--quiet] [--session-start]
   --quiet      no stdout on pass.
   --session-start  the repo SessionStart hook: does nothing unless CLAUDE_CODE_REMOTE=true; on a cloud VM it runs
                the gate and prints its line, plus on stop an instruction to start no work; always exits 0.
-  CLOUD_GATE_WARN_S (default 1800) and CLOUD_GATE_MAX_S (default 7200) move the two age tiers.
+  CLOUD_GATE_WARN_S (default 1800) and CLOUD_GATE_MAX_S (default 7200) move the two age tiers; WARN may not
+  exceed MAX. CLOUD_GATE_FETCH_S (default 20) bounds the git fetch: a stalled fetch stops rather than hangs.
 EOF
 }
 
@@ -42,7 +44,7 @@ if [ $hook -eq 1 ]; then
 	[ "${CLAUDE_CODE_REMOTE:-}" = true ] || exit 0
 	args=()
 	[ -n "$file" ] && args=(--file "$file")
-	line=$(bash "$0" "${args[@]}" 2>&1)
+	line=$(bash "$0" ${args[@]+"${args[@]}"} 2>&1)
 	rc=$?
 	printf '%s\n' "$line"
 	if [ $rc -ne 0 ]; then
@@ -56,15 +58,24 @@ warn=${CLOUD_GATE_WARN_S:-1800}
 max=${CLOUD_GATE_MAX_S:-7200}
 case "$warn" in '' | *[!0-9]*) echo "cloud-gate: CLOUD_GATE_WARN_S must be an integer" >&2; exit 2 ;; esac
 case "$max" in '' | *[!0-9]*) echo "cloud-gate: CLOUD_GATE_MAX_S must be an integer" >&2; exit 2 ;; esac
+[ "$warn" -le "$max" ] || { echo "cloud-gate: CLOUD_GATE_WARN_S ($warn) must not exceed CLOUD_GATE_MAX_S ($max)" >&2; exit 2; }
+fetch_s=${CLOUD_GATE_FETCH_S:-20}
+case "$fetch_s" in '' | *[!0-9]* | 0) echo "cloud-gate: CLOUD_GATE_FETCH_S must be a positive integer" >&2; exit 2 ;; esac
 
 if [ -n "$file" ]; then
 	reading=$(cat -- "$file" 2>&1) || { echo "cloud-gate: stop: cannot read $file"; exit 1; }
 else
-	err=$(GIT_TERMINAL_PROMPT=0 git fetch -q origin refs/heads/usage-meter 2>&1) || {
+	# Bounded, so a stalled fetch stops here instead of outliving the hook's timeout (that would start the session
+	# with no STOP). Into a ref of its own, so the checkout's FETCH_HEAD is never touched.
+	ref=refs/cloud-gate/usage-meter
+	err=$(GIT_TERMINAL_PROMPT=0 timeout "$fetch_s" git fetch -q --no-write-fetch-head origin "+refs/heads/usage-meter:$ref" 2>&1)
+	frc=$?
+	if [ $frc -ne 0 ]; then
+		[ $frc -eq 124 ] && err="timed out after $fetch_s s"
 		echo "cloud-gate: stop: no usage reading (git fetch origin usage-meter failed: $(printf '%s' "$err" | sed -E 's#//[^@/]*@#//***@#g' | head -c 200))"
 		exit 1
-	}
-	reading=$(git show FETCH_HEAD:usage.json 2>/dev/null) || { echo "cloud-gate: stop: usage-meter has no usage.json"; exit 1; }
+	fi
+	reading=$(git show "$ref:usage.json" 2>/dev/null) || { echo "cloud-gate: stop: usage-meter has no usage.json"; exit 1; }
 fi
 
 python3 -I - "$reading" "$(date +%s)" "$warn" "$max" "$quiet" <<'PY'
