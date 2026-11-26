@@ -28,6 +28,7 @@ import { buildThinkingKwargs } from './modelFactory/thinkingTranslation.js';
 import { resolveModelName, resolveProvider } from './modelFactory/modelResolution.js';
 import { promptCacheGateFires } from './modelFactory/promptCacheGate.js';
 import { resolveOpenRouterProviderRouting } from './modelFactory/providerRouting.js';
+import { summarizeProviderRouting } from './modelFactory/providerRoutingSummary.js';
 
 // Re-export extracted modules for backward compatibility
 export { getModelCacheKey } from './modelFactory/CacheKeyBuilder.js';
@@ -309,8 +310,10 @@ function getEffectiveMaxTokens(
  * carrying request-side extras: its response-side recovery (400-content
  * recovery, 200-with-error-body surfacing) applies to every OpenRouter call,
  * including vision calls that never carry transforms/route/verbosity or a
- * reasoning config. Request-side param injection stays gated inside the fetch
- * on a non-empty `extraParams`, so an empty one is a no-op on the request.
+ * reasoning config — but every OpenRouter call from this factory carries
+ * `provider` routing (`buildOpenRouterExtraParams` sets it unconditionally),
+ * so request-side param injection runs on every call. The fetch's
+ * empty-`extraParams` no-op remains only for a caller passing empty params.
  */
 function buildOpenRouterClientConfig(
   extraParams: OpenRouterExtraParams,
@@ -416,7 +419,10 @@ function buildOpenRouterModel(
       extraParams.sessionId = modelConfig.sessionId;
     }
   }
-  const hasExtraParams = Object.keys(extraParams).length > 0;
+  // `provider` is summarized (see `summarizeProviderRouting`) so the debug log
+  // carries the routing shape and host counts, never the full only-list; the
+  // client below still receives the full object via `extraParams`.
+  const { provider, ...tuningParams } = extraParams;
   const hasReasoning =
     modelConfig.thinking !== undefined && modelConfig.supportsReasoning !== false;
 
@@ -430,7 +436,7 @@ function buildOpenRouterModel(
       presencePenalty: shared.presencePenalty,
       maxTokens: shared.maxTokens,
       modelKwargs: shared.hasModelKwargs ? shared.modelKwargs : undefined,
-      extraParams: hasExtraParams ? extraParams : undefined,
+      extraParams: { ...tuningParams, provider: summarizeProviderRouting(provider) },
       reasoningEnabled: hasReasoning,
     },
     'Creating model'
