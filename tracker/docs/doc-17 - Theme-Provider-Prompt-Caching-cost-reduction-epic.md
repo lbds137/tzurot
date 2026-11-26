@@ -7,6 +7,8 @@ created_date: '2026-07-28 11:11'
 
 ### Theme: Provider Prompt Caching (cost-reduction epic)
 
+> **Phase 3 DEFERRED 2026-11-26 (owner decision).** The prod gap-bucket reading (7 days, 206 calls) put 174 calls on z.ai GLM (flat-rate plan with implicit caching, so markers save no money there) and 32 on OpenRouter, of which only the Qwen/Anthropic slice needs markers; the estimated saving was well under $2/week. **Promote when:** a marker-requiring route (Qwen or Anthropic via OpenRouter) carries real volume, e.g. a GO verdict on TASK-1400 (Claude characters via OpenRouter BYOK). The §2.7 marker-gating design stands as written.
+>
 > **Status 2026-09-24 (half-finished sweep):** Phases 0–2 SHIPPED. Phase 2 (history extraction, the real-messages mode) is ON in prod since 2026-09-08 (`6c133831c`; turn-2 reuse 0.57). Remaining: the gap-bucket cache reading (watch), then the Phase 3 (explicit markers) decision. The Phase 2 build text below is historical.
 
 _Focus: restructure prompt assembly so the prefix is stable enough to benefit from provider-side prompt caching (OpenRouter, z.ai, Anthropic-direct), without sacrificing freshness. Target: meaningful cost reduction on multi-turn conversations within the cache TTL window._
