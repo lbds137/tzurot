@@ -14,16 +14,16 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 ---
 
-### 🚢 Next Release — beta.252 (theme: caching Phase 3 + drain)
+### 🚢 Next Release — beta.252 (theme: message actions + drain)
 
 _beta.251 shipped 2026-11-26 (PR 2817; cut ahead of Phase 3 on Lila's call 11-25); its smoke is CURRENT.md § beta.251 smoke._
 
 - **In already**: nothing yet.
-- **Planned**: TASK-1558 + TASK-1559 message actions Chime In + Edit Character (Lila 11-26, wanted in this release) · caching Phase 3 (markers decision from `docs/local/cache-gap-reading-result.md`, Lila's call) · #2816 (B) · TASK-1400 Claude character route if Lila's blind rating says GO, else TASK-1416/1415/1411/1412 · TASK-1519 lockfile regenerate · drain items (1513, 1500–1508).
-- **Waiting on**: Lila's caching Phase 3 markers decision; Lila's TASK-1400 verdict (`docs/local/task-1400-eval/blind-packet.md`).
+- **Planned**: TASK-1558 + TASK-1559 message actions Chime In + Edit Character (Lila 11-26, wanted in this release) · TASK-1560 z.ai cache hit rate halved since August (takes Phase 3's slot, Lila 11-26; Phase 3 markers DEFERRED, trigger in doc-17) · #2816 (B) · TASK-1400 Claude character route if Lila's blind rating says GO, else TASK-1416/1415/1411/1412 · TASK-1519 lockfile regenerate · drain items (1513, 1500–1508).
+- **Waiting on**: Lila's TASK-1400 verdict (`docs/local/task-1400-eval/blind-packet.md`).
 - **Explicitly NOT in**: TASK-1356 (BYOK rotation redesign — design first, security-critical) · TASK-1347/1174 (design- or ops-sized, scheduled separately) · #2815 / TASK-1553 (tooling; merges whenever its last review round lands, no release dependency).
 - **Deploy notes**: none yet.
-- **Cut when**: caching Phase 3 merges; backstops ~10 runtime PRs / ~250 files (`pnpm ops release:range`; 0 at cut). Release PR merge needs her explicit yes.
+- **Cut when**: TASK-1558/1559 and TASK-1560 merge; backstops ~10 runtime PRs / ~250 files (`pnpm ops release:range`; 0 at cut). Release PR merge needs her explicit yes.
 - **vNext+1 sketch (beta.253)**: Machloket e2e (`doc-114`) · whatever of TASK-1416/1415/1411/1412 beta.252 does not carry.
 
 ### 🎯 Current Focus (max 3)
