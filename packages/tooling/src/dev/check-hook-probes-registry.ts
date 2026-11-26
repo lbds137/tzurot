@@ -55,6 +55,10 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     probe: '.claude/hooks/claim-shape-guard.probe.sh',
   },
   {
+    hook: '.claude/hooks/cloud-gate.sh',
+    probe: '.claude/hooks/cloud-gate.probe.sh',
+  },
+  {
     hook: '.claude/hooks/cwd-drift-guard.sh',
     probe: '.claude/hooks/cwd-drift-guard.probe.sh',
   },
