@@ -6,13 +6,13 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-03T19:55:00Z'
-updated_date: '2026-11-03T20:04:00Z'
+updated_date: '2026-11-26T22:11:00Z'
 labels:
   - area:ai-worker
   - size:M
-  - state:dependent
+  - state:observable
 dependencies: []
-priority: high
+priority: low
 ordinal: 20
 ---
 
@@ -50,5 +50,7 @@ Replay 2026-11-26 (lane B, docs/local/task-1346-eval, gitignored): Lila's go inc
 
 v2 result 2026-11-26 (preregistration-v2.md, 270 calls, z.ai week 19->20%): voice block INEFFECTIVE (tic rate per 100 sentences rose 1.48 -> 2.21), so candidate layer 4 is dropped; GLM 5.4 NOT LOWER (2.31), so there is no tic reason to switch models; history/memory scrub CANNOT DECIDE (0.95, down 36%, p 0.17, 18 turns too few). The frozen gate proof was mis-sized (3 inserted sentences can move R by only 0.35, below the 0.5 floor); the scorer counted all three. Lila 11-26: bigger replay before any code, meaning a fresh 7-day owner pull from prod (owner-run, docs/local/task-1346-eval/inspect-logs.mjs) and base vs scrub on about 3x the tic-bearing turns. Lila 11-26: her characters now run on GLM 5.4 (her pick, smarter than Flash), so the bigger replay measures base vs scrub on glm-5.4; the 11-03 "her characters run GLM 5.3 Flash" line above is out of date.
 v3 result 2026-11-26 (lane B, docs/local/task-1346-eval/preregistration-v3.md): 31 tic-bearing turns x 3 reps on glm-5.4, base/base2/scrub, 279 z.ai calls (week 20->24%, shared meter). Scrub INEFFECTIVE: tic rate per 100 sentences 1.38 vs pooled baseline 1.22, p(lower) 0.72; truncation sensitivity agrees. At Lila's ask (11-26: judge whether the writing represents the character card, not only the tic) a blind pairwise Opus judge was added before scoring: identical-config control showed no winner and no position bias (p 0.83, A-share 0.52); scrub vs base NO DIFFERENCE (p 0.21, leaning base); Flash vs 5.4 on v2 replies NO DIFFERENCE (p 0.065). Decision: no history/memory scrub (layer 2 dropped; layer 4 dropped in v2). Remaining candidate is layer 3, an output-side strip whose reach the 11-03 sweep put at 1.9% of replies; asked Lila 11-26.
+
+Ruling (Lila 11-26): the output-side strip (layer 3) is ruled out; its reach is too small for code that edits character text (11-03 sweep: standalone fragments in 1.9% of last-month replies vs 28% with any tic shape). With layers 2, 3 and 4 closed, the owner question above is answered and this task stays open only as a watch: re-run the v3 replay (docs/local/task-1346-eval, run.mjs + score-v3.mjs + judge.mjs) when a new GLM model or a 5.4 revision lands on the z.ai plan, or prompt assembly changes what prior model text reaches the prompt.
 
 <!-- SECTION:NOTES:END -->
