@@ -5,7 +5,11 @@
  * 1. REQUEST: Inject OpenRouter-specific params (transforms, route, verbosity,
  *    cache_control, session_id)
  *    that aren't first-class options on LangChain's ChatOpenAI but are part of
- *    OpenRouter's request body schema.
+ *    OpenRouter's request body schema. When the params carry the `provider`
+ *    routing object (privacy routing — `data_collection: 'deny'` plus the
+ *    pinned endpoint list), injection FAILS CLOSED: a POST body that cannot
+ *    carry it aborts the request instead of shipping unrouted. Tuning-only
+ *    params keep the historical fail-open.
  * 2. RESPONSE: Best-effort recovery of usable content from 400-class JSON
  *    error responses. Some free-tier providers (notably GLM variants) return
  *    HTTP 400 with valid `choices[0].message.content` (or reasoning) that
@@ -193,6 +197,114 @@ function markMessageBlock(
 }
 
 /**
+ * Base message for the fail-closed refusal of a POST body that cannot carry
+ * the `provider` routing object. The suffix names the body's runtime type
+ * (`constructor.name` or `typeof`) and the failure reason — never the body
+ * content.
+ */
+const UNROUTED_BODY_ERROR =
+  'OpenRouter request body could not carry provider routing; refusing to send unrouted';
+
+/**
+ * Runtime type of a request body: `constructor.name` — "Uint8Array" /
+ * "ReadableStream" / "Blob" / "Request" — falling back to `typeof` for
+ * primitives and constructor-less values. Never the content.
+ */
+function describeBodyType(value: unknown): string {
+  if (value === null || value === undefined) {
+    return typeof value;
+  }
+  return (value as { constructor?: { name?: string } }).constructor?.name ?? typeof value;
+}
+
+/**
+ * The fail-closed refusal Error: base message + the body's runtime type +
+ * the specific failure reason.
+ */
+function refuseUnrouted(value: unknown, reason: string): Error {
+  return new Error(`${UNROUTED_BODY_ERROR} (body type: ${describeBodyType(value)}; ${reason})`);
+}
+
+/**
+ * Parse a POST body that MUST carry the `provider` routing object, failing
+ * CLOSED when the body cannot: not a string, not valid JSON, or not a JSON
+ * object (arrays included — the routing key has no place to attach). This is
+ * the boundary that keeps an unparseable body from shipping WITHOUT the
+ * privacy routing; pinned by `OpenRouterFetch.test.ts` § "fail-closed
+ * provider routing".
+ */
+function parseRoutableBody(raw: unknown): Record<string, unknown> {
+  if (typeof raw !== 'string') {
+    throw refuseUnrouted(raw, 'POST body is not a JSON string');
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw refuseUnrouted(raw, 'JSON.parse failed');
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw refuseUnrouted(parsed, 'parsed body is not a JSON object');
+  }
+  return parsed as Record<string, unknown>;
+}
+
+/**
+ * Copy every carried param onto the parsed body; returns the cacheBreakpoints
+ * value for the injection log (undefined when `cacheControl` is absent).
+ */
+function applyExtraParamsToBody(
+  body: Record<string, unknown>,
+  extraParams: OpenRouterExtraParams
+): number | undefined {
+  if (extraParams.transforms !== undefined && extraParams.transforms.length > 0) {
+    body.transforms = extraParams.transforms;
+  }
+  if (extraParams.route !== undefined) {
+    body.route = extraParams.route;
+  }
+  if (extraParams.verbosity !== undefined) {
+    body.verbosity = extraParams.verbosity;
+  }
+  if (extraParams.provider !== undefined) {
+    body.provider = extraParams.provider;
+  }
+  let cacheBreakpoints: number | undefined;
+  if (extraParams.cacheControl !== undefined) {
+    cacheBreakpoints = attachCacheBreakpoints(body, extraParams.cacheControl);
+  }
+  if (extraParams.sessionId !== undefined) {
+    body.session_id = extraParams.sessionId;
+  }
+  return cacheBreakpoints;
+}
+
+/**
+ * Apply the carried params to the parsed body, emit the injection log line,
+ * and write the re-serialized body back onto init. Shared by both the
+ * fail-closed and the fail-open paths.
+ */
+function logAndSerializeInjectedBody(
+  url: string | URL | Request,
+  init: RequestInit,
+  body: Record<string, unknown>,
+  extraParams: OpenRouterExtraParams
+): void {
+  const cacheBreakpoints = applyExtraParamsToBody(body, extraParams);
+  const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.href : '[Request]';
+  logger.info(
+    {
+      url: urlStr,
+      injectedParams: extraParams,
+      ...(cacheBreakpoints !== undefined && { cacheBreakpoints }),
+    },
+    'Custom fetch injecting OpenRouter params'
+  );
+
+  init.body = JSON.stringify(body);
+}
+
+/**
  * Inject OpenRouter-specific parameters into the request body.
  * Mutates the init object in place.
  */
@@ -201,57 +313,37 @@ function injectOpenRouterParams(
   init: RequestInit,
   extraParams: OpenRouterExtraParams
 ): void {
+  if (extraParams.provider !== undefined) {
+    // FAIL CLOSED: `provider` carries the privacy routing, so a body that
+    // cannot carry it aborts the request here — before any fetch — instead of
+    // shipping unrouted. Never reached with a missing body: the caller gates
+    // POST calls with routing into this injector regardless of body state, and
+    // `parseRoutableBody` refuses those.
+    const routed = parseRoutableBody(init.body);
+    logAndSerializeInjectedBody(url, init, routed, extraParams);
+    return;
+  }
+  // Tuning-only params (no `provider` routing object): a body that isn't a
+  // JSON-parseable string skips injection and passes through unchanged —
+  // acceptable ONLY on this branch, where nothing on the request is
+  // load-bearing (transforms/route/verbosity/cacheControl are tuning knobs).
+  // With `provider` set the branch above fails closed instead, so this
+  // fail-open can never let a privacy-routed request ship unrouted. LangChain's
+  // ChatOpenAI always passes a string body today; the debug breadcrumb keeps a
+  // future non-string shape diagnosable. The whole parse/apply/serialize
+  // sequence stays inside one try, preserving the historical all-or-nothing
+  // fail-open (e.g. a Uint8Array body JSON-coerces to a number, and the first
+  // param assignment throws).
   try {
     const body = JSON.parse(init.body as string) as Record<string, unknown>;
-
-    if (extraParams.transforms !== undefined && extraParams.transforms.length > 0) {
-      body.transforms = extraParams.transforms;
-    }
-    if (extraParams.route !== undefined) {
-      body.route = extraParams.route;
-    }
-    if (extraParams.verbosity !== undefined) {
-      body.verbosity = extraParams.verbosity;
-    }
-    if (extraParams.provider !== undefined) {
-      body.provider = extraParams.provider;
-    }
-    let cacheBreakpoints: number | undefined;
-    if (extraParams.cacheControl !== undefined) {
-      cacheBreakpoints = attachCacheBreakpoints(body, extraParams.cacheControl);
-    }
-    if (extraParams.sessionId !== undefined) {
-      body.session_id = extraParams.sessionId;
-    }
-
-    const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.href : '[Request]';
-    logger.info(
-      {
-        url: urlStr,
-        injectedParams: extraParams,
-        ...(cacheBreakpoints !== undefined && { cacheBreakpoints }),
-      },
-      'Custom fetch injecting OpenRouter params'
-    );
-
-    init.body = JSON.stringify(body);
+    logAndSerializeInjectedBody(url, init, body, extraParams);
   } catch (err) {
-    // Body isn't a JSON-parseable string. LangChain's ChatOpenAI always passes
-    // a string body today, so this should never fire — but if a future LangChain
-    // version uses Uint8Array / ReadableStream / etc., we'd silently skip
-    // OpenRouter param injection (transforms/route/verbosity/cache_control)
-    // without this debug breadcrumb. Logged at debug rather than warn because
-    // the fallback (passing body through unchanged) is correct; this is purely
-    // an observability hook.
     logger.debug(
       {
         err,
         // constructor.name surfaces "Uint8Array" / "ReadableStream" / "Blob"
         // — actionable for diagnosing why; typeof would just say "object"
-        bodyType:
-          init.body === null || init.body === undefined
-            ? typeof init.body
-            : ((init.body as object).constructor?.name ?? typeof init.body),
+        bodyType: describeBodyType(init.body),
       },
       'injectOpenRouterParams: body is not JSON-parseable, skipping param injection'
     );
@@ -571,11 +663,33 @@ export function createOpenRouterFetch(
   return async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
     // REQUEST: Inject OpenRouter-specific params
     const hasExtraParams = Object.keys(extraParams).length > 0;
+    const carriesRouting = extraParams.provider !== undefined;
+    // The effective method, resolved once: per the Fetch standard,
+    // `fetch(request, init)` with `init.method` absent uses the Request's own
+    // method (probed against Node's undici: the server sees POST for
+    // `fetch(new Request(u, { method: 'POST' }), { body })`), so init first,
+    // then the Request url, then the GET default. Uppercased so both
+    // method-keyed gates below compare against one value.
+    const method = (init?.method ?? (url instanceof Request ? url.method : 'GET')).toUpperCase();
+    // FAIL CLOSED before anything is sent: with `provider` routing set, a POST
+    // whose body arrives inside a Request url (init undefined) has no init body
+    // to inject into — shipping it would silently drop the privacy routing.
+    // Pinned by `OpenRouterFetch.test.ts` § "fail-closed provider routing".
+    if (carriesRouting && init === undefined && url instanceof Request && method === 'POST') {
+      throw refuseUnrouted(url, 'body arrived inside the Request url; no init to inject into');
+    }
     if (
       hasExtraParams &&
-      init?.method === 'POST' &&
-      init.body !== undefined &&
-      init.body !== null
+      method === 'POST' &&
+      // `init` can still be undefined here (a Request-carried POST carrying
+      // only tuning params — the routing shape was already refused above):
+      // there is no init body to inject into, so it passes through, and the
+      // narrowing satisfies the injector's non-optional `init` below.
+      init !== undefined &&
+      // Routing POSTs reach the injector whatever the body state — a body that
+      // cannot carry routing must abort (fail closed) rather than skip it.
+      // Tuning-only POSTs keep the historical present-body gate.
+      (carriesRouting || (init.body !== undefined && init.body !== null))
     ) {
       injectOpenRouterParams(url, init, extraParams);
     }
