@@ -36,6 +36,7 @@ import { MAX_ERROR_MESSAGE_LENGTH } from '@tzurot/common-types/constants/error';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { extractApiReasoningContent } from '../../utils/thinkingExtraction.js';
 import { type OpenRouterProviderRouting } from './providerRouting.js';
+import { summarizeProviderRouting } from './providerRoutingSummary.js';
 
 const logger = createLogger('ModelFactory');
 
@@ -222,6 +223,13 @@ function describeBodyType(value: unknown): string {
  * the specific failure reason.
  */
 function refuseUnrouted(value: unknown, reason: string): Error {
+  // Log the root cause before the throw: the caller sees the error only after
+  // its own try/catch reshapes it, and this line keeps body type + reason
+  // (never body content) searchable at the refusal site itself.
+  logger.error(
+    { bodyType: describeBodyType(value), reason },
+    'Refusing to send OpenRouter request without provider routing'
+  );
   return new Error(`${UNROUTED_BODY_ERROR} (body type: ${describeBodyType(value)}; ${reason})`);
 }
 
@@ -292,10 +300,13 @@ function logAndSerializeInjectedBody(
 ): void {
   const cacheBreakpoints = applyExtraParamsToBody(body, extraParams);
   const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.href : '[Request]';
+  const { provider, ...tuningParams } = extraParams;
   logger.info(
     {
       url: urlStr,
-      injectedParams: extraParams,
+      // `provider` is summarized (see `summarizeProviderRouting`) so the log
+      // line never carries the full host list; the tuning params pass through.
+      injectedParams: { ...tuningParams, provider: summarizeProviderRouting(provider) },
       ...(cacheBreakpoints !== undefined && { cacheBreakpoints }),
     },
     'Custom fetch injecting OpenRouter params'

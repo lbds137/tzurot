@@ -606,6 +606,34 @@ describe('LLMInvoker', () => {
       vi.useRealTimers();
     });
 
+    it('warns with the model name when an error classifies ROUTING_EXHAUSTED', async () => {
+      // Observability seam for routing exhaustion: usually an outage, but a
+      // config-induced exhaustion (a pin/deny draining every host) persists
+      // until the routing tables change. One warn per failed invocation,
+      // category + model only — never message content or body.
+      vi.useFakeTimers();
+
+      const routingExhausted = new Error('404 No allowed providers are available for this model');
+      const mockModel = mockChatModel(vi.fn().mockRejectedValue(routingExhausted));
+
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages: [new HumanMessage('Hello')],
+        modelName: 'z-ai/glm-5.3-flash',
+        cacheKeyId: 'user:111111111111111111',
+      });
+      const assertion = expect(promise).rejects.toThrow(RetryError);
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        { category: ApiErrorCategory.ROUTING_EXHAUSTED, model: 'z-ai/glm-5.3-flash' },
+        'OpenRouter routing exhausted: no eligible host for model'
+      );
+
+      vi.useRealTimers();
+    });
+
     it('classifies a zero-choices 200 as EMPTY_RESPONSE through the guarded seam (retries, then RetryError)', async () => {
       vi.useFakeTimers();
 

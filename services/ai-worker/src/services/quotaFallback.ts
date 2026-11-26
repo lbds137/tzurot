@@ -546,3 +546,22 @@ export function classifyQuotaFailure(error: unknown): QuotaFallbackCategory | nu
   const category = resolveApiErrorInfo(unwrapped).category;
   return isQuotaFallbackCategory(category) ? category : null;
 }
+
+/**
+ * Warn once per failed invocation that OpenRouter's provider routing found no
+ * eligible host for `model` (a no-op for every other category). Exhaustion is
+ * usually a transient host outage, but an exhaustion caused by the routing
+ * config itself (a deny list covering every host, only forwarder hosts
+ * serving the model, a stale pinned allowlist) persists until the routing
+ * tables change — the warn makes a misconfigured pin/deny visible in the
+ * logs (category + model only; never message content or body).
+ */
+export function warnRoutingExhaustedIfNeeded(category: ApiErrorCategory, modelName: string): void {
+  if (category !== ApiErrorCategory.ROUTING_EXHAUSTED) {
+    return;
+  }
+  logger.warn(
+    { category, model: modelName },
+    'OpenRouter routing exhausted: no eligible host for model'
+  );
+}
