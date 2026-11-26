@@ -13,13 +13,19 @@ import {
 } from '@tzurot/common-types/services/SystemSettingsService';
 
 // Mock @langchain/openai - use vi.hoisted for top-level mock reference
-const { mockChatOpenAI, mockConfigData } = vi.hoisted(() => ({
+const { mockChatOpenAI, mockConfigData, mockLogger } = vi.hoisted(() => ({
   mockChatOpenAI: vi.fn(),
   mockConfigData: {
     AI_PROVIDER: 'openrouter' as string,
     OPENROUTER_API_KEY: 'test-openrouter-key',
     OPENROUTER_APP_TITLE: undefined as string | undefined,
     OPENROUTER_APP_URL: undefined as string | undefined,
+  },
+  mockLogger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
   },
 }));
 
@@ -69,12 +75,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   );
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -736,6 +737,29 @@ describe('ModelFactory', () => {
       } finally {
         resetSystemSettingsRegistration();
       }
+    });
+
+    it('logs the routing SUMMARY for a pinned model, never the 30-entry only-list', () => {
+      // The 'Creating model' debug line fires on every model build; a pinned
+      // call's `provider.only` is ~30 entries, so the log summarizes it
+      // (summarizeProviderRouting) instead of repeating the list verbatim.
+      createChatModel({ modelName: 'z-ai/glm-5.3-flash' });
+
+      const debugCalls = mockLogger.debug.mock.calls as [Record<string, unknown>, string][];
+      const last = debugCalls.filter(([, message]) => message === 'Creating model').at(-1);
+      expect(last).toBeDefined();
+      const fields = last?.[0];
+      expect(fields).toBeDefined();
+      const loggedProvider = (
+        fields?.extraParams as { provider?: Record<string, unknown> } | undefined
+      )?.provider;
+      expect(loggedProvider).toBeDefined();
+      expect(loggedProvider?.shape).toBe('only');
+      expect(loggedProvider?.allowedHostCount).toBe(30);
+      expect(loggedProvider?.allowFallbacks).toBe(false);
+      expect(loggedProvider?.dataCollection).toBe('deny');
+      // The full host list never reaches the log line.
+      expect(loggedProvider).not.toHaveProperty('only');
     });
 
     it('the z.ai builder carries no provider routing anywhere (no fetch closure, no routing key)', () => {

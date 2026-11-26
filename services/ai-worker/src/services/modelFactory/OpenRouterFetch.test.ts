@@ -471,7 +471,7 @@ describe('OpenRouterFetch', () => {
     expect(parsed).not.toHaveProperty('provider');
   });
 
-  it('leaves a POST body untouched when extraParams is empty (the vision shape)', async () => {
+  it('leaves a POST body untouched when extraParams is empty', async () => {
     const customFetch = createFetch();
 
     const requestBody = JSON.stringify({ model: 'test-model', messages: [] });
