@@ -22,5 +22,7 @@ Why: PR 2819 review (nit 7). getMessageByDiscordId (packages/conversation-histor
 
 What: decide per caller whether soft-deleted rows should resolve; for the two context-menu callers, treat a soft-deleted row as not a character reply (the existing ephemeral refusal).
 
-Acceptance: a test per context-menu action that a soft-deleted row is refused; reply resolution behaviour unchanged and pinned.
+Also (PR 2819 review round 4): the same findFirst has no orderBy, so if a Discord id ever appears on more than one row the pick is nondeterministic; add a deterministic orderBy (createdAt desc, id desc) in the same change.
+
+Acceptance: a test per context-menu action that a soft-deleted row is refused; reply resolution behaviour unchanged and pinned; the orderBy asserted in the service test.
 <!-- SECTION:DESCRIPTION:END -->
