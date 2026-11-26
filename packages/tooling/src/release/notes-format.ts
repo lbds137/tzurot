@@ -2,7 +2,8 @@
  * Release-notes formatting primitives
  *
  * Pure functions: parse Conventional-Commit PR titles, group by section,
- * render as markdown matching the format in `.claude/rules/05-tooling.md`.
+ * render as markdown matching the release-notes format in
+ * `/tzurot-git-workflow` § 2. Write Release Notes.
  *
  * Kept deliberately side-effect-free so the tests can cover every branch
  * without shelling out to git or gh.
@@ -63,7 +64,7 @@ const SECTION_MAP: Record<string, string> = {
 
 /**
  * Order of sections in the rendered output. Breaking Changes always
- * comes first per the format rule in 05-tooling.md.
+ * comes first per the format rule in `/tzurot-git-workflow` § 2.
  *
  * The two level-bearing names come from the shared constant: the runtime
  * broadcast classifier greps release bodies for these exact headers, so a

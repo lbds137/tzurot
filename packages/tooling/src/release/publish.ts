@@ -64,7 +64,7 @@ export function toTag(version: string): string {
  * without one are allowed through — verify-notes covers their PR-ref accuracy).
  */
 export function assertNotesFinalized(notes: string, tag: string): void {
-  // Anchor to the "**Full Changelog**:" trailer line (05-tooling notes format),
+  // Anchor to the "**Full Changelog**:" trailer line (release-notes format,
   // not any `/compare/…` substring — a hand-edited note can cite an upstream
   // changelog's compare link, and matching that instead would false-reject.
   const compare = /^\*\*Full Changelog\*\*:.*\/compare\/\S+?\.\.\.(\S+)/m.exec(notes);
