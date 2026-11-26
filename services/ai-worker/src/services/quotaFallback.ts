@@ -563,3 +563,12 @@ export function warnRoutingExhaustedIfNeeded(category: ApiErrorCategory, modelNa
     'OpenRouter routing exhausted: no eligible host for model'
   );
 }
+
+/**
+ * `warnRoutingExhaustedIfNeeded` for a caught invocation error: unwraps the
+ * retry wrapper first so the category comes from the provider's actual error.
+ */
+export function warnRoutingExhaustedForError(error: unknown, modelName: string): void {
+  const unwrapped = error instanceof RetryError ? error.lastError : error;
+  warnRoutingExhaustedIfNeeded(resolveApiErrorInfo(unwrapped).category, modelName);
+}

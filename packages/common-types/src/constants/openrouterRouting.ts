@@ -1,12 +1,14 @@
 /**
  * OpenRouter provider-routing constants.
  *
- * Every OpenRouter chat call sends a `provider` routing object so the system
- * key's traffic reaches only hosts this project has vetted: prompts go to
- * hosts that do not retain or train on them, the MiniMax host family never
- * serves a request, and one measured allowlist governs a specific pinned
- * model. The wire shapes built from these tables live in ai-worker's
- * `providerRouting.ts` resolver; this module holds only the data. The tables
+ * Every ai-worker OpenRouter chat call sends a `provider` routing object with
+ * `data_collection: 'deny'`. A pinned model id is restricted to its measured
+ * `only` allowlist with fallbacks off; every other id excludes the ignore-list
+ * hosts (the MiniMax family plus forwarders) and may be served by any other
+ * host. Retention and training enforcement is OpenRouter's server-side policy
+ * and is not verifiable from this code. The wire shapes built from these
+ * tables live in ai-worker's `providerRouting.ts` resolver; this module holds
+ * only the data. The tables
  * live in common-types rather than beside that resolver because tooling
  * scripts that call OpenRouter directly (TASK-1554) must apply the same
  * routing, and `packages/tooling` cannot import from a service.

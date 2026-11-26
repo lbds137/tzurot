@@ -52,3 +52,17 @@ export function summarizeProviderRouting(
     dataCollection: provider.data_collection,
   };
 }
+
+/**
+ * Log-safe view of an OpenRouter extra-params object: the tuning params pass
+ * through and `provider` is replaced by its summary (always present, shape
+ * `none` when the routing object is absent), so no log line carries the host
+ * list. The single home for this shaping — the model-creation log and the
+ * fetch injection log both use it.
+ */
+export function summarizeExtraParamsForLog<T extends object>(
+  extraParams: T & { provider?: OpenRouterProviderRouting }
+): Omit<T, 'provider'> & { provider: ProviderRoutingLogSummary } {
+  const { provider, ...tuningParams } = extraParams;
+  return { ...tuningParams, provider: summarizeProviderRouting(provider) };
+}

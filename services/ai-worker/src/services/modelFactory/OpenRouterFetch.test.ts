@@ -597,6 +597,43 @@ describe('OpenRouterFetch', () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
+    it('passes a Request POST with no init and tuning-only params (no routing) to fetch untouched', async () => {
+      const customFetch = createOpenRouterFetch({ transforms: ['middle-out'] });
+      const fetchMock = vi.fn().mockResolvedValue(mockResponse({ choices: [] }, 200));
+      globalThis.fetch = fetchMock;
+      const request = new Request(CHAT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ model: 'test-model', messages: [] }),
+      });
+
+      await customFetch(request);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0][0]).toBe(request);
+      expect(fetchMock.mock.calls[0][1]).toBeUndefined();
+    });
+
+    it('overwrites a provider object already on the body with the routing object', async () => {
+      const customFetch = createOpenRouterFetch({ provider: ROUTING });
+      let capturedBody: string | undefined;
+      globalThis.fetch = vi.fn().mockImplementation((_url: unknown, init?: RequestInit) => {
+        capturedBody = init?.body as string;
+        return Promise.resolve(mockResponse({ choices: [] }, 200));
+      });
+
+      await customFetch(CHAT_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          model: 'm',
+          messages: [],
+          provider: { order: ['caller-host'], allow_fallbacks: true },
+        }),
+      });
+
+      const parsed = JSON.parse(capturedBody!) as Record<string, unknown>;
+      expect(parsed.provider).toEqual(ROUTING);
+    });
+
     it('injects routing when the POST method comes from a Request url and init omits method', async () => {
       const customFetch = createOpenRouterFetch({ provider: ROUTING });
       let capturedBody: string | undefined;

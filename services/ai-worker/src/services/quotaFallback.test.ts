@@ -7,6 +7,16 @@ import {
 import { AIProvider, stripZaiPrefix } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+const { mockLoggerWarn } = vi.hoisted(() => ({ mockLoggerWarn: vi.fn() }));
+vi.mock('@tzurot/common-types/utils/logger', () => ({
+  createLogger: () => ({
+    info: vi.fn(),
+    warn: mockLoggerWarn,
+    error: vi.fn(),
+    debug: vi.fn(),
+  }),
+}));
+
 import { ApiError } from '../utils/apiErrorParser.js';
 import { RetryError } from '../utils/retry.js';
 import {
@@ -18,6 +28,7 @@ import {
   isRouteAttempted,
   selectFloorTarget,
   selectQuotaFallbackTarget,
+  warnRoutingExhaustedIfNeeded,
   type AttemptedRoute,
   type QuotaFallbackCaches,
 } from './quotaFallback.js';
@@ -76,6 +87,29 @@ function buildResolver(options: {
     getGlobalDefaultConfig: vi.fn().mockResolvedValue(options.global ?? null),
   };
 }
+
+describe('warnRoutingExhaustedIfNeeded', () => {
+  beforeEach(() => {
+    mockLoggerWarn.mockClear();
+  });
+
+  it('warns with category and model only for ROUTING_EXHAUSTED', () => {
+    warnRoutingExhaustedIfNeeded(ApiErrorCategory.ROUTING_EXHAUSTED, 'vendor/model-a');
+    expect(mockLoggerWarn).toHaveBeenCalledTimes(1);
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      { category: ApiErrorCategory.ROUTING_EXHAUSTED, model: 'vendor/model-a' },
+      'OpenRouter routing exhausted: no eligible host for model'
+    );
+  });
+
+  it.each([ApiErrorCategory.RATE_LIMIT, ApiErrorCategory.QUOTA_EXCEEDED])(
+    'does not warn for %s',
+    category => {
+      warnRoutingExhaustedIfNeeded(category, 'vendor/model-a');
+      expect(mockLoggerWarn).not.toHaveBeenCalled();
+    }
+  );
+});
 
 describe('checkModelViability', () => {
   beforeEach(() => vi.useFakeTimers());

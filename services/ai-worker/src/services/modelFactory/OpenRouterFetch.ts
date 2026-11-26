@@ -36,7 +36,7 @@ import { MAX_ERROR_MESSAGE_LENGTH } from '@tzurot/common-types/constants/error';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { extractApiReasoningContent } from '../../utils/thinkingExtraction.js';
 import { type OpenRouterProviderRouting } from './providerRouting.js';
-import { summarizeProviderRouting } from './providerRoutingSummary.js';
+import { summarizeExtraParamsForLog } from './providerRoutingSummary.js';
 
 const logger = createLogger('ModelFactory');
 
@@ -275,6 +275,8 @@ function applyExtraParamsToBody(
     body.verbosity = extraParams.verbosity;
   }
   if (extraParams.provider !== undefined) {
+    // Routing is authoritative: this deliberately overwrites any `provider`
+    // already on the body (pinned by `OpenRouterFetch.test.ts`).
     body.provider = extraParams.provider;
   }
   let cacheBreakpoints: number | undefined;
@@ -300,13 +302,12 @@ function logAndSerializeInjectedBody(
 ): void {
   const cacheBreakpoints = applyExtraParamsToBody(body, extraParams);
   const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.href : '[Request]';
-  const { provider, ...tuningParams } = extraParams;
   logger.info(
     {
       url: urlStr,
-      // `provider` is summarized (see `summarizeProviderRouting`) so the log
+      // `provider` is summarized (see `summarizeExtraParamsForLog`) so the log
       // line never carries the full host list; the tuning params pass through.
-      injectedParams: { ...tuningParams, provider: summarizeProviderRouting(provider) },
+      injectedParams: summarizeExtraParamsForLog(extraParams),
       ...(cacheBreakpoints !== undefined && { cacheBreakpoints }),
     },
     'Custom fetch injecting OpenRouter params'
@@ -327,9 +328,9 @@ function injectOpenRouterParams(
   if (extraParams.provider !== undefined) {
     // FAIL CLOSED: `provider` carries the privacy routing, so a body that
     // cannot carry it aborts the request here — before any fetch — instead of
-    // shipping unrouted. Never reached with a missing body: the caller gates
-    // POST calls with routing into this injector regardless of body state, and
-    // `parseRoutableBody` refuses those.
+    // shipping unrouted. Also reached with a missing body (the caller forwards
+    // every routing POST regardless of body state); `parseRoutableBody`
+    // refuses it, so a body-less request never ships unrouted.
     const routed = parseRoutableBody(init.body);
     logAndSerializeInjectedBody(url, init, routed, extraParams);
     return;
@@ -340,7 +341,8 @@ function injectOpenRouterParams(
   // load-bearing (transforms/route/verbosity/cacheControl are tuning knobs).
   // With `provider` set the branch above fails closed instead, so this
   // fail-open can never let a privacy-routed request ship unrouted. LangChain's
-  // ChatOpenAI always passes a string body today; the debug breadcrumb keeps a
+  // ChatOpenAI passes a string body (pinned by the canary in
+  // extractOpenRouterReasoning.canary.test.ts); the debug breadcrumb keeps a
   // future non-string shape diagnosable. The whole parse/apply/serialize
   // sequence stays inside one try, preserving the historical all-or-nothing
   // fail-open (e.g. a Uint8Array body JSON-coerces to a number, and the first
