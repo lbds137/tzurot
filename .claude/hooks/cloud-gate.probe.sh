@@ -41,6 +41,8 @@ out=$(cd "$t/vm" && "$GATE" 2>&1); rc=$?
 meter ""
 out=$(cd "$t/vm" && "$GATE" 2>&1); rc=$?
 [ $rc = 1 ] && grep -q "has no usage.json" <<<"$out" && ok "refuses a usage-meter branch with no usage.json" || bad "no usage.json (rc $rc: $out)"
+# A real remote that lacks the branch, so the fetch fails on the refspec, not on a missing repo.
+git init -q --bare "$t/none.git"
 git init -q "$t/empty" && git -C "$t/empty" remote add origin "$t/none.git"
 out=$(cd "$t/empty" && "$GATE" 2>&1); rc=$?
 [ $rc = 1 ] && grep -q "no usage reading" <<<"$out" && ok "refuses when the branch is missing" || bad "missing branch (rc $rc: $out)"
@@ -60,9 +62,15 @@ reading go 60 >"$j"; out=$("$GATE" --quiet --file "$j" 2>&1); rc=$?
 now=$(date +%s)
 for r in junk null '[]' '{"as_of":Infinity,"verdict":"go","week_pct":4}' '{"as_of":true,"verdict":"go","week_pct":4}' \
   "{\"as_of\":$now,\"verdict\":\"go\"}" "{\"as_of\":$now,\"verdict\":\"go\",\"week_pct\":null}" \
-  "{\"as_of\":$now,\"verdict\":\"maybe\",\"week_pct\":4}" '{"as_of":0,"verdict":"go","week_pct":4}'; do
+  "{\"as_of\":$now,\"verdict\":\"maybe\",\"week_pct\":4}" '{"as_of":0,"verdict":"go","week_pct":4}' \
+  '{"as_of":0.5,"verdict":"go","week_pct":4}' "{\"as_of\":$now,\"verdict\":\"go\",\"week_pct\":4,\"wind_down_pct\":NaN}" \
+  "{\"as_of\":$now,\"verdict\":\"go\",\"week_pct\":4,\"wind_down_pct\":Infinity}" \
+  "{\"as_of\":$now,\"verdict\":\"go\",\"week_pct\":4,\"wind_down_pct\":-10}" \
+  "{\"as_of\":$now,\"verdict\":\"go\",\"week_pct\":4,\"wind_down_pct\":101}"; do
   printf '%s\n' "$r" >"$j"; out=$("$GATE" --file "$j" 2>&1); rc=$?
-  [ $rc = 1 ] && ! grep -q Traceback <<<"$out" && ok "reading '$r' fails closed" || bad "reading '$r' (rc $rc: $out)"
+  # Fails for being bad, not by falling through to the staleness check.
+  [ $rc = 1 ] && grep -qE "stop: the usage reading is (unreadable|malformed)" <<<"$out" && ! grep -q Traceback <<<"$out" \
+    && ok "reading '$r' fails closed as bad" || bad "reading '$r' (rc $rc: $out)"
 done
 "$GATE" --bogus >/dev/null 2>&1; [ $? = 2 ] && ok "'--bogus' exits 2" || bad "usage error"
 "$GATE" --file "" >/dev/null 2>&1; [ $? = 2 ] && ok "--file '' exits 2" || bad "empty --file"
@@ -79,6 +87,10 @@ out=$(CLAUDE_CODE_REMOTE=true "$GATE" --session-start --file "$j" 2>&1); rc=$?
 [ $rc = 0 ] && grep -q "cloud-gate: go" <<<"$out" && ! grep -q "USAGE GATE STOP" <<<"$out" && ok "--session-start on the VM passes a go quietly" || bad "session-start remote go (rc $rc: $out)"
 out=$(CLAUDE_CODE_REMOTE=true CLOUD_GATE_WARN_S=x "$GATE" --session-start --file "$j" 2>&1); rc=$?
 [ $rc = 0 ] && grep -q "USAGE GATE STOP" <<<"$out" && ok "--session-start exits 0 and stops the session on a bad setting" || bad "session-start bad env (rc $rc: $out)"
+cp "$GATE" "$t/cg-noexec" && chmod 644 "$t/cg-noexec"
+out=$(CLAUDE_CODE_REMOTE=true bash "$t/cg-noexec" --session-start --file "$j" 2>&1); rc=$?
+[ $rc = 0 ] && grep -q "cloud-gate: go" <<<"$out" && ! grep -q "USAGE GATE STOP" <<<"$out" \
+  && ok "--session-start works from a copy without the exec bit (the hook runs bash FILE)" || bad "session-start noexec (rc $rc: $out)"
 
 # The hook line itself, read from settings.json: no process and no output off the VM, exit 0 on the VM even
 # when the script is missing (an older checkout), and a STOP on the VM with no reading.
@@ -90,10 +102,16 @@ for group in json.load(open(sys.argv[1]))["hooks"]["SessionStart"]:
             print(h["command"])
 ' "$SETTINGS")
 [ -n "$hookcmd" ] && ok "settings.json has a SessionStart cloud-gate hook" || bad "no SessionStart cloud-gate hook in settings.json"
-out=$(env -u CLAUDE_CODE_REMOTE CLAUDE_PROJECT_DIR=$t/nowhere bash -c "$hookcmd" 2>&1); rc=$?
-[ $rc = 0 ] && [ -z "$out" ] && ok "the hook line is a silent no-op locally" || bad "hook line local (rc $rc: $out)"
-out=$(CLAUDE_CODE_REMOTE=true CLAUDE_PROJECT_DIR=$t/nowhere bash -c "$hookcmd" 2>&1); rc=$?
-[ $rc = 0 ] && [ -z "$out" ] && ok "the hook line exits 0 on the VM when cloud-gate.sh is missing" || bad "hook line missing gate (rc $rc: $out)"
+# Off the VM, against a project whose gate is a canary: the line's own CLAUDE_CODE_REMOTE check must stop it
+# before any script starts (the gate's internal check would hide a missing one, so it isn't the real gate).
+mkdir -p "$t/canary/.claude/hooks" && printf '#!/bin/bash\necho spawned\nexit 1\n' >"$t/canary/.claude/hooks/cloud-gate.sh"
+out=$(cd / && env -u CLAUDE_CODE_REMOTE CLAUDE_PROJECT_DIR=$t/canary bash -c "$hookcmd" 2>&1); rc=$?
+[ $rc = 0 ] && [ -z "$out" ] && ok "the hook line starts no script off the VM" || bad "hook line local (rc $rc: $out)"
+out=$(cd / && CLAUDE_CODE_REMOTE=true CLAUDE_PROJECT_DIR=$t/nowhere bash -c "$hookcmd" 2>&1); rc=$?
+[ $rc = 0 ] && [ -z "$out" ] && ok "the hook line exits 0 on the VM when the project dir is missing" || bad "hook line bad cd (rc $rc: $out)"
+mkdir -p "$t/nogate"
+out=$(cd / && CLAUDE_CODE_REMOTE=true CLAUDE_PROJECT_DIR=$t/nogate bash -c "$hookcmd" 2>&1); rc=$?
+[ $rc = 0 ] && [ -z "$out" ] && ok "the hook line exits 0 silently on the VM when cloud-gate.sh is missing" || bad "hook line missing gate (rc $rc: $out)"
 mkdir -p "$t/proj/.claude/hooks" && cp "$GATE" "$t/proj/.claude/hooks/" && git init -q "$t/proj" && git -C "$t/proj" remote add origin "$t/none.git"
 out=$(cd / && CLAUDE_CODE_REMOTE=true CLAUDE_PROJECT_DIR=$t/proj bash -c "$hookcmd" 2>&1); rc=$?
 [ $rc = 0 ] && grep -q "USAGE GATE STOP" <<<"$out" && ok "the hook line stops a VM session with no reading (from any cwd)" || bad "hook line VM (rc $rc: $out)"
