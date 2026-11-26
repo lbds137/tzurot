@@ -25,4 +25,6 @@ What: a message context-menu command "Chime In" on a character message runs the 
 Incognito record: incognito turns still write the ConversationHistory row (only LTM is skipped, ConversationalRAGService.ts:329-339), so persist incognitoModeActive as messageMetadata.incognito on the assistant row (Json column, schema.prisma:806; no migration; add the field to messageMetadataSchema, common-types types/schemas/message.ts). Read: a gateway lookup by discord message id returning personalityId, slug and incognito. Fallback for rows without the field: the footer regex for BOT_FOOTER_TEXT.INCOGNITO_MODE (common-types constants/discord.ts:818) on the fetched message; brittle (users can hide footers), old rows only.
 
 Acceptance: clicking Chime In on an incognito message yields an incognito reply, on a normal one a normal reply; non-character messages get an ephemeral error; commands/ top-level file so check-commands-doc stays green, docs/commands.md mentions it.
+
+Owner-confirmed 2026-11-26 (AskUserQuestion): behavior as described above; build for beta.252.
 <!-- SECTION:DESCRIPTION:END -->
