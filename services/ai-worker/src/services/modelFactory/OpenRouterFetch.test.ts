@@ -636,11 +636,12 @@ describe('OpenRouterFetch', () => {
       const injected = fields.injectedParams as Record<string, unknown>;
       // Every non-provider param survives verbatim.
       expect(injected.transforms).toEqual(['middle-out']);
-      // The routing object is a summary — shape + host count + scalars —
+      // The routing object is a summary — shape + host counts + scalars —
       // never the full host list.
       expect(injected.provider).toEqual({
         shape: 'only',
-        hostCount: 3,
+        allowedHostCount: 3,
+        ignoredHostCount: 0,
         allowFallbacks: false,
         dataCollection: 'deny',
       });

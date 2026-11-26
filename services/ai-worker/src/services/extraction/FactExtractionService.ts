@@ -127,6 +127,11 @@ export class ExtractionProviderBusyError extends Error {
  * quota window reset). A sustained loop on these categories is escalated to
  * an error log by the worker (SUSTAINED_BUSY_ERROR_THRESHOLD) so a stuck
  * system key can't sit unnoticed at info level for days.
+ *
+ * ROUTING_EXHAUSTED is busy for the same reason: a host outage drains the
+ * eligible set, so delaying costs nothing while skipping loses facts. A
+ * config-induced exhaustion surfaces through the same SUSTAINED_BUSY_ERROR_THRESHOLD
+ * escalation as the other categories.
  */
 const BUSY_CATEGORIES = new Set<string>([
   ApiErrorCategory.RATE_LIMIT,
@@ -134,6 +139,7 @@ const BUSY_CATEGORIES = new Set<string>([
   ApiErrorCategory.TIMEOUT,
   ApiErrorCategory.QUOTA_EXCEEDED,
   ApiErrorCategory.CREDIT_EXHAUSTION,
+  ApiErrorCategory.ROUTING_EXHAUSTED,
 ]);
 
 /**

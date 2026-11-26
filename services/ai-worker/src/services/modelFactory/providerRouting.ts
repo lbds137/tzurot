@@ -3,8 +3,9 @@
  *
  * Pure function from the model id to the `provider` routing object every
  * OpenRouter chat call sends. Two shapes:
- * - a PINNED model id (exact match) routes to its measured host allowlist via
- *   `only` + `allow_fallbacks: false`;
+ * - a PINNED model id (exact match) is sent its measured host allowlist as
+ *   `only` + `allow_fallbacks: false` (whether `only` alone already keeps
+ *   OpenRouter from using unlisted hosts is not probed);
  * - every other id takes the shared ignore table (`FORWARDER_IGNORE`), which
  *   keeps the MiniMax host family from serving anything.
  *
@@ -29,7 +30,7 @@ export interface OpenRouterProviderRouting {
   only?: string[];
   /** Host slugs never allowed to serve the request (ignore shape). */
   ignore?: string[];
-  /** When false with `only`, OpenRouter must not fall back to unlisted hosts. */
+  /** Sent as false with `only` to forbid fallback to unlisted hosts; whether `only` alone already enforces that is not probed. */
   allow_fallbacks?: boolean;
   /** Host eligibility for prompt retention/training — always deny. */
   data_collection: 'deny';
