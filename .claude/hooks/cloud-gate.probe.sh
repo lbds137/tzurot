@@ -6,6 +6,8 @@
 # Usage: .claude/hooks/cloud-gate.probe.sh   (from anywhere)
 
 set -uo pipefail
+# --session-start reads hook input from a non-tty stdin; give every case without its own pipe the same empty one.
+exec </dev/null
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 GATE="$SCRIPT_DIR/cloud-gate.sh"
@@ -148,6 +150,8 @@ for group in json.load(open(sys.argv[1]))["hooks"]["SessionStart"]:
 ' "$SETTINGS")
 hookcmd=$(sed -n 1p <<<"$hookentry")
 hookto=$(sed -n 2p <<<"$hookentry")
+# Exactly one entry with a one-line command, or the split above misreads it.
+[ "$(wc -l <<<"$hookentry")" = 2 ] || bad "expected one cloud-gate hook with a one-line command, got: $hookentry"
 [ -n "$hookcmd" ] && ok "settings.json has a SessionStart cloud-gate hook" || bad "no SessionStart cloud-gate hook in settings.json"
 # Its timeout must outlast the gate's longest fetch (40 s plus the 5 s kill grace).
 case "$hookto" in '' | *[!0-9]*) hookto=0 ;; esac
