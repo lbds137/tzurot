@@ -2,6 +2,10 @@
  * Tests for focus-runner
  */
 
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Track mock state
@@ -44,6 +48,11 @@ describe('focus-runner', () => {
     processExitSpy.mockRestore();
   });
 
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.doUnmock('../resource/envFile.js');
+  });
+
   describe('runFocusedTask', () => {
     it('should export runFocusedTask function', async () => {
       const module = await import('./focus-runner.js');
@@ -82,6 +91,9 @@ describe('focus-runner', () => {
     });
 
     it('bounds every git call with FOCUS_RUNNER_TIMEOUT_MS', async () => {
+      // envFile's main-checkout probe is its own git call outside this
+      // runner's bounded helpers; stub it so only the runner's calls count.
+      vi.doMock('../resource/envFile.js', () => ({ readEnvFileValues: () => ({}) }));
       mockExecFileSync
         .mockReturnValueOnce('feature-branch\n') // git branch --show-current
         .mockReturnValueOnce('abc123\n') // git rev-parse origin/develop
@@ -222,6 +234,70 @@ describe('focus-runner', () => {
 
       expect(consoleErrorSpy).toHaveBeenCalled();
       expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('hands the spawn the resolved profile env for a low resolution', async () => {
+      // Empty strings read as unset, so ambient knob values cannot leak in.
+      vi.stubEnv('RESOURCE_PROFILE', '');
+      vi.stubEnv('LOW_RESOURCE_MODE', '1');
+      vi.stubEnv('TURBO_CONCURRENCY', '');
+      vi.stubEnv('VITEST_MAX_WORKERS', '');
+
+      const { runFocusedTask } = await import('./focus-runner.js');
+
+      runFocusedTask({ task: 'lint', all: true });
+
+      expect(mockSpawnSync).toHaveBeenCalledWith(
+        'turbo',
+        ['run', 'lint'],
+        expect.objectContaining({
+          env: expect.objectContaining({ RESOURCE_PROFILE: 'low', TURBO_CONCURRENCY: '1' }),
+        })
+      );
+      const stderrLines = consoleErrorSpy.mock.calls.flat().join('\n');
+      expect(stderrLines).toContain('resource profile: low');
+    });
+
+    it('reads RESOURCE_PROFILE from the checkout .env when env does not carry it', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'focus-runner-env-'));
+      const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(dir);
+      try {
+        writeFileSync(join(dir, '.env'), 'RESOURCE_PROFILE=cloud\n');
+        vi.stubEnv('RESOURCE_PROFILE', '');
+        vi.stubEnv('LOW_RESOURCE_MODE', '');
+        vi.stubEnv('TURBO_CONCURRENCY', '');
+        vi.stubEnv('VITEST_MAX_WORKERS', '');
+
+        const { runFocusedTask } = await import('./focus-runner.js');
+
+        runFocusedTask({ task: 'lint', all: true });
+
+        expect(mockSpawnSync).toHaveBeenCalledWith(
+          'turbo',
+          ['run', 'lint'],
+          expect.objectContaining({
+            env: expect.objectContaining({ RESOURCE_PROFILE: 'cloud', TURBO_CONCURRENCY: '2' }),
+          })
+        );
+      } finally {
+        cwdSpy.mockRestore();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('propagates a resolver UsageError to the cli reporter before spawning', async () => {
+      vi.stubEnv('RESOURCE_PROFILE', 'bogus');
+
+      const { runFocusedTask } = await import('./focus-runner.js');
+
+      // vi.resetModules gives the module its own UsageError class, so match by name.
+      expect(() => runFocusedTask({ task: 'lint', all: true })).toThrow(
+        expect.objectContaining({
+          name: 'UsageError',
+          message: expect.stringContaining('RESOURCE_PROFILE') as string,
+        })
+      );
+      expect(mockSpawnSync).not.toHaveBeenCalled();
     });
   });
 });

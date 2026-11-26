@@ -42,6 +42,7 @@ import { registerCodegenCommands } from './commands/codegen.js';
 import { registerTopologyCommands } from './commands/topology.js';
 import { registerPromptCommands } from './commands/prompt.js';
 import { registerCharactersCommands } from './commands/characters.js';
+import { registerResourceCommands } from './commands/resource.js';
 import { UsageError, reportUsageError } from './utils/errors.js';
 import {
   classifyNoMatch,
@@ -83,6 +84,7 @@ registerCodegenCommands(cli);
 registerTopologyCommands(cli);
 registerPromptCommands(cli);
 registerCharactersCommands(cli);
+registerResourceCommands(cli);
 
 // Global options
 cli.help();

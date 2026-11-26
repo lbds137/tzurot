@@ -47,7 +47,7 @@
       "includeEntryExports": true
     },
     "packages/tooling": {
-      "entry": ["src/**/*.test.ts"],
+      "entry": ["src/**/*.test.ts", "src/resource/exec.ts!", "src/resource/vitestProfile.ts!"],
       "ignoreDependencies": ["eslint"]
     },
     "packages/embeddings": {

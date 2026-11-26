@@ -2,13 +2,19 @@
  * Tests for test-summary
  */
 
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Track mock state
 const mockSpawnSync = vi.fn();
 
-// Mock child_process
+// Mock child_process; execFileSync is the git probe inside the key-scoped .env
+// read, so its undefined return takes the "no main-checkout fallback" path.
 vi.mock('node:child_process', () => ({
+  execFileSync: vi.fn(),
   spawnSync: mockSpawnSync,
 }));
 
@@ -30,6 +36,10 @@ describe('test-summary', () => {
     consoleLogSpy.mockRestore();
     consoleErrorSpy.mockRestore();
     processExitSpy.mockRestore();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   describe('runTestSummary', () => {
@@ -209,6 +219,88 @@ describe('test-summary', () => {
 
       // Should not throw
       expect(() => runTestSummary()).not.toThrow();
+    });
+
+    it('hands the spawn the resolved profile env for a low resolution', async () => {
+      // Empty strings read as unset, so ambient knob values cannot leak in.
+      vi.stubEnv('RESOURCE_PROFILE', '');
+      vi.stubEnv('LOW_RESOURCE_MODE', '1');
+      vi.stubEnv('TURBO_CONCURRENCY', '');
+      vi.stubEnv('VITEST_MAX_WORKERS', '');
+
+      mockSpawnSync.mockReturnValue({
+        status: 0,
+        signal: null,
+        pid: 123,
+        output: ['', '', ''],
+        stdout: '',
+        stderr: '',
+      });
+
+      const { runTestSummary } = await import('./test-summary.js');
+
+      runTestSummary();
+
+      expect(mockSpawnSync).toHaveBeenCalledWith(
+        'turbo',
+        ['run', 'test'],
+        expect.objectContaining({
+          env: expect.objectContaining({ RESOURCE_PROFILE: 'low', TURBO_CONCURRENCY: '1' }),
+        })
+      );
+      const stderrLines = consoleErrorSpy.mock.calls.flat().join('\n');
+      expect(stderrLines).toContain('resource profile: low');
+    });
+
+    it('reads RESOURCE_PROFILE from the checkout .env when env does not carry it', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'test-summary-env-'));
+      const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(dir);
+      try {
+        writeFileSync(join(dir, '.env'), 'RESOURCE_PROFILE=cloud\n');
+        vi.stubEnv('RESOURCE_PROFILE', '');
+        vi.stubEnv('LOW_RESOURCE_MODE', '');
+        vi.stubEnv('TURBO_CONCURRENCY', '');
+        vi.stubEnv('VITEST_MAX_WORKERS', '');
+
+        mockSpawnSync.mockReturnValue({
+          status: 0,
+          signal: null,
+          pid: 123,
+          output: ['', '', ''],
+          stdout: '',
+          stderr: '',
+        });
+
+        const { runTestSummary } = await import('./test-summary.js');
+
+        runTestSummary();
+
+        expect(mockSpawnSync).toHaveBeenCalledWith(
+          'turbo',
+          ['run', 'test'],
+          expect.objectContaining({
+            env: expect.objectContaining({ RESOURCE_PROFILE: 'cloud', TURBO_CONCURRENCY: '2' }),
+          })
+        );
+      } finally {
+        cwdSpy.mockRestore();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('propagates a resolver UsageError to the cli reporter before spawning', async () => {
+      vi.stubEnv('RESOURCE_PROFILE', 'bogus');
+
+      const { runTestSummary } = await import('./test-summary.js');
+
+      // vi.resetModules gives the module its own UsageError class, so match by name.
+      expect(() => runTestSummary()).toThrow(
+        expect.objectContaining({
+          name: 'UsageError',
+          message: expect.stringContaining('RESOURCE_PROFILE') as string,
+        })
+      );
+      expect(mockSpawnSync).not.toHaveBeenCalled();
     });
   });
 });
