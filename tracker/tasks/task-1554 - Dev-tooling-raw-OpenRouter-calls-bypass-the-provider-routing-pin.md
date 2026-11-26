@@ -22,5 +22,7 @@ What: import the routing resolver (or the common-types OPENROUTER_ROUTING consta
 
 Acceptance: a test asserts the provider object in the tooling request body.
 
+Also (PR #2816 round-4 review, owner placed it here): add a recurring tooling or `ops health` check that diffs the `OPENROUTER_ROUTING.PINNED_MODELS` host slugs against OpenRouter `/models/{id}/endpoints`, so a renamed or retired slug is caught before it shrinks the `only` set into a `ROUTING_EXHAUSTED` that looks like an outage. The existing routing tests check count, uniqueness and no overlap with the ignore list, not liveness.
+
 Blocked on: the TASK-1261 routing PR landing the constants.
 <!-- SECTION:DESCRIPTION:END -->
