@@ -10,6 +10,9 @@
 # VENDORED: the body below the header matches deck-platform's bin/cloud-gate; change it there first.
 # body-sha256: 0bf9e89f0ac48f0f (first 16 hex of sha256 over every line after this one; the probe checks it)
 set -u
+# stop-fixture trace: every invocation appends one line, so a session can tell whether the hook
+# ran at boot, against which tree, and with which args. Measurement scaffolding, not for release.
+{ printf '%s trace: args=[%s] pwd=%s head=%s remote=%s\n' "$(date -u +%FT%TZ)" "$*" "$(pwd)" "$(git rev-parse HEAD 2>&1 | head -c 12)" "${CLAUDE_CODE_REMOTE-unset}" >> /tmp/cloud-gate.trace 2>&1; } || :
 
 usage() {
 	cat <<'EOF'
