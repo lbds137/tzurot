@@ -29,4 +29,6 @@ Incognito record: incognito turns still write the ConversationHistory row (only 
 Acceptance: clicking Chime In on an incognito message yields an incognito reply, on a normal one a normal reply; non-character messages get an ephemeral error; commands/ top-level file so check-commands-doc stays green, docs/commands.md mentions it.
 
 Owner-confirmed 2026-11-26 (AskUserQuestion): behavior as described above; build for beta.252.
+
+Fallback premise measured 2026-11-26 (PR 2819 review M2): memories DO carry Discord ids, but only the trigger (user) message's, never the reply's (LongTermMemoryService.ts messageIds: [triggerMessageId]; Railway-dev probe: 945/945 v3 memories in 30 days carry ids, all 945 join to role=user rows, 0 to assistant rows). Owner ruling (AskUserQuestion, "Footer, then memory"): for rows without the field, the incognito footer present -> incognito; otherwise the nearest preceding user row in the same channel+personality is the inferred trigger, and a memory for it -> not incognito, none -> incognito. Accepted cost: old replies with no user trigger (weigh-in / chime-in) read incognito. This also covers non-last chunks of an incognito reply, which carry no footer.
 <!-- SECTION:DESCRIPTION:END -->
