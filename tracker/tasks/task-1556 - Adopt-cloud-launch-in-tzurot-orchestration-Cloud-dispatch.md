@@ -18,3 +18,7 @@ ordinal: 1549000
 <!-- SECTION:DESCRIPTION:BEGIN -->
 Why: Deck Platform shipped cloud-launch (deck-platform de71856), a generic claude --cloud launcher that pins the base by sha, refuses a base not on origin, logs each attempt (--list), and parses success instead of assuming it. The tzurot-orchestration Cloud dispatch section hand-rolls the same launch (prompt file, two-line launcher, script -qfec). What: replace the launch steps with cloud-launch, move the step-0 block into .claude/cloud/step0.md (cloud-launch reads it), and check its Delivery section against the skill (push branch, no PR, report via get_run_log). Report any gaps to the Deck Platform session. Related: TASK-1091, TASK-1109 (permission-mode auto on the launcher), TASK-1111. Acceptance: the skill section names cloud-launch as the launch path, and one real cloud unit launched through it.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Notes
+
+Deck Platform (2026-11-25): `cloud-launch --permission-mode auto` landed in deck-platform 1c47f48, which also covers TASK-1109. Check that it is live with `cloud-launch --help | grep permission-mode`. The first auto launch is the probe for whether a --cloud session actually starts in the mode passed; report what it shows to Deck Platform.
