@@ -42,7 +42,7 @@ if [ $hook -eq 1 ]; then
 	[ "${CLAUDE_CODE_REMOTE:-}" = true ] || exit 0
 	args=()
 	[ -n "$file" ] && args=(--file "$file")
-	line=$("$0" "${args[@]}" 2>&1)
+	line=$(bash "$0" "${args[@]}" 2>&1)
 	rc=$?
 	printf '%s\n' "$line"
 	if [ $rc -ne 0 ]; then
@@ -84,8 +84,9 @@ except ValueError:
 if not isinstance(r, dict):
     out(1, "stop: the usage reading is malformed")
 as_of, verdict, week, wind = r.get("as_of"), r.get("verdict"), r.get("week_pct"), r.get("wind_down_pct")
-if (verdict not in ("go", "stop") or not num(as_of) or as_of != as_of or not 0 < as_of < 1e11
-        or not num(week) or not 0 <= week <= 100 or (wind is not None and not num(wind))):
+if (verdict not in ("go", "stop") or not num(as_of) or not 1 <= as_of < 1e11
+        or not num(week) or not 0 <= week <= 100
+        or (wind is not None and (not num(wind) or not 0 <= wind <= 100))):
     out(1, "stop: the usage reading is malformed")
 as_of = int(as_of)
 age = now - as_of
