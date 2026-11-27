@@ -16,7 +16,9 @@
 
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { parseApiError } from '../../utils/apiErrorParser.js';
+import { warnRoutingExhaustedIfNeeded } from '../quotaFallback.js';
 import type { FactExtractionJobData } from '@tzurot/common-types/types/jobs';
 import {
   generateFactExtractionJobUuid,
@@ -263,6 +265,8 @@ export class FactExtractionService {
       // fallback provider (owner directive). Permanent shapes keep
       // fail-to-skip.
       const category = parseApiError(error).category;
+      // The category form is used because this catch receives no RetryError and the category is already parsed; if this path is ever wrapped in withRetry, switch to warnRoutingExhaustedForError.
+      warnRoutingExhaustedIfNeeded(category, getSystemSetting('extractionModel'));
       if (BUSY_CATEGORIES.has(category)) {
         // Busy spent zero tokens — refund the unit so a sustained busy window
         // (30-min requeue cycles for hours) can't burn the daily cap and make

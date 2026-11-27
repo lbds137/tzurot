@@ -1608,6 +1608,37 @@ describe('VisionProcessor', () => {
         });
       });
 
+      it('emits the routing-exhausted warn with category and model when the vision call fails on routing exhaustion', async () => {
+        // Mock-reachability: mockVisionCacheGetCanonical/GetFailure (null) +
+        // mockTryAcquireInflight (true) pass runDescribeImageGates;
+        // mockDownloadImageToDataUrl resolves inline bytes so
+        // resolveVisionImageUrl reaches invokeVisionModel; mockCreateChatModel
+        // wires generateFromInvokeMock(mockModelInvoke) into invokeModelGuarded,
+        // and delegating mockParseApiError to the real parser lets the rejected
+        // specimen classify as ROUTING_EXHAUSTED inside invokeVisionModel's catch.
+        const { parseApiError: realParseApiError } = await vi.importActual<
+          typeof import('../../utils/apiErrorParser.js')
+        >('../../utils/apiErrorParser.js');
+        mockParseApiError.mockImplementation(realParseApiError);
+        const specimen = new Error(
+          '404 No allowed providers are available for the selected model (data_collection: deny)'
+        );
+        mockModelInvoke.mockRejectedValueOnce(specimen);
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: 'z-ai/glm-5.3-flash',
+        });
+
+        await expect(describeImage(mockAttachment, personality)).rejects.toThrow(specimen.message);
+
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          { category: ApiErrorCategory.ROUTING_EXHAUSTED, model: 'z-ai/glm-5.3-flash' },
+          'OpenRouter routing exhausted: no eligible host for model'
+        );
+        expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain('No allowed providers');
+      });
+
       it('should skip failure cache when success cache hits', async () => {
         mockVisionCacheGetCanonical.mockResolvedValue({
           description: 'Cached description',

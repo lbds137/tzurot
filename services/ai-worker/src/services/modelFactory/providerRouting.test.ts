@@ -15,6 +15,24 @@ describe('resolveOpenRouterProviderRouting', () => {
     expect(routing.ignore).toBeUndefined();
   });
 
+  it.each(['Z-AI/GLM-5.3-Flash', 'Z-AI/GLM-5.3-FLASH', '  Z-AI/GLM-5.3-Flash  '])(
+    'case/whitespace variant %s resolves to the pinned only-shape while its :free suffix still takes ignore',
+    modelId => {
+      const routing = resolveOpenRouterProviderRouting(modelId);
+      expect(routing).toEqual({
+        only: [...OPENROUTER_ROUTING.PINNED_MODELS['z-ai/glm-5.3-flash']],
+        allow_fallbacks: false,
+        data_collection: 'deny',
+      });
+      expect(routing.only).toHaveLength(30);
+      expect(routing.ignore).toBeUndefined();
+
+      const suffixed = resolveOpenRouterProviderRouting(`${modelId.trim()}:free`);
+      expect(suffixed.only).toBeUndefined();
+      expect(suffixed.ignore).toEqual([...OPENROUTER_ROUTING.FORWARDER_IGNORE]);
+    }
+  );
+
   it.each([
     'z-ai/glm-5.4',
     'z-ai/glm-5.3-flash:free',
