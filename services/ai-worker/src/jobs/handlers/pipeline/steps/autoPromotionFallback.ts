@@ -35,12 +35,12 @@ import {
 } from '../../../../services/quotaFallback.js';
 import {
   authCacheKeyId,
+  provenanceFromResolution,
   resolveEffectiveTier,
   type EffectiveTier,
   type KeyProvenance,
 } from '../../../../services/effectiveTier.js';
 import { hasBudgetForAttempt } from './llmBudget.js';
-import { provenanceFromResolution } from './postRouteLlmAuth.js';
 
 const logger = createLogger('AutoPromotionFallback');
 

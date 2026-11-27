@@ -111,12 +111,19 @@ function buildDeps(overrides?: {
       getGlobalDefaultConfig: vi.fn().mockResolvedValue(overrides?.global ?? null),
     } as unknown as QuotaFallbackDeps['configResolver'],
     caches: {
-      creditExhaustion: { isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }) },
-      rateLimit: { isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }) },
+      creditExhaustion: {
+        isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }),
+      } as unknown as QuotaFallbackDeps['caches']['creditExhaustion'],
+      keyInvalid: {
+        isKeyInvalid: vi.fn().mockResolvedValue({ invalid: false }),
+      } as unknown as QuotaFallbackDeps['caches']['keyInvalid'],
+      rateLimit: {
+        isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }),
+      } as unknown as QuotaFallbackDeps['caches']['rateLimit'],
       ...(overrides?.catalogPresence !== undefined
         ? { catalogPresence: overrides.catalogPresence }
         : {}),
-    } as unknown as QuotaFallbackDeps['caches'],
+    } satisfies QuotaFallbackDeps['caches'],
     resolveSystemKey: vi
       .fn()
       .mockResolvedValue(
@@ -1913,6 +1920,115 @@ describe('routes the primary already attempted (auto-promotion twin)', () => {
       expect(deps.caches.rateLimit.isRateLimited).not.toHaveBeenCalledWith(
         expect.objectContaining({ cacheKeyId: 'user:278863839632818186' })
       );
+    });
+  });
+
+  describe('Site 3 + P4: demoted BYOK user (keyProvenance: user, effectiveTier: free)', () => {
+    it('cross-provider retarget for a demoted BYOK user bills their OWN OpenRouter key, never the system key (Site 3)', async () => {
+      const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.RATE_LIMIT));
+      const retry = vi.fn().mockResolvedValue(okResult);
+      const deps = buildDeps({
+        free: { model: 'freebie/default:free' },
+        userOpenRouterKey: 'fake-user-or-key',
+        systemKey: 'fake-system-or-key',
+      });
+
+      const result = await runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts({
+          apiKey: 'fake-user-zai-key',
+          isGuestMode: false,
+          keyProvenance: 'user',
+          effectiveTier: 'free',
+          effectiveProvider: AIProvider.ZaiCoding,
+          personality: {
+            id: 'p1',
+            name: 'Testy',
+            model: 'glm-5.3-flash',
+            provider: AIProvider.ZaiCoding,
+            temperature: 0.9,
+          } as unknown as GenerateAttemptOpts['personality'],
+        }),
+        userId: '123',
+        requestId: 'req-site3-demoted',
+        deps,
+      });
+
+      expect(deps.resolveUserOpenRouterKey).toHaveBeenCalledWith('123');
+      expect(deps.resolveSystemKey).not.toHaveBeenCalled();
+      expect(retry).toHaveBeenCalledTimes(1);
+      const hop1Opts = retry.mock.calls[0][0] as GenerateAttemptOpts;
+      expect(hop1Opts.personality.model).toBe('freebie/default:free');
+      expect(hop1Opts.apiKey).toBe('fake-user-or-key');
+      expect(hop1Opts.keyProvenance).toBe('user');
+      expect(hop1Opts.effectiveTier).toBe('free');
+      expect(hop1Opts.isGuestMode).toBe(false);
+      expect(result.effectiveIsGuestMode).toBe(false);
+    });
+
+    it('cross-provider retarget for a system-provenance free caller still uses the system key (Site 3 guest direction)', async () => {
+      const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.RATE_LIMIT));
+      const retry = vi.fn().mockResolvedValue(okResult);
+      const deps = buildDeps({
+        free: { model: 'freebie/default:free' },
+        userOpenRouterKey: 'fake-user-or-key',
+        systemKey: 'fake-system-or-key',
+      });
+
+      await runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts({
+          apiKey: 'fake-zai-system-key',
+          isGuestMode: true,
+          keyProvenance: 'system',
+          effectiveTier: 'free',
+          effectiveProvider: AIProvider.ZaiCoding,
+          personality: {
+            id: 'p1',
+            name: 'Testy',
+            model: 'glm-5.3-flash',
+            provider: AIProvider.ZaiCoding,
+            temperature: 0.9,
+          } as unknown as GenerateAttemptOpts['personality'],
+        }),
+        userId: '123',
+        requestId: 'req-site3-guest',
+        deps,
+      });
+
+      expect(deps.resolveSystemKey).toHaveBeenCalledTimes(1);
+      expect(deps.resolveUserOpenRouterKey).not.toHaveBeenCalled();
+      const hop1Opts = retry.mock.calls[0][0] as GenerateAttemptOpts;
+      expect(hop1Opts.apiKey).toBe('fake-system-or-key');
+      expect(hop1Opts.keyProvenance).toBe('system');
+      expect(hop1Opts.isGuestMode).toBe(true);
+    });
+
+    it('does NOT double-meter a demoted BYOK OpenRouter retarget (wasFreeTier is already true — P4)', async () => {
+      const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.RATE_LIMIT));
+      const retry = vi.fn().mockResolvedValue(okResult);
+      const freeTierQuota = mockQuota(true);
+
+      await runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts({
+          apiKey: 'fake-user-or-key',
+          isGuestMode: false,
+          keyProvenance: 'user',
+          effectiveTier: 'free',
+          effectiveProvider: AIProvider.OpenRouter,
+        }),
+        userId: '123',
+        requestId: 'req-p4-demoted',
+        deps: buildDeps({ free: { model: 'freebie/default:free' } }),
+        freeTierQuota,
+      });
+
+      expect(freeTierQuota.tryConsume).not.toHaveBeenCalled();
+      expect(retry).toHaveBeenCalledTimes(1);
     });
   });
 });

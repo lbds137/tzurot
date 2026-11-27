@@ -12,6 +12,7 @@ const CATEGORY = ApiErrorCategory.QUOTA_EXCEEDED as QuotaFallbackCategory;
 function makeCaches(fallbackDoomed: boolean): QuotaFallbackCaches {
   return {
     creditExhaustion: { isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }) },
+    keyInvalid: { isKeyInvalid: vi.fn().mockResolvedValue({ invalid: false }) },
     rateLimit: {
       isRateLimited: vi.fn().mockResolvedValue({ rateLimited: fallbackDoomed }),
     },

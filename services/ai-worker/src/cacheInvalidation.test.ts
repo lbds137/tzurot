@@ -162,12 +162,17 @@ vi.mock('@tzurot/identity', () => ({
   }),
 }));
 
-// The wallet-update recovery edge calls the worker's credit-exhaustion cache
-// singleton; mock the redis module so no real client is constructed.
+// The wallet-update recovery edge calls the worker's credit-exhaustion and
+// invalid-key cache singletons; mock the redis module so no real client is
+// constructed.
 const mockClearCreditExhausted = vi.fn().mockResolvedValue(undefined);
+const mockClearKeyInvalid = vi.fn().mockResolvedValue(undefined);
 vi.mock('./redis.js', () => ({
   creditExhaustionCache: {
     clearCreditExhausted: (options: { cacheKeyId: string }) => mockClearCreditExhausted(options),
+  },
+  keyInvalidCache: {
+    clearKeyInvalid: (options: { cacheKeyId: string }) => mockClearKeyInvalid(options),
   },
 }));
 
@@ -240,10 +245,19 @@ describe('setupCacheInvalidation', () => {
       });
     });
 
-    it('does NOT clear the credit-exhaustion cache on an "all" event (per-account semantic)', async () => {
+    it('clears the invalid-key mark for the user bucket on a wallet key update', async () => {
+      await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
+      capturedCallbacks.apiKey?.({ type: 'user', discordId: '278863839632818186' });
+      expect(mockClearKeyInvalid).toHaveBeenCalledWith({
+        cacheKeyId: 'user:278863839632818186',
+      });
+    });
+
+    it('does NOT clear the credit-exhaustion or invalid-key cache on an "all" event (per-account semantic)', async () => {
       await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
       capturedCallbacks.apiKey?.({ type: 'all' });
       expect(mockClearCreditExhausted).not.toHaveBeenCalled();
+      expect(mockClearKeyInvalid).not.toHaveBeenCalled();
     });
   });
 

@@ -233,6 +233,16 @@ export enum ApiErrorCategory {
 export const GUEST_MODE_CATEGORY = 'guest_mode';
 
 /**
+ * Pre-route demotion category — the user's own OpenRouter key was rejected
+ * (a 401 `KeyInvalidCache` mark), so the request runs on the system key with
+ * guest semantics on a free model.
+ * Not an `ApiErrorCategory` value (AUTHENTICATION is deliberately
+ * non-retargetable), so it joins the announce union as a literal,
+ * single-sourced here beside `GUEST_MODE_CATEGORY`.
+ */
+export const KEY_INVALID_CATEGORY = 'key_invalid';
+
+/**
  * The reasons a model swap can be announced in the footer — the wire values
  * carried in `quotaFallback` result metadata. Single source of truth: the Zod
  * enum in `generation.ts` and every hand-typed `category` field derive from
@@ -267,6 +277,10 @@ export const QUOTA_FALLBACK_CATEGORIES = [
   // before dispatch. Produced ONLY by the guest admission path, never by the
   // quota-fallback runner (which narrows from `ApiErrorCategory`).
   GUEST_MODE_CATEGORY,
+  // Not a retargetable failure either: the user's own key was rejected and the
+  // request was demoted to the system key. Produced ONLY by the pre-route
+  // demoted arm (postRouteLlmAuth), never by the quota-fallback runner.
+  KEY_INVALID_CATEGORY,
 ] as const;
 
 export type QuotaFallbackCategoryValue = (typeof QUOTA_FALLBACK_CATEGORIES)[number];

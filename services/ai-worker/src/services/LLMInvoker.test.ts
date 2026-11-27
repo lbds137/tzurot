@@ -18,6 +18,7 @@ import {
   ERROR_MESSAGES,
 } from '@tzurot/common-types/constants/error';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { TimeoutError } from '@tzurot/common-types/utils/errors';
 import { generateFromInvokeMock } from '@tzurot/test-utils/invokeMockChatModel';
 import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
@@ -127,9 +128,11 @@ vi.mock('./modelFactory/extractOpenRouterReasoning.js', () => ({
 // behavior at the LLMInvoker boundary without standing up a real Redis instance.
 const mockIsRateLimited = vi.fn().mockResolvedValue({ rateLimited: false });
 const mockMarkRateLimited = vi.fn().mockResolvedValue(undefined);
-// Same for credit-exhaustion cache.
+// Same for credit-exhaustion and invalid-key caches.
 const mockIsCreditExhausted = vi.fn().mockResolvedValue({ exhausted: false });
 const mockMarkCreditExhausted = vi.fn().mockResolvedValue(undefined);
+const mockIsKeyInvalid = vi.fn().mockResolvedValue({ invalid: false });
+const mockMarkKeyInvalid = vi.fn().mockResolvedValue(undefined);
 vi.mock('../redis.js', () => ({
   rateLimitCache: {
     isRateLimited: (...args: unknown[]) => mockIsRateLimited(...args),
@@ -138,6 +141,10 @@ vi.mock('../redis.js', () => ({
   creditExhaustionCache: {
     isCreditExhausted: (...args: unknown[]) => mockIsCreditExhausted(...args),
     markCreditExhausted: (...args: unknown[]) => mockMarkCreditExhausted(...args),
+  },
+  keyInvalidCache: {
+    isKeyInvalid: (...args: unknown[]) => mockIsKeyInvalid(...args),
+    markKeyInvalid: (...args: unknown[]) => mockMarkKeyInvalid(...args),
   },
 }));
 
@@ -168,6 +175,10 @@ describe('LLMInvoker', () => {
     mockIsCreditExhausted.mockResolvedValue({ exhausted: false });
     mockMarkCreditExhausted.mockReset();
     mockMarkCreditExhausted.mockResolvedValue(undefined);
+    mockIsKeyInvalid.mockReset();
+    mockIsKeyInvalid.mockResolvedValue({ invalid: false });
+    mockMarkKeyInvalid.mockReset();
+    mockMarkKeyInvalid.mockResolvedValue(undefined);
   });
 
   describe('getModel', () => {
@@ -2447,6 +2458,187 @@ describe('LLMInvoker', () => {
       // throw happens first and never falls through to the rate-limit guard.
       expect(mockIsCreditExhausted).toHaveBeenCalledTimes(1);
       expect(mockIsRateLimited).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('invalid-key cache integration', () => {
+    it('writes to cache on 401 AUTHENTICATION failure', async () => {
+      vi.useFakeTimers();
+
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const error = Object.assign(new Error('401 Invalid API key provided'), {
+        status: 401,
+      });
+      const mockInvoke = vi.fn().mockRejectedValue(error);
+      const mockModel = mockChatModel(mockInvoke);
+
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'z-ai/glm-4.7',
+        cacheKeyId: 'user:111111111111111111',
+        provider: AIProvider.OpenRouter,
+      });
+      const assertion = expect(promise).rejects.toThrow();
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(mockMarkKeyInvalid).toHaveBeenCalledWith({
+        cacheKeyId: 'user:111111111111111111',
+      });
+
+      vi.useRealTimers();
+    });
+
+    it('does NOT write for a non-OpenRouter 401 (the mark is OpenRouter-scoped)', async () => {
+      vi.useFakeTimers();
+
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const error = Object.assign(new Error('401 Invalid API key provided'), {
+        status: 401,
+      });
+      const mockInvoke = vi.fn().mockRejectedValue(error);
+      const mockModel = mockChatModel(mockInvoke);
+
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'glm-5.3-flash',
+        cacheKeyId: 'user:111111111111111111',
+        provider: AIProvider.ZaiCoding,
+      });
+      const assertion = expect(promise).rejects.toThrow();
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(mockMarkKeyInvalid).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('does NOT write when the provider is not threaded (fail-closed gate)', async () => {
+      vi.useFakeTimers();
+
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const error = Object.assign(new Error('401 Invalid API key provided'), {
+        status: 401,
+      });
+      const mockInvoke = vi.fn().mockRejectedValue(error);
+      const mockModel = mockChatModel(mockInvoke);
+
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'z-ai/glm-4.7',
+        cacheKeyId: 'user:111111111111111111',
+      });
+      const assertion = expect(promise).rejects.toThrow();
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(mockMarkKeyInvalid).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('does NOT write for an AUTHENTICATION-category error without a 401 status (message-regex path)', async () => {
+      vi.useFakeTimers();
+
+      // No `status` field: parseApiError reaches AUTHENTICATION through the
+      // message regexes only. A non-401 (or status-less) authentication
+      // error does not say the KEY is bad, so the doom mark must not fire.
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const error = new Error('Request was unauthorized — check upstream permissions');
+      const mockInvoke = vi.fn().mockRejectedValue(error);
+      const mockModel = mockChatModel(mockInvoke);
+
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'z-ai/glm-4.7',
+        cacheKeyId: 'user:111111111111111111',
+        provider: AIProvider.OpenRouter,
+      });
+      const assertion = expect(promise).rejects.toThrow();
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(mockMarkKeyInvalid).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('does NOT write for the system bucket (no reader, no clearer)', async () => {
+      vi.useFakeTimers();
+
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const error = Object.assign(new Error('401 Invalid API key provided'), {
+        status: 401,
+      });
+      const mockInvoke = vi.fn().mockRejectedValue(error);
+      const mockModel = mockChatModel(mockInvoke);
+
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'z-ai/glm-4.7',
+        cacheKeyId: 'system',
+        provider: AIProvider.OpenRouter,
+      });
+      const assertion = expect(promise).rejects.toThrow();
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(mockMarkKeyInvalid).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('does NOT write to invalid-key cache for non-AUTHENTICATION errors', async () => {
+      vi.useFakeTimers();
+
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const error = Object.assign(new Error('402 Quota exceeded'), { status: 402 });
+      const mockInvoke = vi.fn().mockRejectedValue(error);
+      const mockModel = mockChatModel(mockInvoke);
+
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'z-ai/glm-4.7',
+        cacheKeyId: 'user:111111111111111111',
+        provider: AIProvider.OpenRouter,
+      });
+      const assertion = expect(promise).rejects.toThrow();
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(mockMarkKeyInvalid).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('skips invalid-key cache write when cacheKeyId is empty', async () => {
+      vi.useFakeTimers();
+
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const error = Object.assign(new Error('401 Invalid API key provided'), { status: 401 });
+      const mockInvoke = vi.fn().mockRejectedValue(error);
+      const mockModel = mockChatModel(mockInvoke);
+
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'z-ai/glm-4.7',
+        cacheKeyId: '',
+      });
+      const assertion = expect(promise).rejects.toThrow();
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(mockMarkKeyInvalid).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
     });
   });
 

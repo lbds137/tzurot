@@ -28,7 +28,11 @@
 import { AIProvider, isFreeModel, stripZaiPrefix } from '@tzurot/common-types/constants/ai';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { getFreeTextFloor } from './freeFloors.js';
-import { ApiErrorCategory, GUEST_MODE_CATEGORY } from '@tzurot/common-types/constants/error';
+import {
+  ApiErrorCategory,
+  GUEST_MODE_CATEGORY,
+  type KEY_INVALID_CATEGORY,
+} from '@tzurot/common-types/constants/error';
 import { applyLlmOverrideParams } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import { type ResolvedLlmConfig } from '@tzurot/common-types/types/configResolution';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -37,7 +41,8 @@ import type { LlmConfigResolver } from '@tzurot/config-resolver';
 import { resolveApiErrorInfo } from '../utils/apiErrorParser.js';
 import { RetryError } from '../utils/retry.js';
 import type { CreditExhaustionCache } from './CreditExhaustionCache.js';
-import type { EffectiveTier } from './effectiveTier.js';
+import type { EffectiveTier, KeyProvenance } from './effectiveTier.js';
+import type { KeyInvalidCache } from './KeyInvalidCache.js';
 import { SYSTEM_CACHE_KEY_ID, type RateLimitCache } from './RateLimitCache.js';
 
 const logger = createLogger('QuotaFallback');
@@ -74,8 +79,14 @@ export type QuotaFallbackCategory =
 // guest simply may not run a paid model on the system key. It shares the
 // announce carrier below because the footer question is identical.
 
-/** Every reason a model swap can be announced with: a retargetable failure, or guest mode. */
-type QuotaFallbackAnnounceCategory = QuotaFallbackCategory | typeof GUEST_MODE_CATEGORY;
+// KEY_INVALID_CATEGORY is likewise single-sourced in common-types and NOT a
+// `QuotaFallbackCategory` member: AUTHENTICATION is deliberately
+// non-retargetable. Its single producer is the pre-route demoted arm
+// (`buildPostRouteLlmAuth`) — never the fallback runner.
+
+/** Every reason a model swap can be announced with: a retargetable failure, guest mode, or a rejected key. */
+type QuotaFallbackAnnounceCategory =
+  QuotaFallbackCategory | typeof GUEST_MODE_CATEGORY | typeof KEY_INVALID_CATEGORY;
 
 /** Announce/audit carrier — rides result metadata to the footer. */
 export interface QuotaFallbackInfo {
@@ -87,6 +98,7 @@ export interface QuotaFallbackInfo {
 
 export interface QuotaFallbackCaches {
   creditExhaustion: CreditExhaustionCache;
+  keyInvalid: KeyInvalidCache;
   rateLimit: RateLimitCache;
   /**
    * OpenRouter catalog presence probe: `true` listed, `false` genuinely absent,
@@ -401,12 +413,15 @@ async function resolveGuestSafeFreeDefault(
 export async function selectQuotaFallbackTarget(options: {
   category: QuotaFallbackCategory;
   tier: EffectiveTier;
+  keyProvenance: KeyProvenance;
   failingModel: string;
   /**
    * The CALLER's cache identity (the failing route's account scope). Used for
    * the target viability check only when the target stays on the caller's own
-   * billing entity; guest-semantics targets are checked under the system
-   * bucket regardless (derived internally — callers can't get it wrong).
+   * user billing entity (`keyProvenance === 'user'` without a forced system-key
+   * swap); non-user provenance and forced system-key targets are checked under
+   * the system bucket regardless (derived internally — callers can't get it
+   * wrong).
    */
   cacheKeyId: string;
   configResolver: LlmConfigResolver;
@@ -414,14 +429,22 @@ export async function selectQuotaFallbackTarget(options: {
   /** Routes this job already attempted; a target on one of them is never selected. */
   excludeRoutes?: readonly AttemptedRoute[];
 }): Promise<QuotaFallbackTarget | null> {
-  const { category, tier, failingModel, cacheKeyId, configResolver, caches, excludeRoutes } =
-    options;
+  const {
+    category,
+    tier,
+    keyProvenance,
+    failingModel,
+    cacheKeyId,
+    configResolver,
+    caches,
+    excludeRoutes,
+  } = options;
 
   let config: ResolvedLlmConfig | null;
   let forceSystemKey = false;
 
   if (category === ApiErrorCategory.CREDIT_EXHAUSTION) {
-    if (tier === 'free') {
+    if (keyProvenance !== 'user') {
       // The system key itself is broke — no different billing entity exists.
       return null;
     }
@@ -434,7 +457,16 @@ export async function selectQuotaFallbackTarget(options: {
         : await configResolver.getGlobalDefaultConfig();
   }
 
-  if (config === null || config.model === failingModel) {
+  // A non-forced same-model retarget changes nothing (same pool), so it is
+  // vetoed. A forced swap changes the billing identity (own key → system key),
+  // so same-model is allowed; the reactive runner cannot loop on it because
+  // `excludeRoutes` blocks the same (provider, model) once attempted, so the
+  // veto no longer guards that case. The flip side: `attemptedRoutes` is keyed
+  // by (provider, model), not billing identity, so the reactive runner can
+  // never perform a same-model system-key swap even when forced — only the
+  // proactive AuthStep caller (which passes no `excludeRoutes`) benefits from
+  // the `!forceSystemKey` escape.
+  if (config === null || (!forceSystemKey && config.model === failingModel)) {
     return null;
   }
   const candidateProvider: string = config.provider ?? AIProvider.OpenRouter;
@@ -447,15 +479,18 @@ export async function selectQuotaFallbackTarget(options: {
   }
 
   // Target viability runs under the TARGET's billing identity, never the
-  // caller's. A free-tier target (tier === 'free', or the forced entity
-  // swap) executes on the system key, whose doom marks are written under
-  // `system` — reading the caller's `user:<id>` bucket would both miss the
-  // target's own marks (a forced retry's 429 lands under `system`) and
-  // re-attach the caller's (the exhaustion mark that triggered the swap
-  // would always veto it). With the identity right, the full viability
-  // check is coherent on every path: a `system` exhaustion mark genuinely
-  // describes the account the retarget would bill.
-  const targetCacheKeyId = forceSystemKey || tier === 'free' ? SYSTEM_CACHE_KEY_ID : cacheKeyId;
+  // caller's capability tier. Non-user provenance (`keyProvenance !== 'user'`,
+  // or the forced entity swap) executes on the system key, whose doom marks are
+  // written under `system` — reading the caller's `user:<id>` bucket on a
+  // forced swap would both miss the target's own marks (a forced retry's 429
+  // lands under `system`) and re-attach the caller's (the exhaustion mark that
+  // triggered the swap would always veto it), while a demoted BYOK user
+  // (`keyProvenance === 'user'`, `tier === 'free'`) staying on their own key
+  // checks their own `user:<id>` bucket. With billing identity right, the full
+  // viability check is coherent on every path: a `system` exhaustion mark
+  // genuinely describes the account the system-key retarget would bill.
+  const targetCacheKeyId =
+    forceSystemKey || keyProvenance !== 'user' ? SYSTEM_CACHE_KEY_ID : cacheKeyId;
   const viability = await checkModelViability({
     model: config.model,
     cacheKeyId: targetCacheKeyId,

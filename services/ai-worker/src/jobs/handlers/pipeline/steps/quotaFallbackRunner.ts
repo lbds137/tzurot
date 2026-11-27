@@ -191,6 +191,7 @@ export async function runWithQuotaFallback(options: {
     const tieredTarget = await selectQuotaFallbackTarget({
       category,
       tier: effectiveTier,
+      keyProvenance,
       failingModel: opts.personality.model,
       cacheKeyId,
       configResolver: deps.configResolver,
@@ -314,6 +315,7 @@ async function resolveTargetAndCredentials(params: {
     const guestTarget = await selectQuotaFallbackTarget({
       category,
       tier: 'free',
+      keyProvenance: 'system',
       failingModel: opts.personality.model,
       cacheKeyId,
       configResolver: deps.configResolver,
@@ -389,15 +391,18 @@ export function composeQuotaFallbackInfo(
  *   with guest semantics (the free target bills the owner);
  * - the failing attempt ran on a NON-OpenRouter credential (e.g. a
  *   z.ai-promoted request carries the user's z.ai key), and the caller is
- *   BYOK → the user's OWN OpenRouter key, never the system key (a paid
- *   default on the system key would be owner cost);
- * - the same non-OpenRouter case with GUEST semantics → the system key. A
- *   guest has no BYOK OpenRouter key by construction, so asking for one
- *   resolves undefined and dead-ends a turn whose correct credential is
- *   obvious; the system key IS a guest's OpenRouter billing identity. No
- *   owner-cost exposure opens up, because every guest-reachable target is
- *   free-guarded at selection (`resolveGuestSafeFreeDefault` and
- *   `selectFloorTarget`'s isFreeModel-guarded floor);
+ *   BYOK (`keyProvenance === 'user'`, including a demoted BYOK user with
+ *   `effectiveTier === 'free'`) → the user's OWN OpenRouter key, never the
+ *   system key (a paid default on the system key would be owner cost, and a
+ *   demoted BYOK caller still bills their own OpenRouter key);
+ * - the same non-OpenRouter case with non-user provenance (`effectiveTier ===
+ *   'free' && keyProvenance !== 'user'`) → the system key. A guest has no
+ *   BYOK OpenRouter key by construction, so asking for one resolves undefined
+ *   and dead-ends a turn whose correct credential is obvious; the system key
+ *   IS a guest's OpenRouter billing identity. No owner-cost exposure opens up,
+ *   because every guest-reachable target is free-guarded at selection
+ *   (`resolveGuestSafeFreeDefault` and `selectFloorTarget`'s
+ *   isFreeModel-guarded floor);
  * - otherwise the original key already fits the OpenRouter target.
  */
 async function resolveRetryCredentials(
@@ -411,14 +416,14 @@ async function resolveRetryCredentials(
   // error. Guard the injectable seam so no wiring can break that guarantee:
   // a credential failure degrades to null → the pristine original rethrows.
   try {
-    const { effectiveTier } = opts;
+    const { effectiveTier, keyProvenance } = opts;
     if (target.forceSystemKey) {
       const systemKey = await deps.resolveSystemKey();
       return systemKey === undefined ? null : systemCredentials(systemKey);
     }
     const provider: string | undefined = opts.personality.provider;
     if (provider !== undefined && provider !== (AIProvider.OpenRouter as string)) {
-      if (effectiveTier === 'free') {
+      if (effectiveTier === 'free' && keyProvenance !== 'user') {
         const systemKey = await deps.resolveSystemKey();
         return systemKey === undefined ? null : systemCredentials(systemKey);
       }

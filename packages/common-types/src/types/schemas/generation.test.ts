@@ -49,6 +49,22 @@ describe('llmGenerationResultSchema.metadata', () => {
       }
     });
 
+    it('accepts the rejected-key demotion category on the wire (key_invalid survives the parse)', () => {
+      const parsed = llmGenerationResultSchema.safeParse({
+        ...baseValid,
+        metadata: {
+          quotaFallback: {
+            fromModel: 'a',
+            toModel: 'b',
+            category: 'key_invalid',
+            mode: 'proactive',
+          },
+        },
+      });
+      expect(parsed.success).toBe(true);
+      expect(parsed.data?.metadata?.quotaFallback?.category).toBe('key_invalid');
+    });
+
     it('rejects unknown categories and modes (closed enums)', () => {
       const badCategory = llmGenerationResultSchema.safeParse({
         ...baseValid,

@@ -22,6 +22,11 @@ export const CACHE_KEY_PREFIXES = {
    */
   CREDIT_EXHAUSTION_OPENROUTER: 'nocredits:openrouter:',
   /**
+   * Per-account invalid-key cache for OpenRouter 401s.
+   * Consumers: `ai-worker/KeyInvalidCache`.
+   */
+  KEY_INVALID_OPENROUTER: 'invalidkey:openrouter:',
+  /**
    * Per-(user, UTC-day) counter capping how many times an authenticated user may
    * fall back to the free vision model on the SYSTEM OpenRouter key in a day.
    * Bounds the freeloading surface opened by the broad vision free-fallback.

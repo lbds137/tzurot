@@ -9,6 +9,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -191,6 +192,24 @@ describe('invokeModelAndClean', () => {
 
     expect(mockInvokeWithRetry).toHaveBeenCalledWith(
       expect.objectContaining({ llmDeadline: 1_234_567 })
+    );
+  });
+
+  it('forwards the ROUTED provider to invokeWithRetry (gates the OpenRouter-scoped invalid-key mark)', async () => {
+    await invokeModelAndClean(deps, baseOpts);
+    expect(mockInvokeWithRetry).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: AIProvider.OpenRouter })
+    );
+
+    // A non-default provider proves the value is the routed one, not the
+    // OpenRouter fallback.
+    mockInvokeWithRetry.mockClear();
+    await invokeModelAndClean(deps, {
+      ...baseOpts,
+      personality: { ...personality, provider: AIProvider.ZaiCoding },
+    });
+    expect(mockInvokeWithRetry).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: AIProvider.ZaiCoding })
     );
   });
 

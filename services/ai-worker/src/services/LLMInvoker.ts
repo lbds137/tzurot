@@ -15,8 +15,8 @@ import {
   ERROR_MESSAGES,
   ApiErrorType,
   ApiErrorCategory,
-  USER_ERROR_MESSAGES,
 } from '@tzurot/common-types/constants/error';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import {
   FINISH_REASONS,
   isNaturalStop,
@@ -43,9 +43,14 @@ import {
   parseApiError,
   ApiError,
 } from '../utils/apiErrorParser.js';
-import { type RateLimitCache, assertValidCacheKeyId } from './RateLimitCache.js';
-import type { CreditExhaustionCache } from './CreditExhaustionCache.js';
-import { rateLimitCache, creditExhaustionCache } from '../redis.js';
+import {
+  type RateLimitCache,
+  assertValidCacheKeyId,
+  SYSTEM_CACHE_KEY_ID,
+} from './RateLimitCache.js';
+import { type CreditExhaustionCache, throwIfCreditExhausted } from './CreditExhaustionCache.js';
+import type { KeyInvalidCache } from './KeyInvalidCache.js';
+import { rateLimitCache, creditExhaustionCache, keyInvalidCache } from '../redis.js';
 import { isReasoningModel } from '../utils/reasoningModelUtils.js';
 import {
   hasBudgetForAttempt,
@@ -161,6 +166,17 @@ interface InvokeWithRetryOptions {
    * OpenRouter-like, warn".
    */
   expectsRawResponse?: boolean;
+  /**
+   * The provider this invocation routes to (the resolved `ModelConfig.provider`).
+   * Gates the invalid-key (401) doom-mark write, which is OpenRouter-scoped:
+   * the cache key prefix names OpenRouter and only an OpenRouter 401 says the
+   * OpenRouter wallet key is bad. A 401 from any other provider (e.g. z.ai
+   * BYOK) must NOT demote the user's healthy OpenRouter key, so any value
+   * other than `openrouter` — a missing one included — skips the write
+   * (fail-closed: a missed mark costs one extra doomed round-trip per TTL
+   * window, a wrong mark demotes a healthy key for its whole TTL).
+   */
+  provider?: AIProvider;
 }
 
 export class LLMInvoker {
@@ -213,6 +229,7 @@ export class LLMInvoker {
       maxAttempts = RETRY_CONFIG.MAX_ATTEMPTS,
       expectsRawResponse = true,
       llmDeadline,
+      provider,
     } = options;
 
     if (cacheKeyId.length === 0) {
@@ -325,6 +342,7 @@ export class LLMInvoker {
       if (cacheKeyId.length > 0) {
         await this.cacheRateLimitOnFailure(rateLimitCache, cacheKeyId, modelName, err);
         await this.cacheCreditExhaustionOnFailure(creditExhaustionCache, cacheKeyId, err);
+        await this.cacheKeyInvalidOnFailure(keyInvalidCache, cacheKeyId, provider, err);
       }
       throw err;
     }
@@ -469,43 +487,7 @@ export class LLMInvoker {
     cache: CreditExhaustionCache,
     cacheKeyId: string
   ): Promise<void> {
-    const result = await cache.isCreditExhausted({ cacheKeyId });
-    if (!result.exhausted) {
-      return;
-    }
-    logger.info(
-      {
-        cacheKeyId,
-        ttlSeconds: result.ttlSeconds,
-        exhaustedAtIso: new Date(result.exhaustedAtMs).toISOString(),
-      },
-      'Skipped LLM call — credit-exhaustion cache hit'
-    );
-    // The synthetic message carries "Insufficient credits" so
-    // `isAccountCreditExhaustion` routes it to CREDIT_EXHAUSTION inside
-    // parseApiError; the explicit `category` + `userMessage` overrides
-    // below are belt-and-suspenders against any future change to either
-    // the synthetic message text or the pattern-matching helper.
-    const errorInfo = parseApiError(
-      Object.assign(
-        new Error('Insufficient credits. This account has no credits — top up to continue.'),
-        { status: 402 }
-      )
-    );
-    throw new ApiError('Credit exhaustion cached', {
-      ...errorInfo,
-      shouldRetry: false,
-      type: ApiErrorType.PERMANENT,
-      category: ApiErrorCategory.CREDIT_EXHAUSTION,
-      // Explicit override: don't rely on the spread carrying the right
-      // userMessage from parseApiError's category-routing. If the synthetic
-      // message ever stops matching `isAccountCreditExhaustion` (e.g., a
-      // future text edit), the spread would inherit the generic
-      // QUOTA_EXCEEDED message even with the explicit category override —
-      // category and userMessage would silently disagree.
-      userMessage: USER_ERROR_MESSAGES[ApiErrorCategory.CREDIT_EXHAUSTION],
-      referenceId: 'credit-exhaustion-cache-hit',
-    });
+    await throwIfCreditExhausted(cache, cacheKeyId, logger);
   }
 
   /**
@@ -529,6 +511,43 @@ export class LLMInvoker {
       return;
     }
     await cache.markCreditExhausted({ cacheKeyId });
+  }
+
+  /**
+   * Inspect a thrown error from `withRetry` and, if it parses as
+   * `AUTHENTICATION` with an HTTP 401 status, mark the `cacheKeyId` account
+   * as key-invalid in the cache so subsequent turns demote the key at
+   * AuthStep until the TTL expires or the user updates their wallet key.
+   *
+   * The mark is OpenRouter-scoped, and every gate below enforces one leg of
+   * that scope:
+   * - `statusCode === 401` AND category `AUTHENTICATION` together — the
+   *   category alone is reachable through message regexes (e.g.
+   *   `/unauthorized/i`) for errors that carry no 401 status; only a real
+   *   401 says the KEY is the problem.
+   * - `provider === OpenRouter` — a 401 from any other provider (e.g. z.ai
+   *   BYOK) must not demote the user's healthy OpenRouter key; the cache
+   *   prefix names OpenRouter and only OpenRouter's 401 speaks for it.
+   * - `cacheKeyId` is a user bucket — a system-bucket mark (`system`) has no
+   *   reader and no clearer (guest provenance never resolves key state).
+   */
+  private async cacheKeyInvalidOnFailure(
+    cache: KeyInvalidCache,
+    cacheKeyId: string,
+    provider: AIProvider | undefined,
+    err: unknown
+  ): Promise<void> {
+    const underlying = err instanceof RetryError ? err.lastError : err;
+    const errorInfo = parseApiError(underlying);
+    if (
+      errorInfo.category !== ApiErrorCategory.AUTHENTICATION ||
+      errorInfo.statusCode !== 401 ||
+      provider !== AIProvider.OpenRouter ||
+      cacheKeyId === SYSTEM_CACHE_KEY_ID
+    ) {
+      return;
+    }
+    await cache.markKeyInvalid({ cacheKeyId });
   }
 
   /**

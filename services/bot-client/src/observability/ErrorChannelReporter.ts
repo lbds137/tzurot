@@ -22,7 +22,11 @@ import {
   sanitizeModelIdForDisplay,
   stripMarkdownDelimiters,
 } from '@tzurot/common-types/constants/discord';
-import { ApiErrorCategory, GUEST_MODE_CATEGORY } from '@tzurot/common-types/constants/error';
+import {
+  ApiErrorCategory,
+  GUEST_MODE_CATEGORY,
+  KEY_INVALID_CATEGORY,
+} from '@tzurot/common-types/constants/error';
 import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { sha256Hex } from '@tzurot/common-types/utils/sha256Hex';
@@ -86,14 +90,16 @@ export interface ReportableJobResult {
 /**
  * Job-error categories that are expected user/provider outcomes rather than
  * bot-client bugs — a deny-list, so anything NOT listed here reports by
- * default. Three classes:
+ * default. Classes skipped from the job-error channel:
  *   - the user (or the shared free pool) hit a limit they can act on
  *     (rate_limit, quota_exceeded, free_tier_quota, credit_exhaustion);
  *   - the user's own content was refused by a provider or the model
  *     (content_policy, censored, provider_content_refused);
  *   - the guest/free ladder proactively substituted a free model at
  *     admission time (guest_mode) — not a failure at all, so it must never
- *     reach the owner channel on the quota-fallback success-path report.
+ *     reach the owner channel on the quota-fallback success-path report;
+ *   - the user's own OpenRouter key was rejected and the request was demoted
+ *     (key_invalid) — user-actionable, announced in the footer.
  * Everything else — auth failures, bad requests, model/media lookups,
  * server errors, timeouts, network errors, empty responses, TTS voice
  * errors, and any unrecognized category — reports.
@@ -112,6 +118,9 @@ export const JOB_ERROR_SKIP_CATEGORIES: readonly string[] = [
   // common-types, importable from both ai-worker (the producer) and
   // bot-client (this consumer) alike.
   GUEST_MODE_CATEGORY,
+  // The user's own key was rejected and the request was demoted to a free
+  // model — user-actionable and already announced in the footer, not a bot bug.
+  KEY_INVALID_CATEGORY,
 ];
 
 const WINDOW_TTL_MS = 60 * 60 * 1000; // 1h

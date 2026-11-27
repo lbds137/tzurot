@@ -23,8 +23,7 @@ import { withRetry } from '../utils/retry.js';
 import { mapWithConcurrency } from '../utils/mapWithConcurrency.js';
 import { shouldRetryError, getErrorLogContext } from '../utils/apiErrorParser.js';
 import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
-import { resolveEffectiveTier } from '../services/effectiveTier.js';
-import { provenanceFromResolution } from './handlers/pipeline/steps/postRouteLlmAuth.js';
+import { provenanceFromResolution, resolveEffectiveTier } from '../services/effectiveTier.js';
 import {
   type VisionConfigResult,
   type ResolveVisionConfigOptions,

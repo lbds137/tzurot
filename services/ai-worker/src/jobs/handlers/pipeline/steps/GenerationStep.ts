@@ -142,6 +142,11 @@ export class GenerationStep implements IPipelineStep {
     const { config, auth, preparedContext } = context;
     const { effectivePersonality, configSource } = config;
     const { apiKey, provider, isGuestMode, keyProvenance, effectiveTier } = auth;
+    // A demoted standard-arm request (effectiveTier 'free' while the user's own
+    // key carries the call: system key unresolved, D10 skip, or the low-credit
+    // proactive retarget returning null) still charges the shared free-tier
+    // fair-share pool here. Deliberate conservative metering; gating on billing
+    // identity instead is TASK-1580.
     const isFreeTier = effectiveTier === 'free';
 
     // One job-wide LLM budget, spanning every fallback hop (primary, swap,

@@ -2299,6 +2299,9 @@ describe('ConversationalRAGService', () => {
         // objectContaining — the exactness above is load-bearing, so a new
         // field crossing this seam should have to be acknowledged here.
         expectsRawResponse: true,
+        // The routed provider, resolved from the personality's provider — it
+        // gates the OpenRouter-scoped invalid-key doom mark in LLMInvoker.
+        provider: AIProvider.OpenRouter,
       });
     });
 

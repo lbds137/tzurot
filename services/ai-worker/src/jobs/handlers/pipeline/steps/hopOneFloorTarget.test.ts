@@ -35,6 +35,7 @@ const FLOOR = 'z-ai/glm-5.3-flash';
 function buildCaches(): QuotaFallbackCaches {
   return {
     creditExhaustion: { isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }) },
+    keyInvalid: { isKeyInvalid: vi.fn().mockResolvedValue({ invalid: false }) },
     rateLimit: { isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }) },
   } as unknown as QuotaFallbackCaches;
 }

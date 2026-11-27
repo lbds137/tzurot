@@ -1,5 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Redis } from 'ioredis';
+
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: () => mockLogger };
+});
+
 import { CreditExhaustionCache } from './CreditExhaustionCache.js';
 
 // Frozen "now" for deterministic TTL math
@@ -50,6 +62,29 @@ describe('CreditExhaustionCache', () => {
       await cache.markCreditExhausted({ cacheKeyId: 'system', ttlSeconds: 30 });
       const [, , value] = mockRedis.setex.mock.calls[0];
       expect(JSON.parse(value)).toEqual({ ts: FIXED_NOW_MS, ttl: 60 });
+    });
+
+    it('logs the mark time under the historical exhaustedAtIso field', async () => {
+      await cache.markCreditExhausted({ cacheKeyId: 'user:1' });
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ exhaustedAtIso: new Date(FIXED_NOW_MS).toISOString() }),
+        'Cached credit-exhaustion state'
+      );
+    });
+
+    it('names the retry-path degradation when the write or read fails', async () => {
+      mockRedis.setex.mockRejectedValue(new Error('down'));
+      mockRedis.get.mockRejectedValue(new Error('down'));
+      await cache.markCreditExhausted({ cacheKeyId: 'user:1' });
+      await cache.isCreditExhausted({ cacheKeyId: 'user:1' });
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ cacheKeyId: 'user:1' }),
+        'Credit-exhaustion cache write failed — degrading to retry path'
+      );
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ cacheKeyId: 'user:1' }),
+        'Credit-exhaustion cache read failed — degrading to retry path'
+      );
     });
 
     it('uses literal "system" for guest-mode bucket', async () => {

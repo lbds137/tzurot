@@ -11,6 +11,7 @@ import {
 } from '@tzurot/common-types/constants/ai';
 import type { ZaiFreeTierAdmission } from '../../../../services/ZaiFreeTierAdmission.js';
 import type { QuotaFallbackCaches } from '../../../../services/quotaFallback.js';
+import * as effectiveTierModule from '../../../../services/effectiveTier.js';
 import { JobType } from '@tzurot/common-types/constants/queue';
 import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -439,12 +440,11 @@ describe('AuthStep', () => {
       // read. `exhausted: true` / a bare model string mark every bucket.
       function buildCaches(overrides?: {
         exhausted?: boolean | string[];
+        invalid?: boolean | string[];
         rateLimitedModels?: (string | { cacheKeyId: string; model: string })[];
-      }): {
-        creditExhaustion: { isCreditExhausted: ReturnType<typeof vi.fn> };
-        rateLimit: { isRateLimited: ReturnType<typeof vi.fn> };
-      } {
+      }): QuotaFallbackCaches {
         const exhausted = overrides?.exhausted ?? false;
+        const invalid = overrides?.invalid ?? false;
         const rateLimitedModels = overrides?.rateLimitedModels ?? [];
         return {
           creditExhaustion: {
@@ -457,7 +457,18 @@ describe('AuthStep', () => {
                     : { exhausted: false }
                 )
               ),
-          },
+          } as unknown as QuotaFallbackCaches['creditExhaustion'],
+          keyInvalid: {
+            isKeyInvalid: vi
+              .fn()
+              .mockImplementation(({ cacheKeyId }: { cacheKeyId: string }) =>
+                Promise.resolve(
+                  invalid === true || (Array.isArray(invalid) && invalid.includes(cacheKeyId))
+                    ? { invalid: true, invalidAtMs: 0, ttlSeconds: 60 }
+                    : { invalid: false }
+                )
+              ),
+          } as unknown as QuotaFallbackCaches['keyInvalid'],
           rateLimit: {
             isRateLimited: vi
               .fn()
@@ -472,8 +483,8 @@ describe('AuthStep', () => {
                     : { rateLimited: false }
                 )
               ),
-          },
-        };
+          } as unknown as QuotaFallbackCaches['rateLimit'],
+        } satisfies QuotaFallbackCaches;
       }
 
       function buildContext(): GenerationContext {
@@ -947,6 +958,9 @@ describe('AuthStep', () => {
           creditExhaustion: {
             isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }),
           } as unknown as QuotaFallbackCaches['creditExhaustion'],
+          keyInvalid: {
+            isKeyInvalid: vi.fn().mockResolvedValue({ invalid: false }),
+          } as unknown as QuotaFallbackCaches['keyInvalid'],
           rateLimit: {
             isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }),
           } as unknown as QuotaFallbackCaches['rateLimit'],
@@ -990,11 +1004,14 @@ describe('AuthStep', () => {
         },
       };
 
-      function buildDemotionCaches(rateLimitedModels: string[]): unknown {
+      function buildDemotionCaches(rateLimitedModels: string[]): QuotaFallbackCaches {
         return {
           creditExhaustion: {
             isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }),
-          },
+          } as unknown as QuotaFallbackCaches['creditExhaustion'],
+          keyInvalid: {
+            isKeyInvalid: vi.fn().mockResolvedValue({ invalid: false }),
+          } as unknown as QuotaFallbackCaches['keyInvalid'],
           rateLimit: {
             isRateLimited: vi
               .fn()
@@ -1003,8 +1020,8 @@ describe('AuthStep', () => {
                   rateLimitedModels.includes(model) ? { rateLimited: true } : { rateLimited: false }
                 )
               ),
-          },
-        };
+          } as unknown as QuotaFallbackCaches['rateLimit'],
+        } satisfies QuotaFallbackCaches;
       }
 
       function makeStep(rateLimitedModels: string[], router?: unknown): AuthStep {
@@ -1184,6 +1201,9 @@ describe('AuthStep', () => {
           creditExhaustion: {
             isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }),
           } as unknown as QuotaFallbackCaches['creditExhaustion'],
+          keyInvalid: {
+            isKeyInvalid: vi.fn().mockResolvedValue({ invalid: false }),
+          } as unknown as QuotaFallbackCaches['keyInvalid'],
           rateLimit: {
             isRateLimited: vi
               .fn()
@@ -1982,9 +2002,16 @@ describe('AuthStep', () => {
       } as unknown as LlmConfigResolver;
       const rateLimitCheck = vi.fn().mockResolvedValue({ rateLimited: false });
       const caches = {
-        creditExhaustion: { isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }) },
-        rateLimit: { isRateLimited: rateLimitCheck },
-      } as unknown as QuotaFallbackCaches;
+        creditExhaustion: {
+          isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }),
+        } as unknown as QuotaFallbackCaches['creditExhaustion'],
+        keyInvalid: {
+          isKeyInvalid: vi.fn().mockResolvedValue({ invalid: false }),
+        } as unknown as QuotaFallbackCaches['keyInvalid'],
+        rateLimit: {
+          isRateLimited: rateLimitCheck,
+        } as unknown as QuotaFallbackCaches['rateLimit'],
+      } satisfies QuotaFallbackCaches;
 
       step = new AuthStep(
         mockApiKeyResolver,
@@ -2101,6 +2128,482 @@ describe('AuthStep', () => {
       expect(paidResult.config?.effectivePersonality.model).toBe('anthropic/claude-sonnet-4');
       expect(paidResult.config?.effectivePersonality.visionModel).toBe('openai/gpt-4o-vision');
       expect(paidResult.auth?.quotaFallback).toBeUndefined();
+    });
+
+    it('passes the computed keyState across the resolveEffectiveTier seam for a user-provenance fixture with a live mark', async () => {
+      const resolveTierSpy = vi.spyOn(effectiveTierModule, 'resolveEffectiveTier');
+      const userRouter = {
+        resolveRoute: vi.fn().mockResolvedValue({
+          effectiveProvider: AIProvider.OpenRouter,
+          effectiveModel: 'anthropic/claude-sonnet-4',
+          apiKey: 'fixture-or-user-key',
+          source: 'user',
+          isGuestMode: false,
+          fallthroughTriggered: false,
+          wasAutoPromoted: false,
+        }),
+      } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+      const isCreditExhausted = vi.fn().mockResolvedValue({
+        exhausted: true,
+        exhaustedAtMs: 1_000,
+        ttlSeconds: 600,
+      });
+      const isKeyInvalid = vi.fn().mockResolvedValue({ invalid: false });
+      const caches = {
+        creditExhaustion: {
+          isCreditExhausted,
+        } as unknown as QuotaFallbackCaches['creditExhaustion'],
+        keyInvalid: {
+          isKeyInvalid,
+        } as unknown as QuotaFallbackCaches['keyInvalid'],
+        rateLimit: {
+          isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }),
+        } as unknown as QuotaFallbackCaches['rateLimit'],
+      } satisfies QuotaFallbackCaches;
+
+      step = new AuthStep(mockApiKeyResolver, mockConfigResolver, userRouter, undefined, {
+        quotaFallbackCaches: caches,
+        zaiFreeTierAdmission: admissionStub(true),
+      });
+      await step.process(guestContext());
+
+      expect(isKeyInvalid).toHaveBeenCalledWith({ cacheKeyId: 'user:user-456' });
+      expect(isCreditExhausted).toHaveBeenCalledWith({ cacheKeyId: 'user:user-456' });
+      expect(resolveTierSpy).toHaveBeenCalledWith({
+        keyProvenance: 'user',
+        keyState: 'low-credit',
+      });
+    });
+
+    it('demotes a user-provenance fixture with a live mark into the free ladder (including z.ai piggyback admission)', async () => {
+      const userRouter = {
+        resolveRoute: vi.fn().mockResolvedValue({
+          effectiveProvider: AIProvider.OpenRouter,
+          effectiveModel: 'anthropic/claude-sonnet-4',
+          apiKey: 'fixture-or-user-key',
+          source: 'user',
+          isGuestMode: false,
+          fallthroughTriggered: false,
+          wasAutoPromoted: false,
+        }),
+      } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+      const caches = {
+        creditExhaustion: {
+          isCreditExhausted: vi.fn().mockResolvedValue({
+            exhausted: true,
+            exhaustedAtMs: 1_000,
+            ttlSeconds: 600,
+          }),
+        } as unknown as QuotaFallbackCaches['creditExhaustion'],
+        keyInvalid: {
+          isKeyInvalid: vi.fn().mockResolvedValue({ invalid: false }),
+        } as unknown as QuotaFallbackCaches['keyInvalid'],
+        rateLimit: {
+          isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }),
+        } as unknown as QuotaFallbackCaches['rateLimit'],
+      } satisfies QuotaFallbackCaches;
+      const admission = admissionStub(true);
+
+      step = new AuthStep(mockApiKeyResolver, mockConfigResolver, userRouter, undefined, {
+        quotaFallbackCaches: caches,
+        zaiFreeTierAdmission: admission,
+      });
+      const result = await step.process({
+        ...guestContext(),
+        config: {
+          effectivePersonality: {
+            ...TEST_PERSONALITY,
+            visionModel: 'openai/gpt-4o-vision',
+          },
+          configSource: 'personality',
+        },
+      });
+
+      expect(vi.mocked(admission.admit)).toHaveBeenCalledWith('user-456', 'test-req-001');
+      expect(result.config?.effectivePersonality.model).toBe(ZAI_FREE_TIER_MODEL);
+      expect(result.config?.effectivePersonality.provider).toBe(AIProvider.ZaiCoding);
+      expect(result.config?.effectivePersonality.visionModel).toBeUndefined();
+      expect(result.auth?.apiKey).toBe('sk-coding-plan');
+      expect(result.auth?.provider).toBe(AIProvider.ZaiCoding);
+      expect(result.auth?.effectiveTier).toBe('free');
+    });
+
+    it('demoted key + DENIED admission: runs the demoted arm with guest semantics on the system OpenRouter key', async () => {
+      // F1 pin: a dead user key with a denied piggyback must never carry the
+      // demoted request — the arm swaps to the system credential with full
+      // guest semantics (provenance system, isGuestMode true, free ladder
+      // model). Covers invalid + wired resolver (an invalid key takes the
+      // demoted arm whatever the resolver state). With a configResolver wired, a low-credit key skips the
+      // arm and the proactive retarget handles it (see the low-credit test below).
+      const userRouter = {
+        resolveRoute: vi.fn().mockResolvedValue({
+          effectiveProvider: AIProvider.OpenRouter,
+          effectiveModel: 'anthropic/claude-sonnet-4',
+          apiKey: 'fixture-or-dead-user-key',
+          source: 'user',
+          isGuestMode: false,
+          fallthroughTriggered: false,
+          wasAutoPromoted: false,
+        }),
+      } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+      const isKeyInvalid = vi.fn().mockResolvedValue({
+        invalid: true,
+        invalidAtMs: 1_000,
+        ttlSeconds: 600,
+      });
+      const caches = {
+        creditExhaustion: {
+          isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }),
+        } as unknown as QuotaFallbackCaches['creditExhaustion'],
+        keyInvalid: {
+          isKeyInvalid,
+        } as unknown as QuotaFallbackCaches['keyInvalid'],
+        rateLimit: {
+          isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }),
+        } as unknown as QuotaFallbackCaches['rateLimit'],
+      } satisfies QuotaFallbackCaches;
+      const admission = admissionStub(false);
+
+      step = new AuthStep(mockApiKeyResolver, mockConfigResolver, userRouter, undefined, {
+        quotaFallbackCaches: caches,
+        zaiFreeTierAdmission: admission,
+      });
+      const result = await step.process(guestContext());
+
+      // The live mark was read under the user's bucket, and admission denied.
+      expect(isKeyInvalid).toHaveBeenCalledWith({ cacheKeyId: 'user:user-456' });
+      expect(vi.mocked(admission.admit)).toHaveBeenCalled();
+
+      // Demotion carried through: tier, credential, and provenance all follow
+      // the guest free-default shape — never the dead route key.
+      expect(result.auth?.effectiveTier).toBe('free');
+      expect(result.auth?.apiKey).toBe('sk-system-key');
+      expect(result.auth?.keyProvenance).toBe('system');
+      expect(result.auth?.isGuestMode).toBe(true);
+      expect(result.auth?.provider).toBe(AIProvider.OpenRouter);
+      // D10 firewall: the demoted personality is the guest ladder's free
+      // output, not the configured paid model.
+      expect(result.config?.effectivePersonality.model).toBe(FREE_ROUTER_MODEL);
+      expect(result.auth?.piggybackSkipped).toBe(true);
+      // The dead route's passthrough is dropped with the arm.
+      expect(result.auth?.fallback).toBeUndefined();
+      expect(result.auth?.wasAutoPromoted).toBeUndefined();
+      // The demotion's own announce REPLACES the ladder's `guest_mode` one:
+      // the news is the key rejection, not the guest substitution.
+      expect(result.auth?.quotaFallback).toEqual({
+        fromModel: 'anthropic/claude-sonnet-4',
+        toModel: FREE_ROUTER_MODEL,
+        category: 'key_invalid',
+        mode: 'proactive',
+      });
+    });
+
+    it('invalid key + already-FREE configured model: the demotion is still announced (from === to)', async () => {
+      // The finding's silent case: the guest ladder changes nothing for a free
+      // model, so it announces nothing — the user would be moved onto the
+      // system key with no reason given.
+      const userRouter = {
+        resolveRoute: vi.fn().mockResolvedValue({
+          effectiveProvider: AIProvider.OpenRouter,
+          effectiveModel: FREE_ROUTER_MODEL,
+          apiKey: 'fixture-or-dead-user-key',
+          source: 'user',
+          isGuestMode: false,
+          fallthroughTriggered: false,
+          wasAutoPromoted: false,
+        }),
+      } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+      const caches = {
+        creditExhaustion: {
+          isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }),
+        } as unknown as QuotaFallbackCaches['creditExhaustion'],
+        keyInvalid: {
+          isKeyInvalid: vi
+            .fn()
+            .mockResolvedValue({ invalid: true, invalidAtMs: 1_000, ttlSeconds: 600 }),
+        } as unknown as QuotaFallbackCaches['keyInvalid'],
+        rateLimit: {
+          isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }),
+        } as unknown as QuotaFallbackCaches['rateLimit'],
+      } satisfies QuotaFallbackCaches;
+
+      step = new AuthStep(mockApiKeyResolver, mockConfigResolver, userRouter, undefined, {
+        quotaFallbackCaches: caches,
+        zaiFreeTierAdmission: admissionStub(false),
+      });
+      const context = guestContext();
+      context.config = {
+        effectivePersonality: { ...TEST_PERSONALITY, model: FREE_ROUTER_MODEL },
+        configSource: 'personality',
+      };
+      const result = await step.process(context);
+
+      expect(result.auth?.apiKey).toBe('sk-system-key');
+      expect(result.auth?.keyProvenance).toBe('system');
+      expect(result.config?.effectivePersonality.model).toBe(FREE_ROUTER_MODEL);
+      expect(result.auth?.quotaFallback).toEqual({
+        fromModel: FREE_ROUTER_MODEL,
+        toModel: FREE_ROUTER_MODEL,
+        category: 'key_invalid',
+        mode: 'proactive',
+      });
+    });
+
+    it('invalid key + ADMITTED piggyback + already-free configured model: the demotion is announced on the z.ai arm and the system-key resolve is skipped', async () => {
+      const userRouter = {
+        resolveRoute: vi.fn().mockResolvedValue({
+          effectiveProvider: AIProvider.OpenRouter,
+          effectiveModel: ZAI_FREE_TIER_MODEL,
+          apiKey: 'fixture-or-dead-user-key',
+          source: 'user',
+          isGuestMode: false,
+          fallthroughTriggered: false,
+          wasAutoPromoted: false,
+        }),
+      } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+      const caches = {
+        creditExhaustion: {
+          isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }),
+        } as unknown as QuotaFallbackCaches['creditExhaustion'],
+        keyInvalid: {
+          isKeyInvalid: vi
+            .fn()
+            .mockResolvedValue({ invalid: true, invalidAtMs: 1_000, ttlSeconds: 600 }),
+        } as unknown as QuotaFallbackCaches['keyInvalid'],
+        rateLimit: {
+          isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }),
+        } as unknown as QuotaFallbackCaches['rateLimit'],
+      } satisfies QuotaFallbackCaches;
+
+      step = new AuthStep(mockApiKeyResolver, mockConfigResolver, userRouter, undefined, {
+        quotaFallbackCaches: caches,
+        zaiFreeTierAdmission: admissionStub(true),
+      });
+      const context = guestContext();
+      context.config = {
+        effectivePersonality: { ...TEST_PERSONALITY, model: ZAI_FREE_TIER_MODEL },
+        configSource: 'personality',
+      };
+      const result = await step.process(context);
+
+      expect(result.auth?.apiKey).toBe('sk-coding-plan');
+      expect(result.auth?.provider).toBe(AIProvider.ZaiCoding);
+      expect(result.auth?.keyProvenance).toBe('system');
+      expect(result.auth?.quotaFallback).toEqual({
+        fromModel: ZAI_FREE_TIER_MODEL,
+        toModel: ZAI_FREE_TIER_MODEL,
+        category: 'key_invalid',
+        mode: 'proactive',
+      });
+      // The piggyback admitted, so the demoted system-key resolve is unused.
+      expect(vi.mocked(mockApiKeyResolver.resolveSystemOpenRouterKey)).not.toHaveBeenCalled();
+    });
+
+    it('low-credit BYOK + DENIED admission + wired resolver: standard arm, guest ladder, then the proactive retarget swaps to the system key', async () => {
+      // The default production path for a low-credit BYOK user: the demoted
+      // arm is skipped (configResolver wired), the guest ladder degrades the
+      // denied piggyback to the free router, and the proactive credit retarget
+      // moves the request onto the system key.
+      vi.mocked(mockApiKeyResolver.resolveApiKey).mockImplementation(userId =>
+        Promise.resolve(
+          userId === undefined
+            ? {
+                apiKey: 'sk-system-key',
+                provider: AIProvider.OpenRouter,
+                source: 'system' as const,
+                isGuestMode: true,
+              }
+            : {
+                apiKey: 'fixture-or-user-key',
+                provider: AIProvider.OpenRouter,
+                source: 'user' as const,
+                isGuestMode: false,
+              }
+        )
+      );
+      vi.mocked(mockConfigResolver.getFreeDefaultConfig).mockResolvedValue({
+        model: 'z-ai/glm-5.3-flash',
+        provider: 'openrouter',
+      } as never);
+      const markUserOnly = ({ cacheKeyId }: { cacheKeyId: string }): Promise<unknown> =>
+        Promise.resolve(
+          cacheKeyId === 'user:user-456'
+            ? { exhausted: true, exhaustedAtMs: 1_000, ttlSeconds: 600 }
+            : { exhausted: false }
+        );
+      const caches = {
+        creditExhaustion: {
+          isCreditExhausted: vi.fn().mockImplementation(markUserOnly),
+        } as unknown as QuotaFallbackCaches['creditExhaustion'],
+        keyInvalid: {
+          isKeyInvalid: vi.fn().mockResolvedValue({ invalid: false }),
+        } as unknown as QuotaFallbackCaches['keyInvalid'],
+        rateLimit: {
+          isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }),
+        } as unknown as QuotaFallbackCaches['rateLimit'],
+      } satisfies QuotaFallbackCaches;
+      const admission = admissionStub(false);
+
+      step = new AuthStep(mockApiKeyResolver, mockConfigResolver, undefined, undefined, {
+        quotaFallbackCaches: caches,
+        zaiFreeTierAdmission: admission,
+      });
+      const result = await step.process(guestContext());
+
+      expect(vi.mocked(admission.admit)).toHaveBeenCalled();
+      expect(result.auth?.effectiveTier).toBe('free');
+      expect(result.config?.effectivePersonality.model).toBe(FREE_ROUTER_MODEL);
+      expect(result.auth?.apiKey).toBe('sk-system-key');
+      expect(result.auth?.keyProvenance).toBe('system');
+      expect(result.auth?.isGuestMode).toBe(true);
+      // The guest ladder already swapped the configured model to the free
+      // router, so the credit announce reads router → router; the footer
+      // renderer drops the arrow for a same-model pair (namesSameModel).
+      expect(result.auth?.quotaFallback).toEqual({
+        fromModel: FREE_ROUTER_MODEL,
+        toModel: FREE_ROUTER_MODEL,
+        category: 'credit_exhaustion',
+        mode: 'proactive',
+      });
+    });
+
+    it('low-credit BYOK + UNWIRED resolver: takes the demoted arm (the proactive retarget cannot run without a resolver)', async () => {
+      // With no configResolver the guest ladder still lands on the free
+      // router (fetchFreeDefaultModel's hardcoded floor — not a piggyback
+      // model, so admission is never consulted), the D10 guard passes, and
+      // the arm runs on the system key.
+      vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue({
+        apiKey: 'fixture-or-user-key',
+        provider: AIProvider.OpenRouter,
+        source: 'user' as const,
+        isGuestMode: false,
+      });
+      const caches = {
+        creditExhaustion: {
+          isCreditExhausted: vi
+            .fn()
+            .mockResolvedValue({ exhausted: true, exhaustedAtMs: 1_000, ttlSeconds: 600 }),
+        } as unknown as QuotaFallbackCaches['creditExhaustion'],
+        keyInvalid: {
+          isKeyInvalid: vi.fn().mockResolvedValue({ invalid: false }),
+        } as unknown as QuotaFallbackCaches['keyInvalid'],
+        rateLimit: {
+          isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }),
+        } as unknown as QuotaFallbackCaches['rateLimit'],
+      } satisfies QuotaFallbackCaches;
+
+      step = new AuthStep(mockApiKeyResolver, undefined, undefined, undefined, {
+        quotaFallbackCaches: caches,
+      });
+      const result = await step.process(guestContext());
+
+      expect(result.auth?.effectiveTier).toBe('free');
+      expect(result.auth?.apiKey).toBe('sk-system-key');
+      expect(result.auth?.keyProvenance).toBe('system');
+      expect(result.auth?.isGuestMode).toBe(true);
+      expect(result.auth?.provider).toBe(AIProvider.OpenRouter);
+      expect(result.config?.effectivePersonality.model).toBe(FREE_ROUTER_MODEL);
+      expect(result.auth?.fallback).toBeUndefined();
+      // Same announce the wired proactive retarget emits for this key state.
+      expect(result.auth?.quotaFallback).toEqual({
+        fromModel: 'anthropic/claude-sonnet-4',
+        toModel: FREE_ROUTER_MODEL,
+        category: 'credit_exhaustion',
+        mode: 'proactive',
+      });
+    });
+
+    it('never consults resolveKeyState caches for a system-provenance resolution', async () => {
+      const resolveKeyStateSpy = vi.spyOn(effectiveTierModule, 'resolveKeyState');
+      const systemRouter = {
+        resolveRoute: vi.fn().mockResolvedValue({
+          effectiveProvider: AIProvider.OpenRouter,
+          effectiveModel: 'anthropic/claude-sonnet-4',
+          apiKey: 'fixture-or-system-key',
+          source: 'system',
+          isGuestMode: true,
+          fallthroughTriggered: false,
+          wasAutoPromoted: false,
+        }),
+      } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+      const isKeyInvalid = vi.fn().mockResolvedValue({ invalid: false });
+      const caches = {
+        creditExhaustion: {
+          isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }),
+        } as unknown as QuotaFallbackCaches['creditExhaustion'],
+        keyInvalid: {
+          isKeyInvalid,
+        } as unknown as QuotaFallbackCaches['keyInvalid'],
+        rateLimit: {
+          isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }),
+        } as unknown as QuotaFallbackCaches['rateLimit'],
+      } satisfies QuotaFallbackCaches;
+
+      step = new AuthStep(mockApiKeyResolver, mockConfigResolver, systemRouter, undefined, {
+        quotaFallbackCaches: caches,
+      });
+      const result = await step.process(guestContext());
+
+      expect(resolveKeyStateSpy).not.toHaveBeenCalled();
+      expect(isKeyInvalid).not.toHaveBeenCalled();
+      expect(result.auth?.keyProvenance).toBe('system');
+      expect(result.auth?.effectiveTier).toBe('free');
+    });
+
+    it('never reads the OpenRouter-scoped marks for a user-provenance z.ai route (key stays ok, own key kept)', async () => {
+      const resolveTierSpy = vi.spyOn(effectiveTierModule, 'resolveEffectiveTier');
+      const resolveKeyStateSpy = vi.spyOn(effectiveTierModule, 'resolveKeyState');
+      const zaiRouter = {
+        resolveRoute: vi.fn().mockResolvedValue({
+          effectiveProvider: AIProvider.ZaiCoding,
+          effectiveModel: 'glm-5.3-flash',
+          apiKey: 'fixture-zai-user-key',
+          source: 'user',
+          isGuestMode: false,
+          fallthroughTriggered: false,
+          wasAutoPromoted: false,
+        }),
+      } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+      const isKeyInvalid = vi.fn().mockResolvedValue({
+        invalid: true,
+        invalidAtMs: 1_000,
+        ttlSeconds: 600,
+      });
+      const isCreditExhausted = vi.fn().mockResolvedValue({
+        exhausted: true,
+        exhaustedAtMs: 1_000,
+        ttlSeconds: 600,
+      });
+      const caches = {
+        creditExhaustion: {
+          isCreditExhausted,
+        } as unknown as QuotaFallbackCaches['creditExhaustion'],
+        keyInvalid: {
+          isKeyInvalid,
+        } as unknown as QuotaFallbackCaches['keyInvalid'],
+        rateLimit: {
+          isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }),
+        } as unknown as QuotaFallbackCaches['rateLimit'],
+      } satisfies QuotaFallbackCaches;
+      const admission = admissionStub(true);
+
+      step = new AuthStep(mockApiKeyResolver, mockConfigResolver, zaiRouter, undefined, {
+        quotaFallbackCaches: caches,
+        zaiFreeTierAdmission: admission,
+      });
+      const result = await step.process(guestContext());
+
+      // The gate short-circuits before the pre-ladder read. (isCreditExhausted
+      // is not asserted: the later quota-fallback viability check reads it too.)
+      expect(resolveKeyStateSpy).not.toHaveBeenCalled();
+      expect(isKeyInvalid).not.toHaveBeenCalled();
+      expect(resolveTierSpy).toHaveBeenCalledWith({ keyProvenance: 'user', keyState: 'ok' });
+      // No demotion: no guest overrides (admission never consulted), tier paid,
+      // and the user's own z.ai key carries the request (no system-key swap).
+      expect(vi.mocked(admission.admit)).not.toHaveBeenCalled();
+      expect(result.auth?.effectiveTier).toBe('paid');
+      expect(result.auth?.apiKey).toBe('fixture-zai-user-key');
+      expect(result.auth?.provider).toBe(AIProvider.ZaiCoding);
     });
   });
 });

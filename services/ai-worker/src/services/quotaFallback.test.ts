@@ -59,7 +59,10 @@ function buildCaches(overrides?: {
               : { exhausted: false }
           )
         ),
-    },
+    } as unknown as QuotaFallbackCaches['creditExhaustion'],
+    keyInvalid: {
+      isKeyInvalid: vi.fn().mockResolvedValue({ invalid: false }),
+    } as unknown as QuotaFallbackCaches['keyInvalid'],
     rateLimit: {
       isRateLimited: vi
         .fn()
@@ -74,9 +77,9 @@ function buildCaches(overrides?: {
               : { rateLimited: false }
           )
         ),
-    },
+    } as unknown as QuotaFallbackCaches['rateLimit'],
     ...(overrides?.catalogPresence !== undefined && { catalogPresence: overrides.catalogPresence }),
-  } as unknown as QuotaFallbackCaches;
+  } satisfies QuotaFallbackCaches;
 }
 
 function buildResolver(options: {
@@ -151,6 +154,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
   const base = {
     failingModel: 'expensive/primary',
     cacheKeyId: 'user:123',
+    keyProvenance: 'user' as const,
   };
 
   // TASK-1570 ruling: selectQuotaFallbackTarget and selectFloorTarget now accept tier: EffectiveTier ('paid' | 'free') instead of isGuestMode: boolean
@@ -159,10 +163,24 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
       ...base,
       category: ApiErrorCategory.CREDIT_EXHAUSTION,
       tier: 'free',
+      keyProvenance: 'system',
       configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
       caches: buildCaches(),
     });
     expect(target).toBeNull();
+  });
+
+  it('CREDIT_EXHAUSTION + demoted BYOK (keyProvenance: user, tier: free) → free default with forced system key (Site 1)', async () => {
+    const target = await selectQuotaFallbackTarget({
+      ...base,
+      category: ApiErrorCategory.CREDIT_EXHAUSTION,
+      tier: 'free',
+      keyProvenance: 'user',
+      configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
+      caches: buildCaches(),
+    });
+    expect(target?.config.model).toBe('freebie/model:free');
+    expect(target?.forceSystemKey).toBe(true);
   });
 
   it('CREDIT_EXHAUSTION + BYOK → free default with forced system key', async () => {
@@ -237,12 +255,14 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
 
   it("a guest target's viability is judged under the system bucket even when the caller passes a user bucket", async () => {
     // The BYOK degraded-downgrade funnels (runner + retarget route) call with
-    // tier: 'free' while still holding the user's cacheKeyId — the free
-    // target runs on the system key regardless, so identity derives internally.
+    // tier: 'free' and keyProvenance: 'system' while still holding the user's
+    // cacheKeyId — the free target runs on the system key regardless, so
+    // identity derives internally from keyProvenance.
     const vetoed = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
       tier: 'free',
+      keyProvenance: 'system',
       configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
       caches: buildCaches({
         rateLimitedModels: [{ cacheKeyId: 'system', model: 'freebie/model:free' }],
@@ -254,12 +274,40 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
       tier: 'free',
+      keyProvenance: 'system',
       configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
       caches: buildCaches({
         rateLimitedModels: [{ cacheKeyId: 'user:123', model: 'freebie/model:free' }],
       }),
     });
     expect(proceeds?.config.model).toBe('freebie/model:free');
+  });
+
+  it("a demoted BYOK user's non-forced retarget (keyProvenance: user, tier: free) checks viability under their OWN user bucket (Site 2)", async () => {
+    const vetoedByOwnBucket = await selectQuotaFallbackTarget({
+      ...base,
+      category: ApiErrorCategory.QUOTA_EXCEEDED,
+      tier: 'free',
+      keyProvenance: 'user',
+      configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
+      caches: buildCaches({
+        rateLimitedModels: [{ cacheKeyId: 'user:123', model: 'freebie/model:free' }],
+      }),
+    });
+    expect(vetoedByOwnBucket).toBeNull();
+
+    const ignoresSystemBucket = await selectQuotaFallbackTarget({
+      ...base,
+      category: ApiErrorCategory.QUOTA_EXCEEDED,
+      tier: 'free',
+      keyProvenance: 'user',
+      configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
+      caches: buildCaches({
+        rateLimitedModels: [{ cacheKeyId: 'system', model: 'freebie/model:free' }],
+      }),
+    });
+    expect(ignoresSystemBucket?.config.model).toBe('freebie/model:free');
+    expect(ignoresSystemBucket?.forceSystemKey).toBe(false);
   });
 
   it('QUOTA_EXCEEDED + BYOK → global (paid) default on the own key', async () => {
@@ -272,6 +320,32 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     });
     expect(target?.config.model).toBe('paid/default');
     expect(target?.forceSystemKey).toBe(false);
+  });
+
+  it('forced system-key swap onto the SAME model as the failing one is still selected', async () => {
+    const target = await selectQuotaFallbackTarget({
+      ...base,
+      failingModel: 'freebie/model:free',
+      category: ApiErrorCategory.CREDIT_EXHAUSTION,
+      tier: 'paid',
+      configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
+      caches: buildCaches(),
+    });
+    expect(target).not.toBeNull();
+    expect(target?.config.model).toBe('freebie/model:free');
+    expect(target?.forceSystemKey).toBe(true);
+  });
+
+  it('non-forced retarget onto the SAME model as the failing one is vetoed', async () => {
+    const target = await selectQuotaFallbackTarget({
+      ...base,
+      failingModel: 'paid/default',
+      category: ApiErrorCategory.QUOTA_EXCEEDED,
+      tier: 'paid',
+      configResolver: buildResolver({ global: { model: 'paid/default' } }) as never,
+      caches: buildCaches(),
+    });
+    expect(target).toBeNull();
   });
 
   it('QUOTA_EXCEEDED + guest → free default', async () => {
@@ -405,6 +479,7 @@ describe('selectQuotaFallbackTarget — catalog-absent veto', () => {
   const base = {
     failingModel: 'expensive/primary',
     cacheKeyId: 'user:123',
+    keyProvenance: 'user' as const,
   };
 
   it('vetoes a tiered target the catalog confirms is absent — falls through (null)', async () => {
@@ -610,6 +685,7 @@ describe('classifyQuotaFailure', () => {
       cacheKeyId: 'user:123',
       category: category as NonNullable<typeof category>,
       tier: 'paid',
+      keyProvenance: 'user',
       configResolver: buildResolver({ global: { model: 'paid/default' } }) as never,
       caches: buildCaches(),
     });
@@ -684,15 +760,20 @@ describe('D12 category membership', () => {
 describe('selectFloorTarget (the D12 second hop)', () => {
   function caches(vetoModel?: string): QuotaFallbackCaches {
     return {
-      creditExhaustion: { isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }) },
+      creditExhaustion: {
+        isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }),
+      } as unknown as QuotaFallbackCaches['creditExhaustion'],
+      keyInvalid: {
+        isKeyInvalid: vi.fn().mockResolvedValue({ invalid: false }),
+      } as unknown as QuotaFallbackCaches['keyInvalid'],
       rateLimit: {
         isRateLimited: vi
           .fn()
           .mockImplementation(({ model }: { model: string }) =>
             Promise.resolve({ rateLimited: model === vetoModel })
           ),
-      },
-    } as unknown as QuotaFallbackCaches;
+      } as unknown as QuotaFallbackCaches['rateLimit'],
+    } satisfies QuotaFallbackCaches;
   }
 
   afterEach(() => resetSystemSettingsRegistration());
@@ -850,6 +931,7 @@ describe('selectQuotaFallbackTarget — routes already attempted this job', () =
   const base = {
     category: ApiErrorCategory.TIMEOUT as const,
     tier: 'paid' as const,
+    keyProvenance: 'user' as const,
     failingModel: 'glm-5.3-flash',
     cacheKeyId: 'user:123',
   };
@@ -884,6 +966,25 @@ describe('selectQuotaFallbackTarget — routes already attempted this job', () =
       excludeRoutes: [zaiRoute] satisfies AttemptedRoute[],
     });
     expect(target?.config.model).toBe('z-ai/glm-5.3-flash');
+  });
+
+  it('forced system-key swap to the SAME model is a reactive dead end: excludeRoutes keyed by (provider, model) blocks it', async () => {
+    // attemptedRoutes carries no billing identity, so the route the user key
+    // just failed on also covers the system-key twin; only the proactive
+    // caller (no excludeRoutes) can do a same-model forced swap.
+    const target = await selectQuotaFallbackTarget({
+      category: ApiErrorCategory.CREDIT_EXHAUSTION,
+      tier: 'paid',
+      keyProvenance: 'user',
+      failingModel: 'freebie/model:free',
+      cacheKeyId: 'user:123',
+      configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
+      caches: buildCaches(),
+      excludeRoutes: [
+        { provider: 'openrouter', model: 'freebie/model:free' },
+      ] satisfies AttemptedRoute[],
+    });
+    expect(target).toBeNull();
   });
 
   it('honours an explicit provider on the target config (a zai-coding default is excluded by a zai-coding attempt)', async () => {
