@@ -1,9 +1,9 @@
 {
   "surfaces": {
     "rules": {
-      "lines": 1489,
+      "lines": 1494,
       "graceMargin": 150,
-      "bytes": 113669,
+      "bytes": 115091,
       "bytesGraceMargin": 12000
     },
     "current": {
@@ -24,6 +24,6 @@
     "configHash": "3631b168bcb2",
     "nodeVersion": "v24.21.0",
     "generatedFromSha": "b5385def3d02effd0b352cd1b95de2e7b318fb7d",
-    "generatedAt": "2026-11-26T22:46:08.150Z"
+    "generatedAt": "2026-11-27T02:13:24.539Z"
   }
 }

@@ -19,7 +19,7 @@ ordinal: 655000
 <!-- SECTION:DESCRIPTION:BEGIN -->
 Why: dependabot PR 2137 (dev-deps group, 20 updates) is RED on mutation-tests. config-resolver scored 85.97 against floor 86.17 (baseline 87.17), 77 undetected mutants. The cause is not a test-quality regression — the same PR bumps @stryker-mutator/api, /core and /vitest-runner from 9.6.1 to 10.0.0. A Stryker major changes which mutants are generated, so the score is measured against a different mutant population than the baseline was.
 
-That makes this the sanctioned mutation:update-baseline case rather than the close-the-gaps case (05-tooling distinguishes them: never hand-edit a baseline on a genuine drop, but a measurement-basis change is different). The refresh requires a fresh LOCAL Stryker report for EVERY tracked package in MUTATED_PACKAGES, and heavy local test runs are the known OOM risk on this machine — the CI job runs all packages in about 4.5 minutes, so locally it is plausible but wants care.
+That makes this the sanctioned mutation:update-baseline case rather than the close-the-gaps case (08-tooling-internals.md § Mutation-Score Ratchet distinguishes them: never hand-edit a baseline on a genuine drop, but a measurement-basis change is different). The refresh requires a fresh LOCAL Stryker report for EVERY tracked package in MUTATED_PACKAGES, and heavy local test runs are the known OOM risk on this machine — the CI job runs all packages in about 4.5 minutes, so locally it is plausible but wants care.
 
 Why separate from 2137: bundling a major test-infrastructure upgrade with 19 unrelated dev-dep bumps means the baseline refresh rides a PR nobody would review as an infrastructure change, and a red ratchet is the only thing currently making it visible.
 

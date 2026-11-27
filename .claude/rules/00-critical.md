@@ -19,6 +19,9 @@ Never use string interpolation in shell commands: `execFileSync('git', ['commit'
 - A value the owner must supply is elicited with `read -rs -p 'KEY: ' VAR` in a
   command the OWNER runs, so it never lands in the transcript or in bash
   history.
+- Model-provider keys for pilots/evals are pulled into the shell at run time
+  and never written to disk or printed (the `ZAI_CODING_API_KEY` shape:
+  `08-tooling-internals.md` § Model calls from tooling).
 
 ### Claude Session URLs Are Secrets (CRITICAL)
 

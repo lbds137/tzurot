@@ -22,6 +22,8 @@ ordinal: 1041000
 Why: session-mining run 3 (2026-09-22): four mechanics each cost or nearly cost a cycle in the window and none is stated by an existing rule. Owner adopted R6 on 2026-09-22.
 Fix shape, one sentence each: (1) .claude/rules/05-tooling.md § PR Monitoring - get the checkout off the PR head branch before gh pr merge --delete-branch and VERIFY the remote branch was deleted, the flag fails silently otherwise; (2) same section - when the target branch has moved under a long-lived feature branch, re-derive diffstat and number claims against the MERGE-BASE, not the target branch current HEAD; (3) same section - the merge is the tail of a verify-then-merge && chain, never a bare gh pr merge, so a verification bug halts before the destructive step; (4) .claude/rules/10-working-posture.md § Presence-then-test after bulk edits - a line number computed before any intervening edit to the same file is stale; re-locate the target by content.
 Acceptance: the four sentences present; pnpm ops lines:check within the rules budget (2203/2353 lines, 166630/178630 bytes before this change).
+
+Shipped note 2026-11-26 (PR 2822 rounds 2-3): items (2) and (3) landed as `00-critical.md` § Merge Approval (the `&&`-chain and MERGE-BASE re-derivation lines — reviewer-approved placement in the always-loaded file), and item (4)'s sentence is present in `10-working-posture.md` § Presence-then-test after bulk edits. Only item (1) (verify the remote branch was deleted after `--delete-branch`) remains.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Implementation Notes
