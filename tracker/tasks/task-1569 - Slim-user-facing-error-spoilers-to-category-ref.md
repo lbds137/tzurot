@@ -1,11 +1,11 @@
 ---
 id: TASK-1569
 title: Slim user-facing error spoilers to category + ref
-status: In Progress
+status: Done
 assignee:
   - tzurot-A
 created_date: '2026-11-27T05:47:00Z'
-updated_date: '2026-11-27T05:48:00Z'
+updated_date: '2026-11-27T09:59:00Z'
 labels:
   - area:common-types
   - size:S
