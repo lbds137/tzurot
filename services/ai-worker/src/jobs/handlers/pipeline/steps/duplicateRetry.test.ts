@@ -40,6 +40,8 @@ function baseOpts(recentAssistantMessages: string[] = []) {
     apiKey: 'sk-key',
     sttDispatch: undefined,
     isGuestMode: false,
+    keyProvenance: 'user' as const,
+    effectiveTier: 'paid' as const,
     jobId: 'job-1',
   };
 }

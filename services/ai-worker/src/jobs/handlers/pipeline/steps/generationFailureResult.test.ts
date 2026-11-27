@@ -113,6 +113,8 @@ describe('composeGenerationFailureResult', () => {
           apiKey: 'fixture-or-key',
           provider: 'openrouter' as GenerationFailureOptions['provider'],
           isGuestMode: false,
+          keyProvenance: 'user',
+          effectiveTier: 'paid',
           audioProviderKeys: new Map(),
           fallthroughTriggered: true,
         },

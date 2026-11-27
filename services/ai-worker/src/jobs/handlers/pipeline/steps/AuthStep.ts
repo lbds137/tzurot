@@ -44,7 +44,6 @@ import {
 import {
   buildPostRouteLlmAuth,
   provenanceFromResolution,
-  routeKeyForProvenance,
   toResolvedAuth,
   type ResolvedLlmAuth,
 } from './postRouteLlmAuth.js';
@@ -271,6 +270,7 @@ export class AuthStep implements IPipelineStep {
       target,
       personality,
       apiKey,
+      source: keyProvenance === 'user' ? 'user' : 'system',
       isGuestMode,
       userId,
       category,
@@ -287,13 +287,10 @@ export class AuthStep implements IPipelineStep {
     const {
       config: retargetConfig,
       apiKey: retargetApiKey,
+      source: retargetSource,
       isGuestMode: retargetIsGuestMode,
     } = resolved;
-    const retargetProvenance = provenanceFromResolution(
-      retargetIsGuestMode,
-      retargetApiKey,
-      userId
-    );
+    const retargetProvenance = provenanceFromResolution(retargetSource, retargetApiKey);
 
     const info: QuotaFallbackInfo = {
       fromModel: personality.model,
@@ -428,7 +425,7 @@ export class AuthStep implements IPipelineStep {
     initialPersonality: NonNullable<GenerationContext['config']>['effectivePersonality'],
     userId: string,
     requestId: string
-  ): Promise<ResolvedLlmAuth & { keyProvenance: KeyProvenance; effectiveTier: EffectiveTier }> {
+  ): Promise<ResolvedLlmAuth> {
     let effectivePersonality = initialPersonality;
 
     if (!this.apiKeyResolver || !this.providerRouter) {
@@ -485,11 +482,7 @@ export class AuthStep implements IPipelineStep {
       // BOTH guest exits (z.ai upgrade and plain free-model override) report
       // it — the swap is never silent on either arm.
       let guest: GuestOverrideResult | undefined;
-      const preLadderProvenance = provenanceFromResolution(
-        route.isGuestMode,
-        routeKeyForProvenance(route),
-        userId
-      );
+      const preLadderProvenance = provenanceFromResolution(route.source, route.apiKey);
       const preLadderTier = resolveEffectiveTier({ keyProvenance: preLadderProvenance });
 
       if (preLadderTier === 'free') {
@@ -533,7 +526,7 @@ export class AuthStep implements IPipelineStep {
     effectivePersonality: NonNullable<GenerationContext['config']>['effectivePersonality'],
     userId: string,
     requestId: string
-  ): Promise<ResolvedLlmAuth & { keyProvenance: KeyProvenance; effectiveTier: EffectiveTier }> {
+  ): Promise<ResolvedLlmAuth> {
     const guest = await applyGuestModeOverrides(
       { configResolver: this.configResolver, zaiFreeTierAdmission: this.zaiFreeTierAdmission },
       effectivePersonality,

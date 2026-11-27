@@ -2,19 +2,27 @@ import type { Rule } from 'eslint';
 
 /**
  * Files in `services/ai-worker/src/` permitted to read `isGuestMode` in
- * conditional expressions:
+ * conditional expressions (single-sourced here; `eslint.config.js` enables
+ * `@tzurot/no-tier-flag-branching` across every .ts file under
+ * services/ai-worker/src/ and delegates per-file exemptions to this list):
  * - Auth resolution & tier seam entry points (`ProviderRouter`, `postRouteLlmAuth`, `AuthStep`, `effectiveTier`)
- * - Non-tier UI / notice / refund / vision-auth plumbing (`AIJobProcessor`, `ImageDescriptionJob`, `VisionProcessor`, `describeImageWithFallback`, `visionAuthResolver`)
+ * - Non-tier UI / telemetry / audio-key plumbing (`AIJobProcessor`, `describeImageWithFallback`)
+ * - Tier-keyed vision selection & cross-provider vision auth (`VisionProcessor`, `visionAuthResolver` — pipeline callers pass `effectiveTier === 'free'`, so degraded-to-system BYOK and `'none'` routes select free vision)
+ *
+ * Known syntactic limitation: aliasing (`const flag = opts.isGuestMode; if (flag) ...`
+ * or destructuring to a renamed local) is not tracked and passes without
+ * error; catching it would require scope/data-flow analysis beyond the AST
+ * condition subtree walk.
  */
 export const DEFAULT_TIER_FLAG_ALLOWLIST: readonly string[] = [
-  'services/ai-worker/src/services/ProviderRouter.ts',
-  'services/ai-worker/src/jobs/handlers/pipeline/steps/postRouteLlmAuth.ts',
-  'services/ai-worker/src/jobs/handlers/pipeline/steps/AuthStep.ts',
-  'services/ai-worker/src/services/effectiveTier.ts',
-  'services/ai-worker/src/jobs/AIJobProcessor.ts',
-  'services/ai-worker/src/services/multimodal/VisionProcessor.ts',
-  'services/ai-worker/src/services/multimodal/describeImageWithFallback.ts',
-  'services/ai-worker/src/services/multimodal/visionAuthResolver.ts',
+  'services/ai-worker/src/services/ProviderRouter.ts', // -- upstream route resolution produces isGuestMode before the effectiveTier seam runs
+  'services/ai-worker/src/jobs/handlers/pipeline/steps/postRouteLlmAuth.ts', // -- seam translator: buildPostRouteLlmAuth and toResolvedAuth forward isGuestMode alongside source-derived KeyProvenance
+  'services/ai-worker/src/jobs/handlers/pipeline/steps/AuthStep.ts', // -- audio-provider BYOK admission guard (!result.isGuestMode on ElevenLabs/Mistral lookups, independent of LLM tier)
+  'services/ai-worker/src/services/effectiveTier.ts', // -- the effectiveTier seam module itself
+  'services/ai-worker/src/jobs/AIJobProcessor.ts', // -- usage-row byok telemetry column derivation (deriveByok) and audio-job key guard, not model/floor tiering
+  'services/ai-worker/src/services/multimodal/VisionProcessor.ts', // -- tier-keyed vision model selection (selectVisionModel) and error-message copy discriminator (deriveApiKeySource); pipeline callers pass effectiveTier === 'free'
+  'services/ai-worker/src/services/multimodal/describeImageWithFallback.ts', // -- vision fallback walk receives effectiveTier === 'free' from pipeline callers and checks VisionConfig.isGuestMode for piggyback reactor
+  'services/ai-worker/src/services/multimodal/visionAuthResolver.ts', // -- tier-keyed cross-provider vision auth resolution; pipeline callers pass effectiveTier === 'free' so degraded-to-system and keyless routes select free vision
 ];
 
 interface AstNode {
@@ -65,11 +73,6 @@ function isExemptFile(rawFilename: string, allowlist: readonly string[]): boolea
     }
   }
 
-  const isRepoPath = filename.includes('services/') || filename.includes('packages/');
-  if (isRepoPath && !filename.includes('services/ai-worker/src/')) {
-    return true;
-  }
-
   return false;
 }
 
@@ -113,7 +116,7 @@ function getChildNodes(node: AstNode): AstNode[] {
 }
 
 function collectTierFlagReads(root: AstNode | null | undefined, found: AstNode[]): void {
-  if (!root || FUNCTION_BOUNDARY_TYPES.has(root.type) || root.type.startsWith('TS')) {
+  if (!root || FUNCTION_BOUNDARY_TYPES.has(root.type)) {
     return;
   }
 
@@ -193,6 +196,15 @@ export const noTierFlagBranching: Rule.RuleModule = {
       },
       SwitchStatement(node: Rule.Node): void {
         checkConditionSubtree((node as unknown as AstNode).discriminant);
+      },
+      WhileStatement(node: Rule.Node): void {
+        checkConditionSubtree((node as unknown as AstNode).test);
+      },
+      DoWhileStatement(node: Rule.Node): void {
+        checkConditionSubtree((node as unknown as AstNode).test);
+      },
+      ForStatement(node: Rule.Node): void {
+        checkConditionSubtree((node as unknown as AstNode).test);
       },
     };
   },

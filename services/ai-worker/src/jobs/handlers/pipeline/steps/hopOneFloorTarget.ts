@@ -24,7 +24,6 @@ import {
   type QuotaFallbackTarget,
 } from '../../../../services/quotaFallback.js';
 import type { GenerateAttemptOpts } from './autoPromotionFallback.js';
-import { provenanceFromResolution } from './postRouteLlmAuth.js';
 
 const logger = createLogger('QuotaFallbackRunner');
 
@@ -36,24 +35,34 @@ export interface RetryCredentials {
 }
 
 export function resolveAttemptTier(opts: {
-  keyProvenance?: KeyProvenance;
-  effectiveTier?: EffectiveTier;
-  isGuestMode: boolean;
-  apiKey: string | undefined;
+  keyProvenance: KeyProvenance;
+  effectiveTier: EffectiveTier;
 }): { keyProvenance: KeyProvenance; effectiveTier: EffectiveTier } {
-  const keyProvenance =
-    opts.keyProvenance ?? provenanceFromResolution(opts.isGuestMode, opts.apiKey);
-  const effectiveTier = opts.effectiveTier ?? resolveEffectiveTier({ keyProvenance });
-  return { keyProvenance, effectiveTier };
+  return { keyProvenance: opts.keyProvenance, effectiveTier: opts.effectiveTier };
 }
 
-export function buildRetryCredentials(
-  apiKey: string | undefined,
-  isGuestMode: boolean,
-  keyProvenance: KeyProvenance,
-  effectiveTier: EffectiveTier
-): RetryCredentials {
-  return { apiKey, isGuestMode, keyProvenance, effectiveTier };
+export function systemCredentials(apiKey: string): RetryCredentials {
+  const keyProvenance: KeyProvenance = 'system';
+  return {
+    apiKey,
+    isGuestMode: true,
+    keyProvenance,
+    effectiveTier: resolveEffectiveTier({ keyProvenance }),
+  };
+}
+
+export function credentialsFromAuth(auth: {
+  apiKey: string | undefined;
+  keyProvenance: KeyProvenance;
+  isGuestMode?: boolean;
+}): RetryCredentials {
+  const { apiKey, keyProvenance } = auth;
+  return {
+    apiKey,
+    isGuestMode: keyProvenance === 'user' ? false : (auth.isGuestMode ?? true),
+    keyProvenance,
+    effectiveTier: resolveEffectiveTier({ keyProvenance }),
+  };
 }
 
 /**
@@ -95,7 +104,7 @@ export async function selectHopOneFloorTarget(params: {
   excludeRoutes?: readonly AttemptedRoute[];
   userId?: string;
 }): Promise<QuotaFallbackTarget | null> {
-  const { category, opts, cacheKeyId, caches, excludeRoutes, userId } = params;
+  const { category, opts, caches, excludeRoutes, userId } = params;
   const failingModel = opts.personality.model;
   if (category === ApiErrorCategory.CREDIT_EXHAUSTION) {
     logger.debug(
@@ -104,13 +113,8 @@ export async function selectHopOneFloorTarget(params: {
     );
     return null;
   }
-  const keyProvenance =
-    opts.keyProvenance ?? provenanceFromResolution(opts.isGuestMode, opts.apiKey);
-  const tier = opts.effectiveTier ?? (keyProvenance === 'user' ? 'paid' : 'free');
-  const resolvedUserId =
-    userId ??
-    opts.conversationContext?.userId ??
-    (cacheKeyId.startsWith('user:') ? cacheKeyId.slice('user:'.length) : '');
+  const { keyProvenance, effectiveTier: tier } = resolveAttemptTier(opts);
+  const resolvedUserId = userId ?? opts.conversationContext.userId;
   const floorTarget = await selectFloorTarget({
     tier,
     excludeModels: [failingModel],

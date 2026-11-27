@@ -156,6 +156,8 @@ describe('invokeModelAndClean', () => {
       userMessage: 'the current turn',
       realMessagesEnabled: false,
       context,
+      keyProvenance: 'user',
+      effectiveTier: 'paid',
     };
   });
 

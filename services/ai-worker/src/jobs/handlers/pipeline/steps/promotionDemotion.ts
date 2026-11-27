@@ -13,6 +13,7 @@
 
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import type { ApiKeySource } from '../../../../services/ApiKeyResolver.js';
 import {
   checkModelViability,
   type QuotaFallbackCaches,
@@ -35,11 +36,12 @@ export interface DemotableAuth {
   resolvedApiKey: string | undefined;
   resolvedProvider: AIProvider | undefined;
   isGuestMode: boolean;
-  keyProvenance?: KeyProvenance;
-  effectiveTier?: EffectiveTier;
+  keyProvenance: KeyProvenance;
+  effectiveTier: EffectiveTier;
   wasAutoPromoted?: boolean;
   fallback?: {
     apiKey: string;
+    source?: ApiKeySource;
     provider: string;
     model: string;
     isGuestMode: boolean;
@@ -66,9 +68,8 @@ export async function tryPromotionDemotion<T extends DemotableAuth>(
   }
 
   const fallbackProvenance = provenanceFromResolution(
-    llmAuth.fallback.isGuestMode,
-    llmAuth.fallback.apiKey,
-    userId
+    llmAuth.fallback.source,
+    llmAuth.fallback.apiKey
   );
   const fallbackTier = resolveEffectiveTier({ keyProvenance: fallbackProvenance });
 

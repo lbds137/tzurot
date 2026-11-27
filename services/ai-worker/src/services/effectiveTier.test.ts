@@ -9,17 +9,17 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GenerateAttemptOpts } from '../jobs/handlers/pipeline/steps/autoPromotionFallback.js';
 import { selectHopOneFloorTarget } from '../jobs/handlers/pipeline/steps/hopOneFloorTarget.js';
-import { buildPostRouteLlmAuth } from '../jobs/handlers/pipeline/steps/postRouteLlmAuth.js';
+import {
+  buildPostRouteLlmAuth,
+  provenanceFromResolution,
+} from '../jobs/handlers/pipeline/steps/postRouteLlmAuth.js';
 import {
   tryPromotionDemotion,
   type DemotableAuth,
 } from '../jobs/handlers/pipeline/steps/promotionDemotion.js';
-import {
-  authCacheKeyId,
-  type EffectiveTier,
-  type KeyProvenance,
-  resolveEffectiveTier,
-} from './effectiveTier.js';
+import type { ApiKeySource } from './ApiKeyResolver.js';
+import { authCacheKeyId, type EffectiveTier, resolveEffectiveTier } from './effectiveTier.js';
+import { selectVisionModel } from './multimodal/VisionProcessor.js';
 import type { ResolvedRoute } from './ProviderRouter.js';
 import {
   type QuotaFallbackCaches,
@@ -47,9 +47,10 @@ const BASE_PERSONALITY = {
   contextWindowTokens: 8192,
 } as LoadedPersonality;
 
-type UserKind = 'guest' | 'free-keyless' | 'paid-system' | 'BYOK';
+type UserKind = 'guest' | 'free-keyless' | 'paid-system' | 'BYOK' | 'BYOK-degraded-to-system';
 type KeyState = 'none' | 'ok';
-type MatrixPath = 'chat-route' | 'promote' | 'floor-selection' | 'ladder-entry';
+type MatrixPath =
+  'chat-route' | 'promote' | 'floor-selection' | 'ladder-entry' | 'vision-selection';
 
 interface MatrixRow {
   userKind: UserKind;
@@ -418,32 +419,104 @@ const MATRIX_ROWS: MatrixRow[] = [
       floorTarget: PAID_FLOOR_MODEL,
     },
   },
+  {
+    userKind: 'BYOK',
+    keyState: 'ok',
+    path: 'vision-selection',
+    expected: {
+      effectiveTier: 'paid',
+      cacheKeyId: `user:${DISCORD_USER_ID}`,
+      floorTarget: PAID_FLOOR_MODEL,
+    },
+  },
+
+  // --- vision-selection for 'none' routes and BYOK-degraded-to-system ---
+  {
+    userKind: 'guest',
+    keyState: 'none',
+    path: 'vision-selection',
+    expected: {
+      effectiveTier: 'free',
+      cacheKeyId: SYSTEM_CACHE_KEY_ID,
+      floorTarget: FREE_FLOOR_MODEL,
+    },
+  },
+  {
+    userKind: 'free-keyless',
+    keyState: 'none',
+    path: 'vision-selection',
+    expected: {
+      effectiveTier: 'free',
+      cacheKeyId: SYSTEM_CACHE_KEY_ID,
+      floorTarget: FREE_FLOOR_MODEL,
+    },
+  },
+  {
+    userKind: 'paid-system',
+    keyState: 'none',
+    path: 'vision-selection',
+    expected: {
+      effectiveTier: 'free',
+      cacheKeyId: SYSTEM_CACHE_KEY_ID,
+      floorTarget: FREE_FLOOR_MODEL,
+    },
+  },
+  {
+    userKind: 'BYOK',
+    keyState: 'none',
+    path: 'vision-selection',
+    expected: {
+      effectiveTier: 'free',
+      cacheKeyId: SYSTEM_CACHE_KEY_ID,
+      floorTarget: FREE_FLOOR_MODEL,
+    },
+  },
+  {
+    userKind: 'BYOK-degraded-to-system',
+    keyState: 'ok',
+    path: 'chat-route',
+    expected: {
+      effectiveTier: 'free',
+      cacheKeyId: SYSTEM_CACHE_KEY_ID,
+      floorTarget: FREE_FLOOR_MODEL,
+    },
+  },
+  {
+    userKind: 'BYOK-degraded-to-system',
+    keyState: 'ok',
+    path: 'vision-selection',
+    expected: {
+      effectiveTier: 'free',
+      cacheKeyId: SYSTEM_CACHE_KEY_ID,
+      floorTarget: FREE_FLOOR_MODEL,
+    },
+  },
 ];
 
 function deriveFixtureInputs(
   userKind: UserKind,
   keyState: KeyState
 ): {
-  keyProvenance: KeyProvenance;
+  source: ApiKeySource | undefined;
   resolvedApiKey: string | undefined;
   isGuestModeFlag: boolean;
 } {
   if (keyState === 'none') {
     return {
-      keyProvenance: 'none',
+      source: undefined,
       resolvedApiKey: undefined,
       isGuestModeFlag: userKind === 'guest',
     };
   }
   if (userKind === 'BYOK') {
     return {
-      keyProvenance: 'user',
+      source: 'user',
       resolvedApiKey: FAKE_USER_KEY,
       isGuestModeFlag: false,
     };
   }
   return {
-    keyProvenance: 'system',
+    source: 'system',
     resolvedApiKey: FAKE_SYSTEM_KEY,
     isGuestModeFlag: userKind === 'guest',
   };
@@ -460,9 +533,9 @@ describe('effectiveTier seam matrix', () => {
   beforeEach(() => {
     registerSystemSettings({
       get: (key: string) =>
-        key === 'fallbackTextModel'
+        key === 'fallbackTextModel' || key === 'fallbackVisionModel'
           ? PAID_FLOOR_MODEL
-          : key === 'fallbackTextModelFree'
+          : key === 'fallbackTextModelFree' || key === 'fallbackVisionModelFree'
             ? FREE_FLOOR_MODEL
             : undefined,
     } as unknown as SystemSettingsService);
@@ -475,10 +548,7 @@ describe('effectiveTier seam matrix', () => {
   it.each(MATRIX_ROWS)(
     'resolves ($userKind, keyState=$keyState, path=$path)',
     async ({ userKind, keyState, path, expected }) => {
-      const { keyProvenance, resolvedApiKey, isGuestModeFlag } = deriveFixtureInputs(
-        userKind,
-        keyState
-      );
+      const { source, resolvedApiKey, isGuestModeFlag } = deriveFixtureInputs(userKind, keyState);
       const caches = buildViableCaches();
 
       let effectiveTier: EffectiveTier;
@@ -490,14 +560,15 @@ describe('effectiveTier seam matrix', () => {
           effectiveProvider: AIProvider.OpenRouter,
           effectiveModel: 'deepseek/deepseek-v3.2',
           apiKey: resolvedApiKey ?? '',
-          isGuestMode: keyProvenance !== 'user',
+          source,
+          isGuestMode: isGuestModeFlag,
           fallthroughTriggered: false,
           wasAutoPromoted: false,
         };
         const llmAuth = buildPostRouteLlmAuth(route, BASE_PERSONALITY);
-        effectiveTier = llmAuth.effectiveTier ?? resolveEffectiveTier({ keyProvenance });
+        effectiveTier = llmAuth.effectiveTier;
         cacheKeyId = authCacheKeyId(
-          { keyProvenance: llmAuth.keyProvenance ?? keyProvenance },
+          { keyProvenance: llmAuth.keyProvenance },
           llmAuth.resolvedApiKey,
           DISCORD_USER_ID
         );
@@ -509,6 +580,7 @@ describe('effectiveTier seam matrix', () => {
         });
         floorTarget = floor?.config.model ?? '';
       } else if (path === 'promote') {
+        const keyProvenance = provenanceFromResolution(source, resolvedApiKey);
         const initialTier = resolveEffectiveTier({ keyProvenance });
         const promotedAuth: DemotableAuth = {
           effectivePersonality: { model: 'glm-5.2', provider: AIProvider.ZaiCoding },
@@ -520,9 +592,10 @@ describe('effectiveTier seam matrix', () => {
           wasAutoPromoted: true,
           fallback: {
             apiKey: resolvedApiKey ?? '',
+            source,
             provider: AIProvider.OpenRouter,
             model: 'z-ai/glm-5.2',
-            isGuestMode: keyProvenance !== 'user',
+            isGuestMode: isGuestModeFlag,
           },
         };
         const demoted = await tryPromotionDemotion(
@@ -532,9 +605,9 @@ describe('effectiveTier seam matrix', () => {
           caches
         );
         const finalAuth = demoted ?? promotedAuth;
-        effectiveTier = finalAuth.effectiveTier ?? initialTier;
+        effectiveTier = finalAuth.effectiveTier;
         cacheKeyId = authCacheKeyId(
-          { keyProvenance: finalAuth.keyProvenance ?? keyProvenance },
+          { keyProvenance: finalAuth.keyProvenance },
           finalAuth.resolvedApiKey,
           DISCORD_USER_ID
         );
@@ -546,6 +619,7 @@ describe('effectiveTier seam matrix', () => {
         });
         floorTarget = floor?.config.model ?? '';
       } else if (path === 'floor-selection') {
+        const keyProvenance = provenanceFromResolution(source, resolvedApiKey);
         effectiveTier = resolveEffectiveTier({ keyProvenance });
         cacheKeyId = authCacheKeyId({ keyProvenance }, resolvedApiKey, DISCORD_USER_ID);
         const attemptOpts: GenerateAttemptOpts = {
@@ -568,7 +642,29 @@ describe('effectiveTier seam matrix', () => {
           userId: DISCORD_USER_ID,
         });
         floorTarget = floor?.config.model ?? '';
+      } else if (path === 'vision-selection') {
+        const route: ResolvedRoute = {
+          effectiveProvider: AIProvider.OpenRouter,
+          effectiveModel: 'deepseek/deepseek-v3.2',
+          apiKey: resolvedApiKey ?? '',
+          source,
+          isGuestMode: isGuestModeFlag,
+          fallthroughTriggered: false,
+          wasAutoPromoted: false,
+        };
+        const llmAuth = buildPostRouteLlmAuth(route, BASE_PERSONALITY);
+        effectiveTier = llmAuth.effectiveTier;
+        cacheKeyId = authCacheKeyId(
+          { keyProvenance: llmAuth.keyProvenance },
+          llmAuth.resolvedApiKey,
+          DISCORD_USER_ID
+        );
+        floorTarget = await selectVisionModel(
+          { ...BASE_PERSONALITY, visionModel: PAID_FLOOR_MODEL },
+          effectiveTier === 'free'
+        );
       } else {
+        const keyProvenance = provenanceFromResolution(source, resolvedApiKey);
         effectiveTier = resolveEffectiveTier({ keyProvenance });
         cacheKeyId = authCacheKeyId({ keyProvenance }, resolvedApiKey, DISCORD_USER_ID);
         const configResolver = {

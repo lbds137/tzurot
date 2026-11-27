@@ -47,6 +47,7 @@ import {
   UndecryptableApiKeyError,
   type ApiKeyResolutionResult,
   type ApiKeyResolver,
+  type ApiKeySource,
 } from './ApiKeyResolver.js';
 import type { QuotaFallbackCaches } from './quotaFallback.js';
 
@@ -65,6 +66,7 @@ const logger = createLogger('ProviderRouter');
  */
 export interface FallbackRoute {
   apiKey: string;
+  source?: ApiKeySource;
   provider: string;
   model: string;
   isGuestMode: boolean;
@@ -91,6 +93,9 @@ export interface ResolvedRoute {
 
   /** API key to use for the resolved endpoint. */
   apiKey: string;
+
+  /** Origin of `apiKey` from `ApiKeyResolver` ('user' BYOK wallet vs 'system' operator key). */
+  source?: ApiKeySource;
 
   /**
    * Whether the resolution landed on a system fallback key (restricting the
@@ -188,6 +193,7 @@ export class ProviderRouter {
         effectiveProvider: configuredProvider as AIProvider,
         effectiveModel: configuredModel,
         apiKey: result.apiKey,
+        source: result.source,
         isGuestMode: result.isGuestMode,
         fallthroughTriggered: false,
         wasAutoPromoted: false,
@@ -205,6 +211,7 @@ export class ProviderRouter {
         effectiveProvider: AIProvider.ZaiCoding,
         effectiveModel: configuredModel,
         apiKey: userZaiKey,
+        source: 'user',
         isGuestMode: false,
         fallthroughTriggered: false,
         wasAutoPromoted: false,
@@ -232,6 +239,7 @@ export class ProviderRouter {
       effectiveProvider: AIProvider.OpenRouter,
       effectiveModel: fallthroughModel,
       apiKey: fallthroughResult.apiKey,
+      source: fallthroughResult.source,
       isGuestMode: fallthroughResult.isGuestMode,
       fallthroughTriggered: true,
       wasAutoPromoted: false,
@@ -331,6 +339,7 @@ export class ProviderRouter {
       effectiveProvider: AIProvider.ZaiCoding,
       effectiveModel: bareModel,
       apiKey: userZaiKey,
+      source: 'user',
       isGuestMode: false,
       fallthroughTriggered: false,
       wasAutoPromoted: true,
@@ -380,6 +389,7 @@ export class ProviderRouter {
       // sent in a casing OpenRouter's chat endpoint was not verified to accept.
       promotedRoute.fallback = {
         apiKey: orFallback.apiKey,
+        source: orFallback.source,
         provider: AIProvider.OpenRouter,
         model: configuredModel.toLowerCase(),
         isGuestMode: orFallback.isGuestMode,

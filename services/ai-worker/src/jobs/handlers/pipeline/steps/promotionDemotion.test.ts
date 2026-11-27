@@ -23,9 +23,12 @@ const promotedAuth: DemotableAuth = {
   resolvedApiKey: 'sk-zai',
   resolvedProvider: AIProvider.ZaiCoding,
   isGuestMode: false,
+  keyProvenance: 'user',
+  effectiveTier: 'paid',
   wasAutoPromoted: true,
   fallback: {
     apiKey: 'sk-openrouter',
+    source: 'user',
     provider: AIProvider.OpenRouter,
     model: 'z-ai/glm-5.2',
     isGuestMode: false,
@@ -67,7 +70,12 @@ describe('tryPromotionDemotion', () => {
   it('returns null for a GUEST-MODE fallback (owner-cost boundary: paid model must not run on the system key)', async () => {
     const guestFallbackAuth: DemotableAuth = {
       ...promotedAuth,
-      fallback: { ...promotedAuth.fallback!, apiKey: 'sk-system', isGuestMode: true },
+      fallback: {
+        ...promotedAuth.fallback!,
+        apiKey: 'sk-system',
+        source: 'system',
+        isGuestMode: true,
+      },
     };
     await expect(
       tryPromotionDemotion(guestFallbackAuth, 'user-1', CATEGORY, makeCaches(false))

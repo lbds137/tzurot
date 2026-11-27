@@ -180,6 +180,8 @@ describe('AuthStep', () => {
       expect(result.auth).toBeDefined();
       expect(result.auth?.apiKey).toBeUndefined();
       expect(result.auth?.isGuestMode).toBe(false);
+      expect(result.auth?.keyProvenance).toBe('none');
+      expect(result.auth?.effectiveTier).toBe('free');
     });
 
     it('should resolve API key from resolver (BYOK)', async () => {
@@ -581,6 +583,7 @@ describe('AuthStep', () => {
       it('z.ai-promoted personality: retarget resets provider, swaps to the user OpenRouter key, and clears the stale auto-promotion route', async () => {
         // The motivating incident's population — the reviewer-flagged
         // zero-coverage intersection of auto-promotion and quota fallback.
+        vi.mocked(mockApiKeyResolver.tryResolveUserKey).mockResolvedValue('sk-zai-key');
         vi.mocked(mockApiKeyResolver.resolveApiKey).mockImplementation((_userId, provider) =>
           Promise.resolve(
             provider === AIProvider.ZaiCoding
@@ -802,6 +805,7 @@ describe('AuthStep', () => {
             effectiveProvider: AIProvider.OpenRouter,
             effectiveModel: 'z-ai/glm-4.7',
             apiKey: 'fixture-or-system-key',
+            source: 'system',
             isGuestMode: true,
             fallthroughTriggered: true,
             wasAutoPromoted: false,
@@ -823,6 +827,7 @@ describe('AuthStep', () => {
             effectiveProvider: AIProvider.OpenRouter,
             effectiveModel: 'z-ai/glm-5.3-flash',
             apiKey: 'fixture-or-system-key',
+            source: 'system',
             isGuestMode: true,
             fallthroughTriggered: true,
             wasAutoPromoted: false,
@@ -914,6 +919,7 @@ describe('AuthStep', () => {
         expect(result.auth?.wasAutoPromoted).toBe(true);
         expect(result.auth?.fallback).toEqual({
           apiKey: 'sk-or-user-key',
+          source: 'user',
           provider: AIProvider.OpenRouter,
           model: 'z-ai/glm-5.1', // original namespaced form preserved
           isGuestMode: false,
@@ -1104,7 +1110,12 @@ describe('AuthStep', () => {
         // default, system key, guest semantics, zero owner cost.
         const promotedGuestFallback = {
           ...PROMOTED_ROUTE,
-          fallback: { ...PROMOTED_ROUTE.fallback, apiKey: 'sk-system', isGuestMode: true },
+          fallback: {
+            ...PROMOTED_ROUTE.fallback,
+            apiKey: 'sk-system',
+            source: 'system' as const,
+            isGuestMode: true,
+          },
         };
         const resolverWithDefaults = {
           ...mockConfigResolver,
@@ -1951,17 +1962,59 @@ describe('AuthStep', () => {
           fallthroughTriggered: false,
         }),
       } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
-      vi.mocked(mockConfigResolver.getFreeDefaultConfig).mockResolvedValue({
-        model: 'custom/free-ladder-model:free',
-        provider: 'openrouter',
-      } as never);
+      const resolverWithFreeAndGlobal = {
+        ...mockConfigResolver,
+        getFreeDefaultConfig: vi.fn().mockResolvedValue({
+          model: 'custom/free-ladder-model:free',
+          provider: 'openrouter',
+        }),
+        getGlobalDefaultConfig: vi.fn().mockResolvedValue({
+          model: 'paid/global-default',
+          provider: 'openrouter',
+        }),
+      } as unknown as LlmConfigResolver;
+      const rateLimitCheck = vi.fn().mockResolvedValue({ rateLimited: false });
+      const caches = {
+        creditExhaustion: { isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }) },
+        rateLimit: { isRateLimited: rateLimitCheck },
+      } as unknown as QuotaFallbackCaches;
 
-      step = new AuthStep(mockApiKeyResolver, mockConfigResolver, injectedRouter);
-      const result = await step.process(guestContext());
+      step = new AuthStep(
+        mockApiKeyResolver,
+        resolverWithFreeAndGlobal,
+        injectedRouter,
+        undefined,
+        { quotaFallbackCaches: caches }
+      );
+      const result = await step.process({
+        ...guestContext(),
+        config: {
+          effectivePersonality: {
+            ...TEST_PERSONALITY,
+            visionModel: 'openai/gpt-4o-vision',
+          },
+          configSource: 'personality',
+        },
+      });
 
       expect(result.auth?.keyProvenance).toBe('none');
       expect(result.auth?.effectiveTier).toBe('free');
+      // Entered applyGuestModeOverrides: paid main model overridden to free ladder model,
+      // paid visionModel cleared, and proactive guest_mode substitution announced.
       expect(result.config?.effectivePersonality.model).toBe('custom/free-ladder-model:free');
+      expect(result.config?.effectivePersonality.visionModel).toBeUndefined();
+      expect(result.auth?.quotaFallback).toEqual({
+        fromModel: 'anthropic/claude-sonnet-4',
+        toModel: 'custom/free-ladder-model:free',
+        category: 'guest_mode',
+        mode: 'proactive',
+      });
+      // Viability check scoped to SYSTEM_CACHE_KEY_ID ('system'), never the user bucket.
+      expect(rateLimitCheck).toHaveBeenCalledWith({
+        cacheKeyId: 'system',
+        model: 'custom/free-ladder-model:free',
+      });
+      expect(resolverWithFreeAndGlobal.getGlobalDefaultConfig).not.toHaveBeenCalled();
     });
   });
 });

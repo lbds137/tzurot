@@ -12,7 +12,7 @@
 
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import type { LlmConfigResolver } from '@tzurot/config-resolver';
-import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
+import type { ApiKeyResolver, ApiKeySource } from '../../../../services/ApiKeyResolver.js';
 import {
   selectQuotaFallbackTarget,
   type QuotaFallbackCaches,
@@ -30,6 +30,7 @@ export interface RetargetRouteDeps {
 export interface ResolvedRetargetRoute {
   config: QuotaTarget['config'];
   apiKey: string | undefined;
+  source?: ApiKeySource;
   isGuestMode: boolean;
 }
 
@@ -41,33 +42,40 @@ export async function resolveRetargetRoute(options: {
   target: QuotaTarget;
   personality: { model: string; provider?: string };
   apiKey: string | undefined;
+  source?: ApiKeySource;
   isGuestMode: boolean;
   userId: string;
   category: QuotaFallbackCategory;
   cacheKeyId: string;
   deps: RetargetRouteDeps;
 }): Promise<ResolvedRetargetRoute | null> {
-  const { target, personality, apiKey, isGuestMode, userId, category, cacheKeyId, deps } = options;
+  const { target, personality, apiKey, source, isGuestMode, userId, category, cacheKeyId, deps } =
+    options;
 
   if (target.forceSystemKey) {
     const systemKey = await deps.apiKeyResolver?.resolveSystemOpenRouterKey();
     return systemKey === undefined
       ? null
-      : { config: target.config, apiKey: systemKey, isGuestMode: true };
+      : { config: target.config, apiKey: systemKey, source: 'system', isGuestMode: true };
   }
 
   const isCrossProvider =
     personality.provider !== undefined &&
     personality.provider !== (AIProvider.OpenRouter as string);
   if (!isCrossProvider) {
-    return { config: target.config, apiKey, isGuestMode };
+    return {
+      config: target.config,
+      apiKey,
+      ...(source !== undefined ? { source } : {}),
+      isGuestMode,
+    };
   }
 
   // Cross-provider (e.g. a z.ai-promoted request carries the user's z.ai
   // key): the OpenRouter retarget needs the user's OWN OpenRouter key.
   const openRouterKey = await deps.apiKeyResolver?.resolveUserOpenRouterKey(userId);
   if (openRouterKey !== undefined) {
-    return { config: target.config, apiKey: openRouterKey, isGuestMode };
+    return { config: target.config, apiKey: openRouterKey, source: 'user', isGuestMode };
   }
   return downgradeToFreeDefault({ personality, category, cacheKeyId, deps });
 }
@@ -95,5 +103,5 @@ async function downgradeToFreeDefault(options: {
   if (guestTarget === null || systemKey === undefined) {
     return null;
   }
-  return { config: guestTarget.config, apiKey: systemKey, isGuestMode: true };
+  return { config: guestTarget.config, apiKey: systemKey, source: 'system', isGuestMode: true };
 }
