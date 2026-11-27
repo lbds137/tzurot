@@ -154,7 +154,3 @@ Build every choice with `formatAutocompleteOption({ name, value, scopeBadge, sta
 4. Only then check Dev Portal settings (User Install contexts/scopes, MESSAGE CONTENT intent, Authorized Apps, Message Requests).
 
 Don't pull Railway logs filtered for DM activity when no events reach the bot; absence of our logs is consistent with gateway non-delivery. The log shape when it IS this bug: `Ignoring system message` with `messageType=20` (one slash-command messageCreate, zero Default/Reply types since the last interaction). DM entry points: `DMSessionProcessor.ts`, `nsfwVerification.ts`.
-
-## Autocomplete handlers
-
-**ALWAYS check `§ Shared Utilities` first** — both autocomplete handlers (`handlePersonalityAutocomplete`, `handlePersonaAutocomplete`) live there; never write a new autocomplete handler without checking them.

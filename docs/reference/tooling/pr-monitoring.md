@@ -132,6 +132,11 @@ gh api "repos/{owner}/{repo}/actions/runs/<run-id>/jobs?per_page=100" \
 **Wait on the gate, never on a `sleep` or a hand-written poll loop** — both
 were measured emitting a premature `CI_COMPLETE`.
 
+**"Monitor script failed (exit 1)" can be cosmetic**: the final
+`gh pr checks` exits non-zero whenever ANY check is red, and `fixup-check` is
+intentionally red on a fixup-bearing branch until autosquash — read the event
+stream for the outcome.
+
 ## The review-round count
 
 After the sentinel, the gate counts claude-review cycles on the PR. From ≥1
@@ -160,8 +165,3 @@ list, a review re-read), chain them with `&&` so a failed check halts before
 the destructive step. When the target branch moved under a long-lived feature
 branch, re-derive diffstats and counts against the MERGE-BASE, not the
 target's current HEAD.
-
-**"Monitor script failed (exit 1)" can be cosmetic**: the final
-`gh pr checks` exits non-zero whenever ANY check is red, and `fixup-check` is
-intentionally red on a fixup-bearing branch until autosquash — read the event
-stream for the outcome.

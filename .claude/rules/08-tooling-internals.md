@@ -5,6 +5,7 @@ paths:
   - '.husky/**'
   - '.github/**'
   - 'docs/reference/tooling/**'
+  - 'scripts/**'
 ---
 
 # Tooling Internals
@@ -58,7 +59,8 @@ total, `CURRENT.md`, `.claude/skills` bodies) within their LINE and BYTE
 budgets, and holds `CLAUDE.md` + `.claude/rules/*.md` under a hard 147,000-char
 ceiling (Claude Code's instruction-file warning total, which no baseline
 refresh can raise). The ceiling counts path-scoped files too — it over-states
-what a fresh session carries, the conservative direction, on purpose; `--breakdown` ranks every file worst-first by bytes — the
+what a fresh session carries, the conservative direction, on purpose.
+`--breakdown` ranks every file worst-first by bytes — the
 trim order the `/tzurot-doc-audit` economy pass consumes. `pnpm ops
 lines:update-baseline` makes budget growth explicit; `--surface <name>` scopes
 the write — the unscoped write ratchets a trimmed surface DOWN and a grown one

@@ -14,7 +14,7 @@
  * Deliberately `setInterval`-based: both consuming services run single-instance
  * and every consumer's cycle is idempotent. If either scales past one replica,
  * this factory is the single seam to swap for BullMQ repeatable jobs (see
- * 04-discord.md § Timer Patterns).
+ * 01-architecture.md § Timer Patterns).
  */
 
 import type { createLogger } from './logger.js';
