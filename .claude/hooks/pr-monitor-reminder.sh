@@ -179,7 +179,8 @@ Per .claude/rules/05-tooling.md (PR Monitoring), arm a Monitor now:
 When it fires:
 - Inspect \`gh pr checks $PR_NUM\` output for pass/fail summary.
 - If no "CI_COMPLETE" line appeared, read WHICH sentinel did
-  (docs/reference/tooling/pr-monitoring.md § Outcomes lists them); none at all means the 30-min timeout fired first — re-arm.
+  (docs/reference/tooling/pr-monitoring.md § Outcomes lists them); none at
+  all means the 30-min timeout fired first — re-arm.
 - Fetch new feedback. Conversation comments + inline code-review comments
   + review summaries live in THREE different endpoints — you need all three:
     pnpm ops gh:pr-comments $PR_NUM   # conversation + line-level

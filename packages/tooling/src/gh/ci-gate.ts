@@ -736,7 +736,8 @@ export async function runCiGate(
     // Carried from the bash gate this replaces, deliberately rather than by
     // inertia: `--watch` exits on ITS last poll, and the check-run list is the
     // same eventually-consistent surface whose indexing lag is documented in
-    // docs/reference/tooling/pr-monitoring.md § Outcomes. Re-querying in the same instant can read a list that has
+    // docs/reference/tooling/pr-monitoring.md § Outcomes. Re-querying in the
+    // same instant can read a list that has
     // not caught up. Five seconds is cheap against a ~20-minute wait.
     await settle(GATE_DEFAULTS.SETTLE_MS);
   }

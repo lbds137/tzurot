@@ -61,28 +61,23 @@ Stamp it when done: `pnpm ops cadence:mark memory-prune`, then commit
 
 ### 2. Rules Files (`.claude/rules/`)
 
-| File                      | Check                                                                                                                    |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `00-critical.md`          | Security rules still reflect current patterns? Post-mortem table current?                                                |
-| `01-architecture.md`      | Service boundaries match dependency-cruiser rules? Anti-patterns table current?                                          |
-| `02-code-standards.md`    | ESLint limits match `eslint.config.js`? Testing patterns current?                                                        |
-| `03-database.md`          | Protected indexes list current? (The cache TTL table lives in `durability-tiers.md` — § Existing cache implementations.) |
-| `04-discord.md`           | Shared utilities table lists all browse/dashboard helpers?                                                               |
-| `05-tooling.md`           | All `pnpm ops` commands listed? `pnpm quality` description accurate?                                                     |
-| `06-backlog.md`           | Surfaces match the actual `backlog/` + `tracker/` layout; granularity ladder intact? Staleness rules intact?             |
-| `07-documentation.md`     | Placement table covers all `docs/reference/` subdirs? Lifecycle rules current?                                           |
-| `08-tooling-internals.md` | Ratchet/guard rows match the CLI? Spot-check against `pnpm ops --help`.                                                  |
-| `09-interaction-style.md` | Interaction guidance still reflects current feedback (no premature-stopping, etc.)?                                      |
-| `10-working-posture.md`   | Each posture still names a trigger → behavior? Cross-references to rules/skills resolve?                                 |
+| File                      | Check                                                                                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `00-critical.md`          | Security rules still reflect current patterns? Post-mortem table current?                                                              |
+| `01-architecture.md`      | Service boundaries match dependency-cruiser rules? Anti-patterns table current?                                                        |
+| `02-code-standards.md`    | ESLint limits match `eslint.config.js`? Testing patterns current?                                                                      |
+| `03-database.md`          | Protected indexes list current? (The cache TTL table lives in `durability-tiers.md` — § Existing cache implementations.)               |
+| `04-discord.md`           | Shared utilities table lists all browse/dashboard helpers?                                                                             |
+| `05-tooling.md`           | Decision-point triggers only? The command inventory is `OPS_CLI_REFERENCE.md` (guard:ops-doc-gated) — never re-add command lists here. |
+| `06-backlog.md`           | Surfaces match the actual `backlog/` + `tracker/` layout; granularity ladder intact? Staleness rules intact?                           |
+| `07-documentation.md`     | Placement table covers all `docs/reference/` subdirs? Lifecycle rules current?                                                         |
+| `08-tooling-internals.md` | Ratchet/guard rows match the CLI? Spot-check against `pnpm ops --help`.                                                                |
+| `09-interaction-style.md` | Interaction guidance still reflects current feedback (no premature-stopping, etc.)?                                                    |
+| `10-working-posture.md`   | Each posture still names a trigger → behavior? Cross-references to rules/skills resolve?                                               |
 
 **Scoped-rules glob check (03, 04, 08):** do the `paths:` globs still match where each rule's domain lives? A package move silently un-scopes a rule — this is the recorded mitigation for the declined glob-validation guard (per-file dispositions: `docs/local/task-815-design.md` on the owning checkout).
 
-**How to verify 05-tooling.md:**
-
-```bash
-pnpm ops --help          # Compare available commands vs documented ones
-pnpm quality --help      # Verify quality script description
-```
+**How to verify 05-tooling.md:** 05 carries decision-point triggers only — do NOT diff it against `pnpm ops --help` (that finds false "missing" commands and invites re-bloating always-loaded 05; `guard:ops-doc` already pins the inventory to `OPS_CLI_REFERENCE.md`). Spot-check that each named trigger's command still exists (`pnpm quality --help` for the quality description).
 
 ### 3. Skill Files (`.claude/skills/`)
 
