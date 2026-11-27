@@ -3,9 +3,10 @@
  *
  * Pure function from the model id to the `provider` routing object every
  * OpenRouter chat call sends. Two shapes:
- * - a PINNED model id (exact match) is sent its measured host allowlist as
- *   `only` + `allow_fallbacks: false` (whether `only` alone already keeps
- *   OpenRouter from using unlisted hosts is not probed);
+ * - a PINNED model id (case-insensitive after trim; suffixed variants excluded)
+ *   is sent its measured host allowlist as `only` + `allow_fallbacks: false`
+ *   (whether `only` alone already keeps OpenRouter from using unlisted hosts is
+ *   not probed);
  * - every other id takes the shared ignore table (`FORWARDER_IGNORE`), which
  *   keeps the MiniMax host family from serving anything.
  *
@@ -40,18 +41,22 @@ export interface OpenRouterProviderRouting {
 /**
  * Resolve the routing object for one OpenRouter model id.
  *
- * Exact-id match only: a pinned id returns the `only` shape; everything else
- * — other GLM ids, suffixed variants such as `z-ai/glm-5.3-flash:free`,
- * `openrouter/free`, `openrouter/auto`, `minimax/*` — returns the ignore
- * shape. Arrays are FRESH per call (never the frozen constant arrays), so a
- * downstream mutation cannot corrupt the routing table.
+ * Case-insensitive match after trim (config-stored ids may arrive in any case,
+ * mirroring `stripZaiPrefix`): a pinned id returns the `only` shape; everything
+ * else — other GLM ids, suffixed variants such as `z-ai/glm-5.3-flash:free` (which
+ * do not match), `openrouter/free`, `openrouter/auto`, `minimax/*` — returns
+ * the ignore shape. The normalization covers this routing lookup only; whether
+ * OpenRouter accepts a padded or mixed-case `model` id on the wire is not
+ * probed. Arrays are FRESH per call (never the frozen constant
+ * arrays), so a downstream mutation cannot corrupt the routing table.
  */
 export function resolveOpenRouterProviderRouting(modelId: string): OpenRouterProviderRouting {
+  const lookupKey = modelId.trim().toLowerCase();
   // hasOwn, not a bare index: an id like "constructor" must not resolve to an
   // Object.prototype member and take the pinned branch.
-  if (Object.hasOwn(OPENROUTER_ROUTING.PINNED_MODELS, modelId)) {
+  if (Object.hasOwn(OPENROUTER_ROUTING.PINNED_MODELS, lookupKey)) {
     const pinned: readonly string[] =
-      OPENROUTER_ROUTING.PINNED_MODELS[modelId as PinnedOpenRouterModel];
+      OPENROUTER_ROUTING.PINNED_MODELS[lookupKey as PinnedOpenRouterModel];
     return {
       only: [...pinned],
       allow_fallbacks: false,

@@ -22,6 +22,7 @@ import {
   USER_ERROR_MESSAGES,
 } from '@tzurot/common-types/constants/error';
 import { FREE_TIER_QUOTA_ERROR_MESSAGE } from '../services/FreeTierRequestQuota.js';
+import { UNROUTED_BODY_ERROR } from '../services/modelFactory/OpenRouterFetch.js';
 import { classifyQuotaFailure } from '../services/quotaFallback.js';
 
 describe('parseApiError', () => {
@@ -727,6 +728,23 @@ describe('parseApiError', () => {
       const result = parseApiError(error);
       expect(result.category).toBe(ApiErrorCategory.NETWORK);
       expect(result.shouldRetry).toBe(true);
+    });
+  });
+
+  describe('OpenRouterFetch fail-closed unrouted-body refusal characterization', () => {
+    const refusalMessage = `${UNROUTED_BODY_ERROR} (body type: String; no provider routing resolved)`;
+
+    it('classifies the plain refusal Error (no status, no transient code) as UNKNOWN, not NETWORK', () => {
+      const error = new Error(refusalMessage);
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.UNKNOWN);
+      expect(result.category).not.toBe(ApiErrorCategory.NETWORK);
+    });
+
+    it('discrimination twin: the same refusal message with code ECONNRESET classifies as NETWORK', () => {
+      const error = Object.assign(new Error(refusalMessage), { code: 'ECONNRESET' });
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.NETWORK);
     });
   });
 

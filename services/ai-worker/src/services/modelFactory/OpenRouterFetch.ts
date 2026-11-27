@@ -203,7 +203,7 @@ function markMessageBlock(
  * (`constructor.name` or `typeof`) and the failure reason — never the body
  * content.
  */
-const UNROUTED_BODY_ERROR =
+export const UNROUTED_BODY_ERROR =
   'OpenRouter request body could not carry provider routing; refusing to send unrouted';
 
 /**
@@ -221,16 +221,23 @@ function describeBodyType(value: unknown): string {
 /**
  * The fail-closed refusal Error: base message + the body's runtime type +
  * the specific failure reason.
+ *
+ * At the parser layer this plain Error (no status, no transient code) parses
+ * as `ApiErrorCategory.UNKNOWN` (pinned by `apiErrorParser.test.ts`). Whether
+ * the LangChain/OpenAI SDK preserves a fetch-thrown Error en route to
+ * `parseApiError` is not probed — if the SDK mutates the message or attaches
+ * an error code, the classification follows that mutation.
  */
 function refuseUnrouted(value: unknown, reason: string): Error {
+  const bodyType = describeBodyType(value);
   // Log the root cause before the throw: the caller sees the error only after
   // its own try/catch reshapes it, and this line keeps body type + reason
   // (never body content) searchable at the refusal site itself.
   logger.error(
-    { bodyType: describeBodyType(value), reason },
+    { bodyType, reason },
     'Refusing to send OpenRouter request without provider routing'
   );
-  return new Error(`${UNROUTED_BODY_ERROR} (body type: ${describeBodyType(value)}; ${reason})`);
+  return new Error(`${UNROUTED_BODY_ERROR} (body type: ${bodyType}; ${reason})`);
 }
 
 /**

@@ -49,23 +49,6 @@ const INVALID_MODEL_ID_PATTERN = /not a valid model id/i;
 const OPENROUTER_HARNESS_ONLY_PATTERN = /only available on agentic harnesses/i;
 
 /**
- * OpenRouter's two wordings for provider-routing exhaustion — the request's
- * routing rules (an `only` pin or an `ignore` list) left no eligible host:
- * "All providers have been ignored" (probed: an `ignore` list covering every
- * `only` host) and "No allowed providers are available" (which routing shape
- * produces which wording is not verified beyond that one probe). Both arrive
- * wrapped in a 404, which status mapping would read as the permanent
- * MODEL_NOT_FOUND and let callers (the vision negative cache, the quota
- * fallback) treat the model as dead for hours. Usually transient (see
- * ApiErrorCategory.ROUTING_EXHAUSTED for when it is not). It hoists to
- * ROUTING_EXHAUSTED before status classification on that basis.
- */
-const OPENROUTER_ROUTING_EXHAUSTED_PATTERNS = [
-  /no allowed providers are available/i,
-  /all providers have been ignored/i,
-];
-
-/**
  * z.ai's error-code token for "the configured model id is not a real z.ai
  * model" — body code `1214` paired with a `modelCode: does not exist`
  * message, wrapped in a 400. This deliberately survives the client-boundary
@@ -193,6 +176,16 @@ const ERROR_PATTERNS = {
     INVALID_MODEL_ID_PATTERN,
     OPENROUTER_HARNESS_ONLY_PATTERN,
   ],
+  // OpenRouter provider-routing exhaustion: the request's routing rules (an
+  // `only` pin or an `ignore` list) left no eligible host — "All providers have
+  // been ignored" (probed: observed from an `ignore` list covering every `only`
+  // host) or "No allowed providers are available" (which routing shape produces
+  // this wording is not verified beyond that one probe), both wrapped in a 404.
+  // Consumed by detectSpecialCases ahead of status extraction so the 404 does
+  // not map to MODEL_NOT_FOUND; the detectCategoryFromMessage `case
+  // 'ROUTING_EXHAUSTED'` arm's deciding-path behavior is unverified and it
+  // exists so the key-to-category switch stays exhaustive.
+  ROUTING_EXHAUSTED: [/no allowed providers are available/i, /all providers have been ignored/i],
   // Timeout
   TIMEOUT: [/timeout/i, /timed.*out/i, /deadline.*exceeded/i],
   // Server errors
@@ -402,6 +395,8 @@ function detectCategoryFromMessage(message: string): ApiErrorCategory | null {
             return ApiErrorCategory.BAD_REQUEST;
           case 'MODEL_NOT_FOUND':
             return ApiErrorCategory.MODEL_NOT_FOUND;
+          case 'ROUTING_EXHAUSTED':
+            return ApiErrorCategory.ROUTING_EXHAUSTED;
           case 'TIMEOUT':
             return ApiErrorCategory.TIMEOUT;
           case 'SERVER_ERROR':
@@ -608,7 +603,7 @@ function detectSpecialCases(error: unknown): ApiErrorCategory | null {
   // fallback, even though the same id usually succeeds once an eligible host
   // returns (usually transient — see ApiErrorCategory.ROUTING_EXHAUSTED for
   // when it is not).
-  if (OPENROUTER_ROUTING_EXHAUSTED_PATTERNS.some(pattern => pattern.test(messageToSearch))) {
+  if (ERROR_PATTERNS.ROUTING_EXHAUSTED.some(pattern => pattern.test(messageToSearch))) {
     return ApiErrorCategory.ROUTING_EXHAUSTED;
   }
 

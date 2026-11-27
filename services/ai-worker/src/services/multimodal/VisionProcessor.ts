@@ -26,6 +26,7 @@ import { getFreeVisionFloor } from '../freeFloors.js';
 import { createChatModel } from '../ModelFactory.js';
 import { extractAndPopulateOpenRouterReasoning } from '../modelFactory/extractOpenRouterReasoning.js';
 import { detectVisionProvider } from '../ProviderRouter.js';
+import { warnRoutingExhaustedIfNeeded } from '../quotaFallback.js';
 import { parseApiError } from '../../utils/apiErrorParser.js';
 import { invokeModelGuarded } from '../../utils/invokeModelGuarded.js';
 import { checkModelVisionSupport, visionDescriptionCache } from '../../redis.js';
@@ -369,6 +370,8 @@ async function invokeVisionModel(
     return content;
   } catch (error) {
     const errorInfo = parseApiError(error);
+    // The category form is used because this catch receives no RetryError and the category is already parsed; if this path is ever wrapped in withRetry, switch to warnRoutingExhaustedForError.
+    warnRoutingExhaustedIfNeeded(errorInfo.category, modelName);
     logger.error(
       {
         err: error,

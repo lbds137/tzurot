@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { JobType } from '@tzurot/common-types/constants/queue';
+import {
+  registerSystemSettings,
+  resetSystemSettingsRegistration,
+  type SystemSettingsService,
+} from '@tzurot/common-types/services/SystemSettingsService';
 import type { FactExtractionJobData } from '@tzurot/common-types/types/jobs';
 import {
   EXTRACTION_MAX_TOKENS,
@@ -15,6 +21,22 @@ import type { ExtractionBudget } from './ExtractionBudget.js';
 import type { SystemModelResult } from '../systemModel/systemModelCall.js';
 import { invokeSystemModel } from '../systemModel/systemModelCall.js';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
+
+const { mockLoggerWarn } = vi.hoisted(() => ({ mockLoggerWarn: vi.fn() }));
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      warn: mockLoggerWarn,
+      error: vi.fn(),
+      debug: vi.fn(),
+    }),
+  };
+});
 
 vi.mock('../systemModel/systemModelCall.js', () => ({
   invokeSystemModel: vi.fn(),
@@ -654,6 +676,37 @@ describe('delay-not-downgrade (provider busy)', () => {
     await expect(s.service.processBatch(job)).rejects.toThrow(ExtractionProviderBusyError);
     expect(s.usageCreateMock).not.toHaveBeenCalled();
     expect(s.budget.refund).toHaveBeenCalledTimes(1);
+  });
+
+  it('emits the routing-exhausted warn with category and model before throwing busy', async () => {
+    // Mock-reachability: makeSetup/rejectingSetup stubs prisma.memory.findMany
+    // (one non-null personaId group), budget.tryConsume (true), and
+    // factStore.getRecentActiveFacts ([]), and injects invokeModel as a
+    // rejecting mock so processGroup's try/catch around this.invokeModel(prompt)
+    // is reached and real parseApiError classifies the specimen as ROUTING_EXHAUSTED.
+    mockLoggerWarn.mockClear();
+    registerSystemSettings({
+      get: (key: string) => (key === 'extractionModel' ? 'test/extraction-sentinel' : undefined),
+    } as unknown as SystemSettingsService);
+    try {
+      const s = rejectingSetup(
+        404,
+        'No allowed providers are available for the selected model (data_collection: deny)'
+      );
+
+      await expect(s.service.processBatch(job)).rejects.toThrow(ExtractionProviderBusyError);
+
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        {
+          category: ApiErrorCategory.ROUTING_EXHAUSTED,
+          model: 'test/extraction-sentinel',
+        },
+        'OpenRouter routing exhausted: no eligible host for model'
+      );
+      expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain('No allowed providers');
+    } finally {
+      resetSystemSettingsRegistration();
+    }
   });
 
   it('a permanent 400 keeps fail-to-skip (writes nothing, does not throw)', async () => {

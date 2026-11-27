@@ -17,4 +17,10 @@ describe('OPENROUTER_ROUTING', () => {
       expect(allowlist.has(slug)).toBe(false);
     }
   });
+
+  it('every PINNED_MODELS key is trim/lowercase-normalized (lookup key form)', () => {
+    for (const key of Object.keys(OPENROUTER_ROUTING.PINNED_MODELS)) {
+      expect(key).toBe(key.trim().toLowerCase());
+    }
+  });
 });

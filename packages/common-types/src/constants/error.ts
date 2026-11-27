@@ -271,6 +271,9 @@ export const QUOTA_FALLBACK_CATEGORIES = [
 
 export type QuotaFallbackCategoryValue = (typeof QUOTA_FALLBACK_CATEGORIES)[number];
 
+const SERVICE_ISSUES_MESSAGE =
+  'The AI service is experiencing issues. Please try again in a moment.';
+
 /**
  * User-friendly error messages for each category
  * These are shown to users when no personality-specific error message is configured
@@ -292,14 +295,12 @@ export const USER_ERROR_MESSAGES: Record<ApiErrorCategory, string> = {
     'The conversation has become too long. Please start a new conversation or try a shorter message.',
   [ApiErrorCategory.MODEL_NOT_FOUND]:
     'The requested AI model is not available. Please try again or use a different personality.',
-  [ApiErrorCategory.ROUTING_EXHAUSTED]:
-    'The AI service is experiencing issues. Please try again in a moment.',
+  [ApiErrorCategory.ROUTING_EXHAUSTED]: SERVICE_ISSUES_MESSAGE,
   [ApiErrorCategory.MEDIA_NOT_FOUND]:
     'The media attachment could not be fetched — the link may have expired.',
   [ApiErrorCategory.RATE_LIMIT]:
     "I'm receiving too many requests right now. Please wait a moment and try again.",
-  [ApiErrorCategory.SERVER_ERROR]:
-    'The AI service is experiencing issues. Please try again in a moment.',
+  [ApiErrorCategory.SERVER_ERROR]: SERVICE_ISSUES_MESSAGE,
   [ApiErrorCategory.TIMEOUT]:
     'The response took too long to generate. Please try again with a simpler message.',
   [ApiErrorCategory.NETWORK]:
