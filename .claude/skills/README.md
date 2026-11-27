@@ -27,20 +27,21 @@
 
 ## Rules (Auto-Loaded)
 
-The following rules load automatically every session — no invocation needed:
+The following rules load at session start, except the `paths:`-scoped ones (03, 04, 08 — they load when a matching file is touched):
 
-| Rule                      | Content                                     |
-| ------------------------- | ------------------------------------------- |
-| `00-critical.md`          | Security, git safety, testing               |
-| `01-architecture.md`      | Service boundaries, where code belongs      |
-| `02-code-standards.md`    | ESLint limits, TypeScript, testing patterns |
-| `03-database.md`          | Prisma, pgvector, caching                   |
-| `04-discord.md`           | 3-second deferral, slash commands, BullMQ   |
-| `05-tooling.md`           | CLI reference, commit & release standards   |
-| `06-backlog.md`           | Backlog structure, session workflow         |
-| `07-documentation.md`     | Doc placement, naming, lifecycle            |
-| `09-interaction-style.md` | Session interaction style                   |
-| `10-working-posture.md`   | How to drive a session                      |
+| Rule                      | Content                                                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `00-critical.md`          | Security, git safety, testing                                                                            |
+| `01-architecture.md`      | Service boundaries, where code belongs                                                                   |
+| `02-code-standards.md`    | ESLint limits, TypeScript, testing patterns                                                              |
+| `03-database.md`          | Prisma, pgvector, caching (paths-scoped)                                                                 |
+| `04-discord.md`           | 3-second deferral, slash commands, component routing, shared utilities (paths-scoped)                    |
+| `05-tooling.md`           | CLI reference, commit standards                                                                          |
+| `06-backlog.md`           | Backlog structure, session workflow                                                                      |
+| `07-documentation.md`     | Doc placement, naming, lifecycle                                                                         |
+| `08-tooling-internals.md` | Xray, mutation/test-audit/CPD ratchets, guards + probes, backlog lint, model-call routing (paths-scoped) |
+| `09-interaction-style.md` | Session interaction style                                                                                |
+| `10-working-posture.md`   | How to drive a session                                                                                   |
 
 ## Common Workflows
 

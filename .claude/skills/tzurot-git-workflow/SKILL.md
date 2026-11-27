@@ -151,8 +151,9 @@ pnpm -C "$(git rev-parse --show-toplevel)" ops gh:ci-gate <N> --sha $(git rev-pa
 
 **Copy the substitution verbatim — never resolve the SHA and paste the result.** The gate rejects an abbreviated SHA and a well-formed one naming no local commit, but the substitution removes the step entirely. Outside the Monitor template, never type or hand-extend a SHA either: omit `--sha` and the gate watches the PR's current head.
 
-When the monitor fires, run the four-step procedure in `05-tooling.md`
-§ PR Monitoring in full — not just the CI check — ending in
+When the monitor fires, run the four-step procedure in
+`docs/reference/tooling/pr-monitoring.md` § When the monitor fires in
+full — not just the CI check — ending in
 `/tzurot-review-response`. Only `CI_COMPLETE` means CI finished, and a
 green check list is not proof CI ran.
 

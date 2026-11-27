@@ -557,7 +557,7 @@ export async function waitForCi(sha: string, deps: WaitDeps): Promise<WaitOutcom
           `${Math.round(GATE_DEFAULTS.REVIEW_RUN_GRACE_MS / 60_000)}m. Nothing ran, so ` +
           'there is nothing to rerun: re-query the run list; if it is still absent, the ' +
           'workflow did not dispatch — check its on: filter against the PR event ' +
-          '(05-tooling.md § PR Monitoring).'
+          '(docs/reference/tooling/pr-monitoring.md § Outcomes).'
       );
       return 'review-missing';
     }
@@ -736,7 +736,7 @@ export async function runCiGate(
     // Carried from the bash gate this replaces, deliberately rather than by
     // inertia: `--watch` exits on ITS last poll, and the check-run list is the
     // same eventually-consistent surface whose indexing lag is documented in
-    // 05-tooling.md. Re-querying in the same instant can read a list that has
+    // docs/reference/tooling/pr-monitoring.md § Outcomes. Re-querying in the same instant can read a list that has
     // not caught up. Five seconds is cheap against a ~20-minute wait.
     await settle(GATE_DEFAULTS.SETTLE_MS);
   }
