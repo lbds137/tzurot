@@ -37,6 +37,8 @@ interface AssistantMessageWriteParams {
   userMessageTime: Date;
   /** Reasoning trace from the job result; absent when the model produced none. */
   thinkingContent?: string;
+  /** Whether the turn ran in incognito mode; persisted into messageMetadata.incognito. */
+  incognito?: boolean;
 }
 
 interface ObservedSyncSnapshotMessage {
@@ -163,6 +165,7 @@ function buildAssistantMessagePayload(params: AssistantMessageWriteParams): {
   chunkMessageIds: string[];
   userMessageTime: string;
   thinkingContent?: string;
+  incognito?: boolean;
 } {
   return {
     channelId: params.channelId,
@@ -176,6 +179,7 @@ function buildAssistantMessagePayload(params: AssistantMessageWriteParams): {
     // rather than sending an explicit undefined. Equivalent over the wire since
     // JSON.stringify drops undefined, but one convention per file.
     ...(params.thinkingContent !== undefined && { thinkingContent: params.thinkingContent }),
+    ...(params.incognito !== undefined && { incognito: params.incognito }),
   };
 }
 

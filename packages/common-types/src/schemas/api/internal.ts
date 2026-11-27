@@ -158,6 +158,10 @@ export const MessagePersonalityResponseSchema = z.object({
   // Personality display name is optional — the historical conversation_history
   // row may have only the personality UUID without the display-name denormalized.
   personalityName: z.string().nullable().optional(),
+  personalitySlug: z.string().optional(),
+  role: z.string().optional(),
+  incognito: z.boolean().nullable().optional(),
+  triggerMemoryExists: z.boolean().optional(),
 });
 
 // ============================================================================
@@ -189,6 +193,12 @@ export const PersistAssistantMessageRequestSchema = z.object({
    * sentinel-survival test in internal.test.ts.
    */
   thinkingContent: z.string().optional(),
+  /**
+   * Whether the assistant turn ran in incognito mode. Persisted into
+   * `messageMetadata.incognito` on row creation so context-menu actions can
+   * recover the turn's incognito state from conversation history.
+   */
+  incognito: z.boolean().optional(),
 });
 
 export const PersistAssistantMessageResponseSchema = z.object({

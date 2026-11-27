@@ -17,10 +17,17 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleChat, handleRandom, handleChimeIn, WEIGH_IN_MESSAGE } from './characterTurn.js';
+import {
+  handleChat,
+  handleRandom,
+  handleChimeIn,
+  runCharacterTurn,
+  WEIGH_IN_MESSAGE,
+} from './characterTurn.js';
+import { createContextMenuDeferredContext } from '../../utils/messageCharacterLookup.js';
 import { runSlashChatGates } from './slashChatGates.js';
 import { resolveChatLlmConfig } from './chatConfigResolution.js';
-import type { GuildMember } from 'discord.js';
+import type { GuildMember, MessageContextMenuCommandInteraction } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import { InfraError } from '@tzurot/clients';
 import type { PersonalitySummary } from '@tzurot/common-types/schemas/api/personality';
@@ -851,6 +858,61 @@ describe('Character Turn Engine (push delivery)', () => {
       expect(anchorArg.channelId).toBe('channel-123');
       // getAnchorMessage no longer reaches for the latest channel message at all.
       expect(channel.messages.fetch).not.toHaveBeenCalled();
+    });
+
+    it('runs the real runCharacterTurn through createContextMenuDeferredContext with no interaction.options property', async () => {
+      const channel = createMockChannel(ChannelType.GuildText);
+      const guild = createMockGuild();
+      const contextMenuInteraction = {
+        client: { user: { id: 'bot-user-123' } },
+        user: { id: 'user-123', displayName: 'TestUser' },
+        member: { displayName: 'TestUser' },
+        guild,
+        guildId: guild.id,
+        channel,
+        channelId: channel.id,
+        commandName: 'Chime In',
+        replied: false,
+        deferred: true,
+        editReply: vi.fn().mockResolvedValue(undefined),
+        deleteReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
+      } as unknown as MessageContextMenuCommandInteraction;
+
+      expect('options' in (contextMenuInteraction as unknown as Record<string, unknown>)).toBe(
+        false
+      );
+
+      const context = createContextMenuDeferredContext(contextMenuInteraction);
+      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+      mockMessageContextBuilder.buildContext.mockResolvedValueOnce(createMockContextBuildResult());
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-ctx-1', requestId: 'req-ctx-1' });
+
+      await expect(
+        runCharacterTurn(context, {
+          characterArg: 'test-char',
+          message: null,
+          filters: { excludePrivate: false, onlyMine: false },
+          incognitoOption: true,
+        })
+      ).resolves.toBeUndefined();
+
+      expect(mockPersonalityService.loadPersonalityStrict).toHaveBeenCalledWith(
+        'test-char',
+        'user-123'
+      );
+      expect(mockGatewayClient.generate).toHaveBeenCalledWith(
+        expect.objectContaining({ slug: 'test-char' }),
+        expect.objectContaining({ isWeighIn: true, incognito: true })
+      );
+      expect(mockJobTracker.trackJob).toHaveBeenCalledWith(
+        'job-ctx-1',
+        expect.objectContaining({
+          kind: 'slash',
+          characterSlug: 'test-char',
+          isWeighInMode: true,
+        })
+      );
     });
   });
 

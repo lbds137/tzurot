@@ -385,6 +385,62 @@ describe('MessagePersonalityResponseSchema', () => {
       false
     );
   });
+
+  it('preserves personalitySlug and incognito through the parse instead of stripping them', () => {
+    const parsed = MessagePersonalityResponseSchema.safeParse({
+      personalityId: 'personality-uuid',
+      personalityName: 'Lila',
+      personalitySlug: 'lila',
+      incognito: true,
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.personalitySlug).toBe('lila');
+    expect(parsed.data?.incognito).toBe(true);
+  });
+
+  it('accepts null incognito (absent in metadata)', () => {
+    const parsed = MessagePersonalityResponseSchema.safeParse({
+      personalityId: 'personality-uuid',
+      incognito: null,
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.incognito).toBeNull();
+  });
+
+  it('rejects null personalitySlug', () => {
+    expect(
+      MessagePersonalityResponseSchema.safeParse({
+        personalityId: 'personality-uuid',
+        personalitySlug: null,
+      }).success
+    ).toBe(false);
+  });
+
+  it('preserves role and triggerMemoryExists through the parse instead of stripping them', () => {
+    const parsed = MessagePersonalityResponseSchema.safeParse({
+      personalityId: 'personality-uuid',
+      role: 'assistant',
+      triggerMemoryExists: true,
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.role).toBe('assistant');
+    expect(parsed.data?.triggerMemoryExists).toBe(true);
+  });
+
+  it('rejects null role and null triggerMemoryExists', () => {
+    expect(
+      MessagePersonalityResponseSchema.safeParse({
+        personalityId: 'personality-uuid',
+        role: null,
+      }).success
+    ).toBe(false);
+    expect(
+      MessagePersonalityResponseSchema.safeParse({
+        personalityId: 'personality-uuid',
+        triggerMemoryExists: null,
+      }).success
+    ).toBe(false);
+  });
 });
 
 const VALID_PERSIST_REQUEST = {
@@ -484,6 +540,31 @@ describe('PersistAssistantMessageRequestSchema', () => {
       PersistAssistantMessageRequestSchema.safeParse({
         ...VALID_PERSIST_REQUEST,
         thinkingContent: 42,
+      }).success
+    ).toBe(false);
+  });
+
+  it('preserves incognito through the parse instead of stripping it', () => {
+    const parsedTrue = PersistAssistantMessageRequestSchema.safeParse({
+      ...VALID_PERSIST_REQUEST,
+      incognito: true,
+    });
+    expect(parsedTrue.success).toBe(true);
+    expect(parsedTrue.data?.incognito).toBe(true);
+
+    const parsedFalse = PersistAssistantMessageRequestSchema.safeParse({
+      ...VALID_PERSIST_REQUEST,
+      incognito: false,
+    });
+    expect(parsedFalse.success).toBe(true);
+    expect(parsedFalse.data?.incognito).toBe(false);
+  });
+
+  it('rejects a non-boolean incognito', () => {
+    expect(
+      PersistAssistantMessageRequestSchema.safeParse({
+        ...VALID_PERSIST_REQUEST,
+        incognito: 'yes',
       }).success
     ).toBe(false);
   });

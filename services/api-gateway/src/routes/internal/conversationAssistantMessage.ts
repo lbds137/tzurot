@@ -99,6 +99,7 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
       content,
       chunkMessageIds,
       thinkingContent,
+      incognito,
     } = parseResult.data;
 
     // Assistant timestamp: user message + 1ms (chronological ordering).
@@ -155,6 +156,7 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
         discordMessageId: chunkMessageIds,
         timestamp: assistantTime,
         thinkingContent,
+        ...(incognito !== undefined && { messageMetadata: { incognito } }),
       });
     } catch (error) {
       // Only the unique-violation race gets the compare fallback: a duplicate

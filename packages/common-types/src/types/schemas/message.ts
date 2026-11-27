@@ -280,6 +280,11 @@ export const messageMetadataSchema = z.object({
    * could not be resolved — both render as before.
    */
   forwardedFrom: forwardedOriginSchema.optional(),
+  /**
+   * Whether the assistant turn ran in incognito mode: true = the turn ran
+   * incognito; false = non-incognito; absent = unknown (row predates the field).
+   */
+  incognito: z.boolean().optional(),
   // Future expansion: sentiment, mood, topic tags, etc.
 });
 

@@ -671,7 +671,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           preferredName: 'Alice Smith',
           owner: { username: 'aliceuser' },
         },
-        personality: { name: 'TestBot', displayName: 'Test Bot' },
+        personality: { name: 'TestBot', displayName: 'Test Bot', slug: 'test-bot' },
       };
 
       mockPrismaClient.conversationHistory.findFirst.mockResolvedValue(mockMessage);
@@ -750,7 +750,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           preferredName: null,
           owner: { username: 'bobuser' },
         },
-        personality: { name: 'TestBot', displayName: 'Test Bot' },
+        personality: { name: 'TestBot', displayName: 'Test Bot', slug: 'test-bot' },
       };
 
       mockPrismaClient.conversationHistory.findFirst.mockResolvedValue(mockMessage);
@@ -778,7 +778,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           preferredName: null, // No preferred name set
           owner: { username: 'bobuser' },
         },
-        personality: { name: 'TestBot', displayName: 'Test Bot' },
+        personality: { name: 'TestBot', displayName: 'Test Bot', slug: 'test-bot' },
       };
 
       mockPrismaClient.conversationHistory.findFirst.mockResolvedValue(mockMessage);
@@ -831,7 +831,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           preferredName: null,
           owner: { username: 'lilithuser' },
         },
-        personality: { name: 'TestBot', displayName: 'Test Bot' },
+        personality: { name: 'TestBot', displayName: 'Test Bot', slug: 'test-bot' },
       };
 
       mockPrismaClient.conversationHistory.findFirst.mockResolvedValue(mockMessage);
@@ -845,6 +845,42 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         'discord-chunk-2',
         'discord-chunk-3',
       ]);
+    });
+
+    it('exposes personalitySlug and messageMetadata.incognito from the single findFirst query', async () => {
+      const discordId = 'discord-incog-1';
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
+        id: 'msg-incog',
+        role: MessageRole.Assistant,
+        content: 'Incognito response',
+        tokenCount: 4,
+        createdAt: new Date('2025-11-14T12:00:00Z'),
+        personaId: 'persona-bot',
+        personalityId: 'personality-456',
+        channelId: 'chan-1',
+        guildId: 'guild-1',
+        discordMessageId: [discordId],
+        messageMetadata: { incognito: true },
+        persona: {
+          name: 'Lilith',
+          preferredName: null,
+          owner: { username: 'lilithuser' },
+        },
+        personality: { name: 'TestBot', slug: 'test-bot' },
+      });
+
+      const result = await service.getMessageByDiscordId(discordId);
+
+      expect(result?.personalitySlug).toBe('test-bot');
+      expect(result?.messageMetadata?.incognito).toBe(true);
+      expect(mockPrismaClient.conversationHistory.findFirst).toHaveBeenCalledTimes(1);
+      expect(mockPrismaClient.conversationHistory.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          select: expect.objectContaining({
+            personality: { select: { name: true, slug: true } },
+          }),
+        })
+      );
     });
   });
 

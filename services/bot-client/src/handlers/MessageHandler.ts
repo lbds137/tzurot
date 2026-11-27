@@ -406,6 +406,9 @@ export class MessageHandler {
           chunkMessageIds,
           userMessageTime,
           thinkingContent: result.metadata?.thinkingContent,
+          ...(typeof result.metadata?.incognitoModeActive === 'boolean' && {
+            incognito: result.metadata.incognitoModeActive,
+          }),
         });
       } catch (persistError) {
         logger.error(
@@ -510,6 +513,9 @@ export class MessageHandler {
           personality,
           personaId,
           userMessageTime,
+          ...(typeof result.metadata?.incognitoModeActive === 'boolean' && {
+            incognito: result.metadata.incognitoModeActive,
+          }),
           ...turn,
         }),
       requestId: result.requestId,

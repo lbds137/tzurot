@@ -299,7 +299,15 @@ const baseInternalRoutes = {
     method: 'get',
     path: '/conversation/message-personality',
     id: 'lookupPersonalityFromMessage',
-    query: { discordMessageId: z.string() },
+    query: {
+      discordMessageId: z.string(),
+      // Only the context-menu resolver sends this; it gates the legacy evidence query.
+      // The wire carries strings ('true'/'false'); direct booleans pass through for
+      // direct-handler calls; everything else maps to false.
+      includeIncognitoEvidence: z
+        .preprocess(v => (typeof v === 'boolean' ? v : v === 'true'), z.boolean())
+        .optional(),
+    },
     output: MessagePersonalityResponseSchema,
     serviceOnly: true,
     meta: { safeRead: true },

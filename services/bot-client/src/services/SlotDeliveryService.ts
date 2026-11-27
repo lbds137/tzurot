@@ -193,6 +193,9 @@ export class SlotDeliveryService {
         // Persisting the reasoning trace here is what lets it outlive the 7d
         // diagnostic window.
         thinkingContent: result.metadata?.thinkingContent,
+        ...(typeof result.metadata?.incognitoModeActive === 'boolean' && {
+          incognito: result.metadata.incognitoModeActive,
+        }),
       });
     } catch (persistError) {
       logger.error(
@@ -270,7 +273,7 @@ export class SlotDeliveryService {
           ? null
           : { content: stripErrorSpoiler(errorContent), chunkMessageIds: errorIds },
       persistErrorText: true,
-      save: turn => this.saveTurn(slot, turn),
+      save: turn => this.saveTurn(slot, turn, result.metadata?.incognitoModeActive),
       requestId: result.requestId,
       logContext: { personalityId: slot.personality.id },
     });
@@ -291,19 +294,24 @@ export class SlotDeliveryService {
       partial,
       errorTurn: null,
       persistErrorText: true,
-      save: turn => this.saveTurn(slot, turn),
+      save: turn => this.saveTurn(slot, turn, result.metadata?.incognitoModeActive),
       requestId: result.requestId,
       logContext: { personalityId: slot.personality.id },
     });
   }
 
   /** Shared `saveAssistantMessage` mapping for both error-turn save sites. */
-  private saveTurn(slot: SlotDeliveryContext, turn: PersistableTurn): Promise<void> {
+  private saveTurn(
+    slot: SlotDeliveryContext,
+    turn: PersistableTurn,
+    incognito: boolean | undefined
+  ): Promise<void> {
     return this.persistence.saveAssistantMessage({
       message: slot.message,
       personality: slot.personality,
       personaId: slot.personaId,
       userMessageTime: slot.userMessageTime,
+      ...(typeof incognito === 'boolean' && { incognito }),
       ...turn,
     });
   }

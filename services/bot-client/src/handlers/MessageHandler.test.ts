@@ -1810,12 +1810,33 @@ describe('MessageHandler', () => {
         requestId: 'req-slash',
         success: true,
         content: 'Hi',
-        metadata: { thinkingContent: 'SLASH-PATH-TRACE-SENTINEL' },
+        metadata: { thinkingContent: 'SLASH-PATH-TRACE-SENTINEL', incognitoModeActive: false },
       } as unknown as LLMGenerationResult);
 
       expect(disposition).toBe('delivered');
       expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledWith(
-        expect.objectContaining({ thinkingContent: 'SLASH-PATH-TRACE-SENTINEL' })
+        expect.objectContaining({
+          thinkingContent: 'SLASH-PATH-TRACE-SENTINEL',
+          incognito: false,
+        })
+      );
+    });
+
+    it('forwards incognito=true to saveAssistantMessageFromFields when incognitoModeActive is true', async () => {
+      const ctx = createSlashContext({ isWeighInMode: true });
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-incog'] });
+
+      const disposition = await messageHandler.handleJobResult('job-slash-incog', {
+        requestId: 'req-slash-incog',
+        success: true,
+        content: 'Incognito reply',
+        metadata: { incognitoModeActive: true },
+      } as unknown as LLMGenerationResult);
+
+      expect(disposition).toBe('delivered');
+      expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledWith(
+        expect.objectContaining({ incognito: true })
       );
     });
 
@@ -2186,6 +2207,58 @@ describe('MessageHandler', () => {
       expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledWith(
         expect.objectContaining({ content: 'delivered text', chunkMessageIds: ['id-1'] })
       );
+    });
+
+    it('forwards incognito=true to saveAssistantMessageFromFields on a partial delivery when incognitoModeActive is true', async () => {
+      const ctx = createSlashContext({ isWeighInMode: true });
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      const partial = new PartialDeliveryError({
+        chunkMessageIds: ['id-1'],
+        deliveredContent: 'delivered text',
+        totalChunks: 2,
+        cause: new Error('boom'),
+      });
+      mockResponseSender.sendResponse
+        .mockRejectedValueOnce(partial)
+        .mockResolvedValueOnce({ chunkMessageIds: ['err-1'] });
+
+      const disposition = await messageHandler.handleJobResult('job-slash-partial-incog', {
+        requestId: 'req-slash-partial-incog',
+        success: true,
+        content: 'Hi',
+        metadata: { incognitoModeActive: true },
+      } as unknown as LLMGenerationResult);
+
+      expect(disposition).toBe('delivered');
+      expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledTimes(1);
+      expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'delivered text',
+          chunkMessageIds: ['id-1'],
+          incognito: true,
+        })
+      );
+    });
+
+    it('omits incognito from saveAssistantMessageFromFields on the error path when incognitoModeActive is absent', async () => {
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-no-incog'] });
+
+      const disposition = await messageHandler.handleJobResult('job-slash-err-no-incog', {
+        requestId: 'req-slash-err-no-incog',
+        success: false,
+        error: 'provider failed',
+        metadata: { modelUsed: 'anthropic/claude' },
+      } as unknown as LLMGenerationResult);
+
+      expect(disposition).toBe('delivered');
+      expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledTimes(1);
+      const payload = mockPersistence.saveAssistantMessageFromFields.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(payload).not.toHaveProperty('incognito');
     });
 
     it('routes null content (success=true, content=null) through the error path', async () => {

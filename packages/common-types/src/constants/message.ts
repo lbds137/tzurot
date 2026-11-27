@@ -197,6 +197,23 @@ export const NO_TEXT_CONTENT_PLACEHOLDER = '[no text content]';
 export const ASSISTANT_ROW_OFFSET_MS = 1;
 
 /**
+ * The widest gap a reader accepts between a trigger row and its reply row.
+ *
+ * The reply CANNOT be found by exact offset: the persist payload's
+ * `userMessageTime` is stamped at coordination time on the dominant producer
+ * paths (`MultiTagCoordinator`, `PersonalityChatManager`) while the user row
+ * carries the Discord post time, so the two rows sit tens of milliseconds to
+ * seconds apart (prod measurement: 815 of 816 sampled turns pair within 60s,
+ * offsets clustering 62ms-3s; an exact `+1ms` match resolved none of them).
+ * The assistant timestamp is stamped at coordination, BEFORE generation, so a
+ * slow generation does not widen the gap.
+ *
+ * Shared by the reasoning-trace bridge (`historyReasoning.ts`) and legacy
+ * incognito evidence (`triggerMemoryExists`).
+ */
+export const REPLY_PAIRING_WINDOW_MS = 60_000;
+
+/**
  * Unknown User Constants
  * Used for forwarded messages where author information is unavailable
  * These must be used consistently to allow filtering during batch user creation

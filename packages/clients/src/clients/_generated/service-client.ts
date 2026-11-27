@@ -183,8 +183,8 @@ export class ServiceClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async lookupPersonalityFromMessage(options: { discordMessageId: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.lookupPersonalityFromMessage.output>>> {
-    const fullPath = '/api/internal/conversation/message-personality' + buildQueryString([['discordMessageId', options.discordMessageId]]);
+  async lookupPersonalityFromMessage(options: { discordMessageId: string; includeIncognitoEvidence?: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.lookupPersonalityFromMessage.output>>> {
+    const fullPath = '/api/internal/conversation/message-personality' + buildQueryString([['discordMessageId', options.discordMessageId], ['includeIncognitoEvidence', options.includeIncognitoEvidence]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,

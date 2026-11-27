@@ -194,12 +194,27 @@ export async function setDmSessionPersonality(
  * Look up which personality sent a message by Discord message ID (the tier-2
  * DB fallback for reply resolution when the Redis cache misses). Returns null
  * when no message is found (404) or on any error. Works for DMs and guild
- * channels — the query is keyed on `discordMessageId` only.
+ * channels — the query is keyed on `discordMessageId`, with
+ * `includeIncognitoEvidence` sent on the wire in string form ('true'/'false')
+ * only by the context-menu resolver.
  */
 export async function lookupPersonalityFromMessage(
-  discordMessageId: string
-): Promise<{ personalityId: string; personalityName?: string } | null> {
-  const result = await getServiceClient().lookupPersonalityFromMessage({ discordMessageId });
+  discordMessageId: string,
+  opts?: { includeIncognitoEvidence?: boolean }
+): Promise<{
+  personalityId: string;
+  personalityName?: string;
+  personalitySlug?: string;
+  role?: string;
+  incognito?: boolean | null;
+  triggerMemoryExists?: boolean;
+} | null> {
+  const result = await getServiceClient().lookupPersonalityFromMessage({
+    discordMessageId,
+    ...(opts?.includeIncognitoEvidence !== undefined && {
+      includeIncognitoEvidence: String(opts.includeIncognitoEvidence),
+    }),
+  });
   if (!result.ok) {
     // 404 (no message) and other errors both resolve to "not found" here.
     logger.debug(
@@ -212,11 +227,16 @@ export async function lookupPersonalityFromMessage(
     { discordMessageId, personalityId: result.data.personalityId },
     'Found personality via conversation lookup'
   );
-  // Normalize null → undefined to preserve the original method's contract
-  // (the route schema permits null; callers only ever expected string | undefined).
+  // Normalize null → undefined on personalityName to preserve the original
+  // method's contract (the route schema permits null; callers only ever
+  // expected string | undefined).
   return {
     personalityId: result.data.personalityId,
     personalityName: result.data.personalityName ?? undefined,
+    personalitySlug: result.data.personalitySlug,
+    role: result.data.role,
+    incognito: result.data.incognito,
+    triggerMemoryExists: result.data.triggerMemoryExists,
   };
 }
 

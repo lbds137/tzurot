@@ -29,14 +29,14 @@ import { escapeMarkdown } from 'discord.js';
 const logger = createLogger('character-edit');
 
 /**
- * Handle the edit subcommand - show dashboard for selected character
+ * Open the edit dashboard for a character identified by slug.
+ * Shared by `/character edit` and the "Edit Character" message context menu.
  */
-export async function handleEdit(
+export async function openCharacterEditDashboard(
   context: DeferredCommandContext,
+  slug: string,
   config: EnvConfig
 ): Promise<void> {
-  const options = characterEditOptions(context.interaction);
-  const slug = options.character();
   const userId = context.user.id;
 
   try {
@@ -98,4 +98,16 @@ export async function handleEdit(
       content: renderSpec(classifyGatewayFailure(error, 'character', { operation: 'read' })),
     });
   }
+}
+
+/**
+ * Handle the edit subcommand - show dashboard for selected character
+ */
+export async function handleEdit(
+  context: DeferredCommandContext,
+  config: EnvConfig
+): Promise<void> {
+  const options = characterEditOptions(context.interaction);
+  const slug = options.character();
+  await openCharacterEditDashboard(context, slug, config);
 }

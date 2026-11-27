@@ -51,6 +51,34 @@ describe('persistAssistantMessageViaGateway', () => {
     });
   });
 
+  it('forwards incognito in the payload when provided and omits it when undefined', async () => {
+    mockServiceClient.persistAssistantMessage.mockResolvedValue(ok({ id: 'row-1', created: true }));
+
+    await persistAssistantMessageViaGateway({ ...PARAMS, incognito: true });
+    expect(mockServiceClient.persistAssistantMessage).toHaveBeenLastCalledWith({
+      channelId: 'chan-1',
+      guildId: 'guild-1',
+      personalityId: 'pers-1',
+      personaId: 'persona-1',
+      content: 'response text',
+      chunkMessageIds: ['111111111111111111'],
+      userMessageTime: '2026-06-04T12:00:00.000Z',
+      incognito: true,
+    });
+
+    await persistAssistantMessageViaGateway({ ...PARAMS, incognito: false });
+    expect(mockServiceClient.persistAssistantMessage).toHaveBeenLastCalledWith({
+      channelId: 'chan-1',
+      guildId: 'guild-1',
+      personalityId: 'pers-1',
+      personaId: 'persona-1',
+      content: 'response text',
+      chunkMessageIds: ['111111111111111111'],
+      userMessageTime: '2026-06-04T12:00:00.000Z',
+      incognito: false,
+    });
+  });
+
   it('THROWS on a request failure (authoritative write, caller owns the catch)', async () => {
     vi.useFakeTimers();
     try {

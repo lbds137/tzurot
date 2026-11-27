@@ -528,6 +528,28 @@ describe('ConversationPersistence', () => {
       );
     });
 
+    it('forwards incognito to the gateway write when provided', async () => {
+      const mockMessage = createMockMessage({
+        id: 'discord-msg-123',
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+      });
+
+      await persistence.saveAssistantMessage({
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        content: 'Assistant response',
+        chunkMessageIds: ['chunk-1'],
+        userMessageTime: new Date('2025-01-01T10:00:00.000Z'),
+        incognito: true,
+      });
+
+      expect(persistAssistantMessageViaGateway).toHaveBeenCalledWith(
+        expect.objectContaining({ incognito: true })
+      );
+    });
+
     it('sends userMessageTime to the gateway (the +1ms assistant time is derived gateway-side)', async () => {
       const mockMessage = createMockMessage({
         id: 'discord-msg-123',

@@ -83,6 +83,8 @@ interface SaveAssistantMessageOptions {
    * produced none.
    */
   thinkingContent?: string;
+  /** Whether the turn ran in incognito mode; persisted into messageMetadata.incognito. */
+  incognito?: boolean;
 }
 
 /**
@@ -141,6 +143,8 @@ interface SaveAssistantMessageFromFieldsOptions {
   userMessageTime: Date;
   /** Reasoning trace from the job result metadata; absent when none was produced. */
   thinkingContent?: string;
+  /** Whether the turn ran in incognito mode; persisted into messageMetadata.incognito. */
+  incognito?: boolean;
 }
 
 /**
@@ -288,6 +292,7 @@ export class ConversationPersistence {
       chunkMessageIds,
       userMessageTime,
       thinkingContent,
+      incognito,
     } = options;
 
     // Delegate to field-based implementation with Message fields extracted
@@ -300,6 +305,7 @@ export class ConversationPersistence {
       chunkMessageIds,
       userMessageTime,
       thinkingContent,
+      incognito,
     });
   }
 
@@ -405,6 +411,7 @@ export class ConversationPersistence {
       chunkMessageIds,
       userMessageTime,
       thinkingContent,
+      incognito,
     } = options;
 
     // Invariant: history mirrors what is actually on Discord. A send that
@@ -453,6 +460,7 @@ export class ConversationPersistence {
       chunkMessageIds,
       userMessageTime,
       thinkingContent,
+      ...(incognito !== undefined && { incognito }),
     };
 
     // The gateway endpoint IS the write. Throws on failure.
