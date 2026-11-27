@@ -22,6 +22,8 @@ What: PR 1 - resolveEffectiveTier computed once in AuthStep and carried on the a
 Acceptance: a keyless free-tier request never reaches a system-key-billed model on either hop (regression test); a BYOK 402 demotes only that key; a low-credit request routes glm-5.3-flash z.ai-direct through the guarded piggyback, never OpenRouter; every matrix row the current code fails is enumerated as a finding in the PR 1 body.
 <!-- SECTION:DESCRIPTION:END -->
 
+**PR 1 shipped as #2827** — merged into develop 2026-11-27 (merge commit 9a83aed2e; 4 review rounds dispositioned, matrix 32 tests, CI 24/24 at 7a3b58e10). The checklist below + the r4 nits ride PR 2.
+
 ## PR 2 checklist — billing-identity vs free-tier-capability split (r4 review finding #1, latent until the keyState producer)
 
 At 2827's head `tier === 'free'` and `keyProvenance !== 'user'` are equivalent (verified by the r4 reviewer), so nothing below changes behavior today. When PR 2 lands `keyState`, each site must be classified: **billing identity** (which key bills / which doom bucket) reads `keyProvenance`; **free-tier capability** (model/floor selection, free meter, guest overrides) keeps `effectiveTier`. Review the WHOLE list together when the producer lands, not one site per round:
