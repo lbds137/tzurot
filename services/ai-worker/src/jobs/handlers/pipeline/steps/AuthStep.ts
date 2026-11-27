@@ -27,7 +27,12 @@ import {
   type QuotaFallbackCategory,
   type QuotaFallbackInfo,
 } from '../../../../services/quotaFallback.js';
-import { deriveCacheKeyId } from '../../../../services/RateLimitCache.js';
+import {
+  authCacheKeyId,
+  resolveEffectiveTier,
+  type EffectiveTier,
+  type KeyProvenance,
+} from '../../../../services/effectiveTier.js';
 import { tryPromotionDemotion } from './promotionDemotion.js';
 import { resolveRetargetRoute } from './retargetRoute.js';
 import type { ZaiFreeTierAdmission } from '../../../../services/ZaiFreeTierAdmission.js';
@@ -36,7 +41,13 @@ import {
   piggybackFields,
   type GuestOverrideResult,
 } from './guestModeOverrides.js';
-import { buildPostRouteLlmAuth, toResolvedAuth, type ResolvedLlmAuth } from './postRouteLlmAuth.js';
+import {
+  buildPostRouteLlmAuth,
+  provenanceFromResolution,
+  routeKeyForProvenance,
+  toResolvedAuth,
+  type ResolvedLlmAuth,
+} from './postRouteLlmAuth.js';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 
 const logger = createLogger('AuthStep');
@@ -136,7 +147,7 @@ export class AuthStep implements IPipelineStep {
             // Guest routes (incl. the z.ai piggyback) resolve a SYSTEM key —
             // identity follows provenance, or a guest's check would read the
             // user's own BYOK doom marks and veto an already-admitted route.
-            cacheKeyId: deriveCacheKeyId(llmAuth.resolvedApiKey, userId, llmAuth.isGuestMode),
+            cacheKeyId: authCacheKeyId(llmAuth, llmAuth.resolvedApiKey, userId),
             caches: this.quotaFallbackCaches,
           });
     if (viability === null || viability.viable) {
@@ -162,6 +173,8 @@ export class AuthStep implements IPipelineStep {
       personality: llmAuth.effectivePersonality,
       apiKey: llmAuth.resolvedApiKey,
       isGuestMode: llmAuth.isGuestMode,
+      keyProvenance: llmAuth.keyProvenance,
+      effectiveTier: llmAuth.effectiveTier,
       userId,
       jobId,
       knownCategory: viability.category,
@@ -174,6 +187,8 @@ export class AuthStep implements IPipelineStep {
       effectivePersonality: proactive.personality,
       resolvedApiKey: proactive.apiKey,
       isGuestMode: proactive.isGuestMode,
+      keyProvenance: proactive.keyProvenance,
+      effectiveTier: proactive.effectiveTier,
       quotaFallback: proactive.info,
       // The separately-tracked provider tier must follow the retarget too —
       // it drives the context-window clamp, cross-provider vision auth, and
@@ -181,13 +196,13 @@ export class AuthStep implements IPipelineStep {
       // OpenRouter-routed by construction; revisit if an explicit fallback
       // edge ever allows a non-OpenRouter target.
       resolvedProvider: AIProvider.OpenRouter,
-      // The retarget replaced the promoted model/provider, so the
-      // pre-computed auto-promotion passthrough route no longer describes
-      // this request — carrying it forward would let GenerationStep retry a
-      // failure via the STALE route (the original z-ai model), which is the
-      // exact dead end the retarget just escaped. Likewise,
-      // fallthroughTriggered says the original zai-coding route fell through,
-      // which no longer describes a retargeted admin-default model.
+      // The retarget replaced the promoted model/provider, so the pre-computed
+      // auto-promotion passthrough route no longer describes this request —
+      // carrying it forward would let GenerationStep retry a failure via the
+      // STALE route (the original z-ai model), which is the exact dead end the
+      // retarget just escaped. Likewise, fallthroughTriggered says the
+      // original zai-coding route fell through, which no longer describes a
+      // retargeted admin-default model.
       wasAutoPromoted: undefined,
       fallthroughTriggered: undefined,
       fallback: undefined,
@@ -206,6 +221,8 @@ export class AuthStep implements IPipelineStep {
     personality: NonNullable<GenerationContext['config']>['effectivePersonality'];
     apiKey: string | undefined;
     isGuestMode: boolean;
+    keyProvenance: KeyProvenance;
+    effectiveTier: EffectiveTier;
     userId: string;
     jobId: string | undefined;
     /** Doom category already established by the caller's shared viability check. */
@@ -214,15 +231,18 @@ export class AuthStep implements IPipelineStep {
     personality: NonNullable<GenerationContext['config']>['effectivePersonality'];
     apiKey: string | undefined;
     isGuestMode: boolean;
+    keyProvenance: KeyProvenance;
+    effectiveTier: EffectiveTier;
     info: QuotaFallbackInfo;
   } | null> {
     if (this.quotaFallbackCaches === undefined || this.configResolver === undefined) {
       return null;
     }
 
-    const { personality, apiKey, isGuestMode, userId, jobId, knownCategory } = options;
-    const cacheKeyId = deriveCacheKeyId(apiKey, userId, isGuestMode);
-    let category = knownCategory;
+    const { personality, apiKey, isGuestMode, keyProvenance, effectiveTier, userId, jobId } =
+      options;
+    const cacheKeyId = authCacheKeyId({ keyProvenance }, apiKey, userId);
+    let category = options.knownCategory;
     if (category === undefined) {
       const viability = await checkModelViability({
         model: personality.model,
@@ -237,7 +257,7 @@ export class AuthStep implements IPipelineStep {
 
     const target = await selectQuotaFallbackTarget({
       category,
-      isGuestMode,
+      tier: effectiveTier,
       failingModel: personality.model,
       cacheKeyId,
       configResolver: this.configResolver,
@@ -269,6 +289,11 @@ export class AuthStep implements IPipelineStep {
       apiKey: retargetApiKey,
       isGuestMode: retargetIsGuestMode,
     } = resolved;
+    const retargetProvenance = provenanceFromResolution(
+      retargetIsGuestMode,
+      retargetApiKey,
+      userId
+    );
 
     const info: QuotaFallbackInfo = {
       fromModel: personality.model,
@@ -282,6 +307,8 @@ export class AuthStep implements IPipelineStep {
       personality: applyConfigToPersonality(personality, retargetConfig),
       apiKey: retargetApiKey,
       isGuestMode: retargetIsGuestMode,
+      keyProvenance: retargetProvenance,
+      effectiveTier: resolveEffectiveTier({ keyProvenance: retargetProvenance }),
       info,
     };
   }
@@ -401,7 +428,7 @@ export class AuthStep implements IPipelineStep {
     initialPersonality: NonNullable<GenerationContext['config']>['effectivePersonality'],
     userId: string,
     requestId: string
-  ): Promise<ResolvedLlmAuth> {
+  ): Promise<ResolvedLlmAuth & { keyProvenance: KeyProvenance; effectiveTier: EffectiveTier }> {
     let effectivePersonality = initialPersonality;
 
     if (!this.apiKeyResolver || !this.providerRouter) {
@@ -409,6 +436,8 @@ export class AuthStep implements IPipelineStep {
         resolvedApiKey: undefined,
         resolvedProvider: undefined,
         isGuestMode: false,
+        keyProvenance: 'none',
+        effectiveTier: resolveEffectiveTier({ keyProvenance: 'none' }),
         effectivePersonality,
       };
     }
@@ -456,8 +485,14 @@ export class AuthStep implements IPipelineStep {
       // BOTH guest exits (z.ai upgrade and plain free-model override) report
       // it — the swap is never silent on either arm.
       let guest: GuestOverrideResult | undefined;
+      const preLadderProvenance = provenanceFromResolution(
+        route.isGuestMode,
+        routeKeyForProvenance(route),
+        userId
+      );
+      const preLadderTier = resolveEffectiveTier({ keyProvenance: preLadderProvenance });
 
-      if (route.isGuestMode) {
+      if (preLadderTier === 'free') {
         guest = await applyGuestModeOverrides(
           { configResolver: this.configResolver, zaiFreeTierAdmission: this.zaiFreeTierAdmission },
           effectivePersonality,
@@ -498,7 +533,7 @@ export class AuthStep implements IPipelineStep {
     effectivePersonality: NonNullable<GenerationContext['config']>['effectivePersonality'],
     userId: string,
     requestId: string
-  ): Promise<ResolvedLlmAuth> {
+  ): Promise<ResolvedLlmAuth & { keyProvenance: KeyProvenance; effectiveTier: EffectiveTier }> {
     const guest = await applyGuestModeOverrides(
       { configResolver: this.configResolver, zaiFreeTierAdmission: this.zaiFreeTierAdmission },
       effectivePersonality,
@@ -509,6 +544,8 @@ export class AuthStep implements IPipelineStep {
       resolvedApiKey: guest.zaiSystemKey,
       resolvedProvider: guest.zaiSystemKey !== undefined ? AIProvider.ZaiCoding : undefined,
       isGuestMode: true,
+      keyProvenance: 'system',
+      effectiveTier: resolveEffectiveTier({ keyProvenance: 'system' }),
       effectivePersonality: guest.personality,
       ...(guest.quotaFallback !== undefined ? { quotaFallback: guest.quotaFallback } : {}),
       ...piggybackFields(guest),

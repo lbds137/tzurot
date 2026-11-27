@@ -1940,5 +1940,28 @@ describe('AuthStep', () => {
 
       expect(result.config?.effectivePersonality.model).toBe(FREE_ROUTER_MODEL);
     });
+
+    it('populates keyProvenance and effectiveTier on ResolvedAuth and enters the free ladder whenever effectiveTier is free (even if route.isGuestMode is false with an empty key)', async () => {
+      const injectedRouter = {
+        resolveRoute: vi.fn().mockResolvedValue({
+          effectiveProvider: AIProvider.OpenRouter,
+          effectiveModel: 'anthropic/claude-sonnet-4',
+          apiKey: undefined,
+          isGuestMode: false,
+          fallthroughTriggered: false,
+        }),
+      } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+      vi.mocked(mockConfigResolver.getFreeDefaultConfig).mockResolvedValue({
+        model: 'custom/free-ladder-model:free',
+        provider: 'openrouter',
+      } as never);
+
+      step = new AuthStep(mockApiKeyResolver, mockConfigResolver, injectedRouter);
+      const result = await step.process(guestContext());
+
+      expect(result.auth?.keyProvenance).toBe('none');
+      expect(result.auth?.effectiveTier).toBe('free');
+      expect(result.config?.effectivePersonality.model).toBe('custom/free-ladder-model:free');
+    });
   });
 });

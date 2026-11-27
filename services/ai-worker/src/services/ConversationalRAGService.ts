@@ -137,10 +137,13 @@ export class ConversationalRAGService {
       userApiKey,
       sttDispatch,
       isGuestMode = false,
+      keyProvenance,
+      effectiveTier,
       retryConfig,
       diagnosticCollector: diagnosticCollectorRef,
       configOverrides,
     } = options;
+    const isFreeTier = effectiveTier !== undefined ? effectiveTier === 'free' : isGuestMode;
     const diagnosticCollector = diagnosticCollectorRef as DiagnosticCollector | undefined;
 
     try {
@@ -149,7 +152,7 @@ export class ConversationalRAGService {
       const visionAuth = await resolveRagVisionAuth({
         personality,
         userId: context.userId,
-        isGuestMode,
+        isGuestMode: isFreeTier,
         mainApiKey: userApiKey,
         mainProvider: options.effectiveProvider,
         requestId: context.requestId,
@@ -173,7 +176,7 @@ export class ConversationalRAGService {
         context,
         personality,
         visionAuth,
-        isGuestMode,
+        isGuestMode: isFreeTier,
         sttDispatch,
       });
 
@@ -189,7 +192,7 @@ export class ConversationalRAGService {
 
       // Step 1: Process inputs (attachments, messages, search query)
       const inputs = await this.inputProcessor.processInputs(personality, message, context, {
-        isGuestMode,
+        isGuestMode: isFreeTier,
         userApiKey,
         sttDispatch,
         visionAuth,
@@ -305,6 +308,8 @@ export class ConversationalRAGService {
           context,
           userApiKey,
           isGuestMode,
+          ...(keyProvenance !== undefined ? { keyProvenance } : {}),
+          ...(effectiveTier !== undefined ? { effectiveTier } : {}),
           retryConfig,
           maxLlmAttempts: options.maxLlmAttempts,
           llmDeadline: options.llmDeadline,

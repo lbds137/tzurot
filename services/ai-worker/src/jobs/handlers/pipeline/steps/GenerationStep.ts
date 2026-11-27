@@ -65,6 +65,10 @@ function deriveFallbackFromProvider(
     : undefined;
 }
 
+function isFreeTierAuth(auth: { effectiveTier?: 'paid' | 'free'; isGuestMode: boolean }): boolean {
+  return auth.effectiveTier !== undefined ? auth.effectiveTier === 'free' : auth.isGuestMode;
+}
+
 /**
  * Store per-skipped-author deferred memory interactions for coalesced activation
  * triggers. Each interaction is independently guarded so one failure logs and
@@ -141,7 +145,8 @@ export class GenerationStep implements IPipelineStep {
     validatePrerequisites(context);
     const { config, auth, preparedContext } = context;
     const { effectivePersonality, configSource } = config;
-    const { apiKey, provider, isGuestMode } = auth;
+    const { apiKey, provider, isGuestMode, keyProvenance, effectiveTier } = auth;
+    const isFreeTier = isFreeTierAuth(auth);
 
     // One job-wide LLM budget, spanning every fallback hop (primary, swap,
     // retarget, floor). Ends before bot-client's coordinator flush.
@@ -172,12 +177,12 @@ export class GenerationStep implements IPipelineStep {
     context.diagnosticCollector = diagnosticCollector;
 
     try {
-      // Fair-share pre-flight for the SHARED free key (guests only). Throws the
+      // Fair-share pre-flight for the SHARED free key (free-tier routes only). Throws the
       // FREE_TIER_QUOTA sentinel on over-share → the catch renders it
       // in-character with a bring-your-own-key CTA.
       await enforceGuestFreeTierQuota(
         this.freeTierQuota,
-        isGuestMode,
+        isFreeTier,
         jobContext.userId,
         requestId,
         provider
@@ -221,6 +226,8 @@ export class GenerationStep implements IPipelineStep {
         apiKey,
         sttDispatch: auth.sttDispatch,
         isGuestMode,
+        keyProvenance,
+        effectiveTier,
         jobId: job.id,
         diagnosticCollector,
         configOverrides: context.configOverrides,

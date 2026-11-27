@@ -153,11 +153,12 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     cacheKeyId: 'user:123',
   };
 
+  // TASK-1570 ruling: selectQuotaFallbackTarget and selectFloorTarget now accept tier: EffectiveTier ('paid' | 'free') instead of isGuestMode: boolean
   it('CREDIT_EXHAUSTION + guest → terminal (the system key itself is broke)', async () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.CREDIT_EXHAUSTION,
-      isGuestMode: true,
+      tier: 'free',
       configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
       caches: buildCaches(),
     });
@@ -168,7 +169,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.CREDIT_EXHAUSTION,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
       caches: buildCaches(),
     });
@@ -184,7 +185,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.CREDIT_EXHAUSTION,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
       caches,
     });
@@ -199,7 +200,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.CREDIT_EXHAUSTION,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
       caches: buildCaches({ exhausted: ['system'] }),
     });
@@ -212,7 +213,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     const vetoed = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.CREDIT_EXHAUSTION,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
       caches: buildCaches({
         rateLimitedModels: [{ cacheKeyId: 'system', model: 'freebie/model:free' }],
@@ -225,7 +226,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     const proceeds = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.CREDIT_EXHAUSTION,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
       caches: buildCaches({
         rateLimitedModels: [{ cacheKeyId: 'user:123', model: 'freebie/model:free' }],
@@ -236,12 +237,12 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
 
   it("a guest target's viability is judged under the system bucket even when the caller passes a user bucket", async () => {
     // The BYOK degraded-downgrade funnels (runner + retarget route) call with
-    // isGuestMode: true while still holding the user's cacheKeyId — the free
+    // tier: 'free' while still holding the user's cacheKeyId — the free
     // target runs on the system key regardless, so identity derives internally.
     const vetoed = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
-      isGuestMode: true,
+      tier: 'free',
       configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
       caches: buildCaches({
         rateLimitedModels: [{ cacheKeyId: 'system', model: 'freebie/model:free' }],
@@ -252,7 +253,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     const proceeds = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
-      isGuestMode: true,
+      tier: 'free',
       configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
       caches: buildCaches({
         rateLimitedModels: [{ cacheKeyId: 'user:123', model: 'freebie/model:free' }],
@@ -265,7 +266,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: buildResolver({ global: { model: 'paid/default' } }) as never,
       caches: buildCaches(),
     });
@@ -277,7 +278,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
-      isGuestMode: true,
+      tier: 'free',
       configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
       caches: buildCaches(),
     });
@@ -293,7 +294,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
-      isGuestMode: true,
+      tier: 'free',
       configResolver: buildResolver({ free: { model: 'z-ai/glm-5.3-flash' } }) as never,
       caches: buildCaches(),
     });
@@ -318,7 +319,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
       const target = await selectQuotaFallbackTarget({
         ...base,
         category: ApiErrorCategory.QUOTA_EXCEEDED,
-        isGuestMode: true,
+        tier: 'free',
         configResolver: buildResolver({ free: { model: 'z-ai/glm-5.3-flash' } }) as never,
         caches: buildCaches(),
       });
@@ -330,7 +331,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
       const target = await selectQuotaFallbackTarget({
         ...base,
         category: ApiErrorCategory.QUOTA_EXCEEDED,
-        isGuestMode: true,
+        tier: 'free',
         configResolver: buildResolver({ free: { model: 'z-ai/glm-5.3-flash' } }) as never,
         caches: buildCaches(),
       });
@@ -342,7 +343,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.CREDIT_EXHAUSTION,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: buildResolver({ free: { model: 'z-ai/glm-5.3-flash' } }) as never,
       caches: buildCaches(),
     });
@@ -354,7 +355,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: buildResolver({}) as never,
       caches: buildCaches(),
     });
@@ -365,7 +366,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: buildResolver({ global: { model: 'expensive/primary' } }) as never,
       caches: buildCaches(),
     });
@@ -376,7 +377,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: buildResolver({ global: { model: 'paid/default' } }) as never,
       caches: buildCaches({ rateLimitedModels: ['paid/default'] }),
     });
@@ -389,7 +390,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: buildResolver({ global: { model: 'paid/default' } }) as never,
       caches: buildCaches({ exhausted: true }),
     });
@@ -411,7 +412,7 @@ describe('selectQuotaFallbackTarget — catalog-absent veto', () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: buildResolver({ global: { model: 'paid/default' } }) as never,
       caches: buildCaches({ catalogPresence }),
     });
@@ -425,7 +426,7 @@ describe('selectQuotaFallbackTarget — catalog-absent veto', () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: buildResolver({ global: { model: 'paid/default' } }) as never,
       caches: buildCaches({ catalogPresence }),
     });
@@ -437,7 +438,7 @@ describe('selectQuotaFallbackTarget — catalog-absent veto', () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: buildResolver({ global: { model: 'paid/default' } }) as never,
       caches: buildCaches({ catalogPresence }),
     });
@@ -448,7 +449,7 @@ describe('selectQuotaFallbackTarget — catalog-absent veto', () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: buildResolver({ global: { model: 'paid/default' } }) as never,
       caches: buildCaches(),
     });
@@ -466,7 +467,7 @@ describe('selectQuotaFallbackTarget — catalog-absent veto', () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: resolver as never,
       caches: buildCaches({ catalogPresence }),
     });
@@ -478,7 +479,7 @@ describe('selectQuotaFallbackTarget — catalog-absent veto', () => {
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: buildResolver({ global: { model: 'paid/default' } }) as never,
       caches: buildCaches({ catalogPresence }),
     });
@@ -603,11 +604,12 @@ describe('classifyQuotaFailure', () => {
     );
     expect(category).toBe(ApiErrorCategory.PROVIDER_CONTENT_REFUSED);
 
+    // TASK-1570 ruling: selectQuotaFallbackTarget now takes tier: EffectiveTier
     const target = await selectQuotaFallbackTarget({
       failingModel: 'qwen/qwen3.8-omni-flash',
       cacheKeyId: 'user:123',
       category: category as NonNullable<typeof category>,
-      isGuestMode: false,
+      tier: 'paid',
       configResolver: buildResolver({ global: { model: 'paid/default' } }) as never,
       caches: buildCaches(),
     });
@@ -702,10 +704,11 @@ describe('selectFloorTarget (the D12 second hop)', () => {
     } as unknown as SystemSettingsService);
   }
 
+  // TASK-1570 ruling: selectFloorTarget and selectQuotaFallbackTarget now take tier: EffectiveTier
   it('paid users get the LIVE fallbackTextModel (divergent-from-fallback value)', async () => {
     registerFloors('divergent/paid-floor', 'divergent/free:free');
     const target = await selectFloorTarget({
-      isGuestMode: false,
+      tier: 'paid',
       excludeModels: ['a/b', 'c/d'],
       cacheKeyId: 'user:1',
       caches: caches(),
@@ -717,7 +720,7 @@ describe('selectFloorTarget (the D12 second hop)', () => {
   it('guests get the FREE floor; a non-free bag value degrades to the static router (billing firewall)', async () => {
     registerFloors('divergent/paid-floor', 'paid/sneaky');
     const target = await selectFloorTarget({
-      isGuestMode: true,
+      tier: 'free',
       excludeModels: [],
       cacheKeyId: 'system',
       caches: caches(),
@@ -728,7 +731,7 @@ describe('selectFloorTarget (the D12 second hop)', () => {
   it('returns null when the floor is already among the failed models (dedup)', async () => {
     registerFloors('divergent/paid-floor', 'divergent/free:free');
     const target = await selectFloorTarget({
-      isGuestMode: false,
+      tier: 'paid',
       excludeModels: ['divergent/paid-floor'],
       cacheKeyId: 'user:1',
       caches: caches(),
@@ -739,7 +742,7 @@ describe('selectFloorTarget (the D12 second hop)', () => {
   it('returns null on an empty-string floor (belt-and-braces over the write validator)', async () => {
     registerFloors('', 'divergent/free:free');
     const target = await selectFloorTarget({
-      isGuestMode: false,
+      tier: 'paid',
       excludeModels: [],
       cacheKeyId: 'user:1',
       caches: caches(),
@@ -750,7 +753,7 @@ describe('selectFloorTarget (the D12 second hop)', () => {
   it('returns null when the doom cache vetoes the floor', async () => {
     registerFloors('divergent/paid-floor', 'divergent/free:free');
     const target = await selectFloorTarget({
-      isGuestMode: false,
+      tier: 'paid',
       excludeModels: [],
       cacheKeyId: 'user:1',
       caches: caches('divergent/paid-floor'),
@@ -761,7 +764,7 @@ describe('selectFloorTarget (the D12 second hop)', () => {
   it('returns null when the floor model is catalog-absent', async () => {
     registerFloors('divergent/paid-floor', 'divergent/free:free');
     const target = await selectFloorTarget({
-      isGuestMode: false,
+      tier: 'paid',
       excludeModels: [],
       cacheKeyId: 'user:1',
       caches: { ...caches(), catalogPresence: vi.fn().mockResolvedValue(false) },
@@ -772,7 +775,7 @@ describe('selectFloorTarget (the D12 second hop)', () => {
   it('returns the floor target when the catalog is unavailable (null) — fail-open', async () => {
     registerFloors('divergent/paid-floor', 'divergent/free:free');
     const target = await selectFloorTarget({
-      isGuestMode: false,
+      tier: 'paid',
       excludeModels: [],
       cacheKeyId: 'user:1',
       caches: { ...caches(), catalogPresence: vi.fn().mockResolvedValue(null) },
@@ -783,7 +786,7 @@ describe('selectFloorTarget (the D12 second hop)', () => {
   it('returns null when the floor is an OpenRouter route this job already attempted', async () => {
     registerFloors('z-ai/glm-5.3-flash', 'divergent/free:free');
     const target = await selectFloorTarget({
-      isGuestMode: false,
+      tier: 'paid',
       excludeModels: [],
       excludeRoutes: [
         { provider: 'openrouter', model: 'z-ai/glm-5.3-flash' },
@@ -797,7 +800,7 @@ describe('selectFloorTarget (the D12 second hop)', () => {
   it('still returns the floor when only a different provider ran the same model', async () => {
     registerFloors('z-ai/glm-5.3-flash', 'divergent/free:free');
     const target = await selectFloorTarget({
-      isGuestMode: false,
+      tier: 'paid',
       excludeModels: [],
       excludeRoutes: [
         { provider: 'zai-coding', model: 'glm-5.3-flash' },
@@ -846,7 +849,7 @@ describe('selectQuotaFallbackTarget — routes already attempted this job', () =
 
   const base = {
     category: ApiErrorCategory.TIMEOUT as const,
-    isGuestMode: false,
+    tier: 'paid' as const,
     failingModel: 'glm-5.3-flash',
     cacheKeyId: 'user:123',
   };

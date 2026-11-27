@@ -23,7 +23,8 @@ import {
   countMediaAttachments,
 } from './RAGUtils.js';
 import { checkModelReasoningSupport } from '../redis.js';
-import { deriveCacheKeyId } from './RateLimitCache.js';
+import { authCacheKeyId } from './effectiveTier.js';
+import { provenanceFromResolution } from '../jobs/handlers/pipeline/steps/postRouteLlmAuth.js';
 import { promptCacheGateFires } from './modelFactory/promptCacheGate.js';
 import { resolveModelName, resolveProvider } from './modelFactory/modelResolution.js';
 import { interveningShippedText, logGeneratedResponse } from './cacheObservability.js';
@@ -68,6 +69,13 @@ function wireSessionId(channelId: string | undefined): string | undefined {
   return channelId !== undefined ? contentDigest(channelId) : undefined;
 }
 
+function resolveInvocationCacheKeyId(opts: ModelInvocationOptions): string {
+  const keyProvenance =
+    opts.keyProvenance ??
+    provenanceFromResolution(opts.isGuestMode ?? false, opts.userApiKey, opts.context.userId);
+  return authCacheKeyId({ keyProvenance }, opts.userApiKey, opts.context.userId);
+}
+
 /** Invoke the model and clean up the response */
 // eslint-disable-next-line max-lines-per-function -- Core orchestration method with diagnostic logging
 export async function invokeModelAndClean(
@@ -86,7 +94,6 @@ export async function invokeModelAndClean(
     realMessagesEnabled,
     context,
     userApiKey,
-    isGuestMode,
     retryConfig,
     maxLlmAttempts,
     llmDeadline,
@@ -161,9 +168,9 @@ export async function invokeModelAndClean(
 
   // cacheKeyId scopes doom caches by BILLING identity: guest/system-key
   // routes (including quota retargets, which pass the system key as a
-  // string with isGuestMode=true) must scope as 'system', or the user's own
-  // cached 402 vetoes the fallback that was chosen to dodge it.
-  const cacheKeyId = deriveCacheKeyId(userApiKey, context.userId, isGuestMode);
+  // string with keyProvenance='system') must scope as 'system', or the user's
+  // own cached 402 vetoes the fallback that was chosen to dodge it.
+  const cacheKeyId = resolveInvocationCacheKeyId(opts);
   const response = await deps.llmInvoker.invokeWithRetry({
     model,
     messages,

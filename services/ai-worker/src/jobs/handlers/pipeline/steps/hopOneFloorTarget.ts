@@ -10,6 +10,12 @@ import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsSe
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getFreeTextFloor } from '../../../../services/freeFloors.js';
 import {
+  authCacheKeyId,
+  resolveEffectiveTier,
+  type EffectiveTier,
+  type KeyProvenance,
+} from '../../../../services/effectiveTier.js';
+import {
   isRouteAttempted,
   selectFloorTarget,
   type AttemptedRoute,
@@ -17,10 +23,38 @@ import {
   type QuotaFallbackCaches,
   type QuotaFallbackTarget,
 } from '../../../../services/quotaFallback.js';
-import { SYSTEM_CACHE_KEY_ID } from '../../../../services/RateLimitCache.js';
 import type { GenerateAttemptOpts } from './autoPromotionFallback.js';
+import { provenanceFromResolution } from './postRouteLlmAuth.js';
 
 const logger = createLogger('QuotaFallbackRunner');
+
+export interface RetryCredentials {
+  apiKey: string | undefined;
+  isGuestMode: boolean;
+  keyProvenance: KeyProvenance;
+  effectiveTier: EffectiveTier;
+}
+
+export function resolveAttemptTier(opts: {
+  keyProvenance?: KeyProvenance;
+  effectiveTier?: EffectiveTier;
+  isGuestMode: boolean;
+  apiKey: string | undefined;
+}): { keyProvenance: KeyProvenance; effectiveTier: EffectiveTier } {
+  const keyProvenance =
+    opts.keyProvenance ?? provenanceFromResolution(opts.isGuestMode, opts.apiKey);
+  const effectiveTier = opts.effectiveTier ?? resolveEffectiveTier({ keyProvenance });
+  return { keyProvenance, effectiveTier };
+}
+
+export function buildRetryCredentials(
+  apiKey: string | undefined,
+  isGuestMode: boolean,
+  keyProvenance: KeyProvenance,
+  effectiveTier: EffectiveTier
+): RetryCredentials {
+  return { apiKey, isGuestMode, keyProvenance, effectiveTier };
+}
 
 /**
  * The floor promoted to HOP 1, for the turns that have no tier-aware retarget
@@ -59,8 +93,9 @@ export async function selectHopOneFloorTarget(params: {
   cacheKeyId: string;
   caches: QuotaFallbackCaches;
   excludeRoutes?: readonly AttemptedRoute[];
+  userId?: string;
 }): Promise<QuotaFallbackTarget | null> {
-  const { category, opts, cacheKeyId, caches, excludeRoutes } = params;
+  const { category, opts, cacheKeyId, caches, excludeRoutes, userId } = params;
   const failingModel = opts.personality.model;
   if (category === ApiErrorCategory.CREDIT_EXHAUSTION) {
     logger.debug(
@@ -69,11 +104,18 @@ export async function selectHopOneFloorTarget(params: {
     );
     return null;
   }
+  const keyProvenance =
+    opts.keyProvenance ?? provenanceFromResolution(opts.isGuestMode, opts.apiKey);
+  const tier = opts.effectiveTier ?? (keyProvenance === 'user' ? 'paid' : 'free');
+  const resolvedUserId =
+    userId ??
+    opts.conversationContext?.userId ??
+    (cacheKeyId.startsWith('user:') ? cacheKeyId.slice('user:'.length) : '');
   const floorTarget = await selectFloorTarget({
-    isGuestMode: opts.isGuestMode,
+    tier,
     excludeModels: [failingModel],
     excludeRoutes,
-    cacheKeyId: opts.isGuestMode ? SYSTEM_CACHE_KEY_ID : cacheKeyId,
+    cacheKeyId: authCacheKeyId({ keyProvenance }, opts.apiKey, resolvedUserId),
     caches,
   }).catch((err: unknown) => {
     // A selection failure is not a veto — log it as itself so it can't hide
@@ -90,7 +132,7 @@ export async function selectHopOneFloorTarget(params: {
     // already attempted = the primary ran that route, anything else = the doom
     // caches or the catalog vetoed a configured floor (the label names only
     // the doom caches).
-    const floor = opts.isGuestMode ? getFreeTextFloor() : getSystemSetting('fallbackTextModel');
+    const floor = tier === 'free' ? getFreeTextFloor() : getSystemSetting('fallbackTextModel');
     let cause: string;
     if (floor.length === 0) {
       cause = 'no floor model is configured';

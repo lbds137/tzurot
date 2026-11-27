@@ -72,6 +72,10 @@ function quotaError(category: ApiErrorCategory): ApiError {
 }
 
 function buildOpts(overrides?: Partial<GenerateAttemptOpts>): GenerateAttemptOpts {
+  // TASK-1570 ruling: derive default keyProvenance and effectiveTier on test fixture
+  const isGuestMode = overrides?.isGuestMode ?? false;
+  const keyProvenance = overrides?.keyProvenance ?? (isGuestMode ? 'system' : 'user');
+  const effectiveTier = overrides?.effectiveTier ?? (keyProvenance === 'user' ? 'paid' : 'free');
   return {
     personality: {
       id: 'p1',
@@ -84,7 +88,9 @@ function buildOpts(overrides?: Partial<GenerateAttemptOpts>): GenerateAttemptOpt
     recentAssistantMessages: [],
     apiKey: 'sk-user-key',
     sttDispatch: undefined,
-    isGuestMode: false,
+    isGuestMode,
+    keyProvenance,
+    effectiveTier,
     jobId: 'job-1',
     ...overrides,
   };
@@ -1851,6 +1857,62 @@ describe('routes the primary already attempted (auto-promotion twin)', () => {
       });
 
       expect(retriedModels(retry)).toEqual(['other/model', 'z-ai/glm-5.3-flash']);
+    });
+  });
+
+  describe('D10 firewall: system-key non-guest (isGuestMode: false, keyProvenance: system)', () => {
+    beforeEach(() => {
+      registerSystemSettings({
+        get: (key: string) =>
+          key === 'fallbackTextModel'
+            ? 'divergent/paid-floor'
+            : key === 'fallbackTextModelFree'
+              ? 'divergent/free-floor:free'
+              : undefined,
+      } as unknown as SystemSettingsService);
+    });
+
+    it('hop-1 floor promotion and hop-2 descent use SYSTEM_CACHE_KEY_ID and the free floor even when isGuestMode is false', async () => {
+      const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.RATE_LIMIT));
+      const retry = vi
+        .fn()
+        .mockRejectedValueOnce(quotaError(ApiErrorCategory.TIMEOUT))
+        .mockResolvedValueOnce(okResult);
+      const deps = buildDeps({ free: { model: 'freebie/default:free' } });
+
+      const result = await runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts({
+          apiKey: 'fake-system-operator-key',
+          isGuestMode: false,
+          keyProvenance: 'system',
+          effectiveTier: 'free',
+        }),
+        userId: '278863839632818186',
+        requestId: 'req-d10',
+        deps,
+      });
+
+      expect(retry).toHaveBeenCalledTimes(2);
+      expect((retry.mock.calls[0][0] as GenerateAttemptOpts).personality.model).toBe(
+        'freebie/default:free'
+      );
+      expect((retry.mock.calls[1][0] as GenerateAttemptOpts).personality.model).toBe(
+        'divergent/free-floor:free'
+      );
+      expect(result.quotaFallback?.toModel).toBe('divergent/free-floor:free');
+      expect(deps.caches.rateLimit.isRateLimited).toHaveBeenCalledWith({
+        cacheKeyId: 'system',
+        model: 'freebie/default:free',
+      });
+      expect(deps.caches.rateLimit.isRateLimited).toHaveBeenCalledWith({
+        cacheKeyId: 'system',
+        model: 'divergent/free-floor:free',
+      });
+      expect(deps.caches.rateLimit.isRateLimited).not.toHaveBeenCalledWith(
+        expect.objectContaining({ cacheKeyId: 'user:278863839632818186' })
+      );
     });
   });
 });

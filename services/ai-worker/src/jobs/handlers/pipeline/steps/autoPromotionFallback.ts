@@ -33,8 +33,14 @@ import {
   type QuotaFallbackCategory,
   type QuotaFallbackInfo,
 } from '../../../../services/quotaFallback.js';
-import { deriveCacheKeyId } from '../../../../services/RateLimitCache.js';
+import {
+  authCacheKeyId,
+  resolveEffectiveTier,
+  type EffectiveTier,
+  type KeyProvenance,
+} from '../../../../services/effectiveTier.js';
 import { hasBudgetForAttempt } from './llmBudget.js';
+import { provenanceFromResolution } from './postRouteLlmAuth.js';
 
 const logger = createLogger('AutoPromotionFallback');
 
@@ -52,6 +58,8 @@ export interface GenerateAttemptOpts {
   apiKey: string | undefined;
   sttDispatch: SttDispatch | undefined;
   isGuestMode: boolean;
+  keyProvenance?: KeyProvenance;
+  effectiveTier?: EffectiveTier;
   jobId: string | undefined;
   diagnosticCollector?: DiagnosticCollector;
   configOverrides?: ResolvedConfigOverrides;
@@ -129,7 +137,11 @@ type AutoPromotionFallbackRoute = NonNullable<GenerationContext['auth']>['fallba
 export function willAttemptAutoPromotionFallback(
   fallback: AutoPromotionFallbackRoute
 ): fallback is NonNullable<AutoPromotionFallbackRoute> {
-  return fallback !== undefined && !fallback.isGuestMode;
+  if (fallback === undefined) {
+    return false;
+  }
+  const keyProvenance = provenanceFromResolution(fallback.isGuestMode, fallback.apiKey);
+  return resolveEffectiveTier({ keyProvenance }) === 'paid';
 }
 
 /**
@@ -229,12 +241,17 @@ export async function runWithAutoPromotionFallback(
       model: fallback.model,
     };
 
+    const fallbackProvenance = provenanceFromResolution(fallback.isGuestMode, fallback.apiKey);
+    const fallbackTier = resolveEffectiveTier({ keyProvenance: fallbackProvenance });
+
     try {
       const fallbackResult = await attempt({
         ...opts,
         personality: fallbackPersonality,
         apiKey: fallback.apiKey,
         isGuestMode: fallback.isGuestMode,
+        keyProvenance: fallbackProvenance,
+        effectiveTier: fallbackTier,
         // The fallback route is, by construction, the OpenRouter passthrough —
         // so the context-window cap must now derive from OpenRouter, not z.ai.
         effectiveProvider: AIProvider.OpenRouter,
@@ -274,10 +291,10 @@ export async function runWithAutoPromotionFallback(
         // Identity follows the fallback credential's own provenance field.
         // Guest fallbacks bail at entry, so this is `user:<id>` today — but
         // deriving from the field keeps the audit right if that gate moves.
-        cacheKeyId: deriveCacheKeyId(
+        cacheKeyId: authCacheKeyId(
+          { keyProvenance: fallbackProvenance },
           fallback.apiKey,
-          opts.conversationContext.userId,
-          fallback.isGuestMode
+          opts.conversationContext.userId
         ),
       });
       return {
