@@ -3,14 +3,14 @@ id: TASK-815
 title: >-
   Cut the ambient session-start context load (~150k tokens before the first
   prompt)
-status: To Do
+status: Done
 assignee: []
-created_date: '2026-08-29 11:24'
-updated_date: '2026-11-23 15:20'
+created_date: 2026-08-29 11:24
+updated_date: '2026-11-27T04:29:00Z'
 labels:
-  - 'area:repo'
-  - 'size:M'
-  - 'state:ready'
+  - area:repo
+  - size:M
+  - state:ready
 dependencies: []
 priority: high
 ordinal: 815000
@@ -55,5 +55,9 @@ created: 2026-11-23 15:20
 ---
 PROMOTED to high (Deck session relaying Lila, 2026-11-23: "is its starting context high enough to cause a lot of compact thrashing"). Deck's measurement, not re-probed here: Tzurot compacted 44 times in the last 48h; it resumes at 154-160k against the 200k autocompact window, so each compaction buys ~40k of work. Fresh starts: 120-130k in the main checkout, ~100k in worktrees; every other role starts at 70-85k and resumes at 100-115k. Main term: .claude/rules is 125 KB across 10 files (~31k tok), none paths:-scoped; largest 05-tooling 25 KB, 10-working-posture 17 KB, 02-code-standards 13 KB, 04-discord 13 KB, 00-critical 12 KB, 06-backlog 12 KB.
 NEXT PHASE fix shape: move domain detail into paths:-scoped rules (prisma/db, discord, tooling) and procedures into skills, so the always-loaded text keeps only hard constraints and pointers (seyag core § Structure over resolve). No content is dropped, only relocated; anything cut outright is Lila's call. Measure before and after by the first assistant turn's input+cache tokens. Target: a fresh start under ~90k. Sequencing: after PR #2795 lands, not mid-unit.
+---
+created: 2026-11-27 04:35
+---
+Phase 2 SHIPPED 2026-11-26 in PR #2822 (head 73b629e1f, merged to develop as 06443a74e): paths:-scoped 03-database/04-discord + new 08-tooling-internals; 05 split (repo-wide triggers stay, tooling ops → 08); PR-monitoring fire-time procedure → docs/reference/tooling/pr-monitoring.md; release-notes format → git-workflow skill §2. Always-loaded rules+CLAUDE.md 138,578 → 95,763 chars (−42,815 ≈ −15.3k tok at the 2.8 B/tok calibration). Measured fresh start on this lane: 70,875 → 53,867 tok (cold claude -p probe, session JSONL first-turn usage.input_tokens); round 1's deliberate always-loaded restores brought it to 55,287. Instruction ceiling 121,758/147k. lines:check baselines ratcheted per-surface (rules 115,091 B / 1494 lines at head). Nine review rounds; every finding applied or dispositioned — two round-9 lows carried as TASK-1565 (08 paths: vs ratchet-governed files) and TASK-1566 (00 baseline bullet stricter than 08). STILL OPEN from phase 1: the interactive FRESH-session /context reading (the probe is headless claude -p, not interactive) and step 4 (auto-memory floor); the skill-replay compaction line's effect is observable only at the next real compaction, and the interactive after-number lands at this lane's next session start — both recorded in the PR body Residue. Owner cut candidates (06-backlog double enumeration, 10-working-posture lossy-steps dup, 00 session-URL trim, 07 naming examples) live in the PR body Residue, not applied — Lila's call.
 ---
 <!-- COMMENTS:END -->
