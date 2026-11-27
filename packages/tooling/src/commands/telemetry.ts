@@ -7,6 +7,7 @@
 
 import type { CAC } from 'cac';
 import { DIAGNOSTIC_RETENTION_DAYS } from '@tzurot/common-types/constants/diagnostics';
+import { DEFAULT_TELEMETRY_DAYS } from '../telemetry/defaults.js';
 import type { Environment } from '../utils/env-runner.js';
 
 const ENV_OPTION = '--env <env>';
@@ -20,7 +21,7 @@ export function registerTelemetryCommands(cli: CAC): void {
   cli
     .command('telemetry:report', 'Command discoverability report over command_events (read-only)')
     .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
-    .option(DAYS_OPTION, 'Trailing window in days', { default: 30 })
+    .option(DAYS_OPTION, 'Trailing window in days', { default: DEFAULT_TELEMETRY_DAYS })
     .option(OUTPUT_OPTION, OUTPUT_OPTION_DESC)
     .action(async (options: { env?: Environment; days?: number | string; output?: string }) => {
       const { telemetryReport } = await import('../telemetry/discoverability-report.js');
@@ -34,7 +35,7 @@ export function registerTelemetryCommands(cli: CAC): void {
   cli
     .command('telemetry:inference', 'Inference usage report over usage_logs (read-only)')
     .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
-    .option(DAYS_OPTION, 'Trailing window in days', { default: 30 })
+    .option(DAYS_OPTION, 'Trailing window in days', { default: DEFAULT_TELEMETRY_DAYS })
     .option(OUTPUT_OPTION, OUTPUT_OPTION_DESC)
     .action(async (options: { env?: Environment; days?: number | string; output?: string }) => {
       const { telemetryInferenceReport } = await import('../telemetry/inference-report.js');

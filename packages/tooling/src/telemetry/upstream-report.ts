@@ -111,7 +111,7 @@ export async function queryUpstreamData(
                               THEN (r->>'completionTokens')::float8 END END) AS avg_completion_tokens
     FROM served
     GROUP BY 1, 2
-    ORDER BY model, requests DESC
+    ORDER BY model, requests DESC, upstream
   `;
 
   return {
@@ -129,7 +129,7 @@ export async function queryUpstreamData(
  */
 export async function telemetryUpstreamReport(options: TelemetryReportOptions): Promise<void> {
   await runTelemetryReport(
-    { defaultDays: DIAGNOSTIC_RETENTION_DAYS, ...options },
+    { ...options, defaultDays: options.defaultDays ?? DIAGNOSTIC_RETENTION_DAYS },
     async (prisma, env, days) => renderUpstreamMarkdown(await queryUpstreamData(prisma, env, days))
   );
 }

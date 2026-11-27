@@ -17,11 +17,12 @@ import {
   showEnvironmentBanner,
   getRailwayDatabaseUrl,
 } from '../utils/env-runner.js';
+import { DEFAULT_TELEMETRY_DAYS } from './defaults.js';
 
 export interface TelemetryReportOptions {
   env: Environment;
   days?: number | string;
-  /** Window used when `days` is undefined. Defaults to 30 (the inference report's window). */
+  /** Window used when `days` is undefined. Defaults to DEFAULT_TELEMETRY_DAYS (30), the discoverability and inference reports' window. */
   defaultDays?: number;
   output?: string;
 }
@@ -37,7 +38,10 @@ export interface PrismaQueryable {
  * prints it and returns before opening a DB connection. An undefined input
  * yields `defaultDays`.
  */
-export function parseDays(input: number | string | undefined, defaultDays = 30): number {
+export function parseDays(
+  input: number | string | undefined,
+  defaultDays = DEFAULT_TELEMETRY_DAYS
+): number {
   if (input === undefined) {
     return defaultDays;
   }
