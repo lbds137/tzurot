@@ -31,7 +31,7 @@ Closest live neighbour: **doc-11 § Agentic Features**, whose self-directed list
 
 ## Substrate that already exists (verified, cite before relying)
 
-- **Scheduling**: BullMQ repeatable jobs are the sanctioned recurring-work mechanism (`04-discord.md` § Timer Patterns — `setInterval` is a named scaling blocker). A cadence scheduler does not need new infrastructure.
+- **Scheduling**: BullMQ repeatable jobs are the sanctioned recurring-work mechanism (`01-architecture.md` § Timer Patterns — `setInterval` is a named scaling blocker). A cadence scheduler does not need new infrastructure.
 - **Deliverability**: `users.dmUndeliverableSince` (`prisma/schema.prisma:77`) already tracks users whose DMs bounce, with a stronger-signal sibling documented beside it. Proactive DMs must respect it or they will hammer closed DMs.
 - **Activity signal**: `users.lastActiveAt` (`prisma/schema.prisma:67`) exists and is maintained on a cache-miss stamp — a plausible input to "is this person around?" Note it is written via raw SQL specifically to avoid bumping `updated_at` on a sync-tracked table (`03-database.md` § Sync-Tracked Tables); a new proactive-cadence column would face the same constraint.
 

@@ -80,8 +80,8 @@ gh pr merge <number> --rebase                  # Release PRs (develop → main) 
 
 When compacting context, preserve:
 
-- **Do not reproduce invoked skill bodies in the summary — reference them by name** (each is re-invokable on demand; replayed bodies were the largest post-compaction context term, ~145k chars of duplication in one measured session)
 - **Any finished-but-undelivered user-facing report** — and deliver it in the FIRST post-compaction reply, before any tool calls (priority 0 in the recovery order below; the owner twice asked "what do you need from me?" because a completed unit's report died at the boundary)
+- **Do not reproduce invoked skill bodies in the summary — reference them by name** (each is re-invokable on demand; replayed bodies were the largest post-compaction context term, ~145k chars of duplication in one measured session)
 - List of all modified files in this session
 - Current task state and any blockers
 - Test commands that were run and their results

@@ -27,7 +27,7 @@ Second pointer form (added by #2547, claude-review round 3): `harness:doc-audit 
 
 Third pointer family (folded from TASK-1564, PR #2822 rounds 2-3): `<file>.md § <heading>` in-repo pointers — .claude/rules, .claude/skills, docs, and code/hook comments citing rule-file or reference-doc headings (nine stale across one PR; observed shape: a comment citing `pr-monitoring.md § claude-review health` where only bold text exists). One resolver, two modes: the in-repo half can gate in CI; the harness half stays cadence-only.
 
-Acceptance: the guard lists every pointer with its resolution; a fixture with one bad heading reddens it, per family; the doc-audit skill names it as a step.
+Acceptance: the guard lists every pointer with its resolution; a fixture with one bad heading reddens it, per family; the doc-audit skill names it as a step. Heading matches may be prefix-level — pointers routinely cite a heading's first words (e.g. `§ When the monitor fires` for `When the monitor fires — the four steps`, `§ CPD` for `CPD (Duplication Ratchet)`), so an exact-match resolver would flood on live pointers.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Implementation Notes

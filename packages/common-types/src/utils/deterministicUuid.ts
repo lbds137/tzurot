@@ -15,7 +15,7 @@
  * 2. Follow .claude/rules/01-architecture.md § Deterministic UUIDs
  * 3. Always pass the `id` field explicitly in Prisma create/upsert calls
  *
- * @see CLAUDE.md for the full list of generators and usage patterns
+ * @see .claude/rules/01-architecture.md § Deterministic UUIDs
  */
 
 import { v5 as uuidv5, v7 as uuidv7 } from 'uuid';
