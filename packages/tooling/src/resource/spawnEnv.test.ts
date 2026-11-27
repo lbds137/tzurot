@@ -21,7 +21,7 @@ describe('resolveProfileSpawnEnv', () => {
     expect(resolved.profile).toBe('low');
     expect(spawnEnv.RESOURCE_PROFILE).toBe('low');
     expect(spawnEnv.TURBO_CONCURRENCY).toBe('1');
-    expect(spawnEnv.VITEST_MAX_WORKERS).toBe('1');
+    expect(spawnEnv.VITEST_MAX_WORKERS).toBe('2');
     expect(spawnEnv.NODE_OPTIONS).toBe('--max-old-space-size=3072');
     expect(env).toEqual({ LOW_RESOURCE_MODE: '1' });
   });
@@ -92,15 +92,15 @@ describe('resolveLiveProfileSpawnEnv', () => {
 
   it('does not let a dotenv-added VITEST_MAX_WORKERS beat the profile the .env chose', () => {
     const cwd = checkoutWithEnvFile('LOW_RESOURCE_MODE=1\n');
-    // The shell held no knob; dotenv copied VITEST_MAX_WORKERS=2 into process.env.
+    // The shell held no knob; dotenv copied VITEST_MAX_WORKERS=3 into process.env.
     recordPreDotenvProfileEnv({});
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { resolved, env } = resolveLiveProfileSpawnEnv(cwd, {
       LOW_RESOURCE_MODE: '1',
-      VITEST_MAX_WORKERS: '2',
+      VITEST_MAX_WORKERS: '3',
     });
     expect(resolved.profile).toBe('low');
-    expect(env.VITEST_MAX_WORKERS).toBe('1');
+    expect(env.VITEST_MAX_WORKERS).toBe('2');
   });
 
   it('labels a profile that only .env carries with the .env source', () => {

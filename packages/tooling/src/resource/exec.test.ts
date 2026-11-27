@@ -42,7 +42,7 @@ describe('runWrapped', () => {
     expect(code).toBe(0);
     const [profile, workers, concurrency, nodeOptions] = JSON.parse(stdout.text()) as string[];
     expect(profile).toBe('low');
-    expect(workers).toBe('1');
+    expect(workers).toBe('2');
     expect(concurrency).toBe('1');
     expect(nodeOptions).toBe('--max-old-space-size=3072');
   });
@@ -67,7 +67,7 @@ describe('runWrapped', () => {
     const err = collect();
     await runWrapped([process.execPath, '-e', 'process.exit(0)'], lowInput, { stderr: err.stream });
     expect(err.text()).toBe(
-      'resource profile: low (auto: 14.5 GiB total memory) - turbo 1, vitest 1, heap 3072 MB\n'
+      'resource profile: low (auto: 14.5 GiB total memory) - turbo 1, vitest 2, heap 3072 MB\n'
     );
   });
 

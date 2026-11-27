@@ -23,7 +23,7 @@ describe('renderResourceEnv', () => {
     const text = renderResourceEnv('sh', input());
     const lines = text.split('\n');
     expect(lines[0]).toBe(
-      '# resource profile: low (auto: 14.5 GiB total memory) - turbo 1, vitest 1, heap 3072 MB'
+      '# resource profile: low (auto: 14.5 GiB total memory) - turbo 1, vitest 2, heap 3072 MB'
     );
     expect(lines.slice(1).map(line => line.startsWith('export '))).toEqual([
       true,
@@ -32,7 +32,7 @@ describe('renderResourceEnv', () => {
       true,
     ]);
     expect(text).toContain("export RESOURCE_PROFILE='low'");
-    expect(text).toContain("export VITEST_MAX_WORKERS='1'");
+    expect(text).toContain("export VITEST_MAX_WORKERS='2'");
     expect(text).toContain("export TURBO_CONCURRENCY='1'");
     expect(text).toContain("export NODE_OPTIONS='--max-old-space-size=3072'");
   });
@@ -41,10 +41,10 @@ describe('renderResourceEnv', () => {
     const parsed = JSON.parse(renderResourceEnv('json', input())) as Record<string, unknown>;
     expect(parsed.profile).toBe('low');
     expect(parsed.trigger).toBe('auto: 14.5 GiB total memory');
-    expect(parsed.knobs).toEqual({ turboConcurrency: 1, vitestMaxWorkers: 1, nodeHeapMb: 3072 });
+    expect(parsed.knobs).toEqual({ turboConcurrency: 1, vitestMaxWorkers: 2, nodeHeapMb: 3072 });
     expect(parsed.env).toEqual({
       RESOURCE_PROFILE: 'low',
-      VITEST_MAX_WORKERS: '1',
+      VITEST_MAX_WORKERS: '2',
       TURBO_CONCURRENCY: '1',
       NODE_OPTIONS: '--max-old-space-size=3072',
     });

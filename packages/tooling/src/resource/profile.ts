@@ -40,7 +40,7 @@ export interface ProfileInput {
 
 /** Knob table — the single source the doc and the tests read. */
 export const PROFILE_KNOBS: Record<ResourceProfile, ProfileKnobs> = {
-  low: { turboConcurrency: 1, vitestMaxWorkers: 1, nodeHeapMb: 3072 },
+  low: { turboConcurrency: 1, vitestMaxWorkers: 2, nodeHeapMb: 3072 },
   cloud: { turboConcurrency: 2, vitestMaxWorkers: 2 },
   full: { vitestMaxWorkers: 3 },
 };
@@ -217,7 +217,7 @@ export function buildProfileEnv(
   return additions;
 }
 
-/** One human line: `resource profile: low (auto: 14.5 GiB total memory) - turbo 1, vitest 1, heap 3072 MB`. */
+/** One human line: `resource profile: low (auto: 14.5 GiB total memory) - turbo 1, vitest 2, heap 3072 MB`. */
 export function formatProfileLine(resolved: ResolvedProfile): string {
   const turbo =
     resolved.knobs.turboConcurrency !== undefined
