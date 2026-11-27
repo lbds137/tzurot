@@ -4,6 +4,11 @@ paths:
   - 'packages/common-types/**'
   - 'services/**'
   - 'packages/test-utils/**'
+  - 'packages/config-resolver/**'
+  - 'packages/conversation-history/**'
+  - 'packages/identity/**'
+  - 'packages/tooling/**'
+  - 'packages/cache-invalidation/**'
 ---
 
 # Database Rules

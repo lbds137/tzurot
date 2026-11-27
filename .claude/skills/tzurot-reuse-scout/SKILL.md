@@ -1,7 +1,7 @@
 ---
 name: tzurot-reuse-scout
 description: 'Pre-write reuse scouting + drifted-duplicate consolidation. Invoke with /tzurot-reuse-scout before writing new detection/normalization/resolution logic, or when a bug is found in logic that exists in more than one place.'
-lastUpdated: '2026-10-11'
+lastUpdated: '2026-11-26'
 ---
 
 # Reuse Scout Procedures
@@ -20,7 +20,7 @@ grep -rn "concept" packages/ services/ --include="*.ts" -l
 pnpm knip:dead                                              # dormant scaffolding counts as prior art
 ```
 
-- Shared-utility tables to check first: `04-discord.md` § Shared Utilities, `01-architecture.md` § Autocomplete Utilities.
+- Shared-utility table to check first: `04-discord.md` § Shared Utilities (browse/dashboard helpers and both autocomplete handlers).
 - The negative-existence rule's Tzurot additions (xray, `knip:dead`): `00-critical.md` § Don't Present Speculation as Fact.
 - Found something _almost_ right? Apply the 2-callback ceiling (`02-code-standards.md`) before deciding between extending and writing anew.
 

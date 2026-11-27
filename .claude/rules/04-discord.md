@@ -56,10 +56,6 @@ first) with `memory/detailActionRouter.ts` `case 'back'` (the downstream guard
 in its simplest form); `memory/detail.ts` `handleDeleteConfirm` (a leaf
 handler also called standalone from tests).
 
-## Deterministic UUIDs
-
-Never use `uuid.v4()` - use generators from common-types for deterministic IDs.
-
 ## Slash Command Standards
 
 ### Subcommand Names
@@ -150,37 +146,6 @@ dashboard is simply unguarded; this table is where that requirement is visible.
 
 Build every choice with `formatAutocompleteOption({ name, value, scopeBadge, statusBadges })` (`@tzurot/common-types/utils/autocompleteFormat`), using `AUTOCOMPLETE_BADGES` (`GLOBAL`/`OWNED` scope, `DEFAULT` status) — e.g. `"🌐⭐ Global Default · claude-sonnet-4"`.
 
-## BullMQ Job Patterns
-
-### Retryable vs Non-Retryable
-
-**Retryable:** Network timeouts, rate limits (429), server errors (5xx)
-**Non-retryable:** Validation errors (400), not found (404), auth (401)
-
-### Spend-Idempotent Retries (money/budget/usage side effects)
-
-A retried or requeued job re-executes its handler. Any job that bills a model
-call, consumes a budget counter, or writes a usage row must stay correct
-across that re-execution:
-
-- **Partial completion shrinks the retry payload** — completed sub-units must
-  not re-bill on every retry cycle (reference: fact-extraction's busy path
-  carries `remainingMemoryIds` and `job.updateData` shrinks `sourceMemoryIds`).
-- **Zero-spend failures are counter-neutral** — a rate-limit/busy failure that
-  spent no tokens must not consume budget (consume-then-refund, and any
-  exemption flag must gate consume and refund SYMMETRICALLY).
-- **Usage rows write only past the point of no return** — after the response
-  is in hand (parse failures still spent tokens; busy throws did not), never
-  before a retryable throw.
-
-### Queue Configuration
-
-Queues set `defaultJobOptions` — bounded `attempts` with exponential `backoff`, and bounded `removeOnComplete`/`removeOnFail` history (live values: `services/api-gateway/src/queue.ts`).
-
-### Timer Patterns
-
-`setTimeout` is fine for request timeouts and one-time delays (an `AbortController` abort). A persistent `setInterval` is a scaling blocker — use a BullMQ repeatable job (`queue.add(name, {}, { repeat: { every } })`) instead.
-
 ## DMs silent: diagnosis order
 
 1. **Interactions work, messages don't** = Discord delivers interactions (HTTPS, no intents) but not MESSAGE_CREATE (gateway: intents + install scope). That's Discord-side, not our code.
@@ -190,23 +155,6 @@ Queues set `defaultJobOptions` — bounded `attempts` with exponential `backoff`
 
 Don't pull Railway logs filtered for DM activity when no events reach the bot; absence of our logs is consistent with gateway non-delivery. The log shape when it IS this bug: `Ignoring system message` with `messageType=20` (one slash-command messageCreate, zero Default/Reply types since the last interaction). DM entry points: `DMSessionProcessor.ts`, `nsfwVerification.ts`.
 
-## Observability
+## Autocomplete handlers
 
-### Correlation IDs
-
-bot-client generates a `requestId` (`randomUUID()`) and sends it as the `X-Request-ID` header; every service includes it in logs (`logger.info({ requestId, jobId }, 'Processing')`). When a whole call path should carry the id — especially when it hands a `logger` to a helper like `withRetry` that emits its own lines — bind once at the entry point (`const log = logger.child({ requestId })`) and thread the bound logger instead of adding `requestId` to every call site. Reference: `processAttachmentsParallel` in ai-worker's `AttachmentProcessor.ts`.
-
-### Structured Logging
-
-Structured data first, static message second (`logger.info({ personalityId, model }, 'Loaded personality')`) — never string interpolation, which loses structure.
-
-## Autocomplete Utilities
-
-**ALWAYS check for existing utilities before writing autocomplete handlers.**
-
-Available in `bot-client/src/utils/autocomplete/`:
-
-| Utility                         | Purpose                   |
-| ------------------------------- | ------------------------- |
-| `handlePersonalityAutocomplete` | Personality selection     |
-| `handlePersonaAutocomplete`     | Profile/persona selection |
+**ALWAYS check `§ Shared Utilities` first** — both autocomplete handlers (`handlePersonalityAutocomplete`, `handlePersonaAutocomplete`) live there; never write a new autocomplete handler without checking them.
