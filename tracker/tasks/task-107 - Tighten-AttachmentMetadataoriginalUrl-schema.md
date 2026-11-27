@@ -31,4 +31,9 @@ created: 2026-09-04 19:35
 ---
 Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `originalUrl` is still `z.string().optional()` in the schema, and `DependencyStep.ts`'s `buildPreprocessingResults` still constructs `ProcessedAttachment.metadata` objects (for both image and audio branches) without an `originalUrl` field — confirming the schema can't yet be tightened without touching that caller. Task is `state:ready`, no blocker beyond deciding to do the work. Evidence: `git grep -n "originalUrl" packages/common-types/src/types/schemas/discord.ts` → still `.optional()`; `sed -n '410,450p' services/ai-worker/src/jobs/handlers/pipeline/steps/DependencyStep.ts` → `metadata: { url, name, contentType, size }` with no `originalUrl` key.
 ---
+author: backlog-pilot
+created: 2026-11-26 23:47
+---
+NOTE (backlog pilot, 50-oldest sweep): the description's file citation is STALE — DependencyStep no longer constructs the metadata; the successor is `services/ai-worker/src/jobs/handlers/pipeline/steps/preprocessingResultsBuilder.ts:44-53` and `:66-75`, whose nested `metadata:` objects still omit `originalUrl` (only url/name/contentType/size). Schema unchanged (discord.ts:54 `.optional()`); the defensive guard remains load-bearing at AudioProcessor.ts:380 (`lookupCachedTranscript`). Retarget to preprocessingResultsBuilder.ts when picking this up.
+---
 <!-- COMMENTS:END -->

@@ -31,4 +31,9 @@ created: 2026-09-04 19:36
 ---
 Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. `Memory.type` still defaults to `"memory"` in the schema — the cosmetic rename is deliberately deferred to ride along with the next migration that touches the memories table, which hasn't happened yet. Evidence: `grep -n 'type.*String.*@default("memory")' prisma/schema.prisma` → line 847, unchanged default value.
 ---
+author: backlog-pilot
+created: 2026-11-26 23:44
+---
+NOTE (backlog pilot, 50-oldest sweep). The promote-when ("any migration touches the memories table anyway") has FIRED at least three times without the rename riding: migrations 20260906225604, 20260907161646, 20261018073136 all `ALTER TABLE "memories"` (verified on develop 2026-11-26; schema default still "memory" at prisma/schema.prisma:955). Either commit the rename to the next memories migration or close as declined — that decision is the owner's (data-value rename), raised in the pilot report. Task stays open, state:dependent.
+---
 <!-- COMMENTS:END -->
