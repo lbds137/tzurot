@@ -111,7 +111,7 @@ if echo "$PROMPT" | grep -qiE 'weekly (limit|reset|usage|cap|budget)|usage (limi
 fi
 
 # PR review response → tzurot-review-response skill
-# The primary trigger is agent-internal (05-tooling's PR-monitoring step 4 says
+# The primary trigger is agent-internal (docs/reference/tooling/pr-monitoring.md § When the monitor fires says
 # to INVOKE the skill), so this hook is the SECOND path: the owner asking about
 # review findings directly. That redundancy is the point — the procedure lives
 # in a skill rather than an always-loaded rule, so a missed invoke means the
