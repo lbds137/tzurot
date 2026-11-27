@@ -31,7 +31,7 @@ const DEFAULT_ERROR =
  *
  * Example with placeholder:
  *   Input: "Oops! Something went wrong ||*(an error has occurred)*||"
- *   Output: "Oops! Something went wrong ||*(error: quota exceeded — "402 Payment Required"; ref: m5abc123)*||"
+ *   Output: "Oops! Something went wrong ||*(error: quota exceeded; ref: m5abc123)*||"
  *
  * Example without placeholder:
  *   Input: "I'm having trouble thinking right now..."
@@ -40,7 +40,7 @@ const DEFAULT_ERROR =
 export function buildErrorContent(result: LLMGenerationResult): string {
   // If we have structured error info, use it for dynamic messaging
   if (result.errorInfo) {
-    const { category, referenceId, technicalMessage, userActionMessage } = result.errorInfo;
+    const { category, referenceId, userActionMessage } = result.errorInfo;
     const actionMessage =
       userActionMessage !== undefined && userActionMessage !== '' ? userActionMessage : undefined;
 
@@ -58,8 +58,7 @@ export function buildErrorContent(result: LLMGenerationResult): string {
       const personalityContent = formatPersonalityErrorMessage(
         result.personalityErrorMessage,
         category,
-        referenceId,
-        technicalMessage
+        referenceId
       );
       return actionMessage === undefined
         ? personalityContent
@@ -69,7 +68,7 @@ export function buildErrorContent(result: LLMGenerationResult): string {
     // No personality message - the action copy (when present) replaces the generic
     // category line; either way the spoiler follows
     const userMessage = actionMessage ?? USER_ERROR_MESSAGES[category] ?? DEFAULT_ERROR;
-    const spoiler = formatErrorSpoiler(category, referenceId, technicalMessage);
+    const spoiler = formatErrorSpoiler(category, referenceId);
     return `${userMessage} ${spoiler}`;
   }
 

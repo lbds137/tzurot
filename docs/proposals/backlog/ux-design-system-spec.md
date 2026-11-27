@@ -144,7 +144,7 @@ The "maximize the building blocks" audit — capabilities Discord gives us that 
 | Native User/Channel selects (messages + modals) | Unused | `/deny` add/remove target picking (§4.5) |
 | Modal Label descriptions | N/A (new) | §3.6.2 inline docs |
 | `<t:>` dynamic timestamps | 3 of ~20 sites | §2.5 |
-| Spoilers for technical detail | error-spoiler only | keep; already the exemplar |
+| Spoilers for error category + reference id (technical detail stays in logs) | error-spoiler only | keep; already the exemplar |
 | **Components V2 messages** (Container, Section+Thumbnail, Media Gallery, Separator, Text Display) | Unused | The literal "mini website" layout system — web-like pages inside Discord (character card with thumbnail section, avatar galleries). Tradeoff: the `IS_COMPONENTS_V2` flag disables `content`/`embeds` on that message — per-surface migration, not a global switch. **Posture: evaluation item, not a Phase 1–3 dependency** — the design system's tokens/grammar apply to either rendering; adopt V2 first on one high-value surface (character view) as the pilot when Phase 2 touches it |
 
 ### 3.8 Button vocabulary (council catch)

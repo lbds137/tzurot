@@ -325,7 +325,7 @@ const FALLBACK_FAILURE_INFO = Symbol.for('tzurot.fallbackFailureInfo');
 
 /** What the both-fail path records about the failed fallback attempt. */
 interface FallbackFailureInfo {
-  /** Capped, user-renderable summary of the fallback's failure. */
+  /** Capped summary of the fallback's failure; feeds technicalMessage (log-only). */
   summary: string;
   /** Provider of the attempted fallback route (OpenRouter by construction). */
   provider: string;
@@ -404,8 +404,8 @@ export function composeFallbackAwareErrorMessage(error: unknown): string {
 
 /**
  * Fold the fallback-failure summary into an already-classified error info's
- * `technicalMessage` — the field bot-client's `buildErrorContent` actually
- * renders into the persona-voiced Discord error (`result.error` is log-only).
+ * `technicalMessage` (log/diagnostic-only — bot-client's `buildErrorContent`
+ * does not read it; the error spoiler carries category + ref only).
  * Classification fields (category/type/shouldRetry) are untouched: they were
  * derived from the pristine message and must stay that way. No summary → the
  * info passes through unchanged.
@@ -426,9 +426,9 @@ export function withFallbackFailure<T extends { technicalMessage?: string }>(
 }
 
 /**
- * Short, user-renderable summary of the fallback's failure. Provider messages
- * can run long (the OpenRouter 402 includes token math); cap it so the
- * persona-voiced error stays readable. Sliced via code points (Array.from) so
+ * Short summary of the fallback's failure for `technicalMessage` (log-only).
+ * Provider messages can run long (the OpenRouter 402 includes token math); cap
+ * it so log lines stay bounded. Sliced via code points (Array.from) so
  * a multi-byte character at the boundary can't be split into a mangled surrogate.
  */
 export function summarizeError(error: unknown): string {

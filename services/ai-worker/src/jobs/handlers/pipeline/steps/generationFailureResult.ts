@@ -60,9 +60,10 @@ export interface GenerationFailureOptions {
 /**
  * Compose the pipeline failure result for a generation error.
  *
- * The compound error message must ALSO land on errorInfo.technicalMessage —
- * that field (not result.error, which is log-only) is what bot-client's
- * buildErrorContent renders into the persona-voiced Discord error.
+ * The compound error message lands on both result.error and
+ * errorInfo.technicalMessage for log/diagnostic consumers — bot-client's
+ * buildErrorContent does not render technicalMessage (the user-facing error
+ * spoiler carries category + reference id only).
  */
 export function composeGenerationFailureResult(
   options: GenerationFailureOptions

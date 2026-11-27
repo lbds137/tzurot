@@ -130,8 +130,10 @@ export function buildSlotContext(entry: RuntimeEntry, slot: RuntimeSlot): SlotDe
  * error reply. Single-sourced so both the per-slot delivery path
  * (`multiTagDeliveryFlow.deliverSlot`, safety-timeout / empty-content) and the
  * submit-failure path (`MultiTagCoordinator.submitSlot`'s catch) render the
- * character's voice identically: `buildErrorContent` reads `personalityErrorMessage`
- * first, falling back to `errorInfo.userMessage` then the generic default.
+ * character's voice identically. The user-visible line follows
+ * `buildErrorContent`'s precedence — see that function rather than a copy
+ * of its ladder here (`errorInfo.userMessage` is not read by it, though
+ * still populated for the schema contract).
  */
 export function buildSyntheticErrorResult(
   personality: LoadedPersonality,

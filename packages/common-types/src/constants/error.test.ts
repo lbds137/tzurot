@@ -16,7 +16,6 @@ import {
   formatErrorSpoiler,
   formatPersonalityErrorMessage,
   stripErrorSpoiler,
-  wrapUrlsForNoEmbed,
   HTTP_STATUS_TO_CATEGORY,
   PERMANENT_ERROR_CATEGORIES,
   TRANSIENT_ERROR_CATEGORIES,
@@ -172,21 +171,6 @@ describe('isTransientError', () => {
 });
 
 describe('formatErrorSpoiler', () => {
-  it('omits a whitespace-only technical message entirely (no-detail form)', () => {
-    const result = formatErrorSpoiler(ApiErrorCategory.TIMEOUT, 'ref001', '   \n\n  ');
-    expect(result).toBe('||*(error: timeout; ref: ref001)*||');
-  });
-
-  it('trims trailing/leading whitespace from the technical message (provider errors end with newlines)', () => {
-    const result = formatErrorSpoiler(
-      ApiErrorCategory.RATE_LIMIT,
-      'mref12345',
-      '429 Provider returned error\n\nTroubleshooting URL: https://example.com/docs\n'
-    );
-    expect(result).not.toContain('\n"'); // the closing quote hugs the text
-    expect(result.endsWith('; ref: mref12345)*||')).toBe(true);
-  });
-
   it('should format category and reference ID in spoiler tags', () => {
     const result = formatErrorSpoiler(ApiErrorCategory.QUOTA_EXCEEDED, 'abc123');
     expect(result).toBe('||*(error: quota exceeded; ref: abc123)*||');
@@ -200,196 +184,6 @@ describe('formatErrorSpoiler', () => {
   it('should handle single-word categories', () => {
     const result = formatErrorSpoiler(ApiErrorCategory.TIMEOUT, 'ref001');
     expect(result).toBe('||*(error: timeout; ref: ref001)*||');
-  });
-
-  it('should include technicalMessage when provided', () => {
-    const result = formatErrorSpoiler(
-      ApiErrorCategory.QUOTA_EXCEEDED,
-      'abc123',
-      '402 Payment Required'
-    );
-    expect(result).toBe('||*(error: quota exceeded — "402 Payment Required"; ref: abc123)*||');
-  });
-
-  it('should omit technicalMessage when undefined', () => {
-    const result = formatErrorSpoiler(ApiErrorCategory.TIMEOUT, 'ref001', undefined);
-    expect(result).toBe('||*(error: timeout; ref: ref001)*||');
-  });
-
-  it('should omit technicalMessage when empty string', () => {
-    const result = formatErrorSpoiler(ApiErrorCategory.TIMEOUT, 'ref001', '');
-    expect(result).toBe('||*(error: timeout; ref: ref001)*||');
-  });
-
-  it('wraps bare URLs in technicalMessage to suppress Discord auto-embed', () => {
-    // The LangChain MODEL_RATE_LIMIT message is the canonical production case
-    // — a bare URL inside the spoiler block triggered embed cards.
-    const technicalMessage =
-      '429 Rate limit. Troubleshooting URL: https://docs.langchain.com/oss/javascript/langchain/errors/MODEL_RATE_LIMIT/';
-    const result = formatErrorSpoiler(ApiErrorCategory.RATE_LIMIT, 'abc123', technicalMessage);
-    expect(result).toContain(
-      '<https://docs.langchain.com/oss/javascript/langchain/errors/MODEL_RATE_LIMIT/>'
-    );
-    expect(result).not.toMatch(/[^<]https:\/\/docs\.langchain\.com/);
-  });
-});
-
-describe('wrapUrlsForNoEmbed', () => {
-  it('wraps a bare https URL', () => {
-    expect(wrapUrlsForNoEmbed('See https://example.com for details.')).toBe(
-      'See <https://example.com> for details.'
-    );
-  });
-
-  it('wraps a bare http URL', () => {
-    expect(wrapUrlsForNoEmbed('Old: http://legacy.example.com')).toBe(
-      'Old: <http://legacy.example.com>'
-    );
-  });
-
-  it('keeps trailing punctuation outside the wrap', () => {
-    // "<https://x.com>." renders cleanly; "<https://x.com.>" would 404 if clicked
-    expect(wrapUrlsForNoEmbed('Check https://example.com.')).toBe('Check <https://example.com>.');
-    expect(wrapUrlsForNoEmbed('Then https://example.com,')).toBe('Then <https://example.com>,');
-    expect(wrapUrlsForNoEmbed('And https://example.com?')).toBe('And <https://example.com>?');
-  });
-
-  it('does NOT double-wrap a URL already inside <…>', () => {
-    expect(wrapUrlsForNoEmbed('See <https://example.com> for details.')).toBe(
-      'See <https://example.com> for details.'
-    );
-  });
-
-  it('does NOT wrap a URL inside a markdown link', () => {
-    // [text](https://...) — preceded by `(`, lookbehind skips it
-    expect(wrapUrlsForNoEmbed('Click [here](https://example.com) to continue')).toBe(
-      'Click [here](https://example.com) to continue'
-    );
-  });
-
-  it('wraps multiple URLs in the same string', () => {
-    expect(
-      wrapUrlsForNoEmbed('First https://a.example.com and second https://b.example.com.')
-    ).toBe('First <https://a.example.com> and second <https://b.example.com>.');
-  });
-
-  it('returns text unchanged when no URLs are present', () => {
-    expect(wrapUrlsForNoEmbed('No URLs here, just plain text.')).toBe(
-      'No URLs here, just plain text.'
-    );
-  });
-
-  it('handles empty string', () => {
-    expect(wrapUrlsForNoEmbed('')).toBe('');
-  });
-
-  it('handles a URL at end-of-string with no trailing whitespace', () => {
-    expect(wrapUrlsForNoEmbed('See https://example.com')).toBe('See <https://example.com>');
-  });
-
-  it('handles URL paths with query strings and fragments', () => {
-    expect(wrapUrlsForNoEmbed('See https://example.com/path?q=1&r=2#section')).toBe(
-      'See <https://example.com/path?q=1&r=2#section>'
-    );
-  });
-
-  it('preserves balanced parens inside the URL (Wikipedia-style)', () => {
-    expect(wrapUrlsForNoEmbed('See https://en.wikipedia.org/wiki/Foo_(bar) for context.')).toBe(
-      'See <https://en.wikipedia.org/wiki/Foo_(bar)> for context.'
-    );
-  });
-
-  it('preserves multiple balanced paren groups', () => {
-    expect(wrapUrlsForNoEmbed('Path: https://example.com/(a)/(b) end')).toBe(
-      'Path: <https://example.com/(a)/(b)> end'
-    );
-  });
-
-  it('cuts URL at first unmatched closing paren (parenthesized prose)', () => {
-    // `(see https://example.com)` — the closing `)` is prose, not part of the URL.
-    expect(wrapUrlsForNoEmbed('(see https://example.com) for details')).toBe(
-      '(see <https://example.com>) for details'
-    );
-  });
-
-  it('handles balanced paren followed by trailing sentence punctuation', () => {
-    expect(wrapUrlsForNoEmbed('Read https://en.wikipedia.org/wiki/Foo_(bar).')).toBe(
-      'Read <https://en.wikipedia.org/wiki/Foo_(bar)>.'
-    );
-  });
-
-  it('cuts URL at first unmatched `]` (closing-bracket prose terminator)', () => {
-    // `]` with no preceding `[` in the URL is treated as surrounding-prose
-    // terminator — the URL itself didn't contain a bracket pair, so this `]`
-    // belongs to the text around it (e.g., a footnote-style `[1]` reference
-    // adjacent to a URL).
-    expect(wrapUrlsForNoEmbed('See https://example.com/path]rest of text')).toBe(
-      'See <https://example.com/path>]rest of text'
-    );
-  });
-
-  it('preserves balanced `[]` brackets inside the URL (IPv6 literal)', () => {
-    // RFC 3986 allows `[`/`]` in URLs for IPv6 literal hosts. The walker
-    // mirrors the paren-balancing logic — depth tracked separately, only
-    // unmatched closers terminate the URL.
-    expect(wrapUrlsForNoEmbed('Try https://[::1]/path for the local IPv6 host.')).toBe(
-      'Try <https://[::1]/path> for the local IPv6 host.'
-    );
-  });
-
-  it('preserves balanced `[]` brackets inside the URL (array-index path)', () => {
-    expect(wrapUrlsForNoEmbed('Hit https://api.example.com/items[0]/value here')).toBe(
-      'Hit <https://api.example.com/items[0]/value> here'
-    );
-  });
-
-  it('preserves balanced `[]` followed by trailing sentence punctuation', () => {
-    expect(wrapUrlsForNoEmbed('Read https://api.example.com/items[0]/value.')).toBe(
-      'Read <https://api.example.com/items[0]/value>.'
-    );
-  });
-
-  it('preserves multiple balanced bracket groups', () => {
-    expect(wrapUrlsForNoEmbed('See https://example.com/a[b]/c[d] end')).toBe(
-      'See <https://example.com/a[b]/c[d]> end'
-    );
-  });
-
-  it('preserves nested balanced brackets', () => {
-    // Defensive: `[a[b]c]` is structurally balanced even if rare in practice.
-    // Confirms the depth counter works for nesting, not just adjacency.
-    expect(wrapUrlsForNoEmbed('Path: https://example.com/[a[b]c]/end')).toBe(
-      'Path: <https://example.com/[a[b]c]/end>'
-    );
-  });
-
-  it('wraps URL with unclosed `[` (no matching close bracket)', () => {
-    // Malformed URL — opens `[` but never closes it. The walker reaches end-
-    // of-candidate with bracketDepth > 0 and includes the orphan `[`. Including
-    // the whole candidate is safer than cutting at the orphan opener since
-    // there's no prose terminator to draw the line at.
-    expect(wrapUrlsForNoEmbed('See https://example.com/foo[bar here')).toBe(
-      'See <https://example.com/foo[bar> here'
-    );
-  });
-
-  it('cuts URL at mid-URL `>` (defends against malformed wraps)', () => {
-    // A bare `>` inside the URL stops the wrap so we don't double-wrap or
-    // collide with an existing `<...>` boundary in the surrounding text.
-    // The `>>` in the expected output is intentional: the first `>` closes
-    // the wrap, the second is the verbatim character from the original text.
-    expect(wrapUrlsForNoEmbed('Try https://example.com>rest')).toBe(
-      'Try <https://example.com>>rest'
-    );
-  });
-
-  it('does NOT re-wrap an already-wrapped URL with balanced parens', () => {
-    // The lookbehind `(?<![<(])` excludes already-wrapped URLs from matching;
-    // this test locks in the invariant for the paren-bearing case so a future
-    // refactor that changes the lookbehind has to update this test.
-    expect(wrapUrlsForNoEmbed('<https://en.wikipedia.org/wiki/Foo_(bar)>')).toBe(
-      '<https://en.wikipedia.org/wiki/Foo_(bar)>'
-    );
   });
 });
 
@@ -414,28 +208,6 @@ describe('formatPersonalityErrorMessage', () => {
       testRefId
     );
     expect(result).toBe('Oops! ||*(error: quota exceeded; ref: test123)*||');
-  });
-
-  it('should pass through technicalMessage to spoiler', () => {
-    const result = formatPersonalityErrorMessage(
-      'Oops!',
-      ApiErrorCategory.QUOTA_EXCEEDED,
-      testRefId,
-      '402 Payment Required'
-    );
-    expect(result).toBe(
-      'Oops! ||*(error: quota exceeded — "402 Payment Required"; ref: test123)*||'
-    );
-  });
-
-  it('should work without technicalMessage', () => {
-    const result = formatPersonalityErrorMessage(
-      'Error!',
-      ApiErrorCategory.TIMEOUT,
-      testRefId,
-      undefined
-    );
-    expect(result).toBe('Error! ||*(error: timeout; ref: test123)*||');
   });
 });
 
@@ -498,16 +270,9 @@ describe('CREDIT_EXHAUSTION user message', () => {
     expect(credit.toLowerCase()).toContain('no credits');
   });
 
-  it('renders cleanly in formatErrorSpoiler with URL auto-wrap', () => {
-    // The URL in the user-facing message is also passed through technicalMessage
-    // in some paths; verify the wrap utility handles the OR top-up URL idempotently.
-    const result = formatErrorSpoiler(
-      ApiErrorCategory.CREDIT_EXHAUSTION,
-      'ref-credit',
-      'Insufficient credits. This account never purchased credits. https://openrouter.ai/settings/credits'
-    );
-    expect(result).toContain('<https://openrouter.ai/settings/credits>');
-    expect(result).toContain('credit exhaustion'); // category label with underscore replaced
+  it('renders category and reference ID only in formatErrorSpoiler', () => {
+    const result = formatErrorSpoiler(ApiErrorCategory.CREDIT_EXHAUSTION, 'ref-credit');
+    expect(result).toBe('||*(error: credit exhaustion; ref: ref-credit)*||');
   });
 });
 
@@ -589,6 +354,7 @@ describe('stripErrorSpoiler', () => {
   });
 
   it('should strip spoiler with technicalMessage', () => {
+    // Covers legacy persisted spoilers from before the category+ref slim (still parsed by ERROR_SPOILER_PATTERN).
     const input = 'Oops! ||*(error: quota exceeded — "402 Payment Required"; ref: abc123)*||';
     expect(stripErrorSpoiler(input)).toBe('Oops!');
   });

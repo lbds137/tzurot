@@ -78,12 +78,13 @@ const logger = createLogger('LLMGenerationHandler');
  * An unreadable stored BYOK key is AUTHENTICATION plus the approved re-enter
  * copy as `userActionMessage` (bot-client renders it plainly, outside the
  * spoiler); the copy is built from the approved function, never `error.message`,
- * and `technicalMessage` is omitted since it would only repeat it in the spoiler.
+ * and `technicalMessage` is omitted (the spoiler carries category + ref only;
+ * `technicalMessage` is log-only, and raw key-decryption text is already logged).
  * A failed stored-key READ is a transient SERVER_ERROR:
  * the key was never seen, so neither the re-enter copy nor guest mode applies.
  * TRANSIENT is a label; `shouldRetry` stays false and resending is the user's lever (TASK-1497).
  * A failed DownloadAttachments step is MEDIA_NOT_FOUND; anything else is UNKNOWN
- * with the technical message in the spoiler.
+ * with `technicalMessage` populated for log/diagnostic use.
  */
 function classifyPipelineFailure(
   error: unknown,

@@ -495,94 +495,14 @@ export function isTransientError(category: ApiErrorCategory): boolean {
 const ERROR_SPOILER_PATTERN = /\|\|\*\(([^)|]{1,500})\)\*\|\|/;
 
 /**
- * Wrap bare http(s) URLs in `<…>` to suppress Discord's auto-embed previews.
- *
- * Discord renders an embed/preview card for any bare URL it finds in a message,
- * even when the URL sits inside a spoiler block (`||…||`). For technical-error
- * messages (e.g., a LangChain troubleshooting link), the embed is noisy and
- * defeats the spoiler's purpose. Wrapping the URL with `<…>` is Discord's
- * documented opt-out from preview rendering.
- *
- * Skips URLs that are already wrapped (`<https://…>`) or already inside a
- * markdown link (`[text](https://…)`) — the lookbehind excludes `<` and `(`
- * preceding the scheme. Trailing sentence punctuation (`.,;:!?`) stays
- * outside the wrap so the visible text reads naturally.
- *
- * Internal balanced brackets are preserved per RFC 3986 — `(`/`)` and `[`/`]`
- * pairs are tracked independently. So `https://en.wikipedia.org/wiki/Foo_(bar)`
- * and `https://[::1]/path` and `https://api.example.com/items[0]/value` all
- * wrap correctly without truncation. Unmatched closing brackets cut the URL,
- * which is what surrounding-prose contexts like `(see https://…)` need.
- * The match is intentionally permissive (`\S+`); the callback walks the
- * candidate, balancing brackets and stripping trailing punctuation.
- */
-export function wrapUrlsForNoEmbed(text: string): string {
-  return text.replace(/(?<![<(])\bhttps?:\/\/\S+/g, candidate => {
-    let parenDepth = 0;
-    let bracketDepth = 0;
-    let cutAt = candidate.length;
-    for (let i = 0; i < candidate.length; i++) {
-      const ch = candidate[i];
-      if (ch === '(') {
-        parenDepth++;
-      } else if (ch === ')') {
-        if (parenDepth === 0) {
-          cutAt = i;
-          break;
-        }
-        parenDepth--;
-      } else if (ch === '[') {
-        bracketDepth++;
-      } else if (ch === ']') {
-        if (bracketDepth === 0) {
-          cutAt = i;
-          break;
-        }
-        bracketDepth--;
-      } else if (ch === '>') {
-        cutAt = i;
-        break;
-      }
-    }
-    let url = candidate.slice(0, cutAt);
-    const rest = candidate.slice(cutAt);
-    // url is guaranteed non-empty here: the candidate starts with `https://`
-    // (regex), and the walker can't cut at index 0 because `h` matches no
-    // cut marker — so cutAt > 0 always, and url.slice(-1) is always 1 char.
-    let trailingPunct = '';
-    const lastChar = url.slice(-1);
-    if ('.,;:!?'.includes(lastChar)) {
-      trailingPunct = lastChar;
-      url = url.slice(0, -1);
-    }
-    return `<${url}>${trailingPunct}${rest}`;
-  });
-}
-
-/**
  * Format error details for Discord spoiler tags
  * @param category - Error category for context
  * @param referenceId - Unique reference ID
- * @param technicalMessage - Optional technical detail (e.g., "402 Payment Required")
  * @returns Formatted spoiler text
  */
-export function formatErrorSpoiler(
-  category: ApiErrorCategory,
-  referenceId: string,
-  technicalMessage?: string
-): string {
+export function formatErrorSpoiler(category: ApiErrorCategory, referenceId: string): string {
   const categoryLabel = category.replace(/_/g, ' ');
-  // technicalMessage frequently carries provider URLs (e.g., the LangChain
-  // troubleshooting link); wrap them so the spoiler doesn't trigger
-  // Discord embeds. Provider messages also often end with a trailing newline,
-  // which would put the closing quote on its own line in the rendered
-  // spoiler — trim before quoting.
-  const trimmedTech = technicalMessage?.trim();
-  const techPart =
-    trimmedTech !== undefined && trimmedTech.length > 0
-      ? ` — "${wrapUrlsForNoEmbed(trimmedTech)}"`
-      : '';
-  return `||*(error: ${categoryLabel}${techPart}; ref: ${referenceId})*||`;
+  return `||*(error: ${categoryLabel}; ref: ${referenceId})*||`;
 }
 
 /**
@@ -591,16 +511,14 @@ export function formatErrorSpoiler(
  * @param personalityMessage - The personality's configured error message
  * @param category - Error category
  * @param referenceId - Unique reference ID
- * @param technicalMessage - Optional technical detail for the spoiler
  * @returns Message with error details in spoiler tags
  */
 export function formatPersonalityErrorMessage(
   personalityMessage: string,
   category: ApiErrorCategory,
-  referenceId: string,
-  technicalMessage?: string
+  referenceId: string
 ): string {
-  const spoilerContent = formatErrorSpoiler(category, referenceId, technicalMessage);
+  const spoilerContent = formatErrorSpoiler(category, referenceId);
 
   // Cap message length to prevent abuse
   const safeMessage = personalityMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH);
@@ -618,7 +536,7 @@ export function formatPersonalityErrorMessage(
  * @returns Message with error spoiler removed (trimmed)
  *
  * @example
- * stripErrorSpoiler("Oops! ||*(error: timeout; reference: abc123)*||")
+ * stripErrorSpoiler("Oops! ||*(error: timeout; ref: abc123)*||")
  * // Returns: "Oops!"
  */
 export function stripErrorSpoiler(message: string): string {

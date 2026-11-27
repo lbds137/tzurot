@@ -63,7 +63,7 @@ The 2026-06-28 audit found the command surface **bimodal**: routing/structure is
 
 ### 3.3 The messaging substrate (generalize, don't replace)
 
-- `USER_ERROR_MESSAGES: Record<ApiErrorCategory, string>` (common-types `constants/error.ts`) — the catalog ancestor: enum-keyed user-facing strings, decoupled from internal regex-matched codes; consumed by `buildErrorContent` + multi-tag flow. Plus `formatPersonalityErrorMessage`, `formatErrorSpoiler` (technical-detail channel), `generateErrorReferenceId`.
+- `USER_ERROR_MESSAGES: Record<ApiErrorCategory, string>` (common-types `constants/error.ts`) — the catalog ancestor: enum-keyed user-facing strings, decoupled from internal regex-matched codes; consumed by `buildErrorContent` + multi-tag flow. Plus `formatPersonalityErrorMessage`, `formatErrorSpoiler` (category + reference-id channel; provider detail stays in logs), `generateErrorReferenceId`.
 - `GatewayFailureKind = 'config'|'network'|'timeout'|'schema'|'http'` (`@tzurot/clients`) + `saveError.ts`: `timeout|network` → outcome-uncertain ("may still be applying… tap Refresh"), `schema` → committed-unconfirmed ("saved, couldn't read confirmation"), `http|config` → genuine failure (surface gateway message). `isSaveTimeout` deliberately keyed on kind, not status.
 - Reply plumbing: `commandHelpers` (`replyWithError` prepends `❌`, `createSafeHandler`, `handleCommandError`), `replyError.ts` (component ack-state selection), `CommandHandler.sendErrorReply` + `infraAwareErrorText` (top-level catch — only sees errors that escape per-command catches). `DASHBOARD_MESSAGES` is dashboard-scoped only.
 - i18n: none anywhere. The catalog is NOT an i18n system and must not grow locale machinery; it's a consistency + honesty + voice seam. (If localization ever matters, the catalog is the one place it would slot in — that's a free option, not a requirement.)
@@ -133,7 +133,7 @@ export const CATALOG = {
 
 ### 4.3 In-character error delivery (Phase 1, with §4.2)
 
-**Finding that reframes the requirement**: the generation path already delivers errors in-character (webhook as persona, `personality.errorMessage` voice, spoilered technical detail). The work is finishing the stragglers, not building a mechanism.
+**Finding that reframes the requirement**: the generation path already delivers errors in-character (webhook as persona, `personality.errorMessage` voice, error spoiler carrying category + reference id while technical detail stays in logs). The work is finishing the stragglers, not building a mechanism.
 
 **Mechanism decision (recommended)**: canned catalog lines delivered through the persona webhook — NOT LLM-generated apologies. Rationale: failure-during-failure — the provider that just failed is the one you'd be asking; latency/cost on the error path; and the immersion win is mostly the delivery channel (character name + avatar) plus register-neutral wording, both of which canned lines provide. The existing `personality.errorMessage` per-persona line already gives per-character voice; the catalog supplies the generic-but-in-tone fallback.
 

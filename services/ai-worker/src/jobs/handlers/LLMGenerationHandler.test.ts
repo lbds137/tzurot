@@ -1016,12 +1016,13 @@ describe('LLMGenerationHandler', () => {
         expect(result.errorInfo?.category).toBeTruthy();
         expect(result.errorInfo?.type).toBeTruthy();
         expect(result.errorInfo?.referenceId.length ?? 0).toBeGreaterThan(0);
-        // userMessage must come from USER_ERROR_MESSAGES (or equivalent), not
-        // be left empty — an empty userMessage would render an empty spoiler
-        // tag client-side.
+        // errorInfo.userMessage is a required producer-contract field on every
+        // failure result — pin that ai-worker populates a non-empty string
+        // (bot-client's buildErrorContent does not read errorInfo.userMessage;
+        // its lookup precedence lives in buildErrorContent itself).
         expect(result.errorInfo?.userMessage.length ?? 0).toBeGreaterThan(0);
-        // technicalMessage is what surfaces in the spoiler tag — verify the
-        // underlying error reaches the user-visible diagnostic.
+        // technicalMessage carries the root cause for logs and diagnostics —
+        // verify the underlying error is preserved on errorInfo.
         expect(result.errorInfo?.technicalMessage).toContain('rate limited');
       });
     });

@@ -48,7 +48,9 @@ const errorInfoSchema = z.object({
   statusCode: z.number().optional(),
   /** User-friendly error message */
   userMessage: z.string(),
-  /** Technical details for logging (e.g., raw HTTP error message) */
+  /** Technical details for logging and diagnostics only (e.g., raw HTTP error
+   *  message); bot-client must not render this field to users (TASK-1569 owner
+   *  ruling — the error spoiler carries category + reference id only). */
   technicalMessage: z.string().optional(),
   /** Approved copy the user must act on (e.g. re-enter a key), rendered plainly by
    *  bot-client outside the error spoiler; never raw exception text. */
