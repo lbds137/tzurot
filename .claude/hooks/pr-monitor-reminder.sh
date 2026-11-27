@@ -23,8 +23,9 @@
 # the gate refuses one that is not the PR head — fail-open only when the head
 # cannot be read — so that costs a re-arm, not a silent mis-watch
 # (05-tooling.md § PR Monitoring names both causes). Do not
-# "fix" this back to $SHA without reading that section and
-# guard:monitor-command, which requires all three copies to match.
+# "fix" this back to $SHA without reading
+# docs/reference/tooling/pr-monitoring.md § Why the SHA is a substitution
+# and guard:monitor-command, which requires all three copies to match.
 
 # No `-e`: we rely on graceful early-exits via empty-var checks. `-u` catches
 # typos on variable names; pipefail surfaces failures from pipelines.
@@ -168,7 +169,8 @@ Per .claude/rules/05-tooling.md (PR Monitoring), arm a Monitor now:
   The gate waits for the CI workflow RUN to complete, for nothing else on
   that SHA to still be in flight, and for the Claude Code Review run to exist
   and complete; do not swap it for a fixed 'sleep', because run creation
-  itself can lag the push by minutes (see docs/reference/tooling/pr-monitoring.md § Outcomes).
+  itself can lag the push by minutes (see
+  docs/reference/tooling/pr-monitoring.md § Outcomes).
 
   Arm a Monitor with description "CI + reviews for PR #$PR_NUM", timeout_ms
   1800000, persistent false (deliberately NOT true — a forgotten session-length
