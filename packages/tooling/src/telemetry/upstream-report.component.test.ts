@@ -28,15 +28,25 @@ const MISSING_FINISH_ROW = '00000000-0000-4000-8000-000000000410';
 const UNKNOWN_FINISH_ROW = '00000000-0000-4000-8000-000000000411';
 const STOP_SEQUENCE_ROW = '00000000-0000-4000-8000-000000000412';
 const OUT_OF_WINDOW_ROW = '00000000-0000-4000-8000-000000000413';
+// Tiebreak group: same model, two hosts, equal request counts — pins the upstream ASC tiebreak.
+const TIE_HOST_A = '00000000-0000-4000-8000-000000000414';
+const TIE_HOST_B = '00000000-0000-4000-8000-000000000415';
+const TIE_MODEL = 'test/tie-model';
 
 const MODEL = 'anthropic/claude-haiku-5.5';
 
 /** Insert one diagnostic row with the given payload, via the raw PGlite handle. */
-async function seed(pglite: PGlite, id: string, provider: string, data: unknown): Promise<void> {
+async function seed(
+  pglite: PGlite,
+  id: string,
+  provider: string,
+  data: unknown,
+  model: string = MODEL
+): Promise<void> {
   await pglite.query(
     `INSERT INTO llm_diagnostic_logs (id, request_id, user_id, model, provider, duration_ms, data)
      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
-    [id, `req-${id}`, '111111111111111111', MODEL, provider, 1000, JSON.stringify(data)]
+    [id, `req-${id}`, '111111111111111111', model, provider, 1000, JSON.stringify(data)]
   );
 }
 
@@ -124,6 +134,39 @@ describe('queryUpstreamData (component, PGLite)', () => {
         reasoningDebug: { upstreamProvider: 'Anthropic' },
       },
     });
+
+    // Tiebreak group: Zeta seeded first so insertion order can't masquerade as
+    // the tiebreak; a REVERSED tiebreak fails this test, a REMOVED one does not
+    // (GroupAggregate emits (model, upstream) order naturally) — the SQL-seam
+    // substring test catches removal.
+    await seed(
+      pglite,
+      TIE_HOST_B,
+      'openrouter',
+      {
+        llmResponse: {
+          rawContent: 'tie-b',
+          finishReason: 'stop',
+          completionTokens: 5,
+          reasoningDebug: { upstreamProvider: 'Zeta' },
+        },
+      },
+      TIE_MODEL
+    );
+    await seed(
+      pglite,
+      TIE_HOST_A,
+      'openrouter',
+      {
+        llmResponse: {
+          rawContent: 'tie-a',
+          finishReason: 'stop',
+          completionTokens: 5,
+          reasoningDebug: { upstreamProvider: 'Alpha' },
+        },
+      },
+      TIE_MODEL
+    );
   });
 
   afterAll(async () => {
@@ -135,7 +178,13 @@ describe('queryUpstreamData (component, PGLite)', () => {
     const data = await queryUpstreamData(prisma as unknown as PrismaQueryable, 'local', 7);
 
     const hosts = data.rows.map(r => r.upstream).sort();
-    expect(hosts).toEqual(['(none)', 'Anthropic', 'Lepton', 'Parasail']);
+    expect(hosts).toEqual(['(none)', 'Alpha', 'Anthropic', 'Lepton', 'Parasail', 'Zeta']);
+  });
+
+  it('orders equal-request hosts alphabetically, so the upstream tiebreak decides', async () => {
+    const data = await queryUpstreamData(prisma as unknown as PrismaQueryable, 'local', 7);
+    const tieHosts = data.rows.filter(r => r.model === TIE_MODEL).map(r => r.upstream);
+    expect(tieHosts).toEqual(['Alpha', 'Zeta']);
   });
 
   it('counts a successful Anthropic group: stop includes end_turn, and the average skips zero usage', async () => {

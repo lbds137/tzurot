@@ -80,23 +80,25 @@ function renderUpstreamTable(rows: UpstreamStats[]): string {
 
 const EMPTY_CAPTION = 'No OpenRouter diagnostic rows in this window.';
 
-const SCOPE_NOTE =
-  'Intended scope: conversation path only (not checked here: the query filters on provider, not request kind). ' +
-  `\`llm_diagnostic_logs\` keeps ${DIAGNOSTIC_RETENTION_DAYS} days, so rows older than that are already gone and a larger \`--days\` cannot widen the window. ` +
-  'Failed requests count toward Requests and Failed; the finish and average columns exclude them. ' +
-  'Empty counts blank replies, including empty-after-retries failures. ' +
-  "A retried request is credited to the host of the last attempt that recorded a response; earlier attempts' hosts are not recorded. " +
-  "Requests that failed with a thrown error record no upstream host and are counted under (none); a host's Failed column only counts failures that happened after a response arrived. " +
-  "Failures recorded before the provider was resolved are stored as provider 'unknown' and fall outside this report. " +
-  "Share of model counts (none) in its denominator, so named hosts' shares understate their share of served traffic. " +
-  'The diagnostic payload type has no BYOK field; the BYOK split per model is in `telemetry:inference`. ' +
-  'Model is the requested model id, so a router alias groups every host it routed to.';
+const SCOPE_NOTE = [
+  '- Intended scope: conversation path only (not checked here: the query filters on provider, not request kind).',
+  `- \`llm_diagnostic_logs\` rows are normally pruned after ${DIAGNOSTIC_RETENTION_DAYS} days by hourly cleanup, so slightly older rows can remain until the next run.`,
+  '- Failed requests count toward Requests and Failed; the finish and average columns exclude them.',
+  "- Non-failed rows with no recorded response (defaulted to `finishReason: 'unknown'`) or a missing/`'unknown'` finish reason land in `other` beside unrecognized provider finish reasons.",
+  '- Empty counts blank replies, including empty-after-retries failures.',
+  "- A retried request is credited to the host of the last attempt that recorded a response; earlier attempts' hosts are not recorded.",
+  "- Requests that failed with a thrown error record no upstream host and are counted under (none); a host's Failed column only counts failures that happened after a response arrived.",
+  "- Failures recorded before the provider was resolved are stored as provider 'unknown' and fall outside this report.",
+  "- Share of model counts (none) in its denominator, so named hosts' shares understate their share of served traffic.",
+  '- The diagnostic payload type has no BYOK field; the BYOK split per model is in `telemetry:inference`.',
+  '- Model is the requested model id, so a router alias groups every host it routed to.',
+].join('\n');
 
-/** The window line; a window wider than retention says so instead of implying more data. */
+/** The window line; a window wider than retention notes when rows are normally pruned. */
 function renderWindowLine(data: UpstreamReportData): string {
   const requested =
     data.days > DIAGNOSTIC_RETENTION_DAYS
-      ? ` requested (diagnostic retention caps the data at ${DIAGNOSTIC_RETENTION_DAYS})`
+      ? ` requested (diagnostic retention ${DIAGNOSTIC_RETENTION_DAYS} days; older rows are normally pruned)`
       : '';
   return `Window: trailing ${data.days} days${requested} · env: ${data.env} · generated at ${data.generatedAt.toISOString()}`;
 }

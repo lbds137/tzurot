@@ -66,9 +66,20 @@ describe('renderUpstreamMarkdown', () => {
     );
   });
 
-  it('states the retention window from the shared constant, not a hardcoded 7', () => {
+  it('states the retention window from the shared constant, and the hourly-cleanup caveat', () => {
     const output = renderUpstreamMarkdown(baseData());
-    expect(output).toContain('`llm_diagnostic_logs` keeps 7 days');
+    expect(output).toContain('`llm_diagnostic_logs` rows are normally pruned after 7 days');
+    expect(output).toContain(
+      'by hourly cleanup, so slightly older rows can remain until the next run'
+    );
+  });
+
+  it('formats the scope note as a markdown bullet list and states that unknown finish reasons land in other', () => {
+    const output = renderUpstreamMarkdown(baseData());
+    expect(output).toContain('\n- Intended scope: conversation path only');
+    expect(output).toContain(
+      "- Non-failed rows with no recorded response (defaulted to `finishReason: 'unknown'`) or a missing/`'unknown'` finish reason land in `other` beside unrecognized provider finish reasons."
+    );
   });
 
   it('states the router-alias grouping and that the BYOK split lives elsewhere', () => {
@@ -98,10 +109,10 @@ describe('renderUpstreamMarkdown', () => {
     );
   });
 
-  it('caps the window line at retention when the requested window is wider than 7 days', () => {
+  it('notes in the window line when the requested window is wider than retention', () => {
     const output = renderUpstreamMarkdown(baseData({ days: 30 }));
     expect(output).toContain(
-      'Window: trailing 30 days requested (diagnostic retention caps the data at 7) · env: dev · generated at 2026-08-25T12:00:00.000Z'
+      'Window: trailing 30 days requested (diagnostic retention 7 days; older rows are normally pruned) · env: dev · generated at 2026-08-25T12:00:00.000Z'
     );
   });
 

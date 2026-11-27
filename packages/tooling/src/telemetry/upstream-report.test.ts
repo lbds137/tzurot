@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { DIAGNOSTIC_RETENTION_DAYS } from '@tzurot/common-types/constants/diagnostics';
 import { createPrismaClient } from '@tzurot/common-types/services/prisma';
 import type { UpstreamRawRow } from './upstream-report.js';
 
@@ -99,9 +100,27 @@ describe('upstream-report', () => {
 
       const { binds } = sqlOf(mockQueryRaw);
       // The window days bind opens the query: it sits in the CTE's WHERE, which comes first.
-      expect(binds[0]).toBe(7);
+      expect(binds[0]).toBe(DIAGNOSTIC_RETENTION_DAYS);
       const output = consoleLogSpy.mock.calls.map((c: unknown[]) => String(c[0])).join('\n');
       expect(output).toContain('Window: trailing 7 days · env: local');
+    });
+
+    it('keeps the 7-day diagnostic retention when defaultDays is explicitly undefined', async () => {
+      mockQueryRaw.mockResolvedValueOnce([]);
+      const { telemetryUpstreamReport } = await import('./upstream-report.js');
+      await telemetryUpstreamReport({ env: 'local', defaultDays: undefined });
+
+      const { binds } = sqlOf(mockQueryRaw);
+      expect(binds[0]).toBe(DIAGNOSTIC_RETENTION_DAYS);
+    });
+
+    it('honors an explicit numeric defaultDays over the diagnostic retention constant', async () => {
+      mockQueryRaw.mockResolvedValueOnce([]);
+      const { telemetryUpstreamReport } = await import('./upstream-report.js');
+      await telemetryUpstreamReport({ env: 'local', defaultDays: 3 });
+
+      const { binds } = sqlOf(mockQueryRaw);
+      expect(binds[0]).toBe(3);
     });
   });
 
@@ -133,6 +152,7 @@ describe('upstream-report', () => {
       expect(sql).toContain("WHERE created_at >= now() - (interval '1 day' * ?");
       expect(sql).toContain('AND provider = ?');
       expect(sql).toContain('FROM llm_diagnostic_logs');
+      expect(sql).toContain('ORDER BY model, requests DESC, upstream');
     });
 
     it('takes the provider and the finish literals from their constants, not inline strings', async () => {
