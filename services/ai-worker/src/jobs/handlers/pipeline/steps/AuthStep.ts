@@ -428,6 +428,7 @@ export class AuthStep implements IPipelineStep {
   ): Promise<ResolvedLlmAuth> {
     let effectivePersonality = initialPersonality;
 
+    // Test-only wiring: prod constructs AuthStep only at LLMGenerationHandler.ts:244 with a real apiKeyResolver.
     if (!this.apiKeyResolver || !this.providerRouter) {
       return {
         resolvedApiKey: undefined,
@@ -533,12 +534,13 @@ export class AuthStep implements IPipelineStep {
       userId,
       requestId
     );
+    const keyProvenance = provenanceFromResolution('system', guest.zaiSystemKey);
     return {
       resolvedApiKey: guest.zaiSystemKey,
       resolvedProvider: guest.zaiSystemKey !== undefined ? AIProvider.ZaiCoding : undefined,
       isGuestMode: true,
-      keyProvenance: 'system',
-      effectiveTier: resolveEffectiveTier({ keyProvenance: 'system' }),
+      keyProvenance,
+      effectiveTier: resolveEffectiveTier({ keyProvenance }),
       effectivePersonality: guest.personality,
       ...(guest.quotaFallback !== undefined ? { quotaFallback: guest.quotaFallback } : {}),
       ...piggybackFields(guest),

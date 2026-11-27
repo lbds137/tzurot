@@ -84,7 +84,7 @@ function buildOpts(overrides?: Partial<GenerateAttemptOpts>): GenerateAttemptOpt
       temperature: 0.9,
     } as unknown as GenerateAttemptOpts['personality'],
     message: 'hello',
-    conversationContext: {} as GenerateAttemptOpts['conversationContext'],
+    conversationContext: { userId: '123' } as GenerateAttemptOpts['conversationContext'],
     recentAssistantMessages: [],
     apiKey: 'sk-user-key',
     sttDispatch: undefined,

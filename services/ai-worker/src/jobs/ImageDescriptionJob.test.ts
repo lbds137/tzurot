@@ -831,6 +831,52 @@ describe('ImageDescriptionJob', () => {
       );
     });
 
+    it('routes empty-key user-source resolution through provenanceFromResolution (none → free tier) and probes ZaiCoding', async () => {
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-empty-user-key',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/image1.png',
+            name: 'image1.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: mockPersonality,
+        context: { userId: 'empty-key-user', channelId: 'channel-456' },
+        responseDestination: { type: 'discord', channelId: 'channel-456' },
+      };
+      const job = {
+        id: 'image-test-req-empty-user-key',
+        data: jobData,
+      } as Job<ImageDescriptionJobData>;
+
+      const mockApiKeyResolver = {
+        tryResolveUserKey: vi.fn().mockResolvedValue(null),
+        resolveApiKey: vi.fn().mockResolvedValue({
+          apiKey: '',
+          source: 'user',
+          provider: 'openrouter',
+          userId: 'empty-key-user',
+          isGuestMode: false,
+        }),
+      } as unknown as ApiKeyResolver;
+
+      await processImageDescriptionJob(job, mockApiKeyResolver);
+
+      expect(mockApiKeyResolver.tryResolveUserKey).toHaveBeenCalledWith(
+        'empty-key-user',
+        'zai-coding'
+      );
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledWith(
+        expect.objectContaining({ url: 'https://example.com/image1.png' }),
+        mockPersonality,
+        expect.objectContaining({ isGuestMode: true, userId: 'empty-key-user' }),
+        expect.anything()
+      );
+    });
+
     it('degrades to isGuestMode: false when the guest-mode lookup throws', async () => {
       const jobData: ImageDescriptionJobData = {
         requestId: 'test-req-lookup-throws',

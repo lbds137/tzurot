@@ -65,10 +65,6 @@ function deriveFallbackFromProvider(
     : undefined;
 }
 
-function isFreeTierAuth(auth: { effectiveTier: 'paid' | 'free' }): boolean {
-  return auth.effectiveTier === 'free';
-}
-
 /**
  * Store per-skipped-author deferred memory interactions for coalesced activation
  * triggers. Each interaction is independently guarded so one failure logs and
@@ -146,7 +142,7 @@ export class GenerationStep implements IPipelineStep {
     const { config, auth, preparedContext } = context;
     const { effectivePersonality, configSource } = config;
     const { apiKey, provider, isGuestMode, keyProvenance, effectiveTier } = auth;
-    const isFreeTier = isFreeTierAuth(auth);
+    const isFreeTier = effectiveTier === 'free';
 
     // One job-wide LLM budget, spanning every fallback hop (primary, swap,
     // retarget, floor). Ends before bot-client's coordinator flush.

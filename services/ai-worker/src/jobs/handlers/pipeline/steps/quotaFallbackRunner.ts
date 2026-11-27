@@ -43,7 +43,6 @@ import {
 } from './autoPromotionFallback.js';
 import {
   credentialsFromAuth,
-  resolveAttemptTier,
   selectHopOneFloorTarget,
   systemCredentials,
   type RetryCredentials,
@@ -75,7 +74,7 @@ async function reactToZaiFreeTierFailure(
   originalError: unknown
 ): Promise<void> {
   if (
-    resolveAttemptTier(opts).effectiveTier === 'free' &&
+    opts.effectiveTier === 'free' &&
     opts.effectiveProvider === AIProvider.ZaiCoding &&
     onZaiFreeTierFailure !== undefined
   ) {
@@ -187,7 +186,7 @@ export async function runWithQuotaFallback(options: {
     // identity must follow the route's provenance (keyProvenance), not the
     // key's presence — flagless derivation filed system-key failures under
     // `user:<id>` while the invocation path writes doom marks under `system`.
-    const { keyProvenance, effectiveTier } = resolveAttemptTier(opts);
+    const { keyProvenance, effectiveTier } = opts;
     const cacheKeyId = authCacheKeyId({ keyProvenance }, opts.apiKey, userId);
     const tieredTarget = await selectQuotaFallbackTarget({
       category,
@@ -209,10 +208,8 @@ export async function runWithQuotaFallback(options: {
       (await selectHopOneFloorTarget({
         category,
         opts,
-        cacheKeyId,
         caches: deps.caches,
         excludeRoutes: attemptedRoutes,
-        userId,
       }));
     if (target === null) {
       throw originalError;
@@ -414,7 +411,7 @@ async function resolveRetryCredentials(
   // error. Guard the injectable seam so no wiring can break that guarantee:
   // a credential failure degrades to null → the pristine original rethrows.
   try {
-    const { effectiveTier } = resolveAttemptTier(opts);
+    const { effectiveTier } = opts;
     if (target.forceSystemKey) {
       const systemKey = await deps.resolveSystemKey();
       return systemKey === undefined ? null : systemCredentials(systemKey);
@@ -566,7 +563,7 @@ async function attemptFloorHop(params: {
     return FLOOR_HOP_NOT_ATTEMPTED;
   }
   const floorTarget = await selectFloorTarget({
-    tier: resolveAttemptTier(opts).effectiveTier,
+    tier: opts.effectiveTier,
     excludeModels: [info.fromModel, info.toModel],
     excludeRoutes: attemptedRoutes,
     cacheKeyId,

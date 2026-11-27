@@ -621,9 +621,6 @@ export interface ModelInvocationOptions {
   realMessagesEnabled: boolean;
   context: ConversationContext;
   userApiKey?: string;
-  /** True when this route bills the SYSTEM key (guests + quota retargets) —
-   * drives cache-identity provenance so a retarget never scopes as the user. */
-  isGuestMode?: boolean;
   /** Origin of the resolved API key ('user' | 'system' | 'none') from the effectiveTier seam. */
   keyProvenance: KeyProvenance;
   /** Effective capability/routing tier ('paid' | 'free') from the effectiveTier seam. */
@@ -675,12 +672,12 @@ export interface GenerateResponseOptions {
   userApiKey?: string;
   /** Resolved STT dispatch (provider + matching BYOK key when applicable). */
   sttDispatch?: SttDispatch;
-  /** Whether user is in guest mode (uses free models). Default: false */
+  /** Retained for the duplicate-retry forward seam (its tests pin the forward); tier routing reads keyProvenance/effectiveTier, not this flag. */
   isGuestMode?: boolean;
   /** Origin of the resolved API key ('user' | 'system' | 'none') from the effectiveTier seam. */
-  keyProvenance?: KeyProvenance;
+  keyProvenance: KeyProvenance;
   /** Effective capability/routing tier ('paid' | 'free') from the effectiveTier seam. */
-  effectiveTier?: EffectiveTier;
+  effectiveTier: EffectiveTier;
   /** Retry configuration for duplicate detection retries */
   retryConfig?: DuplicateRetryConfig;
   /**

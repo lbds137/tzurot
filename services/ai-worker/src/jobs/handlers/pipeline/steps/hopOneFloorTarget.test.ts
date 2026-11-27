@@ -69,7 +69,6 @@ describe('selectHopOneFloorTarget', () => {
     selectHopOneFloorTarget({
       category: category as never,
       opts: buildOpts(),
-      cacheKeyId: 'user:123',
       caches: buildCaches(),
       excludeRoutes,
     });
@@ -137,7 +136,6 @@ describe('selectHopOneFloorTarget', () => {
     const target = await selectHopOneFloorTarget({
       category: ApiErrorCategory.TIMEOUT as never,
       opts: buildOpts(),
-      cacheKeyId: 'user:123',
       caches,
     });
 
@@ -158,7 +156,6 @@ describe('selectHopOneFloorTarget', () => {
     const target = await selectHopOneFloorTarget({
       category: ApiErrorCategory.TIMEOUT as never,
       opts: buildOpts(),
-      cacheKeyId: 'user:123',
       caches,
     });
 
@@ -193,14 +190,15 @@ describe('selectHopOneFloorTarget', () => {
         category: ApiErrorCategory.TIMEOUT as never,
         opts: {
           ...buildOpts(),
+          conversationContext: {
+            userId: '278863839632818186',
+          } as GenerateAttemptOpts['conversationContext'],
           apiKey: 'fake-system-operator-key',
           isGuestMode,
           keyProvenance: 'system',
           effectiveTier: 'free',
         },
-        cacheKeyId: 'user:278863839632818186',
         caches,
-        userId: '278863839632818186',
       });
 
       expect(target?.config.model).toBe(FREE_FLOOR);

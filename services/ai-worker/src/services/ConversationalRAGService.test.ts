@@ -266,6 +266,8 @@ describe('ConversationalRAGService', () => {
 
       await serviceWithResolver.generateResponse(personality, 'Hi', context, {
         userApiKey: 'main-model-key', // z.ai main key — must NOT leak to the OpenRouter vision call
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
         effectiveProvider: AIProvider.ZaiCoding,
       });
 
@@ -288,6 +290,8 @@ describe('ConversationalRAGService', () => {
       // `service` (from beforeEach) is constructed without an apiKeyResolver.
       await service.generateResponse(personality, 'Hi', context, {
         userApiKey: 'main-model-key',
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
         effectiveProvider: AIProvider.ZaiCoding,
       });
 
@@ -300,7 +304,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      const result = await service.generateResponse(personality, 'Hello', context);
+      const result = await service.generateResponse(personality, 'Hello', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(result).toMatchObject({
         content: 'AI response',
@@ -318,22 +325,27 @@ describe('ConversationalRAGService', () => {
         durable: [{ discordMessageId: 'ref-9', content: 'SENTINEL_PERSISTED_REFERENCE' }],
       });
 
-      await service.generateResponse(personality, 'Hello', {
-        ...context,
-        referencedMessages: [
-          {
-            referenceNumber: 1,
-            discordMessageId: 'ref-9',
-            discordUserId: 'user-9',
-            authorUsername: 'quoted',
-            authorDisplayName: 'Quoted',
-            content: 'the quoted text',
-            embeds: '',
-            timestamp: '2026-07-31T12:00:00.000Z',
-            locationContext: '',
-          },
-        ],
-      });
+      await service.generateResponse(
+        personality,
+        'Hello',
+        {
+          ...context,
+          referencedMessages: [
+            {
+              referenceNumber: 1,
+              discordMessageId: 'ref-9',
+              discordUserId: 'user-9',
+              authorUsername: 'quoted',
+              authorDisplayName: 'Quoted',
+              content: 'the quoted text',
+              embeds: '',
+              timestamp: '2026-07-31T12:00:00.000Z',
+              locationContext: '',
+            },
+          ],
+        },
+        { keyProvenance: 'user', effectiveTier: 'paid' }
+      );
 
       expect(mockPersistBuiltReferences).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -393,7 +405,10 @@ describe('ConversationalRAGService', () => {
         ],
       });
 
-      await service.generateResponse(personality, 'what breed is that', context);
+      await service.generateResponse(personality, 'what breed is that', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       const batchInputs = getReferencedMessageFormatterMock().formatReferencedMessages.mock
         .calls[0]?.[4] as { carriedByChatLog?: Map<string, ReadonlySet<string>> } | undefined;
@@ -406,7 +421,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Test message', context);
+      await service.generateResponse(personality, 'Test message', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getPromptBuilderMock().formatUserMessage).toHaveBeenCalledWith(
         'Test message',
@@ -418,7 +436,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Test message', context);
+      await service.generateResponse(personality, 'Test message', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getMemoryRetrieverMock().retrieveRelevantMemories).toHaveBeenCalledWith(
         personality,
@@ -455,7 +476,10 @@ describe('ConversationalRAGService', () => {
         }
       );
 
-      await service.generateResponse(personality, 'Test message', context);
+      await service.generateResponse(personality, 'Test message', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(cutoffSeenByRetrieval).toBe(shippedTs.getTime());
     });
@@ -464,7 +488,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Test message', context);
+      await service.generateResponse(personality, 'Test message', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // calculateHistoryBudget is no longer consulted: the history budget is
       // window − base − msg − memoryReserve, computed in the pre-pass BEFORE
@@ -478,7 +505,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Test message', context);
+      await service.generateResponse(personality, 'Test message', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getLLMInvokerMock().invokeWithRetry).toHaveBeenCalled();
     });
@@ -491,7 +521,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Test message', context);
+      await service.generateResponse(personality, 'Test message', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       const invokeArgs = getLLMInvokerMock().invokeWithRetry.mock.calls[0][0] as {
         messages: { content: unknown }[];
@@ -506,7 +539,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      const result = await service.generateResponse(personality, 'Test', context);
+      const result = await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(result.modelUsed).toBe('test-model');
     });
@@ -521,7 +557,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      const result = await service.generateResponse(personality, 'Test', context);
+      const result = await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(result.routedModel).toBe('anthropic/claude-x');
     });
@@ -539,7 +578,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      const result = await service.generateResponse(personality, 'Test', context);
+      const result = await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(result).toMatchObject({ cacheReadTokens: 12, cacheWriteTokens: 4217 });
     });
@@ -580,7 +622,10 @@ describe('ConversationalRAGService', () => {
       });
       getSystemSettingSpy.mockClear();
 
-      await service.generateResponse(personality, 'Hello', context);
+      await service.generateResponse(personality, 'Hello', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       const flagReads = getSystemSettingSpy.mock.calls.filter(
         ([key]) => key === 'realMessagesEnabled'
@@ -595,7 +640,10 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext();
       getSystemSettingSpy.mockClear();
 
-      await service.generateResponse(personality, 'Hello', context);
+      await service.generateResponse(personality, 'Hello', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       const flagReads = getSystemSettingSpy.mock.calls.filter(
         ([key]) => key === 'realMessagesEnabled'
@@ -609,7 +657,10 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext();
       getSystemSettingSpy.mockClear();
 
-      await service.generateResponse(personality, 'Hello', context);
+      await service.generateResponse(personality, 'Hello', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       const flagReads = getSystemSettingSpy.mock.calls.filter(
         ([key]) => key === 'headerSpoofNeutralizeEnabled'
@@ -623,7 +674,10 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext();
       getSystemSettingSpy.mockClear();
 
-      await service.generateResponse(personality, 'Hello', context);
+      await service.generateResponse(personality, 'Hello', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       const flagReads = getSystemSettingSpy.mock.calls.filter(
         ([key]) => key === 'headerSpoofNeutralizeEnabled'
@@ -635,7 +689,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Test message', context);
+      await service.generateResponse(personality, 'Test message', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       const invokeArgs = getLLMInvokerMock().invokeWithRetry.mock.calls[0][0] as {
         messages: BaseMessage[];
@@ -676,7 +733,10 @@ describe('ConversationalRAGService', () => {
           '<prior_conversations>\n<channel_history>old chat</channel_history>\n</prior_conversations>',
       });
 
-      await service.generateResponse(personality, 'Test message', context);
+      await service.generateResponse(personality, 'Test message', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       const invokeArgs = getLLMInvokerMock().invokeWithRetry.mock.calls[0][0] as {
         messages: BaseMessage[];
@@ -727,7 +787,10 @@ describe('ConversationalRAGService', () => {
         crossChannelXml: '',
       });
 
-      await service.generateResponse(personality, 'Test message', context);
+      await service.generateResponse(personality, 'Test message', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       const invokeArgs = getLLMInvokerMock().invokeWithRetry.mock.calls[0][0] as {
         messages: BaseMessage[];
@@ -760,7 +823,10 @@ describe('ConversationalRAGService', () => {
         crossChannelXml: '',
       });
 
-      await service.generateResponse(personality, 'Test message', context);
+      await service.generateResponse(personality, 'Test message', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       const invokeArgs = getLLMInvokerMock().invokeWithRetry.mock.calls[0][0] as {
         messages: BaseMessage[];
@@ -783,7 +849,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality({ contextWindowTokens: 8192 });
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Test', context);
+      await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // computeContextCap(8192) = 6144 (75% small-model headroom)
       expect(getContextWindowManagerMock().calculateMemoryBudget).toHaveBeenCalledWith(
@@ -799,7 +868,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality({ contextWindowTokens: 8192 });
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Test', context);
+      await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getContextWindowManagerMock().calculateMemoryBudget).toHaveBeenCalledWith(
         8192,
@@ -814,7 +886,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality({ contextWindowTokens: 8192 });
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Test', context);
+      await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getContextWindowManagerMock().calculateMemoryBudget).toHaveBeenCalledWith(
         8192,
@@ -839,7 +914,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      const result = await service.generateResponse(personality, 'Recall something', context);
+      const result = await service.generateResponse(personality, 'Recall something', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getPromptBuilderMock().buildVolatilePrefix).toHaveBeenCalledWith({
         personality,
@@ -864,7 +942,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'what am i allergic to?', context);
+      await service.generateResponse(personality, 'what am i allergic to?', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // personality.id + the MemoryRetriever-resolved personaId + the query cross
       // into the gate in the right order, plus the resolved sharing flag
@@ -897,7 +978,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Hello', context);
+      await service.generateResponse(personality, 'Hello', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // The roster crosses into the SYSTEM message now, so that is the seam
       // this wiring assertion has to watch.
@@ -947,7 +1031,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Hello', context);
+      await service.generateResponse(personality, 'Hello', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       const call = getPromptBuilderMock().buildSystemMessage.mock.calls[0]?.[0] as
         { participantPersonas: Map<string, { personaId: string; content?: string }> } | undefined;
@@ -978,7 +1065,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      const result = await service.generateResponse(personality, 'New topic', context);
+      const result = await service.generateResponse(personality, 'New topic', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(result.retrievedMemories).toBe(0);
       expect(result.content).toBe('AI response');
@@ -995,7 +1085,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Remember this', context);
+      await service.generateResponse(personality, 'Remember this', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getLongTermMemoryServiceMock().storeInteraction).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1022,7 +1115,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Remember this', context);
+      await service.generateResponse(personality, 'Remember this', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getLongTermMemoryServiceMock().storeInteraction).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1036,6 +1132,8 @@ describe('ConversationalRAGService', () => {
       );
 
       const deferredResult = await service.generateResponse(personality, 'Remember this', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
         skipMemoryStorage: true,
       });
       expect(deferredResult.deferredMemoryData?.thinkingContent).toBe('Model reasoning trace');
@@ -1047,7 +1145,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Test', context);
+      await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getLongTermMemoryServiceMock().storeInteraction).not.toHaveBeenCalled();
     });
@@ -1061,7 +1162,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Test', context);
+      await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getLongTermMemoryServiceMock().storeInteraction).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1079,7 +1183,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      const result = await service.generateResponse(personality, 'Test', context);
+      const result = await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(result.userMessageContent).toBe('content for storage');
     });
@@ -1097,7 +1204,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      const result = await service.generateResponse(personality, 'Test', context);
+      const result = await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // LTM storage should NOT have been called
       expect(getLongTermMemoryServiceMock().storeInteraction).not.toHaveBeenCalled();
@@ -1112,7 +1222,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      const result = await service.generateResponse(personality, 'Test', context);
+      const result = await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(result.incognitoModeActive).toBe(false);
     });
@@ -1127,6 +1240,8 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext();
 
       const result = await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
         skipMemoryStorage: true,
       });
 
@@ -1150,6 +1265,8 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext();
 
       const result = await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
         skipMemoryStorage: false,
       });
 
@@ -1164,7 +1281,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext({ summonAnonymity: { kind: 'incognito' } });
 
-      const result = await service.generateResponse(personality, 'Test', context);
+      const result = await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // LTM storage should NOT have been called
       expect(getLongTermMemoryServiceMock().storeInteraction).not.toHaveBeenCalled();
@@ -1182,6 +1302,8 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext({ summonAnonymity: { kind: 'incognito' } });
 
       const result = await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
         skipMemoryStorage: true,
       });
 
@@ -1203,6 +1325,8 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext();
 
       const result = await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
         skipMemoryStorage: true,
       });
 
@@ -1221,6 +1345,8 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext();
 
       const result = await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
         skipMemoryStorage: true,
       });
 
@@ -1263,6 +1389,8 @@ describe('ConversationalRAGService', () => {
       });
 
       const result = await service.generateResponse(personality, 'Survivor message', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
         skipMemoryStorage: true,
       });
 
@@ -1332,6 +1460,8 @@ describe('ConversationalRAGService', () => {
       });
 
       const result = await service.generateResponse(personality, 'Survivor text', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
         skipMemoryStorage: true,
       });
 
@@ -1395,6 +1525,8 @@ describe('ConversationalRAGService', () => {
       });
 
       const result = await service.generateResponse(personality, 'Survivor text', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
         skipMemoryStorage: true,
       });
 
@@ -1474,6 +1606,8 @@ describe('ConversationalRAGService', () => {
       });
 
       const result = await service.generateResponse(personality, 'Survivor text', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
         skipMemoryStorage: true,
       });
 
@@ -1566,7 +1700,10 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext({ referencedMessages });
       const personality = createMockPersonality();
 
-      await service.generateResponse(personality, 'Reply to this', context);
+      await service.generateResponse(personality, 'Reply to this', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // Includes preprocessedAttachments (undefined) and renderContext for BYOK support
       expect(getReferencedMessageFormatterMock().formatReferencedMessages).toHaveBeenCalledWith(
@@ -1598,7 +1735,10 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext({ referencedMessages });
       const personality = createMockPersonality();
 
-      await service.generateResponse(personality, 'Follow up', context);
+      await service.generateResponse(personality, 'Follow up', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getPromptBuilderMock().buildSearchQuery).toHaveBeenCalledWith(
         'formatted user message',
@@ -1625,7 +1765,10 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext({ referencedMessages });
       const personality = createMockPersonality();
 
-      await service.generateResponse(personality, 'Respond to Dave', context);
+      await service.generateResponse(personality, 'Respond to Dave', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getPromptBuilderMock().buildVolatilePrefix).toHaveBeenCalledWith({
         personality,
@@ -1640,7 +1783,10 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext({ referencedMessages: undefined });
       const personality = createMockPersonality();
 
-      await service.generateResponse(personality, 'Hello', context);
+      await service.generateResponse(personality, 'Hello', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getReferencedMessageFormatterMock().formatReferencedMessages).not.toHaveBeenCalled();
     });
@@ -1649,7 +1795,10 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext({ referencedMessages: [] });
       const personality = createMockPersonality();
 
-      await service.generateResponse(personality, 'Hello', context);
+      await service.generateResponse(personality, 'Hello', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getReferencedMessageFormatterMock().formatReferencedMessages).not.toHaveBeenCalled();
     });
@@ -1668,7 +1817,10 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext({ attachments });
       const personality = createMockPersonality();
 
-      await service.generateResponse(personality, 'What is this?', context);
+      await service.generateResponse(personality, 'What is this?', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // Options bag carries isGuestMode (false), userApiKey (undefined),
       // elevenlabsApiKey (undefined), and a loggingContext with userId/apiKeySource
@@ -1697,7 +1849,10 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext({ attachments });
       const personality = createMockPersonality();
 
-      await service.generateResponse(personality, '', context);
+      await service.generateResponse(personality, '', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(mockProcessAttachments).toHaveBeenCalledWith(
         attachments,
@@ -1730,7 +1885,10 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext({ attachments });
       const personality = createMockPersonality();
 
-      await service.generateResponse(personality, 'What do you see?', context);
+      await service.generateResponse(personality, 'What do you see?', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getPromptBuilderMock().buildSearchQuery).toHaveBeenCalledWith(
         'formatted user message',
@@ -1768,7 +1926,10 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext({ attachments });
       const personality = createMockPersonality();
 
-      await service.generateResponse(personality, '', context);
+      await service.generateResponse(personality, '', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // Uses expect.objectContaining to focus on key parameters without being brittle
       // to implementation details (e.g., referencedMessagesDescriptions can be undefined)
@@ -1805,7 +1966,10 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext({ attachments });
       const personality = createMockPersonality();
 
-      const result = await service.generateResponse(personality, 'Describe', context);
+      const result = await service.generateResponse(personality, 'Describe', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(result.attachmentDescriptions).toContain('sunset.jpg');
       expect(result.attachmentDescriptions).toContain('A beautiful sunset');
@@ -1815,7 +1979,10 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext({ attachments: undefined });
       const personality = createMockPersonality();
 
-      await service.generateResponse(personality, 'No attachments', context);
+      await service.generateResponse(personality, 'No attachments', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(mockProcessAttachments).not.toHaveBeenCalled();
     });
@@ -1824,7 +1991,10 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext({ attachments: [] });
       const personality = createMockPersonality();
 
-      await service.generateResponse(personality, 'Empty attachments', context);
+      await service.generateResponse(personality, 'Empty attachments', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(mockProcessAttachments).not.toHaveBeenCalled();
     });
@@ -1857,7 +2027,10 @@ describe('ConversationalRAGService', () => {
       });
       const personality = createMockPersonality();
 
-      await service.generateResponse(personality, 'Check this image', context);
+      await service.generateResponse(personality, 'Check this image', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(mockProcessAttachments).not.toHaveBeenCalled();
       expect(getPromptBuilderMock().buildSearchQuery).toHaveBeenCalledWith(
@@ -1903,7 +2076,8 @@ describe('ConversationalRAGService', () => {
       const result = await service.generateResponse(
         personality,
         'What images did you see?',
-        context
+        context,
+        { keyProvenance: 'user', effectiveTier: 'paid' }
       );
 
       expect(result.content).toBe('AI response');
@@ -1915,7 +2089,10 @@ describe('ConversationalRAGService', () => {
       });
       const personality = createMockPersonality();
 
-      const result = await service.generateResponse(personality, 'No images', context);
+      const result = await service.generateResponse(personality, 'No images', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(result.content).toBe('AI response');
     });
@@ -1926,7 +2103,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Test', context);
+      await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getLLMInvokerMock().invokeWithRetry).toHaveBeenCalled();
     });
@@ -1935,7 +2115,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality({ model: 'claude-3-sonnet', temperature: 0.9 });
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Test', context);
+      await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getLLMInvokerMock().getModel).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1951,7 +2134,11 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext();
       const userApiKey = 'user-api-key-123';
 
-      await service.generateResponse(personality, 'Test', context, { userApiKey });
+      await service.generateResponse(personality, 'Test', context, {
+        userApiKey,
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getLLMInvokerMock().getModel).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1976,7 +2163,10 @@ describe('ConversationalRAGService', () => {
       });
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Test', context);
+      await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getLLMInvokerMock().getModel).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -2002,7 +2192,10 @@ describe('ConversationalRAGService', () => {
       });
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Test', context);
+      await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getLLMInvokerMock().getModel).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -2022,7 +2215,10 @@ describe('ConversationalRAGService', () => {
       });
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Test', context);
+      await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getLLMInvokerMock().getModel).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -2042,7 +2238,10 @@ describe('ConversationalRAGService', () => {
       });
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Test', context);
+      await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getLLMInvokerMock().getModel).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -2079,7 +2278,10 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext({ attachments });
       const personality = createMockPersonality();
 
-      await service.generateResponse(personality, '', context);
+      await service.generateResponse(personality, '', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(getLLMInvokerMock().invokeWithRetry).toHaveBeenCalledWith({
         model: expect.anything(),
@@ -2129,6 +2331,8 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, 'Test', context, {
         userApiKey: 'sk-or-users-own-key',
         isGuestMode: false,
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
       });
 
       expect(getLLMInvokerMock().invokeWithRetry).toHaveBeenCalledWith(
@@ -2142,9 +2346,12 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await expect(service.generateResponse(personality, 'Test', context)).rejects.toThrow(
-        'All retries exhausted'
-      );
+      await expect(
+        service.generateResponse(personality, 'Test', context, {
+          keyProvenance: 'user',
+          effectiveTier: 'paid',
+        })
+      ).rejects.toThrow('All retries exhausted');
     });
   });
 
@@ -2157,7 +2364,10 @@ describe('ConversationalRAGService', () => {
         discordUsername: 'lbds137',
       });
 
-      await service.generateResponse(personality, 'Hello', context);
+      await service.generateResponse(personality, 'Hello', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(mockReplacePromptPlaceholders).toHaveBeenCalledWith(
         'AI response',
@@ -2175,7 +2385,10 @@ describe('ConversationalRAGService', () => {
         discordUsername: 'alice123',
       });
 
-      await service.generateResponse(personality, 'Hello', context);
+      await service.generateResponse(personality, 'Hello', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(mockReplacePromptPlaceholders).toHaveBeenCalledWith(
         'AI response',
@@ -2193,7 +2406,10 @@ describe('ConversationalRAGService', () => {
         discordUsername: 'someuser',
       });
 
-      await service.generateResponse(personality, 'Hello', context);
+      await service.generateResponse(personality, 'Hello', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(mockReplacePromptPlaceholders).toHaveBeenCalledWith(
         'AI response',
@@ -2209,7 +2425,10 @@ describe('ConversationalRAGService', () => {
         userName: 'TestUser',
       });
 
-      await service.generateResponse(personality, 'Hello', context);
+      await service.generateResponse(personality, 'Hello', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(mockReplacePromptPlaceholders).toHaveBeenCalledWith(
         'AI response',
@@ -2237,7 +2456,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      const result = await service.generateResponse(personality, 'Hi alice', context);
+      const result = await service.generateResponse(personality, 'Hi alice', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // UserReferenceResolver should be called on the cleaned output with correct arguments
       expect(getUserReferenceResolverMock().resolveUserReferences).toHaveBeenCalledWith(
@@ -2263,7 +2485,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      const result = await service.generateResponse(personality, 'Hello both', context);
+      const result = await service.generateResponse(personality, 'Hello both', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(result.content).toBe('Hi @alice and @bob!');
     });
@@ -2287,7 +2512,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await service.generateResponse(personality, 'Tell alice something', context);
+      await service.generateResponse(personality, 'Tell alice something', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // LTM should receive the resolved content
       expect(getLongTermMemoryServiceMock().storeInteraction).toHaveBeenCalledWith(
@@ -2317,7 +2545,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      const result = await service.generateResponse(personality, 'Hello', context);
+      const result = await service.generateResponse(personality, 'Hello', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(result.content).toBe('Just a normal response');
     });
@@ -2332,9 +2563,12 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      await expect(service.generateResponse(personality, 'Test', context)).rejects.toThrow(
-        'Memory service unavailable'
-      );
+      await expect(
+        service.generateResponse(personality, 'Test', context, {
+          keyProvenance: 'user',
+          effectiveTier: 'paid',
+        })
+      ).rejects.toThrow('Memory service unavailable');
     });
 
     it('should propagate errors from attachment processing', async () => {
@@ -2351,9 +2585,12 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext({ attachments });
       const personality = createMockPersonality();
 
-      await expect(service.generateResponse(personality, 'Test', context)).rejects.toThrow(
-        'Vision API error'
-      );
+      await expect(
+        service.generateResponse(personality, 'Test', context, {
+          keyProvenance: 'user',
+          effectiveTier: 'paid',
+        })
+      ).rejects.toThrow('Vision API error');
     });
   });
 
@@ -2400,7 +2637,10 @@ describe('ConversationalRAGService', () => {
         preprocessedExtendedContextAttachments: preprocessedAttachments,
       });
 
-      await service.generateResponse(personality, 'What do you see?', context);
+      await service.generateResponse(personality, 'What do you see?', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // Verify that the history entry was mutated to include imageDescriptions
       // The service mutates the history objects to add messageMetadata
@@ -2460,7 +2700,10 @@ describe('ConversationalRAGService', () => {
         preprocessedExtendedContextAttachments: preprocessedAttachments,
       });
 
-      await service.generateResponse(personality, 'Describe the photos', context);
+      await service.generateResponse(personality, 'Describe the photos', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(
         (rawHistory[0] as { messageMetadata?: { imageDescriptions?: unknown[] } }).messageMetadata
@@ -2509,7 +2752,10 @@ describe('ConversationalRAGService', () => {
         preprocessedExtendedContextAttachments: preprocessedAttachments,
       });
 
-      await service.generateResponse(personality, 'Test', context);
+      await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // No injection should happen
       expect((rawHistory[0] as { messageMetadata?: unknown }).messageMetadata).toBeUndefined();
@@ -2533,7 +2779,10 @@ describe('ConversationalRAGService', () => {
         preprocessedExtendedContextAttachments: [],
       });
 
-      await service.generateResponse(personality, 'Test', context);
+      await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // Should complete without errors
       expect((rawHistory[0] as { messageMetadata?: unknown }).messageMetadata).toBeUndefined();
@@ -2557,7 +2806,10 @@ describe('ConversationalRAGService', () => {
         // preprocessedExtendedContextAttachments is undefined
       });
 
-      await service.generateResponse(personality, 'Test', context);
+      await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // Should complete without errors
       expect((rawHistory[0] as { messageMetadata?: unknown }).messageMetadata).toBeUndefined();
@@ -2596,7 +2848,10 @@ describe('ConversationalRAGService', () => {
         preprocessedExtendedContextAttachments: preprocessedAttachments,
       });
 
-      await service.generateResponse(personality, 'Test', context);
+      await service.generateResponse(personality, 'Test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       expect(
         (rawHistory[0] as { messageMetadata?: { imageDescriptions?: unknown[] } }).messageMetadata
@@ -2627,7 +2882,8 @@ describe('ConversationalRAGService', () => {
       const result = await service.generateResponse(
         personality,
         'What is the meaning of life?',
-        context
+        context,
+        { keyProvenance: 'user', effectiveTier: 'paid' }
       );
 
       // The thinkingContent should contain the extracted reasoning
@@ -2659,7 +2915,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      const result = await service.generateResponse(personality, 'Verify this', context);
+      const result = await service.generateResponse(personality, 'Verify this', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // The thinkingContent should contain the extracted reasoning from reasoning_details
       // Multiple reasoning items are separated by \n\n---\n\n
@@ -2686,7 +2945,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      const result = await service.generateResponse(personality, 'Combine thinking', context);
+      const result = await service.generateResponse(personality, 'Combine thinking', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // Both API reasoning and inline thinking should be present
       expect(result.thinkingContent).toContain('API-level reasoning content');
@@ -2714,7 +2976,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      const result = await service.generateResponse(personality, 'Priority test', context);
+      const result = await service.generateResponse(personality, 'Priority test', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // Should use additional_kwargs.reasoning (primary), not reasoning_details (fallback)
       expect(result.thinkingContent).toBe('Primary reasoning from additional_kwargs');
@@ -2738,7 +3003,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      const result = await service.generateResponse(personality, 'Hide thinking', context);
+      const result = await service.generateResponse(personality, 'Hide thinking', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // The reasoning is extracted into metadata, never merged into the reply
       expect(result.content).toBe('Response without thinking.');
@@ -2764,7 +3032,10 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
-      const result = await service.generateResponse(personality, 'Test message', context);
+      const result = await service.generateResponse(personality, 'Test message', context, {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // Content should be empty - the thinking should NOT be used as visible response
       expect(result.content).toBe('');
@@ -2852,7 +3123,8 @@ describe('ConversationalRAGService', () => {
             { role: 'user', content: 'first', createdAt: older },
             { role: 'assistant', content: 'second', createdAt: newest },
           ],
-        })
+        }),
+        { keyProvenance: 'user', effectiveTier: 'paid' }
       );
 
       const logged = generatedResponseLog();
@@ -2871,7 +3143,10 @@ describe('ConversationalRAGService', () => {
     it('hashes the SHIPPED serializedHistory minus its newest entry', async () => {
       primeBudget(`${ENTRY_OLD}\n${ENTRY_NEW}`);
 
-      await service.generateResponse(createMockPersonality(), 'Test message', createMockContext());
+      await service.generateResponse(createMockPersonality(), 'Test message', createMockContext(), {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       const logged = generatedResponseLog();
       expect(logged?.promptHashHistoryStable).toBe(promptHash(`${ENTRY_OLD}\n`));
@@ -2884,7 +3159,8 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(
         createMockPersonality(),
         'Test message',
-        createMockContext({ rawConversationHistory: [] })
+        createMockContext({ rawConversationHistory: [] }),
+        { keyProvenance: 'user', effectiveTier: 'paid' }
       );
 
       const logged = generatedResponseLog();
@@ -2902,7 +3178,8 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(
         createMockPersonality({ model: 'anthropic/claude-sonnet-4' }),
         'Test message',
-        createMockContext()
+        createMockContext(),
+        { keyProvenance: 'user', effectiveTier: 'paid' }
       );
 
       expect(generatedResponseLog()?.promptCacheGate).toBe(true);
@@ -2911,7 +3188,10 @@ describe('ConversationalRAGService', () => {
     it('sets promptCacheGate false when the resolved model is not anthropic-family', async () => {
       primeBudget(`${ENTRY_OLD}\n${ENTRY_NEW}`);
 
-      await service.generateResponse(createMockPersonality(), 'Test message', createMockContext());
+      await service.generateResponse(createMockPersonality(), 'Test message', createMockContext(), {
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+      });
 
       // The mock's default model is 'test-model' — outside the anthropic/ family.
       expect(generatedResponseLog()?.promptCacheGate).toBe(false);
@@ -2926,7 +3206,8 @@ describe('ConversationalRAGService', () => {
           model: 'anthropic/claude-sonnet-4',
         }),
         'Test message',
-        createMockContext()
+        createMockContext(),
+        { keyProvenance: 'user', effectiveTier: 'paid' }
       );
 
       expect(generatedResponseLog()?.promptCacheGate).toBe(false);

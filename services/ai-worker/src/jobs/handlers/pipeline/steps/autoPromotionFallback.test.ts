@@ -120,6 +120,7 @@ describe('runWithAutoPromotionFallback', () => {
 
     const result = await runWithAutoPromotionFallback(attempt, baseOpts, {
       apiKey: 'sk-or',
+      source: 'user',
       provider: 'openrouter',
       model: 'z-ai/glm-5.1',
       isGuestMode: false,
@@ -141,6 +142,7 @@ describe('runWithAutoPromotionFallback', () => {
 
     const result = await runWithAutoPromotionFallback(attempt, baseOpts, {
       apiKey: 'sk-or-fallback',
+      source: 'user',
       provider: 'openrouter',
       model: 'z-ai/glm-5.1',
       isGuestMode: false,
@@ -188,6 +190,7 @@ describe('runWithAutoPromotionFallback', () => {
 
     const result = await runWithAutoPromotionFallback(attempt, baseOpts, {
       apiKey: 'sk-or-fallback',
+      source: 'user',
       provider: 'openrouter',
       model: 'z-ai/glm-5.1',
       isGuestMode: false,
@@ -209,6 +212,7 @@ describe('runWithAutoPromotionFallback', () => {
 
     const result = await runWithAutoPromotionFallback(attempt, baseOpts, {
       apiKey: 'sk-or-fallback',
+      source: 'user',
       provider: 'openrouter',
       model: 'z-ai/glm-5.1',
       isGuestMode: false,
@@ -224,6 +228,7 @@ describe('runWithAutoPromotionFallback', () => {
 
     const result = await runWithAutoPromotionFallback(attempt, baseOpts, {
       apiKey: 'sk-or-fallback',
+      source: 'user',
       provider: 'openrouter',
       model: 'z-ai/glm-5.1',
       isGuestMode: false,
@@ -250,6 +255,7 @@ describe('runWithAutoPromotionFallback', () => {
 
     const result = await runWithAutoPromotionFallback(attempt, baseOpts, {
       apiKey: 'sk-or-fallback',
+      source: 'user',
       provider: 'openrouter',
       model: 'z-ai/glm-5.1',
       isGuestMode: false,
@@ -274,6 +280,7 @@ describe('runWithAutoPromotionFallback', () => {
     await expect(
       runWithAutoPromotionFallback(attempt, baseOpts, {
         apiKey: 'sk-or',
+        source: 'user',
         provider: 'openrouter',
         model: 'z-ai/glm-5.1',
         isGuestMode: false,
@@ -311,6 +318,7 @@ describe('runWithAutoPromotionFallback', () => {
     await expect(
       runWithAutoPromotionFallback(attempt, baseOpts, {
         apiKey: 'sk-or',
+        source: 'user',
         provider: 'openrouter',
         model: 'z-ai/glm-5.1',
         isGuestMode: false,
@@ -333,6 +341,7 @@ describe('runWithAutoPromotionFallback', () => {
     await expect(
       runWithAutoPromotionFallback(attempt, baseOpts, {
         apiKey: 'sk-or',
+        source: 'user',
         provider: 'openrouter',
         model: 'z-ai/glm-5.1',
         isGuestMode: false,
@@ -410,6 +419,7 @@ describe('runWithAutoPromotionFallback — job LLM budget gate', () => {
 
   const swapRoute = {
     apiKey: 'sk-or-fallback',
+    source: 'user',
     provider: 'openrouter',
     model: 'z-ai/glm-5.1',
     isGuestMode: false,

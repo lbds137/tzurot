@@ -24,6 +24,7 @@ import { mapWithConcurrency } from '../utils/mapWithConcurrency.js';
 import { shouldRetryError, getErrorLogContext } from '../utils/apiErrorParser.js';
 import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 import { resolveEffectiveTier } from '../services/effectiveTier.js';
+import { provenanceFromResolution } from './handlers/pipeline/steps/postRouteLlmAuth.js';
 import {
   type VisionConfigResult,
   type ResolveVisionConfigOptions,
@@ -103,7 +104,11 @@ interface ImageJobAuth {
 async function resolveGuestMode(apiKeyResolver: ApiKeyResolver, userId: string): Promise<boolean> {
   try {
     const result = await apiKeyResolver.resolveApiKey(userId, AIProvider.OpenRouter);
-    if (resolveEffectiveTier({ keyProvenance: result.source }) === 'paid') {
+    if (
+      resolveEffectiveTier({
+        keyProvenance: provenanceFromResolution(result.source, result.apiKey),
+      }) === 'paid'
+    ) {
       return false;
     }
     const zaiCodingKey = await apiKeyResolver.tryResolveUserKey(userId, AIProvider.ZaiCoding);

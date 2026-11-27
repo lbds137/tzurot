@@ -34,13 +34,6 @@ export interface RetryCredentials {
   effectiveTier: EffectiveTier;
 }
 
-export function resolveAttemptTier(opts: {
-  keyProvenance: KeyProvenance;
-  effectiveTier: EffectiveTier;
-}): { keyProvenance: KeyProvenance; effectiveTier: EffectiveTier } {
-  return { keyProvenance: opts.keyProvenance, effectiveTier: opts.effectiveTier };
-}
-
 export function systemCredentials(apiKey: string): RetryCredentials {
   const keyProvenance: KeyProvenance = 'system';
   return {
@@ -99,12 +92,10 @@ export function credentialsFromAuth(auth: {
 export async function selectHopOneFloorTarget(params: {
   category: NonNullable<ReturnType<typeof classifyQuotaFailure>>;
   opts: GenerateAttemptOpts;
-  cacheKeyId: string;
   caches: QuotaFallbackCaches;
   excludeRoutes?: readonly AttemptedRoute[];
-  userId?: string;
 }): Promise<QuotaFallbackTarget | null> {
-  const { category, opts, caches, excludeRoutes, userId } = params;
+  const { category, opts, caches, excludeRoutes } = params;
   const failingModel = opts.personality.model;
   if (category === ApiErrorCategory.CREDIT_EXHAUSTION) {
     logger.debug(
@@ -113,13 +104,12 @@ export async function selectHopOneFloorTarget(params: {
     );
     return null;
   }
-  const { keyProvenance, effectiveTier: tier } = resolveAttemptTier(opts);
-  const resolvedUserId = userId ?? opts.conversationContext.userId;
+  const { keyProvenance, effectiveTier: tier } = opts;
   const floorTarget = await selectFloorTarget({
     tier,
     excludeModels: [failingModel],
     excludeRoutes,
-    cacheKeyId: authCacheKeyId({ keyProvenance }, opts.apiKey, resolvedUserId),
+    cacheKeyId: authCacheKeyId({ keyProvenance }, opts.apiKey, opts.conversationContext.userId),
     caches,
   }).catch((err: unknown) => {
     // A selection failure is not a veto — log it as itself so it can't hide
