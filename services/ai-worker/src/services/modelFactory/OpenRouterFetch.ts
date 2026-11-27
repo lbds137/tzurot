@@ -35,7 +35,7 @@ import { PROMPT_CACHE_TTL } from '@tzurot/common-types/constants/ai';
 import { MAX_ERROR_MESSAGE_LENGTH } from '@tzurot/common-types/constants/error';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { extractApiReasoningContent } from '../../utils/thinkingExtraction.js';
-import { type OpenRouterProviderRouting } from './providerRouting.js';
+import { type OpenRouterProviderRouting } from '@tzurot/common-types/utils/openrouterRoutingResolver';
 import { summarizeExtraParamsForLog } from './providerRoutingSummary.js';
 
 const logger = createLogger('ModelFactory');

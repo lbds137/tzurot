@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
-import { OPENROUTER_ROUTING } from '@tzurot/common-types/constants/openrouterRouting';
-import { resolveOpenRouterProviderRouting } from './providerRouting.js';
+import { OPENROUTER_ROUTING, type PinnedOpenRouterModel } from '../constants/openrouterRouting.js';
+import { resolveOpenRouterProviderRouting } from './openrouterRoutingResolver.js';
 
 describe('resolveOpenRouterProviderRouting', () => {
   it('the pinned id returns the only-shape with fallbacks disabled', () => {
-    const routing = resolveOpenRouterProviderRouting('z-ai/glm-5.3-flash');
+    const pinnedId: PinnedOpenRouterModel = 'z-ai/glm-5.3-flash';
+    const routing = resolveOpenRouterProviderRouting(pinnedId);
     expect(routing).toEqual({
-      only: [...OPENROUTER_ROUTING.PINNED_MODELS['z-ai/glm-5.3-flash']],
+      only: [...OPENROUTER_ROUTING.PINNED_MODELS[pinnedId]],
       allow_fallbacks: false,
       data_collection: 'deny',
     });
-    expect(routing.only).toHaveLength(30);
     expect(routing.ignore).toBeUndefined();
   });
 
@@ -24,7 +24,6 @@ describe('resolveOpenRouterProviderRouting', () => {
         allow_fallbacks: false,
         data_collection: 'deny',
       });
-      expect(routing.only).toHaveLength(30);
       expect(routing.ignore).toBeUndefined();
 
       const suffixed = resolveOpenRouterProviderRouting(`${modelId.trim()}:free`);

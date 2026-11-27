@@ -27,7 +27,7 @@ import {
 import { buildThinkingKwargs } from './modelFactory/thinkingTranslation.js';
 import { resolveModelName, resolveProvider } from './modelFactory/modelResolution.js';
 import { promptCacheGateFires } from './modelFactory/promptCacheGate.js';
-import { resolveOpenRouterProviderRouting } from './modelFactory/providerRouting.js';
+import { resolveOpenRouterProviderRouting } from '@tzurot/common-types/utils/openrouterRoutingResolver';
 import { summarizeExtraParamsForLog } from './modelFactory/providerRoutingSummary.js';
 
 // Re-export extracted modules for backward compatibility

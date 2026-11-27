@@ -8,7 +8,7 @@
  * fields — never the list itself.
  */
 
-import { type OpenRouterProviderRouting } from './providerRouting.js';
+import { type OpenRouterProviderRouting } from '@tzurot/common-types/utils/openrouterRoutingResolver';
 
 /**
  * The `provider` field of the injection log: the routing shape, the two host

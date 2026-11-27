@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AI_ENDPOINTS } from '@tzurot/common-types/constants/ai';
+import { OPENROUTER_ROUTING } from '@tzurot/common-types/constants/openrouterRouting';
 import { UsageError } from '../utils/errors.js';
 import {
   callChatCompletion,
@@ -149,6 +150,47 @@ describe('callChatCompletion', () => {
     const [, noJsonModeInit] = mockFetch.mock.calls[0] as [string, RequestInit];
     const noJsonModeBody = JSON.parse(noJsonModeInit.body as string) as Record<string, unknown>;
     expect(noJsonModeBody).not.toHaveProperty('response_format');
+  });
+
+  it('sends the pinned provider routing object for z-ai/glm-5.3-flash on openrouter', async () => {
+    mockFetch.mockResolvedValue(jsonResponse(200, okBody('hi', { finish_reason: 'stop' })));
+    await callChatCompletion(
+      {
+        model: 'z-ai/glm-5.3-flash',
+        messages: [{ role: 'user', content: 'hello' }],
+        temperature: 0,
+        maxTokens: 10,
+        provider: 'openrouter',
+      },
+      'test-openrouter-key'
+    );
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body.provider).toEqual({
+      only: [...OPENROUTER_ROUTING.PINNED_MODELS['z-ai/glm-5.3-flash']],
+      allow_fallbacks: false,
+      data_collection: 'deny',
+    });
+  });
+
+  it('sends the forwarder-ignore provider routing object (no only key) for an unpinned model on openrouter', async () => {
+    mockFetch.mockResolvedValue(jsonResponse(200, okBody('hi', { finish_reason: 'stop' })));
+    await callChatCompletion(
+      {
+        model: 'anthropic/claude-haiku-4.5',
+        messages: [{ role: 'user', content: 'hello' }],
+        temperature: 0,
+        maxTokens: 10,
+        provider: 'openrouter',
+      },
+      'test-openrouter-key'
+    );
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as { provider?: Record<string, unknown> };
+    expect(body.provider).toBeDefined();
+    expect(body.provider?.ignore).toEqual([...OPENROUTER_ROUTING.FORWARDER_IGNORE]);
+    expect(body.provider?.data_collection).toBe('deny');
+    expect(body.provider).not.toHaveProperty('only');
   });
 
   it('defaults finishReason to null when absent or not a string', async () => {
@@ -385,9 +427,27 @@ describe('callChatCompletion — zai-coding provider routing', () => {
     const body = JSON.parse(init.body as string) as Record<string, unknown>;
     expect(body.model).toBe('glm-5.3');
     expect(body).not.toHaveProperty('thinking');
+    expect(body).not.toHaveProperty('provider');
     const headers = init.headers as Record<string, string>;
     expect(headers).not.toHaveProperty('HTTP-Referer');
     expect(headers).not.toHaveProperty('X-Title');
+  });
+
+  it('omits the provider key from the zai-coding request body even for a pinned OpenRouter model id', async () => {
+    mockFetch.mockResolvedValue(jsonResponse(200, okBody('hi', { finish_reason: 'stop' })));
+    await callChatCompletion(
+      {
+        model: 'z-ai/glm-5.3-flash',
+        messages: [],
+        temperature: 0,
+        maxTokens: 10,
+        provider: 'zai-coding',
+      },
+      'zai-test'
+    );
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body).not.toHaveProperty('provider');
   });
 
   it('sends the thinking body for a zai-coding call that requests it', async () => {
