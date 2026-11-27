@@ -21,7 +21,8 @@ Never use string interpolation in shell commands: `execFileSync('git', ['commit'
   history.
 - Model-provider keys for pilots/evals are pulled into the shell at run time
   and never written to disk or printed (the `ZAI_CODING_API_KEY` shape:
-  `08-tooling-internals.md` § Model calls from tooling).
+  `08-tooling-internals.md` § Model calls from tooling). GLM calls route
+  through the Z.ai plan, never metered OpenRouter (same section).
 
 ### Claude Session URLs Are Secrets (CRITICAL)
 
@@ -134,6 +135,10 @@ The hook covers only `claude[bot]` issue-level comments — formal review summar
 
 - **NEVER add NEW code to `knownGaps` baseline** - write proper tests instead
 - File: `.github/baselines/test-coverage-baseline.json`
+- Baseline refreshes are gated: `test:audit --update` and
+  `mutation:update-baseline` run only after closing coverage/score gaps
+  (`08-tooling-internals.md` § Test Audits / § Mutation-Score Ratchet —
+  path-scoped; this bullet is the always-loaded copy).
 
 ## Project Rules
 

@@ -141,7 +141,13 @@ Pass `timeout_ms: 1800000` (30 min) and `persistent: false`. **The `false` is a 
 
 **This invocation is duplicated in three places on purpose** — here, the hook heredoc, and `/tzurot-git-workflow`. `pnpm ops guard:monitor-command` fails CI if the copies diverge, so change all three.
 
-**When the monitor fires**, read WHICH sentinel printed before anything else — only `CI_COMPLETE` means CI finished; every other outcome (timeout, startup failure: `gh run rerun` first, missing review run, the Monitor's own timeout) means re-arm or re-query, and the full outcome table is in [`pr-monitoring.md`](../../docs/reference/tooling/pr-monitoring.md). A bare `exit 1` from the Monitor script can be cosmetic — `fixup-check` is red on purpose on fixup branches — so read the event stream for the sentinel rather than assuming failure. Then fetch new reviewer feedback from all three read commands above and report CI pass/fail and findings in one message; apply feedback via `/tzurot-review-response` — and read every `###` section of a review body, not only its Summary. Run the SHA-pinned run-list query before reporting green (`pr-monitoring.md` § Outcomes): a run that dies before dispatch creates zero check-runs, so a green `gh pr checks` list alone is not proof CI ran. A green review run with no new `claude[bot]` body means the action completed but posted nothing — `gh run rerun <run-id>`. CI failures and new CodeQL alerts surface via `PushNotification`. Numbers and enumerations in the PR body and commit bodies are re-derived against the head REF, never the working tree.
+**When the monitor fires**, read WHICH sentinel printed before anything else — only `CI_COMPLETE` means CI finished. Then, in order:
+
+- Every other outcome (timeout, startup failure: `gh run rerun` first, missing review run, the Monitor's own timeout) means re-arm or re-query; the full outcome table is in [`pr-monitoring.md`](../../docs/reference/tooling/pr-monitoring.md). A bare `exit 1` from the Monitor script can be cosmetic — `fixup-check` is red on purpose on fixup branches — so read the event stream for the sentinel rather than assuming failure.
+- Fetch new reviewer feedback from all three read commands above and report CI pass/fail and findings in one message; apply feedback via `/tzurot-review-response` — and read every `###` section of a review body, not only its Summary.
+- Run the SHA-pinned run-list query before reporting green (`pr-monitoring.md` § Outcomes): a run that dies before dispatch creates zero check-runs, so a green `gh pr checks` list alone is not proof CI ran. A green review run with no new `claude[bot]` body means the action completed but posted nothing — `gh run rerun <run-id>`.
+- CI failures and new CodeQL alerts surface via `PushNotification`.
+- Numbers and enumerations in the PR body and commit bodies are re-derived against the head REF, never the working tree.
 
 ## No Standalone Scripts
 
