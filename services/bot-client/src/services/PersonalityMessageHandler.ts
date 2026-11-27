@@ -96,9 +96,10 @@ export class PersonalityMessageHandler {
       // skips history persistence — the submission threw before any turn was
       // created, so there's nothing to attribute. On webhook failure it falls
       // back to a plain reply internally.
-      // `technicalMessage` is a SAFE LITERAL — the raw `error` is logged above
-      // but must never reach the user-facing (spoilered) content per
-      // 00-critical's no-raw-error-leak rule.
+      // `technicalMessage` is a SAFE LITERAL — the error spoiler renders
+      // category + ref only, `deliverErrorNoPersist` logs nothing, and the
+      // raw `error` is already logged in the catch above. The literal fills
+      // the schema-required field without copying exception text.
       const spec = buildSyntheticErrorResult(personality, {
         requestId: message.id,
         category: ApiErrorCategory.UNKNOWN,

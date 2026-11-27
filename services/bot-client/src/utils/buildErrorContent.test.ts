@@ -52,7 +52,7 @@ describe('buildErrorContent', () => {
       );
     });
 
-    it('should include technicalMessage in spoiler when provided', () => {
+    it('should omit technicalMessage from spoiler when provided on errorInfo', () => {
       const result = {
         success: false,
         errorInfo: {
@@ -65,9 +65,7 @@ describe('buildErrorContent', () => {
 
       const content = buildErrorContent(result);
 
-      expect(content).toBe(
-        'Cannot think right now. ||*(error: quota exceeded — "402 Payment Required"; ref: ref-456)*||'
-      );
+      expect(content).toBe('Cannot think right now. ||*(error: quota exceeded; ref: ref-456)*||');
     });
   });
 
@@ -88,7 +86,7 @@ describe('buildErrorContent', () => {
       expect(content).toContain('||*(error: rate limit; ref: ref-789)*||');
     });
 
-    it('should use category-specific user message with technicalMessage', () => {
+    it('should omit technicalMessage from spoiler on category-specific user message', () => {
       const result = {
         success: false,
         errorInfo: {
@@ -102,8 +100,8 @@ describe('buildErrorContent', () => {
       const content = buildErrorContent(result);
 
       expect(content).toContain("You've reached your API usage limit");
-      expect(content).toContain('— "402 Insufficient credits"');
-      expect(content).toContain('ref: ref-001');
+      expect(content).toContain('||*(error: quota exceeded; ref: ref-001)*||');
+      expect(content).not.toContain('402 Insufficient credits');
     });
 
     it('should use default error for unknown category', () => {

@@ -499,9 +499,10 @@ export class MultiTagCoordinator {
       // Carry a synthetic result so the all-errored branch can deliver the
       // character's own error voice. The submission threw before any turn was
       // created, so this is UNKNOWN-category (not a completed job's timeout).
-      // `technicalMessage` is a SAFE LITERAL — the raw `err` is logged above
-      // but must never reach the user-facing (spoilered) content per
-      // 00-critical's no-raw-error-leak rule.
+      // `technicalMessage` is a SAFE LITERAL — the error spoiler renders
+      // category + ref only, `reportJobError` reads the category alone, and
+      // the raw `err` is already logged in the catch above. The literal
+      // fills the schema-required field without copying exception text.
       const spec = buildSyntheticErrorResult(resolved.personality, {
         requestId: input.message.id,
         category: ApiErrorCategory.UNKNOWN,

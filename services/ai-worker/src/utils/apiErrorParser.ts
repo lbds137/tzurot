@@ -713,7 +713,8 @@ function resolveCategoryAndType(
  *   if (!errorInfo.shouldRetry) {
  *     // Fast-fail, don't retry
  *   }
- *   // Use errorInfo.userMessage for user feedback
+ *   // errorInfo.category/referenceId drive the rendered error (precedence in
+ *   // bot-client's buildErrorContent); userMessage is a schema-contract field
  *   // Use errorInfo.referenceId for support
  * }
  */
