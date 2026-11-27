@@ -625,9 +625,9 @@ export interface ModelInvocationOptions {
    * drives cache-identity provenance so a retarget never scopes as the user. */
   isGuestMode?: boolean;
   /** Origin of the resolved API key ('user' | 'system' | 'none') from the effectiveTier seam. */
-  keyProvenance?: KeyProvenance;
+  keyProvenance: KeyProvenance;
   /** Effective capability/routing tier ('paid' | 'free') from the effectiveTier seam. */
-  effectiveTier?: EffectiveTier;
+  effectiveTier: EffectiveTier;
   /** Retry configuration for escalating duplicate detection retries */
   retryConfig?: DuplicateRetryConfig;
   /** Diagnostic collector for the "flight recorder" system */

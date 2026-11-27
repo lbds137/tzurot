@@ -175,6 +175,8 @@ describe('GenerationStep', () => {
       apiKey: 'sk-test-key',
       provider: AIProvider.OpenRouter,
       isGuestMode: false,
+      keyProvenance: 'user',
+      effectiveTier: 'paid',
       audioProviderKeys: new Map(),
     };
 
@@ -357,7 +359,12 @@ describe('GenerationStep', () => {
         tokensOut: 1,
         modelUsed: 'free/model',
       };
-      const guestAuth: ResolvedAuth = { ...baseAuth, isGuestMode: true };
+      const guestAuth: ResolvedAuth = {
+        ...baseAuth,
+        isGuestMode: true,
+        keyProvenance: 'system',
+        effectiveTier: 'free',
+      };
 
       it('meters a guest request (userId, requestId) and proceeds when allowed', async () => {
         const quota = mockQuota(true);
@@ -458,6 +465,37 @@ describe('GenerationStep', () => {
 
         expect(quota.tryConsume).not.toHaveBeenCalled();
       });
+
+      it('meters a no-key non-guest route (keyProvenance: none, effectiveTier: free, isGuestMode: false) against free-tier quota', async () => {
+        const quota = mockQuota(false);
+        const freeStep = new GenerationStep(
+          mockRAGService,
+          createMockPrisma(),
+          undefined,
+          undefined,
+          { freeTierQuota: quota }
+        );
+        const noKeyNonGuestAuth: ResolvedAuth = {
+          ...baseAuth,
+          apiKey: undefined,
+          isGuestMode: false,
+          keyProvenance: 'none',
+          effectiveTier: 'free',
+        };
+
+        const result = await freeStep.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: noKeyNonGuestAuth,
+          preparedContext: basePreparedContext,
+        });
+
+        expect(quota.tryConsume).toHaveBeenCalledWith('user-456', 'test-req-001');
+        expect(mockRAGService.generateResponse).not.toHaveBeenCalled();
+        expect(result.result?.success).toBe(false);
+        expect(result.result?.errorInfo?.category).toBe(ApiErrorCategory.FREE_TIER_QUOTA);
+      });
     });
 
     it('should include processing time in metadata', async () => {
@@ -506,6 +544,8 @@ describe('GenerationStep', () => {
           apiKey: undefined,
           provider: AIProvider.OpenRouter,
           isGuestMode: true,
+          keyProvenance: 'none',
+          effectiveTier: 'free',
           audioProviderKeys: new Map(),
         },
         preparedContext: basePreparedContext,
@@ -849,6 +889,8 @@ describe('GenerationStep', () => {
           ...baseAuth,
           provider: AIProvider.OpenRouter,
           isGuestMode: true,
+          keyProvenance: 'system',
+          effectiveTier: 'free',
           fallthroughTriggered: true,
           quotaFallback: guestAnnounce,
         } satisfies ResolvedAuth;
@@ -1053,6 +1095,8 @@ describe('GenerationStep', () => {
           apiKey: 'key',
           provider: AIProvider.ZaiCoding,
           isGuestMode: false,
+          keyProvenance: 'user',
+          effectiveTier: 'paid',
           audioProviderKeys: new Map(),
         },
         preparedContext: basePreparedContext,
@@ -2261,6 +2305,8 @@ describe('GenerationStep', () => {
         apiKey: 'sk-test-key',
         provider: AIProvider.OpenRouter,
         isGuestMode: false,
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
         audioProviderKeys: new Map(),
       };
 
@@ -2446,10 +2492,13 @@ describe('GenerationStep', () => {
         apiKey: 'zai-user-key',
         provider: AIProvider.ZaiCoding,
         isGuestMode: false,
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
         audioProviderKeys: new Map(),
         wasAutoPromoted: true,
         fallback: {
           apiKey: 'sk-or-user-key',
+          source: 'user',
           provider: 'openrouter',
           model: 'z-ai/glm-5.1', // original namespaced form
           isGuestMode: false,
@@ -2600,6 +2649,8 @@ describe('GenerationStep', () => {
           apiKey: 'sk-or-key',
           provider: AIProvider.OpenRouter,
           isGuestMode: false,
+          keyProvenance: 'user',
+          effectiveTier: 'paid',
           audioProviderKeys: new Map(),
           // wasAutoPromoted absent / undefined
         };
@@ -2669,6 +2720,8 @@ describe('GenerationStep', () => {
             apiKey: 'sk-or-key',
             provider: AIProvider.OpenRouter,
             isGuestMode: false,
+            keyProvenance: 'user',
+            effectiveTier: 'paid',
             audioProviderKeys: new Map(),
             fallback: promotedAuth.fallback,
           },

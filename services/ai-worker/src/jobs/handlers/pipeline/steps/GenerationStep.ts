@@ -65,8 +65,8 @@ function deriveFallbackFromProvider(
     : undefined;
 }
 
-function isFreeTierAuth(auth: { effectiveTier?: 'paid' | 'free'; isGuestMode: boolean }): boolean {
-  return auth.effectiveTier !== undefined ? auth.effectiveTier === 'free' : auth.isGuestMode;
+function isFreeTierAuth(auth: { effectiveTier: 'paid' | 'free' }): boolean {
+  return auth.effectiveTier === 'free';
 }
 
 /**

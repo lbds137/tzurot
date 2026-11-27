@@ -38,6 +38,7 @@ describe('resolveRetargetRoute', () => {
       target: paidTarget,
       personality: { model: 'some/model', provider: 'openrouter' },
       apiKey: 'sk-user',
+      source: 'user',
       isGuestMode: false,
       userId: 'u1',
       category: CATEGORY,
@@ -47,6 +48,7 @@ describe('resolveRetargetRoute', () => {
     expect(route).toEqual({
       config: { model: 'paid/default' },
       apiKey: 'sk-user',
+      source: 'user',
       isGuestMode: false,
     });
   });
@@ -63,6 +65,7 @@ describe('resolveRetargetRoute', () => {
       deps: makeDeps({ userOpenRouterKey: 'sk-or-user' }),
     });
     expect(route?.apiKey).toBe('sk-or-user');
+    expect(route?.source).toBe('user');
     expect(route?.config.model).toBe('paid/default');
   });
 
@@ -80,6 +83,7 @@ describe('resolveRetargetRoute', () => {
     expect(route).toEqual({
       config: { model: 'freebie/default:free' },
       apiKey: 'sk-system',
+      source: 'system',
       isGuestMode: true,
     });
   });
@@ -124,6 +128,7 @@ describe('resolveRetargetRoute', () => {
     expect(route).toEqual({
       config: { model: 'freebie/default:free' },
       apiKey: 'sk-system',
+      source: 'system',
       isGuestMode: true,
     });
   });

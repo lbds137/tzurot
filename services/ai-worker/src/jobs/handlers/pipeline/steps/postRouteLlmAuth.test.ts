@@ -3,7 +3,9 @@ import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { authCacheKeyId } from '../../../../services/effectiveTier.js';
 import type { ResolvedRoute } from '../../../../services/ProviderRouter.js';
+import { SYSTEM_CACHE_KEY_ID } from '../../../../services/RateLimitCache.js';
 import type { GuestOverrideResult } from './guestModeOverrides.js';
 import { buildPostRouteLlmAuth, toResolvedAuth, type ResolvedLlmAuth } from './postRouteLlmAuth.js';
 
@@ -66,6 +68,24 @@ describe('buildPostRouteLlmAuth', () => {
     expect(llmAuth.isGuestMode).toBe(true);
     expect(llmAuth.fallthroughTriggered).toBe(true);
   });
+
+  it('derives system provenance, free effectiveTier, and SYSTEM_CACHE_KEY_ID for a non-guest route on the system key', () => {
+    const route = {
+      effectiveProvider: AIProvider.OpenRouter,
+      effectiveModel: 'z-ai/glm-4.7',
+      apiKey: 'fixture-or-system',
+      source: 'system',
+      isGuestMode: false,
+      fallthroughTriggered: false,
+      wasAutoPromoted: false,
+    } satisfies ResolvedRoute;
+
+    const llmAuth = buildPostRouteLlmAuth(route, BASE_PERSONALITY);
+
+    expect(llmAuth.keyProvenance).toBe('system');
+    expect(llmAuth.effectiveTier).toBe('free');
+    expect(authCacheKeyId(llmAuth, llmAuth.resolvedApiKey, 'user-123')).toBe(SYSTEM_CACHE_KEY_ID);
+  });
 });
 
 describe('toResolvedAuth', () => {
@@ -77,6 +97,8 @@ describe('toResolvedAuth', () => {
       resolvedApiKey: 'fixture-or-user',
       resolvedProvider: AIProvider.OpenRouter,
       isGuestMode: false,
+      keyProvenance: 'user',
+      effectiveTier: 'paid',
       effectivePersonality: BASE_PERSONALITY,
     } satisfies ResolvedLlmAuth;
 

@@ -131,6 +131,8 @@ function createContext(overrides?: Partial<GenerationContext>): GenerationContex
       apiKey: 'sk-llm',
       provider: undefined,
       isGuestMode: false,
+      keyProvenance: 'user',
+      effectiveTier: 'paid',
       audioProviderKeys: new Map([['mistral', 'sk-mi']]),
     },
     ...overrides,

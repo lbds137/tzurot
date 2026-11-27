@@ -24,7 +24,6 @@ import {
 } from './RAGUtils.js';
 import { checkModelReasoningSupport } from '../redis.js';
 import { authCacheKeyId } from './effectiveTier.js';
-import { provenanceFromResolution } from '../jobs/handlers/pipeline/steps/postRouteLlmAuth.js';
 import { promptCacheGateFires } from './modelFactory/promptCacheGate.js';
 import { resolveModelName, resolveProvider } from './modelFactory/modelResolution.js';
 import { interveningShippedText, logGeneratedResponse } from './cacheObservability.js';
@@ -70,10 +69,11 @@ function wireSessionId(channelId: string | undefined): string | undefined {
 }
 
 function resolveInvocationCacheKeyId(opts: ModelInvocationOptions): string {
-  const keyProvenance =
-    opts.keyProvenance ??
-    provenanceFromResolution(opts.isGuestMode ?? false, opts.userApiKey, opts.context.userId);
-  return authCacheKeyId({ keyProvenance }, opts.userApiKey, opts.context.userId);
+  return authCacheKeyId(
+    { keyProvenance: opts.keyProvenance },
+    opts.userApiKey,
+    opts.context.userId
+  );
 }
 
 /** Invoke the model and clean up the response */

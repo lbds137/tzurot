@@ -680,6 +680,8 @@ describe('DependencyStep', () => {
         auth: {
           apiKey: 'user-test-key-12345',
           isGuestMode: false,
+          keyProvenance: 'user',
+          effectiveTier: 'paid',
           provider: AIProvider.OpenRouter,
           audioProviderKeys: new Map(),
         },
@@ -746,6 +748,8 @@ describe('DependencyStep', () => {
         auth: {
           apiKey: 'system-openrouter-key', // System key used for guests
           isGuestMode: true,
+          keyProvenance: 'system',
+          effectiveTier: 'free',
           provider: AIProvider.OpenRouter,
           audioProviderKeys: new Map(),
         },
@@ -992,36 +996,41 @@ describe('DependencyStep', () => {
 
     const buildCrossProviderContext = (
       authOverride: Partial<NonNullable<GenerationContext['auth']>> = {}
-    ): GenerationContext => ({
-      job: createMockJob({
-        context: {
-          kind: 'envelope',
-          userId: 'cross-provider-user',
-          userName: 'CrossUser',
-          channelId: 'channel-cp',
-          extendedContextAttachments: [
-            {
-              url: 'https://example.com/cp.jpg',
-              name: 'cp.jpg',
-              contentType: 'image/jpeg',
-              size: 1024,
-            },
-          ],
+    ): GenerationContext => {
+      const isGuestMode = authOverride.isGuestMode ?? false;
+      return {
+        job: createMockJob({
+          context: {
+            kind: 'envelope',
+            userId: 'cross-provider-user',
+            userName: 'CrossUser',
+            channelId: 'channel-cp',
+            extendedContextAttachments: [
+              {
+                url: 'https://example.com/cp.jpg',
+                name: 'cp.jpg',
+                contentType: 'image/jpeg',
+                size: 1024,
+              },
+            ],
+          },
+        }),
+        config: {
+          effectivePersonality: CROSS_PROVIDER_PERSONALITY,
+          configSource: 'user-personality',
         },
-      }),
-      config: {
-        effectivePersonality: CROSS_PROVIDER_PERSONALITY,
-        configSource: 'user-personality',
-      },
-      auth: {
-        apiKey: 'user-zai-key',
-        isGuestMode: false,
-        provider: AIProvider.ZaiCoding,
-        audioProviderKeys: new Map(),
-        ...authOverride,
-      },
-      startTime: Date.now(),
-    });
+        auth: {
+          apiKey: 'user-zai-key',
+          isGuestMode,
+          keyProvenance: isGuestMode ? 'system' : 'user',
+          effectiveTier: isGuestMode ? 'free' : 'paid',
+          provider: AIProvider.ZaiCoding,
+          audioProviderKeys: new Map(),
+          ...authOverride,
+        },
+        startTime: Date.now(),
+      };
+    };
 
     it('re-resolves API key for vision provider when authenticated user has it', async () => {
       // Phase-4: auth resolution moved into describeImageWithFallback (invoked deep in

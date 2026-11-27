@@ -137,13 +137,13 @@ export class ConversationalRAGService {
       userApiKey,
       sttDispatch,
       isGuestMode = false,
-      keyProvenance,
-      effectiveTier,
+      keyProvenance = 'user',
+      effectiveTier = 'paid',
       retryConfig,
       diagnosticCollector: diagnosticCollectorRef,
       configOverrides,
     } = options;
-    const isFreeTier = effectiveTier !== undefined ? effectiveTier === 'free' : isGuestMode;
+    const isFreeTier = effectiveTier === 'free';
     const diagnosticCollector = diagnosticCollectorRef as DiagnosticCollector | undefined;
 
     try {
@@ -308,8 +308,8 @@ export class ConversationalRAGService {
           context,
           userApiKey,
           isGuestMode,
-          ...(keyProvenance !== undefined ? { keyProvenance } : {}),
-          ...(effectiveTier !== undefined ? { effectiveTier } : {}),
+          keyProvenance,
+          effectiveTier,
           retryConfig,
           maxLlmAttempts: options.maxLlmAttempts,
           llmDeadline: options.llmDeadline,

@@ -11,6 +11,7 @@
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
+import type { ApiKeySource } from '../../../../services/ApiKeyResolver.js';
 import {
   type EffectiveTier,
   type KeyProvenance,
@@ -27,40 +28,21 @@ import { piggybackFields, type GuestOverrideResult } from './guestModeOverrides.
 type EffectivePersonality = NonNullable<GenerationContext['config']>['effectivePersonality'];
 
 /**
- * Translate a `ProviderRouter` / `ApiKeyResolver` credential pair into `KeyProvenance`.
+ * Translate a `ProviderRouter` / `ApiKeyResolver` key source and credential into
+ * `KeyProvenance`. Provenance describes the KEY's origin, never the user's guest status.
  *
  * - Missing or empty key → `'none'`
- * - Guest/system-fallback route (`isGuestMode === true`) → `'system'`
- * - Non-guest route with a resolved key → `'user'`
+ * - Operator system key (`source === 'system'`) → `'system'`
+ * - User/BYOK wallet key (`source === 'user'`) → `'user'`
  */
 export function provenanceFromResolution(
-  isGuestMode: boolean,
-  resolvedApiKey: string | undefined,
-  _userId?: string
+  source: ApiKeySource | undefined,
+  resolvedApiKey: string | undefined
 ): KeyProvenance {
   if (resolvedApiKey === undefined || resolvedApiKey.length === 0) {
     return 'none';
   }
-  return isGuestMode ? 'system' : 'user';
-}
-
-/**
- * Extract the effective key string used for provenance classification on a
- * `ResolvedRoute`, falling back to a non-guest auto-promotion passthrough key
- * when a test fixture mocks `resolveApiKey` without `tryResolveUserKey`.
- */
-export function routeKeyForProvenance(route: ResolvedRoute): string | undefined {
-  if (route.apiKey !== undefined) {
-    return route.apiKey;
-  }
-  if (
-    route.wasAutoPromoted === true &&
-    route.fallback !== undefined &&
-    !route.fallback.isGuestMode
-  ) {
-    return route.fallback.apiKey;
-  }
-  return undefined;
+  return source === 'system' ? 'system' : 'user';
 }
 
 /** What `resolveLlmAuth` resolves — the shape every downstream hop (quota
@@ -69,8 +51,8 @@ export interface ResolvedLlmAuth {
   resolvedApiKey: string | undefined;
   resolvedProvider: AIProvider | undefined;
   isGuestMode: boolean;
-  keyProvenance?: KeyProvenance;
-  effectiveTier?: EffectiveTier;
+  keyProvenance: KeyProvenance;
+  effectiveTier: EffectiveTier;
   effectivePersonality: EffectivePersonality;
   wasAutoPromoted?: boolean;
   fallthroughTriggered?: boolean;
@@ -101,7 +83,7 @@ export function buildPostRouteLlmAuth(
   route: ResolvedRoute,
   effectivePersonality: EffectivePersonality,
   guest?: GuestOverrideResult
-): ResolvedLlmAuth & { keyProvenance: KeyProvenance; effectiveTier: EffectiveTier } {
+): ResolvedLlmAuth {
   if (guest?.zaiSystemKey !== undefined) {
     const keyProvenance: KeyProvenance = 'system';
     return {
@@ -119,7 +101,7 @@ export function buildPostRouteLlmAuth(
     };
   }
 
-  const keyProvenance = provenanceFromResolution(route.isGuestMode, routeKeyForProvenance(route));
+  const keyProvenance = provenanceFromResolution(route.source, route.apiKey);
   return {
     resolvedApiKey: route.apiKey,
     resolvedProvider: route.effectiveProvider,
@@ -158,15 +140,13 @@ export function toResolvedAuth(
     piggybackModel,
     inheritedQuotaCategory,
   } = llmAuth;
-  const resolvedProvenance = keyProvenance ?? provenanceFromResolution(isGuestMode, resolvedApiKey);
-  const resolvedTier = effectiveTier ?? resolveEffectiveTier({ keyProvenance: resolvedProvenance });
 
   return {
     apiKey: resolvedApiKey,
     provider: resolvedProvider,
     isGuestMode,
-    keyProvenance: resolvedProvenance,
-    effectiveTier: resolvedTier,
+    keyProvenance,
+    effectiveTier,
     audioProviderKeys,
     sttDispatch,
     // wasAutoPromoted usually arrives with a fallback, but

@@ -1,4 +1,5 @@
 import { RuleTester } from 'eslint';
+import tseslint from 'typescript-eslint';
 import { describe, expect, it } from 'vitest';
 import { noTierFlagBranching } from './no-tier-flag-branching.js';
 
@@ -7,6 +8,7 @@ RuleTester.it = it;
 
 const ruleTester = new RuleTester({
   languageOptions: {
+    parser: tseslint.parser,
     ecmaVersion: 2022,
     sourceType: 'module',
   },
@@ -92,6 +94,42 @@ describe('no-tier-flag-branching', () => {
         // SwitchCase.test
         filename: 'services/ai-worker/src/services/modelInvocation.ts',
         code: 'switch (true) { case opts.isGuestMode: break; default: break; }',
+        errors: [{ messageId: 'noTierFlagBranching' }],
+      },
+      {
+        // Nullish coalescing ?? inside condition position
+        filename: 'services/ai-worker/src/jobs/handlers/pipeline/steps/quotaFallbackRunner.ts',
+        code: 'if (x ?? opts.isGuestMode) { useGuestRoute(); }',
+        errors: [{ messageId: 'noTierFlagBranching' }],
+      },
+      {
+        // TS non-null assertion wrapped read
+        filename: 'services/ai-worker/src/jobs/handlers/pipeline/steps/hopOneFloorTarget.ts',
+        code: 'if (opts!.isGuestMode) { selectFreeFloor(); }',
+        errors: [{ messageId: 'noTierFlagBranching' }],
+      },
+      {
+        // TS as-cast wrapped read
+        filename: 'services/ai-worker/src/jobs/handlers/pipeline/steps/hopOneFloorTarget.ts',
+        code: 'if ((opts.isGuestMode as boolean)) { selectFreeFloor(); }',
+        errors: [{ messageId: 'noTierFlagBranching' }],
+      },
+      {
+        // WhileStatement.test
+        filename: 'services/ai-worker/src/jobs/handlers/pipeline/steps/quotaFallbackRunner.ts',
+        code: 'while (opts.isGuestMode) { retryFree(); }',
+        errors: [{ messageId: 'noTierFlagBranching' }],
+      },
+      {
+        // DoWhileStatement.test
+        filename: 'services/ai-worker/src/jobs/handlers/pipeline/steps/quotaFallbackRunner.ts',
+        code: 'do { retryFree(); } while (opts.isGuestMode);',
+        errors: [{ messageId: 'noTierFlagBranching' }],
+      },
+      {
+        // ForStatement.test
+        filename: 'services/ai-worker/src/jobs/handlers/pipeline/steps/quotaFallbackRunner.ts',
+        code: 'for (let i = 0; opts.isGuestMode; i++) { retryFree(); }',
         errors: [{ messageId: 'noTierFlagBranching' }],
       },
     ],

@@ -2113,6 +2113,8 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, 'Test', context, {
         userApiKey: 'sk-or-system-key-passed-as-string',
         isGuestMode: true,
+        keyProvenance: 'system',
+        effectiveTier: 'free',
       });
 
       expect(getLLMInvokerMock().invokeWithRetry).toHaveBeenCalledWith(

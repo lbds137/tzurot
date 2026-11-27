@@ -42,9 +42,10 @@ import {
   type GenerateAttemptResult,
 } from './autoPromotionFallback.js';
 import {
-  buildRetryCredentials,
+  credentialsFromAuth,
   resolveAttemptTier,
   selectHopOneFloorTarget,
+  systemCredentials,
   type RetryCredentials,
 } from './hopOneFloorTarget.js';
 import { hasBudgetForAttempt } from './llmBudget.js';
@@ -328,7 +329,7 @@ async function resolveTargetAndCredentials(params: {
     }
     return {
       effectiveTarget: guestTarget,
-      credentials: buildRetryCredentials(systemKey, true, 'system', 'free'),
+      credentials: systemCredentials(systemKey),
     };
   } catch {
     throw originalError;
@@ -413,27 +414,23 @@ async function resolveRetryCredentials(
   // error. Guard the injectable seam so no wiring can break that guarantee:
   // a credential failure degrades to null → the pristine original rethrows.
   try {
-    const { keyProvenance, effectiveTier } = resolveAttemptTier(opts);
+    const { effectiveTier } = resolveAttemptTier(opts);
     if (target.forceSystemKey) {
       const systemKey = await deps.resolveSystemKey();
-      return systemKey === undefined
-        ? null
-        : buildRetryCredentials(systemKey, true, 'system', 'free');
+      return systemKey === undefined ? null : systemCredentials(systemKey);
     }
     const provider: string | undefined = opts.personality.provider;
     if (provider !== undefined && provider !== (AIProvider.OpenRouter as string)) {
       if (effectiveTier === 'free') {
         const systemKey = await deps.resolveSystemKey();
-        return systemKey === undefined
-          ? null
-          : buildRetryCredentials(systemKey, true, 'system', 'free');
+        return systemKey === undefined ? null : systemCredentials(systemKey);
       }
       const openRouterKey = await deps.resolveUserOpenRouterKey(userId);
       return openRouterKey === undefined
         ? null
-        : buildRetryCredentials(openRouterKey, opts.isGuestMode, 'user', 'paid');
+        : credentialsFromAuth({ apiKey: openRouterKey, keyProvenance: 'user' });
     }
-    return buildRetryCredentials(opts.apiKey, opts.isGuestMode, keyProvenance, effectiveTier);
+    return credentialsFromAuth(opts);
   } catch (error) {
     logger.warn(
       { err: error, jobId: opts.jobId },

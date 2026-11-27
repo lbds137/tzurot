@@ -90,6 +90,7 @@ describe('ProviderRouter', () => {
         effectiveProvider: AIProvider.OpenRouter,
         effectiveModel: 'anthropic/claude-sonnet-4.5',
         apiKey: 'sk-or-user-key',
+        source: 'user',
         isGuestMode: false,
         fallthroughTriggered: false,
         wasAutoPromoted: false,
@@ -128,6 +129,7 @@ describe('ProviderRouter', () => {
         effectiveProvider: AIProvider.ZaiCoding,
         effectiveModel: 'glm-4.7',
         apiKey: 'zai-user-key',
+        source: 'user',
         isGuestMode: false,
         fallthroughTriggered: false,
         wasAutoPromoted: false,
@@ -201,6 +203,7 @@ describe('ProviderRouter', () => {
         effectiveProvider: AIProvider.OpenRouter,
         effectiveModel: 'z-ai/glm-4.7',
         apiKey: 'sk-or-user-key',
+        source: 'user',
         isGuestMode: false,
         fallthroughTriggered: true,
         wasAutoPromoted: false,
@@ -334,6 +337,7 @@ describe('ProviderRouter', () => {
         effectiveProvider: AIProvider.OpenRouter,
         effectiveModel: 'z-ai/glm-5.1',
         apiKey: 'sk-or-user-key',
+        source: 'user',
         isGuestMode: false,
         fallthroughTriggered: false,
         wasAutoPromoted: false,
@@ -389,6 +393,7 @@ describe('ProviderRouter', () => {
         effectiveProvider: AIProvider.OpenRouter,
         effectiveModel: 'z-ai/glm-5.1',
         apiKey: 'sk-or-user-key',
+        source: 'user',
         isGuestMode: false,
         fallthroughTriggered: false,
         wasAutoPromoted: false,
@@ -468,11 +473,13 @@ describe('ProviderRouter', () => {
         effectiveProvider: AIProvider.ZaiCoding,
         effectiveModel: 'glm-5.1', // bare, stripped of z-ai/ prefix
         apiKey: 'zai-user-key',
+        source: 'user',
         isGuestMode: false,
         fallthroughTriggered: false,
         wasAutoPromoted: true,
         fallback: {
           apiKey: 'sk-or-user-key',
+          source: 'user',
           provider: AIProvider.OpenRouter,
           model: 'z-ai/glm-5.1', // original namespaced form preserved for retry
           isGuestMode: false,
@@ -500,6 +507,7 @@ describe('ProviderRouter', () => {
         effectiveProvider: AIProvider.OpenRouter,
         effectiveModel: 'z-ai/glm-5.1', // unchanged — stays on OpenRouter
         apiKey: 'sk-or-user-key',
+        source: 'user',
         isGuestMode: false,
         fallthroughTriggered: false,
         wasAutoPromoted: false,
@@ -649,6 +657,7 @@ describe('ProviderRouter', () => {
       expect(route.wasAutoPromoted).toBe(true);
       expect(route.fallback).toEqual({
         apiKey: 'sk-or-system-key',
+        source: 'system',
         provider: AIProvider.OpenRouter,
         model: 'z-ai/glm-4.7',
         isGuestMode: true, // propagated from openrouter resolution (system key)
@@ -693,6 +702,7 @@ describe('ProviderRouter', () => {
         effectiveProvider: AIProvider.ZaiCoding,
         effectiveModel: 'glm-5.4',
         apiKey: 'fixture-zai-user-key',
+        source: 'user',
         isGuestMode: false,
         fallthroughTriggered: false,
         wasAutoPromoted: true,
@@ -729,6 +739,7 @@ describe('ProviderRouter', () => {
       expect(route.wasAutoPromoted).toBe(true);
       expect(route.fallback).toEqual({
         apiKey: 'fixture-or-user-key',
+        source: 'user',
         provider: AIProvider.OpenRouter,
         model: 'z-ai/glm-5.4',
         isGuestMode: false,
@@ -767,6 +778,7 @@ describe('ProviderRouter', () => {
       expect(route.wasAutoPromoted).toBe(true);
       expect(route.fallback).toEqual({
         apiKey: 'fixture-or-user-key',
+        source: 'user',
         provider: AIProvider.OpenRouter,
         model: 'z-ai/glm-5.4',
         isGuestMode: false,
@@ -790,6 +802,7 @@ describe('ProviderRouter', () => {
       expect(route.wasAutoPromoted).toBe(true);
       expect(route.fallback).toEqual({
         apiKey: 'fixture-or-user-key',
+        source: 'user',
         provider: AIProvider.OpenRouter,
         model: 'z-ai/glm-5.4',
         isGuestMode: false,
@@ -819,6 +832,7 @@ describe('ProviderRouter', () => {
       expect(route.wasAutoPromoted).toBe(true);
       expect(route.fallback).toEqual({
         apiKey: 'fixture-or-user-key',
+        source: 'user',
         provider: AIProvider.OpenRouter,
         model: 'z-ai/glm-5.4',
         isGuestMode: false,

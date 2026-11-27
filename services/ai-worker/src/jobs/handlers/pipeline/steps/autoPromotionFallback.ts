@@ -58,8 +58,8 @@ export interface GenerateAttemptOpts {
   apiKey: string | undefined;
   sttDispatch: SttDispatch | undefined;
   isGuestMode: boolean;
-  keyProvenance?: KeyProvenance;
-  effectiveTier?: EffectiveTier;
+  keyProvenance: KeyProvenance;
+  effectiveTier: EffectiveTier;
   jobId: string | undefined;
   diagnosticCollector?: DiagnosticCollector;
   configOverrides?: ResolvedConfigOverrides;
@@ -140,7 +140,7 @@ export function willAttemptAutoPromotionFallback(
   if (fallback === undefined) {
     return false;
   }
-  const keyProvenance = provenanceFromResolution(fallback.isGuestMode, fallback.apiKey);
+  const keyProvenance = provenanceFromResolution(fallback.source, fallback.apiKey);
   return resolveEffectiveTier({ keyProvenance }) === 'paid';
 }
 
@@ -241,7 +241,7 @@ export async function runWithAutoPromotionFallback(
       model: fallback.model,
     };
 
-    const fallbackProvenance = provenanceFromResolution(fallback.isGuestMode, fallback.apiKey);
+    const fallbackProvenance = provenanceFromResolution(fallback.source, fallback.apiKey);
     const fallbackTier = resolveEffectiveTier({ keyProvenance: fallbackProvenance });
 
     try {

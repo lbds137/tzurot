@@ -97,9 +97,9 @@ export interface ResolvedAuth {
   /** Whether in guest mode (free models only) */
   isGuestMode: boolean;
   /** Origin of the resolved API key ('user' | 'system' | 'none'), computed at the AuthStep seam. */
-  keyProvenance?: KeyProvenance;
+  keyProvenance: KeyProvenance;
   /** Effective capability/routing tier ('paid' | 'free'), computed once at the AuthStep seam via resolveEffectiveTier. */
-  effectiveTier?: EffectiveTier;
+  effectiveTier: EffectiveTier;
   /**
    * Audio-provider credentials keyed by provider id. One key authorizes ALL
    * of that provider's audio endpoints (TTS + STT + cloning) — Mistral's

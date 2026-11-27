@@ -27,7 +27,7 @@ import noRawDeferUpdate from './no-raw-defer-update.js';
 import noRegexTagStrip from './no-regex-tag-strip.js';
 import noRawLogContent from './no-raw-log-content.js';
 import noMessageMetadataRmw from './no-message-metadata-rmw.js';
-import { noTierFlagBranching } from './rules/index.js';
+import { noTierFlagBranching } from './no-tier-flag-branching.js';
 
 const plugin = {
   meta: {
