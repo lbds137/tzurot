@@ -428,7 +428,7 @@ export class AuthStep implements IPipelineStep {
   ): Promise<ResolvedLlmAuth> {
     let effectivePersonality = initialPersonality;
 
-    // Test-only wiring: prod constructs AuthStep only at LLMGenerationHandler.ts:244 with a real apiKeyResolver.
+    // Test-only wiring: prod constructs AuthStep only in LLMGenerationHandler's pipeline construction, with a real apiKeyResolver.
     if (!this.apiKeyResolver || !this.providerRouter) {
       return {
         resolvedApiKey: undefined,

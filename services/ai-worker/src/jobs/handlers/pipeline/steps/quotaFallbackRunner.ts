@@ -425,7 +425,11 @@ async function resolveRetryCredentials(
       const openRouterKey = await deps.resolveUserOpenRouterKey(userId);
       return openRouterKey === undefined
         ? null
-        : credentialsFromAuth({ apiKey: openRouterKey, keyProvenance: 'user' });
+        : credentialsFromAuth({
+            apiKey: openRouterKey,
+            keyProvenance: 'user',
+            effectiveTier: opts.effectiveTier,
+          });
     }
     return credentialsFromAuth(opts);
   } catch (error) {

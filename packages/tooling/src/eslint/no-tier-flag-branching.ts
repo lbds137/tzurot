@@ -188,6 +188,7 @@ export const noTierFlagBranching: Rule.RuleModule = {
         const astNode = node as unknown as AstNode;
         if (astNode.operator === '&&' || astNode.operator === '||') {
           checkConditionSubtree(astNode.left);
+          checkConditionSubtree(astNode.right);
         }
       },
       SwitchCase(node: Rule.Node): void {

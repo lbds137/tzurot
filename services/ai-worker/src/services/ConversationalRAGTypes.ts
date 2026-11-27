@@ -672,7 +672,7 @@ export interface GenerateResponseOptions {
   userApiKey?: string;
   /** Resolved STT dispatch (provider + matching BYOK key when applicable). */
   sttDispatch?: SttDispatch;
-  /** Retained for the duplicate-retry forward seam (its tests pin the forward); tier routing reads keyProvenance/effectiveTier, not this flag. */
+  /** Ignored by ConversationalRAGService itself; exists only so duplicateRetry can keep forwarding it (its seam tests pin the forward), and tier routing reads keyProvenance/effectiveTier. */
   isGuestMode?: boolean;
   /** Origin of the resolved API key ('user' | 'system' | 'none') from the effectiveTier seam. */
   keyProvenance: KeyProvenance;

@@ -7,7 +7,11 @@ import {
 } from '@tzurot/common-types/services/SystemSettingsService';
 import type { AttemptedRoute, QuotaFallbackCaches } from '../../../../services/quotaFallback.js';
 import type { GenerateAttemptOpts } from './autoPromotionFallback.js';
-import { selectHopOneFloorTarget } from './hopOneFloorTarget.js';
+import {
+  credentialsFromAuth,
+  selectHopOneFloorTarget,
+  systemCredentials,
+} from './hopOneFloorTarget.js';
 
 const { mockLogger } = vi.hoisted(() => {
   const instance = {
@@ -210,5 +214,89 @@ describe('selectHopOneFloorTarget', () => {
         expect.objectContaining({ cacheKeyId: 'user:278863839632818186' })
       );
     }
+  });
+});
+
+describe('credential helpers', () => {
+  it('systemCredentials returns guest mode, system provenance, and free tier', () => {
+    expect(systemCredentials('fake-system-key')).toEqual({
+      apiKey: 'fake-system-key',
+      isGuestMode: true,
+      keyProvenance: 'system',
+      effectiveTier: 'free',
+    });
+  });
+
+  it('credentialsFromAuth sets isGuestMode: false for user provenance and passes effectiveTier through verbatim', () => {
+    expect(
+      credentialsFromAuth({
+        apiKey: 'fake-user-key',
+        keyProvenance: 'user',
+        effectiveTier: 'paid',
+        isGuestMode: true,
+      })
+    ).toEqual({
+      apiKey: 'fake-user-key',
+      isGuestMode: false,
+      keyProvenance: 'user',
+      effectiveTier: 'paid',
+    });
+
+    expect(
+      credentialsFromAuth({
+        apiKey: 'fake-user-key',
+        keyProvenance: 'user',
+        effectiveTier: 'free',
+      })
+    ).toEqual({
+      apiKey: 'fake-user-key',
+      isGuestMode: false,
+      keyProvenance: 'user',
+      effectiveTier: 'free',
+    });
+  });
+
+  it('credentialsFromAuth defaults isGuestMode to true for system provenance, honors explicit false, and passes effectiveTier through', () => {
+    expect(
+      credentialsFromAuth({
+        apiKey: 'fake-system-key',
+        keyProvenance: 'system',
+        effectiveTier: 'free',
+      })
+    ).toEqual({
+      apiKey: 'fake-system-key',
+      isGuestMode: true,
+      keyProvenance: 'system',
+      effectiveTier: 'free',
+    });
+
+    expect(
+      credentialsFromAuth({
+        apiKey: 'fake-system-key',
+        keyProvenance: 'system',
+        effectiveTier: 'free',
+        isGuestMode: false,
+      })
+    ).toEqual({
+      apiKey: 'fake-system-key',
+      isGuestMode: false,
+      keyProvenance: 'system',
+      effectiveTier: 'free',
+    });
+  });
+
+  it('credentialsFromAuth defaults isGuestMode to true for none provenance when undefined', () => {
+    expect(
+      credentialsFromAuth({
+        apiKey: undefined,
+        keyProvenance: 'none',
+        effectiveTier: 'free',
+      })
+    ).toEqual({
+      apiKey: undefined,
+      isGuestMode: true,
+      keyProvenance: 'none',
+      effectiveTier: 'free',
+    });
   });
 });

@@ -48,6 +48,11 @@ describe('no-tier-flag-branching', () => {
         code: 'const flag = effectiveIsGuestMode ?? opts.isGuestMode;',
       },
       {
+        // Nullish coalescing right operand stays legal value forwarding
+        filename: 'services/ai-worker/src/jobs/handlers/pipeline/steps/quotaFallbackRunner.ts',
+        code: 'const g = opts.effectiveIsGuestMode ?? opts.isGuestMode;',
+      },
+      {
         // Branching on effectiveTier instead of isGuestMode
         filename: 'services/ai-worker/src/services/quotaFallback.ts',
         code: 'const floor = tier === "free" ? getFreeTextFloor() : getSystemSetting("fallbackTextModel");',
@@ -88,6 +93,18 @@ describe('no-tier-flag-branching', () => {
         // LogicalExpression.left with ||
         filename: 'services/ai-worker/src/jobs/handlers/pipeline/steps/promotionDemotion.ts',
         code: 'const useSystem = auth.isGuestMode || forceSystemKey;',
+        errors: [{ messageId: 'noTierFlagBranching' }],
+      },
+      {
+        // LogicalExpression.right with && (negated member expression)
+        filename: 'services/ai-worker/src/jobs/handlers/pipeline/steps/quotaFallbackRunner.ts',
+        code: 'const paid = hasKey && !opts.isGuestMode;',
+        errors: [{ messageId: 'noTierFlagBranching' }],
+      },
+      {
+        // LogicalExpression.right with ||
+        filename: 'services/ai-worker/src/jobs/handlers/pipeline/steps/promotionDemotion.ts',
+        code: 'const x = a || opts.isGuestMode;',
         errors: [{ messageId: 'noTierFlagBranching' }],
       },
       {

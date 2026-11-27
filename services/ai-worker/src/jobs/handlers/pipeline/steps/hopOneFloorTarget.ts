@@ -47,14 +47,15 @@ export function systemCredentials(apiKey: string): RetryCredentials {
 export function credentialsFromAuth(auth: {
   apiKey: string | undefined;
   keyProvenance: KeyProvenance;
+  effectiveTier: EffectiveTier;
   isGuestMode?: boolean;
 }): RetryCredentials {
-  const { apiKey, keyProvenance } = auth;
+  const { apiKey, keyProvenance, effectiveTier } = auth;
   return {
     apiKey,
     isGuestMode: keyProvenance === 'user' ? false : (auth.isGuestMode ?? true),
     keyProvenance,
-    effectiveTier: resolveEffectiveTier({ keyProvenance }),
+    effectiveTier,
   };
 }
 
