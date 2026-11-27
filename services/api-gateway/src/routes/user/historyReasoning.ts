@@ -16,7 +16,7 @@
  */
 
 import { type Response, type RequestHandler } from 'express';
-import { MessageRole } from '@tzurot/common-types/constants/message';
+import { MessageRole, REPLY_PAIRING_WINDOW_MS } from '@tzurot/common-types/constants/message';
 import { MessageReasoningResponseSchema } from '@tzurot/common-types/schemas/api/history';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
@@ -67,20 +67,6 @@ async function findTraceByReplyId(
     orderBy: { createdAt: 'desc' },
   });
 }
-
-/**
- * How far past the trigger row's `createdAt` the bridge looks for the reply.
- *
- * The reply CANNOT be found by exact offset: the persist payload's
- * `userMessageTime` is stamped at coordination time on the dominant producer
- * paths (`MultiTagCoordinator`, `PersonalityChatManager`) while the user row
- * carries the Discord post time, so the two rows sit tens of milliseconds to
- * seconds apart (prod measurement: 815 of 816 sampled turns pair within 60s,
- * offsets clustering 62ms-3s; an exact `+1ms` match resolved none of them).
- * The assistant timestamp is stamped at coordination, BEFORE generation, so a
- * slow generation does not widen the gap.
- */
-const REPLY_PAIRING_WINDOW_MS = 60_000;
 
 /**
  * Resolve a TRIGGER message id to the assistant turn that answered it.

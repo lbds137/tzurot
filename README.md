@@ -166,8 +166,8 @@ A modern, scalable Discord bot with customizable AI characters, powered by a mic
 
 Tzurot is fully managed via Discord slash commands. For the complete reference (every subcommand, every argument), see the **[Command Reference](docs/commands.md)**.
 
-- **`/character`** — Create, edit, browse, import/export AI characters; chat with them; manage per-character config + voice cloning enrollment
-- **`/chat`** + **`/chime-in`** + **`/random`** — Chat one-on-one with a character; have a character (or every character carrying a tag) chime in on the recent conversation; chat with a random character or have one read the room
+- **`/character`** — Create, edit, browse, import/export AI characters; chat with them; manage per-character config + voice cloning enrollment; the **Edit Character** message context menu opens a reply's character for editing
+- **`/chat`** + **`/chime-in`** + **`/random`** — Chat one-on-one with a character; have a character (or every character carrying a tag) chime in on the recent conversation (also via the **Chime In** message context menu on a character's reply); chat with a random character or have one read the room
 - **`/persona`** — User personas, defaults, per-character overrides
 - **`/voice`** — TTS/STT provider config, cloned-voice library, per-character resolved-state dashboard (`/voice view`)
 - **`/preset`** + **`/channel`** — Custom LLM presets, channel auto-response activation

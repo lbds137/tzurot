@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleEdit } from './edit.js';
+import { handleEdit, openCharacterEditDashboard } from './edit.js';
 import * as api from './api.js';
 import type { FetchedCharacter } from './api.js';
 import * as dashboardUtils from '../../utils/dashboard/index.js';
@@ -188,6 +188,27 @@ describe('Character Edit Handler', () => {
 
       expect(mockContext.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Failed to load the character'),
+      });
+    });
+
+    it('openCharacterEditDashboard opens dashboard directly from a resolved slug without reading slash options', async () => {
+      const mockReply = { id: 'reply-direct' };
+      const contextWithoutOptions = {
+        user: { id: 'user-123' },
+        channelId: 'channel-456',
+        interaction: {},
+        channel: { id: 'channel-456' },
+        editReply: vi.fn().mockResolvedValue(mockReply),
+      } as unknown as Parameters<typeof openCharacterEditDashboard>[0];
+      const mockCharacter = createMockCharacter({ slug: 'direct-slug' });
+      vi.mocked(api.fetchCharacter).mockResolvedValue(mockCharacter);
+
+      await openCharacterEditDashboard(contextWithoutOptions, 'direct-slug', mockConfig);
+
+      expect(api.fetchCharacter).toHaveBeenCalledWith('direct-slug', mockConfig, {});
+      expect(contextWithoutOptions.editReply).toHaveBeenCalledWith({
+        embeds: expect.any(Array),
+        components: expect.any(Array),
       });
     });
   });

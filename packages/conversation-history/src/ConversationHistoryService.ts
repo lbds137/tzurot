@@ -39,6 +39,21 @@ import {
 const logger = createLogger('ConversationHistoryService');
 
 /**
+ * Select for `getMessageByDiscordId`: extends `conversationHistorySelect` with
+ * `personality.slug` so a single query returns the slug alongside the mapped
+ * `ConversationMessage` (including `messageMetadata.incognito`).
+ */
+const getMessageByDiscordIdSelect = {
+  ...conversationHistorySelect,
+  personality: {
+    select: {
+      ...conversationHistorySelect.personality.select,
+      slug: true,
+    },
+  },
+} as const;
+
+/**
  * Optional time-bound filters for history fetches. Kept as a sub-options
  * object so adding a new filter (e.g., per-personality scope) doesn't push
  * `getCrossChannelHistory` past the max-params limit.
@@ -340,9 +355,12 @@ export class ConversationHistoryService {
 
   /**
    * Get a message by Discord message ID
-   * Used for retrieving voice transcripts from referenced messages
+   * Used for retrieving voice transcripts from referenced messages and
+   * resolving personality + incognito state for message context-menu actions.
    */
-  async getMessageByDiscordId(discordMessageId: string): Promise<ConversationMessage | null> {
+  async getMessageByDiscordId(
+    discordMessageId: string
+  ): Promise<(ConversationMessage & { personalitySlug: string }) | null> {
     try {
       const message = await this.prisma.conversationHistory.findFirst({
         where: {
@@ -350,14 +368,17 @@ export class ConversationHistoryService {
             has: discordMessageId,
           },
         },
-        select: conversationHistorySelect,
+        select: getMessageByDiscordIdSelect,
       });
 
       if (!message) {
         return null;
       }
 
-      return mapToConversationMessage(message);
+      return {
+        ...mapToConversationMessage(message),
+        personalitySlug: message.personality.slug,
+      };
     } catch (error) {
       logger.error({ err: error, discordMessageId }, `Failed to get message by Discord message ID`);
       return null;

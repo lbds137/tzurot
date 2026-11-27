@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 3079,
-    "sites": 7159
+    "entries": 3092,
+    "sites": 7173
   },
   "entries": [
     {
@@ -1722,6 +1722,18 @@
     },
     {
       "category": "client-methods",
+      "file": "services/bot-client/src/commands/chimeInMessage.ts",
+      "symbol": "setName",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/chimeInMessage.ts",
+      "symbol": "setType",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
       "file": "services/bot-client/src/commands/deny/add.ts",
       "symbol": "getChannel",
       "count": 1
@@ -2055,6 +2067,18 @@
       "file": "services/bot-client/src/commands/deny/view.ts",
       "symbol": "escapeMarkdown",
       "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editCharacterMessage.ts",
+      "symbol": "setName",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editCharacterMessage.ts",
+      "symbol": "setType",
+      "count": 1
     },
     {
       "category": "client-methods",
@@ -11046,6 +11070,24 @@
     },
     {
       "category": "client-methods",
+      "file": "services/bot-client/src/utils/messageCharacterLookup.ts",
+      "symbol": "content",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/messageCharacterLookup.ts",
+      "symbol": "id",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/messageCharacterLookup.ts",
+      "symbol": "targetMessage",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
       "file": "services/bot-client/src/utils/messageTypeUtils.ts",
       "symbol": "type",
       "count": 4
@@ -11910,6 +11952,12 @@
     },
     {
       "category": "command-options",
+      "file": "services/bot-client/src/commands/chimeInMessage.ts",
+      "symbol": "ContextMenuCommandBuilder",
+      "count": 1
+    },
+    {
+      "category": "command-options",
       "file": "services/bot-client/src/commands/deny/index.ts",
       "symbol": "SlashCommandBuilder",
       "count": 1
@@ -11961,6 +12009,12 @@
       "file": "services/bot-client/src/commands/deny/index.ts",
       "symbol": "value",
       "count": 3
+    },
+    {
+      "category": "command-options",
+      "file": "services/bot-client/src/commands/editCharacterMessage.ts",
+      "symbol": "ContextMenuCommandBuilder",
+      "count": 1
     },
     {
       "category": "command-options",
@@ -13086,6 +13140,12 @@
     },
     {
       "category": "discord-enums",
+      "file": "services/bot-client/src/commands/chimeInMessage.ts",
+      "symbol": "ApplicationCommandType.Message",
+      "count": 1
+    },
+    {
+      "category": "discord-enums",
       "file": "services/bot-client/src/commands/deny/detailTypes.ts",
       "symbol": "ButtonStyle.Danger",
       "count": 1
@@ -13136,6 +13196,12 @@
       "category": "discord-enums",
       "file": "services/bot-client/src/commands/deny/index.ts",
       "symbol": "ChannelType.PublicThread",
+      "count": 1
+    },
+    {
+      "category": "discord-enums",
+      "file": "services/bot-client/src/commands/editCharacterMessage.ts",
+      "symbol": "ApplicationCommandType.Message",
       "count": 1
     },
     {
@@ -15326,6 +15392,12 @@
       "category": "interaction-acks",
       "file": "services/bot-client/src/utils/maintenanceResponses.ts",
       "symbol": "respond",
+      "count": 1
+    },
+    {
+      "category": "interaction-acks",
+      "file": "services/bot-client/src/utils/messageCharacterLookup.ts",
+      "symbol": "editReply",
       "count": 1
     },
     {
@@ -18050,6 +18122,12 @@
       "category": "message-options",
       "file": "services/bot-client/src/utils/maintenanceResponses.ts",
       "symbol": "flags",
+      "count": 1
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/utils/messageCharacterLookup.ts",
+      "symbol": "content",
       "count": 1
     },
     {

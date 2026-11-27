@@ -300,6 +300,8 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/chime-in/index.ts | setDescription | 4 |
 | services/bot-client/src/commands/chime-in/index.ts | setName | 4 |
 | services/bot-client/src/commands/chime-in/index.ts | setRequired | 3 |
+| services/bot-client/src/commands/chimeInMessage.ts | setName | 1 |
+| services/bot-client/src/commands/chimeInMessage.ts | setType | 1 |
 | services/bot-client/src/commands/deny/add.ts | getChannel | 1 |
 | services/bot-client/src/commands/deny/add.ts | id | 1 |
 | services/bot-client/src/commands/deny/add.ts | options | 1 |
@@ -356,6 +358,8 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/deny/remove.ts | id | 1 |
 | services/bot-client/src/commands/deny/remove.ts | options | 1 |
 | services/bot-client/src/commands/deny/view.ts | escapeMarkdown | 2 |
+| services/bot-client/src/commands/editCharacterMessage.ts | setName | 1 |
+| services/bot-client/src/commands/editCharacterMessage.ts | setType | 1 |
 | services/bot-client/src/commands/feedback/index.ts | client | 1 |
 | services/bot-client/src/commands/feedback/index.ts | escapeMarkdown | 1 |
 | services/bot-client/src/commands/feedback/index.ts | id | 1 |
@@ -1854,6 +1858,9 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/maintenanceResponses.ts | mentions | 1 |
 | services/bot-client/src/utils/maintenanceResponses.ts | react | 1 |
 | services/bot-client/src/utils/maintenanceResponses.ts | user | 1 |
+| services/bot-client/src/utils/messageCharacterLookup.ts | content | 1 |
+| services/bot-client/src/utils/messageCharacterLookup.ts | id | 2 |
+| services/bot-client/src/utils/messageCharacterLookup.ts | targetMessage | 1 |
 | services/bot-client/src/utils/messageTypeUtils.ts | type | 4 |
 | services/bot-client/src/utils/mixedModeSubcommandRouter.ts | id | 1 |
 | services/bot-client/src/utils/modal/retry.ts | addComponents | 1 |
@@ -2003,6 +2010,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/chime-in/index.ts | addBooleanOption | 1 |
 | services/bot-client/src/commands/chime-in/index.ts | addStringOption | 2 |
 | services/bot-client/src/commands/chime-in/index.ts | setAutocomplete | 2 |
+| services/bot-client/src/commands/chimeInMessage.ts | ContextMenuCommandBuilder | 1 |
 | services/bot-client/src/commands/deny/index.ts | SlashCommandBuilder | 1 |
 | services/bot-client/src/commands/deny/index.ts | addChannelOption | 1 |
 | services/bot-client/src/commands/deny/index.ts | addStringOption | 7 |
@@ -2012,6 +2020,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/deny/index.ts | name | 3 |
 | services/bot-client/src/commands/deny/index.ts | setAutocomplete | 1 |
 | services/bot-client/src/commands/deny/index.ts | value | 3 |
+| services/bot-client/src/commands/editCharacterMessage.ts | ContextMenuCommandBuilder | 1 |
 | services/bot-client/src/commands/feedback/index.ts | SlashCommandBuilder | 1 |
 | services/bot-client/src/commands/feedback/index.ts | addStringOption | 1 |
 | services/bot-client/src/commands/help/index.ts | SlashCommandBuilder | 1 |
@@ -2209,6 +2218,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/character/view.ts | ButtonStyle.Secondary | 3 |
 | services/bot-client/src/commands/character/viewV2.ts | ButtonStyle.Primary | 2 |
 | services/bot-client/src/commands/character/viewV2.ts | ButtonStyle.Secondary | 3 |
+| services/bot-client/src/commands/chimeInMessage.ts | ApplicationCommandType.Message | 1 |
 | services/bot-client/src/commands/deny/detailTypes.ts | ButtonStyle.Danger | 1 |
 | services/bot-client/src/commands/deny/detailTypes.ts | ButtonStyle.Primary | 1 |
 | services/bot-client/src/commands/deny/detailTypes.ts | ButtonStyle.Secondary | 2 |
@@ -2218,6 +2228,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/deny/index.ts | ChannelType.GuildVoice | 1 |
 | services/bot-client/src/commands/deny/index.ts | ChannelType.PrivateThread | 1 |
 | services/bot-client/src/commands/deny/index.ts | ChannelType.PublicThread | 1 |
+| services/bot-client/src/commands/editCharacterMessage.ts | ApplicationCommandType.Message | 1 |
 | services/bot-client/src/commands/inspect/browse.ts | ButtonStyle.Secondary | 1 |
 | services/bot-client/src/commands/inspect/components.ts | ButtonStyle.Primary | 1 |
 | services/bot-client/src/commands/inspect/components.ts | ButtonStyle.Secondary | 1 |
@@ -2598,6 +2609,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/dashboard/truncationGate/entityEditFlow.ts | update | 2 |
 | services/bot-client/src/utils/maintenanceResponses.ts | reply | 2 |
 | services/bot-client/src/utils/maintenanceResponses.ts | respond | 1 |
+| services/bot-client/src/utils/messageCharacterLookup.ts | editReply | 1 |
 | services/bot-client/src/utils/modal/retry.ts | editReply | 1 |
 | services/bot-client/src/utils/modal/retry.ts | reply | 1 |
 | services/bot-client/src/utils/modelCatalogAutocomplete.ts | respond | 2 |
@@ -3062,6 +3074,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/dashboard/truncationGate/entityEditFlow.ts | flags | 2 |
 | services/bot-client/src/utils/maintenanceResponses.ts | content | 1 |
 | services/bot-client/src/utils/maintenanceResponses.ts | flags | 1 |
+| services/bot-client/src/utils/messageCharacterLookup.ts | content | 1 |
 | services/bot-client/src/utils/modal/retry.ts | components | 1 |
 | services/bot-client/src/utils/modal/retry.ts | content | 2 |
 | services/bot-client/src/utils/modal/retry.ts | flags | 1 |
@@ -3149,4 +3162,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 2 |
 
-Total: 3079 entries across 7159 sites.
+Total: 3092 entries across 7173 sites.

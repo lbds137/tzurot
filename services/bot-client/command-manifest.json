@@ -2817,6 +2817,20 @@
   ],
   "contextMenuCommands": [
     {
+      "name": "Chime In",
+      "data": {
+        "name": "Chime In",
+        "type": 3
+      }
+    },
+    {
+      "name": "Edit Character",
+      "data": {
+        "name": "Edit Character",
+        "type": 3
+      }
+    },
+    {
       "name": "Inspect Message",
       "data": {
         "name": "Inspect Message",

@@ -65,8 +65,13 @@ describe('listContextMenuNames', () => {
     expect(listContextMenuNames(tempRoot)).toEqual(['Menu A']);
   });
 
-  it("matches the real repo's two message context-menu commands", () => {
-    expect(listContextMenuNames(REPO_ROOT)).toEqual(['Inspect Message', 'View Reasoning']);
+  it("matches the real repo's message context-menu commands", () => {
+    expect(listContextMenuNames(REPO_ROOT)).toEqual([
+      'Chime In',
+      'Edit Character',
+      'Inspect Message',
+      'View Reasoning',
+    ]);
   });
 
   it('reports names reachable through a chained builder, not a later deferred `.setName(...)` call', () => {

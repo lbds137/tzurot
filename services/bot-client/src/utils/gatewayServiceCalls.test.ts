@@ -188,12 +188,80 @@ describe('setDmSessionPersonality', () => {
 });
 
 describe('lookupPersonalityFromMessage', () => {
-  it('returns the row on success, normalizing null personalityName to undefined', async () => {
+  it('returns the row on success, normalizing null personalityName to undefined, and passes { discordMessageId } alone when opts are omitted', async () => {
     mockServiceClient.lookupPersonalityFromMessage.mockResolvedValue(
       ok({ personalityId: 'p-9', personalityName: null })
     );
     const result = await lookupPersonalityFromMessage('msg-1');
     expect(result).toEqual({ personalityId: 'p-9', personalityName: undefined });
+    expect(mockServiceClient.lookupPersonalityFromMessage).toHaveBeenCalledWith({
+      discordMessageId: 'msg-1',
+    });
+  });
+
+  it('forwards personalitySlug and incognito from the gateway response', async () => {
+    mockServiceClient.lookupPersonalityFromMessage.mockResolvedValue(
+      ok({
+        personalityId: 'p-10',
+        personalityName: 'Lila',
+        personalitySlug: 'lila',
+        incognito: true,
+      })
+    );
+    const result = await lookupPersonalityFromMessage('msg-2');
+    expect(result).toEqual({
+      personalityId: 'p-10',
+      personalityName: 'Lila',
+      personalitySlug: 'lila',
+      incognito: true,
+    });
+  });
+
+  it("forwards role and triggerMemoryExists from the gateway response and passes includeIncognitoEvidence as string 'true' when true", async () => {
+    mockServiceClient.lookupPersonalityFromMessage.mockResolvedValue(
+      ok({
+        personalityId: 'p-11',
+        personalityName: 'Lila',
+        personalitySlug: 'lila',
+        role: 'assistant',
+        incognito: null,
+        triggerMemoryExists: true,
+      })
+    );
+    const result = await lookupPersonalityFromMessage('msg-3', {
+      includeIncognitoEvidence: true,
+    });
+    expect(result).toEqual({
+      personalityId: 'p-11',
+      personalityName: 'Lila',
+      personalitySlug: 'lila',
+      role: 'assistant',
+      incognito: null,
+      triggerMemoryExists: true,
+    });
+    expect(mockServiceClient.lookupPersonalityFromMessage).toHaveBeenCalledWith({
+      discordMessageId: 'msg-3',
+      includeIncognitoEvidence: 'true',
+    });
+  });
+
+  it("passes includeIncognitoEvidence as string 'false' when false", async () => {
+    mockServiceClient.lookupPersonalityFromMessage.mockResolvedValue(
+      ok({
+        personalityId: 'p-12',
+        personalityName: 'Lila',
+        personalitySlug: 'lila',
+        role: 'assistant',
+        incognito: null,
+      })
+    );
+    await lookupPersonalityFromMessage('msg-4', {
+      includeIncognitoEvidence: false,
+    });
+    expect(mockServiceClient.lookupPersonalityFromMessage).toHaveBeenCalledWith({
+      discordMessageId: 'msg-4',
+      includeIncognitoEvidence: 'false',
+    });
   });
 
   it('returns null on a 404 / error', async () => {

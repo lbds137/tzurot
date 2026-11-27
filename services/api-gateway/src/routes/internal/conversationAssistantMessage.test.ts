@@ -87,6 +87,27 @@ describe('POST /api/internal/conversation/assistant-message', () => {
     expect(createCall.data.createdAt).toEqual(new Date('2026-06-04T12:00:00.001Z'));
     expect(createCall.data.guildId).toBe(VALID_BODY.guildId);
     expect(createCall.data.tokenCount).toBeGreaterThan(0);
+    expect(createCall.data).not.toHaveProperty('messageMetadata');
+  });
+
+  it('writes messageMetadata.incognito on create when the request carries incognito', async () => {
+    const resTrue = await request(app)
+      .post('/internal/conversation/assistant-message')
+      .send({ ...VALID_BODY, incognito: true });
+
+    expect(resTrue.status).toBe(200);
+    expect(mockPrisma.conversationHistory.create.mock.calls[0][0].data.messageMetadata).toEqual({
+      incognito: true,
+    });
+
+    const resFalse = await request(app)
+      .post('/internal/conversation/assistant-message')
+      .send({ ...VALID_BODY, incognito: false });
+
+    expect(resFalse.status).toBe(200);
+    expect(mockPrisma.conversationHistory.create.mock.calls[1][0].data.messageMetadata).toEqual({
+      incognito: false,
+    });
   });
 
   it('reports matched=true without writing when an identical row exists (idempotent replay)', async () => {
@@ -98,6 +119,22 @@ describe('POST /api/internal/conversation/assistant-message', () => {
     const response = await request(app)
       .post('/internal/conversation/assistant-message')
       .send(VALID_BODY);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ id: EXPECTED_ID, created: false, matched: true });
+    expect(mockPrisma.conversationHistory.create).not.toHaveBeenCalled();
+  });
+
+  it('reports matched=true without writing when a replay carries incognito=true against an existing row with no metadata', async () => {
+    mockPrisma.conversationHistory.findUnique.mockResolvedValue({
+      content: VALID_BODY.content,
+      discordMessageId: VALID_BODY.chunkMessageIds,
+      thinkingContent: null,
+    });
+
+    const response = await request(app)
+      .post('/internal/conversation/assistant-message')
+      .send({ ...VALID_BODY, incognito: true });
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ id: EXPECTED_ID, created: false, matched: true });

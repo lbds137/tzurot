@@ -148,7 +148,11 @@ describe('SlotDeliveryService', () => {
 
     it('forwards the reasoning trace from result metadata into the persisted row', async () => {
       const result = buildSuccessResult({
-        metadata: { modelUsed: 'test-model', thinkingContent: 'SLOT_TRACE_SENTINEL' },
+        metadata: {
+          modelUsed: 'test-model',
+          thinkingContent: 'SLOT_TRACE_SENTINEL',
+          incognitoModeActive: false,
+        },
       } as Partial<LLMGenerationResult>);
       const slot = buildSlotContext();
 
@@ -157,7 +161,20 @@ describe('SlotDeliveryService', () => {
       // The reasoning trace must reach persistence — otherwise it dies with
       // the 7d diagnostic log.
       expect(persistence.saveAssistantMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ thinkingContent: 'SLOT_TRACE_SENTINEL' })
+        expect.objectContaining({ thinkingContent: 'SLOT_TRACE_SENTINEL', incognito: false })
+      );
+    });
+
+    it('forwards incognito=true from result metadata into the persisted row when incognitoModeActive is true', async () => {
+      const result = buildSuccessResult({
+        metadata: { modelUsed: 'test-model', incognitoModeActive: true },
+      } as Partial<LLMGenerationResult>);
+      const slot = buildSlotContext();
+
+      await service.deliverSuccess(result, slot);
+
+      expect(persistence.saveAssistantMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ incognito: true })
       );
     });
 
@@ -408,6 +425,47 @@ describe('SlotDeliveryService', () => {
           chunkMessageIds: ['id-1'],
         })
       );
+    });
+
+    it('forwards incognito=true into the persisted row when incognitoModeActive is true on a partial delivery', async () => {
+      responseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-1'] });
+      const partial = new PartialDeliveryError({
+        chunkMessageIds: ['id-1'],
+        deliveredContent: 'delivered text',
+        totalChunks: 2,
+        cause: new Error('boom'),
+      });
+      const incogResult = buildSuccessResult({
+        metadata: { modelUsed: 'test-model', incognitoModeActive: true },
+      } as Partial<LLMGenerationResult>);
+      const slot = buildSlotContext();
+
+      await service.deliverErrorAfterPartial(partial, 'Error occurred', incogResult, slot);
+
+      expect(persistence.saveAssistantMessage).toHaveBeenCalledTimes(1);
+      expect(persistence.saveAssistantMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chunkMessageIds: ['id-1', 'err-1'],
+          incognito: true,
+        })
+      );
+    });
+
+    it('omits incognito from the persisted row when incognitoModeActive is absent on an error/partial delivery', async () => {
+      responseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-1'] });
+      const partial = new PartialDeliveryError({
+        chunkMessageIds: ['id-1'],
+        deliveredContent: 'delivered text',
+        totalChunks: 2,
+        cause: new Error('boom'),
+      });
+      const slot = buildSlotContext();
+
+      await service.deliverErrorAfterPartial(partial, 'Error occurred', failResult, slot);
+
+      expect(persistence.saveAssistantMessage).toHaveBeenCalledTimes(1);
+      const payload = persistence.saveAssistantMessage.mock.calls[0][0] as Record<string, unknown>;
+      expect(payload).not.toHaveProperty('incognito');
     });
   });
 
