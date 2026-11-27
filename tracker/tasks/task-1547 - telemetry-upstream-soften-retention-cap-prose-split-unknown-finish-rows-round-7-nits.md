@@ -3,9 +3,11 @@ id: TASK-1547
 title: >-
   telemetry:upstream: soften retention-cap prose, split unknown finish rows,
   round-7 nits
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - tzurot-b
 created_date: '2026-11-25T17:52:00Z'
+updated_date: '2026-11-27T17:31:00Z'
 labels:
   - area:tooling
   - size:S
