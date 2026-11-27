@@ -543,6 +543,32 @@ export default tseslint.config(
     },
   },
 
+  // Effective-tier seam drift guard: consumer files in ai-worker must branch on
+  // `effectiveTier` (from `resolveEffectiveTier`) or derive cache buckets via
+  // `authCacheKeyId`, never by reading `isGuestMode` in a conditional test.
+  {
+    files: ['services/ai-worker/src/**/*.ts'],
+    ignores: ['**/*.test.ts', '**/*.spec.ts', '**/*.mock.ts'],
+    rules: {
+      '@tzurot/no-tier-flag-branching': 'error',
+    },
+  },
+  {
+    files: [
+      'services/ai-worker/src/services/ProviderRouter.ts', // -- upstream route resolution produces isGuestMode before the effectiveTier seam runs
+      'services/ai-worker/src/jobs/handlers/pipeline/steps/postRouteLlmAuth.ts', // -- seam translator: provenanceFromResolution maps ProviderRouter isGuestMode + apiKey into KeyProvenance
+      'services/ai-worker/src/jobs/handlers/pipeline/steps/AuthStep.ts', // -- audio-provider BYOK admission guard (!result.isGuestMode on ElevenLabs/Mistral lookups, independent of LLM tier)
+      'services/ai-worker/src/services/effectiveTier.ts', // -- the effectiveTier seam module itself
+      'services/ai-worker/src/jobs/AIJobProcessor.ts', // -- usage-row byok telemetry column derivation (deriveByok) and audio-job key guard, not model/floor tiering
+      'services/ai-worker/src/services/multimodal/VisionProcessor.ts', // -- vision error-message copy discriminator (deriveApiKeySource) and selectVisionModel (pipeline callers pass effectiveTier === 'free')
+      'services/ai-worker/src/services/multimodal/describeImageWithFallback.ts', // -- vision fallback walk receives effectiveTier === 'free' from pipeline callers and checks VisionConfig.isGuestMode for piggyback reactor
+      'services/ai-worker/src/services/multimodal/visionAuthResolver.ts', // -- cross-provider vision auth preserves VisionConfig.isGuestMode for genuine-guest non-tier semantics
+    ],
+    rules: {
+      '@tzurot/no-tier-flag-branching': 'off',
+    },
+  },
+
   // Well-factored single-responsibility files that are large but don't benefit from splitting
   // Override criteria: single-class design, entrypoints/composition roots, clean API wrappers
   {

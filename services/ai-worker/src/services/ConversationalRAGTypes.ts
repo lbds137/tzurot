@@ -22,6 +22,7 @@ import type { SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import type { SummonAnonymity } from '@tzurot/common-types/types/summon-anonymity';
 import type { StructuredHistoryEntry } from '../jobs/utils/conversationTypes.js';
 import type { HeaderIdTagMap } from '../jobs/utils/participantUtils.js';
+import type { EffectiveTier, KeyProvenance } from './effectiveTier.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { SectionDescription } from './prompt/sections.js';
 
@@ -623,6 +624,10 @@ export interface ModelInvocationOptions {
   /** True when this route bills the SYSTEM key (guests + quota retargets) —
    * drives cache-identity provenance so a retarget never scopes as the user. */
   isGuestMode?: boolean;
+  /** Origin of the resolved API key ('user' | 'system' | 'none') from the effectiveTier seam. */
+  keyProvenance?: KeyProvenance;
+  /** Effective capability/routing tier ('paid' | 'free') from the effectiveTier seam. */
+  effectiveTier?: EffectiveTier;
   /** Retry configuration for escalating duplicate detection retries */
   retryConfig?: DuplicateRetryConfig;
   /** Diagnostic collector for the "flight recorder" system */
@@ -672,6 +677,10 @@ export interface GenerateResponseOptions {
   sttDispatch?: SttDispatch;
   /** Whether user is in guest mode (uses free models). Default: false */
   isGuestMode?: boolean;
+  /** Origin of the resolved API key ('user' | 'system' | 'none') from the effectiveTier seam. */
+  keyProvenance?: KeyProvenance;
+  /** Effective capability/routing tier ('paid' | 'free') from the effectiveTier seam. */
+  effectiveTier?: EffectiveTier;
   /** Retry configuration for duplicate detection retries */
   retryConfig?: DuplicateRetryConfig;
   /**

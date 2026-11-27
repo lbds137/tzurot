@@ -23,6 +23,7 @@ import { withRetry } from '../utils/retry.js';
 import { mapWithConcurrency } from '../utils/mapWithConcurrency.js';
 import { shouldRetryError, getErrorLogContext } from '../utils/apiErrorParser.js';
 import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
+import { resolveEffectiveTier } from '../services/effectiveTier.js';
 import {
   type VisionConfigResult,
   type ResolveVisionConfigOptions,
@@ -102,7 +103,7 @@ interface ImageJobAuth {
 async function resolveGuestMode(apiKeyResolver: ApiKeyResolver, userId: string): Promise<boolean> {
   try {
     const result = await apiKeyResolver.resolveApiKey(userId, AIProvider.OpenRouter);
-    if (!result.isGuestMode) {
+    if (resolveEffectiveTier({ keyProvenance: result.source }) === 'paid') {
       return false;
     }
     const zaiCodingKey = await apiKeyResolver.tryResolveUserKey(userId, AIProvider.ZaiCoding);

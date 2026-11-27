@@ -85,7 +85,7 @@ async function downgradeToFreeDefault(options: {
   }
   const guestTarget = await selectQuotaFallbackTarget({
     category,
-    isGuestMode: true,
+    tier: 'free',
     failingModel: personality.model,
     cacheKeyId,
     configResolver: deps.configResolver,

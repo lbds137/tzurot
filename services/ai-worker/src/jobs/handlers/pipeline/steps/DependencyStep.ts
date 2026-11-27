@@ -140,12 +140,16 @@ export class DependencyStep implements IPipelineStep {
     // for one. `?? []` is a plain default for the no-context case only.
     const extendedContextImages = jobContext?.extendedContextAttachments ?? [];
     if (extendedContextImages.length > 0) {
+      const isFreeTier =
+        auth?.effectiveTier !== undefined
+          ? auth.effectiveTier === 'free'
+          : (auth?.isGuestMode ?? false);
       const extendedContextAttachments = await this.processExtendedContextAttachments(
         extendedContextImages,
         personality,
         job.id,
         {
-          isGuestMode: auth?.isGuestMode ?? false,
+          isGuestMode: isFreeTier,
           userApiKey: auth?.apiKey,
           sttDispatch: auth?.sttDispatch,
           mainProvider: auth?.provider,
@@ -320,7 +324,10 @@ export class DependencyStep implements IPipelineStep {
     // processExtendedContextAttachments.
     const { processAttachments, deriveApiKeySource } =
       await import('../../../../services/MultimodalProcessor.js');
-    const isGuestMode = auth?.isGuestMode ?? false;
+    const isGuestMode =
+      auth?.effectiveTier !== undefined
+        ? auth.effectiveTier === 'free'
+        : (auth?.isGuestMode ?? false);
     const userApiKey = auth?.apiKey;
     return processAttachments(attachments, personality, {
       isGuestMode,

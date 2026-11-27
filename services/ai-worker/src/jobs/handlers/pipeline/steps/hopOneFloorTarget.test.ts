@@ -36,6 +36,7 @@ function buildCaches(): QuotaFallbackCaches {
 }
 
 function buildOpts(): GenerateAttemptOpts {
+  // TASK-1570 ruling: populate keyProvenance and effectiveTier on GenerateAttemptOpts fixture
   return {
     personality: {
       id: 'p1',
@@ -49,6 +50,8 @@ function buildOpts(): GenerateAttemptOpts {
     apiKey: 'sk-user-key',
     sttDispatch: undefined,
     isGuestMode: false,
+    keyProvenance: 'user',
+    effectiveTier: 'paid',
     jobId: 'job-1',
   };
 }
@@ -171,5 +174,43 @@ describe('selectHopOneFloorTarget', () => {
       { provider: 'zai-coding', model: 'glm-5.3-flash' },
     ] satisfies AttemptedRoute[]);
     expect(target?.config.model).toBe(FLOOR);
+  });
+
+  it('D10 firewall: selects the free floor under SYSTEM_CACHE_KEY_ID for both guest and system-key non-guest (isGuestMode: false, keyProvenance: system)', async () => {
+    const FREE_FLOOR = 'openrouter/free-floor:free';
+    registerSystemSettings({
+      get: (key: string) =>
+        key === 'fallbackTextModel'
+          ? FLOOR
+          : key === 'fallbackTextModelFree'
+            ? FREE_FLOOR
+            : undefined,
+    } as unknown as SystemSettingsService);
+
+    for (const isGuestMode of [true, false]) {
+      const caches = buildCaches();
+      const target = await selectHopOneFloorTarget({
+        category: ApiErrorCategory.TIMEOUT as never,
+        opts: {
+          ...buildOpts(),
+          apiKey: 'fake-system-operator-key',
+          isGuestMode,
+          keyProvenance: 'system',
+          effectiveTier: 'free',
+        },
+        cacheKeyId: 'user:278863839632818186',
+        caches,
+        userId: '278863839632818186',
+      });
+
+      expect(target?.config.model).toBe(FREE_FLOOR);
+      expect(caches.rateLimit.isRateLimited).toHaveBeenCalledWith({
+        cacheKeyId: 'system',
+        model: FREE_FLOOR,
+      });
+      expect(caches.rateLimit.isRateLimited).not.toHaveBeenCalledWith(
+        expect.objectContaining({ cacheKeyId: 'user:278863839632818186' })
+      );
+    }
   });
 });

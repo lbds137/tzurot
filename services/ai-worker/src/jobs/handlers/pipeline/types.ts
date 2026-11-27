@@ -20,6 +20,7 @@ import type {
 import type { SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { DiagnosticCollector } from '../../../services/DiagnosticCollector.js';
+import type { EffectiveTier, KeyProvenance } from '../../../services/effectiveTier.js';
 import type { ProcessedAttachment } from '../../../services/MultimodalProcessor.js';
 import type { FallbackRoute } from '../../../services/ProviderRouter.js';
 import type { QuotaFallbackCategory, QuotaFallbackInfo } from '../../../services/quotaFallback.js';
@@ -95,6 +96,10 @@ export interface ResolvedAuth {
   provider: AIProvider | undefined;
   /** Whether in guest mode (free models only) */
   isGuestMode: boolean;
+  /** Origin of the resolved API key ('user' | 'system' | 'none'), computed at the AuthStep seam. */
+  keyProvenance?: KeyProvenance;
+  /** Effective capability/routing tier ('paid' | 'free'), computed once at the AuthStep seam via resolveEffectiveTier. */
+  effectiveTier?: EffectiveTier;
   /**
    * Audio-provider credentials keyed by provider id. One key authorizes ALL
    * of that provider's audio endpoints (TTS + STT + cloning) — Mistral's

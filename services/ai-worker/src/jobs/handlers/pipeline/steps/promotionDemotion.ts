@@ -19,7 +19,13 @@ import {
   type QuotaFallbackCategory,
   type QuotaFallbackInfo,
 } from '../../../../services/quotaFallback.js';
-import { deriveCacheKeyId } from '../../../../services/RateLimitCache.js';
+import {
+  authCacheKeyId,
+  resolveEffectiveTier,
+  type EffectiveTier,
+  type KeyProvenance,
+} from '../../../../services/effectiveTier.js';
+import { provenanceFromResolution } from './postRouteLlmAuth.js';
 
 const logger = createLogger('PromotionDemotion');
 
@@ -29,6 +35,8 @@ export interface DemotableAuth {
   resolvedApiKey: string | undefined;
   resolvedProvider: AIProvider | undefined;
   isGuestMode: boolean;
+  keyProvenance?: KeyProvenance;
+  effectiveTier?: EffectiveTier;
   wasAutoPromoted?: boolean;
   fallback?: {
     apiKey: string;
@@ -57,21 +65,32 @@ export async function tryPromotionDemotion<T extends DemotableAuth>(
     return null;
   }
 
-  // Owner-cost boundary: a guest-mode fallback resolved onto the SYSTEM
+  const fallbackProvenance = provenanceFromResolution(
+    llmAuth.fallback.isGuestMode,
+    llmAuth.fallback.apiKey,
+    userId
+  );
+  const fallbackTier = resolveEffectiveTier({ keyProvenance: fallbackProvenance });
+
+  // Owner-cost boundary: a free-tier fallback resolved onto the SYSTEM
   // OpenRouter key (user has a z.ai key but no OpenRouter key). Demoting would
   // run the PAID z-ai/<model> on the owner's key every message of the doom
-  // window — skip; the quota retarget below handles guest mode correctly
+  // window — skip; the quota retarget below handles free tier correctly
   // (free default on the system key).
-  if (llmAuth.fallback.isGuestMode) {
+  if (fallbackTier === 'free') {
     return null;
   }
 
   const fallbackViability = await checkModelViability({
     model: llmAuth.fallback.model,
-    // The fallback's own isGuestMode is the identity's provenance signal.
-    // Guarded false above (guest fallbacks bail early), but deriving from the
-    // credential's own field keeps the identity correct if the guard moves.
-    cacheKeyId: deriveCacheKeyId(llmAuth.fallback.apiKey, userId, llmAuth.fallback.isGuestMode),
+    // The fallback's own keyProvenance is the identity's provenance signal.
+    // Guarded above (free-tier fallbacks bail early), but deriving from the
+    // credential's own provenance keeps the identity correct if the guard moves.
+    cacheKeyId: authCacheKeyId(
+      { keyProvenance: fallbackProvenance },
+      llmAuth.fallback.apiKey,
+      userId
+    ),
     caches,
   });
   if (!fallbackViability.viable) {
@@ -97,6 +116,8 @@ export async function tryPromotionDemotion<T extends DemotableAuth>(
     },
     resolvedApiKey: llmAuth.fallback.apiKey,
     isGuestMode: llmAuth.fallback.isGuestMode,
+    keyProvenance: fallbackProvenance,
+    effectiveTier: fallbackTier,
     resolvedProvider: AIProvider.OpenRouter,
     // The footer renders this as "glm-5.2 → z-ai/glm-5.2 (rate limited)" —
     // the user sees the demotion, mirroring the quota-retarget announce path.

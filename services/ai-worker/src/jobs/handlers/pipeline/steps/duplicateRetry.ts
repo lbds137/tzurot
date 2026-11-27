@@ -136,6 +136,8 @@ export async function generateWithDuplicateRetry(
         userApiKey: apiKey,
         sttDispatch: opts.sttDispatch,
         isGuestMode,
+        ...(opts.keyProvenance !== undefined ? { keyProvenance: opts.keyProvenance } : {}),
+        ...(opts.effectiveTier !== undefined ? { effectiveTier: opts.effectiveTier } : {}),
         retryConfig: { attempt, ...retryConfig },
         skipMemoryStorage: true,
         diagnosticCollector,

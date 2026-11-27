@@ -64,7 +64,7 @@ export function validatePrerequisites(
  */
 export async function enforceGuestFreeTierQuota(
   freeTierQuota: FreeTierRequestQuota | undefined,
-  isGuestMode: boolean,
+  isFreeTier: boolean,
   userId: string,
   requestId: string,
   effectiveProvider?: AIProvider
@@ -72,7 +72,7 @@ export async function enforceGuestFreeTierQuota(
   if (effectiveProvider === AIProvider.ZaiCoding) {
     return;
   }
-  if (isGuestMode && freeTierQuota !== undefined && !isBotOwner(userId)) {
+  if (isFreeTier && freeTierQuota !== undefined && !isBotOwner(userId)) {
     const verdict = await freeTierQuota.tryConsume(userId, requestId);
     if (!verdict.allowed) {
       throw new Error(FREE_TIER_QUOTA_ERROR_MESSAGE);

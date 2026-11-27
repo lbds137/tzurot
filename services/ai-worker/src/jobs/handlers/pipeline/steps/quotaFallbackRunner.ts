@@ -32,7 +32,7 @@ import {
   type QuotaFallbackCaches,
   type QuotaFallbackInfo,
 } from '../../../../services/quotaFallback.js';
-import { deriveCacheKeyId } from '../../../../services/RateLimitCache.js';
+import { authCacheKeyId } from '../../../../services/effectiveTier.js';
 import { RetryError } from '../../../../utils/retry.js';
 import {
   attachFallbackFailure,
@@ -41,7 +41,12 @@ import {
   type GenerateAttemptOpts,
   type GenerateAttemptResult,
 } from './autoPromotionFallback.js';
-import { selectHopOneFloorTarget } from './hopOneFloorTarget.js';
+import {
+  buildRetryCredentials,
+  resolveAttemptTier,
+  selectHopOneFloorTarget,
+  type RetryCredentials,
+} from './hopOneFloorTarget.js';
 import { hasBudgetForAttempt } from './llmBudget.js';
 
 const logger = createLogger('QuotaFallbackRunner');
@@ -69,7 +74,7 @@ async function reactToZaiFreeTierFailure(
   originalError: unknown
 ): Promise<void> {
   if (
-    opts.isGuestMode &&
+    resolveAttemptTier(opts).effectiveTier === 'free' &&
     opts.effectiveProvider === AIProvider.ZaiCoding &&
     onZaiFreeTierFailure !== undefined
   ) {
@@ -177,14 +182,15 @@ export async function runWithQuotaFallback(options: {
     // now fires only for hops the runner was actually going to attempt.
     assertBudgetForRetarget(opts, originalError);
 
-    // A guest attempt runs on a SYSTEM key handed over as a plain string, so
-    // identity must follow the route's provenance (isGuestMode), not the
-    // key's presence — flagless derivation filed guest failures under
+    // A guest/system-key attempt runs on a SYSTEM key handed over as a plain string, so
+    // identity must follow the route's provenance (keyProvenance), not the
+    // key's presence — flagless derivation filed system-key failures under
     // `user:<id>` while the invocation path writes doom marks under `system`.
-    const cacheKeyId = deriveCacheKeyId(opts.apiKey, userId, opts.isGuestMode);
+    const { keyProvenance, effectiveTier } = resolveAttemptTier(opts);
+    const cacheKeyId = authCacheKeyId({ keyProvenance }, opts.apiKey, userId);
     const tieredTarget = await selectQuotaFallbackTarget({
       category,
-      isGuestMode: opts.isGuestMode,
+      tier: effectiveTier,
       failingModel: opts.personality.model,
       cacheKeyId,
       configResolver: deps.configResolver,
@@ -205,6 +211,7 @@ export async function runWithQuotaFallback(options: {
         cacheKeyId,
         caches: deps.caches,
         excludeRoutes: attemptedRoutes,
+        userId,
       }));
     if (target === null) {
       throw originalError;
@@ -228,7 +235,8 @@ export async function runWithQuotaFallback(options: {
       !(await meterForcedFallback({
         freeTierQuota,
         opts,
-        nowGuest: credentials.isGuestMode,
+        wasFreeTier: effectiveTier === 'free',
+        nowFreeTier: credentials.effectiveTier === 'free',
         userId,
         requestId,
       }))
@@ -248,27 +256,27 @@ export async function runWithQuotaFallback(options: {
       retry,
       opts: {
         ...opts,
+        ...credentials,
         personality: applyConfigToPersonality(opts.personality, effectiveTarget.config),
-        apiKey: credentials.apiKey,
-        isGuestMode: credentials.isGuestMode,
-        // The retarget is an OpenRouter attempt by construction (admin
-        // defaults are OpenRouter-routed), so the context-window cap and
-        // vision auth must derive from OpenRouter — mirroring the
-        // auto-promotion wrapper's own retry. Revisit if an explicit
-        // fallback edge ever allows a non-OpenRouter target.
+        // The retarget is an OpenRouter attempt by construction (admin defaults
+        // are OpenRouter-routed), so the context-window cap and vision auth
+        // must derive from OpenRouter — mirroring the auto-promotion wrapper's
+        // own retry. Revisit if an explicit fallback edge ever allows a
+        // non-OpenRouter target.
         effectiveProvider: AIProvider.OpenRouter,
       },
       info,
       originalError,
+      caches: deps.caches,
       // Hop-2 (floor descent) context — see executeRetarget's doc. The hop
       // reuses hop-1's resolved credentials, so its viability check (and its
-      // audit line) must run under THAT route's identity: a forced entity
-      // swap or degraded downgrade moved the retry onto the system key, and
-      // the pre-retarget `user:<id>` bucket no longer describes it.
-      caches: deps.caches,
-      cacheKeyId: deriveCacheKeyId(credentials.apiKey, userId, credentials.isGuestMode),
-      // Past the gate above, a null live classification means the category came
-      // from `inheritedQuotaCategory` — the `?? null` arm would have rethrown.
+      // audit line) must run under THAT route's identity: a forced entity swap
+      // or degraded downgrade moved the retry onto the system key, and the
+      // pre-retarget `user:<id>` bucket no longer describes it.
+      cacheKeyId: authCacheKeyId(credentials, credentials.apiKey, userId),
+      // Past the gate above, a null live classification means the category
+      // came from `inheritedQuotaCategory` — the `?? null` arm would have
+      // rethrown.
       categoryInherited: liveCategory === null,
       attemptedRoutes,
     });
@@ -295,7 +303,7 @@ async function resolveTargetAndCredentials(params: {
   attemptedRoutes?: readonly AttemptedRoute[];
 }): Promise<{
   effectiveTarget: NonNullable<Awaited<ReturnType<typeof selectQuotaFallbackTarget>>>;
-  credentials: { apiKey: string | undefined; isGuestMode: boolean };
+  credentials: RetryCredentials;
 }> {
   const { target, opts, deps, userId, category, cacheKeyId, originalError, attemptedRoutes } =
     params;
@@ -307,7 +315,7 @@ async function resolveTargetAndCredentials(params: {
   try {
     const guestTarget = await selectQuotaFallbackTarget({
       category,
-      isGuestMode: true,
+      tier: 'free',
       failingModel: opts.personality.model,
       cacheKeyId,
       configResolver: deps.configResolver,
@@ -318,7 +326,10 @@ async function resolveTargetAndCredentials(params: {
     if (guestTarget === null || systemKey === undefined) {
       throw originalError;
     }
-    return { effectiveTarget: guestTarget, credentials: { apiKey: systemKey, isGuestMode: true } };
+    return {
+      effectiveTarget: guestTarget,
+      credentials: buildRetryCredentials(systemKey, true, 'system', 'free'),
+    };
   } catch {
     throw originalError;
   }
@@ -329,26 +340,27 @@ async function resolveTargetAndCredentials(params: {
  * the fallback too"). Returns `true` (proceed) unless a metered user is over
  * their share.
  *
- * Fires when a NON-guest is now forced onto the system key with guest
- * semantics (`!wasGuest && nowGuest`) — excluding a pure guest's free-model
- * retarget, which GenerationStep already metered — OR when a z.ai-free-tier
- * guest degrades onto the OpenRouter pool: that request billed the zai pool
- * at admission and GenerationStep therefore SKIPPED the OpenRouter meter, so
- * the retarget is this pool's first (and only) charge. The owner bypasses; a
- * missing quota (test fixtures) is a no-op; `tryConsume` fails open, so a
- * Redis blip returns allowed.
+ * Fires when a NON-free-tier caller is now forced onto the system key with free
+ * semantics (`!wasFreeTier && nowFreeTier`) — excluding a pure free-tier user's
+ * free-model retarget, which GenerationStep already metered — OR when a
+ * z.ai-free-tier guest degrades onto the OpenRouter pool: that request billed
+ * the zai pool at admission and GenerationStep therefore SKIPPED the OpenRouter
+ * meter, so the retarget is this pool's first (and only) charge. The owner
+ * bypasses; a missing quota (test fixtures) is a no-op; `tryConsume` fails
+ * open, so a Redis blip returns allowed.
  */
 async function meterForcedFallback(params: {
   freeTierQuota: FreeTierRequestQuota | undefined;
   opts: GenerateAttemptOpts;
-  nowGuest: boolean;
+  wasFreeTier: boolean;
+  nowFreeTier: boolean;
   userId: string;
   requestId: string;
 }): Promise<boolean> {
-  const { freeTierQuota, opts, nowGuest, userId, requestId } = params;
-  const byokDowngrade = !opts.isGuestMode && nowGuest;
+  const { freeTierQuota, opts, wasFreeTier, nowFreeTier, userId, requestId } = params;
+  const byokDowngrade = !wasFreeTier && nowFreeTier;
   const zaiGuestDegrade =
-    opts.isGuestMode && opts.effectiveProvider === AIProvider.ZaiCoding && nowGuest;
+    wasFreeTier && opts.effectiveProvider === AIProvider.ZaiCoding && nowFreeTier;
   if ((!byokDowngrade && !zaiGuestDegrade) || freeTierQuota === undefined || isBotOwner(userId)) {
     return true;
   }
@@ -395,28 +407,33 @@ async function resolveRetryCredentials(
   opts: GenerateAttemptOpts,
   deps: QuotaFallbackDeps,
   userId: string
-): Promise<{ apiKey: string | undefined; isGuestMode: boolean } | null> {
+): Promise<RetryCredentials | null> {
   // The deps are never-throwing by contract, but this function runs inside
   // the runner's catch block — a throw here would REPLACE the original quota
   // error. Guard the injectable seam so no wiring can break that guarantee:
   // a credential failure degrades to null → the pristine original rethrows.
   try {
+    const { keyProvenance, effectiveTier } = resolveAttemptTier(opts);
     if (target.forceSystemKey) {
       const systemKey = await deps.resolveSystemKey();
-      return systemKey === undefined ? null : { apiKey: systemKey, isGuestMode: true };
+      return systemKey === undefined
+        ? null
+        : buildRetryCredentials(systemKey, true, 'system', 'free');
     }
     const provider: string | undefined = opts.personality.provider;
     if (provider !== undefined && provider !== (AIProvider.OpenRouter as string)) {
-      if (opts.isGuestMode) {
+      if (effectiveTier === 'free') {
         const systemKey = await deps.resolveSystemKey();
-        return systemKey === undefined ? null : { apiKey: systemKey, isGuestMode: true };
+        return systemKey === undefined
+          ? null
+          : buildRetryCredentials(systemKey, true, 'system', 'free');
       }
       const openRouterKey = await deps.resolveUserOpenRouterKey(userId);
       return openRouterKey === undefined
         ? null
-        : { apiKey: openRouterKey, isGuestMode: opts.isGuestMode };
+        : buildRetryCredentials(openRouterKey, opts.isGuestMode, 'user', 'paid');
     }
-    return { apiKey: opts.apiKey, isGuestMode: opts.isGuestMode };
+    return buildRetryCredentials(opts.apiKey, opts.isGuestMode, keyProvenance, effectiveTier);
   } catch (error) {
     logger.warn(
       { err: error, jobId: opts.jobId },
@@ -552,7 +569,7 @@ async function attemptFloorHop(params: {
     return FLOOR_HOP_NOT_ATTEMPTED;
   }
   const floorTarget = await selectFloorTarget({
-    isGuestMode: opts.isGuestMode,
+    tier: resolveAttemptTier(opts).effectiveTier,
     excludeModels: [info.fromModel, info.toModel],
     excludeRoutes: attemptedRoutes,
     cacheKeyId,

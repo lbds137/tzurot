@@ -37,6 +37,7 @@ import type { LlmConfigResolver } from '@tzurot/config-resolver';
 import { resolveApiErrorInfo } from '../utils/apiErrorParser.js';
 import { RetryError } from '../utils/retry.js';
 import type { CreditExhaustionCache } from './CreditExhaustionCache.js';
+import type { EffectiveTier } from './effectiveTier.js';
 import { SYSTEM_CACHE_KEY_ID, type RateLimitCache } from './RateLimitCache.js';
 
 const logger = createLogger('QuotaFallback');
@@ -320,17 +321,19 @@ async function isVetoedAsUnlistedTarget(options: {
  * SECOND descent hop (D12) after a failed hop-1 retarget, and the hop-1
  * PROMOTION in quotaFallbackRunner when no tiered retarget exists at all
  * (the failing model IS the tier's own default).
- * Free users land on `fallbackTextModelFree` (isFreeModel-guarded so an
- * out-of-band bag edit can never bill the owner — same firewall as the
- * guest-safe default below); paid users on `fallbackTextModel` (their own
- * key; seeded `openrouter/auto` — the floor's job is to always answer).
+ * `tier === 'free'` lands on `fallbackTextModelFree` (isFreeModel-guarded so
+ * an out-of-band bag edit can never bill the owner — same firewall as the
+ * guest-safe default below); `tier === 'paid'` (established once at the
+ * effectiveTier seam: `keyProvenance === 'user'` with `keyState === 'ok'`)
+ * lands on `fallbackTextModel` (the user's own key; seeded `openrouter/auto`
+ * — the floor's job is to always answer).
  * Null when the floor is already among the models that failed this turn
  * (nothing new to try), the doom caches veto it, or the catalog confirms it
  * is not a listed OpenRouter model id, or the floor's (OpenRouter) route is one
  * this job already attempted.
  */
 export async function selectFloorTarget(options: {
-  isGuestMode: boolean;
+  tier: EffectiveTier;
   /** Models already attempted this turn (original + hop-1 target). */
   excludeModels: readonly string[];
   /** Routes this job already attempted; a floor on one of them is never selected. */
@@ -338,8 +341,8 @@ export async function selectFloorTarget(options: {
   cacheKeyId: string;
   caches: QuotaFallbackCaches;
 }): Promise<QuotaFallbackTarget | null> {
-  const { isGuestMode, excludeModels, excludeRoutes, cacheKeyId, caches } = options;
-  const floor = isGuestMode ? getFreeTextFloor() : getSystemSetting('fallbackTextModel');
+  const { tier, excludeModels, excludeRoutes, cacheKeyId, caches } = options;
+  const floor = tier === 'free' ? getFreeTextFloor() : getSystemSetting('fallbackTextModel');
   if (floor.length === 0 || excludeModels.includes(floor)) {
     return null;
   }
@@ -397,7 +400,7 @@ async function resolveGuestSafeFreeDefault(
  */
 export async function selectQuotaFallbackTarget(options: {
   category: QuotaFallbackCategory;
-  isGuestMode: boolean;
+  tier: EffectiveTier;
   failingModel: string;
   /**
    * The CALLER's cache identity (the failing route's account scope). Used for
@@ -411,23 +414,24 @@ export async function selectQuotaFallbackTarget(options: {
   /** Routes this job already attempted; a target on one of them is never selected. */
   excludeRoutes?: readonly AttemptedRoute[];
 }): Promise<QuotaFallbackTarget | null> {
-  const { category, isGuestMode, failingModel, cacheKeyId, configResolver, caches, excludeRoutes } =
+  const { category, tier, failingModel, cacheKeyId, configResolver, caches, excludeRoutes } =
     options;
 
   let config: ResolvedLlmConfig | null;
   let forceSystemKey = false;
 
   if (category === ApiErrorCategory.CREDIT_EXHAUSTION) {
-    if (isGuestMode) {
+    if (tier === 'free') {
       // The system key itself is broke — no different billing entity exists.
       return null;
     }
     config = await resolveGuestSafeFreeDefault(configResolver);
     forceSystemKey = true;
   } else {
-    config = isGuestMode
-      ? await resolveGuestSafeFreeDefault(configResolver)
-      : await configResolver.getGlobalDefaultConfig();
+    config =
+      tier === 'free'
+        ? await resolveGuestSafeFreeDefault(configResolver)
+        : await configResolver.getGlobalDefaultConfig();
   }
 
   if (config === null || config.model === failingModel) {
@@ -443,7 +447,7 @@ export async function selectQuotaFallbackTarget(options: {
   }
 
   // Target viability runs under the TARGET's billing identity, never the
-  // caller's. A guest-semantics target (isGuestMode, or the forced entity
+  // caller's. A free-tier target (tier === 'free', or the forced entity
   // swap) executes on the system key, whose doom marks are written under
   // `system` — reading the caller's `user:<id>` bucket would both miss the
   // target's own marks (a forced retry's 429 lands under `system`) and
@@ -451,7 +455,7 @@ export async function selectQuotaFallbackTarget(options: {
   // would always veto it). With the identity right, the full viability
   // check is coherent on every path: a `system` exhaustion mark genuinely
   // describes the account the retarget would bill.
-  const targetCacheKeyId = forceSystemKey || isGuestMode ? SYSTEM_CACHE_KEY_ID : cacheKeyId;
+  const targetCacheKeyId = forceSystemKey || tier === 'free' ? SYSTEM_CACHE_KEY_ID : cacheKeyId;
   const viability = await checkModelViability({
     model: config.model,
     cacheKeyId: targetCacheKeyId,
