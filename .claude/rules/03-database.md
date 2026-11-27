@@ -9,6 +9,8 @@ paths:
   - 'packages/identity/**'
   - 'packages/tooling/**'
   - 'packages/cache-invalidation/**'
+  - 'scripts/**'
+  - 'docs/reference/database/**'
 ---
 
 # Database Rules

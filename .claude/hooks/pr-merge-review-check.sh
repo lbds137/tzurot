@@ -704,9 +704,9 @@ RELEASE_KEY="RELEASE:${PR_NUM}"
 #
 # The release reminder must be reachable BEFORE the review-existence
 # early-exits — a release PR whose claude-review posted nothing (documented in
-# 05-tooling.md § claude-review health, observed twice) would otherwise merge
-# with no reminder at all, which is the exact silent-drop this hook was moved
-# here to end.
+# docs/reference/tooling/pr-monitoring.md § claude-review health, observed
+# twice) would otherwise merge with no reminder at all, which is the exact
+# silent-drop this hook was moved here to end.
 #
 # The acked-retry path calls this too, and that IS a cost: an ordinary feature
 # PR never accumulates a RELEASE ack, so every acked retry for the life of that

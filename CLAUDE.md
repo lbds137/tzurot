@@ -44,7 +44,7 @@ Rules load from `.claude/rules/` — all at startup except the `paths:`-scoped o
 - **02-code-standards.md** - ESLint limits, TypeScript, testing patterns
 - **03-database.md** - Prisma, pgvector, caching
 - **04-discord.md** - 3-second deferral, slash commands, component routing, shared utilities
-- **05-tooling.md** - CLI reference, commit & release standards
+- **05-tooling.md** - CLI reference, commit standards
 - **06-backlog.md** - Backlog structure and session workflow
 - **07-documentation.md** - Doc placement, naming, lifecycle
 - **08-tooling-internals.md** - Xray, mutation/test-audit/CPD ratchets, guards + probes, backlog lint, model-call routing
