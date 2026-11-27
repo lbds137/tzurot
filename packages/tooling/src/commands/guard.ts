@@ -107,9 +107,29 @@ export function registerGuardCommands(cli: CAC): void {
       await checkClaudeContentRefs(options);
     });
 
+  registerOpenRouterRoutingGuard(cli);
   registerMetaGuards(cli);
   registerLinesCommands(cli);
   registerHealthCommand(cli);
+}
+
+/**
+ * Audit-class liveness check over `OPENROUTER_ROUTING.PINNED_MODELS` against
+ * OpenRouter's public `/api/v1/models/<id>/endpoints` listing.
+ */
+function registerOpenRouterRoutingGuard(cli: CAC): void {
+  cli
+    .command(
+      'guard:openrouter-routing',
+      'Verify pinned OpenRouter host allowlist slugs exist in OpenRouter live model endpoints'
+    )
+    .option('--summary', SUMMARY_OPTION_DESC)
+    .example('ops guard:openrouter-routing')
+    .example('ops guard:openrouter-routing --summary')
+    .action(async (options: { summary?: boolean }) => {
+      const { checkOpenRouterRouting } = await import('../audits/check-openrouter-routing.js');
+      await checkOpenRouterRouting(options);
+    });
 }
 
 /** Binary source sync-checks (no threshold / WHY.md / --summary). */

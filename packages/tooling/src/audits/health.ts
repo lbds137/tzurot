@@ -48,6 +48,7 @@ export const HEALTH_TOOLS = [
   'guard:boundaries',
   'guard:audit-tool-docs',
   'guard:claude-content-refs',
+  'guard:openrouter-routing',
   'commands:audit',
   'dev:stale-debug',
   'db:check-safety',

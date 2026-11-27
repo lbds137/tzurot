@@ -7,11 +7,10 @@
  * hosts (the MiniMax family plus forwarders) and may be served by any other
  * host. Retention and training enforcement is OpenRouter's server-side policy
  * and is not verifiable from this code. The wire shapes built from these
- * tables live in ai-worker's `providerRouting.ts` resolver; this module holds
- * only the data. The tables
- * live in common-types rather than beside that resolver because tooling
- * scripts that call OpenRouter directly (TASK-1554) must apply the same
- * routing, and `packages/tooling` cannot import from a service.
+ * tables live in `utils/openrouterRoutingResolver.ts`; this
+ * module holds only the data. Both live in common-types so ai-worker and
+ * tooling scripts that call OpenRouter directly apply the same routing
+ * (`packages/tooling` cannot import from a service).
  */
 
 /**

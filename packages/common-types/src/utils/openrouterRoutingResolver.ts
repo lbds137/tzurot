@@ -17,10 +17,7 @@
  * per-call wire objects.
  */
 
-import {
-  OPENROUTER_ROUTING,
-  type PinnedOpenRouterModel,
-} from '@tzurot/common-types/constants/openrouterRouting';
+import { OPENROUTER_ROUTING, type PinnedOpenRouterModel } from '../constants/openrouterRouting.js';
 
 /**
  * The `provider` routing object on the OpenRouter request body. Field names

@@ -119,6 +119,11 @@ export const AUDIT_TOOL_REGISTRY: readonly AuditToolEntry[] = [
     description: 'Skill/rule pnpm ops references resolve + lastUpdated freshness',
   },
   {
+    command: 'guard:openrouter-routing',
+    whyPath: 'packages/tooling/src/audits/check-openrouter-routing.WHY.md',
+    description: 'Pinned OpenRouter host slugs resolve against live /endpoints',
+  },
+  {
     command: 'commands:audit',
     whyPath: 'packages/tooling/src/dev/commandsAudit.WHY.md',
     description: 'Slash-command surface inventory + consistency (category/desc/handlers)',

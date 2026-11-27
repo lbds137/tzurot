@@ -12,6 +12,7 @@
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { resolveOpenRouterProviderRouting } from '@tzurot/common-types/utils/openrouterRoutingResolver';
 import { UsageError } from '../utils/errors.js';
 import {
   providerEnvVar,
@@ -332,6 +333,17 @@ async function attemptOnce(
       max_tokens: request.maxTokens,
       ...(request.jsonMode === true ? { response_format: { type: 'json_object' } } : {}),
       ...thinkingBody(request.provider, request.thinking),
+      // Unpinned judge-family ids take `data_collection: 'deny'` plus the forwarder ignore
+      // table, and pinned models (`only` + `allow_fallbacks: false`) restrict routing to their
+      // allowlisted host slugs (monitored by `guard:openrouter-routing`). When either rule leaves
+      // no eligible endpoint (e.g., all allowlisted hosts down or renamed), OpenRouter is expected
+      // to answer 404 with an "all providers ignored / no allowed providers" body
+      // (`ERROR_PATTERNS.ROUTING_EXHAUSTED` in `services/ai-worker/src/utils/apiErrorParser.ts`;
+      // not verified live from this module). 404 is outside `isRetryableStatus` (429/5xx) and
+      // fails immediately (the routing rule excluded every host — `guard:openrouter-routing` watches for slug/pin decay).
+      ...(request.provider === 'openrouter'
+        ? { provider: resolveOpenRouterProviderRouting(request.model) }
+        : {}),
     }),
     signal,
   });

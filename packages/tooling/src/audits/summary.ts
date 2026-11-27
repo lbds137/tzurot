@@ -15,6 +15,8 @@ export interface AuditSummary {
   /**
    * Aggregate verdict. `ok` = clean; `warn` = soft findings (approaching but
    * not over hard limit); `fail` = at/over hard limit or canary missing.
+   * `warn` with `findings: 0` means degraded/unverifiable (the tool could not
+   * complete its check).
    *
    * **Aggregator contract**: trust `status` for verdicts. Do NOT derive
    * pass/fail from `findings > baseline` — those two fields are observability
