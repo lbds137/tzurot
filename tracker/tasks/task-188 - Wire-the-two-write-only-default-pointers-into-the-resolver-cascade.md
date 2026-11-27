@@ -3,13 +3,13 @@ id: TASK-188
 title: Wire the two write-only default pointers into the resolver cascade
 status: To Do
 assignee: []
-created_date: '2026-06-29 00:00'
-updated_date: '2026-08-14 22:44'
+created_date: 2026-06-29 00:00
+updated_date: '2026-11-27T05:33:00Z'
 labels:
-  - 'area:config-resolver'
-  - 'area:api-gateway'
-  - 'size:M'
-  - 'state:ready'
+  - area:config-resolver
+  - area:api-gateway
+  - size:M
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 188000
@@ -30,3 +30,15 @@ Wire the two write-only default pointers into the resolver cascade
 <!-- SECTION:NOTES:BEGIN -->
 Grounding update 2026-07-29 (config drain batch): premise is HALF-STALE. LlmConfigResolver.getGlobalDefaultConfig() now EXISTS (reads the globalDefaultLlmConfig pointer) and is consumed by the tier-aware quota fallback — so setting that pointer is no longer a no-op (it retargets quota-blocked BYOK users). The REMAINING gap is narrower than filed: neither pointer is consulted as a cascade TIER in normal resolution (globalDefaultLlmConfigId for paid chat; freeDefaultVisionConfigId has a reader via VisionConfigResolver.getFreeDefaultVisionConfig but likewise no tier). Wiring a new tier changes which model users resolve to — product behavior, owner-gated, tied to the parked Slice 4.
 <!-- SECTION:NOTES:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+created: 2026-11-27T05:33:00Z
+
+---
+
+Owner ruling 2026-11-27 (pilot re-rate): SPLIT. The delete-guard occupied-slot surfacing moves to its own size:S task; the two resolver-tier wirings stay in this task, tied to parked Slice 4 (a tier changes which model users resolve to - product behavior, owner-gated).
+
+---
+<!-- COMMENTS:END -->

@@ -3,13 +3,13 @@ id: TASK-51
 title: Honest tooling coverage metric + close real-logic gaps
 status: To Do
 assignee: []
-created_date: '2026-06-22 00:00'
-updated_date: '2026-10-13 01:42'
+created_date: 2026-06-22 00:00
+updated_date: '2026-11-27T05:33:00Z'
 labels:
-  - 'area:tooling'
-  - 'area:db'
-  - 'size:M'
-  - 'state:ready'
+  - area:tooling
+  - area:db
+  - size:S
+  - state:ready
 dependencies: []
 priority: medium
 ordinal: 51000
@@ -28,3 +28,15 @@ Honest tooling coverage metric + close real-logic gaps
 <!-- SECTION:NOTES:BEGIN -->
 Owner ruling 2026-10-12 (AskUserQuestion, backlog review Batch B owner calls): KEEP AS IS: the honest-metric + real-gaps approach (owner 2026-06-22) still stands; ready work at low priority.
 <!-- SECTION:NOTES:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+created: 2026-11-27T05:33:00Z
+
+---
+
+Owner ruling 2026-11-27 (pilot re-rate): size M to S - the pilot measured the remaining scope at S; the 2026-10-12 owner approach ruling stands.
+
+---
+<!-- COMMENTS:END -->

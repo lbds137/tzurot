@@ -3,12 +3,12 @@ id: TASK-201
 title: Month-3 eval of the weekly audit + 45-day age-gate decision
 status: To Do
 assignee: []
-created_date: '2026-07-03 00:00'
-updated_date: '2026-09-04 19:35'
+created_date: 2026-07-03 00:00
+updated_date: '2026-11-27T05:33:00Z'
 labels:
-  - 'area:process'
-  - 'size:S'
-  - 'state:observable'
+  - area:process
+  - size:S
+  - state:ready
 dependencies: []
 priority: low
 ordinal: 201000
@@ -28,7 +28,18 @@ Month-3 eval of the weekly audit + 45-day age-gate decision
 <!-- COMMENTS:BEGIN -->
 author: digest-pass
 created: 2026-09-04 19:35
+
 ---
+
 Pass 2026-09-04 (TASK-888 half 1, priority-low digest): KEEP. Promote-when is "~2026-10, or when the roster next grows." Today is 2026-09-04 — the calendar trigger hasn't arrived yet, and no roster-growth eval was found in git history. Evidence: current date 2026-09-04 (< 2026-10); `git log --oneline --grep="ops health\|roster" -- packages/tooling` → no eval-shaped commit.
+
+---
+
+created: 2026-11-27T05:33:00Z
+
+---
+
+Owner ruling 2026-11-27 (pilot re-rate): SCHEDULED. Both promote-when triggers fired; the eval is ready work - a size:S unit reading recent ops health reports, deciding report readership, always-green roster prunes, and the 45-day CI age-gate.
+
 ---
 <!-- COMMENTS:END -->
