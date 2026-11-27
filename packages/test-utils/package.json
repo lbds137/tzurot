@@ -1,6 +1,6 @@
 {
   "name": "@tzurot/test-utils",
-  "version": "3.0.0-beta.251",
+  "version": "3.0.0-beta.252",
   "private": true,
   "type": "module",
   "description": "Shared test utilities for Tzurot services",
