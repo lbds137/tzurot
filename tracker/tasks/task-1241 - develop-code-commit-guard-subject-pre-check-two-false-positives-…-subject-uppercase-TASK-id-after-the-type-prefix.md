@@ -25,7 +25,7 @@ What:
 1. A commit subject given as a command substitution other than the canonical heredoc (for example -m "$(printf ...)" or -m "$(cat msgfile)") is judged by _plain_subject on its unexpanded text. Either evaluate it after expansion is impossible in a PreToolUse hook, so skip the header verdict (return ok) when the extracted subject starts with $( or a backtick.
 2. A subject whose text after the type prefix opens with an uppercase task id (docs(backlog): TASK-1179 Done) trips the case verdict (subject_part[:1].isupper()). First probe whether commitlint's subject-case rule actually accepts that subject (run it through the commit-msg hook in a scratch repo or commitlint directly); if it does, exempt a leading TASK-N id from the case check; if commitlint rejects it too, the hook is right and this item closes as working-as-designed with the probe output recorded here.
 
-Add a probe case for each in .claude/hooks/develop-code-commit-guard.probe.sh (fixture text fed on stdin, per 05-tooling.md), and run the probe after the edit.
+Add a probe case for each in .claude/hooks/develop-code-commit-guard.probe.sh (fixture text fed on stdin, per 08-tooling-internals.md § Guards), and run the probe after the edit.
 
 Acceptance: both shapes pass the hook (or item 2 is recorded as matching commitlint), the existing taskopen/length/case probes still fire, guard:hook-probes green.
 

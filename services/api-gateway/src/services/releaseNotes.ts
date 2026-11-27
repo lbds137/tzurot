@@ -3,7 +3,8 @@
  *
  * Consumes a published GitHub Release body written in the repo's
  * Conventional-Changelog format (H3 category sections, `- **scope:** …`
- * items, a `**Full Changelog**` trailer — see `.claude/rules/05-tooling.md`)
+ * items, a `**Full Changelog**` trailer — see `/tzurot-git-workflow` § 2
+ * Write Release Notes)
  * and derives:
  * - the broadcast level (owner policy: Breaking Changes → major,
  *   Features → minor, anything else → patch — content-derived, never the

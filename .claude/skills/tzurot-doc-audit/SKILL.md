@@ -1,7 +1,7 @@
 ---
 name: tzurot-doc-audit
 description: 'Documentation freshness audit. Invoke with /tzurot-doc-audit to review docs, rules, and skills for staleness, items in the wrong layer, missing-tool drift, and always-loaded passages that no longer earn their context cost. The shared auto-memory audit is `harness:doc-audit` § Step 2.'
-lastUpdated: '2026-11-19'
+lastUpdated: '2026-11-26'
 ---
 
 # Documentation Audit Procedure
@@ -71,8 +71,11 @@ Stamp it when done: `pnpm ops cadence:mark memory-prune`, then commit
 | `05-tooling.md`           | All `pnpm ops` commands listed? `pnpm quality` description accurate?                                                     |
 | `06-backlog.md`           | Surfaces match the actual `backlog/` + `tracker/` layout; granularity ladder intact? Staleness rules intact?             |
 | `07-documentation.md`     | Placement table covers all `docs/reference/` subdirs? Lifecycle rules current?                                           |
+| `08-tooling-internals.md` | Ratchet/guard rows match the CLI? Spot-check against `pnpm ops --help`.                                                  |
 | `09-interaction-style.md` | Interaction guidance still reflects current feedback (no premature-stopping, etc.)?                                      |
 | `10-working-posture.md`   | Each posture still names a trigger → behavior? Cross-references to rules/skills resolve?                                 |
+
+**Scoped-rules glob check (03, 04, 08):** do the `paths:` globs still match where each rule's domain lives? A package move silently un-scopes a rule — this is the recorded mitigation for the declined glob-validation guard (per-file dispositions: `docs/local/task-815-design.md` on the owning checkout).
 
 **How to verify 05-tooling.md:**
 
