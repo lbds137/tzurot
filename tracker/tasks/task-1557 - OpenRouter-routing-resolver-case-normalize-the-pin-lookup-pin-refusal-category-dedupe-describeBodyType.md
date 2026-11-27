@@ -3,11 +3,10 @@ id: TASK-1557
 title: >-
   OpenRouter routing resolver: case-normalize the pin lookup, pin refusal
   category, dedupe describeBodyType
-status: In Progress
-assignee:
-  - tzurot-b
+status: Done
+assignee: []
 created_date: '2026-11-26T04:43:00Z'
-updated_date: '2026-11-27T05:02:00Z'
+updated_date: '2026-11-27T08:16:00Z'
 labels:
   - area:ai-worker
   - size:S
