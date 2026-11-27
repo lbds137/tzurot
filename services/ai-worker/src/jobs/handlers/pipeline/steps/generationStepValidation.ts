@@ -48,14 +48,15 @@ export function validatePrerequisites(
 }
 
 /**
- * Site 1 of the shared-free-key fair-share meter: a guest (no BYOK key) runs on
- * the SHARED system key, so the rolling-window cap applies. The owner is never
- * limited; a BYOK user (`isGuestMode` false) is metered instead on the
- * credit-exhausted fallback path inside `runWithQuotaFallback` (mutually
- * exclusive with this branch — no double-count). `requestId` is the
- * retry-stable idempotency member. Over-share throws the FREE_TIER_QUOTA
- * sentinel, which GenerationStep's catch turns into an in-character failure.
- * A missing quota (test fixtures) is a no-op; `tryConsume` itself fails open.
+ * Site 1 of the shared-free-key fair-share meter: a free-tier route (`isFreeTier`
+ * true — guest or system-key fallback) runs on the SHARED system key, so the
+ * rolling-window cap applies. The owner is never limited; a paid-tier BYOK user
+ * (`isFreeTier` false) is metered instead on the credit-exhausted fallback path
+ * inside `runWithQuotaFallback` (mutually exclusive with this branch — no
+ * double-count). `requestId` is the retry-stable idempotency member. Over-share
+ * throws the FREE_TIER_QUOTA sentinel, which GenerationStep's catch turns into an
+ * in-character failure. A missing quota (test fixtures) is a no-op; `tryConsume`
+ * itself fails open.
  *
  * A z.ai free-tier upgrade (`provider === 'zai-coding'`) bills the CODING-PLAN
  * pool, already charged at AuthStep admission — this OpenRouter meter skips it.

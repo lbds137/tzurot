@@ -47,7 +47,7 @@ const BASE_PERSONALITY = {
   contextWindowTokens: 8192,
 } as LoadedPersonality;
 
-type UserKind = 'guest' | 'free-keyless' | 'paid-system' | 'BYOK' | 'BYOK-degraded-to-system';
+type UserKind = 'guest' | 'free-keyless' | 'BYOK' | 'BYOK-degraded-to-system';
 type KeyState = 'none' | 'ok';
 type MatrixPath =
   'chat-route' | 'promote' | 'floor-selection' | 'ladder-entry' | 'vision-selection';
@@ -64,7 +64,7 @@ interface MatrixRow {
 }
 
 const MATRIX_ROWS: MatrixRow[] = [
-  // --- userKind: 'guest', keyState: 'none' ---
+  // --- userKind: 'guest', keyState: 'none' (source: 'system', no key, isGuestMode: true) ---
   {
     userKind: 'guest',
     keyState: 'none',
@@ -105,8 +105,18 @@ const MATRIX_ROWS: MatrixRow[] = [
       floorTarget: FREE_FLOOR_MODEL,
     },
   },
+  {
+    userKind: 'guest',
+    keyState: 'none',
+    path: 'vision-selection',
+    expected: {
+      effectiveTier: 'free',
+      cacheKeyId: SYSTEM_CACHE_KEY_ID,
+      floorTarget: FREE_FLOOR_MODEL,
+    },
+  },
 
-  // --- userKind: 'guest', keyState: 'ok' (operator system key) ---
+  // --- userKind: 'guest', keyState: 'ok' (source: 'system', operator system key, isGuestMode: true) ---
   {
     userKind: 'guest',
     keyState: 'ok',
@@ -148,12 +158,12 @@ const MATRIX_ROWS: MatrixRow[] = [
     },
   },
 
-  // --- userKind: 'free-keyless', keyState: 'none' (non-guest without any key) ---
+  // --- userKind: 'free-keyless', keyState: 'none' (source: 'system', no key, isGuestMode: false) ---
   {
     userKind: 'free-keyless',
     keyState: 'none',
     path: 'chat-route',
-    // was: effectiveTier implicitly 'paid', floorTarget PAID_FLOOR_MODEL, ladderEligible false when isGuestMode=false
+    // was: effectiveTier implicitly 'paid' and selectFloorTarget returned PAID_FLOOR_MODEL when isGuestMode=false
     expected: {
       effectiveTier: 'free',
       cacheKeyId: SYSTEM_CACHE_KEY_ID,
@@ -164,7 +174,7 @@ const MATRIX_ROWS: MatrixRow[] = [
     userKind: 'free-keyless',
     keyState: 'none',
     path: 'promote',
-    // was: demoted to paid fallbackTextModel floor with ladderEligible false when isGuestMode=false
+    // was: demoted to paid fallbackTextModel floor when isGuestMode=false
     expected: {
       effectiveTier: 'free',
       cacheKeyId: SYSTEM_CACHE_KEY_ID,
@@ -186,7 +196,17 @@ const MATRIX_ROWS: MatrixRow[] = [
     userKind: 'free-keyless',
     keyState: 'none',
     path: 'ladder-entry',
-    // was: ladderEligible false because AuthStep gated ladder entry on route.isGuestMode
+    // was: selectQuotaFallbackTarget with isGuestMode=false selected PAID_FLOOR_MODEL via getGlobalDefaultConfig instead of FREE_FLOOR_MODEL via getFreeDefaultConfig
+    expected: {
+      effectiveTier: 'free',
+      cacheKeyId: SYSTEM_CACHE_KEY_ID,
+      floorTarget: FREE_FLOOR_MODEL,
+    },
+  },
+  {
+    userKind: 'free-keyless',
+    keyState: 'none',
+    path: 'vision-selection',
     expected: {
       effectiveTier: 'free',
       cacheKeyId: SYSTEM_CACHE_KEY_ID,
@@ -194,12 +214,12 @@ const MATRIX_ROWS: MatrixRow[] = [
     },
   },
 
-  // --- userKind: 'free-keyless', keyState: 'ok' (non-guest running on system key) ---
+  // --- userKind: 'BYOK-degraded-to-system', keyState: 'ok' (source: 'system', operator system key, isGuestMode: false) ---
   {
-    userKind: 'free-keyless',
+    userKind: 'BYOK-degraded-to-system',
     keyState: 'ok',
     path: 'chat-route',
-    // was: cacheKeyId 'user:278863839632818186' (D10 leak), floorTarget PAID_FLOOR_MODEL, ladderEligible false when isGuestMode=false
+    // was: cacheKeyId 'user:278863839632818186' (D10 leak) and floorTarget PAID_FLOOR_MODEL when isGuestMode=false
     expected: {
       effectiveTier: 'free',
       cacheKeyId: SYSTEM_CACHE_KEY_ID,
@@ -207,10 +227,10 @@ const MATRIX_ROWS: MatrixRow[] = [
     },
   },
   {
-    userKind: 'free-keyless',
+    userKind: 'BYOK-degraded-to-system',
     keyState: 'ok',
     path: 'promote',
-    // was: cacheKeyId 'user:278863839632818186' (D10 leak), floorTarget PAID_FLOOR_MODEL, ladderEligible false
+    // was: cacheKeyId 'user:278863839632818186' (D10 leak) and floorTarget PAID_FLOOR_MODEL when isGuestMode=false
     expected: {
       effectiveTier: 'free',
       cacheKeyId: SYSTEM_CACHE_KEY_ID,
@@ -218,7 +238,7 @@ const MATRIX_ROWS: MatrixRow[] = [
     },
   },
   {
-    userKind: 'free-keyless',
+    userKind: 'BYOK-degraded-to-system',
     keyState: 'ok',
     path: 'floor-selection',
     // was: cacheKeyId 'user:278863839632818186' (D10 leak) and floorTarget PAID_FLOOR_MODEL when isGuestMode=false
@@ -229,10 +249,20 @@ const MATRIX_ROWS: MatrixRow[] = [
     },
   },
   {
-    userKind: 'free-keyless',
+    userKind: 'BYOK-degraded-to-system',
     keyState: 'ok',
     path: 'ladder-entry',
-    // was: cacheKeyId 'user:278863839632818186' and ladderEligible false when isGuestMode=false
+    // was: cacheKeyId 'user:278863839632818186' (D10 leak) and selectQuotaFallbackTarget selected PAID_FLOOR_MODEL via getGlobalDefaultConfig when isGuestMode=false
+    expected: {
+      effectiveTier: 'free',
+      cacheKeyId: SYSTEM_CACHE_KEY_ID,
+      floorTarget: FREE_FLOOR_MODEL,
+    },
+  },
+  {
+    userKind: 'BYOK-degraded-to-system',
+    keyState: 'ok',
+    path: 'vision-selection',
     expected: {
       effectiveTier: 'free',
       cacheKeyId: SYSTEM_CACHE_KEY_ID,
@@ -240,104 +270,12 @@ const MATRIX_ROWS: MatrixRow[] = [
     },
   },
 
-  // --- userKind: 'paid-system', keyState: 'none' (paid member without BYOK key, system key absent) ---
-  {
-    userKind: 'paid-system',
-    keyState: 'none',
-    path: 'chat-route',
-    // was: floorTarget PAID_FLOOR_MODEL and ladderEligible false when isGuestMode=false
-    expected: {
-      effectiveTier: 'free',
-      cacheKeyId: SYSTEM_CACHE_KEY_ID,
-      floorTarget: FREE_FLOOR_MODEL,
-    },
-  },
-  {
-    userKind: 'paid-system',
-    keyState: 'none',
-    path: 'promote',
-    // was: floorTarget PAID_FLOOR_MODEL and ladderEligible false on promotion demotion
-    expected: {
-      effectiveTier: 'free',
-      cacheKeyId: SYSTEM_CACHE_KEY_ID,
-      floorTarget: FREE_FLOOR_MODEL,
-    },
-  },
-  {
-    userKind: 'paid-system',
-    keyState: 'none',
-    path: 'floor-selection',
-    // was: selectFloorTarget(isGuestMode=false) returned PAID_FLOOR_MODEL
-    expected: {
-      effectiveTier: 'free',
-      cacheKeyId: SYSTEM_CACHE_KEY_ID,
-      floorTarget: FREE_FLOOR_MODEL,
-    },
-  },
-  {
-    userKind: 'paid-system',
-    keyState: 'none',
-    path: 'ladder-entry',
-    // was: ladderEligible false when route.isGuestMode=false
-    expected: {
-      effectiveTier: 'free',
-      cacheKeyId: SYSTEM_CACHE_KEY_ID,
-      floorTarget: FREE_FLOOR_MODEL,
-    },
-  },
-
-  // --- userKind: 'paid-system', keyState: 'ok' (paid member running on operator system key) ---
-  {
-    userKind: 'paid-system',
-    keyState: 'ok',
-    path: 'chat-route',
-    // was: cacheKeyId 'user:278863839632818186' (D10 leak), floorTarget PAID_FLOOR_MODEL, ladderEligible false
-    expected: {
-      effectiveTier: 'free',
-      cacheKeyId: SYSTEM_CACHE_KEY_ID,
-      floorTarget: FREE_FLOOR_MODEL,
-    },
-  },
-  {
-    userKind: 'paid-system',
-    keyState: 'ok',
-    path: 'promote',
-    // was: cacheKeyId 'user:278863839632818186' (D10 leak), floorTarget PAID_FLOOR_MODEL, ladderEligible false
-    expected: {
-      effectiveTier: 'free',
-      cacheKeyId: SYSTEM_CACHE_KEY_ID,
-      floorTarget: FREE_FLOOR_MODEL,
-    },
-  },
-  {
-    userKind: 'paid-system',
-    keyState: 'ok',
-    path: 'floor-selection',
-    // was: cacheKeyId 'user:278863839632818186' (D10 leak), floorTarget PAID_FLOOR_MODEL
-    expected: {
-      effectiveTier: 'free',
-      cacheKeyId: SYSTEM_CACHE_KEY_ID,
-      floorTarget: FREE_FLOOR_MODEL,
-    },
-  },
-  {
-    userKind: 'paid-system',
-    keyState: 'ok',
-    path: 'ladder-entry',
-    // was: cacheKeyId 'user:278863839632818186' (D10 leak) and ladderEligible false
-    expected: {
-      effectiveTier: 'free',
-      cacheKeyId: SYSTEM_CACHE_KEY_ID,
-      floorTarget: FREE_FLOOR_MODEL,
-    },
-  },
-
-  // --- userKind: 'BYOK', keyState: 'none' (BYOK user with missing/unusable key) ---
+  // --- userKind: 'BYOK', keyState: 'none' (source: 'user', missing/empty key, isGuestMode: false) ---
   {
     userKind: 'BYOK',
     keyState: 'none',
     path: 'chat-route',
-    // was: floorTarget PAID_FLOOR_MODEL and ladderEligible false when isGuestMode=false
+    // was: floorTarget PAID_FLOOR_MODEL when isGuestMode=false despite empty key
     expected: {
       effectiveTier: 'free',
       cacheKeyId: SYSTEM_CACHE_KEY_ID,
@@ -348,7 +286,7 @@ const MATRIX_ROWS: MatrixRow[] = [
     userKind: 'BYOK',
     keyState: 'none',
     path: 'promote',
-    // was: floorTarget PAID_FLOOR_MODEL and ladderEligible false when isGuestMode=false
+    // was: floorTarget PAID_FLOOR_MODEL when isGuestMode=false despite empty key
     expected: {
       effectiveTier: 'free',
       cacheKeyId: SYSTEM_CACHE_KEY_ID,
@@ -370,7 +308,17 @@ const MATRIX_ROWS: MatrixRow[] = [
     userKind: 'BYOK',
     keyState: 'none',
     path: 'ladder-entry',
-    // was: ladderEligible false when isGuestMode=false
+    // was: selectQuotaFallbackTarget with isGuestMode=false selected PAID_FLOOR_MODEL via getGlobalDefaultConfig instead of FREE_FLOOR_MODEL via getFreeDefaultConfig
+    expected: {
+      effectiveTier: 'free',
+      cacheKeyId: SYSTEM_CACHE_KEY_ID,
+      floorTarget: FREE_FLOOR_MODEL,
+    },
+  },
+  {
+    userKind: 'BYOK',
+    keyState: 'none',
+    path: 'vision-selection',
     expected: {
       effectiveTier: 'free',
       cacheKeyId: SYSTEM_CACHE_KEY_ID,
@@ -378,7 +326,7 @@ const MATRIX_ROWS: MatrixRow[] = [
     },
   },
 
-  // --- userKind: 'BYOK', keyState: 'ok' (BYOK user with valid personal wallet key) ---
+  // --- userKind: 'BYOK', keyState: 'ok' (source: 'user', valid personal wallet key, isGuestMode: false) ---
   {
     userKind: 'BYOK',
     keyState: 'ok',
@@ -427,68 +375,6 @@ const MATRIX_ROWS: MatrixRow[] = [
       effectiveTier: 'paid',
       cacheKeyId: `user:${DISCORD_USER_ID}`,
       floorTarget: PAID_FLOOR_MODEL,
-    },
-  },
-
-  // --- vision-selection for 'none' routes and BYOK-degraded-to-system ---
-  {
-    userKind: 'guest',
-    keyState: 'none',
-    path: 'vision-selection',
-    expected: {
-      effectiveTier: 'free',
-      cacheKeyId: SYSTEM_CACHE_KEY_ID,
-      floorTarget: FREE_FLOOR_MODEL,
-    },
-  },
-  {
-    userKind: 'free-keyless',
-    keyState: 'none',
-    path: 'vision-selection',
-    expected: {
-      effectiveTier: 'free',
-      cacheKeyId: SYSTEM_CACHE_KEY_ID,
-      floorTarget: FREE_FLOOR_MODEL,
-    },
-  },
-  {
-    userKind: 'paid-system',
-    keyState: 'none',
-    path: 'vision-selection',
-    expected: {
-      effectiveTier: 'free',
-      cacheKeyId: SYSTEM_CACHE_KEY_ID,
-      floorTarget: FREE_FLOOR_MODEL,
-    },
-  },
-  {
-    userKind: 'BYOK',
-    keyState: 'none',
-    path: 'vision-selection',
-    expected: {
-      effectiveTier: 'free',
-      cacheKeyId: SYSTEM_CACHE_KEY_ID,
-      floorTarget: FREE_FLOOR_MODEL,
-    },
-  },
-  {
-    userKind: 'BYOK-degraded-to-system',
-    keyState: 'ok',
-    path: 'chat-route',
-    expected: {
-      effectiveTier: 'free',
-      cacheKeyId: SYSTEM_CACHE_KEY_ID,
-      floorTarget: FREE_FLOOR_MODEL,
-    },
-  },
-  {
-    userKind: 'BYOK-degraded-to-system',
-    keyState: 'ok',
-    path: 'vision-selection',
-    expected: {
-      effectiveTier: 'free',
-      cacheKeyId: SYSTEM_CACHE_KEY_ID,
-      floorTarget: FREE_FLOOR_MODEL,
     },
   },
 ];
@@ -497,27 +383,21 @@ function deriveFixtureInputs(
   userKind: UserKind,
   keyState: KeyState
 ): {
-  source: ApiKeySource | undefined;
+  source: ApiKeySource;
   resolvedApiKey: string | undefined;
   isGuestModeFlag: boolean;
 } {
+  const source: ApiKeySource = userKind === 'BYOK' ? 'user' : 'system';
   if (keyState === 'none') {
     return {
-      source: undefined,
+      source,
       resolvedApiKey: undefined,
       isGuestModeFlag: userKind === 'guest',
     };
   }
-  if (userKind === 'BYOK') {
-    return {
-      source: 'user',
-      resolvedApiKey: FAKE_USER_KEY,
-      isGuestModeFlag: false,
-    };
-  }
   return {
-    source: 'system',
-    resolvedApiKey: FAKE_SYSTEM_KEY,
+    source,
+    resolvedApiKey: source === 'user' ? FAKE_USER_KEY : FAKE_SYSTEM_KEY,
     isGuestModeFlag: userKind === 'guest',
   };
 }
@@ -553,7 +433,7 @@ describe('effectiveTier seam matrix', () => {
 
       let effectiveTier: EffectiveTier;
       let cacheKeyId: string;
-      let floorTarget: string;
+      let floorTarget: string | undefined;
 
       if (path === 'chat-route') {
         const route: ResolvedRoute = {
@@ -566,6 +446,7 @@ describe('effectiveTier seam matrix', () => {
           wasAutoPromoted: false,
         };
         const llmAuth = buildPostRouteLlmAuth(route, BASE_PERSONALITY);
+        expect(llmAuth.isGuestMode).toBe(isGuestModeFlag);
         effectiveTier = llmAuth.effectiveTier;
         cacheKeyId = authCacheKeyId(
           { keyProvenance: llmAuth.keyProvenance },
@@ -578,7 +459,7 @@ describe('effectiveTier seam matrix', () => {
           cacheKeyId,
           caches,
         });
-        floorTarget = floor?.config.model ?? '';
+        floorTarget = floor?.config.model;
       } else if (path === 'promote') {
         const keyProvenance = provenanceFromResolution(source, resolvedApiKey);
         const initialTier = resolveEffectiveTier({ keyProvenance });
@@ -604,7 +485,7 @@ describe('effectiveTier seam matrix', () => {
           ApiErrorCategory.QUOTA_EXCEEDED,
           caches
         );
-        const finalAuth = demoted ?? promotedAuth;
+        const finalAuth = initialTier === 'paid' ? demoted! : promotedAuth;
         effectiveTier = finalAuth.effectiveTier;
         cacheKeyId = authCacheKeyId(
           { keyProvenance: finalAuth.keyProvenance },
@@ -617,7 +498,7 @@ describe('effectiveTier seam matrix', () => {
           cacheKeyId,
           caches,
         });
-        floorTarget = floor?.config.model ?? '';
+        floorTarget = floor?.config.model;
       } else if (path === 'floor-selection') {
         const keyProvenance = provenanceFromResolution(source, resolvedApiKey);
         effectiveTier = resolveEffectiveTier({ keyProvenance });
@@ -637,11 +518,9 @@ describe('effectiveTier seam matrix', () => {
         const floor = await selectHopOneFloorTarget({
           category: ApiErrorCategory.TIMEOUT,
           opts: attemptOpts,
-          cacheKeyId,
           caches,
-          userId: DISCORD_USER_ID,
         });
-        floorTarget = floor?.config.model ?? '';
+        floorTarget = floor?.config.model;
       } else if (path === 'vision-selection') {
         const route: ResolvedRoute = {
           effectiveProvider: AIProvider.OpenRouter,
@@ -653,6 +532,7 @@ describe('effectiveTier seam matrix', () => {
           wasAutoPromoted: false,
         };
         const llmAuth = buildPostRouteLlmAuth(route, BASE_PERSONALITY);
+        expect(llmAuth.isGuestMode).toBe(isGuestModeFlag);
         effectiveTier = llmAuth.effectiveTier;
         cacheKeyId = authCacheKeyId(
           { keyProvenance: llmAuth.keyProvenance },
@@ -679,7 +559,7 @@ describe('effectiveTier seam matrix', () => {
           configResolver: configResolver as never,
           caches,
         });
-        floorTarget = target?.config.model ?? '';
+        floorTarget = target?.config.model;
       }
 
       expect({

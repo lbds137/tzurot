@@ -124,21 +124,20 @@ export class ConversationalRAGService {
    * @param personality - Personality configuration
    * @param message - User's message content
    * @param context - Conversation context (history, environment, etc.)
-   * @param options - Optional configuration (userApiKey, isGuestMode, retryConfig)
+   * @param options - Generation options (userApiKey, keyProvenance, effectiveTier, retryConfig)
    */
   // eslint-disable-next-line max-lines-per-function -- Orchestration method; further decomposition would obscure flow
   async generateResponse(
     personality: LoadedPersonality,
     message: MessageContent,
     context: ConversationContext,
-    options: GenerateResponseOptions = {}
+    options: GenerateResponseOptions
   ): Promise<RAGResponse> {
     const {
       userApiKey,
       sttDispatch,
-      isGuestMode = false,
-      keyProvenance = 'user',
-      effectiveTier = 'paid',
+      keyProvenance,
+      effectiveTier,
       retryConfig,
       diagnosticCollector: diagnosticCollectorRef,
       configOverrides,
@@ -307,7 +306,6 @@ export class ConversationalRAGService {
           realMessagesEnabled,
           context,
           userApiKey,
-          isGuestMode,
           keyProvenance,
           effectiveTier,
           retryConfig,

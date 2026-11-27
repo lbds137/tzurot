@@ -5,7 +5,7 @@ import type { Rule } from 'eslint';
  * conditional expressions (single-sourced here; `eslint.config.js` enables
  * `@tzurot/no-tier-flag-branching` across every .ts file under
  * services/ai-worker/src/ and delegates per-file exemptions to this list):
- * - Auth resolution & tier seam entry points (`ProviderRouter`, `postRouteLlmAuth`, `AuthStep`, `effectiveTier`)
+ * - Auth resolution & tier seam entry points (`ProviderRouter`, `AuthStep`)
  * - Non-tier UI / telemetry / audio-key plumbing (`AIJobProcessor`, `describeImageWithFallback`)
  * - Tier-keyed vision selection & cross-provider vision auth (`VisionProcessor`, `visionAuthResolver` — pipeline callers pass `effectiveTier === 'free'`, so degraded-to-system BYOK and `'none'` routes select free vision)
  *
@@ -13,12 +13,11 @@ import type { Rule } from 'eslint';
  * or destructuring to a renamed local) is not tracked and passes without
  * error; catching it would require scope/data-flow analysis beyond the AST
  * condition subtree walk.
+ * The flag passed as a call argument or object-literal property (`selectVisionModel(p, opts.isGuestMode)`) is also not tracked.
  */
 export const DEFAULT_TIER_FLAG_ALLOWLIST: readonly string[] = [
   'services/ai-worker/src/services/ProviderRouter.ts', // -- upstream route resolution produces isGuestMode before the effectiveTier seam runs
-  'services/ai-worker/src/jobs/handlers/pipeline/steps/postRouteLlmAuth.ts', // -- seam translator: buildPostRouteLlmAuth and toResolvedAuth forward isGuestMode alongside source-derived KeyProvenance
   'services/ai-worker/src/jobs/handlers/pipeline/steps/AuthStep.ts', // -- audio-provider BYOK admission guard (!result.isGuestMode on ElevenLabs/Mistral lookups, independent of LLM tier)
-  'services/ai-worker/src/services/effectiveTier.ts', // -- the effectiveTier seam module itself
   'services/ai-worker/src/jobs/AIJobProcessor.ts', // -- usage-row byok telemetry column derivation (deriveByok) and audio-job key guard, not model/floor tiering
   'services/ai-worker/src/services/multimodal/VisionProcessor.ts', // -- tier-keyed vision model selection (selectVisionModel) and error-message copy discriminator (deriveApiKeySource); pipeline callers pass effectiveTier === 'free'
   'services/ai-worker/src/services/multimodal/describeImageWithFallback.ts', // -- vision fallback walk receives effectiveTier === 'free' from pipeline callers and checks VisionConfig.isGuestMode for piggyback reactor

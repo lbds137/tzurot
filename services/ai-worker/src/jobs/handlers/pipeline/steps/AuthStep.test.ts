@@ -293,6 +293,7 @@ describe('AuthStep', () => {
 
       expect(result.auth?.isGuestMode).toBe(true);
       expect(result.auth?.apiKey).toBeUndefined();
+      expect(result.auth?.keyProvenance).toBe('none');
     });
 
     describe('guest-mode substitution reaches the footer', () => {
@@ -765,6 +766,7 @@ describe('AuthStep', () => {
             effectiveProvider: AIProvider.OpenRouter,
             effectiveModel: 'z-ai/glm-4.7',
             apiKey: 'fixture-or-user-key',
+            source: 'user',
             isGuestMode: false,
             fallthroughTriggered: true,
             wasAutoPromoted: false,
@@ -785,6 +787,7 @@ describe('AuthStep', () => {
             effectiveProvider: AIProvider.ZaiCoding,
             effectiveModel: 'glm-4.7',
             apiKey: 'zai-user-key',
+            source: 'user',
             isGuestMode: false,
             fallthroughTriggered: false,
             wasAutoPromoted: false,
@@ -974,11 +977,13 @@ describe('AuthStep', () => {
         effectiveProvider: AIProvider.ZaiCoding,
         effectiveModel: 'glm-5.2',
         apiKey: 'sk-zai-key',
+        source: 'user' as const,
         isGuestMode: false,
         fallthroughTriggered: false,
         wasAutoPromoted: true,
         fallback: {
           apiKey: 'sk-openrouter-key',
+          source: 'user' as const,
           provider: AIProvider.OpenRouter,
           model: 'z-ai/glm-5.2',
           isGuestMode: false,
@@ -1220,6 +1225,7 @@ describe('AuthStep', () => {
             effectiveProvider: AIProvider.OpenRouter,
             effectiveModel: 'injected/model',
             apiKey: 'injected-router-sentinel-key',
+            source: 'user',
             isGuestMode: false,
             fallthroughTriggered: false,
           }),
@@ -1958,6 +1964,7 @@ describe('AuthStep', () => {
           effectiveProvider: AIProvider.OpenRouter,
           effectiveModel: 'anthropic/claude-sonnet-4',
           apiKey: undefined,
+          source: 'system',
           isGuestMode: false,
           fallthroughTriggered: false,
         }),
@@ -2015,6 +2022,85 @@ describe('AuthStep', () => {
         model: 'custom/free-ladder-model:free',
       });
       expect(resolverWithFreeAndGlobal.getGlobalDefaultConfig).not.toHaveBeenCalled();
+    });
+
+    it('gates applyGuestModeOverrides on effectiveTier: enters the free ladder for a source:system route and skips it for a source:user route', async () => {
+      const paidPersonalityWithVision: LoadedPersonality = {
+        ...TEST_PERSONALITY,
+        model: 'anthropic/claude-sonnet-4',
+        visionModel: 'openai/gpt-4o-vision',
+      };
+      const resolverWithFree = {
+        ...mockConfigResolver,
+        getFreeDefaultConfig: vi.fn().mockResolvedValue({
+          model: 'custom/free-ladder-model:free',
+          provider: 'openrouter',
+        }),
+      } as unknown as LlmConfigResolver;
+
+      // 1. source: 'system' (even with isGuestMode: false and a non-empty key) → effectiveTier 'free' → takes applyGuestModeOverrides
+      const systemRouter = {
+        resolveRoute: vi.fn().mockResolvedValue({
+          effectiveProvider: AIProvider.OpenRouter,
+          effectiveModel: 'anthropic/claude-sonnet-4',
+          apiKey: 'fixture-or-system-key',
+          source: 'system',
+          isGuestMode: false,
+          fallthroughTriggered: false,
+          wasAutoPromoted: false,
+        }),
+      } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+
+      step = new AuthStep(mockApiKeyResolver, resolverWithFree, systemRouter);
+      const freeResult = await step.process({
+        ...guestContext(),
+        config: {
+          effectivePersonality: paidPersonalityWithVision,
+          configSource: 'personality',
+        },
+      });
+
+      expect(freeResult.auth?.keyProvenance).toBe('system');
+      expect(freeResult.auth?.effectiveTier).toBe('free');
+      expect(resolverWithFree.getFreeDefaultConfig).toHaveBeenCalledTimes(1);
+      expect(freeResult.config?.effectivePersonality.model).toBe('custom/free-ladder-model:free');
+      expect(freeResult.config?.effectivePersonality.visionModel).toBeUndefined();
+      expect(freeResult.auth?.quotaFallback).toEqual({
+        fromModel: 'anthropic/claude-sonnet-4',
+        toModel: 'custom/free-ladder-model:free',
+        category: 'guest_mode',
+        mode: 'proactive',
+      });
+
+      // 2. source: 'user' → effectiveTier 'paid' → does NOT take applyGuestModeOverrides
+      vi.mocked(resolverWithFree.getFreeDefaultConfig).mockClear();
+      const userRouter = {
+        resolveRoute: vi.fn().mockResolvedValue({
+          effectiveProvider: AIProvider.OpenRouter,
+          effectiveModel: 'anthropic/claude-sonnet-4',
+          apiKey: 'fixture-or-user-key',
+          source: 'user',
+          isGuestMode: false,
+          fallthroughTriggered: false,
+          wasAutoPromoted: false,
+        }),
+      } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+
+      step = new AuthStep(mockApiKeyResolver, resolverWithFree, userRouter);
+      const paidResult = await step.process({
+        ...guestContext(),
+        config: {
+          effectivePersonality: paidPersonalityWithVision,
+          configSource: 'personality',
+        },
+      });
+
+      expect(paidResult.auth?.keyProvenance).toBe('user');
+      expect(paidResult.auth?.effectiveTier).toBe('paid');
+      expect(resolverWithFree.getFreeDefaultConfig).not.toHaveBeenCalled();
+      expect(paidResult.config?.effectivePersonality.model).toBe('anthropic/claude-sonnet-4');
+      expect(paidResult.config?.effectivePersonality.visionModel).toBe('openai/gpt-4o-vision');
+      expect(paidResult.auth?.quotaFallback).toBeUndefined();
     });
   });
 });

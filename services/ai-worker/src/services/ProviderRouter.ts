@@ -66,7 +66,7 @@ const logger = createLogger('ProviderRouter');
  */
 export interface FallbackRoute {
   apiKey: string;
-  source?: ApiKeySource;
+  source: ApiKeySource;
   provider: string;
   model: string;
   isGuestMode: boolean;
@@ -95,7 +95,7 @@ export interface ResolvedRoute {
   apiKey: string;
 
   /** Origin of `apiKey` from `ApiKeyResolver` ('user' BYOK wallet vs 'system' operator key). */
-  source?: ApiKeySource;
+  source: ApiKeySource;
 
   /**
    * Whether the resolution landed on a system fallback key (restricting the

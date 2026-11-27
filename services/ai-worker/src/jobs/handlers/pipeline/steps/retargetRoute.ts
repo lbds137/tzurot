@@ -30,7 +30,7 @@ export interface RetargetRouteDeps {
 export interface ResolvedRetargetRoute {
   config: QuotaTarget['config'];
   apiKey: string | undefined;
-  source?: ApiKeySource;
+  source: ApiKeySource;
   isGuestMode: boolean;
 }
 
@@ -42,7 +42,7 @@ export async function resolveRetargetRoute(options: {
   target: QuotaTarget;
   personality: { model: string; provider?: string };
   apiKey: string | undefined;
-  source?: ApiKeySource;
+  source: ApiKeySource;
   isGuestMode: boolean;
   userId: string;
   category: QuotaFallbackCategory;
@@ -66,7 +66,7 @@ export async function resolveRetargetRoute(options: {
     return {
       config: target.config,
       apiKey,
-      ...(source !== undefined ? { source } : {}),
+      source,
       isGuestMode,
     };
   }

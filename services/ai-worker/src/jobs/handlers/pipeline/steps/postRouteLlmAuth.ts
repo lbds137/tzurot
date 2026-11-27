@@ -36,7 +36,7 @@ type EffectivePersonality = NonNullable<GenerationContext['config']>['effectiveP
  * - User/BYOK wallet key (`source === 'user'`) → `'user'`
  */
 export function provenanceFromResolution(
-  source: ApiKeySource | undefined,
+  source: ApiKeySource,
   resolvedApiKey: string | undefined
 ): KeyProvenance {
   if (resolvedApiKey === undefined || resolvedApiKey.length === 0) {

@@ -7,7 +7,12 @@ import { authCacheKeyId } from '../../../../services/effectiveTier.js';
 import type { ResolvedRoute } from '../../../../services/ProviderRouter.js';
 import { SYSTEM_CACHE_KEY_ID } from '../../../../services/RateLimitCache.js';
 import type { GuestOverrideResult } from './guestModeOverrides.js';
-import { buildPostRouteLlmAuth, toResolvedAuth, type ResolvedLlmAuth } from './postRouteLlmAuth.js';
+import {
+  buildPostRouteLlmAuth,
+  provenanceFromResolution,
+  toResolvedAuth,
+  type ResolvedLlmAuth,
+} from './postRouteLlmAuth.js';
 
 const BASE_PERSONALITY = {
   id: 'p-1',
@@ -22,12 +27,30 @@ const BASE_PERSONALITY = {
   contextWindowTokens: 8192,
 } as LoadedPersonality;
 
+describe('provenanceFromResolution', () => {
+  it('returns none when resolvedApiKey is empty or undefined regardless of source', () => {
+    expect(provenanceFromResolution('user', '')).toBe('none');
+    expect(provenanceFromResolution('system', '')).toBe('none');
+    expect(provenanceFromResolution('user', undefined)).toBe('none');
+    expect(provenanceFromResolution('system', undefined)).toBe('none');
+  });
+
+  it('returns system when source is system and key is non-empty', () => {
+    expect(provenanceFromResolution('system', 'sk-sys')).toBe('system');
+  });
+
+  it('returns user when source is user and key is non-empty', () => {
+    expect(provenanceFromResolution('user', 'sk-user')).toBe('user');
+  });
+});
+
 describe('buildPostRouteLlmAuth', () => {
   it('carries fallthroughTriggered on the standard post-route return', () => {
     const route = {
       effectiveProvider: AIProvider.OpenRouter,
       effectiveModel: 'z-ai/glm-4.7',
       apiKey: 'fixture-or-user',
+      source: 'user',
       isGuestMode: false,
       fallthroughTriggered: true,
       wasAutoPromoted: false,
@@ -47,6 +70,7 @@ describe('buildPostRouteLlmAuth', () => {
       effectiveProvider: AIProvider.OpenRouter,
       effectiveModel: 'z-ai/glm-5.3-flash',
       apiKey: 'fixture-or-system',
+      source: 'system',
       isGuestMode: true,
       fallthroughTriggered: true,
       wasAutoPromoted: false,

@@ -41,7 +41,7 @@ export interface DemotableAuth {
   wasAutoPromoted?: boolean;
   fallback?: {
     apiKey: string;
-    source?: ApiKeySource;
+    source: ApiKeySource;
     provider: string;
     model: string;
     isGuestMode: boolean;

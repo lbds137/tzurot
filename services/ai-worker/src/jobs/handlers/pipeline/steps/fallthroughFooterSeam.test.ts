@@ -140,6 +140,7 @@ function createMockProviderRouter(fallthroughTriggered: boolean): ProviderRouter
     effectiveProvider: AIProvider.OpenRouter,
     effectiveModel: FALLTHROUGH_MODEL,
     apiKey: FIXTURE_OR_USER_KEY,
+    source: 'user',
     isGuestMode: false,
     fallthroughTriggered,
     wasAutoPromoted: false,
