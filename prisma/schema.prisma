@@ -12,7 +12,7 @@ datasource db {
 /// NOTE: All models use explicit IDs (no @default(uuid())) to enforce deterministic UUIDs.
 /// This project syncs data between dev and prod - random UUIDs cause sync failures.
 /// Application code MUST provide IDs using generators from deterministicUuid.ts.
-/// See CLAUDE.md "Deterministic UUIDs Required" section.
+/// See .claude/rules/01-architecture.md § Deterministic UUIDs.
 model User {
   id                    String                     @id @db.Uuid
   discordId             String                     @unique @map("discord_id") @db.VarChar(20)

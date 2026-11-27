@@ -54,9 +54,9 @@ All guards hard-fail on findings. `guard:workflow-sync` covers ONLY `claude-code
 
 **After editing any hook, run its probe** — `guard:hook-probes` is the backstop, not the loop. Registry: `packages/tooling/src/dev/check-hook-probes-registry.ts`, bidirectional over `.claude/hooks/*.sh` AND `.husky/`. `develop-code-commit-guard.probe.sh` needs local `develop` and `main` branches (`git fetch origin develop:develop` on a fresh clone). A probe for a self-referential guard keeps its trigger pattern in the probe file as fixture data fed on stdin, never in the invoking command line.
 
-`pnpm ops lines:check` keeps the always-loaded surfaces (`.claude/rules`
-total, `CURRENT.md`, `.claude/skills` bodies) within their LINE and BYTE
-budgets, and holds `CLAUDE.md` + `.claude/rules/*.md` under a hard 147,000-char
+`pnpm ops lines:check` keeps the instruction surfaces (`.claude/rules`
+total — path-scoped 03/04/08 included, `CURRENT.md`, `.claude/skills` bodies)
+within their LINE and BYTE budgets, and holds `CLAUDE.md` + `.claude/rules/*.md` under a hard 147,000-char
 ceiling (Claude Code's instruction-file warning total, which no baseline
 refresh can raise). The ceiling counts path-scoped files too — it over-states
 what a fresh session carries, the conservative direction, on purpose.

@@ -138,7 +138,7 @@ Arm the Monitor with this as its `command`, **substitution included** — copy i
 pnpm -C "$(git rev-parse --show-toplevel)" ops gh:ci-gate N --sha $(git rev-parse HEAD)
 ```
 
-Pass `timeout_ms: 1800000` (30 min) and `persistent: false`. **The `false` is a deliberate departure from the Monitor tool's own guidance — don't "correct" it back**: `TaskList` cannot see a watcher, so its own timeout is the only thing bounding it. If it expires, re-arm. **Arm it immediately, from the checkout that holds the branch** — the substitution resolves when the Monitor executes, and a branch hop or a foreign shell cwd resolves a different `HEAD`.
+Pass `timeout_ms: 1800000` (30 min) and `persistent: false`. **The `false` is a deliberate departure from the Monitor tool's own guidance — don't "correct" it back**: `TaskList` cannot see a watcher, so its own timeout is the only thing bounding it. If it expires, re-arm. **Arm it immediately, from the checkout that holds the branch** — the substitution resolves when the Monitor executes, and a branch hop or a foreign shell cwd resolves a different `HEAD`. **Wait on the gate (`gh:ci-gate`), never on a `sleep` or a hand-written poll loop** — both were measured emitting a premature `CI_COMPLETE` (outcome table: `pr-monitoring.md` § Outcomes).
 
 **This invocation is duplicated in three places on purpose** — here, the hook heredoc, and `/tzurot-git-workflow`. `pnpm ops guard:monitor-command` fails CI if the copies diverge, so change all three.
 

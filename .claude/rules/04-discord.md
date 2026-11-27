@@ -3,6 +3,7 @@ paths:
   - 'services/bot-client/**'
   - 'packages/common-types/src/types/**'
   - 'packages/common-types/src/utils/autocompleteFormat.ts'
+  - 'packages/common-types/src/schemas/api/**'
 ---
 
 # Discord Rules

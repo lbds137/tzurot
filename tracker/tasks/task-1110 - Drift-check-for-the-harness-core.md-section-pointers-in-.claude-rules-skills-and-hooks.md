@@ -25,7 +25,9 @@ Fix shape: a pnpm ops guard:harness-refs (packages/tooling/src/dev/) that greps 
 
 Second pointer form (added by #2547, claude-review round 3): `harness:doc-audit § Step 2` in `.claude/skills/tzurot-doc-audit/SKILL.md` (frontmatter description and § 0) and in `backlog/cadence-ledger.json` (the `memory-prune` trigger). It resolves against `~/Projects/seyag/plugins/seyag/skills/doc-audit/SKILL.md` headings, so the guard should also cover `harness:<skill> § <heading>` pointers and scan `backlog/cadence-ledger.json`.
 
-Acceptance: the guard lists every pointer with its resolution; a fixture with one bad heading reddens it; the doc-audit skill names it as a step.
+Third pointer family (folded from TASK-1564, PR #2822 rounds 2-3): `<file>.md § <heading>` in-repo pointers — .claude/rules, .claude/skills, docs, and code/hook comments citing rule-file or reference-doc headings (nine stale across one PR; observed shape: a comment citing `pr-monitoring.md § claude-review health` where only bold text exists). One resolver, two modes: the in-repo half can gate in CI; the harness half stays cadence-only.
+
+Acceptance: the guard lists every pointer with its resolution; a fixture with one bad heading reddens it, per family; the doc-audit skill names it as a step.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Implementation Notes

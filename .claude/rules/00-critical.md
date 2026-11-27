@@ -91,9 +91,9 @@ Never skip git hooks (`--no-verify`, `-n`, `HUSKY=0`, `core.hooksPath`): `.claud
 
 ### Merge Approval
 
-When a merge follows a verification run in the same turn, chain them with `&&` so a failed check halts before the destructive step; when the target branch moved under a long-lived feature branch, re-derive diffstats and counts against the MERGE-BASE, not the target's current HEAD (mechanics: `docs/reference/tooling/pr-monitoring.md` § Merge mechanics).
-
 **Standing authorization: feature/fix PRs may be merged without a per-PR ask once they are truly ready** — every CI check green + complete + read (next section), the claude-review body read with no unresolved substantive findings, and any human feedback addressed. "Truly ready" is strict; when in doubt, ask.
+
+When a merge follows a verification run in the same turn, chain them with `&&` so a failed check halts before the destructive step; when the target branch moved under a long-lived feature branch, re-derive diffstats and counts against the MERGE-BASE, not the target's current HEAD (mechanics: `docs/reference/tooling/pr-monitoring.md` § Merge mechanics).
 
 **The release PR (develop → main) ALWAYS requires explicit per-release user approval.** CI passing ≠ release approval — no exceptions.
 
