@@ -17,7 +17,8 @@ usage: cloud-gate [--file PATH] [--class implementation|test-only] [--quiet] [--
   CLOUD_GATE_WARN_S (default 1800) and CLOUD_GATE_MAX_S (default 7200) move the two age tiers; WARN may not
   exceed MAX. CLOUD_GATE_FETCH_S (default 20, 1 to 40) bounds the git fetch: a stalled fetch stops rather than hangs.
   CLOUD_GATE_WEEK_STOP (integer 1-99) overrides the week hard stop judged by --class test-only; without
-  it the reading's stop_pct (the posture stop published with the reading) judges, else 98.
+  it 98 — the fleet week hard stop — judges. The reading's stop_pct (the posture soft stop) never
+  judges test-only.
 EOF
 }
 
@@ -83,9 +84,9 @@ case "$max" in '' | *[!0-9]*) echo "cloud-gate: CLOUD_GATE_MAX_S must be an inte
 # other zero spellings are refused, since `timeout 0` means no timeout at all.
 fetch_s=${CLOUD_GATE_FETCH_S-20}
 case "$fetch_s" in [1-9] | [1-3][0-9] | 40) ;; *) echo "cloud-gate: CLOUD_GATE_FETCH_S must be 1 to 40 (seconds)" >&2; exit 2 ;; esac
-# The week hard stop for --class test-only (see the header): the seam, when set, overrides the
-# reading's stop_pct (the posture stop published with the reading); 98 stands in when neither
-# exists. Unset stays empty (no validation), so a real reading's stop_pct is never shadowed.
+# The week hard stop for --class test-only (see the header): the seam, when set, overrides; else the
+# fleet hard stop 98. Unset stays empty (no validation), and the reading's stop_pct — the posture
+# soft stop — is not consulted on this path at all.
 week_stop=${CLOUD_GATE_WEEK_STOP-}
 if [ -n "${CLOUD_GATE_WEEK_STOP+x}" ]; then
 	case "$week_stop" in '' | *[!0-9]*) echo "cloud-gate: CLOUD_GATE_WEEK_STOP must be an integer" >&2; exit 2 ;; esac
@@ -135,16 +136,17 @@ if (verdict not in ("go", "stop") or not num(as_of) or not 1 <= as_of < 1e11
 as_of = int(as_of)
 age = now - as_of
 since = time.strftime("%H:%M %Z", time.localtime(as_of))
-# stop_pct: the posture week hard stop published with the reading; null in a reading whose posture
-# line did not parse. test-only judges week_pct against CLOUD_GATE_WEEK_STOP (the seam, when set) >
-# this field > 98 — never against the verdict, which is the implementation class's own judgment
-# (the wind-down tiers), and importing it here would hollow the exemption (every fresh reading at
-# week >= wind-down is stop).
+# stop_pct: the posture SOFT stop published with the reading; null in a reading whose posture line
+# did not parse. Validated below for reading integrity, but it judges nothing in test-only:
+# test-only judges week_pct against CLOUD_GATE_WEEK_STOP (the seam, when set) > 98 — never against
+# this field (the posture soft stop, 80 on a standing week) and never against the verdict, which is
+# the implementation class's own judgment (the wind-down tiers); importing either here would hollow
+# the exemption (every fresh reading at week >= wind-down is stop).
 rsp = r.get("stop_pct")
 if rsp is not None and (not num(rsp) or not 0 <= rsp <= 100):
     out(1, "stop: the usage reading is malformed")
 if cls == "test-only":
-    eff = week_stop if week_stop is not None else (int(rsp) if num(rsp) else 98)
+    eff = week_stop if week_stop is not None else 98
     fig = f"week={week}% stop {eff}%, test-only"
 else:
     fig = f"week={week}%" + (f" gate {wind}%" if wind is not None else "")
