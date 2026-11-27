@@ -1,4 +1,4 @@
-# PR Monitoring — why the gate invocation is shaped the way it is
+# PR Monitoring — gate reasoning and fire-time procedure
 
 The arming constraints live in `.claude/rules/05-tooling.md` § PR Monitoring
 (slimmed to the arming rules); this page holds the reasoning behind them AND

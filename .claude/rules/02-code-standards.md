@@ -178,6 +178,8 @@ When adding a **new** dependency (not bumping an existing one), check `pnpm view
 
 ## Duplication, Helpers, and the CPD Ratchet
 
+`pnpm ops cpd:filtered` is the metric (raw `pnpm cpd` is informational); never raise the baseline to pass — extract, confirm skeleton-shape uniformity, or fix the filter (ratchet mechanics and version bumps: `08-tooling-internals.md` § CPD).
+
 ### Config-route helpers — scope and boundary
 
 Moved to `/tzurot-reuse-scout` § Config-route helpers — scope and boundary.

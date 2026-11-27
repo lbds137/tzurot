@@ -37,16 +37,17 @@ prisma/                 # Database schema
 
 ## Key Rules
 
-All rules load automatically from `.claude/rules/`:
+Rules load from `.claude/rules/` — all at startup except the `paths:`-scoped ones (03-database, 04-discord, 08-tooling-internals), which load on touching matching paths:
 
 - **00-critical.md** - Security, git safety, testing
-- **01-architecture.md** - Service boundaries (bot-client never uses Prisma)
+- **01-architecture.md** - Service boundaries (bot-client never uses Prisma), BullMQ patterns, observability
 - **02-code-standards.md** - ESLint limits, TypeScript, testing patterns
 - **03-database.md** - Prisma, pgvector, caching
-- **04-discord.md** - 3-second deferral, slash commands, BullMQ
+- **04-discord.md** - 3-second deferral, slash commands, component routing, shared utilities
 - **05-tooling.md** - CLI reference, commit & release standards
 - **06-backlog.md** - Backlog structure and session workflow
 - **07-documentation.md** - Doc placement, naming, lifecycle
+- **08-tooling-internals.md** - Xray, mutation/test-audit/CPD ratchets, guards + probes, backlog lint, model-call routing
 - **09-interaction-style.md** - Session interaction style (don't suggest stopping)
 - **10-working-posture.md** - How to drive a session (momentum, freshness-checks, dispositions)
 

@@ -1,12 +1,12 @@
 ---
 name: tzurot-review-response
 description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → decided when engineering-only, ASK when it carries a product/UX, user-visible, schema, spend, data-rights, or security dimension, changes an existing test assertion, or changes an async boundary or external contract), check reviewer-vs-agent signal conflict, batch-present the four sections, step back at ~3 automated rounds (rule of thumb), and hard-cap at ~6 — hand off to a fresh context or the owner. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
-lastUpdated: '2026-11-19'
+lastUpdated: '2026-11-26'
 ---
 
 # Review-Response Iteration
 
-The procedure is the Seyag `review-response` skill (`/review-response`, `seyag:review-response`); load it and follow it. This file holds only what binds it to Tzurot: the PR-monitoring step that invokes it (`05-tooling.md` § PR Monitoring, step 4), ops commands, rule-file pointers, the CI `fixup-check` job, and the driver statement. Every heading below keeps its number so citations (`/tzurot-review-response` rule 2, § 3a, § 5a) land here.
+The procedure is the Seyag `review-response` skill (`/review-response`, `seyag:review-response`); load it and follow it. This file holds only what binds it to Tzurot: the fire-time procedure that invokes it (`docs/reference/tooling/pr-monitoring.md`, step 4), ops commands, rule-file pointers, the CI `fixup-check` job, and the driver statement. Every heading below keeps its number so citations (`/tzurot-review-response` rule 2, § 3a, § 5a) land here.
 
 If the seyag plugin is not loaded in this session (a cloud unit or the CI review action may lack it), the pointers below do not resolve: say so, and hand the procedure step to the driver or the owner instead of reconstructing it.
 
@@ -100,7 +100,7 @@ Procedure (rule of thumb, round-4 status menu, reset on user intervention): `sey
 
 ### 5a. Hard cap at ~6 rounds: hand off, don't keep iterating
 
-Procedure: `seyag:review-response § 5a. Hard cap at ~6 rounds: hand off, don't keep iterating`. Tzurot binding: `pnpm ops gh:ci-gate` prints `REVIEW_ROUND_CAP` at six cycles (`05-tooling.md` § PR Monitoring); the fresh-context implementer is dispatched per `/tzurot-orchestration`.
+Procedure: `seyag:review-response § 5a. Hard cap at ~6 rounds: hand off, don't keep iterating`. Tzurot binding: `pnpm ops gh:ci-gate` prints `REVIEW_ROUND_CAP` at six cycles (`docs/reference/tooling/pr-monitoring.md`); the fresh-context implementer is dispatched per `/tzurot-orchestration`.
 
 ## Edit-shape whitelist
 
@@ -114,5 +114,5 @@ Lists and extension procedure: `seyag:review-response § Edit-shape whitelist`. 
 
 - **`00-critical.md`** § "Merge Approval" governs the merge gate (standing authorization for feature/fix PRs once truly ready; the release PR always needs explicit approval). This procedure governs iteration _before_ that gate; nothing here loosens it.
 - **harness `core.md`** § Safety ("Never modify a test, lint rule or guard just to get past it") remains in force. The test-suite gate in rule 3 fails closed.
-- **`05-tooling.md`** PR-monitoring step 4 delegates to this skill.
+- **`docs/reference/tooling/pr-monitoring.md`** fire-time procedure step 4 delegates to this skill (the arming rules stay in `05-tooling.md` § PR Monitoring).
 - **`06-backlog.md`** out-of-scope tracking still applies: follow-ups are filed as tracker tasks (or the appropriate `backlog/**/*.md` file) per rule 4's "Backlog candidates" section, except low-priority process-work residue, which `06-backlog.md` § The process-residue default keeps in the PR body.

@@ -72,7 +72,7 @@ The ruled-out exit is deliberately narrow — merit-vs-cost and the owner-call b
 3. Run `pnpm ops backlog:digest` for the tracker briefing (areas · oldest · newest)
 4. When two entries share a symptom, check whether they're one seam.
 5. If Current Focus is empty, pull from ⚡ Quick Wins (in `now.md`), `backlog/active-epic.md`, or the digest's oldest surface
-6. **Repo-state sweep** — the owner should never discover these mid-session: `gh pr list --author app/dependabot` (waiting dependabot PRs); `git fetch -p && git branch -r --no-merged origin/develop` (dangling remote branches — grep `tracker/` and `backlog/` for the branch name for a recorded parked disposition before flagging one); any red or silently-empty workflow run on open PRs (the SHA-pinned `actions/runs?head_sha=…` query in `05-tooling.md` § PR Monitoring); and any overdue periodic pass the session-start hook prints (`pnpm ops cadence:status` for the full ledger). Surface findings in the session-start summary.
+6. **Repo-state sweep** — the owner should never discover these mid-session: `gh pr list --author app/dependabot` (waiting dependabot PRs); `git fetch -p && git branch -r --no-merged origin/develop` (dangling remote branches — grep `tracker/` and `backlog/` for the branch name for a recorded parked disposition before flagging one); any red or silently-empty workflow run on open PRs (the SHA-pinned `actions/runs?head_sha=…` query in `docs/reference/tooling/pr-monitoring.md` § Outcomes); and any overdue periodic pass the session-start hook prints (`pnpm ops cadence:status` for the full ledger). Surface findings in the session-start summary.
 
 ## Out-of-Scope Items Must Be Tracked
 

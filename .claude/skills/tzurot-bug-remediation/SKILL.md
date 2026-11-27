@@ -1,7 +1,7 @@
 ---
 name: tzurot-bug-remediation
 description: 'The recurring-bug remediation protocol: runtime evidence → root cause → exhaustive class sweep → seam-tier regression test → structural guard. Invoke with /tzurot-bug-remediation when a bug recurs, a "fixed" class regresses, the owner says a failure "keeps biting", OR at the FIRST fix of a path-specific UI/flow bug (create/edit/browse/view/delete) — to sweep sibling flows before declaring it fixed.'
-lastUpdated: '2026-10-11'
+lastUpdated: '2026-11-26'
 ---
 
 # Bug Remediation Protocol
@@ -35,4 +35,4 @@ Procedure: `seyag:bug-remediation § 4. Regression test at the right tier`. Tzur
 
 ## 5. Structural guard
 
-Procedure: `seyag:bug-remediation § 5. Structural guard`. Tzurot bindings: the three questions are in `00-critical.md` § Fix Recurring Failures Structurally; the build-enforced invariant is e.g. a manifest test, a budget constant, a `guard:*` check, or a schema-parity test. Seyag's hook-replay bullet maps here to the hook's `.claude/hooks/<name>.probe.sh` and `pnpm ops guard:hook-probes` (`05-tooling.md` § Guards).
+Procedure: `seyag:bug-remediation § 5. Structural guard`. Tzurot bindings: the three questions are in `00-critical.md` § Fix Recurring Failures Structurally; the build-enforced invariant is e.g. a manifest test, a budget constant, a `guard:*` check, or a schema-parity test. Seyag's hook-replay bullet maps here to the hook's `.claude/hooks/<name>.probe.sh` and `pnpm ops guard:hook-probes` (`08-tooling-internals.md` § Guards).

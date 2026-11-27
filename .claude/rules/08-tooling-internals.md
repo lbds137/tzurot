@@ -57,7 +57,8 @@ All guards hard-fail on findings. `guard:workflow-sync` covers ONLY `claude-code
 total, `CURRENT.md`, `.claude/skills` bodies) within their LINE and BYTE
 budgets, and holds `CLAUDE.md` + `.claude/rules/*.md` under a hard 147,000-char
 ceiling (Claude Code's instruction-file warning total, which no baseline
-refresh can raise); `--breakdown` ranks every file worst-first by bytes — the
+refresh can raise). The ceiling counts path-scoped files too — it over-states
+what a fresh session carries, the conservative direction, on purpose; `--breakdown` ranks every file worst-first by bytes — the
 trim order the `/tzurot-doc-audit` economy pass consumes. `pnpm ops
 lines:update-baseline` makes budget growth explicit; `--surface <name>` scopes
 the write — the unscoped write ratchets a trimmed surface DOWN and a grown one

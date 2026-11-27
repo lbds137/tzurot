@@ -81,3 +81,48 @@ Automated enforcement:
 - `pnpm knip` — dead code detection
 
 **Watch for common-types bloat.** If it exceeds 50 exports or 3000 lines (xray thresholds), consider extracting domain-specific packages.
+
+## Deterministic UUIDs
+
+Never use `uuid.v4()` - use generators from common-types for deterministic IDs.
+
+## BullMQ Job Patterns
+
+### Retryable vs Non-Retryable
+
+**Retryable:** Network timeouts, rate limits (429), server errors (5xx)
+**Non-retryable:** Validation errors (400), not found (404), auth (401)
+
+### Spend-Idempotent Retries (money/budget/usage side effects)
+
+A retried or requeued job re-executes its handler. Any job that bills a model
+call, consumes a budget counter, or writes a usage row must stay correct
+across that re-execution:
+
+- **Partial completion shrinks the retry payload** — completed sub-units must
+  not re-bill on every retry cycle (reference: fact-extraction's busy path
+  carries `remainingMemoryIds` and `job.updateData` shrinks `sourceMemoryIds`).
+- **Zero-spend failures are counter-neutral** — a rate-limit/busy failure that
+  spent no tokens must not consume budget (consume-then-refund, and any
+  exemption flag must gate consume and refund SYMMETRICALLY).
+- **Usage rows write only past the point of no return** — after the response
+  is in hand (parse failures still spent tokens; busy throws did not), never
+  before a retryable throw.
+
+### Queue Configuration
+
+Queues set `defaultJobOptions` — bounded `attempts` with exponential `backoff`, and bounded `removeOnComplete`/`removeOnFail` history (live values: `services/api-gateway/src/queue.ts`).
+
+### Timer Patterns
+
+`setTimeout` is fine for request timeouts and one-time delays (an `AbortController` abort). A persistent `setInterval` is a scaling blocker — use a BullMQ repeatable job (`queue.add(name, {}, { repeat: { every } })`) instead.
+
+## Observability
+
+### Correlation IDs
+
+bot-client generates a `requestId` (`randomUUID()`) and sends it as the `X-Request-ID` header; every service includes it in logs (`logger.info({ requestId, jobId }, 'Processing')`). When a whole call path should carry the id — especially when it hands a `logger` to a helper like `withRetry` that emits its own lines — bind once at the entry point (`const log = logger.child({ requestId })`) and thread the bound logger instead of adding `requestId` to every call site. Reference: `processAttachmentsParallel` in ai-worker's `AttachmentProcessor.ts`.
+
+### Structured Logging
+
+Structured data first, static message second (`logger.info({ personalityId, model }, 'Loaded personality')`) — never string interpolation, which loses structure.

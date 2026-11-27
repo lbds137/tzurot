@@ -20,6 +20,6 @@ Dev deploys come from `develop`'s Railway auto-deploy — a push to `develop` re
 
 ## Creating Releases
 
-Releases are published with `pnpm ops release:publish` — the full procedure (version bump, release PR, tag + GitHub release) lives in the `/tzurot-git-workflow` skill, and the release-notes format is defined in `.claude/rules/05-tooling.md` § Release Notes Format.
+Releases are published with `pnpm ops release:publish` — the full procedure (version bump, release PR, tag + GitHub release) lives in the `/tzurot-git-workflow` skill, and the release-notes format is defined in that skill's § 2 Write Release Notes.
 
 **See:** `tzurot-deployment` skill for Railway-specific commands and troubleshooting
