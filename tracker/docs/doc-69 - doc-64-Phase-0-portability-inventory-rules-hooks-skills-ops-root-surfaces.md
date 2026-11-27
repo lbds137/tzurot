@@ -9,6 +9,8 @@ created_date: '2026-08-09 18:24'
 
 _Artifact for [[doc-64]] Phase 0 (the classification "decides everything" input to the council pass). Produced by five parallel classifier agents (one per surface family), borderline rows adjudicated by the orchestrating session. Rubric: **PORTABLE** = travels as-is (examples swappable) · **PARAM** = general mechanism, Tzurot values must move to config (surface named per row) · **BOUND** = encodes Tzurot's product/architecture, stays._
 
+_Post-#2822 note (2026-11-26): the `04-discord.md § …` pointers in the rows below now resolve to `01-architecture.md` — Deterministic UUIDs, BullMQ Job Patterns and Observability moved there. Historical snapshot otherwise, left as recorded._
+
 ## Headline
 
 278 rows across five surfaces:
