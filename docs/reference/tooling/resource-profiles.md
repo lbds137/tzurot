@@ -56,7 +56,7 @@ Exported as `PROFILE_KNOBS` in profile.ts — the single source:
 
 | Profile | TURBO_CONCURRENCY       | VITEST_MAX_WORKERS | NODE_OPTIONS heap           |
 | ------- | ----------------------- | ------------------ | --------------------------- |
-| low     | 1                       | 1                  | `--max-old-space-size=3072` |
+| low     | 1                       | 2                  | `--max-old-space-size=3072` |
 | cloud   | 2                       | 2                  | (none)                      |
 | full    | (unset = turbo default) | 3                  | (none)                      |
 

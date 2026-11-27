@@ -24,7 +24,7 @@ describe('auto rule', () => {
     const resolved = resolveResourceProfile(input());
     expect(resolved.profile).toBe('low');
     expect(resolved.trigger).toBe('auto: 14.5 GiB total memory');
-    expect(resolved.knobs).toEqual({ turboConcurrency: 1, vitestMaxWorkers: 1, nodeHeapMb: 3072 });
+    expect(resolved.knobs).toEqual({ turboConcurrency: 1, vitestMaxWorkers: 2, nodeHeapMb: 3072 });
   });
 
   it('resolves low on a 4-cpu 8-GiB machine: memory is checked before cpus', () => {
@@ -213,7 +213,7 @@ describe('buildProfileEnv', () => {
     const resolved = resolveResourceProfile(input());
     expect(buildProfileEnv(resolved, {})).toEqual({
       RESOURCE_PROFILE: 'low',
-      VITEST_MAX_WORKERS: '1',
+      VITEST_MAX_WORKERS: '2',
       TURBO_CONCURRENCY: '1',
       NODE_OPTIONS: '--max-old-space-size=3072',
     });
@@ -237,7 +237,7 @@ describe('buildProfileEnv', () => {
     const resolved = resolveResourceProfile(input({ env: { NODE_OPTIONS: '--no-warnings' } }));
     expect(buildProfileEnv(resolved, { NODE_OPTIONS: '--no-warnings' })).toEqual({
       RESOURCE_PROFILE: 'low',
-      VITEST_MAX_WORKERS: '1',
+      VITEST_MAX_WORKERS: '2',
       TURBO_CONCURRENCY: '1',
       NODE_OPTIONS: '--no-warnings --max-old-space-size=3072',
     });
@@ -247,7 +247,7 @@ describe('buildProfileEnv', () => {
 describe('formatProfileLine', () => {
   it('renders the deck example and the CI case', () => {
     expect(formatProfileLine(resolveResourceProfile(input()))).toBe(
-      'resource profile: low (auto: 14.5 GiB total memory) - turbo 1, vitest 1, heap 3072 MB'
+      'resource profile: low (auto: 14.5 GiB total memory) - turbo 1, vitest 2, heap 3072 MB'
     );
     expect(
       formatProfileLine(
@@ -259,7 +259,7 @@ describe('formatProfileLine', () => {
 
 it('the knob table holds the documented values', () => {
   expect(PROFILE_KNOBS).toEqual({
-    low: { turboConcurrency: 1, vitestMaxWorkers: 1, nodeHeapMb: 3072 },
+    low: { turboConcurrency: 1, vitestMaxWorkers: 2, nodeHeapMb: 3072 },
     cloud: { turboConcurrency: 2, vitestMaxWorkers: 2 },
     full: { vitestMaxWorkers: 3 },
   });
