@@ -25,6 +25,7 @@ function makeDeps(overrides?: {
     } as unknown as LlmConfigResolver,
     caches: {
       creditExhaustion: { isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }) },
+      keyInvalid: { isKeyInvalid: vi.fn().mockResolvedValue({ invalid: false }) },
       rateLimit: { isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }) },
     } as unknown as QuotaFallbackCaches,
   };
@@ -38,7 +39,7 @@ describe('resolveRetargetRoute', () => {
       target: paidTarget,
       personality: { model: 'some/model', provider: 'openrouter' },
       apiKey: 'sk-user',
-      source: 'user',
+      keyProvenance: 'user',
       isGuestMode: false,
       userId: 'u1',
       category: CATEGORY,
@@ -48,7 +49,7 @@ describe('resolveRetargetRoute', () => {
     expect(route).toEqual({
       config: { model: 'paid/default' },
       apiKey: 'sk-user',
-      source: 'user',
+      keyProvenance: 'user',
       isGuestMode: false,
     });
   });
@@ -58,7 +59,7 @@ describe('resolveRetargetRoute', () => {
       target: paidTarget,
       personality: { model: 'glm-5.2', provider: 'zai-coding' },
       apiKey: 'sk-zai',
-      source: 'user',
+      keyProvenance: 'user',
       isGuestMode: false,
       userId: 'u1',
       category: CATEGORY,
@@ -66,7 +67,7 @@ describe('resolveRetargetRoute', () => {
       deps: makeDeps({ userOpenRouterKey: 'sk-or-user' }),
     });
     expect(route?.apiKey).toBe('sk-or-user');
-    expect(route?.source).toBe('user');
+    expect(route?.keyProvenance).toBe('user');
     expect(route?.config.model).toBe('paid/default');
   });
 
@@ -75,7 +76,7 @@ describe('resolveRetargetRoute', () => {
       target: paidTarget,
       personality: { model: 'glm-5.2', provider: 'zai-coding' },
       apiKey: 'sk-zai',
-      source: 'user',
+      keyProvenance: 'user',
       isGuestMode: false,
       userId: 'u1',
       category: CATEGORY,
@@ -85,7 +86,7 @@ describe('resolveRetargetRoute', () => {
     expect(route).toEqual({
       config: { model: 'freebie/default:free' },
       apiKey: 'sk-system',
-      source: 'system',
+      keyProvenance: 'system',
       isGuestMode: true,
     });
   });
@@ -95,7 +96,7 @@ describe('resolveRetargetRoute', () => {
       target: paidTarget,
       personality: { model: 'glm-5.2', provider: 'zai-coding' },
       apiKey: 'sk-zai',
-      source: 'user',
+      keyProvenance: 'user',
       isGuestMode: false,
       userId: 'u1',
       category: CATEGORY,
@@ -108,7 +109,7 @@ describe('resolveRetargetRoute', () => {
       target: paidTarget,
       personality: { model: 'glm-5.2', provider: 'zai-coding' },
       apiKey: 'sk-zai',
-      source: 'user',
+      keyProvenance: 'user',
       isGuestMode: false,
       userId: 'u1',
       category: CATEGORY,
@@ -123,7 +124,7 @@ describe('resolveRetargetRoute', () => {
       target: { config: { model: 'freebie/default:free' }, forceSystemKey: true } as never,
       personality: { model: 'some/model', provider: 'openrouter' },
       apiKey: 'sk-user',
-      source: 'user',
+      keyProvenance: 'user',
       isGuestMode: false,
       userId: 'u1',
       category: CATEGORY,
@@ -133,7 +134,7 @@ describe('resolveRetargetRoute', () => {
     expect(route).toEqual({
       config: { model: 'freebie/default:free' },
       apiKey: 'sk-system',
-      source: 'system',
+      keyProvenance: 'system',
       isGuestMode: true,
     });
   });

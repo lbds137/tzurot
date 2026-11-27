@@ -34,7 +34,7 @@ import {
   SttResolver,
 } from '@tzurot/config-resolver';
 import { ApiKeyResolver } from './services/ApiKeyResolver.js';
-import { creditExhaustionCache } from './redis.js';
+import { creditExhaustionCache, keyInvalidCache } from './redis.js';
 
 const logger = createLogger('ai-worker-cache');
 
@@ -178,10 +178,10 @@ export async function setupCacheInvalidation(
 
 /**
  * Wire the ApiKeyResolver to its invalidation events. A per-user event also
- * clears that account's credit-exhaustion mark — the recovery edge: a wallet
- * key set/update must not leave a top-up stranded behind a stale doom-cache
- * until the TTL expires. Per-user only; the `system` bucket is the shared
- * guest scope and is never cleared here.
+ * clears that account's credit-exhaustion and invalid-key marks — the recovery
+ * edge: a wallet key set/update must not leave a top-up or key fix stranded
+ * behind a stale doom-cache until the TTL expires. Per-user only; the `system`
+ * bucket is the shared guest scope and is never cleared here.
  */
 async function wireApiKeyInvalidation(
   apiKeyResolver: ApiKeyResolver,
@@ -197,8 +197,11 @@ async function wireApiKeyInvalidation(
       apiKeyResolver.invalidateUserCache(event.discordId);
       // Fires on ANY of the user's provider keys changing (the event is not
       // provider-scoped) — an over-clear on e.g. an ElevenLabs key update is
-      // intentional slack: the mark self-restores on the next real 402.
+      // intentional slack: the mark self-restores on the next real 402/401.
       void creditExhaustionCache.clearCreditExhausted({
+        cacheKeyId: `user:${event.discordId}`,
+      });
+      void keyInvalidCache.clearKeyInvalid({
         cacheKeyId: `user:${event.discordId}`,
       });
       logger.info({ discordId: event.discordId }, 'Invalidated API key cache for user');

@@ -29,21 +29,19 @@ import {
 } from '../../../../services/quotaFallback.js';
 import {
   authCacheKeyId,
+  provenanceFromResolution,
   resolveEffectiveTier,
+  resolveKeyState,
   type EffectiveTier,
   type KeyProvenance,
 } from '../../../../services/effectiveTier.js';
 import { tryPromotionDemotion } from './promotionDemotion.js';
 import { resolveRetargetRoute } from './retargetRoute.js';
 import type { ZaiFreeTierAdmission } from '../../../../services/ZaiFreeTierAdmission.js';
+import { applyGuestModeOverrides, type GuestOverrideResult } from './guestModeOverrides.js';
 import {
-  applyGuestModeOverrides,
-  piggybackFields,
-  type GuestOverrideResult,
-} from './guestModeOverrides.js';
-import {
+  buildGuestFallbackLlmAuth,
   buildPostRouteLlmAuth,
-  provenanceFromResolution,
   toResolvedAuth,
   type ResolvedLlmAuth,
 } from './postRouteLlmAuth.js';
@@ -257,6 +255,7 @@ export class AuthStep implements IPipelineStep {
     const target = await selectQuotaFallbackTarget({
       category,
       tier: effectiveTier,
+      keyProvenance,
       failingModel: personality.model,
       cacheKeyId,
       configResolver: this.configResolver,
@@ -270,7 +269,7 @@ export class AuthStep implements IPipelineStep {
       target,
       personality,
       apiKey,
-      source: keyProvenance === 'user' ? 'user' : 'system',
+      keyProvenance,
       isGuestMode,
       userId,
       category,
@@ -287,10 +286,9 @@ export class AuthStep implements IPipelineStep {
     const {
       config: retargetConfig,
       apiKey: retargetApiKey,
-      source: retargetSource,
+      keyProvenance: retargetProvenance,
       isGuestMode: retargetIsGuestMode,
     } = resolved;
-    const retargetProvenance = provenanceFromResolution(retargetSource, retargetApiKey);
 
     const info: QuotaFallbackInfo = {
       fromModel: personality.model,
@@ -484,7 +482,26 @@ export class AuthStep implements IPipelineStep {
       // it — the swap is never silent on either arm.
       let guest: GuestOverrideResult | undefined;
       const preLadderProvenance = provenanceFromResolution(route.source, route.apiKey);
-      const preLadderTier = resolveEffectiveTier({ keyProvenance: preLadderProvenance });
+      // Both marks are OpenRouter-scoped (the writer skips other providers),
+      // so a non-OpenRouter route's key state is definitionally 'ok'; reading
+      // it would demote a healthy z.ai route on a stale OpenRouter mark.
+      const preLadderKeyState =
+        preLadderProvenance === 'user' &&
+        route.effectiveProvider === AIProvider.OpenRouter &&
+        this.quotaFallbackCaches !== undefined
+          ? await resolveKeyState({
+              cacheKeyId: authCacheKeyId(
+                { keyProvenance: preLadderProvenance },
+                route.apiKey,
+                userId
+              ),
+              caches: this.quotaFallbackCaches,
+            })
+          : 'ok';
+      const preLadderTier = resolveEffectiveTier({
+        keyProvenance: preLadderProvenance,
+        keyState: preLadderKeyState,
+      });
 
       if (preLadderTier === 'free') {
         guest = await applyGuestModeOverrides(
@@ -496,7 +513,31 @@ export class AuthStep implements IPipelineStep {
         effectivePersonality = guest.personality;
       }
 
-      return buildPostRouteLlmAuth(route, effectivePersonality, guest);
+      // A demoted key must never carry the request: when the piggyback did
+      // NOT admit (guest has no zaiSystemKey), the demoted arm below needs
+      // the system OpenRouter key to run on instead of the dead
+      // `route.apiKey`. Never throws — undefined leaves the demoted arm
+      // untaken (the degraded pre-existing behavior). Resolved only when the
+      // arm is actually eligible: the proactive retarget keeps precedence for
+      // a low-credit key with the machinery wired (it retargets with the
+      // sharper credit_exhaustion announce), while an invalid key is invisible
+      // to `checkModelViability` and must always take the arm. Unused when the
+      // piggyback admitted (the z.ai system-key arm wins first), so the
+      // resolve is skipped then.
+      const demotedSystemKey =
+        guest?.zaiSystemKey === undefined &&
+        (preLadderKeyState === 'invalid' ||
+          (preLadderKeyState === 'low-credit' && this.configResolver === undefined))
+          ? await this.apiKeyResolver.resolveSystemOpenRouterKey()
+          : undefined;
+
+      return buildPostRouteLlmAuth(
+        route,
+        effectivePersonality,
+        guest,
+        preLadderKeyState,
+        demotedSystemKey
+      );
     } catch (error) {
       // A stored key that will not decrypt (or a broken encryption env) must
       // fail the job, not demote the user to free models: the handler renders
@@ -534,16 +575,6 @@ export class AuthStep implements IPipelineStep {
       userId,
       requestId
     );
-    const keyProvenance = provenanceFromResolution('system', guest.zaiSystemKey);
-    return {
-      resolvedApiKey: guest.zaiSystemKey,
-      resolvedProvider: guest.zaiSystemKey !== undefined ? AIProvider.ZaiCoding : undefined,
-      isGuestMode: true,
-      keyProvenance,
-      effectiveTier: resolveEffectiveTier({ keyProvenance }),
-      effectivePersonality: guest.personality,
-      ...(guest.quotaFallback !== undefined ? { quotaFallback: guest.quotaFallback } : {}),
-      ...piggybackFields(guest),
-    };
+    return buildGuestFallbackLlmAuth(guest);
   }
 }

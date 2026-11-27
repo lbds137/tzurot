@@ -316,6 +316,12 @@ describe('ErrorChannelReporter', () => {
       expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
     });
 
+    it('does not report the rejected-key demotion — user-actionable, already announced in the footer', () => {
+      initErrorChannelReporter(fakeClient());
+      reportJobError({ errorInfo: { category: 'key_invalid' } }, undefined);
+      expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
+    });
+
     it('reports a non-deny-listed category', () => {
       initErrorChannelReporter(fakeClient());
       reportJobError({ errorInfo: { category: 'server_error' } }, undefined);
@@ -339,6 +345,7 @@ describe('ErrorChannelReporter', () => {
           'censored',
           'provider_content_refused',
           'guest_mode',
+          'key_invalid',
         ].sort()
       );
     });

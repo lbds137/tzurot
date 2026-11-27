@@ -176,6 +176,10 @@ export async function invokeModelAndClean(
     messages,
     modelName,
     cacheKeyId,
+    // The routed provider — gates the OpenRouter-scoped invalid-key doom
+    // mark in LLMInvoker (a non-OpenRouter 401 must not demote the user's
+    // OpenRouter key).
+    provider: resolveProvider(modelCallConfig.provider),
     imageCount,
     audioCount,
     maxAttempts: maxLlmAttempts,

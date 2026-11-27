@@ -48,6 +48,11 @@ vi.mock('../redis.js', () => ({
     markCreditExhausted: vi.fn(),
     clearCreditExhausted: vi.fn(),
   },
+  keyInvalidCache: {
+    isKeyInvalid: vi.fn().mockResolvedValue({ invalid: false }),
+    markKeyInvalid: vi.fn(),
+    clearKeyInvalid: vi.fn(),
+  },
   rateLimitCache: {
     isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }),
     markRateLimited: vi.fn(),

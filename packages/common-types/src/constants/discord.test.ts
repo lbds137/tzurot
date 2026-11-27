@@ -18,7 +18,7 @@ import {
   type ModelFooterOptions,
 } from './discord.js';
 import { AIProvider, ZAI_FREE_TIER_MODEL } from './ai.js';
-import { GUEST_MODE_CATEGORY } from './error.js';
+import { GUEST_MODE_CATEGORY, KEY_INVALID_CATEGORY } from './error.js';
 import { stripBotFooters } from '../utils/discord.js';
 
 /** The piggyback model in its `z-ai/`-prefixed form — derived so the id never drifts. */
@@ -340,6 +340,25 @@ describe('Bot Footer Text Constants', () => {
       expect(rateLimitCat).toBe(
         'Model: user/free-default → [free-default](<https://example.com/m>) (rate limited)'
       );
+    });
+
+    it('renders the rejected-key demotion as a reason, in both arrow and same-model forms', () => {
+      const swapped = buildModelFooterText('free-router', 'https://example.com/m', {
+        quotaFallback: { fromModel: 'expensive/paid-model', category: KEY_INVALID_CATEGORY },
+      });
+      expect(swapped).toBe(
+        'Model: expensive/paid-model → [free-router](<https://example.com/m>) (OpenRouter key rejected)'
+      );
+
+      // The finding's silent case: the configured model was already free, so
+      // from === to — bare parenthetical, no arrow.
+      const sameModel = buildModelFooterText('free-router', 'https://example.com/m', {
+        quotaFallback: { fromModel: 'free-router', category: KEY_INVALID_CATEGORY },
+      });
+      expect(sameModel).toBe(
+        'Model: [free-router](<https://example.com/m>) (OpenRouter key rejected)'
+      );
+      expect(sameModel).not.toContain('→');
     });
 
     it('renders per-category wording for the D12 descent categories (map completeness)', () => {

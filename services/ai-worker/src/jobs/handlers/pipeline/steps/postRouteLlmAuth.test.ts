@@ -6,10 +6,11 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { authCacheKeyId } from '../../../../services/effectiveTier.js';
 import type { ResolvedRoute } from '../../../../services/ProviderRouter.js';
 import { SYSTEM_CACHE_KEY_ID } from '../../../../services/RateLimitCache.js';
+import type { KeyState } from '../../../../services/effectiveTier.js';
 import type { GuestOverrideResult } from './guestModeOverrides.js';
 import {
+  buildGuestFallbackLlmAuth,
   buildPostRouteLlmAuth,
-  provenanceFromResolution,
   toResolvedAuth,
   type ResolvedLlmAuth,
 } from './postRouteLlmAuth.js';
@@ -26,23 +27,6 @@ const BASE_PERSONALITY = {
   maxTokens: 1000,
   contextWindowTokens: 8192,
 } as LoadedPersonality;
-
-describe('provenanceFromResolution', () => {
-  it('returns none when resolvedApiKey is empty or undefined regardless of source', () => {
-    expect(provenanceFromResolution('user', '')).toBe('none');
-    expect(provenanceFromResolution('system', '')).toBe('none');
-    expect(provenanceFromResolution('user', undefined)).toBe('none');
-    expect(provenanceFromResolution('system', undefined)).toBe('none');
-  });
-
-  it('returns system when source is system and key is non-empty', () => {
-    expect(provenanceFromResolution('system', 'sk-sys')).toBe('system');
-  });
-
-  it('returns user when source is user and key is non-empty', () => {
-    expect(provenanceFromResolution('user', 'sk-user')).toBe('user');
-  });
-});
 
 describe('buildPostRouteLlmAuth', () => {
   it('carries fallthroughTriggered on the standard post-route return', () => {
@@ -109,6 +93,180 @@ describe('buildPostRouteLlmAuth', () => {
     expect(llmAuth.keyProvenance).toBe('system');
     expect(llmAuth.effectiveTier).toBe('free');
     expect(authCacheKeyId(llmAuth, llmAuth.resolvedApiKey, 'user-123')).toBe(SYSTEM_CACHE_KEY_ID);
+  });
+
+  describe('demoted non-admitted arm (keyState + demotedSystemKey)', () => {
+    const USER_ROUTE = {
+      effectiveProvider: AIProvider.OpenRouter,
+      effectiveModel: 'anthropic/claude-sonnet-4',
+      apiKey: 'fixture-or-dead-user-key',
+      source: 'user',
+      isGuestMode: false,
+      fallthroughTriggered: false,
+      wasAutoPromoted: false,
+    } satisfies ResolvedRoute;
+    const FREE_PERSONALITY = {
+      ...BASE_PERSONALITY,
+      model: 'free/ladder-default:free',
+    };
+
+    it.each(['low-credit', 'invalid'] as const)(
+      'swaps a %s key to full guest semantics on the system OpenRouter key',
+      (keyState: KeyState) => {
+        const llmAuth = buildPostRouteLlmAuth(
+          USER_ROUTE,
+          FREE_PERSONALITY,
+          undefined,
+          keyState,
+          'fixture-system-openrouter-key'
+        );
+
+        expect(llmAuth.effectiveTier).toBe('free');
+        expect(llmAuth.resolvedApiKey).toBe('fixture-system-openrouter-key');
+        expect(llmAuth.resolvedProvider).toBe(AIProvider.OpenRouter);
+        expect(llmAuth.keyProvenance).toBe('system');
+        expect(llmAuth.isGuestMode).toBe(true);
+        // The demoted request must never invoke on the dead route key: its
+        // doom-cache bucket is the system bucket, not the user's.
+        expect(authCacheKeyId(llmAuth, llmAuth.resolvedApiKey, 'user-123')).toBe(
+          SYSTEM_CACHE_KEY_ID
+        );
+        // The route's pre-computed passthrough is dropped — its apiKey is the
+        // same dead user credential.
+        expect(llmAuth.wasAutoPromoted).toBeUndefined();
+        expect(llmAuth.fallback).toBeUndefined();
+      }
+    );
+
+    it('carries fallthroughTriggered and the guest denial pair on the demoted arm', () => {
+      const guest: GuestOverrideResult = {
+        personality: FREE_PERSONALITY,
+        piggybackSkipped: true,
+        piggybackModel: 'z-ai/glm-5.3-flash',
+      };
+      const llmAuth = buildPostRouteLlmAuth(
+        { ...USER_ROUTE, fallthroughTriggered: true },
+        FREE_PERSONALITY,
+        guest,
+        'invalid',
+        'fixture-system-openrouter-key'
+      );
+
+      expect(llmAuth.fallthroughTriggered).toBe(true);
+      expect(llmAuth.piggybackSkipped).toBe(true);
+      expect(llmAuth.piggybackModel).toBe('z-ai/glm-5.3-flash');
+    });
+
+    it('keeps the standard shape when the demoted system key is unavailable (degraded to the old behavior)', () => {
+      const llmAuth = buildPostRouteLlmAuth(
+        USER_ROUTE,
+        BASE_PERSONALITY,
+        undefined,
+        'invalid',
+        undefined
+      );
+
+      expect(llmAuth.effectiveTier).toBe('free');
+      expect(llmAuth.resolvedApiKey).toBe('fixture-or-dead-user-key');
+      expect(llmAuth.keyProvenance).toBe('user');
+      expect(llmAuth.isGuestMode).toBe(false);
+    });
+
+    it.each(['low-credit', 'invalid'] as const)(
+      'D10: a %s key with a NON-free model never takes the demoted arm (demoted key unused)',
+      (keyState: KeyState) => {
+        const llmAuth = buildPostRouteLlmAuth(
+          USER_ROUTE,
+          { ...BASE_PERSONALITY, model: 'anthropic/claude-sonnet-4' },
+          undefined,
+          keyState,
+          'fixture-system-openrouter-key'
+        );
+
+        expect(llmAuth.resolvedApiKey).toBe('fixture-or-dead-user-key');
+        expect(llmAuth.resolvedApiKey).not.toBe('fixture-system-openrouter-key');
+        expect(llmAuth.keyProvenance).toBe('user');
+        expect(llmAuth.isGuestMode).toBe(false);
+        expect(llmAuth.effectiveTier).toBe('free');
+      }
+    );
+
+    it('keeps the standard shape when keyState is ok or omitted', () => {
+      const okState = buildPostRouteLlmAuth(
+        USER_ROUTE,
+        BASE_PERSONALITY,
+        undefined,
+        'ok',
+        'fixture-system-openrouter-key'
+      );
+      expect(okState.effectiveTier).toBe('paid');
+      expect(okState.resolvedApiKey).toBe('fixture-or-dead-user-key');
+      expect(okState.keyProvenance).toBe('user');
+
+      const noState = buildPostRouteLlmAuth(
+        USER_ROUTE,
+        BASE_PERSONALITY,
+        undefined,
+        undefined,
+        'fixture-system-openrouter-key'
+      );
+      expect(noState.effectiveTier).toBe('paid');
+      expect(noState.resolvedApiKey).toBe('fixture-or-dead-user-key');
+    });
+  });
+});
+
+describe('buildGuestFallbackLlmAuth', () => {
+  const FALLBACK_PERSONALITY = {
+    id: 'p-2',
+    name: 'Bot',
+    displayName: 'Bot',
+    slug: 'bot-2',
+    systemPrompt: 'prompt',
+    model: 'free/ladder-default:free',
+    provider: 'openrouter',
+    temperature: 0.7,
+    maxTokens: 1000,
+    contextWindowTokens: 8192,
+  } as LoadedPersonality;
+
+  it('an admitted piggyback carries the z.ai system key with system provenance on the coding provider', () => {
+    const llmAuth = buildGuestFallbackLlmAuth({
+      personality: FALLBACK_PERSONALITY,
+      zaiSystemKey: 'fixture-zai-system',
+    });
+
+    expect(llmAuth.resolvedApiKey).toBe('fixture-zai-system');
+    expect(llmAuth.resolvedProvider).toBe(AIProvider.ZaiCoding);
+    expect(llmAuth.keyProvenance).toBe('system');
+    expect(llmAuth.effectiveTier).toBe('free');
+    expect(llmAuth.isGuestMode).toBe(true);
+    expect(llmAuth.effectivePersonality).toBe(FALLBACK_PERSONALITY);
+  });
+
+  it('a non-admitted piggyback degrades to no credential at all (keyless guest arm)', () => {
+    const llmAuth = buildGuestFallbackLlmAuth({ personality: FALLBACK_PERSONALITY });
+
+    expect(llmAuth.resolvedApiKey).toBeUndefined();
+    expect(llmAuth.resolvedProvider).toBeUndefined();
+    expect(llmAuth.keyProvenance).toBe('none');
+    expect(llmAuth.effectiveTier).toBe('free');
+    expect(llmAuth.isGuestMode).toBe(true);
+  });
+
+  it('carries the quota-fallback announce when the guest ladder substituted the model', () => {
+    const announce = {
+      fromModel: 'anthropic/claude-sonnet-4',
+      toModel: 'free/ladder-default:free',
+      category: 'guest_mode',
+      mode: 'proactive',
+    } as const;
+    const llmAuth = buildGuestFallbackLlmAuth({
+      personality: FALLBACK_PERSONALITY,
+      quotaFallback: announce,
+    });
+
+    expect(llmAuth.quotaFallback).toEqual(announce);
   });
 });
 

@@ -452,6 +452,7 @@ const QUOTA_FALLBACK_REASON: Record<QuotaFallbackCategoryValue, string> = {
   content_policy: REFUSAL_REASON,
   provider_content_refused: REFUSAL_REASON,
   guest_mode: 'guest mode',
+  key_invalid: 'OpenRouter key rejected',
 };
 
 /**

@@ -45,6 +45,7 @@ import {
 } from '../../services/ApiKeyResolver.js';
 import {
   creditExhaustionCache,
+  keyInvalidCache,
   rateLimitCache,
   freeTierRequestQuota,
   zaiFreeTierAdmission,
@@ -191,6 +192,7 @@ export class LLMGenerationHandler {
     // test fixtures that omit resolvers get the disabled passthrough).
     const quotaFallbackCaches: QuotaFallbackCaches = {
       creditExhaustion: creditExhaustionCache,
+      keyInvalid: keyInvalidCache,
       rateLimit: rateLimitCache,
       catalogPresence: checkModelListedInCatalog,
     };

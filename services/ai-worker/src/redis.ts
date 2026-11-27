@@ -15,6 +15,7 @@ import { VisionDescriptionCache } from './services/VisionDescriptionCache.js';
 import { RedisService } from './services/RedisService.js';
 import { RateLimitCache } from './services/RateLimitCache.js';
 import { CreditExhaustionCache } from './services/CreditExhaustionCache.js';
+import { KeyInvalidCache } from './services/KeyInvalidCache.js';
 import { VisionFallbackQuota } from './services/VisionFallbackQuota.js';
 import { ShapesFetchGate } from './services/shapes/shapesFetchGate.js';
 import { FreeTierRequestQuota, ZAI_FREE_TIER_KEYS } from './services/FreeTierRequestQuota.js';
@@ -57,6 +58,12 @@ export const shapesFetchGate = new ShapesFetchGate(redis);
 // when a BYOK account is known to be out of credits (per-account 402).
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: shared Redis client; multiple instances would each maintain a separate view of credit-exhaustion state and miss the short-circuit.
 export const creditExhaustionCache = new CreditExhaustionCache(redis);
+
+// Export singleton KeyInvalidCache instance — marks BYOK accounts whose key
+// returned an OpenRouter 401 AUTHENTICATION so AuthStep demotes the key until
+// expiry or wallet-key update.
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: shared Redis client; multiple instances would each maintain a separate view of invalid-key state and miss the demotion mark.
+export const keyInvalidCache = new KeyInvalidCache(redis);
 
 // Export singleton VisionFallbackQuota instance — per-user daily cap on
 // system-key free-vision fallbacks (bounds the broad-fallback freeloading surface).
