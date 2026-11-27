@@ -60,6 +60,17 @@ Exported as `PROFILE_KNOBS` in profile.ts — the single source:
 | cloud   | 2                       | 2                  | (none)                      |
 | full    | (unset = turbo default) | 3                  | (none)                      |
 
+Measured on the Deck (2026-11-27, PR 2823): low `vitest 1 → 2` cut the full
+suite 1254.7 s → 845.5 s. Memory under the shipped 2-worker profile, measured
+on the heaviest package (bot-client, 490 files / 8710 tests, run green in
+223 s): peak process-tree RSS ≈ 812 MB (sampler summing VmRSS+VmSwap over the
+job's cgroup at 1 s granularity; worker-thread tids can double-count shared
+resident pages, so this is an upper bound) and 0 OOM kernel events in the run
+window — the heap cap is per-isolate (probed: `--max-old-space-size` applies
+to each `worker_threads` isolate, so the worst case is ~2 × the per-isolate
+limit plus the main thread), and the suite stays an order of magnitude under
+the Deck's envelope.
+
 Explicit per-knob env (`TURBO_CONCURRENCY`, `VITEST_MAX_WORKERS`, positive integers)
 wins over the table. An existing `--max-old-space-size` inside NODE_OPTIONS
 wins over the heap knob, which is then not exported.
