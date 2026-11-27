@@ -1,10 +1,11 @@
 ---
 id: TASK-1554
 title: Dev tooling raw OpenRouter calls bypass the provider routing pin
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - tzurot-b
 created_date: '2026-11-25T20:52:00Z'
-updated_date: '2026-11-26T11:29:00Z'
+updated_date: '2026-11-27T08:42:00Z'
 labels:
   - area:tooling
   - size:S
