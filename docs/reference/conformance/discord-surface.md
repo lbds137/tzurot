@@ -1810,7 +1810,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/editResponse/discordEdit.ts | deleteMessage | 1 |
 | services/bot-client/src/utils/editResponse/discordEdit.ts | edit | 1 |
 | services/bot-client/src/utils/editResponse/discordEdit.ts | editMessage | 1 |
-| services/bot-client/src/utils/editResponse/discordEdit.ts | id | 10 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | id | 11 |
 | services/bot-client/src/utils/editResponse/discordEdit.ts | send | 2 |
 | services/bot-client/src/utils/embedComponents.ts | color | 1 |
 | services/bot-client/src/utils/embedImageExtractor.ts | image | 2 |
@@ -3211,4 +3211,4 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/editResponse/discordEdit.ts | threadId | 2 |
 | services/bot-client/src/utils/editResponse/discordEdit.ts | username | 1 |
 
-Total: 3141 entries across 7259 sites.
+Total: 3141 entries across 7260 sites.
