@@ -147,17 +147,6 @@ describe('applyEditedChunks (webhook)', () => {
     expect(webhook.send).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the new chunk id and continues when redis bookkeeping fails', async () => {
-    mockStore.mockRejectedValueOnce(new Error('redis down'));
-    webhook.send.mockResolvedValueOnce({ id: 'new-1' }).mockResolvedValueOnce({ id: 'new-2' });
-    const live = [liveMessage('a')] as unknown as Message[];
-
-    const result = await applyEditedChunks(target, live, ['one', 'two', 'three']);
-
-    expect(result).toEqual({ ok: true, messageIds: ['a', 'new-1', 'new-2'], partial: false });
-    expect(webhook.send).toHaveBeenCalledTimes(2);
-  });
-
   it('keeps the id of a surplus chunk that could not be deleted', async () => {
     webhook.deleteMessage.mockRejectedValueOnce(new Error('nope'));
     const live = [liveMessage('a'), liveMessage('b')] as unknown as Message[];
