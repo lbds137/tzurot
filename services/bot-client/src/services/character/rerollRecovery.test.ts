@@ -66,7 +66,7 @@ function statefulRedis(): { redis: Redis; store: Map<string, string> } {
     del: vi.fn(async (key: string) => (store.delete(key) ? 1 : 0)),
     scan: vi.fn(async (_cursor: string, _match: string, pattern: string) => [
       '0',
-      [...store.keys()].filter(key => key.startsWith(pattern.replace('*', ''))),
+      [...store.keys()].filter(key => key.startsWith(pattern.replaceAll('*', ''))),
     ]),
     multi: vi.fn(() => {
       const queued: Array<() => unknown> = [];
