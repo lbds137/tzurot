@@ -71,6 +71,7 @@ describe('listContextMenuNames', () => {
       'Edit Character',
       'Edit Response',
       'Inspect Message',
+      'Reroll',
       'View Reasoning',
     ]);
   });
