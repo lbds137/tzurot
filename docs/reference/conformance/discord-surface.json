@@ -7,7 +7,7 @@
   },
   "totals": {
     "entries": 3141,
-    "sites": 7259
+    "sites": 7260
   },
   "entries": [
     {
@@ -10784,7 +10784,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
       "symbol": "id",
-      "count": 10
+      "count": 11
     },
     {
       "category": "client-methods",
