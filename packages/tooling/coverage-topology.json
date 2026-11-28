@@ -240,6 +240,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:checkEditAssistantMessage",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /history/message/:messageId/edit-check",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:cleanup",
       "kind": "http-route",
       "producer": "client",

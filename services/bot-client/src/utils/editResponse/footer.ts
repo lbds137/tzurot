@@ -23,21 +23,33 @@ function isFooterLine(line: string): boolean {
 }
 
 /**
+ * Prefix of the owner-only TTS notice lines the sender appends last
+ * (`DiscordResponseSender.buildOwnerOnlyTtsNoticeLines`). The notice text is
+ * free-form, so only the prefix identifies it.
+ */
+const TTS_NOTICE_PREFIX = '-# ⚠️ ';
+
+function isTtsNoticeLine(line: string): boolean {
+  return line.startsWith(TTS_NOTICE_PREFIX);
+}
+
+/**
  * The trailing block of footer lines of a live message, including the leading
  * newline the sender puts before it; `''` when the message ends in no footer.
  *
  * A footer-only message (the sender emits one when the footer overflowed the
  * last chunk) yields the whole message with a leading newline added, so the
  * result can be re-appended to any text the same way.
+ *
+ * TTS notice lines are walked past but dropped from the result: they describe
+ * the audio of the original send, and an edit removes that audio.
  */
 export function extractTrailingFooter(content: string): string {
   const lines = content.split('\n');
   let start = lines.length;
-  while (start > 0 && isFooterLine(lines[start - 1])) {
+  while (start > 0 && (isFooterLine(lines[start - 1]) || isTtsNoticeLine(lines[start - 1]))) {
     start--;
   }
-  if (start === lines.length) {
-    return '';
-  }
-  return `\n${lines.slice(start).join('\n')}`;
+  const kept = lines.slice(start).filter(line => !isTtsNoticeLine(line));
+  return kept.length === 0 ? '' : `\n${kept.join('\n')}`;
 }

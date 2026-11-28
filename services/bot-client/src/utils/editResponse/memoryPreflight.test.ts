@@ -20,22 +20,14 @@ describe('memoryPreflightMessage', () => {
     }
   );
 
-  it('refuses a reply that breaks the template when a memory would be rewritten', () => {
-    expect(memoryPreflightMessage({ kind: 'sync' }, 'a\n{assistant}: b')).toBe(
+  it('refuses a reply that cannot be stored with the separator hint', () => {
+    expect(memoryPreflightMessage({ kind: 'blocked', reason: 'reply-off-template' })).toBe(
       REPLY_BREAKS_MEMORY_MESSAGE
     );
+    expect(REPLY_BREAKS_MEMORY_MESSAGE).toContain('"{assistant}:"');
   });
 
-  it('names the separator as users see it', () => {
-    expect(REPLY_BREAKS_MEMORY_MESSAGE).toContain('Remove "{assistant}:"');
-  });
-
-  it('allows a template-breaking reply when there is no memory to sync', () => {
-    expect(memoryPreflightMessage({ kind: 'none' }, 'a\n{assistant}: b')).toBeNull();
-  });
-
-  it('allows an ordinary reply and a modal-open check without text', () => {
-    expect(memoryPreflightMessage({ kind: 'sync' }, 'fine')).toBeNull();
-    expect(memoryPreflightMessage({ kind: 'sync' })).toBeNull();
+  it.each([{ kind: 'none' }, { kind: 'sync' }] as const)('allows a %o plan', memorySync => {
+    expect(memoryPreflightMessage(memorySync)).toBeNull();
   });
 });
