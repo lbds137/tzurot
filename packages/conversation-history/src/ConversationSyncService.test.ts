@@ -246,7 +246,11 @@ describe('ConversationSyncService', () => {
           deletedAt: true,
           createdAt: true,
         },
-        orderBy: expect.any(Array),
+        orderBy: [
+          { deletedAt: { sort: 'asc', nulls: 'first' } },
+          { createdAt: 'asc' },
+          { id: 'asc' },
+        ],
         // Bounded query: Math.min(1 * 2, 500) = 2
         take: 2,
       });
@@ -482,6 +486,39 @@ describe('ConversationSyncService', () => {
 
       expect(result.updated).toBe(0);
       expect(update).not.toHaveBeenCalled();
+    });
+
+    describe('rows sharing a Discord id that are all live or all soft-deleted', () => {
+      const stubLookup = (
+        rows: (Omit<ReturnType<typeof dbRow>, 'deletedAt'> & { deletedAt: Date | null })[]
+      ) => {
+        mockPrismaClient.conversationHistory.findMany.mockImplementation(
+          (args: { where: { deletedAt?: unknown } }) =>
+            Promise.resolve(args.where.deletedAt === null ? [] : rows)
+        );
+        mockPrismaClient.conversationHistory.update.mockResolvedValue({});
+        return vi.spyOn(service, 'updateMessageContent');
+      };
+
+      it('resolves a lone soft-deleted row (nothing live to defer to)', async () => {
+        stubLookup([{ ...dbRow('db-old', ['d1'], 'original'), deletedAt: new Date() }]);
+
+        const resolved = await service.getMessagesByDiscordIds(['d1']);
+
+        expect(resolved.get('d1')?.id).toBe('db-old');
+      });
+
+      it('lets a later live row replace an earlier live one (only a deleted row yields)', async () => {
+        const update = stubLookup([
+          dbRow('db-first', ['d1'], 'original'),
+          dbRow('db-second', ['d1'], 'original'),
+        ]);
+
+        await service.runSync('ch-1', 'p-1', [observed('d1', 'edited')]);
+
+        expect(update).toHaveBeenCalledTimes(1);
+        expect(update).toHaveBeenCalledWith('db-second', 'edited');
+      });
     });
 
     describe.each([

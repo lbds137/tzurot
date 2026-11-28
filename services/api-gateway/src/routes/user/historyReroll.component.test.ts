@@ -1259,7 +1259,7 @@ describe('reroll assistant reply (component, PGLite)', () => {
 
     describe('M1 + incognito kind on the committed row', () => {
       it('a non-incognito reroll writes incognito:false, so its own reroll reads as non-incognito', async () => {
-        await commit(commitBody({ discordMessageIds: [NEW_DISCORD_ID] }));
+        await commit(commitBody({ discordMessageIds: [REPLY_A_DISCORD_ID, NEW_DISCORD_ID] }));
 
         const { json } = await check(OWNER_DISCORD, NEW_DISCORD_ID);
 
@@ -1274,7 +1274,7 @@ describe('reroll assistant reply (component, PGLite)', () => {
       });
 
       it('the message lookup behind `resolved.incognito` reads the committed row as false, not as a legacy null', async () => {
-        await commit(commitBody({ discordMessageIds: [NEW_DISCORD_ID] }));
+        await commit(commitBody({ discordMessageIds: [REPLY_A_DISCORD_ID, NEW_DISCORD_ID] }));
 
         const json = vi.fn().mockReturnThis();
         const status = vi.fn().mockReturnThis();
@@ -1296,7 +1296,7 @@ describe('reroll assistant reply (component, PGLite)', () => {
 
       it('the kind survives a commit and a second reroll copies it', async () => {
         await seedOldRowMetadata({ incognito: true, incognitoKind: 'session' });
-        await commit(commitBody({ discordMessageIds: [NEW_DISCORD_ID] }));
+        await commit(commitBody({ discordMessageIds: [REPLY_A_DISCORD_ID, NEW_DISCORD_ID] }));
         const second = await check(OWNER_DISCORD, NEW_DISCORD_ID);
 
         expect(second.json).toHaveBeenCalledWith(
@@ -1307,7 +1307,7 @@ describe('reroll assistant reply (component, PGLite)', () => {
       it('writes the kind the body names beside incognito:true', async () => {
         await commit(
           commitBody({
-            discordMessageIds: [NEW_DISCORD_ID],
+            discordMessageIds: [REPLY_A_DISCORD_ID, NEW_DISCORD_ID],
             incognito: true,
             incognitoKind: 'summon',
           })

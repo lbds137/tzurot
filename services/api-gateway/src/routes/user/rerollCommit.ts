@@ -53,6 +53,12 @@ export interface CommitArgs {
   /** What the committing attempt wrote (its job result's lists, else the body's). */
   attemptMemoryIds: string[];
   attemptPendingIds: string[];
+  /**
+   * Set when the attempt's ids came from the request body (its job result
+   * could not vouch): the revive is then limited to this owner's personas, so
+   * a body cannot resurrect another user's deleted memory. Null when vouched.
+   */
+  reviveOwnerId: string | null;
 }
 
 /**
@@ -112,6 +118,7 @@ export async function commitReroll(args: CommitArgs): Promise<number> {
         where: {
           id: { in: args.attemptMemoryIds },
           personalityId: row.personalityId,
+          ...(args.reviveOwnerId === null ? {} : { persona: { ownerId: args.reviveOwnerId } }),
           isLocked: false,
           visibility: 'deleted',
         },
