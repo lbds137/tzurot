@@ -126,9 +126,14 @@ export const MessageReasoningResponseSchema = z.object({
   createdAt: z.string().datetime(),
 });
 
-/** Why an exchange's memory cannot be rewritten to follow an edit. */
+/**
+ * Why an exchange's memory cannot be rewritten to follow an edit. `locked` is
+ * the edited user's own memory; `other-locked` is another user's memory of the
+ * same (coalesced) reply.
+ */
 export const MemorySyncBlockReasonSchema = z.enum([
   'locked',
+  'other-locked',
   'chunked',
   'ambiguous',
   'off-template',

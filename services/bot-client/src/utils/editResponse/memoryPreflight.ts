@@ -12,6 +12,8 @@ import type { EditableMessageResponseSchema } from '@tzurot/common-types/schemas
 export type MemorySyncState = z.infer<typeof EditableMessageResponseSchema>['memorySync'];
 
 export const MEMORY_LOCKED_MESSAGE = "This reply's memory is locked. Unlock it in /memory to edit.";
+export const OTHER_LOCKED_MESSAGE =
+  "Someone else's memory of this reply is locked, so it can't be edited.";
 export const MEMORY_UNSAFE_MESSAGE =
   "This reply's memory can't be updated safely, so it can't be edited.";
 export const REPLY_BREAKS_MEMORY_MESSAGE =
@@ -25,6 +27,8 @@ export function memoryPreflightMessage(memorySync: MemorySyncState): string | nu
   switch (memorySync.reason) {
     case 'locked':
       return MEMORY_LOCKED_MESSAGE;
+    case 'other-locked':
+      return OTHER_LOCKED_MESSAGE;
     case 'reply-off-template':
       return REPLY_BREAKS_MEMORY_MESSAGE;
     default:

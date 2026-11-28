@@ -598,12 +598,16 @@ describe('History API Input Schema Tests', () => {
   });
 
   describe('MemorySyncBlockReasonSchema', () => {
-    it.each(['locked', 'chunked', 'ambiguous', 'off-template', 'reply-off-template'])(
-      'accepts %s',
-      reason => {
-        expect(MemorySyncBlockReasonSchema.safeParse(reason).success).toBe(true);
-      }
-    );
+    it.each([
+      'locked',
+      'other-locked',
+      'chunked',
+      'ambiguous',
+      'off-template',
+      'reply-off-template',
+    ])('accepts %s', reason => {
+      expect(MemorySyncBlockReasonSchema.safeParse(reason).success).toBe(true);
+    });
 
     it('rejects an unknown reason', () => {
       expect(MemorySyncBlockReasonSchema.safeParse('nope').success).toBe(false);
