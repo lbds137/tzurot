@@ -16,6 +16,7 @@
  */
 
 import { findImmediateTriggerRow } from '@tzurot/conversation-history';
+import { COALESCING, MessageRole } from '@tzurot/common-types/constants/message';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { rewriteReplyInExchangeText } from '@tzurot/common-types/utils/memoryReplyRewrite';
 import { splitMemoryContent } from '@tzurot/common-types/utils/memoryContentSplit';
@@ -27,6 +28,11 @@ const logger = createLogger('user-history-edit-memory');
 /** The edited reply row, as selected by the edit route's lookup. */
 export interface EditedReplyRow {
   id: string;
+  /**
+   * The reply text as stored BEFORE the edit. Sibling memories are matched on
+   * it, so a re-plan after the history write must still carry the pre-edit text.
+   */
+  content: string;
   channelId: string;
   personaId: string;
   personalityId: string;
@@ -38,12 +44,16 @@ export interface EditedReplyRow {
  * parses as stored, but not with the new reply in it.
  */
 export type MemorySyncBlockReason =
-  'locked' | 'chunked' | 'ambiguous' | 'off-template' | 'reply-off-template';
+  'locked' | 'other-locked' | 'chunked' | 'ambiguous' | 'off-template' | 'reply-off-template';
 
+/** Rows to rewrite, the edited user's own first. */
 export type ExchangeMemoryPlan =
   | { kind: 'none' }
-  | { kind: 'sync'; memoryId?: string; pendingId?: string }
+  | { kind: 'sync'; memoryIds: string[]; pendingIds: string[] }
   | { kind: 'blocked'; reason: MemorySyncBlockReason };
+
+/** The block reason for a new reply that would make a stored text unparseable. */
+const REPLY_OFF_TEMPLATE = 'reply-off-template' as const;
 
 /**
  * Why `text` cannot follow an edit, or null when it can (to `newReply` when
@@ -57,9 +67,206 @@ function templateBlock(
     return 'off-template';
   }
   if (newReply !== undefined && rewriteReplyInExchangeText(text, newReply) === null) {
-    return 'reply-off-template';
+    return REPLY_OFF_TEMPLATE;
   }
   return null;
+}
+
+/** Rows read per sibling candidate; more than one match for a candidate is ambiguous. */
+const SIBLING_ROWS_PER_CANDIDATE = 3;
+
+/** Another user's trigger that the edited reply may have answered. */
+interface SiblingCandidate {
+  personaId: string;
+  discordMessageId: string[];
+}
+
+interface SiblingPlan {
+  blocked: MemorySyncBlockReason | null;
+  memoryIds: string[];
+  pendingIds: string[];
+}
+
+/**
+ * Other users' trigger rows a coalesced reply may have answered: user rows of
+ * this channel and personality from other personas, after the personality's
+ * previous reply (or, with none, within the coalescing hold deadline) and
+ * before this one. Soft-deleted rows are excluded.
+ */
+async function findSiblingCandidates(
+  prisma: PrismaClient,
+  row: EditedReplyRow
+): Promise<SiblingCandidate[]> {
+  const { channelId, personalityId } = row;
+  const previousReply = await prisma.conversationHistory.findFirst({
+    where: {
+      channelId,
+      personalityId,
+      role: MessageRole.Assistant,
+      createdAt: { lt: row.createdAt },
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { createdAt: true },
+  });
+  const after =
+    previousReply?.createdAt ?? new Date(row.createdAt.getTime() - COALESCING.HOLD_DEADLINE_MS);
+
+  const triggers = await prisma.conversationHistory.findMany({
+    where: {
+      channelId,
+      personalityId,
+      role: MessageRole.User,
+      deletedAt: null,
+      personaId: { not: row.personaId },
+      createdAt: { lt: row.createdAt, gt: after },
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { personaId: true, discordMessageId: true },
+    take: COALESCING.MAX_SKIPPED_MESSAGES,
+  });
+  return triggers.filter(trigger => trigger.discordMessageId.length > 0);
+}
+
+/** A sibling row that holds the pre-edit reply, with what stops it being rewritten. */
+interface SiblingMatch {
+  id: string;
+  text: string;
+  blocker: 'other-locked' | 'chunked' | null;
+}
+
+function memoryBlocker(memory: {
+  isLocked: boolean;
+  chunkGroupId: string | null;
+}): SiblingMatch['blocker'] {
+  if (memory.isLocked) {
+    return 'other-locked';
+  }
+  return memory.chunkGroupId === null ? null : 'chunked';
+}
+
+/** The reply half of a stored exchange text, or null when it does not parse. */
+function storedReply(text: string): string | null {
+  return splitMemoryContent(text)?.assistant ?? null;
+}
+
+/** The `messageIds` a pending row's metadata carries (empty when absent or malformed). */
+function pendingMessageIds(metadata: unknown): string[] {
+  if (typeof metadata !== 'object' || metadata === null || !('messageIds' in metadata)) {
+    return [];
+  }
+  const ids: unknown = metadata.messageIds;
+  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [];
+}
+
+/**
+ * Plan the other users' memories of this reply (coalesced replies). A memory
+ * or pending row is a sibling only when it belongs to a candidate's persona and
+ * trigger AND holds exactly the pre-edit reply; one with a different reply is
+ * another exchange and is ignored. One batched query per table, never one per
+ * candidate.
+ */
+async function planSiblings(
+  prisma: PrismaClient,
+  row: EditedReplyRow,
+  newReply: string | undefined
+): Promise<SiblingPlan> {
+  const none: SiblingPlan = { blocked: null, memoryIds: [], pendingIds: [] };
+  const candidates = await findSiblingCandidates(prisma, row);
+  if (candidates.length === 0) {
+    return none;
+  }
+  const { personalityId } = row;
+  const take = candidates.length * SIBLING_ROWS_PER_CANDIDATE;
+
+  const memories = await prisma.memory.findMany({
+    where: {
+      personalityId,
+      visibility: 'normal',
+      type: 'memory',
+      isSummarized: false,
+      OR: candidates.map(candidate => ({
+        personaId: candidate.personaId,
+        messageIds: { hasSome: candidate.discordMessageId },
+      })),
+    },
+    select: {
+      id: true,
+      personaId: true,
+      messageIds: true,
+      content: true,
+      isLocked: true,
+      chunkGroupId: true,
+    },
+    take,
+  });
+  const pendings = await prisma.pendingMemory.findMany({
+    where: {
+      personalityId,
+      OR: candidates.flatMap(candidate =>
+        candidate.discordMessageId.map(id => ({
+          personaId: candidate.personaId,
+          metadata: { path: ['messageIds'], array_contains: [id] },
+        }))
+      ),
+    },
+    select: { id: true, personaId: true, text: true, metadata: true },
+    take,
+  });
+
+  const reasons = new Set<MemorySyncBlockReason>();
+  const memoryIds = new Set<string>();
+  const pendingIds = new Set<string>();
+  const collect = (matches: SiblingMatch[], ids: Set<string>): void => {
+    if (matches.length > 1) {
+      reasons.add('ambiguous');
+    }
+    for (const match of matches) {
+      ids.add(match.id);
+      for (const reason of [match.blocker, templateBlock(match.text, newReply)]) {
+        if (reason !== null) {
+          reasons.add(reason);
+        }
+      }
+    }
+  };
+  for (const candidate of candidates) {
+    const owns = (personaId: string | null, ids: string[]): boolean =>
+      personaId === candidate.personaId && ids.some(id => candidate.discordMessageId.includes(id));
+    const sameReply = (text: string): boolean => storedReply(text) === row.content;
+    collect(
+      memories
+        .filter(memory => owns(memory.personaId, memory.messageIds) && sameReply(memory.content))
+        .map(memory => ({
+          id: memory.id,
+          text: memory.content,
+          blocker: memoryBlocker(memory),
+        })),
+      memoryIds
+    );
+    collect(
+      pendings
+        .filter(
+          pending =>
+            owns(pending.personaId, pendingMessageIds(pending.metadata)) && sameReply(pending.text)
+        )
+        .map(pending => ({ id: pending.id, text: pending.text, blocker: null })),
+      pendingIds
+    );
+  }
+
+  // Same order as the primary: ambiguity, locks, chunking, then the reply itself.
+  // (A matched sibling already parses as stored, so no stored `off-template`.)
+  const order: MemorySyncBlockReason[] = [
+    'ambiguous',
+    'other-locked',
+    'chunked',
+    REPLY_OFF_TEMPLATE,
+  ];
+  return {
+    blocked: order.find(reason => reasons.has(reason)) ?? null,
+    memoryIds: [...memoryIds],
+    pendingIds: [...pendingIds],
+  };
 }
 
 /**
@@ -122,9 +329,6 @@ export async function planExchangeMemorySync(
   }
   const memory = memories.at(0);
   const pending = pendings.at(0);
-  if (memory === undefined && pending === undefined) {
-    return { kind: 'none' };
-  }
 
   if (memory?.isLocked === true) {
     return { kind: 'blocked', reason: 'locked' };
@@ -138,7 +342,7 @@ export async function planExchangeMemorySync(
   ].filter(block => block !== null);
   // A stored text that is itself unparseable outranks a reply-specific refusal:
   // no reply could fix it.
-  const reason = blocks.find(block => block !== 'reply-off-template') ?? blocks.at(0);
+  const reason = blocks.find(block => block !== REPLY_OFF_TEMPLATE) ?? blocks.at(0);
   if (reason !== undefined) {
     logger.warn(
       { rowId: row.id, memoryId: memory?.id, pendingId: pending?.id, reason },
@@ -147,7 +351,23 @@ export async function planExchangeMemorySync(
     return { kind: 'blocked', reason };
   }
 
-  return { kind: 'sync', memoryId: memory?.id, pendingId: pending?.id };
+  // The primary's reasons outrank the siblings': a block here is another
+  // user's memory of the same coalesced reply.
+  const siblings = await planSiblings(prisma, row, newReply);
+  if (siblings.blocked !== null) {
+    logger.warn(
+      { rowId: row.id, reason: siblings.blocked },
+      'A sibling exchange memory cannot follow the edit; edit blocked'
+    );
+    return { kind: 'blocked', reason: siblings.blocked };
+  }
+
+  const memoryIds = [...(memory === undefined ? [] : [memory.id]), ...siblings.memoryIds];
+  const pendingIds = [...(pending === undefined ? [] : [pending.id]), ...siblings.pendingIds];
+  if (memoryIds.length === 0 && pendingIds.length === 0) {
+    return { kind: 'none' };
+  }
+  return { kind: 'sync', memoryIds, pendingIds };
 }
 
 /**
@@ -163,41 +383,56 @@ export async function applyExchangeMemorySync(
   newReply: string
 ): Promise<boolean> {
   let allWritten = true;
-  if (plan.memoryId !== undefined) {
-    const memory = await prisma.memory.findUnique({
-      where: { id: plan.memoryId },
-      select: { content: true },
-    });
-    const rewritten = memory === null ? null : rewriteReplyInExchangeText(memory.content, newReply);
-    if (rewritten === null) {
-      logger.warn({ memoryId: plan.memoryId }, 'Planned memory no longer rewritable; skipped');
-      allWritten = false;
-    } else {
-      await writeMemoryContent(prisma, plan.memoryId, rewritten);
-    }
+  for (const memoryId of plan.memoryIds) {
+    allWritten = (await applyMemory(prisma, memoryId, newReply)) && allWritten;
   }
-
-  if (plan.pendingId !== undefined) {
-    const pending = await prisma.pendingMemory.findUnique({
-      where: { id: plan.pendingId },
-      select: { text: true },
-    });
-    const rewritten = pending === null ? null : rewriteReplyInExchangeText(pending.text, newReply);
-    if (rewritten === null) {
-      logger.warn({ pendingId: plan.pendingId }, 'Planned pending memory gone or unrewritable');
-      allWritten = false;
-    } else {
-      // updateMany: the row can be consumed between the read above and this write,
-      // and a vanished row must be a warned skip, not a thrown not-found.
-      const { count } = await prisma.pendingMemory.updateMany({
-        where: { id: plan.pendingId },
-        data: { text: rewritten },
-      });
-      if (count === 0) {
-        logger.warn({ pendingId: plan.pendingId }, 'Planned pending memory gone or unrewritable');
-        allWritten = false;
-      }
-    }
+  for (const pendingId of plan.pendingIds) {
+    allWritten = (await applyPending(prisma, pendingId, newReply)) && allWritten;
   }
   return allWritten;
+}
+
+/** Rewrite one memory's reply; false when it vanished or stopped parsing. */
+async function applyMemory(
+  prisma: PrismaClient,
+  memoryId: string,
+  newReply: string
+): Promise<boolean> {
+  const memory = await prisma.memory.findUnique({
+    where: { id: memoryId },
+    select: { content: true },
+  });
+  const rewritten = memory === null ? null : rewriteReplyInExchangeText(memory.content, newReply);
+  if (rewritten === null) {
+    logger.warn({ memoryId }, 'Planned memory no longer rewritable; skipped');
+    return false;
+  }
+  await writeMemoryContent(prisma, memoryId, rewritten);
+  return true;
+}
+
+/** Rewrite one pending row's reply; false when it vanished or stopped parsing. */
+async function applyPending(
+  prisma: PrismaClient,
+  pendingId: string,
+  newReply: string
+): Promise<boolean> {
+  const pending = await prisma.pendingMemory.findUnique({
+    where: { id: pendingId },
+    select: { text: true },
+  });
+  const rewritten = pending === null ? null : rewriteReplyInExchangeText(pending.text, newReply);
+  if (rewritten !== null) {
+    // updateMany: the row can be consumed between the read above and this write,
+    // and a vanished row must be a warned skip, not a thrown not-found.
+    const { count } = await prisma.pendingMemory.updateMany({
+      where: { id: pendingId },
+      data: { text: rewritten },
+    });
+    if (count > 0) {
+      return true;
+    }
+  }
+  logger.warn({ pendingId }, 'Planned pending memory gone or unrewritable');
+  return false;
 }
