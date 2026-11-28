@@ -19,6 +19,7 @@ import {
   EditAssistantMessageRequestSchema,
   EditCheckRequestSchema,
   EditAssistantMessageResponseSchema,
+  MemorySyncBlockReasonSchema,
 } from './history.js';
 import { EDIT_RESPONSE_MAX_CONTENT_LENGTH } from '../../constants/discord.js';
 
@@ -593,6 +594,19 @@ describe('History API Input Schema Tests', () => {
         memory: { kind: 'synced' },
       });
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('MemorySyncBlockReasonSchema', () => {
+    it.each(['locked', 'chunked', 'ambiguous', 'off-template', 'reply-off-template'])(
+      'accepts %s',
+      reason => {
+        expect(MemorySyncBlockReasonSchema.safeParse(reason).success).toBe(true);
+      }
+    );
+
+    it('rejects an unknown reason', () => {
+      expect(MemorySyncBlockReasonSchema.safeParse('nope').success).toBe(false);
     });
   });
 });

@@ -45,6 +45,15 @@ describe('extractTrailingFooter', () => {
     expect(extractTrailingFooter('Reply\n-# ⚠️ a notice')).toBe('');
   });
 
+  it("drops a reply's own trailing `-# ⚠️` line as a notice (accepted residue)", () => {
+    // Notice detection is prefix-only, so a reply whose own last content line
+    // starts with the notice prefix is dropped like a TTS notice and the walk
+    // continues past it to the footer above.
+    const content = `Reply\n-# ⚠️ written by the model\n${MODEL_LINE}`;
+
+    expect(extractTrailingFooter(content)).toBe(`\n${MODEL_LINE}`);
+  });
+
   it('adds the leading newline for a footer-only message', () => {
     expect(extractTrailingFooter(MODEL_LINE)).toBe(`\n${MODEL_LINE}`);
   });
