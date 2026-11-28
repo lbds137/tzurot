@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { REPLY_PAIRING_WINDOW_MS } from '@tzurot/common-types/constants/message';
+import { COALESCING, REPLY_PAIRING_WINDOW_MS } from '@tzurot/common-types/constants/message';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 const { mockWrite, mockLogger } = vi.hoisted(() => ({
@@ -28,6 +28,7 @@ import { applyExchangeMemorySync, planExchangeMemorySync } from './historyEditMe
 
 const ROW = {
   id: 'row-1',
+  content: 'OLD',
   channelId: '123456789012345678',
   personaId: 'persona-1',
   personalityId: 'personality-1',
@@ -38,6 +39,7 @@ const TRIGGER = { role: 'user', discordMessageId: ['333333333333333333'] };
 
 describe('exchange memory sync', () => {
   const triggerFindFirst = vi.fn();
+  const historyFindMany = vi.fn();
   const memoryFindMany = vi.fn();
   const memoryFindUnique = vi.fn();
   const pendingFindMany = vi.fn();
@@ -45,7 +47,7 @@ describe('exchange memory sync', () => {
   const pendingUpdate = vi.fn();
 
   const prisma = {
-    conversationHistory: { findFirst: triggerFindFirst },
+    conversationHistory: { findFirst: triggerFindFirst, findMany: historyFindMany },
     memory: { findMany: memoryFindMany, findUnique: memoryFindUnique },
     pendingMemory: {
       findMany: pendingFindMany,
@@ -71,6 +73,7 @@ describe('exchange memory sync', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     triggerFindFirst.mockResolvedValue(TRIGGER);
+    historyFindMany.mockResolvedValue([]);
     memoryFindMany.mockResolvedValue([memory()]);
     pendingFindMany.mockResolvedValue([]);
     mockWrite.mockResolvedValue({});
@@ -229,16 +232,16 @@ describe('exchange memory sync', () => {
 
       expect(await planExchangeMemorySync(prisma, ROW, '*smiles* [waves]')).toEqual({
         kind: 'sync',
-        memoryId: 'mem-1',
-        pendingId: undefined,
+        memoryIds: ['mem-1'],
+        pendingIds: [],
       });
     });
 
     it('does not judge the reply content when no new reply is given', async () => {
       expect(await planExchangeMemorySync(prisma, ROW)).toEqual({
         kind: 'sync',
-        memoryId: 'mem-1',
-        pendingId: undefined,
+        memoryIds: ['mem-1'],
+        pendingIds: [],
       });
     });
 
@@ -247,8 +250,8 @@ describe('exchange memory sync', () => {
 
       expect(await planExchangeMemorySync(prisma, ROW, 'NEW')).toEqual({
         kind: 'sync',
-        memoryId: 'mem-1',
-        pendingId: 'pend-1',
+        memoryIds: ['mem-1'],
+        pendingIds: ['pend-1'],
       });
     });
 
@@ -258,8 +261,185 @@ describe('exchange memory sync', () => {
 
       expect(await planExchangeMemorySync(prisma, ROW, 'NEW')).toEqual({
         kind: 'sync',
-        memoryId: undefined,
-        pendingId: 'pend-1',
+        memoryIds: [],
+        pendingIds: ['pend-1'],
+      });
+    });
+
+    describe('sibling memories of a coalesced reply', () => {
+      const SIBLING_TRIGGER = { personaId: 'persona-2', discordMessageId: ['444444444444444444'] };
+
+      /** Primary query (no OR) gets `primary`; the batched sibling query gets `siblings`. */
+      function stubMemories(primary: unknown[], siblings: unknown[]) {
+        memoryFindMany.mockImplementation(({ where }: { where: { OR?: unknown } }) =>
+          Promise.resolve(where.OR === undefined ? primary : siblings)
+        );
+      }
+
+      function sibling(overrides: Record<string, unknown> = {}) {
+        return memory({
+          id: 'mem-2',
+          personaId: 'persona-2',
+          messageIds: ['444444444444444444'],
+          ...overrides,
+        });
+      }
+
+      beforeEach(() => {
+        historyFindMany.mockResolvedValue([SIBLING_TRIGGER]);
+      });
+
+      it('queries other personas user rows between the previous reply and this one', async () => {
+        const previous = new Date('2026-06-04T11:59:00.000Z');
+        triggerFindFirst.mockResolvedValueOnce(TRIGGER).mockResolvedValueOnce({
+          createdAt: previous,
+        });
+
+        await planExchangeMemorySync(prisma, ROW, 'NEW');
+
+        expect(historyFindMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: {
+              channelId: ROW.channelId,
+              personalityId: ROW.personalityId,
+              role: 'user',
+              deletedAt: null,
+              personaId: { not: ROW.personaId },
+              createdAt: { lt: ROW.createdAt, gt: previous },
+            },
+            take: COALESCING.MAX_SKIPPED_MESSAGES,
+          })
+        );
+      });
+
+      it('bounds the window by the hold deadline when there is no previous reply', async () => {
+        triggerFindFirst.mockResolvedValueOnce(TRIGGER).mockResolvedValueOnce(null);
+
+        await planExchangeMemorySync(prisma, ROW, 'NEW');
+
+        expect(historyFindMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({
+              createdAt: {
+                lt: ROW.createdAt,
+                gt: new Date(ROW.createdAt.getTime() - COALESCING.HOLD_DEADLINE_MS),
+              },
+            }),
+          })
+        );
+      });
+
+      it('plans the sibling memory and pending row after the primary ones', async () => {
+        stubMemories([memory()], [sibling()]);
+        pendingFindMany.mockImplementation(({ where }: { where: { personaId?: string } }) =>
+          Promise.resolve(
+            where.personaId !== undefined
+              ? []
+              : [
+                  pending({
+                    id: 'pend-2',
+                    personaId: 'persona-2',
+                    metadata: { messageIds: ['444444444444444444'] },
+                  }),
+                ]
+          )
+        );
+
+        expect(await planExchangeMemorySync(prisma, ROW, 'NEW')).toEqual({
+          kind: 'sync',
+          memoryIds: ['mem-1', 'mem-2'],
+          pendingIds: ['pend-2'],
+        });
+        expect(memoryFindMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({
+              OR: [{ personaId: 'persona-2', messageIds: { hasSome: ['444444444444444444'] } }],
+            }),
+            take: 3,
+          })
+        );
+      });
+
+      it('plans a sibling even when the edited user has no memory of the reply', async () => {
+        stubMemories([], [sibling()]);
+
+        expect(await planExchangeMemorySync(prisma, ROW, 'NEW')).toEqual({
+          kind: 'sync',
+          memoryIds: ['mem-2'],
+          pendingIds: [],
+        });
+      });
+
+      it('ignores a sibling memory that holds a different reply', async () => {
+        stubMemories(
+          [],
+          [sibling({ content: '{user}: other\n{assistant}: SOMETHING ELSE', isLocked: true })]
+        );
+
+        expect(await planExchangeMemorySync(prisma, ROW, 'NEW')).toEqual({ kind: 'none' });
+      });
+
+      it('ignores a memory of another persona that shares no candidate trigger', async () => {
+        stubMemories([], [sibling({ personaId: 'persona-3' })]);
+
+        expect(await planExchangeMemorySync(prisma, ROW, 'NEW')).toEqual({ kind: 'none' });
+      });
+
+      it('blocks other-locked when a sibling memory is locked', async () => {
+        stubMemories([memory()], [sibling({ isLocked: true })]);
+
+        expect(await planExchangeMemorySync(prisma, ROW, 'NEW')).toEqual({
+          kind: 'blocked',
+          reason: 'other-locked',
+        });
+      });
+
+      it('blocks chunked when a sibling memory is chunked', async () => {
+        stubMemories([], [sibling({ chunkGroupId: 'group-1' })]);
+
+        expect(await planExchangeMemorySync(prisma, ROW, 'NEW')).toEqual({
+          kind: 'blocked',
+          reason: 'chunked',
+        });
+      });
+
+      it('blocks ambiguous when one candidate has two matching memories', async () => {
+        stubMemories([], [sibling(), sibling({ id: 'mem-3' })]);
+
+        expect(await planExchangeMemorySync(prisma, ROW, 'NEW')).toEqual({
+          kind: 'blocked',
+          reason: 'ambiguous',
+        });
+      });
+
+      it('blocks reply-off-template when the new reply would break a sibling memory', async () => {
+        stubMemories([], [sibling()]);
+
+        expect(await planExchangeMemorySync(prisma, ROW, 'a\n{assistant}: b')).toEqual({
+          kind: 'blocked',
+          reason: 'reply-off-template',
+        });
+      });
+
+      it('lets the primary memory reason outrank a sibling one', async () => {
+        stubMemories([memory({ isLocked: true })], [sibling({ isLocked: true })]);
+
+        expect(await planExchangeMemorySync(prisma, ROW, 'NEW')).toEqual({
+          kind: 'blocked',
+          reason: 'locked',
+        });
+      });
+
+      it('skips sibling queries entirely when no other persona has a candidate trigger', async () => {
+        historyFindMany.mockResolvedValue([]);
+        memoryFindMany.mockClear();
+
+        expect(await planExchangeMemorySync(prisma, ROW, 'NEW')).toEqual({
+          kind: 'sync',
+          memoryIds: ['mem-1'],
+          pendingIds: [],
+        });
+        expect(memoryFindMany).toHaveBeenCalledTimes(1);
       });
     });
   });
@@ -268,7 +448,11 @@ describe('exchange memory sync', () => {
     it('rewrites only the assistant half of the memory', async () => {
       memoryFindUnique.mockResolvedValue({ content: '{user}: hi\n{assistant}: OLD' });
 
-      await applyExchangeMemorySync(prisma, { kind: 'sync', memoryId: 'mem-1' }, 'NEW');
+      await applyExchangeMemorySync(
+        prisma,
+        { kind: 'sync', memoryIds: ['mem-1'], pendingIds: [] },
+        'NEW'
+      );
 
       expect(mockWrite).toHaveBeenCalledWith(prisma, 'mem-1', '{user}: hi\n{assistant}: NEW');
       expect(pendingUpdate).not.toHaveBeenCalled();
@@ -279,7 +463,11 @@ describe('exchange memory sync', () => {
         content: '{user}: hi\n\n[Referenced content: quoted]\n{assistant}: OLD',
       });
 
-      await applyExchangeMemorySync(prisma, { kind: 'sync', memoryId: 'mem-1' }, 'NEW');
+      await applyExchangeMemorySync(
+        prisma,
+        { kind: 'sync', memoryIds: ['mem-1'], pendingIds: [] },
+        'NEW'
+      );
 
       expect(mockWrite).toHaveBeenCalledWith(
         prisma,
@@ -293,7 +481,11 @@ describe('exchange memory sync', () => {
         content: '{user}: hi\n{assistant}: OLD\n\n[Referenced content: quoted]',
       });
 
-      await applyExchangeMemorySync(prisma, { kind: 'sync', memoryId: 'mem-1' }, 'NEW');
+      await applyExchangeMemorySync(
+        prisma,
+        { kind: 'sync', memoryIds: ['mem-1'], pendingIds: [] },
+        'NEW'
+      );
 
       expect(mockWrite).toHaveBeenCalledWith(
         prisma,
@@ -305,7 +497,11 @@ describe('exchange memory sync', () => {
     it('rewrites the pending row text so a retry stores the edited reply', async () => {
       pendingFindUnique.mockResolvedValue({ text: '{user}: hi\n{assistant}: OLD' });
 
-      await applyExchangeMemorySync(prisma, { kind: 'sync', pendingId: 'pend-1' }, 'NEW');
+      await applyExchangeMemorySync(
+        prisma,
+        { kind: 'sync', memoryIds: [], pendingIds: ['pend-1'] },
+        'NEW'
+      );
 
       expect(pendingUpdate).toHaveBeenCalledWith({
         where: { id: 'pend-1' },
@@ -320,12 +516,27 @@ describe('exchange memory sync', () => {
 
       await applyExchangeMemorySync(
         prisma,
-        { kind: 'sync', memoryId: 'mem-1', pendingId: 'pend-1' },
+        { kind: 'sync', memoryIds: ['mem-1'], pendingIds: ['pend-1'] },
         'NEW'
       );
 
       expect(mockWrite).toHaveBeenCalledTimes(1);
       expect(pendingUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    it('rewrites every planned row, including other users', async () => {
+      memoryFindUnique.mockResolvedValue({ content: '{user}: hi\n{assistant}: OLD' });
+      pendingFindUnique.mockResolvedValue({ text: '{user}: yo\n{assistant}: OLD' });
+
+      const written = await applyExchangeMemorySync(
+        prisma,
+        { kind: 'sync', memoryIds: ['mem-1', 'mem-2'], pendingIds: ['pend-1', 'pend-2'] },
+        'NEW'
+      );
+
+      expect(written).toBe(true);
+      expect(mockWrite.mock.calls.map(call => call[1])).toEqual(['mem-1', 'mem-2']);
+      expect(pendingUpdate.mock.calls.map(call => call[0].where.id)).toEqual(['pend-1', 'pend-2']);
     });
 
     it('skips a row that vanished or stopped matching the template', async () => {
@@ -334,7 +545,7 @@ describe('exchange memory sync', () => {
 
       await applyExchangeMemorySync(
         prisma,
-        { kind: 'sync', memoryId: 'mem-1', pendingId: 'pend-1' },
+        { kind: 'sync', memoryIds: ['mem-1'], pendingIds: ['pend-1'] },
         'NEW'
       );
 
@@ -349,15 +560,20 @@ describe('exchange memory sync', () => {
       expect(
         await applyExchangeMemorySync(
           prisma,
-          { kind: 'sync', memoryId: 'mem-1', pendingId: 'pend-1' },
+          { kind: 'sync', memoryIds: ['mem-1'], pendingIds: ['pend-1'] },
           'NEW'
         )
       ).toBe(true);
     });
 
     it.each([
-      ['a vanished memory', { memoryId: 'mem-1' }, null, null],
-      ['an unrewritable pending row', { pendingId: 'pend-1' }, null, { text: 'free-form' }],
+      ['a vanished memory', { memoryIds: ['mem-1'], pendingIds: [] }, null, null],
+      [
+        'an unrewritable pending row',
+        { memoryIds: [], pendingIds: ['pend-1'] },
+        null,
+        { text: 'free-form' },
+      ],
     ])('returns false for %s', async (_label, ids, memoryRow, pendingRow) => {
       memoryFindUnique.mockResolvedValue(memoryRow);
       pendingFindUnique.mockResolvedValue(pendingRow);
@@ -370,7 +586,11 @@ describe('exchange memory sync', () => {
       pendingUpdate.mockResolvedValue({ count: 0 });
 
       await expect(
-        applyExchangeMemorySync(prisma, { kind: 'sync', pendingId: 'pend-1' }, 'NEW')
+        applyExchangeMemorySync(
+          prisma,
+          { kind: 'sync', memoryIds: [], pendingIds: ['pend-1'] },
+          'NEW'
+        )
       ).resolves.toBe(false);
       expect(pendingUpdate).toHaveBeenCalledTimes(1);
       expect(mockLogger.warn).toHaveBeenCalledWith(
@@ -387,7 +607,7 @@ describe('exchange memory sync', () => {
       expect(
         await applyExchangeMemorySync(
           prisma,
-          { kind: 'sync', memoryId: 'mem-1', pendingId: 'pend-1' },
+          { kind: 'sync', memoryIds: ['mem-1'], pendingIds: ['pend-1'] },
           'NEW'
         )
       ).toBe(false);

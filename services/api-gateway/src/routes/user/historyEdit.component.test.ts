@@ -322,6 +322,131 @@ describe('edit assistant reply (component, PGLite)', () => {
     );
   });
 
+  describe('coalesced reply answering two users', () => {
+    const SIBLING_TRIGGER_ROW = '8d4f2a88-0000-4000-8000-00000000f105';
+    const SIBLING_MEMORY = '8d4f2a88-0000-4000-8000-00000000f204';
+    const SIBLING_PENDING = '8d4f2a88-0000-4000-8000-00000000f303';
+    const SIBLING_DISCORD_ID = '666666666666666666';
+
+    beforeEach(async () => {
+      // The other user's message, answered by the same reply (coalesced).
+      await prisma.conversationHistory.create({
+        data: {
+          id: SIBLING_TRIGGER_ROW,
+          channelId: CHANNEL,
+          personalityId: PERSONALITY_A,
+          personaId: OTHER_PERSONA,
+          role: 'user',
+          content: 'yo',
+          discordMessageId: [SIBLING_DISCORD_ID],
+          createdAt: new Date('2026-06-04T12:00:03.000Z'),
+        },
+      });
+      await prisma.memory.create({
+        data: {
+          id: SIBLING_MEMORY,
+          personaId: OTHER_PERSONA,
+          personalityId: PERSONALITY_A,
+          content: '{user}: yo\n{assistant}: OLD-A',
+          messageIds: [SIBLING_DISCORD_ID],
+          senders: ['otheredit'],
+        },
+      });
+    });
+
+    async function check(reply: string) {
+      const json = vi.fn().mockReturnThis();
+      await handleCheckEditAssistantMessage(deps())(
+        {
+          userId: OWNER_DISCORD,
+          params: { messageId: REPLY_A_DISCORD_ID },
+          body: { content: reply },
+          query: {},
+        } as unknown as AuthenticatedRequest,
+        { status: vi.fn().mockReturnThis(), json } as unknown as Response,
+        () => undefined
+      );
+      return json;
+    }
+
+    it('rewrites the other user memory and pending row along with the editor', async () => {
+      await prisma.pendingMemory.create({
+        data: {
+          id: SIBLING_PENDING,
+          personaId: OTHER_PERSONA,
+          personalityId: PERSONALITY_A,
+          text: '{user}: yo\n{assistant}: OLD-A',
+          metadata: { messageIds: [SIBLING_DISCORD_ID] },
+        },
+      });
+
+      const { json } = await patch(OWNER_DISCORD, REPLY_A_DISCORD_ID, {
+        content: 'NEW-A',
+        discordMessageIds: [REPLY_A_DISCORD_ID],
+      });
+
+      expect(json).toHaveBeenCalledWith({ edited: true, memory: { kind: 'synced' } });
+      expect(await content('memories', MEMORY_A)).toBe('{user}: hi\n{assistant}: NEW-A');
+      expect(await content('memories', SIBLING_MEMORY)).toBe('{user}: yo\n{assistant}: NEW-A');
+      expect(await pendingText(SIBLING_PENDING)).toBe('{user}: yo\n{assistant}: NEW-A');
+      expect(await content('memories', MEMORY_B)).toBe('{user}: hi\n{assistant}: OLD-B');
+    });
+
+    it('refuses the edit-check when the other user memory is locked', async () => {
+      await prisma.memory.update({ where: { id: SIBLING_MEMORY }, data: { isLocked: true } });
+
+      const json = await check('NEW-A');
+
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({ memorySync: { kind: 'blocked', reason: 'other-locked' } })
+      );
+      expect(await content('memories', SIBLING_MEMORY)).toBe('{user}: yo\n{assistant}: OLD-A');
+    });
+
+    it('leaves a sibling memory of a different reply alone, even when locked', async () => {
+      await prisma.memory.update({
+        where: { id: SIBLING_MEMORY },
+        data: { content: '{user}: yo\n{assistant}: SOMETHING ELSE', isLocked: true },
+      });
+
+      const json = await check('NEW-A');
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ memorySync: { kind: 'sync' } }));
+
+      await patch(OWNER_DISCORD, REPLY_A_DISCORD_ID, {
+        content: 'NEW-A',
+        discordMessageIds: [REPLY_A_DISCORD_ID],
+      });
+      expect(await content('memories', SIBLING_MEMORY)).toBe(
+        '{user}: yo\n{assistant}: SOMETHING ELSE'
+      );
+    });
+
+    it('ignores another user trigger that predates the personality previous reply', async () => {
+      // The previous reply went to the other user, so it is not this edit's trigger pairing.
+      await prisma.conversationHistory.create({
+        data: {
+          id: '8d4f2a88-0000-4000-8000-00000000f106',
+          channelId: CHANNEL,
+          personalityId: PERSONALITY_A,
+          personaId: OTHER_PERSONA,
+          role: 'assistant',
+          content: 'EARLIER',
+          discordMessageId: ['777777777777777777'],
+          createdAt: new Date('2026-06-04T12:00:04.000Z'),
+        },
+      });
+
+      const json = await check('NEW-A');
+
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ memorySync: { kind: 'sync' } }));
+      await patch(OWNER_DISCORD, REPLY_A_DISCORD_ID, {
+        content: 'NEW-A',
+        discordMessageIds: [REPLY_A_DISCORD_ID],
+      });
+      expect(await content('memories', SIBLING_MEMORY)).toBe('{user}: yo\n{assistant}: OLD-A');
+    });
+  });
+
   it('ignores a non-memory row that shares the trigger id', async () => {
     await prisma.memory.create({
       data: {

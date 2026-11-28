@@ -63,7 +63,7 @@ describe('history edit handlers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockIsBotOwner.mockReturnValue(false);
-    mockPlan.mockResolvedValue({ kind: 'sync', memoryId: 'mem-1', pendingId: 'pend-1' });
+    mockPlan.mockResolvedValue({ kind: 'sync', memoryIds: ['mem-1'], pendingIds: ['pend-1'] });
     mockApply.mockResolvedValue(true);
     update.mockResolvedValue({});
   });
@@ -226,7 +226,7 @@ describe('history edit handlers', () => {
       expect(mockPlan).toHaveBeenCalledWith(expect.anything(), ROW, 'New reply');
       expect(mockApply).toHaveBeenCalledWith(
         expect.anything(),
-        { kind: 'sync', memoryId: 'mem-1', pendingId: 'pend-1' },
+        { kind: 'sync', memoryIds: ['mem-1'], pendingIds: ['pend-1'] },
         'New reply'
       );
       expect(json).toHaveBeenCalledWith({ edited: true, memory: { kind: 'synced' } });

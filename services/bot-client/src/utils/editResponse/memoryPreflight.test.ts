@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MEMORY_LOCKED_MESSAGE,
   MEMORY_UNSAFE_MESSAGE,
+  OTHER_LOCKED_MESSAGE,
   REPLY_BREAKS_MEMORY_MESSAGE,
   memoryPreflightMessage,
 } from './memoryPreflight.js';
@@ -10,6 +11,15 @@ describe('memoryPreflightMessage', () => {
   it('refuses a locked memory with the unlock hint', () => {
     expect(memoryPreflightMessage({ kind: 'blocked', reason: 'locked' })).toBe(
       MEMORY_LOCKED_MESSAGE
+    );
+  });
+
+  it('refuses an edit when another user memory of the reply is locked', () => {
+    expect(memoryPreflightMessage({ kind: 'blocked', reason: 'other-locked' })).toBe(
+      OTHER_LOCKED_MESSAGE
+    );
+    expect(OTHER_LOCKED_MESSAGE).toBe(
+      "Someone else's memory of this reply is locked, so it can't be edited."
     );
   });
 
