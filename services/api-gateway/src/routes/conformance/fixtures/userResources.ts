@@ -25,6 +25,34 @@ const EDIT_MESSAGE_ID = '800000000000000033';
 const EDIT_ROW_ID = '5c110000-0000-4000-8000-000000000003';
 const EDIT_CHECK_MESSAGE_ID = '800000000000000034';
 const EDIT_CHECK_ROW_ID = '5c110000-0000-4000-8000-000000000004';
+const REROLL_CHECK_MESSAGE_ID = '800000000000000035';
+const REROLL_CHECK_ROW_ID = '5c110000-0000-4000-8000-000000000005';
+const REROLL_MESSAGE_ID = '800000000000000036';
+const REROLL_ROW_ID = '5c110000-0000-4000-8000-000000000006';
+const REROLL_ABORT_MESSAGE_ID = '800000000000000037';
+const REROLL_ABORT_ROW_ID = '5c110000-0000-4000-8000-000000000007';
+
+/** Insert the actor's (latest, live) assistant reply that a reroll route reads. */
+async function seedRerollableReply(
+  ctx: SeedContext,
+  slug: string,
+  rowId: string,
+  messageId: string
+): Promise<void> {
+  const { id: personalityId } = await createPersonality(ctx, slug);
+  await ctx.prisma.conversationHistory.create({
+    data: {
+      id: rowId,
+      channelId: CHANNEL_SNOWFLAKE,
+      guildId: GUILD_SNOWFLAKE,
+      personalityId,
+      personaId: ctx.actorPersonaId,
+      role: 'assistant',
+      content: 'A conformance assistant turn to reroll.',
+      discordMessageId: [messageId],
+    },
+  });
+}
 
 /**
  * Insert a BYOK wallet row directly. The set route validates keys against
@@ -251,6 +279,52 @@ export const userResourceFixtures: Record<string, ConformanceEntry> = {
     body: {
       content: 'Edited by the conformance harness.',
       discordMessageIds: [EDIT_MESSAGE_ID],
+    },
+  },
+
+  checkRerollAssistantMessage: {
+    seed: async ctx =>
+      seedRerollableReply(
+        ctx,
+        'conf-history-reroll-check',
+        REROLL_CHECK_ROW_ID,
+        REROLL_CHECK_MESSAGE_ID
+      ),
+    params: { messageId: REROLL_CHECK_MESSAGE_ID },
+    body: {},
+  },
+
+  rerollAssistantMessage: {
+    seed: async ctx =>
+      seedRerollableReply(ctx, 'conf-history-reroll', REROLL_ROW_ID, REROLL_MESSAGE_ID),
+    params: { messageId: REROLL_MESSAGE_ID },
+    body: {
+      rowId: REROLL_ROW_ID,
+      attemptId: 'conformance-attempt',
+      jobId: 'conformance-job',
+      content: 'Rerolled by the conformance harness.',
+      discordMessageIds: [REROLL_MESSAGE_ID],
+      newMemoryIds: [],
+      newPendingIds: [],
+    },
+  },
+
+  abortRerollAssistantMessage: {
+    seed: async ctx =>
+      seedRerollableReply(
+        ctx,
+        'conf-history-reroll-abort',
+        REROLL_ABORT_ROW_ID,
+        REROLL_ABORT_MESSAGE_ID
+      ),
+    params: { messageId: REROLL_ABORT_MESSAGE_ID },
+    body: {
+      rowId: REROLL_ABORT_ROW_ID,
+      attemptId: 'conformance-abort-attempt',
+      jobId: 'conformance-abort-job',
+      newMemoryIds: [],
+      newPendingIds: [],
+      keepMemoryIds: [],
     },
   },
 

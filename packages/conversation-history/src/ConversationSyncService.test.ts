@@ -246,6 +246,7 @@ describe('ConversationSyncService', () => {
           deletedAt: true,
           createdAt: true,
         },
+        orderBy: expect.any(Array),
         // Bounded query: Math.min(1 * 2, 500) = 2
         take: 2,
       });
@@ -481,6 +482,33 @@ describe('ConversationSyncService', () => {
 
       expect(result.updated).toBe(0);
       expect(update).not.toHaveBeenCalled();
+    });
+
+    describe.each([
+      ['live row first', ['live', 'deleted']],
+      ['deleted row first', ['deleted', 'live']],
+    ] as const)('a soft-deleted and a live row share a Discord id (%s)', (_label, order) => {
+      it('edits the live row and never touches the deleted one', async () => {
+        const rows = {
+          live: { ...dbRow('db-live', ['d1'], 'original') },
+          deleted: { ...dbRow('db-old', ['d1'], 'original'), deletedAt: new Date() },
+        };
+        mockPrismaClient.conversationHistory.findMany.mockImplementation(
+          (args: { where: { deletedAt?: unknown } }) =>
+            // The time-window delete pass queries `deletedAt: null`; the Discord-id lookup does not.
+            Promise.resolve(args.where.deletedAt === null ? [] : order.map(key => rows[key]))
+        );
+        mockPrismaClient.conversationHistory.update.mockResolvedValue({});
+        const update = vi.spyOn(service, 'updateMessageContent');
+
+        const result = await service.runSync('ch-1', 'p-1', [observed('d1', 'edited')]);
+
+        expect(result.updated).toBe(1);
+        expect(update).toHaveBeenCalledTimes(1);
+        expect(update).toHaveBeenCalledWith('db-live', 'edited');
+        const orderBy = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0].orderBy;
+        expect(orderBy[0]).toEqual({ deletedAt: { sort: 'asc', nulls: 'first' } });
+      });
     });
 
     it('returns zero counts when the first DB call throws (never propagates)', async () => {

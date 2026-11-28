@@ -1176,6 +1176,66 @@ describe('MessageContextBuilder', () => {
       expect(result.messageContent).toBeDefined();
     });
 
+    it('drops the excluded reply from a weigh-in fetch before the merge and the raw snapshot', async () => {
+      const baseMsg = {
+        role: 'assistant' as const,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        personaId: 'persona-1',
+      };
+      const newer = {
+        ...baseMsg,
+        id: 'row-newer',
+        discordMessageId: ['m-newer'],
+        content: 'newer',
+      };
+      const oldReply = {
+        ...baseMsg,
+        id: 'row-old',
+        discordMessageId: ['m-old-a', 'm-old-b'],
+        content: 'old',
+      };
+      const older = {
+        ...baseMsg,
+        id: 'row-older',
+        discordMessageId: ['m-older'],
+        content: 'older',
+      };
+      mockFetchRecentMessages.mockResolvedValue({
+        messages: [newer, oldReply, older],
+        fetchedCount: 3,
+        keptCount: 3,
+      });
+      mockMergeWithHistory.mockReturnValue([]);
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        rawReferences: [],
+        updatedContent: 'read the room',
+      });
+      mockResolveAllMentions.mockReturnValue({
+        processedContent: 'read the room',
+        mentionedUsers: [],
+        mentionedChannels: [],
+        mentionedRoles: [],
+      });
+
+      const result = await builder.buildContext(mockMessage, mockPersonality, 'read the room', {
+        extendedContext: {
+          maxMessages: 20,
+          maxAge: null,
+          maxImages: 0,
+          sources: { maxMessages: 'personality', maxAge: 'personality', maxImages: 'personality' },
+        },
+        botUserId: 'bot-123',
+        isWeighInMode: true,
+        excludeDiscordMessageIds: ['m-old-a', 'm-old-b'],
+      });
+
+      expect(mockMergeWithHistory).toHaveBeenCalledWith([newer, older], expect.anything());
+      const rawContents = result.context.rawAssemblyInputs?.rawExtendedContextMessages?.map(
+        m => m.content
+      );
+      expect(rawContents).toEqual(['newer', 'older']);
+    });
+
     it('caches botSuffix on first call and ignores subsequent client.user.tag changes', async () => {
       // The bot's Discord tag doesn't change at runtime, so MessageContextBuilder
       // lazily derives the canonical suffix once and reuses it. This test pins

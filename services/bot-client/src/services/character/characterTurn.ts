@@ -149,7 +149,7 @@ async function getAnchorMessage(
  * being read (as `mentions` once was), that test fails loudly rather than
  * crashing at runtime.
  */
-function createSyntheticWeighInAnchor(channel: TypingChannel): Message {
+export function createSyntheticWeighInAnchor(channel: TypingChannel): Message {
   return {
     // Never sent to Discord (weigh-in omits `before`, so the id is unused); a
     // readable placeholder keeps any incidental debug log clear rather than ''.
@@ -192,7 +192,7 @@ function createSyntheticWeighInAnchor(channel: TypingChannel): Message {
  *   so ai-worker skips persona + LTM read/write + epoch. A personal summon
  *   (`incognito=false`) keeps its persona while still using weigh-in framing.
  */
-function adjustContextForWeighInMode(
+export function adjustContextForWeighInMode(
   context: MessageContext,
   isWeighInMode: boolean,
   incognito: boolean

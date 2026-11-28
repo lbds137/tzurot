@@ -159,6 +159,51 @@ describe('PgvectorMemoryAdapter', () => {
       expect(mockSplitTextByTokens).toHaveBeenCalledWith(shortText);
     });
 
+    it('addMemory reports the single id of an unchunked memory', async () => {
+      const shortText = 'A short memory.';
+      mockSplitTextByTokens.mockReturnValue({
+        chunks: [shortText],
+        originalTokenCount: 50,
+        wasChunked: false,
+      });
+      const mockPrisma = { $executeRaw: vi.fn().mockResolvedValue(undefined) };
+      const testAdapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService()
+      );
+
+      const ids = await testAdapter.addMemory({
+        text: shortText,
+        metadata: baseMetadata,
+      });
+
+      expect(ids).toEqual([
+        deterministicMemoryUuid(baseMetadata.personaId, baseMetadata.personalityId, shortText),
+      ]);
+    });
+
+    it('addMemory reports every chunk id, distinct, of an oversized memory', async () => {
+      const chunks = ['Chunk A.', 'Chunk B.', 'Chunk C.'];
+      mockSplitTextByTokens.mockReturnValue({
+        chunks,
+        originalTokenCount: 9000,
+        wasChunked: true,
+      });
+      const mockPrisma = { $executeRaw: vi.fn().mockResolvedValue(undefined) };
+      const testAdapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService()
+      );
+
+      const ids = await testAdapter.addMemory({
+        text: chunks.join('\n\n'),
+        metadata: baseMetadata,
+      });
+
+      expect(ids).toHaveLength(3);
+      expect(new Set(ids).size).toBe(3);
+    });
+
     it('should split and store multiple chunks when text exceeds token limit', async () => {
       const longText = 'Chunk 1 content.\n\nChunk 2 content.\n\nChunk 3 content.';
       const chunks = ['Chunk 1 content.', 'Chunk 2 content.', 'Chunk 3 content.'];
@@ -416,7 +461,7 @@ describe('PgvectorMemoryAdapter', () => {
         trigger
       );
 
-      await expect(adapter.addMemory({ text, metadata: baseMetadata })).resolves.toBeUndefined();
+      await expect(adapter.addMemory({ text, metadata: baseMetadata })).resolves.toHaveLength(1);
       expect(trigger.enqueue).toHaveBeenCalledTimes(1);
     });
 
@@ -430,7 +475,7 @@ describe('PgvectorMemoryAdapter', () => {
       const mockPrisma = { $executeRaw: vi.fn().mockResolvedValue(undefined) };
       const adapter = new PgvectorMemoryAdapter(mockPrisma as any, createMockEmbeddingService());
 
-      await expect(adapter.addMemory({ text, metadata: baseMetadata })).resolves.toBeUndefined();
+      await expect(adapter.addMemory({ text, metadata: baseMetadata })).resolves.toHaveLength(1);
       expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
     });
 

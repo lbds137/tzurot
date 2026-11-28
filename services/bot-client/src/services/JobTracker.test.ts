@@ -361,6 +361,35 @@ describe('JobTracker', () => {
       expect(deleteMock).toHaveBeenCalledTimes(1);
     });
 
+    it('hands a swept reroll slot to the orphan handler so its guard can be released', async () => {
+      const onRerollOrphaned = vi.fn();
+      const tracker = new JobTracker(undefined, undefined, onRerollOrphaned);
+      const rerollContext = {
+        ...createMockContext(createTypingChannel()),
+        kind: 'reroll',
+        rowId: 'row-1',
+        attemptId: 'attempt-1',
+      } as unknown as PendingJobContext;
+
+      tracker.trackJob('job-reroll', rerollContext);
+      await vi.advanceTimersByTimeAsync(41 * 60 * 1000);
+
+      expect(tracker.isTracking('job-reroll')).toBe(false);
+      expect(onRerollOrphaned).toHaveBeenCalledWith(rerollContext);
+      tracker.cleanup();
+    });
+
+    it('does not call the reroll orphan handler for other kinds', async () => {
+      const onRerollOrphaned = vi.fn();
+      const tracker = new JobTracker(undefined, undefined, onRerollOrphaned);
+
+      tracker.trackJob('job-msg', createMockContext(createTypingChannel()));
+      await vi.advanceTimersByTimeAsync(41 * 60 * 1000);
+
+      expect(onRerollOrphaned).not.toHaveBeenCalled();
+      tracker.cleanup();
+    });
+
     it('should not fire if the job completes normally before grace period', async () => {
       const mockChannel = {
         id: 'channel-123',

@@ -129,6 +129,17 @@ export interface ChannelHistoryWhereParams {
    */
   excludeDiscordMessageId?: string;
   /**
+   * History row ids to exclude (a reroll drops the reply it replaces). DB-side
+   * for the same reason as `excludeDiscordMessageId`: count and fetch share it.
+   */
+  excludeRowIds?: string[];
+  /**
+   * Exclusive upper bound on `createdAt`, merged with `cutoff` into one
+   * `createdAt` condition. A triggered reroll passes the trigger row's time so
+   * the old reply and everything after it stay out of the window.
+   */
+  createdBefore?: Date;
+  /**
    * Restrict the read to rows written by this personality. Absence means
    * unscoped (shared across personalities) — the caller decides scoping via
    * `shouldScopeHistoryToPersonality`; this predicate only applies what it's given.
@@ -148,14 +159,40 @@ export interface ChannelHistoryWhereParams {
 export function buildChannelHistoryWhere(
   params: ChannelHistoryWhereParams
 ): Prisma.ConversationHistoryWhereInput {
-  const { channelId, cutoff, excludeDiscordMessageId, personalityId } = params;
+  const {
+    channelId,
+    cutoff,
+    createdBefore,
+    excludeDiscordMessageId,
+    excludeRowIds,
+    personalityId,
+  } = params;
+  const createdAt =
+    cutoff !== undefined || createdBefore !== undefined
+      ? {
+          ...(cutoff !== undefined ? { gte: cutoff } : {}),
+          ...(createdBefore !== undefined ? { lt: createdBefore } : {}),
+        }
+      : undefined;
+  const excludedTrigger =
+    excludeDiscordMessageId !== undefined
+      ? { discordMessageId: { has: excludeDiscordMessageId } }
+      : undefined;
+  const excludedRows =
+    excludeRowIds !== undefined && excludeRowIds.length > 0
+      ? { id: { in: excludeRowIds } }
+      : undefined;
+  // One NOT entry keeps the plain object shape; both together is an array
+  // (Prisma reads it as "none of these").
+  const excluded =
+    excludedTrigger !== undefined && excludedRows !== undefined
+      ? [excludedTrigger, excludedRows]
+      : (excludedTrigger ?? excludedRows);
   return {
     channelId,
     deletedAt: null,
-    ...(cutoff !== undefined ? { createdAt: { gte: cutoff } } : {}),
-    ...(excludeDiscordMessageId !== undefined
-      ? { NOT: { discordMessageId: { has: excludeDiscordMessageId } } }
-      : {}),
+    ...(createdAt !== undefined ? { createdAt } : {}),
+    ...(excluded !== undefined ? { NOT: excluded } : {}),
     ...(personalityId !== undefined ? { personalityId } : {}),
   };
 }

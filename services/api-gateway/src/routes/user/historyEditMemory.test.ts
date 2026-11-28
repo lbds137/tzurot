@@ -112,7 +112,7 @@ describe('exchange memory sync', () => {
             type: 'memory',
             isSummarized: false,
           },
-          take: 2,
+          take: 10,
         })
       );
     });
@@ -127,9 +127,34 @@ describe('exchange memory sync', () => {
             personalityId: ROW.personalityId,
             OR: [{ metadata: { path: ['messageIds'], array_contains: ['333333333333333333'] } }],
           },
-          take: 2,
+          take: 10,
         })
       );
+    });
+
+    it('leaves excluded memory and pending ids out of the primary queries', async () => {
+      await planExchangeMemorySync(prisma, ROW, undefined, {
+        excludeMemoryIds: ['new-mem'],
+        excludePendingIds: ['new-pend'],
+      });
+
+      expect(memoryFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: { notIn: ['new-mem'] } }),
+        })
+      );
+      expect(pendingFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: { notIn: ['new-pend'] } }),
+        })
+      );
+    });
+
+    it('adds no id filter when nothing is excluded', async () => {
+      await planExchangeMemorySync(prisma, ROW, 'NEW');
+
+      expect(memoryFindMany.mock.calls[0][0].where).not.toHaveProperty('id');
+      expect(pendingFindMany.mock.calls[0][0].where).not.toHaveProperty('id');
     });
 
     it('is none without a memory lookup when the preceding row is not a user turn', async () => {
@@ -186,6 +211,59 @@ describe('exchange memory sync', () => {
       expect(await planExchangeMemorySync(prisma, ROW, 'NEW')).toEqual({
         kind: 'blocked',
         reason: 'chunked',
+      });
+    });
+
+    describe.each([
+      ['Edit Response', undefined],
+      ['Reroll', { includeStaleOrphans: true }],
+    ] as const)('multi-row memories (%s)', (_name, options) => {
+      const old = new Date('2026-06-04T10:00:00.000Z');
+      const chunk = (i: number, reply: string) =>
+        memory({
+          id: `chunk-${i}`,
+          content: `{user}: hi\n{assistant}: ${reply}`,
+          chunkGroupId: 'group-1',
+          createdAt: old,
+        });
+
+      it.each([
+        ['no chunk text matches', ['x', 'y', 'z']],
+        ['one chunk text matches', ['OLD', 'y', 'z']],
+      ])('blocks a 3-row chunk group when %s', async (_label, replies) => {
+        memoryFindMany.mockResolvedValue(replies.map((reply, i) => chunk(i, reply)));
+
+        expect(await planExchangeMemorySync(prisma, ROW, 'NEW', options)).toEqual({
+          kind: 'blocked',
+          reason: 'chunked',
+        });
+      });
+
+      it('blocks two non-chunked rows when neither is an exact match', async () => {
+        memoryFindMany.mockResolvedValue([
+          memory({ id: 'a', content: '{user}: hi\n{assistant}: X', createdAt: old }),
+          memory({ id: 'b', content: '{user}: hi\n{assistant}: Y', createdAt: old }),
+        ]);
+
+        expect(await planExchangeMemorySync(prisma, ROW, 'NEW', options)).toEqual({
+          kind: 'blocked',
+          reason: 'ambiguous',
+        });
+      });
+
+      it('still plans one exact match beside a stale different-text orphan', async () => {
+        memoryFindMany.mockResolvedValue([
+          memory({ createdAt: old }),
+          memory({ id: 'orphan', content: '{user}: hi\n{assistant}: ATTEMPT', createdAt: old }),
+        ]);
+
+        const plan = await planExchangeMemorySync(prisma, ROW, 'NEW', options);
+
+        expect(plan).toEqual({
+          kind: 'sync',
+          memoryIds: options === undefined ? ['mem-1'] : ['mem-1', 'orphan'],
+          pendingIds: [],
+        });
       });
     });
 
@@ -289,7 +367,7 @@ describe('exchange memory sync', () => {
         historyFindMany.mockResolvedValue([SIBLING_TRIGGER]);
       });
 
-      it('queries other personas user rows between the previous reply and this one', async () => {
+      it('queries user rows of any persona between the previous reply and this one', async () => {
         const previous = new Date('2026-06-04T11:59:00.000Z');
         triggerFindFirst.mockResolvedValueOnce(TRIGGER).mockResolvedValueOnce({
           createdAt: previous,
@@ -509,7 +587,7 @@ describe('exchange memory sync', () => {
         });
       });
 
-      it('skips sibling queries entirely when no other persona has a candidate trigger', async () => {
+      it('skips sibling queries entirely when no sibling trigger candidate exists', async () => {
         historyFindMany.mockResolvedValue([]);
         memoryFindMany.mockClear();
 

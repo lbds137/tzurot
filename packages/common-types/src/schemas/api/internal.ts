@@ -7,7 +7,11 @@
 
 import { z } from 'zod';
 import { loadedPersonalitySchema } from '../../types/schemas/personality.js';
-import { forwardedOriginSchema, messageMetadataSchema } from '../../types/schemas/message.js';
+import {
+  forwardedOriginSchema,
+  incognitoKindSchema,
+  messageMetadataSchema,
+} from '../../types/schemas/message.js';
 import { guildMemberInfoSchema } from '../../types/schemas/discord.js';
 import { SYNC_LIMITS } from '../../constants/timing.js';
 import { DISCORD_SNOWFLAKE } from '../../constants/discord.js';
@@ -199,6 +203,8 @@ export const PersistAssistantMessageRequestSchema = z.object({
    * recover the turn's incognito state from conversation history.
    */
   incognito: z.boolean().optional(),
+  /** How the incognito turn was anonymous; persisted into `messageMetadata.incognitoKind`. */
+  incognitoKind: incognitoKindSchema.optional(),
 });
 
 export const PersistAssistantMessageResponseSchema = z.object({

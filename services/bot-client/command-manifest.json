@@ -2845,6 +2845,13 @@
       }
     },
     {
+      "name": "Reroll",
+      "data": {
+        "name": "Reroll",
+        "type": 3
+      }
+    },
+    {
       "name": "View Reasoning",
       "data": {
         "name": "View Reasoning",

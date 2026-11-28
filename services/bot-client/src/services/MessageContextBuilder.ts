@@ -16,6 +16,7 @@ import type { MessageContext } from '../types.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';
 import { buildBlockDeniedChecker } from './contextBuilder/blockDeniedChecker.js';
+import { excludeFetchedMessages } from './contextBuilder/excludeFetchedMessages.js';
 import {
   hasVoiceAttachments,
   type ForwardedAuthorPersonalityResolver,
@@ -190,7 +191,7 @@ export class MessageContextBuilder {
       'Fetching extended context from Discord'
     );
 
-    const fetchResult = await this.channelFetcher.fetchRecentMessages(
+    const liveFetch = await this.channelFetcher.fetchRecentMessages(
       message.channel as FetchableChannel,
       {
         limit: options.extendedContext.maxMessages,
@@ -213,6 +214,11 @@ export class MessageContextBuilder {
         resolveForwardedAuthorPersonalityId: this.resolveForwardedAuthorPersonalityId,
       }
     );
+
+    // A weigh-in fetch includes the room's latest message; a reroll names the
+    // reply it replaces so the model never reads it. Triggered rerolls need no
+    // exclusion here because `before: message.id` already cuts the old reply.
+    const fetchResult = excludeFetchedMessages(liveFetch, options.excludeDiscordMessageIds);
 
     // Capture the raw envelope snapshot of the fetched messages for the worker
     // (which re-derives persona ids, guild info, and image attachments from it).

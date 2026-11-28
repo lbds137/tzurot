@@ -11,7 +11,10 @@
  */
 
 import { NO_TEXT_CONTENT_PLACEHOLDER } from '@tzurot/common-types/constants/message';
-import { type MessageMetadata } from '@tzurot/common-types/types/schemas/message';
+import {
+  type IncognitoKind,
+  type MessageMetadata,
+} from '@tzurot/common-types/types/schemas/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { idPrefix } from '@tzurot/common-types/utils/logContentPreview';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -85,6 +88,8 @@ interface SaveAssistantMessageOptions {
   thinkingContent?: string;
   /** Whether the turn ran in incognito mode; persisted into messageMetadata.incognito. */
   incognito?: boolean;
+  /** How the incognito turn was anonymous; persisted beside `incognito: true`. */
+  incognitoKind?: IncognitoKind;
 }
 
 /**
@@ -145,6 +150,8 @@ interface SaveAssistantMessageFromFieldsOptions {
   thinkingContent?: string;
   /** Whether the turn ran in incognito mode; persisted into messageMetadata.incognito. */
   incognito?: boolean;
+  /** How the incognito turn was anonymous; persisted beside `incognito: true`. */
+  incognitoKind?: IncognitoKind;
 }
 
 /**
@@ -293,6 +300,7 @@ export class ConversationPersistence {
       userMessageTime,
       thinkingContent,
       incognito,
+      incognitoKind,
     } = options;
 
     // Delegate to field-based implementation with Message fields extracted
@@ -306,6 +314,7 @@ export class ConversationPersistence {
       userMessageTime,
       thinkingContent,
       incognito,
+      incognitoKind,
     });
   }
 
@@ -412,6 +421,7 @@ export class ConversationPersistence {
       userMessageTime,
       thinkingContent,
       incognito,
+      incognitoKind,
     } = options;
 
     // Invariant: history mirrors what is actually on Discord. A send that
@@ -461,6 +471,7 @@ export class ConversationPersistence {
       userMessageTime,
       thinkingContent,
       ...(incognito !== undefined && { incognito }),
+      ...(incognitoKind !== undefined && { incognitoKind }),
     };
 
     // The gateway endpoint IS the write. Throws on failure.

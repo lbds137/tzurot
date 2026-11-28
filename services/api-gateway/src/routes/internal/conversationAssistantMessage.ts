@@ -26,6 +26,7 @@ import {
   PersistAssistantMessageResponseSchema,
   type PersistAssistantMessageResponse,
 } from '@tzurot/common-types/schemas/api/internal';
+import { type IncognitoKind } from '@tzurot/common-types/types/schemas/message';
 import { generateConversationHistoryUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ConversationHistoryService } from '@tzurot/conversation-history';
@@ -74,6 +75,14 @@ function warnOnTraceDrift(
   );
 }
 
+/** The kind only means something beside `incognito: true`. */
+function incognitoMetadata(
+  incognito: boolean,
+  kind: IncognitoKind | undefined
+): { incognito: boolean; incognitoKind?: IncognitoKind } {
+  return incognito && kind !== undefined ? { incognito, incognitoKind: kind } : { incognito };
+}
+
 function chunkIdsMatch(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((id, idx) => id === b[idx]);
 }
@@ -100,6 +109,7 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
       chunkMessageIds,
       thinkingContent,
       incognito,
+      incognitoKind,
     } = parseResult.data;
 
     // Assistant timestamp: user message + 1ms (chronological ordering).
@@ -156,7 +166,9 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
         discordMessageId: chunkMessageIds,
         timestamp: assistantTime,
         thinkingContent,
-        ...(incognito !== undefined && { messageMetadata: { incognito } }),
+        ...(incognito !== undefined && {
+          messageMetadata: incognitoMetadata(incognito, incognitoKind),
+        }),
       });
     } catch (error) {
       // Only the unique-violation race gets the compare fallback: a duplicate

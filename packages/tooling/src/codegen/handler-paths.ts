@@ -32,6 +32,7 @@ const USER_CHANNEL_GET = '../user/channel/get.js';
 const USER_CHANNEL_CONFIG_OVERRIDES = '../user/channel/configOverrides.js';
 const USER_HISTORY = '../user/history.js';
 const USER_HISTORY_EDIT = '../user/historyEdit.js';
+const USER_HISTORY_REROLL = '../user/historyReroll.js';
 const USER_LLM_CONFIG = '../user/llm-config.js';
 const USER_MEMORY = '../user/memory.js';
 const USER_MEMORY_BATCH = '../user/memoryBatch.js';
@@ -252,6 +253,9 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   getEditableMessage: USER_HISTORY_EDIT,
   checkEditAssistantMessage: USER_HISTORY_EDIT,
   editAssistantMessage: USER_HISTORY_EDIT,
+  checkRerollAssistantMessage: USER_HISTORY_REROLL,
+  rerollAssistantMessage: USER_HISTORY_REROLL,
+  abortRerollAssistantMessage: USER_HISTORY_REROLL,
 
   // User voices
   listVoices: USER_VOICES,

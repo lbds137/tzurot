@@ -80,6 +80,14 @@ export async function hydrateChannelHistory(
       contextEpoch,
       maxAgeSeconds: configOverrides?.maxAge ?? undefined,
       excludeDiscordMessageId: jobContext.triggerMessageId,
+      // A reroll replaces its old reply: drop that row and, for a triggered
+      // reroll, everything created at or after the trigger. Both ride the
+      // shared predicate, so the window's count and rows stay one set.
+      excludeRowIds: jobContext.reroll === undefined ? undefined : [jobContext.reroll.rowId],
+      createdBefore:
+        jobContext.reroll?.historyBefore === undefined
+          ? undefined
+          : new Date(jobContext.reroll.historyBefore),
       personalityId: scopeHistoryToPersonality ? personality.id : undefined,
     }
   );

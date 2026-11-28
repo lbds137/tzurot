@@ -1218,6 +1218,76 @@ describe('ConversationalRAGService', () => {
       vi.mocked(redisService.isIncognitoActive).mockResolvedValue(false);
     });
 
+    describe('incognitoKind', () => {
+      const options = { keyProvenance: 'user', effectiveTier: 'paid' } as const;
+
+      async function withSession(active: boolean) {
+        const { redisService } = await import('../redis.js');
+        vi.mocked(redisService.isIncognitoActive).mockResolvedValue(active);
+        return redisService;
+      }
+
+      it('is session for the requester /memory incognito session', async () => {
+        const redisService = await withSession(true);
+
+        const result = await service.generateResponse(
+          createMockPersonality(),
+          'Test',
+          createMockContext(),
+          options
+        );
+
+        expect(result.incognitoKind).toBe('session');
+        vi.mocked(redisService.isIncognitoActive).mockResolvedValue(false);
+      });
+
+      it('is summon for an anonymous summon, even beside a live session', async () => {
+        const redisService = await withSession(true);
+
+        const result = await service.generateResponse(
+          createMockPersonality(),
+          'Test',
+          createMockContext({ summonAnonymity: { kind: 'incognito' } }),
+          options
+        );
+
+        expect(result.incognitoKind).toBe('summon');
+        vi.mocked(redisService.isIncognitoActive).mockResolvedValue(false);
+      });
+
+      it('is absent when the turn was not incognito', async () => {
+        await withSession(false);
+
+        const result = await service.generateResponse(
+          createMockPersonality(),
+          'Test',
+          createMockContext(),
+          options
+        );
+
+        expect(result.incognitoKind).toBeUndefined();
+      });
+
+      it('a reroll with skipMemoryWrite skips storage, reports session, and keeps the persona', async () => {
+        await withSession(false);
+        const context = createMockContext({
+          reroll: { rowId: 'row-1', attemptId: 'attempt-1', skipMemoryWrite: true },
+        });
+
+        const result = await service.generateResponse(
+          createMockPersonality(),
+          'Test',
+          context,
+          options
+        );
+
+        expect(getLongTermMemoryServiceMock().storeInteraction).not.toHaveBeenCalled();
+        expect(result.incognitoModeActive).toBe(true);
+        expect(result.incognitoKind).toBe('session');
+        expect(context.summonAnonymity?.kind).not.toBe('incognito');
+      });
+    });
+
     it('should return incognitoModeActive false when not in incognito', async () => {
       const personality = createMockPersonality();
       const context = createMockContext();

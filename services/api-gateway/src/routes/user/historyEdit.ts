@@ -81,7 +81,7 @@ async function findEditableRow(
 }
 
 /** Resolve the caller and message id; sends the error and returns null on failure. */
-function resolveRequest(
+export function resolveRequest(
   req: AuthenticatedRequest,
   res: Response
 ): {

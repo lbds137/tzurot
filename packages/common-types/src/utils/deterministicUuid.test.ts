@@ -17,6 +17,7 @@ import {
   generateByokLlmConfigUuid,
   generateUserPersonalityConfigUuid,
   generateConversationHistoryUuid,
+  generateRerolledConversationHistoryUuid,
   generateChannelSettingsUuid,
   generateMemoryDuplicateUuid,
   generateMemoryChunkGroupUuid,
@@ -156,6 +157,20 @@ describe('Deterministic UUID Generation', () => {
       const uuid1 = generateConversationHistoryUuid('channel-1', 'personality-1', 'user-1', date1);
       const uuid2 = generateConversationHistoryUuid('channel-1', 'personality-1', 'user-1', date2);
       expect(uuid1).not.toBe(uuid2);
+    });
+  });
+
+  describe('generateRerolledConversationHistoryUuid', () => {
+    it('is stable for one (row, attempt) pair', () => {
+      expect(generateRerolledConversationHistoryUuid('row-1', 'attempt-1')).toBe(
+        generateRerolledConversationHistoryUuid('row-1', 'attempt-1')
+      );
+    });
+
+    it('differs per attempt and from the original row id', () => {
+      const first = generateRerolledConversationHistoryUuid('row-1', 'attempt-1');
+      expect(first).not.toBe(generateRerolledConversationHistoryUuid('row-1', 'attempt-2'));
+      expect(first).not.toBe('row-1');
     });
   });
 

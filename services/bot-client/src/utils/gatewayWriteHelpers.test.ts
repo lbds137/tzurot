@@ -51,6 +51,20 @@ describe('persistAssistantMessageViaGateway', () => {
     });
   });
 
+  it('forwards incognitoKind in the payload when provided', async () => {
+    mockServiceClient.persistAssistantMessage.mockResolvedValue(ok({ id: 'row-1', created: true }));
+
+    await persistAssistantMessageViaGateway({
+      ...PARAMS,
+      incognito: true,
+      incognitoKind: 'session',
+    });
+
+    expect(mockServiceClient.persistAssistantMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ incognito: true, incognitoKind: 'session' })
+    );
+  });
+
   it('forwards incognito in the payload when provided and omits it when undefined', async () => {
     mockServiceClient.persistAssistantMessage.mockResolvedValue(ok({ id: 'row-1', created: true }));
 

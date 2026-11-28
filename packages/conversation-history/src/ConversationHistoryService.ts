@@ -103,6 +103,10 @@ export interface ChannelHistoryWindowParams {
    * it twice.
    */
   excludeDiscordMessageId?: string;
+  /** History row ids dropped from the window (a reroll's old reply). */
+  excludeRowIds?: string[];
+  /** Exclusive upper bound on `createdAt` (a triggered reroll's trigger time). */
+  createdBefore?: Date;
   /**
    * Restrict the window to rows written by this personality. Absence means
    * unscoped (shared across personalities, today's behavior) — the caller
@@ -369,6 +373,10 @@ export class ConversationHistoryService {
           },
         },
         select: getMessageByDiscordIdSelect,
+        // A reroll leaves a soft-deleted row beside its live replacement, both
+        // holding the id; prefer the live one. Fully-deleted ids still resolve
+        // (transcripts of deleted messages stay retrievable).
+        orderBy: [{ deletedAt: { sort: 'asc', nulls: 'first' } }, { createdAt: 'desc' }],
       });
 
       if (!message) {
@@ -663,13 +671,23 @@ export async function getChannelHistoryWindow(
   prisma: TransactionalConversationHistoryClient,
   params: ChannelHistoryWindowParams
 ): Promise<ChannelHistoryWindowResult> {
-  const { channelId, cap, contextEpoch, maxAgeSeconds, excludeDiscordMessageId, personalityId } =
-    params;
+  const {
+    channelId,
+    cap,
+    contextEpoch,
+    maxAgeSeconds,
+    excludeDiscordMessageId,
+    excludeRowIds,
+    createdBefore,
+    personalityId,
+  } = params;
   const cutoff = computeHistoryCutoff(maxAgeSeconds, contextEpoch);
   const where = buildChannelHistoryWhere({
     channelId,
     cutoff,
+    createdBefore,
     excludeDiscordMessageId,
+    excludeRowIds,
     personalityId,
   });
 

@@ -9,9 +9,13 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Redis } from 'ioredis';
-import type { Message } from 'discord.js';
+import type { Message, MessageContextMenuCommandInteraction } from 'discord.js';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
-import { TRACKED_JOB_MAX_LIFETIME_MS, type PendingJobContext } from './JobTracker.js';
+import {
+  TRACKED_JOB_MAX_LIFETIME_MS,
+  type PendingJobContext,
+  type PersistableJobContext,
+} from './JobTracker.js';
 import {
   SingleJobContextRecorder,
   SingleJobPersistence,
@@ -42,7 +46,7 @@ const PERSONALITY = {
   slug: 'lila',
 } as unknown as PendingJobContext['personality'];
 
-function messageContext(): PendingJobContext {
+function messageContext(): PersistableJobContext {
   return {
     kind: 'message',
     channel: CHANNEL,
@@ -57,7 +61,7 @@ function messageContext(): PendingJobContext {
   };
 }
 
-function slashContext(): PendingJobContext {
+function slashContext(): PersistableJobContext {
   return {
     kind: 'slash',
     channel: CHANNEL,
@@ -271,6 +275,29 @@ describe('SingleJobContextRecorder', () => {
     new SingleJobContextRecorder(persistence).record('job-rec', context, 9000);
 
     expect(putSpy).toHaveBeenCalledWith(toPersistedContext('job-rec', context, 9000));
+  });
+
+  it('does not persist a reroll context (a restart drops an in-flight reroll)', () => {
+    const fake = createFakeRedis();
+    const persistence = new SingleJobPersistence(fake as unknown as Redis);
+    const putSpy = vi.spyOn(persistence, 'put').mockResolvedValue(undefined);
+    const reroll = {
+      kind: 'reroll',
+      channel: CHANNEL,
+      guildId: null,
+      clientId: undefined,
+      userMessageTime: new Date('2026-08-29T16:40:03.694Z'),
+      personality: PERSONALITY,
+      personaId: 'persona-3',
+      interaction: {} as unknown as MessageContextMenuCommandInteraction,
+      rowId: 'row-1',
+      attemptId: 'attempt-1',
+      preflight: {} as unknown as Extract<PendingJobContext, { kind: 'reroll' }>['preflight'],
+    } satisfies PendingJobContext;
+
+    new SingleJobContextRecorder(persistence).record('job-reroll', reroll, 1);
+
+    expect(putSpy).not.toHaveBeenCalled();
   });
 
   it('forwards the jobId to delete() on forget', () => {

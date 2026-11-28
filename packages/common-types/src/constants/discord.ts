@@ -845,3 +845,27 @@ export const BOT_FOOTER_PATTERNS = {
   PIGGYBACK_NOTE:
     /(?:^|\n)-# [^\n[\]()<>]* is temporarily unavailable, so a fallback free model answered\./g,
 } as const;
+
+/**
+ * Most Discord messages one stored reply may span (the `discordMessageIds`
+ * list bound the history commit routes accept).
+ */
+export const MAX_REPLY_CHUNKS = 20;
+
+/**
+ * Longest reply text a reroll commit accepts. Reroll text comes from the model,
+ * not a modal, so it is bound by what the chunk plan can deliver inside
+ * `MAX_REPLY_CHUNKS` messages: the chunk budget (`DISCORD_LIMITS.MESSAGE_LENGTH`)
+ * times the chunk cap, less two chunks of slack for the splitter's boundary
+ * choices, a DM prefix and the footer. Not verified: the splitter can emit
+ * chunks shorter than the budget, so the bot also checks the real chunk count
+ * before it edits Discord.
+ */
+export const REROLL_MAX_CONTENT_LENGTH = (MAX_REPLY_CHUNKS - 2) * DISCORD_LIMITS.MESSAGE_LENGTH;
+
+/**
+ * Longest reasoning trace a reroll commit accepts. No other path caps a stored
+ * trace (the worker keeps whatever the model emitted), so this is a
+ * body-size bound, not a policy: generous, but finite.
+ */
+export const REROLL_MAX_THINKING_LENGTH = 200_000;

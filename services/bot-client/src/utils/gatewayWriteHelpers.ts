@@ -10,6 +10,7 @@
 import { SYNC_LIMITS } from '@tzurot/common-types/constants/timing';
 import {
   type ForwardedOrigin,
+  type IncognitoKind,
   type MessageMetadata,
 } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -39,6 +40,8 @@ interface AssistantMessageWriteParams {
   thinkingContent?: string;
   /** Whether the turn ran in incognito mode; persisted into messageMetadata.incognito. */
   incognito?: boolean;
+  /** How the incognito turn was anonymous; persisted into messageMetadata.incognitoKind. */
+  incognitoKind?: IncognitoKind;
 }
 
 interface ObservedSyncSnapshotMessage {
@@ -166,6 +169,7 @@ function buildAssistantMessagePayload(params: AssistantMessageWriteParams): {
   userMessageTime: string;
   thinkingContent?: string;
   incognito?: boolean;
+  incognitoKind?: IncognitoKind;
 } {
   return {
     channelId: params.channelId,
@@ -180,6 +184,7 @@ function buildAssistantMessagePayload(params: AssistantMessageWriteParams): {
     // JSON.stringify drops undefined, but one convention per file.
     ...(params.thinkingContent !== undefined && { thinkingContent: params.thinkingContent }),
     ...(params.incognito !== undefined && { incognito: params.incognito }),
+    ...(params.incognitoKind !== undefined && { incognitoKind: params.incognitoKind }),
   };
 }
 

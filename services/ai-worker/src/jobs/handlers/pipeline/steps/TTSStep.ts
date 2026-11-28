@@ -297,6 +297,13 @@ export class TTSStep implements IPipelineStep {
       return false;
     }
 
+    // A reroll swaps the text of an existing reply in place; it never produces
+    // new audio, so synthesis would only bill a TTS call whose output nothing
+    // attaches.
+    if (context.job.data.context.reroll !== undefined) {
+      return false;
+    }
+
     const { personality } = context.job.data;
     if (!isVoiceEnabled(personality)) {
       return false;

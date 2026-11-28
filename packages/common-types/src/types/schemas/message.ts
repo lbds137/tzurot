@@ -259,6 +259,13 @@ export const forwardedOriginSchema = z.object({
  * Structured metadata stored in conversation_history.message_metadata JSONB column
  * Separates semantic content (in 'content' column) from contextual data
  */
+/** How an incognito assistant turn was anonymous; see `messageMetadataSchema.incognitoKind`. */
+export const incognitoKindSchema = z.enum(['summon', 'session']);
+export type IncognitoKind = z.infer<typeof incognitoKindSchema>;
+
+/** How many aborted reroll attempt ids a history row's metadata keeps. */
+export const ABORTED_REROLL_ATTEMPTS_KEPT = 10;
+
 export const messageMetadataSchema = z.object({
   // Referenced messages (replies, message links) - snapshot at time of message
   referencedMessages: z.array(storedReferencedMessageSchema).optional(),
@@ -285,6 +292,19 @@ export const messageMetadataSchema = z.object({
    * incognito; false = non-incognito; absent = unknown (row predates the field).
    */
   incognito: z.boolean().optional(),
+  /**
+   * How an incognito turn was anonymous, beside `incognito: true`: `summon` =
+   * the persona was stripped (anonymous summon, weigh-in); `session` = a
+   * personal turn under the requester's `/memory incognito` session (persona
+   * kept, memory write skipped). Absent on legacy rows and on non-incognito
+   * rows; a reroll treats an absent kind as `summon` (privacy-safe).
+   */
+  incognitoKind: incognitoKindSchema.optional(),
+  /**
+   * Reroll attempt ids whose abort ran against this row (newest last, bounded
+   * by `ABORTED_REROLL_ATTEMPTS_KEPT`). A commit refuses an attempt listed here.
+   */
+  abortedRerollAttempts: z.array(z.string()).optional(),
   // Future expansion: sentiment, mood, topic tags, etc.
 });
 
