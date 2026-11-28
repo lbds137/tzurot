@@ -1,23 +1,24 @@
 /**
- * Rewrites the long-term memory of one exchange after its assistant reply was
- * edited.
+ * Keeps the long-term memory of one exchange in step with an edited assistant
+ * reply.
  *
  * A memory keys on the TRIGGER (user) message id, not the reply's, and stores
  * `{user}: <message>\n{assistant}: <reply>`. So the memory for an edited reply
  * is found in two hops: the user row that triggered the reply, then the memory
- * whose `messageIds` contain that row's Discord id.
+ * whose `messageIds` contain that row's Discord id. A not-yet-stored exchange
+ * lives in a `PendingMemory` row with the same text template and the same
+ * trigger id in `metadata.messageIds`; the pending retry stores its text
+ * verbatim, so that row must follow the edit too.
  *
- * Every skip path returns `false` without throwing: a memory that cannot be
- * rewritten safely is left as-is rather than risking the wrong one.
+ * Two steps: `planExchangeMemorySync` decides (read-only), and
+ * `applyExchangeMemorySync` writes what the plan names. A blocked plan means the
+ * edit must not happen, because memory would disagree with the history.
  */
 
 import { findImmediateTriggerRow } from '@tzurot/conversation-history';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
-import {
-  ASSISTANT_SEPARATOR,
-  REFERENCED_BLOCK_RE,
-  splitMemoryContent,
-} from '@tzurot/common-types/utils/memoryContentSplit';
+import { rewriteReplyInExchangeText } from '@tzurot/common-types/utils/memoryReplyRewrite';
+import { splitMemoryContent } from '@tzurot/common-types/utils/memoryContentSplit';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { writeMemoryContent } from './memorySingle.js';
 
@@ -32,17 +33,31 @@ export interface EditedReplyRow {
   createdAt: Date;
 }
 
+export type MemorySyncBlockReason = 'locked' | 'chunked' | 'ambiguous' | 'off-template';
+
+export type ExchangeMemoryPlan =
+  | { kind: 'none' }
+  | { kind: 'sync'; memoryId?: string; pendingId?: string }
+  | { kind: 'blocked'; reason: MemorySyncBlockReason };
+
+/** Whether `text` can follow an edit (to `newReply` when given, else as stored). */
+function followsEdit(text: string, newReply: string | undefined): boolean {
+  return newReply === undefined
+    ? splitMemoryContent(text) !== null
+    : rewriteReplyInExchangeText(text, newReply) !== null;
+}
+
 /**
- * Rewrite the assistant half of the exchange's memory with `newReply`.
+ * Decide how the exchange's memory follows an edit of `row`. Read-only.
  *
- * @returns true when a memory was rewritten; false when none was found or the
- * one found could not be rewritten safely (never an error).
+ * @param newReply when given, an edit that would make a stored text
+ * unparseable is `off-template`; without it only the stored shape is checked.
  */
-export async function rewriteExchangeMemory(
+export async function planExchangeMemorySync(
   prisma: PrismaClient,
   row: EditedReplyRow,
-  newReply: string
-): Promise<boolean> {
+  newReply?: string
+): Promise<ExchangeMemoryPlan> {
   const { channelId, personalityId, personaId } = row;
   // personaId is scoped too: a shared channel can hold another persona's turn
   // just before this reply, and its memory is not this one.
@@ -54,8 +69,8 @@ export async function rewriteExchangeMemory(
   });
 
   if (trigger === null) {
-    logger.debug({ rowId: row.id }, 'No trigger row for the edited reply; memory left as-is');
-    return false;
+    logger.debug({ rowId: row.id }, 'No trigger row for the edited reply; nothing to sync');
+    return { kind: 'none' };
   }
 
   const memories = await prisma.memory.findMany({
@@ -64,53 +79,94 @@ export async function rewriteExchangeMemory(
       personalityId,
       personaId,
       visibility: 'normal',
+      type: 'memory',
+      isSummarized: false,
     },
     select: { id: true, content: true, isLocked: true, chunkGroupId: true },
     take: 2,
   });
 
-  if (memories.length === 0) {
-    return false;
-  }
-  if (memories.length > 1) {
+  const pendings = await prisma.pendingMemory.findMany({
+    where: {
+      personaId,
+      personalityId,
+      OR: trigger.discordMessageId.map(id => ({
+        metadata: { path: ['messageIds'], array_contains: [id] },
+      })),
+    },
+    select: { id: true, text: true },
+    take: 2,
+  });
+
+  if (memories.length > 1 || pendings.length > 1) {
     logger.warn(
-      { rowId: row.id, matchCount: memories.length },
-      'Ambiguous exchange memory match; memory left as-is'
+      { rowId: row.id, memoryMatches: memories.length, pendingMatches: pendings.length },
+      'Ambiguous exchange memory match; edit blocked'
     );
-    return false;
+    return { kind: 'blocked', reason: 'ambiguous' };
+  }
+  const memory = memories.at(0);
+  const pending = pendings.at(0);
+  if (memory === undefined && pending === undefined) {
+    return { kind: 'none' };
   }
 
-  const memory = memories[0];
-  if (memory.isLocked) {
-    logger.info({ rowId: row.id, memoryId: memory.id }, 'Exchange memory is locked; left as-is');
-    return false;
+  if (memory?.isLocked === true) {
+    return { kind: 'blocked', reason: 'locked' };
   }
-  if (memory.chunkGroupId !== null) {
-    logger.info({ rowId: row.id, memoryId: memory.id }, 'Exchange memory is chunked; left as-is');
-    return false;
+  if (memory !== undefined && memory.chunkGroupId !== null) {
+    return { kind: 'blocked', reason: 'chunked' };
   }
-  if (splitMemoryContent(memory.content) === null) {
+  const offTemplate =
+    (memory !== undefined && !followsEdit(memory.content, newReply)) ||
+    (pending !== undefined && !followsEdit(pending.text, newReply));
+  if (offTemplate) {
     logger.warn(
-      { rowId: row.id, memoryId: memory.id },
-      'Exchange memory does not match the stored template; left as-is'
+      { rowId: row.id, memoryId: memory?.id, pendingId: pending?.id },
+      'Exchange memory does not follow the stored template; edit blocked'
     );
-    return false;
+    return { kind: 'blocked', reason: 'off-template' };
   }
 
-  const sepIndex = memory.content.indexOf(ASSISTANT_SEPARATOR);
-  const oldTail = memory.content.slice(sepIndex + ASSISTANT_SEPARATOR.length);
-  const trailingRef = REFERENCED_BLOCK_RE.exec(oldTail)?.[0] ?? '';
-  const newContent =
-    memory.content.slice(0, sepIndex + ASSISTANT_SEPARATOR.length) + newReply + trailingRef;
+  return { kind: 'sync', memoryId: memory?.id, pendingId: pending?.id };
+}
 
-  if (splitMemoryContent(newContent) === null) {
-    logger.warn(
-      { rowId: row.id, memoryId: memory.id },
-      'Edited reply would make the memory unparseable; left as-is'
-    );
-    return false;
+/**
+ * Write what a `sync` plan names. Each row is re-read by id so the rewrite
+ * applies to its current text; a row that vanished or stopped matching the
+ * template since planning is skipped with a warning.
+ */
+export async function applyExchangeMemorySync(
+  prisma: PrismaClient,
+  plan: Extract<ExchangeMemoryPlan, { kind: 'sync' }>,
+  newReply: string
+): Promise<void> {
+  if (plan.memoryId !== undefined) {
+    const memory = await prisma.memory.findUnique({
+      where: { id: plan.memoryId },
+      select: { content: true },
+    });
+    const rewritten = memory === null ? null : rewriteReplyInExchangeText(memory.content, newReply);
+    if (rewritten === null) {
+      logger.warn({ memoryId: plan.memoryId }, 'Planned memory no longer rewritable; skipped');
+    } else {
+      await writeMemoryContent(prisma, plan.memoryId, rewritten);
+    }
   }
 
-  await writeMemoryContent(prisma, memory.id, newContent);
-  return true;
+  if (plan.pendingId !== undefined) {
+    const pending = await prisma.pendingMemory.findUnique({
+      where: { id: plan.pendingId },
+      select: { text: true },
+    });
+    const rewritten = pending === null ? null : rewriteReplyInExchangeText(pending.text, newReply);
+    if (rewritten === null) {
+      logger.warn({ pendingId: plan.pendingId }, 'Planned pending memory gone or unrewritable');
+    } else {
+      await prisma.pendingMemory.update({
+        where: { id: plan.pendingId },
+        data: { text: rewritten },
+      });
+    }
+  }
 }

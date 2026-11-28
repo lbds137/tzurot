@@ -56,6 +56,7 @@ function modalInteraction(text: string, chunks: FakeChunk[], channelOverrides = 
     id: 'chan-1',
     isTextBased: () => true,
     isThread: () => false,
+    isDMBased: () => false,
     send: vi.fn().mockResolvedValue({ id: 'dm-new' }),
     messages: {
       fetch: vi.fn(async (id: string) => {
@@ -204,6 +205,7 @@ describe('Edit Response — open', () => {
         content: 'a'.repeat(EDIT_RESPONSE_MAX_CONTENT_LENGTH + 1),
         discordMessageIds: ['m1'],
         personalityId: 'p1',
+        memorySync: { kind: 'sync' },
       },
     });
     const interaction = openInteraction({});
@@ -216,10 +218,55 @@ describe('Edit Response — open', () => {
     );
   });
 
+  it('refuses to open the modal for a locked memory', async () => {
+    mocks.getEditableMessage.mockResolvedValue({
+      ok: true,
+      data: {
+        content: 'stored reply',
+        discordMessageIds: ['m1'],
+        personalityId: 'p1',
+        memorySync: { kind: 'blocked', reason: 'locked' },
+      },
+    });
+    const interaction = openInteraction({});
+
+    await editResponse.execute(interaction as never);
+
+    expect(interaction.showModal).not.toHaveBeenCalled();
+    expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('memory is locked') })
+    );
+  });
+
+  it('refuses to open the modal when the memory cannot be updated safely', async () => {
+    mocks.getEditableMessage.mockResolvedValue({
+      ok: true,
+      data: {
+        content: 'stored reply',
+        discordMessageIds: ['m1'],
+        personalityId: 'p1',
+        memorySync: { kind: 'blocked', reason: 'chunked' },
+      },
+    });
+    const interaction = openInteraction({});
+
+    await editResponse.execute(interaction as never);
+
+    expect(interaction.showModal).not.toHaveBeenCalled();
+    expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining("can't be updated safely") })
+    );
+  });
+
   it('shows the modal prefilled with the stored text', async () => {
     mocks.getEditableMessage.mockResolvedValue({
       ok: true,
-      data: { content: 'stored reply', discordMessageIds: ['m1'], personalityId: 'p1' },
+      data: {
+        content: 'stored reply',
+        discordMessageIds: ['m1'],
+        personalityId: 'p1',
+        memorySync: { kind: 'sync' },
+      },
     });
     const interaction = openInteraction({});
 
@@ -238,16 +285,16 @@ describe('Edit Response — open', () => {
 });
 
 describe('Edit Response — submit', () => {
-  const okLookup = (ids: string[]) => ({
+  const okLookup = (ids: string[], memorySync: Record<string, string> = { kind: 'sync' }) => ({
     ok: true,
-    data: { content: 'old', discordMessageIds: ids, personalityId: 'p1' },
+    data: { content: 'old', discordMessageIds: ids, personalityId: 'p1', memorySync },
   });
 
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.editAssistantMessage.mockResolvedValue({
       ok: true,
-      data: { edited: true, memoryUpdated: true },
+      data: { edited: true, memory: { kind: 'synced' } },
     });
   });
 
@@ -394,7 +441,10 @@ describe('Edit Response — submit', () => {
   it('keeps the DM speaker prefix on chunk 0 and edits through the message', async () => {
     mocks.getEditableMessage.mockResolvedValue(okLookup(['m1']));
     const dm = chunk('m1', '**Lilith:** old', null);
-    const { interaction } = modalInteraction('new', [dm], { type: ChannelType.DM });
+    const { interaction } = modalInteraction('new', [dm], {
+      type: ChannelType.DM,
+      isDMBased: () => true,
+    });
 
     await handleModal(interaction as never);
 
@@ -408,6 +458,65 @@ describe('Edit Response — submit', () => {
       content: 'new',
       discordMessageIds: ['m1'],
     });
+  });
+
+  it('refuses a non-webhook message in a guild channel without mutating or PATCHing', async () => {
+    mocks.getEditableMessage.mockResolvedValue(okLookup(['m1']));
+    const other = chunk('m1', 'old', null);
+    const { interaction } = modalInteraction('new', [other]);
+
+    await handleModal(interaction as never);
+
+    expect(other.edit).not.toHaveBeenCalled();
+    expect(mocks.editAssistantMessage).not.toHaveBeenCalled();
+    expect(lastReply(interaction)).toContain("can't edit this message anymore");
+  });
+
+  it.each([
+    [{ kind: 'blocked', reason: 'locked' }, 'memory is locked. Unlock it in /memory to edit.'],
+    [{ kind: 'blocked', reason: 'chunked' }, "memory can't be updated safely"],
+    [{ kind: 'blocked', reason: 'ambiguous' }, "memory can't be updated safely"],
+    [{ kind: 'blocked', reason: 'off-template' }, "memory can't be updated safely"],
+  ])(
+    'refuses a blocked memory (%o) before any Discord fetch or mutation',
+    async (memorySync, expected) => {
+      const wh = webhookStub();
+      mocks.getWebhook.mockResolvedValue(wh);
+      mocks.getEditableMessage.mockResolvedValue(okLookup(['m1'], memorySync));
+      const { interaction, channel } = modalInteraction('new', [chunk('m1', 'old')]);
+
+      await handleModal(interaction as never);
+
+      expect(channel.messages.fetch).not.toHaveBeenCalled();
+      expect(wh.editMessage).not.toHaveBeenCalled();
+      expect(mocks.editAssistantMessage).not.toHaveBeenCalled();
+      expect(lastReply(interaction)).toContain(expected);
+    }
+  );
+
+  it('refuses a reply that would break the memory template, naming the separator', async () => {
+    const wh = webhookStub();
+    mocks.getWebhook.mockResolvedValue(wh);
+    mocks.getEditableMessage.mockResolvedValue(okLookup(['m1'], { kind: 'sync' }));
+    const { interaction, channel } = modalInteraction('a\n{assistant}: b', [chunk('m1', 'old')]);
+
+    await handleModal(interaction as never);
+
+    expect(channel.messages.fetch).not.toHaveBeenCalled();
+    expect(wh.editMessage).not.toHaveBeenCalled();
+    expect(mocks.editAssistantMessage).not.toHaveBeenCalled();
+    expect(lastReply(interaction)).toContain('Remove "{assistant}:"');
+  });
+
+  it('lets a separator-bearing reply through when there is no memory to sync', async () => {
+    const wh = webhookStub();
+    mocks.getWebhook.mockResolvedValue(wh);
+    mocks.getEditableMessage.mockResolvedValue(okLookup(['m1'], { kind: 'none' }));
+    const { interaction } = modalInteraction('a\n{assistant}: b', [chunk('m1', 'old')]);
+
+    await handleModal(interaction as never);
+
+    expect(mocks.editAssistantMessage).toHaveBeenCalled();
   });
 
   it('does not PATCH when Discord refuses the first edit as UnknownWebhook', async () => {

@@ -126,6 +126,14 @@ export const MessageReasoningResponseSchema = z.object({
   createdAt: z.string().datetime(),
 });
 
+/** Why an exchange's memory cannot be rewritten to follow an edit. */
+export const MemorySyncBlockReasonSchema = z.enum([
+  'locked',
+  'chunked',
+  'ambiguous',
+  'off-template',
+]);
+
 /**
  * GET /user/history/editable/:messageId
  *
@@ -141,6 +149,12 @@ export const EditableMessageResponseSchema = z.object({
   /** Every Discord message id the reply was delivered as, in send order. */
   discordMessageIds: z.array(z.string()).min(1),
   personalityId: z.string(),
+  /** Whether the exchange's memory can follow an edit; `blocked` forbids the edit. */
+  memorySync: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('none') }),
+    z.object({ kind: z.literal('sync') }),
+    z.object({ kind: z.literal('blocked'), reason: MemorySyncBlockReasonSchema }),
+  ]),
 });
 
 /**
@@ -159,14 +173,25 @@ export const EditAssistantMessageRequestSchema = z.object({
   discordMessageIds: z
     .array(z.string().regex(/^\d{17,20}$/, 'Must be a Discord snowflake'))
     .min(1)
-    .max(20),
+    .max(20)
+    .refine(ids => new Set(ids).size === ids.length, {
+      message: 'Message ids must be unique',
+    }),
 });
 
 /** PATCH /user/history/message/:messageId response. */
 export const EditAssistantMessageResponseSchema = z.object({
   edited: z.literal(true),
-  /** False when the exchange's long-term memory was not rewritten (non-fatal). */
-  memoryUpdated: z.boolean(),
+  /**
+   * `synced`: memory and/or pending memory rewritten; `none`: nothing to sync;
+   * `blocked`: only reachable through a race after the preflight (the history
+   * row is saved, the memory is left as-is).
+   */
+  memory: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('none') }),
+    z.object({ kind: z.literal('synced') }),
+    z.object({ kind: z.literal('blocked'), reason: MemorySyncBlockReasonSchema }),
+  ]),
 });
 
 /** DELETE /user/history/hard-delete */
