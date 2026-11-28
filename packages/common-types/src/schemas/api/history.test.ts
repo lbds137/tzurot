@@ -15,7 +15,11 @@ import {
   HistoryStatsResponseSchema,
   HardDeleteHistoryResponseSchema,
   MessageReasoningResponseSchema,
+  EditableMessageResponseSchema,
+  EditAssistantMessageRequestSchema,
+  EditAssistantMessageResponseSchema,
 } from './history.js';
+import { EDIT_RESPONSE_MAX_CONTENT_LENGTH } from '../../constants/discord.js';
 
 describe('History API Input Schema Tests', () => {
   describe('ClearHistorySchema', () => {
@@ -401,6 +405,102 @@ describe('History API Input Schema Tests', () => {
 
     it('rejects a missing createdAt', () => {
       const result = MessageReasoningResponseSchema.safeParse({ thinkingContent: null });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('EditableMessageResponseSchema', () => {
+    it('accepts content with a chunk list and personality id', () => {
+      const result = EditableMessageResponseSchema.safeParse({
+        content: 'Hello',
+        discordMessageIds: ['1', '2'],
+        personalityId: 'p-1',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects an empty chunk list', () => {
+      const result = EditableMessageResponseSchema.safeParse({
+        content: 'Hello',
+        discordMessageIds: [],
+        personalityId: 'p-1',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects a missing personalityId', () => {
+      const result = EditableMessageResponseSchema.safeParse({
+        content: 'Hello',
+        discordMessageIds: ['1'],
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('EditAssistantMessageRequestSchema', () => {
+    it('accepts content at exactly the limit', () => {
+      const result = EditAssistantMessageRequestSchema.safeParse({
+        content: 'x'.repeat(EDIT_RESPONSE_MAX_CONTENT_LENGTH),
+        discordMessageIds: ['1'],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects content one past the limit', () => {
+      const result = EditAssistantMessageRequestSchema.safeParse({
+        content: 'x'.repeat(EDIT_RESPONSE_MAX_CONTENT_LENGTH + 1),
+        discordMessageIds: ['1'],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects empty content', () => {
+      const result = EditAssistantMessageRequestSchema.safeParse({
+        content: '',
+        discordMessageIds: ['1'],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects an empty chunk list', () => {
+      const result = EditAssistantMessageRequestSchema.safeParse({
+        content: 'ok',
+        discordMessageIds: [],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects an empty-string chunk id', () => {
+      const result = EditAssistantMessageRequestSchema.safeParse({
+        content: 'ok',
+        discordMessageIds: [''],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects more than 20 chunk ids', () => {
+      const result = EditAssistantMessageRequestSchema.safeParse({
+        content: 'ok',
+        discordMessageIds: Array.from({ length: 21 }, (_, i) => String(i + 1)),
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('EditAssistantMessageResponseSchema', () => {
+    it('accepts edited true with a memoryUpdated flag', () => {
+      const result = EditAssistantMessageResponseSchema.safeParse({
+        edited: true,
+        memoryUpdated: false,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects edited false', () => {
+      const result = EditAssistantMessageResponseSchema.safeParse({
+        edited: false,
+        memoryUpdated: true,
+      });
       expect(result.success).toBe(false);
     });
   });

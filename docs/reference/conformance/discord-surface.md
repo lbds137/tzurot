@@ -360,6 +360,26 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/deny/view.ts | escapeMarkdown | 2 |
 | services/bot-client/src/commands/editCharacterMessage.ts | setName | 1 |
 | services/bot-client/src/commands/editCharacterMessage.ts | setType | 1 |
+| services/bot-client/src/commands/editResponse.ts | author | 3 |
+| services/bot-client/src/commands/editResponse.ts | channelId | 1 |
+| services/bot-client/src/commands/editResponse.ts | channels | 1 |
+| services/bot-client/src/commands/editResponse.ts | client | 2 |
+| services/bot-client/src/commands/editResponse.ts | content | 2 |
+| services/bot-client/src/commands/editResponse.ts | customId | 2 |
+| services/bot-client/src/commands/editResponse.ts | displayAvatarURL | 1 |
+| services/bot-client/src/commands/editResponse.ts | fetch | 2 |
+| services/bot-client/src/commands/editResponse.ts | fields | 1 |
+| services/bot-client/src/commands/editResponse.ts | getTextInputValue | 1 |
+| services/bot-client/src/commands/editResponse.ts | id | 9 |
+| services/bot-client/src/commands/editResponse.ts | isTextBased | 1 |
+| services/bot-client/src/commands/editResponse.ts | isThread | 1 |
+| services/bot-client/src/commands/editResponse.ts | messages | 1 |
+| services/bot-client/src/commands/editResponse.ts | setName | 1 |
+| services/bot-client/src/commands/editResponse.ts | setType | 1 |
+| services/bot-client/src/commands/editResponse.ts | targetMessage | 1 |
+| services/bot-client/src/commands/editResponse.ts | user | 2 |
+| services/bot-client/src/commands/editResponse.ts | username | 1 |
+| services/bot-client/src/commands/editResponse.ts | webhookId | 3 |
 | services/bot-client/src/commands/feedback/index.ts | client | 1 |
 | services/bot-client/src/commands/feedback/index.ts | escapeMarkdown | 1 |
 | services/bot-client/src/commands/feedback/index.ts | id | 1 |
@@ -1007,7 +1027,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/handlers/CommandHandler.ts | id | 1 |
 | services/bot-client/src/handlers/CommandHandler.ts | isButton | 1 |
 | services/bot-client/src/handlers/CommandHandler.ts | isStringSelectMenu | 1 |
-| services/bot-client/src/handlers/CommandHandler.ts | name | 9 |
+| services/bot-client/src/handlers/CommandHandler.ts | name | 14 |
 | services/bot-client/src/handlers/CommandHandler.ts | replied | 1 |
 | services/bot-client/src/handlers/CommandHandler.ts | user | 1 |
 | services/bot-client/src/handlers/MessageHandler.ts | author | 1 |
@@ -1785,6 +1805,13 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/discordContext.ts | topic | 4 |
 | services/bot-client/src/utils/discordContext.ts | type | 4 |
 | services/bot-client/src/utils/dmErrorClassifier.ts | code | 7 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | code | 1 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | delete | 1 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | deleteMessage | 1 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | edit | 1 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | editMessage | 1 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | id | 10 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | send | 2 |
 | services/bot-client/src/utils/embedComponents.ts | color | 1 |
 | services/bot-client/src/utils/embedImageExtractor.ts | image | 2 |
 | services/bot-client/src/utils/embedImageExtractor.ts | proxyURL | 2 |
@@ -2021,6 +2048,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/deny/index.ts | setAutocomplete | 1 |
 | services/bot-client/src/commands/deny/index.ts | value | 3 |
 | services/bot-client/src/commands/editCharacterMessage.ts | ContextMenuCommandBuilder | 1 |
+| services/bot-client/src/commands/editResponse.ts | ContextMenuCommandBuilder | 1 |
 | services/bot-client/src/commands/feedback/index.ts | SlashCommandBuilder | 1 |
 | services/bot-client/src/commands/feedback/index.ts | addStringOption | 1 |
 | services/bot-client/src/commands/help/index.ts | SlashCommandBuilder | 1 |
@@ -2229,6 +2257,12 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/deny/index.ts | ChannelType.PrivateThread | 1 |
 | services/bot-client/src/commands/deny/index.ts | ChannelType.PublicThread | 1 |
 | services/bot-client/src/commands/editCharacterMessage.ts | ApplicationCommandType.Message | 1 |
+| services/bot-client/src/commands/editResponse.ts | ApplicationCommandType.Message | 1 |
+| services/bot-client/src/commands/editResponse.ts | ChannelType.AnnouncementThread | 1 |
+| services/bot-client/src/commands/editResponse.ts | ChannelType.GuildAnnouncement | 1 |
+| services/bot-client/src/commands/editResponse.ts | ChannelType.GuildText | 1 |
+| services/bot-client/src/commands/editResponse.ts | ChannelType.PrivateThread | 1 |
+| services/bot-client/src/commands/editResponse.ts | ChannelType.PublicThread | 1 |
 | services/bot-client/src/commands/inspect/browse.ts | ButtonStyle.Secondary | 1 |
 | services/bot-client/src/commands/inspect/components.ts | ButtonStyle.Primary | 1 |
 | services/bot-client/src/commands/inspect/components.ts | ButtonStyle.Secondary | 1 |
@@ -2321,6 +2355,9 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/discordContext.ts | ChannelType.GuildVoice | 1 |
 | services/bot-client/src/utils/discordContext.ts | ChannelType.PrivateThread | 1 |
 | services/bot-client/src/utils/discordContext.ts | ChannelType.PublicThread | 1 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | RESTJSONErrorCodes.CannotEditMessageAuthoredByAnotherUser | 1 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | RESTJSONErrorCodes.UnknownMessage | 1 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | RESTJSONErrorCodes.UnknownWebhook | 1 |
 | services/bot-client/src/utils/embedComponents.ts | ComponentType.Container | 1 |
 | services/bot-client/src/utils/embedComponents.ts | ComponentType.MediaGallery | 1 |
 | services/bot-client/src/utils/embedComponents.ts | ComponentType.Section | 1 |
@@ -2364,6 +2401,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/deny/browseBatch.ts | MessageFlags.Ephemeral | 4 |
 | services/bot-client/src/commands/deny/detail.ts | MessageFlags.Ephemeral | 2 |
 | services/bot-client/src/commands/deny/detailEdit.ts | MessageFlags.Ephemeral | 5 |
+| services/bot-client/src/commands/editResponse.ts | MessageFlags.Ephemeral | 1 |
 | services/bot-client/src/commands/history/index.ts | MessageFlags.Ephemeral | 1 |
 | services/bot-client/src/commands/inspect/extendedViews.ts | MessageFlags.Ephemeral | 6 |
 | services/bot-client/src/commands/inspect/index.ts | MessageFlags.Ephemeral | 2 |
@@ -2473,6 +2511,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/deny/detailEdit.ts | editReply | 1 |
 | services/bot-client/src/commands/deny/detailEdit.ts | followUp | 4 |
 | services/bot-client/src/commands/deny/detailEdit.ts | reply | 1 |
+| services/bot-client/src/commands/editResponse.ts | deferReply | 1 |
 | services/bot-client/src/commands/help/index.ts | respond | 3 |
 | services/bot-client/src/commands/history/index.ts | reply | 2 |
 | services/bot-client/src/commands/history/index.ts | respond | 1 |
@@ -2897,6 +2936,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/commands/deny/detailEdit.ts | content | 6 |
 | services/bot-client/src/commands/deny/detailEdit.ts | embeds | 1 |
 | services/bot-client/src/commands/deny/detailEdit.ts | flags | 5 |
+| services/bot-client/src/commands/editResponse.ts | flags | 1 |
 | services/bot-client/src/commands/history/index.ts | components | 1 |
 | services/bot-client/src/commands/history/index.ts | content | 3 |
 | services/bot-client/src/commands/history/index.ts | embeds | 1 |
@@ -3072,6 +3112,8 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/dashboard/truncationGate/entityEditFlow.ts | embeds | 3 |
 | services/bot-client/src/utils/dashboard/truncationGate/entityEditFlow.ts | files | 1 |
 | services/bot-client/src/utils/dashboard/truncationGate/entityEditFlow.ts | flags | 2 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | allowedMentions | 2 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | content | 2 |
 | services/bot-client/src/utils/maintenanceResponses.ts | content | 1 |
 | services/bot-client/src/utils/maintenanceResponses.ts | flags | 1 |
 | services/bot-client/src/utils/messageCharacterLookup.ts | content | 1 |
@@ -3139,6 +3181,7 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/deployCommands.ts | * | 1 |
 | services/bot-client/src/utils/deployCommands.ts | REST | 1 |
 | services/bot-client/src/utils/deployCommands.ts | body | 2 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | attachments | 1 |
 | services/bot-client/src/utils/modal/toolkit.ts | CheckboxBuilder | 1 |
 | services/bot-client/src/utils/modal/toolkit.ts | CheckboxGroupBuilder | 1 |
 | services/bot-client/src/utils/modal/toolkit.ts | CheckboxGroupOptionBuilder | 1 |
@@ -3161,5 +3204,11 @@ An option key of `*` marks a call whose payload is a parameter or variable of a 
 | services/bot-client/src/utils/WebhookManager.ts | reason | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | threadId | 1 |
 | services/bot-client/src/utils/WebhookManager.ts | username | 2 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | allowedMentions | 2 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | attachments | 1 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | avatarURL | 1 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | content | 2 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | threadId | 2 |
+| services/bot-client/src/utils/editResponse/discordEdit.ts | username | 1 |
 
-Total: 3092 entries across 7173 sites.
+Total: 3141 entries across 7259 sites.

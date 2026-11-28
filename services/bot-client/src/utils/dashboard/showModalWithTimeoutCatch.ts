@@ -17,12 +17,17 @@ import {
   type ModalBuilder,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
+  type MessageContextMenuCommandInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { ackWithTimeoutCatch, type InteractionAckDiagContext } from './ackWithTimeoutCatch.js';
 
 export async function showModalWithTimeoutCatch(
-  interaction: StringSelectMenuInteraction | ButtonInteraction | ChatInputCommandInteraction,
+  interaction:
+    | StringSelectMenuInteraction
+    | ButtonInteraction
+    | ChatInputCommandInteraction
+    | MessageContextMenuCommandInteraction,
   modal: ModalBuilder,
   diagContext: InteractionAckDiagContext,
   retryMessage: string
