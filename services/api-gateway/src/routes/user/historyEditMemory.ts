@@ -33,18 +33,33 @@ export interface EditedReplyRow {
   createdAt: Date;
 }
 
-export type MemorySyncBlockReason = 'locked' | 'chunked' | 'ambiguous' | 'off-template';
+/**
+ * `off-template`: the stored text does not parse. `reply-off-template`: it
+ * parses as stored, but not with the new reply in it.
+ */
+export type MemorySyncBlockReason =
+  'locked' | 'chunked' | 'ambiguous' | 'off-template' | 'reply-off-template';
 
 export type ExchangeMemoryPlan =
   | { kind: 'none' }
   | { kind: 'sync'; memoryId?: string; pendingId?: string }
   | { kind: 'blocked'; reason: MemorySyncBlockReason };
 
-/** Whether `text` can follow an edit (to `newReply` when given, else as stored). */
-function followsEdit(text: string, newReply: string | undefined): boolean {
-  return newReply === undefined
-    ? splitMemoryContent(text) !== null
-    : rewriteReplyInExchangeText(text, newReply) !== null;
+/**
+ * Why `text` cannot follow an edit, or null when it can (to `newReply` when
+ * given, else as stored).
+ */
+function templateBlock(
+  text: string,
+  newReply: string | undefined
+): 'off-template' | 'reply-off-template' | null {
+  if (splitMemoryContent(text) === null) {
+    return 'off-template';
+  }
+  if (newReply !== undefined && rewriteReplyInExchangeText(text, newReply) === null) {
+    return 'reply-off-template';
+  }
+  return null;
 }
 
 /**
@@ -117,15 +132,19 @@ export async function planExchangeMemorySync(
   if (memory !== undefined && memory.chunkGroupId !== null) {
     return { kind: 'blocked', reason: 'chunked' };
   }
-  const offTemplate =
-    (memory !== undefined && !followsEdit(memory.content, newReply)) ||
-    (pending !== undefined && !followsEdit(pending.text, newReply));
-  if (offTemplate) {
+  const blocks = [
+    memory === undefined ? null : templateBlock(memory.content, newReply),
+    pending === undefined ? null : templateBlock(pending.text, newReply),
+  ].filter(block => block !== null);
+  // A stored text that is itself unparseable outranks a reply-specific refusal:
+  // no reply could fix it.
+  const reason = blocks.find(block => block !== 'reply-off-template') ?? blocks.at(0);
+  if (reason !== undefined) {
     logger.warn(
-      { rowId: row.id, memoryId: memory?.id, pendingId: pending?.id },
-      'Exchange memory does not follow the stored template; edit blocked'
+      { rowId: row.id, memoryId: memory?.id, pendingId: pending?.id, reason },
+      'Exchange memory cannot follow the edit; edit blocked'
     );
-    return { kind: 'blocked', reason: 'off-template' };
+    return { kind: 'blocked', reason };
   }
 
   return { kind: 'sync', memoryId: memory?.id, pendingId: pending?.id };
@@ -135,12 +154,15 @@ export async function planExchangeMemorySync(
  * Write what a `sync` plan names. Each row is re-read by id so the rewrite
  * applies to its current text; a row that vanished or stopped matching the
  * template since planning is skipped with a warning.
+ *
+ * @returns whether every planned row was written; a skipped row is `false`.
  */
 export async function applyExchangeMemorySync(
   prisma: PrismaClient,
   plan: Extract<ExchangeMemoryPlan, { kind: 'sync' }>,
   newReply: string
-): Promise<void> {
+): Promise<boolean> {
+  let allWritten = true;
   if (plan.memoryId !== undefined) {
     const memory = await prisma.memory.findUnique({
       where: { id: plan.memoryId },
@@ -149,6 +171,7 @@ export async function applyExchangeMemorySync(
     const rewritten = memory === null ? null : rewriteReplyInExchangeText(memory.content, newReply);
     if (rewritten === null) {
       logger.warn({ memoryId: plan.memoryId }, 'Planned memory no longer rewritable; skipped');
+      allWritten = false;
     } else {
       await writeMemoryContent(prisma, plan.memoryId, rewritten);
     }
@@ -162,6 +185,7 @@ export async function applyExchangeMemorySync(
     const rewritten = pending === null ? null : rewriteReplyInExchangeText(pending.text, newReply);
     if (rewritten === null) {
       logger.warn({ pendingId: plan.pendingId }, 'Planned pending memory gone or unrewritable');
+      allWritten = false;
     } else {
       await prisma.pendingMemory.update({
         where: { id: plan.pendingId },
@@ -169,4 +193,5 @@ export async function applyExchangeMemorySync(
       });
     }
   }
+  return allWritten;
 }

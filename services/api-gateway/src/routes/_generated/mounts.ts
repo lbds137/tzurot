@@ -103,7 +103,7 @@ import { handleGetChannelConfigOverrides, handleUpdateChannelConfigOverrides, ha
 import { handleGetUserUsage } from '../user/usage.js';
 import { handleClearHistory, handleUndoHistory, handleGetHistoryStats, handleHardDeleteHistory } from '../user/history.js';
 import { handleGetMessageReasoning } from '../user/historyReasoning.js';
-import { handleGetEditableMessage, handleEditAssistantMessage } from '../user/historyEdit.js';
+import { handleGetEditableMessage, handleCheckEditAssistantMessage, handleEditAssistantMessage } from '../user/historyEdit.js';
 import { handleGetNsfwStatus, handleVerifyNsfw } from '../user/nsfw.js';
 import { handleListWalletKeys } from '../wallet/listKeys.js';
 import { handleSetWalletKey } from '../wallet/setKey.js';
@@ -312,6 +312,7 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.delete('/api/user/channel/:channelId/config-overrides', requireUserAuth(), requireProvisionedUser(deps.prisma), handleClearChannelConfigOverrides(deps));
   app.get('/api/user/history/reasoning/:messageId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetMessageReasoning(deps));
   app.get('/api/user/history/editable/:messageId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetEditableMessage(deps));
+  app.post('/api/user/history/message/:messageId/edit-check', requireUserAuth(), requireProvisionedUser(deps.prisma), handleCheckEditAssistantMessage(deps));
   app.patch('/api/user/history/message/:messageId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleEditAssistantMessage(deps));
   app.delete('/api/user/wallet/:provider', requireUserAuth(), requireProvisionedUser(deps.prisma), handleRemoveWalletKey(deps));
   app.get('/api/user/memory/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetMemory(deps));

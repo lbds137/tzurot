@@ -70,6 +70,24 @@ describe('splitMemoryContent', () => {
   // (node -e against the exact regex) rather than assumed: the row correctly
   // comes back null (excluded as unparseable) rather than silently
   // mis-assigning `referenced` to either block.
+  it('parses a user-part block when the reply itself ends in a bracket', () => {
+    const content = '{user}: hi\n\n[Referenced content: a quote]\n{assistant}: *smiles* [waves]';
+    expect(splitMemoryContent(content)).toEqual({
+      user: 'hi',
+      assistant: '*smiles* [waves]',
+      referenced: 'a quote',
+    });
+  });
+
+  it('still recognises a whole-content block that follows the reply', () => {
+    const content = '{user}: hi\n{assistant}: reply\n\n[Referenced content: tail ref]';
+    expect(splitMemoryContent(content)).toEqual({
+      user: 'hi',
+      assistant: 'reply',
+      referenced: 'tail ref',
+    });
+  });
+
   it('treats a content string with both a user-part and a trailing block as unparseable', () => {
     const content =
       '{user}: first\n\n[Referenced content: inner block]\n{assistant}: second\n\n[Referenced content: outer block]';

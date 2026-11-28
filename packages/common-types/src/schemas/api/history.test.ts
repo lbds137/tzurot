@@ -17,6 +17,7 @@ import {
   MessageReasoningResponseSchema,
   EditableMessageResponseSchema,
   EditAssistantMessageRequestSchema,
+  EditCheckRequestSchema,
   EditAssistantMessageResponseSchema,
 } from './history.js';
 import { EDIT_RESPONSE_MAX_CONTENT_LENGTH } from '../../constants/discord.js';
@@ -548,12 +549,29 @@ describe('History API Input Schema Tests', () => {
     });
   });
 
+  describe('EditCheckRequestSchema', () => {
+    it('accepts non-blank content', () => {
+      expect(EditCheckRequestSchema.safeParse({ content: 'New reply' }).success).toBe(true);
+    });
+
+    it.each(['', '   '])('rejects blank content %j', content => {
+      expect(EditCheckRequestSchema.safeParse({ content }).success).toBe(false);
+    });
+
+    it('rejects content over the edit limit', () => {
+      const content = 'a'.repeat(EDIT_RESPONSE_MAX_CONTENT_LENGTH + 1);
+      expect(EditCheckRequestSchema.safeParse({ content }).success).toBe(false);
+    });
+  });
+
   describe('EditAssistantMessageResponseSchema', () => {
     it('accepts each memory outcome', () => {
       for (const memory of [
         { kind: 'none' },
         { kind: 'synced' },
+        { kind: 'failed' },
         { kind: 'blocked', reason: 'locked' },
+        { kind: 'blocked', reason: 'reply-off-template' },
       ]) {
         expect(EditAssistantMessageResponseSchema.safeParse({ edited: true, memory }).success).toBe(
           true

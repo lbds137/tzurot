@@ -63,7 +63,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
-import { handleEditAssistantMessage } from './historyEdit.js';
+import { handleCheckEditAssistantMessage, handleEditAssistantMessage } from './historyEdit.js';
 
 describe('edit assistant reply (component, PGLite)', () => {
   let pglite: PGlite;
@@ -288,6 +288,38 @@ describe('edit assistant reply (component, PGLite)', () => {
     expect(json).toHaveBeenCalledWith({ edited: true, memory: { kind: 'synced' } });
     expect(await pendingText(PENDING_A)).toBe('{user}: hi\n{assistant}: NEW-A');
     expect(await pendingText(PENDING_UNRELATED)).toBe('{user}: hi\n{assistant}: OLD-A');
+  });
+
+  it('edit-check and PATCH agree for a user-part-block memory and a reply ending in a bracket', async () => {
+    const stored = '{user}: hi\n\n[Referenced content: a quote]\n{assistant}: OLD-A';
+    await prisma.memory.update({ where: { id: MEMORY_A }, data: { content: stored } });
+    const reply = '*smiles* [waves]';
+
+    const checkReq = {
+      userId: OWNER_DISCORD,
+      params: { messageId: REPLY_A_DISCORD_ID },
+      body: { content: reply },
+      query: {},
+    } as unknown as AuthenticatedRequest;
+    const checkJson = vi.fn().mockReturnThis();
+    await handleCheckEditAssistantMessage(deps())(
+      checkReq,
+      { status: vi.fn().mockReturnThis(), json: checkJson } as unknown as Response,
+      () => undefined
+    );
+    expect(checkJson).toHaveBeenCalledWith(
+      expect.objectContaining({ memorySync: { kind: 'sync' } })
+    );
+
+    const { json } = await patch(OWNER_DISCORD, REPLY_A_DISCORD_ID, {
+      content: reply,
+      discordMessageIds: [REPLY_A_DISCORD_ID],
+    });
+
+    expect(json).toHaveBeenCalledWith({ edited: true, memory: { kind: 'synced' } });
+    expect(await content('memories', MEMORY_A)).toBe(
+      '{user}: hi\n\n[Referenced content: a quote]\n{assistant}: *smiles* [waves]'
+    );
   });
 
   it('ignores a non-memory row that shares the trigger id', async () => {

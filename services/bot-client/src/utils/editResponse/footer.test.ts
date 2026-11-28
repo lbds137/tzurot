@@ -33,6 +33,18 @@ describe('extractTrailingFooter', () => {
     expect(extractTrailingFooter('Reply\n-# just a note')).toBe('');
   });
 
+  it('walks past a trailing TTS notice line and drops it from the footer', () => {
+    const content = `Reply\n${MODEL_LINE}\n-# ${BOT_FOOTER_TEXT.FRESH_MODE}\n-# ⚠️ Mistral skipped: reference audio too long`;
+
+    expect(extractTrailingFooter(content)).toBe(
+      `\n${MODEL_LINE}\n-# ${BOT_FOOTER_TEXT.FRESH_MODE}`
+    );
+  });
+
+  it('returns no footer when the only trailing lines are TTS notices', () => {
+    expect(extractTrailingFooter('Reply\n-# ⚠️ a notice')).toBe('');
+  });
+
   it('adds the leading newline for a footer-only message', () => {
     expect(extractTrailingFooter(MODEL_LINE)).toBe(`\n${MODEL_LINE}`);
   });

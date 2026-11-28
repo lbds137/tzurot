@@ -27,6 +27,7 @@ import {
   type NewsChannel,
   type TextChannel,
   type ThreadChannel,
+  type Webhook,
 } from 'discord.js';
 import { EDIT_RESPONSE_MAX_CONTENT_LENGTH } from '@tzurot/common-types/constants/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -51,22 +52,28 @@ const logger = createLogger('edit-response');
 const MODAL_PREFIX = 'edit-response';
 const CONTENT_INPUT_ID = 'content';
 
-const NOT_YOURS_MESSAGE = 'You can only edit replies to your own conversation.';
+const NOT_YOURS_MESSAGE = "This isn't one of your character replies.";
 const TOO_LONG_MESSAGE = 'This response is too long to edit here.';
 const CANT_EDIT_MESSAGE = "I can't edit this message anymore.";
 const EMPTY_MESSAGE = 'The response cannot be empty.';
 const DONE_MESSAGE = 'Response edited.';
 const PARTIAL_DONE_MESSAGE = "Response edited, but part of it couldn't be updated on Discord.";
 const GENERIC_FAILURE_MESSAGE = 'Something went wrong editing the response.';
+const SAVE_FAILED_MESSAGE =
+  "The message was edited on Discord, but the change couldn't be saved, so the character may not remember it.";
+const MEMORY_FAILED_MESSAGE =
+  "The message was edited, but the character's memory couldn't be updated to match.";
+const PARTIAL_MEMORY_FAILED_MESSAGE =
+  "The message was edited, but part of it couldn't be updated on Discord, and the character's memory couldn't be updated to match.";
 
 type GuildWebhookChannel = TextChannel | NewsChannel | ThreadChannel;
 
 /** Failure arm of a gateway result, rendered as the honest user-facing spec. */
-function failureSpec(result: { status?: number }, operation: 'read' | 'write'): MessageSpec {
+function readFailureSpec(result: { status?: number }): MessageSpec {
   if (result.status === 404) {
     return CATALOG.error.validation(NOT_YOURS_MESSAGE);
   }
-  return classifyGatewayFailure(result, 'response', { operation });
+  return classifyGatewayFailure(result, 'response', { operation: 'read' });
 }
 
 function isGuildWebhookChannel(channel: unknown): channel is GuildWebhookChannel {
@@ -152,7 +159,16 @@ async function resolveTarget(
   if (!isGuildWebhookChannel(channel)) {
     return null;
   }
-  const webhook = await getWebhookManager().getWebhook(channel);
+  // WebhookManager has no lookup-only accessor: `getWebhook` creates a webhook
+  // when none exists, and throws when it cannot. Either way a failure here is a
+  // refusal to edit, not an error to surface.
+  let webhook: Webhook;
+  try {
+    webhook = await getWebhookManager().getWebhook(channel);
+  } catch (error) {
+    logger.warn({ err: error, channelId }, 'Could not resolve the channel webhook; not editing');
+    return null;
+  }
   if (chunks.some(chunk => chunk.webhookId !== webhook.id)) {
     logger.warn({ channelId }, 'Live chunks belong to a different webhook; not editing');
     return null;
@@ -188,16 +204,18 @@ async function handleSubmit(interaction: ModalSubmitInteraction): Promise<void> 
 
   const { userClient } = clientsFor(interaction);
 
-  // Authoritative auth before any Discord mutation.
-  const lookup = await userClient.getEditableMessage(messageId);
+  // Authoritative auth AND the memory check, in one gateway call before any
+  // Discord mutation: the gateway plans against the real stored texts and the
+  // new reply.
+  const lookup = await userClient.checkEditAssistantMessage(messageId, { content: newText });
   if (!lookup.ok) {
-    await replySpec(interaction, failureSpec(lookup, 'read'));
+    await replySpec(interaction, readFailureSpec(lookup));
     return;
   }
   const { discordMessageIds, personalityId, memorySync } = lookup.data;
 
   // Memory must be able to follow the edit; refuse before Discord is touched.
-  const refusal = memoryPreflightMessage(memorySync, newText);
+  const refusal = memoryPreflightMessage(memorySync);
   if (refusal !== null) {
     await replySpec(interaction, CATALOG.error.validation(refusal));
     return;
@@ -235,7 +253,7 @@ async function handleSubmit(interaction: ModalSubmitInteraction): Promise<void> 
       { messageId, status: saved.status },
       'Discord edited but the history update failed'
     );
-    await replySpec(interaction, failureSpec(saved, 'write'));
+    await replySpec(interaction, CATALOG.error.validation(SAVE_FAILED_MESSAGE));
     return;
   }
 
@@ -248,6 +266,16 @@ async function handleSubmit(interaction: ModalSubmitInteraction): Promise<void> 
     },
     'Response edited'
   );
+  // `blocked` here is the race: the memory changed after the preflight.
+  const memoryOutOfSync =
+    saved.data.memory.kind === 'failed' || saved.data.memory.kind === 'blocked';
+  if (memoryOutOfSync) {
+    await replySpec(
+      interaction,
+      CATALOG.info.warning(applied.partial ? PARTIAL_MEMORY_FAILED_MESSAGE : MEMORY_FAILED_MESSAGE)
+    );
+    return;
+  }
   await replySpec(
     interaction,
     CATALOG.success.done(applied.partial ? PARTIAL_DONE_MESSAGE : DONE_MESSAGE)
@@ -273,7 +301,7 @@ export default defineContextMenuCommand({
     try {
       const lookup = await userClient.getEditableMessage(target.id);
       if (!lookup.ok) {
-        await replySpec(interaction, failureSpec(lookup, 'read'));
+        await replySpec(interaction, readFailureSpec(lookup));
         return;
       }
       const refusal = memoryPreflightMessage(lookup.data.memorySync);

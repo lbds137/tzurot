@@ -39,18 +39,22 @@ export function splitMemoryContent(content: string): SplitMemoryResult | null {
   let remainder = content;
   let referenced: string | null = null;
 
-  const refMatch = REFERENCED_BLOCK_RE.exec(remainder);
-  if (refMatch !== null) {
-    referenced = refMatch[1];
-    remainder = remainder.slice(0, refMatch.index);
-  }
-
   if (!remainder.startsWith(USER_PREFIX)) {
     return null;
   }
   const separatorIndex = remainder.indexOf(ASSISTANT_SEPARATOR);
   if (separatorIndex === -1) {
     return null;
+  }
+
+  // Look for the whole-content block only AFTER the first separator. Matching
+  // it against the whole string would start at a user-part block and swallow
+  // the separator whenever the assistant reply itself ends in `]`.
+  const tailStart = separatorIndex + ASSISTANT_SEPARATOR.length;
+  const refMatch = REFERENCED_BLOCK_RE.exec(remainder.slice(tailStart));
+  if (refMatch !== null) {
+    referenced = refMatch[1];
+    remainder = remainder.slice(0, tailStart + refMatch.index);
   }
   // The stored template contains exactly one `\n{assistant}: ` separator, so
   // a second occurrence means the content is ambiguous (typically a user
@@ -65,10 +69,14 @@ export function splitMemoryContent(content: string): SplitMemoryResult | null {
 
   // The referenced block more commonly sits at the end of the USER part
   // rather than the end of the whole content (see comment above). Check the
-  // user part for the same anchored shape; when both are present, the
-  // user-part match wins as the single value assigned to `referenced`.
+  // user part for the same anchored shape. A single `referenced` field cannot
+  // hold two blocks, so a user-part block beside a trailing block is
+  // unparseable rather than silently dropping one of them.
   const userRefMatch = REFERENCED_BLOCK_RE.exec(user);
   if (userRefMatch !== null) {
+    if (referenced !== null) {
+      return null;
+    }
     referenced = userRefMatch[1];
     user = user.slice(0, userRefMatch.index);
   }

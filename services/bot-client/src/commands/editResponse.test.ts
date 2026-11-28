@@ -8,6 +8,7 @@ import editResponse from './editResponse.js';
 
 const mocks = vi.hoisted(() => ({
   getEditableMessage: vi.fn(),
+  checkEditAssistantMessage: vi.fn(),
   editAssistantMessage: vi.fn(),
   getWebhook: vi.fn(),
   storeWebhookMessage: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock('../utils/gatewayClients.js', () => ({
   clientsFor: () => ({
     userClient: {
       getEditableMessage: mocks.getEditableMessage,
+      checkEditAssistantMessage: mocks.checkEditAssistantMessage,
       editAssistantMessage: mocks.editAssistantMessage,
     },
   }),
@@ -159,7 +161,7 @@ describe('Edit Response — open', () => {
     expect(interaction.showModal).not.toHaveBeenCalled();
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: expect.stringContaining('your own conversation'),
+        content: expect.stringContaining("isn't one of your character replies"),
         flags: MessageFlags.Ephemeral,
       })
     );
@@ -179,7 +181,7 @@ describe('Edit Response — open', () => {
     expect(interaction.showModal).not.toHaveBeenCalled();
     const { content } = interaction.reply.mock.calls[0][0] as { content: string };
     expect(content).toContain("Couldn't load the response right now. Please try again later.");
-    expect(content).not.toContain('your own conversation');
+    expect(content).not.toContain("isn't one of your character replies");
   });
 
   it('does not report "not yours" for an HTTP 503 lookup failure', async () => {
@@ -195,7 +197,7 @@ describe('Edit Response — open', () => {
 
     expect(interaction.showModal).not.toHaveBeenCalled();
     const { content } = interaction.reply.mock.calls[0][0] as { content: string };
-    expect(content).not.toContain('your own conversation');
+    expect(content).not.toContain("isn't one of your character replies");
   });
 
   it('refuses a response longer than the edit limit', async () => {
@@ -258,6 +260,18 @@ describe('Edit Response — open', () => {
     );
   });
 
+  it('replies with a classified failure and no modal when the lookup throws', async () => {
+    mocks.getEditableMessage.mockRejectedValue(new Error('gateway down'));
+    const interaction = openInteraction({});
+
+    await editResponse.execute(interaction as never);
+
+    expect(interaction.showModal).not.toHaveBeenCalled();
+    expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ flags: MessageFlags.Ephemeral })
+    );
+  });
+
   it('shows the modal prefilled with the stored text', async () => {
     mocks.getEditableMessage.mockResolvedValue({
       ok: true,
@@ -301,7 +315,7 @@ describe('Edit Response — submit', () => {
   it('defers first, then runs a failed pre-check with zero Discord mutations and no PATCH', async () => {
     const wh = webhookStub();
     mocks.getWebhook.mockResolvedValue(wh);
-    mocks.getEditableMessage.mockResolvedValue({
+    mocks.checkEditAssistantMessage.mockResolvedValue({
       ok: false,
       status: 404,
       error: 'nf',
@@ -318,7 +332,7 @@ describe('Edit Response — submit', () => {
     expect(wh.send).not.toHaveBeenCalled();
     expect(wh.deleteMessage).not.toHaveBeenCalled();
     expect(mocks.editAssistantMessage).not.toHaveBeenCalled();
-    expect(lastReply(interaction)).toContain('your own conversation');
+    expect(lastReply(interaction)).toContain("isn't one of your character replies");
   });
 
   it('rejects empty text without touching the gateway', async () => {
@@ -326,14 +340,14 @@ describe('Edit Response — submit', () => {
 
     await handleModal(interaction as never);
 
-    expect(mocks.getEditableMessage).not.toHaveBeenCalled();
+    expect(mocks.checkEditAssistantMessage).not.toHaveBeenCalled();
     expect(lastReply(interaction)).toContain('cannot be empty');
   });
 
   it('does not mutate or PATCH when a live chunk belongs to another webhook', async () => {
     const wh = webhookStub();
     mocks.getWebhook.mockResolvedValue(wh);
-    mocks.getEditableMessage.mockResolvedValue(okLookup(['m1']));
+    mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1']));
     const { interaction } = modalInteraction('new', [chunk('m1', 'old', 'other-webhook')]);
 
     await handleModal(interaction as never);
@@ -346,7 +360,7 @@ describe('Edit Response — submit', () => {
   it('does not mutate or PATCH when a chunk can no longer be fetched', async () => {
     const wh = webhookStub();
     mocks.getWebhook.mockResolvedValue(wh);
-    mocks.getEditableMessage.mockResolvedValue(okLookup(['m1', 'm2']));
+    mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1', 'm2']));
     const { interaction } = modalInteraction('new', [chunk('m1', 'old')]);
 
     await handleModal(interaction as never);
@@ -359,7 +373,7 @@ describe('Edit Response — submit', () => {
   it('edits each chunk in place, reattaches the footer and PATCHes the same ids', async () => {
     const wh = webhookStub();
     mocks.getWebhook.mockResolvedValue(wh);
-    mocks.getEditableMessage.mockResolvedValue(okLookup(['m1']));
+    mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1']));
     const { interaction } = modalInteraction('new text', [chunk('m1', `old\n${MODEL_LINE}`)], {
       isThread: () => true,
       id: 'thread-9',
@@ -383,7 +397,7 @@ describe('Edit Response — submit', () => {
   it('sends extra chunks, records them and appends their ids when the text grows', async () => {
     const wh = webhookStub();
     mocks.getWebhook.mockResolvedValue(wh);
-    mocks.getEditableMessage.mockResolvedValue(okLookup(['m1']));
+    mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1']));
     const long = `${'a'.repeat(1500)}\n${'b'.repeat(1500)}`;
     const { interaction } = modalInteraction(long, [chunk('m1', 'old')]);
 
@@ -402,7 +416,7 @@ describe('Edit Response — submit', () => {
   it('deletes surplus chunks and trims the ids when the text shrinks', async () => {
     const wh = webhookStub();
     mocks.getWebhook.mockResolvedValue(wh);
-    mocks.getEditableMessage.mockResolvedValue(okLookup(['m1', 'm2']));
+    mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1', 'm2']));
     const { interaction } = modalInteraction('short', [
       chunk('m1', 'old one'),
       chunk('m2', 'old two'),
@@ -421,7 +435,7 @@ describe('Edit Response — submit', () => {
     const wh = webhookStub();
     wh.deleteMessage.mockRejectedValueOnce(new Error('nope'));
     mocks.getWebhook.mockResolvedValue(wh);
-    mocks.getEditableMessage.mockResolvedValue(okLookup(['m1', 'm2']));
+    mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1', 'm2']));
     const { interaction } = modalInteraction('short', [
       chunk('m1', 'old one'),
       chunk('m2', 'old two'),
@@ -439,7 +453,7 @@ describe('Edit Response — submit', () => {
   });
 
   it('keeps the DM speaker prefix on chunk 0 and edits through the message', async () => {
-    mocks.getEditableMessage.mockResolvedValue(okLookup(['m1']));
+    mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1']));
     const dm = chunk('m1', '**Lilith:** old', null);
     const { interaction } = modalInteraction('new', [dm], {
       type: ChannelType.DM,
@@ -461,7 +475,7 @@ describe('Edit Response — submit', () => {
   });
 
   it('refuses a non-webhook message in a guild channel without mutating or PATCHing', async () => {
-    mocks.getEditableMessage.mockResolvedValue(okLookup(['m1']));
+    mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1']));
     const other = chunk('m1', 'old', null);
     const { interaction } = modalInteraction('new', [other]);
 
@@ -482,7 +496,7 @@ describe('Edit Response — submit', () => {
     async (memorySync, expected) => {
       const wh = webhookStub();
       mocks.getWebhook.mockResolvedValue(wh);
-      mocks.getEditableMessage.mockResolvedValue(okLookup(['m1'], memorySync));
+      mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1'], memorySync));
       const { interaction, channel } = modalInteraction('new', [chunk('m1', 'old')]);
 
       await handleModal(interaction as never);
@@ -494,10 +508,12 @@ describe('Edit Response — submit', () => {
     }
   );
 
-  it('refuses a reply that would break the memory template, naming the separator', async () => {
+  it('refuses a reply the gateway says cannot be stored, naming the separator', async () => {
     const wh = webhookStub();
     mocks.getWebhook.mockResolvedValue(wh);
-    mocks.getEditableMessage.mockResolvedValue(okLookup(['m1'], { kind: 'sync' }));
+    mocks.checkEditAssistantMessage.mockResolvedValue(
+      okLookup(['m1'], { kind: 'blocked', reason: 'reply-off-template' })
+    );
     const { interaction, channel } = modalInteraction('a\n{assistant}: b', [chunk('m1', 'old')]);
 
     await handleModal(interaction as never);
@@ -505,18 +521,120 @@ describe('Edit Response — submit', () => {
     expect(channel.messages.fetch).not.toHaveBeenCalled();
     expect(wh.editMessage).not.toHaveBeenCalled();
     expect(mocks.editAssistantMessage).not.toHaveBeenCalled();
-    expect(lastReply(interaction)).toContain('Remove "{assistant}:"');
+    expect(lastReply(interaction)).toContain('"{assistant}:"');
   });
 
-  it('lets a separator-bearing reply through when there is no memory to sync', async () => {
+  it('sends the submitted text to the edit-check call, not the plain lookup', async () => {
     const wh = webhookStub();
     mocks.getWebhook.mockResolvedValue(wh);
-    mocks.getEditableMessage.mockResolvedValue(okLookup(['m1'], { kind: 'none' }));
+    mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1'], { kind: 'none' }));
     const { interaction } = modalInteraction('a\n{assistant}: b', [chunk('m1', 'old')]);
 
     await handleModal(interaction as never);
 
+    expect(mocks.checkEditAssistantMessage).toHaveBeenCalledWith('m1', {
+      content: 'a\n{assistant}: b',
+    });
+    expect(mocks.getEditableMessage).not.toHaveBeenCalled();
     expect(mocks.editAssistantMessage).toHaveBeenCalled();
+  });
+
+  it('passes the thread id when the reply lives in a thread', async () => {
+    const wh = webhookStub();
+    mocks.getWebhook.mockResolvedValue(wh);
+    mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1']));
+    const { interaction } = modalInteraction('new', [chunk('m1', 'old')], {
+      type: ChannelType.PublicThread,
+      isThread: () => true,
+      id: 'thread-7',
+    });
+
+    await handleModal(interaction as never);
+
+    expect(wh.editMessage).toHaveBeenCalledWith(
+      'm1',
+      expect.objectContaining({ threadId: 'thread-7' })
+    );
+  });
+
+  it('ignores a modal submit whose custom id is not a submit action', async () => {
+    const { interaction } = modalInteraction('new', [chunk('m1', 'old')]);
+    interaction.customId = 'edit-response::bogus';
+
+    await handleModal(interaction as never);
+
+    expect(mocks.checkEditAssistantMessage).not.toHaveBeenCalled();
+    expect(mocks.editAssistantMessage).not.toHaveBeenCalled();
+    expect(lastReply(interaction)).toContain('Something went wrong editing the response.');
+  });
+
+  it('refuses without creating a webhook when the channel is not webhook-capable', async () => {
+    mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1']));
+    const { interaction } = modalInteraction('new', [chunk('m1', 'old')], {
+      type: ChannelType.GuildVoice,
+    });
+
+    await handleModal(interaction as never);
+
+    expect(mocks.getWebhook).not.toHaveBeenCalled();
+    expect(mocks.editAssistantMessage).not.toHaveBeenCalled();
+    expect(lastReply(interaction)).toContain("can't edit this message anymore");
+  });
+
+  it('refuses a non-webhook message in a channel that cannot send', async () => {
+    mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1']));
+    const other = chunk('m1', 'old', null);
+    const { interaction } = modalInteraction('new', [other], { send: undefined });
+
+    await handleModal(interaction as never);
+
+    expect(other.edit).not.toHaveBeenCalled();
+    expect(mocks.editAssistantMessage).not.toHaveBeenCalled();
+    expect(lastReply(interaction)).toContain("can't edit this message anymore");
+  });
+
+  it('refuses without mutating when the webhook cannot be resolved', async () => {
+    mocks.getWebhook.mockRejectedValue(new Error('Missing Permissions'));
+    mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1']));
+    const { interaction } = modalInteraction('new', [chunk('m1', 'old')]);
+
+    await handleModal(interaction as never);
+
+    expect(mocks.editAssistantMessage).not.toHaveBeenCalled();
+    expect(lastReply(interaction)).toContain("can't edit this message anymore");
+  });
+
+  it('replies with the classified failure when the submit handler throws', async () => {
+    mocks.checkEditAssistantMessage.mockRejectedValue(new Error('boom'));
+    const { interaction } = modalInteraction('new', [chunk('m1', 'old')]);
+
+    await handleModal(interaction as never);
+
+    expect(mocks.editAssistantMessage).not.toHaveBeenCalled();
+    expect(interaction.editReply).toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ kind: 'failed' }, false],
+    [{ kind: 'blocked', reason: 'locked' }, false],
+    [{ kind: 'failed' }, true],
+  ])('says the memory was not updated when the PATCH reports %o', async (memory, partial) => {
+    const wh = webhookStub();
+    if (partial) {
+      wh.deleteMessage.mockRejectedValueOnce(new Error('nope'));
+    }
+    mocks.getWebhook.mockResolvedValue(wh);
+    mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(partial ? ['m1', 'm2'] : ['m1']));
+    mocks.editAssistantMessage.mockResolvedValue({ ok: true, data: { edited: true, memory } });
+    const chunks = partial ? [chunk('m1', 'a'), chunk('m2', 'b')] : [chunk('m1', 'a')];
+    const { interaction } = modalInteraction('short', chunks);
+
+    await handleModal(interaction as never);
+
+    const reply = lastReply(interaction);
+    expect(reply).toContain("the character's memory couldn't be updated to match");
+    expect(reply).not.toBe('✅ Response edited.');
+    expect(reply.includes('part of it')).toBe(partial);
   });
 
   it('does not PATCH when Discord refuses the first edit as UnknownWebhook', async () => {
@@ -532,7 +650,7 @@ describe('Edit Response — submit', () => {
       )
     );
     mocks.getWebhook.mockResolvedValue(wh);
-    mocks.getEditableMessage.mockResolvedValue(okLookup(['m1']));
+    mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1']));
     const { interaction } = modalInteraction('new', [chunk('m1', 'old')]);
 
     await handleModal(interaction as never);
@@ -541,21 +659,26 @@ describe('Edit Response — submit', () => {
     expect(lastReply(interaction)).toContain("can't edit this message anymore");
   });
 
-  it('reports a failed history update after Discord was edited', async () => {
-    const wh = webhookStub();
-    mocks.getWebhook.mockResolvedValue(wh);
-    mocks.getEditableMessage.mockResolvedValue(okLookup(['m1']));
-    mocks.editAssistantMessage.mockResolvedValue({
-      ok: false,
-      status: 500,
-      error: 'down',
-      kind: 'http',
-    });
-    const { interaction } = modalInteraction('new', [chunk('m1', 'old')]);
+  it.each([500, 404])(
+    'reports a failed history update (status %i) after Discord was edited',
+    async status => {
+      const wh = webhookStub();
+      mocks.getWebhook.mockResolvedValue(wh);
+      mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1']));
+      mocks.editAssistantMessage.mockResolvedValue({
+        ok: false,
+        status,
+        error: 'down',
+        kind: 'http',
+      });
+      const { interaction } = modalInteraction('new', [chunk('m1', 'old')]);
 
-    await handleModal(interaction as never);
+      await handleModal(interaction as never);
 
-    expect(wh.editMessage).toHaveBeenCalled();
-    expect(lastReply(interaction)).not.toBe('✅ Response edited.');
-  });
+      expect(wh.editMessage).toHaveBeenCalled();
+      expect(lastReply(interaction)).toContain(
+        "The message was edited on Discord, but the change couldn't be saved, so the character may not remember it."
+      );
+    }
+  );
 });
