@@ -74,11 +74,14 @@ export class CommandHandler {
   private commands: Collection<string, Command>;
   private contextMenuCommands: Collection<string, ContextMenuCommand>;
   private prefixToCommand: Map<string, Command>;
+  /** Modal-submit prefixes claimed by modal-mode context-menu commands. */
+  private contextMenuModalPrefixes: Map<string, ContextMenuCommand>;
 
   constructor() {
     this.commands = new Collection();
     this.contextMenuCommands = new Collection();
     this.prefixToCommand = new Map();
+    this.contextMenuModalPrefixes = new Map();
   }
 
   /**
@@ -91,6 +94,13 @@ export class CommandHandler {
       throw new Error(
         `Prefix collision: '${prefix}' is already registered to '${existing.data.name}' ` +
           `but '${command.data.name}' tried to claim it`
+      );
+    }
+    const menuOwner = this.contextMenuModalPrefixes.get(prefix);
+    if (menuOwner !== undefined) {
+      throw new Error(
+        `Prefix collision: '${prefix}' is already registered to context-menu command ` +
+          `'${menuOwner.data.name}' but '${command.data.name}' tried to claim it`
       );
     }
     this.prefixToCommand.set(prefix, command);
@@ -175,6 +185,39 @@ export class CommandHandler {
     logger.info({ commandName }, 'Loaded command');
   }
 
+  /**
+   * Validate and register a modal-mode context-menu command's submit prefix.
+   * @throws Error on an incomplete modal declaration or a prefix collision
+   * with a slash command or another context-menu command
+   */
+  private registerContextMenuModalPrefix(command: ContextMenuCommand): void {
+    const { deferralMode, handleModal, modalPrefix } = command;
+    const name = command.data.name;
+    if (deferralMode === 'modal' && (handleModal === undefined || modalPrefix === undefined)) {
+      throw new Error(
+        `Context-menu command "${name}" uses deferralMode 'modal' but lacks handleModal/modalPrefix`
+      );
+    }
+    if ((handleModal === undefined) !== (modalPrefix === undefined)) {
+      throw new Error(
+        `Context-menu command "${name}" must declare handleModal and modalPrefix together`
+      );
+    }
+    if (modalPrefix === undefined) {
+      return;
+    }
+    const slashOwner = this.prefixToCommand.get(modalPrefix);
+    const menuOwner = this.contextMenuModalPrefixes.get(modalPrefix);
+    const existing = slashOwner?.data.name ?? menuOwner?.data.name;
+    if (existing !== undefined) {
+      throw new Error(
+        `Prefix collision: '${modalPrefix}' is already registered to '${existing}' ` +
+          `but '${name}' tried to claim it`
+      );
+    }
+    this.contextMenuModalPrefixes.set(modalPrefix, command);
+  }
+
   /** Register a context-menu command (validated shape, derived category). */
   private loadContextMenuCommand(
     cmdDef: ContextMenuCommandDefinition,
@@ -190,11 +233,16 @@ export class CommandHandler {
       }
     }
 
-    this.contextMenuCommands.set(cmdDef.data.name, {
+    const menuCommand: ContextMenuCommand = {
       data: cmdDef.data,
       execute: cmdDef.execute,
+      deferralMode: cmdDef.deferralMode,
+      handleModal: cmdDef.handleModal,
+      modalPrefix: cmdDef.modalPrefix,
       category: deriveCategory(filePath, commandsPath),
-    });
+    };
+    this.registerContextMenuModalPrefix(menuCommand);
+    this.contextMenuCommands.set(cmdDef.data.name, menuCommand);
 
     logger.info({ commandName: cmdDef.data.name }, 'Loaded context-menu command');
   }
@@ -220,17 +268,21 @@ export class CommandHandler {
     const startedAt = Date.now();
     const slot: CommandOutcomeSlot = {};
 
-    try {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    } catch (deferError) {
-      // A failed defer leaves nothing to reply to and no invocation ran —
-      // log and bail without emitting telemetry, mirroring the chat-input
-      // dispatcher's defer-failure handling.
-      logger.error(
-        { err: deferError, commandName: interaction.commandName },
-        'Failed to defer context-menu interaction'
-      );
-      return;
+    // A modal-mode command owns the first ack (showModal); a deferred
+    // interaction cannot show a modal, so the dispatcher must not defer it.
+    if (command.deferralMode !== 'modal') {
+      try {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      } catch (deferError) {
+        // A failed defer leaves nothing to reply to and no invocation ran —
+        // log and bail without emitting telemetry, mirroring the chat-input
+        // dispatcher's defer-failure handling.
+        logger.error(
+          { err: deferError, commandName: interaction.commandName },
+          'Failed to defer context-menu interaction'
+        );
+        return;
+      }
     }
     try {
       await runWithOutcomeSlot(slot, () => command.execute(interaction));
@@ -299,8 +351,9 @@ export class CommandHandler {
     const customId = interaction.customId;
     const prefix = getCommandFromCustomId(customId) ?? customId;
 
-    // Look up command by prefix
-    const command = this.prefixToCommand.get(prefix);
+    // Look up command by prefix; modal-mode context-menu commands claim theirs separately
+    const command: Command | ContextMenuCommand | undefined =
+      this.prefixToCommand.get(prefix) ?? this.contextMenuModalPrefixes.get(prefix);
 
     if (!command) {
       logger.warn({ customId, prefix }, 'Unknown prefix for modal');

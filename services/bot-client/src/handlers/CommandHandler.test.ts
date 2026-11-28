@@ -814,5 +814,95 @@ describe('CommandHandler', () => {
         )
       ).toThrow(/unknown property "handleButton"/);
     });
+
+    describe('modal-mode commands', () => {
+      const load = (def: unknown) =>
+        (
+          handler as unknown as {
+            loadContextMenuCommand: (d: unknown, filePath: string, commandsPath: string) => void;
+          }
+        ).loadContextMenuCommand(def, '/commands/modalMenu.ts', '/commands');
+
+      it('does not defer a modal-mode command, while a default command is still deferred', async () => {
+        const execute = vi.fn().mockResolvedValue(undefined);
+        load({
+          data: { name: 'Modal Menu' },
+          execute,
+          deferralMode: 'modal',
+          handleModal: vi.fn(),
+          modalPrefix: 'modal-menu',
+        });
+        handler.getContextMenuCommands().set('Plain Menu', {
+          data: { name: 'Plain Menu' } as never,
+          execute: vi.fn().mockResolvedValue(undefined) as never,
+        });
+        const modalInteraction = makeContextMenuInteraction('Modal Menu');
+        const plainInteraction = makeContextMenuInteraction('Plain Menu');
+
+        await handler.handleContextMenuCommand(modalInteraction as never);
+        await handler.handleContextMenuCommand(plainInteraction as never);
+
+        expect(modalInteraction.deferReply).not.toHaveBeenCalled();
+        expect(execute).toHaveBeenCalledWith(modalInteraction);
+        expect(plainInteraction.deferReply).toHaveBeenCalled();
+      });
+
+      it('routes a modal submit on the registered prefix to handleModal', async () => {
+        const handleModal = vi.fn().mockResolvedValue(undefined);
+        load({
+          data: { name: 'Modal Menu' },
+          execute: vi.fn(),
+          deferralMode: 'modal',
+          handleModal,
+          modalPrefix: 'modal-menu',
+        });
+        const submit = { customId: 'modal-menu::submit::1::2', reply: vi.fn() };
+
+        await handler.handleModalInteraction(submit as never);
+
+        expect(handleModal).toHaveBeenCalledWith(submit);
+        expect(submit.reply).not.toHaveBeenCalled();
+      });
+
+      it('rejects modal mode without handleModal and modalPrefix', () => {
+        expect(() =>
+          load({ data: { name: 'Modal Menu' }, execute: vi.fn(), deferralMode: 'modal' })
+        ).toThrow(/lacks handleModal\/modalPrefix/);
+      });
+
+      it('rejects a prefix already claimed by a slash command', () => {
+        (handler as any).prefixToCommand.set('taken', {
+          data: { name: 'slash-owner' },
+        });
+
+        expect(() =>
+          load({
+            data: { name: 'Modal Menu' },
+            execute: vi.fn(),
+            deferralMode: 'modal',
+            handleModal: vi.fn(),
+            modalPrefix: 'taken',
+          })
+        ).toThrow(/Prefix collision: 'taken' is already registered to 'slash-owner'/);
+      });
+
+      it('rejects a later slash command claiming a context-menu modal prefix', () => {
+        load({
+          data: { name: 'Modal Menu' },
+          execute: vi.fn(),
+          deferralMode: 'modal',
+          handleModal: vi.fn(),
+          modalPrefix: 'modal-menu',
+        });
+
+        expect(() =>
+          (
+            handler as unknown as {
+              registerPrefix: (p: string, c: unknown) => void;
+            }
+          ).registerPrefix('modal-menu', { data: { name: 'later-slash' } })
+        ).toThrow(/already registered to context-menu command 'Modal Menu'/);
+      });
+    });
   });
 });

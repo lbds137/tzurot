@@ -47,6 +47,15 @@ export const CHARACTER_VIEW_LIMITS = {
 } as const;
 
 /**
+ * Longest character reply the "Edit Response" modal accepts.
+ *
+ * Discord caps a modal paragraph text input at 4000 characters, and the
+ * gateway's edit schema enforces the same bound, so the bot and the gateway
+ * agree on one limit instead of each carrying a copy.
+ */
+export const EDIT_RESPONSE_MAX_CONTENT_LENGTH = 4000;
+
+/**
  * Discord API limits and constraints
  */
 export const DISCORD_LIMITS = {

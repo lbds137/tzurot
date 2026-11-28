@@ -35,6 +35,9 @@ import {
   HardDeleteHistorySchema,
   HistoryStatsQuerySchema,
   HistoryStatsResponseSchema,
+  EditableMessageResponseSchema,
+  EditAssistantMessageRequestSchema,
+  EditAssistantMessageResponseSchema,
   MessageReasoningResponseSchema,
   UndoHistoryResponseSchema,
   UndoHistorySchema,
@@ -226,6 +229,32 @@ export const userResourceRoutes = {
     output: MessageReasoningResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+  },
+
+  // The stored text + chunk ids of an assistant reply the caller may edit
+  // (persona owner or bot owner; everyone else gets the existence-hiding 404).
+  getEditableMessage: {
+    audience: 'user',
+    method: 'get',
+    path: '/history/editable/:messageId',
+    id: 'getEditableMessage',
+    params: { messageId: z.string() },
+    output: EditableMessageResponseSchema,
+    requiresProvisionedUser: true,
+    meta: { safeRead: true },
+  },
+
+  // Replaces the stored text of an assistant reply (and its exchange memory)
+  // after the bot has edited the Discord message(s).
+  editAssistantMessage: {
+    audience: 'user',
+    method: 'patch',
+    path: '/history/message/:messageId',
+    id: 'editAssistantMessage',
+    params: { messageId: z.string() },
+    input: EditAssistantMessageRequestSchema,
+    output: EditAssistantMessageResponseSchema,
+    requiresProvisionedUser: true,
   },
 
   // DELETE with a request body is RFC 7231 §4.3.5 valid, but some reverse

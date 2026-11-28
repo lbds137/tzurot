@@ -46,7 +46,7 @@ export class MessageFormatter {
    * sticker/poll description.
    *
    * A message that is nothing but a standalone footer (see
-   * `DiscordResponseSender.appendFooterToChunks`, which pushes the footer as
+   * `appendFooterToChunks` (utils/appendFooterToChunks.ts), which pushes the footer as
    * its own message when it doesn't fit the last chunk) strips down to empty
    * content. That ships as a contentless reference that is still present:
    * its author metadata still carries the reply signal, and this is

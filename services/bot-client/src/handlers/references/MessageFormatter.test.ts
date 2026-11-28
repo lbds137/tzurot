@@ -328,7 +328,7 @@ describe('MessageFormatter', () => {
 
     it('ships a contentless reference when the whole message is a standalone footer', () => {
       // A standalone footer (pushed as its own message by
-      // DiscordResponseSender.appendFooterToChunks when it doesn't fit the
+      // appendFooterToChunks (utils/appendFooterToChunks.ts) when it doesn't fit the
       // last chunk) strips to empty content. The reference is still present
       // and still carries the reply signal via its author metadata — this is
       // deliberate, not a hole to fill with placeholder text.

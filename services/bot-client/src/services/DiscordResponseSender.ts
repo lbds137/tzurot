@@ -27,6 +27,7 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { type WebhookManager } from '../utils/WebhookManager.js';
 import { redisService } from '../redis.js';
+import { appendFooterToChunks } from '../utils/appendFooterToChunks.js';
 import { buildBotAudioFilename } from '../utils/botAudioClassifier.js';
 import { classifyDmError, dmErrorCode } from '../utils/dmErrorClassifier.js';
 import { reportPersonaDmUndeliverable } from '../utils/retentionGatewayCalls.js';
@@ -158,21 +159,6 @@ interface ChunkedSendOptions {
   personality: LoadedPersonality;
   chunkMessageIds: string[];
   ttsFiles?: { attachment: Buffer; name: string }[];
-}
-
-/**
- * Append footer to the last chunk, or add as a new chunk if it would overflow.
- */
-function appendFooterToChunks(chunks: string[], footer: string): void {
-  if (chunks.length === 0 || footer.length === 0) {
-    return;
-  }
-  const lastIndex = chunks.length - 1;
-  if (chunks[lastIndex].length + footer.length <= DISCORD_LIMITS.MESSAGE_LENGTH) {
-    chunks[lastIndex] += footer;
-  } else {
-    chunks.push(footer.trimStart());
-  }
 }
 
 /**

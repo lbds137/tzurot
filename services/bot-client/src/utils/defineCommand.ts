@@ -176,8 +176,22 @@ export function defineCommand<T extends CommandDefinition>(definition: T): T {
 export interface ContextMenuCommandDefinition {
   /** Context-menu builder (name + type; Discord allows no description). */
   data: ContextMenuCommandBuilder;
-  /** Runs with the interaction already deferred ephemeral by the dispatcher. */
+  /**
+   * Runs with the interaction already deferred ephemeral by the dispatcher —
+   * unless `deferralMode` is `'modal'`, in which case the interaction is NOT
+   * deferred and `execute` owns the first ack (typically `showModal`).
+   */
   execute: (interaction: MessageContextMenuCommandInteraction) => Promise<void>;
+  /**
+   * `'modal'` opts out of the dispatcher's ephemeral defer so `execute` can
+   * open a modal (a deferred interaction cannot show one). Requires
+   * `modalPrefix` and `handleModal`.
+   */
+  deferralMode?: 'modal';
+  /** Handles submits of modals whose customId starts with `modalPrefix`. */
+  handleModal?: (interaction: ModalSubmitInteraction) => Promise<void>;
+  /** customId prefix (first `::` segment) claimed for this command's modal submits. */
+  modalPrefix?: string;
 }
 
 /**
@@ -188,6 +202,9 @@ export interface ContextMenuCommandDefinition {
 export const VALID_CONTEXT_MENU_COMMAND_KEYS: readonly (keyof ContextMenuCommandDefinition)[] = [
   'data',
   'execute',
+  'deferralMode',
+  'handleModal',
+  'modalPrefix',
 ] as const;
 
 /**
