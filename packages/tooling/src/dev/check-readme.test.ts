@@ -69,6 +69,7 @@ describe('listContextMenuNames', () => {
     expect(listContextMenuNames(REPO_ROOT)).toEqual([
       'Chime In',
       'Edit Character',
+      'Edit Response',
       'Inspect Message',
       'View Reasoning',
     ]);
