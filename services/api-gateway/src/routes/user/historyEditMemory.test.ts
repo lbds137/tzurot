@@ -7,7 +7,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { REPLY_PAIRING_WINDOW_MS } from '@tzurot/common-types/constants/message';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
-const { mockWrite } = vi.hoisted(() => ({ mockWrite: vi.fn() }));
+const { mockWrite, mockLogger } = vi.hoisted(() => ({
+  mockWrite: vi.fn(),
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -15,7 +18,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   );
   return {
     ...actual,
-    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -47,7 +50,7 @@ describe('exchange memory sync', () => {
     pendingMemory: {
       findMany: pendingFindMany,
       findUnique: pendingFindUnique,
-      update: pendingUpdate,
+      updateMany: pendingUpdate,
     },
   } as unknown as PrismaClient;
 
@@ -71,7 +74,7 @@ describe('exchange memory sync', () => {
     memoryFindMany.mockResolvedValue([memory()]);
     pendingFindMany.mockResolvedValue([]);
     mockWrite.mockResolvedValue({});
-    pendingUpdate.mockResolvedValue({});
+    pendingUpdate.mockResolvedValue({ count: 1 });
   });
 
   describe('planExchangeMemorySync', () => {
@@ -360,6 +363,21 @@ describe('exchange memory sync', () => {
       pendingFindUnique.mockResolvedValue(pendingRow);
 
       expect(await applyExchangeMemorySync(prisma, { kind: 'sync', ...ids }, 'NEW')).toBe(false);
+    });
+
+    it('treats a pending row consumed between read and write as a warned skip', async () => {
+      pendingFindUnique.mockResolvedValue({ text: '{user}: hi\n{assistant}: OLD' });
+      pendingUpdate.mockResolvedValue({ count: 0 });
+
+      await expect(
+        applyExchangeMemorySync(prisma, { kind: 'sync', pendingId: 'pend-1' }, 'NEW')
+      ).resolves.toBe(false);
+      expect(pendingUpdate).toHaveBeenCalledTimes(1);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        { pendingId: 'pend-1' },
+        'Planned pending memory gone or unrewritable'
+      );
+      expect(mockLogger.error).not.toHaveBeenCalled();
     });
 
     it('returns false when one of two planned rows is skipped, though the other was written', async () => {

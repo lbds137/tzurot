@@ -370,6 +370,37 @@ describe('Edit Response — submit', () => {
     expect(lastReply(interaction)).toContain("can't edit this message anymore");
   });
 
+  it('short-circuits an unchanged submit with no Discord call and no PATCH', async () => {
+    const wh = webhookStub();
+    mocks.getWebhook.mockResolvedValue(wh);
+    mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1']));
+    const { interaction, channel } = modalInteraction('old', [chunk('m1', `old\n${MODEL_LINE}`)]);
+
+    await handleModal(interaction as never);
+
+    expect(lastReply(interaction)).toContain('No changes to save.');
+    expect(channel.messages.fetch).not.toHaveBeenCalled();
+    expect(wh.editMessage).not.toHaveBeenCalled();
+    expect(wh.send).not.toHaveBeenCalled();
+    expect(wh.deleteMessage).not.toHaveBeenCalled();
+    expect(mocks.editAssistantMessage).not.toHaveBeenCalled();
+  });
+
+  it('treats a whitespace-only difference as an edit (text is stored as typed)', async () => {
+    const wh = webhookStub();
+    mocks.getWebhook.mockResolvedValue(wh);
+    mocks.checkEditAssistantMessage.mockResolvedValue(okLookup(['m1']));
+    const { interaction } = modalInteraction('old ', [chunk('m1', `old\n${MODEL_LINE}`)]);
+
+    await handleModal(interaction as never);
+
+    expect(wh.editMessage).toHaveBeenCalledTimes(1);
+    expect(mocks.editAssistantMessage).toHaveBeenCalledWith('m1', {
+      content: 'old ',
+      discordMessageIds: ['m1'],
+    });
+  });
+
   it('edits each chunk in place, reattaches the footer and PATCHes the same ids', async () => {
     const wh = webhookStub();
     mocks.getWebhook.mockResolvedValue(wh);
