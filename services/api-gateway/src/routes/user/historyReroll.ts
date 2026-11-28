@@ -75,7 +75,7 @@ const ROW_SELECT = {
   guildId: true,
   createdAt: true,
   messageMetadata: true,
-  persona: { select: { owner: { select: { discordId: true } } } },
+  persona: { select: { ownerId: true, owner: { select: { discordId: true } } } },
 } satisfies Prisma.ConversationHistorySelect;
 
 type RerollRow = Prisma.ConversationHistoryGetPayload<{ select: typeof ROW_SELECT }>;
@@ -253,6 +253,7 @@ async function planCommit(
   plan: RerollMemoryRemovalPlan;
   attemptMemoryIds: string[];
   attemptPendingIds: string[];
+  vouched: boolean;
 }> {
   const recorded = await readAttemptMemory(prisma, {
     jobId: body.jobId,
@@ -265,7 +266,7 @@ async function planCommit(
     excludeMemoryIds: attemptMemoryIds,
     excludePendingIds: attemptPendingIds,
   });
-  return { plan, attemptMemoryIds, attemptPendingIds };
+  return { plan, attemptMemoryIds, attemptPendingIds, vouched: recorded !== null };
 }
 
 /** Run the commit transaction; a rollback that maps to a 409 answers it and returns null. */
@@ -294,6 +295,15 @@ export const handleRerollAssistantMessage = (deps: RouteDeps): RequestHandler =>
       return;
     }
     const body = parsed.data;
+    // The first stored id is the lookup key for Edit Response and Reroll; a row
+    // that no longer carried the message it was found by would 404 on it.
+    if (!body.discordMessageIds.includes(resolved.messageId)) {
+      sendError(
+        res,
+        ErrorResponses.validationError('discordMessageIds must include the rerolled message id')
+      );
+      return;
+    }
 
     // Re-found by id under the owner scope: the preflight is not trusted.
     const row = await prisma.conversationHistory.findFirst({
@@ -332,7 +342,11 @@ export const handleRerollAssistantMessage = (deps: RouteDeps): RequestHandler =>
       return;
     }
 
-    const { plan, attemptMemoryIds, attemptPendingIds } = await planCommit(prisma, row, body);
+    const { plan, attemptMemoryIds, attemptPendingIds, vouched } = await planCommit(
+      prisma,
+      row,
+      body
+    );
     if (plan.kind === 'blocked') {
       sendConflict(
         res,
@@ -353,6 +367,7 @@ export const handleRerollAssistantMessage = (deps: RouteDeps): RequestHandler =>
       pendingIds: plan.kind === 'remove' ? plan.pendingIds : [],
       attemptMemoryIds,
       attemptPendingIds,
+      reviveOwnerId: vouched ? null : row.persona.ownerId,
     };
     const removedMemories = await commitOrConflict(res, commitArgs);
     if (removedMemories === null) {

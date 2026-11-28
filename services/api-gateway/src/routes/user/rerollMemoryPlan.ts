@@ -67,6 +67,12 @@ async function planUntriggered(
   row: EditedReplyRow,
   excluded: PlanExclusions
 ): Promise<RerollMemoryRemovalPlan> {
+  // An empty reply identifies nothing: `contains: ''` matches every untriggered
+  // memory, so refuse rather than match them all.
+  if (row.content.trim() === '') {
+    logger.warn({ rowId: row.id }, 'Untriggered reroll of an empty reply; reroll blocked');
+    return { kind: 'blocked', reason: 'ambiguous' };
+  }
   // Open-ended on purpose: a committed reroll keeps the old row's createdAt
   // while its memory is stamped at store time, so the memory of a row rerolled
   // N times can sit arbitrarily far after `row.createdAt`. The reply-text

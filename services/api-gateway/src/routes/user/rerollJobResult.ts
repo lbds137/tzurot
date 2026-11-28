@@ -182,7 +182,8 @@ export async function sweepAbandonedAttempts(
   const rows = await tx.$queryRaw<unknown[]>`
     SELECT job_id, result FROM job_results
     WHERE result->'metadata'->'rerollMemory'->>'rowId' = ${args.rowId}
-      AND job_id <> ${args.jobId}    ORDER BY completed_at ASC
+      AND job_id <> ${args.jobId}
+    ORDER BY completed_at DESC NULLS LAST
     LIMIT ${SWEPT_ATTEMPTS_PER_COMMIT}`;
   if (rows.length === 0) {
     return 0;

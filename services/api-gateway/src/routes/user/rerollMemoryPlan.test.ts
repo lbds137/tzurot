@@ -137,6 +137,17 @@ describe('planRerollMemoryRemoval', () => {
       expect(await planRerollMemoryRemoval(prisma, ROW)).toEqual({ kind: 'none' });
     });
 
+    it.each(['', '   \n'])(
+      'refuses an empty or whitespace-only reply (%j) without querying memory',
+      async content => {
+        const plan = await planRerollMemoryRemoval(prisma, { ...ROW, content });
+
+        expect(plan).toEqual({ kind: 'blocked', reason: 'ambiguous' });
+        expect(memoryFindMany).not.toHaveBeenCalled();
+        expect(pendingFindMany).not.toHaveBeenCalled();
+      }
+    );
+
     it('is blocked ambiguous when two memories match', async () => {
       memoryFindMany.mockResolvedValue([memory(), memory({ id: 'mem-2' })]);
 
