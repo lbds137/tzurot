@@ -36,6 +36,9 @@ const REPLY_A_ROW = '8d4f2a88-0000-4000-8000-00000000f102';
 const REPLY_B_ROW = '8d4f2a88-0000-4000-8000-00000000f103';
 const MEMORY_A = '8d4f2a88-0000-4000-8000-00000000f201';
 const MEMORY_B = '8d4f2a88-0000-4000-8000-00000000f202';
+const KNOWLEDGE_A = '8d4f2a88-0000-4000-8000-00000000f203';
+const PENDING_A = '8d4f2a88-0000-4000-8000-00000000f301';
+const PENDING_UNRELATED = '8d4f2a88-0000-4000-8000-00000000f302';
 
 const TRIGGER_TIME = new Date('2026-06-04T12:00:00.000Z');
 const REPLY_A_TIME = new Date('2026-06-04T12:00:05.000Z');
@@ -105,6 +108,7 @@ describe('edit assistant reply (component, PGLite)', () => {
   });
 
   beforeEach(async () => {
+    await prisma.$executeRaw`DELETE FROM pending_memories`;
     await prisma.$executeRaw`DELETE FROM memories`;
     await prisma.$executeRaw`DELETE FROM conversation_history`;
     mockIsBotOwner.mockReturnValue(false);
@@ -229,7 +233,7 @@ describe('edit assistant reply (component, PGLite)', () => {
       discordMessageIds: [REPLY_A_DISCORD_ID, '444444444444444449'],
     });
 
-    expect(json).toHaveBeenCalledWith({ edited: true, memoryUpdated: true });
+    expect(json).toHaveBeenCalledWith({ edited: true, memory: { kind: 'synced' } });
     const rows = await prisma.conversationHistory.findMany({
       where: { id: REPLY_A_ROW },
       select: { content: true, discordMessageId: true, editedAt: true },
@@ -248,5 +252,64 @@ describe('edit assistant reply (component, PGLite)', () => {
 
     expect(await content('memories', MEMORY_A)).toBe('{user}: hi\n{assistant}: NEW-A');
     expect(await content('memories', MEMORY_B)).toBe('{user}: hi\n{assistant}: OLD-B');
+  });
+
+  async function pendingText(id: string) {
+    const rows = await prisma.pendingMemory.findMany({
+      where: { id },
+      select: { text: true },
+      take: 1,
+    });
+    return rows[0].text;
+  }
+
+  async function seedPending(id: string, personalityId: string, messageIds: string[]) {
+    await prisma.pendingMemory.create({
+      data: {
+        id,
+        personaId: OWNER_PERSONA,
+        personalityId,
+        text: '{user}: hi\n{assistant}: OLD-A',
+        metadata: { messageIds },
+      },
+    });
+  }
+
+  it('rewrites the pending memory matched through metadata.messageIds', async () => {
+    await prisma.memory.deleteMany({ where: { id: MEMORY_A } });
+    await seedPending(PENDING_A, PERSONALITY_A, [TRIGGER_DISCORD_ID]);
+    await seedPending(PENDING_UNRELATED, PERSONALITY_A, ['555555555555555555']);
+
+    const { json } = await patch(OWNER_DISCORD, REPLY_A_DISCORD_ID, {
+      content: 'NEW-A',
+      discordMessageIds: [REPLY_A_DISCORD_ID],
+    });
+
+    expect(json).toHaveBeenCalledWith({ edited: true, memory: { kind: 'synced' } });
+    expect(await pendingText(PENDING_A)).toBe('{user}: hi\n{assistant}: NEW-A');
+    expect(await pendingText(PENDING_UNRELATED)).toBe('{user}: hi\n{assistant}: OLD-A');
+  });
+
+  it('ignores a non-memory row that shares the trigger id', async () => {
+    await prisma.memory.create({
+      data: {
+        id: KNOWLEDGE_A,
+        personaId: OWNER_PERSONA,
+        personalityId: PERSONALITY_A,
+        content: '{user}: hi\n{assistant}: KNOWLEDGE',
+        messageIds: [TRIGGER_DISCORD_ID],
+        senders: ['edituser'],
+        type: 'knowledge',
+      },
+    });
+
+    const { json } = await patch(OWNER_DISCORD, REPLY_A_DISCORD_ID, {
+      content: 'NEW-A',
+      discordMessageIds: [REPLY_A_DISCORD_ID],
+    });
+
+    expect(json).toHaveBeenCalledWith({ edited: true, memory: { kind: 'synced' } });
+    expect(await content('memories', MEMORY_A)).toBe('{user}: hi\n{assistant}: NEW-A');
+    expect(await content('memories', KNOWLEDGE_A)).toBe('{user}: hi\n{assistant}: KNOWLEDGE');
   });
 });

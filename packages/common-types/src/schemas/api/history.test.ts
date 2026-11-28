@@ -415,6 +415,7 @@ describe('History API Input Schema Tests', () => {
         content: 'Hello',
         discordMessageIds: ['1', '2'],
         personalityId: 'p-1',
+        memorySync: { kind: 'sync' },
       });
       expect(result.success).toBe(true);
     });
@@ -424,6 +425,7 @@ describe('History API Input Schema Tests', () => {
         content: 'Hello',
         discordMessageIds: [],
         personalityId: 'p-1',
+        memorySync: { kind: 'none' },
       });
       expect(result.success).toBe(false);
     });
@@ -432,8 +434,31 @@ describe('History API Input Schema Tests', () => {
       const result = EditableMessageResponseSchema.safeParse({
         content: 'Hello',
         discordMessageIds: ['1'],
+        memorySync: { kind: 'none' },
       });
       expect(result.success).toBe(false);
+    });
+
+    it('accepts a blocked memory state with a reason', () => {
+      const result = EditableMessageResponseSchema.safeParse({
+        content: 'Hello',
+        discordMessageIds: ['1'],
+        personalityId: 'p-1',
+        memorySync: { kind: 'blocked', reason: 'locked' },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects a missing memorySync and a blocked state without a reason', () => {
+      for (const memorySync of [undefined, { kind: 'blocked' }]) {
+        const result = EditableMessageResponseSchema.safeParse({
+          content: 'Hello',
+          discordMessageIds: ['1'],
+          personalityId: 'p-1',
+          memorySync,
+        });
+        expect(result.success).toBe(false);
+      }
     });
   });
 
@@ -513,21 +538,41 @@ describe('History API Input Schema Tests', () => {
       });
       expect(result.success).toBe(false);
     });
+
+    it('rejects duplicate chunk ids', () => {
+      const result = EditAssistantMessageRequestSchema.safeParse({
+        content: 'ok',
+        discordMessageIds: ['111111111111111111', '222222222222222222', '111111111111111111'],
+      });
+      expect(result.success).toBe(false);
+    });
   });
 
   describe('EditAssistantMessageResponseSchema', () => {
-    it('accepts edited true with a memoryUpdated flag', () => {
-      const result = EditAssistantMessageResponseSchema.safeParse({
-        edited: true,
-        memoryUpdated: false,
-      });
-      expect(result.success).toBe(true);
+    it('accepts each memory outcome', () => {
+      for (const memory of [
+        { kind: 'none' },
+        { kind: 'synced' },
+        { kind: 'blocked', reason: 'locked' },
+      ]) {
+        expect(EditAssistantMessageResponseSchema.safeParse({ edited: true, memory }).success).toBe(
+          true
+        );
+      }
+    });
+
+    it('rejects a blocked outcome without a reason or with an unknown one', () => {
+      for (const memory of [{ kind: 'blocked' }, { kind: 'blocked', reason: 'nope' }]) {
+        expect(EditAssistantMessageResponseSchema.safeParse({ edited: true, memory }).success).toBe(
+          false
+        );
+      }
     });
 
     it('rejects edited false', () => {
       const result = EditAssistantMessageResponseSchema.safeParse({
         edited: false,
-        memoryUpdated: true,
+        memory: { kind: 'synced' },
       });
       expect(result.success).toBe(false);
     });

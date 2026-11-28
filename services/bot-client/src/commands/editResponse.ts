@@ -40,6 +40,7 @@ import { getWebhookManager } from '../services/serviceRegistry.js';
 import { buildEditedChunks, extractDmPrefix } from '../utils/editResponse/chunkPlan.js';
 import { applyEditedChunks, type EditTarget } from '../utils/editResponse/discordEdit.js';
 import { extractTrailingFooter } from '../utils/editResponse/footer.js';
+import { memoryPreflightMessage } from '../utils/editResponse/memoryPreflight.js';
 import { CATALOG } from '../ux/catalog/catalog.js';
 import type { MessageSpec } from '../ux/catalog/types.js';
 import { classifyGatewayFailure } from '../ux/catalog/classify.js';
@@ -131,7 +132,12 @@ async function resolveTarget(
 ): Promise<{ target: EditTarget; dmPrefix: string } | null> {
   const first = chunks[0];
   if (first.webhookId === null) {
+    // A bot-authored non-webhook message is only a character reply in a DM;
+    // in a guild it is some other bot message and must not be edited.
     if (typeof channel !== 'object' || channel === null || !('send' in channel)) {
+      return null;
+    }
+    if ((channel as { isDMBased?: () => boolean }).isDMBased?.() !== true) {
       return null;
     }
     return {
@@ -188,7 +194,14 @@ async function handleSubmit(interaction: ModalSubmitInteraction): Promise<void> 
     await replySpec(interaction, failureSpec(lookup, 'read'));
     return;
   }
-  const { discordMessageIds, personalityId } = lookup.data;
+  const { discordMessageIds, personalityId, memorySync } = lookup.data;
+
+  // Memory must be able to follow the edit; refuse before Discord is touched.
+  const refusal = memoryPreflightMessage(memorySync, newText);
+  if (refusal !== null) {
+    await replySpec(interaction, CATALOG.error.validation(refusal));
+    return;
+  }
 
   const live = await fetchLiveChunks(interaction, channelId, discordMessageIds);
   if (live === null) {
@@ -231,7 +244,7 @@ async function handleSubmit(interaction: ModalSubmitInteraction): Promise<void> 
       messageId,
       chunks: applied.messageIds.length,
       partial: applied.partial,
-      memoryUpdated: saved.data.memoryUpdated,
+      memory: saved.data.memory.kind,
     },
     'Response edited'
   );
@@ -261,6 +274,11 @@ export default defineContextMenuCommand({
       const lookup = await userClient.getEditableMessage(target.id);
       if (!lookup.ok) {
         await replySpec(interaction, failureSpec(lookup, 'read'));
+        return;
+      }
+      const refusal = memoryPreflightMessage(lookup.data.memorySync);
+      if (refusal !== null) {
+        await replySpec(interaction, CATALOG.error.validation(refusal));
         return;
       }
       if (lookup.data.content.length > EDIT_RESPONSE_MAX_CONTENT_LENGTH) {

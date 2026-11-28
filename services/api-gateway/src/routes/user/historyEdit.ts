@@ -12,6 +12,8 @@
  */
 
 import { type Response, type RequestHandler } from 'express';
+import type { z } from 'zod';
+import type { Prisma } from '@tzurot/common-types/services/prisma';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import {
   EditableMessageResponseSchema,
@@ -28,7 +30,7 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getParam } from '../../utils/requestParams.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import type { RouteDeps } from '../routeDeps.js';
-import { rewriteExchangeMemory } from './historyEditMemory.js';
+import { applyExchangeMemorySync, planExchangeMemorySync } from './historyEditMemory.js';
 
 const logger = createLogger('user-history-edit');
 
@@ -55,7 +57,7 @@ interface EditableRow {
 async function findEditableRow(
   prisma: RouteDeps['prisma'],
   discordMessageId: string,
-  ownerScope: object
+  ownerScope: Prisma.ConversationHistoryWhereInput
 ): Promise<EditableRow | null> {
   return prisma.conversationHistory.findFirst({
     where: {
@@ -81,7 +83,11 @@ async function findEditableRow(
 function resolveRequest(
   req: AuthenticatedRequest,
   res: Response
-): { messageId: string; ownerScope: object; ownerAccess: boolean } | null {
+): {
+  messageId: string;
+  ownerScope: Prisma.ConversationHistoryWhereInput;
+  ownerAccess: boolean;
+} | null {
   const callerUserId = req.userId;
   if (callerUserId === undefined || callerUserId === '') {
     sendError(res, ErrorResponses.internalError(MISSING_CALLER_IDENTITY));
@@ -114,10 +120,15 @@ export const handleGetEditableMessage = (deps: RouteDeps): RequestHandler => {
       return;
     }
 
+    // Without a new reply this checks the stored shape only; the bot adds the
+    // content-dependent check itself at submit.
+    const plan = await planExchangeMemorySync(prisma, row);
     sendContractSuccess(res, EditableMessageResponseSchema, {
       content: row.content,
       discordMessageIds: row.discordMessageId,
       personalityId: row.personalityId,
+      // Row ids stay server-side: only the kind (and block reason) cross the wire.
+      memorySync: plan.kind === 'blocked' ? plan : { kind: plan.kind },
     });
   });
 };
@@ -169,20 +180,29 @@ export const handleEditAssistantMessage = (deps: RouteDeps): RequestHandler => {
 
     // The history row is the source of truth and is already saved; a memory
     // failure must not turn a completed edit into an error.
-    let memoryUpdated = false;
+    // The bot refuses a blocked edit before touching Discord, so a blocked plan
+    // here means the memory changed after that preflight (a race).
+    let memory: z.infer<typeof EditAssistantMessageResponseSchema>['memory'] = { kind: 'none' };
     try {
-      memoryUpdated = await rewriteExchangeMemory(prisma, row, content);
+      const plan = await planExchangeMemorySync(prisma, row, content);
+      if (plan.kind === 'blocked') {
+        logger.warn(
+          { rowId: row.id, reason: plan.reason },
+          'Exchange memory became unsyncable after the edit preflight; memory left as-is'
+        );
+        memory = plan;
+      } else if (plan.kind === 'sync') {
+        await applyExchangeMemorySync(prisma, plan, content);
+        memory = { kind: 'synced' };
+      }
     } catch (error) {
-      logger.error({ err: error, rowId: row.id }, 'Exchange memory rewrite failed');
+      logger.error({ err: error, rowId: row.id }, 'Exchange memory sync failed');
     }
 
     logger.info(
-      { rowId: row.id, ownerAccess: resolved.ownerAccess, memoryUpdated },
+      { rowId: row.id, ownerAccess: resolved.ownerAccess, memory: memory.kind },
       'Assistant reply edited'
     );
-    sendContractSuccess(res, EditAssistantMessageResponseSchema, {
-      edited: true,
-      memoryUpdated,
-    });
+    sendContractSuccess(res, EditAssistantMessageResponseSchema, { edited: true, memory });
   });
 };
