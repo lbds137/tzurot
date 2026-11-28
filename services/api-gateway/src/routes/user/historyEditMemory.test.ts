@@ -303,9 +303,8 @@ describe('exchange memory sync', () => {
               channelId: ROW.channelId,
               personalityId: ROW.personalityId,
               role: 'user',
-              deletedAt: null,
-              personaId: { not: ROW.personaId },
               createdAt: { lt: ROW.createdAt, gt: previous },
+              NOT: { discordMessageId: { hasSome: TRIGGER.discordMessageId } },
             },
             take: COALESCING.MAX_SKIPPED_MESSAGES,
           })
@@ -383,6 +382,86 @@ describe('exchange memory sync', () => {
         stubMemories([], [sibling({ personaId: 'persona-3' })]);
 
         expect(await planExchangeMemorySync(prisma, ROW, 'NEW')).toEqual({ kind: 'none' });
+      });
+
+      it("plans the editor's own earlier trigger memory when one reply answers two of their messages", async () => {
+        historyFindMany.mockResolvedValue([{ ...SIBLING_TRIGGER, personaId: ROW.personaId }]);
+        stubMemories([memory()], [sibling({ personaId: ROW.personaId })]);
+
+        expect(await planExchangeMemorySync(prisma, ROW, 'NEW')).toEqual({
+          kind: 'sync',
+          memoryIds: ['mem-1', 'mem-2'],
+          pendingIds: [],
+        });
+      });
+
+      it("blocks locked, not other-locked, for the editor's own locked earlier memory", async () => {
+        historyFindMany.mockResolvedValue([{ ...SIBLING_TRIGGER, personaId: ROW.personaId }]);
+        stubMemories([memory()], [sibling({ personaId: ROW.personaId, isLocked: true })]);
+
+        expect(await planExchangeMemorySync(prisma, ROW, 'NEW')).toEqual({
+          kind: 'blocked',
+          reason: 'locked',
+        });
+      });
+
+      it('puts locked ahead of other-locked when both kinds are present', async () => {
+        historyFindMany.mockResolvedValue([
+          SIBLING_TRIGGER,
+          { personaId: ROW.personaId, discordMessageId: ['555555555555555555'] },
+        ]);
+        stubMemories(
+          [],
+          [
+            sibling({ isLocked: true }),
+            sibling({
+              id: 'mem-3',
+              personaId: ROW.personaId,
+              messageIds: ['555555555555555555'],
+              isLocked: true,
+            }),
+          ]
+        );
+
+        expect(await planExchangeMemorySync(prisma, ROW, 'NEW')).toEqual({
+          kind: 'blocked',
+          reason: 'locked',
+        });
+      });
+
+      it('keeps the primary rows out of the sibling queries, so they are never counted twice', async () => {
+        pendingFindMany.mockResolvedValue([pending()]);
+        stubMemories([memory()], []);
+
+        expect(await planExchangeMemorySync(prisma, ROW, 'NEW')).toEqual({
+          kind: 'sync',
+          memoryIds: ['mem-1'],
+          pendingIds: ['pend-1'],
+        });
+        expect(memoryFindMany).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({ id: { not: 'mem-1' } }),
+          })
+        );
+        expect(pendingFindMany).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({ id: { not: 'pend-1' } }),
+          })
+        );
+      });
+
+      it('logs ids only, at debug, when a candidate row holds a different reply', async () => {
+        stubMemories(
+          [],
+          [sibling({ content: '{user}: yo\n{assistant}: SOMETHING ELSE', isLocked: true })]
+        );
+
+        await planExchangeMemorySync(prisma, ROW, 'NEW');
+
+        expect(mockLogger.debug).toHaveBeenCalledWith(
+          { rowId: ROW.id, candidatePersonaId: 'persona-2', candidateRowId: 'mem-2' },
+          'Sibling memory row holds a different reply; left alone'
+        );
       });
 
       it('blocks other-locked when a sibling memory is locked', async () => {
