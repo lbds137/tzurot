@@ -72,7 +72,7 @@ describe('LongTermMemoryService', () => {
   beforeEach(() => {
     // Create mock memory manager
     mockMemoryManager = {
-      addMemory: vi.fn().mockResolvedValue(undefined),
+      addMemory: vi.fn().mockResolvedValue(['mem-1']),
     } as unknown as PgvectorMemoryAdapter;
 
     // Reset all mocks
@@ -262,6 +262,47 @@ describe('LongTermMemoryService', () => {
         data: expect.objectContaining({
           text: '{user}: What is the weather?\n{assistant}: It is sunny today.',
         }),
+      });
+    });
+
+    describe('returned ids', () => {
+      const opts = {
+        personality: testPersonality,
+        userMessage: 'Message',
+        aiResponse: 'Response',
+        context: baseContext,
+        personaId: 'persona-1',
+      };
+
+      it('returns the written memory ids and no pending id after a successful store', async () => {
+        mockMemoryManager.addMemory = vi.fn().mockResolvedValue(['chunk-a', 'chunk-b']);
+
+        await expect(service.storeInteraction(opts)).resolves.toEqual({
+          memoryIds: ['chunk-a', 'chunk-b'],
+          pendingIds: [],
+        });
+        expect(mockPendingMemoryDelete).toHaveBeenCalledWith({ where: { id: 'pending-1' } });
+      });
+
+      it('returns the surviving pending id when the vector store fails', async () => {
+        mockMemoryManager.addMemory = vi.fn().mockRejectedValue(new Error('down'));
+
+        await expect(service.storeInteraction(opts)).resolves.toEqual({
+          memoryIds: [],
+          pendingIds: ['pending-1'],
+        });
+      });
+
+      it('returns null when storage is disabled', async () => {
+        await expect(
+          new LongTermMemoryService(mockPrismaClient).storeInteraction(opts)
+        ).resolves.toBeNull();
+      });
+
+      it('returns null when the pending row cannot even be created', async () => {
+        mockPendingMemoryCreate.mockRejectedValue(new Error('db down'));
+
+        await expect(service.storeInteraction(opts)).resolves.toBeNull();
       });
     });
 
@@ -502,7 +543,7 @@ describe('LongTermMemoryService', () => {
           context: baseContext,
           personaId: 'persona-1',
         })
-      ).resolves.toBeUndefined();
+      ).resolves.toEqual({ memoryIds: ['mem-1'], pendingIds: [] });
     });
   });
 

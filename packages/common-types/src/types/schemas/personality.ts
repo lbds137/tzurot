@@ -223,6 +223,33 @@ export const skippedMessageSchema = z.object({
 
 export type SkippedMessage = z.infer<typeof skippedMessageSchema>;
 
+/**
+ * Marks a generation job as a reroll of an existing assistant reply. The
+ * worker keys its processed-lock on `rowId` + `attemptId` instead of the
+ * trigger message (which already holds the original turn's lock), skips TTS,
+ * and reports the memory ids it wrote.
+ */
+export const rerollContextSchema = z.object({
+  /** History row of the reply being replaced. */
+  rowId: z.string().min(1),
+  /** One id per click; makes the lock key unique to this attempt. */
+  attemptId: z.string().min(1),
+  /**
+   * Triggered rerolls only: the trigger row's creation time (ISO). History
+   * assembly drops rows created at or after it, so the old reply and anything
+   * that followed it cannot leak into the regenerated turn.
+   */
+  historyBefore: z.string().datetime().optional(),
+  /**
+   * The rerolled reply was a personal turn under the requester's
+   * `/memory incognito` session: the persona stays, the memory write is
+   * skipped. Distinct from `context.incognito`, which strips the persona.
+   */
+  skipMemoryWrite: z.boolean().optional(),
+});
+
+export type RerollContext = z.infer<typeof rerollContextSchema>;
+
 // guildMemberInfoSchema lives in discord.ts (Discord member data; also needed
 // by rawEnvelope.ts, which personality.ts imports — defining it here would
 // create a schema-module cycle).
@@ -288,6 +315,8 @@ export const requestContextSchema = z.object({
   rawAssemblyInputs: rawAssemblyInputsSchema.optional(),
   // Skipped activation-trigger messages coalesced into this survivor generation job
   skippedMessages: z.array(skippedMessageSchema).max(COALESCING.MAX_SKIPPED_MESSAGES).optional(),
+  // Set when this job regenerates an existing reply (see rerollContextSchema)
+  reroll: rerollContextSchema.optional(),
 });
 
 // Infer TypeScript types from schemas

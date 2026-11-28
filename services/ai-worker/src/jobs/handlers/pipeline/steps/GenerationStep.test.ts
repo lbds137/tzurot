@@ -137,7 +137,7 @@ function createMockJob(data: Partial<LLMGenerationJobData> = {}): Job<LLMGenerat
 function createMockRAGService(): ConversationalRAGService {
   return {
     generateResponse: vi.fn(),
-    storeDeferredMemory: vi.fn().mockResolvedValue(undefined),
+    storeDeferredMemory: vi.fn().mockResolvedValue(null),
   } as unknown as ConversationalRAGService;
 }
 
@@ -2343,6 +2343,100 @@ describe('GenerationStep', () => {
         expect(calls[0][2]).toEqual(ragResponse.deferredMemoryData); // deferredMemoryData
       });
 
+      describe('rerollMemory metadata', () => {
+        const rerollResponse = (incognito: boolean): RAGResponse => ({
+          content: 'Rerolled reply',
+          retrievedMemories: 0,
+          tokensIn: 10,
+          tokensOut: 5,
+          incognitoModeActive: incognito,
+          deferredMemoryData: {
+            contentForEmbedding: 'User message',
+            responseContent: 'Rerolled reply',
+            personaId: 'persona-123',
+          },
+        });
+
+        const rerollJob = () => {
+          const data = createValidJobData();
+          data.context.reroll = { rowId: 'row-1', attemptId: 'attempt-1' };
+          return createMockJob(data);
+        };
+
+        const run = (job: Job<LLMGenerationJobData>) =>
+          step.process({
+            job,
+            startTime: Date.now(),
+            config: baseConfigForMemory,
+            auth: baseAuthForMemory,
+            preparedContext: basePreparedContextForMemory,
+          });
+
+        it('reports the ids the memory store wrote, for a reroll job', async () => {
+          vi.mocked(mockRAGService.generateResponse).mockResolvedValue(rerollResponse(false));
+          vi.mocked(mockRAGService.storeDeferredMemory).mockResolvedValue({
+            memoryIds: ['mem-1', 'mem-2'],
+            pendingIds: ['pend-1'],
+          });
+
+          const out = await run(rerollJob());
+
+          expect(out.result?.metadata?.rerollMemory).toEqual({
+            rowId: 'row-1',
+            attemptId: 'attempt-1',
+            memoryIds: ['mem-1', 'mem-2'],
+            pendingIds: ['pend-1'],
+          });
+        });
+
+        it('reports empty arrays for a reroll job that stored nothing (incognito)', async () => {
+          vi.mocked(mockRAGService.generateResponse).mockResolvedValue(rerollResponse(true));
+
+          const out = await run(rerollJob());
+
+          expect(mockRAGService.storeDeferredMemory).not.toHaveBeenCalled();
+          expect(out.result?.metadata?.rerollMemory).toEqual({
+            rowId: 'row-1',
+            attemptId: 'attempt-1',
+            memoryIds: [],
+            pendingIds: [],
+          });
+        });
+
+        it.each(['summon', 'session'] as const)(
+          'reports the %s incognito kind in the result metadata and stores no memory',
+          async kind => {
+            vi.mocked(mockRAGService.generateResponse).mockResolvedValue({
+              ...rerollResponse(true),
+              incognitoKind: kind,
+            });
+            const job = rerollJob();
+            job.data.context.reroll = {
+              rowId: 'row-1',
+              attemptId: 'attempt-1',
+              skipMemoryWrite: true,
+            };
+
+            const out = await run(job);
+
+            expect(mockRAGService.storeDeferredMemory).not.toHaveBeenCalled();
+            expect(out.result?.metadata?.incognitoKind).toBe(kind);
+          }
+        );
+
+        it('omits rerollMemory for an ordinary job even when memory was stored', async () => {
+          vi.mocked(mockRAGService.generateResponse).mockResolvedValue(rerollResponse(false));
+          vi.mocked(mockRAGService.storeDeferredMemory).mockResolvedValue({
+            memoryIds: ['mem-1'],
+            pendingIds: [],
+          });
+
+          const out = await run(createMockJob());
+
+          expect(out.result?.metadata).not.toHaveProperty('rerollMemory');
+        });
+      });
+
       it('should NOT call storeDeferredMemory when incognitoModeActive is true', async () => {
         const ragResponse: RAGResponse = {
           content: 'Hello from incognito!',
@@ -2822,9 +2916,9 @@ describe('GenerationStep', () => {
 
         // First skipped store throws; second skipped store must still execute and job must succeed
         vi.mocked(mockRAGService.storeDeferredMemory)
-          .mockResolvedValueOnce(undefined)
+          .mockResolvedValueOnce(null)
           .mockRejectedValueOnce(new Error('DB write hiccup on skipped 1'))
-          .mockResolvedValueOnce(undefined);
+          .mockResolvedValueOnce(null);
 
         const jobData = createValidJobData();
         jobData.context.triggerMessageId = 'msg-survivor';

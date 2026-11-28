@@ -322,6 +322,14 @@ export class ConversationSyncService {
           deletedAt: true,
           createdAt: true,
         },
+        // Live rows first (a reroll leaves a soft-deleted row beside its live
+        // replacement, sharing Discord ids), so the `take` bound keeps them and
+        // the map below resolves each id deterministically.
+        orderBy: [
+          { deletedAt: { sort: 'asc', nulls: 'first' } },
+          { createdAt: 'asc' },
+          { id: 'asc' },
+        ],
         // Bounded query: allow margin for chunked messages, cap at MAX_DISCORD_ID_LOOKUP
         take: Math.min(discordMessageIds.length * 2, SYNC_LIMITS.MAX_DISCORD_ID_LOOKUP),
       });
@@ -343,7 +351,10 @@ export class ConversationSyncService {
       const requestedIds = new Set(discordMessageIds);
       for (const msg of messages) {
         for (const discordId of msg.discordMessageId) {
-          if (requestedIds.has(discordId)) {
+          // A soft-deleted row never shadows a live one that shares the id.
+          const shadowsLive =
+            msg.deletedAt !== null && resultMap.get(discordId)?.deletedAt === null;
+          if (requestedIds.has(discordId) && !shadowsLive) {
             resultMap.set(discordId, msg);
           }
         }

@@ -110,6 +110,19 @@ describe('POST /api/internal/conversation/assistant-message', () => {
     });
   });
 
+  it('writes messageMetadata.incognitoKind beside incognito: true, and never beside false', async () => {
+    await request(app)
+      .post('/internal/conversation/assistant-message')
+      .send({ ...VALID_BODY, incognito: true, incognitoKind: 'session' });
+    await request(app)
+      .post('/internal/conversation/assistant-message')
+      .send({ ...VALID_BODY, incognito: false, incognitoKind: 'session' });
+
+    const calls = mockPrisma.conversationHistory.create.mock.calls;
+    expect(calls[0][0].data.messageMetadata).toEqual({ incognito: true, incognitoKind: 'session' });
+    expect(calls[1][0].data.messageMetadata).toEqual({ incognito: false });
+  });
+
   it('reports matched=true without writing when an identical row exists (idempotent replay)', async () => {
     mockPrisma.conversationHistory.findUnique.mockResolvedValue({
       content: VALID_BODY.content,

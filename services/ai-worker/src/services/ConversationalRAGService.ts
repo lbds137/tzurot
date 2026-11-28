@@ -24,7 +24,7 @@ import type { FactRetriever } from './FactRetriever.js';
 import { retrieveMemoriesAndFacts, createFactRetriever } from './factRetrievalHelper.js';
 import type { ArchiveSummaryTrigger } from './archiveSummary/ArchiveSummaryTrigger.js';
 import { PromptBuilder } from './PromptBuilder.js';
-import { LongTermMemoryService } from './LongTermMemoryService.js';
+import { LongTermMemoryService, type StoredInteractionIds } from './LongTermMemoryService.js';
 import type { ExtractionTrigger } from './extraction/ExtractionTrigger.js';
 import { ContextWindowManager } from './context/ContextWindowManager.js';
 import { type PersonaResolver } from '@tzurot/identity';
@@ -52,6 +52,7 @@ import type {
 } from './ConversationalRAGTypes.js';
 import { persistBuiltReferences } from './context/referencePersistence.js';
 import { loadPersonasAndResolveReferences } from './personaReferenceLoader.js';
+import { resolveIncognito } from './incognitoMode.js';
 import { invokeModelAndClean } from './modelInvocation.js';
 
 const logger = createLogger('ConversationalRAGService');
@@ -329,14 +330,14 @@ export class ConversationalRAGService {
       // footer flag); a personal summon records memories. The summon's anonymity
       // was resolved once in buildConversationContext. The user's own /memory
       // incognito Redis session still forces incognito regardless.
-      const summonIncognito = context.summonAnonymity?.kind === 'incognito';
-      const incognitoModeActive =
-        summonIncognito || (await redisService.isIncognitoActive(context.userId, personality.id));
+      const incognito = await resolveIncognito(context, () =>
+        redisService.isIncognitoActive(context.userId, personality.id)
+      );
 
       // Build deferred memory data for potential later storage
       let deferredMemoryData: DeferredMemoryData | undefined;
 
-      if (incognitoModeActive) {
+      if (incognito.active) {
         logger.info(
           { userId: context.userId, personalityId: personality.id },
           'Incognito mode active - skipping LTM storage'
@@ -371,7 +372,7 @@ export class ConversationalRAGService {
       }
 
       const skippedDeferredMemories =
-        options.skipMemoryStorage === true && !summonIncognito
+        options.skipMemoryStorage === true && !incognito.summon
           ? await this.buildSkippedDeferredMemories(
               personality.id,
               context,
@@ -394,7 +395,8 @@ export class ConversationalRAGService {
         routedModel: modelResult.routedModel,
         userMessageContent: budgetResult.contentForStorage,
         freshModeEnabled,
-        incognitoModeActive,
+        incognitoModeActive: incognito.active,
+        incognitoKind: incognito.kind,
         deferredMemoryData,
         skippedDeferredMemories,
         thinkingContent: modelResult.thinkingContent,
@@ -527,7 +529,7 @@ export class ConversationalRAGService {
     personality: LoadedPersonality,
     context: ConversationContext,
     deferredData: DeferredMemoryData
-  ): Promise<void> {
-    await this.memoryPersistence.storeDeferredMemory(personality, context, deferredData);
+  ): Promise<StoredInteractionIds | null> {
+    return this.memoryPersistence.storeDeferredMemory(personality, context, deferredData);
   }
 }

@@ -582,6 +582,14 @@ export const API_ERROR_SUBCODE = {
   DB_SYNC_IN_PROGRESS: 'DB_SYNC_IN_PROGRESS',
   /** `internal/export-smoke` start refused: a smoke export completed inside the recent-completion window. */
   EXPORT_SMOKE_RECENT_COMPLETION: 'EXPORT_SMOKE_RECENT_COMPLETION',
+  /** A reroll was refused: the row is no longer the character's latest reply in the channel. */
+  NOT_LATEST: 'NOT_LATEST',
+  /** A reroll commit was refused: the row was deleted or replaced since the preflight. */
+  ROW_CHANGED: 'ROW_CHANGED',
+  /** A reroll commit was refused: a memory of the old reply can no longer be removed. */
+  MEMORY_BLOCKED: 'MEMORY_BLOCKED',
+  /** A reroll commit was refused: an abort already ran for this attempt. */
+  ATTEMPT_ABORTED: 'ATTEMPT_ABORTED',
 } as const;
 
 /** Union of all defined sub-code values, for typing `ErrorResponse.code`. */

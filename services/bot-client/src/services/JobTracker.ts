@@ -9,7 +9,9 @@
 import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import type { Message } from 'discord.js';
+import type { Message, MessageContextMenuCommandInteraction } from 'discord.js';
+import type { z } from 'zod';
+import type { RerollCheckResponseSchema } from '@tzurot/common-types/schemas/api/history';
 import { sendTypingIndicator } from '../utils/typingErrorClassifier.js';
 import type { ResponseOrderingService } from './ResponseOrderingService.js';
 
@@ -67,6 +69,26 @@ export interface SlashJobContext extends BaseJobContext {
   userId: string;
 }
 
+/**
+ * Context for a reroll of an existing reply (message context menu).
+ *
+ * Delivery edits the old reply's Discord messages in place instead of posting,
+ * so the result handler needs the clicking interaction (ephemeral replies), the
+ * guard attempt that owns the per-row lock, and the preflight snapshot the
+ * reroll was approved against. Never persisted for restart recovery: a
+ * restart loses an in-flight reroll (the guard expires on its own TTL).
+ */
+export interface RerollJobContext extends BaseJobContext {
+  kind: 'reroll';
+  interaction: MessageContextMenuCommandInteraction;
+  /** The history row being replaced. */
+  rowId: string;
+  /** Identifies this attempt; owns the per-row guard and keys the worker lock. */
+  attemptId: string;
+  /** What the gateway answered at preflight (the planned memory ids ride in it). */
+  preflight: z.infer<typeof RerollCheckResponseSchema>;
+}
+
 const logger = createLogger('JobTracker');
 
 // How long to keep sending the typing indicator before giving up. Typing
@@ -112,7 +134,10 @@ export const TRACKED_JOB_MAX_LIFETIME_MS = TYPING_INDICATOR_TIMEOUT_MS + ORPHAN_
  * Discriminated on `kind` so the result-delivery path knows which
  * protocol surface (Message-shaped vs slash-shaped) the job came from.
  */
-export type PendingJobContext = MessageJobContext | SlashJobContext;
+export type PendingJobContext = MessageJobContext | SlashJobContext | RerollJobContext;
+
+/** The variants a restart can re-adopt (everything but a reroll). */
+export type PersistableJobContext = MessageJobContext | SlashJobContext;
 
 /**
  * Port for mirroring tracker slots to durable storage so a job in flight
@@ -153,16 +178,25 @@ export class JobTracker {
   private activeJobs = new Map<string, TrackedJob>();
   private orderingService?: ResponseOrderingService;
   private recorder?: TrackedJobRecorder;
+  private onRerollOrphaned?: (context: RerollJobContext) => void;
 
   /**
    * Create a new JobTracker
    * @param orderingService - Optional service to ensure responses are delivered in order
    * @param recorder - Optional durable mirror of the in-memory slots, enabling
    *   restart recovery. Omitted in tests that don't exercise persistence.
+   * @param onRerollOrphaned - Called when the orphan sweep releases a reroll
+   *   slot, so the owner of the per-row guard can release it. Injected because
+   *   the guard module imports this one.
    */
-  constructor(orderingService?: ResponseOrderingService, recorder?: TrackedJobRecorder) {
+  constructor(
+    orderingService?: ResponseOrderingService,
+    recorder?: TrackedJobRecorder,
+    onRerollOrphaned?: (context: RerollJobContext) => void
+  ) {
     this.orderingService = orderingService;
     this.recorder = recorder;
+    this.onRerollOrphaned = onRerollOrphaned;
   }
 
   /**
@@ -456,7 +490,15 @@ export class JobTracker {
           { jobId, ageMs: Date.now() - startTime },
           'Orphan sweep — job never completed past grace period, releasing tracker'
         );
+        const { context } = tracked;
         this.completeJob(jobId);
+        if (context.kind === 'reroll') {
+          try {
+            this.onRerollOrphaned?.(context);
+          } catch (err) {
+            logger.warn({ err, jobId }, 'Reroll orphan handler failed');
+          }
+        }
       }
     }, sweepDelayMs);
   }

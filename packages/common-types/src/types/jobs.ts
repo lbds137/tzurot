@@ -21,6 +21,8 @@ import {
   type GuildMemberInfo,
   type RawAssemblyInputs,
   type SkippedMessage,
+  type RerollContext,
+  rerollContextSchema,
   loadedPersonalitySchema,
   mentionedPersonaSchema,
   referencedChannelSchema,
@@ -123,6 +125,8 @@ export interface JobContext {
    * interaction per skipped message for its own author.
    */
   skippedMessages?: SkippedMessage[];
+  /** Set when this job regenerates an existing reply (a reroll); see rerollContextSchema. */
+  reroll?: RerollContext;
 }
 
 /**
@@ -419,6 +423,7 @@ const jobContextBaseSchema = z.object({
   isVoiceMessage: z.boolean().optional(),
   rawAssemblyInputs: rawAssemblyInputsSchema.optional(),
   skippedMessages: z.array(skippedMessageSchema).max(COALESCING.MAX_SKIPPED_MESSAGES).optional(),
+  reroll: rerollContextSchema.optional(),
 });
 
 /**

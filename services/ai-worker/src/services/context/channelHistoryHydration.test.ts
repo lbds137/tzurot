@@ -54,6 +54,47 @@ describe('hydrateChannelHistory', () => {
     );
   });
 
+  it('passes the reroll row and historyBefore into the window, alongside the trigger exclusion', async () => {
+    const dataSource = mockDataSource();
+    await hydrateChannelHistory({
+      dataSource,
+      jobContext: makeJobContext({
+        triggerMessageId: 'd-trigger',
+        reroll: {
+          rowId: 'old-row',
+          attemptId: 'attempt-1',
+          historyBefore: '2026-01-01T00:00:00.000Z',
+        },
+      }),
+      personality: PERSONALITY,
+      configOverrides: undefined,
+      channelId: 'chan-1',
+      contextEpoch: undefined,
+    });
+    expect(dataSource.getChannelHistoryWindow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        excludeDiscordMessageId: 'd-trigger',
+        excludeRowIds: ['old-row'],
+        createdBefore: new Date('2026-01-01T00:00:00.000Z'),
+      })
+    );
+  });
+
+  it('leaves the reroll exclusions unset for an ordinary job', async () => {
+    const dataSource = mockDataSource();
+    await hydrateChannelHistory({
+      dataSource,
+      jobContext: makeJobContext({ triggerMessageId: 'd-trigger' }),
+      personality: PERSONALITY,
+      configOverrides: undefined,
+      channelId: 'chan-1',
+      contextEpoch: undefined,
+    });
+    expect(dataSource.getChannelHistoryWindow).toHaveBeenCalledWith(
+      expect.objectContaining({ excludeRowIds: undefined, createdBefore: undefined })
+    );
+  });
+
   describe('history-scoping (shareHistoryAcrossPersonalities × DM/guild)', () => {
     // `expectIsolatedDm` is NOT a restatement of `expectPersonalityId`: the DB
     // read is scoped in guilds too, while the flag that drops the live-channel

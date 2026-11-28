@@ -55,6 +55,20 @@ describe('buildConversationContext', () => {
     expect(result.triggerMessageId).toBe('810000000000000042');
   });
 
+  it('forwards the reroll marker, skipMemoryWrite included (session-incognito reroll seam)', () => {
+    const reroll = { rowId: 'row-1', attemptId: 'attempt-1', skipMemoryWrite: true };
+    const jobContext = { ...createMinimalJobContext(), reroll };
+
+    const result = buildConversationContext(
+      jobContext,
+      createMinimalPreparedContext(),
+      undefined,
+      TEST_REQUEST_ID
+    );
+
+    expect(result.reroll).toEqual(reroll);
+  });
+
   it('forwards skippedMessages from the job context for coalesced activation turns', () => {
     const skippedMessages = [
       { messageId: '810000000000000010', authorId: 'user-a' },

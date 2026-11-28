@@ -5,6 +5,7 @@
  */
 
 import { z } from 'zod';
+import { incognitoKindSchema } from './message.js';
 import {
   ApiErrorType,
   ApiErrorCategory,
@@ -64,6 +65,20 @@ const errorInfoSchema = z.object({
   /** Unix timestamp (ms) when an active rate-limit window resets.
    *  Populated only on 429 errors that surfaced an `X-RateLimit-Reset` header. */
   rateLimitResetMs: z.number().optional(),
+});
+
+/**
+ * The memory rows a reroll job wrote, with the reroll they belong to. The
+ * gateway reads this back from the stored job result and trusts the ids only
+ * when `rowId` and `attemptId` match the route's.
+ */
+export const rerollMemoryReportSchema = z.object({
+  /** From `context.reroll`. */
+  rowId: z.string().min(1),
+  /** From `context.reroll`. */
+  attemptId: z.string().min(1),
+  memoryIds: z.array(z.string()).max(100),
+  pendingIds: z.array(z.string()).max(100),
 });
 
 /**
@@ -146,6 +161,8 @@ const generationPayloadSchema = z.object({
       freshModeEnabled: z.boolean().optional(),
       /** Whether incognito mode was active (LTM storage skipped) */
       incognitoModeActive: z.boolean().optional(),
+      /** How incognito mode was active (see `messageMetadataSchema.incognitoKind`); set with `incognitoModeActive: true` */
+      incognitoKind: incognitoKindSchema.optional(),
       /**
        * Extracted thinking/reasoning content from <think> tags.
        * Only present if the model included thinking blocks in its response.
@@ -160,6 +177,12 @@ const generationPayloadSchema = z.object({
       errorStack: z.string().optional(),
       /** Discord message ID that triggered the request (for idempotency tracking) */
       triggerMessageId: z.string().optional(),
+      /**
+       * Memory rows this generation wrote. Set ONLY for reroll jobs (empty
+       * arrays when nothing was stored, e.g. incognito): the bot echoes them
+       * to the reroll commit/abort routes so a failed reroll can remove them.
+       */
+      rerollMemory: rerollMemoryReportSchema.optional(),
       /** Reason processing was skipped (e.g., 'idempotency_check_failed') */
       skipReason: z.string().optional(),
       /** Whether to show the model footer on the response (from config cascade) */

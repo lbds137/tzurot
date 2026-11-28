@@ -54,6 +54,7 @@ export function buildConversationContext(
     skippedMessages: jobContext.skippedMessages,
     isWeighIn: jobContext.isWeighIn,
     summonAnonymity,
+    reroll: jobContext.reroll,
     activePersonaId: jobContext.activePersonaId,
     activePersonaName: jobContext.activePersonaName,
     // Guild-specific info for participants (roles, color, join date)

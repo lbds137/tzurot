@@ -26,6 +26,7 @@
  */
 
 import type { Message } from 'discord.js';
+import { incognitoFields, type IncognitoFields } from '../utils/incognitoFields.js';
 import { stripErrorSpoiler } from '@tzurot/common-types/constants/error';
 import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
@@ -193,9 +194,7 @@ export class SlotDeliveryService {
         // Persisting the reasoning trace here is what lets it outlive the 7d
         // diagnostic window.
         thinkingContent: result.metadata?.thinkingContent,
-        ...(typeof result.metadata?.incognitoModeActive === 'boolean' && {
-          incognito: result.metadata.incognitoModeActive,
-        }),
+        ...incognitoFields(result.metadata),
       });
     } catch (persistError) {
       logger.error(
@@ -273,7 +272,7 @@ export class SlotDeliveryService {
           ? null
           : { content: stripErrorSpoiler(errorContent), chunkMessageIds: errorIds },
       persistErrorText: true,
-      save: turn => this.saveTurn(slot, turn, result.metadata?.incognitoModeActive),
+      save: turn => this.saveTurn(slot, turn, incognitoFields(result.metadata)),
       requestId: result.requestId,
       logContext: { personalityId: slot.personality.id },
     });
@@ -294,7 +293,7 @@ export class SlotDeliveryService {
       partial,
       errorTurn: null,
       persistErrorText: true,
-      save: turn => this.saveTurn(slot, turn, result.metadata?.incognitoModeActive),
+      save: turn => this.saveTurn(slot, turn, incognitoFields(result.metadata)),
       requestId: result.requestId,
       logContext: { personalityId: slot.personality.id },
     });
@@ -304,14 +303,14 @@ export class SlotDeliveryService {
   private saveTurn(
     slot: SlotDeliveryContext,
     turn: PersistableTurn,
-    incognito: boolean | undefined
+    incognito: IncognitoFields
   ): Promise<void> {
     return this.persistence.saveAssistantMessage({
       message: slot.message,
       personality: slot.personality,
       personaId: slot.personaId,
       userMessageTime: slot.userMessageTime,
-      ...(typeof incognito === 'boolean' && { incognito }),
+      ...incognito,
       ...turn,
     });
   }

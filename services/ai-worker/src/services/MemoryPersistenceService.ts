@@ -9,7 +9,7 @@
 
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import type { LongTermMemoryService } from './LongTermMemoryService.js';
+import type { LongTermMemoryService, StoredInteractionIds } from './LongTermMemoryService.js';
 import type { MemoryRetriever } from './MemoryRetriever.js';
 import type { ConversationContext, DeferredMemoryData } from './ConversationalRAGTypes.js';
 
@@ -142,8 +142,8 @@ export class MemoryPersistenceService {
     personality: LoadedPersonality,
     context: ConversationContext,
     deferredData: DeferredMemoryData
-  ): Promise<void> {
-    await this.longTermMemory.storeInteraction({
+  ): Promise<StoredInteractionIds | null> {
+    const stored = await this.longTermMemory.storeInteraction({
       personality,
       userMessage: deferredData.contentForEmbedding,
       aiResponse: deferredData.responseContent,
@@ -155,5 +155,6 @@ export class MemoryPersistenceService {
       { userId: context.userId, personalityId: personality.id, personaId: deferredData.personaId },
       'Stored deferred memory to LTM'
     );
+    return stored;
   }
 }

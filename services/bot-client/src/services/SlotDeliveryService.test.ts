@@ -178,6 +178,33 @@ describe('SlotDeliveryService', () => {
       );
     });
 
+    it('forwards the incognito kind beside incognito=true, on success and on a partial delivery', async () => {
+      const kindResult = buildSuccessResult({
+        metadata: { modelUsed: 'test-model', incognitoModeActive: true, incognitoKind: 'session' },
+      } as Partial<LLMGenerationResult>);
+
+      await service.deliverSuccess(kindResult, buildSlotContext());
+      responseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-1'] });
+      await service.deliverErrorAfterPartial(
+        new PartialDeliveryError({
+          chunkMessageIds: ['id-1'],
+          deliveredContent: 'delivered text',
+          totalChunks: 2,
+          cause: new Error('boom'),
+        }),
+        'Error occurred',
+        kindResult,
+        buildSlotContext()
+      );
+
+      expect(persistence.saveAssistantMessage).toHaveBeenCalledTimes(2);
+      for (const call of vi.mocked(persistence.saveAssistantMessage).mock.calls) {
+        expect(call[0]).toEqual(
+          expect.objectContaining({ incognito: true, incognitoKind: 'session' })
+        );
+      }
+    });
+
     it('skips diagnostic update when no chunks were sent', async () => {
       responseSender.sendResponse.mockResolvedValue({ chunkMessageIds: [] });
       const result = buildSuccessResult();

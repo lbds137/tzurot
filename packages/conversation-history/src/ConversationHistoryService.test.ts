@@ -714,6 +714,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
             },
           },
         }),
+        orderBy: expect.any(Array),
       });
     });
 
@@ -795,6 +796,18 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       const result = await service.getMessageByDiscordId('discord-error-msg');
 
       expect(result).toBeNull();
+    });
+
+    it('prefers a live row over a soft-deleted row sharing the Discord id', async () => {
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue(null);
+
+      await service.getMessageByDiscordId('test-id-123');
+
+      expect(mockPrismaClient.conversationHistory.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ deletedAt: { sort: 'asc', nulls: 'first' } }, { createdAt: 'desc' }],
+        })
+      );
     });
 
     it('should query with "has" filter for Discord message ID array', async () => {

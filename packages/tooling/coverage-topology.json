@@ -100,6 +100,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:abortRerollAssistantMessage",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /history/message/:messageId/reroll-abort",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:activateChannel",
       "kind": "http-route",
       "producer": "client",
@@ -245,6 +259,20 @@
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "POST /history/message/:messageId/edit-check",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:checkRerollAssistantMessage",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /history/message/:messageId/reroll-check",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"
@@ -2023,6 +2051,20 @@
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "DELETE /wallet/:provider",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:rerollAssistantMessage",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /history/message/:messageId/reroll",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"

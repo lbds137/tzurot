@@ -13,7 +13,10 @@ import {
 } from '@tzurot/common-types/constants/error';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type MessageContent } from '@tzurot/common-types/types/ai';
-import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import {
+  type LoadedPersonality,
+  type RerollContext,
+} from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type FreeTierRequestQuota } from '../../../../services/FreeTierRequestQuota.js';
 import { createDiagnosticCollectorForRequest } from '../../../../services/diagnostics/personalityOwnerResolver.js';
@@ -22,6 +25,7 @@ import type {
   ConversationContext,
   SkippedDeferredMemoryData,
 } from '../../../../services/ConversationalRAGTypes.js';
+import type { StoredInteractionIds } from '../../../../services/LongTermMemoryService.js';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 import { type EmbeddingServiceInterface } from '../../../../utils/duplicateDetection.js';
 import { routesAttemptedByPrimary, runWithAutoPromotionFallback } from './autoPromotionFallback.js';
@@ -76,16 +80,17 @@ async function storeSkippedDeferredMemories(
   conversationContext: ConversationContext,
   skippedDeferredMemories: SkippedDeferredMemoryData[] | undefined,
   jobId: string | undefined
-): Promise<void> {
+): Promise<StoredInteractionIds[]> {
+  const stored: StoredInteractionIds[] = [];
   if (skippedDeferredMemories === undefined || skippedDeferredMemories.length === 0) {
-    return;
+    return stored;
   }
   for (const item of skippedDeferredMemories) {
     try {
       // Only `userId` and `triggerMessageId` are author-scoped overrides on the
       // spread context (the skipped author's `personaId` lives on `item.deferredData`);
       // the remaining `conversationContext` fields are conversation-scoped.
-      await ragService.storeDeferredMemory(
+      const ids = await ragService.storeDeferredMemory(
         personality,
         {
           ...conversationContext,
@@ -94,6 +99,9 @@ async function storeSkippedDeferredMemories(
         },
         item.deferredData
       );
+      if (ids !== null) {
+        stored.push(ids);
+      }
     } catch (error) {
       logger.error(
         {
@@ -106,6 +114,59 @@ async function storeSkippedDeferredMemories(
       );
     }
   }
+  return stored;
+}
+
+/**
+ * Store the reply's own deferred memory (skipped for incognito). A storage
+ * failure is logged, never thrown: the user already has a validated response.
+ */
+async function storeMainDeferredMemory(
+  ragService: ConversationalRAGService,
+  personality: LoadedPersonality,
+  conversationContext: ConversationContext,
+  response: {
+    deferredMemoryData?: Parameters<ConversationalRAGService['storeDeferredMemory']>[2];
+    incognitoModeActive?: boolean;
+  },
+  jobId: string | undefined
+): Promise<StoredInteractionIds | null> {
+  if (response.deferredMemoryData === undefined || response.incognitoModeActive === true) {
+    return null;
+  }
+  try {
+    return await ragService.storeDeferredMemory(
+      personality,
+      conversationContext,
+      response.deferredMemoryData
+    );
+  } catch (error) {
+    logger.error(
+      { jobId, err: error },
+      'Failed to store deferred memory - continuing without memory storage'
+    );
+    return null;
+  }
+}
+
+/**
+ * Every memory/pending id this job wrote, for the reroll abort path. Reported
+ * only for a reroll job (`context.reroll`): ordinary jobs carry no such field.
+ */
+function buildRerollMemory(
+  reroll: RerollContext | undefined,
+  stored: (StoredInteractionIds | null)[]
+): { rowId: string; attemptId: string; memoryIds: string[]; pendingIds: string[] } | undefined {
+  if (reroll === undefined) {
+    return undefined;
+  }
+  const present = stored.filter((s): s is StoredInteractionIds => s !== null);
+  return {
+    rowId: reroll.rowId,
+    attemptId: reroll.attemptId,
+    memoryIds: present.flatMap(s => s.memoryIds),
+    pendingIds: present.flatMap(s => s.pendingIds),
+  };
 }
 
 export class GenerationStep implements IPipelineStep {
@@ -385,28 +446,22 @@ export class GenerationStep implements IPipelineStep {
       // duplicate memory bug - see memory:cleanup command). Wrapped in
       // try-catch: memory storage failure shouldn't fail the job since the
       // user already has their validated response.
-      if (response.deferredMemoryData !== undefined && response.incognitoModeActive !== true) {
-        try {
-          await this.ragService.storeDeferredMemory(
-            effectivePersonality,
-            conversationContext,
-            response.deferredMemoryData
-          );
-        } catch (error) {
-          logger.error(
-            { jobId: job.id, err: error },
-            'Failed to store deferred memory - continuing without memory storage'
-          );
-        }
-      }
+      const mainStored = await storeMainDeferredMemory(
+        this.ragService,
+        effectivePersonality,
+        conversationContext,
+        response,
+        job.id
+      );
 
-      await storeSkippedDeferredMemories(
+      const skippedStored = await storeSkippedDeferredMemories(
         this.ragService,
         effectivePersonality,
         conversationContext,
         response.skippedDeferredMemories,
         job.id
       );
+      const rerollMemory = buildRerollMemory(jobContext.reroll, [mainStored, ...skippedStored]);
 
       return {
         ...context,
@@ -438,6 +493,10 @@ export class GenerationStep implements IPipelineStep {
             crossTurnDuplicateDetected: duplicateRetries > 0,
             freshModeEnabled: response.freshModeEnabled,
             incognitoModeActive: response.incognitoModeActive,
+            ...(response.incognitoKind !== undefined
+              ? { incognitoKind: response.incognitoKind }
+              : {}),
+            ...(rerollMemory !== undefined ? { rerollMemory } : {}),
             thinkingContent: response.thinkingContent,
             showModelFooter: context.configOverrides?.showModelFooter,
             // Tier-aware quota retarget (proactive from AuthStep or reactive

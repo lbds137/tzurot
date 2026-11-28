@@ -4,6 +4,7 @@
  * Validates schemas for history endpoint request bodies.
  */
 
+import { REROLL_MAX_THINKING_LENGTH } from '../../constants/discord.js';
 import { describe, it, expect } from 'vitest';
 import {
   ClearHistorySchema,
@@ -20,6 +21,13 @@ import {
   EditCheckRequestSchema,
   EditAssistantMessageResponseSchema,
   MemorySyncBlockReasonSchema,
+  RerollCheckRequestSchema,
+  RerollCheckResponseSchema,
+  RerollMemoryPlanSchema,
+  RerollAssistantMessageRequestSchema,
+  RerollAssistantMessageResponseSchema,
+  RerollAbortRequestSchema,
+  RerollAbortResponseSchema,
 } from './history.js';
 import { EDIT_RESPONSE_MAX_CONTENT_LENGTH } from '../../constants/discord.js';
 
@@ -611,6 +619,141 @@ describe('History API Input Schema Tests', () => {
 
     it('rejects an unknown reason', () => {
       expect(MemorySyncBlockReasonSchema.safeParse('nope').success).toBe(false);
+    });
+  });
+
+  describe('reroll schemas', () => {
+    const commit = {
+      rowId: 'row-1',
+      attemptId: 'attempt-1',
+      jobId: 'job-1',
+      content: 'A new reply',
+      discordMessageIds: ['111111111111111111'],
+      newMemoryIds: ['m1'],
+      newPendingIds: [],
+    };
+
+    it('accepts an empty and a populated check request, and rejects a non-array id list', () => {
+      expect(RerollCheckRequestSchema.safeParse({}).success).toBe(true);
+      expect(
+        RerollCheckRequestSchema.safeParse({ excludeMemoryIds: ['a'], excludePendingIds: ['b'] })
+          .success
+      ).toBe(true);
+      expect(RerollCheckRequestSchema.safeParse({ excludeMemoryIds: 'a' }).success).toBe(false);
+    });
+
+    it('accepts each memory plan shape and rejects an unknown kind or reason', () => {
+      for (const plan of [
+        { kind: 'none' },
+        { kind: 'remove', memoryIds: ['m'], pendingIds: [] },
+        { kind: 'blocked', reason: 'locked' },
+      ]) {
+        expect(RerollMemoryPlanSchema.safeParse(plan).success).toBe(true);
+      }
+      expect(RerollMemoryPlanSchema.safeParse({ kind: 'blocked', reason: 'nope' }).success).toBe(
+        false
+      );
+      expect(RerollMemoryPlanSchema.safeParse({ kind: 'other' }).success).toBe(false);
+    });
+
+    it('accepts a check response with and without a trigger and rejects a missing owner', () => {
+      const response = {
+        rowId: 'row-1',
+        personalityId: 'pers-1',
+        personaId: 'persona-1',
+        ownerDiscordId: '900000000000000001',
+        incognito: false,
+        content: 'The reply',
+        discordMessageIds: ['111111111111111111'],
+        trigger: null,
+        memoryPlan: { kind: 'none' },
+      };
+      expect(RerollCheckResponseSchema.safeParse(response).success).toBe(true);
+      expect(
+        RerollCheckResponseSchema.safeParse({
+          ...response,
+          trigger: {
+            discordMessageId: '222222222222222222',
+            content: 'hi',
+            createdAt: '2026-06-04T12:00:00.000Z',
+          },
+        }).success
+      ).toBe(true);
+      const { ownerDiscordId: _omitted, ...withoutOwner } = response;
+      expect(RerollCheckResponseSchema.safeParse(withoutOwner).success).toBe(false);
+    });
+
+    it('accepts a commit request and rejects blank content or a missing attempt id', () => {
+      expect(RerollAssistantMessageRequestSchema.safeParse(commit).success).toBe(true);
+      expect(
+        RerollAssistantMessageRequestSchema.safeParse({ ...commit, content: '   ' }).success
+      ).toBe(false);
+      expect(
+        RerollAssistantMessageRequestSchema.safeParse({ ...commit, attemptId: '' }).success
+      ).toBe(false);
+      const { jobId: _noJob, ...withoutJob } = commit;
+      expect(RerollAssistantMessageRequestSchema.safeParse(withoutJob).success).toBe(false);
+    });
+
+    it('bounds thinkingContent and validates the incognito kind', () => {
+      const parse = (extra: object) =>
+        RerollAssistantMessageRequestSchema.safeParse({ ...commit, ...extra }).success;
+
+      expect(parse({ thinkingContent: 'x'.repeat(REROLL_MAX_THINKING_LENGTH) })).toBe(true);
+      expect(parse({ thinkingContent: 'x'.repeat(REROLL_MAX_THINKING_LENGTH + 1) })).toBe(false);
+      expect(parse({ incognito: true, incognitoKind: 'session' })).toBe(true);
+      expect(parse({ incognito: true, incognitoKind: 'other' })).toBe(false);
+    });
+
+    it('accepts a commit response and rejects a negative count', () => {
+      expect(
+        RerollAssistantMessageResponseSchema.safeParse({ id: 'new', removedMemories: 0 }).success
+      ).toBe(true);
+      expect(
+        RerollAssistantMessageResponseSchema.safeParse({ id: 'new', removedMemories: -1 }).success
+      ).toBe(false);
+    });
+
+    it('accepts an abort request and response and rejects a missing keep list', () => {
+      const abort = {
+        rowId: 'row-1',
+        attemptId: 'attempt-1',
+        jobId: 'job-1',
+        newMemoryIds: [],
+        newPendingIds: [],
+        keepMemoryIds: [],
+      };
+      expect(RerollAbortRequestSchema.safeParse(abort).success).toBe(true);
+      const { keepMemoryIds: _omitted, ...withoutKeep } = abort;
+      expect(RerollAbortRequestSchema.safeParse(withoutKeep).success).toBe(false);
+      const { attemptId: _noAttempt, ...withoutAttempt } = abort;
+      expect(RerollAbortRequestSchema.safeParse(withoutAttempt).success).toBe(false);
+      const { jobId: _noJob, ...withoutJob } = abort;
+      expect(RerollAbortRequestSchema.safeParse(withoutJob).success).toBe(false);
+      const answer = {
+        removedMemories: 2,
+        committed: false,
+        oldRowLive: true,
+        oldRowContentDigest: 'a'.repeat(64),
+      };
+      expect(RerollAbortResponseSchema.safeParse(answer).success).toBe(true);
+      expect(
+        RerollAbortResponseSchema.safeParse({
+          ...answer,
+          oldRowLive: false,
+          oldRowContentDigest: null,
+        }).success
+      ).toBe(true);
+      // The old row's state is part of the answer; a digest is a full sha256 hex.
+      const { oldRowLive: _noLive, ...withoutLive } = answer;
+      expect(RerollAbortResponseSchema.safeParse(withoutLive).success).toBe(false);
+      const { oldRowContentDigest: _noDigest, ...withoutDigest } = answer;
+      expect(RerollAbortResponseSchema.safeParse(withoutDigest).success).toBe(false);
+      expect(
+        RerollAbortResponseSchema.safeParse({ ...answer, oldRowContentDigest: 'short' }).success
+      ).toBe(false);
+      expect(RerollAbortResponseSchema.safeParse({ removedMemories: 2 }).success).toBe(false);
+      expect(RerollAbortResponseSchema.safeParse({}).success).toBe(false);
     });
   });
 });

@@ -104,6 +104,7 @@ import { handleGetUserUsage } from '../user/usage.js';
 import { handleClearHistory, handleUndoHistory, handleGetHistoryStats, handleHardDeleteHistory } from '../user/history.js';
 import { handleGetMessageReasoning } from '../user/historyReasoning.js';
 import { handleGetEditableMessage, handleCheckEditAssistantMessage, handleEditAssistantMessage } from '../user/historyEdit.js';
+import { handleCheckRerollAssistantMessage, handleRerollAssistantMessage, handleAbortRerollAssistantMessage } from '../user/historyReroll.js';
 import { handleGetNsfwStatus, handleVerifyNsfw } from '../user/nsfw.js';
 import { handleListWalletKeys } from '../wallet/listKeys.js';
 import { handleSetWalletKey } from '../wallet/setKey.js';
@@ -314,6 +315,9 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.get('/api/user/history/editable/:messageId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetEditableMessage(deps));
   app.post('/api/user/history/message/:messageId/edit-check', requireUserAuth(), requireProvisionedUser(deps.prisma), handleCheckEditAssistantMessage(deps));
   app.patch('/api/user/history/message/:messageId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleEditAssistantMessage(deps));
+  app.post('/api/user/history/message/:messageId/reroll-check', requireUserAuth(), requireProvisionedUser(deps.prisma), handleCheckRerollAssistantMessage(deps));
+  app.post('/api/user/history/message/:messageId/reroll', requireUserAuth(), requireProvisionedUser(deps.prisma), handleRerollAssistantMessage(deps));
+  app.post('/api/user/history/message/:messageId/reroll-abort', requireUserAuth(), requireProvisionedUser(deps.prisma), handleAbortRerollAssistantMessage(deps));
   app.delete('/api/user/wallet/:provider', requireUserAuth(), requireProvisionedUser(deps.prisma), handleRemoveWalletKey(deps));
   app.get('/api/user/memory/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetMemory(deps));
   app.patch('/api/user/memory/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdateMemory(deps));

@@ -27,6 +27,7 @@ import { DEFAULT_SCAN_COUNT, scanJsonEntries } from '../utils/scanJsonEntries.js
 import {
   TRACKED_JOB_MAX_LIFETIME_MS,
   type PendingJobContext,
+  type PersistableJobContext,
   type TrackedJobRecorder,
 } from './JobTracker.js';
 
@@ -194,7 +195,7 @@ export class SingleJobPersistence {
  */
 export function toPersistedContext(
   jobId: string,
-  context: PendingJobContext,
+  context: PersistableJobContext,
   startTime: number
 ): PersistedJobContext {
   const base = {
@@ -243,6 +244,12 @@ export class SingleJobContextRecorder implements TrackedJobRecorder {
   constructor(private readonly persistence: SingleJobPersistence) {}
 
   record(jobId: string, context: PendingJobContext, startTime: number): void {
+    // A reroll edits a reply in place and holds a live interaction; it has no
+    // recoverable shape, so a restart drops it (pinned by the 'reroll' case in
+    // SingleJobPersistence.test.ts).
+    if (context.kind === 'reroll') {
+      return;
+    }
     // The try/catch and the `.catch` cover DIFFERENT failure modes, and the
     // port contract needs both. `toPersistedContext` runs synchronously as an
     // argument expression — before `put` is ever called — and dereferences

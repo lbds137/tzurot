@@ -39,6 +39,12 @@ import {
   EditAssistantMessageRequestSchema,
   EditCheckRequestSchema,
   EditAssistantMessageResponseSchema,
+  RerollAbortRequestSchema,
+  RerollAbortResponseSchema,
+  RerollAssistantMessageRequestSchema,
+  RerollAssistantMessageResponseSchema,
+  RerollCheckRequestSchema,
+  RerollCheckResponseSchema,
   MessageReasoningResponseSchema,
   UndoHistoryResponseSchema,
   UndoHistorySchema,
@@ -270,6 +276,45 @@ export const userResourceRoutes = {
     params: { messageId: z.string() },
     input: EditAssistantMessageRequestSchema,
     output: EditAssistantMessageResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  // Reroll preflight: refuses a non-latest reply and plans which memories the
+  // reroll removes. A POST only to carry the optional body; it reads.
+  checkRerollAssistantMessage: {
+    audience: 'user',
+    method: 'post',
+    path: '/history/message/:messageId/reroll-check',
+    id: 'checkRerollAssistantMessage',
+    params: { messageId: z.string() },
+    input: RerollCheckRequestSchema,
+    output: RerollCheckResponseSchema,
+    requiresProvisionedUser: true,
+    meta: { safeRead: true },
+  },
+
+  // Commits a reroll after the bot edited the Discord message(s): soft-deletes
+  // the old row, writes the new one, removes the old reply's memories.
+  rerollAssistantMessage: {
+    audience: 'user',
+    method: 'post',
+    path: '/history/message/:messageId/reroll',
+    id: 'rerollAssistantMessage',
+    params: { messageId: z.string() },
+    input: RerollAssistantMessageRequestSchema,
+    output: RerollAssistantMessageResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  // Undoes a failed reroll attempt: removes the memories its new reply wrote.
+  abortRerollAssistantMessage: {
+    audience: 'user',
+    method: 'post',
+    path: '/history/message/:messageId/reroll-abort',
+    id: 'abortRerollAssistantMessage',
+    params: { messageId: z.string() },
+    input: RerollAbortRequestSchema,
+    output: RerollAbortResponseSchema,
     requiresProvisionedUser: true,
   },
 

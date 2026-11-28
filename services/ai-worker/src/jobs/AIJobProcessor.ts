@@ -329,14 +329,19 @@ export class AIJobProcessor {
     // different personality, and they must not collide.
     const triggerMessageId = job.data.context.triggerMessageId;
     const personalityId = job.data.personality.id;
+    const reroll = job.data.context.reroll;
+    // A reroll re-answers a trigger whose ordinary lock is still held (success
+    // keeps it), so it locks on its own (row, attempt) identity instead.
+    const lockKey =
+      reroll === undefined ? triggerMessageId : `reroll:${reroll.rowId}:${reroll.attemptId}`;
     let lockAcquired = false;
 
-    if (triggerMessageId !== undefined) {
+    if (lockKey !== undefined) {
       // The job ID is stable across stall re-runs, so the lock can tell a
       // re-run of this same job (proceed) from a different job for the same
       // (message, personality) pair (skip as duplicate).
       const isNew = await redisService.markMessageProcessing(
-        triggerMessageId,
+        lockKey,
         personalityId,
         job.id ?? job.data.requestId
       );
@@ -375,12 +380,12 @@ export class AIJobProcessor {
       return result;
     } catch (error) {
       // Release lock on failure to allow BullMQ retries
-      if (lockAcquired && triggerMessageId !== undefined) {
+      if (lockAcquired && lockKey !== undefined) {
         logger.warn(
           { jobId: job.id, triggerMessageId, personalityId },
           'Job failed, releasing idempotency lock for retry'
         );
-        await redisService.releaseMessageLock(triggerMessageId, personalityId);
+        await redisService.releaseMessageLock(lockKey, personalityId);
       }
       throw error;
     }

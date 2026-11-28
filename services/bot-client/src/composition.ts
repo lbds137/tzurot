@@ -39,6 +39,7 @@ import { MultiTagCoordinator } from './services/MultiTagCoordinator.js';
 import { MultiTagPersistence } from './services/MultiTagPersistence.js';
 import { MultiTagRecovery } from './services/MultiTagRecovery.js';
 import { MessageHandler } from './handlers/MessageHandler.js';
+import { releaseRerollGuard } from './services/character/rerollGuard.js';
 import { type DiscordResponseSender } from './services/DiscordResponseSender.js';
 import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
@@ -145,7 +146,14 @@ export function buildJobTrackingStack(deps: {
   const persistence = new SingleJobPersistence(deps.redis);
   const jobTracker = new JobTracker(
     deps.orderingService,
-    new SingleJobContextRecorder(persistence)
+    new SingleJobContextRecorder(persistence),
+    context => {
+      // A swept reroll slot releases the per-row guard. Its job record is kept on
+      // purpose (it outlives the sweep, REROLL_JOB_RECORD_TTL_MS): a result that
+      // arrives late is then found by handleUnknownRerollResult and its memories
+      // are aborted, which clearing the record here would prevent.
+      void releaseRerollGuard(deps.redis, context.rowId, context.attemptId);
+    }
   );
   return {
     jobTracker,

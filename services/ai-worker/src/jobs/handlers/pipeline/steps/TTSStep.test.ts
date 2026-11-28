@@ -226,6 +226,13 @@ describe('TTSStep', () => {
       expect(mockDispatchTts).toHaveBeenCalledTimes(1);
     });
 
+    it('skips a reroll job even when every voice prerequisite holds', async () => {
+      const ctx = createContext();
+      ctx.job.data.context.reroll = { rowId: 'row-1', attemptId: 'attempt-1' };
+      await step.process(ctx);
+      expect(mockDispatchTts).not.toHaveBeenCalled();
+    });
+
     it('skips when content is empty', async () => {
       const ctx = createContext();
       ctx.result!.content = '';
