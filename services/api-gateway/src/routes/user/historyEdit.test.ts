@@ -9,9 +9,10 @@ import type { Response } from 'express';
 import type { AuthenticatedRequest } from '../../types.js';
 import type { RouteDeps } from '../routeDeps.js';
 
-const { mockIsBotOwner, mockRewrite } = vi.hoisted(() => ({
+const { mockIsBotOwner, mockPlan, mockApply } = vi.hoisted(() => ({
   mockIsBotOwner: vi.fn(() => false),
-  mockRewrite: vi.fn(),
+  mockPlan: vi.fn(),
+  mockApply: vi.fn(),
 }));
 
 vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
@@ -31,7 +32,10 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
-vi.mock('./historyEditMemory.js', () => ({ rewriteExchangeMemory: mockRewrite }));
+vi.mock('./historyEditMemory.js', () => ({
+  planExchangeMemorySync: mockPlan,
+  applyExchangeMemorySync: mockApply,
+}));
 
 import { handleEditAssistantMessage, handleGetEditableMessage } from './historyEdit.js';
 
@@ -55,7 +59,8 @@ describe('history edit handlers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockIsBotOwner.mockReturnValue(false);
-    mockRewrite.mockResolvedValue(true);
+    mockPlan.mockResolvedValue({ kind: 'sync', memoryId: 'mem-1', pendingId: 'pend-1' });
+    mockApply.mockResolvedValue(undefined);
     update.mockResolvedValue({});
   });
 
@@ -88,7 +93,21 @@ describe('history edit handlers', () => {
         content: 'Stored reply',
         discordMessageIds: ROW.discordMessageId,
         personalityId: 'personality-1',
+        memorySync: { kind: 'sync' },
       });
+      expect(mockPlan).toHaveBeenCalledWith(expect.anything(), ROW);
+    });
+
+    it('reports a blocked memory state with its reason', async () => {
+      findFirst.mockResolvedValue(ROW);
+      mockPlan.mockResolvedValue({ kind: 'blocked', reason: 'locked' });
+      const { req, res, json } = reqRes(CALLER);
+
+      await handleGetEditableMessage(deps())(req, res, () => undefined);
+
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({ memorySync: { kind: 'blocked', reason: 'locked' } })
+      );
     });
 
     it('404s a non-owner and queries with the owner-scope WHERE', async () => {
@@ -146,8 +165,13 @@ describe('history edit handlers', () => {
           discordMessageId: [MESSAGE_ID],
         },
       });
-      expect(mockRewrite).toHaveBeenCalledWith(expect.anything(), ROW, 'New reply');
-      expect(json).toHaveBeenCalledWith({ edited: true, memoryUpdated: true });
+      expect(mockPlan).toHaveBeenCalledWith(expect.anything(), ROW, 'New reply');
+      expect(mockApply).toHaveBeenCalledWith(
+        expect.anything(),
+        { kind: 'sync', memoryId: 'mem-1', pendingId: 'pend-1' },
+        'New reply'
+      );
+      expect(json).toHaveBeenCalledWith({ edited: true, memory: { kind: 'synced' } });
     });
 
     it('404s a non-owner without updating, scoped by the owner WHERE', async () => {
@@ -158,7 +182,7 @@ describe('history edit handlers', () => {
 
       expect(status).toHaveBeenCalledWith(404);
       expect(update).not.toHaveBeenCalled();
-      expect(mockRewrite).not.toHaveBeenCalled();
+      expect(mockApply).not.toHaveBeenCalled();
       expect(findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ persona: { owner: { discordId: CALLER } } }),
@@ -189,7 +213,7 @@ describe('history edit handlers', () => {
 
       expect(status).toHaveBeenCalledWith(400);
       expect(update).not.toHaveBeenCalled();
-      expect(mockRewrite).not.toHaveBeenCalled();
+      expect(mockApply).not.toHaveBeenCalled();
     });
 
     it('400s an invalid body before any query', async () => {
@@ -202,16 +226,42 @@ describe('history edit handlers', () => {
       expect(update).not.toHaveBeenCalled();
     });
 
-    it('still succeeds with memoryUpdated false when the memory rewrite throws', async () => {
+    it('still succeeds with a none outcome when the memory sync throws', async () => {
       findFirst.mockResolvedValue(ROW);
-      mockRewrite.mockRejectedValue(new Error('boom'));
+      mockApply.mockRejectedValue(new Error('boom'));
       const { req, res, json, status } = reqRes(CALLER, validBody);
 
       await handleEditAssistantMessage(deps())(req, res, () => undefined);
 
       expect(update).toHaveBeenCalled();
       expect(status).toHaveBeenCalledWith(200);
-      expect(json).toHaveBeenCalledWith({ edited: true, memoryUpdated: false });
+      expect(json).toHaveBeenCalledWith({ edited: true, memory: { kind: 'none' } });
+    });
+
+    it('writes the history row but skips the apply and returns blocked when re-planning blocks', async () => {
+      findFirst.mockResolvedValue(ROW);
+      mockPlan.mockResolvedValue({ kind: 'blocked', reason: 'locked' });
+      const { req, res, json } = reqRes(CALLER, validBody);
+
+      await handleEditAssistantMessage(deps())(req, res, () => undefined);
+
+      expect(update).toHaveBeenCalled();
+      expect(mockApply).not.toHaveBeenCalled();
+      expect(json).toHaveBeenCalledWith({
+        edited: true,
+        memory: { kind: 'blocked', reason: 'locked' },
+      });
+    });
+
+    it('returns none without applying when there is nothing to sync', async () => {
+      findFirst.mockResolvedValue(ROW);
+      mockPlan.mockResolvedValue({ kind: 'none' });
+      const { req, res, json } = reqRes(CALLER, validBody);
+
+      await handleEditAssistantMessage(deps())(req, res, () => undefined);
+
+      expect(mockApply).not.toHaveBeenCalled();
+      expect(json).toHaveBeenCalledWith({ edited: true, memory: { kind: 'none' } });
     });
   });
 });
