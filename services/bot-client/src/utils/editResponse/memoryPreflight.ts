@@ -15,7 +15,7 @@ export const MEMORY_LOCKED_MESSAGE = "This reply's memory is locked. Unlock it i
 export const MEMORY_UNSAFE_MESSAGE =
   "This reply's memory can't be updated safely, so it can't be edited.";
 export const REPLY_BREAKS_MEMORY_MESSAGE =
-  'That edit can\'t be saved to the character\'s memory. If it contains "{assistant}:", remove that and try again.';
+  'That edit can\'t be saved to the character\'s memory as written. Remove any "{assistant}:" or trailing "[Referenced content: …]" text and try again.';
 
 /** The refusal message, or null when the edit may proceed. */
 export function memoryPreflightMessage(memorySync: MemorySyncState): string | null {

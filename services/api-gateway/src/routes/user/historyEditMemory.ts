@@ -187,10 +187,16 @@ export async function applyExchangeMemorySync(
       logger.warn({ pendingId: plan.pendingId }, 'Planned pending memory gone or unrewritable');
       allWritten = false;
     } else {
-      await prisma.pendingMemory.update({
+      // updateMany: the row can be consumed between the read above and this write,
+      // and a vanished row must be a warned skip, not a thrown not-found.
+      const { count } = await prisma.pendingMemory.updateMany({
         where: { id: plan.pendingId },
         data: { text: rewritten },
       });
+      if (count === 0) {
+        logger.warn({ pendingId: plan.pendingId }, 'Planned pending memory gone or unrewritable');
+        allWritten = false;
+      }
     }
   }
   return allWritten;

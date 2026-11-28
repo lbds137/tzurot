@@ -56,6 +56,7 @@ const NOT_YOURS_MESSAGE = "This isn't one of your character replies.";
 const TOO_LONG_MESSAGE = 'This response is too long to edit here.';
 const CANT_EDIT_MESSAGE = "I can't edit this message anymore.";
 const EMPTY_MESSAGE = 'The response cannot be empty.';
+const NO_CHANGES_MESSAGE = 'No changes to save.';
 const DONE_MESSAGE = 'Response edited.';
 const PARTIAL_DONE_MESSAGE = "Response edited, but part of it couldn't be updated on Discord.";
 const GENERIC_FAILURE_MESSAGE = 'Something went wrong editing the response.';
@@ -213,6 +214,14 @@ async function handleSubmit(interaction: ModalSubmitInteraction): Promise<void> 
     return;
   }
   const { discordMessageIds, personalityId, memorySync } = lookup.data;
+
+  // Exact compare: text is stored as typed, so a whitespace-only change is an edit.
+  // An unchanged submit is not an edit and must not rewrite the Discord message,
+  // which would drop attachments such as the TTS audio.
+  if (newText === lookup.data.content) {
+    await replySpec(interaction, CATALOG.error.validation(NO_CHANGES_MESSAGE));
+    return;
+  }
 
   // Memory must be able to follow the edit; refuse before Discord is touched.
   const refusal = memoryPreflightMessage(memorySync);

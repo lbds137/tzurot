@@ -24,7 +24,9 @@ describe('memoryPreflightMessage', () => {
     expect(memoryPreflightMessage({ kind: 'blocked', reason: 'reply-off-template' })).toBe(
       REPLY_BREAKS_MEMORY_MESSAGE
     );
-    expect(REPLY_BREAKS_MEMORY_MESSAGE).toContain('"{assistant}:"');
+    expect(REPLY_BREAKS_MEMORY_MESSAGE).toBe(
+      'That edit can\'t be saved to the character\'s memory as written. Remove any "{assistant}:" or trailing "[Referenced content: …]" text and try again.'
+    );
   });
 
   it.each([{ kind: 'none' }, { kind: 'sync' }] as const)('allows a %o plan', memorySync => {
