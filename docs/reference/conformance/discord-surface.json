@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 3141,
-    "sites": 7260
+    "entries": 3177,
+    "sites": 7327
   },
   "entries": [
     {
@@ -2084,18 +2084,12 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/editResponse.ts",
       "symbol": "author",
-      "count": 3
-    },
-    {
-      "category": "client-methods",
-      "file": "services/bot-client/src/commands/editResponse.ts",
-      "symbol": "channelId",
       "count": 1
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/editResponse.ts",
-      "symbol": "channels",
+      "symbol": "channelId",
       "count": 1
     },
     {
@@ -2108,24 +2102,12 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/editResponse.ts",
       "symbol": "content",
-      "count": 2
-    },
-    {
-      "category": "client-methods",
-      "file": "services/bot-client/src/commands/editResponse.ts",
-      "symbol": "customId",
-      "count": 2
-    },
-    {
-      "category": "client-methods",
-      "file": "services/bot-client/src/commands/editResponse.ts",
-      "symbol": "displayAvatarURL",
       "count": 1
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/editResponse.ts",
-      "symbol": "fetch",
+      "symbol": "customId",
       "count": 2
     },
     {
@@ -2144,25 +2126,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/commands/editResponse.ts",
       "symbol": "id",
-      "count": 9
-    },
-    {
-      "category": "client-methods",
-      "file": "services/bot-client/src/commands/editResponse.ts",
-      "symbol": "isTextBased",
-      "count": 1
-    },
-    {
-      "category": "client-methods",
-      "file": "services/bot-client/src/commands/editResponse.ts",
-      "symbol": "isThread",
-      "count": 1
-    },
-    {
-      "category": "client-methods",
-      "file": "services/bot-client/src/commands/editResponse.ts",
-      "symbol": "messages",
-      "count": 1
+      "count": 7
     },
     {
       "category": "client-methods",
@@ -2191,14 +2155,8 @@
     {
       "category": "client-methods",
       "file": "services/bot-client/src/commands/editResponse.ts",
-      "symbol": "username",
-      "count": 1
-    },
-    {
-      "category": "client-methods",
-      "file": "services/bot-client/src/commands/editResponse.ts",
       "symbol": "webhookId",
-      "count": 3
+      "count": 1
     },
     {
       "category": "client-methods",
@@ -4596,6 +4554,36 @@
     },
     {
       "category": "client-methods",
+      "file": "services/bot-client/src/commands/rerollMessage.ts",
+      "symbol": "id",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/rerollMessage.ts",
+      "symbol": "setName",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/rerollMessage.ts",
+      "symbol": "setType",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/rerollMessage.ts",
+      "symbol": "targetMessage",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/rerollMessage.ts",
+      "symbol": "user",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
       "file": "services/bot-client/src/commands/settings/apikey/browse.ts",
       "symbol": "addFields",
       "count": 1
@@ -6666,6 +6654,36 @@
     },
     {
       "category": "client-methods",
+      "file": "services/bot-client/src/handlers/rerollResultHandler.ts",
+      "symbol": "client",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/handlers/rerollResultHandler.ts",
+      "symbol": "fetch",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/handlers/rerollResultHandler.ts",
+      "symbol": "id",
+      "count": 4
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/handlers/rerollResultHandler.ts",
+      "symbol": "user",
+      "count": 3
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/handlers/rerollResultHandler.ts",
+      "symbol": "users",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
       "file": "services/bot-client/src/index.ts",
       "symbol": "author",
       "count": 2
@@ -7347,12 +7365,6 @@
       "file": "services/bot-client/src/services/DiscordChannelFetcher.ts",
       "symbol": "webhookId",
       "count": 3
-    },
-    {
-      "category": "client-methods",
-      "file": "services/bot-client/src/services/DiscordResponseSender.ts",
-      "symbol": "escapeMarkdown",
-      "count": 1
     },
     {
       "category": "client-methods",
@@ -8364,6 +8376,96 @@
     },
     {
       "category": "client-methods",
+      "file": "services/bot-client/src/services/character/rerollRecovery.ts",
+      "symbol": "channels",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/character/rerollRecovery.ts",
+      "symbol": "delete",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/character/rerollRecovery.ts",
+      "symbol": "fetch",
+      "count": 5
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/character/rerollRecovery.ts",
+      "symbol": "isTextBased",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/character/rerollRecovery.ts",
+      "symbol": "messages",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/character/rerollRecovery.ts",
+      "symbol": "users",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/character/rerollTurn.ts",
+      "symbol": "channel",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/character/rerollTurn.ts",
+      "symbol": "client",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/character/rerollTurn.ts",
+      "symbol": "fetch",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/character/rerollTurn.ts",
+      "symbol": "guildId",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/character/rerollTurn.ts",
+      "symbol": "id",
+      "count": 6
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/character/rerollTurn.ts",
+      "symbol": "messages",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/character/rerollTurn.ts",
+      "symbol": "user",
+      "count": 5
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/character/rerollTurnUser.ts",
+      "symbol": "fetch",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/character/rerollTurnUser.ts",
+      "symbol": "users",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
       "file": "services/bot-client/src/services/character/sharedNsfwGate.ts",
       "symbol": "channel",
       "count": 1
@@ -8690,6 +8792,12 @@
       "category": "client-methods",
       "file": "services/bot-client/src/services/releaseDm/setupReleaseDmWorker.ts",
       "symbol": "users",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/services/responseFooter.ts",
+      "symbol": "escapeMarkdown",
       "count": 1
     },
     {
@@ -10753,7 +10861,19 @@
     {
       "category": "client-methods",
       "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "attachments",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
       "symbol": "code",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "content",
       "count": 1
     },
     {
@@ -10772,24 +10892,90 @@
       "category": "client-methods",
       "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
       "symbol": "edit",
-      "count": 1
+      "count": 2
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
       "symbol": "editMessage",
-      "count": 1
+      "count": 2
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
       "symbol": "id",
-      "count": 11
+      "count": 15
     },
     {
       "category": "client-methods",
       "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
       "symbol": "send",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/liveTarget.ts",
+      "symbol": "author",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/liveTarget.ts",
+      "symbol": "channels",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/liveTarget.ts",
+      "symbol": "content",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/liveTarget.ts",
+      "symbol": "displayAvatarURL",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/liveTarget.ts",
+      "symbol": "fetch",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/liveTarget.ts",
+      "symbol": "id",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/liveTarget.ts",
+      "symbol": "isTextBased",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/liveTarget.ts",
+      "symbol": "isThread",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/liveTarget.ts",
+      "symbol": "messages",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/liveTarget.ts",
+      "symbol": "username",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/liveTarget.ts",
+      "symbol": "webhookId",
       "count": 2
     },
     {
@@ -12492,6 +12678,12 @@
     },
     {
       "category": "command-options",
+      "file": "services/bot-client/src/commands/rerollMessage.ts",
+      "symbol": "ContextMenuCommandBuilder",
+      "count": 1
+    },
+    {
+      "category": "command-options",
       "file": "services/bot-client/src/commands/settings/index.ts",
       "symbol": "SlashCommandBuilder",
       "count": 1
@@ -13380,36 +13572,6 @@
     },
     {
       "category": "discord-enums",
-      "file": "services/bot-client/src/commands/editResponse.ts",
-      "symbol": "ChannelType.AnnouncementThread",
-      "count": 1
-    },
-    {
-      "category": "discord-enums",
-      "file": "services/bot-client/src/commands/editResponse.ts",
-      "symbol": "ChannelType.GuildAnnouncement",
-      "count": 1
-    },
-    {
-      "category": "discord-enums",
-      "file": "services/bot-client/src/commands/editResponse.ts",
-      "symbol": "ChannelType.GuildText",
-      "count": 1
-    },
-    {
-      "category": "discord-enums",
-      "file": "services/bot-client/src/commands/editResponse.ts",
-      "symbol": "ChannelType.PrivateThread",
-      "count": 1
-    },
-    {
-      "category": "discord-enums",
-      "file": "services/bot-client/src/commands/editResponse.ts",
-      "symbol": "ChannelType.PublicThread",
-      "count": 1
-    },
-    {
-      "category": "discord-enums",
       "file": "services/bot-client/src/commands/inspect/browse.ts",
       "symbol": "ButtonStyle.Secondary",
       "count": 1
@@ -13502,6 +13664,12 @@
       "category": "discord-enums",
       "file": "services/bot-client/src/commands/persona/view.ts",
       "symbol": "ButtonStyle.Secondary",
+      "count": 1
+    },
+    {
+      "category": "discord-enums",
+      "file": "services/bot-client/src/commands/rerollMessage.ts",
+      "symbol": "ApplicationCommandType.Message",
       "count": 1
     },
     {
@@ -13969,13 +14137,49 @@
     {
       "category": "discord-enums",
       "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
-      "symbol": "RESTJSONErrorCodes.UnknownMessage",
+      "symbol": "RESTJSONErrorCodes.UnknownChannel",
       "count": 1
     },
     {
       "category": "discord-enums",
       "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "RESTJSONErrorCodes.UnknownMessage",
+      "count": 2
+    },
+    {
+      "category": "discord-enums",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
       "symbol": "RESTJSONErrorCodes.UnknownWebhook",
+      "count": 1
+    },
+    {
+      "category": "discord-enums",
+      "file": "services/bot-client/src/utils/editResponse/liveTarget.ts",
+      "symbol": "ChannelType.AnnouncementThread",
+      "count": 1
+    },
+    {
+      "category": "discord-enums",
+      "file": "services/bot-client/src/utils/editResponse/liveTarget.ts",
+      "symbol": "ChannelType.GuildAnnouncement",
+      "count": 1
+    },
+    {
+      "category": "discord-enums",
+      "file": "services/bot-client/src/utils/editResponse/liveTarget.ts",
+      "symbol": "ChannelType.GuildText",
+      "count": 1
+    },
+    {
+      "category": "discord-enums",
+      "file": "services/bot-client/src/utils/editResponse/liveTarget.ts",
+      "symbol": "ChannelType.PrivateThread",
+      "count": 1
+    },
+    {
+      "category": "discord-enums",
+      "file": "services/bot-client/src/utils/editResponse/liveTarget.ts",
+      "symbol": "ChannelType.PublicThread",
       "count": 1
     },
     {
@@ -18356,7 +18560,7 @@
       "category": "message-options",
       "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
       "symbol": "allowedMentions",
-      "count": 2
+      "count": 3
     },
     {
       "category": "message-options",
@@ -18715,6 +18919,12 @@
     {
       "category": "unclassified",
       "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "*",
+      "count": 1
+    },
+    {
+      "category": "unclassified",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
       "symbol": "attachments",
       "count": 1
     },
@@ -18823,8 +19033,14 @@
     {
       "category": "webhook-options",
       "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "*",
+      "count": 1
+    },
+    {
+      "category": "webhook-options",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
       "symbol": "allowedMentions",
-      "count": 2
+      "count": 3
     },
     {
       "category": "webhook-options",
@@ -18848,7 +19064,7 @@
       "category": "webhook-options",
       "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
       "symbol": "threadId",
-      "count": 2
+      "count": 3
     },
     {
       "category": "webhook-options",
