@@ -39,6 +39,7 @@ import {
 } from '../services/character/rerollGuard.js';
 import {
   abortReroll,
+  abortThenDrop,
   isDefiniteRefusal,
   type AbortOutcome,
 } from '../services/character/rerollAbort.js';
@@ -128,7 +129,11 @@ type EditOutcome =
       message: string;
       /** Present when an in-flight record exists: delete it only after the abort the caller still owes has answered. */
       dropRecord?: () => Promise<void>;
+      /** Present with `dropRecord`: the record stays when the owed abort comes back `unknown`; hand it to the recovery retry timer. */
+      keep?: () => void;
     };
+
+type FailedEdit = Extract<EditOutcome, { ok: false }>;
 
 interface EditInPlaceArgs {
   jobId: string;
@@ -219,12 +224,14 @@ async function editInPlace(args: EditInPlaceArgs): Promise<EditOutcome> {
   }
   if (!applied.ok) {
     // Nothing changed on Discord, so there is nothing for a restart to undo; the
-    // record still goes only after the abort the caller owes (a crash in between
-    // leaves it for recovery, whose abort is the one that cleans the memories).
+    // record still goes only once the abort the caller owes has answered
+    // (`aborted` or `committed`). A crash in between, or an abort that comes
+    // back `unknown`, leaves it for recovery, whose abort cleans the memories.
     return {
       ok: false,
       message: applied.reason === 'uneditable' ? CANT_REROLL_MESSAGE : GENERIC_FAILURE_MESSAGE,
       dropRecord: () => deleteInflight(args.redis, args.jobId),
+      keep: handOff,
     };
   }
   const { target } = resolved;
@@ -367,8 +374,12 @@ async function settleFailedCommit(args: SettleArgs): Promise<boolean> {
   // between the restore and the abort leaves recovery to run it.
   const restored = await restore(definite);
   if (definite) {
-    await abort();
-    if (restored) {
+    const abortOutcome = await abort();
+    // An abort that did not answer leaves the record for boot or rescan
+    // recovery to retry it from, so it stays and goes to recovery.
+    if (restored && abortOutcome === 'unknown') {
+      keep();
+    } else if (restored) {
       await dropRecord();
     }
   }
@@ -421,12 +432,8 @@ export async function handleRerollJobResult(
     });
 
   /** Abort the attempt, then tell the user why. */
-  const abortAndReply = async (
-    message: string,
-    dropRecord?: () => Promise<void>
-  ): Promise<void> => {
-    await abort();
-    await dropRecord?.();
+  const abortAndReply = async (message: string, record?: FailedEdit): Promise<void> => {
+    await abortThenDrop(abort, record?.dropRecord, record?.keep);
     await replySpecSafe(interaction, failure(message));
   };
 
@@ -457,7 +464,7 @@ export async function handleRerollJobResult(
     // 2-4. Re-check, then rewrite the Discord chunks in place.
     const edited = await editInPlace({ jobId, redis: deps.redis, ctx, result, content });
     if (!edited.ok) {
-      await abortAndReply(edited.message, edited.dropRecord);
+      await abortAndReply(edited.message, edited);
       return;
     }
     pending = edited;

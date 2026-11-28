@@ -79,3 +79,21 @@ export async function abortRerollDetailed(args: AbortArgs): Promise<AbortDetail>
     return { kind: 'unknown' };
   }
 }
+
+/**
+ * Abort the attempt, then drop its in-flight record. An abort that could not
+ * answer (`unknown`) keeps the record and calls `keep`, which hands it to the
+ * recovery retry timer: the periodic rescan skips records this boot wrote, so
+ * a kept record that is not handed off would wait for the next restart.
+ */
+export async function abortThenDrop(
+  abort: () => Promise<AbortOutcome>,
+  dropRecord: (() => Promise<void>) | undefined,
+  keep?: () => void
+): Promise<void> {
+  if ((await abort()) === 'unknown') {
+    keep?.();
+  } else {
+    await dropRecord?.();
+  }
+}

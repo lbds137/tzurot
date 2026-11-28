@@ -66,7 +66,7 @@ const ROW = {
   guildId: 'guild-1',
   createdAt: new Date('2026-06-04T12:00:00.000Z'),
   messageMetadata: {},
-  persona: { owner: { discordId: '900000000000000001' } },
+  persona: { ownerId: 'owner-1', owner: { discordId: '900000000000000001' } },
 };
 
 describe('reroll routes', () => {
@@ -484,18 +484,56 @@ describe('reroll routes', () => {
       );
     });
 
-    it('revives the committing attempt memories inside the commit, scoped to the personality and unlocked', async () => {
+    it('revives a vouched attempt’s memories scoped to the personality and unlocked, with no owner filter', async () => {
+      jobResultFindUnique.mockResolvedValue({
+        result: {
+          metadata: {
+            rerollMemory: {
+              rowId: 'row-1',
+              attemptId: 'attempt-1',
+              memoryIds: ['job-mem'],
+              pendingIds: [],
+            },
+          },
+        },
+      });
+
       await run(handleRerollAssistantMessage, commitBody);
 
       expect(memoryUpdateMany).toHaveBeenCalledWith({
         where: {
-          id: { in: ['new-mem'] },
+          id: { in: ['job-mem'] },
           personalityId: 'personality-1',
           isLocked: false,
           visibility: 'deleted',
         },
         data: { visibility: 'normal' },
       });
+    });
+
+    it('on the body-ids fallback, limits the revive to the row owner’s personas', async () => {
+      await run(handleRerollAssistantMessage, commitBody);
+
+      expect(memoryUpdateMany).toHaveBeenCalledWith({
+        where: {
+          id: { in: ['new-mem'] },
+          personalityId: 'personality-1',
+          persona: { ownerId: 'owner-1' },
+          isLocked: false,
+          visibility: 'deleted',
+        },
+        data: { visibility: 'normal' },
+      });
+    });
+
+    it('400s when the body ids do not include the resolved route message id', async () => {
+      const { status } = await run(handleRerollAssistantMessage, {
+        ...commitBody,
+        discordMessageIds: ['222222222222222222'],
+      });
+
+      expect(status).toHaveBeenCalledWith(400);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it('a sweep that fails after the response is logged with ids, never surfaced, and not retried', async () => {

@@ -411,6 +411,36 @@ describe('commit refusals, restore and the post-commit phase', () => {
     }
   );
 
+  it('keeps the in-flight record, handed to recovery, when the abort after a definite refusal comes back unknown', async () => {
+    mocks.commit.mockResolvedValue(refusal(409, API_ERROR_SUBCODE.NOT_LATEST));
+    mocks.restoreEdit.mockResolvedValue(true);
+    mocks.abort.mockResolvedValue({ ok: false, status: 500, error: 'x', kind: 'http' });
+
+    await handleRerollJobResult('job-1', makeResult(), makeCtx(), { redis });
+
+    expect(mocks.deleteInflight).not.toHaveBeenCalled();
+    expect(mocks.handOff).toHaveBeenCalledWith({ client: {}, redis }, 'job-1');
+  });
+
+  it('keeps the in-flight record when the abort owed by a failed Discord edit comes back unknown', async () => {
+    mocks.beginEdit.mockResolvedValue({ ok: false, reason: 'error' });
+    mocks.abort.mockResolvedValue({ ok: false, status: 500, error: 'x', kind: 'http' });
+
+    await handleRerollJobResult('job-1', makeResult(), makeCtx(), { redis });
+
+    expect(mocks.deleteInflight).not.toHaveBeenCalled();
+    expect(mocks.handOff).toHaveBeenCalledWith({ client: {}, redis }, 'job-1');
+  });
+
+  it('drops the in-flight record once the abort owed by a failed Discord edit has answered', async () => {
+    mocks.beginEdit.mockResolvedValue({ ok: false, reason: 'error' });
+
+    await handleRerollJobResult('job-1', makeResult(), makeCtx(), { redis });
+
+    expect(mocks.deleteInflight).toHaveBeenCalledWith(redis, 'job-1');
+    expect(mocks.handOff).not.toHaveBeenCalled();
+  });
+
   it('keeps the old copy when the restore failed', async () => {
     mocks.commit.mockResolvedValue(refusal(409, API_ERROR_SUBCODE.NOT_LATEST));
     mocks.restoreEdit.mockResolvedValue(false);

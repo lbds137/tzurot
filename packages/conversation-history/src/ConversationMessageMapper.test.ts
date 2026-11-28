@@ -517,7 +517,14 @@ describe('buildChannelHistoryWhere — reroll exclusions', () => {
     const createdBefore = new Date('2024-02-01T00:00:00Z');
     const where = buildChannelHistoryWhere({ channelId: 'chan-1', createdBefore });
 
-    expect(where.createdAt).toEqual({ lt: createdBefore });
+    expect(where.createdAt).toStrictEqual({ lt: createdBefore });
+  });
+
+  it('applies the cutoff alone as an inclusive lower bound with no upper key', () => {
+    const cutoff = new Date('2024-01-01T00:00:00Z');
+    const where = buildChannelHistoryWhere({ channelId: 'chan-1', cutoff });
+
+    expect(where.createdAt).toStrictEqual({ gte: cutoff });
   });
 });
 

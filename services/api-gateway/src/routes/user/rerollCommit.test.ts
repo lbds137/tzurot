@@ -76,6 +76,7 @@ describe('commitReroll', () => {
     pendingIds: ['old-pend'],
     attemptMemoryIds: ['new-mem'],
     attemptPendingIds: ['new-pend'],
+    reviveOwnerId: null,
   };
 
   beforeEach(() => {

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   abortReroll,
   abortRerollDetailed,
+  abortThenDrop,
   isDefiniteRefusal,
   type AbortArgs,
 } from './rerollAbort.js';
@@ -137,5 +138,39 @@ describe('isDefiniteRefusal', () => {
     [200, false],
   ])('%i → %s', (status, expected) => {
     expect(isDefiniteRefusal(status)).toBe(expected);
+  });
+});
+
+describe('abortThenDrop', () => {
+  it.each([['aborted'], ['committed']] as const)(
+    'drops the record after an abort that answered %s',
+    async outcome => {
+      const drop = vi.fn().mockResolvedValue(undefined);
+
+      const keep = vi.fn();
+
+      await abortThenDrop(async () => outcome, drop, keep);
+
+      expect(drop).toHaveBeenCalledTimes(1);
+      expect(keep).not.toHaveBeenCalled();
+    }
+  );
+
+  it('keeps the record, handed to recovery, when the abort could not answer', async () => {
+    const drop = vi.fn().mockResolvedValue(undefined);
+    const keep = vi.fn();
+
+    await abortThenDrop(async () => 'unknown', drop, keep);
+
+    expect(drop).not.toHaveBeenCalled();
+    expect(keep).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs the abort when there is no record to drop', async () => {
+    const abort = vi.fn().mockResolvedValue('aborted');
+
+    await abortThenDrop(abort, undefined);
+
+    expect(abort).toHaveBeenCalledTimes(1);
   });
 });
