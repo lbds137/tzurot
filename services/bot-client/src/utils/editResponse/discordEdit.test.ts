@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Message } from 'discord.js';
 import { DiscordAPIError, RESTJSONErrorCodes } from 'discord.js';
-import { applyEditedChunks, isUneditableError, type EditTarget } from './discordEdit.js';
+import {
+  applyEditedChunks,
+  beginEditedChunks,
+  finishEditedChunks,
+  isUneditableError,
+  restoreEditedChunks,
+  type EditTarget,
+} from './discordEdit.js';
 
 const { mockStore } = vi.hoisted(() => ({ mockStore: vi.fn() }));
 
@@ -191,5 +198,195 @@ describe('applyEditedChunks (dm)', () => {
     expect(grown).toEqual({ ok: true, messageIds: ['a', 'dm-new'], partial: false });
     expect(b.delete).toHaveBeenCalled();
     expect(shrunk).toEqual({ ok: true, messageIds: ['a'], partial: false });
+  });
+});
+
+describe('two-phase edit (begin / finish / restore)', () => {
+  const webhook = { editMessage: vi.fn(), send: vi.fn(), deleteMessage: vi.fn() };
+  const target: EditTarget = {
+    kind: 'webhook',
+    webhook: webhook as never,
+    threadId: 'thread-1',
+    username: 'Lilith',
+    avatarURL: 'https://cdn/a.png',
+    personalityId: 'pers-1',
+  };
+  /** The calls made so far, as `verb:id` strings in order, for ordering assertions. */
+  let calls: string[];
+
+  /** A live chunk; the last one of a reply carries the TTS attachment. */
+  function chunk(id: string, content: string, attachments = 0) {
+    return { id, content, attachments: { size: attachments } };
+  }
+  const original = [
+    chunk('a', 'old-a'),
+    chunk('b', 'old-b'),
+    chunk('c', 'old-c', 1),
+  ] as unknown as Message[];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    calls = [];
+    let sent = 0;
+    webhook.editMessage.mockImplementation(async (id: string, payload: { content?: string }) => {
+      calls.push(`edit:${id}:${payload.content ?? '(attachments only)'}`);
+    });
+    webhook.send.mockImplementation(async () => {
+      sent += 1;
+      calls.push(`send:new-${sent}`);
+      return { id: `new-${sent}` };
+    });
+    webhook.deleteMessage.mockImplementation(async (id: string) => {
+      calls.push(`delete:${id}`);
+    });
+  });
+
+  it('begin never touches attachments, never deletes, and lists only kept and extra chunks', async () => {
+    const begun = await beginEditedChunks(target, original, ['n-a']);
+
+    expect(begun).toEqual(expect.objectContaining({ ok: true, messageIds: ['a'] }));
+    expect(calls).toEqual(['edit:a:n-a']);
+    for (const [, payload] of webhook.editMessage.mock.calls) {
+      expect(payload).not.toHaveProperty('attachments');
+    }
+  });
+
+  it('grow 1→3 then refuse: the extras are deleted and chunk 1 gets its old text back', async () => {
+    const begun = await beginEditedChunks(target, [original[0]], ['n-a', 'n-b', 'n-c']);
+    expect(begun).toEqual(
+      expect.objectContaining({ ok: true, messageIds: ['a', 'new-1', 'new-2'] })
+    );
+
+    const restored = await restoreEditedChunks(target, begun as never);
+
+    expect(restored).toBe(true);
+    expect(calls).toEqual([
+      'edit:a:n-a',
+      'send:new-1',
+      'send:new-2',
+      'edit:a:old-a',
+      'delete:new-1',
+      'delete:new-2',
+    ]);
+  });
+
+  it('shrink 3→1 then refuse: all three originals still exist with their text, nothing is re-sent', async () => {
+    const begun = await beginEditedChunks(target, original, ['n-a']);
+
+    const restored = await restoreEditedChunks(target, begun as never);
+
+    expect(restored).toBe(true);
+    expect(webhook.deleteMessage).not.toHaveBeenCalled();
+    expect(webhook.send).not.toHaveBeenCalled();
+    expect(calls).toEqual(['edit:a:n-a', 'edit:a:old-a']);
+  });
+
+  it('shrink 3→1 then commit: surplus is deleted and the attachment cleared only in finish', async () => {
+    const begun = await beginEditedChunks(target, original, ['n-a']);
+    const beforeFinish = [...calls];
+
+    const finished = await finishEditedChunks(target, begun as never);
+
+    expect(beforeFinish).toEqual(['edit:a:n-a']);
+    expect(finished).toEqual({ ok: true, survivorIds: [] });
+    expect(calls).toEqual(['edit:a:n-a', 'delete:b', 'delete:c']);
+  });
+
+  it('equal count: the attachment stays until finish, which then clears it on the carrying chunk only', async () => {
+    const begun = await beginEditedChunks(target, original, ['n-a', 'n-b', 'n-c']);
+    expect(calls).toEqual(['edit:a:n-a', 'edit:b:n-b', 'edit:c:n-c']);
+    for (const [, payload] of webhook.editMessage.mock.calls) {
+      expect(payload).not.toHaveProperty('attachments');
+    }
+
+    await finishEditedChunks(target, begun as never);
+
+    expect(calls.slice(3)).toEqual(['edit:c:(attachments only)']);
+    expect(webhook.editMessage).toHaveBeenLastCalledWith(
+      'c',
+      expect.objectContaining({ attachments: [], threadId: 'thread-1' })
+    );
+  });
+
+  it('finish reports a surplus chunk it could not delete as a survivor, without throwing', async () => {
+    const begun = await beginEditedChunks(target, original, ['n-a']);
+    webhook.deleteMessage.mockRejectedValueOnce(new Error('nope'));
+
+    const finished = await finishEditedChunks(target, begun as never);
+
+    expect(finished).toEqual({ ok: false, survivorIds: ['b'] });
+  });
+
+  it('restore reports false (and keeps going) when an edit back is refused', async () => {
+    const begun = await beginEditedChunks(target, original, ['n-a']);
+    webhook.editMessage.mockRejectedValueOnce(new Error('nope'));
+
+    expect(await restoreEditedChunks(target, begun as never)).toBe(false);
+  });
+
+  describe('idempotence: a message already gone is skipped, not an error', () => {
+    const gone = () => apiError(RESTJSONErrorCodes.UnknownMessage);
+
+    it('restore skips an overlap chunk and an extra that no longer exist, and still reports true', async () => {
+      const begun = await beginEditedChunks(target, [original[0]], ['n-a', 'n-b']);
+      webhook.editMessage.mockRejectedValueOnce(gone());
+      webhook.deleteMessage.mockRejectedValueOnce(gone());
+
+      expect(await restoreEditedChunks(target, begun as never)).toBe(true);
+    });
+
+    it('restoring twice is harmless: the second run edits back the same text and finds the extra gone', async () => {
+      const begun = await beginEditedChunks(target, [original[0]], ['n-a', 'n-b']);
+      await restoreEditedChunks(target, begun as never);
+      webhook.deleteMessage.mockRejectedValueOnce(gone());
+
+      expect(await restoreEditedChunks(target, begun as never)).toBe(true);
+      expect(calls.filter(call => call === 'edit:a:old-a')).toHaveLength(2);
+    });
+
+    it('a restore failure that is not a gone message still reports false', async () => {
+      const begun = await beginEditedChunks(target, [original[0]], ['n-a', 'n-b']);
+      webhook.deleteMessage.mockRejectedValueOnce(apiError(RESTJSONErrorCodes.MissingPermissions));
+
+      expect(await restoreEditedChunks(target, begun as never)).toBe(false);
+    });
+
+    it('finish skips a surplus chunk that is already gone (no survivor, ok)', async () => {
+      const begun = await beginEditedChunks(target, original, ['n-a']);
+      webhook.deleteMessage.mockRejectedValueOnce(gone());
+
+      expect(await finishEditedChunks(target, begun as never)).toEqual({
+        ok: true,
+        survivorIds: [],
+      });
+      expect(webhook.deleteMessage).toHaveBeenCalledTimes(2);
+    });
+
+    it('finish skips an attachment clear on a chunk that is already gone', async () => {
+      const begun = await beginEditedChunks(target, original, ['n-a', 'n-b', 'n-c']);
+      webhook.editMessage.mockRejectedValueOnce(gone());
+
+      expect(await finishEditedChunks(target, begun as never)).toEqual({
+        ok: true,
+        survivorIds: [],
+      });
+    });
+  });
+
+  it('reports each extra to the callback as soon as it is sent, before the next is sent', async () => {
+    const seen: string[] = [];
+    await beginEditedChunks(target, [original[0]], ['n-a', 'n-b', 'n-c'], 'keep', async id => {
+      seen.push(`${id}@${calls.join(',')}`);
+    });
+
+    expect(seen).toEqual(['new-1@edit:a:n-a,send:new-1', 'new-2@edit:a:n-a,send:new-1,send:new-2']);
+  });
+
+  it('a failing callback never fails the edit', async () => {
+    const begun = await beginEditedChunks(target, [original[0]], ['n-a', 'n-b'], 'keep', () =>
+      Promise.reject(new Error('redis down'))
+    );
+
+    expect(begun).toEqual(expect.objectContaining({ ok: true, messageIds: ['a', 'new-1'] }));
   });
 });

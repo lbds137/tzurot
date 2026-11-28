@@ -30,6 +30,16 @@ export interface StoreLongTermInteractionOptions {
   thinkingContent?: string;
 }
 
+/**
+ * What a store wrote: the memory row id(s) (one, or every chunk of an oversized
+ * memory) and the pending_memory id when that safety-net row was NOT deleted
+ * (a failed store leaves it for retry).
+ */
+export interface StoredInteractionIds {
+  memoryIds: string[];
+  pendingIds: string[];
+}
+
 export class LongTermMemoryService {
   private memoryManager?: PgvectorMemoryAdapter;
 
@@ -46,16 +56,21 @@ export class LongTermMemoryService {
    * Store an interaction to long-term memory (pgvector) only
    *
    * @param options Interaction content, conversation context, resolved persona ID, and optional reasoning trace
+   * @returns the ids written, or null when nothing was stored or tracked
+   *   (storage disabled, or the pending row itself could not be created)
    */
-  async storeInteraction(options: StoreLongTermInteractionOptions): Promise<void> {
+  async storeInteraction(
+    options: StoreLongTermInteractionOptions
+  ): Promise<StoredInteractionIds | null> {
     const { personality, userMessage, aiResponse, context, personaId, thinkingContent } = options;
     const { prisma } = this;
     let pendingMemoryId: string | null = null;
+    let memoryIds: string[] = [];
 
     try {
       if (this.memoryManager === undefined) {
         logger.debug('Memory storage disabled - interaction not stored in vector database');
-        return;
+        return null;
       }
 
       // Use {user} and {assistant} tokens - actual names injected at retrieval time
@@ -79,7 +94,7 @@ export class LongTermMemoryService {
       logger.debug({ pendingMemoryId }, 'Created pending_memory');
 
       // Try to store to vector database
-      await this.memoryManager.addMemory({
+      memoryIds = await this.memoryManager.addMemory({
         text: interactionText,
         metadata: memoryMetadata,
       });
@@ -105,28 +120,44 @@ export class LongTermMemoryService {
           .recordEpisode(context.channelId, personality.id, episodeId)
           .catch((err: unknown) => logger.debug({ err }, 'Extraction tail rejected'));
       }
+      return { memoryIds, pendingIds: [] };
     } catch (error) {
       logger.error({ err: error }, 'Failed to store interaction to vector database');
 
       // Update pending_memory with error details (for retry later)
       if (pendingMemoryId !== null && pendingMemoryId.length > 0) {
-        try {
-          await prisma.pendingMemory.update({
-            where: { id: pendingMemoryId },
-            data: {
-              attempts: { increment: 1 },
-              lastAttemptAt: new Date(),
-              error: error instanceof Error ? error.message : String(error),
-            },
-          });
-          logger.info({ pendingMemoryId }, 'Updated pending_memory with error - will retry later');
-        } catch (updateError) {
-          logger.error({ err: updateError }, 'Failed to update pending_memory');
-        }
+        await recordPendingFailure(prisma, pendingMemoryId, error);
       }
 
-      // Don't throw - this is a non-critical error
+      // Don't throw - this is a non-critical error. The surviving pending row
+      // (and any memory ids already written) are reported so a caller that must
+      // undo the store (reroll abort) can.
+      if (pendingMemoryId !== null && pendingMemoryId.length > 0) {
+        return { memoryIds, pendingIds: [pendingMemoryId] };
+      }
+      return memoryIds.length > 0 ? { memoryIds, pendingIds: [] } : null;
     }
+  }
+}
+
+/** Record a failed vector store on its pending row so the retry sweep picks it up. */
+async function recordPendingFailure(
+  prisma: PrismaClient,
+  pendingMemoryId: string,
+  error: unknown
+): Promise<void> {
+  try {
+    await prisma.pendingMemory.update({
+      where: { id: pendingMemoryId },
+      data: {
+        attempts: { increment: 1 },
+        lastAttemptAt: new Date(),
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
+    logger.info({ pendingMemoryId }, 'Updated pending_memory with error - will retry later');
+  } catch (updateError) {
+    logger.error({ err: updateError }, 'Failed to update pending_memory');
   }
 }
 

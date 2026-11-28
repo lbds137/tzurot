@@ -1127,6 +1127,81 @@ describe('AIJobProcessor', () => {
         );
       });
 
+      describe('reroll jobs', () => {
+        const rerollData = () => ({
+          ...baseLLMJobData,
+          context: {
+            ...baseLLMJobData.context,
+            triggerMessageId: 'discord-msg-123',
+            reroll: { rowId: 'row-9', attemptId: 'attempt-1' },
+          },
+        });
+
+        it('processes while the trigger ordinary lock is held, locking on its own identity', async () => {
+          // The ordinary (trigger, personality) lock is held; only another key is free.
+          vi.mocked(redisService.markMessageProcessing).mockImplementation(
+            async (key: string) => key !== 'discord-msg-123'
+          );
+
+          const result = await processor.processJob(createMockJob(rerollData(), 'llm-job-123'));
+
+          expect(result.success).toBe(true);
+          expect(mockProcessJob).toHaveBeenCalled();
+          expect(redisService.markMessageProcessing).toHaveBeenCalledWith(
+            'reroll:row-9:attempt-1',
+            'personality-123',
+            'llm-job-123'
+          );
+          expect(redisService.markMessageProcessing).not.toHaveBeenCalledWith(
+            'discord-msg-123',
+            expect.anything(),
+            expect.anything()
+          );
+          vi.mocked(redisService.markMessageProcessing).mockResolvedValue(true);
+        });
+
+        it('skips a duplicate of the same reroll attempt', async () => {
+          vi.mocked(redisService.markMessageProcessing).mockResolvedValueOnce(false);
+
+          const result = await processor.processJob(createMockJob(rerollData(), 'llm-job-123'));
+
+          expect(result.success).toBe(false);
+          expect(mockProcessJob).not.toHaveBeenCalled();
+        });
+
+        it('releases the reroll lock, not the trigger lock, when processing fails', async () => {
+          vi.mocked(redisService.markMessageProcessing).mockResolvedValueOnce(true);
+          mockProcessJob.mockRejectedValueOnce(new Error('LLM API timeout'));
+
+          await expect(
+            processor.processJob(createMockJob(rerollData(), 'llm-job-123'))
+          ).rejects.toThrow('LLM API timeout');
+
+          expect(redisService.releaseMessageLock).toHaveBeenCalledWith(
+            'reroll:row-9:attempt-1',
+            'personality-123'
+          );
+        });
+
+        it('locks on an ordinary job under the trigger id, unchanged', async () => {
+          const job = createMockJob(
+            {
+              ...baseLLMJobData,
+              context: { ...baseLLMJobData.context, triggerMessageId: 'discord-msg-123' },
+            },
+            'llm-job-123'
+          );
+
+          await processor.processJob(job);
+
+          expect(redisService.markMessageProcessing).toHaveBeenCalledWith(
+            'discord-msg-123',
+            'personality-123',
+            'llm-job-123'
+          );
+        });
+      });
+
       it('should not check idempotency when triggerMessageId is undefined', async () => {
         const jobDataWithoutTriggerMessageId = {
           ...baseLLMJobData,

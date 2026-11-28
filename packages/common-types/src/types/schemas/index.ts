@@ -32,6 +32,8 @@ export {
   referencedChannelSchema,
   type RequestContext,
   requestContextSchema,
+  type RerollContext,
+  rerollContextSchema,
   type SkippedMessage,
   skippedMessageSchema,
 } from './personality.js';

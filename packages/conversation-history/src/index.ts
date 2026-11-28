@@ -32,6 +32,11 @@ export {
 // — which is how the narrow type got widened in the first place.
 export { type ConversationHistoryClient } from './ConversationMessageMapper.js';
 export { mergeForwardedOrigin } from './forwardedOriginWriter.js';
+// The one sanctioned writer of an existing row's `message_metadata` (the
+// `no-message-metadata-rmw` lint rule points here); a caller outside this
+// package that updates the column, such as the reroll abort tombstone, merges
+// through it. Structural client, like the writers above.
+export { mergeMessageMetadata } from './messageMetadataMerge.js';
 // A free function, not a service method: it merges `message_metadata`
 // server-side and so needs `$executeRaw`, which the fast-pool client type
 // deliberately lacks. Consumers satisfy the capability structurally by passing

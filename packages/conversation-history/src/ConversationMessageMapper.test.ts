@@ -479,6 +479,48 @@ describe('buildChannelHistoryWhere', () => {
   });
 });
 
+describe('buildChannelHistoryWhere — reroll exclusions', () => {
+  it('excludes the named row ids', () => {
+    const where = buildChannelHistoryWhere({ channelId: 'chan-1', excludeRowIds: ['row-1'] });
+
+    expect(where).toMatchObject({ NOT: { id: { in: ['row-1'] } } });
+  });
+
+  it('ANDs a row exclusion with the trigger exclusion (both stay excluded)', () => {
+    const where = buildChannelHistoryWhere({
+      channelId: 'chan-1',
+      excludeDiscordMessageId: 'discord-1',
+      excludeRowIds: ['row-1'],
+    });
+
+    expect(where.NOT).toEqual([
+      { discordMessageId: { has: 'discord-1' } },
+      { id: { in: ['row-1'] } },
+    ]);
+  });
+
+  it('treats an empty row list as no exclusion', () => {
+    const where = buildChannelHistoryWhere({ channelId: 'chan-1', excludeRowIds: [] });
+
+    expect(where).not.toHaveProperty('NOT');
+  });
+
+  it('merges createdBefore and the cutoff into ONE createdAt condition', () => {
+    const cutoff = new Date('2024-01-01T00:00:00Z');
+    const createdBefore = new Date('2024-02-01T00:00:00Z');
+    const where = buildChannelHistoryWhere({ channelId: 'chan-1', cutoff, createdBefore });
+
+    expect(where.createdAt).toEqual({ gte: cutoff, lt: createdBefore });
+  });
+
+  it('applies createdBefore alone as an exclusive upper bound', () => {
+    const createdBefore = new Date('2024-02-01T00:00:00Z');
+    const where = buildChannelHistoryWhere({ channelId: 'chan-1', createdBefore });
+
+    expect(where.createdAt).toEqual({ lt: createdBefore });
+  });
+});
+
 describe('parseMessageMetadata — SQL NULL vs malformed value (log-only distinction)', () => {
   it('does not warn on a SQL NULL — that is not a validation failure', () => {
     expect(parseMessageMetadata(null)).toBeUndefined();

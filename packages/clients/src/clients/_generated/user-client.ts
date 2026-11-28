@@ -1551,6 +1551,63 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
+  async checkRerollAssistantMessage(messageId: string, input: z.input<typeof ROUTE_MANIFEST.checkRerollAssistantMessage.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.checkRerollAssistantMessage.output>>> {
+    const fullPath = `/api/user/history/message/${encodeURIComponent(messageId)}/reroll-check`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.checkRerollAssistantMessage.output,
+    });
+  }
+
+  async rerollAssistantMessage(messageId: string, input: z.input<typeof ROUTE_MANIFEST.rerollAssistantMessage.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.rerollAssistantMessage.output>>> {
+    const fullPath = `/api/user/history/message/${encodeURIComponent(messageId)}/reroll`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.rerollAssistantMessage.output,
+    });
+  }
+
+  async abortRerollAssistantMessage(messageId: string, input: z.input<typeof ROUTE_MANIFEST.abortRerollAssistantMessage.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.abortRerollAssistantMessage.output>>> {
+    const fullPath = `/api/user/history/message/${encodeURIComponent(messageId)}/reroll-abort`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.abortRerollAssistantMessage.output,
+    });
+  }
+
   async hardDeleteHistory(input: z.input<typeof ROUTE_MANIFEST.hardDeleteHistory.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.hardDeleteHistory.output>>> {
     const fullPath = '/api/user/history/hard-delete';
     return callGateway({

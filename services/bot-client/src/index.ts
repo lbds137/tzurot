@@ -19,6 +19,10 @@ import { shouldAutoRegisterCommands } from './utils/commandRegistrationGate.js';
 import { deliverJobResult, type JobResultDeliveryDeps } from './services/deliverJobResult.js';
 import { registerGuildMemberInfoReporter } from './services/GuildMemberInfoReporter.js';
 import { runBootRecovery } from './services/bootRecovery.js';
+import {
+  runRerollRecovery,
+  startRerollRecoveryRescan,
+} from './services/character/rerollRecovery.js';
 import { StartupDMPrewarmer } from './services/StartupDMPrewarmer.js';
 import { registerShardLifecycleLogging } from './services/ShardLifecycleLogger.js';
 import {
@@ -323,6 +327,13 @@ lifecycle.shutdown = registerProcessLifecycle({
   },
 }).shutdown;
 
+/** The single-job pass, then the reroll pass: both re-fetch Discord messages, so they run in series. */
+async function runDiscordBoundRecoveries(): Promise<void> {
+  await runBootRecovery('Single-job recovery', () => services.singleJobRecovery.run());
+  await runBootRecovery('Reroll recovery', () => runRerollRecovery({ client, redis }));
+  startRerollRecoveryRescan({ client, redis });
+}
+
 /**
  * Start listening for job results and handle delivery to Discord
  *
@@ -602,7 +613,14 @@ async function start(): Promise<void> {
     // peak pressure at exactly the moment the concern is sharpest. The
     // latency it would buy is headroom we do not need — roughly 60s worst
     // case against `BOOT_DEADLINE_MS`.
-    await runBootRecovery('Single-job recovery', () => services.singleJobRecovery.run());
+    //
+    // Reroll recovery follows in the same series: it settles rerolls a previous
+    // process left between their first Discord edit and the end of the commit
+    // (restore the old text, or finish the landed commit). It runs before
+    // result consumption starts so a redelivered result does not race it;
+    // records of this process are skipped by boot id either way, and a record
+    // the gateway cannot answer for is retried on timers after boot.
+    await runDiscordBoundRecoveries();
 
     // Start listening for job results (async delivery pattern)
     await startResultsListener();

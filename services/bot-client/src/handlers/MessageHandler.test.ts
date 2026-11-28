@@ -39,6 +39,13 @@ vi.mock('../redis.js', () => ({
   },
 }));
 
+const mockHandleRerollJobResult = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockHandleUnknownRerollResult = vi.hoisted(() => vi.fn().mockResolvedValue(false));
+vi.mock('./rerollResultHandler.js', () => ({
+  handleRerollJobResult: mockHandleRerollJobResult,
+  handleUnknownRerollResult: mockHandleUnknownRerollResult,
+}));
+
 vi.mock('../utils/retentionGatewayCalls.js', () => ({
   reportPersonaDmUndeliverable: vi.fn(),
 }));
@@ -668,6 +675,40 @@ describe('MessageHandler', () => {
 
       expect(disposition).toBe('dropped');
       expect(mockGatewayClient.confirmDelivery).not.toHaveBeenCalled();
+    });
+
+    it('aborts an untracked reroll result and reports it delivered so the gateway row closes', async () => {
+      const result = {
+        requestId: 'req-lost-reroll',
+        success: true,
+        content: 'A rerolled reply nobody will see',
+      } as LLMGenerationResult;
+      mockJobTracker.getContext.mockReturnValue(null);
+      mockCoordinator.getSyntheticTimeout.mockResolvedValue(null);
+      mockHandleUnknownRerollResult.mockResolvedValueOnce(true);
+
+      const disposition = await messageHandler.handleJobResult('lost-reroll-job', result);
+
+      expect(mockHandleUnknownRerollResult).toHaveBeenCalledWith(
+        'lost-reroll-job',
+        result,
+        mockClient
+      );
+      expect(disposition).toBe('delivered');
+    });
+
+    it('still drops an untracked result that was not a reroll', async () => {
+      mockJobTracker.getContext.mockReturnValue(null);
+      mockCoordinator.getSyntheticTimeout.mockResolvedValue(null);
+      mockHandleUnknownRerollResult.mockResolvedValueOnce(false);
+
+      const disposition = await messageHandler.handleJobResult('plain-unknown-job', {
+        requestId: 'r',
+        success: true,
+        content: 'x',
+      } as LLMGenerationResult);
+
+      expect(disposition).toBe('dropped');
     });
 
     it('reports a delivered message result as `delivered`', async () => {
@@ -1710,6 +1751,30 @@ describe('MessageHandler', () => {
     });
   });
 
+  describe('handleJobResult - Reroll dispatch', () => {
+    it('hands a reroll result to the reroll handler and never to the normal senders', async () => {
+      const ctx = {
+        kind: 'reroll' as const,
+        channel: { id: 'channel-reroll' },
+        rowId: 'row-1',
+        attemptId: 'attempt-1',
+      };
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      const result = {
+        requestId: 'req-reroll',
+        success: true,
+        content: 'rerolled',
+      } as unknown as LLMGenerationResult;
+
+      const disposition = await messageHandler.handleJobResult('job-reroll-1', result);
+
+      expect(disposition).toBe('delivered');
+      expect(mockHandleRerollJobResult).toHaveBeenCalledWith('job-reroll-1', result, ctx);
+      expect(mockResponseSender.sendResponse).not.toHaveBeenCalled();
+      expect(mockSlotDelivery.deliverError).not.toHaveBeenCalled();
+    });
+  });
+
   describe('handleJobResult - Slash dispatch', () => {
     function createSlashContext(overrides: Record<string, unknown> = {}) {
       return {
@@ -1837,6 +1902,23 @@ describe('MessageHandler', () => {
       expect(disposition).toBe('delivered');
       expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledWith(
         expect.objectContaining({ incognito: true })
+      );
+    });
+
+    it('forwards incognitoKind beside incognito to saveAssistantMessageFromFields', async () => {
+      const ctx = createSlashContext({ isWeighInMode: true });
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-kind'] });
+
+      await messageHandler.handleJobResult('job-slash-kind', {
+        requestId: 'req-slash-kind',
+        success: true,
+        content: 'Reply',
+        metadata: { incognitoModeActive: true, incognitoKind: 'summon' },
+      } as unknown as LLMGenerationResult);
+
+      expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledWith(
+        expect.objectContaining({ incognito: true, incognitoKind: 'summon' })
       );
     });
 

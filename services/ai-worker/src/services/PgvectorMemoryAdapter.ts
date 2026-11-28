@@ -176,8 +176,13 @@ export class PgvectorMemoryAdapter {
    * token limit (text-embedding-3-small has 8191 token limit). Each chunk is
    * stored with linking metadata (chunkGroupId, chunkIndex, totalChunks) to
    * enable sibling retrieval.
+   *
+   * Returns the row id(s) written: one id, or every chunk id of an oversized
+   * memory. A text identical to an existing memory's resolves to that memory's
+   * id (the insert is `ON CONFLICT DO NOTHING`), so a returned id may name a
+   * row that was already there.
    */
-  async addMemory(data: { text: string; metadata: MemoryMetadata }): Promise<void> {
+  async addMemory(data: { text: string; metadata: MemoryMetadata }): Promise<string[]> {
     const { chunks, wasChunked, originalTokenCount } = splitTextByTokens(data.text);
 
     if (!wasChunked) {
@@ -199,7 +204,7 @@ export class PgvectorMemoryAdapter {
           reason: 'write',
         })
         .catch((err: unknown) => logger.debug({ err }, 'Archive-summary trigger tail rejected'));
-      return;
+      return [memoryId];
     }
 
     // Text exceeds limit - split into chunks with linking metadata
@@ -227,7 +232,7 @@ export class PgvectorMemoryAdapter {
     // ON CONFLICT DO NOTHING in storeSingleMemory(), this makes parallel storage
     // idempotent - partial failures don't cause duplicates, and subsequent retries
     // will complete any missing chunks without affecting already-stored ones.
-    await Promise.all(
+    const chunkIds = await Promise.all(
       chunks.map((chunkText, i) =>
         this.storeSingleMemory({
           text: chunkText,
@@ -246,6 +251,7 @@ export class PgvectorMemoryAdapter {
       { chunkGroupId, storedChunks: chunks.length },
       'Successfully stored all memory chunks'
     );
+    return chunkIds;
   }
 
   /**

@@ -7,6 +7,7 @@
  */
 
 import { MessageType, type Client, type Message } from 'discord.js';
+import { incognitoFields } from '../utils/incognitoFields.js';
 import { stripErrorSpoiler } from '@tzurot/common-types/constants/error';
 import { type MaintenanceFlag } from '@tzurot/common-types/services/MaintenanceFlag';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
@@ -25,6 +26,7 @@ import { acknowledgeMessageDuringMaintenance } from '../utils/maintenanceRespons
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
 import { recoverLateResult } from './lateResultRecovery.js';
+import { handleRerollJobResult, handleUnknownRerollResult } from './rerollResultHandler.js';
 import type { JobResultDisposition } from '../services/deliverJobResult.js';
 import { type DiscordResponseSender } from '../services/DiscordResponseSender.js';
 import { type ConversationPersistence } from '../services/ConversationPersistence.js';
@@ -220,6 +222,11 @@ export class MessageHandler {
       if (recovered !== null) {
         return recovered;
       }
+      // A reroll whose slot was lost: undo its memories and release its guard;
+      // there is no interaction left to deliver through.
+      if (await handleUnknownRerollResult(jobId, result, this.client)) {
+        return 'delivered';
+      }
       // Genuine loss: the reply was generated and paid for, and nobody will
       // ever see it. Reported as `'dropped'` so the caller leaves the gateway
       // row `PENDING_DELIVERY` — marking it delivered would file a success
@@ -232,6 +239,12 @@ export class MessageHandler {
 
     // Complete the job (clears typing indicator and removes from tracker)
     this.jobTracker.completeJob(jobId);
+
+    if (jobContext.kind === 'reroll') {
+      // Edits the old reply in place; never reaches assistant persistence.
+      await handleRerollJobResult(jobId, result, jobContext);
+      return 'delivered';
+    }
 
     if (jobContext.kind === 'slash') {
       await this.handleSlashJobResult(jobId, result, jobContext);
@@ -406,9 +419,7 @@ export class MessageHandler {
           chunkMessageIds,
           userMessageTime,
           thinkingContent: result.metadata?.thinkingContent,
-          ...(typeof result.metadata?.incognitoModeActive === 'boolean' && {
-            incognito: result.metadata.incognitoModeActive,
-          }),
+          ...incognitoFields(result.metadata),
         });
       } catch (persistError) {
         logger.error(
@@ -513,9 +524,7 @@ export class MessageHandler {
           personality,
           personaId,
           userMessageTime,
-          ...(typeof result.metadata?.incognitoModeActive === 'boolean' && {
-            incognito: result.metadata.incognitoModeActive,
-          }),
+          ...incognitoFields(result.metadata),
           ...turn,
         }),
       requestId: result.requestId,

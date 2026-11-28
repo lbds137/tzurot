@@ -11,11 +11,13 @@ import type { ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/c
 import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import type {
   CrossChannelHistoryGroupEntry,
+  IncognitoKind,
   ReferencedMessage,
   StoredReferencedMessage,
 } from '@tzurot/common-types/types/schemas/message';
 import type {
   LoadedPersonality,
+  RerollContext,
   SkippedMessage,
 } from '@tzurot/common-types/types/schemas/personality';
 import type { SttDispatch } from '@tzurot/common-types/types/sttProvider';
@@ -152,6 +154,8 @@ export interface ConversationContext {
    * their source turn (deletion propagation; response ids aren't known at
    * capture time since bot-client sends after generation). */
   triggerMessageId?: string;
+  /** Set when this turn regenerates an existing reply; `skipMemoryWrite` carries a session-incognito reroll. */
+  reroll?: RerollContext;
   /**
    * Skipped activation triggers coalesced into this follow-up turn. Each entry
    * produces an additional deferred-memory interaction attributed to its own
@@ -266,6 +270,8 @@ export interface RAGResponse {
   freshModeEnabled?: boolean;
   /** Whether incognito mode was active (LTM storage was skipped) */
   incognitoModeActive?: boolean;
+  /** How incognito mode was active; anonymity (`summon`) outranks a `session`. Absent when not incognito. */
+  incognitoKind?: IncognitoKind;
   /**
    * Data needed for deferred memory storage (when skipMemoryStorage was true).
    * Caller should pass this to storeMemory() after validating the response.

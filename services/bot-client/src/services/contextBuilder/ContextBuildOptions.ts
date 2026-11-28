@@ -42,4 +42,11 @@ export interface ContextBuildOptions {
    * summon (false) keeps the epoch. Defaults to isWeighInMode at the call site.
    */
   incognito?: boolean;
+  /**
+   * Discord message ids to drop from the live extended-context fetch (weigh-in
+   * reroll: the reply being replaced still exists on Discord while the new one
+   * is generated). A triggered fetch needs none: its `before` cut already
+   * excludes the old reply.
+   */
+  excludeDiscordMessageIds?: string[];
 }

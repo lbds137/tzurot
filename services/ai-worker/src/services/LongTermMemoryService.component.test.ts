@@ -128,7 +128,7 @@ describe('LongTermMemoryService', () => {
     it('should create and delete pending_memory on successful vector storage', async () => {
       // Arrange: Mock successful memory adapter
       const mockMemoryManager = {
-        addMemory: vi.fn().mockResolvedValue(undefined),
+        addMemory: vi.fn().mockResolvedValue(['mem-1']),
       } as unknown as PgvectorMemoryAdapter;
 
       const service = new LongTermMemoryService(prisma, mockMemoryManager);
@@ -205,7 +205,7 @@ describe('LongTermMemoryService', () => {
     it('should set canon scope to session when sessionId is provided', async () => {
       // Arrange
       const mockMemoryManager = {
-        addMemory: vi.fn().mockResolvedValue(undefined),
+        addMemory: vi.fn().mockResolvedValue(['mem-1']),
       } as unknown as PgvectorMemoryAdapter;
 
       const service = new LongTermMemoryService(prisma, mockMemoryManager);
@@ -237,7 +237,7 @@ describe('LongTermMemoryService', () => {
     it('should set contextType to dm when channelId is empty', async () => {
       // Arrange
       const mockMemoryManager = {
-        addMemory: vi.fn().mockResolvedValue(undefined),
+        addMemory: vi.fn().mockResolvedValue(['mem-1']),
       } as unknown as PgvectorMemoryAdapter;
 
       const service = new LongTermMemoryService(prisma, mockMemoryManager);

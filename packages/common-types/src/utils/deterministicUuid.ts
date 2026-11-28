@@ -251,6 +251,19 @@ export function generateConversationHistoryUuid(
 }
 
 /**
+ * Generate deterministic UUID for the ConversationHistory row a reroll writes
+ * in place of `oldRowId`. One attempt maps to one id, so a retried commit of
+ * the same attempt is idempotent; a second attempt gets a different id.
+ * Seed: conversation_history_reroll:{oldRowId}:{attemptId}
+ */
+export function generateRerolledConversationHistoryUuid(
+  oldRowId: string,
+  attemptId: string
+): string {
+  return uuidv5(`conversation_history_reroll:${oldRowId}:${attemptId}`, TZUROT_NAMESPACE);
+}
+
+/**
  * Generate deterministic UUID for ChannelSettings
  * Seed: channel_settings:{channelId}
  * Note: channelId is unique per channel (not per channel+personality like old ActivatedChannel)
