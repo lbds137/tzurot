@@ -162,10 +162,6 @@ export const EditAssistantMessageResponseSchema = z.object({
   memoryUpdated: z.boolean(),
 });
 
-export type EditableMessageResponse = z.infer<typeof EditableMessageResponseSchema>;
-export type EditAssistantMessageRequest = z.infer<typeof EditAssistantMessageRequestSchema>;
-export type EditAssistantMessageResponse = z.infer<typeof EditAssistantMessageResponseSchema>;
-
 /** DELETE /user/history/hard-delete */
 export const HardDeleteHistoryResponseSchema = z.object({
   success: z.literal(true),
