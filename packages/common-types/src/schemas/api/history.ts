@@ -132,6 +132,7 @@ export const MemorySyncBlockReasonSchema = z.enum([
   'chunked',
   'ambiguous',
   'off-template',
+  'reply-off-template',
 ]);
 
 /**
@@ -157,6 +158,24 @@ export const EditableMessageResponseSchema = z.object({
   ]),
 });
 
+/** A submitted reply text: shared by the edit-check and the PATCH. */
+const EditContentSchema = z
+  .string()
+  .min(1)
+  .max(EDIT_RESPONSE_MAX_CONTENT_LENGTH)
+  .refine(s => s.trim().length > 0, { message: 'Content cannot be blank' });
+
+/**
+ * POST /user/history/message/:messageId/edit-check
+ *
+ * Asks, before Discord is touched, whether the exchange's memory can follow an
+ * edit to `content`. Answers with the editable payload, its `memorySync`
+ * planned against the real stored texts and the new content.
+ */
+export const EditCheckRequestSchema = z.object({
+  content: EditContentSchema,
+});
+
 /**
  * PATCH /user/history/message/:messageId
  *
@@ -165,11 +184,7 @@ export const EditableMessageResponseSchema = z.object({
  * the edit (chunks may have been added or removed).
  */
 export const EditAssistantMessageRequestSchema = z.object({
-  content: z
-    .string()
-    .min(1)
-    .max(EDIT_RESPONSE_MAX_CONTENT_LENGTH)
-    .refine(s => s.trim().length > 0, { message: 'Content cannot be blank' }),
+  content: EditContentSchema,
   discordMessageIds: z
     .array(z.string().regex(/^\d{17,20}$/, 'Must be a Discord snowflake'))
     .min(1)
@@ -185,11 +200,14 @@ export const EditAssistantMessageResponseSchema = z.object({
   /**
    * `synced`: memory and/or pending memory rewritten; `none`: nothing to sync;
    * `blocked`: only reachable through a race after the preflight (the history
-   * row is saved, the memory is left as-is).
+   * row is saved, the memory is left as-is); `failed`: the history row is
+   * saved but a planned memory row could not be written (vanished, no longer
+   * rewritable, or the write threw).
    */
   memory: z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('none') }),
     z.object({ kind: z.literal('synced') }),
+    z.object({ kind: z.literal('failed') }),
     z.object({ kind: z.literal('blocked'), reason: MemorySyncBlockReasonSchema }),
   ]),
 });

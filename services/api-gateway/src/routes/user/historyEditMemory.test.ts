@@ -202,10 +202,32 @@ describe('exchange memory sync', () => {
       });
     });
 
-    it('is blocked off-template when the new reply would make the memory unparseable', async () => {
+    it('is blocked reply-off-template when the new reply would make the memory unparseable', async () => {
+      expect(await planExchangeMemorySync(prisma, ROW, 'a\n{assistant}: b')).toEqual({
+        kind: 'blocked',
+        reason: 'reply-off-template',
+      });
+    });
+
+    it('keeps off-template when the stored text itself does not parse, even with a new reply', async () => {
+      memoryFindMany.mockResolvedValue([memory()]);
+      pendingFindMany.mockResolvedValue([pending({ text: 'free-form text' })]);
+
       expect(await planExchangeMemorySync(prisma, ROW, 'a\n{assistant}: b')).toEqual({
         kind: 'blocked',
         reason: 'off-template',
+      });
+    });
+
+    it('plans a sync for a user-part-block memory and a reply ending in a bracket', async () => {
+      memoryFindMany.mockResolvedValue([
+        memory({ content: '{user}: hi\n\n[Referenced content: a quote]\n{assistant}: OLD' }),
+      ]);
+
+      expect(await planExchangeMemorySync(prisma, ROW, '*smiles* [waves]')).toEqual({
+        kind: 'sync',
+        memoryId: 'mem-1',
+        pendingId: undefined,
       });
     });
 
@@ -315,6 +337,43 @@ describe('exchange memory sync', () => {
 
       expect(mockWrite).not.toHaveBeenCalled();
       expect(pendingUpdate).not.toHaveBeenCalled();
+    });
+
+    it('returns true only when every planned row was written', async () => {
+      memoryFindUnique.mockResolvedValue({ content: '{user}: hi\n{assistant}: OLD' });
+      pendingFindUnique.mockResolvedValue({ text: '{user}: hi\n{assistant}: OLD' });
+
+      expect(
+        await applyExchangeMemorySync(
+          prisma,
+          { kind: 'sync', memoryId: 'mem-1', pendingId: 'pend-1' },
+          'NEW'
+        )
+      ).toBe(true);
+    });
+
+    it.each([
+      ['a vanished memory', { memoryId: 'mem-1' }, null, null],
+      ['an unrewritable pending row', { pendingId: 'pend-1' }, null, { text: 'free-form' }],
+    ])('returns false for %s', async (_label, ids, memoryRow, pendingRow) => {
+      memoryFindUnique.mockResolvedValue(memoryRow);
+      pendingFindUnique.mockResolvedValue(pendingRow);
+
+      expect(await applyExchangeMemorySync(prisma, { kind: 'sync', ...ids }, 'NEW')).toBe(false);
+    });
+
+    it('returns false when one of two planned rows is skipped, though the other was written', async () => {
+      memoryFindUnique.mockResolvedValue({ content: '{user}: hi\n{assistant}: OLD' });
+      pendingFindUnique.mockResolvedValue(null);
+
+      expect(
+        await applyExchangeMemorySync(
+          prisma,
+          { kind: 'sync', memoryId: 'mem-1', pendingId: 'pend-1' },
+          'NEW'
+        )
+      ).toBe(false);
+      expect(mockWrite).toHaveBeenCalledTimes(1);
     });
   });
 });

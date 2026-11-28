@@ -37,7 +37,11 @@ vi.mock('./historyEditMemory.js', () => ({
   applyExchangeMemorySync: mockApply,
 }));
 
-import { handleEditAssistantMessage, handleGetEditableMessage } from './historyEdit.js';
+import {
+  handleCheckEditAssistantMessage,
+  handleEditAssistantMessage,
+  handleGetEditableMessage,
+} from './historyEdit.js';
 
 const CALLER = '900000000000000071';
 const MESSAGE_ID = '222222222222222222';
@@ -60,7 +64,7 @@ describe('history edit handlers', () => {
     vi.clearAllMocks();
     mockIsBotOwner.mockReturnValue(false);
     mockPlan.mockResolvedValue({ kind: 'sync', memoryId: 'mem-1', pendingId: 'pend-1' });
-    mockApply.mockResolvedValue(undefined);
+    mockApply.mockResolvedValue(true);
     update.mockResolvedValue({});
   });
 
@@ -95,7 +99,8 @@ describe('history edit handlers', () => {
         personalityId: 'personality-1',
         memorySync: { kind: 'sync' },
       });
-      expect(mockPlan).toHaveBeenCalledWith(expect.anything(), ROW);
+      // No new reply: GET judges the stored shape only.
+      expect(mockPlan).toHaveBeenCalledWith(expect.anything(), ROW, undefined);
     });
 
     it('reports a blocked memory state with its reason', async () => {
@@ -143,6 +148,59 @@ describe('history edit handlers', () => {
       const { req, res, status } = reqRes(undefined);
 
       await handleGetEditableMessage(deps())(req, res, () => undefined);
+
+      expect(status).toHaveBeenCalledWith(500);
+      expect(findFirst).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST edit-check', () => {
+    it('plans against the stored row AND the new content', async () => {
+      findFirst.mockResolvedValue(ROW);
+      mockPlan.mockResolvedValue({ kind: 'blocked', reason: 'reply-off-template' });
+      const { req, res, json } = reqRes(CALLER, { content: 'New reply' });
+
+      await handleCheckEditAssistantMessage(deps())(req, res, () => undefined);
+
+      expect(mockPlan).toHaveBeenCalledWith(expect.anything(), ROW, 'New reply');
+      expect(json).toHaveBeenCalledWith({
+        content: 'Stored reply',
+        discordMessageIds: ROW.discordMessageId,
+        personalityId: 'personality-1',
+        memorySync: { kind: 'blocked', reason: 'reply-off-template' },
+      });
+      expect(update).not.toHaveBeenCalled();
+      expect(mockApply).not.toHaveBeenCalled();
+    });
+
+    it('404s a non-owner, scoped by the owner WHERE', async () => {
+      findFirst.mockResolvedValue(null);
+      const { req, res, status } = reqRes(CALLER, { content: 'New reply' });
+
+      await handleCheckEditAssistantMessage(deps())(req, res, () => undefined);
+
+      expect(status).toHaveBeenCalledWith(404);
+      expect(mockPlan).not.toHaveBeenCalled();
+      expect(findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ persona: { owner: { discordId: CALLER } } }),
+        })
+      );
+    });
+
+    it('400s a blank body before any query', async () => {
+      const { req, res, status } = reqRes(CALLER, { content: '   ' });
+
+      await handleCheckEditAssistantMessage(deps())(req, res, () => undefined);
+
+      expect(status).toHaveBeenCalledWith(400);
+      expect(findFirst).not.toHaveBeenCalled();
+    });
+
+    it('500s without a caller identity', async () => {
+      const { req, res, status } = reqRes(undefined, { content: 'New reply' });
+
+      await handleCheckEditAssistantMessage(deps())(req, res, () => undefined);
 
       expect(status).toHaveBeenCalledWith(500);
       expect(findFirst).not.toHaveBeenCalled();
@@ -226,7 +284,7 @@ describe('history edit handlers', () => {
       expect(update).not.toHaveBeenCalled();
     });
 
-    it('still succeeds with a none outcome when the memory sync throws', async () => {
+    it('still succeeds with a failed outcome when the memory sync throws', async () => {
       findFirst.mockResolvedValue(ROW);
       mockApply.mockRejectedValue(new Error('boom'));
       const { req, res, json, status } = reqRes(CALLER, validBody);
@@ -235,7 +293,18 @@ describe('history edit handlers', () => {
 
       expect(update).toHaveBeenCalled();
       expect(status).toHaveBeenCalledWith(200);
-      expect(json).toHaveBeenCalledWith({ edited: true, memory: { kind: 'none' } });
+      expect(json).toHaveBeenCalledWith({ edited: true, memory: { kind: 'failed' } });
+    });
+
+    it('reports failed when the applier skipped a planned row', async () => {
+      findFirst.mockResolvedValue(ROW);
+      mockApply.mockResolvedValue(false);
+      const { req, res, json } = reqRes(CALLER, validBody);
+
+      await handleEditAssistantMessage(deps())(req, res, () => undefined);
+
+      expect(update).toHaveBeenCalled();
+      expect(json).toHaveBeenCalledWith({ edited: true, memory: { kind: 'failed' } });
     });
 
     it('writes the history row but skips the apply and returns blocked when re-planning blocks', async () => {

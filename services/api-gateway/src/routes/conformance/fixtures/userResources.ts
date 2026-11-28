@@ -23,6 +23,8 @@ const EDITABLE_MESSAGE_ID = '800000000000000032';
 const EDITABLE_ROW_ID = '5c110000-0000-4000-8000-000000000002';
 const EDIT_MESSAGE_ID = '800000000000000033';
 const EDIT_ROW_ID = '5c110000-0000-4000-8000-000000000003';
+const EDIT_CHECK_MESSAGE_ID = '800000000000000034';
+const EDIT_CHECK_ROW_ID = '5c110000-0000-4000-8000-000000000004';
 
 /**
  * Insert a BYOK wallet row directly. The set route validates keys against
@@ -207,6 +209,26 @@ export const userResourceFixtures: Record<string, ConformanceEntry> = {
       });
     },
     params: { messageId: EDITABLE_MESSAGE_ID },
+  },
+
+  checkEditAssistantMessage: {
+    seed: async ctx => {
+      const { id: personalityId } = await createPersonality(ctx, 'conf-history-edit-check');
+      await ctx.prisma.conversationHistory.create({
+        data: {
+          id: EDIT_CHECK_ROW_ID,
+          channelId: CHANNEL_SNOWFLAKE,
+          guildId: GUILD_SNOWFLAKE,
+          personalityId,
+          personaId: ctx.actorPersonaId,
+          role: 'assistant',
+          content: 'A conformance assistant turn to check.',
+          discordMessageId: [EDIT_CHECK_MESSAGE_ID],
+        },
+      });
+    },
+    params: { messageId: EDIT_CHECK_MESSAGE_ID },
+    body: { content: 'Checked by the conformance harness.' },
   },
 
   editAssistantMessage: {

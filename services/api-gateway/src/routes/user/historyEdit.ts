@@ -19,6 +19,7 @@ import {
   EditableMessageResponseSchema,
   EditAssistantMessageRequestSchema,
   EditAssistantMessageResponseSchema,
+  EditCheckRequestSchema,
 } from '@tzurot/common-types/schemas/api/history';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
@@ -105,6 +106,25 @@ function resolveRequest(
   return { messageId, ownerScope, ownerAccess };
 }
 
+/**
+ * The editable payload for `row`, with the memory plan made against the real
+ * stored texts (and `newReply` when given).
+ */
+async function buildEditablePayload(
+  prisma: RouteDeps['prisma'],
+  row: EditableRow,
+  newReply?: string
+): Promise<z.infer<typeof EditableMessageResponseSchema>> {
+  const plan = await planExchangeMemorySync(prisma, row, newReply);
+  return {
+    content: row.content,
+    discordMessageIds: row.discordMessageId,
+    personalityId: row.personalityId,
+    // Row ids stay server-side: only the kind (and block reason) cross the wire.
+    memorySync: plan.kind === 'blocked' ? plan : { kind: plan.kind },
+  };
+}
+
 /** GET /api/user/history/editable/:messageId */
 export const handleGetEditableMessage = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
@@ -120,16 +140,42 @@ export const handleGetEditableMessage = (deps: RouteDeps): RequestHandler => {
       return;
     }
 
-    // Without a new reply this checks the stored shape only; the bot adds the
-    // content-dependent check itself at submit.
-    const plan = await planExchangeMemorySync(prisma, row);
-    sendContractSuccess(res, EditableMessageResponseSchema, {
-      content: row.content,
-      discordMessageIds: row.discordMessageId,
-      personalityId: row.personalityId,
-      // Row ids stay server-side: only the kind (and block reason) cross the wire.
-      memorySync: plan.kind === 'blocked' ? plan : { kind: plan.kind },
-    });
+    // No new reply here: this checks the stored shape only. The submit-time
+    // check is `handleCheckEditAssistantMessage`.
+    sendContractSuccess(
+      res,
+      EditableMessageResponseSchema,
+      await buildEditablePayload(prisma, row)
+    );
+  });
+};
+
+/** POST /api/user/history/message/:messageId/edit-check */
+export const handleCheckEditAssistantMessage = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const resolved = resolveRequest(req, res);
+    if (resolved === null) {
+      return;
+    }
+
+    const parsed = EditCheckRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      sendZodError(res, parsed.error);
+      return;
+    }
+
+    const row = await findEditableRow(prisma, resolved.messageId, resolved.ownerScope);
+    if (row === null) {
+      sendError(res, ErrorResponses.notFound(NOT_FOUND_RESOURCE));
+      return;
+    }
+
+    sendContractSuccess(
+      res,
+      EditableMessageResponseSchema,
+      await buildEditablePayload(prisma, row, parsed.data.content)
+    );
   });
 };
 
@@ -192,11 +238,13 @@ export const handleEditAssistantMessage = (deps: RouteDeps): RequestHandler => {
         );
         memory = plan;
       } else if (plan.kind === 'sync') {
-        await applyExchangeMemorySync(prisma, plan, content);
-        memory = { kind: 'synced' };
+        memory = (await applyExchangeMemorySync(prisma, plan, content))
+          ? { kind: 'synced' }
+          : { kind: 'failed' };
       }
     } catch (error) {
       logger.error({ err: error, rowId: row.id }, 'Exchange memory sync failed');
+      memory = { kind: 'failed' };
     }
 
     logger.info(

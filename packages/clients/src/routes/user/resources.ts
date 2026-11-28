@@ -37,6 +37,7 @@ import {
   HistoryStatsResponseSchema,
   EditableMessageResponseSchema,
   EditAssistantMessageRequestSchema,
+  EditCheckRequestSchema,
   EditAssistantMessageResponseSchema,
   MessageReasoningResponseSchema,
   UndoHistoryResponseSchema,
@@ -239,6 +240,21 @@ export const userResourceRoutes = {
     path: '/history/editable/:messageId',
     id: 'getEditableMessage',
     params: { messageId: z.string() },
+    output: EditableMessageResponseSchema,
+    requiresProvisionedUser: true,
+    meta: { safeRead: true },
+  },
+
+  // The editable payload with `memorySync` planned against the real stored
+  // texts AND the proposed new reply. A POST only to carry the body; it reads.
+  // Same ownership scope as the GET and PATCH (404 hides other users' rows).
+  checkEditAssistantMessage: {
+    audience: 'user',
+    method: 'post',
+    path: '/history/message/:messageId/edit-check',
+    id: 'checkEditAssistantMessage',
+    params: { messageId: z.string() },
+    input: EditCheckRequestSchema,
     output: EditableMessageResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },

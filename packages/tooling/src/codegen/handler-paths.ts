@@ -31,6 +31,7 @@ const ADMIN_TTS_CONFIG = '../admin/tts-config.js';
 const USER_CHANNEL_GET = '../user/channel/get.js';
 const USER_CHANNEL_CONFIG_OVERRIDES = '../user/channel/configOverrides.js';
 const USER_HISTORY = '../user/history.js';
+const USER_HISTORY_EDIT = '../user/historyEdit.js';
 const USER_LLM_CONFIG = '../user/llm-config.js';
 const USER_MEMORY = '../user/memory.js';
 const USER_MEMORY_BATCH = '../user/memoryBatch.js';
@@ -248,8 +249,9 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   getHistoryStats: USER_HISTORY,
   hardDeleteHistory: USER_HISTORY,
   getMessageReasoning: '../user/historyReasoning.js',
-  getEditableMessage: '../user/historyEdit.js',
-  editAssistantMessage: '../user/historyEdit.js',
+  getEditableMessage: USER_HISTORY_EDIT,
+  checkEditAssistantMessage: USER_HISTORY_EDIT,
+  editAssistantMessage: USER_HISTORY_EDIT,
 
   // User voices
   listVoices: USER_VOICES,

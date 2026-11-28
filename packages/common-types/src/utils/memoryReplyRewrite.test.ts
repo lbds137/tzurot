@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  ASSISTANT_SEPARATOR_DISPLAY,
-  replyFitsExchangeTemplate,
-  rewriteReplyInExchangeText,
-} from './memoryReplyRewrite.js';
+import { rewriteReplyInExchangeText } from './memoryReplyRewrite.js';
 
 describe('rewriteReplyInExchangeText', () => {
   it('replaces the assistant half', () => {
@@ -19,6 +15,13 @@ describe('rewriteReplyInExchangeText', () => {
     );
   });
 
+  it('rewrites a user-part-block exchange when the new reply ends in a bracket', () => {
+    const text = '{user}: hi\n\n[Referenced content: a quote]\n{assistant}: old reply';
+    expect(rewriteReplyInExchangeText(text, '*smiles* [waves]')).toBe(
+      '{user}: hi\n\n[Referenced content: a quote]\n{assistant}: *smiles* [waves]'
+    );
+  });
+
   it('returns null for text outside the template', () => {
     expect(rewriteReplyInExchangeText('not a memory', 'new')).toBeNull();
   });
@@ -27,19 +30,5 @@ describe('rewriteReplyInExchangeText', () => {
     expect(
       rewriteReplyInExchangeText('{user}: hi\n{assistant}: old', 'a\n{assistant}: b')
     ).toBeNull();
-  });
-});
-
-describe('replyFitsExchangeTemplate', () => {
-  it('accepts ordinary text', () => {
-    expect(replyFitsExchangeTemplate('plain reply')).toBe(true);
-  });
-
-  it('rejects text containing the assistant separator', () => {
-    expect(replyFitsExchangeTemplate('x\n{assistant}: y')).toBe(false);
-  });
-
-  it('shows the separator without the template newline', () => {
-    expect(ASSISTANT_SEPARATOR_DISPLAY).toBe('{assistant}:');
   });
 });

@@ -8,7 +8,6 @@
 import {
   ASSISTANT_SEPARATOR,
   REFERENCED_BLOCK_RE,
-  USER_PREFIX,
   splitMemoryContent,
 } from './memoryContentSplit.js';
 
@@ -29,14 +28,3 @@ export function rewriteReplyInExchangeText(text: string, newReply: string): stri
   const rewritten = text.slice(0, headEnd) + newReply + trailingRef;
   return splitMemoryContent(rewritten) === null ? null : rewritten;
 }
-
-/** Whether `newReply` can be stored in the exchange template without breaking it. */
-export function replyFitsExchangeTemplate(newReply: string): boolean {
-  return (
-    rewriteReplyInExchangeText(`${USER_PREFIX}x${ASSISTANT_SEPARATOR}placeholder`, newReply) !==
-    null
-  );
-}
-
-/** The separator as users read it (the template's newline is not user-presentable). */
-export const ASSISTANT_SEPARATOR_DISPLAY = ASSISTANT_SEPARATOR.trim();
