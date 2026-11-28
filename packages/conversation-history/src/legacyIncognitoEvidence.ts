@@ -12,9 +12,14 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
  * REPLY_PAIRING_WINDOW_MS` and `< reply`). Exact-offset pairing is impossible
  * (user and reply rows sit tens of ms to seconds apart), and the window bound
  * stops an unrelated older user row from binding to a reply that has no
- * trigger row of its own (such as a weigh-in). Accepted residue: a
- * trigger-less reply preceded within 60s by another user's row still binds to
- * it unless `personaId` is given, which also scopes the lookup to that persona.
+ * trigger row of its own (such as a weigh-in).
+ *
+ * Two modes:
+ * - Without `personaId`: the immediately preceding row of ANY role and ANY
+ *   persona in the channel and personality. Accepted residue: a trigger-less
+ *   reply preceded within the window by another user's row still binds to it.
+ * - With `personaId`: the preceding row OF THAT PERSONA only; other personas'
+ *   rows are skipped, so a shared channel's interleaved turn cannot bind.
  *
  * @returns the trigger's Discord message id(s), or `null` when the preceding
  * row is outside the window, is not a user turn, or has no Discord message id.

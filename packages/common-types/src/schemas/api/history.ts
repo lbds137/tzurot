@@ -151,8 +151,15 @@ export const EditableMessageResponseSchema = z.object({
  * the edit (chunks may have been added or removed).
  */
 export const EditAssistantMessageRequestSchema = z.object({
-  content: z.string().min(1).max(EDIT_RESPONSE_MAX_CONTENT_LENGTH),
-  discordMessageIds: z.array(z.string().min(1)).min(1).max(20),
+  content: z
+    .string()
+    .min(1)
+    .max(EDIT_RESPONSE_MAX_CONTENT_LENGTH)
+    .refine(s => s.trim().length > 0, { message: 'Content cannot be blank' }),
+  discordMessageIds: z
+    .array(z.string().regex(/^\d{17,20}$/, 'Must be a Discord snowflake'))
+    .min(1)
+    .max(20),
 });
 
 /** PATCH /user/history/message/:messageId response. */

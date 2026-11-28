@@ -141,6 +141,11 @@ describe('rewriteExchangeMemory', () => {
     expect(mockWrite).not.toHaveBeenCalled();
   });
 
+  it('returns false with no write when the new reply would make the memory unparseable', async () => {
+    expect(await rewriteExchangeMemory(prisma, ROW, 'a\n{assistant}: b')).toBe(false);
+    expect(mockWrite).not.toHaveBeenCalled();
+  });
+
   it('rewrites only the assistant half on the happy path', async () => {
     expect(await rewriteExchangeMemory(prisma, ROW, 'NEW')).toBe(true);
 

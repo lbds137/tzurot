@@ -37,6 +37,14 @@ describe('extractTrailingFooter', () => {
     expect(extractTrailingFooter(MODEL_LINE)).toBe(`\n${MODEL_LINE}`);
   });
 
+  it('carries a reply whose own last line matches a footer pattern as footer', () => {
+    // Pins current behaviour: the extractor cannot tell a model-written footer-shaped
+    // last line from the bot's, so it is preserved as footer rather than edited.
+    expect(extractTrailingFooter(`Reply\n-# ${BOT_FOOTER_TEXT.FRESH_MODE}`)).toBe(
+      `\n-# ${BOT_FOOTER_TEXT.FRESH_MODE}`
+    );
+  });
+
   it('gives the same answer on repeated calls (no shared global-regex state)', () => {
     const content = `Reply\n${MODEL_LINE}`;
 
