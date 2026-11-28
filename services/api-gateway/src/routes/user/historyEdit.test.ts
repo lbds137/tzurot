@@ -178,6 +178,20 @@ describe('history edit handlers', () => {
       expect(update).toHaveBeenCalled();
     });
 
+    it('400s when the first chunk id differs from the stored first id, without updating', async () => {
+      findFirst.mockResolvedValue(ROW);
+      const { req, res, status } = reqRes(CALLER, {
+        content: 'New reply',
+        discordMessageIds: ['222222222222222223'],
+      });
+
+      await handleEditAssistantMessage(deps())(req, res, () => undefined);
+
+      expect(status).toHaveBeenCalledWith(400);
+      expect(update).not.toHaveBeenCalled();
+      expect(mockRewrite).not.toHaveBeenCalled();
+    });
+
     it('400s an invalid body before any query', async () => {
       const { req, res, status } = reqRes(CALLER, { content: '', discordMessageIds: [] });
 

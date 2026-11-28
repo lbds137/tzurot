@@ -103,6 +103,14 @@ export async function rewriteExchangeMemory(
   const newContent =
     memory.content.slice(0, sepIndex + ASSISTANT_SEPARATOR.length) + newReply + trailingRef;
 
+  if (splitMemoryContent(newContent) === null) {
+    logger.warn(
+      { rowId: row.id, memoryId: memory.id },
+      'Edited reply would make the memory unparseable; left as-is'
+    );
+    return false;
+  }
+
   await writeMemoryContent(prisma, memory.id, newContent);
   return true;
 }

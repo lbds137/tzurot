@@ -735,6 +735,23 @@ describe('CommandHandler', () => {
       expect(content).not.toContain("Couldn't reach the server");
     });
 
+    it("still replies with an error when a deferralMode 'modal' command throws before showModal", async () => {
+      handler.getContextMenuCommands().set('Edit Thing', {
+        data: { name: 'Edit Thing' } as never,
+        deferralMode: 'modal',
+        execute: vi.fn().mockRejectedValue(new Error('boom before showModal')) as never,
+      });
+      const interaction = makeContextMenuInteraction('Edit Thing');
+
+      await handler.handleContextMenuCommand(interaction as never);
+
+      expect(interaction.deferReply).not.toHaveBeenCalled();
+      const replyCalls = [...interaction.reply.mock.calls, ...interaction.editReply.mock.calls];
+      expect(replyCalls).toHaveLength(1);
+      const { content } = replyCalls[0][0] as { content: string };
+      expect(content.length).toBeGreaterThan(0);
+    });
+
     it('emits an ok telemetry event with the bare command name on success', async () => {
       handler.getContextMenuCommands().set('Inspect Message', {
         data: { name: 'Inspect Message' } as never,

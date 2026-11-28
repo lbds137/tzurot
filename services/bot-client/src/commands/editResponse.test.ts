@@ -164,6 +164,39 @@ describe('Edit Response — open', () => {
     );
   });
 
+  it('replies with the classified transient spec, not "not yours", on a non-404 lookup failure', async () => {
+    mocks.getEditableMessage.mockResolvedValue({
+      ok: false,
+      status: 0,
+      error: 'timed out',
+      kind: 'timeout',
+    });
+    const interaction = openInteraction({});
+
+    await editResponse.execute(interaction as never);
+
+    expect(interaction.showModal).not.toHaveBeenCalled();
+    const { content } = interaction.reply.mock.calls[0][0] as { content: string };
+    expect(content).toContain("Couldn't load the response right now. Please try again later.");
+    expect(content).not.toContain('your own conversation');
+  });
+
+  it('does not report "not yours" for an HTTP 503 lookup failure', async () => {
+    mocks.getEditableMessage.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: 'upstream unavailable',
+      kind: 'http',
+    });
+    const interaction = openInteraction({});
+
+    await editResponse.execute(interaction as never);
+
+    expect(interaction.showModal).not.toHaveBeenCalled();
+    const { content } = interaction.reply.mock.calls[0][0] as { content: string };
+    expect(content).not.toContain('your own conversation');
+  });
+
   it('refuses a response longer than the edit limit', async () => {
     mocks.getEditableMessage.mockResolvedValue({
       ok: true,
@@ -335,6 +368,27 @@ describe('Edit Response — submit', () => {
       content: 'short',
       discordMessageIds: ['m1'],
     });
+  });
+
+  it('replies with the partial text and stores the surviving ids when a surplus delete fails', async () => {
+    const wh = webhookStub();
+    wh.deleteMessage.mockRejectedValueOnce(new Error('nope'));
+    mocks.getWebhook.mockResolvedValue(wh);
+    mocks.getEditableMessage.mockResolvedValue(okLookup(['m1', 'm2']));
+    const { interaction } = modalInteraction('short', [
+      chunk('m1', 'old one'),
+      chunk('m2', 'old two'),
+    ]);
+
+    await handleModal(interaction as never);
+
+    expect(mocks.editAssistantMessage).toHaveBeenCalledWith('m1', {
+      content: 'short',
+      discordMessageIds: ['m1', 'm2'],
+    });
+    expect(lastReply(interaction)).toBe(
+      "✅ Response edited, but part of it couldn't be updated on Discord."
+    );
   });
 
   it('keeps the DM speaker prefix on chunk 0 and edits through the message', async () => {
