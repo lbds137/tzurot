@@ -24,5 +24,7 @@ Owner rulings 2026-11-27 (AskUserQuestion, all four recommended picks): (1) Repl
 
 Owner rulings 2026-11-28 (Edit Response, PR A #2833, merged): (a) the exchange memory always stays in sync: an edit whose memory cannot follow it is refused before Discord changes; (b) a locked memory refuses the edit with "This reply's memory is locked. Unlock it in /memory to edit."; (c) coalesced replies: every memory holding the reply is rewritten (other users' and the editor's own earlier triggers included), and any locked one refuses the whole edit; (d) TTS on edit: regenerate audio (TASK-1585). PR A shipped; PR B (Reroll) remains.
 
+Owner ruling 2026-11-28 (Reroll, PR B): when the bot owner rerolls another user's reply, it runs and bills as the turn owner (their persona, config, key and billing), exactly as if they had rerolled it. Derived for PR B from rulings (a)–(c), not separately asked: every memory holding the old reply is removed, and any locked one refuses the reroll before generation.
+
 Carried from #2833 review r6 (nits, for PR B in the same files): stale "other personas only" wording in two `historyEditMemory.test.ts` titles and the `SiblingCandidate` docblock; rename `memoryBlocker`'s `editorPersonaId` to `turnPersonaId`.
 <!-- SECTION:DESCRIPTION:END -->
