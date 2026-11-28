@@ -43,13 +43,17 @@ export type EditTarget =
       avatarURL: string;
       personalityId: string;
     }
-  | { kind: 'dm'; channel: Pick<DMChannel, 'send'> };
+  | { kind: 'dm'; channel: Pick<DMChannel, 'send'>; personalityId: string };
 
 export type ApplyResult =
-  { ok: true; messageIds: string[] } | { ok: false; reason: 'uneditable' | 'error' };
+  | { ok: true; messageIds: string[]; partial: boolean }
+  | { ok: false; reason: 'uneditable' | 'error' };
 
 const NO_MENTIONS = { parse: [] as never[] };
 
+// Edits clear attachments on purpose: the only attachment a reply carries is the TTS
+// audio on its last chunk (DiscordResponseSender `ttsFiles`), which would speak the old
+// text. Regenerating it is a tracked follow-up.
 async function editChunk(target: EditTarget, live: Message, content: string): Promise<void> {
   if (target.kind === 'webhook') {
     await target.webhook.editMessage(live.id, {
@@ -63,6 +67,16 @@ async function editChunk(target: EditTarget, live: Message, content: string): Pr
   await live.edit({ content, attachments: [], allowedMentions: NO_MENTIONS });
 }
 
+/** Record the sent message so replies to it route to the personality. */
+async function recordSentMessage(messageId: string, personalityId: string): Promise<void> {
+  try {
+    await redisService.storeWebhookMessage(messageId, personalityId);
+  } catch (error) {
+    // The message already exists on Discord; losing its id here would orphan it.
+    logger.warn({ err: error, messageId }, 'Webhook message bookkeeping failed');
+  }
+}
+
 async function sendChunk(target: EditTarget, content: string): Promise<string> {
   if (target.kind === 'webhook') {
     const sent = await target.webhook.send({
@@ -72,10 +86,11 @@ async function sendChunk(target: EditTarget, content: string): Promise<string> {
       threadId: target.threadId,
       allowedMentions: NO_MENTIONS,
     });
-    await redisService.storeWebhookMessage(sent.id, target.personalityId);
+    await recordSentMessage(sent.id, target.personalityId);
     return sent.id;
   }
   const sent = await target.channel.send({ content, allowedMentions: NO_MENTIONS });
+  await recordSentMessage(sent.id, target.personalityId);
   return sent.id;
 }
 
@@ -95,8 +110,10 @@ async function deleteChunk(target: EditTarget, live: Message): Promise<void> {
  * Discord, so the caller can stop before touching the database. A failure on
  * any later operation is logged and the walk continues: Discord is then
  * partially the new text, and the caller still records the user's intent. This
- * partial-failure mode is deliberate; the returned `messageIds` list only the
- * messages that actually exist afterwards.
+ * partial-failure mode is deliberate: `partial` is true when any operation
+ * after the first edit failed. `messageIds` lists the chunks known or assumed
+ * to still exist; a chunk whose edit failed transiently is assumed to exist,
+ * while one refused as uneditable (gone or not ours) is omitted.
  */
 export async function applyEditedChunks(
   target: EditTarget,
@@ -105,6 +122,7 @@ export async function applyEditedChunks(
 ): Promise<ApplyResult> {
   const overlap = Math.min(liveChunks.length, newChunks.length);
   const messageIds: string[] = [];
+  let partial = false;
 
   for (let i = 0; i < overlap; i++) {
     try {
@@ -118,32 +136,37 @@ export async function applyEditedChunks(
         return { ok: false, reason: isUneditableError(error) ? 'uneditable' : 'error' };
       }
       logger.warn({ err: error, messageId: liveChunks[i].id }, 'Later chunk edit failed');
+      partial = true;
+      if (isUneditableError(error)) {
+        continue;
+      }
     }
     messageIds.push(liveChunks[i].id);
   }
 
-  messageIds.push(...(await sendExtraChunks(target, newChunks, overlap)));
-  messageIds.push(...(await deleteSurplusChunks(target, liveChunks, overlap)));
+  const extras = await sendExtraChunks(target, newChunks, overlap);
+  const surplus = await deleteSurplusChunks(target, liveChunks, overlap);
+  messageIds.push(...extras.ids, ...surplus.ids);
 
-  return { ok: true, messageIds };
+  return { ok: true, messageIds, partial: partial || extras.failed || surplus.failed };
 }
 
-/** Send chunks beyond the live count; stops at the first failure. */
+/** Send chunks beyond the live count; stops at the first failure and reports it. */
 async function sendExtraChunks(
   target: EditTarget,
   newChunks: readonly string[],
   from: number
-): Promise<string[]> {
+): Promise<{ ids: string[]; failed: boolean }> {
   const sent: string[] = [];
   for (let i = from; i < newChunks.length; i++) {
     try {
       sent.push(await sendChunk(target, newChunks[i]));
     } catch (error) {
       logger.warn({ err: error, chunkIndex: i }, 'Extra chunk send failed');
-      break;
+      return { ids: sent, failed: true };
     }
   }
-  return sent;
+  return { ids: sent, failed: false };
 }
 
 /** Delete surplus live chunks; returns the ids of any that could not be deleted. */
@@ -151,7 +174,8 @@ async function deleteSurplusChunks(
   target: EditTarget,
   liveChunks: readonly Message[],
   from: number
-): Promise<string[]> {
+): Promise<{ ids: string[]; failed: boolean }> {
+  // A deleted chunk's Redis mapping is left to expire by TTL; a deleted message cannot be replied to.
   const survivors: string[] = [];
   for (let i = from; i < liveChunks.length; i++) {
     try {
@@ -161,5 +185,5 @@ async function deleteSurplusChunks(
       survivors.push(liveChunks[i].id);
     }
   }
-  return survivors;
+  return { ids: survivors, failed: survivors.length > 0 };
 }

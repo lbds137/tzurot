@@ -68,7 +68,7 @@ describe('applyEditedChunks (webhook)', () => {
       'b',
       expect.objectContaining({ content: 'two' })
     );
-    expect(result).toEqual({ ok: true, messageIds: ['a', 'b'] });
+    expect(result).toEqual({ ok: true, messageIds: ['a', 'b'], partial: false });
   });
 
   it('sends extra chunks as the same speaker and records them in redis', async () => {
@@ -84,7 +84,7 @@ describe('applyEditedChunks (webhook)', () => {
       allowedMentions: { parse: [] },
     });
     expect(mockStore).toHaveBeenCalledWith('new-1', 'pers-1');
-    expect(result).toEqual({ ok: true, messageIds: ['a', 'new-1'] });
+    expect(result).toEqual({ ok: true, messageIds: ['a', 'new-1'], partial: false });
   });
 
   it('deletes surplus chunks and drops their ids', async () => {
@@ -93,7 +93,7 @@ describe('applyEditedChunks (webhook)', () => {
     const result = await applyEditedChunks(target, live, ['only']);
 
     expect(webhook.deleteMessage).toHaveBeenCalledWith('b', 'thread-1');
-    expect(result).toEqual({ ok: true, messageIds: ['a'] });
+    expect(result).toEqual({ ok: true, messageIds: ['a'], partial: false });
   });
 
   it('returns uneditable and changes nothing more when the first edit is refused', async () => {
@@ -123,7 +123,39 @@ describe('applyEditedChunks (webhook)', () => {
 
     const result = await applyEditedChunks(target, live, ['one', 'two']);
 
-    expect(result).toEqual({ ok: true, messageIds: ['a', 'b'] });
+    expect(result).toEqual({ ok: true, messageIds: ['a', 'b'], partial: true });
+  });
+
+  it('omits the id of a later chunk whose edit is refused as uneditable', async () => {
+    webhook.editMessage
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(apiError(RESTJSONErrorCodes.UnknownMessage));
+    const live = [liveMessage('a'), liveMessage('b')] as unknown as Message[];
+
+    const result = await applyEditedChunks(target, live, ['one', 'two']);
+
+    expect(result).toEqual({ ok: true, messageIds: ['a'], partial: true });
+  });
+
+  it('reports partial when an extra chunk send fails', async () => {
+    webhook.send.mockRejectedValueOnce(new Error('send failed'));
+    const live = [liveMessage('a')] as unknown as Message[];
+
+    const result = await applyEditedChunks(target, live, ['one', 'two', 'three']);
+
+    expect(result).toEqual({ ok: true, messageIds: ['a'], partial: true });
+    expect(webhook.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the new chunk id and continues when redis bookkeeping fails', async () => {
+    mockStore.mockRejectedValueOnce(new Error('redis down'));
+    webhook.send.mockResolvedValueOnce({ id: 'new-1' }).mockResolvedValueOnce({ id: 'new-2' });
+    const live = [liveMessage('a')] as unknown as Message[];
+
+    const result = await applyEditedChunks(target, live, ['one', 'two', 'three']);
+
+    expect(result).toEqual({ ok: true, messageIds: ['a', 'new-1', 'new-2'], partial: false });
+    expect(webhook.send).toHaveBeenCalledTimes(2);
   });
 
   it('keeps the id of a surplus chunk that could not be deleted', async () => {
@@ -132,13 +164,13 @@ describe('applyEditedChunks (webhook)', () => {
 
     const result = await applyEditedChunks(target, live, ['one']);
 
-    expect(result).toEqual({ ok: true, messageIds: ['a', 'b'] });
+    expect(result).toEqual({ ok: true, messageIds: ['a', 'b'], partial: true });
   });
 });
 
 describe('applyEditedChunks (dm)', () => {
   const channel = { send: vi.fn() };
-  const target: EditTarget = { kind: 'dm', channel: channel as never };
+  const target: EditTarget = { kind: 'dm', channel: channel as never, personalityId: 'pers-1' };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -155,7 +187,7 @@ describe('applyEditedChunks (dm)', () => {
       attachments: [],
       allowedMentions: { parse: [] },
     });
-    expect(result).toEqual({ ok: true, messageIds: ['a'] });
+    expect(result).toEqual({ ok: true, messageIds: ['a'], partial: false });
   });
 
   it('sends extras through the channel and deletes surplus messages', async () => {
@@ -166,8 +198,9 @@ describe('applyEditedChunks (dm)', () => {
     const shrunk = await applyEditedChunks(target, [a, b] as unknown as Message[], ['x']);
 
     expect(channel.send).toHaveBeenCalledWith({ content: 'y', allowedMentions: { parse: [] } });
-    expect(grown).toEqual({ ok: true, messageIds: ['a', 'dm-new'] });
+    expect(mockStore).toHaveBeenCalledWith('dm-new', 'pers-1');
+    expect(grown).toEqual({ ok: true, messageIds: ['a', 'dm-new'], partial: false });
     expect(b.delete).toHaveBeenCalled();
-    expect(shrunk).toEqual({ ok: true, messageIds: ['a'] });
+    expect(shrunk).toEqual({ ok: true, messageIds: ['a'], partial: false });
   });
 });

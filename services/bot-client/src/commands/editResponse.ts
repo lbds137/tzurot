@@ -54,6 +54,8 @@ const NOT_YOURS_MESSAGE = 'You can only edit replies to your own conversation.';
 const TOO_LONG_MESSAGE = 'This response is too long to edit here.';
 const CANT_EDIT_MESSAGE = "I can't edit this message anymore.";
 const EMPTY_MESSAGE = 'The response cannot be empty.';
+const DONE_MESSAGE = 'Response edited.';
+const PARTIAL_DONE_MESSAGE = "Response edited, but part of it couldn't be updated on Discord.";
 const GENERIC_FAILURE_MESSAGE = 'Something went wrong editing the response.';
 
 type GuildWebhookChannel = TextChannel | NewsChannel | ThreadChannel;
@@ -133,7 +135,11 @@ async function resolveTarget(
       return null;
     }
     return {
-      target: { kind: 'dm', channel: channel as Extract<EditTarget, { kind: 'dm' }>['channel'] },
+      target: {
+        kind: 'dm',
+        channel: channel as Extract<EditTarget, { kind: 'dm' }>['channel'],
+        personalityId,
+      },
       dmPrefix: extractDmPrefix(first.content),
     };
   }
@@ -221,10 +227,18 @@ async function handleSubmit(interaction: ModalSubmitInteraction): Promise<void> 
   }
 
   logger.info(
-    { messageId, chunks: applied.messageIds.length, memoryUpdated: saved.data.memoryUpdated },
+    {
+      messageId,
+      chunks: applied.messageIds.length,
+      partial: applied.partial,
+      memoryUpdated: saved.data.memoryUpdated,
+    },
     'Response edited'
   );
-  await replySpec(interaction, CATALOG.success.done('Response edited.'));
+  await replySpec(
+    interaction,
+    CATALOG.success.done(applied.partial ? PARTIAL_DONE_MESSAGE : DONE_MESSAGE)
+  );
 }
 
 export default defineContextMenuCommand({

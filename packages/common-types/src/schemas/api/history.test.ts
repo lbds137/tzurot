@@ -441,7 +441,7 @@ describe('History API Input Schema Tests', () => {
     it('accepts content at exactly the limit', () => {
       const result = EditAssistantMessageRequestSchema.safeParse({
         content: 'x'.repeat(EDIT_RESPONSE_MAX_CONTENT_LENGTH),
-        discordMessageIds: ['1'],
+        discordMessageIds: ['111111111111111111'],
       });
       expect(result.success).toBe(true);
     });
@@ -449,7 +449,7 @@ describe('History API Input Schema Tests', () => {
     it('rejects content one past the limit', () => {
       const result = EditAssistantMessageRequestSchema.safeParse({
         content: 'x'.repeat(EDIT_RESPONSE_MAX_CONTENT_LENGTH + 1),
-        discordMessageIds: ['1'],
+        discordMessageIds: ['111111111111111111'],
       });
       expect(result.success).toBe(false);
     });
@@ -457,7 +457,7 @@ describe('History API Input Schema Tests', () => {
     it('rejects empty content', () => {
       const result = EditAssistantMessageRequestSchema.safeParse({
         content: '',
-        discordMessageIds: ['1'],
+        discordMessageIds: ['111111111111111111'],
       });
       expect(result.success).toBe(false);
     });
@@ -481,7 +481,35 @@ describe('History API Input Schema Tests', () => {
     it('rejects more than 20 chunk ids', () => {
       const result = EditAssistantMessageRequestSchema.safeParse({
         content: 'ok',
-        discordMessageIds: Array.from({ length: 21 }, (_, i) => String(i + 1)),
+        discordMessageIds: Array.from({ length: 21 }, (_, i) =>
+          String(111111111111111111n + BigInt(i))
+        ),
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects a chunk id that is not a snowflake', () => {
+      for (const id of ['1', 'abc', '1'.repeat(16), '1'.repeat(21), '12345678901234567x']) {
+        const result = EditAssistantMessageRequestSchema.safeParse({
+          content: 'ok',
+          discordMessageIds: [id],
+        });
+        expect(result.success).toBe(false);
+      }
+    });
+
+    it('accepts snowflakes of 17 and 20 digits', () => {
+      const result = EditAssistantMessageRequestSchema.safeParse({
+        content: 'ok',
+        discordMessageIds: ['1'.repeat(17), '1'.repeat(20)],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects whitespace-only content', () => {
+      const result = EditAssistantMessageRequestSchema.safeParse({
+        content: ' \n\t ',
+        discordMessageIds: ['111111111111111111'],
       });
       expect(result.success).toBe(false);
     });

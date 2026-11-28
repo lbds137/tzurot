@@ -145,6 +145,16 @@ export const handleEditAssistantMessage = (deps: RouteDeps): RequestHandler => {
       return;
     }
 
+    // The first chunk is the stable route key and is never deleted; a list that
+    // starts elsewhere would orphan the row's lookup key.
+    if (discordMessageIds[0] !== row.discordMessageId[0]) {
+      sendError(
+        res,
+        ErrorResponses.validationError('The first message id must match the stored reply')
+      );
+      return;
+    }
+
     // Same semantics as ConversationSyncService.updateMessageContent, plus the
     // chunk-id list, which may have grown or shrunk with the edit.
     await prisma.conversationHistory.update({
