@@ -67,16 +67,6 @@ async function editChunk(target: EditTarget, live: Message, content: string): Pr
   await live.edit({ content, attachments: [], allowedMentions: NO_MENTIONS });
 }
 
-/** Record the sent message so replies to it route to the personality. */
-async function recordSentMessage(messageId: string, personalityId: string): Promise<void> {
-  try {
-    await redisService.storeWebhookMessage(messageId, personalityId);
-  } catch (error) {
-    // The message already exists on Discord; losing its id here would orphan it.
-    logger.warn({ err: error, messageId }, 'Webhook message bookkeeping failed');
-  }
-}
-
 async function sendChunk(target: EditTarget, content: string): Promise<string> {
   if (target.kind === 'webhook') {
     const sent = await target.webhook.send({
@@ -86,11 +76,11 @@ async function sendChunk(target: EditTarget, content: string): Promise<string> {
       threadId: target.threadId,
       allowedMentions: NO_MENTIONS,
     });
-    await recordSentMessage(sent.id, target.personalityId);
+    await redisService.storeWebhookMessage(sent.id, target.personalityId);
     return sent.id;
   }
   const sent = await target.channel.send({ content, allowedMentions: NO_MENTIONS });
-  await recordSentMessage(sent.id, target.personalityId);
+  await redisService.storeWebhookMessage(sent.id, target.personalityId);
   return sent.id;
 }
 
