@@ -27,7 +27,7 @@ function statefulRedis(initial: Record<string, string> = {}, scanPageSize = 100)
     del: vi.fn(async (key: string) => (store.delete(key) ? 1 : 0)),
     keys: vi.fn(),
     scan: vi.fn(async (cursor: string, _match: string, pattern: string) => {
-      const prefix = pattern.replace('*', '');
+      const prefix = pattern.replaceAll('*', '');
       const all = [...store.keys()].filter(key => key.startsWith(prefix));
       const start = Number(cursor);
       const page = all.slice(start, start + scanPageSize);
