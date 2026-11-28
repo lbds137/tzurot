@@ -1,10 +1,10 @@
 ---
 id: TASK-1570
 title: 'Tier seam: effective-tier resolver, D10 firewall restore, per-key demotion'
-status: In Progress
-assignee:
-  - tzurot-A
+status: Done
+assignee: []
 created_date: '2026-11-27T06:01:00Z'
+updated_date: '2026-11-28T00:38:00Z'
 labels:
   - area:ai-worker
   - size:L
@@ -24,6 +24,8 @@ Acceptance: a keyless free-tier request never reaches a system-key-billed model 
 
 **PR 1 shipped as #2827** — merged into develop 2026-11-27 (merge commit 9a83aed2e; 4 review rounds dispositioned, matrix 32 tests, CI 24/24 at 7a3b58e10). The checklist below + the r4 nits ride PR 2.
 
+**PR 2 shipped as #2829** — merged into develop 2026-11-27 (head 3a00523d6, develop a7a993df0; 8 claude-review cycles dispositioned, suite 7223 at the final head, cpd 1653/1656). Checklist closed: sites 1–3 re-keyed to billing identity, sites 4–5 confirmed free-tier-capability with the deliberate-conservative-metering comment at the `isFreeTier` site (the billing-identity gate is TASK-1580, owner question + recommendation attached); carried nits landed or filed as recorded per bullet.
+
 **PR 2 (branch `feat/task-1570-pr2-key-state`) reviewed the WHOLE checklist at producer-landing**, disposition per bullet: sites 1–3 (quotaFallback CREDIT_EXHAUSTION arm, targetCacheKeyId bucket, resolveRetryCredentials) re-keyed to billing identity (`keyProvenance` + `forceSystemKey`); sites 4–5 (enforceGuestFreeTierQuota/meterForcedFallback/reactToZaiFreeTierFailure, applyGuestModeOverrides) confirmed intended free-tier-capability and kept on `effectiveTier` — premise-ledger P4/P5 verification, including the caught seam bug (buildPostRouteLlmAuth re-deriving tier without keyState would un-demote one step after AuthStep demoted; fixed by threading keyState as a fourth parameter). Matrix rows for user-provenance + low-credit added at each site (P7: 40 matrix rows total).
 
 ## PR 2 checklist — billing-identity vs free-tier-capability split (r4 review finding #1, latent until the keyState producer)
@@ -38,4 +40,3 @@ At 2827's head `tier === 'free'` and `keyProvenance !== 'user'` are equivalent (
 - With the producer: matrix rows for `'user'`-provenance + `'free'`-tier (low-credit) at each of these sites.
 
 Also carried from r4 (mechanical nits, ride PR 2's diff): move `provenanceFromResolution` + its tests into `services/effectiveTier.ts` (seam logic out of the pipeline-step layer) **[rode PR 2]**; `no-tier-flag-branching` ternary `consequent`/`alternate` + computed string-literal gaps (fix or document) **[filed TASK-1574]**; stale "guest semantics" JSDoc in `selectHopOneFloorTarget` + the hopOneFloorTarget header now that it owns the credential helpers **[filed TASK-1573]**; inline `resolveInvocationCacheKeyId` **[filed TASK-1573]**; rename the matrix's `keyState` column (shadows the seam parameter) e.g. to `keyPresence` **[rode PR 2]**. Also riding PR 2 from earlier rounds: the r3 #7 `retargetRoute` keyProvenance threading and the r2 CreditExhaustionCache "1 hour"→"10 minutes" JSDoc fixes.
-
