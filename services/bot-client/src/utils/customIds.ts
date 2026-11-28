@@ -430,6 +430,20 @@ export const PersonaCustomIds = {
 } as const;
 
 // ============================================================================
+// EDIT RESPONSE (message context menu)
+// ============================================================================
+
+const editResponseFamily = defineCustomIdFamily('edit-response', {
+  /** Modal submit; carries only the channel and the clicked message id. */
+  submit: [seg.str('channelId'), seg.str('messageId')],
+});
+
+export const EditResponseCustomIds = {
+  submit: editResponseFamily.build.submit,
+  parse: editResponseFamily.parse,
+} as const;
+
+// ============================================================================
 // SHAPES COMMAND
 // ============================================================================
 

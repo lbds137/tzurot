@@ -12,9 +12,32 @@ import {
   ApikeyCustomIds,
   PresetCustomIds,
   PersonaCustomIds,
+  EditResponseCustomIds,
   getCommandFromCustomId,
 } from './customIds.js';
 import { buildDashboardCustomId } from './dashboard/types.js';
+
+describe('EditResponseCustomIds', () => {
+  it('builds edit-response::submit::<channelId>::<messageId>', () => {
+    expect(EditResponseCustomIds.submit('123', '456')).toBe('edit-response::submit::123::456');
+  });
+
+  it('round-trips the channel and message ids', () => {
+    const parsed = EditResponseCustomIds.parse(EditResponseCustomIds.submit('123', '456'));
+
+    expect(parsed).toEqual({ action: 'submit', channelId: '123', messageId: '456' });
+  });
+
+  it('resolves to the edit-response command prefix', () => {
+    expect(getCommandFromCustomId(EditResponseCustomIds.submit('123', '456'))).toBe(
+      'edit-response'
+    );
+  });
+
+  it('rejects an unrelated customId', () => {
+    expect(EditResponseCustomIds.parse('persona::menu::x')).toBeNull();
+  });
+});
 
 describe('customIds', () => {
   describe('CUSTOM_ID_DELIMITER', () => {

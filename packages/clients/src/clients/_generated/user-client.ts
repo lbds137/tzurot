@@ -1492,6 +1492,44 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
+  async getEditableMessage(messageId: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getEditableMessage.output>>> {
+    const fullPath = `/api/user/history/editable/${encodeURIComponent(messageId)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      outputSchema: ROUTE_MANIFEST.getEditableMessage.output,
+    });
+  }
+
+  async editAssistantMessage(messageId: string, input: z.input<typeof ROUTE_MANIFEST.editAssistantMessage.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.editAssistantMessage.output>>> {
+    const fullPath = `/api/user/history/message/${encodeURIComponent(messageId)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'PATCH',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.editAssistantMessage.output,
+    });
+  }
+
   async hardDeleteHistory(input: z.input<typeof ROUTE_MANIFEST.hardDeleteHistory.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.hardDeleteHistory.output>>> {
     const fullPath = '/api/user/history/hard-delete';
     return callGateway({

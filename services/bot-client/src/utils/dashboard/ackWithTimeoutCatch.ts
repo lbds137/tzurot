@@ -25,6 +25,7 @@ import {
   MessageFlags,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
+  type MessageContextMenuCommandInteraction,
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
@@ -47,7 +48,8 @@ type AckableInteraction =
   | ButtonInteraction
   | StringSelectMenuInteraction
   | ModalSubmitInteraction
-  | ChatInputCommandInteraction;
+  | ChatInputCommandInteraction
+  | MessageContextMenuCommandInteraction;
 
 export async function ackWithTimeoutCatch(
   interaction: AckableInteraction,

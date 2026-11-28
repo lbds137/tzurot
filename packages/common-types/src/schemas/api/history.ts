@@ -5,6 +5,7 @@
  */
 
 import { z } from 'zod';
+import { EDIT_RESPONSE_MAX_CONTENT_LENGTH } from '../../constants/discord.js';
 
 const PERSONALITY_SLUG_REQUIRED = 'personalitySlug is required';
 
@@ -124,6 +125,46 @@ export const MessageReasoningResponseSchema = z.object({
   /** ISO timestamp of the assistant row — the trace's age, for the retention hint. */
   createdAt: z.string().datetime(),
 });
+
+/**
+ * GET /user/history/editable/:messageId
+ *
+ * The stored text of an assistant reply the caller may edit, looked up by any
+ * of the reply's Discord chunk message IDs. `discordMessageIds` is the full
+ * chunk list in send order, so the bot can edit every chunk of a split reply.
+ * A 404 means no row matched OR the row is not the caller's (existence is
+ * deliberately hidden, as with the reasoning lookup).
+ */
+export const EditableMessageResponseSchema = z.object({
+  /** The stored reply text, without bot-added footers or DM prefixes. */
+  content: z.string(),
+  /** Every Discord message id the reply was delivered as, in send order. */
+  discordMessageIds: z.array(z.string()).min(1),
+  personalityId: z.string(),
+});
+
+/**
+ * PATCH /user/history/message/:messageId
+ *
+ * Replaces the stored text of an assistant reply after the bot has edited the
+ * Discord message(s). `discordMessageIds` is the chunk list as it stands after
+ * the edit (chunks may have been added or removed).
+ */
+export const EditAssistantMessageRequestSchema = z.object({
+  content: z.string().min(1).max(EDIT_RESPONSE_MAX_CONTENT_LENGTH),
+  discordMessageIds: z.array(z.string().min(1)).min(1).max(20),
+});
+
+/** PATCH /user/history/message/:messageId response. */
+export const EditAssistantMessageResponseSchema = z.object({
+  edited: z.literal(true),
+  /** False when the exchange's long-term memory was not rewritten (non-fatal). */
+  memoryUpdated: z.boolean(),
+});
+
+export type EditableMessageResponse = z.infer<typeof EditableMessageResponseSchema>;
+export type EditAssistantMessageRequest = z.infer<typeof EditAssistantMessageRequestSchema>;
+export type EditAssistantMessageResponse = z.infer<typeof EditAssistantMessageResponseSchema>;
 
 /** DELETE /user/history/hard-delete */
 export const HardDeleteHistoryResponseSchema = z.object({

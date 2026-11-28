@@ -10,7 +10,7 @@
 import type { RequestHandler, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { MemoryUpdateSchema, SetMemoryLockSchema } from '@tzurot/common-types/schemas/api/memory';
-import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { propagateDeletionToFacts } from '@tzurot/conversation-history';
 import type { RouteDeps } from '../routeDeps.js';
@@ -203,48 +203,65 @@ export const handleUpdateMemory = (deps: RouteDeps): RequestHandler => {
       return;
     }
 
-    // Re-embed the edited content so semantic search matches what the memory
-    // now says: editing content while keeping the old vector makes retrieval
-    // match text the user deliberately changed away from. The vector (or a
-    // NULL when embedding is unavailable — invisible-to-RAG is safer than
-    // wrongly matched) is computed BEFORE the write so content and embedding
-    // commit in one transaction; a partial commit would resurrect the exact
-    // stale-vector bug this route guards against. Schema already trims.
-    const vector = await computeMemoryVector(memoryId, content);
-    const [memory] = await prisma.$transaction([
-      // @spec MEM-ARCH-024
-      prisma.memory.update({
-        where: { id: memoryId },
-        data: {
-          content,
-          updatedAt: new Date(),
-          // A genuine content edit invalidates the stored summary outright,
-          // and SHOULD bump updated_at — only the summarizer's own
-          // background writes must not (they use raw SQL for that reason).
-          assistantSummary: null,
-          summaryStatus: null,
-          summaryAttempts: 0,
-          summaryModel: null,
-          summaryPromptVersion: null,
-          sourceContentHash: null,
-          summaryRequestedAt: null,
-          summaryCompletedAt: null,
-          summaryLastError: null,
-          // Not cleared on edit: the trace records how the model reasoned when
-          // it replied, and sync's keepNonNullColumns relies on no write path
-          // clearing it.
-        },
-        include: PERSONALITY_INCLUDE,
-      }),
-      vector === null
-        ? prisma.$executeRaw`UPDATE memories SET embedding = NULL WHERE id = ${memoryId}::uuid`
-        : prisma.$executeRaw`UPDATE memories SET embedding = ${vector}::vector WHERE id = ${memoryId}::uuid`,
-    ]);
+    const memory = await writeMemoryContent(prisma, memoryId, content);
 
     logger.info({ discordUserId, memoryId }, 'Memory updated');
     sendCustomSuccess(res, { memory: transformMemory(memory) }, StatusCodes.OK);
   });
 };
+
+/**
+ * The single `memories.content` writer (guard:memory-content-writers allowlists
+ * this file only): every content edit — the memory PATCH route and the
+ * conversation-reply edit — goes through here so the summary reset and the
+ * re-embed can never be skipped.
+ *
+ * Re-embeds the edited content so semantic search matches what the memory
+ * now says: editing content while keeping the old vector makes retrieval
+ * match text the user deliberately changed away from. The vector (or a
+ * NULL when embedding is unavailable — invisible-to-RAG is safer than
+ * wrongly matched) is computed BEFORE the write so content and embedding
+ * commit in one transaction; a partial commit would resurrect the exact
+ * stale-vector bug this route guards against. Callers pass already-trimmed
+ * content where trimming matters (the PATCH schema trims).
+ */
+export async function writeMemoryContent(
+  prisma: PrismaClient,
+  memoryId: string,
+  content: string
+): Promise<Prisma.MemoryGetPayload<{ include: typeof PERSONALITY_INCLUDE }>> {
+  const vector = await computeMemoryVector(memoryId, content);
+  const [memory] = await prisma.$transaction([
+    // @spec MEM-ARCH-024
+    prisma.memory.update({
+      where: { id: memoryId },
+      data: {
+        content,
+        updatedAt: new Date(),
+        // A genuine content edit invalidates the stored summary outright,
+        // and SHOULD bump updated_at — only the summarizer's own
+        // background writes must not (they use raw SQL for that reason).
+        assistantSummary: null,
+        summaryStatus: null,
+        summaryAttempts: 0,
+        summaryModel: null,
+        summaryPromptVersion: null,
+        sourceContentHash: null,
+        summaryRequestedAt: null,
+        summaryCompletedAt: null,
+        summaryLastError: null,
+        // Not cleared on edit: the trace records how the model reasoned when
+        // it replied, and sync's keepNonNullColumns relies on no write path
+        // clearing it.
+      },
+      include: PERSONALITY_INCLUDE,
+    }),
+    vector === null
+      ? prisma.$executeRaw`UPDATE memories SET embedding = NULL WHERE id = ${memoryId}::uuid`
+      : prisma.$executeRaw`UPDATE memories SET embedding = ${vector}::vector WHERE id = ${memoryId}::uuid`,
+  ]);
+  return memory;
+}
 
 /**
  * Compute the pgvector text literal for edited memory content — bound as a

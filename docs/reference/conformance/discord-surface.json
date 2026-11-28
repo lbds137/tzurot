@@ -6,8 +6,8 @@
     "note": "doc-109 Appendix A groups 4 (voice) and 7 (snowflakes) are semantic and stay manual"
   },
   "totals": {
-    "entries": 3092,
-    "sites": 7173
+    "entries": 3141,
+    "sites": 7259
   },
   "entries": [
     {
@@ -2079,6 +2079,126 @@
       "file": "services/bot-client/src/commands/editCharacterMessage.ts",
       "symbol": "setType",
       "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "author",
+      "count": 3
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "channelId",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "channels",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "client",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "content",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "customId",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "displayAvatarURL",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "fetch",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "fields",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "getTextInputValue",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "id",
+      "count": 9
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "isTextBased",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "isThread",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "messages",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "setName",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "setType",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "targetMessage",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "user",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "username",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "webhookId",
+      "count": 3
     },
     {
       "category": "client-methods",
@@ -5966,7 +6086,7 @@
       "category": "client-methods",
       "file": "services/bot-client/src/handlers/CommandHandler.ts",
       "symbol": "name",
-      "count": 9
+      "count": 14
     },
     {
       "category": "client-methods",
@@ -10632,6 +10752,48 @@
     },
     {
       "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "code",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "delete",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "deleteMessage",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "edit",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "editMessage",
+      "count": 1
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "id",
+      "count": 10
+    },
+    {
+      "category": "client-methods",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "send",
+      "count": 2
+    },
+    {
+      "category": "client-methods",
       "file": "services/bot-client/src/utils/embedComponents.ts",
       "symbol": "color",
       "count": 1
@@ -12018,6 +12180,12 @@
     },
     {
       "category": "command-options",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "ContextMenuCommandBuilder",
+      "count": 1
+    },
+    {
+      "category": "command-options",
       "file": "services/bot-client/src/commands/feedback/index.ts",
       "symbol": "SlashCommandBuilder",
       "count": 1
@@ -13206,6 +13374,42 @@
     },
     {
       "category": "discord-enums",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "ApplicationCommandType.Message",
+      "count": 1
+    },
+    {
+      "category": "discord-enums",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "ChannelType.AnnouncementThread",
+      "count": 1
+    },
+    {
+      "category": "discord-enums",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "ChannelType.GuildAnnouncement",
+      "count": 1
+    },
+    {
+      "category": "discord-enums",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "ChannelType.GuildText",
+      "count": 1
+    },
+    {
+      "category": "discord-enums",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "ChannelType.PrivateThread",
+      "count": 1
+    },
+    {
+      "category": "discord-enums",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "ChannelType.PublicThread",
+      "count": 1
+    },
+    {
+      "category": "discord-enums",
       "file": "services/bot-client/src/commands/inspect/browse.ts",
       "symbol": "ButtonStyle.Secondary",
       "count": 1
@@ -13758,6 +13962,24 @@
     },
     {
       "category": "discord-enums",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "RESTJSONErrorCodes.CannotEditMessageAuthoredByAnotherUser",
+      "count": 1
+    },
+    {
+      "category": "discord-enums",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "RESTJSONErrorCodes.UnknownMessage",
+      "count": 1
+    },
+    {
+      "category": "discord-enums",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "RESTJSONErrorCodes.UnknownWebhook",
+      "count": 1
+    },
+    {
+      "category": "discord-enums",
       "file": "services/bot-client/src/utils/embedComponents.ts",
       "symbol": "ComponentType.Container",
       "count": 1
@@ -13983,6 +14205,12 @@
       "file": "services/bot-client/src/commands/deny/detailEdit.ts",
       "symbol": "MessageFlags.Ephemeral",
       "count": 5
+    },
+    {
+      "category": "flags",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "MessageFlags.Ephemeral",
+      "count": 1
     },
     {
       "category": "flags",
@@ -14576,6 +14804,12 @@
       "category": "interaction-acks",
       "file": "services/bot-client/src/commands/deny/detailEdit.ts",
       "symbol": "reply",
+      "count": 1
+    },
+    {
+      "category": "interaction-acks",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "deferReply",
       "count": 1
     },
     {
@@ -17064,6 +17298,12 @@
     },
     {
       "category": "message-options",
+      "file": "services/bot-client/src/commands/editResponse.ts",
+      "symbol": "flags",
+      "count": 1
+    },
+    {
+      "category": "message-options",
       "file": "services/bot-client/src/commands/history/index.ts",
       "symbol": "components",
       "count": 1
@@ -18114,6 +18354,18 @@
     },
     {
       "category": "message-options",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "allowedMentions",
+      "count": 2
+    },
+    {
+      "category": "message-options",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "content",
+      "count": 2
+    },
+    {
+      "category": "message-options",
       "file": "services/bot-client/src/utils/maintenanceResponses.ts",
       "symbol": "content",
       "count": 1
@@ -18462,6 +18714,12 @@
     },
     {
       "category": "unclassified",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "attachments",
+      "count": 1
+    },
+    {
+      "category": "unclassified",
       "file": "services/bot-client/src/utils/modal/toolkit.ts",
       "symbol": "CheckboxBuilder",
       "count": 1
@@ -18561,6 +18819,42 @@
       "file": "services/bot-client/src/utils/WebhookManager.ts",
       "symbol": "username",
       "count": 2
+    },
+    {
+      "category": "webhook-options",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "allowedMentions",
+      "count": 2
+    },
+    {
+      "category": "webhook-options",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "attachments",
+      "count": 1
+    },
+    {
+      "category": "webhook-options",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "avatarURL",
+      "count": 1
+    },
+    {
+      "category": "webhook-options",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "content",
+      "count": 2
+    },
+    {
+      "category": "webhook-options",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "threadId",
+      "count": 2
+    },
+    {
+      "category": "webhook-options",
+      "file": "services/bot-client/src/utils/editResponse/discordEdit.ts",
+      "symbol": "username",
+      "count": 1
     }
   ]
 }

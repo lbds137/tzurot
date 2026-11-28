@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MessageRole, REPLY_PAIRING_WINDOW_MS } from '@tzurot/common-types/constants/message';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
-import { triggerMemoryExists } from './legacyIncognitoEvidence.js';
+import { findImmediateTriggerRow, triggerMemoryExists } from './legacyIncognitoEvidence.js';
 
 function makePrisma(overrides: {
   trigger?: { role?: string; discordMessageId: string[]; deletedAt?: Date | null } | null;
@@ -164,5 +164,31 @@ describe('triggerMemoryExists', () => {
       },
       select: { id: true },
     });
+  });
+});
+
+describe('findImmediateTriggerRow', () => {
+  const createdAt = new Date('2026-05-10T12:00:00.001Z');
+  const base = { channelId: 'chan-100', personalityId: 'pers-200', createdAt };
+
+  it('adds the personaId filter when given and omits it when not', async () => {
+    const { prisma, findTrigger } = makePrisma({ trigger: { discordMessageId: ['1'] } });
+
+    const withPersona = await findImmediateTriggerRow(prisma, { ...base, personaId: 'persona-9' });
+    await findImmediateTriggerRow(prisma, base);
+
+    expect(withPersona).toEqual({ discordMessageId: ['1'] });
+    expect(findTrigger.mock.calls[0][0].where).toMatchObject({ personaId: 'persona-9' });
+    expect(findTrigger.mock.calls[1][0].where).not.toHaveProperty('personaId');
+  });
+
+  it('returns null for a non-user row or one without a Discord message id', async () => {
+    const assistant = makePrisma({
+      trigger: { role: MessageRole.Assistant, discordMessageId: ['1'] },
+    });
+    const noId = makePrisma({ trigger: { discordMessageId: [] } });
+
+    expect(await findImmediateTriggerRow(assistant.prisma, base)).toBeNull();
+    expect(await findImmediateTriggerRow(noId.prisma, base)).toBeNull();
   });
 });

@@ -758,6 +758,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:editAssistantMessage",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "PATCH /history/message/:messageId",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:enableFresh",
       "kind": "http-route",
       "producer": "client",
@@ -945,6 +959,20 @@
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "GET /diagnostic/by-response/:messageId",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:getEditableMessage",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "GET /history/editable/:messageId",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"

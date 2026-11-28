@@ -19,6 +19,10 @@ const GUILD_SNOWFLAKE = '800000000000000002';
 const HISTORY_UNDO_SLUG = 'conf-history-undo';
 const REASONING_MESSAGE_ID = '800000000000000031';
 const REASONING_ROW_ID = '5c110000-0000-4000-8000-000000000001';
+const EDITABLE_MESSAGE_ID = '800000000000000032';
+const EDITABLE_ROW_ID = '5c110000-0000-4000-8000-000000000002';
+const EDIT_MESSAGE_ID = '800000000000000033';
+const EDIT_ROW_ID = '5c110000-0000-4000-8000-000000000003';
 
 /**
  * Insert a BYOK wallet row directly. The set route validates keys against
@@ -184,6 +188,48 @@ export const userResourceFixtures: Record<string, ConformanceEntry> = {
       });
     },
     params: { messageId: REASONING_MESSAGE_ID },
+  },
+
+  getEditableMessage: {
+    seed: async ctx => {
+      const { id: personalityId } = await createPersonality(ctx, 'conf-history-editable');
+      await ctx.prisma.conversationHistory.create({
+        data: {
+          id: EDITABLE_ROW_ID,
+          channelId: CHANNEL_SNOWFLAKE,
+          guildId: GUILD_SNOWFLAKE,
+          personalityId,
+          personaId: ctx.actorPersonaId,
+          role: 'assistant',
+          content: 'A conformance editable turn.',
+          discordMessageId: [EDITABLE_MESSAGE_ID],
+        },
+      });
+    },
+    params: { messageId: EDITABLE_MESSAGE_ID },
+  },
+
+  editAssistantMessage: {
+    seed: async ctx => {
+      const { id: personalityId } = await createPersonality(ctx, 'conf-history-edit');
+      await ctx.prisma.conversationHistory.create({
+        data: {
+          id: EDIT_ROW_ID,
+          channelId: CHANNEL_SNOWFLAKE,
+          guildId: GUILD_SNOWFLAKE,
+          personalityId,
+          personaId: ctx.actorPersonaId,
+          role: 'assistant',
+          content: 'A conformance assistant turn to edit.',
+          discordMessageId: [EDIT_MESSAGE_ID],
+        },
+      });
+    },
+    params: { messageId: EDIT_MESSAGE_ID },
+    body: {
+      content: 'Edited by the conformance harness.',
+      discordMessageIds: [EDIT_MESSAGE_ID],
+    },
   },
 
   // ---- NSFW verification ----------------------------------------------------
