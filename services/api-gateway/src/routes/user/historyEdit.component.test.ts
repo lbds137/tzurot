@@ -392,6 +392,61 @@ describe('edit assistant reply (component, PGLite)', () => {
       expect(await content('memories', MEMORY_B)).toBe('{user}: hi\n{assistant}: OLD-B');
     });
 
+    describe("the editor's own earlier message under one reply", () => {
+      const EARLIER_TRIGGER_ROW = '8d4f2a88-0000-4000-8000-00000000f107';
+      const EARLIER_MEMORY = '8d4f2a88-0000-4000-8000-00000000f205';
+      const EARLIER_DISCORD_ID = '888888888888888888';
+
+      beforeEach(async () => {
+        // m1 (earlier) then the primary trigger m2 (TRIGGER_ROW), one reply after.
+        await prisma.conversationHistory.create({
+          data: {
+            id: EARLIER_TRIGGER_ROW,
+            channelId: CHANNEL,
+            personalityId: PERSONALITY_A,
+            personaId: OWNER_PERSONA,
+            role: 'user',
+            content: 'hello first',
+            discordMessageId: [EARLIER_DISCORD_ID],
+            createdAt: new Date('2026-06-04T11:59:58.000Z'),
+          },
+        });
+        await prisma.memory.create({
+          data: {
+            id: EARLIER_MEMORY,
+            personaId: OWNER_PERSONA,
+            personalityId: PERSONALITY_A,
+            content: '{user}: hello first\n{assistant}: OLD-A',
+            messageIds: [EARLIER_DISCORD_ID],
+            senders: ['edituser'],
+          },
+        });
+      });
+
+      it('rewrites the memory keyed on the earlier trigger as well as the primary one', async () => {
+        const { json } = await patch(OWNER_DISCORD, REPLY_A_DISCORD_ID, {
+          content: 'NEW-A',
+          discordMessageIds: [REPLY_A_DISCORD_ID],
+        });
+
+        expect(json).toHaveBeenCalledWith({ edited: true, memory: { kind: 'synced' } });
+        expect(await content('memories', MEMORY_A)).toBe('{user}: hi\n{assistant}: NEW-A');
+        expect(await content('memories', EARLIER_MEMORY)).toBe(
+          '{user}: hello first\n{assistant}: NEW-A'
+        );
+      });
+
+      it('refuses the edit-check with locked when the earlier memory is locked', async () => {
+        await prisma.memory.update({ where: { id: EARLIER_MEMORY }, data: { isLocked: true } });
+
+        const json = await check('NEW-A');
+
+        expect(json).toHaveBeenCalledWith(
+          expect.objectContaining({ memorySync: { kind: 'blocked', reason: 'locked' } })
+        );
+      });
+    });
+
     it('refuses the edit-check when the other user memory is locked', async () => {
       await prisma.memory.update({ where: { id: SIBLING_MEMORY }, data: { isLocked: true } });
 

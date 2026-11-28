@@ -212,10 +212,6 @@ export const handleEditAssistantMessage = (deps: RouteDeps): RequestHandler => {
       return;
     }
 
-    // Captured before the write: other users' memories of a coalesced reply are
-    // matched on the text they still hold, which is the pre-edit text.
-    const previousReply = row.content;
-
     // Same semantics as ConversationSyncService.updateMessageContent, plus the
     // chunk-id list, which may have grown or shrunk with the edit.
     await prisma.conversationHistory.update({
@@ -234,11 +230,9 @@ export const handleEditAssistantMessage = (deps: RouteDeps): RequestHandler => {
     // here means the memory changed after that preflight (a race).
     let memory: z.infer<typeof EditAssistantMessageResponseSchema>['memory'] = { kind: 'none' };
     try {
-      const plan = await planExchangeMemorySync(
-        prisma,
-        { ...row, content: previousReply },
-        content
-      );
+      // `row` is the pre-update select, so `row.content` is the pre-edit text
+      // that sibling memories of a coalesced reply are matched on.
+      const plan = await planExchangeMemorySync(prisma, row, content);
       if (plan.kind === 'blocked') {
         logger.warn(
           { rowId: row.id, reason: plan.reason },

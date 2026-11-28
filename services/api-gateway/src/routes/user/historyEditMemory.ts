@@ -87,15 +87,34 @@ interface SiblingPlan {
   pendingIds: string[];
 }
 
+/** What the primary plan already covers; siblings must not count it again. */
+interface PrimaryCoverage {
+  triggerIds: string[];
+  memoryId: string | undefined;
+  pendingId: string | undefined;
+}
+
+function primaryCoverage(
+  triggerIds: string[],
+  memory: { id: string } | undefined,
+  pending: { id: string } | undefined
+): PrimaryCoverage {
+  return { triggerIds, memoryId: memory?.id, pendingId: pending?.id };
+}
+
 /**
- * Other users' trigger rows a coalesced reply may have answered: user rows of
- * this channel and personality from other personas, after the personality's
- * previous reply (or, with none, within the coalescing hold deadline) and
- * before this one. Soft-deleted rows are excluded.
+ * Trigger rows a coalesced reply may have answered besides the primary one:
+ * user rows of this channel and personality (any persona, the editor's own
+ * earlier messages included), after the personality's previous reply (or, with
+ * none, within the coalescing hold deadline) and before this one. The primary
+ * trigger is excluded in the query (`NOT`), so `take` bounds real candidates.
+ * Soft-deleted rows are kept: a deleted message's memory can still be live
+ * (see `findImmediateTriggerRow`), and the exact-reply match still guards.
  */
 async function findSiblingCandidates(
   prisma: PrismaClient,
-  row: EditedReplyRow
+  row: EditedReplyRow,
+  primaryTriggerIds: string[]
 ): Promise<SiblingCandidate[]> {
   const { channelId, personalityId } = row;
   const previousReply = await prisma.conversationHistory.findFirst({
@@ -116,9 +135,10 @@ async function findSiblingCandidates(
       channelId,
       personalityId,
       role: MessageRole.User,
-      deletedAt: null,
-      personaId: { not: row.personaId },
       createdAt: { lt: row.createdAt, gt: after },
+      ...(primaryTriggerIds.length > 0 && {
+        NOT: { discordMessageId: { hasSome: primaryTriggerIds } },
+      }),
     },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     select: { personaId: true, discordMessageId: true },
@@ -131,15 +151,16 @@ async function findSiblingCandidates(
 interface SiblingMatch {
   id: string;
   text: string;
-  blocker: 'other-locked' | 'chunked' | null;
+  blocker: 'locked' | 'other-locked' | 'chunked' | null;
 }
 
-function memoryBlocker(memory: {
-  isLocked: boolean;
-  chunkGroupId: string | null;
-}): SiblingMatch['blocker'] {
+/** A locked memory of the editor's own persona is `locked`; anyone else's is `other-locked`. */
+function memoryBlocker(
+  memory: { personaId: string | null; isLocked: boolean; chunkGroupId: string | null },
+  editorPersonaId: string
+): SiblingMatch['blocker'] {
   if (memory.isLocked) {
-    return 'other-locked';
+    return memory.personaId === editorPersonaId ? 'locked' : 'other-locked';
   }
   return memory.chunkGroupId === null ? null : 'chunked';
 }
@@ -158,32 +179,35 @@ function pendingMessageIds(metadata: unknown): string[] {
   return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [];
 }
 
-/**
- * Plan the other users' memories of this reply (coalesced replies). A memory
- * or pending row is a sibling only when it belongs to a candidate's persona and
- * trigger AND holds exactly the pre-edit reply; one with a different reply is
- * another exchange and is ignored. One batched query per table, never one per
- * candidate.
- */
-async function planSiblings(
-  prisma: PrismaClient,
-  row: EditedReplyRow,
-  newReply: string | undefined
-): Promise<SiblingPlan> {
-  const none: SiblingPlan = { blocked: null, memoryIds: [], pendingIds: [] };
-  const candidates = await findSiblingCandidates(prisma, row);
-  if (candidates.length === 0) {
-    return none;
-  }
-  const { personalityId } = row;
-  const take = candidates.length * SIBLING_ROWS_PER_CANDIDATE;
+interface SiblingRows {
+  memories: {
+    id: string;
+    personaId: string | null;
+    messageIds: string[];
+    content: string;
+    isLocked: boolean;
+    chunkGroupId: string | null;
+  }[];
+  pendings: { id: string; personaId: string | null; text: string; metadata: unknown }[];
+}
 
+/** One batched read per table of the rows the candidates may own. */
+async function loadSiblingRows(
+  prisma: PrismaClient,
+  personalityId: string,
+  candidates: SiblingCandidate[],
+  primary: PrimaryCoverage
+): Promise<SiblingRows> {
+  const take = candidates.length * SIBLING_ROWS_PER_CANDIDATE;
   const memories = await prisma.memory.findMany({
     where: {
       personalityId,
       visibility: 'normal',
       type: 'memory',
       isSummarized: false,
+      // The primary plan already holds its own rows; one keyed on several
+      // triggers must not come back as a sibling (and read as ambiguous).
+      ...(primary.memoryId !== undefined && { id: { not: primary.memoryId } }),
       OR: candidates.map(candidate => ({
         personaId: candidate.personaId,
         messageIds: { hasSome: candidate.discordMessageId },
@@ -202,6 +226,7 @@ async function planSiblings(
   const pendings = await prisma.pendingMemory.findMany({
     where: {
       personalityId,
+      ...(primary.pendingId !== undefined && { id: { not: primary.pendingId } }),
       OR: candidates.flatMap(candidate =>
         candidate.discordMessageId.map(id => ({
           personaId: candidate.personaId,
@@ -212,6 +237,34 @@ async function planSiblings(
     select: { id: true, personaId: true, text: true, metadata: true },
     take,
   });
+  return { memories, pendings };
+}
+
+/**
+ * Plan the other memories of this reply (coalesced replies: other users', and
+ * the editor's own earlier messages). A memory
+ * or pending row is a sibling only when it belongs to a candidate's persona and
+ * trigger AND holds exactly the pre-edit reply; one with a different reply is
+ * another exchange and is ignored. One batched query per table, never one per
+ * candidate.
+ */
+async function planSiblings(
+  prisma: PrismaClient,
+  row: EditedReplyRow,
+  newReply: string | undefined,
+  primary: PrimaryCoverage
+): Promise<SiblingPlan> {
+  const none: SiblingPlan = { blocked: null, memoryIds: [], pendingIds: [] };
+  const candidates = await findSiblingCandidates(prisma, row, primary.triggerIds);
+  if (candidates.length === 0) {
+    return none;
+  }
+  const { memories, pendings } = await loadSiblingRows(
+    prisma,
+    row.personalityId,
+    candidates,
+    primary
+  );
 
   const reasons = new Set<MemorySyncBlockReason>();
   const memoryIds = new Set<string>();
@@ -232,14 +285,30 @@ async function planSiblings(
   for (const candidate of candidates) {
     const owns = (personaId: string | null, ids: string[]): boolean =>
       personaId === candidate.personaId && ids.some(id => candidate.discordMessageId.includes(id));
-    const sameReply = (text: string): boolean => storedReply(text) === row.content;
+    // Invariant: the history row's `content` equals the reply half of the memory
+    // text, both written from the ai-worker's response content; the component
+    // test "rewrites the other user memory and pending row" pins it. A row that
+    // is the candidate's but holds a different reply is another exchange.
+    const sameReply = (id: string, text: string): boolean => {
+      const same = storedReply(text) === row.content;
+      if (!same) {
+        logger.debug(
+          { rowId: row.id, candidatePersonaId: candidate.personaId, candidateRowId: id },
+          'Sibling memory row holds a different reply; left alone'
+        );
+      }
+      return same;
+    };
     collect(
       memories
-        .filter(memory => owns(memory.personaId, memory.messageIds) && sameReply(memory.content))
+        .filter(
+          memory =>
+            owns(memory.personaId, memory.messageIds) && sameReply(memory.id, memory.content)
+        )
         .map(memory => ({
           id: memory.id,
           text: memory.content,
-          blocker: memoryBlocker(memory),
+          blocker: memoryBlocker(memory, row.personaId),
         })),
       memoryIds
     );
@@ -247,7 +316,8 @@ async function planSiblings(
       pendings
         .filter(
           pending =>
-            owns(pending.personaId, pendingMessageIds(pending.metadata)) && sameReply(pending.text)
+            owns(pending.personaId, pendingMessageIds(pending.metadata)) &&
+            sameReply(pending.id, pending.text)
         )
         .map(pending => ({ id: pending.id, text: pending.text, blocker: null })),
       pendingIds
@@ -258,6 +328,7 @@ async function planSiblings(
   // (A matched sibling already parses as stored, so no stored `off-template`.)
   const order: MemorySyncBlockReason[] = [
     'ambiguous',
+    'locked',
     'other-locked',
     'chunked',
     REPLY_OFF_TEMPLATE,
@@ -352,8 +423,14 @@ export async function planExchangeMemorySync(
   }
 
   // The primary's reasons outrank the siblings': a block here is another
-  // user's memory of the same coalesced reply.
-  const siblings = await planSiblings(prisma, row, newReply);
+  // memory of the same coalesced reply (another user's, or the editor's own
+  // earlier message).
+  const siblings = await planSiblings(
+    prisma,
+    row,
+    newReply,
+    primaryCoverage(trigger.discordMessageId, memory, pending)
+  );
   if (siblings.blocked !== null) {
     logger.warn(
       { rowId: row.id, reason: siblings.blocked },
